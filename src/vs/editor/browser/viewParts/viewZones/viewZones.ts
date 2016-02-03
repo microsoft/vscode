@@ -5,11 +5,11 @@
 'use strict';
 
 import errors = require('vs/base/common/errors');
-import DomUtils = require('vs/base/browser/dom');
 
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
+import {StyleMutator} from 'vs/base/browser/styleMutator';
 
 export interface IMyViewZone {
 	whitespaceId: number;
@@ -70,7 +70,7 @@ export class ViewZones extends ViewPart {
 					if (this._zones.hasOwnProperty(id)) {
 						if (zone2Height.hasOwnProperty(id)) {
 							// TODO@Alex - edit dom node properties only in render()
-							DomUtils.StyleMutator.setHeight(this._zones[id].delegate.domNode, zone2Height[id]);
+							StyleMutator.setHeight(this._zones[id].delegate.domNode, zone2Height[id]);
 						}
 					}
 				}
@@ -180,9 +180,9 @@ export class ViewZones extends ViewPart {
 				return;
 			}
 			myZone.delegate.domNode.style.position = 'absolute';
-			DomUtils.StyleMutator.setHeight(myZone.delegate.domNode, computedHeight);
+			StyleMutator.setHeight(myZone.delegate.domNode, computedHeight);
 			myZone.delegate.domNode.style.width = '100%';
-			DomUtils.StyleMutator.setDisplay(myZone.delegate.domNode, 'none');
+			StyleMutator.setDisplay(myZone.delegate.domNode, 'none');
 		});
 
 		this._zones[myZone.whitespaceId.toString()] = myZone;
@@ -293,17 +293,17 @@ export class ViewZones extends ViewPart {
 
 					if (visibleZones.hasOwnProperty(id)) {
 						// zone is visible
-						DomUtils.StyleMutator.setTop(zone.delegate.domNode, (visibleZones[id].verticalOffset - ctx.bigNumbersDelta));
-						DomUtils.StyleMutator.setHeight(zone.delegate.domNode, visibleZones[id].height);
+						StyleMutator.setTop(zone.delegate.domNode, (visibleZones[id].verticalOffset - ctx.bigNumbersDelta));
+						StyleMutator.setHeight(zone.delegate.domNode, visibleZones[id].height);
 						if (!zone.isVisible) {
-							DomUtils.StyleMutator.setDisplay(zone.delegate.domNode, 'block');
+							StyleMutator.setDisplay(zone.delegate.domNode, 'block');
 							zone.delegate.domNode.setAttribute('monaco-visible-view-zone', 'true');
 							zone.isVisible = true;
 						}
 						this._safeCallOnDomNodeTop(zone.delegate, ctx.getScrolledTopFromAbsoluteTop(visibleZones[id].verticalOffset));
 					} else {
 						if (zone.isVisible) {
-							DomUtils.StyleMutator.setDisplay(zone.delegate.domNode, 'none');
+							StyleMutator.setDisplay(zone.delegate.domNode, 'none');
 							zone.delegate.domNode.removeAttribute('monaco-visible-view-zone');
 							zone.isVisible = false;
 						}
@@ -313,7 +313,7 @@ export class ViewZones extends ViewPart {
 			}
 
 			if (hasVisibleZone) {
-				DomUtils.StyleMutator.setWidth(this.domNode, ctx.scrollWidth);
+				StyleMutator.setWidth(this.domNode, ctx.scrollWidth);
 			}
 		});
 	}

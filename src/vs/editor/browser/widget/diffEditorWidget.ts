@@ -21,6 +21,7 @@ import Schedulers = require('vs/base/common/async');
 import {Range} from 'vs/editor/common/core/range';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
+import {StyleMutator} from 'vs/base/browser/styleMutator';
 
 interface IEditorScrollEvent {
 	scrollLeft: number;
@@ -844,11 +845,11 @@ export class DiffEditorWidget extends EventEmitter.EventEmitter implements Edito
 	private _layoutOverviewViewport(): void {
 		var layout = this._computeOverviewViewport();
 		if (!layout) {
-			DomUtils.StyleMutator.setTop(this._overviewViewportDomElement, 0);
-			DomUtils.StyleMutator.setHeight(this._overviewViewportDomElement, 0);
+			StyleMutator.setTop(this._overviewViewportDomElement, 0);
+			StyleMutator.setHeight(this._overviewViewportDomElement, 0);
 		} else {
-			DomUtils.StyleMutator.setTop(this._overviewViewportDomElement, layout.top);
-			DomUtils.StyleMutator.setHeight(this._overviewViewportDomElement, layout.height);
+			StyleMutator.setTop(this._overviewViewportDomElement, layout.top);
+			StyleMutator.setHeight(this._overviewViewportDomElement, layout.height);
 		}
 	}
 

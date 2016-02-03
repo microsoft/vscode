@@ -18,13 +18,14 @@ import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import {Disposable} from 'vs/base/common/lifecycle';
 import {Widget} from 'vs/base/browser/ui/widget';
-import {clearNode, StyleMutator} from 'vs/base/browser/dom';
+import {clearNode} from 'vs/base/browser/dom';
 import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {ToggleTabFocusModeAction} from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 import * as Strings from 'vs/base/common/strings';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {StyleMutator} from 'vs/base/browser/styleMutator';
 
 const NLS_SHOW_ACCESSIBILITY_HELP_ACTION_LABEL = nls.localize('ShowAccessibilityHelpAction',"Show Accessibility Help");
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = 'accessibilityHelpWidgetVisible';

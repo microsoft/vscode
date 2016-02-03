@@ -10,7 +10,7 @@ import 'vs/css!./rulers';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
-import {StyleMutator} from 'vs/base/browser/dom';
+import {StyleMutator} from 'vs/base/browser/styleMutator';
 
 export class Rulers extends ViewPart {
 

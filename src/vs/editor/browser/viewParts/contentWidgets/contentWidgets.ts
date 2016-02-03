@@ -11,6 +11,7 @@ import * as DomUtils from 'vs/base/browser/dom';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
+import {StyleMutator} from 'vs/base/browser/styleMutator';
 
 interface IWidgetData {
 	allowEditorOverflow: boolean;
@@ -112,7 +113,7 @@ export class ViewContentWidgets extends ViewPart {
 			let widgetId:string;
 			for (widgetId in this._widgets) {
 				if (this._widgets.hasOwnProperty(widgetId)) {
-					DomUtils.StyleMutator.setMaxWidth(this._widgets[widgetId].widget.getDomNode(), this._contentWidth);
+					StyleMutator.setMaxWidth(this._widgets[widgetId].widget.getDomNode(), this._contentWidth);
 				}
 			}
 		});
@@ -146,8 +147,8 @@ export class ViewContentWidgets extends ViewPart {
 
 		let domNode = widget.getDomNode();
 		domNode.style.position = 'absolute';
-		DomUtils.StyleMutator.setMaxWidth(domNode, this._contentWidth);
-		DomUtils.StyleMutator.setVisibility(domNode, 'hidden');
+		StyleMutator.setMaxWidth(domNode, this._contentWidth);
+		StyleMutator.setVisibility(domNode, 'hidden');
 		domNode.setAttribute('widgetId', widget.getId());
 
 		if (widgetData.allowEditorOverflow) {
@@ -378,14 +379,14 @@ export class ViewContentWidgets extends ViewPart {
 
 					if (data.hasOwnProperty(widgetId)) {
 						if (widget.allowEditorOverflow) {
-							DomUtils.StyleMutator.setTop(domNode, data[widgetId].top);
-							DomUtils.StyleMutator.setLeft(domNode, data[widgetId].left);
+							StyleMutator.setTop(domNode, data[widgetId].top);
+							StyleMutator.setLeft(domNode, data[widgetId].left);
 						} else {
-							DomUtils.StyleMutator.setTop(domNode, data[widgetId].top + ctx.viewportTop - ctx.bigNumbersDelta);
-							DomUtils.StyleMutator.setLeft(domNode, data[widgetId].left);
+							StyleMutator.setTop(domNode, data[widgetId].top + ctx.viewportTop - ctx.bigNumbersDelta);
+							StyleMutator.setLeft(domNode, data[widgetId].left);
 						}
 						if (!widget.isVisible) {
-							DomUtils.StyleMutator.setVisibility(domNode, 'inherit');
+							StyleMutator.setVisibility(domNode, 'inherit');
 							domNode.setAttribute('monaco-visible-content-widget', 'true');
 							widget.isVisible = true;
 						}
@@ -393,7 +394,7 @@ export class ViewContentWidgets extends ViewPart {
 						if (widget.isVisible) {
 							domNode.removeAttribute('monaco-visible-content-widget');
 							widget.isVisible = false;
-							DomUtils.StyleMutator.setVisibility(domNode, 'hidden');
+							StyleMutator.setVisibility(domNode, 'hidden');
 						}
 					}
 				}

@@ -25,6 +25,7 @@ import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {Range} from 'vs/editor/common/core/range';
+import {StyleMutator} from 'vs/base/browser/styleMutator';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_DEFINE_MESSAGE = nls.localize('defineKeybinding.initial', "Press desired key combination and ENTER");
@@ -325,8 +326,8 @@ class DefineKeybindingWidget implements EditorBrowser.IOverlayWidget {
 
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'defineKeybindingWidget';
-		DomUtils.StyleMutator.setWidth(this._domNode, DefineKeybindingWidget.WIDTH);
-		DomUtils.StyleMutator.setHeight(this._domNode, DefineKeybindingWidget.HEIGHT);
+		StyleMutator.setWidth(this._domNode, DefineKeybindingWidget.WIDTH);
+		StyleMutator.setHeight(this._domNode, DefineKeybindingWidget.HEIGHT);
 
 		this._domNode.style.display = 'none';
 		this._isVisible = false;
@@ -424,10 +425,10 @@ class DefineKeybindingWidget implements EditorBrowser.IOverlayWidget {
 		let editorLayout = this._editor.getLayoutInfo();
 
 		let top = Math.round((editorLayout.height - DefineKeybindingWidget.HEIGHT) / 2);
-		DomUtils.StyleMutator.setTop(this._domNode, top);
+		StyleMutator.setTop(this._domNode, top);
 
 		let left = Math.round((editorLayout.width - DefineKeybindingWidget.WIDTH) / 2);
-		DomUtils.StyleMutator.setLeft(this._domNode, left);
+		StyleMutator.setLeft(this._domNode, left);
 	}
 
 	public start(): void {

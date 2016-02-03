@@ -11,6 +11,7 @@ import Lifecycle = require('vs/base/common/lifecycle');
 import {ViewLayer, IVisibleLineData} from 'vs/editor/browser/view/viewLayer';
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
+import {StyleMutator} from 'vs/base/browser/styleMutator';
 
 export class ViewOverlays extends ViewLayer {
 	private _dynamicOverlays:EditorBrowser.IDynamicViewOverlay[];
@@ -178,8 +179,8 @@ class ViewOverlayLine implements IVisibleLineData {
 		if (currentLineNumber !== lineNumber.toString()) {
 			this._domNode.setAttribute('lineNumber', lineNumber.toString());
 		}
-		DomUtils.StyleMutator.setTop(this._domNode, deltaTop);
-		DomUtils.StyleMutator.setHeight(this._domNode, this._context.configuration.editor.lineHeight);
+		StyleMutator.setTop(this._domNode, deltaTop);
+		StyleMutator.setHeight(this._domNode, this._context.configuration.editor.lineHeight);
 	}
 }
 
@@ -188,8 +189,8 @@ export class ContentViewOverlays extends ViewOverlays {
 	constructor(context:EditorBrowser.IViewContext, layoutProvider:EditorBrowser.ILayoutProvider) {
 		super(context, layoutProvider);
 
-		DomUtils.StyleMutator.setWidth(this.domNode, 0);
-		DomUtils.StyleMutator.setHeight(this.domNode, 0);
+		StyleMutator.setWidth(this.domNode, 0);
+		StyleMutator.setHeight(this.domNode, 0);
 	}
 
 	public onScrollWidthChanged(scrollWidth:number): boolean {
@@ -199,7 +200,7 @@ export class ContentViewOverlays extends ViewOverlays {
 	_viewOverlaysRender(ctx:EditorBrowser.IRestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
 
-		DomUtils.StyleMutator.setWidth(this.domNode, this._layoutProvider.getScrollWidth());
+		StyleMutator.setWidth(this.domNode, this._layoutProvider.getScrollWidth());
 	}
 }
 
@@ -217,7 +218,7 @@ export class MarginViewOverlays extends ViewOverlays {
 		this._scrollHeight = layoutProvider.getScrollHeight();
 
 		this.domNode.className = EditorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS + ' monaco-editor-background';
-		DomUtils.StyleMutator.setWidth(this.domNode, 1);
+		StyleMutator.setWidth(this.domNode, 1);
 		this._hasVerticalScroll = true;
 	}
 
@@ -244,7 +245,7 @@ export class MarginViewOverlays extends ViewOverlays {
 		this._requestModificationFrame(() => {
 			var glyphMargin = this._getGlyphMarginDomNode();
 			if (glyphMargin) {
-				DomUtils.StyleMutator.setHeight(glyphMargin, this._scrollHeight);
+				StyleMutator.setHeight(glyphMargin, this._scrollHeight);
 			}
 		});
 		return super.onScrollHeightChanged(scrollHeight) || true;
@@ -256,12 +257,12 @@ export class MarginViewOverlays extends ViewOverlays {
 		this._scrollHeight = this._layoutProvider.getScrollHeight();
 
 		this._requestModificationFrame(() => {
-			DomUtils.StyleMutator.setWidth(this.domNode, layoutInfo.contentLeft);
+			StyleMutator.setWidth(this.domNode, layoutInfo.contentLeft);
 
 			var glyphMargin = this._getGlyphMarginDomNode();
 			if (glyphMargin) {
-				DomUtils.StyleMutator.setLeft(glyphMargin, layoutInfo.glyphMarginLeft);
-				DomUtils.StyleMutator.setWidth(glyphMargin, layoutInfo.glyphMarginWidth);
+				StyleMutator.setLeft(glyphMargin, layoutInfo.glyphMarginLeft);
+				StyleMutator.setWidth(glyphMargin, layoutInfo.glyphMarginWidth);
 			}
 		});
 		return super.onLayoutChanged(layoutInfo) || true;
@@ -278,15 +279,15 @@ export class MarginViewOverlays extends ViewOverlays {
 		if (this._hasVerticalScroll) {
 			if (Browser.canUseTranslate3d) {
 				var transform = 'translate3d(0px, ' + ctx.linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
-				DomUtils.StyleMutator.setTransform(this.domNode, transform);
+				StyleMutator.setTransform(this.domNode, transform);
 			} else {
 				if (this._hasVerticalScroll) {
-					DomUtils.StyleMutator.setTop(this.domNode, ctx.linesViewportData.visibleRangesDeltaTop);
+					StyleMutator.setTop(this.domNode, ctx.linesViewportData.visibleRangesDeltaTop);
 				}
 			}
 			this._hasVerticalScroll = false;
 		}
 		var height = Math.min(this._layoutProvider.getTotalHeight(), 1000000);
-		DomUtils.StyleMutator.setHeight(this.domNode, height);
+		StyleMutator.setHeight(this.domNode, height);
 	}
 }
