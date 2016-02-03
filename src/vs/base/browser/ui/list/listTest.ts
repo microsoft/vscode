@@ -70,10 +70,25 @@ export function setupList(container: HTMLElement) {
 	list = new List(container, new Delegate(), { person: renderer });
 }
 
-export function addPersonToList() {
-	const person = generatePerson();
+export function addPersonToList(name, index) {
+	const person = name
+		? { name, height: 24 }
+		: {
+		name: new Array(16).join().replace(/(.|$)/g, function(){return ((Math.random()*36)|0).toString(36);}),
+		height: 24
+	};
 
-	list.splice(list.length, 0, person);
+	index = Number(index);
+	index = index === NaN ? list.length : Math.min(index, list.length);
+
+	list.splice(index, 0, person);
+}
+
+export function removePersonFromList(index) {
+	index = Number(index);
+	index = index === NaN ? list.length : Math.min(index, list.length - 1);
+
+	list.splice(index, 1);
 }
 
 export function addManyPeopleToList() {
@@ -129,7 +144,7 @@ export function setupTree(container: HTMLElement) {
 }
 
 export function addPersonToTree() {
-	treeModel.push(generatePerson());
+	treeModel.unshift(generatePerson());
 	tree.refresh();
 }
 
@@ -162,6 +177,6 @@ export function addManyBoringPeopleToTree() {
 		people.push(generateBoringPerson());
 	}
 
-	treeModel.push(...people);
+	treeModel.unshift(...people);
 	tree.refresh();
 }

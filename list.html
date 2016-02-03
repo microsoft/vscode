@@ -11,7 +11,17 @@
 
 			require(['vs/base/browser/ui/list/listTest'], function (test) {
 				test.setupList(document.getElementById('list'));
-				document.getElementById('list-add').onclick = test.addPersonToList;
+				document.getElementById('list-add').onclick = function () {
+					test.addPersonToList(
+						document.getElementById('list-name').value,
+						document.getElementById('list-index').value
+					);
+				};
+				document.getElementById('list-remove').onclick = function () {
+					test.removePersonFromList(
+						document.getElementById('list-index').value
+					);
+				};
 				document.getElementById('list-addmany').onclick = test.addManyPeopleToList;
 				document.getElementById('list-addmanyreal').onclick = test.addManyRealPeopleToList;
 				document.getElementById('list-addmanyboring').onclick = test.addManyBoringPeopleToList;
@@ -34,7 +44,10 @@
 	<body>
 		<div>
 			<div>
+				<input id="list-name" placeholder="name"></input>
+				<input id="list-index" placeholder="index"></input>
 				<button id="list-add">Add Person</button>
+				<button id="list-remove">Remove Person</button>
 				<button id="list-addmany">Add Many People</button>
 				<button id="list-addmanyreal">Add Many Real People</button>
 				<button id="list-addmanyboring">Add Many Boring People</button>
