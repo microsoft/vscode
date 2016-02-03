@@ -19,7 +19,7 @@ import wbeditorcommon = require('vs/workbench/common/editor');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import session = require('vs/workbench/parts/debug/node/rawDebugSession');
 import model = require('vs/workbench/parts/debug/common/debugModel');
-import debuginputs = require('vs/workbench/parts/debug/browser/debugEditorInputs');
+import { DebugStringEditorInput } from 'vs/workbench/parts/debug/browser/debugEditorInputs';
 import viewmodel = require('vs/workbench/parts/debug/common/debugViewModel');
 import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
 import { Repl } from 'vs/workbench/parts/debug/browser/repl';
@@ -63,7 +63,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	private model: model.Model;
 	private viewModel: viewmodel.ViewModel;
 	private configurationManager: ConfigurationManager;
-	private debugStringEditorInputs: debuginputs.DebugStringEditorInput[];
+	private debugStringEditorInputs: DebugStringEditorInput[];
 	private lastTaskEvent: TaskEvent;
 	private toDispose: lifecycle.IDisposable[];
 	private inDebugMode: IKeybindingContextKey<boolean>;
@@ -658,7 +658,9 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		const visibleEditors = this.editorService.getVisibleEditors();
 		for (let i = 0; i < visibleEditors.length; i++) {
 			const fileInput = wbeditorcommon.asFileEditorInput(visibleEditors[i].input);
-			if (fileInput && fileInput.getResource().toString() === source.uri.toString()) {
+			if ((fileInput && fileInput.getResource().toString() === source.uri.toString()) ||
+				(visibleEditors[i].input instanceof DebugStringEditorInput && (<DebugStringEditorInput>visibleEditors[i].input).getResource().toString() === source.uri.toString())) {
+
 				const control = <editorbrowser.ICodeEditor>visibleEditors[i].getControl();
 				if (control) {
 					control.revealLineInCenterIfOutsideViewport(lineNumber);
@@ -742,11 +744,11 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.configurationManager.loadLaunchConfig();
 	}
 
-	private getDebugStringEditorInput(source: Source, value: string, mtype: string): debuginputs.DebugStringEditorInput {
+	private getDebugStringEditorInput(source: Source, value: string, mtype: string): DebugStringEditorInput {
 		const filtered = this.debugStringEditorInputs.filter(input => input.getResource().toString() === source.uri.toString());
 
 		if (filtered.length === 0) {
-			const result = this.instantiationService.createInstance(debuginputs.DebugStringEditorInput, source.name, source.uri, source.origin, value, mtype, void 0);
+			const result = this.instantiationService.createInstance(DebugStringEditorInput, source.name, source.uri, source.origin, value, mtype, void 0);
 			this.debugStringEditorInputs.push(result);
 			return result;
 		} else {
