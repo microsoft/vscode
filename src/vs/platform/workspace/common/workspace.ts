@@ -78,12 +78,6 @@ export interface IWorkspace {
 }
 
 export interface IConfiguration {
-
-	/**
-	 * Additional worker services
-	 */
-	additionalWorkerServices?: { serviceId: string; moduleName: string; ctorName: string; }[];
-
 	/**
 	 * Some environmental flags
 	 */

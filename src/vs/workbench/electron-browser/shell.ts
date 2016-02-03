@@ -268,9 +268,6 @@ export class WorkbenchShell {
 		let eventService = new EventService();
 
 		this.contextService = new WorkspaceContextService(eventService, this.workspace, this.configuration, this.options);
-		this.contextService.getConfiguration().additionalWorkerServices = [
-			{ serviceId: 'requestService', moduleName: 'vs/workbench/services/request/common/requestService', ctorName: 'WorkerRequestService' }
-		];
 
 		this.windowService = new WindowService();
 
@@ -310,7 +307,6 @@ export class WorkbenchShell {
 			configService,
 			this.telemetryService
 		);
-		this.threadService.registerInstance(requestService);
 		lifecycleService.onShutdown(() => requestService.dispose());
 
 		let markerService = new MarkerService(this.threadService);

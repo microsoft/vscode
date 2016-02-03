@@ -130,18 +130,6 @@ export class EditorWorkerServer {
 
 		var servicePromise = TPromise.as(null);
 
-		var additionalWorkerServices = contextService.getConfiguration().additionalWorkerServices;
-		if (additionalWorkerServices) {
-			additionalWorkerServices.forEach(additionalWorkerService => {
-				servicePromise = servicePromise.then((_) => {
-					var descriptor = AsyncDescriptor.create(additionalWorkerService.moduleName, additionalWorkerService.ctorName);
-					return InstantiationService.create(_services).createInstance(descriptor).then((serviceInstance) => {
-						_services[additionalWorkerService.serviceId] = serviceInstance;
-					});
-				});
-			});
-		}
-
 		servicePromise.then((_) => {
 
 			var instantiationService = InstantiationService.create(_services);
