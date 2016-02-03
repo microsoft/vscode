@@ -557,7 +557,7 @@ export class PHPMode extends AbstractMode<AbstractModeWorker> implements support
 		return { lineCommentTokens: ['//','#'], blockCommentStartToken: '/*', blockCommentEndToken: '*/' };
 	}
 
-	private static WORD_DEFINITION = createWordRegExp('$-');
+	private static WORD_DEFINITION = createWordRegExp('$_');
 	public getWordDefinition():RegExp {
 		return PHPMode.WORD_DEFINITION;
 	}

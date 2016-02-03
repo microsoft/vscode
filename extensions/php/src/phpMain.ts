@@ -23,6 +23,6 @@ export function activate(context: ExtensionContext): any {
 
 	// need to set in the plugin host as well as the completion provider uses it.
 	languages.setLanguageConfiguration('php', {
-		wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
+		wordPattern: /(-?\d*\.\d\w*)|([^\-\`\~\!\@\#\%\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
 	});
 }
