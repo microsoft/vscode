@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-export var DifferenceType = {
+export const DifferenceType = {
 	Add : 0,
 	Remove : 1,
 	Change : 2

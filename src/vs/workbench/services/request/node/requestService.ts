@@ -96,7 +96,7 @@ export class RequestService extends BaseRequestService implements IThreadSynchro
 	 * Make a cross origin request using NodeJS.
 	 * Note: This method is also called from workers.
 	 */
-	public makeCrossOriginRequest(options: http.IXHROptions): TPromise<http.IXHRResponse> {
+	protected makeCrossOriginRequest(options: http.IXHROptions): TPromise<http.IXHRResponse> {
 		let timerVar: timer.ITimerEvent = timer.nullEvent;
 		return this.rawHttpServicePromise.then((rawHttpService: IRawHttpService) => {
 			return async.always(rawHttpService.xhr(options), ((xhr: http.IXHRResponse) => {

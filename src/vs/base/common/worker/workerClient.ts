@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
-import timer = require('vs/base/common/timer');
-import errors = require('vs/base/common/errors');
+import {onUnexpectedError, transformErrorForSerialization} from 'vs/base/common/errors';
 import protocol = require('vs/base/common/worker/workerProtocol');
 import remote = require('vs/base/common/remote');
 import marshalling = require('vs/base/common/marshalling');
@@ -69,9 +69,9 @@ export class WorkerClient {
 			onCrashCallback(this);
 		});
 
-		var loaderConfiguration:any = null;
+		let loaderConfiguration:any = null;
 
-		var globalRequire = (<any>window).require;
+		let globalRequire = (<any>window).require;
 		if (typeof globalRequire.getConfig === 'function') {
 			// Get the configuration from the Monaco AMD Loader
 			loaderConfiguration = globalRequire.getConfig();
@@ -80,7 +80,7 @@ export class WorkerClient {
 			loaderConfiguration = (<any>window).requirejs.s.contexts._.config;
 		}
 
-		var MonacoEnvironment = (<any>window).MonacoEnvironment || null;
+		let MonacoEnvironment = (<any>window).MonacoEnvironment || null;
 
 		this.onModuleLoaded = this._sendMessage(protocol.MessageType.INITIALIZE, {
 			id: this._worker.getId(),
@@ -111,7 +111,7 @@ export class WorkerClient {
 			throw new Error('Illegal requestName: ' + requestName);
 		}
 
-		var shouldCancelPromise = false,
+		let shouldCancelPromise = false,
 			messagePromise:TPromise<any>;
 
 		return new TPromise<any>((c, e, p) => {
@@ -139,11 +139,11 @@ export class WorkerClient {
 	}
 
 	public dispose(): void {
-		var promises = Object.keys(this._promises);
+		let promises = Object.keys(this._promises);
 		if (promises.length > 0) {
 			console.warn('Terminating a worker with ' + promises.length + ' pending promises:');
 			console.warn(this._promises);
-			for (var id in this._promises) {
+			for (let id in this._promises) {
 				if (promises.hasOwnProperty(id)) {
 					this._promises[id].error('Worker forcefully terminated');
 				}
@@ -162,15 +162,15 @@ export class WorkerClient {
 
 	private _sendMessage(type:string, payload:any, forceTimestamp:number=(new Date()).getTime()):TPromise<any> {
 
-		var msg = {
+		let msg = {
 			id: ++this._lastMessageId,
 			type: type,
 			timestamp: forceTimestamp,
 			payload: payload
 		};
 
-		var pc:(value:any)=>void, pe:(err:any)=>void, pp:(progress:any)=>void;
-		var promise = new TPromise<any>((c, e, p) => {
+		let pc:(value:any)=>void, pe:(err:any)=>void, pp:(progress:any)=>void;
+		let promise = new TPromise<any>((c, e, p) => {
 				pc = c;
 				pe = e;
 				pp = p;
@@ -194,7 +194,7 @@ export class WorkerClient {
 
 	private _enqueueMessage(msg:protocol.IClientMessage): void {
 
-		var lastIndexSmallerOrEqual = -1,
+		let lastIndexSmallerOrEqual = -1,
 			i:number;
 
 		// Find the right index to insert at - keep the queue ordered by timestamp
@@ -210,7 +210,7 @@ export class WorkerClient {
 	}
 
 	private _removeMessage(msgId:number): void {
-		for (var i = 0, len = this._messagesQueue.length; i < len; i++) {
+		for (let i = 0, len = this._messagesQueue.length; i < len; i++) {
 			if (this._messagesQueue[i].id === msgId) {
 				if (this._promises.hasOwnProperty(String(msgId))) {
 					delete this._promises[String(msgId)];
@@ -236,7 +236,7 @@ export class WorkerClient {
 			return;
 		}
 
-		var delayUntilNextMessage = this._messagesQueue[0].timestamp - (new Date()).getTime();
+		let delayUntilNextMessage = this._messagesQueue[0].timestamp - (new Date()).getTime();
 		delayUntilNextMessage = Math.max(0, delayUntilNextMessage);
 
 		this._processQueueTimeout = setTimeout(() => {
@@ -245,7 +245,7 @@ export class WorkerClient {
 				return;
 			}
 			this._waitingForWorkerReply = true;
-			var msg = this._messagesQueue.shift();
+			let msg = this._messagesQueue.shift();
 			this._lastTimerEvent = timer.start(timer.Topic.WORKER, this._decodeMessageName(msg));
 			this._postMessage(msg);
 		}, delayUntilNextMessage);
@@ -256,7 +256,7 @@ export class WorkerClient {
 	}
 
 	private _onSerializedMessage(msg:string): void {
-		var message:protocol.IServerMessage = null;
+		let message:protocol.IServerMessage = null;
 		try {
 			message = marshalling.parse(msg);
 		} catch (e) {
@@ -277,7 +277,7 @@ export class WorkerClient {
 
 		switch (msg.type) {
 			case protocol.MessageType.REPLY:
-				var serverReplyMessage = <protocol.IServerReplyMessage>msg;
+				let serverReplyMessage = <protocol.IServerReplyMessage>msg;
 
 				this._waitingForWorkerReply = false;
 				if(this._lastTimerEvent) {
@@ -301,7 +301,7 @@ export class WorkerClient {
 							payload: this._promises[serverReplyMessage.id].payload
 						});
 						this._onError('And the worker replied with an error:', serverReplyMessage.payload);
-						errors.onUnexpectedError(serverReplyMessage.payload);
+						onUnexpectedError(serverReplyMessage.payload);
 						this._promises[serverReplyMessage.id].error(serverReplyMessage.payload);
 						delete this._promises[serverReplyMessage.id];
 						break;
@@ -313,7 +313,7 @@ export class WorkerClient {
 				break;
 
 			case protocol.MessageType.PRINT:
-				var serverPrintMessage = <protocol.IServerPrintMessage>msg;
+				let serverPrintMessage = <protocol.IServerPrintMessage>msg;
 				this._consoleLog(serverPrintMessage.level, serverPrintMessage.payload);
 				break;
 
@@ -326,25 +326,25 @@ export class WorkerClient {
 
 	private _dispatchRequestFromWorker(msg:protocol.IServerMessage): void {
 		this._handleWorkerRequest(msg).then((result) => {
-			var reply: protocol.IClientReplyMessage = {
+			let reply: protocol.IClientReplyMessage = {
 				id: 0,
 				type: protocol.MessageType.REPLY,
 				timestamp: (new Date()).getTime(),
 
 				seq: msg.req,
-				payload: (result instanceof Error ? errors.transformErrorForSerialization(result) : result),
+				payload: (result instanceof Error ? transformErrorForSerialization(result) : result),
 				err: null
 			};
 			this._postMessage(reply);
 		}, (err) => {
-			var reply: protocol.IClientReplyMessage = {
+			let reply: protocol.IClientReplyMessage = {
 				id: 0,
 				type: protocol.MessageType.REPLY,
 				timestamp: (new Date()).getTime(),
 
 				seq: msg.req,
 				payload: null,
-				err: (err instanceof Error ? errors.transformErrorForSerialization(err) : err)
+				err: (err instanceof Error ? transformErrorForSerialization(err) : err)
 			};
 			this._postMessage(reply);
 		});
