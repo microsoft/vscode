@@ -115,10 +115,10 @@ export class EditorAccessor implements emmet.Editor {
 		let position = this.editor.getSelection().getStartPosition();
 		let mode = this.editor.getModel().getModeAtPosition(position.lineNumber, position.column);
 		let syntax = mode.getId().split('.').pop();
-		if (syntax === 'razor' || syntax === 'handlebars' || syntax === 'erb' || syntax === 'php') { // treat razor and handlebars like html
+		if (/\b(razor|handlebars|erb|php|hbs)\b/.test(syntax)) { // treat like html
 			return 'html';
 		}
-		if (syntax === 'typescriptreact' || syntax == 'javascriptreact') { // treat like tsx like jsx
+		if (/\b(typescriptreact|javascriptreact)\b/.test(syntax)) { // treat like tsx like jsx
 			return 'jsx';
 		}
 		if (syntax === 'sass') { // sass is really sccs... map it to scss
