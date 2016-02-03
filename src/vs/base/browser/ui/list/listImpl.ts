@@ -12,17 +12,19 @@ import { IScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEleme
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/impl/scrollableElement';
 import { RangeMap } from './rangeMap';
 import { IScrollEvent, IDelegate, IRendererMap } from './list';
-import { RowCache } from './rowCache';
+import { RowCache, IRow } from './rowCache';
 
 interface IItem {
-	domNode: HTMLElement;
+	height: number;
+	templateId: string;
+	row: IRow;
 }
 
 export class List<T> implements IScrollable {
 
 	private items: IItem[];
 	private rangeMap: RangeMap;
-	private rowCache: RowCache<T>;
+	private cache: RowCache<T>;
 
 	private _scrollTop: number;
 	private _viewHeight: number;
@@ -41,7 +43,7 @@ export class List<T> implements IScrollable {
 	constructor(container: HTMLElement, delegate: IDelegate<T>, renderers: IRendererMap<T>) {
 		this.items = [];
 		this.rangeMap = new RangeMap();
-		this.rowCache = new RowCache(renderers);
+		this.cache = new RowCache(renderers);
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'monaco-list';
@@ -176,32 +178,38 @@ export class List<T> implements IScrollable {
 	private insertItemInDOM(index: number): void {
 		const item = this.items[index];
 
-		if (!item.domNode) {
-			// item.domNode = this.cache.alloc(this.templateId);
-			item.domNode = document.createElement('div');
-
+		if (!item.row) {
+			item.row = this.cache.alloc(item.templateId);
 
 			// used in reverse lookup from HTMLElement to Item
 			// (<any> this.element)[TreeView.BINDING] = this;
 		}
 
-		if (item.domNode.parentElement) {
+		if (item.row.domNode.parentElement) {
 			return;
 		}
 
 		const nextItem = this.items[index + 1];
 
-		if (nextItem && nextItem.domNode) {
-			this.rowsContainer.insertBefore(item.domNode, nextItem.domNode);
+		if (nextItem && nextItem.row) {
+			this.rowsContainer.insertBefore(item.row.domNode, nextItem.row.domNode);
 		} else {
-			this.rowsContainer.appendChild(item.domNode);
+			this.rowsContainer.appendChild(item.row.domNode);
 		}
 
 		this.renderItem(index);
 	}
 
 	private removeItemFromDOM(index: number): void {
-		// TODO
+		const item = this.items[index];
+
+		if (!item.row) {
+			return;
+		}
+
+		// (<any> this.element)[TreeView.BINDING] = null;
+		this.cache.release(item.row);
+		item.row = null;
 	}
 
 	private renderItem(index: number): void {

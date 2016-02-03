@@ -5,10 +5,10 @@
 
 import { IRendererMap } from './list';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import * as DOM from 'vs/base/browser/dom';
+import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
 
 export interface IRow {
-	element: HTMLElement;
+	domNode: HTMLElement;
 	templateId: string;
 	templateData: any;
 }
@@ -32,72 +32,74 @@ export class RowCache<T> implements IDisposable {
 	private scrollingRow: IRow;
 
 	constructor(private renderers: IRendererMap<T>) {
-		this.cache = { '': [] };
+		this.cache = Object.create(null);
 		this.scrollingRow = null;
 	}
 
-	public alloc(templateId: string): IRow {
+	/**
+	 * Returns a row either by creating a new one or reusing
+	 * a previously released row which shares the same templateId.
+	 */
+	alloc(templateId: string): IRow {
 		let result = this.getTemplateCache(templateId).pop();
 
 		if (!result) {
-			const content = document.createElement('div');
-			content.className = 'content';
-
-			const row = document.createElement('div');
-			row.appendChild(content);
-
+			const domNode = $('div');
+			const content = append(domNode, $('.content'));
 			const renderer = this.renderers[templateId];
-
-			result = {
-				element: row,
-				templateId: templateId,
-				templateData: renderer.renderTemplate(content)
-			};
+			const templateData = renderer.renderTemplate(content);
+			result = { domNode, templateId, templateData };
 		}
 
 		return result;
 	}
 
-	public release(templateId: string, row: IRow): void {
-		var lastScrollTime = getLastScrollTime(row.element);
+	/**
+	 * Releases the row for eventual reuse. The row's domNode
+	 * will eventually be removed from its parent, given that
+	 * it is not the currently scrolling row (for OS X ballistic
+	 * scrolling).
+	 */
+	release(row: IRow): void {
+		var lastScrollTime = getLastScrollTime(row.domNode);
 
 		if (!lastScrollTime) {
-			removeFromParent(row.element);
-			this.getTemplateCache(templateId).push(row);
+			removeFromParent(row.domNode);
+			this.getTemplateCache(row.templateId).push(row);
 			return;
 		}
 
 		if (this.scrollingRow) {
-			var lastKnownScrollTime = getLastScrollTime(this.scrollingRow.element);
+			var lastKnownScrollTime = getLastScrollTime(this.scrollingRow.domNode);
 
 			if (lastKnownScrollTime > lastScrollTime) {
-				removeFromParent(row.element);
-				this.getTemplateCache(templateId).push(row);
+				removeFromParent(row.domNode);
+				this.getTemplateCache(row.templateId).push(row);
 				return;
 			}
 
-			if (this.scrollingRow.element.parentElement) {
-				removeFromParent(this.scrollingRow.element);
-				DOM.removeClass(this.scrollingRow.element, 'scrolling');
+			if (this.scrollingRow.domNode.parentElement) {
+				removeFromParent(this.scrollingRow.domNode);
+				removeClass(this.scrollingRow.domNode, 'scrolling');
 				this.getTemplateCache(this.scrollingRow.templateId).push(this.scrollingRow);
 			}
 		}
 
 		this.scrollingRow = row;
-		DOM.addClass(this.scrollingRow.element, 'scrolling');
+		addClass(this.scrollingRow.domNode, 'scrolling');
 	}
 
 	private getTemplateCache(templateId: string): IRow[] {
 		return this.cache[templateId] || (this.cache[templateId] = []);
 	}
 
-	public garbageCollect(): void {
+	garbageCollect(): void {
 		if (this.cache) {
 			Object.keys(this.cache).forEach(templateId => {
 				this.cache[templateId].forEach(cachedRow => {
 					const renderer = this.renderers[templateId];
 					renderer.disposeTemplate(cachedRow.templateData);
-					cachedRow.element = null;
+					cachedRow.domNode = null;
 					cachedRow.templateData = null;
 				});
 
@@ -112,7 +114,7 @@ export class RowCache<T> implements IDisposable {
 		}
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.garbageCollect();
 		this.cache = null;
 		this.renderers = null;
