@@ -656,14 +656,14 @@ export class AccessibilityProvider implements tree.IAccessibilityProvider {
 			const name = lastSlashIndex === -1 ? path : path.substr(lastSlashIndex + 1, path.length);
 			const folder = (lastSlashIndex === -1 ? '' : path.substr(0, lastSlashIndex));
 
-			return nls.localize('fileStatusAriaLabel', "File {0} in folder {1} has status: {2}", name, folder, Renderer.statusToTitle(status));
+			return nls.localize('fileStatusAriaLabel', "File {0} in folder {1} has status: {2}, Git", name, folder, Renderer.statusToTitle(status));
 		}
 
 		if (element instanceof gitmodel.StatusGroup) {
 			switch ( (<gitmodel.StatusGroup>element).getType()) {
-				case git.StatusType.INDEX: return nls.localize('ariaLabelStagedChanges', "Staged Changes");
-				case git.StatusType.WORKING_TREE: return nls.localize('ariaLabelChanges', "Changes");
-				case git.StatusType.MERGE: return nls.localize('ariaLabelMerge', "Merge");
+				case git.StatusType.INDEX: return nls.localize('ariaLabelStagedChanges', "Staged Changes, Git");
+				case git.StatusType.WORKING_TREE: return nls.localize('ariaLabelChanges', "Changes, Git");
+				case git.StatusType.MERGE: return nls.localize('ariaLabelMerge', "Merge, Git");
 			}
 		}
 	}

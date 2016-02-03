@@ -75,7 +75,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IPartService private partService: IPartService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(actionRunner, false, nls.localize('explorerSection', "Explorer Section"), messageService, contextMenuService);
+		super(actionRunner, false, nls.localize('explorerSection', "Files Explorer Section"), messageService, contextMenuService);
 
 		this.workspace = contextService.getWorkspace();
 

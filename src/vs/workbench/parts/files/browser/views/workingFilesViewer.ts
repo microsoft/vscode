@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import nls = require('vs/nls');
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
 import platform = require('vs/base/common/platform');
 import {$} from 'vs/base/browser/builder';
@@ -119,7 +120,7 @@ export class WorkingFilesAccessibilityProvider implements IAccessibilityProvider
 	getAriaLabel(tree: ITree, element: any): string {
 		let entry = <WorkingFileEntry>element;
 
-		return paths.basename(entry.resource.fsPath);
+		return nls.localize('workingFilesViewerAriaLabel', "{0}, Working Files", paths.basename(entry.resource.fsPath));
 	}
 }
 

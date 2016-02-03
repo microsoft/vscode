@@ -2,8 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 'use strict';
 
+import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
@@ -716,7 +718,7 @@ export class QuickOpenModel implements
 	}
 
 	getAriaLabel(entry: QuickOpenEntry): string {
-		return entry.getLabel();
+		return nls.localize('quickOpenAriaLabel', "{0}, quick picker", entry.getLabel());
 	}
 
 	isVisible<T>(entry: QuickOpenEntry): boolean {

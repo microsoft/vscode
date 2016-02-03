@@ -143,11 +143,11 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 		if (element instanceof FileMatch) {
 			const path = this.contextService.toWorkspaceRelativePath(element.resource()) || element.resource().fsPath;
 
-			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}", element.count(), element.name(), paths.dirname(path));
+			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}, Search result", element.count(), element.name(), paths.dirname(path));
 		}
 
 		if (element instanceof Match) {
-			return element.text();
+			return nls.localize('searchResultAria', "{0}, Search result", element.text());
 		}
 	}
 }
@@ -743,7 +743,7 @@ export class SearchViewlet extends Viewlet {
 
 		this.queryBox = builder.div({ 'class': 'query-box' }, (div) => {
 			let options = {
-				label: nls.localize('label.Search', 'Search Term'),
+				label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search or Escape to cancel'),
 				validation: (value: string) => {
 					if (value.length === 0) {
 						return null;
@@ -887,8 +887,8 @@ export class SearchViewlet extends Viewlet {
 				controller: new SearchController(),
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider)
 			}, {
-					ariaLabel: nls.localize('treeAriaLabel', "Search Results")
-				});
+				ariaLabel: nls.localize('treeAriaLabel', "Search Results")
+			});
 
 			this.toUnbind.push(() => renderer.dispose());
 

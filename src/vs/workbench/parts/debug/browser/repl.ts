@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/repl';
+import nls = require('vs/nls');
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import lifecycle = require('vs/base/common/lifecycle');
@@ -27,10 +28,11 @@ import { CommonKeybindings } from 'vs/base/common/keyCodes';
 
 const $ = dom.emmet;
 
-const replTreeOptions = {
+const replTreeOptions: tree.ITreeOptions = {
 	indentPixels: 8,
 	twistiePixels: 20,
-	paddingOnRow: false
+	paddingOnRow: false,
+	ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel")
 };
 
 const HISTORY_STORAGE_KEY = 'debug.repl.history';
@@ -117,9 +119,8 @@ export class Repl extends Panel {
 				}
 			}
 		}));
-		this.toDispose.push(dom.addStandardDisposableListener(this.replInput, dom.EventType.FOCUS, () => dom.addClass(replInputContainer, 'synthetic-focus'))),
+		this.toDispose.push(dom.addStandardDisposableListener(this.replInput, dom.EventType.FOCUS, () => dom.addClass(replInputContainer, 'synthetic-focus')));
 		this.toDispose.push(dom.addStandardDisposableListener(this.replInput, dom.EventType.BLUR, () => dom.removeClass(replInputContainer, 'synthetic-focus')));
-
 
 		this.characterWidthSurveyor = dom.append(container, $('.surveyor'));
 		this.characterWidthSurveyor.textContent = Repl.HALF_WIDTH_TYPICAL;

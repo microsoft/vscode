@@ -78,7 +78,7 @@ class VariablesView extends viewlet.CollapsibleViewletView {
 			dataSource: new viewer.VariablesDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(viewer.VariablesRenderer),
 			controller: new viewer.BaseDebugController(this.debugService, this.contextMenuService, new viewer.VariablesActionProvider(this.instantiationService))
-		}, debugTreeOptions(nls.localize('variablesAriaTreeLabel', "Variables")));
+		}, debugTreeOptions(nls.localize('variablesAriaTreeLabel', "Debug Variables")));
 
 		const viewModel = this.debugService.getViewModel();
 
@@ -146,7 +146,7 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 			dataSource: new viewer.WatchExpressionsDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(viewer.WatchExpressionsRenderer, actionProvider, this.actionRunner),
 			controller: new viewer.WatchExpressionsController(this.debugService, this.contextMenuService, actionProvider)
-		}, debugTreeOptions(nls.localize('watchAriaTreeLabel', "Watch Expressions")));
+		}, debugTreeOptions(nls.localize('watchAriaTreeLabel', "Debug Watch Expressions")));
 
 		this.tree.setInput(this.debugService.getModel());
 
@@ -216,7 +216,7 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.CallStackDataSource(),
 			renderer: this.instantiationService.createInstance(viewer.CallStackRenderer)
-		}, debugTreeOptions(nls.localize('callStackAriaLabel', "Call Stack")));
+		}, debugTreeOptions(nls.localize('callStackAriaLabel', "Debug Call Stack")));
 
 		const debugModel = this.debugService.getModel();
 
@@ -357,7 +357,7 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 					return first.desiredLineNumber - second.desiredLineNumber;
 				}
 			}
-		}, debugTreeOptions(nls.localize('breakpointsAriaTreeLabel', "Breakpoints")));
+		}, debugTreeOptions(nls.localize('breakpointsAriaTreeLabel', "Debug Breakpoints")));
 
 		const debugModel = this.debugService.getModel();
 

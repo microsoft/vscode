@@ -342,7 +342,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 export class FileAccessibilityProvider implements IAccessibilityProvider {
 
 	public getAriaLabel(tree: ITree, stat: FileStat): string {
-		return stat.name;
+		return nls.localize('filesExplorerViewerAriaLabel', "{0}, Files Explorer", stat.name);
 	}
 }
 
