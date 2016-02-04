@@ -230,6 +230,15 @@ suite('TextAreaState', () => {
 		);
 	});
 
+	test('issue #2586: Replacing selected end-of-line with newline locks up the document', () => {
+		testDeduceInput(
+			new IENarratorTextAreaState(null, ']\n', 1, 2, false, 0),
+			']\n',
+			2, 2, false,
+			'\n', 0
+		);
+	});
+
 	test('extractNewText - no previous state without selection', () => {
 		testDeduceInput(
 			null,

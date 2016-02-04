@@ -334,6 +334,9 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 				currentLineEdits: ILineEdit[] = [],
 				currentLineNumber = 0;
 
+			var lastContentChangedVersionId = this.getVersionId();
+			let lastContentChanged2VersionId = this.getVersionId();
+
 			var adjustLineNumbers = (toLineNumber:number, delta:number): void => {
 				// console.log('adjustLineNumbers: ' + toLineNumber + ' by ' + delta + ', lines.length: ' + this._lines.length);
 				if (delta !== 0) {
@@ -351,6 +354,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 				if (editLineNumber !== currentLineNumber) {
 					if (currentLineEdits.length > 0) {
 						this._applyLineEdits(deferredEventsBuilder, currentLineNumber, currentLineEdits);
+						lastContentChangedVersionId = this.getVersionId();
 						currentLineEdits = [];
 					}
 					currentLineNumber = editLineNumber;
@@ -374,13 +378,12 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 				var r = 0;
 				if (currentLineEdits.length > 0) {
 					r = this._applyLineEdits(deferredEventsBuilder, currentLineNumber, currentLineEdits);
+					lastContentChangedVersionId = this.getVersionId();
 					currentLineEdits = [];
 				}
 				currentLineNumber = 0;
 				return r;
 			};
-
-			let lastContentChanged2VersionId = this.getVersionId();
 
 			let lastRealOpIndex = 0;
 			for (let i = operations.length - 1; i >= 0; i--) {
@@ -483,6 +486,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 					this.emitModelContentChangedLineChangedEvent(spliceStart);
 
 					this.emitModelContentChangedLinesDeletedEvent(spliceStart + 1, spliceStart + spliceCnt);
+					lastContentChangedVersionId = this.getVersionId();
 					// this.emitModelContentChangedLinesInsertedEvent(startLineNumber + editingLinesCnt + 1, startLineNumber + insertingLinesCnt, newLinesContent.join('\n'));
 				}
 
@@ -521,6 +525,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 					this._lines[startLineNumber + insertingLinesCnt - 1].append(deferredEventsBuilder.changedMarkers, leftoverLine);
 
 					this.emitModelContentChangedLinesInsertedEvent(startLineNumber + editingLinesCnt + 1, startLineNumber + insertingLinesCnt, newLinesContent.join('\n'));
+					lastContentChangedVersionId = this.getVersionId();
 				}
 
 				// console.log('~~~');
@@ -548,6 +553,10 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 				this._emitContentChanged2(seqEdit.range.startLineNumber, seqEdit.range.startColumn, seqEdit.range.endLineNumber, seqEdit.range.endColumn, seqEdit.rangeLength, seqEdit.text, this._isUndoing, this._isRedoing);
 			}
 
+			if (this.getVersionId() > lastContentChangedVersionId) {
+				// TODO@Alex: need to rewrite the eventing logic
+				this.emitModelContentChangedLineChangedEventNoVersionBump(baseLineNumber);
+			}
 
 			adjustLineNumbers(this._lines.length, deltaLines);
 		});
@@ -687,8 +696,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		}
 	}
 
-	private emitModelContentChangedLineChangedEvent(lineNumber: number): void {
-		this._increaseVersionId();
+	private emitModelContentChangedLineChangedEventNoVersionBump(lineNumber: number): void {
 		var e:EditorCommon.IModelContentChangedLineChangedEvent = {
 			changeType: EditorCommon.EventType.ModelContentChangedLineChanged,
 			lineNumber: lineNumber,
@@ -700,6 +708,11 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		if (!this._isDisposing) {
 			this.emit(EditorCommon.EventType.ModelContentChanged, e);
 		}
+	}
+
+	private emitModelContentChangedLineChangedEvent(lineNumber: number): void {
+		this._increaseVersionId();
+		this.emitModelContentChangedLineChangedEventNoVersionBump(lineNumber);
 	}
 
 	private emitModelContentChangedLinesDeletedEvent(fromLineNumber: number, toLineNumber: number): void {
