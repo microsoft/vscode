@@ -79,6 +79,8 @@ export class EditorPart extends Part implements IEditorPart {
 	private mapEditorCreationPromiseToEditor: { [editorId: string]: TPromise<BaseEditor>; }[];
 	private editorOpenToken: number[];
 	private editorSetInputErrorCounter: number[];
+	private pendingEditorInputsToClose: EditorInput[];
+	private pendingEditorInputCloseTimeout: number;
 
 	constructor(
 		private messageService: IMessageService,
@@ -111,6 +113,9 @@ export class EditorPart extends Part implements IEditorPart {
 		this.mapActionsToEditors = this.createPositionArray(false);
 		this.mapEditorLoadingPromiseToEditor = this.createPositionArray(false);
 		this.mapEditorCreationPromiseToEditor = this.createPositionArray(false);
+
+		this.pendingEditorInputsToClose = [];
+		this.pendingEditorInputCloseTimeout = null;
 	}
 
 	public setInstantiationService(service: IInstantiationService): void {
@@ -209,14 +214,13 @@ export class EditorPart extends Part implements IEditorPart {
 		if (input) {
 			this.visibleInputListeners[position] = input.addListener(EventType.DISPOSE, () => {
 
-				// To prevent race conditions, we call the close in a timeout because it can well be
-				// that an input is being disposed with the intent to replace it with some other input
-				// right after.
-				setTimeout(() => {
-					if (input === this.visibleInputs[position]) {
-						this.closeEditors(false, input).done(null, errors.onUnexpectedError);
-					}
-				}, 0);
+				// Keep the inputs to close. We use this to support multiple inputs closing
+				// right after each other and this helps avoid layout issues with the delayed
+				// timeout based closing below
+				if (input === this.visibleInputs[position]) {
+					this.pendingEditorInputsToClose.push(input);
+					this.startDelayedCloseEditorsFromInputDispose();
+				}
 			});
 		}
 
@@ -432,17 +436,33 @@ export class EditorPart extends Part implements IEditorPart {
 		});
 	}
 
-	public closeEditors(othersOnly?: boolean, input?: EditorInput): TPromise<void> {
+	private startDelayedCloseEditorsFromInputDispose(): void {
+
+		// To prevent race conditions, we call the close in a timeout because it can well be
+		// that an input is being disposed with the intent to replace it with some other input
+		// right after.
+		if (this.pendingEditorInputCloseTimeout === null) {
+			this.pendingEditorInputCloseTimeout = setTimeout(() => {
+				this.closeEditors(false, this.pendingEditorInputsToClose).done(null, errors.onUnexpectedError);
+
+				// Reset
+				this.pendingEditorInputCloseTimeout = null;
+				this.pendingEditorInputsToClose = [];
+			}, 0);
+		}
+	}
+
+	public closeEditors(othersOnly?: boolean, inputs?: EditorInput[]): TPromise<void> {
 		let promises: Promise[] = [];
 
 		let editors = this.getVisibleEditors().reverse(); // start from the end to prevent layout to happen through rochade
-		for (let i = 0; i < editors.length; i++) {
-			let editor = editors[i];
+		for (var i = 0; i < editors.length; i++) {
+			var editor = editors[i];
 			if (othersOnly && this.getActiveEditor() === editor) {
 				continue;
 			}
 
-			if (!input || input === editor.input) {
+			if (!inputs || inputs.some(inp => inp === editor.input)) {
 				promises.push(this.openEditor(null, null, editor.position));
 			}
 		}
