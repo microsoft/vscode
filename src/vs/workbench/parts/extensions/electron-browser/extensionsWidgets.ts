@@ -15,7 +15,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { UninstallAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
-import { IExtensionsService, IGalleryService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionsService, IGalleryService, IExtension, IExtensionTipsService } from 'vs/workbench/parts/extensions/common/extensions';
+import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 var $ = dom.emmet;
 
@@ -81,5 +82,51 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 		return {
 			dispose: () => lifecycle.disposeAll(this.toDispose)
 		};
+	}
+}
+
+export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
+
+	private _domNode: HTMLElement;
+	private _label: OcticonLabel;
+	private _prevTips: IExtension[] = [];
+
+	constructor(
+		@IQuickOpenService private _quickOpenService: IQuickOpenService,
+		@IExtensionTipsService private _extensionTipsService: IExtensionTipsService
+	) {
+
+		this._extensionTipsService.onDidChangeTips(tips => {
+			// check for new tips
+			let hasNewTips = false;
+			for (let tip of tips) {
+				if (this._prevTips.indexOf(tip) < 0) {
+					this._prevTips.push(tip);
+					hasNewTips = true;
+				}
+			}
+			if (hasNewTips) {
+				dom.addClass(this._domNode, 'active');
+			}
+			// only keep 10 tips
+			while (this._prevTips.length > 10) {
+				this._prevTips.shift();
+			}
+		});
+	}
+
+	public render(container: HTMLElement): lifecycle.IDisposable {
+
+		this._domNode = document.createElement('a');
+		this._domNode.className = 'extensions-suggestions';
+		this._label = new OcticonLabel(this._domNode);
+		this._label.text = '$(light-bulb) extension tips';
+		container.appendChild(this._domNode);
+
+		return dom.addDisposableListener(this._domNode, 'click', event => this._onClick(event));
+	}
+
+	private _onClick(event: MouseEvent): void {
+		this._quickOpenService.show('ext tips ').then(() => dom.removeClass(this._domNode, 'active'));
 	}
 }

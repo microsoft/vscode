@@ -68,7 +68,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 	serviceId: any;
 
-	private _onDidChangeTips: Emitter<void> = new Emitter<void>();
+	private _onDidChangeTips: Emitter<IExtension[]> = new Emitter<IExtension[]>();
 	private _tips: { [id: string]: ExtensionTip } = Object.create(null);
 	private _toDispose: IDisposable[] = [];
 	private _availableExtensions: Promise<ExtensionMap>;
@@ -81,7 +81,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	) {
 
 		configurationService.loadConfiguration('extensions').then(value => {
-			if (value && value.enableSuggestions) {
+			if (value && value.experimentalSuggestions === true) {
 				this._init();
 			}
 		}, onUnexpectedError);
@@ -91,7 +91,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		this._toDispose = disposeAll(this._toDispose);
 	}
 
-	get onDidChangeTips(): Event<void> {
+	get onDidChangeTips(): Event<IExtension[]> {
 		return this._onDidChangeTips.event;
 	}
 
@@ -112,8 +112,12 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		// don't suggest what got installed
 		this._toDispose.push(this._extensionService.onDidInstallExtension(ext => {
 			const id = `${ext.publisher}.${ext.name}`;
+			let change = false;
 			if (delete this._tips[id]) {
-				this._onDidChangeTips.fire(void 0);
+				change = true;
+			}
+			if (change) {
+				this._onDidChangeTips.fire(this.tips);
 			}
 			this._availableExtensions = this._getAvailableExtensions();
 		}));
@@ -189,19 +193,19 @@ export class ExtensionTipsService implements IExtensionTipsService {
 			});
 
 			if (change) {
-				this._onDidChangeTips.fire(undefined);
+				this._onDidChangeTips.fire(this.tips);
 			}
 		}, onUnexpectedError);
 	}
 
 	private static _extensionByPattern: { [pattern: string]: string } = {
 		'jrieken.vscode-omnisharp': '{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln}',
-		'eg2.tslint': '**/*.ts',
-		'dbaeumer.vscode-eslint': '{**/*.js,**/*.es6}',
-		'mkaufman.HTMLHint': '{**/*.html,**/*.htm}',
-		'seanmcbreen.Spell': '**/*.md',
-		'ms-vscode.jscs': '{**/*.js,**/*.es6}',
-		'ms-vscode.wordcount': '**/*.md',
-		'Ionide.Ionide-fsharp': '{**/*.fsx,**/*.fsi,**/*.fs,**/*.ml,**/*.mli}'
+		'msjsdiag.debugger-for-chrome': '{**/*.ts,**/*.tsx**/*.js,**/*.jsx,**/*.es6}',
+		'lukehoban.Go': '**/*.go',
+		'ms-vscode.PowerShell': '{**/*.ps,**/*.ps1}',
+		'austin.code-gnu-global': '{**/*.c,**/*.cpp,**/*.h}',
+		'Ionide.Ionide-fsharp': '{**/*.fsx,**/*.fsi,**/*.fs,**/*.ml,**/*.mli}',
+		'dbaeumer.vscode-eslint': '{**/*.js,**/*.jsx,**/*.es6}',
+		'eg2.tslint': '{**/*.ts,**/*.tsx}'
 	}
 }

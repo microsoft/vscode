@@ -6,7 +6,7 @@
 import platform = require('vs/platform/platform');
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import statusbar = require('vs/workbench/browser/parts/statusbar/statusbar');
-import { ExtensionsStatusbarItem } from 'vs/workbench/parts/extensions/electron-browser/extensionsWidgets';
+import { ExtensionsStatusbarItem, ExtensionTipsStatusbarItem } from 'vs/workbench/parts/extensions/electron-browser/extensionsWidgets';
 import { IGalleryService } from 'vs/workbench/parts/extensions/common/extensions';
 import { GalleryService } from 'vs/workbench/parts/extensions/node/vsoGalleryService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -25,4 +25,11 @@ registerSingleton(IGalleryService, GalleryService);
 	ExtensionsStatusbarItem,
 	statusbar.StatusbarAlignment.LEFT,
 	10 /* Low Priority */
+));
+
+// Register Statusbar item
+(<statusbar.IStatusbarRegistry>platform.Registry.as(statusbar.Extensions.Statusbar)).registerStatusbarItem(new statusbar.StatusbarItemDescriptor(
+	ExtensionTipsStatusbarItem,
+	statusbar.StatusbarAlignment.LEFT,
+	9 /* Low Priority */
 ));
