@@ -32,14 +32,20 @@ function preParseSnippet (prejson: string) : string {
     var snippetCode : string[] = [];
     var processingSnippets: boolean = false;
 
+    const multilineSnippetOpenTag = "[/***";
+    const multilineSnippetCloseTag = "***/]";
+
     prejson.toString().match(/[^\r\n]+/g).forEach ( currentline => {
-        if (currentline.trim().indexOf("* * *") == -1) {
+
+        if (currentline.toString().trim() != multilineSnippetOpenTag && currentline.toString().trim() != multilineSnippetCloseTag) {
             if (processingSnippets)
                 snippetCode.push(currentline);
             else
                 finalJson = finalJson.concat(currentline);
         }
+
         else {
+
             processingSnippets = !processingSnippets;
             if (snippetCode.length > 0 ) {
                 finalJson = finalJson.concat(JSON.stringify(snippetCode));
