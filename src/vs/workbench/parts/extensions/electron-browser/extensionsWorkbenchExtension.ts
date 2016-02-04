@@ -43,6 +43,9 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 			this.install(options.extensionsToInstall).done(null, errors.onUnexpectedError);
 		}
 
+		// add service
+		instantiationService.addSingleton(IExtensionTipsService, this.instantiationService.createInstance(ExtensionTipsService));
+
 		const extensionsCategory = nls.localize('extensionsCategory', "Extensions");
 		const actionRegistry = (<wbaregistry.IWorkbenchActionRegistry> platform.Registry.as(wbaregistry.Extensions.WorkbenchActions));
 		actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListExtensionsAction, ListExtensionsAction.ID, ListExtensionsAction.LABEL), extensionsCategory);
@@ -82,7 +85,6 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 			);
 
 			// add extension tips services
-			instantiationService.addSingleton(IExtensionTipsService, this.instantiationService.createInstance(ExtensionTipsService));
 			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ListSuggestedExtensionsAction, ListSuggestedExtensionsAction.ID, ListSuggestedExtensionsAction.LABEL), extensionsCategory);
 
 			(<IQuickOpenRegistry>platform.Registry.as(Extensions.Quickopen)).registerQuickOpenHandler(
