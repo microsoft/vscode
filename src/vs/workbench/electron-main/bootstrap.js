@@ -39,7 +39,7 @@ function parseArgs() {
 		process.exit(0);
 	}
 	if (args.version) {
-		process.stdout.write(app.getVersion());
+		process.stdout.write(app.getVersion() + '\n');
 		process.exit(0);
 	}
 }
