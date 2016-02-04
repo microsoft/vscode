@@ -27,7 +27,7 @@
 }
 
 .monaco-list .monaco-list-rows {
-	position: absolute;
+	position: relative;
 	width: 100%;
 	height: 100%;
 }
@@ -41,6 +41,7 @@
 	overflow: hidden;
 	width: 100%;
 	touch-action: none;
+	position: absolute;
 }
 
 .monaco-list .monaco-list-rows > .monaco-list-row > .content {

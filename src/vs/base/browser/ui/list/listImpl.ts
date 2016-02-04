@@ -11,27 +11,43 @@ import { Gesture } from 'vs/base/browser/touch';
 import * as DOM from 'vs/base/browser/dom';
 import { IScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/impl/scrollableElement';
-import { RangeMap } from './rangeMap';
+import { RangeMap, IRange } from './rangeMap';
 import { IScrollEvent, IDelegate, IRendererMap } from './list';
 import { RowCache, IRow } from './rowCache';
+import { LcsDiff, ISequence } from 'vs/base/common/diff/diff';
+
+interface IItemRange<T> {
+	item: IItem<T>;
+	index: number;
+	range: IRange;
+}
 
 interface IItem<T> {
+	id: string;
 	element: T;
 	size: number;
 	templateId: string;
 	row: IRow;
 }
 
+function toSequence<T>(itemRanges: IItemRange<T>[]): ISequence {
+	return {
+		getLength: () => itemRanges.length,
+		getElementHash: i => `${ itemRanges[i].item.id }:${ itemRanges[i].range.start }:${ itemRanges[i].range.end }`
+	};
+}
+
 export class List<T> implements IScrollable {
 
 	private items: IItem<T>[];
+	private itemId = 0;
 	private rangeMap: RangeMap;
 	private cache: RowCache<T>;
 
-	private _scrollTop: number;
-	private _viewHeight: number;
-	private renderTop: number;
-	private renderHeight: number;
+	private scrollTop: number;
+	private viewHeight: number;
+	private renderTop: number; // TODO: renderTop vs scroll top?
+	private renderHeight: number; // TODO: renderHeight vs view height?
 
 	private domNode: HTMLElement;
 	private wrapper: HTMLElement;
@@ -75,8 +91,8 @@ export class List<T> implements IScrollable {
 		this.domNode.appendChild(this.scrollableElement.getDomNode());
 		container.appendChild(this.domNode);
 
-		this._scrollTop = 0;
-		this._viewHeight = 0;
+		this.scrollTop = 0;
+		this.viewHeight = 0;
 		this.renderTop = 0;
 		this.renderHeight = 0;
 
@@ -84,7 +100,9 @@ export class List<T> implements IScrollable {
 	}
 
 	splice(start: number, deleteCount: number, ...elements: T[]): void {
+		const before = this.getRenderedItemRanges();
 		const inserted = elements.map<IItem<T>>(element => ({
+			id: String(this.itemId++),
 			element,
 			size: this.delegate.getHeight(element),
 			templateId: this.delegate.getTemplateId(element),
@@ -92,11 +110,23 @@ export class List<T> implements IScrollable {
 		}));
 
 		this.rangeMap.splice(start, deleteCount, ...inserted);
+		this.items.splice(start, deleteCount, ...inserted);
 
-		const deleted = this.items.splice(start, deleteCount, ...inserted);
-		deleted.forEach(item => this.removeItemFromDOM(item));
-		inserted.forEach((_, index) => this.refreshItem(start + index));
+		const after = this.getRenderedItemRanges();
+		const lcs = new LcsDiff(toSequence(before), toSequence(after), null);
+		const diffs = lcs.ComputeDiff();
 
+		for (const diff of diffs) {
+			for (let i = 0; i < diff.originalLength; i++) {
+				this.removeItemFromDOM(before[diff.originalStart + i].item);
+			}
+
+			for (let i = 0; i < diff.modifiedLength; i++) {
+				this.insertItemInDOM(after[diff.modifiedStart + i].item, after[0].index + diff.modifiedStart + i);
+			}
+		}
+
+		this.rowsContainer.style.height = `${ this.rangeMap.size }px`;
 		this.setScrollTop(this.scrollTop);
 		this.scrollableElement.onElementInternalDimensions();
 	}
@@ -106,13 +136,8 @@ export class List<T> implements IScrollable {
 	}
 
 	layout(height?: number): void {
-		// if (!this.isTreeVisible()) {
-		// 	return;
-		// }
-
-		this.viewHeight = height || DOM.getContentHeight(this.wrapper); // render
-		this.setScrollTop(this.scrollTop); // render
-
+		this.setViewHeight(height || DOM.getContentHeight(this.wrapper));
+		this.setScrollTop(this.scrollTop);
 		this.scrollableElement.onElementDimensions();
 		this.scrollableElement.onElementInternalDimensions();
 	}
@@ -144,7 +169,7 @@ export class List<T> implements IScrollable {
 		scrollTop = Math.max(scrollTop, 0);
 
 		this.render(scrollTop, this.viewHeight);
-		this._scrollTop = scrollTop;
+		this.scrollTop = scrollTop;
 
 		this._onScroll.fire({ vertical: true, horizontal: false });
 	}
@@ -155,21 +180,9 @@ export class List<T> implements IScrollable {
 
 	// Render Properties
 
-	private get viewHeight() {
-		return this._viewHeight;
-	}
-
-	private set viewHeight(viewHeight: number) {
+	private setViewHeight(viewHeight: number) {
 		this.render(this.scrollTop, viewHeight);
-		this._viewHeight = viewHeight;
-	}
-
-	private get scrollTop(): number {
-		return this._scrollTop;
-	}
-
-	private set scrollTop(scrollTop: number) {
-		this.setScrollTop(scrollTop);
+		this.viewHeight = viewHeight;
 	}
 
 	// Render
@@ -186,12 +199,12 @@ export class List<T> implements IScrollable {
 
 		// when view scrolls down, start rendering from the renderBottom
 		for (i = this.indexAfter(renderBottom) - 1, stop = this.rangeMap.indexAt(Math.max(thisRenderBottom, renderTop)); i >= stop; i--) {
-			this.insertItemInDOM(i);
+			this.insertItemInDOM(this.items[i], i);
 		}
 
 		// when view scrolls up, start rendering from either this.renderTop or renderBottom
 		for (i = Math.min(this.rangeMap.indexAt(this.renderTop), this.indexAfter(renderBottom)) - 1, stop = this.rangeMap.indexAt(renderTop); i >= stop; i--) {
-			this.insertItemInDOM(i);
+			this.insertItemInDOM(this.items[i], i);
 		}
 
 		// when view scrolls down, start unrendering from renderTop
@@ -204,14 +217,28 @@ export class List<T> implements IScrollable {
 			this.removeItemFromDOM(this.items[i]);
 		}
 
-		const topPosition = this.rangeMap.positionAt(this.rangeMap.indexAt(renderTop));
-
-		if (topPosition > -1) {
-			this.rowsContainer.style.top = (topPosition - renderTop) + 'px';
-		}
-
+		this.rowsContainer.style.transform = `translate3d(0px, -${ renderTop }px, 0px)`;
 		this.renderTop = renderTop;
 		this.renderHeight = renderBottom - renderTop;
+	}
+
+	private getRenderedItemRanges(): IItemRange<T>[] {
+		const result: IItemRange<T>[] = [];
+		const renderBottom = this.renderTop + this.renderHeight;
+
+		let start = this.renderTop;
+		let index = this.rangeMap.indexAt(start);
+		let item = this.items[index];
+		let end = -1;
+
+		while (item && start < renderBottom) {
+			end = start + item.size;
+			result.push({ item, index, range: { start, end }});
+			start = end;
+			item = this.items[++index];
+		}
+
+		return result;
 	}
 
 	private isInView(index: number): boolean {
@@ -220,63 +247,27 @@ export class List<T> implements IScrollable {
 		return top < this.renderTop + this.renderHeight && top + item.size > this.renderTop;
 	}
 
-	private refreshItem(index: number): void {
-		if (index < 0) {
-			return;
-		}
-
-		if (this.isInView(index)) {
-			this.insertItemInDOM(index);
-		} else {
-			this.removeItemFromDOM(this.items[index]);
-		}
-	}
-
-	private insertItemInDOM(index: number): void {
-		if (index < 0) {
-			return;
-		}
-
-		const item = this.items[index];
-
+	private insertItemInDOM(item: IItem<T>, index: number): void {
 		if (!item.row) {
 			item.row = this.cache.alloc(item.templateId);
-
-			// used in reverse lookup from HTMLElement to Item
-			// (<any> this.element)[TreeView.BINDING] = this;
 		}
+
+		item.row.domNode.style.top = `${ this.rangeMap.positionAt(index) }px`;
 
 		if (item.row.domNode.parentElement) {
 			return;
 		}
 
-		const nextItem = this.items[index + 1];
+		this.rowsContainer.appendChild(item.row.domNode);
 
-		if (nextItem && nextItem.row) {
-			this.rowsContainer.insertBefore(item.row.domNode, nextItem.row.domNode);
-		} else {
-			this.rowsContainer.appendChild(item.row.domNode);
-		}
-
-		this.renderItem(index);
+		const renderer = this.renderers[item.templateId];
+		item.row.domNode.style.height = `${ item.size }px`;
+		renderer.renderElement(item.element, item.row.templateData);
 	}
 
 	private removeItemFromDOM(item: IItem<T>): void {
-		if (!item || !item.row) {
-			return;
-		}
-
-		// (<any> this.element)[TreeView.BINDING] = null;
 		this.cache.release(item.row);
 		item.row = null;
-	}
-
-	private renderItem(index: number): void {
-		const item = this.items[index];
-		const renderer = this.renderers[item.templateId];
-
-		item.row.domNode.style.height = `${ item.size }px`;
-		renderer.renderElement(item.element, item.row.templateData);
 	}
 
 	dispose() {

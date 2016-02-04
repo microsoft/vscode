@@ -79,7 +79,7 @@ export function addPersonToList(name, index) {
 	};
 
 	index = Number(index);
-	index = index === NaN ? list.length : Math.min(index, list.length);
+	index = isNaN(index) ? list.length : Math.min(index, list.length);
 
 	list.splice(index, 0, person);
 }
