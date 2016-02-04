@@ -1174,6 +1174,22 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		);
 	});
 
+	test('issue #2586 Replacing selected end-of-line with newline locks up the document', () => {
+		testApplyEdits(
+			[
+				'something',
+				'interesting'
+			],
+			[
+				editOp(1, 10, 2, 1, ['', ''])
+			],
+			[
+				'something',
+				'interesting'
+			]
+		);
+	});
+
 	function assertSyncedModels(text:string, callback:(model:EditableTextModel, assertMirrorModels:()=>void)=>void, setup:(model:EditableTextModel)=>void = null): void {
 		var model = new EditableTextModel([], TextModel.toRawText(text), null);
 		model.setEOL(EditorCommon.EndOfLineSequence.LF);
