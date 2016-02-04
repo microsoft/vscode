@@ -13,7 +13,7 @@ import { assign } from 'vs/base/common/objects';
 import Event, { Emitter } from 'vs/base/common/event';
 import { append, addClass, removeClass, toggleClass, emmet as $, hide, show, addDisposableListener } from 'vs/base/browser/dom';
 import { IRenderer, IDelegate as IListDelegate } from 'vs/base/browser/ui/list/list';
-import { List } from 'vs/base/browser/ui/list/listImpl';
+import { ListView } from 'vs/base/browser/ui/list/listView';
 import * as HighlightedLabel from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { SuggestModel, ICancelEvent, ISuggestEvent, ITriggerEvent } from './suggestModel';
 import * as Mouse from 'vs/base/browser/mouseEvent';
@@ -553,7 +553,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	private currentSuggestionDetails: TPromise<CompletionItem>;
 	private oldFocus: CompletionItem;
 	private completionModel: CompletionModel;
-	
+
 	private focus: ITraitController<CompletionItem>;
 	private selection: ITraitController<CompletionItem>;
 
@@ -565,7 +565,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	private messageElement: HTMLElement;
 	private listElement: HTMLElement;
 	private details: SuggestionDetails;
-	private list: List<CompletionItem>;
+	private list: ListView<CompletionItem>;
 
 	private toDispose: IDisposable[];
 
@@ -622,7 +622,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		// };
 
 		// this.list = new TreeImpl.Tree(this.listElement, configuration, options);
-		this.list = new List(this.listElement, new Delegate(), { 'suggestion': renderer });
+		this.list = new ListView(this.listElement, new Delegate(), { 'suggestion': renderer });
 
 		this.toDispose = [
 			editor.addListener2(EditorCommon.EventType.ModelChanged, () => this.onModelModeChanged()),

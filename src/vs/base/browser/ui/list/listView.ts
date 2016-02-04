@@ -37,7 +37,7 @@ function toSequence<T>(itemRanges: IItemRange<T>[]): ISequence {
 	};
 }
 
-export class List<T> implements IScrollable {
+export class ListView<T> implements IScrollable {
 
 	private items: IItem<T>[];
 	private itemId: number;
