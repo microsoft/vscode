@@ -86,7 +86,7 @@ export class ListOutdatedExtensionsAction extends Action {
 export class ListSuggestedExtensionsAction extends Action {
 
 	static ID = 'workbench.extensions.action.listSuggestedExtensions';
-	static LABEL = nls.localize('showSuggestedExtensions', "Show Suggested Extensions");
+	static LABEL = nls.localize('showExtensionTips', "Show Extension Tips");
 
 	constructor(
 		id: string,
