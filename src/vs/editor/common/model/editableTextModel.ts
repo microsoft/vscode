@@ -166,8 +166,8 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 
 	public applyEdits(rawOperations:EditorCommon.IIdentifiedSingleEditOperation[]): EditorCommon.IIdentifiedSingleEditOperation[] {
 
-		var operations:IValidatedEditOperation[] = [];
-		for (var i = 0; i < rawOperations.length; i++) {
+		let operations:IValidatedEditOperation[] = [];
+		for (let i = 0; i < rawOperations.length; i++) {
 			let op = rawOperations[i];
 			operations[i] = {
 				identifier: op.identifier,
@@ -183,30 +183,32 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		});
 
 		// Operations can not overlap!
-		for (var i = operations.length - 2; i >= 0; i--) {
+		for (let i = operations.length - 2; i >= 0; i--) {
 			if (operations[i+1].range.getStartPosition().isBeforeOrEqual(operations[i].range.getEndPosition())) {
 				throw new Error('Overlapping ranges are not allowed!');
 			}
 		}
 
+		// console.log(JSON.stringify(operations, null, '\t'));
+
 		operations = this._reduceOperations(operations);
 
-		var editableRange = this.getEditableRange();
-		var editableRangeStart = editableRange.getStartPosition();
-		var editableRangeEnd = editableRange.getEndPosition();
-		for (i = 0; i < operations.length; i++) {
-			var operationRange = operations[i].range;
+		let editableRange = this.getEditableRange();
+		let editableRangeStart = editableRange.getStartPosition();
+		let editableRangeEnd = editableRange.getEndPosition();
+		for (let i = 0; i < operations.length; i++) {
+			let operationRange = operations[i].range;
 			if (!editableRangeStart.isBeforeOrEqual(operationRange.getStartPosition()) || !operationRange.getEndPosition().isBeforeOrEqual(editableRangeEnd)) {
 				throw new Error('Editing outside of editable range not allowed!');
 			}
 		}
 
 		// Delta encode operations
-		var deltaOperations = EditableTextModel._toDeltaOperations(operations);
+		let deltaOperations = EditableTextModel._toDeltaOperations(operations);
 
-		var reverseRanges = EditableTextModel._getInverseEditRanges(deltaOperations);
-		var reverseOperations: EditorCommon.IIdentifiedSingleEditOperation[] = [];
-		for (var i = 0; i < operations.length; i++) {
+		let reverseRanges = EditableTextModel._getInverseEditRanges(deltaOperations);
+		let reverseOperations: EditorCommon.IIdentifiedSingleEditOperation[] = [];
+		for (let i = 0; i < operations.length; i++) {
 			reverseOperations[i] = {
 				identifier: operations[i].identifier,
 				range: reverseRanges[i],
@@ -221,10 +223,10 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 	}
 
 	private static _toDeltaOperation(base: IValidatedEditOperation, operation:IValidatedEditOperation): IDeltaSingleEditOperation {
-		var deltaStartLineNumber = operation.range.startLineNumber - (base ? base.range.endLineNumber : 0);
-		var deltaStartColumn = operation.range.startColumn - (deltaStartLineNumber === 0 ? base.range.endColumn : 0);
-		var deltaEndLineNumber = operation.range.endLineNumber - (base ? base.range.endLineNumber : 0);
-		var deltaEndColumn = operation.range.endColumn - (deltaEndLineNumber === 0 ? base.range.endColumn : 0);
+		let deltaStartLineNumber = operation.range.startLineNumber - (base ? base.range.endLineNumber : 0);
+		let deltaStartColumn = operation.range.startColumn - (deltaStartLineNumber === 0 ? base.range.endColumn : 0);
+		let deltaEndLineNumber = operation.range.endLineNumber - (base ? base.range.endLineNumber : 0);
+		let deltaEndColumn = operation.range.endColumn - (deltaEndLineNumber === 0 ? base.range.endColumn : 0);
 
 		return {
 			original: operation,
@@ -244,16 +246,16 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 	 * Assumes `operations` are validated and sorted ascending
 	 */
 	public static _getInverseEditRanges(operations:IDeltaSingleEditOperation[]): EditorCommon.IEditorRange[] {
-		var lineNumber = 0,
+		let lineNumber = 0,
 			column = 0,
 			result:EditorCommon.IEditorRange[] = [];
 
-		for (var i = 0, len = operations.length; i < len; i++) {
-			var op = operations[i];
+		for (let i = 0, len = operations.length; i < len; i++) {
+			let op = operations[i];
 
-			var startLineNumber = op.deltaStartLineNumber + lineNumber;
-			var startColumn = op.deltaStartColumn + (op.deltaStartLineNumber === 0 ? column : 0);
-			var resultRange: EditorCommon.IEditorRange;
+			let startLineNumber = op.deltaStartLineNumber + lineNumber;
+			let startColumn = op.deltaStartColumn + (op.deltaStartLineNumber === 0 ? column : 0);
+			let resultRange: EditorCommon.IEditorRange;
 
 			if (op.original.lines && op.original.lines.length > 0) {
 				// There is something to insert
@@ -279,20 +281,20 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 	}
 
 	private _generateSequentialEdits(operations:IDeltaSingleEditOperation[]): ISequentialEdit[] {
-		var r:ISequentialEdit[] = [],
+		let r:ISequentialEdit[] = [],
 			lineNumber = 0,
 			column = 0;
 
-		for (var i = 0, len = operations.length; i < len; i++) {
-			var op = operations[i];
+		for (let i = 0, len = operations.length; i < len; i++) {
+			let op = operations[i];
 
-			var startLineNumber = op.deltaStartLineNumber + lineNumber;
-			var startColumn = op.deltaStartColumn + (op.deltaStartLineNumber === 0 ? column : 0);
-			var endLineNumber = op.deltaEndLineNumber + lineNumber;
-			var endColumn = op.deltaEndColumn + (op.deltaEndLineNumber === 0 ? column : 0);
+			let startLineNumber = op.deltaStartLineNumber + lineNumber;
+			let startColumn = op.deltaStartColumn + (op.deltaStartLineNumber === 0 ? column : 0);
+			let endLineNumber = op.deltaEndLineNumber + lineNumber;
+			let endColumn = op.deltaEndColumn + (op.deltaEndLineNumber === 0 ? column : 0);
 
-			var range = new Range(startLineNumber, startColumn, endLineNumber, endColumn);
-			var valueInRangeLength = this.getValueLengthInRange(range);
+			let range = new Range(startLineNumber, startColumn, endLineNumber, endColumn);
+			let valueInRangeLength = this.getValueLengthInRange(range);
 
 			r.push({
 				range: range,
@@ -322,22 +324,22 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 	}
 
 	private _applyEdits(operations:IDeltaSingleEditOperation[]): void {
-		var sequentialEdits = this._generateSequentialEdits(operations);
+		let sequentialEdits = this._generateSequentialEdits(operations);
 
 		// console.log(sequentialEdits);
 
 		this._withDeferredEvents((deferredEventsBuilder:DeferredEventsBuilder) => {
-			var baseLineNumber = 0,
+			let baseLineNumber = 0,
 				baseColumn = 0,
 				deltaLines = 0,
 				adjustedLineNumbers = 0,
 				currentLineEdits: ILineEdit[] = [],
 				currentLineNumber = 0;
 
-			var lastContentChangedVersionId = this.getVersionId();
+			let lastContentChangedVersionId = this.getVersionId();
 			let lastContentChanged2VersionId = this.getVersionId();
 
-			var adjustLineNumbers = (toLineNumber:number, delta:number): void => {
+			let adjustLineNumbers = (toLineNumber:number, delta:number): void => {
 				// console.log('adjustLineNumbers: ' + toLineNumber + ' by ' + delta + ', lines.length: ' + this._lines.length);
 				if (delta !== 0) {
 					for (let lineNumber = adjustedLineNumbers + 1; lineNumber <= toLineNumber; lineNumber++) {
@@ -347,7 +349,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 				adjustedLineNumbers = toLineNumber;
 			};
 
-			var pushLineEdit = (editLineNumber:number, startColumn:number, endColumn:number, text:string, forceMoveMarkers:boolean) => {
+			let pushLineEdit = (editLineNumber:number, startColumn:number, endColumn:number, text:string, forceMoveMarkers:boolean) => {
 				// console.log('pushLineEdit: ' + editLineNumber + '(' + this._lines[editLineNumber - 1].text + ')' + ': [' + startColumn + ' -> ' + endColumn + ']: <<' + text + '>>');
 
 				// Apply previous edits if they were for a different line
@@ -373,9 +375,9 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 				});
 			};
 
-			var flushLineEdits = () => {
+			let flushLineEdits = () => {
 				// console.log('flushLineEdits');
-				var r = 0;
+				let r = 0;
 				if (currentLineEdits.length > 0) {
 					r = this._applyLineEdits(deferredEventsBuilder, currentLineNumber, currentLineEdits);
 					lastContentChangedVersionId = this.getVersionId();
@@ -471,7 +473,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 					adjustLineNumbers(startLineNumber + editingLinesCnt, deltaLines);
 					deltaLines -= spliceCnt;
 
-					var markersOnDeletedLines: ILineMarker[] = [];
+					let markersOnDeletedLines: ILineMarker[] = [];
 					for (let j = 0; j < spliceCnt; j++) {
 						let deleteLineIndex = spliceStart + j;
 						// Collect all these markers
@@ -583,7 +585,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 			}
 		}
 
-		var totalMarkersCnt = Object.keys(this._markerIdToMarker).length;
+		let totalMarkersCnt = Object.keys(this._markerIdToMarker).length;
 		if (totalMarkersCnt !== foundMarkersCnt) {
 			throw new Error('There are misplaced markers!');
 		}
@@ -591,14 +593,14 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 
 	private _applyLineEdits(deferredEventsBuilder:DeferredEventsBuilder, lineNumber:number, edits:ILineEdit[]): number {
 		this._invalidateLine(lineNumber - 1);
-		var result = this._lines[lineNumber - 1].applyEdits(deferredEventsBuilder.changedMarkers, edits);
+		let result = this._lines[lineNumber - 1].applyEdits(deferredEventsBuilder.changedMarkers, edits);
 		this.emitModelContentChangedLineChangedEvent(lineNumber);
 		return result;
 	}
 
 	public static _toDeltaOperations(operations:IValidatedEditOperation[]): IDeltaSingleEditOperation[] {
-		var result: IDeltaSingleEditOperation[] = [];
-		for (var i = 0; i < operations.length; i++) {
+		let result: IDeltaSingleEditOperation[] = [];
+		for (let i = 0; i < operations.length; i++) {
 			result[i] = EditableTextModel._toDeltaOperation(i > 0 ? operations[i-1] : null, operations[i]);
 		}
 		return result;
@@ -611,7 +613,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 
 		return this._withDeferredEvents(() => {
 			this._isUndoing = true;
-			var r = this._commandManager.undo();
+			let r = this._commandManager.undo();
 			this._isUndoing = false;
 
 			if (!r) {
@@ -631,7 +633,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 
 		return this._withDeferredEvents(() => {
 			this._isRedoing = true;
-			var r = this._commandManager.redo();
+			let r = this._commandManager.redo();
 			this._isRedoing = false;
 
 			if (!r) {
@@ -683,7 +685,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 	}
 
 	private _updateLineNumbers(changedMarkers:IChangedMarkers, startLineNumber:number): void {
-		var lines = this._lines,
+		let lines = this._lines,
 			i:number,
 			len:number,
 			j:number,
@@ -697,7 +699,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 	}
 
 	private emitModelContentChangedLineChangedEventNoVersionBump(lineNumber: number): void {
-		var e:EditorCommon.IModelContentChangedLineChangedEvent = {
+		let e:EditorCommon.IModelContentChangedLineChangedEvent = {
 			changeType: EditorCommon.EventType.ModelContentChangedLineChanged,
 			lineNumber: lineNumber,
 			detail: this._lines[lineNumber - 1].text,
@@ -717,7 +719,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 
 	private emitModelContentChangedLinesDeletedEvent(fromLineNumber: number, toLineNumber: number): void {
 		this._increaseVersionId();
-		var e:EditorCommon.IModelContentChangedLinesDeletedEvent = {
+		let e:EditorCommon.IModelContentChangedLinesDeletedEvent = {
 			changeType: EditorCommon.EventType.ModelContentChangedLinesDeleted,
 			fromLineNumber: fromLineNumber,
 			toLineNumber: toLineNumber,
@@ -732,7 +734,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 
 	private emitModelContentChangedLinesInsertedEvent(fromLineNumber: number, toLineNumber: number, newLinesContent: string): void {
 		this._increaseVersionId();
-		var e:EditorCommon.IModelContentChangedLinesInsertedEvent = {
+		let e:EditorCommon.IModelContentChangedLinesInsertedEvent = {
 			changeType: EditorCommon.EventType.ModelContentChangedLinesInserted,
 			fromLineNumber: fromLineNumber,
 			toLineNumber: toLineNumber,
