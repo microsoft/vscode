@@ -32,6 +32,88 @@ import { onUnexpectedError, isPromiseCanceledError, illegalArgument } from 'vs/b
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/impl/scrollableElement';
 
+interface IIdentityProvider<T> {
+	getId(element: T): string;
+}
+
+interface ITraitTemplateData<D> {
+	container: HTMLElement;
+	data: D;
+}
+
+interface ITraitController<T> {
+	trait: string;
+	set(...elements: T[]);
+	add(...elements: T[]);
+	remove(...elements: T[]);
+	contains(elements: T);
+	wrapRenderer<D>(renderer: IRenderer<T, D>): IRenderer<T, ITraitTemplateData<D>>;
+}
+
+class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData<D>>
+{
+	private elements: { [id: string]: T };
+
+	constructor(
+		private controller: ITraitController<T>,
+		private renderer: IRenderer<T,D>
+	) {}
+
+	renderTemplate(container: HTMLElement): ITraitTemplateData<D> {
+		const data = this.renderer.renderTemplate(container);
+		return { container, data };
+	}
+
+	renderElement(element: T, templateData: ITraitTemplateData<D>): void {
+		toggleClass(templateData.container, this.controller.trait, this.controller.contains(element));
+		this.renderer.renderElement(element, templateData.data);
+	}
+
+	disposeTemplate(templateData: ITraitTemplateData<D>): void {
+		return this.renderer.disposeTemplate(templateData.data);
+	}
+}
+
+class TraitController<T> implements ITraitController<T> {
+
+	private elements: { [id: string]: T };
+
+	constructor(private _trait: string, private identityProvider: IIdentityProvider<T>) {
+		this.set();
+	}
+
+	get trait(): string {
+		return this._trait;
+	}
+
+	set(...elements: T[]): void {
+		this.elements = Object.create(null);
+		this.add(...elements);
+	}
+
+	add(...elements: T[]): void {
+		for (const element of elements) {
+			const id = this.identityProvider.getId(element);
+			this.elements[id] = element;
+		}
+	}
+
+	remove(...elements: T[]): void {
+		for (const element of elements) {
+			const id = this.identityProvider.getId(element);
+			delete this.elements[id];
+		}
+	}
+
+	contains(element: T): boolean {
+		return !!this.elements[this.identityProvider.getId(element)];
+	}
+
+	wrapRenderer<D>(renderer: IRenderer<T, D>): IRenderer<T, ITraitTemplateData<D>> {
+		return new TraitRenderer<T, D>(this, renderer);
+	}
+}
+
 function completionGroupCompare(one: CompletionGroup, other: CompletionGroup): number {
 	return one.index - other.index;
 }
@@ -58,7 +140,7 @@ class CompletionItem {
 
 	private static _idPool: number = 0;
 
-	id: number;
+	id: string;
 	suggestion: ISuggestion;
 	highlights: IMatch[];
 	support: ISuggestSupport;
@@ -67,7 +149,7 @@ class CompletionItem {
 	private _resolveDetails: TPromise<CompletionItem>
 
 	constructor(public group: CompletionGroup, suggestion: ISuggestion, container: ISuggestResult2) {
-		this.id = CompletionItem._idPool++;
+		this.id = String(CompletionItem._idPool++);
 		this.support = container.support;
 		this.suggestion = suggestion;
 		this.container = container;
@@ -199,6 +281,12 @@ class CompletionModel {
 
 function isRoot(element: any): boolean {
 	return element instanceof CompletionModel;
+}
+
+class IdentityProvider implements IIdentityProvider<CompletionItem> {
+	getId(item: CompletionItem) {
+		return item.id;
+	}
 }
 
 // class DataSource implements Tree.IDataSource {
@@ -465,6 +553,9 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	private currentSuggestionDetails: TPromise<CompletionItem>;
 	private oldFocus: CompletionItem;
 	private completionModel: CompletionModel;
+	
+	private focus: ITraitController<CompletionItem>;
+	private selection: ITraitController<CompletionItem>;
 
 	private telemetryData: ITelemetryData;
 	private telemetryService: ITelemetryService;
@@ -475,7 +566,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	private listElement: HTMLElement;
 	private details: SuggestionDetails;
 	private list: List<CompletionItem>;
-	private renderer: Renderer;
 
 	private toDispose: IDisposable[];
 
@@ -508,7 +598,14 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.messageElement = append(this.element, $('.message'));
 		this.listElement = append(this.element, $('.tree'));
 		this.details = new SuggestionDetails(this.element, this);
-		this.renderer = instantiationService.createInstance(Renderer, this);
+
+		const identityProvider = new IdentityProvider();
+		this.focus = new TraitController('focused', identityProvider);
+		this.selection = new TraitController('selected', identityProvider);
+
+		let renderer: IRenderer<CompletionItem, any> = instantiationService.createInstance(Renderer, this);
+		renderer = this.focus.wrapRenderer(renderer);
+		renderer = this.selection.wrapRenderer(renderer);
 
 		// const configuration = {
 		// 	renderer: this.renderer,
@@ -525,14 +622,14 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		// };
 
 		// this.list = new TreeImpl.Tree(this.listElement, configuration, options);
-		this.list = new List(this.listElement, new Delegate(), { suggestion: this.renderer });
+		this.list = new List(this.listElement, new Delegate(), { 'suggestion': renderer });
 
 		this.toDispose = [
 			editor.addListener2(EditorCommon.EventType.ModelChanged, () => this.onModelModeChanged()),
 			editor.addListener2(EditorCommon.EventType.ModelModeChanged, () => this.onModelModeChanged()),
 			editor.addListener2(EditorCommon.EventType.ModelModeSupportChanged, (e: EditorCommon.IModeSupportChangedEvent) => e.suggestSupport && this.onModelModeChanged()),
 			SuggestRegistry.onDidChange(() => this.onModelModeChanged()),
-			editor.addListener2(EditorCommon.EventType.EditorTextBlur, () => this.onEditorBlur()),
+			// editor.addListener2(EditorCommon.EventType.EditorTextBlur, () => this.onEditorBlur()),
 			// this.list.addListener2('selection', e => this.onTreeSelection(e)),
 			// this.list.addListener2('focus', e => this.onTreeFocus(e)),
 			this.editor.addListener2(EditorCommon.EventType.CursorSelectionChanged, () => this.onCursorSelectionChanged()),
@@ -743,6 +840,16 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 
 			this.completionModel = null;
 			return;
+		}
+
+		const first = this.completionModel.items[0];
+		if (first) {
+			this.focus.set(first);
+		}
+
+		const second = this.completionModel.items[1];
+		if (second) {
+			this.selection.set(second);
 		}
 
 		this.list.splice(0, this.list.length, ...this.completionModel.items);
@@ -1032,7 +1139,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.details = null;
 		this.list.dispose();
 		this.list = null;
-		this.renderer = null;
 		this.toDispose = disposeAll(this.toDispose);
 		this._onDidVisibilityChange.dispose();
 		this._onDidVisibilityChange = null;
