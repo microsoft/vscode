@@ -97,7 +97,15 @@
 	outline-offset: -1px;
 }
 
-.monaco-shell.vs-dark .monaco-tree.focused.no-item-focus:focus {
+.monaco-shell.vs-dark .monaco-tree.focused.no-item-focus:focus:before {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	z-index: 5; /* make sure we are on top of the tree items */
+	content: "";
+	pointer-events: none; /* enable click through */
 	outline: 1px solid rgba(14, 99, 156, 0.6); /* we still need to handle the empty tree or no focus item case */
 	outline-offset: -1px;
 }
