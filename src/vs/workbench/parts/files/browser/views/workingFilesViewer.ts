@@ -22,7 +22,7 @@ import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import actions = require('vs/base/common/actions');
 import {ActionsRenderer} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
-import {keybindingForAction, CloseWorkingFileAction, SelectResourceForCompareAction, CompareResourcesAction, SaveFileAsAction, SaveFileAction, RevertFileAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';
+import {keybindingForAction, CloseOneWorkingFileAction, CloseOtherWorkingFilesAction, CloseAllWorkingFilesAction, SelectResourceForCompareAction, CompareResourcesAction, SaveFileAsAction, SaveFileAction, RevertFileAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {asFileResource, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {WorkingFileEntry, WorkingFilesModel} from 'vs/workbench/parts/files/common/workingFilesModel';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -146,7 +146,7 @@ export class WorkingFilesActionProvider extends ContributableActionProvider {
 		let actions: actions.IAction[] = [];
 
 		if (element instanceof WorkingFileEntry) {
-			actions.push(this.instantiationService.createInstance(CloseWorkingFileAction, this.model, element));
+			actions.push(this.instantiationService.createInstance(CloseOneWorkingFileAction, this.model, element));
 		}
 
 		return Promise.as(actions);
@@ -209,7 +209,12 @@ export class WorkingFilesActionProvider extends ContributableActionProvider {
 
 				// Close
 				actions.push(new Separator());
-				actions.push(this.instantiationService.createInstance(CloseWorkingFileAction, this.model, element));
+				actions.push(this.instantiationService.createInstance(CloseOneWorkingFileAction, this.model, element));
+				actions.push(this.instantiationService.createInstance(CloseAllWorkingFilesAction, this.model));
+
+				if (this.model.count() > 1) {
+					actions.push(this.instantiationService.createInstance(CloseOtherWorkingFilesAction, this.model, element));
+				}
 			}
 
 			return actions;
@@ -340,7 +345,7 @@ export class WorkingFilesController extends DefaultController {
 
 		// Close working file on middle mouse click
 		if (element instanceof WorkingFileEntry && event.browserEvent && event.browserEvent.button === 1 /* Middle Button */) {
-			const closeAction = this.instantiationService.createInstance(CloseWorkingFileAction, this.model, element);
+			const closeAction = this.instantiationService.createInstance(CloseOneWorkingFileAction, this.model, element);
 			closeAction.run().done(() => {
 				closeAction.dispose();
 			}, errors.onUnexpectedError);

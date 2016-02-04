@@ -1794,58 +1794,55 @@ export class OpenResourcesAction extends Action {
 	}
 }
 
-export class CloseWorkingFileAction extends Action {
-
-	public static ID = 'workbench.files.action.closeWorkingFiles';
-
-	private model: WorkingFilesModel;
-	private element: WorkingFileEntry;
-	private listenerToDispose: IDisposable;
+export abstract class BaseCloseWorkingFileAction extends Action {
+	protected model: WorkingFilesModel;
+	private elements: URI[];
 
 	constructor(
+		id: string,
+		label: string,
+		clazz: string,
 		model: WorkingFilesModel,
-		element: WorkingFileEntry,
+		elements: WorkingFileEntry[],
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IMessageService private messageService: IMessageService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
-		super(CloseWorkingFileAction.ID, element ? nls.localize('closeLabel', "Close File") : nls.localize('closeAllLabel', "Close All Files"), element ? (element.dirty ? 'action-close-dirty-file' : 'action-close-file') : 'action-close-all-files');
+		super(id, label, clazz);
 
 		this.model = model;
-		this.element = element;
-
-		if (this.model) {
-			this.enabled = (this.model.count() > 0);
-			this.listenerToDispose = this.model.onModelChange(this.onModelChange, this);
-		}
-	}
-
-	private onModelChange(event: Files.IWorkingFileModelChangeEvent): void {
-		this.enabled = (this.model.count() > 0);
+		this.elements = elements ? elements.map(e => e.resource) : void 0 /* all */;
 	}
 
 	public run(): Promise {
 		let workingFilesCount = this.model.getEntries().length;
 
 		// Handle dirty
+		let isDirty: boolean;
+		if (this.elements) {
+			isDirty = this.elements.some(e => this.textFileService.isDirty(e));
+		} else {
+			isDirty = this.textFileService.isDirty();
+		}
+
 		let saveOrRevertPromise: TPromise<Files.ITextFileOperationResult> = Promise.as(null);
-		if (this.textFileService.isDirty(this.element ? this.element.resource : void 0 /* all */)) {
-			let confirmResult = this.textFileService.confirmSave(this.element ? [this.element.resource] : void 0 /* all */);
+		if (isDirty) {
+			let confirmResult = this.textFileService.confirmSave(this.elements);
 
 			switch (confirmResult) {
 				case Files.ConfirmResult.SAVE:
-					if (this.element) {
-						saveOrRevertPromise = this.textFileService.saveAll([this.element.resource]);
+					if (this.elements) {
+						saveOrRevertPromise = this.textFileService.saveAll(this.elements);
 					} else {
 						saveOrRevertPromise = this.textFileService.saveAll(true /* include untitled */);
 					}
 
 					break;
 				case Files.ConfirmResult.DONT_SAVE:
-					if (this.element) {
-						saveOrRevertPromise = this.textFileService.revertAll([this.element.resource]);
+					if (this.elements) {
+						saveOrRevertPromise = this.textFileService.revertAll(this.elements);
 					} else {
 						saveOrRevertPromise = this.textFileService.revertAll();
 					}
@@ -1860,8 +1857,8 @@ export class CloseWorkingFileAction extends Action {
 
 			// Collect resources to dispose
 			let resourcesToDispose: URI[] = [];
-			if (this.element) {
-				resourcesToDispose.push(this.element.resource);
+			if (this.elements) {
+				resourcesToDispose = this.elements;
 			} else {
 				resourcesToDispose = this.model.getEntries().map((e) => e.resource);
 			}
@@ -1901,6 +1898,31 @@ export class CloseWorkingFileAction extends Action {
 			input.dispose();
 		}
 	}
+};
+
+export class CloseAllWorkingFilesAction extends BaseCloseWorkingFileAction {
+
+	public static ID = 'workbench.files.action.closeAllWorkingFiles';
+
+	private listenerToDispose: IDisposable;
+
+	constructor(
+		model: WorkingFilesModel,
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@ITextFileService textFileService: ITextFileService,
+		@IMessageService messageService: IMessageService,
+		@IQuickOpenService quickOpenService: IQuickOpenService
+	) {
+		super(CloseAllWorkingFilesAction.ID, nls.localize('closeAllLabel', "Close All Files"), 'action-close-all-files', model, null, untitledEditorService, editorService, textFileService, messageService, quickOpenService);
+
+		this.enabled = (model.count() > 0);
+		this.listenerToDispose = model.onModelChange(this.onModelChange, this);
+	}
+
+	private onModelChange(event: Files.IWorkingFileModelChangeEvent): void {
+		this.enabled = (this.model.count() > 0);
+	}
 
 	public dispose(): void {
 		if (this.listenerToDispose) {
@@ -1910,7 +1932,60 @@ export class CloseWorkingFileAction extends Action {
 
 		super.dispose();
 	}
-};
+}
+
+export class CloseOneWorkingFileAction extends BaseCloseWorkingFileAction {
+
+	public static ID = 'workbench.files.action.closeOneWorkingFile';
+
+	constructor(
+		model: WorkingFilesModel,
+		element: WorkingFileEntry,
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@ITextFileService textFileService: ITextFileService,
+		@IMessageService messageService: IMessageService,
+		@IQuickOpenService quickOpenService: IQuickOpenService
+	) {
+		super(CloseAllWorkingFilesAction.ID, nls.localize('closeLabel', "Close File"), element.dirty ? 'action-close-dirty-file' : 'action-close-file', model, [element], untitledEditorService, editorService, textFileService, messageService, quickOpenService);
+	}
+}
+
+export class CloseOtherWorkingFilesAction extends BaseCloseWorkingFileAction {
+
+	public static ID = 'workbench.files.action.closeOtherWorkingFiles';
+
+	constructor(
+		model: WorkingFilesModel,
+		element: WorkingFileEntry,
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@ITextFileService textFileService: ITextFileService,
+		@IMessageService messageService: IMessageService,
+		@IQuickOpenService quickOpenService: IQuickOpenService
+	) {
+		super(CloseAllWorkingFilesAction.ID, nls.localize('closeOtherLabel', "Close Other Files"), 'action-close-file', model, model.getEntries().filter(e => e !== element), untitledEditorService, editorService, textFileService, messageService, quickOpenService);
+	}
+}
+
+function disposeNonDirtyFileInputs(editorService: IWorkbenchEditorService, quickopenService: IQuickOpenService, textFileService: ITextFileService, exclude?: URI): void {
+	let activeFileInputs = editorService.getVisibleEditors().map(e => workbenchEditorCommon.asFileEditorInput(e.input, true)).filter(i => i instanceof FileEditorInput);
+	activeFileInputs.forEach((f: FileEditorInput) => {
+		if (exclude && exclude.toString() === f.getResource().toString()) {
+			return; // excluded
+		}
+
+		if (textFileService.isDirty(f.getResource())) {
+			return; // do not touch dirty
+		}
+
+		fileEditorInputsForResource(f.getResource(), editorService, quickopenService).forEach(i => {
+			if (!i.isDisposed()) {
+				i.dispose(true);
+			}
+		});
+	});
+}
 
 function fileEditorInputsForResource(resource: URI, editorService: IWorkbenchEditorService, quickopenService: IQuickOpenService): FileEditorInput[] {
 
@@ -1966,7 +2041,7 @@ export class CloseFileAction extends Action {
 
 			// Use action to close a working file that will take care of everthing
 			if (entry) {
-				let closeAction = this.instantiationService.createInstance(CloseWorkingFileAction, model, entry);
+				let closeAction = this.instantiationService.createInstance(CloseOneWorkingFileAction, model, entry);
 				closeAction.run().done(() => closeAction.dispose(), errors.onUnexpectedError);
 			}
 
@@ -2001,6 +2076,48 @@ export class CloseFileAction extends Action {
 	}
 }
 
+export class CloseOtherFilesAction extends Action {
+
+	public static ID = 'workbench.files.action.closeOtherFiles';
+	public static LABEL = nls.localize('closeOtherFiles', "Close Other Files");
+
+	constructor(
+		id: string,
+		label: string,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@ITextFileService private textFileService: ITextFileService,
+		@IMessageService private messageService: IMessageService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label);
+	}
+
+	public run(): Promise {
+		const workingFilesModel = this.textFileService.getWorkingFilesModel();
+
+		let activeResource = workbenchEditorCommon.getUntitledOrFileResource(this.editorService.getActiveEditorInput(), true);
+		let actionToRun: IAction;
+
+		// Close all but active resource
+		if (activeResource && workingFilesModel.hasEntry(activeResource)) {
+			actionToRun = this.instantiationService.createInstance(CloseOtherWorkingFilesAction, workingFilesModel, workingFilesModel.findEntry(activeResource));
+		}
+
+		// Without active resource: Close all
+		else {
+			actionToRun = this.instantiationService.createInstance(CloseAllWorkingFilesAction, workingFilesModel);
+		}
+
+		return actionToRun.run().then(() => {
+			actionToRun.dispose();
+
+			// Dispose remaining non dirty ones except for active one
+			disposeNonDirtyFileInputs(this.editorService, this.quickOpenService, this.textFileService, activeResource);
+		});
+	}
+}
+
 export class CloseAllFilesAction extends Action {
 
 	public static ID = 'workbench.files.action.closeAllFiles';
@@ -2019,23 +2136,14 @@ export class CloseAllFilesAction extends Action {
 	}
 
 	public run(): Promise {
-		let activeFileInputs = this.editorService.getVisibleEditors().map(e => workbenchEditorCommon.asFileEditorInput(e.input, true)).filter(i => i instanceof FileEditorInput);
 
 		// Close all Working Files
-		let closeAction = this.instantiationService.createInstance(CloseWorkingFileAction, this.textFileService.getWorkingFilesModel(), null);
+		let closeAction = this.instantiationService.createInstance(CloseAllWorkingFilesAction, this.textFileService.getWorkingFilesModel());
 		return closeAction.run().then(() => {
 			closeAction.dispose();
 
 			// Dispose remaining non dirty ones
-			activeFileInputs.forEach((f: FileEditorInput) => {
-				if (!this.textFileService.isDirty(f.getResource())) {
-					fileEditorInputsForResource(f.getResource(), this.editorService, this.quickOpenService).forEach(i => {
-						if (!i.isDisposed()) {
-							i.dispose(true);
-						}
-					});
-				}
-			});
+			disposeNonDirtyFileInputs(this.editorService, this.quickOpenService, this.textFileService);
 		});
 	}
 }

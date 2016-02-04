@@ -18,7 +18,7 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import {EventType as WorkbenchEventType, UntitledEditorEvent, EditorEvent} from 'vs/workbench/common/events';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
-import {CloseWorkingFileAction, SaveAllAction} from 'vs/workbench/parts/files/browser/fileActions';
+import {CloseAllWorkingFilesAction, SaveAllAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {WorkingFileEntry} from 'vs/workbench/parts/files/common/workingFilesModel';
 import {WorkingFilesDragAndDrop, WorkingFilesSorter, WorkingFilesController, WorkingFilesDataSource, WorkingFilesRenderer, WorkingFilesAccessibilityProvider, WorkingFilesActionProvider} from 'vs/workbench/parts/files/browser/views/workingFilesViewer';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -76,7 +76,7 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 	public getActions(): IAction[] {
 		return [
 			this.instantiationService.createInstance(SaveAllAction, SaveAllAction.ID, SaveAllAction.LABEL),
-			this.instantiationService.createInstance(CloseWorkingFileAction, this.model, null)
+			this.instantiationService.createInstance(CloseAllWorkingFilesAction, this.model)
 		];
 	}
 
