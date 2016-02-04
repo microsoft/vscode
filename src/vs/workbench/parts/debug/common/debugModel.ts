@@ -515,7 +515,13 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	public appendReplOutput(value: string, severity?: severity): void {
 		const elements: OutputElement[] = [];
 		let previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
-		let lines = value.trim().split('\n');
+		let lines = value.split('\n');
+		// preserve last new line in case more output gets appended
+		if (lines.length > 1 && lines[lines.length - 1] === '') {
+			lines[lines.length - 2] += '\n';
+			lines.pop();
+		}
+
 		let groupTogether = !!previousOutput && previousOutput.category === 'output' && severity === previousOutput.severity;
 
 		if (groupTogether) {
