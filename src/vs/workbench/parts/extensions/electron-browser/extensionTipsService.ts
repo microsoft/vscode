@@ -75,7 +75,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 	private _onDidChangeTips: Emitter<IExtension[]> = new Emitter<IExtension[]>();
 	private _tips: { [id: string]: ExtensionTip } = Object.create(null);
-	private _toDispose: IDisposable[] = [];
+	private _disposeOnUpdate: IDisposable[] = [];
 	private _availableExtensions: Promise<ExtensionMap>;
 	private _extensionData: Promise<ExtensionData>;
 
@@ -83,18 +83,13 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		@IExtensionsService private _extensionService: IExtensionsService,
 		@IGalleryService private _galleryService: IGalleryService,
 		@IModelService private _modelService: IModelService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService private _configurationService: IConfigurationService
 	) {
-
-		configurationService.loadConfiguration('extensions').then(value => {
-			if (value && value.experimentalSuggestions === true) {
-				this._init();
-			}
-		}, onUnexpectedError);
+		this._updateState();
 	}
 
 	dispose() {
-		this._toDispose = disposeAll(this._toDispose);
+		this._disposeOnUpdate = disposeAll(this._disposeOnUpdate);
 	}
 
 	get onDidChangeTips(): Event<IExtension[]> {
@@ -107,7 +102,26 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		return tips.map(tip => tip.extension);
 	}
 
-	private _init() {
+	// --- internals
+
+	private _updateState(): void {
+
+		// check with configuration service and then GO
+		this._disposeOnUpdate = disposeAll(this._disposeOnUpdate);
+		this._tips = Object.create(null);
+		this._onDidChangeTips.fire(this.tips);
+
+		this._configurationService.loadConfiguration('extensions').then(value => {
+			if (value && value.showTips === true) {
+				this._init();
+			}
+		}, onUnexpectedError);
+
+		// listen for config changes
+		this._configurationService.onDidUpdateConfiguration(this._updateState, this, this._disposeOnUpdate);
+	}
+
+	private _init():void {
 
 		if (!this._galleryService.isEnabled()) {
 			return;
@@ -122,7 +136,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		this._availableExtensions = this._getAvailableExtensions();
 
 		// don't suggest what got installed
-		this._toDispose.push(this._extensionService.onDidInstallExtension(ext => {
+		this._disposeOnUpdate.push(this._extensionService.onDidInstallExtension(ext => {
 			const id = `${ext.publisher}.${ext.name}`;
 			let change = false;
 			if (delete this._tips[id]) {
@@ -139,16 +153,16 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		// such that files you type have bigger impact on the suggest
 		// order than those you only look at
 		const modelListener: { [uri: string]: IDisposable } = Object.create(null);
-		this._toDispose.push({ dispose() { disposeAll(values(modelListener)) } });
+		this._disposeOnUpdate.push({ dispose() { disposeAll(values(modelListener)) } });
 
-		this._toDispose.push(this._modelService.onModelAdded(model => {
+		this._disposeOnUpdate.push(this._modelService.onModelAdded(model => {
 			const uri = model.getAssociatedResource();
 			this._suggestByResource(uri, ExtensionTipReasons.FileOpened);
 			modelListener[uri.toString()] = model.addListener2(EventType.ModelContentChanged2,
 				() => this._suggestByResource(uri, ExtensionTipReasons.FileEdited));
 		}));
 
-		this._toDispose.push(this._modelService.onModelRemoved(model => {
+		this._disposeOnUpdate.push(this._modelService.onModelRemoved(model => {
 			const subscription = modelListener[model.getAssociatedResource().toString()];
 			if (subscription) {
 				subscription.dispose();

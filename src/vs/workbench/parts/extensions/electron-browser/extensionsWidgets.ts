@@ -97,6 +97,12 @@ export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
 	) {
 
 		this._extensionTipsService.onDidChangeTips(tips => {
+
+			if (tips.length === 0) {
+				dom.removeClass(this._domNode, 'active');
+				return;
+			}
+
 			// check for new tips
 			let hasNewTips = false;
 			for (let tip of tips) {

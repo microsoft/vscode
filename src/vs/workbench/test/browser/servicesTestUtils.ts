@@ -514,4 +514,8 @@ export class TestConfigurationService extends EventEmitter.EventEmitter implemen
 	public hasWorkspaceConfiguration():boolean {
 		return false;
 	}
+
+	public onDidUpdateConfiguration() {
+		return { dispose() { } };
+	}
 }
