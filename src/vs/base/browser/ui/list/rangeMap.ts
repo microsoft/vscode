@@ -150,7 +150,7 @@ export class RangeMap {
 	}
 
 	/**
-	 * Returns index of the item at the given position.
+	 * Returns the index of the item at the given position.
 	 */
 	indexAt(position: number): number {
 		if (position < 0) {
@@ -173,6 +173,14 @@ export class RangeMap {
 		}
 
 		return index;
+	}
+
+	/**
+	 * Returns the index of the item right after the item at the
+	 * index of the given position.
+	 */
+	indexAfter(position: number): number {
+		return Math.min(this.indexAt(position) + 1, this.count);
 	}
 
 	/**
