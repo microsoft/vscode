@@ -102,7 +102,6 @@ export class FileSystemWatcher implements _FileSystemWatcher {
 export class ExtHostFileSystemEventService {
 
 	private _emitter = new Emitter<FileSystemEvents>();
-	private _watchers: FileSystemWatcher[] = [];
 
 	constructor(@INullService ns) {
 	}

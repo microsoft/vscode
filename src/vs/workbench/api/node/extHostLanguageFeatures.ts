@@ -58,7 +58,7 @@ interface CachedCodeLens {
 	symbols: modes.ICodeLensSymbol[];
 	lenses: vscode.CodeLens[];
 	disposables: IDisposable[];
-};
+}
 
 class CodeLensAdapter implements modes.ICodeLensSupport {
 
@@ -94,7 +94,7 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 				lenses,
 				symbols: [],
 				disposables: [],
-			}
+			};
 
 			lenses.forEach((lens, i) => {
 				data.symbols.push(<modes.ICodeLensSymbol>{
