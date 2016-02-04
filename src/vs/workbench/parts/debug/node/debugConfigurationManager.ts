@@ -242,12 +242,7 @@ export class ConfigurationManager {
 						this.configuration[key] = this.systemVariables.resolve(this.configuration[key]);
 					});
 				}
-
 				this.configuration.debugServer = config.debugServer;
-				this.configuration.outDir = this.resolvePath(this.configuration.outDir);
-				this.configuration.program = this.resolvePath(this.configuration.program);
-				this.configuration.cwd = this.resolvePath(this.configuration.cwd || '.');
-				this.configuration.runtimeExecutable = this.resolvePath(this.configuration.runtimeExecutable);
 			}
 		});
 	}
@@ -340,17 +335,6 @@ export class ConfigurationManager {
 		const modeId = mode ? mode.getId() : null;
 
 		return !!this.allModeIdsForBreakpoints[modeId];
-	}
-
-	private resolvePath(p: string): string {
-		if (!p) {
-			return null;
-		}
-		if (path.isAbsolute(p)) {
-			return paths.normalize(p, true);
-		}
-
-		return paths.normalize(uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, p)).fsPath, true);
 	}
 
 	public loadLaunchConfig(): TPromise<debug.IGlobalConfig> {
