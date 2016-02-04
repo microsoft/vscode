@@ -12,8 +12,8 @@ import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import Event, { Emitter } from 'vs/base/common/event';
 import { append, addClass, removeClass, toggleClass, emmet as $, hide, show, addDisposableListener } from 'vs/base/browser/dom';
-import { IRenderer, IDelegate as IListDelegate } from 'vs/base/browser/ui/list/list';
-import { ListView } from 'vs/base/browser/ui/list/listView';
+import { IRenderer, IDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
+import { List } from 'vs/base/browser/ui/list/listWidget';
 import * as HighlightedLabel from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { SuggestModel, ICancelEvent, ISuggestEvent, ITriggerEvent } from './suggestModel';
 import * as Mouse from 'vs/base/browser/mouseEvent';
@@ -31,88 +31,6 @@ import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { onUnexpectedError, isPromiseCanceledError, illegalArgument } from 'vs/base/common/errors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/impl/scrollableElement';
-
-interface IIdentityProvider<T> {
-	getId(element: T): string;
-}
-
-interface ITraitTemplateData<D> {
-	container: HTMLElement;
-	data: D;
-}
-
-interface ITraitController<T> {
-	trait: string;
-	set(...elements: T[]);
-	add(...elements: T[]);
-	remove(...elements: T[]);
-	contains(elements: T);
-	wrapRenderer<D>(renderer: IRenderer<T, D>): IRenderer<T, ITraitTemplateData<D>>;
-}
-
-class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData<D>>
-{
-	private elements: { [id: string]: T };
-
-	constructor(
-		private controller: ITraitController<T>,
-		private renderer: IRenderer<T,D>
-	) {}
-
-	renderTemplate(container: HTMLElement): ITraitTemplateData<D> {
-		const data = this.renderer.renderTemplate(container);
-		return { container, data };
-	}
-
-	renderElement(element: T, templateData: ITraitTemplateData<D>): void {
-		toggleClass(templateData.container, this.controller.trait, this.controller.contains(element));
-		this.renderer.renderElement(element, templateData.data);
-	}
-
-	disposeTemplate(templateData: ITraitTemplateData<D>): void {
-		return this.renderer.disposeTemplate(templateData.data);
-	}
-}
-
-class TraitController<T> implements ITraitController<T> {
-
-	private elements: { [id: string]: T };
-
-	constructor(private _trait: string, private identityProvider: IIdentityProvider<T>) {
-		this.set();
-	}
-
-	get trait(): string {
-		return this._trait;
-	}
-
-	set(...elements: T[]): void {
-		this.elements = Object.create(null);
-		this.add(...elements);
-	}
-
-	add(...elements: T[]): void {
-		for (const element of elements) {
-			const id = this.identityProvider.getId(element);
-			this.elements[id] = element;
-		}
-	}
-
-	remove(...elements: T[]): void {
-		for (const element of elements) {
-			const id = this.identityProvider.getId(element);
-			delete this.elements[id];
-		}
-	}
-
-	contains(element: T): boolean {
-		return !!this.elements[this.identityProvider.getId(element)];
-	}
-
-	wrapRenderer<D>(renderer: IRenderer<T, D>): IRenderer<T, ITraitTemplateData<D>> {
-		return new TraitRenderer<T, D>(this, renderer);
-	}
-}
 
 function completionGroupCompare(one: CompletionGroup, other: CompletionGroup): number {
 	return one.index - other.index;
@@ -356,6 +274,9 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 		this.triggerKeybindingLabel = keybindings.length === 0 ? '' : ` (${keybindingService.getLabelFor(keybindings[0])})`;
 	}
 
+	get templateId(): string {
+		return 'suggestion';
+	}
 
 	renderTemplate(container: HTMLElement): ISuggestionTemplateData {
 		const data = <ISuggestionTemplateData>Object.create(null);
@@ -413,7 +334,7 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 	}
 }
 
-class Delegate implements IListDelegate<CompletionItem> {
+class Delegate implements IDelegate<CompletionItem> {
 
 	getHeight(element: CompletionItem): number {
 		// if (element instanceof CompletionItem) {
@@ -554,9 +475,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	private oldFocus: CompletionItem;
 	private completionModel: CompletionModel;
 
-	private focus: ITraitController<CompletionItem>;
-	private selection: ITraitController<CompletionItem>;
-
 	private telemetryData: ITelemetryData;
 	private telemetryService: ITelemetryService;
 	private telemetryTimer: Timer.ITimerEvent;
@@ -565,7 +483,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	private messageElement: HTMLElement;
 	private listElement: HTMLElement;
 	private details: SuggestionDetails;
-	private list: ListView<CompletionItem>;
+	private list: List<CompletionItem>;
 
 	private toDispose: IDisposable[];
 
@@ -600,12 +518,8 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.details = new SuggestionDetails(this.element, this);
 
 		const identityProvider = new IdentityProvider();
-		this.focus = new TraitController('focused', identityProvider);
-		this.selection = new TraitController('selected', identityProvider);
 
 		let renderer: IRenderer<CompletionItem, any> = instantiationService.createInstance(Renderer, this);
-		renderer = this.focus.wrapRenderer(renderer);
-		renderer = this.selection.wrapRenderer(renderer);
 
 		// const configuration = {
 		// 	renderer: this.renderer,
@@ -622,7 +536,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		// };
 
 		// this.list = new TreeImpl.Tree(this.listElement, configuration, options);
-		this.list = new ListView(this.listElement, new Delegate(), { 'suggestion': renderer });
+		this.list = new List(this.listElement, new Delegate(), [renderer], identityProvider);
 
 		this.toDispose = [
 			editor.addListener2(EditorCommon.EventType.ModelChanged, () => this.onModelModeChanged()),
@@ -844,12 +758,12 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 
 		const first = this.completionModel.items[0];
 		if (first) {
-			this.focus.set(first);
+			this.list.setFocus(first);
 		}
 
 		const second = this.completionModel.items[1];
 		if (second) {
-			this.selection.set(second);
+			this.list.setSelection(second);
 		}
 
 		this.list.splice(0, this.list.length, ...this.completionModel.items);

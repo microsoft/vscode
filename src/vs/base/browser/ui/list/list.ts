@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface IScrollEvent {
-	vertical: boolean;
-	horizontal: boolean;
+export interface IIdentityProvider<T> {
+	getId(element: T): string;
 }
 
 export interface IDelegate<T> {
@@ -14,11 +13,8 @@ export interface IDelegate<T> {
 }
 
 export interface IRenderer<TElement, TTemplateData> {
+	templateId: string;
 	renderTemplate(container: HTMLElement): TTemplateData;
 	renderElement(element: TElement, templateData: TTemplateData): void;
 	disposeTemplate(templateData: TTemplateData): void;
-}
-
-export interface IRendererMap<T> {
-	[templateId: string]: IRenderer<T, any>;
 }

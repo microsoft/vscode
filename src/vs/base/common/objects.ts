@@ -158,6 +158,10 @@ export function assign(destination: any, ...sources: any[]): any {
 	return destination;
 }
 
+export function toObject<T>(arr: T[], hash: (T) => string): { [key: string]: T } {
+	return arr.reduce((o, d) => assign(o, { [hash(d)]: d }), Object.create(null));
+}
+
 /**
  * Returns a new object that has all values of {{obj}}
  * plus those from {{defaults}}.

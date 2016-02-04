@@ -3,18 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./list';
 import { IScrollable } from 'vs/base/common/scrollable';
 import Event, { Emitter } from 'vs/base/common/event';
+import { toObject } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Gesture } from 'vs/base/browser/touch';
 import * as DOM from 'vs/base/browser/dom';
 import { IScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/impl/scrollableElement';
 import { RangeMap, IRange } from './rangeMap';
-import { IScrollEvent, IDelegate, IRendererMap } from './list';
+import { IDelegate, IRenderer } from './list';
 import { RowCache, IRow } from './rowCache';
 import { LcsDiff, ISequence } from 'vs/base/common/diff/diff';
+
+interface IScrollEvent {
+	vertical: boolean;
+	horizontal: boolean;
+}
 
 interface IItemRange<T> {
 	item: IItem<T>;
@@ -43,6 +48,7 @@ export class ListView<T> implements IScrollable {
 	private itemId: number;
 	private rangeMap: RangeMap;
 	private cache: RowCache<T>;
+	private renderers: { [templateId: string]: IRenderer<T, any>; };
 
 	private renderTop: number;
 	private renderHeight: number;
@@ -57,12 +63,13 @@ export class ListView<T> implements IScrollable {
 	constructor(
 		container: HTMLElement,
 		private delegate: IDelegate<T>,
-		private renderers: IRendererMap<T>
+		renderers: IRenderer<T, any>[]
 	) {
 		this.items = [];
 		this.itemId = 0;
 		this.rangeMap = new RangeMap();
-		this.cache = new RowCache(renderers);
+		this.renderers = toObject(renderers, r => r.templateId);
+		this.cache = new RowCache(this.renderers);
 
 		this.renderTop = 0;
 		this.renderHeight = 0;
@@ -95,7 +102,7 @@ export class ListView<T> implements IScrollable {
 		this.layout();
 	}
 
-	splice(start: number, deleteCount: number, ...elements: T[]): void {
+	splice(start: number, deleteCount: number, ...elements: T[]): T[] {
 		const before = this.getRenderedItemRanges();
 		const inserted = elements.map<IItem<T>>(element => ({
 			id: String(this.itemId++),
@@ -106,7 +113,7 @@ export class ListView<T> implements IScrollable {
 		}));
 
 		this.rangeMap.splice(start, deleteCount, ...inserted);
-		this.items.splice(start, deleteCount, ...inserted);
+		const deleted = this.items.splice(start, deleteCount, ...inserted);
 
 		const after = this.getRenderedItemRanges();
 		const lcs = new LcsDiff(toSequence(before), toSequence(after), null);
@@ -125,6 +132,8 @@ export class ListView<T> implements IScrollable {
 		this.rowsContainer.style.height = `${ this.rangeMap.size }px`;
 		this.setScrollTop(this.renderTop);
 		this.scrollableElement.onElementInternalDimensions();
+
+		return deleted.map(i => i.element);
 	}
 
 	get length(): number {

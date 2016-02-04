@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRendererMap } from './list';
+import { IRenderer } from './list';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
 
@@ -31,7 +31,7 @@ export class RowCache<T> implements IDisposable {
 	private cache: { [templateId:string]: IRow[]; };
 	private scrollingRow: IRow;
 
-	constructor(private renderers: IRendererMap<T>) {
+	constructor(private renderers: { [templateId: string]: IRenderer<T, any>; }) {
 		this.cache = Object.create(null);
 		this.scrollingRow = null;
 	}
