@@ -229,7 +229,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 			this.metaKey = e.metaKey;
 			this.keyCode = extractKeyCode(e);
 
-			// console.info(e.type + ": keyCode: " + e.keyCode + ", which: " + e.which + ", charCode: " + e.charCode + ", detail: " + e.detail + " ====> " + this.key + ' -- ' + KeyCode[this.keyCode]);
+			// console.info(e.type + ": keyCode: " + e.keyCode + ", which: " + e.which + ", charCode: " + e.charCode + ", detail: " + e.detail + " ====> " + this.keyCode + ' -- ' + KeyCode[this.keyCode]);
 
 			this.ctrlKey = this.ctrlKey || this.keyCode === KeyCode.Ctrl;
 			this.altKey = this.altKey || this.keyCode === KeyCode.Alt;
