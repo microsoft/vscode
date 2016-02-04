@@ -529,7 +529,7 @@ export class RunOnceScheduler {
 	 * Cancel current scheduled runner (if any).
 	 */
 	public cancel(): void {
-		if (this.timeoutToken !== -1) {
+		if (this.isScheduled()) {
 			platform.clearTimeout(this.timeoutToken);
 			this.timeoutToken = -1;
 		}
@@ -555,6 +555,13 @@ export class RunOnceScheduler {
 	public schedule(): void {
 		this.cancel();
 		this.timeoutToken = platform.setTimeout(this.timeoutHandler, this.timeout);
+	}
+
+	/**
+	 * Returns true if scheduled.
+	 */
+	public isScheduled(): boolean {
+		return this.timeoutToken !== -1;
 	}
 
 	private onTimeout() {
