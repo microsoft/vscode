@@ -201,15 +201,12 @@ export class List<T> implements IScrollable {
 			item.row = this.cache.alloc(item.templateId);
 		}
 
-		item.row.domNode.style.top = `${ this.rangeMap.positionAt(index) }px`;
-
-		if (item.row.domNode.parentElement) {
-			return;
+		if (!item.row.domNode.parentElement) {
+			this.rowsContainer.appendChild(item.row.domNode);
 		}
 
-		this.rowsContainer.appendChild(item.row.domNode);
-
 		const renderer = this.renderers[item.templateId];
+		item.row.domNode.style.top = `${ this.rangeMap.positionAt(index) }px`;
 		item.row.domNode.style.height = `${ item.size }px`;
 		renderer.renderElement(item.element, item.row.templateData);
 	}
