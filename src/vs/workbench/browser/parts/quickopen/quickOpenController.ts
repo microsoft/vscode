@@ -216,7 +216,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 									resolve(new TPromise(init));
 								}
 								return !message;
-							})
+							});
 						}, err => {
 							// ignore
 						});

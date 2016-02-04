@@ -22,7 +22,7 @@ export interface IWorkbenchContribution {
 
 export namespace Extensions {
 	export const Workbench = 'workbench.contributions.kind';
-};
+}
 
 export type IWorkbenchContributionSignature = IConstructorSignature0<IWorkbenchContribution> | INewConstructorSignature0<IWorkbenchContribution>;
 

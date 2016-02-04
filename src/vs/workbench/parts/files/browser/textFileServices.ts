@@ -264,7 +264,7 @@ export abstract class TextFileService implements ITextFileService {
 		return {
 			autoSaveDelay: this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 ? this.configuredAutoSaveDelay : void 0,
 			autoSaveFocusChange: this.configuredAutoSaveOnFocusChange
-		}
+		};
 	}
 
 	public dispose(): void {

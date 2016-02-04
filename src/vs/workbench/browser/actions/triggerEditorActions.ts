@@ -414,8 +414,6 @@ function toEditorQuickOpenEntry(element: any): IEditorQuickOpenEntry {
 	return null;
 }
 
-let CLOSE_EDITOR_ACTION_ID = 'workbench.action.closeActiveEditor';
-let CLOSE_EDITOR_ACTION_LABEL = nls.localize('closeActiveEditor', "Close Editor");
 export class CloseEditorAction extends Action {
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {

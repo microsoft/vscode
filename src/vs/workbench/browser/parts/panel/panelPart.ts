@@ -7,7 +7,6 @@ import 'vs/css!./media/panelPart';
 import nls = require('vs/nls');
 import {TPromise, Promise} from 'vs/base/common/winjs.base';
 import {KeyMod, KeyCode, CommonKeybindings} from 'vs/base/common/keyCodes';
-import strings = require('vs/base/common/strings');
 import {Action, IAction} from 'vs/base/common/actions';
 import {Builder} from 'vs/base/browser/builder';
 import dom = require('vs/base/browser/dom');
@@ -16,17 +15,15 @@ import {Scope} from 'vs/workbench/browser/actionBarRegistry';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/actionRegistry';
 import {IPanel} from 'vs/workbench/common/panel';
-import {EventType as WorkbenchEventType, CompositeEvent} from 'vs/workbench/common/events';
 import {CompositePart} from 'vs/workbench/browser/parts/compositePart';
 import {Panel, PanelRegistry, Extensions as PanelExtensions} from 'vs/workbench/browser/panel';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
+import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
@@ -65,7 +62,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	public create(parent: Builder): void {
 		super.create(parent);
-		
+
 		dom.addStandardDisposableListener(this.getContainer().getHTMLElement(), 'keyup', (e: dom.IKeyboardEvent) => {
 			if (e.equals(CommonKeybindings.ESCAPE)) {
 				this.partService.setPanelHidden(true);
@@ -93,7 +90,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	protected getActions(): IAction[] {
-		return [this.instantiationService.createInstance(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL)]
+		return [this.instantiationService.createInstance(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL)];
 	}
 
 	public getActivePanel(): IPanel {

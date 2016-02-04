@@ -6,7 +6,6 @@
 import {Registry} from 'vs/platform/platform';
 import {IPanel} from 'vs/workbench/common/panel';
 import {Composite, CompositeDescriptor, CompositeRegistry} from 'vs/workbench/browser/composite';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
 
 export abstract class Panel extends Composite implements IPanel { }
 

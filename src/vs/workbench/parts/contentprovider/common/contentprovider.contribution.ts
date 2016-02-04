@@ -37,7 +37,7 @@ export class WorkbenchContentProvider implements IWorkbenchContribution {
 	}
 
 	private start(): void {
-		ResourceEditorInput.registerResourceContentProvider("vscode", {
+		ResourceEditorInput.registerResourceContentProvider('vscode', {
 			provideTextContent: (uri: URI): TPromise<IModel> => {
 				if (uri.scheme !== 'vscode') {
 					return null;

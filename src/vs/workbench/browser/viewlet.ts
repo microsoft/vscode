@@ -9,7 +9,7 @@ import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
 import {Registry} from 'vs/platform/platform';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import {IAction, IActionRunner, Action, ActionRunner} from 'vs/base/common/actions';
+import {IAction, IActionRunner, Action} from 'vs/base/common/actions';
 import {IActionItem, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ITree, IFocusEvent, ISelectionEvent} from 'vs/base/parts/tree/browser/tree';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
@@ -291,7 +291,7 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 	protected actionRunner: IActionRunner;
 	protected isDisposed: boolean;
 
-	private dragHandler: DelayedDragHandler
+	private dragHandler: DelayedDragHandler;
 
 	constructor(
 		actionRunner: IActionRunner,

@@ -87,13 +87,13 @@ class MarkerEntry extends QuickOpenEntryItem {
 		dom.addClass(icon, `severity ${Severity.toString(this._marker.severity).toLowerCase()}`);
 		row1.appendChild(icon);
 		const labelContainer = document.createElement('div');
-		dom.addClass(labelContainer, 'inline')
+		dom.addClass(labelContainer, 'inline');
 		new HighlightedLabel(labelContainer).set(this._label, labelHighlights);
 		row1.appendChild(labelContainer);
 
 		// fill second row with descriptions
 		const descContainer = document.createElement('div');
-		dom.addClass(descContainer, 'inline description')
+		dom.addClass(descContainer, 'inline description');
 		new HighlightedLabel(descContainer).set(this._description, descHighlights);
 		row2.appendChild(descContainer);
 

@@ -5,9 +5,9 @@
 
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {IEventEmitter} from 'vs/base/common/eventEmitter';
-import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import {IAction, IActionRunner, Action, ActionRunner} from 'vs/base/common/actions';
-import {IActionItem, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
+import {Dimension, Builder} from 'vs/base/browser/builder';
+import {IAction, IActionRunner, ActionRunner} from 'vs/base/common/actions';
+import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {WorkbenchComponent} from 'vs/workbench/common/component';
 import {CompositeEvent} from 'vs/workbench/common/events';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';

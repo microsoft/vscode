@@ -81,10 +81,7 @@ export class OutputPanel extends StringEditor {
 		options.glyphMargin = false;
 		options.lineDecorationsWidth = 20;
 
-		let input = this.getInput();
-		let ariaLabel: string;
 		let channel = this.outputService.getActiveChannel();
-
 		options.ariaLabel = channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}, Output panel", channel) : nls.localize('outputPanelAriaLabel', "Output panel");
 
 		return options;

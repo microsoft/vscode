@@ -18,14 +18,13 @@ import errors = require('vs/base/common/errors');
 import {CONTEXT as ToolBarContext, ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {IActionItem, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
-import {Scope, IActionBarRegistry, Extensions, prepareActions} from 'vs/workbench/browser/actionBarRegistry';
+import {IActionBarRegistry, Extensions, prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {Action, IAction} from 'vs/base/common/actions';
 import {Part} from 'vs/workbench/browser/part';
-import {Composite, CompositeDescriptor, CompositeRegistry} from 'vs/workbench/browser/composite';
+import {Composite, CompositeRegistry} from 'vs/workbench/browser/composite';
 import {IComposite} from 'vs/workbench/common/composite';
 import {EventType as WorkbenchEventType, CompositeEvent} from 'vs/workbench/common/events';
 import {EventType as CompositeEventType} from 'vs/workbench/browser/composite';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {WorkbenchProgressService} from 'vs/workbench/services/progress/browser/progressService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
@@ -359,7 +358,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		this.titleLabel.safeInnerHtml(compositeTitle);
 		this.titleLabel.title(keybinding ? nls.localize('compositeTitleTooltip', "{0} ({1})", compositeTitle, keybinding) : compositeTitle);
 
-		this.toolBar.setAriaLabel(nls.localize('ariaCompositeToolbarLabel',"{0} actions", compositeTitle));
+		this.toolBar.setAriaLabel(nls.localize('ariaCompositeToolbarLabel', "{0} actions", compositeTitle));
 	}
 
 	private collectCompositeActions(composite: Composite): () => void {

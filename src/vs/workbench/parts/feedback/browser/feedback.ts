@@ -9,15 +9,10 @@ import 'vs/css!./media/feedback';
 import nls = require('vs/nls');
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {Builder, $} from 'vs/base/browser/builder';
-import errors = require('vs/base/common/errors');
-import {Promise} from 'vs/base/common/winjs.base';
 import {Dropdown} from 'vs/base/browser/ui/dropdown/dropdown';
-import {IXHRResponse} from 'vs/base/common/http';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-
-const STATUS_TIMEOUT = 500;
 
 export interface IFeedback {
 	feedback: string;
@@ -37,7 +32,7 @@ enum FormEvent {
 	SENDING,
 	SENT,
 	SEND_ERROR
-};
+}
 
 export class FeedbackDropdown extends Dropdown {
 	protected static MAX_FEEDBACK_CHARS: number = 140;
@@ -283,7 +278,9 @@ export class FeedbackDropdown extends Dropdown {
 	}
 
 	protected resetForm(): void {
-		if (this.feedbackDescriptionInput) this.feedbackDescriptionInput.value = '';
+		if (this.feedbackDescriptionInput) {
+			this.feedbackDescriptionInput.value = '';
+		}
 		this.sentiment = 1;
 		this.aliasEnabled = false;
 	}

@@ -25,7 +25,6 @@ import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
 import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
 import Files = require('vs/workbench/parts/files/common/files');
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
-import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import workbenchEditorCommon = require('vs/workbench/common/editor');
 import {IEditorSelection} from 'vs/editor/common/editorCommon';
@@ -1898,7 +1897,7 @@ export abstract class BaseCloseWorkingFileAction extends Action {
 			input.dispose();
 		}
 	}
-};
+}
 
 export class CloseAllWorkingFilesAction extends BaseCloseWorkingFileAction {
 

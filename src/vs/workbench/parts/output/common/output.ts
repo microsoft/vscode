@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import {Registry} from 'vs/platform/platform';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {IEditor, Position} from 'vs/platform/editor/common/editor';
+import {IEditor} from 'vs/platform/editor/common/editor';
 
 /**
  * Mime type used by the output editor.

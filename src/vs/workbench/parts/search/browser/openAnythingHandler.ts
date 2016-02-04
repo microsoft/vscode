@@ -12,12 +12,9 @@ import types = require('vs/base/common/types');
 import {isWindows} from 'vs/base/common/platform';
 import scorer = require('vs/base/common/scorer');
 import paths = require('vs/base/common/paths');
-import filters = require('vs/base/common/filters');
 import labels = require('vs/base/common/labels');
 import strings = require('vs/base/common/strings');
 import {IRange} from 'vs/editor/common/editorCommon';
-import {ListenerUnbind} from 'vs/base/common/eventEmitter';
-import {compareByPrefix} from 'vs/base/common/comparers';
 import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
@@ -26,8 +23,7 @@ import * as openSymbolHandler from 'vs/workbench/parts/search/browser/openSymbol
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {ISearchConfiguration} from 'vs/platform/search/common/search';
-import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 interface ISearchWithRange {
 	search: string;
@@ -53,7 +49,6 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private pendingSearch: TPromise<QuickOpenModel>;
 	private isClosed: boolean;
 	private scorerCache: { [key: string]: number };
-	private configurationListenerUnbind: ListenerUnbind;
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
@@ -237,7 +232,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			return {
 				search: value.substr(0, patternMatch.index), // clear range suffix from search value
 				range: range
-			}
+			};
 		}
 
 		return null;
