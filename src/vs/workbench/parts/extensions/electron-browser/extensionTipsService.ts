@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/text!vs/workbench/parts/extensions/electron-browser/extensionTips.json';
 import URI from 'vs/base/common/uri';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {values, forEach} from 'vs/base/common/collections';
@@ -17,6 +18,10 @@ import {EventType} from 'vs/editor/common/editorCommon';
 
 interface ExtensionMap {
 	[id: string]: IExtension;
+}
+
+interface ExtensionData {
+	[id: string]: string;
 }
 
 enum ExtensionTipReasons {
@@ -72,6 +77,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	private _tips: { [id: string]: ExtensionTip } = Object.create(null);
 	private _toDispose: IDisposable[] = [];
 	private _availableExtensions: Promise<ExtensionMap>;
+	private _extensionData: Promise<ExtensionData>;
 
 	constructor(
 		@IExtensionsService private _extensionService: IExtensionsService,
@@ -107,6 +113,12 @@ export class ExtensionTipsService implements IExtensionTipsService {
 			return;
 		}
 
+		this._extensionData = new Promise((resolve, reject) => {
+			require(['vs/text!vs/workbench/parts/extensions/electron-browser/extensionTips.json'],
+				data => resolve(JSON.parse(data)),
+				reject);
+		});
+
 		this._availableExtensions = this._getAvailableExtensions();
 
 		// don't suggest what got installed
@@ -122,12 +134,10 @@ export class ExtensionTipsService implements IExtensionTipsService {
 			this._availableExtensions = this._getAvailableExtensions();
 		}));
 
-
 		// we listen for editor models being added and changed
 		// when a model is added it gives 2 points, a change gives 3 points
 		// such that files you type have bigger impact on the suggest
 		// order than those you only look at
-
 		const modelListener: { [uri: string]: IDisposable } = Object.create(null);
 		this._toDispose.push({ dispose() { disposeAll(values(modelListener)) } });
 
@@ -177,9 +187,12 @@ export class ExtensionTipsService implements IExtensionTipsService {
 			return;
 		}
 
-		this._availableExtensions.then(extensions => {
+		Promise.join<any>([this._availableExtensions, this._extensionData]).then(all => {
+			let extensions = <ExtensionMap>all[0];
+			let data = <ExtensionData>all[1];
+
 			let change = false;
-			forEach(ExtensionTipsService._extensionByPattern, entry => {
+			forEach(data, entry => {
 				let extension = extensions[entry.key];
 				if (extension && match(entry.value, uri.fsPath)) {
 					let value = this._tips[entry.key];
@@ -191,21 +204,11 @@ export class ExtensionTipsService implements IExtensionTipsService {
 					}
 				}
 			});
-
 			if (change) {
 				this._onDidChangeTips.fire(this.tips);
 			}
-		}, onUnexpectedError);
-	}
-
-	private static _extensionByPattern: { [pattern: string]: string } = {
-		'jrieken.vscode-omnisharp': '{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln}',
-		'msjsdiag.debugger-for-chrome': '{**/*.ts,**/*.tsx**/*.js,**/*.jsx,**/*.es6}',
-		'lukehoban.Go': '**/*.go',
-		'ms-vscode.PowerShell': '{**/*.ps,**/*.ps1}',
-		'austin.code-gnu-global': '{**/*.c,**/*.cpp,**/*.h}',
-		'Ionide.Ionide-fsharp': '{**/*.fsx,**/*.fsi,**/*.fs,**/*.ml,**/*.mli}',
-		'dbaeumer.vscode-eslint': '{**/*.js,**/*.jsx,**/*.es6}',
-		'eg2.tslint': '{**/*.ts,**/*.tsx}'
+		}, () => {
+			// ignore
+		});
 	}
 }
