@@ -6,6 +6,7 @@
 'use strict';
 
 import 'vs/css!./aria';
+import nls = require('vs/nls');
 import {Builder, $} from 'vs/base/browser/builder';
 
 let ariaContainer: Builder;
@@ -36,6 +37,10 @@ function insertMessage(target: Builder, msg: string): void {
 	if (!ariaContainer) {
 		console.warn('ARIA support needs a container. Call setARIAContainer() first.');
 		return;
+	}
+
+	if (target.getHTMLElement().textContent === msg) {
+		msg = nls.localize('repeated', "{0} (occurred again)", msg);
 	}
 
 	$(target).empty();

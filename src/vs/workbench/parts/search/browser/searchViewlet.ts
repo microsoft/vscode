@@ -12,6 +12,7 @@ import {EditorType} from 'vs/editor/common/editorCommon';
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import assert = require('vs/base/common/assert');
+import aria = require('vs/base/browser/ui/aria/aria');
 import {IExpression, splitGlobAware} from 'vs/base/common/glob';
 import {isFunction} from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
@@ -1278,6 +1279,9 @@ export class SearchViewlet extends Viewlet {
 					message = nls.localize('noResultsFound', "No results found. Review your settings for configured exclusions - ");
 				}
 
+				// Indicate as status to ARIA
+				aria.status(message);
+
 				this.tree.onHidden();
 				this.results.hide();
 				let div = this.messages.empty().show().asContainer().div({ 'class': 'message', text: message });
@@ -1294,6 +1298,7 @@ export class SearchViewlet extends Viewlet {
 				} else if (hasIncludes || hasExcludes) {
 					$(div).a({
 						'class': ['pointer', 'prominent'],
+						'tabindex': '0',
 						text: nls.localize('rerunSearchInAll.message', "Search again in all files")
 					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
 						dom.EventHelper.stop(e, false);
@@ -1306,6 +1311,7 @@ export class SearchViewlet extends Viewlet {
 				} else {
 					$(div).a({
 						'class': ['pointer', 'prominent'],
+						'tabindex': '0',
 						text: nls.localize('openSettings.message', "Open Settings")
 					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
 						dom.EventHelper.stop(e, false);
@@ -1315,8 +1321,10 @@ export class SearchViewlet extends Viewlet {
 					});
 				}
 			} else {
-				// show highlights
-				this.viewModel.toggleHighlights(true);
+				this.viewModel.toggleHighlights(true); // show highlights
+
+				// Indicate as status to ARIA
+				aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.count(), this.viewModel.fileCount()));
 			}
 
 			doneTimer.stop();
