@@ -60,14 +60,13 @@ class ExtensionTip {
 		if (this === tip) {
 			return 0;
 		}
-		let result = tip.score - this.score;
+		let result = tip._touched - this._touched;
 		if (result === 0) {
-			result = tip._touched - this._touched;
+			result = tip.score - this.score;
 		}
 		return result;
 	}
 }
-
 
 export class ExtensionTipsService implements IExtensionTipsService {
 
