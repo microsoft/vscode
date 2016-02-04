@@ -90,7 +90,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 					'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
 					'SuggestedExtensionHandler',
 					'ext tips ',
-					nls.localize('suggestedExtensionsCommands', "Install Suggested Extensions")
+					nls.localize('suggestedExtensionsCommands', "Show Extension Tips")
 				)
 			);
 		}
