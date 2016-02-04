@@ -5,6 +5,7 @@
 
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import lifecycle = require('vs/base/common/lifecycle');
 import env = require('vs/base/common/platform');
 import uri from 'vs/base/common/uri';
@@ -20,6 +21,8 @@ import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
+const HOVER_DELAY = 1000;
+
 export class DebugEditorContribution implements editorcommon.IEditorContribution {
 
 	static ID = 'editor.contrib.debug';
@@ -27,6 +30,10 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 	private toDispose: lifecycle.IDisposable[];
 	private breakpointHintDecoration: string[];
 	private hoverWidget: DebugHoverWidget;
+	private showHoverScheduler: RunOnceScheduler;
+	private hideHoverScheduler: RunOnceScheduler;
+	private hoverRange: editorcommon.IEditorRange;
+	private hoveringOver: string;
 
 	constructor(
 		private editor: editorbrowser.ICodeEditor,
@@ -38,6 +45,8 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 		this.breakpointHintDecoration = [];
 		this.toDispose = [];
 		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, this.instantiationService);
+		this.showHoverScheduler = new RunOnceScheduler(() => this.hoverWidget.showAt(this.hoverRange, this.hoveringOver), HOVER_DELAY);
+		this.hideHoverScheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), HOVER_DELAY);
 		this.registerListeners();
 	}
 
@@ -107,8 +116,8 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseMove, (e: editorbrowser.IMouseEvent) => this.onEditorMouseMove(e)));
 		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseLeave, (e: editorbrowser.IMouseEvent) => this.hoverWidget.hide()));
 		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.KeyDown, (e: keyboard.StandardKeyboardEvent) => this.onKeyDown(e)));
-		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.ModelChanged, () => this.onModelChanged()));
-		this.toDispose.push(this.editor.addListener2('scroll', () => this.hoverWidget.hide()));
+		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.ModelChanged, () => this.hideHoverWidget()));
+		this.toDispose.push(this.editor.addListener2('scroll', () => this.hideHoverWidget));
 	}
 
 	public getId(): string {
@@ -134,15 +143,19 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 
 	private onDebugStateUpdate(): void {
 		if (this.debugService.getState() !== debug.State.Stopped) {
-			this.hoverWidget.hide();
+			this.hideHoverWidget();
 		}
 		this.contextService.updateOptions('editor', {
 			hover: this.debugService.getState() !== debug.State.Stopped
 		});
 	}
 
-	private onModelChanged(): void {
-		this.hoverWidget.hide();
+	private hideHoverWidget(): void {
+		if (!this.hideHoverScheduler.isScheduled()) {
+			this.hideHoverScheduler.schedule();
+		}
+		this.showHoverScheduler.cancel();
+		this.hoveringOver = null;
 	}
 
 	// hover business
@@ -152,7 +165,7 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 			return;
 		}
 
-		this.hoverWidget.hide();
+		this.hideHoverWidget();
 	}
 
 	private onEditorMouseMove(mouseEvent: editorbrowser.IMouseEvent): void {
@@ -167,11 +180,15 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 			// mouse moved on top of debug hover widget
 			return;
 		}
-
 		if (targetType === editorcommon.MouseTargetType.CONTENT_TEXT) {
-			this.hoverWidget.showAt(mouseEvent.target.range);
+			const wordAtPosition = this.editor.getModel().getWordAtPosition(mouseEvent.target.range.getStartPosition());
+			if (wordAtPosition && this.hoveringOver !== wordAtPosition.word) {
+				this.hoverRange = mouseEvent.target.range;
+				this.hoveringOver = wordAtPosition.word;
+				this.showHoverScheduler.schedule();
+			}
 		} else {
-			this.hoverWidget.hide();
+			this.hideHoverWidget();
 		}
 	}
 
@@ -179,7 +196,7 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 		const stopKey = env.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;
 		if (e.keyCode !== stopKey) {
 			// do not hide hover when Ctrl/Meta is pressed
-			this.hoverWidget.hide();
+			this.hideHoverWidget();
 		}
 	}
 
