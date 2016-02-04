@@ -16,7 +16,6 @@ import Errors = require('vs/base/common/errors');
 
 export interface IDeltaSingleEditOperation {
 	original: IValidatedEditOperation;
-	isNoOp: boolean;
 	deltaStartLineNumber: number;
 	deltaStartColumn: number;
 	deltaEndLineNumber: number;
@@ -231,11 +230,6 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 
 		return {
 			original: operation,
-			isNoOp: (
-				operation.range.startLineNumber === operation.range.endLineNumber
-				&& operation.range.startColumn === operation.range.endColumn
-				&& (!operation.lines || operation.lines.length === 0)
-			),
 			deltaStartLineNumber: deltaStartLineNumber,
 			deltaStartColumn: deltaStartColumn,
 			deltaEndLineNumber: deltaEndLineNumber,
@@ -348,6 +342,11 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 				let startColumn = op.range.startColumn;
 				let endLineNumber = op.range.endLineNumber;
 				let endColumn = op.range.endColumn;
+
+				if (startLineNumber === endLineNumber && startColumn === endColumn && (!op.lines || op.lines.length === 0)) {
+					// no-op
+					continue;
+				}
 
 				let deletingLinesCnt = endLineNumber - startLineNumber;
 				let insertingLinesCnt = (op.lines ? op.lines.length - 1 : 0);
