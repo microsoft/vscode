@@ -618,13 +618,6 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		let editor = this.editorService.getActiveEditor();
 		if (editor) {
 			editor.focus();
-			return;
-		}
-
-		// Otherwise focus viewlet
-		let activeViewlet = this.viewletService.getActiveViewlet();
-		if (activeViewlet) {
-			activeViewlet.focus();
 		}
 	}
 
