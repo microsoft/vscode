@@ -163,7 +163,7 @@ export abstract class TextAreaState {
 		if (currentSelectionStart === currentSelectionEnd) {
 			// composition accept case
 			// [blahblah] => blahblah|
-			if (previousValue === currentValue && previousSelectionStart === 0 && previousSelectionEnd === previousValue.length && currentSelectionStart === currentValue.length) {
+			if (previousValue === currentValue && previousSelectionStart === 0 && previousSelectionEnd === previousValue.length && currentSelectionStart === currentValue.length && currentValue !== '\n') {
 				return {
 					text: '',
 					replaceCharCnt: 0
