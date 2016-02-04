@@ -107,7 +107,8 @@ export var ViewModelEvents = {
 };
 
 export var ServiceEvents = {
-	STATE_CHANGED: 'StateChanged'
+	STATE_CHANGED: 'StateChanged',
+	TYPE_NOT_SUPPORTED: 'TypeNotSupported'
 };
 
 export var SessionEvents = {

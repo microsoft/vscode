@@ -502,6 +502,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 				});
 			}
 			if (!this.configurationManager.getAdapter()) {
+				this.emit(debug.ServiceEvents.TYPE_NOT_SUPPORTED, configuration.type);
 				return Promise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type {0} is not supported.", configuration.type)));
 			}
 

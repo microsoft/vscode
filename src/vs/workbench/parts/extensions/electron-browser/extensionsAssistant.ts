@@ -19,6 +19,7 @@ import { IEventService } from 'vs/platform/event/common/event';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { EventType, EditorEvent } from 'vs/workbench/common/events';
 import { getUntitledOrFileResource } from 'vs/workbench/common/editor';
+import { IDebugService, ServiceEvents } from 'vs/workbench/parts/debug/common/debug';
 import { match } from 'vs/base/common/glob';
 
 // --- check for extensions we don't bundle by default anymore but the user might expect
@@ -44,8 +45,19 @@ function omnisharpChecker(accessor, callback) {
 	});
 }
 
+function monoDebugChecker(accessor, callback) {
+	const debugService = (<IDebugService>accessor.get(IDebugService));
+	const subscription = debugService.addListener2(ServiceEvents.TYPE_NOT_SUPPORTED, (type: string) => {
+		if (type === 'mono') {
+			subscription.dispose();
+			callback();
+		}
+	});
+}
+
 const extensionChecker: { [id: string]: LegacyExtensionChecker } = Object.create(null);
 extensionChecker['jrieken.vscode-omnisharp'] = omnisharpChecker;
+extensionChecker['andreweinand.mono-debug'] = monoDebugChecker;
 
 export function checkForLegacyExtensionNeeds(accessor: ServicesAccessor): void {
 
@@ -80,6 +92,10 @@ export function checkForLegacyExtensionNeeds(accessor: ServicesAccessor): void {
 						}
 					}
 				}).then(extension => {
+					if (!extension) {
+						return;
+					}
+
 					let message = nls.localize('hint', "'{0}' is now an optional extension. Do you want to install it?", extension.displayName);
 					let actions = [
 						CancelAction,
