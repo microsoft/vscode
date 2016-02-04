@@ -170,36 +170,14 @@ export class KeyValueOutputElement extends OutputElement {
 	}
 }
 
-// TODO@Isidor move common code for expression and variable into a super class
-export class Expression implements debug.IExpression {
-	static DEFAULT_VALUE = 'not available';
+export class ExpressionContainer implements debug.IExpressionContainer {
+
+	private children: TPromise<debug.IExpression[]>;
+	public valueChanged: boolean;
 	public static allValues: { [id: string]: string } = {};
 
-	public reference: number;
-	public available: boolean;
-	public valueChanged: boolean;
-	private _value: string;
-	private children: TPromise<debug.IExpression[]>;
-
-	constructor(public name: string, private cacheChildren: boolean, private id = uuid.generateUuid()) {
-		this.reference = 0;
-		this.value = Expression.DEFAULT_VALUE;
-		this.available = false;
+	constructor(public reference: number, private id: string, private cacheChildren: boolean) {
 		this.children = null;
-	}
-
-	public get value(): string {
-		return this._value;
-	}
-
-	public set value(value: string) {
-		this._value = massageValue(value);
-		this.valueChanged = Expression.allValues[this.getId()] && Expression.allValues[this.getId()] !== Expression.DEFAULT_VALUE && Expression.allValues[this.getId()] !== value;
-		Expression.allValues[this.getId()] = value;
-	}
-
-	public getId(): string {
-		return this.id;
 	}
 
 	public getChildren(debugService: debug.IDebugService): TPromise<debug.IExpression[]> {
@@ -212,33 +190,46 @@ export class Expression implements debug.IExpression {
 
 		return this.children;
 	}
-}
-
-export class Variable implements debug.IExpression {
-
-	public static allValues: { [id: string]: string } = {};
-	// cache children to optimize debug hover behaviour.
-	private children: TPromise<debug.IExpression[]>;
-	public value: string;
-	public valueChanged: boolean;
-
-	constructor(public parent: debug.IExpressionContainer, public reference: number, public name: string, value: string, public available = true) {
-		this.children = null;
-		this.value = massageValue(value);
-		this.valueChanged = Variable.allValues[this.getId()] && Variable.allValues[this.getId()] !== value;
-		Variable.allValues[this.getId()] = value;
-	}
 
 	public getId(): string {
-		return `variable:${ this.parent.getId() }:${ this.name }`;
+		return this.id;
 	}
 
-	public getChildren(debugService: debug.IDebugService): TPromise<debug.IExpression[]> {
-		if (!this.children) {
-			this.children = resolveChildren(debugService, this);
-		}
+}
 
-		return this.children;
+export class Expression extends ExpressionContainer implements debug.IExpression {
+	static DEFAULT_VALUE = 'not available';
+
+	public available: boolean;
+	private _value: string;
+
+	constructor(public name: string, cacheChildren: boolean, id = uuid.generateUuid()) {
+		super(0, id, cacheChildren);
+		this.value = Expression.DEFAULT_VALUE;
+		this.available = false;
+	}
+
+	public get value(): string {
+		return this._value;
+	}
+
+	public set value(value: string) {
+		this._value = massageValue(value);
+		this.valueChanged = ExpressionContainer.allValues[this.getId()] &&
+			ExpressionContainer.allValues[this.getId()] !== Expression.DEFAULT_VALUE && ExpressionContainer.allValues[this.getId()] !== value;
+		ExpressionContainer.allValues[this.getId()] = value;
+	}
+}
+
+export class Variable extends ExpressionContainer implements debug.IExpression {
+
+	public value: string;
+
+	constructor(public parent: debug.IExpressionContainer, reference: number, public name: string, value: string, public available = true) {
+		super(reference, `variable:${ parent.getId() }:${ name }`, true);
+		this.value = massageValue(value);
+		this.valueChanged = ExpressionContainer.allValues[this.getId()] && ExpressionContainer.allValues[this.getId()] !== value;
+		ExpressionContainer.allValues[this.getId()] = value;
 	}
 }
 
@@ -370,8 +361,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		} else {
 			if (removeThreads) {
 				this.threads = {};
-				Variable.allValues = {};
-				Expression.allValues = {};
+				ExpressionContainer.allValues = {};
 			} else {
 				for (let ref in this.threads) {
 					if (this.threads.hasOwnProperty(ref)) {
