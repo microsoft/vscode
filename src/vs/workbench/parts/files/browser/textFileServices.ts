@@ -127,8 +127,8 @@ export abstract class TextFileService implements ITextFileService {
 		}
 	}
 
-	public getDirty(resource?: URI): URI[] {
-		return this.getDirtyFileModels(resource).map((m) => m.getResource());
+	public getDirty(resources?: URI[]): URI[] {
+		return this.getDirtyFileModels(resources).map((m) => m.getResource());
 	}
 
 	public isDirty(resource?: URI): boolean {
@@ -187,7 +187,7 @@ export abstract class TextFileService implements ITextFileService {
 
 	public abstract saveAs(resource: URI, targetResource?: URI): TPromise<URI>;
 
-	public confirmSave(resource?: URI): ConfirmResult {
+	public confirmSave(resources?: URI[]): ConfirmResult {
 		throw new Error('Unsupported');
 	}
 

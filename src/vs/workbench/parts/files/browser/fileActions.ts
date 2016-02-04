@@ -154,7 +154,7 @@ export class BaseFileAction extends Action {
 
 	protected handleDirty(): TPromise<boolean /* cancel */> {
 		if (this.textFileService.isDirty(this._element.resource)) {
-			let res = this.textFileService.confirmSave(this._element.resource);
+			let res = this.textFileService.confirmSave([this._element.resource]);
 			if (res === Files.ConfirmResult.SAVE) {
 				return this.textFileService.save(this._element.resource).then(() => false);
 			}
@@ -1832,7 +1832,7 @@ export class CloseWorkingFileAction extends Action {
 		// Handle dirty
 		let saveOrRevertPromise: TPromise<Files.ITextFileOperationResult> = Promise.as(null);
 		if (this.textFileService.isDirty(this.element ? this.element.resource : void 0 /* all */)) {
-			let confirmResult = this.textFileService.confirmSave(this.element ? this.element.resource : void 0 /* all */);
+			let confirmResult = this.textFileService.confirmSave(this.element ? [this.element.resource] : void 0 /* all */);
 
 			switch (confirmResult) {
 				case Files.ConfirmResult.SAVE:

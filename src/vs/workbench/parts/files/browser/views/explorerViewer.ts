@@ -826,7 +826,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 				// Handle dirty
 				let saveOrRevertPromise: Promise = Promise.as(null);
 				if (this.textFileService.isDirty(source.resource)) {
-					let res = this.textFileService.confirmSave(source.resource);
+					let res = this.textFileService.confirmSave([source.resource]);
 					if (res === ConfirmResult.SAVE) {
 						saveOrRevertPromise = this.textFileService.save(source.resource);
 					} else if (res === ConfirmResult.DONT_SAVE) {

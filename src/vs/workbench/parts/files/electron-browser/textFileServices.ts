@@ -119,19 +119,17 @@ export class TextFileService extends AbstractTextFileService {
 		});
 	}
 
-	public getDirty(resource?: URI): URI[] {
+	public getDirty(resources?: URI[]): URI[] {
 
 		// Collect files
-		let dirty = super.getDirty(resource);
+		let dirty = super.getDirty(resources);
 
 		// Add untitled ones
-		if (!resource) {
+		if (!resources) {
 			dirty.push(...this.untitledEditorService.getDirty());
 		} else {
-			let input = this.untitledEditorService.get(resource);
-			if (input && input.isDirty()) {
-				dirty.push(input.getResource());
-			}
+			let dirtyUntitled = resources.map(r => this.untitledEditorService.get(r)).filter(u => u && u.isDirty()).map(u => u.getResource());
+			dirty.push(...dirtyUntitled);
 		}
 
 		return dirty;
@@ -145,12 +143,12 @@ export class TextFileService extends AbstractTextFileService {
 		return this.untitledEditorService.getDirty().some((dirty) => !resource || dirty.toString() === resource.toString());
 	}
 
-	public confirmSave(resource?: URI): ConfirmResult {
+	public confirmSave(resources?: URI[]): ConfirmResult {
 		if (!!this.contextService.getConfiguration().env.pluginDevelopmentPath) {
 			return ConfirmResult.DONT_SAVE; // no veto when we are in plugin dev mode because we cannot assum we run interactive (e.g. tests)
 		}
 
-		let resourcesToConfirm = this.getDirty(resource);
+		let resourcesToConfirm = this.getDirty(resources);
 		if (resourcesToConfirm.length === 0) {
 			return ConfirmResult.DONT_SAVE;
 		}
@@ -210,9 +208,7 @@ export class TextFileService extends AbstractTextFileService {
 		// get all dirty
 		let toSave: URI[] = [];
 		if (Array.isArray(arg1)) {
-			(<URI[]>arg1).forEach((r) => {
-				toSave.push(...this.getDirty(r));
-			});
+			toSave = this.getDirty(arg1);
 		} else {
 			toSave = this.getDirty();
 		}
