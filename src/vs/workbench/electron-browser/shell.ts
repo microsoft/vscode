@@ -194,7 +194,7 @@ export class WorkbenchShell {
 	private createContents(parent: Builder): Builder {
 
 		// ARIA
-		aria.setAlertContainer(document.body);
+		aria.setARIAContainer(document.body);
 
 		// Workbench Container
 		let workbenchContainer = $(parent).div();
