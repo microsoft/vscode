@@ -20,7 +20,6 @@ import {compareAnything, compareByPrefix} from 'vs/base/common/comparers';
 import {ActionBar, IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {LegacyRenderer, ILegacyTemplateData} from 'vs/base/parts/tree/browser/treeDefaults';
 import {HighlightedLabel} from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import {OcticonLabel} from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import DOM = require('vs/base/browser/dom');
 import scorer = require('vs/base/common/scorer');
 

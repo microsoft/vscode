@@ -172,7 +172,7 @@ class SearchController extends DefaultController {
 		}
 		return result;
 	}
-};
+}
 
 class SearchFilter implements IFilter {
 

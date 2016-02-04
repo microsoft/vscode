@@ -28,7 +28,6 @@ export class FileWalker {
 	private isLimitHit: boolean;
 	private resultCount: number;
 	private isCanceled: boolean;
-	private searchInPath: boolean;
 
 	private walkedPaths: { [path: string]: boolean; };
 
