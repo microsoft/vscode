@@ -6,8 +6,6 @@
 
 import {SyncDescriptor} from './descriptors';
 import {ServiceIdentifier, INewConstructorSignature0} from './instantiation';
-import {Graph} from 'vs/base/common/graph';
-import {Registry}  from 'vs/platform/platform';
 
 export const Services = 'di.services';
 

@@ -11,7 +11,7 @@ import * as descriptors from './descriptors';
 
 export namespace _util {
 
-	export const DI_TARGET = '$di$target'
+	export const DI_TARGET = '$di$target';
 	export const DI_DEPENDENCIES = '$di$dependencies';
 	export const DI_PROVIDES = '$di$provides_service';
 
@@ -307,7 +307,7 @@ export function createDecorator<T>(serviceId: string): { (...args: any[]): void;
 			target[_util.DI_DEPENDENCIES] = [{ serviceId, index }];
 			target[_util.DI_TARGET] = target;
 		}
-	}
+	};
 
 	ret[_util.DI_PROVIDES] = serviceId;
 	// ret['type'] = undefined;

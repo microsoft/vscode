@@ -302,7 +302,7 @@ let findReferencesCommand: ICommandHandler = (accessor, args) => {
 		throw new Error('illegal argument, uri');
 	}
 	if (!position) {
-		throw new Error('illega argument, position')
+		throw new Error('illega argument, position');
 	}
 
 	return accessor.get(IEditorService).openEditor({ resource }).then(editor => {
@@ -317,7 +317,7 @@ let findReferencesCommand: ICommandHandler = (accessor, args) => {
 		let range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		return TPromise.as(controller.processRequest(range, request));
 	});
-}
+};
 
 let showReferencesCommand: ICommandHandler = (accessor, args:[URI, EditorCommon.IPosition, Modes.IReference[]]) => {
 	if (!(args[0] instanceof URI)) {

@@ -128,9 +128,9 @@ export interface CreateSyncFunc {
 	<A1, A2, A3, A4, A5, A6, A7, A8, T>(ctor:instantiation.INewConstructorSignature8<A1, A2, A3, A4, A5, A6, A7, A8, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7): SyncDescriptor1<A8, T>;
 	<A1, A2, A3, A4, A5, A6, A7, A8, T>(ctor:instantiation.INewConstructorSignature8<A1, A2, A3, A4, A5, A6, A7, A8, T>, a1: A1, a2: A2, a3: A3, a4: A4, a5: A5, a6: A6, a7: A7, a8: A8): SyncDescriptor0<T>;
 }
-export var createSyncDescriptor:CreateSyncFunc = <T>(ctor:any, ...staticArguments:any[]): any => {
+export var createSyncDescriptor: CreateSyncFunc = <T>(ctor: any, ...staticArguments: any[]): any => {
 	return new SyncDescriptor<T>(ctor, ...staticArguments);
-}
+};
 
 export interface SyncDescriptor0<T> {
 	ctor:any;
@@ -310,9 +310,9 @@ export interface CreateAsyncFunc8 {
 	<A1, A2, A3, A4, A5, A6, A7, A8, T>(moduleName:string, ctorName:string): AsyncDescriptor8<A1, A2, A3, A4, A5, A6, A7, A8, T>;
 }
 
-var _createAsyncDescriptor = <T>(moduleName:string, ctorName:string, ...staticArguments:any[]): any => {
+var _createAsyncDescriptor = <T>(moduleName: string, ctorName: string, ...staticArguments: any[]): any => {
 	return new AsyncDescriptor<T>(moduleName, ctorName, ...staticArguments);
-}
+};
 export var createAsyncDescriptor0:CreateAsyncFunc0 = _createAsyncDescriptor;
 export var createAsyncDescriptor1:CreateAsyncFunc1 = _createAsyncDescriptor;
 export var createAsyncDescriptor2:CreateAsyncFunc2 = _createAsyncDescriptor;

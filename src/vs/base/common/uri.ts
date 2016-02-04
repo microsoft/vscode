@@ -194,7 +194,7 @@ export default class URI {
 			ret._path = match[5] || ret._path;
 			ret._query = match[7] || ret._query;
 			ret._fragment = match[9] || ret._fragment;
-		};
+		}
 		URI._validate(ret);
 		return ret;
 	}
@@ -284,7 +284,7 @@ export default class URI {
 	}
 
 	public toJSON(): any {
-		return <_ISerializedURI> {
+		return <URIComponents> {
 			scheme: this.scheme,
 			authority: this.authority,
 			path: this.path,
@@ -298,19 +298,19 @@ export default class URI {
 
 	static revive(data: any): URI {
 		let result = new URI();
-		result._scheme = (<_ISerializedURI> data).scheme;
-		result._authority = (<_ISerializedURI> data).authority;
-		result._path = (<_ISerializedURI> data).path;
-		result._query = (<_ISerializedURI> data).query;
-		result._fragment = (<_ISerializedURI> data).fragment;
-		result._fsPath = (<_ISerializedURI> data).fsPath;
-		result._formatted = (<_ISerializedURI>data).external;
+		result._scheme = (<URIComponents> data).scheme;
+		result._authority = (<URIComponents> data).authority;
+		result._path = (<URIComponents> data).path;
+		result._query = (<URIComponents> data).query;
+		result._fragment = (<URIComponents> data).fragment;
+		result._fsPath = (<URIComponents> data).fsPath;
+		result._formatted = (<URIComponents>data).external;
 		URI._validate(result);
 		return result;
 	}
 }
 
-interface _ISerializedURI {
+interface URIComponents {
 	$mid: number;
 	scheme: string;
 	authority: string;
