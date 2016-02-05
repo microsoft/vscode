@@ -201,16 +201,6 @@ function isRoot(element: any): boolean {
 	return element instanceof CompletionModel;
 }
 
-// class Controller extends TreeDefaults.DefaultController {
-
-// 	/* protected */ public onLeftClick(tree: Tree.ITree, element: any, event: Mouse.StandardMouseEvent): boolean {
-// 		event.preventDefault();
-// 		event.stopPropagation();
-// 		tree.setSelection([element], { origin: 'mouse' });
-// 		return true;
-// 	}
-// }
-
 interface ISuggestionTemplateData {
 	root: HTMLElement;
 	icon: HTMLElement;
@@ -865,31 +855,31 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	}
 
 	public toggleDetails(): void {
-		// if (this.state === State.Details) {
-		// 	this.setState(State.Open);
-		// 	this.editor.focus();
-		// 	return;
-		// }
+		if (this.state === State.Details) {
+			this.setState(State.Open);
+			this.editor.focus();
+			return;
+		}
 
-		// if (this.state !== State.Open) {
-		// 	return;
-		// }
+		if (this.state !== State.Open) {
+			return;
+		}
 
-		// const item: CompletionItem = this.list.getFocus();
+		const item = this.list.getFocus()[0];
 
-		// if (!item || !item.suggestion.documentationLabel) {
-		// 	return;
-		// }
+		if (!item || !item.suggestion.documentationLabel) {
+			return;
+		}
 
-		// this.setState(State.Details);
-		// this.editor.focus();
+		this.setState(State.Details);
+		this.editor.focus();
 	}
 
 	private show(): void {
 		this.updateWidgetHeight();
 		this._onDidVisibilityChange.fire(true);
 		// this.list.layout();
-		// this.renderDetails();
+		this.renderDetails();
 		TPromise.timeout(100).done(() => {
 			addClass(this.element, 'visible');
 		});
@@ -902,7 +892,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 
 	public cancel(): void {
 		if (this.state === State.Details) {
-			// this.toggleDetails();
+			this.toggleDetails();
 		} else {
 			this.model.cancel();
 		}
@@ -955,13 +945,13 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		return height;
 	}
 
-	// private renderDetails(): void {
-	// 	if (this.state !== State.Details) {
-	// 		this.details.render(null);
-	// 	} else {
-	// 		this.details.render(this.list.getFocus());
-	// 	}
-	// }
+	private renderDetails(): void {
+		if (this.state !== State.Details) {
+			this.details.render(null);
+		} else {
+			this.details.render(this.list.getFocus()[0]);
+		}
+	}
 
 	public dispose(): void {
 		this.state = null;
