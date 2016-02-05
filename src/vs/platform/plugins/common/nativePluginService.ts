@@ -15,7 +15,7 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {PluginHostStorage} from 'vs/platform/storage/common/remotable.storage';
 import * as paths from 'vs/base/common/paths';
-import {IWorkspaceContextService, IConfiguration} from 'vs/platform/workspace/common/workspace';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {disposeAll} from 'vs/base/common/lifecycle';
 var hasOwnProperty = Object.hasOwnProperty;
 
@@ -25,8 +25,8 @@ class PluginMemento implements IPluginMemento {
 	private _shared: boolean;
 	private _storage: PluginHostStorage;
 
-	private _init:WinJS.TPromise<PluginMemento>
-	private _value: { [n: string]: any;}
+	private _init:WinJS.TPromise<PluginMemento>;
+	private _value: { [n: string]: any;};
 
 	constructor(id: string, global:boolean, storage: PluginHostStorage) {
 		this._id = id;
@@ -44,7 +44,7 @@ class PluginMemento implements IPluginMemento {
 	}
 
 	get<T>(key: string, defaultValue: T): T {
-		let value = this._value[key]
+		let value = this._value[key];
 		if (typeof value === 'undefined') {
 			value = defaultValue;
 		}
@@ -320,7 +320,7 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 
 		// clean up subscriptions
 		try {
-			disposeAll(plugin.subscriptions)
+			disposeAll(plugin.subscriptions);
 		} catch(err) {
 			// TODO: Do something with err if this is not the shutdown case
 		}
@@ -355,7 +355,7 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 				globalState,
 				workspaceState,
 				subscriptions: [],
-				get extensionPath() { return pluginDescription.extensionFolderPath },
+				get extensionPath() { return pluginDescription.extensionFolderPath; },
 				asAbsolutePath: (relativePath:string) => { return paths.normalize(paths.join(pluginDescription.extensionFolderPath, relativePath), true); }
 			});
 		});

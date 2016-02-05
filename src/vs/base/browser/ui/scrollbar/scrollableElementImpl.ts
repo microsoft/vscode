@@ -130,10 +130,6 @@ export class ScrollableElement extends Widget implements IScrollableElement {
 		};
 	}
 
-	private _getVerticalSliderDomNode(): HTMLElement {
-		return this._verticalScrollbar.slider;
-	}
-
 	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
 		this._verticalScrollbar.delegateMouseDown(browserEvent);
 	}

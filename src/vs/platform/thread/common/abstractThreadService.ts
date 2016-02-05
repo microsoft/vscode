@@ -6,11 +6,10 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import remote = require('vs/base/common/remote');
-import Types = require('vs/base/common/types');
-import {IThreadServiceStatusListener, ThreadAffinity, Remotable, IRemotableCtorMap, IThreadSynchronizableObject, IDynamicProxy} from 'vs/platform/thread/common/thread';
+import {ThreadAffinity, Remotable, IThreadSynchronizableObject, IDynamicProxy} from 'vs/platform/thread/common/thread';
 import {THREAD_SERVICE_PROPERTY_NAME} from 'vs/platform/thread/common/threadService';
 import instantiation = require('vs/platform/instantiation/common/instantiation');
-import {SyncDescriptor, SyncDescriptor0, createSyncDescriptor, AsyncDescriptor0, AsyncDescriptor1, AsyncDescriptor2, AsyncDescriptor3} from 'vs/platform/instantiation/common/descriptors';
+import {SyncDescriptor0, createSyncDescriptor, AsyncDescriptor0, AsyncDescriptor1, AsyncDescriptor2, AsyncDescriptor3} from 'vs/platform/instantiation/common/descriptors';
 
 export interface IThreadServiceData {
 	[id:string]:any;
@@ -36,11 +35,6 @@ class DynamicProxy<T> implements IDynamicProxy<T> {
 }
 
 export abstract class AbstractThreadService implements remote.IManyHandler {
-
-	private static _LAST_DYNAMIC_PROXY_ID:number = 0;
-	private static generateDynamicProxyId(): string {
-		return String(++this._LAST_DYNAMIC_PROXY_ID);
-	}
 
 	public isInMainThread:boolean;
 

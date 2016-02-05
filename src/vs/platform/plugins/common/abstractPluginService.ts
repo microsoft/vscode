@@ -5,16 +5,13 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {IPluginDescription, IPluginService, IMessage, IPointListener, IActivationEventListener, IPluginStatus } from 'vs/platform/plugins/common/plugins';
+import {IPluginDescription, IPluginService, IMessage, IActivationEventListener, IPluginStatus } from 'vs/platform/plugins/common/plugins';
 import WinJS = require('vs/base/common/winjs.base');
 import {IDisposable} from 'vs/base/common/lifecycle';
-import Errors = require('vs/base/common/errors');
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import Severity from 'vs/base/common/severity';
 
 var hasOwnProperty = Object.hasOwnProperty;
-var global = this;
 
 export interface IPluginContext {
 	subscriptions: IDisposable[];
@@ -33,7 +30,7 @@ export abstract class ActivatedPlugin {
 	activationFailed: boolean;
 
 	constructor(activationFailed: boolean) {
-		this.activationFailed = activationFailed
+		this.activationFailed = activationFailed;
 	}
 }
 

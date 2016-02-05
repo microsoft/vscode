@@ -13,7 +13,7 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {Remotable, IThreadService, ThreadAffinity, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
+import {Remotable, IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import Event, {Emitter} from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';

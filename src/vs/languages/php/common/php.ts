@@ -5,17 +5,11 @@
 'use strict';
 
 import WinJS = require('vs/base/common/winjs.base');
-import Network = require('vs/base/common/network');
 import objects = require('vs/base/common/objects');
 import supports = require('vs/editor/common/modes/supports');
-import platform = require('vs/platform/platform');
-import Arrays = require('vs/base/common/arrays');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import {AbstractMode, isDigit, createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
-import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -54,10 +48,10 @@ var brackets = (function() {
 			return !!MAP[text];
 		},
 		tokenTypeFromString: (text:string): string => {
-			return MAP[text].tokenType
+			return MAP[text].tokenType;
 		},
 		bracketTypeFromString: (text:string): Modes.Bracket => {
-			return MAP[text].bracketType
+			return MAP[text].bracketType;
 		}
 	};
 })();
@@ -273,9 +267,13 @@ export class PHPNumber extends PHPState {
 			}
 		}
 		var tokenType = 'number';
-		if (base === 16) tokenType += '.hex';
-		else if (base === 8) tokenType += '.octal';
-		else if (base === 2) tokenType += '.binary';
+		if (base === 16) {
+			tokenType += '.hex';
+		} else if (base === 8) {
+			tokenType += '.octal';
+		} else if (base === 2) {
+			tokenType += '.binary';
+		}
 		return { type: tokenType + '.php', nextState: this.parent };
 	}
 }

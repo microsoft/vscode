@@ -23,7 +23,7 @@ export interface ILinePreflightData {
 	commentStr: string;
 	commentStrOffset: number;
 	commentStrLength: number;
-};
+}
 
 export interface IPreflightData {
 	supported: boolean;

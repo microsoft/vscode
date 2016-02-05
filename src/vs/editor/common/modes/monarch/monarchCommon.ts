@@ -157,15 +157,25 @@ export function substituteMatches(lexer: ILexerMin, str: string, id: string, mat
 	var re = /\$((\$)|(#)|(\d\d?)|[sS](\d\d?)|@(\w+))/g;
 	var stateMatches: string[] = null;
 	return str.replace(re, function(full, sub?, dollar?, hash?, n?, s?, attr?, ofs?, total?) {
-		if (!empty(dollar)) return '$'; // $$
-		if (!empty(hash)) return fixCase(lexer, id);   // default $#
-		if (!empty(n) && n < matches.length) return fixCase(lexer, matches[n]); // $n
-		if (!empty(attr) && lexer && typeof (lexer[attr]) === 'string') return lexer[attr]; //@attribute
+		if (!empty(dollar)) {
+			return '$'; // $$
+		}
+		if (!empty(hash)) {
+			return fixCase(lexer, id);   // default $#
+		}
+		if (!empty(n) && n < matches.length) {
+			return fixCase(lexer, matches[n]); // $n
+		}
+		if (!empty(attr) && lexer && typeof (lexer[attr]) === 'string') {
+			return lexer[attr]; //@attribute
+		}
 		if (stateMatches === null) { // split state on demand
 			stateMatches = state.split('.');
 			stateMatches.unshift(state);
 		}
-		if (!empty(s) && s < stateMatches.length) return fixCase(lexer, stateMatches[s]); //$Sn
+		if (!empty(s) && s < stateMatches.length) {
+			return fixCase(lexer, stateMatches[s]); //$Sn
+		}
 		return '';
 	});
 }
@@ -176,11 +186,16 @@ export function substituteMatches(lexer: ILexerMin, str: string, id: string, mat
 export function findRules(lexer: ILexer, state: string): IRule[] {
 	while (state && state.length > 0) {
 		var rules = lexer.tokenizer[state];
-		if (rules) return rules;
+		if (rules) {
+			return rules;
+		}
 
 		var idx = state.lastIndexOf('.');
-		if (idx < 0) state = null; // no further parent
-		else state = state.substr(0, idx);
+		if (idx < 0) {
+			state = null; // no further parent
+		} else {
+			state = state.substr(0, idx);
+		}
 	}
 	return null;
 }
@@ -193,11 +208,16 @@ export function findRules(lexer: ILexer, state: string): IRule[] {
 export function stateExists(lexer: ILexerMin, state: string): boolean {
 	while (state && state.length > 0) {
 		var exist = lexer.stateNames[state];
-		if (exist) return true;
+		if (exist) {
+			return true;
+		}
 
 		var idx = state.lastIndexOf('.');
-		if (idx < 0) state = null; // no further parent
-		else state = state.substr(0, idx);
+		if (idx < 0) {
+			state = null; // no further parent
+		} else {
+			state = state.substr(0, idx);
+		}
 	}
 	return false;
 }

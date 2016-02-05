@@ -75,7 +75,7 @@ let _disablePushState = false;
  */
 export function canPushState() {
 	return (!_disablePushState && globals.history && globals.history.pushState);
-};
+}
 
 /**
  * Helpful when we detect that pushing state does not work for some reason (e.g. FF prevents pushState for security reasons in some cases)

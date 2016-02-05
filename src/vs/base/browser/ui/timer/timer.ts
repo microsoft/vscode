@@ -251,7 +251,7 @@ export class TimeKeeperRenderer {
 	}
 
 	private _render(): void {
-		let allEvents = this.timeKeeper.getCollectedEvents(), didSomething = false;;
+		let allEvents = this.timeKeeper.getCollectedEvents(), didSomething = false;
 
 		for (let i = this.lastEventIndex; i < allEvents.length; i++) {
 			let ev = allEvents[i];

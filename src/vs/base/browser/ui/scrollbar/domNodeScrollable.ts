@@ -8,7 +8,7 @@ import * as DomUtils from 'vs/base/browser/dom';
 import {Gesture} from 'vs/base/browser/touch';
 import {Disposable, IDisposable} from 'vs/base/common/lifecycle';
 import {IScrollable} from 'vs/base/common/scrollable';
-import Event, {Emitter} from 'vs/base/common/event';
+import {Emitter} from 'vs/base/common/event';
 
 export class DomNodeScrollable extends Disposable implements IScrollable {
 

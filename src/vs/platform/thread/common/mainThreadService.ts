@@ -11,7 +11,6 @@ import Env = require('vs/base/common/flags');
 import Platform = require('vs/base/common/platform');
 import errors = require('vs/base/common/errors');
 import Timer = require('vs/base/common/timer');
-import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import remote = require('vs/base/common/remote');
 import {readThreadSynchronizableObjects} from 'vs/platform/thread/common/threadService';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';

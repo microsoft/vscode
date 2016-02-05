@@ -8,7 +8,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {readThreadSynchronizableObjects} from './threadService';
 import abstractThreadService = require('vs/platform/thread/common/abstractThreadService');
 import remote = require('vs/base/common/remote');
-import types = require('vs/base/common/types');
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IThreadService, IThreadServiceStatusListener, IThreadSynchronizableObject, ThreadAffinity} from 'vs/platform/thread/common/thread';
 

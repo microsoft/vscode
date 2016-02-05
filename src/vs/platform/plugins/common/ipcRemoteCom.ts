@@ -51,7 +51,7 @@ function createRPC(serializeAndSend:(obj:any)=>void): IRPCFunc {
 
 		return r;
 	};
-};
+}
 
 export interface IPluginsIPC extends remote.IRemoteCom {
 	handle(msg: string): void;
@@ -145,5 +145,5 @@ export function create(send: (obj: string) => void): IPluginsIPC {
 	}
 
 	return r;
-};
+}
 

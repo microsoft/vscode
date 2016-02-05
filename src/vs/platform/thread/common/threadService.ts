@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict'
+'use strict';
 
 import Platform = require('vs/platform/platform');
-import types = require('vs/base/common/types');
 import {TPromise} from 'vs/base/common/winjs.base';
 import thread = require('./thread');
 
@@ -109,7 +108,7 @@ export var Extensions = {
 	SynchronizableObjects: 'SynchronizableObjects'
 };
 
-Platform.Registry.add(Extensions.SynchronizableObjects, new SynchronizableObjectsRegistry())
+Platform.Registry.add(Extensions.SynchronizableObjects, new SynchronizableObjectsRegistry());
 
 export function registerThreadSynchronizableObject(obj: thread.IThreadSynchronizableObject<any>): void {
 	var registry = <SynchronizableObjectsRegistry>Platform.Registry.as(Extensions.SynchronizableObjects);
