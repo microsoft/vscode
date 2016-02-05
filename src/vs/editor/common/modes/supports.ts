@@ -5,7 +5,6 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import Errors = require('vs/base/common/errors');
 import Strings = require('vs/base/common/strings');
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {LineStream} from 'vs/editor/common/modes/lineStream';

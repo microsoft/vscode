@@ -30,7 +30,7 @@ import URI from 'vs/base/common/uri';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { onUnexpectedError, isPromiseCanceledError, illegalArgument } from 'vs/base/common/errors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/impl/scrollableElement';
+import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElementImpl';
 
 function completionGroupCompare(one: CompletionGroup, other: CompletionGroup): number {
 	return one.index - other.index;
@@ -64,7 +64,7 @@ class CompletionItem {
 	support: ISuggestSupport;
 	container: ISuggestResult;
 
-	private _resolveDetails: TPromise<CompletionItem>
+	private _resolveDetails: TPromise<CompletionItem>;
 
 	constructor(public group: CompletionGroup, suggestion: ISuggestion, container: ISuggestResult2) {
 		this.id = String(CompletionItem._idPool++);
@@ -588,7 +588,9 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 				hide(this.messageElement, this.details.element);
 				show(this.listElement);
 				this.hide();
-				if (stateChanged) this.list.splice(0, this.list.length);
+				if (stateChanged) {
+					this.list.splice(0, this.list.length);
+				}
 				break;
 			case State.Loading:
 				this.messageElement.innerText = SuggestWidget.LOADING_MESSAGE;

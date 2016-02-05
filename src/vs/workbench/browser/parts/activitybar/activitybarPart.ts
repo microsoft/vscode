@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/activityBarPart';
 import nls = require('vs/nls');
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, $} from 'vs/base/browser/builder';
 import {Action, IAction} from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
@@ -255,12 +255,12 @@ class ViewletActivityAction extends ActivityAction {
 		this.viewlet = viewlet;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// cheap trick to prevent accident trigger on a doubleclick (to help nervous people)
 		let now = new Date().getTime();
 		if (now - ViewletActivityAction.lastRun < ViewletActivityAction.preventDoubleClickDelay) {
-			return Promise.as(true);
+			return TPromise.as(true);
 		}
 		ViewletActivityAction.lastRun = now;
 
@@ -278,6 +278,6 @@ class ViewletActivityAction extends ActivityAction {
 			this.activate();
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }

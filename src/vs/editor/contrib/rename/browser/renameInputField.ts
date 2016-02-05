@@ -106,7 +106,7 @@ export default class RenameInputField implements EditorBrowser.IContentWidget, l
 				this._currentAcceptInput = null;
 				this._currentCancelInput = null;
 				c(this._inputField.value);
-			}
+			};
 
 			let onCursorChanged = () => {
 				if (!Range.containsPosition(where, this._editor.getPosition())) {

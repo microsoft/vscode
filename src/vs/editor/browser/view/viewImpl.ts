@@ -9,6 +9,7 @@ import DomUtils = require('vs/base/browser/dom');
 import EventEmitter = require('vs/base/common/eventEmitter');
 import Errors = require('vs/base/common/errors');
 import Timer = require('vs/base/common/timer');
+import {StyleMutator} from 'vs/base/browser/styleMutator';
 
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import {KeyboardHandler} from 'vs/editor/browser/controller/keyboardHandler';
@@ -34,6 +35,7 @@ import {GlyphMarginOverlay} from 'vs/editor/browser/viewParts/glyphMargin/glyphM
 import {LinesDecorationsOverlay} from 'vs/editor/browser/viewParts/linesDecorations/linesDecorations';
 import {LineNumbersOverlay} from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import {ScrollDecorationViewPart} from 'vs/editor/browser/viewParts/scrollDecoration/scrollDecoration';
+import {Rulers} from 'vs/editor/browser/viewParts/rulers/rulers';
 // -- END VIEW PARTS
 
 import Browser = require('vs/base/browser/browser');
@@ -175,11 +177,11 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 		this.textArea.setAttribute('aria-label', this.context.configuration.editor.ariaLabel);
 		this.textArea.setAttribute('role', 'textbox');
 		this.textArea.setAttribute('aria-multiline', 'true');
-		DomUtils.StyleMutator.setTop(this.textArea, 0);
-		DomUtils.StyleMutator.setLeft(this.textArea, 0);
+		StyleMutator.setTop(this.textArea, 0);
+		StyleMutator.setLeft(this.textArea, 0);
 		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
-		DomUtils.StyleMutator.setFontSize(this.textArea, this.context.configuration.editor.fontSize);
-		DomUtils.StyleMutator.setLineHeight(this.textArea, this.context.configuration.editor.lineHeight);
+		StyleMutator.setFontSize(this.textArea, this.context.configuration.editor.fontSize);
+		StyleMutator.setLineHeight(this.textArea, this.context.configuration.editor.lineHeight);
 
 		this.listenersToDispose.push(DomUtils.addDisposableListener(this.textArea, 'focus', () => this._setHasFocus(true)));
 		this.listenersToDispose.push(DomUtils.addDisposableListener(this.textArea, 'blur', () => this._setHasFocus(false)));
@@ -198,10 +200,10 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 			}
 		}
 		this.textAreaCover.style.position = 'absolute';
-		DomUtils.StyleMutator.setWidth(this.textAreaCover, 1);
-		DomUtils.StyleMutator.setHeight(this.textAreaCover, 1);
-		DomUtils.StyleMutator.setTop(this.textAreaCover, 0);
-		DomUtils.StyleMutator.setLeft(this.textAreaCover, 0);
+		StyleMutator.setWidth(this.textAreaCover, 1);
+		StyleMutator.setHeight(this.textAreaCover, 1);
+		StyleMutator.setTop(this.textAreaCover, 0);
+		StyleMutator.setLeft(this.textAreaCover, 0);
 	}
 
 	private createViewParts(): void {
@@ -249,6 +251,9 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 		this.overlayWidgets = new ViewOverlayWidgets(this.context);
 		this.viewParts.push(this.overlayWidgets);
 
+		var rulers = new Rulers(this.context, this.layoutProvider);
+		this.viewParts.push(rulers);
+
 		// -------------- Wire dom nodes up
 
 		this.linesContentContainer = this.layoutProvider.getScrollbarContainerDomNode();
@@ -260,6 +265,7 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 		}
 
 		this.linesContent.appendChild(contentViewOverlays.getDomNode());
+		this.linesContent.appendChild(rulers.domNode);
 		this.linesContent.appendChild(this.viewZones.domNode);
 		this.linesContent.appendChild(this.viewLines.domNode);
 		this.linesContent.appendChild(this.contentWidgets.domNode);
@@ -391,7 +397,6 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 				}
 				this._flushAccumulatedAndRenderNow();
 				var linesViewPortData = this.layoutProvider.getLinesViewportData();
-				var correctionTop = 0;
 				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), linesViewPortData.visibleRangesDeltaTop);
 				if (!visibleRanges) {
 					return null;
@@ -409,18 +414,18 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 			// See Bug 19676: Editor misses a layout event
 			var clientWidth = this.overflowGuardContainer.clientWidth + 'px';
 		}
-		DomUtils.StyleMutator.setWidth(this.domNode, layoutInfo.width);
-		DomUtils.StyleMutator.setHeight(this.domNode, layoutInfo.height);
+		StyleMutator.setWidth(this.domNode, layoutInfo.width);
+		StyleMutator.setHeight(this.domNode, layoutInfo.height);
 
-		DomUtils.StyleMutator.setWidth(this.overflowGuardContainer, layoutInfo.width);
-		DomUtils.StyleMutator.setHeight(this.overflowGuardContainer, layoutInfo.height);
+		StyleMutator.setWidth(this.overflowGuardContainer, layoutInfo.width);
+		StyleMutator.setHeight(this.overflowGuardContainer, layoutInfo.height);
 
-		DomUtils.StyleMutator.setWidth(this.linesContent, 1000000);
-		DomUtils.StyleMutator.setHeight(this.linesContent, 1000000);
+		StyleMutator.setWidth(this.linesContent, 1000000);
+		StyleMutator.setHeight(this.linesContent, 1000000);
 
-		DomUtils.StyleMutator.setLeft(this.linesContentContainer, layoutInfo.contentLeft);
-		DomUtils.StyleMutator.setWidth(this.linesContentContainer, layoutInfo.contentWidth);
-		DomUtils.StyleMutator.setHeight(this.linesContentContainer, layoutInfo.contentHeight);
+		StyleMutator.setLeft(this.linesContentContainer, layoutInfo.contentLeft);
+		StyleMutator.setWidth(this.linesContentContainer, layoutInfo.contentWidth);
+		StyleMutator.setHeight(this.linesContentContainer, layoutInfo.contentHeight);
 
 		this.outgoingEventBus.emit(EditorCommon.EventType.ViewLayoutChanged, layoutInfo);
 		return false;

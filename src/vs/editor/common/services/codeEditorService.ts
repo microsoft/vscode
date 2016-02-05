@@ -6,7 +6,7 @@
 
 import Event from 'vs/base/common/event';
 import {ICommonCodeEditor, IDecorationRenderOptions, IModelDecorationOptions} from 'vs/editor/common/editorCommon';
-import {createDecorator, IInstantiationService, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
 export var ID_CODE_EDITOR_SERVICE = 'codeEditorService';
 export var ICodeEditorService = createDecorator<ICodeEditorService>(ID_CODE_EDITOR_SERVICE);

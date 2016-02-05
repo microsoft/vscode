@@ -102,7 +102,7 @@ export class ConfigurationService extends CommonConfigurationService {
 
 		// Return early if we don't have a workspace
 		if (!this.contextService.getWorkspace()) {
-			return Promise.as({});
+			return TPromise.as({});
 		}
 
 		// Migrate as needed (.settings => .vscode)

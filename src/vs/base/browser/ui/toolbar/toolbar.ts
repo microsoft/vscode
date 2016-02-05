@@ -7,7 +7,7 @@
 
 import 'vs/css!./toolbar';
 import nls = require('vs/nls');
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {Builder, $} from 'vs/base/browser/builder';
 import types = require('vs/base/common/types');
@@ -144,10 +144,10 @@ class ToggleMenuAction extends Action {
 		this.toggleDropdownMenu = toggleDropdownMenu;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		this.toggleDropdownMenu();
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 
 	public get menuActions() {

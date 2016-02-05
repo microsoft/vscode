@@ -49,8 +49,6 @@ export class FindInput extends Widget {
 	private validation:IInputValidator;
 	private label:string;
 
-	private optionsKeyListener: () => void;
-
 	private regex:Checkbox;
 	private wholeWords:Checkbox;
 	private caseSensitive:Checkbox;
@@ -58,8 +56,8 @@ export class FindInput extends Widget {
 	public domNode: HTMLElement;
 	public inputBox:InputBox;
 
-	private _onDidOptionChange = this._register(new Emitter<void>());
-	public onDidOptionChange: Event<void> = this._onDidOptionChange.event;
+	private _onDidOptionChange = this._register(new Emitter<boolean>());
+	public onDidOptionChange: Event<boolean /* via keyboard */> = this._onDidOptionChange.event;
 
 	private _onKeyDown = this._register(new Emitter<StandardKeyboardEvent>());
 	public onKeyDown: Event<StandardKeyboardEvent> = this._onKeyDown.event;
@@ -212,9 +210,11 @@ export class FindInput extends Widget {
 			actionClassName: 'regex',
 			title: NLS_REGEX_CHECKBOX_LABEL + appendRegexLabel,
 			isChecked: false,
-			onChange: () => {
-				this._onDidOptionChange.fire();
-				this.inputBox.focus();
+			onChange: (viaKeyboard) => {
+				this._onDidOptionChange.fire(viaKeyboard);
+				if (!viaKeyboard) {
+					this.inputBox.focus();
+				}
 				this.setInputWidth();
 				this.validate();
 			}
@@ -223,9 +223,11 @@ export class FindInput extends Widget {
 			actionClassName: 'whole-word',
 			title: NLS_WHOLE_WORD_CHECKBOX_LABEL + appendWholeWordsLabel,
 			isChecked: false,
-			onChange: () => {
-				this._onDidOptionChange.fire();
-				this.inputBox.focus();
+			onChange: (viaKeyboard) => {
+				this._onDidOptionChange.fire(viaKeyboard);
+				if (!viaKeyboard) {
+					this.inputBox.focus();
+				}
 				this.setInputWidth();
 				this.validate();
 			}
@@ -234,9 +236,11 @@ export class FindInput extends Widget {
 			actionClassName: 'case-sensitive',
 			title: NLS_CASE_SENSITIVE_CHECKBOX_LABEL + appendCaseSensitiveLabel,
 			isChecked: false,
-			onChange: () => {
-				this._onDidOptionChange.fire();
-				this.inputBox.focus();
+			onChange: (viaKeyboard) => {
+				this._onDidOptionChange.fire(viaKeyboard);
+				if (!viaKeyboard) {
+					this.inputBox.focus();
+				}
 				this.setInputWidth();
 				this.validate();
 			},
@@ -253,8 +257,7 @@ export class FindInput extends Widget {
 
 		// Arrow-Key support to navigate between options
 		let indexes = [this.caseSensitive.domNode, this.wholeWords.domNode, this.regex.domNode];
-		this.optionsKeyListener = dom.addListener(this.domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			let event = new StandardKeyboardEvent(e);
+		this.onkeydown(this.domNode, (event: StandardKeyboardEvent) => {
 			if (event.equals(CommonKeybindings.LEFT_ARROW) || event.equals(CommonKeybindings.RIGHT_ARROW) || event.equals(CommonKeybindings.ESCAPE)) {
 				let index = indexes.indexOf(<HTMLElement>document.activeElement);
 				if (index >= 0) {
@@ -309,11 +312,6 @@ export class FindInput extends Widget {
 	}
 
 	public dispose(): void {
-		if (this.optionsKeyListener) {
-			this.optionsKeyListener();
-			this.optionsKeyListener = null;
-		}
-
 		super.dispose();
 	}
 }

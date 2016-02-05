@@ -77,7 +77,7 @@ export class GitViewlet
 
 	public setView(id: string): winjs.Promise {
 		if (!this.$el) {
-			return winjs.Promise.as(null);
+			return winjs.TPromise.as(null);
 		}
 
 		var view = this.views[id];
@@ -87,10 +87,10 @@ export class GitViewlet
 		}
 
 		if (this.currentView === view) {
-			return winjs.Promise.as(null);
+			return winjs.TPromise.as(null);
 		}
 
-		var promise = winjs.Promise.as(null);
+		var promise = winjs.TPromise.as(null);
 
 		if (this.currentView) {
 			promise = this.currentView.setVisible(false);
@@ -118,7 +118,7 @@ export class GitViewlet
 
 		this.$el = parent.div().addClass('git-viewlet');
 
-		return winjs.Promise.as(null);
+		return winjs.TPromise.as(null);
 	}
 
 	public setVisible(visible:boolean): winjs.TPromise<void> {
@@ -133,7 +133,7 @@ export class GitViewlet
 				}
 			});
 		} else {
-			return (this.currentView ? this.currentView.setVisible(visible) : winjs.Promise.as(null)).then(() => {
+			return (this.currentView ? this.currentView.setVisible(visible) : winjs.TPromise.as(null)).then(() => {
 				super.setVisible(visible);
 			});
 		}

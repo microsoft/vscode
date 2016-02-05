@@ -7,16 +7,15 @@
 
 import 'vs/css!./media/iframeeditor';
 import nls = require('vs/nls');
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
-import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
 import {EditorOptions, EditorInput} from 'vs/workbench/common/editor';
-import {EditorInputAction, BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
 import {IFrameEditorModel} from 'vs/workbench/common/editor/iframeEditorModel';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {IStorageService} from 'vs/platform/storage/common/storage';
 import {Position} from 'vs/platform/editor/common/editor';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';

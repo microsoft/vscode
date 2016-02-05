@@ -40,7 +40,7 @@ import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindi
 import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {WorkbenchEditorService} from 'vs/workbench/services/editor/browser/editorService';
 import {Position, Parts, IPartService} from 'vs/workbench/services/part/common/partService';
-import {DEFAULT_THEME_ID} from 'vs/workbench/services/themes/node/themeService';
+import {DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
 import {IWorkspaceContextService as IWorkbenchWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IStorageService, StorageScope, StorageEvent, StorageEventType} from 'vs/platform/storage/common/storage';
 import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
@@ -50,7 +50,7 @@ import {IActivityService} from 'vs/workbench/services/activity/common/activitySe
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/messageService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService'
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -222,7 +222,7 @@ export class Workbench implements IPartService {
 
 			// Check for configured options to open files on startup and resolve if any or open untitled for empty workbench
 			let editorTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Restoring Editor(s)'));
-			let resolveEditorInputsPromise: TPromise<EditorInput[]> = Promise.as(null);
+			let resolveEditorInputsPromise: TPromise<EditorInput[]> = TPromise.as(null);
 			let options: EditorOptions[] = [];
 
 			// Files to open or create
@@ -246,7 +246,7 @@ export class Workbench implements IPartService {
 
 			// Empty workbench
 			else if (!this.workbenchParams.workspace) {
-				resolveEditorInputsPromise = Promise.as([this.untitledEditorService.createOrGet()]);
+				resolveEditorInputsPromise = TPromise.as([this.untitledEditorService.createOrGet()]);
 			}
 
 			// Restore editor state (either from last session or with given inputs)
@@ -291,7 +291,7 @@ export class Workbench implements IPartService {
 			(<AbstractKeybindingService><any>this.keybindingService).setMessageService(messageService);
 		}
 		let threadService = this.instantiationService.getInstance(IThreadService);
-		let pluginService = this.instantiationService.getInstance(IPluginService);
+		this.instantiationService.getInstance(IPluginService);
 		this.lifecycleService = this.instantiationService.getInstance(ILifecycleService);
 		this.toDispose.push(this.lifecycleService.onShutdown(this.shutdownComponents, this));
 		let contextMenuService = this.instantiationService.getInstance(IContextMenuService);

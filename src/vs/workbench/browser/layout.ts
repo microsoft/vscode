@@ -44,7 +44,7 @@ export class LayoutOptions {
 interface ComputedStyles {
 	activitybar: { minWidth: number; };
 	sidebar: { minWidth: number; };
-	panel: { minHeight: number; }
+	panel: { minHeight: number; };
 	editor: { minWidth: number; };
 	statusbar: { height: number; };
 }

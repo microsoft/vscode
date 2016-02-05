@@ -5,7 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {IPluginDescription, IPointListener, IActivationEventListener, IMessage} from 'vs/platform/plugins/common/plugins';
+import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {isValidPluginDescription as baseIsValidPluginDescription} from 'vs/platform/plugins/common/pluginsRegistry';
 import * as semver from 'semver';
 

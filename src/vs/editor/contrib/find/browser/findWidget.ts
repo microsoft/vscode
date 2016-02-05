@@ -19,7 +19,7 @@ import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {MATCHES_LIMIT, FIND_IDS} from 'vs/editor/contrib/find/common/findModel';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {INewFindReplaceState, FindReplaceStateChangedEvent, FindReplaceState} from 'vs/editor/contrib/find/common/findState';
+import {FindReplaceStateChangedEvent, FindReplaceState} from 'vs/editor/contrib/find/common/findState';
 import {Widget} from 'vs/base/browser/ui/widget';
 
 export interface IFindController {
@@ -395,7 +395,7 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 					return null;
 				}
 				try {
-					let r = new RegExp(value);
+					new RegExp(value);
 					return null;
 				} catch (e) {
 					return { content: e.message };

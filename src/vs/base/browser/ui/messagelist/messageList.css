@@ -16,10 +16,6 @@
 	left: 15%;
 }
 
-.aria-alert-container {
-	position: absolute; /* try to hide from workbench */
-}
-
 .vs .global-message-list {
 	box-shadow: 0 2px 8px #A8A8A8;
 }

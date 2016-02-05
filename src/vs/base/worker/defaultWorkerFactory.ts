@@ -5,6 +5,7 @@
 'use strict';
 
 import dom = require('vs/base/browser/dom');
+import lifecycle = require('vs/base/common/lifecycle');
 import env = require('vs/base/common/flags');
 import {IWorker, IWorkerCallback, IWorkerFactory} from 'vs/base/common/worker/workerClient';
 
@@ -57,8 +58,11 @@ class FrameWorker implements IWorker {
 	private loaded: boolean;
 	private beforeLoadMessages: any[];
 
+	private _listeners: lifecycle.IDisposable[];
+
 	constructor(id: number, onMessageCallback:IWorkerCallback) {
 		this.id = id;
+		this._listeners = [];
 
 		// Collect all messages sent to the worker until the iframe is loaded
 		this.loaded = false;
@@ -69,13 +73,17 @@ class FrameWorker implements IWorker {
 		this.iframe.src = require.toUrl('./workerMainCompatibility.html');
 		(<any> this.iframe).frameborder = this.iframe.height = this.iframe.width = '0';
 		this.iframe.style.display = 'none';
-		dom.addListener(this.iframe, 'load', () => this.onLoaded());
+		this._listeners.push(dom.addDisposableListener(this.iframe, 'load', () => this.onLoaded()));
 
 		this.onMessage = function(ev:any) {
 			onMessageCallback(ev.data);
 		};
-		dom.addListener(window, 'message', this.onMessage);
+		this._listeners.push(dom.addDisposableListener(window, 'message', this.onMessage));
 		document.body.appendChild(this.iframe);
+	}
+
+	public dispose(): void {
+		this._listeners = lifecycle.disposeAll(this._listeners);
 	}
 
 	private iframeId(): string {

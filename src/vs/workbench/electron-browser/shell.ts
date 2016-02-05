@@ -18,8 +18,9 @@ import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
 import dom = require('vs/base/browser/dom');
+import aria = require('vs/base/browser/ui/aria/aria');
 import {Emitter} from 'vs/base/common/event';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import {ContextViewService} from 'vs/platform/contextview/browser/contextViewService';
 import {ContextMenuService} from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
@@ -93,7 +94,8 @@ import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceIm
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {CrashReporter} from 'vs/workbench/electron-browser/crashReporter';
-import {IThemeService, ThemeService, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/node/themeService';
+import {IThemeService, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
+import {ThemeService} from 'vs/workbench/services/themes/node/themeService';
 import { IServiceCtor, isServiceEvent } from 'vs/base/common/service';
 import { connect, Client } from 'vs/base/node/service.net';
 import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
@@ -166,7 +168,7 @@ export class WorkbenchShell {
 	private keybindingService: WorkbenchKeybindingService;
 
 	private container: HTMLElement;
-	private toUnbind: { (): void; }[];
+	private toUnbind: IDisposable[];
 	private previousErrorValue: string;
 	private previousErrorTime: number;
 	private content: HTMLElement;
@@ -190,6 +192,9 @@ export class WorkbenchShell {
 	}
 
 	private createContents(parent: Builder): Builder {
+
+		// ARIA
+		aria.setARIAContainer(document.body);
 
 		// Workbench Container
 		let workbenchContainer = $(parent).div();
@@ -263,9 +268,6 @@ export class WorkbenchShell {
 		let eventService = new EventService();
 
 		this.contextService = new WorkspaceContextService(eventService, this.workspace, this.configuration, this.options);
-		this.contextService.getConfiguration().additionalWorkerServices = [
-			{ serviceId: 'requestService', moduleName: 'vs/workbench/services/request/common/requestService', ctorName: 'WorkerRequestService' }
-		];
 
 		this.windowService = new WindowService();
 
@@ -305,7 +307,6 @@ export class WorkbenchShell {
 			configService,
 			this.telemetryService
 		);
-		this.threadService.registerInstance(requestService);
 		lifecycleService.onShutdown(() => requestService.dispose());
 
 		let markerService = new MarkerService(this.threadService);
@@ -406,7 +407,7 @@ export class WorkbenchShell {
 
 		this.setTheme(themeId, false);
 
-		this.toUnbind.push(this.storageService.addListener(StorageEventType.STORAGE, (e: StorageEvent) => {
+		this.toUnbind.push(this.storageService.addListener2(StorageEventType.STORAGE, (e: StorageEvent) => {
 			if (e.key === Preferences.THEME) {
 				this.setTheme(e.newValue);
 			}
@@ -552,9 +553,7 @@ export class WorkbenchShell {
 		this.storageService.dispose();
 
 		// Listeners
-		while (this.toUnbind.length) {
-			this.toUnbind.pop()();
-		}
+		this.toUnbind = disposeAll(this.toUnbind);
 
 		// Container
 		$(this.container).empty();

@@ -5,15 +5,13 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IOccurrencesSupport, IOccurence} from 'vs/editor/common/modes';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {Range} from 'vs/editor/common/core/range';
-import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {sequence} from 'vs/base/common/async';
-import {IModelService} from 'vs/editor/common/services/modelService';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 
 export const OccurrencesRegistry = new LanguageFeatureRegistry<IOccurrencesSupport>('occurrencesSupport');
@@ -39,9 +37,9 @@ export function getOccurrencesAtPosition(model: EditorCommon.IModel, position: E
 					onUnexpectedError(err);
 				});
 			}
-		}
+		};
 	})).then(values => {
-		return values[0]
+		return values[0];
 	});
 }
 
@@ -246,7 +244,7 @@ class WordHighlighter {
 			if (info.kind === 'write') {
 				className = className + 'Strong';
 			} else if (info.kind === 'text') {
-				className = 'selectionHighlight'
+				className = 'selectionHighlight';
 				// Keep the same color for now
 				//color = 'rgba(249, 206, 130, 0.7)';
 			}

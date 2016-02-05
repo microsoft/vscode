@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import supports = require('vs/editor/common/modes/supports');
 import htmlMode = require('vs/languages/html/common/html');

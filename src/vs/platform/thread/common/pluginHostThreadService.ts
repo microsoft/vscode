@@ -9,7 +9,6 @@ import remote = require('vs/base/common/remote');
 import descriptors = require('vs/platform/instantiation/common/descriptors');
 
 import abstractThreadService = require('./abstractThreadService');
-import threadService = require('./threadService');
 import {readThreadSynchronizableObjects} from 'vs/platform/thread/common/threadService';
 import {IThreadService, IThreadSynchronizableObject, ThreadAffinity, IThreadServiceStatusListener} from 'vs/platform/thread/common/thread';
 

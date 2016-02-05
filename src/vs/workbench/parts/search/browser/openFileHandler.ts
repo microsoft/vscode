@@ -6,7 +6,6 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import {ThrottledDelayer} from 'vs/base/common/async';
 import paths = require('vs/base/common/paths');
 import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
@@ -48,6 +47,10 @@ export class FileEntry extends EditorQuickOpenEntry {
 
 	public getLabel(): string {
 		return this.name;
+	}
+
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, file picker", this.getLabel());
 	}
 
 	public getDescription(): string {

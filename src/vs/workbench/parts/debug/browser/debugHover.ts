@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import dom = require('vs/base/browser/dom');
 import * as nls from 'vs/nls';
@@ -13,6 +14,7 @@ import editorbrowser = require('vs/editor/browser/editorBrowser');
 import editorcommon = require('vs/editor/common/editorCommon');
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import debug = require('vs/workbench/parts/debug/common/debug');
+import {evaluateExpression, Expression} from 'vs/workbench/parts/debug/common/debugModel';
 import viewer = require('vs/workbench/parts/debug/browser/debugViewer');
 
 const $ = dom.emmet;
@@ -33,7 +35,6 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	private isVisible: boolean;
 	private tree: ITree;
 	private showAtPosition: editorcommon.IEditorPosition;
-	private lastHoveringOver: string;
 	private highlightDecorations: string[];
 	private treeContainer: HTMLElement;
 	private valueContainer: HTMLElement;
@@ -57,7 +58,6 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
 		this.isVisible = false;
 		this.showAtPosition = null;
-		this.lastHoveringOver = null;
 		this.highlightDecorations = [];
 
 		this.editor.addContentWidget(this);
@@ -71,14 +71,11 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		return this.domNode;
 	}
 
-	public showAt(range: editorcommon.IEditorRange): void {
+	public showAt(range: editorcommon.IEditorRange, hoveringOver: string): void {
 		const pos = range.getStartPosition();
 		const model = this.editor.getModel();
-		const wordAtPosition = model.getWordAtPosition(pos);
-		const hoveringOver = wordAtPosition ? wordAtPosition.word : null;
 		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
-		if (!hoveringOver || !focusedStackFrame || (this.isVisible && hoveringOver === this.lastHoveringOver) ||
-			(focusedStackFrame.source.uri.toString() !== model.getAssociatedResource().toString())) {
+		if (!hoveringOver || !focusedStackFrame || (focusedStackFrame.source.uri.toString() !== model.getAssociatedResource().toString())) {
 			return;
 		}
 
@@ -88,9 +85,39 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			.split('.').map(word => word.trim()).filter(word => !!word);
 		namesToFind.push(hoveringOver);
 		namesToFind[0] = namesToFind[0].substring(namesToFind[0].lastIndexOf(' ') + 1);
-		const variables: debug.IExpression[] = [];
 
-		focusedStackFrame.getScopes(this.debugService).done(scopes => {
+
+		this.getExpression(namesToFind).done(expression => {
+			if (!expression || !expression.available) {
+				this.hide();
+				return;
+			}
+
+			// show it
+			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
+				range: {
+					startLineNumber: pos.lineNumber,
+					endLineNumber: pos.lineNumber,
+					startColumn: pos.column,
+					endColumn: pos.column
+				},
+				options: {
+					className: 'hoverHighlight'
+				}
+			}]);
+			this.doShow(pos, expression);
+		}, errors.onUnexpectedError);
+	}
+
+	private getExpression(namesToFind: string[]): TPromise<Expression> {
+		const session = this.debugService.getActiveSession();
+		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
+		if (session.capablities.supportsEvaluateForHovers) {
+			return evaluateExpression(session, focusedStackFrame, new Expression(namesToFind.join('.'), true), 'hover');
+		}
+
+		const variables: debug.IExpression[] = [];
+		return focusedStackFrame.getScopes(this.debugService).then(scopes => {
 
 			// flatten out scopes lists
 			return scopes.reduce((accum, scopes) => { return accum.concat(scopes); }, [])
@@ -116,28 +143,9 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 					}
 				}
 			}, errors.onUnexpectedError));
-		}, errors.onUnexpectedError);
 
-		// don't show if there are duplicates across scopes
-		if (variables.length !== 1) {
-			this.hide();
-			return;
-		}
-
-		// show it
-		this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
-			range: {
-				startLineNumber: pos.lineNumber,
-				endLineNumber: pos.lineNumber,
-				startColumn: wordAtPosition.startColumn,
-				endColumn: wordAtPosition.endColumn
-			},
-			options: {
-				className: 'hoverHighlight'
-			}
-		}]);
-		this.lastHoveringOver = hoveringOver;
-		this.doShow(pos, variables[0]);
+		// only show if there are no duplicates across scopes
+		}).then(() => variables.length === 1 ? TPromise.as(variables[0]) : TPromise.as(null));
 	}
 
 	private doShow(position: editorcommon.IEditorPosition, expression: debug.IExpression, forceValueHover = false): void {

@@ -24,48 +24,43 @@ import Objects = require('vs/base/common/objects');
  */
 
 function isArrayOf(elemType: (x: any) => boolean, obj: any): boolean {
-	if (!obj) return false;
-	if (!(Array.isArray(obj))) return false;
+	if (!obj) {
+		return false;
+	}
+	if (!(Array.isArray(obj))) {
+		return false;
+	}
 	var idx: any;
 	for (idx in obj) {
 		if (obj.hasOwnProperty(idx)) {
-			if (!(elemType(obj[idx]))) return false;
+			if (!(elemType(obj[idx]))) {
+				return false;
+			}
 		}
 	}
 	return true;
 }
 
 function bool(prop: any, def?: boolean, onerr?: () => void ): boolean {
-	if (typeof (prop) === 'boolean') return prop;
-	if (onerr && (prop || def === undefined)) onerr(); // type is wrong, or there is no default
+	if (typeof (prop) === 'boolean') {
+		return prop;
+	}
+	if (onerr && (prop || def === undefined)) {
+		onerr(); // type is wrong, or there is no default
+	}
 	return (def === undefined ? null : def);
 }
 
 function string(prop: any, def?: string, onerr?: () => void ): string {
-	if (typeof (prop) === 'string') return prop;
-	if (onerr && (prop || def === undefined)) onerr(); // type is wrong, or there is no default
+	if (typeof (prop) === 'string') {
+		return prop;
+	}
+	if (onerr && (prop || def === undefined)) {
+		onerr(); // type is wrong, or there is no default
+	}
 	return (def === undefined ? null : def);
 
 }
-
-function regExString(prop: any, def?: string, onerr?: () => void ): string {
-	// for now just a string
-	return string(prop, def, onerr);
-}
-
-function number(prop: any, def?: number, onerr?: () => void ): number {
-	if (typeof (prop) === 'number') return prop;
-	if (onerr && (prop || def === undefined)) onerr(); // type is wrong, or there is no default
-	return (def === undefined ? null : def);
-}
-
-function stringArray(prop: any, def?: string[], onerr?: () => void ): string[] {
-	if (isArrayOf(function(elem) { return (typeof (elem) === 'string'); }, prop)) return prop.slice(0);
-	if (typeof (prop) === 'string') return [prop];
-	if (onerr && (prop || def === undefined)) onerr(); // type is wrong, or there is no default
-	return (def === undefined ? null : def);
-}
-
 
 // Lexer helpers
 
@@ -74,7 +69,9 @@ function stringArray(prop: any, def?: string[], onerr?: () => void ): string[] {
  * Also replaces @\w+ or sequences with the content of the specified attribute
  */
 function compileRegExp(lexer: MonarchCommonTypes.ILexerMin, str: string): RegExp {
-	if (typeof (str) !== 'string') return null;
+	if (typeof (str) !== 'string') {
+		return null;
+	}
 
 	var n = 0;
 	while (str.indexOf('@') >= 0 && n < 5) { // at most 5 expansions
@@ -83,13 +80,14 @@ function compileRegExp(lexer: MonarchCommonTypes.ILexerMin, str: string): RegExp
 			var sub = '';
 			if (typeof (lexer[attr]) === 'string') {
 				sub = lexer[attr];
-			}
-			else if (lexer[attr] && lexer[attr] instanceof RegExp) {
+			} else if (lexer[attr] && lexer[attr] instanceof RegExp) {
 				sub = lexer[attr].source;
-			}
-			else {
-				if (lexer[attr] === undefined) MonarchCommonTypes.throwError(lexer, 'language definition does not contain attribute \'' + attr + '\', used at: ' + str);
-				else MonarchCommonTypes.throwError(lexer, 'attribute reference \'' + attr + '\' must be a string, used at: ' + str);
+			} else {
+				if (lexer[attr] === undefined) {
+					MonarchCommonTypes.throwError(lexer, 'language definition does not contain attribute \'' + attr + '\', used at: ' + str);
+				} else {
+					MonarchCommonTypes.throwError(lexer, 'attribute reference \'' + attr + '\' must be a string, used at: ' + str);
+				}
 			}
 			return (MonarchCommonTypes.empty(sub) ? '' : '(?:' + sub + ')');
 		});
@@ -104,13 +102,19 @@ function compileRegExp(lexer: MonarchCommonTypes.ILexerMin, str: string): RegExp
  *
  */
 function selectScrutinee(id: string, matches: string[], state: string, num: number): string {
-	if (num < 0) return id;
-	if (num < matches.length) return matches[num];
+	if (num < 0) {
+		return id;
+	}
+	if (num < matches.length) {
+		return matches[num];
+	}
 	if (num >= 100) {
 		num = num - 100;
 		var parts = state.split('.');
 		parts.unshift(state);
-		if (num < parts.length) return parts[num];
+		if (num < parts.length) {
+			return parts[num];
+		}
 	}
 	return null;
 }
@@ -123,7 +127,9 @@ function createGuard(lexer: MonarchCommonTypes.ILexerMin, ruleName: string, tkey
 	if (matches) {
 		if (matches[3]) { // if digits
 			scrut = parseInt(matches[3]);
-			if (matches[2]) scrut = scrut + 100; // if [sS] present
+			if (matches[2]) {
+				scrut = scrut + 100; // if [sS] present
+			}
 		}
 		oppat = matches[4];
 	}
@@ -236,9 +242,11 @@ function compileAction(lexer: MonarchCommonTypes.ILexerMin, ruleName: string, ac
 				newAction.tokenSubst = true;
 			}
 			if (typeof (action.bracket) === 'string') {
-				if (action.bracket === '@open') newAction.bracket = Modes.Bracket.Open;
-				else if (action.bracket === '@close') newAction.bracket = Modes.Bracket.Close;
-				else {
+				if (action.bracket === '@open') {
+					newAction.bracket = Modes.Bracket.Open;
+				} else if (action.bracket === '@close') {
+					newAction.bracket = Modes.Bracket.Close;
+				} else {
 					MonarchCommonTypes.throwError(lexer, 'a \'bracket\' attribute must be either \'@open\' or \'@close\', in rule: ' + ruleName);
 				}
 			}
@@ -249,7 +257,9 @@ function compileAction(lexer: MonarchCommonTypes.ILexerMin, ruleName: string, ac
 				else {
 					var next: string = action.next;
 					if (!/^(@pop|@push|@popall)$/.test(next)) {
-						if (next[0] === '@') next = next.substr(1); // peel off starting @ sign
+						if (next[0] === '@') {
+							next = next.substr(1); // peel off starting @ sign
+						}
 						if (next.indexOf('$') < 0) {  // no dollar substitution, we can check if the state exists
 							if (!MonarchCommonTypes.stateExists(lexer, MonarchCommonTypes.substituteMatches(lexer, next, '', [], ''))) {
 								MonarchCommonTypes.throwError(lexer, 'the next state \'' + action.next + '\' is not defined in rule: ' + ruleName);
@@ -259,9 +269,15 @@ function compileAction(lexer: MonarchCommonTypes.ILexerMin, ruleName: string, ac
 					newAction.next = next;
 				}
 			}
-			if (typeof (action.goBack) === 'number') newAction.goBack = action.goBack;
-			if (typeof (action.switchTo) === 'string') newAction.switchTo = action.switchTo;
-			if (typeof (action.log) === 'string') newAction.log = action.log;
+			if (typeof (action.goBack) === 'number') {
+				newAction.goBack = action.goBack;
+			}
+			if (typeof (action.switchTo) === 'string') {
+				newAction.switchTo = action.switchTo;
+			}
+			if (typeof (action.log) === 'string') {
+				newAction.log = action.log;
+			}
 			if (typeof (action.nextEmbedded) === 'string') {
 				newAction.nextEmbedded = action.nextEmbedded;
 				lexer.usesEmbedded = true;
@@ -349,7 +365,7 @@ class Rule implements MonarchCommonTypes.IRule {
 			sregex = (<RegExp>re).source;
 		}
 		else {
-			MonarchCommonTypes.throwError(lexer, 'rules must start with a match string or regular expression: ' + this.name)
+			MonarchCommonTypes.throwError(lexer, 'rules must start with a match string or regular expression: ' + this.name);
 		}
 
 		this.matchOnlyAtLineStart = (sregex.length > 0 && sregex[0] === '^');
@@ -470,7 +486,9 @@ export function compile(json: MonarchTypes.ILanguage): MonarchCommonTypes.ILexer
 					if (typeof (include) !== 'string') {
 						MonarchCommonTypes.throwError(lexer, 'an \'include\' attribute must be a string at: ' + state);
 					}
-					if (include[0] === '@') include = include.substr(1); // peel off starting @
+					if (include[0] === '@') {
+						include = include.substr(1); // peel off starting @
+					}
 					if (!json.tokenizer[include]) {
 						MonarchCommonTypes.throwError(lexer, 'include target \'' + include + '\' is not defined at: ' + state);
 					}
@@ -504,8 +522,12 @@ export function compile(json: MonarchTypes.ILanguage): MonarchCommonTypes.ILexer
 						if (!rule.regex) {
 							MonarchCommonTypes.throwError(lexer, 'a rule must either be an array, or an object with a \'regex\' or \'include\' field at: ' + state);
 						}
-						if (rule.name) newrule.name = string(rule.name);
-						if (rule.matchOnlyAtStart) newrule.matchOnlyAtLineStart = bool(rule.matchOnlyAtLineStart);
+						if (rule.name) {
+							newrule.name = string(rule.name);
+						}
+						if (rule.matchOnlyAtStart) {
+							newrule.matchOnlyAtLineStart = bool(rule.matchOnlyAtLineStart);
+						}
 						newrule.setRegex(lexerMin, rule.regex);
 						newrule.setAction(lexerMin, rule.action);
 					}
@@ -525,7 +547,9 @@ export function compile(json: MonarchTypes.ILanguage): MonarchCommonTypes.ILexer
 	var key: string;
 	for (key in json.tokenizer) {
 		if (json.tokenizer.hasOwnProperty(key)) {
-			if (!lexer.start) lexer.start = key;
+			if (!lexer.start) {
+				lexer.start = key;
+			}
 
 			var rules = json.tokenizer[key];
 			lexer.tokenizer[key] = new Array();

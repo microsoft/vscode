@@ -53,3 +53,11 @@ export interface IExtensionsService {
 	uninstall(extension: IExtension): TPromise<void>;
 	getInstalled(includeDuplicateVersions?: boolean): TPromise<IExtension[]>;
 }
+
+export var IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');
+
+export interface IExtensionTipsService {
+	serviceId: ServiceIdentifier<any>;
+	tips: IExtension[];
+	onDidChangeTips: Event<IExtension[]>;
+}

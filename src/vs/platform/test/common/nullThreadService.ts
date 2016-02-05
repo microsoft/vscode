@@ -29,11 +29,11 @@ export class NullThreadService extends abstractThreadService.AbstractThreadServi
 	}
 
 	OneWorker(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[], affinity:ThreadAffinity): winjs.Promise {
-		return winjs.Promise.as(null);
+		return winjs.TPromise.as(null);
 	}
 
 	AllWorkers(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): winjs.Promise {
-		return winjs.Promise.as(null);
+		return winjs.TPromise.as(null);
 	}
 
 	Everywhere(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): any {
@@ -71,7 +71,7 @@ export class NullThreadService extends abstractThreadService.AbstractThreadServi
 	protected _registerAndInstantiateWorkerActor<T>(id: string, descriptor: SyncDescriptor0<T>, whichWorker:ThreadAffinity): T {
 		return this._getOrCreateProxyInstance({
 			callOnRemote: (proxyId: string, path: string, args:any[]): winjs.Promise => {
-				return winjs.Promise.as(null);
+				return winjs.TPromise.as(null);
 			}
 		}, id, descriptor);
 	}

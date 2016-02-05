@@ -48,20 +48,20 @@ export class ReplExpressionsDataSource implements tree.IDataSource {
 
 	public getChildren(tree: tree.ITree, element: any): Promise {
 		if (element instanceof model.Model) {
-			return Promise.as(element.getReplElements());
+			return TPromise.as(element.getReplElements());
 		}
 		if (element instanceof model.KeyValueOutputElement) {
-			return Promise.as(element.getChildren());
+			return TPromise.as(element.getChildren());
 		}
 		if (element instanceof model.ValueOutputElement) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		return (<debug.IExpression> element).getChildren(this.debugService);
 	}
 
 	public getParent(tree: tree.ITree, element: any): Promise {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -119,7 +119,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 	}
 
 	private getHeightForString(s: string): number {
-		if (!s || !s.length || this.width <= 0 || this.characterWidth <= 0) {
+		if (!s || !s.length || !this.width || this.width <= 0 || !this.characterWidth || this.characterWidth <= 0) {
 			return 18;
 		}
 		let realLength = 0;
@@ -229,13 +229,6 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		} else {
 			templateData.counter.textContent = '';
 			templateData.counter.className = 'counter';
-		}
-
-		// group
-		if (output.grouped) {
-			dom.addClass(templateData.container, 'grouped');
-		} else {
-			dom.removeClass(templateData.container, 'grouped');
 		}
 
 		// value
@@ -416,17 +409,30 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 			templateData.annotation.className = '';
 			templateData.annotation.title = '';
 		}
-
-		// group
-		if (output.grouped) {
-			dom.addClass(templateData.container, 'grouped');
-		} else {
-			dom.removeClass(templateData.container, 'grouped');
-		}
 	}
 
 	public disposeTemplate(tree: tree.ITree, templateId: string, templateData: any): void {
 		// noop
+	}
+}
+
+export class ReplExpressionsAccessibilityProvider implements tree.IAccessibilityProvider {
+
+	public getAriaLabel(tree: tree.ITree, element: any): string {
+		if (element instanceof model.Variable) {
+			return nls.localize('replVariableAriaLabel', "Variable {0} has value {1}, read eval print loop, debug", (<model.Variable>element).name, (<model.Variable>element).value);
+		}
+		if (element instanceof model.Expression) {
+			return nls.localize('replExpressionAriaLabel', "Expression {0} has value {1}, read eval print loop, debug", (<model.Expression>element).name, (<model.Expression>element).value);
+		}
+		if (element instanceof model.ValueOutputElement) {
+			return nls.localize('replValueOutputAriaLabel', "{0}, read eval print loop, debug", (<model.ValueOutputElement>element).value);
+		}
+		if (element instanceof model.KeyValueOutputElement) {
+			return nls.localize('replKeyValueOutputAriaLabel', "Output variable {0} has value {1}, read eval print loop, debug", (<model.KeyValueOutputElement>element).key, (<model.KeyValueOutputElement>element).value);
+		}
+
+		return null;
 	}
 }
 
@@ -441,7 +447,7 @@ export class ReplExpressionsActionProvider implements renderer.IActionProvider {
 	}
 
 	public getActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
-		return Promise.as([]);
+		return TPromise.as([]);
 	}
 
 	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
@@ -453,15 +459,10 @@ export class ReplExpressionsActionProvider implements renderer.IActionProvider {
 		if (element instanceof model.Variable || element instanceof model.Expression) {
 			actions.push(this.instantiationService.createInstance(debugactions.AddToWatchExpressionsAction, debugactions.AddToWatchExpressionsAction.ID, debugactions.AddToWatchExpressionsAction.LABEL, element));
 			actions.push(new actionbar.Separator());
-			if (element.reference === 0) {
-				actions.push(this.instantiationService.createInstance(debugactions.CopyValueAction, debugactions.CopyValueAction.ID, debugactions.CopyValueAction.LABEL, element.value));
-			}
-		} else if (element instanceof model.OutputElement) {
-			actions.push(this.instantiationService.createInstance(debugactions.CopyValueAction, debugactions.CopyValueAction.ID, debugactions.CopyValueAction.LABEL, element.value));
 		}
-
 		actions.push(this.instantiationService.createInstance(debugactions.ClearReplAction, debugactions.ClearReplAction.ID, debugactions.ClearReplAction.LABEL));
-		return Promise.as(actions);
+
+		return TPromise.as(actions);
 	}
 
 	public getActionItem(tree: tree.ITree, element: any, action: actions.IAction): actionbar.IActionItem {

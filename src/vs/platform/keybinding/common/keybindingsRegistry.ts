@@ -7,7 +7,7 @@
 import {Registry} from 'vs/platform/platform';
 import {TypeConstraint, validateConstraints} from 'vs/base/common/types';
 import {ICommandHandler, ICommandHandlerDescription, ICommandsMap, IKeybindingItem, IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
-import {KeyMod, KeyCode, BinaryKeybindings} from 'vs/base/common/keyCodes';
+import {KeyCode, BinaryKeybindings} from 'vs/base/common/keyCodes';
 import Platform = require('vs/base/common/platform');
 
 export interface ICommandRule extends IKeybindings {

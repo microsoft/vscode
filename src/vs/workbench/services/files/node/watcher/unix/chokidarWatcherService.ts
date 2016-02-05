@@ -11,7 +11,7 @@ import fs = require('fs');
 import gracefulFs = require('graceful-fs');
 gracefulFs.gracefulify(fs);
 
-import {Promise} from 'vs/base/common/winjs.base';
+import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {FileChangeType} from 'vs/platform/files/common/files';
 import {ThrottledDelayer} from 'vs/base/common/async';
 import strings = require('vs/base/common/strings');
@@ -108,7 +108,7 @@ export class ChokidarWatcherService extends WatcherService {
 							});
 						}
 
-						return Promise.as(null);
+						return TPromise.as(null);
 					});
 				}
 			});

@@ -62,7 +62,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		let firstLineText = this.getFirstLineText(value);
 
 		// To avoid flickering, give the mode at most 50ms to load. If the mode doesn't load in 50ms, proceed creating the model with a mode promise
-		return Promise.any([Promise.timeout(50), this.getOrCreateMode(this.modeService, mime, firstLineText)]).then(() => {
+		return Promise.any([TPromise.timeout(50), this.getOrCreateMode(this.modeService, mime, firstLineText)]).then(() => {
 			let model = this.modelService.createModel(value, this.getOrCreateMode(this.modeService, mime, firstLineText), resource);
 			this.createdEditorModel = true;
 

@@ -14,11 +14,11 @@ import strings = require('vs/base/common/strings');
 import {IAction, Action} from 'vs/base/common/actions';
 import {toErrorMessage} from 'vs/base/common/errors';
 import {Mode, IContext, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
-import {QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry} from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import {QuickOpenEntryGroup, IHighlight, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {SyncActionDescriptor, IActionsService} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {Registry} from 'vs/platform/platform';
-import {Extensions as QuickOpenExtensions, QuickOpenHandler} from 'vs/workbench/browser/quickopen';
+import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
 import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
 import filters = require('vs/base/common/filters');
 import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
@@ -65,6 +65,10 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 		return this.description;
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, commands", this.getLabel());
+	}
+
 	public getGroupLabel(): string {
 		return this.key;
 	}
@@ -78,11 +82,11 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 	protected runAction(action: IAction): void {
 
 		// Use a timeout to give the quick open widget a chance to close itself first
-		Promise.timeout(50).done(() => {
+		TPromise.timeout(50).done(() => {
 			if (action && action.enabled) {
 				try {
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'quick open' });
-					(action.run() || Promise.as(null)).done(() => {
+					(action.run() || TPromise.as(null)).done(() => {
 						action.dispose();
 					}, (err) => this.onError(err));
 				} catch (error) {

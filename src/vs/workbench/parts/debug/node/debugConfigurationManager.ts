@@ -242,12 +242,7 @@ export class ConfigurationManager {
 						this.configuration[key] = this.systemVariables.resolve(this.configuration[key]);
 					});
 				}
-
 				this.configuration.debugServer = config.debugServer;
-				this.configuration.outDir = this.resolvePath(this.configuration.outDir);
-				this.configuration.program = this.resolvePath(this.configuration.program);
-				this.configuration.cwd = this.resolvePath(this.configuration.cwd || '.');
-				this.configuration.runtimeExecutable = this.resolvePath(this.configuration.runtimeExecutable);
 			}
 		});
 	}
@@ -298,7 +293,7 @@ export class ConfigurationManager {
 
 	private massageInitialConfigurations(adapter: Adapter): Promise {
 		if (!adapter || !adapter.initialConfigurations || adapter.type !== 'node') {
-			return Promise.as(true);
+			return TPromise.as(true);
 		}
 
 		// check package.json for 'main' or 'scripts' so we generate a more pecise 'program' attribute in launch.json.
@@ -319,7 +314,7 @@ export class ConfigurationManager {
 			adapter.initialConfigurations.forEach(config => {
 				if (program && config.program) {
 					if (!path.isAbsolute(program)) {
-						program = '${workspaceRoot}' + (program.charAt(0) === '.' ? program.slice(1) : program);
+						program = path.join('${workspaceRoot}', program);
 					}
 
 					config.program = program;
@@ -340,17 +335,6 @@ export class ConfigurationManager {
 		const modeId = mode ? mode.getId() : null;
 
 		return !!this.allModeIdsForBreakpoints[modeId];
-	}
-
-	private resolvePath(p: string): string {
-		if (!p) {
-			return null;
-		}
-		if (path.isAbsolute(p)) {
-			return paths.normalize(p, true);
-		}
-
-		return paths.normalize(uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, p)).fsPath, true);
 	}
 
 	public loadLaunchConfig(): TPromise<debug.IGlobalConfig> {

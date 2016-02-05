@@ -14,7 +14,7 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Lifecycle = require('vs/base/common/lifecycle');
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 
-export class iPadShowKeyboard implements EditorCommon.IEditorContribution {
+export class IPadShowKeyboard implements EditorCommon.IEditorContribution {
 
 	static ID = 'editor.contrib.iPadShowKeyboard';
 
@@ -48,7 +48,7 @@ export class iPadShowKeyboard implements EditorCommon.IEditorContribution {
 	}
 
 	public getId(): string {
-		return iPadShowKeyboard.ID;
+		return IPadShowKeyboard.ID;
 	}
 
 	public dispose(): void {
@@ -107,4 +107,4 @@ class ShowKeyboardWidget implements EditorBrowser.IOverlayWidget {
 	}
 }
 
-EditorBrowserRegistry.registerEditorContribution(iPadShowKeyboard);
+EditorBrowserRegistry.registerEditorContribution(IPadShowKeyboard);

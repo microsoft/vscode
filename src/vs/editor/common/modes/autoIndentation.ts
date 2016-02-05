@@ -76,7 +76,7 @@ export class Brackets {
 
 		// Filter duplicate entries
 		result = result.filter((item, pos, array) => {
-			return array.indexOf(item) == pos;
+			return array.indexOf(item) === pos;
 		});
 
 		return result;

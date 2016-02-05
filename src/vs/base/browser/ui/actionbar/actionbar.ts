@@ -295,7 +295,7 @@ export class ActionItem extends BaseActionItem {
 		} else {
 			this.builder.addClass('disabled');
 			this.$e.addClass('disabled');
-			this.$e.removeAttribute('tabindex');
+			DOM.removeTabIndexAndUpdateFocus(this.$e.getHTMLElement());
 		}
 	}
 
@@ -480,9 +480,9 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 		});
 
 		this.focusTracker = DOM.trackFocus(this.domNode);
-		this.focusTracker.addBlurListener((e: Event) => {
+		this.focusTracker.addBlurListener(() => {
 			if (document.activeElement === this.domNode || !DOM.isAncestor(document.activeElement, this.domNode)) {
-				this.emit(DOM.EventType.BLUR, e);
+				this.emit(DOM.EventType.BLUR, {});
 				this.focusedItem = undefined;
 			}
 		});

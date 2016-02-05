@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import { IEventEmitter, EventEmitter, ListenerCallback, IBulkListenerCallback, ListenerUnbind } from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import * as Events from 'vs/base/common/events';
@@ -16,11 +16,11 @@ export interface IAction extends IDisposable {
 	class: string;
 	enabled: boolean;
 	checked: boolean;
-	run(event?: any): Promise;
+	run(event?: any): TPromise<any>;
 }
 
 export interface IActionRunner extends IEventEmitter {
-	run(action: IAction, context?: any): Promise;
+	run(action: IAction, context?: any): TPromise<any>;
 }
 
 export interface IActionItem extends IEventEmitter {
@@ -61,7 +61,7 @@ export function isAction(thing: any): thing is IAction {
 }
 
 export interface IActionCallback {
-	(event: any): Promise;
+	(event: any): TPromise<any>;
 }
 
 export interface IActionProvider {
@@ -190,11 +190,11 @@ export class Action extends EventEmitter implements IAction {
 		this._actionCallback = value;
 	}
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<any> {
 		if (this._actionCallback !== null) {
 			return this._actionCallback(event);
 		} else {
-			return Promise.as(true);
+			return TPromise.as(true);
 		}
 	}
 }
@@ -241,7 +241,7 @@ class ProxyAction extends Action implements IEventEmitter {
 		this.delegate.checked = value;
 	}
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<any> {
 		this.runHandler(event);
 		return this.delegate.run(event);
 	}
@@ -275,14 +275,14 @@ export interface IRunEvent {
 
 export class ActionRunner extends EventEmitter implements IActionRunner {
 
-	public run(action: IAction, context?: any): Promise {
+	public run(action: IAction, context?: any): TPromise<any> {
 		if (!action.enabled) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		this.emit(Events.EventType.BEFORE_RUN, { action: action });
 
-		return Promise.as(action.run(context)).then((result: any) => {
+		return TPromise.as(action.run(context)).then((result: any) => {
 			this.emit(Events.EventType.RUN, <IRunEvent>{ action: action, result: result });
 		}, (error: any) => {
 			this.emit(Events.EventType.RUN, <IRunEvent>{ action: action, error: error });

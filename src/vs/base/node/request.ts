@@ -9,7 +9,7 @@ import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { isBoolean } from 'vs/base/common/types';
 import https = require('https');
 import http = require('http');
-import { Url, parse as parseUrl } from 'url';
+import { parse as parseUrl } from 'url';
 import { createWriteStream } from 'fs';
 import { assign } from 'vs/base/common/objects';
 
@@ -64,8 +64,12 @@ export function request(options: IRequestOptions): TPromise<IRequestResult> {
 		});
 		req.on('error', e);
 
-		if (options.timeout) req.setTimeout(options.timeout);
-		if (options.data) req.write(options.data);
+		if (options.timeout) {
+			req.setTimeout(options.timeout);
+		}
+		if (options.data) {
+			req.write(options.data);
+		}
 
 		req.end();
 	},

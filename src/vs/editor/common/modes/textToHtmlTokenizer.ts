@@ -69,7 +69,7 @@ function _tokenizeToString(text: string, tokenizationSupport: Modes.ITokenizatio
 		result += '<br/>';
 	};
 
-	result = '<div style="white-space: pre;">';
+	result = '<div style="white-space: pre-wrap;">';
 	_tokenizeLines(text, tokenizationSupport, emitToken, emitNewLine);
 	result += '</div>';
 

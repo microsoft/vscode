@@ -154,7 +154,7 @@ class ServicesMap {
 					let value = instantiation._util.getServiceId(id);
 					return <T>this[value];
 				}
-			}
+			};
 
 			return fn.apply(undefined, [accessor].concat(args));
 		});

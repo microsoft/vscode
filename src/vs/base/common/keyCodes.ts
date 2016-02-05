@@ -973,5 +973,5 @@ function _asHTML(keybinding:number, labelProvider:IKeyBindingLabelProvider, Plat
 		tagName: 'span',
 		className: 'monaco-kb',
 		children: result
-	}]
+	}];
 }

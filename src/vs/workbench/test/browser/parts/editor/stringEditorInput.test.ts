@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Promise } from 'vs/base/common/winjs.base';
+import {TPromise } from 'vs/base/common/winjs.base';
 import * as Strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
@@ -92,7 +92,7 @@ suite("Workbench - StringEditorInput", () => {
 	test("Input.matches() - StringEditorInput", function() {
 		let inst = InstantiationService.create({});
 
-		let promise = Promise.as("value");
+		let promise = TPromise.as("value");
 
 		let stringEditorInput = inst.createInstance(StringEditorInput, "name", 'description', "value", "mime", false);
 		let promiseEditorInput = inst.createInstance(ResourceEditorInput, "name", "description", URI.create('inMemory', null, 'thePath'));

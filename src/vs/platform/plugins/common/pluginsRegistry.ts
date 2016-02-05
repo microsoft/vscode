@@ -7,7 +7,6 @@
 import {IPluginDescription, IPointListener, IActivationEventListener, IMessage} from 'vs/platform/plugins/common/plugins';
 import {Registry} from 'vs/platform/platform';
 import Errors = require('vs/base/common/errors');
-import env = require('vs/base/common/flags');
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import nls = require('vs/nls');
@@ -289,7 +288,7 @@ class PluginsRegistryImpl implements IPluginsRegistry {
 	private _pluginsArr: IPluginDescription[];
 	private _activationMap: {[activationEvent:string]:IPluginDescription[];};
 	private _pointListeners: IPointListenerEntry[];
-	private _oneTimeActivationEventListeners: { [activationEvent:string]: IActivationEventListener[]; }
+	private _oneTimeActivationEventListeners: { [activationEvent:string]: IActivationEventListener[]; };
 	private _extensionPoints: { [extPoint: string]: ExtensionPoint<any>; };
 
 	constructor() {
@@ -526,7 +525,7 @@ var schema : IJSONSchema = {
 			type: 'boolean'
 		}
 	}
-}
+};
 
 schemaRegistry.registerSchema(schemaId, schema);
 schemaRegistry.addSchemaFileAssociation('/package.json', schemaId);

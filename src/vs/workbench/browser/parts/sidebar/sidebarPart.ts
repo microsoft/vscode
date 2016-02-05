@@ -7,10 +7,8 @@ import 'vs/css!./media/sidebarpart';
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
-import strings = require('vs/base/common/strings');
-import {Action, IAction} from 'vs/base/common/actions';
+import {Action} from 'vs/base/common/actions';
 import {CompositePart} from 'vs/workbench/browser/parts/compositePart';
-import {EventType as WorkbenchEventType, CompositeEvent} from 'vs/workbench/common/events';
 import {Viewlet, ViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
@@ -18,10 +16,10 @@ import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletServi
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IViewlet} from 'vs/workbench/common/viewlet';
 import {Scope} from 'vs/workbench/browser/actionBarRegistry';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
+import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
@@ -33,7 +31,6 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	public serviceId = IViewletService;
 
 	private blockOpeningViewlet: boolean;
-	private currentViewletOpenToken: string;
 
 	constructor(
 		messageService: IMessageService,

@@ -6,7 +6,7 @@
 
 import * as defaultPlatform from 'vs/base/common/platform';
 import {IKeybindingItem, KbExpr, IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybindingService';
-import {KeyMod, KeyCode, BinaryKeybindings, Keybinding, ISimplifiedPlatform} from 'vs/base/common/keyCodes';
+import {BinaryKeybindings, Keybinding, ISimplifiedPlatform} from 'vs/base/common/keyCodes';
 
 export interface IResolveResult {
 	enterChord: number;
@@ -197,7 +197,7 @@ export class KeybindingResolver {
 	}
 
 	public lookupKeybinding(commandId: string): Keybinding[] {
-		let rawPossibleTriggers = this._lookupMap[commandId]
+		let rawPossibleTriggers = this._lookupMap[commandId];
 		if (!rawPossibleTriggers) {
 			return [];
 		}

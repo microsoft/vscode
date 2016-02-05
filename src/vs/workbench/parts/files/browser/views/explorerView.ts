@@ -75,7 +75,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IPartService private partService: IPartService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(actionRunner, false, nls.localize('explorerSection', "Explorer Section"), messageService, contextMenuService);
+		super(actionRunner, false, nls.localize('explorerSection', "Files Explorer Section"), messageService, contextMenuService);
 
 		this.workspace = contextService.getWorkspace();
 
@@ -157,7 +157,7 @@ export class ExplorerView extends CollapsibleViewletView {
 			return;
 		}
 
-		let clearFocusAndSelection = true;
+		let clearSelection = true;
 
 		// Handle File Input
 		if (e.editorInput && e.editorInput instanceof FileEditorInput) {
@@ -170,15 +170,14 @@ export class ExplorerView extends CollapsibleViewletView {
 			if (this.isVisible) {
 				if (this.contextService.isInsideWorkspace(fileInput.getResource())) {
 					this.select(fileInput.getResource(), false /* Prevent reveal so that upon opening a file the tree does not jump around */).done(null, errors.onUnexpectedError);
-					clearFocusAndSelection = false;
+					clearSelection = false;
 				}
 			}
 		}
 
 		// Otherwise clear
-		if (this.isVisible && clearFocusAndSelection) {
-			this.explorerViewer.setSelection([]);
-			this.explorerViewer.setFocus();
+		if (this.isVisible && clearSelection) {
+			this.explorerViewer.clearSelection();
 		}
 	}
 
@@ -213,7 +212,7 @@ export class ExplorerView extends CollapsibleViewletView {
 			if (visible) {
 
 				// If a refresh was requested and we are now visible, run it
-				let refreshPromise = Promise.as(null);
+				let refreshPromise = TPromise.as(null);
 				if (this.shouldRefresh) {
 					refreshPromise = this.refresh(false, false);
 					this.shouldRefresh = false; // Reset flag
@@ -229,7 +228,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 				// Return now if the workbench has not yet been created - in this case the workbench takes care of restoring last used editors
 				if (!this.partService.isCreated()) {
-					return Promise.as(null);
+					return TPromise.as(null);
 				}
 
 				// Otherwise restore last used file: By lastActiveFileResource
@@ -491,7 +490,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		// Check if an explorer refresh is necessary (delayed to give internal events a chance to react first)
 		// Note: there is no guarantee when the internal events are fired vs real ones. Code has to deal with the fact that one might
 		// be fired first over the other or not at all.
-		Promise.timeout(ExplorerView.EXPLORER_FILE_CHANGES_REACT_DELAY).then(() => {
+		TPromise.timeout(ExplorerView.EXPLORER_FILE_CHANGES_REACT_DELAY).then(() => {
 			if (!this.shouldRefresh && this.shouldRefreshFromEvent(e)) {
 				this.refreshFromEvent();
 			}
@@ -587,7 +586,7 @@ export class ExplorerView extends CollapsibleViewletView {
 					return this.refresh(false, false);
 				}
 
-				return Promise.as(null);
+				return TPromise.as(null);
 			}).done(null, errors.onUnexpectedError);
 		} else {
 			this.shouldRefresh = true;
@@ -655,7 +654,7 @@ export class ExplorerView extends CollapsibleViewletView {
 						return this.explorerViewer.expandAll(targetsToExpand.map(expand => this.getInput().find(expand)));
 					}
 
-					return Promise.as(null);
+					return TPromise.as(null);
 				});
 			}
 
@@ -673,7 +672,7 @@ export class ExplorerView extends CollapsibleViewletView {
 				if (revealResource) {
 					revealPromise = this.select(revealResource);
 				} else {
-					revealPromise = Promise.as(null);
+					revealPromise = TPromise.as(null);
 				}
 
 				return revealPromise.then(() => {
@@ -726,21 +725,21 @@ export class ExplorerView extends CollapsibleViewletView {
 
 		// Require valid path
 		if (!resource || resource.toString() === this.workspace.resource.toString()) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		// If path already selected, just reveal and return
 		let currentSelection: FileStat[] = this.explorerViewer.getSelection();
 		for (let i = 0; i < currentSelection.length; i++) {
 			if (currentSelection[i].resource.toString() === resource.toString()) {
-				return reveal ? this.reveal(currentSelection[i], 0.5) : Promise.as(null);
+				return reveal ? this.reveal(currentSelection[i], 0.5) : TPromise.as(null);
 			}
 		}
 
 		// First try to get the stat object from the input to avoid a roundtrip
 		let root = this.getInput();
 		if (!root) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		let fileStat = root.find(resource);
@@ -767,7 +766,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	private doRevealAndSelect(fileStat: FileStat): TPromise<void> {
 		if (!fileStat) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		// Special case: we are asked to reveal and select an element that is not visible
@@ -775,7 +774,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		if (!this.filter.isVisible(this.tree, fileStat)) {
 			fileStat = fileStat.parent;
 			if (!fileStat) {
-				return Promise.as(null);
+				return TPromise.as(null);
 			}
 		}
 

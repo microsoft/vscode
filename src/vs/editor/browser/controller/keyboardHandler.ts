@@ -5,23 +5,17 @@
 'use strict';
 
 import EditorCommon = require('vs/editor/common/editorCommon');
-import keyboardController = require('vs/base/browser/keyboardController');
 import DomUtils = require('vs/base/browser/dom');
-import Platform = require('vs/base/common/platform');
 import Browser = require('vs/base/browser/browser');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EventEmitter = require('vs/base/common/eventEmitter');
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import Schedulers = require('vs/base/common/async');
 import * as Lifecycle from 'vs/base/common/lifecycle';
-import Strings = require('vs/base/common/strings');
 import {Range} from 'vs/editor/common/core/range';
-import {Position} from 'vs/editor/common/core/position';
-import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import Event, {Emitter} from 'vs/base/common/event';
 import {TextAreaHandler} from 'vs/editor/common/controller/textAreaHandler';
-import {ITextAreaWrapper, IClipboardEvent, IKeyboardEventWrapper, ISimpleModel, TextAreaStrategy} from 'vs/editor/common/controller/textAreaState';
+import {ITextAreaWrapper, IClipboardEvent, IKeyboardEventWrapper, TextAreaStrategy} from 'vs/editor/common/controller/textAreaState';
 import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
+import {StyleMutator} from 'vs/base/browser/styleMutator';
 
 class ClipboardEventWrapper implements IClipboardEvent {
 
@@ -131,11 +125,9 @@ class TextAreaWrapper extends Lifecycle.Disposable implements ITextAreaWrapper {
 		super();
 		this._textArea = textArea;
 
-		let kbController = this._register(new keyboardController.KeyboardController(this._textArea));
-		this._register(kbController.addListener2('keydown', (e) => this._onKeyDown.fire(new KeyboardEventWrapper(e))));
-		this._register(kbController.addListener2('keyup', (e) => this._onKeyUp.fire(new KeyboardEventWrapper(e))));
-		this._register(kbController.addListener2('keypress', (e) => this._onKeyPress.fire(new KeyboardEventWrapper(e))));
-
+		this._register(DomUtils.addStandardDisposableListener(this._textArea, 'keydown', (e) => this._onKeyDown.fire(new KeyboardEventWrapper(e))));
+		this._register(DomUtils.addStandardDisposableListener(this._textArea, 'keyup', (e) => this._onKeyUp.fire(new KeyboardEventWrapper(e))));
+		this._register(DomUtils.addStandardDisposableListener(this._textArea, 'keypress', (e) => this._onKeyPress.fire(new KeyboardEventWrapper(e))));
 		this._register(DomUtils.addDisposableListener(this._textArea, 'compositionstart', (e) => this._onCompositionStart.fire()));
 		this._register(DomUtils.addDisposableListener(this._textArea, 'compositionend', (e) => this._onCompositionEnd.fire()));
 		this._register(DomUtils.addDisposableListener(this._textArea, 'input', (e) => this._onInput.fire()));
@@ -243,23 +235,23 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 			let visibleRange = this.viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
 
 			if (visibleRange) {
-				DomUtils.StyleMutator.setTop(this.textArea.actual, visibleRange.top);
-				DomUtils.StyleMutator.setLeft(this.textArea.actual, this.contentLeft + visibleRange.left - this.scrollLeft);
+				StyleMutator.setTop(this.textArea.actual, visibleRange.top);
+				StyleMutator.setLeft(this.textArea.actual, this.contentLeft + visibleRange.left - this.scrollLeft);
 			}
 
 			if (Browser.isIE11orEarlier) {
-				DomUtils.StyleMutator.setWidth(this.textArea.actual, this.contentWidth);
+				StyleMutator.setWidth(this.textArea.actual, this.contentWidth);
 			}
 
 			// Show the textarea
-			DomUtils.StyleMutator.setHeight(this.textArea.actual, this.context.configuration.editor.lineHeight);
+			StyleMutator.setHeight(this.textArea.actual, this.context.configuration.editor.lineHeight);
 			DomUtils.addClass(this.viewHelper.viewDomNode, 'ime-input');
 		}));
 		this._toDispose.push(this.textAreaHandler.onCompositionEnd((e) => {
 			this.textArea.actual.style.height = '';
 			this.textArea.actual.style.width = '';
-			DomUtils.StyleMutator.setLeft(this.textArea.actual, 0);
-			DomUtils.StyleMutator.setTop(this.textArea.actual, 0);
+			StyleMutator.setLeft(this.textArea.actual, 0);
+			StyleMutator.setTop(this.textArea.actual, 0);
 			DomUtils.removeClass(this.viewHelper.viewDomNode, 'ime-input');
 		}));
 		this._toDispose.push(GlobalScreenReaderNVDA.onChange((value) => {
@@ -293,8 +285,8 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 
 	public onConfigurationChanged(e: EditorCommon.IConfigurationChangedEvent): boolean {
 		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
-		DomUtils.StyleMutator.setFontSize(this.textArea.actual, this.context.configuration.editor.fontSize);
-		DomUtils.StyleMutator.setLineHeight(this.textArea.actual, this.context.configuration.editor.lineHeight);
+		StyleMutator.setFontSize(this.textArea.actual, this.context.configuration.editor.fontSize);
+		StyleMutator.setLineHeight(this.textArea.actual, this.context.configuration.editor.lineHeight);
 		if (e.experimentalScreenReader) {
 			this.textAreaHandler.setStrategy(this._getStrategy());
 		}

@@ -173,6 +173,7 @@ class InternalEditorOptionsHelper {
 			overviewRulerLanes: toInteger(opts.overviewRulerLanes, 0, 3),
 			cursorBlinking: opts.cursorBlinking,
 			experimentalScreenReader: toBoolean(opts.experimentalScreenReader),
+			rulers: toSortedIntegerArray(opts.rulers),
 			ariaLabel: String(opts.ariaLabel),
 			cursorStyle: opts.cursorStyle,
 			fontLigatures: toBoolean(opts.fontLigatures),
@@ -252,6 +253,7 @@ class InternalEditorOptionsHelper {
 	public static createConfigurationChangedEvent(prevOpts:EditorCommon.IInternalEditorOptions, newOpts:EditorCommon.IInternalEditorOptions): EditorCommon.IConfigurationChangedEvent {
 		return {
 			experimentalScreenReader:		(prevOpts.experimentalScreenReader !== newOpts.experimentalScreenReader),
+			rulers:							(!this._numberArraysEqual(prevOpts.rulers, newOpts.rulers)),
 			ariaLabel:						(prevOpts.ariaLabel !== newOpts.ariaLabel),
 
 			lineNumbers:					(prevOpts.lineNumbers !== newOpts.lineNumbers),
@@ -344,6 +346,18 @@ class InternalEditorOptionsHelper {
 			&& a.tabSize === b.tabSize
 		);
 	}
+
+	private static _numberArraysEqual(a:number[], b:number[]): boolean {
+		if (a.length !== b.length) {
+			return false;
+		}
+		for (let i = 0; i < a.length; i++) {
+			if (a[i] !== b[i]) {
+				return false;
+			}
+		}
+		return true;
+	}
 }
 
 export interface ICSSConfig {
@@ -385,6 +399,16 @@ function toInteger(source:any, minimum?:number, maximum?:number): number {
 	if (typeof maximum === 'number') {
 		r = Math.min(maximum, r);
 	}
+	return r;
+}
+
+function toSortedIntegerArray(source:any): number[] {
+	if (!Array.isArray(source)) {
+		return [];
+	}
+	let arrSource = <any[]>source;
+	let r = arrSource.map(el => toInteger(el));
+	r.sort();
 	return r;
 }
 
@@ -733,6 +757,14 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': DefaultConfig.editor.glyphMargin,
 			'description': nls.localize('glyphMargin', "Controls visibility of the glyph margin")
+		},
+		'editor.rulers' : {
+			'type': 'array',
+			'items': {
+				'type': 'number'
+			},
+			'default': DefaultConfig.editor.rulers,
+			'description': nls.localize('rulers', "Columns at which to show vertical rulers")
 		},
 		'editor.tabSize' : {
 			'oneOf': [

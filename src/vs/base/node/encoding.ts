@@ -41,7 +41,7 @@ export function detectEncodingByBOMFromBuffer(buffer: NodeBuffer, bytesRead: num
 	}
 
 	return null;
-};
+}
 
 /**
  * Detects the Byte Order Mark in a given file.

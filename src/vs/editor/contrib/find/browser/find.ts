@@ -7,7 +7,7 @@
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IFindController, FindWidget} from 'vs/editor/contrib/find/browser/findWidget';
 import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
-import {IKeybindingService, IKeybindingContextKey, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {CommonFindController, IFindStartOptions, FindStartFocusAction, SelectionHighlighter} from 'vs/editor/contrib/find/common/findController';
 

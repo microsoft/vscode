@@ -5,7 +5,7 @@
 'use strict';
 
 import Browser = require('vs/base/browser/browser');
-import DomUtils = require('vs/base/browser/dom');
+import {StyleMutator} from 'vs/base/browser/styleMutator';
 
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -93,8 +93,8 @@ export class OverviewRulerImpl {
 	}
 
 	public setLayout(position:EditorCommon.IOverviewRulerPosition, render:boolean): void {
-		DomUtils.StyleMutator.setTop(this._domNode, position.top);
-		DomUtils.StyleMutator.setRight(this._domNode, position.right);
+		StyleMutator.setTop(this._domNode, position.top);
+		StyleMutator.setRight(this._domNode, position.right);
 
 		if (this._width !== position.width || this._height !== position.height) {
 			this._width = position.width;

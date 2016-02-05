@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/repl';
+import nls = require('vs/nls');
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import lifecycle = require('vs/base/common/lifecycle');
@@ -27,10 +28,11 @@ import { CommonKeybindings } from 'vs/base/common/keyCodes';
 
 const $ = dom.emmet;
 
-const replTreeOptions = {
+const replTreeOptions: tree.ITreeOptions = {
 	indentPixels: 8,
 	twistiePixels: 20,
-	paddingOnRow: false
+	paddingOnRow: false,
+	ariaLabel: nls.localize('replAriaLabel', "Read Eval Print Loop Panel")
 };
 
 const HISTORY_STORAGE_KEY = 'debug.repl.history';
@@ -99,7 +101,7 @@ export class Repl extends Panel {
 		this.replInput = <HTMLInputElement>dom.append(replInputContainer, $('input.repl-input'));
 		this.replInput.type = 'text';
 
-		dom.addStandardDisposableListener(this.replInput, 'keydown', (e: dom.IKeyboardEvent) => {
+		this.toDispose.push(dom.addStandardDisposableListener(this.replInput, 'keydown', (e: dom.IKeyboardEvent) => {
 			let trimmedValue = this.replInput.value.trim();
 
 			if (e.equals(CommonKeybindings.ENTER) && trimmedValue) {
@@ -116,7 +118,9 @@ export class Repl extends Panel {
 					e.preventDefault();
 				}
 			}
-		});
+		}));
+		this.toDispose.push(dom.addStandardDisposableListener(this.replInput, dom.EventType.FOCUS, () => dom.addClass(replInputContainer, 'synthetic-focus')));
+		this.toDispose.push(dom.addStandardDisposableListener(this.replInput, dom.EventType.BLUR, () => dom.removeClass(replInputContainer, 'synthetic-focus')));
 
 		this.characterWidthSurveyor = dom.append(container, $('.surveyor'));
 		this.characterWidthSurveyor.textContent = Repl.HALF_WIDTH_TYPICAL;
@@ -129,6 +133,7 @@ export class Repl extends Panel {
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.ReplExpressionsDataSource(this.debugService),
 			renderer: this.renderer,
+			accessibilityProvider: new viewer.ReplExpressionsAccessibilityProvider(),
 			controller: new viewer.ReplExpressionsController(this.debugService, this.contextMenuService, new viewer.ReplExpressionsActionProvider(this.instantiationService), this.replInput, false)
 		}, replTreeOptions);
 
@@ -142,8 +147,7 @@ export class Repl extends Panel {
 	public layout(dimension: builder.Dimension): void {
 		if (this.tree) {
 			this.renderer.setWidth(dimension.width - 20, this.characterWidthSurveyor.clientWidth / this.characterWidthSurveyor.textContent.length);
-			this.tree.layout(this.treeContainer.clientHeight);
-			this.tree.refresh().done(null, errors.onUnexpectedError);
+			this.tree.layout(dimension.height - 22);
 		}
 	}
 

@@ -7,7 +7,7 @@
 import {IEventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
 import Modes = require('vs/editor/common/modes');
 import TokensBinaryEncoding = require('vs/editor/common/model/tokensBinaryEncoding');
-import {IInstantiationService, INewConstructorSignature1, IConstructorSignature2, INewConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, INewConstructorSignature1, INewConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {IAction} from 'vs/base/common/actions';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import URI from 'vs/base/common/uri';
@@ -169,7 +169,7 @@ export enum SelectionDirection {
 	 * The selection starts below where it ends.
 	 */
 	RTL
-};
+}
 
 /**
  * A selection in the editor.
@@ -269,11 +269,16 @@ export function wrappingIndentFromString(wrappingIndent:string): WrappingIndent 
 }
 
 /**
- * Configuration options for the editor. Common between configuring the editor and the options the editor has computed
+ * Configuration options for the editor.
  */
-export interface ICommonEditorOptions {
+export interface IEditorOptions {
 	experimentalScreenReader?: boolean;
 	ariaLabel?: string;
+	/**
+	 * Render vertical lines at the specified columns.
+	 * Defaults to empty array.
+	 */
+	rulers?: number[];
 	/**
 	 * Control the rendering of line numbers.
 	 * If it is a function, it will be invoked when rendering a line number and the return value will be rendered.
@@ -494,12 +499,6 @@ export interface ICommonEditorOptions {
 	 * Defaults to false.
 	 */
 	renderWhitespace?: boolean;
-}
-
-/**
- * Configuration options for the editor.
- */
-export interface IEditorOptions extends ICommonEditorOptions {
 	/**
 	 * Tab size in spaces. This is used for rendering and for editing.
 	 * 'auto' means the model attached to the editor will be scanned and this property will be guessed.
@@ -586,6 +585,7 @@ export interface IEditorWrappingInfo {
  */
 export interface IInternalEditorOptions {
 	experimentalScreenReader: boolean;
+	rulers: number[];
 	ariaLabel: string;
 
 	// ---- Options that are transparent - get no massaging
@@ -672,6 +672,7 @@ export interface IInternalEditorOptions {
  */
 export interface IConfigurationChangedEvent {
 	experimentalScreenReader: boolean;
+	rulers: boolean;
 	ariaLabel: boolean;
 
 	// ---- Options that are transparent - get no massaging
@@ -1986,7 +1987,7 @@ export interface IModelPropertiesChangedEvent {
 /**
  * Decoration data associated with a model decorations changed event.
  */
-export interface IModelDecorationsChangedEvent_DecorationData {
+export interface IModelDecorationsChangedEventDecorationData {
 	id:string;
 	ownerId:number;
 	range:IRange;
@@ -2004,7 +2005,7 @@ export interface IModelDecorationsChangedEvent {
 	/**
 	 * Lists of details
 	 */
-	addedOrChangedDecorations:IModelDecorationsChangedEvent_DecorationData[];
+	addedOrChangedDecorations:IModelDecorationsChangedEventDecorationData[];
 	removedDecorations:string[];
 	oldOptions:{[decorationId:string]:IModelDecorationOptions;};
 	oldRanges:{[decorationId:string]:IRange;};

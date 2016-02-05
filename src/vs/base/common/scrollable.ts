@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Lifecycle = require('vs/base/common/lifecycle');
+import {IDisposable} from 'vs/base/common/lifecycle';
 
 export interface IScrollable {
 	getScrollHeight():number;
@@ -13,5 +13,5 @@ export interface IScrollable {
 	setScrollLeft(scrollLeft:number);
 	getScrollTop():number;
 	setScrollTop(scrollTop:number);
-	addScrollListener(callback:()=>void): Lifecycle.IDisposable;
+	addScrollListener(callback:()=>void): IDisposable;
 }

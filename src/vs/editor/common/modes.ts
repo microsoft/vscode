@@ -6,7 +6,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IMatch} from 'vs/base/common/filters';
-import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
+import {IMarker} from 'vs/platform/markers/common/markers';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import URI from 'vs/base/common/uri';
@@ -14,8 +14,9 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 
 export interface IWorkerParticipantDescriptor {
-	modeId:string;
-	descriptor: AsyncDescriptor0<IWorkerParticipant>;
+	modeId: string;
+	moduleId: string;
+	ctorName: string;
 }
 
 export interface IWorkerParticipant {

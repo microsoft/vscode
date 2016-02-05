@@ -5,7 +5,6 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import {PrefixSumComputer, IPrefixSumIndexOfResult} from 'vs/editor/common/viewModel/prefixSumComputer';
 import {IMode} from 'vs/editor/common/modes';
 import {TextModel} from 'vs/editor/common/model/textModel';
@@ -231,18 +230,6 @@ export class AbstractMirrorModel extends TextModelWithTokens implements EditorCo
 		}
 		return result;
 	}
-
-	private getWord(content:string, position:number, callback:(text:string, start:number, end:number)=>any): any {
-		var words = this.wordenize(content);
-		for (var i = 0; i < words.length && position >= words[i].start; i++) {
-			var word= words[i];
-			if (position <= word.end) {
-				return callback(content, word.start, word.end);
-			}
-		}
-		return callback(content, -1, -1);
-	}
-
 }
 
 export class MirrorModelEmbedded extends AbstractMirrorModel implements EditorCommon.IMirrorModel {
@@ -546,7 +533,6 @@ export class MirrorModel extends AbstractMirrorModel implements EditorCommon.IMi
 	private _onLinesInserted(e:EditorCommon.IModelContentChangedLinesInsertedEvent) : void {
 		var lineIndex:number,
 			i:number,
-			eolLength = this.getEOL().length,
 			splitLines = e.detail.split('\n');
 
 		for (lineIndex = e.fromLineNumber - 1, i = 0; lineIndex < e.toLineNumber; lineIndex++, i++) {

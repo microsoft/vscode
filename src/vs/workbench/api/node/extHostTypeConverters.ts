@@ -331,12 +331,12 @@ export const location = {
 		return {
 			range: fromRange(value.range),
 			resource: value.uri
-		}
+		};
 	},
 	to(value: modes.IReference): types.Location {
 		return new types.Location(value.resource, toRange(value.range));
 	}
-}
+};
 
 export function fromHover(hover: vscode.Hover): modes.IComputeExtraInfoResult {
 	return <modes.IComputeExtraInfoResult>{
@@ -482,7 +482,7 @@ export namespace Command {
 			_cache[id] = command;
 
 			const disposable1 = context.commands.registerCommand(id, () => context.commands.executeCommand(command.command, ..._cache[id].arguments));
-			const disposable2 = { dispose() { delete _cache[id] } };
+			const disposable2 = { dispose() { delete _cache[id]; } };
 			context.disposables.push(disposable1, disposable2);
 		}
 
@@ -496,7 +496,7 @@ export namespace Command {
 			result = {
 				command: command.id,
 				title: command.title
-			}
+			};
 		}
 		return result;
 	}

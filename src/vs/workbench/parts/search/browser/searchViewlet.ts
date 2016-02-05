@@ -12,6 +12,7 @@ import {EditorType} from 'vs/editor/common/editorCommon';
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import assert = require('vs/base/common/assert');
+import aria = require('vs/base/browser/ui/aria/aria');
 import {IExpression, splitGlobAware} from 'vs/base/common/glob';
 import {isFunction} from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
@@ -101,7 +102,7 @@ export class SearchDataSource implements IDataSource {
 		} else if (element instanceof SearchResult) {
 			value = element.matches();
 		}
-		return Promise.as(value);
+		return TPromise.as(value);
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
@@ -115,7 +116,7 @@ export class SearchDataSource implements IDataSource {
 		} else if (element instanceof FileMatch) {
 			value = element.parent();
 		}
-		return Promise.as(value);
+		return TPromise.as(value);
 	}
 }
 
@@ -143,11 +144,11 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 		if (element instanceof FileMatch) {
 			const path = this.contextService.toWorkspaceRelativePath(element.resource()) || element.resource().fsPath;
 
-			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}", element.count(), element.name(), paths.dirname(path));
+			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}, Search result", element.count(), element.name(), paths.dirname(path));
 		}
 
 		if (element instanceof Match) {
-			return element.text();
+			return nls.localize('searchResultAria', "{0}, Search result", element.text());
 		}
 	}
 }
@@ -171,7 +172,7 @@ class SearchController extends DefaultController {
 		}
 		return result;
 	}
-};
+}
 
 class SearchFilter implements IFilter {
 
@@ -303,10 +304,9 @@ export class RefreshAction extends Action {
 
 	public run(): Promise {
 		this.viewlet.onQueryChanged(true);
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
-
 
 export class SelectOrRemoveAction extends Action {
 
@@ -336,7 +336,7 @@ export class SelectOrRemoveAction extends Action {
 
 	private runAsSelect(): Promise {
 		this.viewlet.getResults().addClass('select');
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	private runAsRemove(): Promise {
@@ -362,7 +362,7 @@ export class SelectOrRemoveAction extends Action {
 			});
 		}
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -383,7 +383,7 @@ export class CollapseAllAction extends Action {
 		if (this.viewlet.getControl()) {
 			return this.viewlet.getControl().collapseAll();
 		}
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -402,7 +402,7 @@ export class ClearSearchResultsAction extends Action {
 	public run(): Promise {
 		this.viewlet.clearSearchResults();
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -423,7 +423,7 @@ class ConfigureGlobalExclusionsAction extends Action {
 		let action = this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL);
 		action.run().done(() => action.dispose(), errors.onUnexpectedError);
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -431,7 +431,7 @@ interface IOptions {
 	placeholder?: string;
 	width?: number;
 	validation?: IInputValidator;
-	label?: string;
+	ariaLabel?: string;
 }
 
 class PatternInput {
@@ -442,7 +442,7 @@ class PatternInput {
 	private onOptionChange: (event: Event) => void;
 	private width: number;
 	private placeholder: string;
-	private label: string;
+	private ariaLabel: string;
 
 	private listenersToRemove: any[];
 	private pattern: Checkbox;
@@ -455,7 +455,7 @@ class PatternInput {
 		this.onOptionChange = null;
 		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';
-		this.label = options.label || nls.localize('defaultLabel', "input");
+		this.ariaLabel = options.ariaLabel || nls.localize('defaultLabel', "input");
 
 		this.listenersToRemove = [];
 		this.pattern = null;
@@ -563,7 +563,7 @@ class PatternInput {
 
 		this.inputBox = new InputBox(this.domNode, this.contextViewProvider, {
 			placeholder: this.placeholder || '',
-			ariaLabel: this.label || '',
+			ariaLabel: this.ariaLabel || '',
 			validationOptions: {
 				validation: null,
 				showMessage: true
@@ -574,9 +574,11 @@ class PatternInput {
 			actionClassName: 'pattern',
 			title: nls.localize('patternDescription', "Use Glob Patterns"),
 			isChecked: false,
-			onChange: () => {
+			onChange: (viaKeyboard) => {
 				this.onOptionChange(null);
-				this.inputBox.focus();
+				if (!viaKeyboard) {
+					this.inputBox.focus();
+				}
 				this.setInputWidth();
 
 				if (this.isGlobPattern()) {
@@ -742,7 +744,7 @@ export class SearchViewlet extends Viewlet {
 
 		this.queryBox = builder.div({ 'class': 'query-box' }, (div) => {
 			let options = {
-				label: nls.localize('label.Search', 'Search Term'),
+				label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search or Escape to cancel'),
 				validation: (value: string) => {
 					if (value.length === 0) {
 						return null;
@@ -773,8 +775,8 @@ export class SearchViewlet extends Viewlet {
 					}
 				}
 			});
-			this.findInput.onDidOptionChange(() => {
-				this.onQueryChanged(true);
+			this.findInput.onDidOptionChange((viaKeyboard) => {
+				this.onQueryChanged(true, viaKeyboard);
 			});
 			this.findInput.setValue(contentPattern);
 			this.findInput.setRegex(isRegex);
@@ -802,7 +804,7 @@ export class SearchViewlet extends Viewlet {
 				builder.element('h4', { text: title });
 
 				this.inputPatternIncludes = new PatternInput(builder.getContainer(), this.contextViewService, {
-					label: nls.localize('label.includes', 'Includes')
+					ariaLabel: nls.localize('label.includes', 'Search Include Patterns')
 				});
 
 				this.inputPatternIncludes.setIsGlobPattern(includesUsePattern);
@@ -832,7 +834,7 @@ export class SearchViewlet extends Viewlet {
 				builder.element('h4', { text: title });
 
 				this.inputPatternExclusions = new PatternInput(builder.getContainer(), this.contextViewService, {
-					label: nls.localize('label.excludes', 'Excludes')
+					ariaLabel: nls.localize('label.excludes', 'Search Exclude Patterns')
 				});
 
 				this.inputPatternExclusions.setIsGlobPattern(exclusionsUsePattern);
@@ -861,7 +863,8 @@ export class SearchViewlet extends Viewlet {
 				builder.element('h4', { text: title });
 
 				this.inputPatternGlobalExclusions = new InputBox(builder.getContainer(), this.contextViewService, {
-					actions: [this.instantiationService.createInstance(ConfigureGlobalExclusionsAction)]
+					actions: [this.instantiationService.createInstance(ConfigureGlobalExclusionsAction)],
+					ariaLabel: nls.localize('label.global.excludes', 'Configured Search Exclude Patterns')
 				});
 				this.inputPatternGlobalExclusions.inputElement.readOnly = true;
 				$(this.inputPatternGlobalExclusions.inputElement).attr('aria-readonly', 'true');
@@ -885,8 +888,8 @@ export class SearchViewlet extends Viewlet {
 				controller: new SearchController(),
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider)
 			}, {
-					ariaLabel: nls.localize('treeAriaLabel', "Search Results")
-				});
+				ariaLabel: nls.localize('treeAriaLabel', "Search Results")
+			});
 
 			this.toUnbind.push(() => renderer.dispose());
 
@@ -925,7 +928,7 @@ export class SearchViewlet extends Viewlet {
 			this.updateGlobalPatternExclusions(configuration);
 		}).done(null, errors.onUnexpectedError);
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	private updateGlobalPatternExclusions(configuration: ISearchConfiguration): void {
@@ -1099,7 +1102,7 @@ export class SearchViewlet extends Viewlet {
 		}
 	}
 
-	public onQueryChanged(rerunQuery: boolean): void {
+	public onQueryChanged(rerunQuery: boolean, preserveFocus?: boolean): void {
 
 		let isRegex = this.findInput.getRegex(),
 			isWholeWords = this.findInput.getWholeWords(),
@@ -1167,7 +1170,9 @@ export class SearchViewlet extends Viewlet {
 		this.queryBuilder.text(content, options)
 			.then(query => this.onQueryTriggered(query, patternExcludes, patternIncludes), errors.onUnexpectedError);
 
-		this.findInput.focus(); // focus back to input field
+		if (!preserveFocus) {
+			this.findInput.focus(); // focus back to input field
+		}
 	}
 
 	private onQueryTriggered(query: ISearchQuery, excludePattern: string, includePattern: string): void {
@@ -1274,6 +1279,9 @@ export class SearchViewlet extends Viewlet {
 					message = nls.localize('noResultsFound', "No results found. Review your settings for configured exclusions - ");
 				}
 
+				// Indicate as status to ARIA
+				aria.status(message);
+
 				this.tree.onHidden();
 				this.results.hide();
 				let div = this.messages.empty().show().asContainer().div({ 'class': 'message', text: message });
@@ -1290,6 +1298,7 @@ export class SearchViewlet extends Viewlet {
 				} else if (hasIncludes || hasExcludes) {
 					$(div).a({
 						'class': ['pointer', 'prominent'],
+						'tabindex': '0',
 						text: nls.localize('rerunSearchInAll.message', "Search again in all files")
 					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
 						dom.EventHelper.stop(e, false);
@@ -1302,6 +1311,7 @@ export class SearchViewlet extends Viewlet {
 				} else {
 					$(div).a({
 						'class': ['pointer', 'prominent'],
+						'tabindex': '0',
 						text: nls.localize('openSettings.message', "Open Settings")
 					}).on(dom.EventType.CLICK, (e: MouseEvent) => {
 						dom.EventHelper.stop(e, false);
@@ -1311,8 +1321,10 @@ export class SearchViewlet extends Viewlet {
 					});
 				}
 			} else {
-				// show highlights
-				this.viewModel.toggleHighlights(true);
+				this.viewModel.toggleHighlights(true); // show highlights
+
+				// Indicate as status to ARIA
+				aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.count(), this.viewModel.fileCount()));
 			}
 
 			doneTimer.stop();
@@ -1424,7 +1436,7 @@ export class SearchViewlet extends Viewlet {
 
 	private onFocus(lineMatch: Match, preserveFocus: boolean, sideBySide: boolean): TPromise<any> {
 		if (!(lineMatch instanceof Match)) {
-			return Promise.as(true);
+			return TPromise.as(true);
 		}
 
 		this.telemetryService.publicLog('searchResultChosen');

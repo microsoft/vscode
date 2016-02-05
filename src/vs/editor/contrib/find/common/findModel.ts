@@ -30,7 +30,7 @@ export const FIND_IDS = {
 	ToggleRegexCommand: 'toggleFindRegex',
 	ReplaceOneAction: 'editor.action.replaceOne',
 	ReplaceAllAction: 'editor.action.replaceAll'
-}
+};
 
 export const MATCHES_LIMIT = 999;
 

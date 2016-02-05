@@ -11,7 +11,7 @@ import {ShiftCommand} from 'vs/editor/common/commands/shiftCommand';
 import {ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition} from 'vs/editor/common/commands/replaceCommand';
 import {SurroundSelectionCommand} from 'vs/editor/common/commands/surroundSelectionCommand';
 import {Selection} from 'vs/editor/common/core/selection';
-import {IEnterAction,IndentAction,IElectricAction} from 'vs/editor/common/modes';
+import {IndentAction,IElectricAction} from 'vs/editor/common/modes';
 import {CursorMoveHelper, ICursorMoveHelperModel, IMoveResult} from 'vs/editor/common/controller/cursorMoveHelper';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Errors = require('vs/base/common/errors');
@@ -161,7 +161,7 @@ export class OneCursor {
 			viewPosition: this.viewPosition,
 			leftoverVisibleColumns: this.leftoverVisibleColumns,
 			selectionStartLeftoverVisibleColumns: this.selectionStartLeftoverVisibleColumns
-		}
+		};
 	}
 
 	public restoreState(state:IOneCursorState): void {
@@ -598,7 +598,7 @@ export class OneCursorOp {
 			viewLineNumber = viewSelectionEnd.lineNumber;
 			viewColumn = viewSelectionEnd.column;
 		} else {
-			var validatedViewPosition = cursor.getValidViewPosition();;
+			var validatedViewPosition = cursor.getValidViewPosition();
 			var r = cursor.getRightOfViewPosition(validatedViewPosition.lineNumber, validatedViewPosition.column);
 			viewLineNumber = r.lineNumber;
 			viewColumn = r.column;
@@ -649,7 +649,7 @@ export class OneCursorOp {
 			viewLineNumber = viewSelectionEnd.lineNumber;
 			viewColumn = viewSelectionEnd.column;
 		} else {
-			var validatedViewPosition = cursor.getValidViewPosition();;
+			var validatedViewPosition = cursor.getValidViewPosition();
 			viewLineNumber = validatedViewPosition.lineNumber;
 			viewColumn = validatedViewPosition.column;
 		}

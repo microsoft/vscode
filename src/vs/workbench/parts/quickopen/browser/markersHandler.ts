@@ -65,6 +65,10 @@ class MarkerEntry extends QuickOpenEntryItem {
 		this.setHidden(!labelHighlights && !descHighlights);
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('markerAriaLabel', "{0}, errors and warnings", this._label);
+	}
+
 	public getHeight(): number {
 		return 48;
 	}
@@ -83,13 +87,13 @@ class MarkerEntry extends QuickOpenEntryItem {
 		dom.addClass(icon, `severity ${Severity.toString(this._marker.severity).toLowerCase()}`);
 		row1.appendChild(icon);
 		const labelContainer = document.createElement('div');
-		dom.addClass(labelContainer, 'inline')
+		dom.addClass(labelContainer, 'inline');
 		new HighlightedLabel(labelContainer).set(this._label, labelHighlights);
 		row1.appendChild(labelContainer);
 
 		// fill second row with descriptions
 		const descContainer = document.createElement('div');
-		dom.addClass(descContainer, 'inline description')
+		dom.addClass(descContainer, 'inline description');
 		new HighlightedLabel(descContainer).set(this._description, descHighlights);
 		row2.appendChild(descContainer);
 
@@ -167,6 +171,10 @@ export class MarkersHandler extends QuickOpenHandler {
 		this._editorService = editorService;
 		this._codeEditorService = codeEditorService;
 		this._contextService = contextService;
+	}
+
+	public getAriaLabel(): string {
+		return nls.localize('markersHandlerAriaLabel', "Type to narrow down errors and warnings");
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {

@@ -26,7 +26,7 @@ class ToggleWordWrapAction extends EditorAction {
 
 		let wrappingInfo = this.editor.getConfiguration().wrappingInfo;
 
-		if (wrappingInfo.isViewportWrapping == false) {
+		if (!wrappingInfo.isViewportWrapping) {
 			wrappingInfo.wrappingColumn = 0;
 		} else {
 			wrappingInfo.wrappingColumn = DefaultConfig.editor.wrappingColumn;

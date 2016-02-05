@@ -455,7 +455,6 @@ export class MoveSelectionToNextFindMatchAction extends SelectNextFindMatchActio
 		}
 
 		let allSelections = this.editor.getSelections();
-		let lastAddedSelection = allSelections[allSelections.length - 1];
 		this.editor.setSelections(allSelections.slice(0, allSelections.length - 1).concat(nextMatch));
 		this.editor.revealRangeInCenterIfOutsideViewport(nextMatch);
 

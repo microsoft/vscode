@@ -72,7 +72,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 
 	public static ID = 'workbench.editors.files.textFileEditorModel';
 
-	private static DEFAULT_AUTO_SAVE_DELAY = 1000;
 	private static saveErrorHandler: ISaveErrorHandler;
 
 	private resource: URI;
@@ -377,7 +376,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		this.cancelAutoSavePromises();
 
 		// Create new save promise and keep it
-		let promise: TPromise<void> = Promise.timeout(this.autoSaveAfterMillies).then(() => {
+		let promise: TPromise<void> = TPromise.timeout(this.autoSaveAfterMillies).then(() => {
 
 			// Only trigger save if the version id has not changed meanwhile
 			if (versionId === this.versionId) {
@@ -749,7 +748,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 			isDirectory: stat.isDirectory,
 			hasChildren: stat.hasChildren,
 			children: stat.children
-		}
+		};
 	}
 }
 

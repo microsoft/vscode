@@ -17,7 +17,7 @@ import workbenchActionRegistry = require('vs/workbench/common/actionRegistry');
 import Themes = require('vs/platform/theme/common/themes');
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IThemeService, IThemeData, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/node/themeService';
+import {IThemeService, IThemeData, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
 
 import {ipcRenderer as ipc} from 'electron';
 
@@ -84,7 +84,7 @@ class SelectThemeAction extends actions.Action {
 						ipc.send('vscode:changeTheme', currentTheme);
 					}
 				}
-				return winjs.Promise.as(null);
+				return winjs.TPromise.as(null);
 			};
 
 			return this.quickOpenService.pick(picks, { placeHolder: nls.localize('themes.selectTheme', "Select Color Theme"), autoFocus: { autoFocusIndex: selectedPickIndex }}).then(pickTheme, null, pickTheme);

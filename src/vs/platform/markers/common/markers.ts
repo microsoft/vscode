@@ -20,7 +20,7 @@ export interface IMarkerService {
 
 	changeAll(owner: string, data: IResourceMarker[]): void;
 
-	remove(owner: string, resources: URI[]): void
+	remove(owner: string, resources: URI[]): void;
 
 	read(filter?: { owner?: string; resource?: URI; selector?: RegExp, take?: number; }): IMarker[];
 

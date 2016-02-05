@@ -117,7 +117,7 @@ class SchemaHandle implements ISchemaHandle {
 		this.service = service;
 		this.url = url;
 		if (unresolvedSchemaContent) {
-			this.unresolvedSchema = WinJS.Promise.as(new UnresolvedSchema(unresolvedSchemaContent));
+			this.unresolvedSchema = WinJS.TPromise.as(new UnresolvedSchema(unresolvedSchemaContent));
 		}
 	}
 

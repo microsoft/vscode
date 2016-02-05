@@ -107,7 +107,8 @@ export var ViewModelEvents = {
 };
 
 export var ServiceEvents = {
-	STATE_CHANGED: 'StateChanged'
+	STATE_CHANGED: 'StateChanged',
+	TYPE_NOT_SUPPORTED: 'TypeNotSupported'
 };
 
 export var SessionEvents = {
@@ -191,6 +192,7 @@ export interface IRawAdapter extends IRawEnvAdapter {
 	configurationAttributes?: any;
 	initialConfigurations?: any[];
 	win?: IRawEnvAdapter;
+	winx86?: IRawEnvAdapter;
 	windows?: IRawEnvAdapter;
 	osx?: IRawEnvAdapter;
 	linux?: IRawEnvAdapter;
@@ -199,6 +201,7 @@ export interface IRawAdapter extends IRawEnvAdapter {
 export interface IRawDebugSession extends ee.EventEmitter {
 	getType(): string;
 	isAttach: boolean;
+	capablities: DebugProtocol.Capabilites;
 	disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
 
 	next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;

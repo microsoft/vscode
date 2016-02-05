@@ -66,8 +66,8 @@ class MsPointerHandler extends MouseHandler.MouseHandler implements Lifecycle.ID
 						penGesture.addPointer(e.pointerId);
 					}
 				});
-				this.listenersToRemove.push(DomUtils.addThrottledListener<IThrottledGestureEvent>(this.viewHelper.linesContentDomNode, 'MSGestureChange', (e) => this._onGestureChange(e), gestureChangeEventMerger));
-				this.listenersToRemove.push(DomUtils.addListener(this.viewHelper.linesContentDomNode, 'MSGestureTap', (e) => this._onCaptureGestureTap(e), true));
+				this.listenersToRemove.push(DomUtils.addDisposableThrottledListener<IThrottledGestureEvent>(this.viewHelper.linesContentDomNode, 'MSGestureChange', (e) => this._onGestureChange(e), gestureChangeEventMerger));
+				this.listenersToRemove.push(DomUtils.addDisposableListener(this.viewHelper.linesContentDomNode, 'MSGestureTap', (e) => this._onCaptureGestureTap(e), true));
 			}
 		}, 100);
 		this._lastPointerType = 'mouse';
@@ -145,8 +145,8 @@ class StandardPointerHandler extends MouseHandler.MouseHandler implements Lifecy
 						penGesture.addPointer(e.pointerId);
 					}
 				});
-				this.listenersToRemove.push(DomUtils.addThrottledListener<IThrottledGestureEvent>(this.viewHelper.linesContentDomNode, 'MSGestureChange', (e) => this._onGestureChange(e), gestureChangeEventMerger));
-				this.listenersToRemove.push(DomUtils.addListener(this.viewHelper.linesContentDomNode, 'MSGestureTap', (e) => this._onCaptureGestureTap(e), true));
+				this.listenersToRemove.push(DomUtils.addDisposableThrottledListener<IThrottledGestureEvent>(this.viewHelper.linesContentDomNode, 'MSGestureChange', (e) => this._onGestureChange(e), gestureChangeEventMerger));
+				this.listenersToRemove.push(DomUtils.addDisposableListener(this.viewHelper.linesContentDomNode, 'MSGestureTap', (e) => this._onCaptureGestureTap(e), true));
 			}
 		}, 100);
 		this._lastPointerType = 'mouse';
@@ -196,8 +196,8 @@ class TouchHandler extends MouseHandler.MouseHandler {
 
 		this.gesture = new Touch.Gesture(this.viewHelper.linesContentDomNode);
 
-		this.listenersToRemove.push(DomUtils.addListener(this.viewHelper.linesContentDomNode, Touch.EventType.Tap, (e) => this.onTap(e)));
-		this.listenersToRemove.push(DomUtils.addListener(this.viewHelper.linesContentDomNode, Touch.EventType.Change, (e) => this.onChange(e)));
+		this.listenersToRemove.push(DomUtils.addDisposableListener(this.viewHelper.linesContentDomNode, Touch.EventType.Tap, (e) => this.onTap(e)));
+		this.listenersToRemove.push(DomUtils.addDisposableListener(this.viewHelper.linesContentDomNode, Touch.EventType.Change, (e) => this.onChange(e)));
 	}
 
 	public dispose(): void {

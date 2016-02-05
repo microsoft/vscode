@@ -12,7 +12,6 @@ import schedulers = require('vs/base/common/async');
 import dom = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';

@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict'
+'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import descriptors = require('vs/platform/instantiation/common/descriptors');
@@ -46,10 +46,6 @@ export interface IThreadService {
 
 	// --- END deprecated methods
 
-	createDynamicProxyFromMethods<T>(obj:T): IDynamicProxy<T>;
-	createDynamicProxyFromMembers<T>(obj:T, allowedMembers:string[]): IDynamicProxy<T>;
-	isProxyObject<T>(obj: T): boolean;
-
 	getRemotable<T>(ctor: instantiation.INewConstructorSignature0<T>): T;
 
 	registerRemotableInstance(ctor: any, instance: any): void;
@@ -85,7 +81,7 @@ export class Remotable {
 			Remotable._ensureUnique(identifier);
 			Remotable.Registry.MainContext[identifier] = target;
 			target[Remotable.PROP_NAME] = identifier;
-		}
+		};
 	}
 
 	public static PluginHostContext(identifier: string) {
@@ -93,7 +89,7 @@ export class Remotable {
 			Remotable._ensureUnique(identifier);
 			Remotable.Registry.PluginHostContext[identifier] = target;
 			target[Remotable.PROP_NAME] = identifier;
-		}
+		};
 	}
 
 	public static WorkerContext(identifier: string, whichWorker:ThreadAffinity) {
@@ -104,7 +100,7 @@ export class Remotable {
 				affinity: whichWorker
 			};
 			target[Remotable.PROP_NAME] = identifier;
-		}
+		};
 	}
 
 	private static _ensureUnique(identifier:string): void {

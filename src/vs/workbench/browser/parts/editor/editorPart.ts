@@ -79,6 +79,8 @@ export class EditorPart extends Part implements IEditorPart {
 	private mapEditorCreationPromiseToEditor: { [editorId: string]: TPromise<BaseEditor>; }[];
 	private editorOpenToken: number[];
 	private editorSetInputErrorCounter: number[];
+	private pendingEditorInputsToClose: EditorInput[];
+	private pendingEditorInputCloseTimeout: number;
 
 	constructor(
 		private messageService: IMessageService,
@@ -111,6 +113,9 @@ export class EditorPart extends Part implements IEditorPart {
 		this.mapActionsToEditors = this.createPositionArray(false);
 		this.mapEditorLoadingPromiseToEditor = this.createPositionArray(false);
 		this.mapEditorCreationPromiseToEditor = this.createPositionArray(false);
+
+		this.pendingEditorInputsToClose = [];
+		this.pendingEditorInputCloseTimeout = null;
 	}
 
 	public setInstantiationService(service: IInstantiationService): void {
@@ -209,14 +214,13 @@ export class EditorPart extends Part implements IEditorPart {
 		if (input) {
 			this.visibleInputListeners[position] = input.addListener(EventType.DISPOSE, () => {
 
-				// To prevent race conditions, we call the close in a timeout because it can well be
-				// that an input is being disposed with the intent to replace it with some other input
-				// right after.
-				setTimeout(() => {
-					if (input === this.visibleInputs[position]) {
-						this.closeEditors(false, input).done(null, errors.onUnexpectedError);
-					}
-				}, 0);
+				// Keep the inputs to close. We use this to support multiple inputs closing
+				// right after each other and this helps avoid layout issues with the delayed
+				// timeout based closing below
+				if (input === this.visibleInputs[position]) {
+					this.pendingEditorInputsToClose.push(input);
+					this.startDelayedCloseEditorsFromInputDispose();
+				}
 			});
 		}
 
@@ -303,9 +307,7 @@ export class EditorPart extends Part implements IEditorPart {
 				// Build Container off-DOM
 				editorContainer = $().div({
 					'class': 'editor-container',
-					id: editorDescriptor.getId(),
-					'role': 'presentation',
-					'aria-label': nls.localize('editorAccessibleLabel', "Editor Container")
+					id: editorDescriptor.getId()
 				}, (div) => {
 					newlyCreatedEditorContainerBuilder = div;
 				});
@@ -434,17 +436,33 @@ export class EditorPart extends Part implements IEditorPart {
 		});
 	}
 
-	public closeEditors(othersOnly?: boolean, input?: EditorInput): TPromise<void> {
+	private startDelayedCloseEditorsFromInputDispose(): void {
+
+		// To prevent race conditions, we call the close in a timeout because it can well be
+		// that an input is being disposed with the intent to replace it with some other input
+		// right after.
+		if (this.pendingEditorInputCloseTimeout === null) {
+			this.pendingEditorInputCloseTimeout = setTimeout(() => {
+				this.closeEditors(false, this.pendingEditorInputsToClose).done(null, errors.onUnexpectedError);
+
+				// Reset
+				this.pendingEditorInputCloseTimeout = null;
+				this.pendingEditorInputsToClose = [];
+			}, 0);
+		}
+	}
+
+	public closeEditors(othersOnly?: boolean, inputs?: EditorInput[]): TPromise<void> {
 		let promises: Promise[] = [];
 
 		let editors = this.getVisibleEditors().reverse(); // start from the end to prevent layout to happen through rochade
-		for (let i = 0; i < editors.length; i++) {
-			let editor = editors[i];
+		for (var i = 0; i < editors.length; i++) {
+			var editor = editors[i];
 			if (othersOnly && this.getActiveEditor() === editor) {
 				continue;
 			}
 
-			if (!input || input === editor.input) {
+			if (!inputs || inputs.some(inp => inp === editor.input)) {
 				promises.push(this.openEditor(null, null, editor.position));
 			}
 		}
@@ -650,6 +668,19 @@ export class EditorPart extends Part implements IEditorPart {
 			// Make sure that the user meanwhile has not opened another input
 			if (this.visibleInputs[position] !== input) {
 				timerEvent.stop();
+
+				// It can happen that the same editor input is being opened rapidly one after the other
+				// (e.g. fast double click on a file). In this case the first open will stop here because
+				// we detect that a second open happens. However, since the input is the same, inputChanged
+				// is false and we are not doing some things that we typically do when opening a file because
+				// we think, the input has not changed.
+				// The fix is to detect if the active input matches with this one that gets canceled and only
+				// in that case notify others about the input change event as well as to make sure that the
+				// editor title area is up to date.
+				if (this.visibleInputs[position] && this.visibleInputs[position].matches(input)) {
+					this.updateEditorTitleArea();
+					this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(editor, editor.getId(), this.visibleInputs[position], options, position));
+				}
 
 				return editor;
 			}

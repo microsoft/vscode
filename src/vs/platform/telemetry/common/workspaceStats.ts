@@ -8,6 +8,7 @@
 import winjs = require('vs/base/common/winjs.base');
 import errors = require('vs/base/common/errors');
 import paths = require('vs/base/common/paths');
+import env = require('vs/base/common/flags');
 import {IFileService} from 'vs/platform/files/common/files';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
@@ -95,6 +96,7 @@ export class WorkspaceStats {
 				tags['workspace.reactNative'] = this.searchArray(names, /^android$/i) && this.searchArray(names, /^ios$/i) &&
 												this.searchArray(names, /^index\.android\.js$/i) &&this.searchArray(names, /^index\.ios\.js$/i);
 
+				tags['workspace.enableTypeScriptServiceModeForJS'] = !!env.enableTypeScriptServiceModeForJS;
 				return tags;
 			}, error => { errors.onUnexpectedError(error); return null; });
 		} else {

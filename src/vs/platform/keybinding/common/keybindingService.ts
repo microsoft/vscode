@@ -76,6 +76,7 @@ export class KbEqualsExpression implements KbExpr {
 	}
 
 	public evaluate(context:any): boolean {
+		// Intentional ==
 		return (context[this.key] == this.value);
 	}
 
@@ -110,6 +111,7 @@ export class KbNotEqualsExpression implements KbExpr {
 	}
 
 	public evaluate(context:any): boolean {
+		// Intentional !=
 		return (context[this.key] != this.value);
 	}
 
@@ -275,7 +277,7 @@ export let KbExpr = {
 
 		return serializedValue;
 	}
-}
+};
 
 export interface IKeybindingItem {
 	keybinding: number;
@@ -297,7 +299,7 @@ export interface ICommandHandlerDescription {
 }
 
 export interface ICommandsMap {
-	[id: string]: ICommandHandler
+	[id: string]: ICommandHandler;
 }
 
 export interface IKeybindingContextKey<T> {

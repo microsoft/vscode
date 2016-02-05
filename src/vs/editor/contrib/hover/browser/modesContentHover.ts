@@ -13,7 +13,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import HoverOperation = require('./hoverOperation');
 import HoverWidget = require('./hoverWidgets');
-import HtmlContent = require('vs/base/common/htmlContent');
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {tokenizeToString} from 'vs/editor/common/modes/textToHtmlTokenizer';
 import {Range} from 'vs/editor/common/core/range';

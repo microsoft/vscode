@@ -13,8 +13,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import {IThreadService, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
 import {MainThreadAttr} from 'vs/platform/thread/common/threadService';
-
-import {IMarkerService, IMarkerData, MarkerType, IResourceMarker, IMarker, MarkerStatistics} from './markers';
+import {IMarkerService, IMarkerData,  IResourceMarker, IMarker, MarkerStatistics} from './markers';
 
 interface Key {
 	owner: string;
@@ -47,7 +46,7 @@ module Key {
 }
 
 export interface MarkerData {
-	[k: string]: IMarkerData[]
+	[k: string]: IMarkerData[];
 }
 
 export class MarkerService implements IMarkerService, IThreadSynchronizableObject<MarkerData> {
@@ -297,7 +296,7 @@ export class MarkerService implements IMarkerService, IThreadSynchronizableObjec
 			default:
 				toUpdate.unknwons++;
 				break;
-		};
+		}
 	}
 
 	private static _sanitize(data: IMarkerData): void {

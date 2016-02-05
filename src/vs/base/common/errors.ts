@@ -97,7 +97,7 @@ export interface IConnectionErrorData {
 export function transformErrorForSerialization(error: any): any {
 	if (error instanceof Error) {
 		let {name, message} = error;
-		let stack: string = (<any>error).stacktrace || (<any>error).stack
+		let stack: string = (<any>error).stacktrace || (<any>error).stack;
 		return {
 			$isError: true,
 			name,

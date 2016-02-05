@@ -12,17 +12,13 @@ import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import standaloneServices = require('vs/editor/browser/standalone/standaloneServices');
-import Platform = require('vs/platform/platform');
 import URI from 'vs/base/common/uri';
-import Model = require('vs/editor/common/model/model');
 import Lifecycle = require('vs/base/common/lifecycle');
 import MonarchTypes = require('vs/editor/common/modes/monarch/monarchTypes');
 import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
 import DiffEditorWidget = require('vs/editor/browser/widget/diffEditorWidget');
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
-import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
-import monarch = require('vs/editor/common/modes/monarch/monarch');
 import vscode = require('vscode');
 import {RemoteTelemetryServiceHelper} from 'vs/platform/telemetry/common/abstractRemoteTelemetryService';
 import {IEditorService} from 'vs/platform/editor/common/editor';
@@ -36,7 +32,6 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import colorizer = require('vs/editor/browser/standalone/colorizer');
 import {IEditorModesRegistry, Extensions} from 'vs/editor/common/modes/modesRegistry';
 import {Registry} from 'vs/platform/platform';
-import {createAsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {LanguageExtensions, ILanguageExtensionPoint} from 'vs/editor/common/modes/languageExtensionPoint';
 import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
@@ -407,7 +402,7 @@ export function configureMode(modeId: string, options: any): void {
 
 export function registerWorkerParticipant(modeId:string, moduleName:string, ctorName:string): void {
 	var modeRegistry = <IEditorModesRegistry> Registry.as(Extensions.EditorModes);
-	modeRegistry.registerWorkerParticipant(modeId, createAsyncDescriptor0<Modes.IWorkerParticipant>(moduleName, ctorName));
+	modeRegistry.registerWorkerParticipant(modeId, moduleName, ctorName);
 }
 
 export function getAPI(): typeof vscode {

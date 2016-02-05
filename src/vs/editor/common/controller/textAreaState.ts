@@ -163,7 +163,13 @@ export abstract class TextAreaState {
 		if (currentSelectionStart === currentSelectionEnd) {
 			// composition accept case
 			// [blahblah] => blahblah|
-			if (previousValue === currentValue && previousSelectionStart === 0 && previousSelectionEnd === previousValue.length && currentSelectionStart === currentValue.length) {
+			if (
+				previousValue === currentValue
+				&& previousSelectionStart === 0
+				&& previousSelectionEnd === previousValue.length
+				&& currentSelectionStart === currentValue.length
+				&& currentValue.indexOf('\n') === -1
+			) {
 				return {
 					text: '',
 					replaceCharCnt: 0
@@ -285,7 +291,7 @@ export class IENarratorTextAreaState extends TextAreaState {
 	}
 
 	public fromText(text:string): TextAreaState {
-		return new IENarratorTextAreaState(this, text, 0, text.length, false, 0)
+		return new IENarratorTextAreaState(this, text, 0, text.length, false, 0);
 	}
 
 	public resetSelection(): TextAreaState {
@@ -346,7 +352,7 @@ export class NVDATextAreaState extends TextAreaState {
 	}
 
 	public fromText(text:string): TextAreaState {
-		return new NVDATextAreaState(this, text, 0, text.length, false)
+		return new NVDATextAreaState(this, text, 0, text.length, false);
 	}
 
 	public resetSelection(): TextAreaState {

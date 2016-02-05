@@ -213,7 +213,7 @@ export class StopDebugAction extends AbstractDebugAction {
 
 	public run(): Promise {
 		var session = this.debugService.getActiveSession();
-		return session ? session.disconnect(false, true) : Promise.as(null);
+		return session ? session.disconnect(false, true) : TPromise.as(null);
 	}
 
 	protected isEnabled(): boolean {
@@ -389,7 +389,7 @@ export class AddFunctionBreakpointAction extends AbstractDebugAction {
 
 	public run(): Promise {
 		this.debugService.addFunctionBreakpoint();
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -457,7 +457,7 @@ export class CopyValueAction extends AbstractDebugAction {
 		}
 
 		clipboard.writeText(this.value);
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -591,7 +591,7 @@ export class RenameWatchExpressionAction extends AbstractDebugAction {
 
 	public run(): Promise {
 		this.debugService.getViewModel().setSelectedExpression(this.expression);
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -605,7 +605,7 @@ export class RemoveWatchExpressionAction extends AbstractDebugAction {
 
 	public run(expression: model.Expression): Promise {
 		this.debugService.clearWatchExpressions(expression.getId());
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -620,7 +620,7 @@ export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
 
 	public run(): Promise {
 		this.debugService.clearWatchExpressions();
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	protected isEnabled(): boolean {
@@ -663,7 +663,7 @@ export class ToggleReplAction extends AbstractDebugAction {
 		if (panel && panel.getId() === debug.REPL_ID) {
 			this.partService.setPanelHidden(true);
 
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		return this.debugService.revealRepl();

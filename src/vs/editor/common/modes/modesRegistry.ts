@@ -4,15 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
 import {LanguageExtensions, ILegacyLanguageDefinition} from 'vs/editor/common/modes/languageExtensionPoint';
 import Modes = require('vs/editor/common/modes');
 import Strings = require('vs/base/common/strings');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {Registry} from 'vs/platform/platform';
-import {AsyncDescriptor0, createAsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
-import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
-import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 
 // Define extension point ids
 export var Extensions = {
@@ -22,8 +18,8 @@ export var Extensions = {
 export interface IEditorModesRegistry {
 
 	// --- worker participants registration
-	registerWorkerParticipant(modeId:string, descriptor:AsyncDescriptor0<Modes.IWorkerParticipant>):void;
-	getWorkerParticipants(modeId:string):AsyncDescriptor0<Modes.IWorkerParticipant>[];
+	registerWorkerParticipant(modeId:string, moduleId:string, ctorName?:string):void;
+	getWorkerParticipants(modeId:string):Modes.IWorkerParticipantDescriptor[];
 
 	_getAllWorkerParticipants(): Modes.IWorkerParticipantDescriptor[];
 	_setWorkerParticipants(participants:Modes.IWorkerParticipantDescriptor[]);
@@ -53,10 +49,11 @@ class EditorModesRegistry implements IEditorModesRegistry {
 
 	// --- worker participants registration
 
-	public registerWorkerParticipant(modeId:string, descriptor:AsyncDescriptor0<Modes.IWorkerParticipant>):void {
+	public registerWorkerParticipant(modeId:string, moduleId:string, ctorName?:string):void {
 		this.workerParticipants.push({
 			modeId: modeId,
-			descriptor: descriptor
+			moduleId: moduleId,
+			ctorName: ctorName
 		});
 	}
 
@@ -68,8 +65,8 @@ class EditorModesRegistry implements IEditorModesRegistry {
 		this.workerParticipants = participants;
 	}
 
-	public getWorkerParticipants(modeId:string):AsyncDescriptor0<Modes.IWorkerParticipant>[] {
-		return this.workerParticipants.filter(p => p.modeId === modeId).map(p => p.descriptor);
+	public getWorkerParticipants(modeId:string):Modes.IWorkerParticipantDescriptor[] {
+		return this.workerParticipants.filter(p => p.modeId === modeId);
 	}
 
 	// --- modes registration
@@ -129,7 +126,7 @@ export function registerMode(def:ILegacyLanguageDefinition): void {
 }
 
 export function registerWorkerParticipant(modeId:string, moduleId:string, ctorName?:string): void {
-	mR.registerWorkerParticipant(modeId, createAsyncDescriptor0<Modes.IWorkerParticipant>(moduleId, ctorName));
+	mR.registerWorkerParticipant(modeId, moduleId, ctorName);
 }
 
 
@@ -158,7 +155,7 @@ export function getSnippets(model: EditorCommon.IModel, position: EditorCommon.I
 	var result : Modes.ISuggestResult = {
 		currentWord: currentPrefix,
 		suggestions: []
-	}
+	};
 
 	// to avoid that snippets are too prominent in the intellisense proposals:
 	// - force that the current prefix matches with the snippet prefix

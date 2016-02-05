@@ -6,11 +6,10 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import remote = require('vs/base/common/remote');
-import Types = require('vs/base/common/types');
-import {IThreadServiceStatusListener, ThreadAffinity, Remotable, IRemotableCtorMap, IThreadSynchronizableObject, IDynamicProxy} from 'vs/platform/thread/common/thread';
+import {ThreadAffinity, Remotable, IThreadSynchronizableObject, IDynamicProxy} from 'vs/platform/thread/common/thread';
 import {THREAD_SERVICE_PROPERTY_NAME} from 'vs/platform/thread/common/threadService';
 import instantiation = require('vs/platform/instantiation/common/instantiation');
-import {SyncDescriptor, SyncDescriptor0, createSyncDescriptor, AsyncDescriptor0, AsyncDescriptor1, AsyncDescriptor2, AsyncDescriptor3} from 'vs/platform/instantiation/common/descriptors';
+import {SyncDescriptor0, createSyncDescriptor, AsyncDescriptor0, AsyncDescriptor1, AsyncDescriptor2, AsyncDescriptor3} from 'vs/platform/instantiation/common/descriptors';
 
 export interface IThreadServiceData {
 	[id:string]:any;
@@ -36,11 +35,6 @@ class DynamicProxy<T> implements IDynamicProxy<T> {
 }
 
 export abstract class AbstractThreadService implements remote.IManyHandler {
-
-	private static _LAST_DYNAMIC_PROXY_ID:number = 0;
-	private static generateDynamicProxyId(): string {
-		return String(++this._LAST_DYNAMIC_PROXY_ID);
-	}
 
 	public isInMainThread:boolean;
 
@@ -161,63 +155,6 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 		var result = this._instantiationService.createInstance(descriptor);
 		this._registerLocalInstance(id, result);
 		return result;
-	}
-
-	public createDynamicProxyFromMethods<T>(obj:T): IDynamicProxy<T> {
-		let id = AbstractThreadService.generateDynamicProxyId();
-		let proxyDefinition = this._proxifyMethods(id, obj);
-		return new DynamicProxy(proxyDefinition, () => {
-			delete this._localObjMap[id];
-		});
-	}
-
-	public createDynamicProxyFromMembers<T>(obj:T, allowedMembers:string[]): IDynamicProxy<T> {
-		let id = AbstractThreadService.generateDynamicProxyId();
-		let proxyDefinition = this._proxifyMembers(id, obj, allowedMembers);
-		return new DynamicProxy(proxyDefinition, () => {
-			delete this._localObjMap[id];
-		});
-	}
-
-	private _proxifyMethods<T>(uniqueIdentifier: string, obj:T): T {
-		if (!Types.isObject(obj)) {
-			return null;
-		}
-		this._localObjMap[uniqueIdentifier] = obj;
-		var r: any = {
-			$__CREATE__PROXY__REQUEST: uniqueIdentifier
-		};
-		for (var prop in obj) {
-			if (typeof obj[prop] === 'function') {
-				r[prop] = obj[prop].bind(obj);
-			}
-		}
-		return r;
-	}
-
-	private _proxifyMembers<T>(uniqueIdentifier: string, obj:T, allowedMembers:string[]): T {
-		if (!Types.isObject(obj)) {
-			return null;
-		}
-		this._localObjMap[uniqueIdentifier] = obj;
-		var r: any = {
-			$__CREATE__PROXY__REQUEST: uniqueIdentifier
-		};
-		for (var prop in obj) {
-			if (allowedMembers.indexOf(prop) === -1) {
-				continue;
-			}
-			if (typeof obj[prop] === 'function') {
-				r[prop] = obj[prop].bind(obj);
-			} else {
-				r[prop] = obj[prop];
-			}
-		}
-		return r;
-	}
-
-	public isProxyObject<T>(obj: T): boolean {
-		return obj && !!((<any>obj).$__IS_REMOTE_OBJ);
 	}
 
 	getRemotable<T>(ctor: instantiation.INewConstructorSignature0<T>): T {

@@ -6,7 +6,7 @@
 	"contributes": {
 		"languages": [{
 			"id": "coffeescript",
-			"extensions": [ ".coffee" ],
+			"extensions": [ ".coffee", ".cson" ],
 			"aliases": [ "CoffeeScript", "coffeescript", "coffee" ],
 			"configuration": "./coffeescript.configuration.json"
 		}],

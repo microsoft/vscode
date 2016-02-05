@@ -5,7 +5,6 @@
 'use strict';
 
 import Browser = require('vs/base/browser/browser');
-import DomUtils = require('vs/base/browser/dom');
 import Schedulers = require('vs/base/common/async');
 
 import {createLine, ViewLine} from 'vs/editor/browser/viewParts/lines/viewLine';
@@ -13,6 +12,7 @@ import {IVisibleLineData, ViewLayer} from 'vs/editor/browser/view/viewLayer';
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {Range} from 'vs/editor/common/core/range';
+import {StyleMutator} from 'vs/base/browser/styleMutator';
 
 export class ViewLines extends ViewLayer {
 
@@ -91,7 +91,7 @@ export class ViewLines extends ViewLayer {
 	}
 
 	public onScrollWidthChanged(scrollWidth:number): boolean {
-		DomUtils.StyleMutator.setWidth(this.domNode, scrollWidth);
+		StyleMutator.setWidth(this.domNode, scrollWidth);
 		return false;
 	}
 
@@ -362,21 +362,21 @@ export class ViewLines extends ViewLayer {
 		if (this._hasVerticalScroll || this._hasHorizontalScroll) {
 			if (Browser.canUseTranslate3d) {
 				var transform = 'translate3d(' + -this._layoutProvider.getScrollLeft() + 'px, ' + linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
-				DomUtils.StyleMutator.setTransform(<HTMLElement>this.domNode.parentNode, transform);
+				StyleMutator.setTransform(<HTMLElement>this.domNode.parentNode, transform);
 			} else {
 				if (this._hasVerticalScroll) {
-					DomUtils.StyleMutator.setTop(<HTMLElement>this.domNode.parentNode, linesViewportData.visibleRangesDeltaTop);
+					StyleMutator.setTop(<HTMLElement>this.domNode.parentNode, linesViewportData.visibleRangesDeltaTop);
 				}
 				if (this._hasHorizontalScroll) {
-					DomUtils.StyleMutator.setLeft(<HTMLElement>this.domNode.parentNode, -this._layoutProvider.getScrollLeft());
+					StyleMutator.setLeft(<HTMLElement>this.domNode.parentNode, -this._layoutProvider.getScrollLeft());
 				}
 			}
 			this._hasVerticalScroll = false;
 			this._hasHorizontalScroll = false;
 		}
 
-		DomUtils.StyleMutator.setWidth(this.domNode, this._layoutProvider.getScrollWidth());
-		DomUtils.StyleMutator.setHeight(this.domNode, Math.min(this._layoutProvider.getTotalHeight(), 1000000));
+		StyleMutator.setWidth(this.domNode, this._layoutProvider.getScrollWidth());
+		StyleMutator.setHeight(this.domNode, Math.min(this._layoutProvider.getTotalHeight(), 1000000));
 
 		linesViewportData.visibleRange = this._currentVisibleRange;
 

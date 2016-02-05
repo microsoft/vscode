@@ -456,7 +456,7 @@ export class JSONCompletion {
 	private getCurrentWord(document: ITextDocument, offset: number) {
 		var i = offset - 1;
 		var text = document.getText();
-		while (i >= 0 && ' \t\n\r\v"'.indexOf(text.charAt(i)) === -1) {
+		while (i >= 0 && ' \t\n\r\v":{[,'.indexOf(text.charAt(i)) === -1) {
 			i--;
 		}
 		return text.substring(i+1, offset);

@@ -33,6 +33,7 @@ import Severity from 'vs/base/common/severity';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IPluginService, IPluginDescription} from 'vs/platform/plugins/common/plugins';
+import {PluginHostPluginService} from 'vs/platform/plugins/common/nativePluginService';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -55,7 +56,6 @@ export class ExtHostAPIImplementation {
 
 	private _threadService: IThreadService;
 	private _proxy: MainProcessVSCodeAPIHelper;
-	private _pluginService: IPluginService;
 
 	version: typeof vscode.version;
 	env: typeof vscode.env;
@@ -100,7 +100,6 @@ export class ExtHostAPIImplementation {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		this._pluginService = pluginService;
 		this._threadService = threadService;
 		this._proxy = threadService.getRemotable(MainProcessVSCodeAPIHelper);
 
@@ -149,9 +148,9 @@ export class ExtHostAPIImplementation {
 		// env namespace
 		let telemetryInfo: ITelemetryInfo;
 		this.env = Object.freeze({
-			get machineId() { return telemetryInfo.machineId },
-			get sessionId() { return telemetryInfo.sessionId },
-			get language() { return contextService.getConfiguration().env.language }
+			get machineId() { return telemetryInfo.machineId; },
+			get sessionId() { return telemetryInfo.sessionId; },
+			get language() { return contextService.getConfiguration().env.language; }
 		});
 		telemetryService.getTelemetryInfo().then(info => telemetryInfo = info, errors.onUnexpectedError);
 
@@ -378,11 +377,11 @@ export class ExtHostAPIImplementation {
 			getExtension(extensionId: string):Extension<any> {
 				let desc = PluginsRegistry.getPluginDescription(extensionId);
 				if (desc) {
-					return new Extension(pluginService, desc);
+					return new Extension(<PluginHostPluginService> pluginService, desc);
 				}
 			},
 			get all():Extension<any>[] {
-				return PluginsRegistry.getAllPluginDescriptions().map((desc) => new Extension(pluginService, desc));
+				return PluginsRegistry.getAllPluginDescriptions().map((desc) => new Extension(<PluginHostPluginService> pluginService, desc));
 			}
 		};
 
@@ -500,13 +499,13 @@ export class ExtHostAPIImplementation {
 
 class Extension<T> implements vscode.Extension<T> {
 
-	private _pluginService: IPluginService;
+	private _pluginService: PluginHostPluginService;
 
 	public id: string;
 	public extensionPath: string;
 	public packageJSON: any;
 
-	constructor(pluginService:IPluginService, description:IPluginDescription) {
+	constructor(pluginService:PluginHostPluginService, description:IPluginDescription) {
 		this._pluginService = pluginService;
 		this.id = description.id;
 		this.extensionPath = paths.normalize(description.extensionFolderPath, true);
@@ -518,11 +517,11 @@ class Extension<T> implements vscode.Extension<T> {
 	}
 
 	get exports(): T {
-		return this._pluginService.get(this.id);
+		return <T>this._pluginService.get(this.id);
 	}
 
 	activate(): Thenable<T> {
-		return this._pluginService.activateAndGet<T>(this.id);
+		return this._pluginService.activateAndGet(this.id).then(() => this.exports);
 	}
 }
 

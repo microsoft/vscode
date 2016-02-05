@@ -363,9 +363,13 @@ export class DefaultController implements _.IController {
 			return true;
 		}
 
-		if (tree.getFocus() || tree.getSelection().length) {
-			tree.clearFocus(payload);
+		if (tree.getSelection().length) {
 			tree.clearSelection(payload);
+			return true;
+		}
+
+		if (tree.getFocus()) {
+			tree.clearFocus(payload);
 			return true;
 		}
 

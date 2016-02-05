@@ -10,7 +10,6 @@ import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import QuickOpenEditorWidget = require('./quickOpenEditorWidget');
-import QuickOpenWidget = require('vs/base/parts/quickopen/browser/quickOpenWidget');
 import QuickOpenModel = require('vs/base/parts/quickopen/browser/quickOpenModel');
 import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
