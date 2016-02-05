@@ -26,10 +26,41 @@ export interface ITMSnippetsExtensionPoint {
 	path: string;
 }
 
+function preParseSnippet (prejson: string) : string {
+
+    var finalJson = "";
+    var snippetCode : string[] = [];
+    var processingSnippets: boolean = false;
+
+    const multilineSnippetOpenTag = "[/***";
+    const multilineSnippetCloseTag = "***/]";
+
+    prejson.toString().match(/[^\r\n]+/g).forEach ( currentline => {
+
+        if (currentline.toString().trim() != multilineSnippetOpenTag && currentline.toString().trim() != multilineSnippetCloseTag) {
+            if (processingSnippets)
+                snippetCode.push(currentline);
+            else
+                finalJson = finalJson.concat(currentline);
+        }
+
+        else {
+
+            processingSnippets = !processingSnippets;
+            if (snippetCode.length > 0 ) {
+                finalJson = finalJson.concat(JSON.stringify(snippetCode));
+                snippetCode = [];
+            }
+        }
+    });
+
+    return finalJson;
+}
+
 export function snippetUpdated(modeId: string, filePath: string) {
 	return pfs.readFile(filePath).then((fileContents) => {
 		var errors: string[] = [];
-		var snippets = json.parse(fileContents.toString(), errors);
+		var snippets = json.parse(preParseSnippet(fileContents.toString()), errors);
 		var adaptedSnippets = TMSnippetsAdaptor.adapt(snippets);
 		modesExt.registerSnippets(modeId, filePath, adaptedSnippets);
 	});
