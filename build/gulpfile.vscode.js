@@ -39,7 +39,7 @@ var baseModules = [
 // Build
 
 var builtInExtensions = {
-	'jrieken.vscode-omnisharp': '0.3.2',
+	'ms-vscode.omnisharp': '0.3.2',
 };
 
 var vscodeEntryPoints = _.flatten([
