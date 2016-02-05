@@ -24,7 +24,7 @@ import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import timer = require('vs/base/common/timer');
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {FileLabel} from 'vs/base/browser/ui/filelabel/fileLabel';
-import {FindInput} from 'vs/base/browser/ui/findinput/findInput';
+import {FindInput, IFindInputOptions} from 'vs/base/browser/ui/findinput/findInput';
 import {LeftRightWidget, IRenderer} from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
 import {CountBadge} from 'vs/base/browser/ui/countBadge/countBadge';
 import {ITree, IElementCallback, IFilter, ISorter, IDataSource, IAccessibilityProvider} from 'vs/base/parts/tree/browser/tree';
@@ -743,7 +743,7 @@ export class SearchViewlet extends Viewlet {
 		};
 
 		this.queryBox = builder.div({ 'class': 'query-box' }, (div) => {
-			let options = {
+			let options:IFindInputOptions = {
 				label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search or Escape to cancel'),
 				validation: (value: string) => {
 					if (value.length === 0) {
@@ -761,7 +761,8 @@ export class SearchViewlet extends Viewlet {
 					if (strings.regExpLeadsToEndlessLoop(regExp)) {
 						return { content: nls.localize('regexp.validationFailure', "Expression matches everything") };
 					}
-				}
+				},
+				placeholder: nls.localize('findPlaceHolder', "Press Enter to Search, ESC to Cancel")
 			};
 			this.findInput = new FindInput(div.getHTMLElement(), this.contextViewService, options);
 			this.findInput.onKeyUp(onStandardKeyUp);
