@@ -18,6 +18,7 @@ import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { IHighlight } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IExtensionsService, IGalleryService, IExtensionTipsService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
 import { InstallAction, UninstallAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -569,16 +570,29 @@ export class SuggestedExtensionHandler extends QuickOpenHandler {
 
 	constructor(
 		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IExtensionsService extensionService: IExtensionsService,
+		@ILifecycleService lifecycleService:ILifecycleService
 	) {
 		super();
+
+		const subscription = extensionService.onInstallExtension(manifest => {
+			if (this.model) { // indicates that tips currently show
+				this.telemetryService.publicLog('extensionGallery:tips', { installed: true });
+			}
+		});
+
+		lifecycleService.onShutdown(() => subscription.dispose());
 	}
 
 	getResults(input: string): TPromise<IModel<IExtensionEntry>> {
 		if (!this.model) {
+			const {tips} = this.extensionTipsService;
+			this.telemetryService.publicLog('extensionGallery:tips', { count: tips.length });
 			this.model = this.instantiationService.createInstance(
 				SuggestedExtensionsModel,
-				this.extensionTipsService.tips);
+				tips);
 		}
 		this.model.input = input;
 		return TPromise.as(this.model);

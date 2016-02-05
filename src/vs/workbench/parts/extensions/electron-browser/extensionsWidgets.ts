@@ -13,6 +13,7 @@ import { Action } from 'vs/base/common/actions';
 import statusbar = require('vs/workbench/browser/parts/statusbar/statusbar');
 import { IPluginService, IPluginStatus } from 'vs/platform/plugins/common/plugins';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { UninstallAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
@@ -97,7 +98,8 @@ export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
 	constructor(
 		@IQuickOpenService private _quickOpenService: IQuickOpenService,
 		@IExtensionTipsService private _extensionTipsService: IExtensionTipsService,
-		@IStorageService private _storageService: IStorageService
+		@IStorageService private _storageService: IStorageService,
+		@ITelemetryService private _telemetryService: ITelemetryService
 	) {
 
 		const previousTips = <{ [id: string]: number }>JSON.parse(this._storageService.get('extensionsAssistant/tips', StorageScope.GLOBAL, '{}'));
@@ -133,6 +135,7 @@ export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
 			if (hasNewTips) {
 				dom.addClass(this._domNode, 'active');
 				this._storageService.store('extensionsAssistant/tips', JSON.stringify(previousTips), StorageScope.GLOBAL);
+				this._telemetryService.publicLog('extensionGallery:tips', { hintingTips: true });
 			}
 		});
 	}
@@ -149,6 +152,7 @@ export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
 	}
 
 	private _onClick(event: MouseEvent): void {
+		this._telemetryService.publicLog('extensionGallery:tips', { revealingTips: true });
 		this._quickOpenService.show('ext tips ').then(() => dom.removeClass(this._domNode, 'active'));
 	}
 }
