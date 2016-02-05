@@ -5,14 +5,14 @@
 
 import { IScrollable } from 'vs/base/common/scrollable';
 import Event, { Emitter } from 'vs/base/common/event';
-import { toObject } from 'vs/base/common/objects';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { toObject, assign } from 'vs/base/common/objects';
+import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { Gesture } from 'vs/base/browser/touch';
 import * as DOM from 'vs/base/browser/dom';
 import { IScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/impl/scrollableElement';
 import { RangeMap, IRange } from './rangeMap';
-import { IDelegate, IRenderer } from './list';
+import { IDelegate, IRenderer, IListElementEvent } from './list';
 import { RowCache, IRow } from './rowCache';
 import { LcsDiff, ISequence } from 'vs/base/common/diff/diff';
 
@@ -42,7 +42,17 @@ function toSequence<T>(itemRanges: IItemRange<T>[]): ISequence {
 	};
 }
 
-export class ListView<T> implements IScrollable {
+const MouseEventTypes = ['click',
+	'dblclick',
+	'mouseup',
+	'mousedown',
+	'mouseover',
+	'mousemove',
+	'mouseout',
+	'contextmenu'
+];
+
+export class ListView<T> implements IScrollable, IDisposable {
 
 	private items: IItem<T>[];
 	private itemId: number;
@@ -53,11 +63,14 @@ export class ListView<T> implements IScrollable {
 	private renderTop: number;
 	private renderHeight: number;
 
-	private domNode: HTMLElement;
+	private _domNode: HTMLElement;
 	private gesture: Gesture;
 	private rowsContainer: HTMLElement;
-	private onScroll: Emitter<IScrollEvent>;
 	private scrollableElement: IScrollableElement;
+
+	private _onScroll = new Emitter<IScrollEvent>()
+
+	private toDispose: IDisposable[];
 
 	constructor(
 		container: HTMLElement,
@@ -73,15 +86,14 @@ export class ListView<T> implements IScrollable {
 		this.renderTop = 0;
 		this.renderHeight = 0;
 
-		this.domNode = document.createElement('div');
-		this.domNode.className = 'monaco-list';
-		this.domNode.tabIndex = 0;
+		this._domNode = document.createElement('div');
+		this._domNode.className = 'monaco-list';
+		this._domNode.tabIndex = 0;
 
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-list-rows';
 		this.gesture = new Gesture(this.rowsContainer);
 
-		this.onScroll = new Emitter<IScrollEvent>();
 		this.scrollableElement = new ScrollableElement(this.rowsContainer, {
 			forbidTranslate3dUse: true,
 			scrollable: this,
@@ -91,10 +103,16 @@ export class ListView<T> implements IScrollable {
 			saveLastScrollTimeOnClassName: 'monaco-list-row'
 		});
 
-		this.domNode.appendChild(this.scrollableElement.getDomNode());
-		container.appendChild(this.domNode);
+		this._domNode.appendChild(this.scrollableElement.getDomNode());
+		container.appendChild(this._domNode);
+
+		this.toDispose = [this.rangeMap, this.gesture, this.scrollableElement, this._onScroll];
 
 		this.layout();
+	}
+
+	get domNode(): HTMLElement {
+		return this._domNode;
 	}
 
 	splice(start: number, deleteCount: number, ...elements: T[]): T[] {
@@ -152,7 +170,7 @@ export class ListView<T> implements IScrollable {
 	}
 
 	layout(height?: number): void {
-		this.setRenderHeight(height || DOM.getContentHeight(this.domNode));
+		this.setRenderHeight(height || DOM.getContentHeight(this._domNode));
 		this.setScrollTop(this.renderTop);
 		this.scrollableElement.onElementDimensions();
 		this.scrollableElement.onElementInternalDimensions();
@@ -228,6 +246,7 @@ export class ListView<T> implements IScrollable {
 		const renderer = this.renderers[item.templateId];
 		item.row.domNode.style.top = `${ this.elementTop(index) }px`;
 		item.row.domNode.style.height = `${ item.size }px`;
+		item.row.domNode.setAttribute('data-index', `${index}`);
 		renderer.renderElement(item.element, index, item.row.templateData);
 	}
 
@@ -265,24 +284,64 @@ export class ListView<T> implements IScrollable {
 		this.render(scrollTop, this.renderHeight);
 		this.renderTop = scrollTop;
 
-		this.onScroll.fire({ vertical: true, horizontal: false });
+		this._onScroll.fire({ vertical: true, horizontal: false });
 	}
 
 	addScrollListener(callback: ()=>void): IDisposable {
-		return this.onScroll.event(callback);
+		return this._onScroll.event(callback);
 	}
+
+	// Events
+
+	addListener(type: string, handler: (event:any)=>void, useCapture?: boolean): IDisposable {
+		if (MouseEventTypes.indexOf(type) > -1) {
+			const userHandler = handler;
+			handler = (event: MouseEvent) => {
+				const index = this.getItemIndex(event);
+
+				if (index < 0) {
+					return;
+				}
+
+				const element = this.items[index].element;
+				userHandler(assign(event, { element, index }));
+			};
+		}
+
+		return DOM.addDisposableListener(this.domNode, type, handler, useCapture);
+	}
+
+	private getItemIndex(event: MouseEvent): number {
+		let target = event.target;
+
+		while (target instanceof HTMLElement && target !== this.rowsContainer) {
+			const element = target as HTMLElement;
+			const rawIndex = element.getAttribute('data-index');
+
+			if (rawIndex) {
+				const index = Number(rawIndex);
+
+				if (!isNaN(index)) {
+					return index;
+				}
+			}
+
+			target = element.parentElement;
+		}
+
+		return -1;
+	}
+
+	// Dispose
 
 	dispose() {
 		this.items = null;
 
-		if (this.domNode && this.domNode.parentElement) {
-			this.domNode.parentNode.removeChild(this.domNode);
-			this.domNode = null;
+		if (this._domNode && this._domNode.parentElement) {
+			this._domNode.parentNode.removeChild(this._domNode);
+			this._domNode = null;
 		}
 
-		this.rangeMap = dispose(this.rangeMap);
-		this.gesture = dispose(this.gesture);
-		this.scrollableElement = dispose(this.scrollableElement);
-		this.onScroll = dispose(this.onScroll);
+		this.toDispose = disposeAll(this.toDispose);
 	}
 }

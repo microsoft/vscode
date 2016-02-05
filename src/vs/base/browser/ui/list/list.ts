@@ -14,3 +14,14 @@ export interface IRenderer<TElement, TTemplateData> {
 	renderElement(element: TElement, index: number, templateData: TTemplateData): void;
 	disposeTemplate(templateData: TTemplateData): void;
 }
+
+export interface IListElementEvent<T, E> {
+	element: T;
+	index: number;
+	event: E;
+}
+
+export interface IListMouseEvent<T> extends MouseEvent {
+	element: T;
+	index: number;
+}

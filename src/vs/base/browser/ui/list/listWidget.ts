@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./list';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, disposeAll } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
-import { toggleClass } from 'vs/base/browser/dom';
-import { IDelegate, IRenderer } from './list';
+import * as DOM from 'vs/base/browser/dom';
+import { IDelegate, IRenderer, IListMouseEvent } from './list';
 import { ListView } from './listView';
 
 interface ITraitTemplateData<D> {
@@ -20,7 +20,7 @@ class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData<D>>
 	private elements: { [id: string]: T };
 
 	constructor(
-		private controller: TraitController,
+		private controller: Trait,
 		private renderer: IRenderer<T,D>
 	) {}
 
@@ -34,7 +34,7 @@ class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData<D>>
 	}
 
 	renderElement(element: T, index: number, templateData: ITraitTemplateData<D>): void {
-		toggleClass(templateData.container, this.controller.trait, this.controller.contains(index));
+		DOM.toggleClass(templateData.container, this.controller.trait, this.controller.contains(index));
 		this.renderer.renderElement(element, index, templateData.data);
 	}
 
@@ -43,7 +43,7 @@ class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData<D>>
 	}
 }
 
-class TraitController {
+class Trait {
 
 	private indexes: number[];
 
@@ -71,7 +71,7 @@ class TraitController {
 		return this._trait;
 	}
 
-	set(indexes: number[]): number[] {
+	set(...indexes: number[]): number[] {
 		const result = this.indexes;
 		this.indexes = indexes;
 		return result;
@@ -102,19 +102,41 @@ class TraitController {
 	}
 }
 
+class Controller<T> implements IDisposable {
+
+	private toDispose: IDisposable[];
+
+	constructor(
+		private list: List<T>,
+		private view: ListView<T>
+	) {
+		this.toDispose = [];
+		this.toDispose.push(view.addListener('click', e => this.onClick(e)));
+	}
+
+	private onClick(e: IListMouseEvent<T>) {
+		this.list.setSelection(e.index);
+	}
+
+	dispose() {
+		this.toDispose = disposeAll(this.toDispose);
+	}
+}
+
 export class List<T> implements IDisposable {
 
+	private focus: Trait;
+	private selection: Trait;
 	private view: ListView<T>;
-	private focus: TraitController;
-	private selection: TraitController;
+	private controller: Controller<T>;
 
 	constructor(
 		container: HTMLElement,
 		delegate: IDelegate<T>,
 		renderers: IRenderer<T, any>[]
 	) {
-		this.focus = new TraitController('focused');
-		this.selection = new TraitController('selected');
+		this.focus = new Trait('focused');
+		this.selection = new Trait('selected');
 
 		renderers = renderers.map(r => {
 			r = this.focus.wrapRenderer(r);
@@ -123,6 +145,7 @@ export class List<T> implements IDisposable {
 		});
 
 		this.view = new ListView(container, delegate, renderers);
+		this.controller = new Controller(this, this.view);
 	}
 
 	splice(start: number, deleteCount: number, ...elements: T[]): void {
@@ -144,12 +167,12 @@ export class List<T> implements IDisposable {
 	}
 
 	setSelection(...indexes: number[]): void {
-		indexes = indexes.concat(this.selection.set(indexes));
+		indexes = indexes.concat(this.selection.set(...indexes));
 		indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
 	}
 
 	setFocus(...indexes: number[]): void {
-		indexes = indexes.concat(this.focus.set(indexes));
+		indexes = indexes.concat(this.focus.set(...indexes));
 		indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
 	}
 
