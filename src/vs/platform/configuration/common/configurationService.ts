@@ -19,6 +19,7 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import Files = require('vs/platform/files/common/files');
 import {IConfigurationRegistry, Extensions} from './configurationRegistry';
 import {Registry} from 'vs/platform/platform';
+import Event, {fromEventEmitter} from 'vs/base/common/event';
 
 
 // ---- service abstract implementation
@@ -42,6 +43,8 @@ interface ILoadConfigResult {
 
 export abstract class ConfigurationService extends eventEmitter.EventEmitter implements IConfigurationService, lifecycle.IDisposable {
 	public serviceId = IConfigurationService;
+
+	public onDidUpdateConfiguration: Event<{ config: any }>;
 
 	protected contextService: IWorkspaceContextService;
 	protected eventService: IEventService;
@@ -67,6 +70,8 @@ export abstract class ConfigurationService extends eventEmitter.EventEmitter imp
 			unbind();
 			subscription.dispose();
 		}
+
+		this.onDidUpdateConfiguration = fromEventEmitter(this, ConfigurationServiceEventTypes.UPDATED);
 	}
 
 	protected abstract resolveContents(resource: uri[]): winjs.TPromise<IContent[]>;
@@ -228,6 +233,10 @@ export class NullConfigurationService extends eventEmitter.EventEmitter implemen
 
 	public hasWorkspaceConfiguration(): boolean {
 		return false;
+	}
+
+	public onDidUpdateConfiguration() {
+		return { dispose() { } };
 	}
 }
 

@@ -5,6 +5,7 @@
 
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {IEventEmitter} from 'vs/base/common/eventEmitter';
+import Event from 'vs/base/common/event';
 import winjs = require('vs/base/common/winjs.base');
 
 export var IConfigurationService = createDecorator<IConfigurationService>('configurationService');
@@ -21,7 +22,12 @@ export interface IConfigurationService extends IEventEmitter {
 	/**
 	 * Returns iff the workspace has configuration or not.
 	 */
-	hasWorkspaceConfiguration():boolean;
+	hasWorkspaceConfiguration(): boolean;
+
+	/**
+	 * Event that fires when the configuration changes.
+	 */
+	onDidUpdateConfiguration: Event<{ config: any }>
 }
 
 export class ConfigurationServiceEventTypes {

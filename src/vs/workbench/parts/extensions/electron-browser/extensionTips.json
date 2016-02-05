@@ -1,0 +1,10 @@
+{
+	"jrieken.vscode-omnisharp": "{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln}",
+	"msjsdiag.debugger-for-chrome": "{**/*.ts,**/*.tsx**/*.js,**/*.jsx,**/*.es6}",
+	"lukehoban.Go": "**/*.go",
+	"ms-vscode.PowerShell": "{**/*.ps,**/*.ps1}",
+	"austin.code-gnu-global": "{**/*.c,**/*.cpp,**/*.h}",
+	"Ionide.Ionide-fsharp": "{**/*.fsx,**/*.fsi,**/*.fs,**/*.ml,**/*.mli}",
+	"dbaeumer.vscode-eslint": "{**/*.js,**/*.jsx,**/*.es6}",
+	"eg2.tslint": "{**/*.ts,**/*.tsx}"
+}

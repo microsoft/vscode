@@ -17,7 +17,7 @@ import { since } from 'vs/base/common/dates';
 import { matchesContiguousSubString } from 'vs/base/common/filters';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { IHighlight } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { IExtensionsService, IGalleryService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionsService, IGalleryService, IExtensionTipsService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
 import { InstallAction, UninstallAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -526,6 +526,73 @@ export class OutdatedExtensionsHandler extends QuickOpenHandler {
 
 	getEmptyLabel(input: string): string {
 		return nls.localize('noOutdatedExtensions', "No outdated extensions found");
+	}
+
+	getAutoFocus(searchValue: string): IAutoFocus {
+		return { autoFocusFirstEntry: true };
+	}
+}
+
+
+class SuggestedExtensionsModel implements IModel<IExtensionEntry> {
+
+	public dataSource = new DataSource();
+	public renderer: IRenderer<IExtensionEntry>;
+	public runner: IRunner<IExtensionEntry>;
+	public entries: IExtensionEntry[];
+
+	constructor(
+		private suggestedExtensions: IExtension[],
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		this.renderer = instantiationService.createInstance(Renderer);
+		this.runner = instantiationService.createInstance(InstallRunner);
+		this.entries = [];
+	}
+
+	public set input(input: string) {
+		this.entries = this.suggestedExtensions
+			.map(extension => ({ extension, highlights: getHighlights(input, extension) }))
+			.filter(({ highlights }) => !!highlights)
+			.map(({ extension, highlights }: { extension: IExtension, highlights: IHighlights }) => {
+
+				return {
+					extension,
+					highlights,
+					state: ExtensionState.Uninstalled
+				};
+			});
+	}
+}
+
+
+export class SuggestedExtensionHandler extends QuickOpenHandler {
+
+	private model: SuggestedExtensionsModel;
+
+	constructor(
+		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		super();
+	}
+
+	getResults(input: string): TPromise<IModel<IExtensionEntry>> {
+		if (!this.model) {
+			this.model = this.instantiationService.createInstance(
+				SuggestedExtensionsModel,
+				this.extensionTipsService.tips);
+		}
+		this.model.input = input;
+		return TPromise.as(this.model);
+	}
+
+	onClose(canceled: boolean): void {
+		this.model = null;
+	}
+
+	getEmptyLabel(input: string): string {
+		return nls.localize('noSuggestedExtensions', "No suggested extensions");
 	}
 
 	getAutoFocus(searchValue: string): IAutoFocus {

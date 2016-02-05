@@ -5,6 +5,7 @@
 
 import nls = require('vs/nls');
 import Severity from 'vs/base/common/severity';
+import {forEach} from 'vs/base/common/collections';
 import errors = require('vs/base/common/errors');
 import dom = require('vs/base/browser/dom');
 import lifecycle = require('vs/base/common/lifecycle');
@@ -13,9 +14,11 @@ import statusbar = require('vs/workbench/browser/parts/statusbar/statusbar');
 import { IPluginService, IPluginStatus } from 'vs/platform/plugins/common/plugins';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { UninstallAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
-import { IExtensionsService, IGalleryService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionsService, IGalleryService, IExtension, IExtensionTipsService } from 'vs/workbench/parts/extensions/common/extensions';
+import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 var $ = dom.emmet;
 
@@ -81,5 +84,71 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 		return {
 			dispose: () => lifecycle.disposeAll(this.toDispose)
 		};
+	}
+}
+
+export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
+
+	private static _dontSuggestAgainTimeout = 1000 * 60 * 60 * 24 * 28; // 4 wks
+
+	private _domNode: HTMLElement;
+	private _label: OcticonLabel;
+
+	constructor(
+		@IQuickOpenService private _quickOpenService: IQuickOpenService,
+		@IExtensionTipsService private _extensionTipsService: IExtensionTipsService,
+		@IStorageService private _storageService: IStorageService
+	) {
+
+		const previousTips = <{ [id: string]: number }>JSON.parse(this._storageService.get('extensionsAssistant/tips', StorageScope.GLOBAL, '{}'));
+
+		// forget previous tips after 28 days
+		const now = Date.now();
+		forEach(previousTips, (entry, rm) => {
+			if (now - entry.value > ExtensionTipsStatusbarItem._dontSuggestAgainTimeout) {
+				rm();
+			}
+		});
+
+		function extid(ext: IExtension): string {
+			return `${ext.publisher}.${ext.name}@${ext.version}`;
+		};
+
+		this._extensionTipsService.onDidChangeTips(tips => {
+
+			if (tips.length === 0) {
+				dom.removeClass(this._domNode, 'active');
+				return;
+			}
+
+			// check for new tips
+			let hasNewTips = false;
+			for (let tip of tips) {
+				const id = extid(tip);
+				if (!previousTips[id]) {
+					previousTips[id] = Date.now();
+					hasNewTips = true;
+				}
+			}
+			if (hasNewTips) {
+				dom.addClass(this._domNode, 'active');
+				this._storageService.store('extensionsAssistant/tips', JSON.stringify(previousTips), StorageScope.GLOBAL);
+			}
+		});
+	}
+
+	public render(container: HTMLElement): lifecycle.IDisposable {
+
+		this._domNode = document.createElement('a');
+		this._domNode.className = 'extensions-suggestions';
+		this._label = new OcticonLabel(this._domNode);
+		this._label.text = '$(light-bulb) extension tips';
+		container.appendChild(this._domNode);
+
+		return dom.addDisposableListener(this._domNode, 'click', event => this._onClick(event));
+	}
+
+	private _onClick(event: MouseEvent): void {
+		this._quickOpenService.show('ext tips ').then(() => dom.removeClass(this._domNode, 'active'));
 	}
 }
