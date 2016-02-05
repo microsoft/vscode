@@ -110,6 +110,11 @@ export class IFrameEditor extends BaseEditor {
 				setTimeout(() => this.reload(true /* clear */), 1000); // retry in case of an error which indicates the iframe (only) might be on a different URL
 			}
 
+			// When content is fully replaced, we also need to recreate the focus tracker
+			if (!isUpdate) {
+				this.clearFocusTracker();
+			}
+
 			// Track focus on contents and make the editor active when focus is received
 			if (!this.focusTracker) {
 				this.focusTracker = DOM.trackFocus((<HTMLIFrameElement>this.iframeBuilder.getHTMLElement()).contentWindow);
@@ -223,6 +228,10 @@ export class IFrameEditor extends BaseEditor {
 		this.iframeBuilder.removeProperty(IFrameEditor.RESOURCE_PROPERTY);
 
 		// Focus Listener
+		this.clearFocusTracker();
+	}
+
+	private clearFocusTracker(): void {
 		if (this.focusTracker) {
 			this.focusTracker.dispose();
 			this.focusTracker = null;
@@ -272,10 +281,7 @@ export class IFrameEditor extends BaseEditor {
 		this.iframeContainer.destroy();
 
 		// Focus Listener
-		if (this.focusTracker) {
-			this.focusTracker.dispose();
-			this.focusTracker = null;
-		}
+		this.clearFocusTracker();
 
 		super.dispose();
 	}
