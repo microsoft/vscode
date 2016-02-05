@@ -6,14 +6,15 @@
 import nls = require('vs/nls');
 import Severity from 'vs/base/common/severity';
 import {forEach} from 'vs/base/common/collections';
-import errors = require('vs/base/common/errors');
 import dom = require('vs/base/browser/dom');
 import lifecycle = require('vs/base/common/lifecycle');
+import {onUnexpectedError} from 'vs/base/common/errors';
 import { Action } from 'vs/base/common/actions';
 import statusbar = require('vs/workbench/browser/parts/statusbar/statusbar');
 import { IPluginService, IPluginStatus } from 'vs/platform/plugins/common/plugins';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { UninstallAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
@@ -78,7 +79,7 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 							}
 						});
 					});
-				}, errors.onUnexpectedError);
+				}, onUnexpectedError);
 			}));
 		}
 
@@ -100,12 +101,11 @@ export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
 		@IQuickOpenService private _quickOpenService: IQuickOpenService,
 		@IExtensionTipsService private _extensionTipsService: IExtensionTipsService,
 		@IStorageService private _storageService: IStorageService,
+		@IConfigurationService private _configurationService: IConfigurationService,
 		@ITelemetryService private _telemetryService: ITelemetryService
 	) {
-
+		// previously shown tips, not older than 28 days
 		this._previousTips = JSON.parse(this._storageService.get('extensionsAssistant/tips', StorageScope.GLOBAL, '{}'));
-
-		// forget previous tips after 28 days
 		const now = Date.now();
 		forEach(this._previousTips, (entry, rm) => {
 			if (now - entry.value > ExtensionTipsStatusbarItem._dontSuggestAgainTimeout) {
@@ -113,31 +113,47 @@ export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
 			}
 		});
 
+		// show/hide tips depending on configuration
+		let localDispose: lifecycle.Disposable[] = [];
+		let update = () => {
+			localDispose = lifecycle.disposeAll(localDispose);
+			this._configurationService.loadConfiguration('extensions').then(value => {
+				if (value && value.showTips === true) {
+					this._extensionTipsService.onDidChangeTips(this._onTips, this, localDispose);
+					this._onTips(this._extensionTipsService.tips);
+				} else {
+					this._onTips([]);
+				}
+			}, onUnexpectedError);
+			this._configurationService.onDidUpdateConfiguration(update, this, localDispose);
+		};
+		update();
+	}
+
+	private _onTips(tips: IExtension[]): void {
+
+		if (tips.length === 0) {
+			dom.addClass(this._domNode, 'disabled');
+			return;
+		}
+
 		function extid(ext: IExtension): string {
 			return `${ext.publisher}.${ext.name}@${ext.version}`;
 		}
 
-		this._extensionTipsService.onDidChangeTips(tips => {
-
-			if (tips.length === 0) {
-				dom.addClass(this._domNode, 'disabled');
-				return;
+		// check for new tips
+		let hasNewTips = false;
+		for (let tip of tips) {
+			const id = extid(tip);
+			if (!this._previousTips[id]) {
+				this._previousTips[id] = Date.now();
+				hasNewTips = true;
 			}
-
-			// check for new tips
-			let hasNewTips = false;
-			for (let tip of tips) {
-				const id = extid(tip);
-				if (!this._previousTips[id]) {
-					this._previousTips[id] = Date.now();
-					hasNewTips = true;
-				}
-			}
-			if (hasNewTips) {
-				dom.removeClass(this._domNode, 'disabled');
-				this._telemetryService.publicLog('extensionGallery:tips', { hintingTips: true });
-			}
-		});
+		}
+		if (hasNewTips) {
+			dom.removeClass(this._domNode, 'disabled');
+			this._telemetryService.publicLog('extensionGallery:tips', { hintingTips: true });
+		}
 	}
 
 	public render(container: HTMLElement): lifecycle.IDisposable {

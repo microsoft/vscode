@@ -5,13 +5,11 @@
 
 import 'vs/text!vs/workbench/parts/extensions/electron-browser/extensionTips.json';
 import URI from 'vs/base/common/uri';
-import {onUnexpectedError} from 'vs/base/common/errors';
 import {values, forEach} from 'vs/base/common/collections';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise as Promise} from 'vs/base/common/winjs.base';
 import {match} from 'vs/base/common/glob';
 import Event, {Emitter} from 'vs/base/common/event';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IExtensionsService, IGalleryService, IExtensionTipsService, IExtension} from 'vs/workbench/parts/extensions/common/extensions';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {EventType} from 'vs/editor/common/editorCommon';
@@ -74,21 +72,20 @@ export class ExtensionTipsService implements IExtensionTipsService {
 
 	private _onDidChangeTips: Emitter<IExtension[]> = new Emitter<IExtension[]>();
 	private _tips: { [id: string]: ExtensionTip } = Object.create(null);
-	private _disposeOnUpdate: IDisposable[] = [];
+	private _disposables: IDisposable[] = [];
 	private _availableExtensions: Promise<ExtensionMap>;
 	private _extensionData: Promise<ExtensionData>;
 
 	constructor(
 		@IExtensionsService private _extensionService: IExtensionsService,
 		@IGalleryService private _galleryService: IGalleryService,
-		@IModelService private _modelService: IModelService,
-		@IConfigurationService private _configurationService: IConfigurationService
+		@IModelService private _modelService: IModelService
 	) {
-		this._updateState();
+		this._init();
 	}
 
 	dispose() {
-		this._disposeOnUpdate = disposeAll(this._disposeOnUpdate);
+		this._disposables = disposeAll(this._disposables);
 	}
 
 	get onDidChangeTips(): Event<IExtension[]> {
@@ -102,23 +99,6 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	}
 
 	// --- internals
-
-	private _updateState(): void {
-
-		// check with configuration service and then GO
-		this._disposeOnUpdate = disposeAll(this._disposeOnUpdate);
-		this._tips = Object.create(null);
-		this._onDidChangeTips.fire(this.tips);
-
-		this._configurationService.loadConfiguration('extensions').then(value => {
-			if (value && value.showTips === true) {
-				this._init();
-			}
-		}, onUnexpectedError);
-
-		// listen for config changes
-		this._configurationService.onDidUpdateConfiguration(this._updateState, this, this._disposeOnUpdate);
-	}
 
 	private _init():void {
 
@@ -135,7 +115,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		this._availableExtensions = this._getAvailableExtensions();
 
 		// don't suggest what got installed
-		this._disposeOnUpdate.push(this._extensionService.onDidInstallExtension(ext => {
+		this._disposables.push(this._extensionService.onDidInstallExtension(ext => {
 			const id = `${ext.publisher}.${ext.name}`;
 			let change = false;
 			if (delete this._tips[id]) {
@@ -152,16 +132,16 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		// such that files you type have bigger impact on the suggest
 		// order than those you only look at
 		const modelListener: { [uri: string]: IDisposable } = Object.create(null);
-		this._disposeOnUpdate.push({ dispose() { disposeAll(values(modelListener)); } });
+		this._disposables.push({ dispose() { disposeAll(values(modelListener)); } });
 
-		this._disposeOnUpdate.push(this._modelService.onModelAdded(model => {
+		this._disposables.push(this._modelService.onModelAdded(model => {
 			const uri = model.getAssociatedResource();
 			this._suggestByResource(uri, ExtensionTipReasons.FileOpened);
 			modelListener[uri.toString()] = model.addListener2(EventType.ModelContentChanged2,
 				() => this._suggestByResource(uri, ExtensionTipReasons.FileEdited));
 		}));
 
-		this._disposeOnUpdate.push(this._modelService.onModelRemoved(model => {
+		this._disposables.push(this._modelService.onModelRemoved(model => {
 			const subscription = modelListener[model.getAssociatedResource().toString()];
 			if (subscription) {
 				subscription.dispose();
