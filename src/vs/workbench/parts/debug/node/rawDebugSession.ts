@@ -129,7 +129,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 			return this.send('disconnect', { restart: restart }).then(() => this.stopServer(), () => this.stopServer());
 		}
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public setBreakpoints(args: DebugProtocol.SetBreakpointsArguments): TPromise<DebugProtocol.SetBreakpointsResponse> {

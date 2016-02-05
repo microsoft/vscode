@@ -153,7 +153,7 @@ class TestDataSource implements _.IDataSource {
 	}
 
 	public getChildren(tree, element):WinJS.Promise {
-		return WinJS.Promise.as(element.children);
+		return WinJS.TPromise.as(element.children);
 	}
 
 	public getParent(tree, element):WinJS.Promise {
@@ -1147,10 +1147,10 @@ class DynamicModel extends Events.EventEmitter implements _.IDataSource {
 
 	public getChildren(tree, element):WinJS.Promise {
 		this.emit('getChildren', element);
-		var result = this.promiseFactory ? this.promiseFactory() : WinJS.Promise.as(null);
+		var result = this.promiseFactory ? this.promiseFactory() : WinJS.TPromise.as(null);
 		return result.then(() => {
 			this.emit('gotChildren', element);
-			return WinJS.Promise.as(this.data[element]);
+			return WinJS.TPromise.as(this.data[element]);
 		});
 	}
 
@@ -1662,7 +1662,7 @@ suite('TreeModel - bugs', () => {
 				getChildren: (_, e) => {
 					if (e === 'root') { return getRootChildren(); }
 					if (e === 'bart') { return getBartChildren(); }
-					return WinJS.Promise.as([]);
+					return WinJS.TPromise.as([]);
 				},
 				getParent: (_, e): WinJS.Promise => { throw new Error('not implemented'); },
 			}

@@ -293,7 +293,7 @@ export class ConfigurationManager {
 
 	private massageInitialConfigurations(adapter: Adapter): Promise {
 		if (!adapter || !adapter.initialConfigurations || adapter.type !== 'node') {
-			return Promise.as(true);
+			return TPromise.as(true);
 		}
 
 		// check package.json for 'main' or 'scripts' so we generate a more pecise 'program' attribute in launch.json.

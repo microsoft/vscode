@@ -27,7 +27,7 @@ export class TestAction extends Actions.Action {
 
 
 	public run():WinJS.Promise {
-		return WinJS.Promise.as((!!this.service && !!this.first && !!this.second) ? true : false);
+		return WinJS.TPromise.as((!!this.service && !!this.first && !!this.second) ? true : false);
 	}
 }
 

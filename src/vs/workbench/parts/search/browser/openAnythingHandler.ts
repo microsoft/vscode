@@ -118,7 +118,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 						}
 
 						// Empty result since timeout was reached and file results are in
-						return Promise.as(new QuickOpenModel());
+						return TPromise.as(new QuickOpenModel());
 					});
 				};
 
@@ -130,7 +130,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					return result.value;
 				}));
 			} else {
-				resultPromises.push(Promise.as(new QuickOpenModel())); // We need this empty promise because we are using the throttler below!
+				resultPromises.push(TPromise.as(new QuickOpenModel())); // We need this empty promise because we are using the throttler below!
 			}
 
 			// File Results

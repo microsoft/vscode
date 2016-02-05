@@ -8,7 +8,7 @@ import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import platform = require('vs/platform/platform');
 import abr = require('vs/workbench/browser/actionBarRegistry');
-import { Promise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { basename } from 'vs/base/common/paths';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import editorcommon = require('vs/editor/common/editorCommon');
@@ -101,13 +101,13 @@ class OpenInDiffAction extends baseeditor.EditorInputAction {
 		return getStatus(this.gitService, this.contextService, <filesCommon.FileEditorInput> this.input);
 	}
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<any> {
 		var sideBySide = !!(event && (event.ctrlKey || event.metaKey));
 		var editor = <editorbrowser.ICodeEditor> this.editorService.getActiveEditor().getControl();
 		var viewState = editor ? editor.saveViewState() : null;
 
 		return this.gitService.getInput(this.getStatus()).then((input) => {
-			var promise = Promise.as(null);
+			var promise = TPromise.as(null);
 
 			if (this.partService.isVisible(Parts.SIDEBAR_PART)) {
 				promise = this.viewletService.openViewlet(gitcontrib.VIEWLET_ID, false);
@@ -180,7 +180,7 @@ class OpenInEditorAction extends baseeditor.EditorInputAction {
 		return true;
 	}
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<any> {
 		const model = this.gitService.getModel();
 		const resource = URI.file(paths.join(model.getRepositoryRoot(), this.getRepositoryRelativePath()));
 		const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
@@ -283,7 +283,7 @@ export class StageRangesAction extends baseeditor.EditorInputAction {
 		return stageranges.getSelectedChanges(changes, selections).length > 0;
 	}
 
-	public run():Promise {
+	public run():TPromise<any> {
 		var result = stageranges.stageRanges(this.editor);
 
 		var status = (<gitei.GitWorkingTreeDiffEditorInput>this.input).getFileStatus();
@@ -389,17 +389,17 @@ class GlobalOpenChangeAction extends OpenChangeAction {
 		return WorkbenchEditorCommon.asFileEditorInput(this.editorService.getActiveEditorInput());
 	}
 
-	public run(context?: any): Promise {
+	public run(context?: any): TPromise<any> {
 		let input = this.getInput();
 
 		if (!input) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		let status = getStatus(this.gitService, this.contextService, input);
 
 		if (!status) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		var sideBySide = !!(context && (context.ctrlKey || context.metaKey));
@@ -407,7 +407,7 @@ class GlobalOpenChangeAction extends OpenChangeAction {
 		var viewState = editor ? editor.saveViewState() : null;
 
 		return this.gitService.getInput(status).then((input) => {
-			var promise = Promise.as(null);
+			var promise = TPromise.as(null);
 
 			if (this.partService.isVisible(Parts.SIDEBAR_PART)) {
 				promise = this.viewletService.openViewlet(gitcontrib.VIEWLET_ID, false);

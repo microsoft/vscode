@@ -195,7 +195,7 @@ export class CallStackDataSource implements tree.IDataSource {
 
 	public getChildren(tree: tree.ITree, element: any): Promise {
 		if (element instanceof model.Thread) {
-			return Promise.as((<model.Thread> element).callStack);
+			return TPromise.as((<model.Thread> element).callStack);
 		}
 
 		const threads = (<model.Model> element).getThreads();
@@ -205,14 +205,14 @@ export class CallStackDataSource implements tree.IDataSource {
 		});
 
 		if (threadsArray.length === 1) {
-			return Promise.as(threadsArray[0].callStack);
+			return TPromise.as(threadsArray[0].callStack);
 		} else {
-			return Promise.as(threadsArray);
+			return TPromise.as(threadsArray);
 		}
 	}
 
 	public getParent(tree: tree.ITree, element: any): Promise {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -328,7 +328,7 @@ export class VariablesActionProvider implements renderer.IActionProvider {
 	}
 
 	public getActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
-		return Promise.as([]);
+		return TPromise.as([]);
 	}
 
 	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
@@ -343,7 +343,7 @@ export class VariablesActionProvider implements renderer.IActionProvider {
 			actions.push(this.instantiationService.createInstance(debugactions.CopyValueAction, debugactions.CopyValueAction.ID, debugactions.CopyValueAction.LABEL, variable));
 		}
 
-		return Promise.as(actions);
+		return TPromise.as(actions);
 	}
 
 	public getActionItem(tree: tree.ITree, element: any, action: actions.IAction): actionbar.IActionItem {
@@ -373,7 +373,7 @@ export class VariablesDataSource implements tree.IDataSource {
 	public getChildren(tree: tree.ITree, element: any): Promise {
 		if (element instanceof viewmodel.ViewModel) {
 			let focusedStackFrame = (<viewmodel.ViewModel> element).getFocusedStackFrame();
-			return focusedStackFrame ? focusedStackFrame.getScopes(this.debugService) : Promise.as([]);
+			return focusedStackFrame ? focusedStackFrame.getScopes(this.debugService) : TPromise.as([]);
 		}
 
 		let scope = <model.Scope> element;
@@ -381,7 +381,7 @@ export class VariablesDataSource implements tree.IDataSource {
 	}
 
 	public getParent(tree: tree.ITree, element: any): Promise {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -485,7 +485,7 @@ export class WatchExpressionsActionProvider implements renderer.IActionProvider 
 	}
 
 	public getActions(tree: tree.ITree, element: any): Promise {
-		return Promise.as(this.getExpressionActions());
+		return TPromise.as(this.getExpressionActions());
 	}
 
 	public getExpressionActions(): actions.IAction[] {
@@ -517,7 +517,7 @@ export class WatchExpressionsActionProvider implements renderer.IActionProvider 
 			actions.push(this.instantiationService.createInstance(debugactions.RemoveAllWatchExpressionsAction, debugactions.RemoveAllWatchExpressionsAction.ID, debugactions.RemoveAllWatchExpressionsAction.LABEL));
 		}
 
-		return Promise.as(actions);
+		return TPromise.as(actions);
 	}
 
 	public getActionItem(tree: tree.ITree, element: any, action: actions.IAction): actionbar.IActionItem {
@@ -546,7 +546,7 @@ export class WatchExpressionsDataSource implements tree.IDataSource {
 
 	public getChildren(tree: tree.ITree, element: any): Promise {
 		if (element instanceof model.Model) {
-			return Promise.as((<model.Model> element).getWatchExpressions());
+			return TPromise.as((<model.Model> element).getWatchExpressions());
 		}
 
 		let expression = <model.Expression> element;
@@ -554,7 +554,7 @@ export class WatchExpressionsDataSource implements tree.IDataSource {
 	}
 
 	public getParent(tree: tree.ITree, element: any): Promise {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -717,10 +717,10 @@ export class BreakpointsActionProvider implements renderer.IActionProvider {
 
 	public getActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
 		if (element instanceof model.Breakpoint) {
-			return Promise.as(this.getBreakpointActions());
+			return TPromise.as(this.getBreakpointActions());
 		}
 
-		return Promise.as([]);
+		return TPromise.as([]);
 	}
 
 	public getBreakpointActions(): actions.IAction[] {
@@ -747,7 +747,7 @@ export class BreakpointsActionProvider implements renderer.IActionProvider {
 
 		actions.push(this.instantiationService.createInstance(debugactions.ReapplyBreakpointsAction, debugactions.ReapplyBreakpointsAction.ID, debugactions.ReapplyBreakpointsAction.LABEL));
 
-		return Promise.as(actions);
+		return TPromise.as(actions);
 	}
 
 	public getActionItem(tree: tree.ITree, element: any, action: actions.IAction): actionbar.IActionItem {
@@ -769,11 +769,11 @@ export class BreakpointsDataSource implements tree.IDataSource {
 		const model = <model.Model> element;
 		const exBreakpoints = <debug.IEnablement[]> model.getExceptionBreakpoints();
 
-		return Promise.as(exBreakpoints.concat(model.getFunctionBreakpoints()).concat(model.getBreakpoints()));
+		return TPromise.as(exBreakpoints.concat(model.getFunctionBreakpoints()).concat(model.getBreakpoints()));
 	}
 
 	public getParent(tree: tree.ITree, element: any): Promise {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 

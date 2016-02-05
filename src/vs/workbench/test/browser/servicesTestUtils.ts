@@ -195,7 +195,7 @@ export class TestPartService implements PartService.IPartService {
 	}
 
 	public joinCreation(): Promise {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public hasFocus(part): boolean {
@@ -354,11 +354,11 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 	}
 
 	public setEditors(inputs): Promise {
-		return Promise.as([]);
+		return TPromise.as([]);
 	}
 
 	public closeEditors(othersOnly?: boolean): Promise {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public isVisible(input: IEditorInput, includeDiff: boolean): boolean {
@@ -398,7 +398,7 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		this.activeEditorOptions = options;
 		this.activeEditorPosition = position;
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public resolveEditorModel(input: IEditorInput, refresh?: boolean): TPromise<IEditorModel>;
@@ -427,7 +427,7 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 	}
 
 	public inputToType(input: IResourceInput): TPromise<IEditorInput> {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -441,15 +441,15 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 	}
 
 	pick(arg: any, placeHolder?: string, autoFocusFirst?: boolean): Promise {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	input(options?: any): Promise {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	refresh(): Promise {
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 
 	show(prefix?: string, quickNavigateConfiguration?: any): Promise {
@@ -457,7 +457,7 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 			this.callback(prefix);
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 
 	getEditorHistory(): WorkbenchEditorCommon.EditorInput[] {
@@ -479,7 +479,7 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 
 export const TestFileService = {
 	resolveContent: function(resource) {
-		return Promise.as({
+		return TPromise.as({
 			resource: resource,
 			value: 'Hello Html',
 			etag: 'index.txt',

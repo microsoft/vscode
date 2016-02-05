@@ -57,15 +57,15 @@ export class EmptyView extends CollapsibleView {
 	}
 
 	public create(): TPromise<void> {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public refresh(focus: boolean, reveal: boolean, instantProgress?: boolean): TPromise<void> {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public focusBody(): void {
@@ -77,7 +77,7 @@ export class EmptyView extends CollapsibleView {
 	}
 
 	protected reveal(element: any, relativeTop?: number): TPromise<void> {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public getActions(): IAction[] {

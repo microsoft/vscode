@@ -5,7 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
@@ -24,8 +24,8 @@ export interface IConfirmation {
 	secondaryButton?: string;
 }
 
-export var CloseAction = new Action('close.message', nls.localize('close', "Close"), null, true, () => Promise.as(true));
-export var CancelAction = new Action('close.message', nls.localize('cancel', "Cancel"), null, true, () => Promise.as(true));
+export var CloseAction = new Action('close.message', nls.localize('close', "Close"), null, true, () => TPromise.as(true));
+export var CancelAction = new Action('close.message', nls.localize('cancel', "Cancel"), null, true, () => TPromise.as(true));
 
 export var IMessageService = createDecorator<IMessageService>('messageService');
 

@@ -356,7 +356,7 @@ export function sequence<T>(promiseFactory: ITask<TPromise<T>>[]): TPromise<T[]>
 		return TPromise.as(results);
 	}
 
-	return Promise.as(null).then(thenHandler);
+	return TPromise.as(null).then(thenHandler);
 }
 
 export interface IFunction<A, R> {

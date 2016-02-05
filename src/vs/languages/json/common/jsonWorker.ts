@@ -218,7 +218,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 		}
 
 		if (!node) {
-			return WinJS.Promise.as(null);
+			return WinJS.TPromise.as(null);
 		}
 
 		return this.schemaService.getSchemaForResource(resource.toString(), doc).then((schema) => {
@@ -274,7 +274,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 		var doc = parser.parse(modelMirror.getValue());
 		var root = doc.root;
 		if (!root) {
-			return WinJS.Promise.as(null);
+			return WinJS.TPromise.as(null);
 		}
 
 		// special handling for key bindings
@@ -291,7 +291,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 						}
 					}
 				});
-				return WinJS.Promise.as(result);
+				return WinJS.TPromise.as(result);
 			}
 		}
 
@@ -316,7 +316,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 			return result;
 		}
 		var result = collectOutlineEntries([], root);
-		return WinJS.Promise.as(result);
+		return WinJS.TPromise.as(result);
 	}
 
 	public textReplace(value:string, up:boolean):string {

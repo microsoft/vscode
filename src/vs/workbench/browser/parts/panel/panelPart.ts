@@ -121,7 +121,7 @@ class ClosePanelAction extends Action {
 
 	public run(): Promise {
 		this.partService.setPanelHidden(true);
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -139,7 +139,7 @@ class TogglePanelAction extends Action {
 
 	public run(): Promise {
 		this.partService.setPanelHidden(!this.partService.isPanelHidden());
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 

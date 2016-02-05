@@ -179,7 +179,7 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 
 	private onWatchExpressionsUpdated(we: model.Expression): void {
 		this.tree.refresh().done(() => {
-			return we instanceof model.Expression ? this.tree.reveal(we): Promise.as(true);
+			return we instanceof model.Expression ? this.tree.reveal(we): TPromise.as(true);
 		}, errors.onUnexpectedError);
 	}
 
@@ -477,7 +477,7 @@ export class DebugViewlet extends viewlet.Viewlet {
 			].join('')));
 		}
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {

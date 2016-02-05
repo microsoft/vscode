@@ -428,7 +428,7 @@ export class ChangeModeAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let modesRegistry = <IEditorModesRegistry>Registry.as(Extensions.EditorModes);
 		let languages = modesRegistry.getRegisteredLanguageNames();
 		let activeEditor = this.editorService.getActiveEditor();
@@ -510,7 +510,7 @@ export class ChangeEOLAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		let activeEditor = this.editorService.getActiveEditor();
 		if (!(activeEditor instanceof BaseTextEditor)) {
@@ -559,7 +559,7 @@ export class ChangeEncodingAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let activeEditor = this.editorService.getActiveEditor();
 		if (!(activeEditor instanceof BaseTextEditor) || !activeEditor.input) {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
@@ -575,9 +575,9 @@ export class ChangeEncodingAction extends Action {
 		let reopenWithEncodingPick: IPickOpenEntry = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding") };
 
 		if (encodingSupport instanceof UntitledEditorInput) {
-			pickActionPromise = Promise.as(saveWithEncodingPick);
+			pickActionPromise = TPromise.as(saveWithEncodingPick);
 		} else if (!isWritableCodeEditor(<BaseTextEditor>activeEditor)) {
-			pickActionPromise = Promise.as(reopenWithEncodingPick);
+			pickActionPromise = TPromise.as(reopenWithEncodingPick);
 		} else {
 			pickActionPromise = this.quickOpenService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: nls.localize('pickAction', "Select Action") });
 		}

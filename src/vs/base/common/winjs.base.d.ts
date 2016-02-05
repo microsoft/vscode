@@ -23,7 +23,9 @@ export interface ProgressCallback {
 export declare class Promise {
 	constructor(init:(complete:ValueCallback, error:ErrorCallback, progress:ProgressCallback)=>void, oncancel?: any);
 
-	static as(value:any):Promise;
+	// commented out to speed up adoption of TPromise
+	// static as(value:any):Promise;
+
 	static join(promises:{[name:string]:Promise;}):Promise;
 	static join(promises:Promise[]):Promise;
 	static any(promises:Promise[]):Promise;

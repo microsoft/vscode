@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise} from 'vs/base/common/winjs.base';
+import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import types = require('vs/base/common/types');
 import {Action, IAction} from 'vs/base/common/actions';
@@ -36,12 +36,12 @@ export class SplitEditorAction extends Action {
 		// Can only split with active editor
 		let activeEditor = this.editorService.getActiveEditor();
 		if (!activeEditor) {
-			return Promise.as(true);
+			return TPromise.as(true);
 		}
 
 		// Return if the editor to split does not support split editing
 		if (!(<BaseEditor>activeEditor).supportsSplitEditor()) {
-			return Promise.as(true);
+			return TPromise.as(true);
 		}
 
 		// Count editors
@@ -84,7 +84,7 @@ export class SplitEditorAction extends Action {
 			return this.editorService.openEditor(activeEditor.input, null, targetPosition);
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -101,7 +101,7 @@ export class CycleEditorAction extends Action {
 		// Can cycle split with active editor
 		let activeEditor = this.editorService.getActiveEditor();
 		if (!activeEditor) {
-			return Promise.as(false);
+			return TPromise.as(false);
 		}
 
 		// Cycle to the left and use module to start at 0 again
@@ -152,7 +152,7 @@ export class FocusFirstEditorAction extends Action {
 			}
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -213,7 +213,7 @@ export abstract class BaseFocusSideEditorAction extends Action {
 			}
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -274,7 +274,7 @@ export class NavigateToLeftEditorAction extends Action {
 		// Require an active editor
 		let activeEditor = this.editorService.getActiveEditor();
 		if (!activeEditor) {
-			return Promise.as(true);
+			return TPromise.as(true);
 		}
 
 
@@ -327,7 +327,7 @@ export class NavigateToRightEditorAction extends Action {
 			return this.navigateActions[nextPosition].run(event);
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -355,7 +355,7 @@ export class OpenToSideAction extends Action {
 			return this.editorService.openEditor(<EditorInput>entry.getInput(), entry.getOptions(), true);
 		}
 
-		return Promise.as(false);
+		return TPromise.as(false);
 	}
 }
 
@@ -426,7 +426,7 @@ export class CloseEditorAction extends Action {
 			return this.editorService.closeEditor(activeEditor);
 		}
 
-		return Promise.as(false);
+		return TPromise.as(false);
 	}
 }
 
@@ -473,7 +473,7 @@ export class MoveEditorLeftAction extends Action {
 			this.editorService.moveEditor(activeEditor.position, newPosition);
 		}
 
-		return Promise.as(false);
+		return TPromise.as(false);
 	}
 }
 
@@ -495,7 +495,7 @@ export class MoveEditorRightAction extends Action {
 			this.editorService.moveEditor(activeEditor.position, newPosition);
 		}
 
-		return Promise.as(false);
+		return TPromise.as(false);
 	}
 }
 
@@ -510,7 +510,7 @@ export class MinimizeOtherEditorsAction extends Action {
 	public run(): Promise {
 		this.editorService.arrangeEditors(EditorArrangement.MINIMIZE_OTHERS);
 
-		return Promise.as(false);
+		return TPromise.as(false);
 	}
 }
 
@@ -525,7 +525,7 @@ export class EvenEditorWidthsAction extends Action {
 	public run(): Promise {
 		this.editorService.arrangeEditors(EditorArrangement.EVEN_WIDTH);
 
-		return Promise.as(false);
+		return TPromise.as(false);
 	}
 }
 
@@ -548,7 +548,7 @@ export class MaximizeEditorAction extends Action {
 			this.partService.setSideBarHidden(true);
 		}
 
-		return Promise.as(false);
+		return TPromise.as(false);
 	}
 }
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {isMacintosh} from 'vs/base/common/platform';
 import {isFunction} from 'vs/base/common/types';
 import {Action} from 'vs/base/common/actions';
@@ -49,7 +49,7 @@ export class LinkDropdownAction extends Action {
 				window.location.href = urlString;
 			}
 
-			return Promise.as(true);
+			return TPromise.as(true);
 		});
 	}
 }

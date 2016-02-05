@@ -38,7 +38,7 @@ export function evaluateExpression(session: debug.IRawDebugSession, stackFrame: 
 		expression.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate") : Expression.DEFAULT_VALUE;
 		expression.available = false;
 		expression.reference = 0;
-		return Promise.as(expression);
+		return TPromise.as(expression);
 	}
 
 	return session.evaluate({
@@ -539,7 +539,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.watchExpressions.push(we);
 		if (!name) {
 			this.emit(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, we);
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		return this.evaluateWatchExpressions(session, stackFrame, we.getId());
@@ -554,14 +554,14 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 			});
 		}
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public evaluateWatchExpressions(session: debug.IRawDebugSession, stackFrame: debug.IStackFrame, id: string = null): Promise {
 		if (id) {
 			const filtered = this.watchExpressions.filter(we => we.getId() === id);
 			if (filtered.length !== 1) {
-				return Promise.as(null);
+				return TPromise.as(null);
 			}
 
 			return evaluateExpression(session, stackFrame, filtered[0], 'watch').then(() => {

@@ -223,7 +223,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 
 		} else {
 			this.tree.onHidden();
-			return WinJS.Promise.as(null);
+			return WinJS.TPromise.as(null);
 		}
 	}
 
@@ -297,7 +297,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 
 	private onEditorInputChanged(input: IEditorInput): WinJS.Promise {
 		if (!this.tree) {
-			return WinJS.Promise.as(null);
+			return WinJS.TPromise.as(null);
 		}
 
 		var status = this.getStatusFromInput(input);
@@ -313,7 +313,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			});
 		}
 
-		return WinJS.Promise.as(null);
+		return WinJS.TPromise.as(null);
 	}
 
 	private onSelection(e: Tree.ISelectionEvent): void {

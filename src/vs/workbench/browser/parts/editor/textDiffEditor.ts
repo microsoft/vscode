@@ -291,7 +291,7 @@ export class TextDiffEditor extends BaseTextEditor {
 			inlineModeActive = !inlineModeActive;
 			toggleEditorModeAction.label = inlineModeActive ? sideBySideLabel : inlineLabel;
 
-			return Promise.as(true);
+			return TPromise.as(true);
 		});
 
 		toggleEditorModeAction.order = 50; // Closer to the end
@@ -336,7 +336,7 @@ class NavigateAction extends Action {
 		this.enabled = false;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		if (this.next) {
 			this.editor.getDiffNavigator().next();
 		} else {

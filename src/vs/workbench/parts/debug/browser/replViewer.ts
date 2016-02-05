@@ -48,20 +48,20 @@ export class ReplExpressionsDataSource implements tree.IDataSource {
 
 	public getChildren(tree: tree.ITree, element: any): Promise {
 		if (element instanceof model.Model) {
-			return Promise.as(element.getReplElements());
+			return TPromise.as(element.getReplElements());
 		}
 		if (element instanceof model.KeyValueOutputElement) {
-			return Promise.as(element.getChildren());
+			return TPromise.as(element.getChildren());
 		}
 		if (element instanceof model.ValueOutputElement) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		return (<debug.IExpression> element).getChildren(this.debugService);
 	}
 
 	public getParent(tree: tree.ITree, element: any): Promise {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -447,7 +447,7 @@ export class ReplExpressionsActionProvider implements renderer.IActionProvider {
 	}
 
 	public getActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
-		return Promise.as([]);
+		return TPromise.as([]);
 	}
 
 	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
@@ -462,7 +462,7 @@ export class ReplExpressionsActionProvider implements renderer.IActionProvider {
 		}
 		actions.push(this.instantiationService.createInstance(debugactions.ClearReplAction, debugactions.ClearReplAction.ID, debugactions.ClearReplAction.LABEL));
 
-		return Promise.as(actions);
+		return TPromise.as(actions);
 	}
 
 	public getActionItem(tree: tree.ITree, element: any, action: actions.IAction): actionbar.IActionItem {

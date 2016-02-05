@@ -155,7 +155,7 @@ export class EmptyView extends EventEmitter.EventEmitter implements GitView.IVie
 	public setVisible(visible:boolean): WinJS.TPromise<void> {
 		this.isVisible = visible;
 
-		return WinJS.Promise.as(null);
+		return WinJS.TPromise.as(null);
 	}
 
 	public getSelection():ISelection {

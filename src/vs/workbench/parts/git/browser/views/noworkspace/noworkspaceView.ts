@@ -48,7 +48,7 @@ export class NoWorkspaceView
 	}
 
 	public setVisible(visible:boolean): winjs.TPromise<void> {
-		return winjs.Promise.as(null);
+		return winjs.TPromise.as(null);
 	}
 
 	public getSelection(): ISelection {

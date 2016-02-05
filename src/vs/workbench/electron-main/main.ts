@@ -38,7 +38,7 @@ export class LaunchService {
 			windows.manager.open({ cli: args, userEnv: userEnv, forceNewWindow: !args.openInSameWindow });
 		}
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -171,7 +171,7 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 
 function timebomb(): Promise {
 	if (!env.product.expiryDate || Date.now() <= env.product.expiryDate) {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	return new Promise((c, e) => {

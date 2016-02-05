@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/markdownactions';
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Action} from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
@@ -34,7 +34,7 @@ export class GlobalTogglePreviewMarkdownAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<any> {
 		let activeInput = this.editorService.getActiveEditorInput();
 
 		// View source if we are in a markdown file already
@@ -62,7 +62,7 @@ export class GlobalTogglePreviewMarkdownAction extends Action {
 		}
 
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -81,12 +81,12 @@ export class OpenPreviewToSideAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<any> {
 		let activeInput = this.editorService.getActiveEditorInput();
 
 		// Do nothing if already in markdown preview
 		if (activeInput instanceof MarkdownEditorInput) {
-			return Promise.as(true);
+			return TPromise.as(true);
 		}
 
 		// Otherwise try to open as markdown preview to the side
@@ -108,7 +108,7 @@ export class OpenPreviewToSideAction extends Action {
 		}
 
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -125,7 +125,7 @@ export class PreviewMarkdownAction extends Action {
 		this.markdownResource = markdownResource;
 	}
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<any> {
 		let input = this.instantiationService.createInstance(MarkdownEditorInput, this.markdownResource, void 0, void 0);
 
 		return this.editorService.openEditor(input);
@@ -144,7 +144,7 @@ export class PreviewMarkdownEditorInputAction extends EditorInputAction {
 		this.order = 100; // far end
 	}
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<any> {
 		let input = <FileEditorInput>this.input;
 
 		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));

@@ -72,7 +72,7 @@ export class FileDataSource implements IDataSource {
 
 		// Return early if stat is already resolved
 		if (stat.isDirectoryResolved) {
-			return Promise.as(stat.children);
+			return TPromise.as(stat.children);
 		}
 
 		// Resolve children and add to fileStat for future lookup
@@ -106,23 +106,23 @@ export class FileDataSource implements IDataSource {
 
 	public getParent(tree: ITree, stat: FileStat): TPromise<FileStat> {
 		if (!stat) {
-			return Promise.as(null); // can be null if nothing selected in the tree
+			return TPromise.as(null); // can be null if nothing selected in the tree
 		}
 
 		// Return if root reached
 		if (this.workspace && stat.resource.toString() === this.workspace.resource.toString()) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		// Return if parent already resolved
 		if (stat.parent) {
-			return Promise.as(stat.parent);
+			return TPromise.as(stat.parent);
 		}
 
 		// We never actually resolve the parent from the disk for performance reasons. It wouldnt make
 		// any sense to resolve parent by parent with requests to walk up the chain. Instead, the explorer
 		// makes sure to properly resolve a deep path to a specific file and merges the result with the model.
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -145,7 +145,7 @@ export class FileActionProvider extends ContributableActionProvider {
 
 	public getActions(tree: ITree, stat: FileStat): TPromise<Actions.IAction[]> {
 		if (stat instanceof NewStatPlaceholder) {
-			return Promise.as([]);
+			return TPromise.as([]);
 		}
 
 		return super.getActions(tree, stat);
@@ -161,7 +161,7 @@ export class FileActionProvider extends ContributableActionProvider {
 
 	public getSecondaryActions(tree: ITree, stat: FileStat): TPromise<Actions.IAction[]> {
 		if (stat instanceof NewStatPlaceholder) {
-			return Promise.as([]);
+			return TPromise.as([]);
 		}
 
 		return super.getSecondaryActions(tree, stat);
@@ -185,7 +185,7 @@ export class FileActionProvider extends ContributableActionProvider {
 		}
 
 		let id = <string>arg;
-		let promise = this.hasActions(tree, stat) ? this.getActions(tree, stat) : Promise.as([]);
+		let promise = this.hasActions(tree, stat) ? this.getActions(tree, stat) : TPromise.as([]);
 
 		return promise.then((actions: Actions.IAction[]) => {
 			for (let i = 0, len = actions.length; i < len; i++) {
@@ -194,7 +194,7 @@ export class FileActionProvider extends ContributableActionProvider {
 				}
 			}
 
-			promise = this.hasSecondaryActions(tree, stat) ? this.getSecondaryActions(tree, stat) : Promise.as([]);
+			promise = this.hasSecondaryActions(tree, stat) ? this.getSecondaryActions(tree, stat) : TPromise.as([]);
 
 			return promise.then((actions: Actions.IAction[]) => {
 				for (let i = 0, len = actions.length; i < len; i++) {
@@ -795,7 +795,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 	}
 
 	public drop(tree: ITree, data: IDragAndDropData, target: FileStat, originalEvent: DragMouseEvent): void {
-		let promise: Promise = Promise.as(null);
+		let promise: Promise = TPromise.as(null);
 
 		// Desktop DND (Import file)
 		if (data instanceof DesktopDragAndDropData) {
@@ -821,7 +821,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 				}
 
 				// Handle dirty
-				let saveOrRevertPromise: Promise = Promise.as(null);
+				let saveOrRevertPromise: Promise = TPromise.as(null);
 				if (this.textFileService.isDirty(source.resource)) {
 					let res = this.textFileService.confirmSave([source.resource]);
 					if (res === ConfirmResult.SAVE) {
@@ -829,7 +829,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 					} else if (res === ConfirmResult.DONT_SAVE) {
 						saveOrRevertPromise = this.textFileService.revert(source.resource);
 					} else if (res === ConfirmResult.CANCEL) {
-						return Promise.as(null);
+						return TPromise.as(null);
 					}
 				}
 
@@ -840,7 +840,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 					if (this.textFileService.isDirty(source.resource)) {
 						this.messageService.show(Severity.Warning, nls.localize('warningFileDirty', "File '{0}' is currently being saved, please try again later.", labels.getPathLabel(source.resource)));
 
-						return Promise.as(null);
+						return TPromise.as(null);
 					}
 
 					let targetResource = URI.file(paths.join(target.resource.fsPath, source.name));

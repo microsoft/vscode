@@ -226,7 +226,7 @@ export class MessageList {
 						}
 
 						(action.run() || TPromise.as(null))
-							.then(null, error => this.showMessage(Severity.Error, error))
+							.then<any>(null, error => this.showMessage(Severity.Error, error))
 							.done((r) => {
 								if (r === false) {
 									return;

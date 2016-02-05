@@ -204,7 +204,7 @@ export class FileService implements files.IFileService {
 
 		let contentPromises = <TPromise<files.IContent>[]>[];
 		resources.forEach((resource) => {
-			contentPromises.push(limiter.queue(() => this.resolveFileContent(resource).then((content) => content, (error) => Promise.as(null /* ignore errors gracefully */))));
+			contentPromises.push(limiter.queue(() => this.resolveFileContent(resource).then((content) => content, (error) => TPromise.as(null /* ignore errors gracefully */))));
 		});
 
 		return TPromise.join(contentPromises).then((contents) => {
@@ -219,7 +219,7 @@ export class FileService implements files.IFileService {
 		return this.checkFile(absolutePath, options).then((exists) => {
 			let createParentsPromise: Promise;
 			if (exists) {
-				createParentsPromise = Promise.as(null);
+				createParentsPromise = TPromise.as(null);
 			} else {
 				createParentsPromise = pfs.mkdirp(paths.dirname(absolutePath));
 			}
@@ -320,7 +320,7 @@ export class FileService implements files.IFileService {
 			}
 
 			// 2.) make sure target is deleted before we move/copy unless this is a case rename of the same file
-			let deleteTargetPromise = Promise.as(null);
+			let deleteTargetPromise = TPromise.as(null);
 			if (exists && !isCaseRename) {
 				if (basePaths.isEqualOrParent(sourcePath, targetPath)) {
 					return Promise.wrapError(nls.localize('unableToMoveCopyError', "Unable to move/copy. File would replace folder it is contained in.")); // catch this corner case!
@@ -570,7 +570,7 @@ export class FileService implements files.IFileService {
 					// Emit
 					this.eventEmitter.emit(files.EventType.FILE_CHANGES, toFileChangesEvent(normalizedEvents));
 
-					return Promise.as(null);
+					return TPromise.as(null);
 				});
 			});
 		}

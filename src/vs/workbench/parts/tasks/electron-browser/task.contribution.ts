@@ -237,7 +237,7 @@ class CloseMessageAction extends Action {
 		if (this.closeFunction) {
 			this.closeFunction();
 		}
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -295,7 +295,7 @@ class RunTaskAction extends Action {
 
 	public run(event?:any): Promise {
 		this.quickOpenService.show('task ');
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 

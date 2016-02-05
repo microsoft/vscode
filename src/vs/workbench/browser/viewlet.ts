@@ -51,7 +51,7 @@ export abstract class ViewerViewlet extends Viewlet {
 		this.toUnbind.push(this.viewer.addListener('selection', (e: ISelectionEvent) => this.onSelection(e)));
 		this.toUnbind.push(this.viewer.addListener('focus', (e: IFocusEvent) => this.onFocus(e)));
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	/**
@@ -107,7 +107,7 @@ export abstract class ViewerViewlet extends Viewlet {
 
 	public reveal(element: any, relativeTop?: number): TPromise<void> {
 		if (!this.viewer) {
-			return Promise.as(null); // return early if viewlet has not yet been created
+			return TPromise.as(null); // return early if viewlet has not yet been created
 		}
 
 		// The viewer cannot properly reveal without being layed out, so force it if not yet done
@@ -234,7 +234,7 @@ export class ToggleViewletAction extends Action {
 			editor.focus();
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 
 	private otherViewletShowing(): boolean {
@@ -257,14 +257,14 @@ export class CollapseAction extends Action {
 	constructor(viewer: ITree, enabled: boolean, clazz: string, @INullService ns) {
 		super('workbench.action.collapse', nls.localize('collapse', "Collapse"), clazz, enabled, (context: any) => {
 			if (viewer.getHighlight()) {
-				return Promise.as(null); // Global action disabled if user is in edit mode from another action
+				return TPromise.as(null); // Global action disabled if user is in edit mode from another action
 			}
 
 			viewer.collapseAll();
 			viewer.clearSelection(); // Chance is high that element is now hidden, so unselect all
 			viewer.DOMFocus(); // Pass keyboard focus back from action link to tree
 
-			return Promise.as(null);
+			return TPromise.as(null);
 		});
 	}
 }
@@ -313,7 +313,7 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 	}
 
 	public create(): TPromise<void> {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -350,7 +350,7 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 	}
 
 	public refresh(focus: boolean, reveal: boolean, instantProgress?: boolean): TPromise<void> {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
@@ -358,7 +358,7 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 
 		updateTreeVisibility(this.tree, this.state === CollapsibleState.EXPANDED);
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public focusBody(): void {
@@ -446,7 +446,7 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 	}
 
 	public create(): TPromise<void> {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -477,7 +477,7 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 	}
 
 	public refresh(focus: boolean, reveal: boolean, instantProgress?: boolean): TPromise<void> {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
@@ -485,7 +485,7 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 
 		updateTreeVisibility(this.tree, this.state === CollapsibleState.EXPANDED);
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public focusBody(): void {
@@ -580,7 +580,7 @@ function focus(tree: ITree): void {
 
 function reveal(tree: ITree, element: any, relativeTop?: number): TPromise<void> {
 	if (!tree) {
-		return Promise.as(null); // return early if viewlet has not yet been created
+		return TPromise.as(null); // return early if viewlet has not yet been created
 	}
 
 	return tree.reveal(element, relativeTop);

@@ -133,7 +133,7 @@ class ElectronRawGitService extends DelayedRawGitService {
 			var enabled = conf.git ? conf.git.enabled : true;
 
 			if (!enabled) {
-				return Promise.as(new DisabledRawGitService());
+				return TPromise.as(new DisabledRawGitService());
 			}
 
 			var gitPath = (conf.git && conf.git.path) || null;

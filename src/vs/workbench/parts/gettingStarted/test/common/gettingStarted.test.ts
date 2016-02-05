@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import {AbstractGettingStarted} from 'vs/workbench/parts/gettingStarted/common/abstractGettingStarted';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {create} from 'vs/platform/instantiation/common/instantiationService';
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 
 class TestGettingStarted extends AbstractGettingStarted {
 	public lastUrl: string;
@@ -39,7 +39,7 @@ suite('Workbench - GettingStarted', () => {
 				}
 			},
 			telemetryService: {
-				getTelemetryInfo: () => Promise.as({ machineId: machineId })
+				getTelemetryInfo: () => TPromise.as({ machineId: machineId })
 			},
 			storageService: {
 				get: () => hideWelcomeSettingsValue,

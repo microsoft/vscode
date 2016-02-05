@@ -398,7 +398,7 @@ export class HTMLWorker extends AbstractModeWorker {
 					this.collectTagSuggestions(scanner, position, suggestions);
 				}
 		}
-		return winjs.Promise.as(suggestions);
+		return winjs.TPromise.as(suggestions);
 	}
 
 	private findMatchingBracket(tagname: string, scanner: IHTMLScanner) : EditorCommon.IRange {

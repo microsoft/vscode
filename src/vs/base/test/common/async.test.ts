@@ -12,7 +12,7 @@ suite('Async', () => {
 	test('Throttler - non async', function(done) {
 		var count = 0;
 		var factory = () => {
-			return Promise.as(++count);
+			return TPromise.as(++count);
 		};
 
 		var throttler = new Async.Throttler();
@@ -160,7 +160,7 @@ suite('Async', () => {
 	test('Delayer', function(done) {
 		var count = 0;
 		var factory = () => {
-			return Promise.as(++count);
+			return TPromise.as(++count);
 		};
 
 		var delayer = new Async.Delayer(0);
@@ -186,7 +186,7 @@ suite('Async', () => {
 	test('Delayer - simple cancel', function(done) {
 		var count = 0;
 		var factory = () => {
-			return Promise.as(++count);
+			return TPromise.as(++count);
 		};
 
 		var delayer = new Async.Delayer(0);
@@ -208,7 +208,7 @@ suite('Async', () => {
 	test('Delayer - cancel should cancel all calls to trigger', function(done) {
 		var count = 0;
 		var factory = () => {
-			return Promise.as(++count);
+			return TPromise.as(++count);
 		};
 
 		var delayer = new Async.Delayer(0);
@@ -236,7 +236,7 @@ suite('Async', () => {
 	test('Delayer - trigger, cancel, then trigger again', function(done) {
 		var count = 0;
 		var factory = () => {
-			return Promise.as(++count);
+			return TPromise.as(++count);
 		};
 
 		var delayer = new Async.Delayer(0);
@@ -285,7 +285,7 @@ suite('Async', () => {
 
 	test('Delayer - last task should be the one getting called', function(done) {
 		var factoryFactory = (n: number) => () => {
-			return Promise.as(n);
+			return TPromise.as(n);
 		};
 
 		var delayer = new Async.Delayer(0);
@@ -357,7 +357,7 @@ suite('Async', () => {
 
 	test('Sequence', function(done) {
 		var factoryFactory = (n: number) => () => {
-			return Promise.as(n);
+			return TPromise.as(n);
 		};
 
 		Async.sequence([
@@ -379,7 +379,7 @@ suite('Async', () => {
 
 	test('Limiter - sync', function(done) {
 		var factoryFactory = (n: number) => () => {
-			return Promise.as(n);
+			return TPromise.as(n);
 		};
 
 		var limiter = new Async.Limiter(1);

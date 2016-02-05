@@ -37,7 +37,7 @@ export class ToggleOutputAction extends Action {
 		if (panel && panel.getId() === OUTPUT_PANEL_ID) {
 			this.partService.setPanelHidden(true);
 
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		return this.outputService.showOutput(this.outputService.getActiveChannel());
@@ -52,7 +52,7 @@ export class ClearOutputAction extends Action {
 
 	public run(): Promise {
 		this.outputService.clearOutput(this.outputService.getActiveChannel());
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 

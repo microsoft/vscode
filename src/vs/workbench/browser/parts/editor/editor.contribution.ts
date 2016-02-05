@@ -6,7 +6,7 @@
 
 import {Registry} from 'vs/platform/platform';
 import nls = require('vs/nls');
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extensions as StatusExtensions} from 'vs/workbench/browser/parts/statusbar/statusbar';
 import {EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions, IEditorInputActionContext, IEditorInputAction, EditorInputActionContributor, EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -104,7 +104,7 @@ export class ViewSourceEditorInputAction extends EditorInputAction {
 		super('workbench.files.action.viewSourceFromEditor', nls.localize('viewSource', "View Source"), 'iframe-editor-action view-source');
 	}
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<any> {
 		let iFrameEditorInput = <IFrameEditorInput>this.input;
 		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
 
@@ -120,13 +120,13 @@ export class RefreshIFrameEditorInputAction extends EditorInputAction {
 		super('workbench.files.action.refreshIFrameEditor', nls.localize('reload', "Reload"), 'iframe-editor-action refresh');
 	}
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<any> {
 		let editor = this.editorService.getActiveEditor();
 		if (editor instanceof IFrameEditor) {
 			(<IFrameEditor>editor).reload(true);
 		}
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 

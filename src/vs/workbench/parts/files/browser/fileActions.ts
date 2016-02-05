@@ -162,10 +162,10 @@ export class BaseFileAction extends Action {
 				return this.textFileService.revert(this._element.resource).then(() => false);
 			}
 
-			return Promise.as(true);
+			return TPromise.as(true);
 		}
 
-		return Promise.as(false);
+		return TPromise.as(false);
 	}
 
 	public dispose(): void {
@@ -286,7 +286,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 
 		// Return early if name is invalid or didn't change
 		if (name === existingName || this.validateFileName(this.element.parent, name)) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		// Call function and Emit Event through viewer
@@ -357,14 +357,14 @@ export class RenameFileAction extends BaseRenameAction {
 		// Check if file is dirty in editor and save it to avoid data loss
 		return this.handleDirty().then((cancel: boolean) => {
 			if (cancel) {
-				return Promise.as(null);
+				return TPromise.as(null);
 			}
 
 			// If the file is still dirty, do not touch it because a save is pending to disk and we can not abort it
 			if (this.textFileService.isDirty(this.element.resource)) {
 				this.onWarning(nls.localize('warningFileDirty', "File '{0}' is currently being saved, please try again later.", getPathLabel(this.element.resource)));
 
-				return Promise.as(null);
+				return TPromise.as(null);
 			}
 
 			return this.fileService.rename(this.element.resource, newName).then(null, (error: Error) => {
@@ -718,21 +718,21 @@ export class BaseDeleteFileAction extends BaseFileAction {
 			}
 
 			if (!this.messageService.confirm(confirm)) {
-				return Promise.as(null);
+				return TPromise.as(null);
 			}
 		}
 
 		// Check if file is dirty in editor and save it to avoid data loss
 		return this.handleDirty().then((cancel: boolean) => {
 			if (cancel) {
-				return Promise.as(null);
+				return TPromise.as(null);
 			}
 
 			// If the file is still dirty, do not touch it because a save is pending to disk and we can not abort it
 			if (this.textFileService.isDirty(this.element.resource)) {
 				this.onWarning(nls.localize('warningFileDirty', "File '{0}' is currently being saved, please try again later.", getPathLabel(this.element.resource)));
 
-				return Promise.as(null);
+				return TPromise.as(null);
 			}
 
 			// Since a delete operation can take a while we want to emit the event proactively to avoid issues
@@ -839,7 +839,7 @@ export class ImportFileAction extends BaseFileAction {
 
 	public run(context?: any): Promise {
 		let multiFileProgressTracker: IProgressRunner;
-		let importPromise = Promise.as(null).then(() => {
+		let importPromise = TPromise.as(null).then(() => {
 			let input = context.input;
 			if (input.files && input.files.length > 0) {
 
@@ -1002,7 +1002,7 @@ export class CopyFileAction extends BaseFileAction {
 
 		this.tree.DOMFocus();
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -1232,7 +1232,7 @@ export class SelectResourceForCompareAction extends Action {
 			this.tree.DOMFocus();
 		}
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -1287,7 +1287,7 @@ export class GlobalCompareResourcesAction extends Action {
 			this.messageService.show(Severity.Info, nls.localize('openFileToCompare', "Open a file first to compare it with another file."));
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -1388,7 +1388,7 @@ export class RefreshViewExplorerAction extends Action {
 	constructor(explorerView: ExplorerView, clazz: string, @INullService ns) {
 		super('workbench.files.action.refreshExplorer', nls.localize('refresh', "Refresh"), clazz, true, (context: any) => {
 			if (explorerView.getViewer().getHighlight()) {
-				return Promise.as(null); // Global action disabled if user is in edit mode from another action
+				return TPromise.as(null); // Global action disabled if user is in edit mode from another action
 			}
 
 			return explorerView.refresh(true, true, true);
@@ -1498,7 +1498,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 					}
 
 					// Reopen editors for the resource based on the positions
-					let reopenPromise = Promise.as(null);
+					let reopenPromise = TPromise.as(null);
 					if (target.toString() !== source.toString() && positionsOfSource.length) {
 						let targetInput = this.instantiationService.createInstance(FileEditorInput, target, mimeOfSource, encodingOfSource);
 
@@ -1527,7 +1527,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 			return this.textFileService.save(source);
 		}
 
-		return Promise.as(false);
+		return TPromise.as(false);
 	}
 }
 
@@ -1642,7 +1642,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 				});
 
 				// Build a promise that completes when reopen is done
-				let reopenPromise = Promise.as(null);
+				let reopenPromise = TPromise.as(null);
 				if (reopenPromises.length) {
 					reopenPromise = reopenPromises[0]().then(() => {
 						if (reopenPromises.length > 1) {
@@ -1742,7 +1742,7 @@ export class RevertFileAction extends Action {
 			return this.textFileService.revert(resource, true /* force */);
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -1764,7 +1764,7 @@ export class OpenResourcesAction extends Action {
 
 	public run(): Promise {
 		return this.partService.joinCreation().then(() => {
-			let viewletPromise = Promise.as(null);
+			let viewletPromise = TPromise.as(null);
 			if (!this.partService.isSideBarHidden()) {
 				viewletPromise = this.viewletService.openViewlet(Files.VIEWLET_ID, false);
 			}
@@ -1826,7 +1826,7 @@ export abstract class BaseCloseWorkingFileAction extends Action {
 			isDirty = this.textFileService.isDirty();
 		}
 
-		let saveOrRevertPromise: TPromise<Files.ITextFileOperationResult> = Promise.as(null);
+		let saveOrRevertPromise: TPromise<Files.ITextFileOperationResult> = TPromise.as(null);
 		if (isDirty) {
 			let confirmResult = this.textFileService.confirmSave(this.elements);
 
@@ -1848,7 +1848,7 @@ export abstract class BaseCloseWorkingFileAction extends Action {
 
 					break;
 				case Files.ConfirmResult.CANCEL:
-					return Promise.as(null);
+					return TPromise.as(null);
 			}
 		}
 
@@ -2071,7 +2071,7 @@ export class CloseFileAction extends Action {
 			this.messageService.show(Severity.Info, nls.localize('noFileOpen', "There is currently no file opened to close."));
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -2176,7 +2176,7 @@ export class OpenNextWorkingFile extends Action {
 			return this.editorService.openEditor({ resource: model.next(resource).resource });
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -2209,7 +2209,7 @@ export class OpenPreviousWorkingFile extends Action {
 			return this.editorService.openEditor({ resource: model.previous(resource).resource });
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -2236,7 +2236,7 @@ export class AddToWorkingFiles extends Action {
 			this.messageService.show(Severity.Info, nls.localize('openFileToAdd', "Open a file first to add it to working files"));
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 

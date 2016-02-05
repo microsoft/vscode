@@ -106,18 +106,18 @@ export class DataSource implements tree.IDataSource {
 	public getChildren(tree: tree.ITree, element: any): winjs.Promise {
 		if (element instanceof gitmodel.StatusModel) {
 			var model = <git.IStatusModel> element;
-			return winjs.Promise.as(model.getGroups());
+			return winjs.TPromise.as(model.getGroups());
 
 		} else if (element instanceof gitmodel.StatusGroup) {
 			var statusGroup = <git.IStatusGroup> element;
-			return winjs.Promise.as(statusGroup.all());
+			return winjs.TPromise.as(statusGroup.all());
 		}
 
-		return winjs.Promise.as([]);
+		return winjs.TPromise.as([]);
 	}
 
 	public getParent(tree: tree.ITree, element: any): winjs.Promise {
-		return winjs.Promise.as(null);
+		return winjs.TPromise.as(null);
 	}
 }
 
@@ -141,9 +141,9 @@ export class ActionProvider extends ActionContainer implements actionsrenderer.I
 
 	public getActions(tree: tree.ITree, element: any): winjs.TPromise<actions.IAction[]> {
 		if (element instanceof gitmodel.StatusGroup) {
-			return winjs.Promise.as(this.getActionsForGroupStatusType(element.getType()));
+			return winjs.TPromise.as(this.getActionsForGroupStatusType(element.getType()));
 		} else {
-			return winjs.Promise.as(this.getActionsForFileStatusType(element.getType()));
+			return winjs.TPromise.as(this.getActionsForFileStatusType(element.getType()));
 		}
 	}
 

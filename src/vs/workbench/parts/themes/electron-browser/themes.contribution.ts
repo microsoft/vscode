@@ -84,7 +84,7 @@ class SelectThemeAction extends actions.Action {
 						ipc.send('vscode:changeTheme', currentTheme);
 					}
 				}
-				return winjs.Promise.as(null);
+				return winjs.TPromise.as(null);
 			};
 
 			return this.quickOpenService.pick(picks, { placeHolder: nls.localize('themes.selectTheme', "Select Color Theme"), autoFocus: { autoFocusIndex: selectedPickIndex }}).then(pickTheme, null, pickTheme);

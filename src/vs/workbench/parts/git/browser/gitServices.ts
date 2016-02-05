@@ -111,18 +111,18 @@ class EditorInputCache
 					return winjs.Promise.wrapError(error);
 				}
 
-				return winjs.Promise.as(rightInput);
+				return winjs.TPromise.as(rightInput);
 			}
 
 			switch (status.getStatus()) {
 				case git.Status.INDEX_MODIFIED:
-					return winjs.Promise.as(new giteditorinputs.GitIndexDiffEditorInput(fileSegment, nls.localize('gitIndexChanges', "{0} - Changes on index", folderSegment), leftInput, rightInput, status));
+					return winjs.TPromise.as(new giteditorinputs.GitIndexDiffEditorInput(fileSegment, nls.localize('gitIndexChanges', "{0} - Changes on index", folderSegment), leftInput, rightInput, status));
 				case git.Status.INDEX_RENAMED:
-					return winjs.Promise.as(new giteditorinputs.GitIndexDiffEditorInput(fileSegment, nls.localize('gitIndexChangesRenamed', "{0} - Renamed - Changes on index", folderSegment), leftInput, rightInput, status));
+					return winjs.TPromise.as(new giteditorinputs.GitIndexDiffEditorInput(fileSegment, nls.localize('gitIndexChangesRenamed', "{0} - Renamed - Changes on index", folderSegment), leftInput, rightInput, status));
 				case git.Status.MODIFIED:
-					return winjs.Promise.as(new giteditorinputs.GitWorkingTreeDiffEditorInput(fileSegment, nls.localize('workingTreeChanges', "{0} - Changes on working tree", folderSegment), leftInput, rightInput, status));
+					return winjs.TPromise.as(new giteditorinputs.GitWorkingTreeDiffEditorInput(fileSegment, nls.localize('workingTreeChanges', "{0} - Changes on working tree", folderSegment), leftInput, rightInput, status));
 				default:
-					return winjs.Promise.as(new giteditorinputs.GitDiffEditorInput(fileSegment, nls.localize('gitMergeChanges', "{0} - Merge changes", folderSegment), leftInput, rightInput, status));
+					return winjs.TPromise.as(new giteditorinputs.GitDiffEditorInput(fileSegment, nls.localize('gitMergeChanges', "{0} - Merge changes", folderSegment), leftInput, rightInput, status));
 			}
 		}).then((editorInput) => {
 			return editorInput;
@@ -154,7 +154,7 @@ class EditorInputCache
 				return this.gitService.show(path, status, 'HEAD', status.getMimetype());
 
 			default:
-				return winjs.Promise.as(null);
+				return winjs.TPromise.as(null);
 		}
 	}
 
@@ -191,7 +191,7 @@ class EditorInputCache
 				return this.editorService.inputToType({ resource });
 
 			default:
-				return winjs.Promise.as(null);
+				return winjs.TPromise.as(null);
 		}
 	}
 
@@ -584,10 +584,10 @@ export class GitService extends ee.EventEmitter
 		return this.raw.serviceState().then(state => {
 			if (state === git.RawServiceState.GitNotFound) {
 				this.transition(git.ServiceState.NoGit);
-				return winjs.Promise.as(null);
+				return winjs.TPromise.as(null);
 			} else if (state === git.RawServiceState.Disabled) {
 				this.transition(git.ServiceState.Disabled);
-				return winjs.Promise.as(null);
+				return winjs.TPromise.as(null);
 			} else {
 				return this._run(operationId, fn);
 			}
@@ -637,7 +637,7 @@ export class GitService extends ee.EventEmitter
 
 			if (gitErrorCode === git.GitErrorCodes.NotAtRepositoryRoot) {
 				this.transition(git.ServiceState.NotAtRepoRoot);
-				return winjs.Promise.as(this.model);
+				return winjs.TPromise.as(this.model);
 			}
 
 			this.emit(git.ServiceEvents.ERROR, e);
@@ -646,20 +646,20 @@ export class GitService extends ee.EventEmitter
 			if (gitErrorCode === git.GitErrorCodes.NoUserNameConfigured || gitErrorCode === git.GitErrorCodes.NoUserEmailConfigured) {
 				this.messageService.show(severity.Warning, nls.localize('configureUsernameEmail', "Please configure your git user name and e-mail."));
 
-				return winjs.Promise.as(null);
+				return winjs.TPromise.as(null);
 
 			} else if (gitErrorCode === git.GitErrorCodes.BadConfigFile) {
 				this.messageService.show(severity.Error, nls.localize('badConfigFile', "Git {0}", e.message));
-				return winjs.Promise.as(null);
+				return winjs.TPromise.as(null);
 
 			} else if (gitErrorCode === git.GitErrorCodes.UnmergedChanges) {
 				this.messageService.show(severity.Warning, nls.localize('unmergedChanges', "You should first resolve the unmerged changes before committing your changes."));
-				return winjs.Promise.as(null);
+				return winjs.TPromise.as(null);
 			}
 
 			var error: Error;
 			var showOutputAction = new actions.Action('show.gitOutput', nls.localize('showOutput', "Show Output"), null, true, () => this.outputService.showOutput('Git'));
-			var cancelAction = new actions.Action('close.message', nls.localize('cancel', "Cancel"), null, true, ()=>winjs.Promise.as(true));
+			var cancelAction = new actions.Action('close.message', nls.localize('cancel', "Cancel"), null, true, ()=>winjs.TPromise.as(true));
 
 			error = errors.create(
 				nls.localize('checkNativeConsole', "There was an issue running a git operation. Please review the output or use a console to check the state of your repository."),
@@ -713,7 +713,7 @@ export class GitService extends ee.EventEmitter
 			}
 
 			// Text
-			return winjs.Promise.as(this.instantiationService.createInstance(giteditorinputs.NativeGitIndexStringEditorInput, fileSegment, description, mimetypes.join(', '), status, path, treeish));
+			return winjs.TPromise.as(this.instantiationService.createInstance(giteditorinputs.NativeGitIndexStringEditorInput, fileSegment, description, mimetypes.join(', '), status, path, treeish));
 		});
 	}
 
@@ -721,7 +721,7 @@ export class GitService extends ee.EventEmitter
 		return this.inputCache.getInput(status).then(null, (err) => {
 			if (err.gitErrorCode = git.GitErrorCodes.CantOpenResource) {
 				this.messageService.show(severity.Warning, nls.localize('cantOpenResource', "Can't open this git resource."));
-				return winjs.Promise.as(null);
+				return winjs.TPromise.as(null);
 			}
 
 			return winjs.Promise.wrapError(err);

@@ -86,7 +86,7 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 			if (action && action.enabled) {
 				try {
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'quick open' });
-					(action.run() || Promise.as(null)).done(() => {
+					(action.run() || TPromise.as(null)).done(() => {
 						action.dispose();
 					}, (err) => this.onError(err));
 				} catch (error) {

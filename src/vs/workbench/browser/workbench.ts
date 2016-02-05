@@ -222,7 +222,7 @@ export class Workbench implements IPartService {
 
 			// Check for configured options to open files on startup and resolve if any or open untitled for empty workbench
 			let editorTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Restoring Editor(s)'));
-			let resolveEditorInputsPromise: TPromise<EditorInput[]> = Promise.as(null);
+			let resolveEditorInputsPromise: TPromise<EditorInput[]> = TPromise.as(null);
 			let options: EditorOptions[] = [];
 
 			// Files to open or create
@@ -246,7 +246,7 @@ export class Workbench implements IPartService {
 
 			// Empty workbench
 			else if (!this.workbenchParams.workspace) {
-				resolveEditorInputsPromise = Promise.as([this.untitledEditorService.createOrGet()]);
+				resolveEditorInputsPromise = TPromise.as([this.untitledEditorService.createOrGet()]);
 			}
 
 			// Restore editor state (either from last session or with given inputs)

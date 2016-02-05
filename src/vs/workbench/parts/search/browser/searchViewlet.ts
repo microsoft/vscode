@@ -102,7 +102,7 @@ export class SearchDataSource implements IDataSource {
 		} else if (element instanceof SearchResult) {
 			value = element.matches();
 		}
-		return Promise.as(value);
+		return TPromise.as(value);
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
@@ -116,7 +116,7 @@ export class SearchDataSource implements IDataSource {
 		} else if (element instanceof FileMatch) {
 			value = element.parent();
 		}
-		return Promise.as(value);
+		return TPromise.as(value);
 	}
 }
 
@@ -304,7 +304,7 @@ export class RefreshAction extends Action {
 
 	public run(): Promise {
 		this.viewlet.onQueryChanged(true);
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -336,7 +336,7 @@ export class SelectOrRemoveAction extends Action {
 
 	private runAsSelect(): Promise {
 		this.viewlet.getResults().addClass('select');
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	private runAsRemove(): Promise {
@@ -362,7 +362,7 @@ export class SelectOrRemoveAction extends Action {
 			});
 		}
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -383,7 +383,7 @@ export class CollapseAllAction extends Action {
 		if (this.viewlet.getControl()) {
 			return this.viewlet.getControl().collapseAll();
 		}
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -402,7 +402,7 @@ export class ClearSearchResultsAction extends Action {
 	public run(): Promise {
 		this.viewlet.clearSearchResults();
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -423,7 +423,7 @@ class ConfigureGlobalExclusionsAction extends Action {
 		let action = this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL);
 		action.run().done(() => action.dispose(), errors.onUnexpectedError);
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -928,7 +928,7 @@ export class SearchViewlet extends Viewlet {
 			this.updateGlobalPatternExclusions(configuration);
 		}).done(null, errors.onUnexpectedError);
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	private updateGlobalPatternExclusions(configuration: ISearchConfiguration): void {
@@ -1436,7 +1436,7 @@ export class SearchViewlet extends Viewlet {
 
 	private onFocus(lineMatch: Match, preserveFocus: boolean, sideBySide: boolean): TPromise<any> {
 		if (!(lineMatch instanceof Match)) {
-			return Promise.as(true);
+			return TPromise.as(true);
 		}
 
 		this.telemetryService.publicLog('searchResultChosen');

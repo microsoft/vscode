@@ -60,7 +60,7 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 						return model.save(true /* overwrite readonly */).then(() => true);
 					}
 
-					return Promise.as(true);
+					return TPromise.as(true);
 				}));
 			} else {
 				actions.push(new Action('workbench.files.action.retry', nls.localize('retry', "Retry"), null, true, () => {
@@ -237,7 +237,7 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 					});
 				}
 
-				return Promise.as(true);
+				return TPromise.as(true);
 			})
 		];
 	}

@@ -43,7 +43,7 @@ export class CloseEditorAction extends Action {
 
 		this.windowService.getWindow().close();
 
-		return Promise.as(false);
+		return TPromise.as(false);
 	}
 }
 
@@ -59,7 +59,7 @@ export class CloseWindowAction extends Action {
 	public run(): Promise {
 		this.windowService.getWindow().close();
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -85,7 +85,7 @@ export class CloseFolderAction extends Action {
 			this.messageService.show(Severity.Info, nls.localize('noFolderOpened', "There is currently no folder opened in this instance to close."));
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -105,7 +105,7 @@ export class NewWindowAction extends Action {
 	public run(): Promise {
 		this.windowService.getWindow().openNew();
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -121,7 +121,7 @@ export class ToggleFullScreenAction extends Action {
 	public run(): Promise {
 		ipc.send('vscode:toggleFullScreen', this.windowService.getWindowId());
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -137,7 +137,7 @@ export class ToggleMenuBarAction extends Action {
 	public run(): Promise {
 		ipc.send('vscode:toggleMenuBar', this.windowService.getWindowId());
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -153,7 +153,7 @@ export class ToggleDevToolsAction extends Action {
 	public run(): Promise {
 		remote.getCurrentWindow().webContents.toggleDevTools();
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -169,7 +169,7 @@ export class ZoomInAction extends Action {
 	public run(): Promise {
 		webFrame.setZoomLevel(webFrame.getZoomLevel() + 1);
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -184,7 +184,7 @@ export abstract class BaseZoomAction extends Action {
 	}
 
 	public run(): Promise {
-		return Promise.as(false); // Subclass to implement
+		return TPromise.as(false); // Subclass to implement
 	}
 
 	protected loadConfiguredZoomLevel(): TPromise<number> {
@@ -358,7 +358,7 @@ export class ShowStartupPerformance extends Action {
 			(<any>console).table(table);
 		}, 1000);
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -374,7 +374,7 @@ export class ReloadWindowAction extends Action {
 	public run(): Promise {
 		ipc.send('vscode:reloadWindow', this.windowService.getWindowId());
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -440,6 +440,6 @@ export class CloseMessagesAction extends Action {
 			editor.focus();
 		}
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }

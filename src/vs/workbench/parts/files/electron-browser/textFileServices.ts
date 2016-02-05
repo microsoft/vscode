@@ -242,7 +242,7 @@ export class TextFileService extends AbstractTextFileService {
 				else {
 					targetPath = this.promptForPathSync(this.suggestFileName(untitledResources[i]));
 					if (!targetPath) {
-						return Promise.as({
+						return TPromise.as({
 							results: [...fileResources, ...untitledResources].map((r) => {
 								return {
 									source: r
@@ -284,7 +284,7 @@ export class TextFileService extends AbstractTextFileService {
 		// Get to target resource
 		let targetPromise: TPromise<URI>;
 		if (target) {
-			targetPromise = Promise.as(target);
+			targetPromise = TPromise.as(target);
 		} else {
 			let dialogPath = resource.fsPath;
 			if (resource.scheme === 'untitled') {

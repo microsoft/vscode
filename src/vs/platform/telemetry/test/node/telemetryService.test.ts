@@ -349,7 +349,7 @@ suite('TelemetryService', () => {
 // 			service.addTelemetryAppender(testAppender);
 //
 // 			winjs.Promise.wrapError('This should not get logged');
-// 			winjs.Promise.as(true).then(() => {
+// 			winjs.TPromise.as(true).then(() => {
 // 				throw new Error('This should get logged');
 // 			});
 // 			// prevent console output from failing the test

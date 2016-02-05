@@ -57,14 +57,14 @@ export class WorkingFilesDataSource implements IDataSource {
 
 	public getChildren(tree: ITree, element: any): Promise {
 		if (element instanceof WorkingFilesModel) {
-			return Promise.as((<WorkingFilesModel>element).getEntries());
+			return TPromise.as((<WorkingFilesModel>element).getEntries());
 		}
 
-		return Promise.as([]);
+		return TPromise.as([]);
 	}
 
 	public getParent(tree: ITree, element: any): Promise {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -149,7 +149,7 @@ export class WorkingFilesActionProvider extends ContributableActionProvider {
 			actions.push(this.instantiationService.createInstance(CloseOneWorkingFileAction, this.model, element));
 		}
 
-		return Promise.as(actions);
+		return TPromise.as(actions);
 	}
 
 	public hasSecondaryActions(tree: ITree, element: WorkingFileEntry): boolean {

@@ -72,7 +72,7 @@ export abstract class Composite extends WorkbenchComponent implements IComposite
 	public create(parent: Builder): TPromise<void> {
 		this.parent = parent;
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	/**

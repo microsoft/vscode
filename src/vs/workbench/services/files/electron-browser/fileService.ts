@@ -179,7 +179,7 @@ export class FileService implements files.IFileService {
 			return TPromise.wrapError(new Error(nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
 		}
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public importFile(source: uri, targetFolder: uri): TPromise<files.IImportResult> {
