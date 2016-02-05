@@ -228,6 +228,10 @@ export class FileWalker {
 
 		// Check for search pattern
 		if (this.filePattern) {
+			if (this.filePattern === '*') {
+				return true; // support the all-matching wildcard
+			}
+
 			return scorer.matches(path, this.normalizedFilePatternLowercase);
 		}
 
