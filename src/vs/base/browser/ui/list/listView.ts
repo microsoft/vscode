@@ -204,7 +204,7 @@ export class ListView<T> implements IScrollable {
 		let item = this.items[index];
 		let end = -1;
 
-		while (item && start < renderBottom) {
+		while (item && start <= renderBottom) {
 			end = start + item.size;
 			result.push({ item, index, range: { start, end }});
 			start = end;
