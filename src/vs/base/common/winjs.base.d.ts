@@ -27,7 +27,10 @@ export declare class Promise {
 	static join(promises:{[name:string]:Promise;}):Promise;
 	static join(promises:Promise[]):Promise;
 	static any(promises:Promise[]):Promise;
-	static timeout(delay:number):Promise;
+
+	// commented out to speed up adoption of TPromise
+	// static timeout(delay:number):Promise;
+
 	static wrapError(error:any):Promise;
 	static is(value: any): boolean;
 	static addEventListener(type:string, fn:EventCallback):void;

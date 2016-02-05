@@ -212,7 +212,7 @@ class DirtyDiffModelDecorator {
 				this.model.setProperty('original', contents);
 
 				// wait a bit, for the 'original' property to propagate
-				return winjs.Promise.timeout(500).then(() =>  this.triggerDiff());
+				return winjs.TPromise.timeout(500).then(() =>  this.triggerDiff());
 			});
 	}
 

@@ -529,7 +529,7 @@ export abstract class BaseGlobalNewAction extends Action {
 
 	public run(): Promise {
 		return this.viewletService.openViewlet(Files.VIEWLET_ID, true).then((viewlet) => {
-			return Promise.timeout(100).then(() => { // use a timeout to prevent the explorer from revealing the active file
+			return TPromise.timeout(100).then(() => { // use a timeout to prevent the explorer from revealing the active file
 				viewlet.focus();
 
 				let explorer = <ExplorerViewlet>viewlet;

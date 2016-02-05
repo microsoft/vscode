@@ -491,7 +491,7 @@ export const TestFileService = {
 	},
 
 	updateContent: function(res) {
-		return Promise.timeout(1).then(() => {
+		return TPromise.timeout(1).then(() => {
 			return {
 				resource: res,
 				etag: 'index.txt',

@@ -1347,7 +1347,7 @@ suite('TreeModel - Dynamic data model', () => {
 			dataModel.addChild('father', 'brother');
 			dataModel.addChild('mother', 'sister');
 
-			dataModel.promiseFactory = () => { return WinJS.Promise.timeout(0); };
+			dataModel.promiseFactory = () => { return WinJS.TPromise.timeout(0); };
 
 			var getTimes = 0;
 			var gotTimes = 0;
@@ -1618,7 +1618,7 @@ suite('TreeModel - Dynamic data model', () => {
 		model.setInput('root').then(() => {
 
 			// delay expansions and refreshes
-			dataModel.promiseFactory = () => { return WinJS.Promise.timeout(0); };
+			dataModel.promiseFactory = () => { return WinJS.TPromise.timeout(0); };
 
 			var promises: WinJS.Promise[] = [];
 
@@ -1671,9 +1671,9 @@ suite('TreeModel - bugs', () => {
 		let listeners = <any> [];
 
 		// helpers
-		var getGetRootChildren = (children: string[], timeout = 0) => () => WinJS.Promise.timeout(timeout).then(() => children);
+		var getGetRootChildren = (children: string[], timeout = 0) => () => WinJS.TPromise.timeout(timeout).then(() => children);
 		var getRootChildren = getGetRootChildren(['homer', 'bart', 'lisa', 'marge', 'maggie'], 0);
-		var getGetBartChildren = (timeout = 0) => () => WinJS.Promise.timeout(timeout).then(() => ['milhouse', 'nelson']);
+		var getGetBartChildren = (timeout = 0) => () => WinJS.TPromise.timeout(timeout).then(() => ['milhouse', 'nelson']);
 		var getBartChildren = getGetBartChildren(0);
 
 		// item expanding should not exist!

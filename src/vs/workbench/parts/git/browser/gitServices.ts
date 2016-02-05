@@ -351,7 +351,7 @@ export class AutoFetcher implements git.IAutoFetcher, lifecycle.IDisposable
 
 		this.currentRequest.then(() => {
 			this._state = git.AutoFetcherState.Active;
-			this.currentRequest = winjs.Promise.timeout(this.timeout);
+			this.currentRequest = winjs.TPromise.timeout(this.timeout);
 			return this.currentRequest;
 		}).then(() => this.loop(), (err) => this.deactivate());
 	}

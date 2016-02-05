@@ -238,7 +238,7 @@ export class PeriodThrottledDelayer<T> extends ThrottledDelayer<T> {
 		return super.trigger(() => {
 			return this.periodThrottler.queue(() => {
 				return Promise.join([
-					Promise.timeout(this.minimumPeriod),
+					TPromise.timeout(this.minimumPeriod),
 					promiseFactory()
 				]).then(r => r[1]);
 			});

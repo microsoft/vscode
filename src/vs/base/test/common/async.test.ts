@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Promise } from 'vs/base/common/winjs.base';
+import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import Async = require('vs/base/common/async');
 
 suite('Async', () => {
@@ -29,7 +29,7 @@ suite('Async', () => {
 	test('Throttler', function(done) {
 		var count = 0;
 		var factory = () => {
-			return Promise.timeout(0).then(() => {
+			return TPromise.timeout(0).then(() => {
 				return ++count;
 			});
 		};
@@ -56,7 +56,7 @@ suite('Async', () => {
 	test('Throttler - cancel should not cancel other promises', function(done) {
 		var count = 0;
 		var factory = () => {
-			return Promise.timeout(0).then(() => {
+			return TPromise.timeout(0).then(() => {
 				return ++count;
 			});
 		};
@@ -77,7 +77,7 @@ suite('Async', () => {
 	test('Throttler - cancel the first queued promise should not cancel other promises', function(done) {
 		var count = 0;
 		var factory = () => {
-			return Promise.timeout(0).then(() => {
+			return TPromise.timeout(0).then(() => {
 				return ++count;
 			});
 		};
@@ -98,7 +98,7 @@ suite('Async', () => {
 	test('Throttler - cancel in the middle should not cancel other promises', function(done) {
 		var count = 0;
 		var factory = () => {
-			return Promise.timeout(0).then(() => {
+			return TPromise.timeout(0).then(() => {
 				return ++count;
 			});
 		};
@@ -118,7 +118,7 @@ suite('Async', () => {
 
 	test('Throttler - last factory should be the one getting called', function(done) {
 		var factoryFactory = (n: number) => () => {
-			return Promise.timeout(0).then(() => n);
+			return TPromise.timeout(0).then(() => n);
 		};
 
 		var throttler = new Async.Throttler();
@@ -135,7 +135,7 @@ suite('Async', () => {
 	test('Throttler - progress should work', function(done) {
 		var order = 0;
 		var factory = () => new Promise((c, e, p) => {
-			Promise.timeout(0).done(() => {
+			TPromise.timeout(0).done(() => {
 				p(order++);
 				c(true);
 			});
@@ -308,7 +308,7 @@ suite('Async', () => {
 	test('Delayer - progress should work', function(done) {
 		var order = 0;
 		var factory = () => new Promise((c, e, p) => {
-			Promise.timeout(0).done(() => {
+			TPromise.timeout(0).done(() => {
 				p(order++);
 				c(true);
 			});
@@ -333,7 +333,7 @@ suite('Async', () => {
 	test('ThrottledDelayer - progress should work', function(done) {
 		var order = 0;
 		var factory = () => new Promise((c, e, p) => {
-			Promise.timeout(0).done(() => {
+			TPromise.timeout(0).done(() => {
 				p(order++);
 				c(true);
 			});
@@ -403,7 +403,7 @@ suite('Async', () => {
 
 	test('Limiter - async', function(done) {
 		var factoryFactory = (n: number) => () => {
-			return Promise.timeout(0).then(() => n);
+			return TPromise.timeout(0).then(() => n);
 		};
 
 		var limiter = new Async.Limiter(1);
@@ -429,7 +429,7 @@ suite('Async', () => {
 		var factoryFactory = (n: number) => () => {
 			activePromises++;
 			assert(activePromises < 6);
-			return Promise.timeout(0).then(() => { activePromises--; return n; });
+			return TPromise.timeout(0).then(() => { activePromises--; return n; });
 		};
 
 		var limiter = new Async.Limiter(5);

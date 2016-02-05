@@ -6,7 +6,7 @@
 
 import 'vs/css!./quickopen';
 import nls = require('vs/nls');
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import platform = require('vs/base/common/platform');
 import browser = require('vs/base/browser/browser');
 import {EventType} from 'vs/base/common/events';
@@ -589,7 +589,7 @@ export class QuickOpenWidget implements IModelProvider {
 		});
 	}
 
-	private setTreeHeightForInput(input: IModel<any>): Promise {
+	private setTreeHeightForInput(input: IModel<any>): TPromise<void> {
 		let newHeight = this.getHeight(input) + 'px';
 		let oldHeight = this.treeContainer.style('height');
 
@@ -598,11 +598,11 @@ export class QuickOpenWidget implements IModelProvider {
 
 		// Return instantly if we don't CSS transition or the height is the same as old
 		if (!this.treeContainer.hasClass('transition') || oldHeight === newHeight) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		// Otherwise return promise that only fulfills when the CSS transition has ended
-		return new Promise((c, e) => {
+		return new TPromise<void>((c, e) => {
 			let unbind: IDisposable[] = [];
 			let complete = false;
 			let completeHandler = () => {
@@ -821,7 +821,7 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 
 		this.isLoosingFocus = true;
-		Promise.timeout(0).then(() => {
+		TPromise.timeout(0).then(() => {
 			if (!this.isLoosingFocus) {
 				return;
 			}

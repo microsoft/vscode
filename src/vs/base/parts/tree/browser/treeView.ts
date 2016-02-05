@@ -888,7 +888,7 @@ export class TreeView extends HeightMap implements IScrollable {
 		var viewItem = this.items[item.id];
 
 		if (viewItem) {
-			viewItem.loadingPromise = WinJS.Promise.timeout(TreeView.LOADING_DECORATION_DELAY).then(() => {
+			viewItem.loadingPromise = WinJS.TPromise.timeout(TreeView.LOADING_DECORATION_DELAY).then(() => {
 				viewItem.loadingPromise = null;
 				viewItem.loading = true;
 			});
@@ -1500,7 +1500,7 @@ export class TreeView extends HeightMap implements IScrollable {
 					}
 				}
 
-				this.currentDropPromise = WinJS.Promise.timeout(500).then(() => {
+				this.currentDropPromise = WinJS.TPromise.timeout(500).then(() => {
 					return this.context.tree.expand(this.currentDropElement).then(() => {
 						this.shouldInvalidateDropReaction = true;
 					});

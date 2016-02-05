@@ -587,7 +587,7 @@ export class ChangeEncodingAction extends Action {
 				return;
 			}
 
-			return Promise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() => {
+			return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() => {
 				let isReopenWithEncoding = (action === reopenWithEncodingPick);
 
 				return this.configurationService.loadConfiguration().then((configuration: IFilesConfiguration) => {

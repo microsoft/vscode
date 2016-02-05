@@ -446,7 +446,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 			});
 
 			// Progress if task takes a long time
-			Promise.timeout(800).then(() => {
+			TPromise.timeout(800).then(() => {
 				if (!picksPromiseDone && this.currentPickerToken === currentPickerToken) {
 					this.pickOpenWidget.getProgressBar().infinite().getContainer().show();
 				}
@@ -663,7 +663,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		this.previousActiveHandlerDescriptor = handlerDescriptor;
 
 		// Progress if task takes a long time
-		Promise.timeout(handlerDescriptor && handlerDescriptor.instantProgress ? 0 : 800).then(() => {
+		TPromise.timeout(handlerDescriptor && handlerDescriptor.instantProgress ? 0 : 800).then(() => {
 			if (!resultPromiseDone && currentResultToken === this.currentResultToken) {
 				this.quickOpenWidget.getProgressBar().infinite().getContainer().show();
 			}

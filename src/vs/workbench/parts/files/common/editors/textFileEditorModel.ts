@@ -376,7 +376,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		this.cancelAutoSavePromises();
 
 		// Create new save promise and keep it
-		let promise: TPromise<void> = Promise.timeout(this.autoSaveAfterMillies).then(() => {
+		let promise: TPromise<void> = TPromise.timeout(this.autoSaveAfterMillies).then(() => {
 
 			// Only trigger save if the version id has not changed meanwhile
 			if (versionId === this.versionId) {

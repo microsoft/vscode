@@ -82,7 +82,7 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 	protected runAction(action: IAction): void {
 
 		// Use a timeout to give the quick open widget a chance to close itself first
-		Promise.timeout(50).done(() => {
+		TPromise.timeout(50).done(() => {
 			if (action && action.enabled) {
 				try {
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'quick open' });
