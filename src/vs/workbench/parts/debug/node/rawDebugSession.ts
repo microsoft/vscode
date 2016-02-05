@@ -292,9 +292,9 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		});
 	}
 
-	private onServerError(err: Error): void {
+	protected onServerError(err: Error): void {
+		this.messageService.show(severity.Error, nls.localize('stoppingDebugAdapter', "{0}. Stopping the debug adapter.", err.message));
 		this.stopServer().done(null, errors.onUnexpectedError);
-		this.messageService.show(severity.Error, err.message);
 	}
 
 	private onServerExit(): void {
