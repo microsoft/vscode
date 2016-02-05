@@ -10,7 +10,7 @@ import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { Gesture } from 'vs/base/browser/touch';
 import * as DOM from 'vs/base/browser/dom';
 import { IScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/impl/scrollableElement';
+import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElementImpl';
 import { RangeMap, IRange } from './rangeMap';
 import { IDelegate, IRenderer, IListElementEvent } from './list';
 import { RowCache, IRow } from './rowCache';
