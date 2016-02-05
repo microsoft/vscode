@@ -152,7 +152,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		// such that files you type have bigger impact on the suggest
 		// order than those you only look at
 		const modelListener: { [uri: string]: IDisposable } = Object.create(null);
-		this._disposeOnUpdate.push({ dispose() { disposeAll(values(modelListener)) } });
+		this._disposeOnUpdate.push({ dispose() { disposeAll(values(modelListener)); } });
 
 		this._disposeOnUpdate.push(this._modelService.onModelAdded(model => {
 			const uri = model.getAssociatedResource();

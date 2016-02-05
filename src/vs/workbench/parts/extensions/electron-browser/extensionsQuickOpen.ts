@@ -12,8 +12,7 @@ import { isNumber } from 'vs/base/common/types';
 import * as dom from 'vs/base/browser/dom';
 import Severity from 'vs/base/common/severity';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IAutoFocus, Mode, IModel, IDataSource, IRenderer, IRunner, IFilter, IContext, IAccessiblityProvider } from 'vs/base/parts/quickopen/common/quickOpen';
-import { since } from 'vs/base/common/dates';
+import { IAutoFocus, Mode, IModel, IDataSource, IRenderer, IRunner, IContext, IAccessiblityProvider } from 'vs/base/parts/quickopen/common/quickOpen';
 import { matchesContiguousSubString } from 'vs/base/common/filters';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { IHighlight } from 'vs/base/parts/quickopen/browser/quickOpenModel';
@@ -23,7 +22,6 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { Action } from 'vs/base/common/actions';
 import * as semver from 'semver';
@@ -209,7 +207,6 @@ class Renderer implements IRenderer<IExtensionEntry> {
 
 	renderElement(entry: IExtensionEntry, templateId: string, data: ITemplateData): void {
 		const extension = entry.extension;
-		const date = extension.galleryInformation ? extension.galleryInformation.date : null;
 		const publisher = extension.galleryInformation ? extension.galleryInformation.publisherDisplayName : extension.publisher;
 		const installCount = extension.galleryInformation ? extension.galleryInformation.installCount : null;
 		const actionOptions = { icon: true, label: false };

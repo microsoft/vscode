@@ -17,7 +17,7 @@ import { IMessageService, CloseAction } from 'vs/platform/message/common/message
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { UninstallAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
-import { IExtensionsService, IGalleryService, IExtension, IExtensionTipsService } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionsService, IExtension, IExtensionTipsService } from 'vs/workbench/parts/extensions/common/extensions';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 var $ = dom.emmet;
@@ -54,7 +54,7 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 		if (this.messageCount > 0) {
 			this.domNode = dom.append(container, $('a.extensions-statusbar'));
 			const issueLabel = this.messageCount > 1 ? nls.localize('issues', "issues") : nls.localize('issue', "issue");
-			const extensionLabel = nls.localize('extension', "extension")
+			const extensionLabel = nls.localize('extension', "extension");
 			this.domNode.title = `${ this.messageCount } ${ extensionLabel } ${ issueLabel }`;
 			this.domNode.textContent = `${ this.messageCount } ${ issueLabel }`;
 
@@ -112,7 +112,7 @@ export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
 
 		function extid(ext: IExtension): string {
 			return `${ext.publisher}.${ext.name}@${ext.version}`;
-		};
+		}
 
 		this._extensionTipsService.onDidChangeTips(tips => {
 
