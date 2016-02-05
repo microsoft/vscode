@@ -6,7 +6,6 @@
 
 import Browser = require('vs/base/browser/browser');
 import DomUtils = require('vs/base/browser/dom');
-import Lifecycle = require('vs/base/common/lifecycle');
 
 import {ViewLayer, IVisibleLineData} from 'vs/editor/browser/view/viewLayer';
 import EditorBrowser = require('vs/editor/browser/editorBrowser');

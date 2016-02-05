@@ -10,11 +10,9 @@ import paths = require('vs/base/common/paths');
 import Strings = require('vs/base/common/strings');
 import {IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
 import {EverywhereAttr, registerThreadSynchronizableObject} from 'vs/platform/thread/common/threadService';
-import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry, IExtensionPointUser, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
 import Mime = require('vs/base/common/mime');
 import Errors = require('vs/base/common/errors');
-import {IMode, IModeDescriptor} from 'vs/editor/common/modes';
 import Event, {Emitter} from 'vs/base/common/event';
 
 interface ILanguagePointData {
@@ -304,13 +302,6 @@ class LanguageExtensionPointHandler implements IThreadSynchronizableObject<ILang
 		for (let i = 0; i < desc.length; i++) {
 			this._onLanguage(desc[i]);
 		}
-	}
-
-	private _setMime2LanguageId(mimeType:string, modeId:string): void {
-		if (this.mime2LanguageId[mimeType] && this.mime2LanguageId[mimeType] !== modeId) {
-			console.warn('Overwriting mime <<' + mimeType + '>> to now point to modeId <<' + modeId + '>>');
-		}
-		this.mime2LanguageId[mimeType] = modeId;
 	}
 
 	public registerLanguage(lang: ILanguageExtensionPoint): void {

@@ -729,7 +729,6 @@ class AttributeParser implements IParserState {
 class AttributeValueParser implements IParserState {
 	public name: string;
 	private attribute: AttributeParser;
-	private attributeName:string;
 	private value:string;
 	private quote:boolean;
 

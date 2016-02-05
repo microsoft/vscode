@@ -4,14 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
 import {LanguageExtensions, ILegacyLanguageDefinition} from 'vs/editor/common/modes/languageExtensionPoint';
 import Modes = require('vs/editor/common/modes');
 import Strings = require('vs/base/common/strings');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {Registry} from 'vs/platform/platform';
-import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
-import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 
 // Define extension point ids
 export var Extensions = {
@@ -158,7 +155,7 @@ export function getSnippets(model: EditorCommon.IModel, position: EditorCommon.I
 	var result : Modes.ISuggestResult = {
 		currentWord: currentPrefix,
 		suggestions: []
-	}
+	};
 
 	// to avoid that snippets are too prominent in the intellisense proposals:
 	// - force that the current prefix matches with the snippet prefix

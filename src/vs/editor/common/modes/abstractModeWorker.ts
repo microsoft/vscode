@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import URI from 'vs/base/common/uri';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {computeLinks} from 'vs/editor/common/modes/linkComputer';
 import {DiffComputer} from 'vs/editor/common/diff/diffComputer';
-import {DefaultFilter, and} from 'vs/editor/common/modes/modesFilters';
+import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {WorkerInplaceReplaceSupport} from 'vs/editor/common/modes/supports';
 import {ValidationHelper} from 'vs/editor/common/worker/validationHelper';

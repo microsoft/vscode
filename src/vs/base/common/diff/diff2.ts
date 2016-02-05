@@ -139,7 +139,7 @@ export class LcsDiff2 {
 		return this.ids_for_x[xIndex] === this.ids_for_y[yIndex];
 	}
 
-	private ComputeDiff(): IDiffChange[] {
+	public ComputeDiff(): IDiffChange[] {
 		let xLength = this.x.getLength();
 		let yLength = this.y.getLength();
 

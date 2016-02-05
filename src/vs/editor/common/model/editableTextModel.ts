@@ -5,14 +5,12 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {EditStack} from 'vs/editor/common/model/editStack';
-import {IChangedMarkers, ITextWithMarkers, ModelLine, ILineEdit, ILineMarker} from 'vs/editor/common/model/modelLine';
+import {ModelLine, ILineEdit, ILineMarker} from 'vs/editor/common/model/modelLine';
 import {TextModelWithDecorations, DeferredEventsBuilder} from 'vs/editor/common/model/textModelWithDecorations';
 import {IMode} from 'vs/editor/common/modes';
 import EditorCommon = require('vs/editor/common/editorCommon');
-import Errors = require('vs/base/common/errors');
 
 export interface IDeltaSingleEditOperation {
 	original: IValidatedEditOperation;
@@ -607,7 +605,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 			versionId: -1,
 			isUndoing: this._isUndoing,
 			isRedoing: this._isRedoing
-		}
+		};
 	}
 
 	private _createLinesDeletedEvent(fromLineNumber: number, toLineNumber: number): EditorCommon.IModelContentChangedLinesDeletedEvent {

@@ -291,7 +291,7 @@ export class IENarratorTextAreaState extends TextAreaState {
 	}
 
 	public fromText(text:string): TextAreaState {
-		return new IENarratorTextAreaState(this, text, 0, text.length, false, 0)
+		return new IENarratorTextAreaState(this, text, 0, text.length, false, 0);
 	}
 
 	public resetSelection(): TextAreaState {
@@ -352,7 +352,7 @@ export class NVDATextAreaState extends TextAreaState {
 	}
 
 	public fromText(text:string): TextAreaState {
-		return new NVDATextAreaState(this, text, 0, text.length, false)
+		return new NVDATextAreaState(this, text, 0, text.length, false);
 	}
 
 	public resetSelection(): TextAreaState {

@@ -15,7 +15,6 @@ import {CharacterHardWrappingLineMapperFactory} from 'vs/editor/common/viewModel
 import {SplitLinesCollection} from 'vs/editor/common/viewModel/splitLinesCollection';
 import {ViewModel} from 'vs/editor/common/viewModel/viewModel';
 import * as Timer from 'vs/base/common/timer';
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {IActionProvider, IAction, isAction} from 'vs/base/common/actions';
 import {CursorMoveHelper} from 'vs/editor/common/controller/cursorMoveHelper';
 import {IViewModelHelper} from 'vs/editor/common/controller/oneCursor';

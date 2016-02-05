@@ -397,7 +397,6 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 				}
 				this._flushAccumulatedAndRenderNow();
 				var linesViewPortData = this.layoutProvider.getLinesViewportData();
-				var correctionTop = 0;
 				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), linesViewPortData.visibleRangesDeltaTop);
 				if (!visibleRanges) {
 					return null;

@@ -101,8 +101,8 @@ export class ViewModelDecorations implements IDisposable {
 		// Interpret addedOrChangedDecorations
 
 		var removedMap:{[id:string]:boolean;} = {},
-			addedOrChangedMap:{[id:string]:EditorCommon.IModelDecorationsChangedEvent_DecorationData;} = {},
-			theirDecoration:EditorCommon.IModelDecorationsChangedEvent_DecorationData,
+			addedOrChangedMap:{[id:string]:EditorCommon.IModelDecorationsChangedEventDecorationData;} = {},
+			theirDecoration:EditorCommon.IModelDecorationsChangedEventDecorationData,
 			i:number,
 			skipValidation = this.configuration.editor.readOnly,
 			len:number;

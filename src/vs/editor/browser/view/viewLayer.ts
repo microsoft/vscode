@@ -5,7 +5,6 @@
 'use strict';
 
 import DomUtils = require('vs/base/browser/dom');
-import Timer = require('vs/base/common/timer');
 
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 import EditorBrowser = require('vs/editor/browser/editorBrowser');

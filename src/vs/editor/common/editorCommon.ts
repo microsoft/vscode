@@ -7,7 +7,7 @@
 import {IEventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
 import Modes = require('vs/editor/common/modes');
 import TokensBinaryEncoding = require('vs/editor/common/model/tokensBinaryEncoding');
-import {IInstantiationService, INewConstructorSignature1, IConstructorSignature2, INewConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, INewConstructorSignature1, INewConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {IAction} from 'vs/base/common/actions';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import URI from 'vs/base/common/uri';
@@ -1987,7 +1987,7 @@ export interface IModelPropertiesChangedEvent {
 /**
  * Decoration data associated with a model decorations changed event.
  */
-export interface IModelDecorationsChangedEvent_DecorationData {
+export interface IModelDecorationsChangedEventDecorationData {
 	id:string;
 	ownerId:number;
 	range:IRange;
@@ -2005,7 +2005,7 @@ export interface IModelDecorationsChangedEvent {
 	/**
 	 * Lists of details
 	 */
-	addedOrChangedDecorations:IModelDecorationsChangedEvent_DecorationData[];
+	addedOrChangedDecorations:IModelDecorationsChangedEventDecorationData[];
 	removedDecorations:string[];
 	oldOptions:{[decorationId:string]:IModelDecorationOptions;};
 	oldRanges:{[decorationId:string]:IRange;};

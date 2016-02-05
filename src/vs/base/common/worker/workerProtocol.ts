@@ -5,7 +5,6 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import marshalling = require('vs/base/common/marshalling');
 import remote = require('vs/base/common/remote');
 
 /**

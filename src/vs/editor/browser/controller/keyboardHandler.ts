@@ -6,20 +6,14 @@
 
 import EditorCommon = require('vs/editor/common/editorCommon');
 import DomUtils = require('vs/base/browser/dom');
-import Platform = require('vs/base/common/platform');
 import Browser = require('vs/base/browser/browser');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EventEmitter = require('vs/base/common/eventEmitter');
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import Schedulers = require('vs/base/common/async');
 import * as Lifecycle from 'vs/base/common/lifecycle';
-import Strings = require('vs/base/common/strings');
 import {Range} from 'vs/editor/common/core/range';
-import {Position} from 'vs/editor/common/core/position';
-import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import Event, {Emitter} from 'vs/base/common/event';
 import {TextAreaHandler} from 'vs/editor/common/controller/textAreaHandler';
-import {ITextAreaWrapper, IClipboardEvent, IKeyboardEventWrapper, ISimpleModel, TextAreaStrategy} from 'vs/editor/common/controller/textAreaState';
+import {ITextAreaWrapper, IClipboardEvent, IKeyboardEventWrapper, TextAreaStrategy} from 'vs/editor/common/controller/textAreaState';
 import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 

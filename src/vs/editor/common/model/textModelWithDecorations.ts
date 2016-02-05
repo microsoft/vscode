@@ -384,10 +384,10 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 
 	private _handleCollectedDecorationsEvents(b:DeferredEventsBuilder): void {
 		var decorationId:string,
-			addedOrChangedDecorations:EditorCommon.IModelDecorationsChangedEvent_DecorationData[] = [],
+			addedOrChangedDecorations:EditorCommon.IModelDecorationsChangedEventDecorationData[] = [],
 			removedDecorations:string[] = [],
 			decorationIds:string[] = [],
-			decorationData:EditorCommon.IModelDecorationsChangedEvent_DecorationData,
+			decorationData:EditorCommon.IModelDecorationsChangedEventDecorationData,
 			oldRange:EditorCommon.IRange;
 
 		for (decorationId in b.newOrChangedDecorations) {
@@ -425,7 +425,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		}
 	}
 
-	private _getDecorationData(decorationId:string): EditorCommon.IModelDecorationsChangedEvent_DecorationData {
+	private _getDecorationData(decorationId:string): EditorCommon.IModelDecorationsChangedEventDecorationData {
 		var decoration = this.decorations[decorationId];
 		return {
 			id: decoration.id,
@@ -446,7 +446,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		let result:ModelDeltaDecoration[] = [];
 		for (let i = 0, len = deltaDecorations.length; i < len; i++) {
 			let deltaDecoration = deltaDecorations[i];
-			result.push(new ModelDeltaDecoration(i, this.validateRange(deltaDecoration.range), _normalizeOptions(deltaDecoration.options)))
+			result.push(new ModelDeltaDecoration(i, this.validateRange(deltaDecoration.range), _normalizeOptions(deltaDecoration.options)));
 		}
 		return result;
 	}
