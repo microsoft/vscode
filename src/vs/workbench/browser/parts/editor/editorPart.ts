@@ -970,6 +970,12 @@ export class EditorPart extends Part implements IEditorPart {
 		return TPromise.as(null);
 	}
 
+	public activateEditor(editor: BaseEditor): void {
+		if (editor) {
+			this.sideBySideControl.setActive(editor);
+		}
+	}
+
 	private onEditorFocusChanged(): void {
 
 		// Emit as editor input change event so that clients get aware of new active editor

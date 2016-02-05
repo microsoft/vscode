@@ -227,6 +227,7 @@ class DomListener extends Disposable {
 }
 
 export function addDisposableListener(node: Element, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
+export function addDisposableListener(node: Element|Window, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
 export function addDisposableListener(node: Window, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
 export function addDisposableListener(node: Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
 export function addDisposableListener(node: any, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
@@ -879,7 +880,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 
 	private _eventEmitter: EventEmitter;
 
-	constructor(element: HTMLElement) {
+	constructor(element: HTMLElement|Window) {
 		super();
 
 		let hasFocus = false;
@@ -921,7 +922,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 	}
 }
 
-export function trackFocus(element: HTMLElement): IFocusTracker {
+export function trackFocus(element: HTMLElement|Window): IFocusTracker {
 	return new FocusTracker(element);
 }
 

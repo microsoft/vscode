@@ -28,6 +28,7 @@ export interface IEditorPart {
 	setEditors(inputs: EditorInput[], options?: EditorOptions[]): TPromise<BaseEditor[]>;
 	openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
 	openEditor(input?: EditorInput, options?: EditorOptions, position?: Position): TPromise<BaseEditor>;
+	activateEditor(editor: IEditor): void;
 	closeEditors(othersOnly?: boolean): TPromise<void>;
 	getActiveEditor(): BaseEditor;
 	getVisibleEditors(): IEditor[];
@@ -186,6 +187,15 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return TPromise.as(null);
 	}
 
+	public activateEditor(editor: IEditor): void;
+	public activateEditor(position: Position): void;
+	public activateEditor(arg: any): void {
+		let targetEditor = this.findEditor(arg);
+		if (targetEditor) {
+			this.editorPart.activateEditor(targetEditor);
+		}
+	}
+
 	private findEditor(editor?: IEditor): BaseEditor;
 	private findEditor(position?: Position): BaseEditor;
 	private findEditor(arg?: any): BaseEditor {
@@ -340,6 +350,11 @@ class EditorPartDelegate implements IEditorPart {
 
 	public getActiveEditor(): BaseEditor {
 		return <BaseEditor>this.editorService.getActiveEditor();
+	}
+
+
+	public activateEditor(editor: IEditor): void {
+		this.editorService.activateEditor(editor);
 	}
 
 	public getActiveEditorInput(): EditorInput {
