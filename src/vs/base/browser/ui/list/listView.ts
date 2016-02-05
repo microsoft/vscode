@@ -54,7 +54,6 @@ export class ListView<T> implements IScrollable {
 	private renderHeight: number;
 
 	private domNode: HTMLElement;
-	private wrapper: HTMLElement;
 	private gesture: Gesture;
 	private rowsContainer: HTMLElement;
 	private onScroll: Emitter<IScrollEvent>;
@@ -78,24 +77,20 @@ export class ListView<T> implements IScrollable {
 		this.domNode.className = 'monaco-list';
 		this.domNode.tabIndex = 0;
 
-		this.wrapper = document.createElement('div');
-		this.wrapper.className = 'monaco-list-wrapper';
+		this.rowsContainer = document.createElement('div');
+		this.rowsContainer.className = 'monaco-list-rows';
+		this.gesture = new Gesture(this.rowsContainer);
 
 		this.onScroll = new Emitter<IScrollEvent>();
-		this.scrollableElement = new ScrollableElement(this.wrapper, {
+		this.scrollableElement = new ScrollableElement(this.rowsContainer, {
 			forbidTranslate3dUse: true,
 			scrollable: this,
 			horizontal: 'hidden',
 			vertical: 'auto',
-			useShadows: true,
+			useShadows: false,
 			saveLastScrollTimeOnClassName: 'monaco-list-row'
 		});
 
-		this.gesture = new Gesture(this.wrapper);
-		this.rowsContainer = document.createElement('div');
-		this.rowsContainer.className = 'monaco-list-rows';
-
-		this.wrapper.appendChild(this.rowsContainer);
 		this.domNode.appendChild(this.scrollableElement.getDomNode());
 		container.appendChild(this.domNode);
 
@@ -141,7 +136,7 @@ export class ListView<T> implements IScrollable {
 	}
 
 	layout(height?: number): void {
-		this.setRenderHeight(height || DOM.getContentHeight(this.wrapper));
+		this.setRenderHeight(height || DOM.getContentHeight(this.domNode));
 		this.setScrollTop(this.renderTop);
 		this.scrollableElement.onElementDimensions();
 		this.scrollableElement.onElementInternalDimensions();
