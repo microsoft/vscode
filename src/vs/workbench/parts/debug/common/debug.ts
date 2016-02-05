@@ -279,5 +279,5 @@ export function formatPII(value:string, excludePII: boolean, args: {[key: string
 		return args.hasOwnProperty(group) ?
 			args[group] :
 			match;
-	})
+	});
 }

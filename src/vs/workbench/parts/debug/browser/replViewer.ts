@@ -8,7 +8,7 @@ import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import actions = require('vs/base/common/actions');
 import strings = require('vs/base/common/strings');
 import URI from 'vs/base/common/uri';
-import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import keyboard = require('vs/base/browser/keyboardEvent');
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
 import dom = require('vs/base/browser/dom');
@@ -30,7 +30,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 const $ = dom.emmet;
 
 function getExpressionClassName(): string {
-	return isMacintosh ? '.expression.mac' : '.expression.win-linux'
+	return isMacintosh ? '.expression.mac' : '.expression.win-linux';
 }
 
 export class ReplExpressionsDataSource implements tree.IDataSource {

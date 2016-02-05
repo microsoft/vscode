@@ -7,7 +7,6 @@ import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import ee = require('vs/base/common/eventEmitter');
-import uri from 'vs/base/common/uri';
 import uuid = require('vs/base/common/uuid');
 import severity from 'vs/base/common/severity';
 import types = require('vs/base/common/types');
@@ -457,7 +456,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	}
 
 	public removeFunctionBreakpoints(id?: string): void {
-		this.functionBreakpoints = id ? this.functionBreakpoints.filter(fbp => fbp.getId() != id) : [];
+		this.functionBreakpoints = id ? this.functionBreakpoints.filter(fbp => fbp.getId() !== id) : [];
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 

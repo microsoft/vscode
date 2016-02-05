@@ -268,7 +268,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			glyphMarginClassName: 'debug-breakpoint-conditional-glyph',
 			hoverMessage: breakpoint.condition,
 			stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-		}
+		};
 	}
 
 	// editor decorations
@@ -295,12 +295,12 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	private static TOP_STACK_FRAME_MARGIN: editorcommon.IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-top-stack-frame-glyph',
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-	}
+	};
 
 	private static FOCUSED_STACK_FRAME_MARGIN: editorcommon.IModelDecorationOptions = {
 		glyphMarginClassName: 'debug-focused-stack-frame-glyph',
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-	}
+	};
 
 	private static TOP_STACK_FRAME_DECORATION: editorcommon.IModelDecorationOptions = {
 		isWholeLine: true,

@@ -10,7 +10,6 @@ import objects = require('vs/base/common/objects');
 import uri from 'vs/base/common/uri';
 import { schemas } from 'vs/base/common/network';
 import paths = require('vs/base/common/paths');
-import Severity from 'vs/base/common/severity';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import editor = require('vs/editor/common/editorCommon');
 import pluginsRegistry = require('vs/platform/plugins/common/pluginsRegistry');
@@ -137,7 +136,7 @@ const schema: IJSONSchema = {
 			}
 		}
 	}
-}
+};
 
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>platform.Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);
@@ -287,7 +286,7 @@ export class ConfigurationManager {
 					version: '0.2.0',
 					configurations: adapter.initialConfigurations ? adapter.initialConfigurations : []
 				}, null, '\t')
-			)
+			);
 		});
 	}
 
