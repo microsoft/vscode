@@ -119,7 +119,7 @@ export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
 		this._extensionTipsService.onDidChangeTips(tips => {
 
 			if (tips.length === 0) {
-				dom.removeClass(this._domNode, 'active');
+				dom.addClass(this._domNode, 'disabled');
 				return;
 			}
 
@@ -133,9 +133,9 @@ export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
 				}
 			}
 			if (hasNewTips) {
-				dom.addClass(this._domNode, 'active');
-				this._storageService.store('extensionsAssistant/tips', JSON.stringify(previousTips), StorageScope.GLOBAL);
+				dom.removeClass(this._domNode, 'disabled');
 				this._telemetryService.publicLog('extensionGallery:tips', { hintingTips: true });
+				this._storageService.store('extensionsAssistant/tips', JSON.stringify(previousTips), StorageScope.GLOBAL);
 			}
 		});
 	}
@@ -143,7 +143,7 @@ export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
 	public render(container: HTMLElement): lifecycle.IDisposable {
 
 		this._domNode = document.createElement('a');
-		this._domNode.className = 'extensions-suggestions';
+		this._domNode.className = 'extensions-suggestions disabled';
 		this._label = new OcticonLabel(this._domNode);
 		this._label.text = '$(light-bulb) extension tips';
 		container.appendChild(this._domNode);
@@ -153,6 +153,6 @@ export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
 
 	private _onClick(event: MouseEvent): void {
 		this._telemetryService.publicLog('extensionGallery:tips', { revealingTips: true });
-		this._quickOpenService.show('ext tips ').then(() => dom.removeClass(this._domNode, 'active'));
+		this._quickOpenService.show('ext tips ').then(() => dom.addClass(this._domNode, 'disabled'));
 	}
 }

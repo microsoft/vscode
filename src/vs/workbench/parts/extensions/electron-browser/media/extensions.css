@@ -134,14 +134,13 @@
 }
 
 .monaco-shell .extensions-suggestions {
-	visibility: hidden;
+	display: none;
 	padding: 0 5px 0 5px;
 	-webkit-transition: visibility 250ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
 	transition: visibility 250ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
-.monaco-shell .extensions-suggestions.active {
-	visibility: inherit;
+.monaco-shell .extensions-suggestions:not(.disabled) {
 	background-color: rgba(76, 119, 76, 0.9);
 }
 
