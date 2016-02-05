@@ -72,6 +72,10 @@ class TestEditorPart implements IEditorPart {
 		return Promise.as(activeEditor);
 	}
 
+	public activateEditor(editor: IEditor): void {
+		// Unsupported
+	}
+
 	public getActiveEditor(): BaseEditor {
 		return activeEditor;
 	}

@@ -383,6 +383,12 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		return [];
 	}
 
+	public activateEditor(position: Position): void;
+	public activateEditor(editor: IEditor): void;
+	public activateEditor(arg: any): void {
+		this.callback('activateEditor');
+	}
+
 	public moveEditor(from: Position, to: Position): void {
 		this.callback('moveEditor');
 	}
