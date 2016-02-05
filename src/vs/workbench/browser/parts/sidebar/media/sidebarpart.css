@@ -43,6 +43,7 @@
 	background-position: center center;
 	background-repeat: no-repeat;
 	margin-right: 0;
+	height: 22px;
 }
 
 .monaco-workbench .viewlet .collapsible.header .actions .action-label .label {
@@ -55,7 +56,6 @@
 
 .monaco-workbench .viewlet .collapsible.header .action-label {
 	margin-right: 0.2em;
-	margin-top: 3px;
 	background-repeat: no-repeat;
 	width: 16px;
 	height: 16px;
