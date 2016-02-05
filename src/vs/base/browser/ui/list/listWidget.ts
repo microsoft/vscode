@@ -77,6 +77,10 @@ class TraitController {
 		return result;
 	}
 
+	get(): number[] {
+		return this.indexes;
+	}
+
 	add(index: number): void {
 		if (this.contains(index)) {
 			return;
@@ -143,6 +147,10 @@ export class List<T> implements IDisposable {
 	setFocus(...indexes: number[]): void {
 		indexes = indexes.concat(this.focus.set(indexes));
 		indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
+	}
+
+	getFocus(): T[] {
+		return this.focus.get().map(i => this.view.element(i));
 	}
 
 	reveal(index: number, relativeTop?: number): void {

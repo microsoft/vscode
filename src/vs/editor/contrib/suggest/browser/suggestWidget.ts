@@ -986,21 +986,21 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	private updateWidgetHeight(): number {
 		let height = 0;
 
-		// if (this.state === State.Empty || this.state === State.Loading) {
-		// 	height = 19;
-		// } else if (this.state === State.Details) {
-		// 	height = 12 * 19;
-		// } else {
-		// 	const focus = this.list.getFocus();
-		// 	const focusHeight = focus ? this.renderer.getHeight(this.list, focus) : 19;
-		// 	height += focusHeight;
+		if (this.state === State.Empty || this.state === State.Loading) {
+			height = 19;
+		} else if (this.state === State.Details) {
+			height = 12 * 19;
+		} else {
+			// const focus = this.list.getFocus()[0];
+			// const focusHeight = 19//focus ? this.renderer.getHeight(this.list, focus) : 19;
+			// height += focusHeight;
 
-		// 	const suggestionCount = (this.list.getContentHeight() - focusHeight) / 19;
-		// 	height += Math.min(suggestionCount, 11) * 19;
-		// }
+			const suggestionCount = this.completionModel.items.length //(this.list.getContentHeight() - focusHeight) / 19;
+			height += Math.min(suggestionCount, 11) * 19;
+		}
 
 		// TODO
-		height = 12 * 19;
+		// height = 12 * 19;
 
 		this.element.style.height = height + 'px';
 		this.list.layout(height);
