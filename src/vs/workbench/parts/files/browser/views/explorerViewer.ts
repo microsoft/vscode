@@ -429,12 +429,9 @@ export class FileController extends DefaultController {
 
 		// Allow to unselect
 		if (event.shiftKey && !(stat instanceof NewStatPlaceholder)) {
-			let focus = tree.getFocus();
 			let selection = tree.getSelection();
-
-			if ((selection && selection.length > 0 && selection[0] === stat) || focus === stat) {
+			if (selection && selection.length > 0 && selection[0] === stat) {
 				tree.clearSelection(payload);
-				tree.clearFocus(payload);
 			}
 		}
 

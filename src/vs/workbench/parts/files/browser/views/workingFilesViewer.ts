@@ -380,12 +380,9 @@ export class WorkingFilesController extends DefaultController {
 
 		// Allow to unselect
 		if (event.shiftKey) {
-			let focus = tree.getFocus();
 			let selection = tree.getSelection();
-
-			if ((selection && selection.length > 0 && selection[0] === element) || focus === element) {
+			if (selection && selection.length > 0 && selection[0] === element) {
 				tree.clearSelection(payload);
-				tree.clearFocus(payload);
 			}
 		}
 

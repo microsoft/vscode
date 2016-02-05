@@ -157,7 +157,7 @@ export class ExplorerView extends CollapsibleViewletView {
 			return;
 		}
 
-		let clearFocusAndSelection = true;
+		let clearSelection = true;
 
 		// Handle File Input
 		if (e.editorInput && e.editorInput instanceof FileEditorInput) {
@@ -170,15 +170,14 @@ export class ExplorerView extends CollapsibleViewletView {
 			if (this.isVisible) {
 				if (this.contextService.isInsideWorkspace(fileInput.getResource())) {
 					this.select(fileInput.getResource(), false /* Prevent reveal so that upon opening a file the tree does not jump around */).done(null, errors.onUnexpectedError);
-					clearFocusAndSelection = false;
+					clearSelection = false;
 				}
 			}
 		}
 
 		// Otherwise clear
-		if (this.isVisible && clearFocusAndSelection) {
-			this.explorerViewer.setSelection([]);
-			this.explorerViewer.setFocus();
+		if (this.isVisible && clearSelection) {
+			this.explorerViewer.clearSelection();
 		}
 	}
 

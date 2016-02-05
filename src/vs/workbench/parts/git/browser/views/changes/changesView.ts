@@ -304,7 +304,6 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 
 		if (!status) {
 			this.tree.clearSelection();
-			this.tree.clearFocus();
 		}
 
 		if (this.visible && this.tree.getSelection().indexOf(status) === -1) {
