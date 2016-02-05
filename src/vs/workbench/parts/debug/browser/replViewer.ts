@@ -459,14 +459,9 @@ export class ReplExpressionsActionProvider implements renderer.IActionProvider {
 		if (element instanceof model.Variable || element instanceof model.Expression) {
 			actions.push(this.instantiationService.createInstance(debugactions.AddToWatchExpressionsAction, debugactions.AddToWatchExpressionsAction.ID, debugactions.AddToWatchExpressionsAction.LABEL, element));
 			actions.push(new actionbar.Separator());
-			if (element.reference === 0) {
-				actions.push(this.instantiationService.createInstance(debugactions.CopyValueAction, debugactions.CopyValueAction.ID, debugactions.CopyValueAction.LABEL, element.value));
-			}
-		} else if (element instanceof model.OutputElement) {
-			actions.push(this.instantiationService.createInstance(debugactions.CopyValueAction, debugactions.CopyValueAction.ID, debugactions.CopyValueAction.LABEL, element.value));
 		}
-
 		actions.push(this.instantiationService.createInstance(debugactions.ClearReplAction, debugactions.ClearReplAction.ID, debugactions.ClearReplAction.LABEL));
+
 		return Promise.as(actions);
 	}
 
