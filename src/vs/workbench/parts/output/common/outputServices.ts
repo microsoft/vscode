@@ -167,7 +167,7 @@ export class OutputService implements IOutputService {
 		this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel, StorageScope.WORKSPACE);
 
 		return this.panelService.openPanel(OUTPUT_PANEL_ID, !preserveFocus).then((outputPanel: OutputPanel) => {
-			return outputPanel.setInput(OutputEditorInput.getInstance(this.instantiationService, channel), EditorOptions.create({ preserveFocus: preserveFocus })).
+			return outputPanel && outputPanel.setInput(OutputEditorInput.getInstance(this.instantiationService, channel), EditorOptions.create({ preserveFocus: preserveFocus })).
 				then(() => outputPanel);
 		});
 	}
