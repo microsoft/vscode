@@ -251,7 +251,7 @@ class DefineKeybindingLauncherWidget implements EditorBrowser.IOverlayWidget {
 		this._toDispose = [];
 		this._toDispose.push(DomUtils.addDisposableListener(this._domNode, 'click', (e) => {
 			onLaunch();
-		}))
+		}));
 
 		this._editor.addOverlayWidget(this);
 	}
@@ -378,7 +378,7 @@ class DefineKeybindingWidget implements EditorBrowser.IOverlayWidget {
 			if (this._isVisible) {
 				this._layout();
 			}
-		}))
+		}));
 
 		this._toDispose.push(DomUtils.addDisposableListener(this._inputNode, 'blur', (e) => this._stop()));
 

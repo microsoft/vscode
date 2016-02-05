@@ -9,7 +9,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import LineCommentCommand = require('./lineCommentCommand');
 import BlockCommentCommand = require('./blockCommentCommand');
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
+import {EditorAction} from 'vs/editor/common/editorAction';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';

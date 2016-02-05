@@ -110,15 +110,12 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 		var lineData: ILinePreflightData,
 			lineContentStartOffset:number,
 			commentStrEndOffset:number,
-			seenModes: {[modeId:string]:string;} = Object.create(null),
 			i:number,
 			lineCount:number,
 			lineNumber:number,
 			shouldRemoveComments:boolean,
 			lineContent: string,
 			_space = ' '.charCodeAt(0),
-			_tab = '\t'.charCodeAt(0),
-			char: number,
 			onlyWhitespaceLines = true;
 
 		if (type === Type.Toggle) {
@@ -288,8 +285,8 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 			return;
 		}
 
-		var startToken = config.blockCommentStartToken, startTokenLength = startToken.length;
-		var endToken = config.blockCommentEndToken, endTokenLength = endToken.length;
+		var startToken = config.blockCommentStartToken;
+		var endToken = config.blockCommentEndToken;
 
 		var ops = this._attemptRemoveBlockComment(model, s, startToken, endToken);
 		if (!ops) {

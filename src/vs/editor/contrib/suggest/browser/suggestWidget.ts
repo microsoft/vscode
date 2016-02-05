@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import Event, { Emitter } from 'vs/base/common/event';
-import { append, addClass, removeClass, toggleClass, emmet as $, hide, show, addDisposableListener } from 'vs/base/browser/dom';
+import { append, addClass, removeClass, toggleClass, emmet as $, hide, show } from 'vs/base/browser/dom';
 import * as Tree from 'vs/base/parts/tree/browser/tree';
 import * as TreeImpl from 'vs/base/parts/tree/browser/treeImpl';
 import * as TreeDefaults from 'vs/base/parts/tree/browser/treeDefaults';
@@ -65,7 +65,7 @@ class CompletionItem {
 	support: ISuggestSupport;
 	container: ISuggestResult;
 
-	private _resolveDetails: TPromise<CompletionItem>
+	private _resolveDetails: TPromise<CompletionItem>;
 
 	constructor(public group: CompletionGroup, suggestion: ISuggestion, container: ISuggestResult2) {
 		this.id = CompletionItem._idPool++;
@@ -654,7 +654,9 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 				hide(this.messageElement, this.details.element);
 				show(this.treeElement);
 				this.hide();
-				if (stateChanged) this.tree.setInput(null);
+				if (stateChanged) {
+					this.tree.setInput(null);
+				}
 				break;
 			case State.Loading:
 				this.messageElement.innerText = SuggestWidget.LOADING_MESSAGE;

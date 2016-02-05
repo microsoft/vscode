@@ -14,12 +14,11 @@ import Modes = require('vs/editor/common/modes');
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {Remotable, IThreadService, ThreadAffinity, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
-import {AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import Event, {Emitter} from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import Errors = require('vs/base/common/errors');
 import {anonymize} from 'vs/platform/telemetry/common/telemetry';
@@ -239,7 +238,6 @@ export class ModelServiceImpl implements IModelService {
 
 	public createModel(value:string, modeOrPromise:TPromise<Modes.IMode>|Modes.IMode, resource: URI): EditorCommon.IModel {
 		let modelData = this._createModelData(value, modeOrPromise, resource);
-		let modelId = modelData.getModelId();
 
 		// handle markers (marker service => model)
 		if (this._markerService) {

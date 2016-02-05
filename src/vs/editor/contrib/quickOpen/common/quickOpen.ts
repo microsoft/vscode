@@ -60,7 +60,7 @@ export function getOutlineEntries(model: IModel): TPromise<IOutline> {
 		return {
 			entries: flatEntries,
 			outlineGroupLabel: groupLabels
-		}
+		};
 	});
 }
 

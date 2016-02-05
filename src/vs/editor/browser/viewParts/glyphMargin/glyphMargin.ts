@@ -6,7 +6,6 @@
 'use strict';
 
 import 'vs/css!./glyphMargin';
-import DomUtils = require('vs/base/browser/dom');
 
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import EditorBrowser = require('vs/editor/browser/editorBrowser');

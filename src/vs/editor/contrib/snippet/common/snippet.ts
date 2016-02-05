@@ -48,7 +48,7 @@ export interface ICodeSnippet {
 export enum ExternalSnippetType {
 	TextMateSnippet,
 	EmmetSnippet
-};
+}
 
 export class CodeSnippet implements ICodeSnippet {
 

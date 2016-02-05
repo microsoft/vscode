@@ -16,7 +16,7 @@ import textMate = require('vscode-textmate');
 import TMState = require('vs/editor/common/modes/TMState');
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
-import {ILanguageExtensionPoint, LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
+import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
 
 export interface ITMSyntaxExtensionPoint {
 	language: string;
@@ -51,7 +51,7 @@ let grammarsExtPoint = PluginsRegistry.registerExtensionPoint<ITMSyntaxExtension
 export class MainProcessTextMateSyntax {
 	private _grammarRegistry: textMate.Registry;
 	private _modeService: IModeService;
-	private _scopeNameToFilePath: { [scopeName:string]: string; }
+	private _scopeNameToFilePath: { [scopeName:string]: string; };
 
 	constructor(
 		@IModeService modeService: IModeService

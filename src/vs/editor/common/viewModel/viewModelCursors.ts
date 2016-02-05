@@ -118,7 +118,7 @@ export class ViewModelCursors {
 			this.onCursorPositionChanged(this.lastCursorPositionChangedEvent, emit);
 		}
 		if (this.lastCursorSelectionChangedEvent) {
-			this.onCursorSelectionChanged(this.lastCursorSelectionChangedEvent, emit)
+			this.onCursorSelectionChanged(this.lastCursorSelectionChangedEvent, emit);
 		}
 	}
 

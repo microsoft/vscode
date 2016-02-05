@@ -79,7 +79,7 @@ CommonEditorRegistry.registerLanguageCommand('_executeFormatDocumentProvider', f
 		throw illegalArgument('resource');
 	}
 
-	return formatDocument(model, options)
+	return formatDocument(model, options);
 });
 
 CommonEditorRegistry.registerDefaultLanguageCommand('_executeFormatOnTypeProvider', function(model, position, args) {

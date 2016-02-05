@@ -12,10 +12,9 @@ import nls = require('vs/nls');
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
 import formatCommand = require('./formatCommand');
-import {Range} from 'vs/editor/common/core/range';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import {FormatOnTypeRegistry, FormatRegistry, IFormattingSupport, formatRange, formatDocument, formatAfterKeystroke} from '../common/format';
+import {FormatOnTypeRegistry, FormatRegistry, formatRange, formatDocument, formatAfterKeystroke} from '../common/format';
 
 interface IFormatOnTypeResult {
 	range: EditorCommon.IEditorRange;

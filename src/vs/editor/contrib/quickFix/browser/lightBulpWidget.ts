@@ -8,7 +8,6 @@ import lifecycle = require('vs/base/common/lifecycle');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import DomUtils = require('vs/base/browser/dom');
-import eventEmitter = require('vs/base/common/eventEmitter');
 
 class LightBulpWidget implements EditorBrowser.IContentWidget, lifecycle.IDisposable {
 

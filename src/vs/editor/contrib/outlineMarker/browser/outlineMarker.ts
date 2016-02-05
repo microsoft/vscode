@@ -88,7 +88,7 @@ class OutlineMarker {
 			options: {}
 		}, (decorationId) => {
 			this._decorationId = decorationId;
-		})
+		});
 	}
 
 	public dispose(helper:OutlineMarkerHelper, viewZoneChangeAccessor:EditorBrowser.IViewZoneChangeAccessor): void {

@@ -6,7 +6,7 @@
 
 import assert = require('assert');
 import EditorCommon = require('vs/editor/common/editorCommon');
-import {EditableTextModel, IValidatedEditOperation} from 'vs/editor/common/model/editableTextModel';
+import {EditableTextModel} from 'vs/editor/common/model/editableTextModel';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
 import {MirrorModel, IMirrorModelEvents} from 'vs/editor/common/model/mirrorModel';

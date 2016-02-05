@@ -6,16 +6,12 @@
 
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
-import network = require('vs/base/common/network');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import snippets = require('vs/editor/contrib/snippet/common/snippet');
 import json = require('vs/base/common/json');
 import modesExt = require('vs/editor/common/modes/modesRegistry');
 import paths = require('vs/base/common/paths');
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {IThreadService} from 'vs/platform/thread/common/thread';
-import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
 import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
 
@@ -26,7 +22,7 @@ export interface ITMSnippetsExtensionPoint {
 	path: string;
 }
 
-export function snippetUpdated(modeId: string, filePath: string) {
+export function snippetUpdated(modeId: string, filePath: string): TPromise<void> {
 	return pfs.readFile(filePath).then((fileContents) => {
 		var errors: string[] = [];
 		var snippets = json.parse(fileContents.toString(), errors);
@@ -131,7 +127,7 @@ class TMSnippetsAdaptor {
 					});
 				}
 			}
-		}
+		};
 
 		topLevelProperties.forEach(topLevelProperty => {
 			var scopeOrTemplate = snippets[topLevelProperty];
@@ -141,7 +137,7 @@ class TMSnippetsAdaptor {
 				var snippetNames = Object.keys(scopeOrTemplate);
 				snippetNames.forEach(name => {
 					processSnippet(scopeOrTemplate[name], name);
-				})
+				});
 			}
 		});
 		return result;

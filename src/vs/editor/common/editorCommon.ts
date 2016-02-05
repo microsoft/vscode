@@ -169,7 +169,7 @@ export enum SelectionDirection {
 	 * The selection starts below where it ends.
 	 */
 	RTL
-};
+}
 
 /**
  * A selection in the editor.

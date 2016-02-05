@@ -6,8 +6,6 @@
 
 import modes = require('vs/editor/common/modes');
 import supports = require('vs/editor/common/modes/supports');
-import stream = require('vs/editor/common/modes/lineStream');
-import servicesUtil = require('vs/editor/test/common/servicesTestUtils');
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
@@ -191,8 +189,9 @@ export class BracketState extends AbstractState {
 	}
 
 	public initializeAllResults(): void {
-		if (this.allResults !== null)
+		if (this.allResults !== null) {
 			return;
+		}
 		this.allResults = {};
 		var brackets:any= {
 			'{': '}',

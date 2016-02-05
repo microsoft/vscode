@@ -11,7 +11,6 @@ import events = require('vs/base/common/eventEmitter');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import {ParameterHintsRegistry, getParameterHints} from '../common/parameterHints';
-import {sequence} from 'vs/base/common/async';
 
 function equalsArr<T>(a: T[], b:T[], equalsFn:(a:T,b:T)=>boolean): boolean {
 	if (a.length !== b.length) {

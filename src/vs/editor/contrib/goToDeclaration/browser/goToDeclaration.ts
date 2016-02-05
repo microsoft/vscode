@@ -30,10 +30,8 @@ import {Range} from 'vs/editor/common/core/range';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {FindReferencesController} from 'vs/editor/contrib/referenceSearch/browser/referenceSearch';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {DeclarationRegistry, getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 
 const DEFAULT_BEHAVIOR = Behaviour.WidgetFocus | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange;
@@ -68,7 +66,7 @@ export abstract class GoToTypeAction extends EditorAction {
 				return {
 					resource: reference.resource,
 					range: Range.collapseToStart(reference.range)
-				}
+				};
 			});
 
 			// open and reveal
@@ -499,7 +497,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 					return {
 						resource: result.resource,
 						range: Range.collapseToStart(result.range)
-					}
+					};
 				});
 
 			if (!validResults.length) {

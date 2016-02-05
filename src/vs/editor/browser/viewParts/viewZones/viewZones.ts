@@ -223,7 +223,7 @@ export class ViewZones extends ViewPart {
 
 			var newComputedHeight = this._heightInPixels(zone.delegate);
 			var newAfterLineNumber = this._computeWhitespaceAfterLineNumber(zone.delegate);
-			var newOrdinal = this._getZoneOrdinal(zone.delegate);
+			// var newOrdinal = this._getZoneOrdinal(zone.delegate);
 
 			changed = this._whitespaceManager.changeWhitespace(zone.whitespaceId, newComputedHeight) || changed;
 			changed = this._whitespaceManager.changeAfterLineNumberForWhitespace(zone.whitespaceId, newAfterLineNumber) || changed;

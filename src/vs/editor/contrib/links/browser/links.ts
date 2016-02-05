@@ -19,7 +19,6 @@ import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import {IEditorService, IResourceInput} from 'vs/platform/editor/common/editor';
-import {IRequestService} from 'vs/platform/request/common/request';
 import {IMessageService} from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import {KeyCode} from 'vs/base/common/keyCodes';
@@ -35,7 +34,7 @@ class LinkOccurence {
 				endColumn: link.range.endColumn
 			},
 			options: LinkOccurence._getOptions(link, false)
-		}
+		};
 	}
 
 	private static _getOptions(link:Modes.ILink, isActive:boolean):EditorCommon.IModelDecorationOptions {
