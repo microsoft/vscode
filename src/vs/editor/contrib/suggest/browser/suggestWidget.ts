@@ -771,9 +771,9 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			this.telemetryData.hintLength = currentWord.length;
 
 			this.list.splice(0, this.list.length, ...this.completionModel.items);
-
 			this.list.setFocus(bestSuggestionIndex);
-			// console.log(bestSuggestion.suggestion.label)
+			this.list.reveal(bestSuggestionIndex, 0);
+
 			this.setState(State.Open);
 		}
 

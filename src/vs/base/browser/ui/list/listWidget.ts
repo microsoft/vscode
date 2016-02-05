@@ -5,6 +5,7 @@
 
 import 'vs/css!./list';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { isNumber } from 'vs/base/common/types';
 import { toggleClass } from 'vs/base/browser/dom';
 import { IDelegate, IRenderer } from './list';
 import { ListView } from './listView';
@@ -142,6 +143,30 @@ export class List<T> implements IDisposable {
 	setFocus(...indexes: number[]): void {
 		indexes = indexes.concat(this.focus.set(indexes));
 		indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
+	}
+
+	reveal(index: number, relativeTop?: number): void {
+		const scrollTop = this.view.getScrollTop();
+		const elementTop = this.view.elementTop(index);
+		const elementHeight = this.view.elementHeight(index);
+
+		if (isNumber(relativeTop)) {
+			relativeTop = relativeTop < 0 ? 0 : relativeTop;
+			relativeTop = relativeTop > 1 ? 1 : relativeTop;
+
+			// y = mx + b
+			var m = elementHeight - this.view.height;
+			this.view.setScrollTop(m * relativeTop + elementTop);
+		} else {
+			var viewItemBottom = elementTop + elementHeight;
+			var wrapperBottom = scrollTop + this.view.height;
+
+			if (elementTop < scrollTop) {
+				this.view.setScrollTop(elementTop);
+			} else if (viewItemBottom >= wrapperBottom) {
+				this.view.setScrollTop(viewItemBottom - this.view.height);
+			}
+		}
 	}
 
 	dispose(): void {
