@@ -2256,7 +2256,7 @@ export class FocusWorkingFiles extends Action {
 	public run(): Promise {
 		return this.viewletService.openViewlet(Files.VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
 			viewlet.getWorkingFilesView().expand();
-			viewlet.getWorkingFilesView().focus();
+			viewlet.getWorkingFilesView().getViewer().DOMFocus();
 		});
 	}
 }
