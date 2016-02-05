@@ -135,6 +135,10 @@ export class List<T> implements IDisposable {
 		return this.view.length;
 	}
 
+	get contentHeight(): number {
+		return this.view.getScrollHeight();
+	}
+
 	layout(height?: number): void {
 		this.view.layout(height);
 	}

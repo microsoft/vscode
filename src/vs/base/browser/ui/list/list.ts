@@ -3,10 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface IIdentityProvider<T> {
-	getId(element: T): string;
-}
-
 export interface IDelegate<T> {
 	getHeight(element: T): number;
 	getTemplateId(element: T): string;

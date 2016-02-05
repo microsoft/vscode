@@ -12,7 +12,7 @@ import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import Event, { Emitter } from 'vs/base/common/event';
 import { append, addClass, removeClass, toggleClass, emmet as $, hide, show, addDisposableListener } from 'vs/base/browser/dom';
-import { IRenderer, IDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
+import { IRenderer, IDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import * as HighlightedLabel from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { SuggestModel, ICancelEvent, ISuggestEvent, ITriggerEvent } from './suggestModel';
@@ -201,47 +201,6 @@ function isRoot(element: any): boolean {
 	return element instanceof CompletionModel;
 }
 
-class IdentityProvider implements IIdentityProvider<CompletionItem> {
-	getId(item: CompletionItem) {
-		return item.id;
-	}
-}
-
-// class DataSource implements Tree.IDataSource {
-
-// 	public getId(tree: Tree.ITree, element: any): string {
-// 		if (!element) {
-// 			return 'empty';
-// 		} else if (isRoot(element)) {
-// 			return 'root';
-// 		} else if (element instanceof CompletionItem) {
-// 			return (<CompletionItem>element).id.toString();
-// 		}
-
-// 		throw illegalArgument('element');
-// 	}
-
-// 	public getParent(tree: Tree.ITree, element: any): TPromise<any> {
-// 		if (isRoot(element)) {
-// 			return TPromise.as(null);
-// 		}
-
-// 		return TPromise.as((<CompletionItem>element).group.model);
-// 	}
-
-// 	public getChildren(tree: Tree.ITree, element: any): TPromise<any[]> {
-// 		if (isRoot(element)) {
-// 			return TPromise.as((<CompletionModel>element).items);
-// 		}
-
-// 		return TPromise.as([]);
-// 	}
-
-// 	public hasChildren(tree: Tree.ITree, element: any): boolean {
-// 		return isRoot(element);
-// 	}
-// }
-
 // class Controller extends TreeDefaults.DefaultController {
 
 // 	/* protected */ public onLeftClick(tree: Tree.ITree, element: any, event: Mouse.StandardMouseEvent): boolean {
@@ -334,16 +293,21 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 	}
 }
 
+const FocusHeight = 35;
+const UnfocusedHeight = 19;
+
 class Delegate implements IDelegate<CompletionItem> {
 
-	getHeight(element: CompletionItem): number {
-		// if (element instanceof CompletionItem) {
-		// 	if ((<CompletionItem>element).suggestion.documentationLabel && tree.isFocused(element)) {
-		// 		return 35;
-		// 	}
-		// }
+	constructor(private listProvider: () => List<CompletionItem>) { }
 
-		return 19;
+	getHeight(element: CompletionItem): number {
+		const focus = this.listProvider().getFocus()[0];
+
+		if (element.suggestion.documentationLabel && element === focus) {
+			return FocusHeight;
+		}
+
+		return UnfocusedHeight;
 	}
 
 	getTemplateId(element: CompletionItem): string {
@@ -483,6 +447,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	private messageElement: HTMLElement;
 	private listElement: HTMLElement;
 	private details: SuggestionDetails;
+	private delegate: IDelegate<CompletionItem>;
 	private list: List<CompletionItem>;
 
 	private toDispose: IDisposable[];
@@ -517,26 +482,10 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.listElement = append(this.element, $('.tree'));
 		this.details = new SuggestionDetails(this.element, this);
 
-		// const identityProvider = new IdentityProvider();
-
 		let renderer: IRenderer<CompletionItem, any> = instantiationService.createInstance(Renderer, this);
 
-		// const configuration = {
-		// 	renderer: this.renderer,
-		// 	dataSource: new DataSource(),
-		// 	controller: new Controller()
-		// };
-
-		// const options = {
-		// 	twistiePixels: 0,
-		// 	alwaysFocused: true,
-		// 	verticalScrollMode: 'visible',
-		// 	useShadows: false,
-		// 	ariaLabel: nls.localize('treeAriaLabel', "Suggestions")
-		// };
-
-		// this.list = new TreeImpl.Tree(this.listElement, configuration, options);
-		this.list = new List(this.listElement, new Delegate(), [renderer]);
+		this.delegate = new Delegate(() => this.list);
+		this.list = new List(this.listElement, this.delegate, [renderer]);
 
 		this.toDispose = [
 			editor.addListener2(EditorCommon.EventType.ModelChanged, () => this.onModelModeChanged()),
@@ -987,20 +936,17 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		let height = 0;
 
 		if (this.state === State.Empty || this.state === State.Loading) {
-			height = 19;
+			height = UnfocusedHeight;
 		} else if (this.state === State.Details) {
-			height = 12 * 19;
+			height = 12 * UnfocusedHeight;
 		} else {
-			// const focus = this.list.getFocus()[0];
-			// const focusHeight = 19//focus ? this.renderer.getHeight(this.list, focus) : 19;
-			// height += focusHeight;
+			const focus = this.list.getFocus()[0];
+			const focusHeight = focus ? this.delegate.getHeight(focus) : UnfocusedHeight;
+			height = focusHeight;
 
-			const suggestionCount = this.completionModel.items.length //(this.list.getContentHeight() - focusHeight) / 19;
-			height += Math.min(suggestionCount, 11) * 19;
+			const suggestionCount = (this.list.contentHeight - focusHeight) / UnfocusedHeight;
+			height += Math.min(suggestionCount, 11) * UnfocusedHeight;
 		}
-
-		// TODO
-		// height = 12 * 19;
 
 		this.element.style.height = height + 'px';
 		this.list.layout(height);
