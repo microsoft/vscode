@@ -297,7 +297,7 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 		return data;
 	}
 
-	renderElement(element: CompletionItem, templateData: ISuggestionTemplateData): void {
+	renderElement(element: CompletionItem, index: number, templateData: ISuggestionTemplateData): void {
 		const data = <ISuggestionTemplateData>templateData;
 		const suggestion = (<CompletionItem>element).suggestion;
 
@@ -517,7 +517,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.listElement = append(this.element, $('.tree'));
 		this.details = new SuggestionDetails(this.element, this);
 
-		const identityProvider = new IdentityProvider();
+		// const identityProvider = new IdentityProvider();
 
 		let renderer: IRenderer<CompletionItem, any> = instantiationService.createInstance(Renderer, this);
 
@@ -536,7 +536,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		// };
 
 		// this.list = new TreeImpl.Tree(this.listElement, configuration, options);
-		this.list = new List(this.listElement, new Delegate(), [renderer], identityProvider);
+		this.list = new List(this.listElement, new Delegate(), [renderer]);
 
 		this.toDispose = [
 			editor.addListener2(EditorCommon.EventType.ModelChanged, () => this.onModelModeChanged()),
@@ -735,7 +735,9 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			visibleCount = this.completionModel.items.length;
 		}
 
-		if (visibleCount === 0) {
+		const isEmpty = visibleCount === 0;
+
+		if (isEmpty) {
 			if (e.auto) {
 				this.setState(State.Hidden);
 			} else {
@@ -746,63 +748,40 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 				}
 			}
 
-			if (this.telemetryTimer) {
-				this.telemetryTimer.data = { reason: 'empty' };
-				this.telemetryTimer.stop();
-				this.telemetryTimer = null;
-			}
-
 			this.completionModel = null;
-			return;
+
+		} else {
+			const currentWord = e.currentWord;
+			const currentWordLowerCase = currentWord.toLowerCase();
+			let bestSuggestionIndex = -1;
+			let bestScore = -1;
+
+			this.completionModel.items.forEach((item, index) => {
+				const score = computeScore(item.suggestion.label, currentWord, currentWordLowerCase);
+
+				if (score > bestScore) {
+					bestScore = score;
+					bestSuggestionIndex = index;
+				}
+			});
+
+			this.telemetryData = this.telemetryData || {};
+			this.telemetryData.suggestionCount = this.completionModel.items.length;
+			this.telemetryData.suggestedIndex = bestSuggestionIndex;
+			this.telemetryData.hintLength = currentWord.length;
+
+			this.list.splice(0, this.list.length, ...this.completionModel.items);
+
+			this.list.setFocus(bestSuggestionIndex);
+			// console.log(bestSuggestion.suggestion.label)
+			this.setState(State.Open);
 		}
 
-		const first = this.completionModel.items[0];
-		if (first) {
-			this.list.setFocus(first);
+		if (this.telemetryTimer) {
+			this.telemetryTimer.data = { reason: isEmpty ? 'empty' : 'results' };
+			this.telemetryTimer.stop();
+			this.telemetryTimer = null;
 		}
-
-		const second = this.completionModel.items[1];
-		if (second) {
-			this.list.setSelection(second);
-		}
-
-		this.list.splice(0, this.list.length, ...this.completionModel.items);
-
-		// const navigator = this.list.getNavigator();
-		// const currentWord = e.currentWord;
-		// const currentWordLowerCase = currentWord.toLowerCase();
-		// const suggestions = model.items;
-
-		// let index = 0;
-		// let bestSuggestionIndex = -1;
-		// let bestSuggestion = suggestions[0];
-		// let bestScore = -1;
-		// let item: CompletionItem;
-
-		// while (item = navigator.next()) {
-		// 	const score = computeScore(item.suggestion.label, currentWord, currentWordLowerCase);
-
-		// 	if (score > bestScore) {
-		// 		bestScore = score;
-		// 		bestSuggestion = item;
-		// 		bestSuggestionIndex = index;
-		// 	}
-		// }
-
-		// this.list.setFocus(bestSuggestion, { firstSuggestion: true });
-
-		// this.telemetryData = this.telemetryData || {};
-		// this.telemetryData.suggestionCount = suggestions.length;
-		// this.telemetryData.suggestedIndex = bestSuggestionIndex;
-		// this.telemetryData.hintLength = currentWord.length;
-
-		this.setState(State.Open);
-
-		// if (this.telemetryTimer) {
-		// 	this.telemetryTimer.data = { reason: 'results' };
-		// 	this.telemetryTimer.stop();
-		// 	this.telemetryTimer = null;
-		// }
 	}
 
 	private onDidCancel(e: ICancelEvent) {

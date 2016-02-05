@@ -6,7 +6,7 @@
 import 'vs/css!./list';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { toggleClass } from 'vs/base/browser/dom';
-import { IDelegate, IIdentityProvider, IRenderer } from './list';
+import { IDelegate, IRenderer } from './list';
 import { ListView } from './listView';
 
 interface ITraitTemplateData<D> {
@@ -19,7 +19,7 @@ class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData<D>>
 	private elements: { [id: string]: T };
 
 	constructor(
-		private controller: TraitController<T>,
+		private controller: TraitController,
 		private renderer: IRenderer<T,D>
 	) {}
 
@@ -32,9 +32,9 @@ class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData<D>>
 		return { container, data };
 	}
 
-	renderElement(element: T, templateData: ITraitTemplateData<D>): void {
-		toggleClass(templateData.container, this.controller.trait, this.controller.contains(element));
-		this.renderer.renderElement(element, templateData.data);
+	renderElement(element: T, index: number, templateData: ITraitTemplateData<D>): void {
+		toggleClass(templateData.container, this.controller.trait, this.controller.contains(index));
+		this.renderer.renderElement(element, index, templateData.data);
 	}
 
 	disposeTemplate(templateData: ITraitTemplateData<D>): void {
@@ -42,42 +42,57 @@ class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData<D>>
 	}
 }
 
-class TraitController<T> {
+class TraitController {
 
-	private elements: { [id: string]: T };
+	private indexes: number[];
 
-	constructor(private _trait: string, private identityProvider: IIdentityProvider<T>) {
-		this.set();
+	constructor(private _trait: string) {
+		this.indexes = [];
+	}
+
+	splice(start: number, deleteCount: number, insertCount: number): void {
+		const diff = insertCount - deleteCount;
+		const end = start + deleteCount;
+		const indexes = [];
+
+		for (const index of indexes) {
+			if (index >= start && index < end) {
+				continue;
+			}
+
+			indexes.push(index > start ? index + diff : index);
+		}
+
+		this.indexes = indexes;
 	}
 
 	get trait(): string {
 		return this._trait;
 	}
 
-	set(...elements: T[]): void {
-		this.elements = Object.create(null);
-		this.add(...elements);
+	set(indexes: number[]): number[] {
+		const result = this.indexes;
+		this.indexes = indexes;
+		return result;
 	}
 
-	add(...elements: T[]): void {
-		for (const element of elements) {
-			const id = this.identityProvider.getId(element);
-			this.elements[id] = element;
+	add(index: number): void {
+		if (this.contains(index)) {
+			return;
 		}
+
+		this.indexes.push(index);
 	}
 
-	remove(...elements: T[]): void {
-		for (const element of elements) {
-			const id = this.identityProvider.getId(element);
-			delete this.elements[id];
-		}
+	remove(index: number): void {
+		this.indexes = this.indexes.filter(i => i === index);
 	}
 
-	contains(element: T): boolean {
-		return !!this.elements[this.identityProvider.getId(element)];
+	contains(index: number): boolean {
+		return this.indexes.some(i => i === index);
 	}
 
-	wrapRenderer<D>(renderer: IRenderer<T, D>): IRenderer<T, ITraitTemplateData<D>> {
+	wrapRenderer<T, D>(renderer: IRenderer<T, D>): IRenderer<T, ITraitTemplateData<D>> {
 		return new TraitRenderer<T, D>(this, renderer);
 	}
 }
@@ -85,17 +100,16 @@ class TraitController<T> {
 export class List<T> implements IDisposable {
 
 	private view: ListView<T>;
-	private focus: TraitController<T>;
-	private selection: TraitController<T>;
+	private focus: TraitController;
+	private selection: TraitController;
 
 	constructor(
 		container: HTMLElement,
 		delegate: IDelegate<T>,
-		renderers: IRenderer<T, any>[],
-		private identityProvider: IIdentityProvider<T>
+		renderers: IRenderer<T, any>[]
 	) {
-		this.focus = new TraitController('focused', identityProvider);
-		this.selection = new TraitController('selected', identityProvider);
+		this.focus = new TraitController('focused');
+		this.selection = new TraitController('selected');
 
 		renderers = renderers.map(r => {
 			r = this.focus.wrapRenderer(r);
@@ -107,9 +121,9 @@ export class List<T> implements IDisposable {
 	}
 
 	splice(start: number, deleteCount: number, ...elements: T[]): void {
-		const deleted = this.view.splice(start, deleteCount, ...elements);
-		this.focus.remove(...deleted);
-		this.selection.remove(...deleted);
+		this.focus.splice(start, deleteCount, elements.length);
+		this.selection.splice(start, deleteCount, elements.length);
+		this.view.splice(start, deleteCount, ...elements);
 	}
 
 	get length(): number {
@@ -120,12 +134,14 @@ export class List<T> implements IDisposable {
 		this.view.layout(height);
 	}
 
-	setSelection(...elements: T[]): void {
-		this.selection.set(...elements);
+	setSelection(...indexes: number[]): void {
+		indexes = indexes.concat(this.selection.set(indexes));
+		indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
 	}
 
-	setFocus(...elements: T[]): void {
-		this.focus.set(...elements);
+	setFocus(...indexes: number[]): void {
+		indexes = indexes.concat(this.focus.set(indexes));
+		indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
 	}
 
 	dispose(): void {

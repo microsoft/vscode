@@ -15,6 +15,6 @@ export interface IDelegate<T> {
 export interface IRenderer<TElement, TTemplateData> {
 	templateId: string;
 	renderTemplate(container: HTMLElement): TTemplateData;
-	renderElement(element: TElement, templateData: TTemplateData): void;
+	renderElement(element: TElement, index: number, templateData: TTemplateData): void;
 	disposeTemplate(templateData: TTemplateData): void;
 }

@@ -135,6 +135,10 @@ export class ListView<T> implements IScrollable {
 		return this.items.length;
 	}
 
+	element(index: number): T {
+		return this.items[index].element;
+	}
+
 	layout(height?: number): void {
 		this.setRenderHeight(height || DOM.getContentHeight(this.domNode));
 		this.setScrollTop(this.renderTop);
@@ -212,7 +216,7 @@ export class ListView<T> implements IScrollable {
 		const renderer = this.renderers[item.templateId];
 		item.row.domNode.style.top = `${ this.rangeMap.positionAt(index) }px`;
 		item.row.domNode.style.height = `${ item.size }px`;
-		renderer.renderElement(item.element, item.row.templateData);
+		renderer.renderElement(item.element, index, item.row.templateData);
 	}
 
 	private removeItemFromDOM(item: IItem<T>): void {
