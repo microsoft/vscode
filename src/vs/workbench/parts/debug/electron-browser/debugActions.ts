@@ -439,6 +439,25 @@ export class ToggleBreakpointAction extends EditorAction {
 	}
 }
 
+export class EditorConditionalBreakpointAction extends EditorAction {
+	static ID = 'editor.debug.action.conditionalBreakpoint';
+
+	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @IDebugService private debugService: IDebugService) {
+		super(descriptor, editor, Behaviour.TextFocus);
+	}
+
+	public run(): TPromise<boolean> {
+		if (this.debugService.getState() !== debug.State.Disabled) {
+			const lineNumber = this.editor.getPosition().lineNumber;
+			if (this.debugService.canSetBreakpointsIn(this.editor.getModel(), lineNumber)) {
+				return this.debugService.editBreakpoint(<editorbrowser.ICodeEditor>this.editor, lineNumber);
+			}
+		}
+
+		return TPromise.as(null);
+	}
+}
+
 export class CopyValueAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.copyValue';
 	static LABEL = nls.localize('copyValue', "Copy Value");

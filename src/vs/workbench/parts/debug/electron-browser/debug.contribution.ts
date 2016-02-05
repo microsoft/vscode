@@ -52,6 +52,7 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(dbgactions.
 	context: ContextKey.EditorTextFocus,
 	primary: KeyCode.F9
 }));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(dbgactions.EditorConditionalBreakpointAction, dbgactions.EditorConditionalBreakpointAction.ID, nls.localize('conditionalBreakpointEditorAction', "Debug: Conditional Breakpoint")));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(dbgactions.SelectionToReplAction, dbgactions.SelectionToReplAction.ID, nls.localize('debugEvaluate', "Debug: Evaluate")));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(dbgactions.SelectionToWatchExpressionsAction, dbgactions.SelectionToWatchExpressionsAction.ID, nls.localize('addToWatch', "Debug: Add to Watch")));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(dbgactions.RunToCursorAction, dbgactions.RunToCursorAction.ID, nls.localize('runToCursor', "Debug: Run to Cursor")));
