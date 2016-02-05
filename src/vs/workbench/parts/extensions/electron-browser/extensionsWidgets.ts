@@ -94,6 +94,7 @@ export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
 
 	private _domNode: HTMLElement;
 	private _label: OcticonLabel;
+	private _previousTips: { [id: string]: number };
 
 	constructor(
 		@IQuickOpenService private _quickOpenService: IQuickOpenService,
@@ -102,11 +103,11 @@ export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
 		@ITelemetryService private _telemetryService: ITelemetryService
 	) {
 
-		const previousTips = <{ [id: string]: number }>JSON.parse(this._storageService.get('extensionsAssistant/tips', StorageScope.GLOBAL, '{}'));
+		this._previousTips = JSON.parse(this._storageService.get('extensionsAssistant/tips', StorageScope.GLOBAL, '{}'));
 
 		// forget previous tips after 28 days
 		const now = Date.now();
-		forEach(previousTips, (entry, rm) => {
+		forEach(this._previousTips, (entry, rm) => {
 			if (now - entry.value > ExtensionTipsStatusbarItem._dontSuggestAgainTimeout) {
 				rm();
 			}
@@ -127,15 +128,14 @@ export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
 			let hasNewTips = false;
 			for (let tip of tips) {
 				const id = extid(tip);
-				if (!previousTips[id]) {
-					previousTips[id] = Date.now();
+				if (!this._previousTips[id]) {
+					this._previousTips[id] = Date.now();
 					hasNewTips = true;
 				}
 			}
 			if (hasNewTips) {
 				dom.removeClass(this._domNode, 'disabled');
 				this._telemetryService.publicLog('extensionGallery:tips', { hintingTips: true });
-				this._storageService.store('extensionsAssistant/tips', JSON.stringify(previousTips), StorageScope.GLOBAL);
 			}
 		});
 	}
@@ -152,6 +152,7 @@ export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
 	}
 
 	private _onClick(event: MouseEvent): void {
+		this._storageService.store('extensionsAssistant/tips', JSON.stringify(this._previousTips), StorageScope.GLOBAL);
 		this._telemetryService.publicLog('extensionGallery:tips', { revealingTips: true });
 		this._quickOpenService.show('ext tips ').then(() => dom.addClass(this._domNode, 'disabled'));
 	}
