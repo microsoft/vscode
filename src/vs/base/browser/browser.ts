@@ -21,20 +21,12 @@ interface INavigator {
 	userAgent: string;
 }
 
-interface ILocation {
-	search: string;
-}
-
 interface IGlobalScope {
-	window: ISafeWindow;
 	navigator: INavigator;
-	parent: IGlobalScope;
 	document: ISafeDocument;
 	history: {
 		pushState: any
 	};
-	isTest: boolean;
-	location: ILocation;
 }
 
 const globals = <IGlobalScope><any>(typeof self === 'object' ? self : global);
@@ -54,7 +46,6 @@ const globals = <IGlobalScope><any>(typeof self === 'object' ? self : global);
 // firefox: "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:34.0) Gecko/20100101 Firefox/34.0"
 
 const userAgent = globals.navigator ? globals.navigator.userAgent : '';
-const isTest = !!globals.isTest;
 
 // DOCUMENTED FOR FUTURE REFERENCE:
 // When running IE11 in IE10 document mode, the code below will identify the browser as being IE10,

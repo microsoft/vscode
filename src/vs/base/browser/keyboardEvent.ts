@@ -7,7 +7,7 @@
 
 import * as Platform from 'vs/base/common/platform';
 import * as Browser from 'vs/base/browser/browser';
-import {KeyMod, KeyCode, BinaryKeybindings} from 'vs/base/common/keyCodes';
+import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
 let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
 (function() {
@@ -163,7 +163,7 @@ let extractKeyCode = function extractKeyCode(e:KeyboardEvent): KeyCode {
 		return KeyCode.fromString(char);
 	}
 	return lookupKeyCode(e);
-}
+};
 
 export function setExtractKeyCode(newExtractKeyCode:(e:KeyboardEvent)=>KeyCode): void {
 	extractKeyCode = newExtractKeyCode;

@@ -314,7 +314,7 @@ const _animationFrame = (function() {
 
 	let isNative = !!nativeRequestAnimationFrame;
 	let request = nativeRequestAnimationFrame || emulatedRequestAnimationFrame;
-	let cancel = nativeCancelAnimationFrame || nativeCancelAnimationFrame;
+	let cancel = nativeCancelAnimationFrame || emulatedCancelAnimationFrame;
 
 	return {
 		isNative: isNative,
@@ -499,8 +499,6 @@ export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
 // Adapted from WinJS
 // Converts a CSS positioning string for the specified element to pixels.
 const convertToPixels: (element: HTMLElement, value: string) => number = (function() {
-	let pixelsRE = /^-?\d+(\.\d+)?(px)?$/i;
-	let numberRE = /^-?\d+(\.\d+)?/i;
 	return function(element: HTMLElement, value: string): number {
 		return parseFloat(value) || 0;
 	};
@@ -943,11 +941,15 @@ export function emmet(description: string): HTMLElement {
 	}
 
 	let result = document.createElement(match[1] || 'div');
-	if (match[3]) result.id = match[3];
-	if (match[4]) result.className = match[4].replace(/\./g, ' ').trim();
+	if (match[3]) {
+		result.id = match[3];
+	}
+	if (match[4]) {
+		result.className = match[4].replace(/\./g, ' ').trim();
+	}
 
 	return result;
-};
+}
 
 export function show(...elements: HTMLElement[]): void {
 	for (const element of elements) {

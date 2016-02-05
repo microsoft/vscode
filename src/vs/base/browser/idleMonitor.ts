@@ -5,8 +5,8 @@
 'use strict';
 
 import * as DomUtils from 'vs/base/browser/dom';
-import {Disposable, IDisposable, disposeAll} from 'vs/base/common/lifecycle';
-import {EventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
+import {Disposable, IDisposable} from 'vs/base/common/lifecycle';
+import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {getService} from 'vs/base/browser/browserService';
 import {TimeoutTimer} from 'vs/base/common/async';
 
