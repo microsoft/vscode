@@ -9,6 +9,7 @@ import actions = require('vs/base/common/actions');
 import strings = require('vs/base/common/strings');
 import URI from 'vs/base/common/uri';
 import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
+import keyboard = require('vs/base/browser/keyboardEvent');
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
 import dom = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
@@ -472,19 +473,19 @@ export class ReplExpressionsActionProvider implements renderer.IActionProvider {
 
 export class ReplExpressionsController extends debugviewer.BaseDebugController {
 
-		private lastSelectedString: string = null;
+	private lastSelectedString: string = null;
 
-		constructor(
-			debugService: debug.IDebugService,
-			contextMenuService: IContextMenuService,
-			actionProvider: renderer.IActionProvider,
-			private replInput: HTMLInputElement,
-			focusOnContextMenu = true
-		) {
-			super(debugService, contextMenuService, actionProvider, focusOnContextMenu);
-		}
+	constructor(
+		debugService: debug.IDebugService,
+		contextMenuService: IContextMenuService,
+		actionProvider: renderer.IActionProvider,
+		private replInput: HTMLInputElement,
+		focusOnContextMenu = true
+	) {
+		super(debugService, contextMenuService, actionProvider, focusOnContextMenu);
+	}
 
-	/* protected */ public onLeftClick(tree: tree.ITree, element: any, eventish: treedefaults.ICancelableEvent, origin: string = 'mouse'): boolean {
+	protected onLeftClick(tree: tree.ITree, element: any, eventish: treedefaults.ICancelableEvent, origin: string = 'mouse'): boolean {
 		const mouseEvent = <mouse.StandardMouseEvent> eventish;
 		// input and output are one element in the tree => we only expand if the user clicked on the output.
 		if ((element.reference > 0 || (element instanceof model.KeyValueOutputElement && element.getChildren().length > 0)) && mouseEvent.target.className.indexOf('input expression') === -1) {
@@ -499,6 +500,18 @@ export class ReplExpressionsController extends debugviewer.BaseDebugController {
 			this.replInput.focus();
 		}
 		this.lastSelectedString = selection.toString();
+
+		return true;
+	}
+
+	protected onDown(tree: tree.ITree, event: keyboard.StandardKeyboardEvent): boolean {
+		if (tree.getFocus()) {
+			return super.onDown(tree, event);
+		}
+
+		const payload = { origin: 'keyboard', originalEvent: event };
+		tree.focusLast(payload);
+		tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
 
 		return true;
 	}
