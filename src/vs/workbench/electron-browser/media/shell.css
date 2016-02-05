@@ -132,7 +132,7 @@
 }
 
 .monaco-shell .monaco-tree.focused:focus {
-	outline: 0; /* tree indicates focus not via outline but through the focussed item */
+	outline: 0 !important; /* tree indicates focus not via outline but through the focussed item */
 }
 
 .monaco-shell [tabindex="0"]:active,
@@ -145,7 +145,12 @@
 }
 
 .monaco-shell .activitybar [tabindex="0"]:focus {
-	outline: 0; /* activity bar indicates focus custom */
+	outline: 0 !important; /* activity bar indicates focus custom */
+}
+
+.monaco-shell .part.editor .iframe-container,
+.monaco-shell .part.editor .binary-container {
+	outline: 0 !important; /* TODO@Ben we need focus indication for those too */
 }
 
 /* END Keyboard Focus Indication Styles */

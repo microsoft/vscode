@@ -52,6 +52,7 @@ export class IFrameEditor extends BaseEditor {
 		let iframeContainerElement = document.createElement('div');
 		iframeContainerElement.className = 'iframe-container monaco-editor-background'; // Inherit the background color from selected theme
 		this.iframeContainer = $(iframeContainerElement);
+		this.iframeContainer.tabindex(0); // enable focus support from the editor part (do not remove)
 
 		// IFrame
 		this.iframeBuilder = $(this.iframeContainer).element('iframe').addClass('iframe');

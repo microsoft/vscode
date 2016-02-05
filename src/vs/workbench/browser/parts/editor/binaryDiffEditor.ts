@@ -56,6 +56,7 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 		let leftBinaryContainerElement = document.createElement('div');
 		leftBinaryContainerElement.className = 'binary-container';
 		this.leftBinaryContainer = $(leftBinaryContainerElement);
+		this.leftBinaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
 
 		// Left Custom Scrollbars
 		this.leftScrollbar = new ScrollableElement(leftBinaryContainerElement, { horizontal: 'hidden', vertical: 'hidden' });
@@ -72,6 +73,7 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 		let rightBinaryContainerElement = document.createElement('div');
 		rightBinaryContainerElement.className = 'binary-container';
 		this.rightBinaryContainer = $(rightBinaryContainerElement);
+		this.rightBinaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
 
 		// Right Custom Scrollbars
 		this.rightScrollbar = new ScrollableElement(rightBinaryContainerElement, { horizontal: 'hidden', vertical: 'hidden' });
