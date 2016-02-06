@@ -41,7 +41,7 @@
 }
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .content .monaco-action-bar .action-item {
-	vertical-align: middle;
+	padding-top:4px;
 }
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .content .monaco-action-bar .action-label {
