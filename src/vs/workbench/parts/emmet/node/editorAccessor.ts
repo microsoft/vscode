@@ -47,7 +47,7 @@ export class EditorAccessor implements emmet.Editor {
 		let currentLine = this.editor.getSelection().startLineNumber;
 		let lineStarts = this.getLineStarts();
 		let start = lineStarts[currentLine - 1];
-		let end = lineStarts[currentLine]
+		let end = lineStarts[currentLine];
 		return {
 			start: start,
 			end: end
@@ -145,20 +145,6 @@ export class EditorAccessor implements emmet.Editor {
 
 	public flushCache(): void {
 		this.lineStarts = null;
-	}
-
-	private getPositionFromOffsetSlow(offset: number): IPosition {
-		let lineStarts = this.getLineStarts();
-
-		for (var line = 0; line < lineStarts.length; line++) {
-			if (lineStarts[line] > offset) {
-				break;
-			}
-		}
-		return {
-			lineNumber: line,
-			column: offset - lineStarts[line - 1]
-		};
 	}
 
 	private getPositionFromOffset(offset: number): IPosition {
