@@ -1,5 +1,5 @@
 # Python
-Linting, Debugging, Intellisense, auto-completion, code formatting, snippets, unit testing, and more.
+Linting, Debugging (multi threaded, web apps), Intellisense, auto-completion, code formatting, snippets, unit testing, and more.
 Works on both Windows and Mac.
 
 ##Features
@@ -8,13 +8,16 @@ Works on both Windows and Mac.
 * Code formatting (autopep8, yapf, with config files)
 * Renaming, Viewing references, Going to definitions, Go to Symbols
 * View signature and similar by hovering over a function or method
-* Debugging with support for local & global variables, arguments, expressions, watch window, stack information, break points
+* Debugging with support for local variables, arguments, expressions, watch window, stack information, break points
+* Debugging Multiple threads (Web Applications, etc) and expanding values in watch windows is supported on Windows
 * Unit testing (unittests and nosetests, with config files)
 * Sorting imports
 * Snippets
 
-## Issues and Feature Requests
+## Issues and Feature Requests 
 [Github Issues](https://github.com/DonJayamanne/pythonVSCode/issues)
+* Remote Debugging (coming soon)
+* Improved debugging for Mac (in development)
 
 ## Feature Details (with confiuration)
 * IDE Features
@@ -28,6 +31,13 @@ Works on both Windows and Mac.
 * - Support for docstring
 * - Ability to include custom module paths (e.g. include paths for libraries like Google App Engine, etc)
 * - - Use the setting python.autoComplete.extraPaths = []
+* - - For instance getting autocomplete/intellisense for Google App Engine, add the following to your settings file:
+```json
+"python.autoComplete.extraPaths": [
+    "C:/Program Files (x86)/Google/google_appengine",
+    "C:/Program Files (x86)/Google/google_appengine/lib"
+    ]
+```
 * Code formatting
 * - Use either yapf or autopep8 for code formatting (defaults to autopep8)
 * - auutopep8 configuration files supported
@@ -44,7 +54,9 @@ Works on both Windows and Mac.
 * - Evaluate Expressions
 * - Step through code (Step in, Step out, Continue)
 * - Add/remove break points
-* - Local variables, Global variables and arguments (experimental, still needs some polishing)
+* - Local variables and arguments
+* - Multiple Threads and Web Applications (such as Flask) (only Windows at this stage)
+* - Expanding values (viewing children, properties, etc) again only Windows at this Stage
 * Unit Testing
 * - unittests (default is on)
 * - nosetests (default is off)
@@ -58,6 +70,10 @@ Works on both Windows and Mac.
 ![Image of Go To Definition](https://raw.githubusercontent.com/DonJayamanne/pythonVSCode/master/images/goToDef.gif)
 
 ![Image of Renaming and Find all References](https://raw.githubusercontent.com/DonJayamanne/pythonVSCode/master/images/rename.gif)
+
+![Image of Debugging](https://raw.githubusercontent.com/DonJayamanne/pythonVSCode/master/images/standardDebugging.gif)
+
+![Image of Multi Threaded Debugging](https://raw.githubusercontent.com/DonJayamanne/pythonVSCode/master/images/flaskDebugging.gif)
 
 ## Requirements
 * Python is installed on the current system
@@ -77,6 +93,12 @@ Works on both Windows and Mac.
 * - pip install nose
 
 ## Change Log
+
+### Version 0.2.0
+* Improved debugger for Windows, with support for Multi threading, debugging Multi-threaded apps, Web Applications, expanding properties, etc
+* Added support for relative paths for extra paths in additional libraries for Auto Complete
+* Fixed a bug where paths to custom Python versions weren't respected by the previous (PDB) debugger
+* NOTE: PDB Debugger is still supported
 
 ### Version 0.1.3
 * Fixed linting when using pylint

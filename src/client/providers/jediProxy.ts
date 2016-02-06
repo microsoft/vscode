@@ -340,8 +340,16 @@ function createPayload<T extends ICommandResult>(cmd: IExecutionCommand<T>): any
 }
 
 function getConfig() {
+    //Add support for paths relative to workspace
+    var extraPaths = pythonSettings.autoComplete.extraPaths.map(extraPath=> {
+        if (path.isAbsolute(extraPath)) {
+            return extraPath;
+        }
+        return path.join(vscode.workspace.rootPath, extraPath);
+    });
+
     return {
-        extraPaths: pythonSettings.autoComplete.extraPaths,
+        extraPaths: extraPaths,
         useSnippets: false,
         caseInsensitiveCompletion: true,
         showDescriptions: true,

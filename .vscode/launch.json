@@ -29,7 +29,7 @@
             "runtimeArgs": [
                 "--harmony"
             ],
-            "program": "./out/client/debugger/main.js",
+            "program": "./out/client/debugger/vs/vsdebugger.js",
             "stopOnEntry": false,
             "args": [
                 "--server=4711"
