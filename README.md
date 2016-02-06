@@ -3,7 +3,7 @@ Linting, Debugging (multi threaded, web apps), Intellisense, auto-completion, co
 Works on both Windows and Mac.
 
 ##Features
-* Linting (PyLint, Pep8, Flake8 with config files)
+* Linting (PyLint, Pep8, Flake8 with config files and plugins)
 * Intellisense and autocompletion
 * Code formatting (autopep8, yapf, with config files)
 * Renaming, Viewing references, Going to definitions, Go to Symbols
@@ -49,6 +49,10 @@ Works on both Windows and Mac.
 * - flake8 can be turned on/off (default is on), supports standard configuaration files
 * - Different categories of errors reported by pylint can be configured as warnings, errors, information or hits
 * - Path to pylint, pep8 and flake8 and pep8 can be configured
+* - Custom plugins such as pylint plugin for Django can be easily used by modifying the settings as follows:
+```json
+"python.linting.pylintPath": "pylint --load-plugins pylint_django"
+``` 
 * Debuggging
 * - Watch window
 * - Evaluate Expressions
@@ -94,7 +98,7 @@ Works on both Windows and Mac.
 
 ## Change Log
 
-### Version 0.2.0
+### Version 0.2.1
 * Improved debugger for Windows, with support for Multi threading, debugging Multi-threaded apps, Web Applications, expanding properties, etc
 * Added support for relative paths for extra paths in additional libraries for Auto Complete
 * Fixed a bug where paths to custom Python versions weren't respected by the previous (PDB) debugger
