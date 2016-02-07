@@ -25,7 +25,6 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 	private toUnbind:any[];
 	private timeKeeper:TimeKeeper;
 	private appenders:ITelemetryAppender[];
-	private appendersErrors:number[];
 	private oldOnError:any;
 	private instantiationService: IInstantiationService;
 	private timeKeeperListener: IEventsListener;

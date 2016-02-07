@@ -5,9 +5,8 @@
 'use strict';
 
 import AbstractTelemetryService = require('vs/platform/telemetry/common/abstractTelemetryService');
-import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
 import {ITelemetryService, ITelemetryInfo, ITelemetryAppender} from 'vs/platform/telemetry/common/telemetry';
-import {Remotable, IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
+import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 
 /**
  * Helper always instantiated in the main process to receive telemetry events from remote telemetry services

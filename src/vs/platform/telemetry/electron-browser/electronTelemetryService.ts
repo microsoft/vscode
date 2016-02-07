@@ -8,7 +8,7 @@ import crypto = require('crypto');
 
 import {MainTelemetryService, TelemetryServiceConfig} from 'vs/platform/telemetry/browser/mainTelemetryService';
 import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {IStorageService} from 'vs/platform/storage/common/storage';
 import errors = require('vs/base/common/errors');
 import uuid = require('vs/base/common/uuid');
 
@@ -40,7 +40,7 @@ export class ElectronTelemetryService extends MainTelemetryService implements IT
 					machineId: this.machineId,
 					instanceId: this.instanceId,
 					sessionId: this.sessionId
-				}
+				};
 		});
 	}
 

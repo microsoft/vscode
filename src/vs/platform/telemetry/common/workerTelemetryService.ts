@@ -4,11 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Telemetry = require('vs/platform/telemetry/common/telemetry');
-import AbstractTelemetryService = require('vs/platform/telemetry/common/abstractTelemetryService');
-import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
-import {ITelemetryService, ITelemetryAppender} from 'vs/platform/telemetry/common/telemetry';
-import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {AbstractRemoteTelemetryService} from 'vs/platform/telemetry/common/abstractRemoteTelemetryService';
 
 export class WorkerTelemetryService extends AbstractRemoteTelemetryService {
