@@ -41,7 +41,7 @@ class PythonDebugSession extends DebugSession {
     private breakPointCounter: number = 0;
     private registeredBreakpoints: Map<number, IPythonBreakpoint>;
     private registeredBreakpointsByFileName: Map<string, IPythonBreakpoint[]>;
-
+    private stopOnEntry: boolean;
     private debuggerLoaded: Promise<any>;
     private debuggerLoadedPromiseResolve: () => void;
     public constructor(debuggerLinesStartAt1: boolean, isServer: boolean) {
@@ -57,7 +57,7 @@ class PythonDebugSession extends DebugSession {
         // now we are ready to accept breakpoints -> fire the initialized event to give UI a chance to set breakpoints
         this.sendEvent(new InitializedEvent());
     }
-    private startedHandlingMessages:Boolean;
+    private startedHandlingMessages: Boolean;
     private pythonProcess: PythonProcess;
     private debugSocketServer: net.Server;
     private startDebugServer(): Promise<IDebugServer> {
@@ -176,13 +176,11 @@ class PythonDebugSession extends DebugSession {
         this.sendEvent(new OutputEvent(output));
     }
 
-    private breakPointsLoaded: Promise<any>;
-    private breakPointsResolve: () => void;
     private entryResponse: DebugProtocol.LaunchResponse;
     protected launchRequest(response: DebugProtocol.LaunchResponse, args: LaunchRequestArguments): void {
         var fileDir = path.dirname(args.program);
         var fileNameWithoutPath = path.basename(args.program);
-
+        this.stopOnEntry = args.stopOnEntry;
         var pythonPath = "python";
         if (typeof args.pythonPath === "string" && args.pythonPath.trim().length > 0) {
             pythonPath = args.pythonPath;
@@ -202,9 +200,9 @@ class PythonDebugSession extends DebugSession {
             var ptVSToolsFilePath = path.join(path.dirname(currentFileName), "..", "..", "..", "..", "pythonFiles", "PythonTools", "visualstudio_py_launcher.py");// ""; //C:\Users\djayamanne\.vscode\extensions\pythonVSCode\pythonFiles\PythonTools
             var programArgs = Array.isArray(args.args) && args.args.length > 0 ? args.args.join(" ") : "";
 
-            var commandLine = `${pythonPath} \"${ptVSToolsFilePath}\" \"${fileDir}" ${dbgServer.port} 34806ad9-833a-4524-8cd6-18ca4aa74f14 \"${vsDebugOptions}\" ${fileNameWithoutPath}`;
+            var commandLine = `${pythonPath} \"${ptVSToolsFilePath}\" \"${fileDir}" ${dbgServer.port} 34806ad9-833a-4524-8cd6-18ca4aa74f14 \"${vsDebugOptions}\" ${fileNameWithoutPath} ${programArgs}`;
             that.pyProc = child_process.exec(commandLine, { cwd: fileDir }, (error, stdout, stderr) => {
-                if (that.startedHandlingMessages){
+                if (that.startedHandlingMessages) {
                     return;
                 }
                 var hasErrors = (error && error.message.length > 0) || (stderr && stderr.length > 0);
@@ -214,8 +212,6 @@ class PythonDebugSession extends DebugSession {
                     that.sendErrorResponse(that.entryResponse, 2000, errorMsg);
                     console.error(errorMsg);
                 }
-
-                //resolve(stdout.toString('utf-8'));
             });
         });
     }

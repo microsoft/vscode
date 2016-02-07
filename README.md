@@ -9,7 +9,7 @@ Works on both Windows and Mac.
 * Renaming, Viewing references, Going to definitions, Go to Symbols
 * View signature and similar by hovering over a function or method
 * Debugging with support for local variables, arguments, expressions, watch window, stack information, break points
-* Debugging Multiple threads (Web Applications, etc) and expanding values in watch windows is supported on Windows
+* Debugging Multiple threads (Web Applications, etc) and expanding values (on Windows and Mac)
 * Unit testing (unittests and nosetests, with config files)
 * Sorting imports
 * Snippets
@@ -17,7 +17,6 @@ Works on both Windows and Mac.
 ## Issues and Feature Requests 
 [Github Issues](https://github.com/DonJayamanne/pythonVSCode/issues)
 * Remote Debugging (coming soon)
-* Improved debugging for Mac (in development)
 
 ## Feature Details (with confiuration)
 * IDE Features
@@ -35,8 +34,7 @@ Works on both Windows and Mac.
 ```json
 "python.autoComplete.extraPaths": [
     "C:/Program Files (x86)/Google/google_appengine",
-    "C:/Program Files (x86)/Google/google_appengine/lib"
-    ]
+    "C:/Program Files (x86)/Google/google_appengine/lib" ]
 ```
 * Code formatting
 * - Use either yapf or autopep8 for code formatting (defaults to autopep8)
@@ -59,8 +57,8 @@ Works on both Windows and Mac.
 * - Step through code (Step in, Step out, Continue)
 * - Add/remove break points
 * - Local variables and arguments
-* - Multiple Threads and Web Applications (such as Flask) (only Windows at this stage)
-* - Expanding values (viewing children, properties, etc) again only Windows at this Stage
+* - Multiple Threads and Web Applications (such as Flask) (Windows and Mac)
+* - Expanding values (viewing children, properties, etc) (Windows and Mac)
 * Unit Testing
 * - unittests (default is on)
 * - nosetests (default is off)
@@ -97,6 +95,11 @@ Works on both Windows and Mac.
 * - pip install nose
 
 ## Change Log
+
+### Version 0.2.2
+* Improved debugger for Mac, with support for Multi threading, Web Applications, expanding properties, etc
+* (Debugging now works on both Windows and Mac)
+* Debugging no longer uses PDB
 
 ### Version 0.2.1
 * Improved debugger for Windows, with support for Multi threading, debugging Multi-threaded apps, Web Applications, expanding properties, etc

@@ -1,5 +1,5 @@
 import * as net from 'net';
-var long = require("long");
+var uint64be = require("uint64be");
 
 
 export class SocketStream {
@@ -14,25 +14,7 @@ export class SocketStream {
     }
 
     public WriteInt64(num: number) {
-        //convert to long
-        var longNumber = long.fromNumber(num, true);
-    
-        // Can't use BitConverter because we need to convert big-endian to little-endian here,
-        // and BitConverter.IsLittleEndian is platform-dependent (and usually true).    
-        var hi = longNumber.shiftRight(0x20).toInt()
-        var lo = longNumber.and(0xFFFFFFFF).toInt();
-        var buf = [
-            <number>((hi >> 0x18) & 0xFF),
-            <number>((hi >> 0x10) & 0xFF),
-            <number>((hi >> 0x08) & 0xFF),
-            <number>((hi >> 0x00) & 0xFF),
-            <number>((lo >> 0x18) & 0xFF),
-            <number>((lo >> 0x10) & 0xFF),
-            <number>((lo >> 0x08) & 0xFF),
-            <number>((lo >> 0x00) & 0xFF)
-        ];
-
-        var buffer = new Buffer(buf);
+        var buffer = uint64be.encode(num);
         this.socket.write(buffer);
     }
     public WriteString(value: string) {
@@ -186,13 +168,8 @@ export class SocketStream {
         else {
             this.buffer = this.buffer.slice(8);
         }
-        
-        // Can't use BitConverter because we need to convert big-endian to little-endian here,
-        // and BitConverter.IsLittleEndian is platform-dependent (and usually true).
-        var hi = <number>((buf[0] << 0x18) | (buf[1] << 0x10) | (buf[2] << 0x08) | (buf[3] << 0x00));
-        var lo = <number>((buf[4] << 0x18) | (buf[5] << 0x10) | (buf[6] << 0x08) | (buf[7] << 0x00));
-        var returnValue = <number>((hi << 0x20) | lo);
 
+        var returnValue = uint64be.decode(buf);
         return returnValue;
     }
 

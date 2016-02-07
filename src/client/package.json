@@ -1,156 +1,156 @@
 {
-    "name": "python",
-    "displayName": "Python",
-    "description": "Python auto complete and linting",
-    "version": "0.0.1",
-    "publisher": "donjayamanne",
-    "license": "SEE LICENSE IN LICENSE or README.MD",
-    "homepage": "https://github.com/DonJayamanne/pythonVSCode/blob/master/README.md",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/DonJayamanne/pythonVSCode"
-    },
-    "bugs": {
-        "url": "https://github.com/DonJayamanne/pythonVSCode/issues"
-    },
-    "icon": "images/icon.png",
-    "galleryBanner": {
-        "color": "#0000FF",
-        "theme": "dark"
-    },
-    "engines": {
-        "vscode": "^0.10.1"
-    },
-    "categories": [
-        "Languages",
-        "Linters"
-    ],
-    "activationEvents": [
-        "onLanguage:python",
-        "onLanguage:plaintext"
-    ],
-    "main": "../../out/client/extension",
-    "contributes": {
-        "debuggers": [
-            {
-                "type": "python",
-                "label": "Python (pdb)",
-                "enableBreakpointsFor": {
-                    "languageIds": [
-                        "python"
-                    ]
-                },
-                "program": "./out/client/debugger/pdb/debuggerMain.js",
-                "runtime": "node",
-                "configurationAttributes": {
-                    "launch": {
-                        "required": [
-                            "program"
-                        ],
-                        "properties": {
-                            "program": {
-                                "type": "string",
-                                "description": "Workspace relative path to a text file.",
-                                "default": "__init__.py"
-                            },
-                            "pythonPath": {
-                                "type": "string",
-                                "description": "Path (fully qualified) to python executable. Use this if you want to use a custom pthon executable version.",
-                                "default": ""
-                            },
-                            "stopOnEntry": {
-                                "type": "boolean",
-                                "description": "Automatically stop after launch.",
-                                "default": true
-                            },
-                            "args": {
-                                "type": "array",
-                                "description": "List of arguments for the program",
-                                "default": []
-                            }
-                        }
-                    }
-                },
-                "initialConfigurations": [
-                    {
-                        "name": "Python (Pdb)",
-                        "type": "python_pdb",
-                        "request": "launch",
-                        "program": "__init__.py",
-                        "stopOnEntry": true
-                    }
-                ]
-            },
-            {
-                "type": "python_win",
-                "label": "Python (Windows)",
-                "enableBreakpointsFor": {
-                    "languageIds": [
-                        "python"
-                    ]
-                },
-                "program": "./out/client/debugger/vs/VSDebugger.js",
-                "runtime": "node",
-                "configurationAttributes": {
-                    "launch": {
-                        "required": [
-                            "program"
-                        ],
-                        "properties": {
-                            "program": {
-                                "type": "string",
-                                "description": "Workspace relative path to a text file.",
-                                "default": "__init__.py"
-                            },
-                            "pythonPath": {
-                                "type": "string",
-                                "description": "Path (fully qualified) to python executable. Use this if you want to use a custom pthon executable version.",
-                                "default": ""
-                            },
-                            "args": {
-                                "type": "array",
-                                "description": "List of arguments for the program",
-                                "default": []
-                            }
-                        }
-                    }
-                },
-                "initialConfigurations": [
-                    {
-                        "name": "Python (Windows)",
-                        "type": "python_win",
-                        "request": "launch",
-                        "program": "__init__.py"
-                    }
-                ]
-            }
-        ],
-        "configuration": {
-            "type": "object",
-            "title": "Python Configuration",
+  "name": "python",
+  "displayName": "Python",
+  "description": "Python auto complete and linting",
+  "version": "0.0.1",
+  "publisher": "donjayamanne",
+  "license": "SEE LICENSE IN LICENSE or README.MD",
+  "homepage": "https://github.com/DonJayamanne/pythonVSCode/blob/master/README.md",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DonJayamanne/pythonVSCode"
+  },
+  "bugs": {
+    "url": "https://github.com/DonJayamanne/pythonVSCode/issues"
+  },
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#0000FF",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^0.10.1"
+  },
+  "categories": [
+    "Languages",
+    "Linters"
+  ],
+  "activationEvents": [
+    "onLanguage:python",
+    "onLanguage:plaintext"
+  ],
+  "main": "../../out/client/extension",
+  "contributes": {
+    "debuggers": [
+      {
+        "type": "python",
+        "label": "Python (pdb)",
+        "enableBreakpointsFor": {
+          "languageIds": [
+            "python"
+          ]
+        },
+        "program": "./out/client/debugger/pdb/debuggerMain.js",
+        "runtime": "node",
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "program"
+            ],
             "properties": {
-                "python.maxNumberOfProblems": {
-                    "type": "number",
-                    "default": 100,
-                    "description": "Controls the maximum number of problems produced by the server."
-                }
+              "program": {
+                "type": "string",
+                "description": "Workspace relative path to a text file.",
+                "default": "__init__.py"
+              },
+              "pythonPath": {
+                "type": "string",
+                "description": "Path (fully qualified) to python executable. Use this if you want to use a custom pthon executable version.",
+                "default": ""
+              },
+              "stopOnEntry": {
+                "type": "boolean",
+                "description": "Automatically stop after launch.",
+                "default": true
+              },
+              "args": {
+                "type": "array",
+                "description": "List of arguments for the program",
+                "default": []
+              }
             }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "name": "Python (Pdb)",
+            "type": "python_pdb",
+            "request": "launch",
+            "program": "__init__.py",
+            "stopOnEntry": true
+          }
+        ]
+      },
+      {
+        "type": "python_win",
+        "label": "Python (Windows)",
+        "enableBreakpointsFor": {
+          "languageIds": [
+            "python"
+          ]
+        },
+        "program": "./out/client/debugger/vs/VSDebugger.js",
+        "runtime": "node",
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "program"
+            ],
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "Workspace relative path to a text file.",
+                "default": "__init__.py"
+              },
+              "pythonPath": {
+                "type": "string",
+                "description": "Path (fully qualified) to python executable. Use this if you want to use a custom pthon executable version.",
+                "default": ""
+              },
+              "args": {
+                "type": "array",
+                "description": "List of arguments for the program",
+                "default": []
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "name": "Python (Windows)",
+            "type": "python_win",
+            "request": "launch",
+            "program": "__init__.py"
+          }
+        ]
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Python Configuration",
+      "properties": {
+        "python.maxNumberOfProblems": {
+          "type": "number",
+          "default": 100,
+          "description": "Controls the maximum number of problems produced by the server."
         }
-    },
-    "scripts": {
-        "vscode:prepublish": "node ./node_modules/vscode/bin/compile",
-        "compile": "node ./node_modules/vscode/bin/compile -watch -p ./"
-    },
-    "dependencies": {
-        "long": "^3.0.3",
-        "named-js-regexp": "^1.3.1",
-        "tmp": "0.0.28",
-        "vscode-debugadapter": "^1.0.1",
-        "vscode-debugprotocol": "^1.0.1",
-        "vscode-languageclient": "^1.1.0"
-    },
-    "devDependencies": {
-        "typescript": "^1.6.2",
-        "vscode": "0.10.x"
+      }
     }
+  },
+  "scripts": {
+    "vscode:prepublish": "node ./node_modules/vscode/bin/compile",
+    "compile": "node ./node_modules/vscode/bin/compile -watch -p ./"
+  },
+  "dependencies": {
+    "named-js-regexp": "^1.3.1",
+    "tmp": "0.0.28",
+    "uint64be": "^1.0.1",
+    "vscode-debugadapter": "^1.0.1",
+    "vscode-debugprotocol": "^1.0.1",
+    "vscode-languageclient": "^1.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^1.6.2",
+    "vscode": "0.10.x"
+  }
 }
