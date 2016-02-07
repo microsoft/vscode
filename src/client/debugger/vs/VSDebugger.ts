@@ -13,7 +13,7 @@ import * as StringDecoder from 'string_decoder';
 import * as net from 'net';
 import {PythonProcess} from './PythonProcess';
 import {FrameKind, IPythonProcess, IPythonThread, IPythonModule, IPythonEvaluationResult, IPythonStackFrame, IDebugServer} from './Common/Contracts';
-import {IPythonBreakpoint, PythonBreakpointConditionKind, PythonBreakpointPassCountKind, IPythonException, PythonEvaluationResultReprKind} from './Common/Contracts';
+import {IPythonBreakpoint, PythonBreakpointConditionKind, PythonBreakpointPassCountKind, IPythonException, PythonEvaluationResultReprKind, enum_EXCEPTION_STATE} from './Common/Contracts';
 
 const CHILD_ENUMEARATION_TIMEOUT = 5000;
  
@@ -495,6 +495,17 @@ class PythonDebugSession extends DebugSession {
     protected setExceptionBreakPointsRequest(response: DebugProtocol.SetExceptionBreakpointsResponse, args: DebugProtocol.SetExceptionBreakpointsArguments): void {
         console.error('Not yet implemented: setExceptionBreakPointsRequest');
         this.sendErrorResponse(response, 2000, "ExceptionBreakPointsRequest is not yet supported");
+        // this.debuggerLoaded.then(() => {
+        //     var mode = enum_EXCEPTION_STATE.BREAK_MODE_NEVER;
+        //     if (args.filters.indexOf("uncaught") >= 0) {
+        //         mode = enum_EXCEPTION_STATE.BREAK_MODE_UNHANDLED;
+        //     }
+        //     if (args.filters.indexOf("all") >= 0) {
+        //         mode = enum_EXCEPTION_STATE.BREAK_MODE_ALWAYS;
+        //     }
+        //     this.pythonProcess.SendExceptionInfo(mode, null);
+        //     this.sendResponse(response);
+        // });
     }
 
     protected disconnectRequest(response: DebugProtocol.DisconnectResponse, args: DebugProtocol.DisconnectArguments) {

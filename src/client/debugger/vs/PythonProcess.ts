@@ -129,6 +129,22 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
             }
         });
     }
+
+    public SendExceptionInfo(defaultBreakOnMode: number, breakOn: Map<string, number>) {
+        this.stream.Write(Commands.SetExceptionInfoCommandBytes);
+        this.stream.WriteInt32(defaultBreakOnMode);
+        if (breakOn === null || breakOn === undefined) {
+            this.stream.WriteInt32(0);
+        }
+        else {
+            this.stream.WriteInt32(breakOn.size);
+            for (var key in breakOn.keys()) {
+                this.stream.WriteInt32(breakOn.get(key));
+                this.stream.WriteString(key);
+            }
+        }
+    }
+
     public SendStepOver(threadId: number): Promise<IPythonThread> {
         return this.sendStepCommand(threadId, Commands.StepOverCommandBytes);
     }

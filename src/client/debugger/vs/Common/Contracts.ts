@@ -7,7 +7,11 @@ export enum FrameKind {
     Python,
     Django
 };
-
+export enum enum_EXCEPTION_STATE {
+    BREAK_MODE_NEVER = 0,
+    BREAK_MODE_ALWAYS = 1,
+    BREAK_MODE_UNHANDLED = 32
+}
 export enum PythonLanguageVersion {
     Is2,
     Is3

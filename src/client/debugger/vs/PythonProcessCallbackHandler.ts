@@ -67,6 +67,7 @@ export class PythonProcessCallbackHandler extends EventEmitter {
         this.emit("detach");
     }
     private HandleLast() {
+        this.stream.Write(Commands.LastAckCommandBytes);
         this.emit("last");
     }
     private HandleModuleLoad() {
