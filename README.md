@@ -17,6 +17,7 @@ Works on both Windows and Mac.
 ## Issues and Feature Requests 
 [Github Issues](https://github.com/DonJayamanne/pythonVSCode/issues)
 * Remote Debugging (coming soon)
+* Debugger will break at all exceptions even when handled in Try..Except
 
 ## Feature Details (with confiuration)
 * IDE Features
@@ -95,6 +96,9 @@ Works on both Windows and Mac.
 * - pip install nose
 
 ## Change Log
+
+### Version 0.2.3
+* Fixed termination of debugger
 
 ### Version 0.2.2
 * Improved debugger for Mac, with support for Multi threading, Web Applications, expanding properties, etc
