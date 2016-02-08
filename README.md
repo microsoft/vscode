@@ -9,7 +9,7 @@ Works on both Windows and Mac.
 * Renaming, Viewing references, Going to definitions, Go to Symbols
 * View signature and similar by hovering over a function or method
 * Debugging with support for local variables, arguments, expressions, watch window, stack information, break points
-* Debugging Multiple threads (Web Applications, etc) and expanding values (on Windows and Mac)
+* Debugging Multiple threads (Web Applications - Flask, etc) and expanding values (on Windows and Mac)
 * Unit testing (unittests and nosetests, with config files)
 * Sorting imports
 * Snippets
@@ -17,6 +17,7 @@ Works on both Windows and Mac.
 ## Issues and Feature Requests 
 [Github Issues](https://github.com/DonJayamanne/pythonVSCode/issues)
 * Remote Debugging (coming soon)
+* Debugging django (in development)
 
 ## Feature Details (with confiuration)
 * IDE Features
@@ -77,6 +78,8 @@ Works on both Windows and Mac.
 
 ![Image of Multi Threaded Debugging](https://raw.githubusercontent.com/DonJayamanne/pythonVSCode/master/images/flaskDebugging.gif)
 
+![Image of Pausing](https://raw.githubusercontent.com/DonJayamanne/pythonVSCode/master/images/break.gif)
+
 ## Requirements
 * Python is installed on the current system
 * - Path to python can be configured
@@ -99,6 +102,7 @@ Works on both Windows and Mac.
 ### Version 0.2.4
 * Fixed issue where debugger would break into all exceptions
 * Added support for breaking on all and uncaught exceptions   
+* Added support for pausing (breaking) into a running program while debugging.
 
 ### Version 0.2.3
 * Fixed termination of debugger

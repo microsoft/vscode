@@ -201,7 +201,7 @@ class PythonDebugSession extends DebugSession {
         var that = this;
         this.startDebugServer().then(dbgServer => {
             dbgServer.port
-            var vsDebugOptions = "RedirectOutput";//,\"WaitOnNormalExit\"";
+            var vsDebugOptions = "RedirectOutput";
             //GUID is hardcoded for now, will have to be fixed 
             var currentFileName = module.filename;
             var ptVSToolsFilePath = path.join(path.dirname(currentFileName), "..", "..", "..", "..", "pythonFiles", "PythonTools", "visualstudio_py_launcher.py");// ""; //C:\Users\djayamanne\.vscode\extensions\pythonVSCode\pythonFiles\PythonTools
@@ -492,10 +492,10 @@ class PythonDebugSession extends DebugSession {
             return this.sendResponse(response);
         });
     }
-            
+
     protected pauseRequest(response: DebugProtocol.PauseResponse): void {
         this.pythonProcess.Break();
-        this.sendResponse(response);        
+        this.sendResponse(response);
     }
 
     protected setExceptionBreakPointsRequest(response: DebugProtocol.SetExceptionBreakpointsResponse, args: DebugProtocol.SetExceptionBreakpointsArguments): void {
