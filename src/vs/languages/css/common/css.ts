@@ -23,6 +23,7 @@ import {IThreadService} from 'vs/platform/thread/common/thread';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
+import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
 
 export enum States {
 	Selector,
@@ -337,7 +338,7 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 
 		this.occurrencesSupport = this;
 		this.extraInfoSupport = this;
-		this.referenceSupport = new supports.ReferenceSupport(this, {
+		this.referenceSupport = new ReferenceSupport(this.getId(), {
 			tokens: [cssTokenTypes.TOKEN_PROPERTY + '.css', cssTokenTypes.TOKEN_VALUE + '.css', cssTokenTypes.TOKEN_SELECTOR_TAG + '.css'],
 			findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
 		this.logicalSelectionSupport = this;

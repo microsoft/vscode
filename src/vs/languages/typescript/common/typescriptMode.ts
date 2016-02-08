@@ -28,6 +28,7 @@ import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
+import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
 
 class SemanticValidator {
 
@@ -253,7 +254,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 			}
 		});
 
-		this.referenceSupport = new supports.ReferenceSupport(this, {
+		this.referenceSupport = new ReferenceSupport(this.getId(), {
 			tokens: ['identifier.ts'],
 			findReferences: (resource, position, includeDeclaration) => this.findReferences(resource, position, includeDeclaration)});
 

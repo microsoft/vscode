@@ -27,6 +27,7 @@ import {IDisposable, combinedDispose, empty as EmptyDisposable} from 'vs/base/co
 import {createAsyncDescriptor0, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
 import {RichEditSupport, IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
 import {DeclarationSupport, IDeclarationContribution} from 'vs/editor/common/modes/supports/declarationSupport';
+import {ReferenceSupport, IReferenceContribution} from 'vs/editor/common/modes/supports/referenceSupport';
 
 interface IModeConfigurationMap { [modeId: string]: any; }
 
@@ -314,8 +315,8 @@ export class ModeServiceImpl implements IModeService {
 		return this.registerModeSupport(modeId, 'quickFixSupport', (mode) => support);
 	}
 
-	public registerDeclarativeReferenceSupport(modeId: string, contribution: Supports.IReferenceContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'referenceSupport', (mode) => new Supports.ReferenceSupport(mode, contribution));
+	public registerDeclarativeReferenceSupport(modeId: string, contribution: IReferenceContribution): IDisposable {
+		return this.registerModeSupport(modeId, 'referenceSupport', (mode) => new ReferenceSupport(modeId, contribution));
 	}
 
 	public registerRenameSupport(modeId: string, support: Modes.IRenameSupport): IDisposable {

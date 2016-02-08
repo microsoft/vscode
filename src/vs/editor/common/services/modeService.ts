@@ -13,6 +13,7 @@ import {IOnEnterSupportOptions} from 'vs/editor/common/modes/supports/onEnter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
 import {IDeclarationContribution} from 'vs/editor/common/modes/supports/declarationSupport';
+import {IReferenceContribution} from 'vs/editor/common/modes/supports/referenceSupport';
 
 export var IModeService = createDecorator<IModeService>('modeService');
 
@@ -45,7 +46,7 @@ export interface IModeService {
 	registerOutlineSupport(modeId: string, support: Modes.IOutlineSupport): IDisposable;
 	registerDeclarativeParameterHintsSupport(modeId: string, support: Modes.IParameterHintsContribution): IDisposable;
 	registerQuickFixSupport(modeId: string, support: Modes.IQuickFixSupport): IDisposable;
-	registerDeclarativeReferenceSupport(modeId: string, contribution: Supports.IReferenceContribution): IDisposable;
+	registerDeclarativeReferenceSupport(modeId: string, contribution: IReferenceContribution): IDisposable;
 	registerRenameSupport(modeId: string, support: Modes.IRenameSupport): IDisposable;
 	registerDeclarativeSuggestSupport(modeId: string, declaration: Supports.ISuggestContribution): IDisposable;
 	registerTokenizationSupport(modeId: string, callback: (mode: Modes.IMode) => Modes.ITokenizationSupport): IDisposable;

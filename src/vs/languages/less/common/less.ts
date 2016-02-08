@@ -22,6 +22,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
+import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
 
 export var language: Types.ILanguage = <Types.ILanguage> {
 	displayName: 'LESS',
@@ -198,7 +199,7 @@ export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> impleme
 		this.modeService = modeService;
 
 		this.extraInfoSupport = this;
-		this.referenceSupport = new supports.ReferenceSupport(this, {
+		this.referenceSupport = new ReferenceSupport(this.getId(), {
 			tokens: [lessTokenTypes.TOKEN_PROPERTY + '.less', lessTokenTypes.TOKEN_VALUE + '.less', 'variable.less', lessTokenTypes.TOKEN_SELECTOR + '.class.less', lessTokenTypes.TOKEN_SELECTOR + '.id.less', 'selector.less'],
 			findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
 		this.logicalSelectionSupport = this;

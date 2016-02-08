@@ -28,6 +28,7 @@ import {EMPTY_ELEMENTS} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
 // import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
+import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
 
 export { htmlTokenTypes }; // export to be used by Razor. We are the main module, so Razor should get ot from use.
 export { EMPTY_ELEMENTS }; // export to be used by Razor. We are the main module, so Razor should get ot from use.
@@ -304,7 +305,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 		this.formattingSupport = this;
 		this.extraInfoSupport = this;
 		this.occurrencesSupport = this;
-		this.referenceSupport = new supports.ReferenceSupport(this, {
+		this.referenceSupport = new ReferenceSupport(this.getId(), {
 			tokens: ['invalid'],
 			findReferences: (resource, position, includeDeclaration) => this.findReferences(resource, position, includeDeclaration)});
 		this.logicalSelectionSupport = this;

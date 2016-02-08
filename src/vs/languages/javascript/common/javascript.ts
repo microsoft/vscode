@@ -21,6 +21,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
+import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
 
 export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaScriptWorker> {
 
@@ -41,7 +42,7 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 		super(descriptor, instantiationService, threadService, telemetryService);
 
 		this.tokenizationSupport = tokenization.createTokenizationSupport(this, tokenization.Language.EcmaScript5);
-		this.referenceSupport = new supports.ReferenceSupport(this, {
+		this.referenceSupport = new ReferenceSupport(this.getId(), {
 			tokens: [],
 			findReferences: (resource, position, includeDeclaration) => this.findReferences(resource, position, includeDeclaration)});
 
