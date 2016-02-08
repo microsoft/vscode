@@ -190,11 +190,11 @@ export class List<T> implements IDisposable {
 			relativeTop = relativeTop > 1 ? 1 : relativeTop;
 
 			// y = mx + b
-			var m = elementHeight - this.view.height;
+			const m = elementHeight - this.view.height;
 			this.view.setScrollTop(m * relativeTop + elementTop);
 		} else {
-			var viewItemBottom = elementTop + elementHeight;
-			var wrapperBottom = scrollTop + this.view.height;
+			const viewItemBottom = elementTop + elementHeight;
+			const wrapperBottom = scrollTop + this.view.height;
 
 			if (elementTop < scrollTop) {
 				this.view.setScrollTop(elementTop);
