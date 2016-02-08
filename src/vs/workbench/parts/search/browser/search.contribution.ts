@@ -42,7 +42,6 @@ KeybindingsRegistry.registerCommandDesc({
 	}
 });
 
-
 class OpenSearchViewletAction extends ToggleViewletAction {
 	public static ID = VIEWLET_ID;
 	public static LABEL = nls.localize('showSearchViewlet', "Show Search");
@@ -53,7 +52,6 @@ class OpenSearchViewletAction extends ToggleViewletAction {
 }
 
 class ExplorerViewerActionContributor extends ActionBarContributor {
-
 	private _instantiationService: IInstantiationService;
 	private _contextService: IWorkspaceContextService;
 

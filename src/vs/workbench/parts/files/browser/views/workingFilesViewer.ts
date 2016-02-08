@@ -70,7 +70,7 @@ export class WorkingFilesDataSource implements IDataSource {
 
 export class WorkingFilesSorter implements ISorter {
 
-	constructor( @INullService ns) { }
+	constructor(@INullService ns) { }
 
 	public compare(tree: ITree, element: any, otherElement: any): number {
 		return WorkingFilesModel.compare(element, otherElement);
