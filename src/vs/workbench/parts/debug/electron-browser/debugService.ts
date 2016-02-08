@@ -532,8 +532,9 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 		return this.session.initialize({
 			adapterID: configuration.type,
+			pathFormat: 'path',
 			linesStartAt1: true,
-			pathFormat: 'path'
+			columnsStartAt1: true
 		}).then((result: DebugProtocol.InitializeResponse) => {
 			if (!this.session) {
 				return Promise.wrapError(new Error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly")));
