@@ -426,7 +426,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	private suggestionSupportsAutoAccept: IKeybindingContextKey<boolean>;
 	private loadingTimeout: number;
 	private currentSuggestionDetails: TPromise<CompletionItem>;
-	private oldFocus: CompletionItem;
+	private focusedItem: CompletionItem;
 	private completionModel: CompletionModel;
 
 	private telemetryData: ITelemetryData;
@@ -453,7 +453,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.isAuto = false;
-		this.oldFocus = null;
+		this.focusedItem = null;
 		this.suggestionSupportsAutoAccept = keybindingService.createKey(CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY, true);
 
 		this.telemetryData = null;
@@ -484,7 +484,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			SuggestRegistry.onDidChange(() => this.onModelModeChanged()),
 			// editor.addListener2(EditorCommon.EventType.EditorTextBlur, () => this.onEditorBlur()),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
-			// this.list.addListener2('focus', e => this.onTreeFocus(e)),
+			this.list.onFocusChange(e => this.onListFocus(e)),
 			this.editor.addListener2(EditorCommon.EventType.CursorSelectionChanged, () => this.onCursorSelectionChanged()),
 			this.model.onDidTrigger(e => this.onDidTrigger(e)),
 			this.model.onDidSuggest(e => this.onDidSuggest(e)),
@@ -533,35 +533,47 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		}, 0);
 	}
 
-	// private onTreeFocus(e: Tree.IFocusEvent): void {
-	// 	const focus = e.focus;
-	// 	const payload = e.payload;
+	private onListFocus(e: IFocusChangeEvent<CompletionItem>): void {
+		if (!e.elements.length) {
+			return;
+		}
 
-	// 	if (focus instanceof CompletionItem) {
-	// 		this.resolveDetails(<CompletionItem>focus);
-	// 		this.suggestionSupportsAutoAccept.set(!(<CompletionItem>focus).suggestion.noAutoAccept);
-	// 	}
+		const item = e.elements[0];
 
-	// 	const elementsToRefresh: any[] = [];
+		if (item === this.focusedItem) {
+			return;
+		}
 
-	// 	if (this.oldFocus) {
-	// 		elementsToRefresh.push(this.oldFocus);
-	// 	}
+		const index = e.indexes[0];
+		// const payload = e.payload;
 
-	// 	if (focus) {
-	// 		elementsToRefresh.push(focus);
-	// 	}
+		this.resolveDetails(item, index);
+		this.suggestionSupportsAutoAccept.set(!(<CompletionItem>item).suggestion.noAutoAccept);
 
-	// 	this.oldFocus = focus;
+		if (this.focusedItem) {
+			const index = this.completionModel.items.indexOf(this.focusedItem);
+			if (index > -1) this.list.splice(index, 1, this.focusedItem);
+			this.focusedItem = null;
+		}
 
-	// 	this.list.refreshAll(elementsToRefresh).done(() => {
-	// 		this.updateWidgetHeight();
+		if (item) {
+			this.focusedItem = item;
+			this.list.splice(index, 1, item);
+			this.list.setFocus(index);
+		}
 
-	// 		if (focus) {
-	// 			return this.list.reveal(focus, (payload && payload.firstSuggestion) ? 0 : null);
-	// 		}
-	// 	}, onUnexpectedError);
-	// }
+		this.updateWidgetHeight();
+
+		if (item) {
+			this.list.reveal(index);
+		}
+
+		// this.list.refreshAll(elementsToRefresh).done(() => {
+		// 	if (item) {
+		// 		return this.list.reveal(item, (payload && payload.firstSuggestion) ? 0 : null);
+		// 	}
+		// }, onUnexpectedError);
+	}
 
 	private onModelModeChanged(): void {
 		const model = this.editor.getModel();
@@ -737,26 +749,28 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		}
 	}
 
-	// private resolveDetails(item: CompletionItem): void {
-	// 	if (!item) {
-	// 		return;
-	// 	}
+	private resolveDetails(item: CompletionItem, index: number): void {
+		if (this.currentSuggestionDetails) {
+			this.currentSuggestionDetails.cancel();
+		}
 
-	// 	if (this.currentSuggestionDetails) {
-	// 		this.currentSuggestionDetails.cancel();
-	// 	}
+		this.currentSuggestionDetails = item.resolveDetails(
+			this.editor.getModel().getAssociatedResource(),
+			this.model.getRequestPosition() || this.editor.getPosition()
+		);
 
-	// 	this.currentSuggestionDetails = item.resolveDetails(
-	// 		this.editor.getModel().getAssociatedResource(),
-	// 		this.model.getRequestPosition() || this.editor.getPosition()
-	// 	);
+		this.currentSuggestionDetails.then(() => {
+			this.currentSuggestionDetails = undefined;
 
-	// 	this.currentSuggestionDetails.then(() => {
-	// 		this.currentSuggestionDetails = undefined;
-	// 		return this.list.refresh(item).then(() => this.updateWidgetHeight());
-	// 	})
-	// 		.done(null, err => !isPromiseCanceledError(err) && onUnexpectedError(err));
-	// }
+			if (item === this.focusedItem) {
+				this.list.splice(index, 1, item);
+				this.list.setFocus(index);
+				this.updateWidgetHeight();
+			}
+		},
+			err => !isPromiseCanceledError(err) && onUnexpectedError(err)
+		);
+	}
 
 	public selectNextPage(): boolean {
 		return false;
@@ -775,23 +789,18 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	}
 
 	public selectNext(): boolean {
-		return false;
-		// switch (this.state) {
-		// 	case State.Hidden:
-		// 		return false;
-		// 	case State.Details:
-		// 		this.details.scrollDown();
-		// 		return true;
-		// 	case State.Loading:
-		// 		return !this.isAuto;
-		// 	default:
-		// 		const focus = this.list.getFocus();
-		// 		this.list.focusNext(1);
-		// 		if (focus === this.list.getFocus()) {
-		// 			this.list.focusFirst();
-		// 		}
-		// 		return true;
-		// }
+		switch (this.state) {
+			case State.Hidden:
+				return false;
+			case State.Details:
+				this.details.scrollDown();
+				return true;
+			case State.Loading:
+				return !this.isAuto;
+			default:
+				this.list.focusNext(1, true);
+				return true;
+		}
 	}
 
 	public selectPreviousPage(): boolean {
@@ -811,23 +820,18 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	}
 
 	public selectPrevious(): boolean {
-		return false;
-		// switch (this.state) {
-		// 	case State.Hidden:
-		// 		return false;
-		// 	case State.Details:
-		// 		this.details.scrollUp();
-		// 		return true;
-		// 	case State.Loading:
-		// 		return !this.isAuto;
-		// 	default:
-		// 		const focus = this.list.getFocus();
-		// 		this.list.focusPrevious(1);
-		// 		if (focus === this.list.getFocus()) {
-		// 			this.list.focusLast();
-		// 		}
-		// 		return true;
-		// }
+		switch (this.state) {
+			case State.Hidden:
+				return false;
+			case State.Details:
+				this.details.scrollUp();
+				return true;
+			case State.Loading:
+				return !this.isAuto;
+			default:
+				this.list.focusPrevious(1, true);
+				return true;
+		}
 	}
 
 	public acceptSelectedSuggestion(): boolean {
@@ -951,7 +955,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.state = null;
 		this.suggestionSupportsAutoAccept = null;
 		this.currentSuggestionDetails = null;
-		this.oldFocus = null;
+		this.focusedItem = null;
 		this.telemetryData = null;
 		this.telemetryService = null;
 		this.telemetryTimer = null;

@@ -109,6 +109,18 @@ class Trait implements IDisposable {
 		return this.indexes.some(i => i === index);
 	}
 
+	next(n: number): void {
+		let index = this.indexes.length ? this.indexes[0] : 0;
+		index = Math.min(index + n, this.indexes.length);
+		this.set(index);
+	}
+
+	previous(n: number): void {
+		let index = this.indexes.length ? this.indexes[0] : this.indexes.length - 1;
+		index = Math.max(index - n, 0);
+		this.set(index);
+	}
+
 	wrapRenderer<T, D>(renderer: IRenderer<T, D>): IRenderer<T, ITraitTemplateData<D>> {
 		return new TraitRenderer<T, D>(this, renderer);
 	}
@@ -202,9 +214,39 @@ export class List<T> implements IDisposable {
 		indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
 	}
 
+	selectNext(n = 1, loop = false): void {
+		if (this.length === 0) return;
+		const selection = this.selection.get();
+		let index = selection.length > 0 ? selection[0] + n : 0;
+		this.selection.set(loop ? index % this.length : Math.min(index, this.length - 1));
+	}
+
+	selectPrevious(n = 1, loop = false): void {
+		if (this.length === 0) return;
+		const selection = this.selection.get();
+		let index = selection.length > 0 ? selection[0] - n : 0;
+		if (loop && index < 0) index = this.length + (index % this.length);
+		this.selection.set(Math.max(index, 0));
+	}
+
 	setFocus(...indexes: number[]): void {
 		indexes = indexes.concat(this.focus.set(...indexes));
 		indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
+	}
+
+	focusNext(n = 1, loop = false): void {
+		if (this.length === 0) return;
+		const focus = this.focus.get();
+		let index = focus.length > 0 ? focus[0] + n : 0;
+		this.focus.set(loop ? index % this.length : Math.min(index, this.length - 1));
+	}
+
+	focusPrevious(n = 1, loop = false): void {
+		if (this.length === 0) return;
+		const focus = this.focus.get();
+		let index = focus.length > 0 ? focus[0] - n : 0;
+		if (loop && index < 0) index = this.length + (index % this.length);
+		this.focus.set(Math.max(index, 0));
 	}
 
 	getFocus(): T[] {
