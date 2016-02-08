@@ -277,6 +277,97 @@ class ExtensionPoint<T> implements IExtensionPoint<T> {
 	}
 }
 
+
+
+const schemaId = 'vscode://schemas/vscode-extensions';
+const schema: IJSONSchema = {
+	default: {
+		'name': '{{name}}',
+		'description': '{{description}}',
+		'author': '{{author}}',
+		'version': '{{1.0.0}}',
+		'main': '{{pathToMain}}',
+		'dependencies': {}
+	},
+	properties: {
+		// engines: {
+		// 	required: [ 'vscode' ],
+		// 	properties: {
+		// 		'vscode': {
+		// 			type: 'string',
+		// 			description: nls.localize('vscode.extension.engines.vscode', 'Specifies that this package only runs inside VSCode of the given version.'),
+		// 		}
+		// 	}
+		// },
+		displayName: {
+			description: nls.localize('vscode.extension.displayName', 'The display name for the extension used in the VS Code gallery.'),
+			type: 'string'
+		},
+		categories: {
+			description: nls.localize('vscode.extension.categories', 'The categories used by the VS Code gallery to categorize the extension.'),
+			type: 'array',
+			items: {
+				type: 'string',
+				enum: ['Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other']
+			}
+		},
+		galleryBanner: {
+			type: 'object',
+			description: nls.localize('vscode.extension.galleryBanner', 'Banner used in the VS Code marketplace.'),
+			properties: {
+				color: {
+					description: nls.localize('vscode.extension.galleryBanner.color', 'The banner color on the VS Code marketplace page header.'),
+					type: 'string'
+				},
+				theme: {
+					description: nls.localize('vscode.extension.galleryBanner.theme', 'The color theme for the font used in the banner.'),
+					type: 'string',
+					enum: ['dark', 'light']
+				}
+			}
+		},
+		publisher: {
+			description: nls.localize('vscode.extension.publisher', 'The publisher of the VS Code extension.'),
+			type: 'string'
+		},
+		activationEvents: {
+			description: nls.localize('vscode.extension.activationEvents', 'Activation events for the VS Code extension.'),
+			type: 'array',
+			items: {
+				type: 'string'
+			}
+		},
+		extensionDependencies: {
+			description: nls.localize('vscode.extension.extensionDependencies', 'Dependencies to other extensions. The id of an extension is always ${publisher}.${name}. For example: vscode.csharp.'),
+			type: 'array',
+			items: {
+				type: 'string'
+			}
+		},
+		scripts: {
+			type: 'object',
+			properties: {
+				'vscode:prepublish': {
+					description: nls.localize('vscode.extension.scripts.prepublish', 'Script executed before the package is published as a VS Code extension.'),
+					type: 'string'
+				}
+			}
+		},
+		contributes: {
+			description: nls.localize('vscode.extension.contributes', 'All contributions of the VS Code extension represented by this package.'),
+			type: 'object',
+			properties: {
+				// extensions will fill in
+			},
+			default: {}
+		},
+		isAMD: {
+			description: nls.localize('vscode.extension.isAMD', 'Indicated whether VS Code should load your code as AMD or CommonJS. Default: false.'),
+			type: 'boolean'
+		}
+	}
+};
+
 interface IPointListenerEntry {
 	extensionPoint: string;
 	listener: IPointListener;
@@ -437,95 +528,6 @@ const Extensions = {
 };
 Registry.add(Extensions.PluginsRegistry, new PluginsRegistryImpl());
 export const PluginsRegistry: IPluginsRegistry = Registry.as(Extensions.PluginsRegistry);
-
-const schemaId = 'vscode://schemas/vscode-extensions';
-const schema: IJSONSchema = {
-	default: {
-		'name': '{{name}}',
-		'description': '{{description}}',
-		'author': '{{author}}',
-		'version': '{{1.0.0}}',
-		'main': '{{pathToMain}}',
-		'dependencies': {}
-	},
-	properties: {
-		// engines: {
-		// 	required: [ 'vscode' ],
-		// 	properties: {
-		// 		'vscode': {
-		// 			type: 'string',
-		// 			description: nls.localize('vscode.extension.engines.vscode', 'Specifies that this package only runs inside VSCode of the given version.'),
-		// 		}
-		// 	}
-		// },
-		displayName: {
-			description: nls.localize('vscode.extension.displayName', 'The display name for the extension used in the VS Code gallery.'),
-			type: 'string'
-		},
-		categories: {
-			description: nls.localize('vscode.extension.categories', 'The categories used by the VS Code gallery to categorize the extension.'),
-			type: 'array',
-			items: {
-				type: 'string',
-				enum: ['Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other']
-			}
-		},
-		galleryBanner: {
-			type: 'object',
-			description: nls.localize('vscode.extension.galleryBanner', 'Banner used in the VS Code marketplace.'),
-			properties: {
-				color: {
-					description: nls.localize('vscode.extension.galleryBanner.color', 'The banner color on the VS Code marketplace page header.'),
-					type: 'string'
-				},
-				theme: {
-					description: nls.localize('vscode.extension.galleryBanner.theme', 'The color theme for the font used in the banner.'),
-					type: 'string',
-					enum: ['dark', 'light']
-				}
-			}
-		},
-		publisher: {
-			description: nls.localize('vscode.extension.publisher', 'The publisher of the VS Code extension.'),
-			type: 'string'
-		},
-		activationEvents: {
-			description: nls.localize('vscode.extension.activationEvents', 'Activation events for the VS Code extension.'),
-			type: 'array',
-			items: {
-				type: 'string'
-			}
-		},
-		extensionDependencies: {
-			description: nls.localize('vscode.extension.extensionDependencies', 'Dependencies to other extensions. The id of an extension is always ${publisher}.${name}. For example: vscode.csharp.'),
-			type: 'array',
-			items: {
-				type: 'string'
-			}
-		},
-		scripts: {
-			type: 'object',
-			properties: {
-				'vscode:prepublish': {
-					description: nls.localize('vscode.extension.scripts.prepublish', 'Script executed before the package is published as a VS Code extension.'),
-					type: 'string'
-				}
-			}
-		},
-		contributes: {
-			description: nls.localize('vscode.extension.contributes', 'All contributions of the VS Code extension represented by this package.'),
-			type: 'object',
-			properties: {
-				// extensions will fill in
-			},
-			default: {}
-		},
-		isAMD: {
-			description: nls.localize('vscode.extension.isAMD', 'Indicated whether VS Code should load your code as AMD or CommonJS. Default: false.'),
-			type: 'boolean'
-		}
-	}
-};
 
 schemaRegistry.registerSchema(schemaId, schema);
 schemaRegistry.addSchemaFileAssociation('/package.json', schemaId);
