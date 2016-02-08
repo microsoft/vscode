@@ -16,6 +16,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {TokenizationSupport, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
 
 var bracketsSource : Modes.IBracketPair[]= [
 	{ tokenType:'delimiter.bracket.php', open: '{', close: '}', isElectric: true },
@@ -458,7 +459,7 @@ export class PHPEnterHTMLState extends PHPState {
 
 }
 
-export class PHPMode extends AbstractMode<AbstractModeWorker> implements supports.ITokenizationCustomization {
+export class PHPMode extends AbstractMode<AbstractModeWorker> implements ITokenizationCustomization {
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
@@ -474,7 +475,7 @@ export class PHPMode extends AbstractMode<AbstractModeWorker> implements support
 		super(descriptor, instantiationService, threadService);
 		this.modeService = modeService;
 
-		this.tokenizationSupport = new supports.TokenizationSupport(this, this, true, false);
+		this.tokenizationSupport = new TokenizationSupport(this, this, true, false);
 
 		this.richEditSupport = new RichEditSupport(this.getId(), {
 			wordPattern: createWordRegExp('$_'),
@@ -540,7 +541,7 @@ export class PHPMode extends AbstractMode<AbstractModeWorker> implements support
 		};
 	}
 
-	public getLeavingNestedModeData(line:string, state:Modes.IState):supports.ILeavingNestedModeData {
+	public getLeavingNestedModeData(line:string, state:Modes.IState):ILeavingNestedModeData {
 		// Leave HTML if <? is found on a line
 		var match:any = /<\?/i.exec(line);
 		if (match !== null) {

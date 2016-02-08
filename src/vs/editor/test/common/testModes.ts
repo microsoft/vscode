@@ -10,6 +10,7 @@ import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 
 export class CommentState extends AbstractState {
 
@@ -39,7 +40,7 @@ export class CommentMode extends AbstractMode<AbstractModeWorker> {
 	constructor(commentsConfig:modes.ICommentsConfiguration) {
 		super({ id: 'tests.commentMode', workerParticipants: [] }, null, null);
 
-		this.tokenizationSupport = new supports.TokenizationSupport(this, {
+		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new CommentState(this, 0)
 		}, false, false);
 
@@ -106,7 +107,7 @@ export class ModelMode1 extends TestingMode {
 	constructor() {
 		super();
 		this.calledFor = [];
-		this.tokenizationSupport = new supports.TokenizationSupport(this, {
+		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new ModelState1(this)
 		}, false, false);
 	}
@@ -147,7 +148,7 @@ export class ModelMode2 extends TestingMode {
 	constructor() {
 		super();
 		this.calledFor = null;
-		this.tokenizationSupport = new supports.TokenizationSupport(this, {
+		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new ModelState2(this, '')
 		}, false, false);
 	}
@@ -224,7 +225,7 @@ export class BracketMode extends TestingMode {
 
 	constructor() {
 		super();
-		this.tokenizationSupport = new supports.TokenizationSupport(this, {
+		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new BracketState(this)
 		}, false, false);
 	}
@@ -269,7 +270,7 @@ export class NMode extends TestingMode {
 	constructor(n:number) {
 		this.n = n;
 		super();
-		this.tokenizationSupport = new supports.TokenizationSupport(this, {
+		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new NState(this, this.n)
 		}, false, false);
 	}

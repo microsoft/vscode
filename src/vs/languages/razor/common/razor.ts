@@ -17,6 +17,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 
 // for a brief description of the razor syntax see http://www.mikesdotnetting.com/Article/153/Inline-Razor-Syntax-Overview
 
@@ -113,7 +114,7 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 		return new RAZORState(this, htmlMode.States.Content, '', '', '', '', '');
 	}
 
-	public getLeavingNestedModeData(line:string, state:Modes.IState): supports.ILeavingNestedModeData {
+	public getLeavingNestedModeData(line:string, state:Modes.IState): ILeavingNestedModeData {
 		var leavingNestedModeData = super.getLeavingNestedModeData(line, state);
 		if (leavingNestedModeData) {
 			leavingNestedModeData.stateAfterNestedMode = new RAZORState(this, htmlMode.States.Content, '', '', '', '', '');

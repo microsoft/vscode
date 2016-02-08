@@ -17,6 +17,7 @@ import MonarchCommonTypes = require('vs/editor/common/modes/monarch/monarchCommo
 import Modes = require('vs/editor/common/modes');
 import {Registry} from 'vs/platform/platform';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {TokenizationSupport, IEnteringNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 
 var modesRegistry = <ModesRegistry.IEditorModesRegistry>Registry.as(ModesRegistry.Extensions.EditorModes);
 
@@ -388,7 +389,7 @@ function findBracket(lexer: MonarchCommonTypes.ILexer, matched: string) {
 }
 
 export function createTokenizationSupport(modeService:IModeService, mode:Modes.IMode, lexer: MonarchCommonTypes.ILexer): Modes.ITokenizationSupport {
-	return new Supports.TokenizationSupport(mode, {
+	return new TokenizationSupport(mode, {
 		getInitialState: (): Modes.IState => {
 			return new MonarchLexer(mode, lexer);
 		},
@@ -400,7 +401,7 @@ export function createTokenizationSupport(modeService:IModeService, mode:Modes.I
 			return false;
 		},
 
-		getNestedMode: (rawState: Modes.IState): Supports.IEnteringNestedModeData => {
+		getNestedMode: (rawState: Modes.IState): IEnteringNestedModeData => {
 			var mime = (<MonarchLexer>rawState).embeddedMode;
 
 			if (!modesRegistry.isRegisteredMode(mime)) {

@@ -21,6 +21,7 @@ import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 
 export enum States {
 	Selector,
@@ -298,7 +299,7 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 	) {
 		super(descriptor, instantiationService, threadService);
 
-		this.tokenizationSupport = new supports.TokenizationSupport(this, {
+		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new State(this, States.Selector, false, null, false, 0)
 		}, false, false);
 
