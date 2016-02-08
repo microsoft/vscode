@@ -21,7 +21,7 @@ import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
-const HOVER_DELAY = 1000;
+const HOVER_DELAY = 300;
 
 export class DebugEditorContribution implements editorcommon.IEditorContribution {
 
