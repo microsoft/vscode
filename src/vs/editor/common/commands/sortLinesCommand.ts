@@ -55,7 +55,9 @@ export function sortLines(model:EditorCommon.ITextModel, selection:EditorCommon.
 		linesToSort.push(model.getLineContent(lineNumber));
 	}
 
-	var sorted = linesToSort.sort();
+	var sorted = linesToSort.sort((a, b) => {
+		return a.toLowerCase().localeCompare(b.toLowerCase());
+	});
 
 	// If descending, reverse the order.
 	if (descending === true) {
