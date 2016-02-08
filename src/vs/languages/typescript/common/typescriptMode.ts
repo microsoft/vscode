@@ -26,6 +26,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
 class SemanticValidator {
 
@@ -128,8 +129,7 @@ class SemanticValidator {
 export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extends AbstractMode<W> implements lifecycle.IDisposable {
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
-	public electricCharacterSupport: Modes.IElectricCharacterSupport;
-	public characterPairSupport: Modes.ICharacterPairSupport;
+	public richEditSupport: Modes.IRichEditSupport;
 	public referenceSupport: Modes.IReferenceSupport;
 	public extraInfoSupport:Modes.IExtraInfoSupport;
 	public occurrencesSupport:Modes.IOccurrencesSupport;
@@ -142,8 +142,6 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	public emitOutputSupport:Modes.IEmitOutputSupport;
 	public renameSupport: Modes.IRenameSupport;
 	public suggestSupport: Modes.ISuggestSupport;
-
-	public onEnterSupport: Modes.IOnEnterSupport;
 
 	private _telemetryService: ITelemetryService;
 	private _disposables: lifecycle.IDisposable[] = [];
@@ -195,50 +193,21 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 		this.renameSupport = this;
 		this.tokenizationSupport = tokenization.createTokenizationSupport(this, tokenization.Language.TypeScript);
 
-		this.electricCharacterSupport = new supports.BracketElectricCharacterSupport(this, {
+		this.richEditSupport = new RichEditSupport(this.getId(), {
+			wordPattern: createWordRegExp('$'),
+
+			comments: {
+				lineComment: '//',
+				blockComment: ['/*', '*/']
+			},
+
 			brackets: [
-				{ tokenType:'delimiter.bracket.ts', open: '{', close: '}', isElectric: true },
-				{ tokenType:'delimiter.array.ts', open: '[', close: ']', isElectric: true },
-				{ tokenType:'delimiter.parenthesis.ts', open: '(', close: ')', isElectric: true }
+				['{', '}'],
+				['[', ']'],
+				['(', ')']
 			],
-			docComment: {scope:'comment.doc', open:'/**', lineStart:' * ', close:' */'} });
 
-		this.referenceSupport = new supports.ReferenceSupport(this, {
-			tokens: ['identifier.ts'],
-			findReferences: (resource, position, includeDeclaration) => this.findReferences(resource, position, includeDeclaration)});
-
-		this.declarationSupport = new supports.DeclarationSupport(this, {
-			tokens: ['identifier.ts', 'string.ts', 'attribute.value.vs'],
-			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
-
-		this.parameterHintsSupport = new supports.ParameterHintsSupport(this, {
-			triggerCharacters: ['(', ','],
-			excludeTokens: ['string.ts'],
-			getParameterHints: (resource, position) => this.getParameterHints(resource, position)});
-
-		this.characterPairSupport = new supports.CharacterPairSupport(this, {
-			autoClosingPairs:
-				[	{ open: '{', close: '}' },
-					{ open: '[', close: ']' },
-					{ open: '(', close: ')' },
-					{ open: '"', close: '"', notIn: ['string'] },
-					{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
-					{ open: '`', close: '`' }
-				]});
-
-		this.suggestSupport = new supports.SuggestSupport(this, {
-			triggerCharacters: ['.'],
-			excludeTokens: ['string', 'comment', 'number'],
-			suggest: (resource, position) => this.suggest(resource, position),
-			getSuggestionDetails: (resource, position, suggestion) => this.getSuggestionDetails(resource, position, suggestion)});
-
-		this.onEnterSupport = new OnEnterSupport(this.getId(), {
-			brackets: [
-				{ open: '{', close: '}' },
-				{ open: '[', close: ']' },
-				{ open: '(', close: ')' },
-			],
-			regExpRules: [
+			onEnterRules: [
 				{
 					// e.g. /** | */
 					beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
@@ -260,8 +229,47 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 					beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
 					action: { indentAction: Modes.IndentAction.None, removeText: 1 }
 				}
-			]
+			],
+
+			__electricCharacterSupport: {
+				brackets: [
+					{ tokenType:'delimiter.bracket.ts', open: '{', close: '}', isElectric: true },
+					{ tokenType:'delimiter.array.ts', open: '[', close: ']', isElectric: true },
+					{ tokenType:'delimiter.parenthesis.ts', open: '(', close: ')', isElectric: true }
+				],
+				docComment: {scope:'comment.doc', open:'/**', lineStart:' * ', close:' */'}
+			},
+
+			__characterPairSupport: {
+				autoClosingPairs: [
+					{ open: '{', close: '}' },
+					{ open: '[', close: ']' },
+					{ open: '(', close: ')' },
+					{ open: '"', close: '"', notIn: ['string'] },
+					{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+					{ open: '`', close: '`' }
+				]
+			}
 		});
+
+		this.referenceSupport = new supports.ReferenceSupport(this, {
+			tokens: ['identifier.ts'],
+			findReferences: (resource, position, includeDeclaration) => this.findReferences(resource, position, includeDeclaration)});
+
+		this.declarationSupport = new supports.DeclarationSupport(this, {
+			tokens: ['identifier.ts', 'string.ts', 'attribute.value.vs'],
+			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
+
+		this.parameterHintsSupport = new supports.ParameterHintsSupport(this, {
+			triggerCharacters: ['(', ','],
+			excludeTokens: ['string.ts'],
+			getParameterHints: (resource, position) => this.getParameterHints(resource, position)});
+
+		this.suggestSupport = new supports.SuggestSupport(this, {
+			triggerCharacters: ['.'],
+			excludeTokens: ['string', 'comment', 'number'],
+			suggest: (resource, position) => this.suggest(resource, position),
+			getSuggestionDetails: (resource, position, suggestion) => this.getSuggestionDetails(resource, position, suggestion)});
 	}
 
 	public dispose(): void {
@@ -367,10 +375,6 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 		return createAsyncDescriptor2('vs/languages/typescript/common/typescriptWorker2', 'TypeScriptWorker2');
 	}
 
-	public getCommentsConfiguration():Modes.ICommentsConfiguration {
-		return { lineCommentTokens: ['//'], blockCommentStartToken: '/*', blockCommentEndToken: '*/' };
-	}
-
 	static $_pickAWorkerToValidate = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype._pickAWorkerToValidate, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group3);
 	public _pickAWorkerToValidate(): WinJS.Promise {
 		return this._worker((w) => w.enableValidator());
@@ -430,11 +434,6 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	static $getEmitOutput = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.getEmitOutput, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group3);
 	public getEmitOutput(resource:URI, type:string = undefined):WinJS.Promise {
 		return this._worker((w) => w.getEmitOutput(resource, type));
-	}
-
-	private static WORD_DEFINITION = createWordRegExp('$');
-	public getWordDefinition():RegExp {
-		return TypeScriptMode.WORD_DEFINITION;
 	}
 
 	static $findReferences = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.findReferences, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group3);

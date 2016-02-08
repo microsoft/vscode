@@ -81,7 +81,7 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 			if (seenModes[modeId]) {
 				commentStr = seenModes[modeId];
 			} else {
-				config = (mode.commentsSupport ? mode.commentsSupport.getCommentsConfiguration() : null);
+				config = (mode.richEditSupport && mode.richEditSupport.comments ? mode.richEditSupport.comments.getCommentsConfiguration() : null);
 				commentStr = (config && config.lineCommentTokens && config.lineCommentTokens.length > 0 ? config.lineCommentTokens[0] : null);
 				if (commentStr === null || commentStr.length === 0) {
 					// Mode does not support line comments
@@ -273,7 +273,8 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 	 * Given an unsuccessful analysis, delegate to the block comment command
 	 */
 	private _executeBlockComment(model:EditorCommon.ITokenizedModel, builder:EditorCommon.IEditOperationBuilder, s:EditorCommon.IEditorSelection): void {
-		var commentsSupport = model.getModeAtPosition(s.startLineNumber, s.startColumn).commentsSupport;
+		let richEditSupport = model.getModeAtPosition(s.startLineNumber, s.startColumn).richEditSupport;
+		var commentsSupport = richEditSupport ? richEditSupport.comments : null;
 		if (!commentsSupport) {
 			// Mode does not support comments
 			return;

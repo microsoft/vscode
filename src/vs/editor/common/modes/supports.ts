@@ -503,57 +503,6 @@ export class TokenizationSupport extends AbstractSupport implements Modes.IToken
 	}
 }
 
-export interface IBracketElectricCharacterContribution {
-	brackets: Modes.IBracketPair[];
-	regexBrackets?: Modes.IRegexBracketPair[];
-	docComment?: Modes.IDocComment;
-	caseInsensitive?: boolean;
-	embeddedElectricCharacters?: string[];
-}
-export class BracketElectricCharacterSupport extends AbstractSupport implements Modes.IElectricCharacterSupport {
-
-	private contribution: IBracketElectricCharacterContribution;
-	private brackets: Brackets;
-
-	constructor(mode:Modes.IMode, contribution: IBracketElectricCharacterContribution) {
-		super(mode);
-		this.contribution = contribution;
-		this.brackets = new Brackets(contribution.brackets, contribution.regexBrackets,
-			contribution.docComment, contribution.caseInsensitive);
-	}
-
-	public getElectricCharacters(): string[]{
-		if (Array.isArray(this.contribution.embeddedElectricCharacters)) {
-			return this.contribution.embeddedElectricCharacters.concat(this.brackets.getElectricCharacters());
-		}
-		return this.brackets.getElectricCharacters();
-	}
-
-	public onElectricCharacter(context:Modes.ILineContext, offset:number): Modes.IElectricAction {
-		return handleEvent(context, offset, (nestedMode:Modes.IMode, context:Modes.ILineContext, offset:number) => {
-			if (this.mode === nestedMode) {
-				return this.brackets.onElectricCharacter(context, offset);
-			} else if (nestedMode.electricCharacterSupport) {
-				return nestedMode.electricCharacterSupport.onElectricCharacter(context, offset);
-			} else {
-				return null;
-			}
-		});
-	}
-
-	public onEnter(context: Modes.ILineContext, offset: number): Modes.IEnterAction {
-		return handleEvent(context, offset, (nestedMode:Modes.IMode, context:Modes.ILineContext, offset:number) => {
-			if (this.mode === nestedMode) {
-				return this.brackets.onEnter(context, offset);
-			} else if (nestedMode.electricCharacterSupport) {
-				return nestedMode.electricCharacterSupport.onEnter(context, offset);
-			} else {
-				return null;
-			}
-		});
-	}
-}
-
 // TODO@Alex -> refactor to use `brackets` from language configuration
 export function getBracketFor(tokenType:string, tokenText:string, mode:Modes.IMode): Modes.Bracket {
 	if (tokenText === '{' || tokenText === '(' || tokenText === '[') {
@@ -786,61 +735,6 @@ export class ComposableSuggestSupport extends SuggestSupport {
 
 }
 
-export class CharacterPairSupport extends AbstractSupport implements Modes.ICharacterPairSupport {
-
-	private _autoClosingPairs: Modes.IAutoClosingPairConditional[];
-	private _surroundingPairs: Modes.IAutoClosingPair[];
-
-	constructor(mode: Modes.IMode, contribution: Modes.ICharacterPairContribution) {
-
-		super(mode);
-		this._autoClosingPairs = contribution.autoClosingPairs;
-		this._surroundingPairs = Array.isArray(contribution.surroundingPairs) ? contribution.surroundingPairs : contribution.autoClosingPairs;
-	}
-
-	public getAutoClosingPairs(): Modes.IAutoClosingPair[] {
-		return this._autoClosingPairs;
-	}
-
-	public shouldAutoClosePair(character:string, context:Modes.ILineContext, offset:number): boolean {
-		return handleEvent(context, offset, (nestedMode:Modes.IMode, context:Modes.ILineContext, offset:number) => {
-			if (this.mode === nestedMode) {
-
-				// Always complete on empty line
-				if (context.getTokenCount() === 0) {
-					return true;
-				}
-
-				var tokenIndex = context.findIndexOfOffset(offset - 1);
-				var tokenType = context.getTokenType(tokenIndex);
-
-				for (var i = 0; i < this._autoClosingPairs.length; ++i) {
-					if (this._autoClosingPairs[i].open === character) {
-						if (this._autoClosingPairs[i].notIn) {
-							for (var notInIndex = 0; notInIndex < this._autoClosingPairs[i].notIn.length; ++notInIndex) {
-								if (tokenType.indexOf(this._autoClosingPairs[i].notIn[notInIndex]) > -1) {
-									return false;
-								}
-							}
-						}
-						break;
-					}
-				}
-
-				return true;
-			} else if (nestedMode.characterPairSupport) {
-				return nestedMode.characterPairSupport.shouldAutoClosePair(character, context, offset);
-			} else {
-				return null;
-			}
-		});
-	}
-
-	public getSurroundingPairs(): Modes.IAutoClosingPair[]{
-		return this._surroundingPairs;
-	}
-}
-
 export interface IReplaceSupportHelper {
 	valueSetReplace(valueSet: string[], value: string, up: boolean): string;
 	valueSetsReplace(valueSets: string[][], value: string, up: boolean): string;
@@ -1010,43 +904,5 @@ export class MainInplaceReplaceSupport extends AbstractInplaceReplaceSupport {
 
 	protected getModel(resource:URI): EditorCommon.ITokenizedModel {
 		return this.modelService.getModel(resource);
-	}
-}
-
-export interface ICommentsSupportContribution {
-	commentsConfiguration: Modes.ICommentsConfiguration;
-}
-
-export class CommentsSupport implements Modes.ICommentsSupport {
-
-	private _contribution: ICommentsSupportContribution;
-
-	constructor(contribution:ICommentsSupportContribution) {
-		this._contribution = contribution;
-	}
-
-	public getCommentsConfiguration(): Modes.ICommentsConfiguration {
-		return this._contribution.commentsConfiguration;
-	}
-
-}
-
-export interface ITokenTypeClassificationSupportContribution {
-	wordDefinition?: RegExp;
-}
-
-export class TokenTypeClassificationSupport implements Modes.ITokenTypeClassificationSupport {
-
-	private _contribution: ITokenTypeClassificationSupportContribution;
-
-	constructor(contribution: ITokenTypeClassificationSupportContribution) {
-		this._contribution = contribution;
-	}
-
-	public getWordDefinition(): RegExp {
-		if (typeof this._contribution.wordDefinition === 'undefined') {
-			return NullMode.DEFAULT_WORD_REGEXP;
-		}
-		return this._contribution.wordDefinition;
 	}
 }

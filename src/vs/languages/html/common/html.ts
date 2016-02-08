@@ -25,8 +25,10 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IThreadService } from 'vs/platform/thread/common/thread';
 import * as htmlTokenTypes from 'vs/languages/html/common/htmlTokenTypes';
 import {EMPTY_ELEMENTS} from 'vs/languages/html/common/htmlEmptyTagsShared';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
 export { htmlTokenTypes }; // export to be used by Razor. We are the main module, so Razor should get ot from use.
+export { EMPTY_ELEMENTS }; // export to be used by Razor. We are the main module, so Razor should get ot from use.
 
 export enum States {
 	Content,
@@ -273,8 +275,7 @@ export class State extends AbstractState {
 export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> implements supports.ITokenizationCustomization {
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
-	public electricCharacterSupport: Modes.IElectricCharacterSupport;
-	public characterPairSupport: Modes.ICharacterPairSupport;
+	public richEditSupport: Modes.IRichEditSupport;
 
 	public extraInfoSupport:Modes.IExtraInfoSupport;
 	public occurrencesSupport:Modes.IOccurrencesSupport;
@@ -283,7 +284,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 	public formattingSupport: Modes.IFormattingSupport;
 	public parameterHintsSupport: Modes.IParameterHintsSupport;
 	public suggestSupport: Modes.ISuggestSupport;
-	public onEnterSupport: Modes.IOnEnterSupport;
 
 	private modeService:IModeService;
 
@@ -298,17 +298,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 		this.modeService = modeService;
 
 		this.tokenizationSupport = new supports.TokenizationSupport(this, this, true, true);
-		this.electricCharacterSupport = new supports.BracketElectricCharacterSupport(this,
-			{
-				brackets: [],
-				regexBrackets:[
-					{	tokenType: htmlTokenTypes.getTag('$1'),
-						open: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join("|")}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-						closeComplete: '</$1>',
-						close: /<\/(\w[\w\d]*)\s*>$/i }],
-				caseInsensitive:true,
-				embeddedElectricCharacters: ['*', '}', ']', ')']
-			});
 
 		this.formattingSupport = this;
 		this.extraInfoSupport = this;
@@ -331,12 +320,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
 			excludeTokens: ['comment'],
 			suggest: (resource, position) => this.suggest(resource, position)});
-
-		this.onEnterSupport = new OnEnterSupport(this.getId(), {
-			brackets: [
-				{ open: '<!--', close: '-->' }
-			]
-		});
 	}
 
 	public asyncCtor(): winjs.Promise {
@@ -345,13 +328,42 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 			this.modeService.getOrCreateMode('text/css')
 		]).then((embeddableModes) => {
 			var autoClosingPairs = this._getAutoClosingPairs(embeddableModes);
+			this.richEditSupport = this._createRichEditSupport(autoClosingPairs);
+		});
+	}
 
-			this.characterPairSupport = new supports.CharacterPairSupport(this, {
-				autoClosingPairs: autoClosingPairs.slice(0),
+	protected _createRichEditSupport(embeddedAutoClosingPairs: Modes.IAutoClosingPair[]): Modes.IRichEditSupport {
+		return new RichEditSupport(this.getId(), {
+
+			wordPattern: createWordRegExp('#-?%'),
+
+			comments: {
+				blockComment: ['<!--', '-->']
+			},
+
+			brackets: [
+				['<!--', '-->']
+			],
+
+			__electricCharacterSupport: {
+				brackets: [],
+				regexBrackets: [{
+					tokenType: htmlTokenTypes.getTag('$1'),
+					open: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join("|")}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+					closeComplete: '</$1>',
+					close: /<\/(\w[\w\d]*)\s*>$/i
+				}],
+				caseInsensitive: true,
+				embeddedElectricCharacters: ['*', '}', ']', ')']
+			},
+
+			__characterPairSupport: {
+				autoClosingPairs: embeddedAutoClosingPairs.slice(0),
 				surroundingPairs: [
-						{ open: '"', close: '"' },
-						{ open: '\'', close: '\'' }
-					]});
+					{ open: '"', close: '"' },
+					{ open: '\'', close: '\'' }
+				]
+			}
 		});
 	}
 
@@ -377,12 +389,13 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 	}
 
 	private _collectAutoClosingPairs(result:{[key:string]:string;}, mode:Modes.IMode): void {
-		if (mode && mode.characterPairSupport) {
-			var acp = mode.characterPairSupport.getAutoClosingPairs();
-			if (acp !== null) {
-				for(var i = 0; i < acp.length; i++) {
-					result[acp[i].open] = acp[i].close;
-				}
+		if (!mode || !mode.richEditSupport || !mode.richEditSupport.characterPair) {
+			return;
+		}
+		var acp = mode.richEditSupport.characterPair.getAutoClosingPairs();
+		if (acp !== null) {
+			for(var i = 0; i < acp.length; i++) {
+				result[acp[i].open] = acp[i].close;
 			}
 		}
 	}
@@ -441,15 +454,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 			};
 		}
 		return null;
-	}
-
-	public static WORD_DEFINITION = createWordRegExp('#-?%');
-	public getWordDefinition():RegExp {
-		return HTMLMode.WORD_DEFINITION;
-	}
-
-	public getCommentsConfiguration():Modes.ICommentsConfiguration {
-		return { blockCommentStartToken: '<!--', blockCommentEndToken: '-->' };
 	}
 
 	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], htmlWorker.HTMLWorker> {

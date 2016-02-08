@@ -9,6 +9,7 @@ import supports = require('vs/editor/common/modes/supports');
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
 export class CommentState extends AbstractState {
 
@@ -32,21 +33,21 @@ export class CommentState extends AbstractState {
 
 export class CommentMode extends AbstractMode<AbstractModeWorker> {
 
-	private commentsConfig:modes.ICommentsConfiguration;
-
 	public tokenizationSupport: modes.ITokenizationSupport;
+	public richEditSupport: modes.IRichEditSupport;
 
 	constructor(commentsConfig:modes.ICommentsConfiguration) {
 		super({ id: 'tests.commentMode', workerParticipants: [] }, null, null);
-		this.commentsConfig = commentsConfig;
 
 		this.tokenizationSupport = new supports.TokenizationSupport(this, {
 			getInitialState: () => new CommentState(this, 0)
 		}, false, false);
-	}
 
-	public getCommentsConfiguration():modes.ICommentsConfiguration {
-		return this.commentsConfig;
+		this.richEditSupport = {
+			comments: {
+				getCommentsConfiguration: () => commentsConfig
+			}
+		};
 	}
 }
 

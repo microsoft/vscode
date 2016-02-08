@@ -35,6 +35,9 @@ export const language =
 
 		autoClosingPairs: [],
 
+		blockCommentStart: '<!--',
+		blockCommentEnd: '-->',
+
 		// escape codes
 		control: /[\\`*_\[\]{}()#+\-\.!]/,
 		noncontrol: /[^\\`*_\[\]{}()#+\-\.!]/,
@@ -219,10 +222,6 @@ export class MarkdownMode extends Monarch.MonarchMode<MarkdownWorker.MarkdownWor
 		super(descriptor, Compile.compile(language), instantiationService, threadService, modeService, modelService);
 
 		this.emitOutputSupport = this;
-	}
-
-	public getCommentsConfiguration(): Modes.ICommentsConfiguration {
-		return { blockCommentStartToken: '<!--', blockCommentEndToken: '-->' };
 	}
 
 	static $getEmitOutput = OneWorkerAttr(MarkdownMode, MarkdownMode.prototype.getEmitOutput);

@@ -750,13 +750,9 @@ export interface IModeSupportChangedEvent {
 	emitOutputSupport:boolean;
 	linkSupport:boolean;
 	configSupport:boolean;
-	electricCharacterSupport:boolean;
-	commentsSupport:boolean;
-	characterPairSupport:boolean;
-	tokenTypeClassificationSupport:boolean;
 	quickFixSupport: boolean;
 	codeLensSupport: boolean;
-	onEnterSupport: boolean;
+	richEditSupport: boolean;
 }
 
 /**

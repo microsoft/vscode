@@ -25,6 +25,7 @@ import MonarchCommonTypes = require('vs/editor/common/modes/monarch/monarchCommo
 import {OnEnterSupport, IOnEnterSupportOptions} from 'vs/editor/common/modes/supports/onEnter';
 import {IDisposable, combinedDispose, empty as EmptyDisposable} from 'vs/base/common/lifecycle';
 import {createAsyncDescriptor0, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
+import {RichEditSupport, IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
 
 interface IModeConfigurationMap { [modeId: string]: any; }
 
@@ -263,15 +264,7 @@ export class ModeServiceImpl implements IModeService {
 				return createTokenizationSupport(this, mode, lexer);
 			}),
 
-			this.registerDeclarativeCommentsSupport(modeId, MonarchDefinition.createCommentsSupport(lexer)),
-
-			this.registerDeclarativeElectricCharacterSupport(modeId, MonarchDefinition.createBracketElectricCharacterContribution(lexer)),
-
-			this.registerDeclarativeTokenTypeClassificationSupport(modeId, MonarchDefinition.createTokenTypeClassificationSupportContribution(lexer)),
-
-			this.registerDeclarativeCharacterPairSupport(modeId, MonarchDefinition.createCharacterPairContribution(lexer)),
-
-			this.registerDeclarativeOnEnterSupport(modeId, MonarchDefinition.createOnEnterSupportOptions(lexer))
+			this.registerRichEditSupport(modeId, MonarchDefinition.createRichEditSupport(lexer))
 		);
 	}
 
@@ -280,24 +273,16 @@ export class ModeServiceImpl implements IModeService {
 		return this.doRegisterMonarchDefinition(modeId, lexer);
 	}
 
-	public registerDeclarativeCharacterPairSupport(modeId: string, support: Modes.ICharacterPairContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'characterPairSupport', (mode) => new Supports.CharacterPairSupport(mode, support));
-	}
-
 	public registerCodeLensSupport(modeId: string, support: Modes.ICodeLensSupport): IDisposable {
 		return this.registerModeSupport(modeId, 'codeLensSupport', (mode) => support);
 	}
 
-	public registerDeclarativeCommentsSupport(modeId: string, support: Supports.ICommentsSupportContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'commentsSupport', (mode) => new Supports.CommentsSupport(support));
+	public registerRichEditSupport(modeId: string, support: IRichEditConfiguration): IDisposable {
+		return this.registerModeSupport(modeId, 'richEditSupport', (mode) => new RichEditSupport(modeId, support));
 	}
 
 	public registerDeclarativeDeclarationSupport(modeId: string, contribution: Supports.IDeclarationContribution): IDisposable {
 		return this.registerModeSupport(modeId, 'declarationSupport', (mode) => new Supports.DeclarationSupport(mode, contribution));
-	}
-
-	public registerDeclarativeElectricCharacterSupport(modeId: string, support: Supports.IBracketElectricCharacterContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'electricCharacterSupport', (mode) => new Supports.BracketElectricCharacterSupport(mode, support));
 	}
 
 	public registerExtraInfoSupport(modeId: string, support: Modes.IExtraInfoSupport): IDisposable {
@@ -342,14 +327,6 @@ export class ModeServiceImpl implements IModeService {
 
 	public registerTokenizationSupport(modeId: string, callback: (mode: Modes.IMode) => Modes.ITokenizationSupport): IDisposable {
 		return this.registerModeSupport(modeId, 'tokenizationSupport', callback);
-	}
-
-	public registerDeclarativeTokenTypeClassificationSupport(modeId: string, support: Supports.ITokenTypeClassificationSupportContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'tokenTypeClassificationSupport', (mode) => new Supports.TokenTypeClassificationSupport(support));
-	}
-
-	public registerDeclarativeOnEnterSupport(modeId: string, opts: IOnEnterSupportOptions): IDisposable {
-		return this.registerModeSupport(modeId, 'onEnterSupport', (mode) => new OnEnterSupport(modeId, opts));
 	}
 }
 

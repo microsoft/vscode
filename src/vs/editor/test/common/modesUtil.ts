@@ -38,7 +38,7 @@ export function createOnElectricCharacter(mode:modes.IMode): IOnElectricCharacte
 	return function onElectricCharacter(line:string, offset:number, state?:modes.IState): modes.IElectricAction {
 		state = state || mode.tokenizationSupport.getInitialState();
 		var lineTokens = mode.tokenizationSupport.tokenize(line, state);
-		return mode.electricCharacterSupport.onElectricCharacter(createLineContext(line, lineTokens), offset);
+		return mode.richEditSupport.electricCharacter.onElectricCharacter(createLineContext(line, lineTokens), offset);
 	};
 }
 
@@ -50,7 +50,7 @@ export function createOnEnter(mode:modes.IMode): IOnEnterFunc {
 	return function onEnter(line:string, offset:number, state?:modes.IState): modes.IEnterAction {
 		state = state || mode.tokenizationSupport.getInitialState();
 		var lineTokens = mode.tokenizationSupport.tokenize(line, state);
-		return mode.electricCharacterSupport.onEnter(createLineContext(line, lineTokens), offset);
+		return mode.richEditSupport.electricCharacter.onEnter(createLineContext(line, lineTokens), offset);
 	};
 }
 
@@ -103,13 +103,13 @@ class SimpleMode implements modes.IMode {
 	}
 }
 
-export function createOnEnterAsserter(modeId:string, onEnterSupport: modes.IOnEnterSupport): IOnEnterAsserter {
+export function createOnEnterAsserter(modeId:string, richEditSupport: modes.IRichEditSupport): IOnEnterAsserter {
 	var assertOne = (oneLineAboveText:string, beforeText:string, afterText:string, expected: modes.IndentAction) => {
 		var model = new Model(
 			[ oneLineAboveText, beforeText + afterText ].join('\n'),
 			new SimpleMode(modeId)
 		);
-		var actual = onEnterSupport.onEnter(model, { lineNumber: 2, column: beforeText.length + 1 });
+		var actual = richEditSupport.onEnter.onEnter(model, { lineNumber: 2, column: beforeText.length + 1 });
 		if (expected === modes.IndentAction.None) {
 			assert.equal(actual, null, oneLineAboveText + '\\n' + beforeText + '|' + afterText);
 		} else {

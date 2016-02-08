@@ -16,6 +16,7 @@ import {RAZORWorker} from 'vs/languages/razor/common/razorWorker';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
 // for a brief description of the razor syntax see http://www.mikesdotnetting.com/Article/153/Inline-Razor-Syntax-Overview
 
@@ -65,13 +66,42 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 		super(descriptor, instantiationService, threadService, modeService);
 
 		this.formattingSupport = null;
+	}
 
-		this.onEnterSupport = new OnEnterSupport(this.getId(), {
+	protected _createRichEditSupport(embeddedAutoClosingPairs: Modes.IAutoClosingPair[]): Modes.IRichEditSupport {
+		return new RichEditSupport(this.getId(), {
+
+			wordPattern: createWordRegExp('#?%'),
+
+			comments: {
+				blockComment: ['<!--', '-->']
+			},
+
 			brackets: [
-				{ open: '<!--', close: '-->' },
-				{ open: '{', close: '}' },
-				{ open: '(', close: ')' },
-			]
+				['<!--', '-->'],
+				['{', '}'],
+				['(', ')']
+			],
+
+			__electricCharacterSupport: {
+				brackets: [],
+				regexBrackets: [{
+					tokenType: htmlMode.htmlTokenTypes.getTag('$1'),
+					open: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join("|")}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+					closeComplete: '</$1>',
+					close: /<\/(\w[\w\d]*)\s*>$/i
+				}],
+				caseInsensitive: true,
+				embeddedElectricCharacters: ['*', '}', ']', ')']
+			},
+
+			__characterPairSupport: {
+				autoClosingPairs: embeddedAutoClosingPairs.slice(0),
+				surroundingPairs: [
+					{ open: '"', close: '"' },
+					{ open: '\'', close: '\'' }
+				]
+			}
 		});
 	}
 
@@ -83,11 +113,6 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 		return new RAZORState(this, htmlMode.States.Content, '', '', '', '', '');
 	}
 
-	public static WORD_DEFINITION = createWordRegExp('#?%');
-	public getWordDefinition():RegExp {
-		return RAZORMode.WORD_DEFINITION;
-	}
-
 	public getLeavingNestedModeData(line:string, state:Modes.IState): supports.ILeavingNestedModeData {
 		var leavingNestedModeData = super.getLeavingNestedModeData(line, state);
 		if (leavingNestedModeData) {
@@ -96,4 +121,3 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 		return leavingNestedModeData;
 	}
 }
-

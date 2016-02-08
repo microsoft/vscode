@@ -121,7 +121,8 @@ export class BlockCommentCommand implements EditorCommon.ICommand {
 		var endLineNumber = this._selection.endLineNumber;
 		var endColumn = this._selection.endColumn;
 
-		var commentsSupport = model.getModeAtPosition(startLineNumber, startColumn).commentsSupport;
+		let richEditSupport = model.getModeAtPosition(startLineNumber, startColumn).richEditSupport;
+		var commentsSupport = richEditSupport? richEditSupport.comments : null;
 		if (!commentsSupport) {
 			// Mode does not support comments
 			return;

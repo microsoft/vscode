@@ -19,6 +19,7 @@ import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
 export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaScriptWorker> {
 
@@ -29,7 +30,6 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 	public logicalSelectionSupport: Modes.ILogicalSelectionSupport;
 	public typeDeclarationSupport: Modes.ITypeDeclarationSupport;
 	public suggestSupport: Modes.ISuggestSupport;
-	public onEnterSupport: Modes.IOnEnterSupport;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
@@ -53,31 +53,21 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 			excludeTokens: ['string.js', 'string.escape.js'],
 			getParameterHints: (resource, position) => this.getParameterHints(resource, position)});
 
-		this.electricCharacterSupport = new supports.BracketElectricCharacterSupport(this,
-			{
-				brackets: [
-					{ tokenType: 'delimiter.bracket.js', open: '{', close: '}', isElectric: true },
-					{ tokenType: 'delimiter.array.js', open: '[', close: ']', isElectric: true },
-					{ tokenType: 'delimiter.parenthesis.js', open: '(', close: ')', isElectric: true } ],
-				docComment: { scope: 'comment.doc', open: '/**', lineStart: ' * ', close: ' */' }
-			});
+		this.richEditSupport = new RichEditSupport(this.getId(), {
+			wordPattern: createWordRegExp('$'),
 
-		this.characterPairSupport = new supports.CharacterPairSupport(this, {
-			autoClosingPairs:
-				[	{ open: '{', close: '}' },
-					{ open: '[', close: ']' },
-					{ open: '(', close: ')' },
-					{ open: '"', close: '"', notIn: ['string'] },
-					{ open: '\'', close: '\'', notIn: ['string', 'comment'] }
-				]});
+			comments: {
+				lineComment: '//',
+				blockComment: ['/*', '*/']
+			},
 
-		this.onEnterSupport = new OnEnterSupport(this.getId(), {
 			brackets: [
-				{ open: '(', close: ')' },
-				{ open: '{', close: '}' },
-				{ open: '[', close: ']' }
+				['{', '}'],
+				['[', ']'],
+				['(', ')']
 			],
-			regExpRules: [
+
+			onEnterRules: [
 				{
 					// e.g. /** | */
 					beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
@@ -99,7 +89,26 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 					beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
 					action: { indentAction: Modes.IndentAction.None, removeText: 1 }
 				}
-			]
+			],
+
+			__electricCharacterSupport: {
+				brackets: [
+					{ tokenType: 'delimiter.bracket.js', open: '{', close: '}', isElectric: true },
+					{ tokenType: 'delimiter.array.js', open: '[', close: ']', isElectric: true },
+					{ tokenType: 'delimiter.parenthesis.js', open: '(', close: ')', isElectric: true }
+				],
+				docComment: { scope: 'comment.doc', open: '/**', lineStart: ' * ', close: ' */' }
+			},
+
+			__characterPairSupport: {
+				autoClosingPairs: [
+					{ open: '{', close: '}' },
+					{ open: '[', close: ']' },
+					{ open: '(', close: ')' },
+					{ open: '"', close: '"', notIn: ['string'] },
+					{ open: '\'', close: '\'', notIn: ['string', 'comment'] }
+				]
+			}
 		});
 
 		this.suggestSupport = new supports.SuggestSupport(this, {
@@ -134,15 +143,6 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 
 	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], javascriptWorker.JavaScriptWorker> {
 		return createAsyncDescriptor2('vs/languages/javascript/common/javascriptWorker', 'JavaScriptWorker');
-	}
-
-	public getCommentsConfiguration(): Modes.ICommentsConfiguration {
-		return { lineCommentTokens: ['//'], blockCommentStartToken: '/*', blockCommentEndToken: '*/' };
-	}
-
-	private static JS_WORD_DEFINITION = createWordRegExp('$');
-	public getWordDefinition(): RegExp {
-		return JSMode.JS_WORD_DEFINITION;
 	}
 
 	public get filter() {

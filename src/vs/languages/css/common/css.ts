@@ -20,6 +20,7 @@ import {IMarker} from 'vs/platform/markers/common/markers';
 import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
 export enum States {
 	Selector,
@@ -279,8 +280,7 @@ export class State extends AbstractState {
 export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
-	public electricCharacterSupport: Modes.IElectricCharacterSupport;
-	public characterPairSupport: Modes.ICharacterPairSupport;
+	public richEditSupport: Modes.IRichEditSupport;
 
 	public referenceSupport: Modes.IReferenceSupport;
 	public logicalSelectionSupport: Modes.ILogicalSelectionSupport;
@@ -290,7 +290,6 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 	public declarationSupport: Modes.IDeclarationSupport;
 	public suggestSupport: Modes.ISuggestSupport;
 	public quickFixSupport: Modes.IQuickFixSupport;
-	public onEnterSupport: Modes.IOnEnterSupport;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
@@ -302,9 +301,37 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 		this.tokenizationSupport = new supports.TokenizationSupport(this, {
 			getInitialState: () => new State(this, States.Selector, false, null, false, 0)
 		}, false, false);
-		this.electricCharacterSupport = new supports.BracketElectricCharacterSupport(this, { brackets: [
-			{ tokenType: 'punctuation.bracket.css', open: '{', close: '}', isElectric: true }
-		] });
+
+		this.richEditSupport = new RichEditSupport(this.getId(), {
+			// TODO@Martin: This definition does not work with umlauts for example
+			wordPattern: /(#?-?\d*\.\d\w*%?)|((::|[@#.!:])?[\w-?]+%?)|::|[@#.!:]/g,
+
+			comments: {
+				blockComment: ['/*', '*/']
+			},
+
+			brackets: [
+				['{', '}'],
+				['[', ']'],
+				['(', ')']
+			],
+
+			__electricCharacterSupport: {
+				brackets: [
+					{ tokenType: 'punctuation.bracket.css', open: '{', close: '}', isElectric: true }
+				]
+			},
+
+			__characterPairSupport: {
+				autoClosingPairs: [
+					{ open: '{', close: '}' },
+					{ open: '[', close: ']' },
+					{ open: '(', close: ')' },
+					{ open: '"', close: '"', notIn: ['string'] },
+					{ open: '\'', close: '\'', notIn: ['string'] }
+				]
+			}
+		});
 
 		this.occurrencesSupport = this;
 		this.extraInfoSupport = this;
@@ -317,27 +344,11 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 			tokens: [cssTokenTypes.TOKEN_VALUE + '.css'],
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 
-		this.characterPairSupport = new supports.CharacterPairSupport(this, {
-			autoClosingPairs:
-				[	{ open: '{', close: '}' },
-					{ open: '[', close: ']' },
-					{ open: '(', close: ')' },
-					{ open: '"', close: '"', notIn: ['string'] },
-					{ open: '\'', close: '\'', notIn: ['string'] }
-				]});
-
 		this.suggestSupport = new supports.SuggestSupport(this, {
 			triggerCharacters: [' ', ':'],
 			excludeTokens: ['comment.css', 'string.css'],
 			suggest: (resource, position) => this.suggest(resource, position)});
 
-		this.onEnterSupport = new OnEnterSupport(this.getId(), {
-			brackets: [
-				{ open: '(', close: ')' },
-				{ open: '{', close: '}' },
-				{ open: '[', close: ']' }
-			]
-		});
 
 		this.quickFixSupport = this;
 	}
@@ -374,15 +385,6 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 	static $getOutline = OneWorkerAttr(CSSMode, CSSMode.prototype.getOutline);
 	public getOutline(resource:URI):WinJS.TPromise<Modes.IOutlineEntry[]> {
 		return this._worker((w) => w.getOutline(resource));
-	}
-
-	public getCommentsConfiguration():Modes.ICommentsConfiguration {
-		return { blockCommentStartToken: '/*', blockCommentEndToken: '*/' };
-	}
-
-	// TODO@Martin: This definition does not work with umlauts for example
-	public getWordDefinition():RegExp {
-		return /(#?-?\d*\.\d\w*%?)|((::|[@#.!:])?[\w-?]+%?)|::|[@#.!:]/g;
 	}
 
 	static $findColorDeclarations = OneWorkerAttr(CSSMode, CSSMode.prototype.findColorDeclarations);

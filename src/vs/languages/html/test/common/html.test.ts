@@ -609,7 +609,7 @@ suite('Colorizing - HTML', () => {
 	test('onEnter', function() {
 		var model = new Model('<script type=\"text/javascript\">function f() { foo(); }', _mode);
 
-		var actual = _mode.onEnterSupport.onEnter(model, {
+		var actual = _mode.richEditSupport.onEnter.onEnter(model, {
 			lineNumber: 1,
 			column: 46
 		});

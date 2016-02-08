@@ -283,26 +283,6 @@ export interface IMode {
 	configSupport?:IConfigurationSupport;
 
 	/**
-	 * Optional adapter to support electric characters.
-	 */
-	electricCharacterSupport?:IElectricCharacterSupport;
-
-	/**
-	 * Optional adapter to support comment insertion.
-	 */
-	commentsSupport?:ICommentsSupport;
-
-	/**
-	 * Optional adapter to support insertion of character pair.
-	 */
-	characterPairSupport?:ICharacterPairSupport;
-
-	/**
-	 * Optional adapter to support classification of tokens.
-	 */
-	tokenTypeClassificationSupport?:ITokenTypeClassificationSupport;
-
-	/**
 	 * Optional adapter to support quick fix of typing errors.
 	 */
 	quickFixSupport?:IQuickFixSupport;
@@ -322,7 +302,10 @@ export interface IMode {
 	 */
 	taskSupport?: ITaskSupport;
 
-	onEnterSupport?: IOnEnterSupport;
+	/**
+	 * Optional adapter to support rich editing.
+	 */
+	richEditSupport?: IRichEditSupport;
 }
 
 /**
@@ -644,87 +627,6 @@ export interface IConfigurationSupport {
 	configure(options:any):TPromise<boolean>;
 }
 
-
-
-
-/**
- * Interface used to support electric characters
- */
-export interface IElectricAction {
-	// Only one of the following properties should be defined:
-
-	// The line will be indented at the same level of the line
-	// which contains the matching given bracket type.
-	matchBracketType?:string;
-
-	// The text will be appended after the electric character.
-	appendText?:string;
-
-	// The number of characters to advance the cursor, useful with appendText
-	advanceCount?:number;
-}
-
-export enum IndentAction {
-	None,
-	Indent,
-	IndentOutdent,
-	Outdent
-}
-
-/**
- * An action the editor executes when 'enter' is being pressed
- */
-export interface IEnterAction {
-	indentAction:IndentAction;
-	appendText?:string;
-	removeText?:number;
-}
-
-export interface IElectricCharacterSupport {
-	getElectricCharacters():string[];
-	// Should return opening bracket type to match indentation with
-	onElectricCharacter(context:ILineContext, offset:number):IElectricAction;
-	onEnter(context:ILineContext, offset:number):IEnterAction;
-}
-
-export interface IOnEnterSupport {
-	onEnter(model:EditorCommon.ITokenizedModel, position: EditorCommon.IPosition): IEnterAction;
-}
-
-/**
- * Interface used to support insertion of mode specific comments.
- */
-export interface ICommentsConfiguration {
-	lineCommentTokens?:string[];
-	blockCommentStartToken?:string;
-	blockCommentEndToken?:string;
-}
-export interface ICommentsSupport {
-	getCommentsConfiguration():ICommentsConfiguration;
-}
-
-
-
-/**
- * Interface used to support insertion of matching characters like brackets and qoutes.
- */
-export interface IAutoClosingPair {
-	open:string;
-	close:string;
-}
-export interface ICharacterPairSupport {
-	getAutoClosingPairs():IAutoClosingPairConditional[];
-	shouldAutoClosePair(character:string, context:ILineContext, offset:number):boolean;
-	getSurroundingPairs():IAutoClosingPair[];
-}
-
-/**
- * Interface used to support the classification of tokens.
- */
-export interface ITokenTypeClassificationSupport {
-	getWordDefinition():RegExp;
-}
-
 export interface IResourceEdit {
 	resource: URI;
 	range?: EditorCommon.IRange;
@@ -826,4 +728,107 @@ export interface IAutoClosingPairConditional extends IAutoClosingPair {
 export interface ICharacterPairContribution {
 	autoClosingPairs: IAutoClosingPairConditional[];
 	surroundingPairs?: IAutoClosingPair[];
+}
+
+/**
+ * Interface used to support electric characters
+ */
+export interface IElectricAction {
+	// Only one of the following properties should be defined:
+
+	// The line will be indented at the same level of the line
+	// which contains the matching given bracket type.
+	matchBracketType?:string;
+
+	// The text will be appended after the electric character.
+	appendText?:string;
+
+	// The number of characters to advance the cursor, useful with appendText
+	advanceCount?:number;
+}
+
+export enum IndentAction {
+	None,
+	Indent,
+	IndentOutdent,
+	Outdent
+}
+
+/**
+ * An action the editor executes when 'enter' is being pressed
+ */
+export interface IEnterAction {
+	indentAction:IndentAction;
+	appendText?:string;
+	removeText?:number;
+}
+
+export interface IRichEditElectricCharacter {
+	getElectricCharacters():string[];
+	// Should return opening bracket type to match indentation with
+	onElectricCharacter(context:ILineContext, offset:number):IElectricAction;
+	onEnter(context:ILineContext, offset:number):IEnterAction;
+}
+
+export interface IRichEditOnEnter {
+	onEnter(model:EditorCommon.ITokenizedModel, position: EditorCommon.IPosition): IEnterAction;
+}
+
+/**
+ * Interface used to support insertion of mode specific comments.
+ */
+export interface ICommentsConfiguration {
+	lineCommentTokens?:string[];
+	blockCommentStartToken?:string;
+	blockCommentEndToken?:string;
+}
+export interface IRichEditComments {
+	getCommentsConfiguration():ICommentsConfiguration;
+}
+
+/**
+ * Interface used to support insertion of matching characters like brackets and qoutes.
+ */
+export interface IAutoClosingPair {
+	open:string;
+	close:string;
+}
+export interface IRichEditCharacterPair {
+	getAutoClosingPairs():IAutoClosingPairConditional[];
+	shouldAutoClosePair(character:string, context:ILineContext, offset:number):boolean;
+	getSurroundingPairs():IAutoClosingPair[];
+}
+
+/**
+ * Interface used to support the classification of tokens.
+ */
+export interface IRichEditTokenTypeClassification {
+	getWordDefinition():RegExp;
+}
+
+export interface IRichEditSupport {
+	/**
+	 * Optional adapter for electric characters.
+	 */
+	electricCharacter?:IRichEditElectricCharacter;
+
+	/**
+	 * Optional adapter for comment insertion.
+	 */
+	comments?:IRichEditComments;
+
+	/**
+	 * Optional adapter for insertion of character pair.
+	 */
+	characterPair?:IRichEditCharacterPair;
+
+	/**
+	 * Optional adapter for classification of tokens.
+	 */
+	tokenTypeClassification?:IRichEditTokenTypeClassification;
+
+	/**
+	 * Optional adapter for custom Enter handling.
+	 */
+	onEnter?: IRichEditOnEnter;
 }

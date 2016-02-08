@@ -13,17 +13,15 @@ import modesUtil = require('vs/editor/test/common/modesUtil');
 suite('JS - Auto Indent', () => {
 
 	var wordDefinition:RegExp;
-	var onEnter: modesUtil.IOnEnterFunc;
 	var assertOnEnter: modesUtil.IOnEnterAsserter;
 	var onElectricCharacter: modesUtil.IOnElectricCharacterFunc;
 	var assertWords = modesUtil.assertWords;
 
 	suiteSetup((done) => {
 		modesUtil.load('javascript').then(mode => {
-			onEnter = modesUtil.createOnEnter(mode);
-			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.onEnterSupport);
+			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
 			onElectricCharacter = modesUtil.createOnElectricCharacter(mode);
-			wordDefinition = mode.tokenTypeClassificationSupport.getWordDefinition();
+			wordDefinition = mode.richEditSupport.tokenTypeClassification.getWordDefinition();
 			done();
 		});
 	});

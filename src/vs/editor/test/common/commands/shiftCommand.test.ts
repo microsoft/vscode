@@ -13,6 +13,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 import {Cursor} from 'vs/editor/common/controller/cursor';
 import * as Modes from 'vs/editor/common/modes';
 import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
 function testShiftCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	TU.testCommand(lines, null, selection, (sel) => new ShiftCommand(sel, {
@@ -32,16 +33,17 @@ function testUnshiftCommand(lines: string[], selection: Selection, expectedLines
 
 class DocBlockCommentMode implements Modes.IMode {
 
-	public onEnterSupport: Modes.IOnEnterSupport;
+	public richEditSupport: Modes.IRichEditSupport;
 
 	constructor() {
-		this.onEnterSupport = new OnEnterSupport(this.getId(), {
+		this.richEditSupport = new RichEditSupport(this.getId(), {
 			brackets: [
-				{ open: '(', close: ')' },
-				{ open: '{', close: '}' },
-				{ open: '[', close: ']' }
+				['(', ')'],
+				['{', '}'],
+				['[', ']']
 			],
-			regExpRules: [
+
+			onEnterRules: [
 				{
 					// e.g. /** | */
 					beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,

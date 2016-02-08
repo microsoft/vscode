@@ -5,7 +5,7 @@
 'use strict';
 
 import {handleEvent} from 'vs/editor/common/modes/supports';
-import {IEnterAction, IndentAction, IOnEnterSupport, ILineContext, IMode} from 'vs/editor/common/modes';
+import {IEnterAction, IndentAction, IRichEditOnEnter, ILineContext, IMode} from 'vs/editor/common/modes';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Errors = require('vs/base/common/errors');
 import Strings = require('vs/base/common/strings');
@@ -40,7 +40,7 @@ interface IProcessedBracketPair extends IBracketPair {
 	closeRegExp: RegExp;
 }
 
-export class OnEnterSupport implements IOnEnterSupport {
+export class OnEnterSupport implements IRichEditOnEnter {
 
 	private static _INDENT: IEnterAction = { indentAction: IndentAction.Indent };
 	private static _INDENT_OUTDENT: IEnterAction = { indentAction: IndentAction.IndentOutdent };
@@ -78,8 +78,8 @@ export class OnEnterSupport implements IOnEnterSupport {
 		return handleEvent(context, position.column - 1, (nestedMode:IMode, context:ILineContext, offset:number) => {
 			if (this._modeId === nestedMode.getId()) {
 				return this._onEnter(model, position);
-			} else if (nestedMode.onEnterSupport) {
-				return nestedMode.onEnterSupport.onEnter(model, position);
+			} else if (nestedMode.richEditSupport && nestedMode.richEditSupport.onEnter) {
+				return nestedMode.richEditSupport.onEnter.onEnter(model, position);
 			} else {
 				return null;
 			}
@@ -184,19 +184,21 @@ export class OnEnterSupport implements IOnEnterSupport {
 export function getRawEnterActionAtPosition(model:EditorCommon.ITokenizedModel, lineNumber:number, column:number): IEnterAction {
 	let enterAction:IEnterAction;
 
-	if (model.getMode().onEnterSupport) {
+	let richEditSupport = model.getMode().richEditSupport;
+
+	if (richEditSupport && richEditSupport.onEnter) {
 		try {
-			enterAction = model.getMode().onEnterSupport.onEnter(model, new Position(lineNumber, column));
+			enterAction = richEditSupport.onEnter.onEnter(model, new Position(lineNumber, column));
 		} catch (e) {
 			Errors.onUnexpectedError(e);
 		}
 	}
 
 	if (!enterAction) {
-		if (model.getMode().electricCharacterSupport) {
+		if (richEditSupport && richEditSupport.electricCharacter) {
 			let lineContext = model.getLineContext(lineNumber);
 			try {
-				enterAction = model.getMode().electricCharacterSupport.onEnter(lineContext, column - 1);
+				enterAction = richEditSupport.electricCharacter.onEnter(lineContext, column - 1);
 			} catch(e) {
 				Errors.onUnexpectedError(e);
 			}

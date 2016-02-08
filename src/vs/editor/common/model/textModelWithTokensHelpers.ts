@@ -39,14 +39,19 @@ export interface INonWordTokenMap {
 export class WordHelper {
 
 	private static _safeGetWordDefinition(mode:Modes.IMode): RegExp {
-		var result: RegExp = null;
+		let richEditSupport = mode.richEditSupport;
+		if (!richEditSupport) {
+			return null;
+		}
+		if (!richEditSupport.tokenTypeClassification) {
+			return null;
+		}
 
-		if (mode.tokenTypeClassificationSupport) {
-			try {
-				result = mode.tokenTypeClassificationSupport.getWordDefinition();
-			} catch(e) {
-				Errors.onUnexpectedError(e);
-			}
+		var result: RegExp = null;
+		try {
+			result = richEditSupport.tokenTypeClassification.getWordDefinition();
+		} catch(e) {
+			Errors.onUnexpectedError(e);
 		}
 
 		return result;

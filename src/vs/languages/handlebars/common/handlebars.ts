@@ -14,6 +14,8 @@ import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 
 export enum States {
 	HTML,
@@ -115,29 +117,44 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 		super(descriptor, instantiationService, threadService, modeService);
 
 		this.formattingSupport = null;
-
-		this.onEnterSupport = new OnEnterSupport(this.getId(), {
-			brackets: [
-				{ open: '<!--', close: '-->' },
-				{ open: '{{', close: '}}' },
-			]
-		});
 	}
 
-	public asyncCtor(): winjs.Promise {
-		return super.asyncCtor().then(() => {
-			var pairs = this.characterPairSupport.getAutoClosingPairs().slice(0).concat([
-				{ open: '{', close: '}'}
-			]);
+	protected _createRichEditSupport(embeddedAutoClosingPairs: Modes.IAutoClosingPair[]): Modes.IRichEditSupport {
+		return new RichEditSupport(this.getId(), {
 
-			this.characterPairSupport = new supports.CharacterPairSupport(this, {
-				autoClosingPairs:  pairs.slice(0),
+			wordPattern: createWordRegExp('#-?%'),
+
+			comments: {
+				blockComment: ['<!--', '-->']
+			},
+
+			brackets: [
+				['<!--', '-->'],
+				['{{', '}}']
+			],
+
+			__electricCharacterSupport: {
+				brackets: [],
+				regexBrackets: [{
+					tokenType: htmlMode.htmlTokenTypes.getTag('$1'),
+					open: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join("|")}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+					closeComplete: '</$1>',
+					close: /<\/(\w[\w\d]*)\s*>$/i
+				}],
+				caseInsensitive: true,
+				embeddedElectricCharacters: ['*', '}', ']', ')']
+			},
+
+			__characterPairSupport: {
+				autoClosingPairs: embeddedAutoClosingPairs.slice(0).concat([
+					{ open: '{', close: '}'}
+				]),
 				surroundingPairs: [
 					{ open: '<', close: '>' },
 					{ open: '"', close: '"' },
 					{ open: '\'', close: '\'' }
 				]
-			});
+			}
 		});
 	}
 

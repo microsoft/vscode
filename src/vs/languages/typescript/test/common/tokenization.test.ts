@@ -19,7 +19,7 @@ suite('TS/JS - syntax highlighting', () => {
 	setup((done) => {
 		modesUtil.load('javascript').then(mode => {
 			tokenizationSupport = mode.tokenizationSupport;
-			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.onEnterSupport);
+			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
 			done();
 		});
 	});

@@ -11,6 +11,7 @@ import modesUtil = require('vs/editor/test/common/modesUtil');
 import monarchCompile = require('vs/editor/common/modes/monarch/monarchCompile');
 import MonarchDefinition = require('vs/editor/common/modes/monarch/monarchDefinition');
 import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
 export enum Bracket {
 	None = 0,
@@ -47,8 +48,8 @@ export function testOnEnter(name:string, language: types.ILanguage, callback:(as
 	suite(language.displayName || name, () => {
 		test('onEnter', () => {
 			var lexer = monarchCompile.compile(language);
-			var onEnterSupport = new OnEnterSupport('test', MonarchDefinition.createOnEnterSupportOptions(lexer));
-			callback(modesUtil.createOnEnterAsserter('test', onEnterSupport));
+			var richEditSupport = new RichEditSupport('test', MonarchDefinition.createRichEditSupport(lexer));
+			callback(modesUtil.createOnEnterAsserter('test', richEditSupport));
 		});
 	});
 }
