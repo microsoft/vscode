@@ -12,6 +12,7 @@ import MonarchTypes = require('vs/editor/common/modes/monarch/monarchTypes');
 import {IOnEnterSupportOptions} from 'vs/editor/common/modes/supports/onEnter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
+import {IDeclarationContribution} from 'vs/editor/common/modes/supports/declarationSupport';
 
 export var IModeService = createDecorator<IModeService>('modeService');
 
@@ -36,7 +37,7 @@ export interface IModeService {
 	getOrCreateModeByFilenameOrFirstLine(filename: string, firstLine?:string): TPromise<Modes.IMode>;
 
 	registerCodeLensSupport(modeId: string, support: Modes.ICodeLensSupport): IDisposable;
-	registerDeclarativeDeclarationSupport(modeId: string, contribution: Supports.IDeclarationContribution): IDisposable;
+	registerDeclarativeDeclarationSupport(modeId: string, contribution: IDeclarationContribution): IDisposable;
 	registerExtraInfoSupport(modeId: string, support: Modes.IExtraInfoSupport): IDisposable;
 	registerFormattingSupport(modeId: string, support: Modes.IFormattingSupport): IDisposable;
 	registerInplaceReplaceSupport(modeId: string, support: Modes.IInplaceReplaceSupport): IDisposable;

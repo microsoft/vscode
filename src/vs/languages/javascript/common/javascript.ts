@@ -20,6 +20,7 @@ import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
 
 export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaScriptWorker> {
 
@@ -44,7 +45,7 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 			tokens: [],
 			findReferences: (resource, position, includeDeclaration) => this.findReferences(resource, position, includeDeclaration)});
 
-		this.declarationSupport = new supports.DeclarationSupport(this, {
+		this.declarationSupport = new DeclarationSupport(this.getId(), {
 			tokens: [],
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 

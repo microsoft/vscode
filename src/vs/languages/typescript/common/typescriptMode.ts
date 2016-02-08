@@ -27,6 +27,7 @@ import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
 
 class SemanticValidator {
 
@@ -256,7 +257,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 			tokens: ['identifier.ts'],
 			findReferences: (resource, position, includeDeclaration) => this.findReferences(resource, position, includeDeclaration)});
 
-		this.declarationSupport = new supports.DeclarationSupport(this, {
+		this.declarationSupport = new DeclarationSupport(this.getId(), {
 			tokens: ['identifier.ts', 'string.ts', 'attribute.value.vs'],
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 

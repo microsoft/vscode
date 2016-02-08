@@ -186,40 +186,6 @@ export function getBracketFor(tokenType:string, tokenText:string, mode:Modes.IMo
 	return Modes.Bracket.None;
 }
 
-export interface IDeclarationContribution {
-	tokens?: string[];
-	findDeclaration: (resource: URI, position: EditorCommon.IPosition) => TPromise<Modes.IReference>;
-}
-export class DeclarationSupport extends AbstractSupport implements Modes.IDeclarationSupport {
-
-	private contribution: IDeclarationContribution;
-
-	/**
-	 * Provide the token type postfixes for the tokens where a declaration can be found in the 'tokens' argument.
-	 */
-	constructor(mode: Modes.IMode, contribution: IDeclarationContribution) {
-		super(mode);
-		this.contribution = contribution;
-	}
-
-	public canFindDeclaration(context: Modes.ILineContext, offset:number):boolean {
-		return handleEvent(context, offset, (nestedMode:Modes.IMode, context:Modes.ILineContext, offset:number) => {
-			if (this.mode === nestedMode) {
-				return (!Array.isArray(this.contribution.tokens) ||
-					this.contribution.tokens.length < 1 ||
-					isLineToken(context, offset, this.contribution.tokens));
-			} else if (nestedMode.declarationSupport) {
-				return nestedMode.declarationSupport.canFindDeclaration(context, offset);
-			} else {
-				return false;
-			}
-		});
-	}
-
-	public findDeclaration(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.IReference>{
-		return this.contribution.findDeclaration(resource, position);
-	}
-}
 
 export interface ITypeDeclarationContribution {
 	tokens: string[];

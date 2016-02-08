@@ -22,6 +22,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
+import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
 
 export enum States {
 	Selector,
@@ -341,7 +342,7 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 			findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
 		this.logicalSelectionSupport = this;
 		this.outlineSupport = this;
-		this.declarationSupport = new supports.DeclarationSupport(this, {
+		this.declarationSupport = new DeclarationSupport(this.getId(), {
 			tokens: [cssTokenTypes.TOKEN_VALUE + '.css'],
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 

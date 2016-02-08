@@ -27,6 +27,7 @@ import * as htmlTokenTypes from 'vs/languages/html/common/htmlTokenTypes';
 import {EMPTY_ELEMENTS} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
+// import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
 
 export { htmlTokenTypes }; // export to be used by Razor. We are the main module, so Razor should get ot from use.
 export { EMPTY_ELEMENTS }; // export to be used by Razor. We are the main module, so Razor should get ot from use.
@@ -313,7 +314,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 			excludeTokens: ['*'],
 			getParameterHints: (resource, position) => this.getParameterHints(resource, position)});
 		// TODO@Alex TODO@Joh: there is something off about declaration support of embedded JS in HTML
-		// this.declarationSupport = new supports.DeclarationSupport(this, {
+		// this.declarationSupport = new DeclarationSupport(this, {
 		// 		tokens: ['invalid'],
 		// 		findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 

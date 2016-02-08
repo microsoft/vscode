@@ -21,6 +21,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
 
 export var language = <Types.ILanguage>{
 	displayName: 'Sass',
@@ -303,7 +304,7 @@ export class SASSMode extends Monarch.MonarchMode<sassWorker.SassWorker> impleme
 			tokens: [sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_VALUE + '.sass', 'variable.decl.sass', 'variable.ref.sass', 'support.function.name.sass', sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_SELECTOR + '.sass'],
 			findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
 		this.logicalSelectionSupport = this;
-		this.declarationSupport = new supports.DeclarationSupport(this, {
+		this.declarationSupport = new DeclarationSupport(this.getId(), {
 			tokens: ['variable.decl.sass', 'variable.ref.sass', 'support.function.name.sass', sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_SELECTOR + '.sass'],
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 		this.outlineSupport = this;

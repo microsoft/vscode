@@ -26,6 +26,7 @@ import {OnEnterSupport, IOnEnterSupportOptions} from 'vs/editor/common/modes/sup
 import {IDisposable, combinedDispose, empty as EmptyDisposable} from 'vs/base/common/lifecycle';
 import {createAsyncDescriptor0, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
 import {RichEditSupport, IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
+import {DeclarationSupport, IDeclarationContribution} from 'vs/editor/common/modes/supports/declarationSupport';
 
 interface IModeConfigurationMap { [modeId: string]: any; }
 
@@ -281,8 +282,8 @@ export class ModeServiceImpl implements IModeService {
 		return this.registerModeSupport(modeId, 'richEditSupport', (mode) => new RichEditSupport(modeId, support));
 	}
 
-	public registerDeclarativeDeclarationSupport(modeId: string, contribution: Supports.IDeclarationContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'declarationSupport', (mode) => new Supports.DeclarationSupport(mode, contribution));
+	public registerDeclarativeDeclarationSupport(modeId: string, contribution: IDeclarationContribution): IDisposable {
+		return this.registerModeSupport(modeId, 'declarationSupport', (mode) => new DeclarationSupport(modeId, contribution));
 	}
 
 	public registerExtraInfoSupport(modeId: string, support: Modes.IExtraInfoSupport): IDisposable {
