@@ -16,6 +16,7 @@ import numbers = require('vs/base/common/numbers');
 import sash = require('vs/base/browser/ui/sash/sash');
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import Event, {Emitter} from 'vs/base/common/event';
 
 export enum Orientation {
 	VERTICAL,
@@ -405,6 +406,7 @@ export class SplitView implements
 	private viewChangeListeners: lifecycle.IDisposable[];
 	private viewFocusPreviousListeners: lifecycle.IDisposable[];
 	private viewFocusNextListeners: lifecycle.IDisposable[];
+	private viewFocusListeners: lifecycle.IDisposable[];
 	private initialWeights: number[];
 	private sashOrientation: sash.Orientation;
 	private sashes: sash.Sash[];
@@ -413,7 +415,7 @@ export class SplitView implements
 	private layoutViewElement: (viewElement: HTMLElement, size: number) => void;
 	private eventWrapper: (event: sash.ISashEvent) => ISashEvent;
 	private animationTimeout: number;
-
+	private _onFocus: Emitter<View>;
 	private state: IState;
 
 	constructor(container: HTMLElement, options?: IOptions) {
@@ -432,10 +434,12 @@ export class SplitView implements
 		this.viewChangeListeners = [];
 		this.viewFocusPreviousListeners = [];
 		this.viewFocusNextListeners = [];
+		this.viewFocusListeners = [];
 		this.initialWeights = [];
 		this.sashes = [];
 		this.sashesListeners = [];
 		this.animationTimeout = null;
+		this._onFocus = new Emitter<View>();
 
 		this.sashOrientation = this.orientation === Orientation.VERTICAL
 			? sash.Orientation.HORIZONTAL
@@ -457,6 +461,10 @@ export class SplitView implements
 			minimumSize: 0,
 			fixedSize: 0
 		}), 1, 0);
+	}
+
+	public get onFocus(): Event<View> {
+		return this._onFocus.event;
 	}
 
 	public addView(view: View, initialWeight: number = 1, index = this.views.length - 1): void {
@@ -496,6 +504,10 @@ export class SplitView implements
 		this.viewChangeListeners.splice(index, 0, view.addListener2('change', size => this.onViewChange(view, size)));
 		this.onViewChange(view, view.minimumSize);
 
+		let viewFocusTracker = dom.trackFocus(viewElement);
+		this.viewFocusListeners.splice(index, 0, viewFocusTracker);
+		viewFocusTracker.addFocusListener(() => this._onFocus.fire(view));
+
 		this.viewFocusPreviousListeners.splice(index, 0, view.addListener2('focusPrevious', () => index > 0 && this.views[index - 1].focus()));
 		this.viewFocusNextListeners.splice(index, 0, view.addListener2('focusNext', () => index < this.views.length && this.views[index + 1].focus()));
 	}
@@ -520,6 +532,9 @@ export class SplitView implements
 
 		this.viewFocusPreviousListeners[index].dispose();
 		this.viewFocusPreviousListeners.splice(index, 1);
+
+		this.viewFocusListeners[index].dispose();
+		this.viewFocusListeners.splice(index, 1);
 
 		this.viewFocusNextListeners[index].dispose();
 		this.viewFocusNextListeners.splice(index, 1);
@@ -585,7 +600,6 @@ export class SplitView implements
 	}
 
 	private onSashChange(sash: sash.Sash, event: ISashEvent): void {
-		let i = this.sashes.indexOf(sash);
 		let diff = event.current - this.state.start;
 
 		for (let i = 0; i < this.views.length; i++) {

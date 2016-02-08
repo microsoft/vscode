@@ -6,6 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/explorerviewlet';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder} from 'vs/base/browser/builder';
 import {Scope} from 'vs/workbench/common/memento';
@@ -30,6 +31,8 @@ export class ExplorerViewlet extends Viewlet {
 
 	private explorerView: ExplorerView;
 	private workingFilesView: WorkingFilesView;
+	private lastFocusedView: ExplorerView | WorkingFilesView;
+	private focusListener: IDisposable;
 
 	private viewletSettings: any;
 	private viewletState: FileViewletState;
@@ -60,6 +63,11 @@ export class ExplorerViewlet extends Viewlet {
 
 		// Explorer view
 		this.addExplorerView();
+
+		// Track focus
+		this.focusListener = this.splitView.onFocus((view: ExplorerView | WorkingFilesView) => {
+			this.lastFocusedView = view;
+		});
 
 		return Promise.join(this.views.map((view) => view.create()));
 	}
@@ -115,11 +123,45 @@ export class ExplorerViewlet extends Viewlet {
 	public focus(): void {
 		super.focus();
 
-		if (this.explorerView) {
-			this.explorerView.focusBody();
-		} else if (this.workingFilesView) {
-			this.workingFilesView.focusBody();
+		if (this.lastFocusedView && this.lastFocusedView.isExpanded()) {
+			this.lastFocusedView.focusBody();
+			return;
 		}
+
+		if (this.hasSelection(this.workingFilesView)) {
+			return this.workingFilesView.focusBody();
+		}
+
+		if (this.hasSelection(this.explorerView)) {
+			return this.explorerView.focusBody();
+		}
+
+		if (this.workingFilesView && this.workingFilesView.isExpanded()) {
+			return this.workingFilesView.focusBody();
+		}
+
+		if (this.explorerView && this.explorerView.isExpanded()) {
+			return this.explorerView.focusBody();
+		}
+
+		return this.workingFilesView.focus();
+	}
+
+	private hasSelection(view: ExplorerView|WorkingFilesView): boolean {
+		if (!view) {
+			return false;
+		}
+
+		if (!view.isExpanded()) {
+			return false;
+		}
+
+		const viewer = view.getViewer();
+		if (!viewer) {
+			return false;
+		}
+
+		return viewer.getSelection() && viewer.getSelection().length > 0;
 	}
 
 	public layout(dimension: Dimension): void {
@@ -147,6 +189,12 @@ export class ExplorerViewlet extends Viewlet {
 	public dispose(): void {
 		if (this.splitView) {
 			this.splitView.dispose();
+			this.splitView = null;
+		}
+
+		if (this.focusListener) {
+			this.focusListener.dispose();
+			this.focusListener = null;
 		}
 	}
 }

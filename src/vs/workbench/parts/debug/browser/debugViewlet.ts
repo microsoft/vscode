@@ -433,6 +433,8 @@ export class DebugViewlet extends viewlet.Viewlet {
 	private splitView: splitview.SplitView;
 	private views: viewlet.IViewletView[];
 
+	private lastFocusedView: viewlet.CollapsibleViewletView | viewlet.AdaptiveCollapsibleViewletView;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IProgressService private progressService: IProgressService,
@@ -468,6 +470,11 @@ export class DebugViewlet extends viewlet.Viewlet {
 			this.splitView = new splitview.SplitView(this.$el.getHTMLElement());
 			this.toDispose.push(this.splitView);
 			this.views.forEach(v => this.splitView.addView(<any> v));
+
+			// Track focus
+			this.toDispose.push(this.splitView.onFocus((view: viewlet.CollapsibleViewletView | viewlet.AdaptiveCollapsibleViewletView) => {
+				this.lastFocusedView = view;
+			}));
 		} else {
 			this.$el.append($([
 				'<div class="noworkspace-view">',
@@ -494,6 +501,11 @@ export class DebugViewlet extends viewlet.Viewlet {
 
 	public focus(): void {
 		super.focus();
+
+		if (this.lastFocusedView && this.lastFocusedView.isExpanded()) {
+			this.lastFocusedView.focusBody();
+			return;
+		}
 
 		if (this.views.length > 0) {
 			(<VariablesView>this.views[0]).focusBody();
