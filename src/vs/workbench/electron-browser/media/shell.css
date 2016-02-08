@@ -92,7 +92,7 @@
 	outline: 1px solid #007ACC; /* higher contrast color for focusable elements in a row that shows focus feedback */
 }
 
-.monaco-shell .monaco-tree.focused.no-item-focus:focus:before {
+.monaco-shell .monaco-tree.focused.no-focused-item:focus:before {
 	position: absolute;
 	top: 0;
 	left: 0;
@@ -103,17 +103,17 @@
 	pointer-events: none; /* enable click through */
 }
 
-.monaco-shell.vs .monaco-tree.focused.no-item-focus:focus:before {
+.monaco-shell.vs .monaco-tree.focused.no-focused-item:focus:before {
 	outline: 1px solid rgba(0, 122, 204, 0.4); /* we still need to handle the empty tree or no focus item case */
 	outline-offset: -1px;
 }
 
-.monaco-shell.vs-dark .monaco-tree.focused.no-item-focus:focus:before {
+.monaco-shell.vs-dark .monaco-tree.focused.no-focused-item:focus:before {
 	outline: 1px solid rgba(14, 99, 156, 0.6); /* we still need to handle the empty tree or no focus item case */
 	outline-offset: -1px;
 }
 
-.monaco-shell.hc-black .monaco-tree.focused.no-item-focus:focus:before {
+.monaco-shell.hc-black .monaco-tree.focused.no-focused-item:focus:before {
 	outline: 2px solid #DF740C; /* we still need to handle the empty tree or no focus item case */
 	outline-offset: -2px;
 }
@@ -141,7 +141,7 @@
 .monaco-shell input[type="submit"]:active,
 .monaco-shell input[type="checkbox"]:active,
 .monaco-shell .monaco-tree .monaco-tree-row .monaco-action-bar .action-item [tabindex="0"]:hover,
-.monaco-shell .monaco-tree.focused.no-item-focus:active:before {
+.monaco-shell .monaco-tree.focused.no-focused-item:active:before {
 	outline: 0 !important; /* fixes some flashing outlines from showing up when clicking */
 }
 

@@ -895,8 +895,8 @@ export class SearchViewlet extends Viewlet {
 				controller: new SearchController(),
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider)
 			}, {
-					ariaLabel: nls.localize('treeAriaLabel', "Search Results")
-				});
+				ariaLabel: nls.localize('treeAriaLabel', "Search Results")
+			});
 
 			this.toUnbind.push(() => renderer.dispose());
 

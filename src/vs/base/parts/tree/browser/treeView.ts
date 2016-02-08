@@ -9,17 +9,16 @@ import Browser = require('vs/base/browser/browser');
 import WinJS = require('vs/base/common/winjs.base');
 import Lifecycle = require('vs/base/common/lifecycle');
 import DOM = require('vs/base/browser/dom');
-import EventEmitter = require('vs/base/common/eventEmitter');
 import Diff = require('vs/base/common/diff/diff');
 import Touch = require('vs/base/browser/touch');
 import Mouse = require('vs/base/browser/mouseEvent');
 import Keyboard = require('vs/base/browser/keyboardEvent');
 import Model = require('vs/base/parts/tree/browser/treeModel');
 import dnd = require('./treeDnd');
-import { IIterator, ArrayIterator, MappedIterator } from 'vs/base/common/iterator';
+import { ArrayIterator, MappedIterator } from 'vs/base/common/iterator';
 import Scroll = require('vs/base/browser/ui/scrollbar/scrollableElement');
 import ScrollableElementImpl = require('vs/base/browser/ui/scrollbar/scrollableElementImpl');
-import { HeightMap } from 'vs/base/parts/tree/browser/treeViewModel'
+import { HeightMap } from 'vs/base/parts/tree/browser/treeViewModel';
 import _ = require('vs/base/parts/tree/browser/tree');
 import { IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
 import {IScrollable} from 'vs/base/common/scrollable';
@@ -467,7 +466,7 @@ export class TreeView extends HeightMap implements IScrollable {
 		this.items = {};
 
 		this.domNode = document.createElement('div');
-		this.domNode.className = 'monaco-tree';
+		this.domNode.className = 'monaco-tree no-focused-item';
 		this.domNode.tabIndex = 0;
 
 		// ARIA
@@ -1095,7 +1094,7 @@ export class TreeView extends HeightMap implements IScrollable {
 	private onModelFocusChange(): void {
 		const focus = this.model && this.model.getFocus();
 
-		DOM.toggleClass(this.domNode, 'no-item-focus', !focus);
+		DOM.toggleClass(this.domNode, 'no-focused-item', !focus);
 
 		// ARIA
 		if (focus) {
