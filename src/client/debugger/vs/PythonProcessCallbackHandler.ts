@@ -45,6 +45,7 @@ export class PythonProcessCallbackHandler extends EventEmitter {
             case "EXCP": this.HandleException(); break;
             case "EXCR": this.HandleExecutionResult(); break;
             case "EXCE": this.HandleExecutionException(); break;
+            case "ASBR": this.HandleAsyncBreak(); break;
             default: {
                 console.error("Uhandled command = " + cmd);
                 this.emit("error", `Unhandled command '${cmd}'`);
@@ -151,6 +152,17 @@ export class PythonProcessCallbackHandler extends EventEmitter {
             pyThread = this.process.Threads.get(threadId);
         }
         this.emit("stepCompleted", pyThread);
+    }
+    private HandleAsyncBreak() {
+        var threadId = this.stream.ReadInt64();
+        if (this.stream.HasInsufficientDataForReading) {
+            return;
+        }
+        var pyThread: IPythonThread;
+        if (this.process.Threads.has(threadId)) {
+            pyThread = this.process.Threads.get(threadId);
+        }
+        this.emit("asyncBreakCompleted", pyThread);
     }
     private HandleBreakPointFailed() {
         var id = this.stream.ReadInt32();

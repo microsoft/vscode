@@ -149,6 +149,7 @@ class PythonDebugSession extends DebugSession {
         this.pythonProcess.on("breakpointHit", (pyThread, breakpointId) => this.onBreakpointHit(pyThread, breakpointId));
         this.pythonProcess.on("detach", () => this.onDetachDebugger());
         this.pythonProcess.on("error", ex => this.sendEvent(new OutputEvent(ex, "stderr")));
+        this.pythonProcess.on("asyncBreakCompleted", arg=> this.onPythonProcessPaused(arg));
     }
     private onDetachDebugger() {
         this.stopDebugServer();
@@ -165,6 +166,9 @@ class PythonDebugSession extends DebugSession {
     }
     private onPythonThreadExited(pyThread: IPythonThread) {
         this.sendEvent(new ThreadEvent("exited", pyThread.Id));
+    }
+    private onPythonProcessPaused(pyThread: IPythonThread) {
+        this.sendEvent(new StoppedEvent("pause", pyThread.Id));
     }
     private onPythonModuleLoaded(module: IPythonModule) {
     }
@@ -490,8 +494,8 @@ class PythonDebugSession extends DebugSession {
     }
             
     protected pauseRequest(response: DebugProtocol.PauseResponse): void {
-        console.error('Not yet implemented: pauseRequest');
-        this.sendErrorResponse(response, 2000, "Pause is not yet supported");
+        this.pythonProcess.Break();
+        this.sendResponse(response);        
     }
 
     protected setExceptionBreakPointsRequest(response: DebugProtocol.SetExceptionBreakpointsResponse, args: DebugProtocol.SetExceptionBreakpointsArguments): void {

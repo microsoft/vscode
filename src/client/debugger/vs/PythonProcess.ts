@@ -74,6 +74,7 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
         this.callbackHandler.on("detach", () => this.emit("detach"));
         this.callbackHandler.on("last", () => this.emit("last"));
         this.callbackHandler.on("moduleLoaded", arg=> this.emit("moduleLoaded", arg));
+        this.callbackHandler.on("asyncBreakCompleted", arg=> this.emit("asyncBreakCompleted", arg));
         this.callbackHandler.on("threadCreated", arg=> this.emit("threadCreated", arg));
         this.callbackHandler.on("threadExited", arg=> this.emit("threadExited", arg));
         this.callbackHandler.on("stepCompleted", arg=> this.onPythonStepCompleted(arg));
@@ -250,7 +251,9 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
     public SendClearStepping(threadId: number) {
 
     }
-
+    public Break() {
+        this.stream.Write(Commands.BreakAllCommandBytes);
+    }
     public ExecuteText(text: string, reprKind: PythonEvaluationResultReprKind, stackFrame: IPythonStackFrame): Promise<IPythonEvaluationResult> {
         return new Promise<IPythonEvaluationResult>((resolve, reject) => {
             var executeId = this._idDispenser.Allocate();
