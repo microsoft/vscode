@@ -25,3 +25,13 @@ export interface IListMouseEvent<T> extends MouseEvent {
 	element: T;
 	index: number;
 }
+
+export interface IFocusChangeEvent<T> {
+	elements: T[];
+	indexes: number[];
+}
+
+export interface ISelectionChangeEvent<T> {
+	elements: T[];
+	indexes: number[];
+}

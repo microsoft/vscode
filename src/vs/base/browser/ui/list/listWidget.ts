@@ -7,12 +7,17 @@ import 'vs/css!./list';
 import { IDisposable, dispose, disposeAll } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import * as DOM from 'vs/base/browser/dom';
-import { IDelegate, IRenderer, IListMouseEvent } from './list';
+import Event, { Emitter, mapEvent } from 'vs/base/common/event';
+import { IDelegate, IRenderer, IListMouseEvent, IFocusChangeEvent, ISelectionChangeEvent } from './list';
 import { ListView } from './listView';
 
 interface ITraitTemplateData<D> {
 	container: HTMLElement;
 	data: D;
+}
+
+interface ITraitChangeEvent {
+	indexes: number[];
 }
 
 class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData<D>>
@@ -43,9 +48,12 @@ class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData<D>>
 	}
 }
 
-class Trait {
+class Trait implements IDisposable {
 
 	private indexes: number[];
+
+	private _onChange = new Emitter<ITraitChangeEvent>();
+	get onChange() { return this._onChange.event; }
 
 	constructor(private _trait: string) {
 		this.indexes = [];
@@ -65,6 +73,7 @@ class Trait {
 		}
 
 		this.indexes = indexes;
+		this._onChange.fire({ indexes });
 	}
 
 	get trait(): string {
@@ -74,6 +83,7 @@ class Trait {
 	set(...indexes: number[]): number[] {
 		const result = this.indexes;
 		this.indexes = indexes;
+		this._onChange.fire({ indexes });
 		return result;
 	}
 
@@ -87,10 +97,12 @@ class Trait {
 		}
 
 		this.indexes.push(index);
+		this._onChange.fire({ indexes: this.indexes });
 	}
 
 	remove(index: number): void {
 		this.indexes = this.indexes.filter(i => i === index);
+		this._onChange.fire({ indexes: this.indexes });
 	}
 
 	contains(index: number): boolean {
@@ -99,6 +111,11 @@ class Trait {
 
 	wrapRenderer<T, D>(renderer: IRenderer<T, D>): IRenderer<T, ITraitTemplateData<D>> {
 		return new TraitRenderer<T, D>(this, renderer);
+	}
+
+	dispose() {
+		this.indexes = null;
+		this._onChange = dispose(this._onChange);
 	}
 }
 
@@ -129,6 +146,20 @@ export class List<T> implements IDisposable {
 	private selection: Trait;
 	private view: ListView<T>;
 	private controller: Controller<T>;
+
+	get onFocusChange(): Event<IFocusChangeEvent<T>> {
+		return mapEvent(this.focus.onChange, e => ({
+			elements: e.indexes.map(i => this.view.element(i)),
+			indexes: e.indexes
+		}));
+	}
+
+	get onSelectionChange(): Event<ISelectionChangeEvent<T>> {
+		return mapEvent(this.selection.onChange, e => ({
+			elements: e.indexes.map(i => this.view.element(i)),
+			indexes: e.indexes
+		}));
+	}
 
 	constructor(
 		container: HTMLElement,
@@ -206,5 +237,7 @@ export class List<T> implements IDisposable {
 
 	dispose(): void {
 		this.view = dispose(this.view);
+		this.focus = dispose(this.focus);
+		this.selection = dispose(this.selection);
 	}
 }

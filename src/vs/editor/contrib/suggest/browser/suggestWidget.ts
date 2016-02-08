@@ -12,7 +12,7 @@ import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import Event, { Emitter } from 'vs/base/common/event';
 import { append, addClass, removeClass, toggleClass, emmet as $, hide, show, addDisposableListener } from 'vs/base/browser/dom';
-import { IRenderer, IDelegate } from 'vs/base/browser/ui/list/list';
+import { IRenderer, IDelegate, IFocusChangeEvent, ISelectionChangeEvent } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import * as HighlightedLabel from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { SuggestModel, ICancelEvent, ISuggestEvent, ITriggerEvent } from './suggestModel';
@@ -483,7 +483,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			editor.addListener2(EditorCommon.EventType.ModelModeSupportChanged, (e: EditorCommon.IModeSupportChangedEvent) => e.suggestSupport && this.onModelModeChanged()),
 			SuggestRegistry.onDidChange(() => this.onModelModeChanged()),
 			// editor.addListener2(EditorCommon.EventType.EditorTextBlur, () => this.onEditorBlur()),
-			// this.list.addListener2('selection', e => this.onTreeSelection(e)),
+			this.list.onSelectionChange(e => this.onListSelection(e)),
 			// this.list.addListener2('focus', e => this.onTreeFocus(e)),
 			this.editor.addListener2(EditorCommon.EventType.CursorSelectionChanged, () => this.onCursorSelectionChanged()),
 			this.model.onDidTrigger(e => this.onDidTrigger(e)),
@@ -512,34 +512,26 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		});
 	}
 
-	// private onTreeSelection(e: Tree.ISelectionEvent): void {
-	// 	if (!e.selection || e.selection.length === 0) {
-	// 		return;
-	// 	}
+	private onListSelection(e: ISelectionChangeEvent<CompletionItem>): void {
+		if (!e.elements.length) {
+			return;
+		}
 
-	// 	const element = e.selection[0];
+		setTimeout(() => {
+			this.telemetryData.selectedIndex = 0;
+			this.telemetryData.wasCancelled = false;
+			this.telemetryData.selectedIndex = e.indexes[0];
+			this.submitTelemetryData();
 
-	// 	if (!element.hasOwnProperty('suggestions')) {
-	// 		const item: CompletionItem = element;
-	// 		const navigator = this.list.getNavigator();
+			const item = e.elements[0];
+			const container = item.container;
+			const overwriteBefore = (typeof item.suggestion.overwriteBefore === 'undefined') ? container.currentWord.length : item.suggestion.overwriteBefore;
+			const overwriteAfter = (typeof item.suggestion.overwriteAfter === 'undefined') ? 0 : Math.max(0, item.suggestion.overwriteAfter);
+			this.model.accept(item.suggestion, overwriteBefore, overwriteAfter);
 
-	// 		this.telemetryData.selectedIndex = 0;
-	// 		this.telemetryData.wasCancelled = false;
-
-	// 		while (navigator.next() !== item) {
-	// 			this.telemetryData.selectedIndex++;
-	// 		}
-
-	// 		this.submitTelemetryData();
-
-	// 		const container = item.container;
-	// 		const overwriteBefore = (typeof item.suggestion.overwriteBefore === 'undefined') ? container.currentWord.length : item.suggestion.overwriteBefore;
-	// 		const overwriteAfter = (typeof item.suggestion.overwriteAfter === 'undefined') ? 0 : Math.max(0, item.suggestion.overwriteAfter);
-	// 		this.model.accept(item.suggestion, overwriteBefore, overwriteAfter);
-
-	// 		this.editor.focus();
-	// 	}
-	// }
+			this.editor.focus();
+		}, 0);
+	}
 
 	// private onTreeFocus(e: Tree.IFocusEvent): void {
 	// 	const focus = e.focus;
