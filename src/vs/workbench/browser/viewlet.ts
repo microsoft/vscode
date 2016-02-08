@@ -261,8 +261,10 @@ export class CollapseAction extends Action {
 			}
 
 			viewer.collapseAll();
-			viewer.clearSelection(); // Chance is high that element is now hidden, so unselect all
-			viewer.DOMFocus(); // Pass keyboard focus back from action link to tree
+			viewer.clearSelection();
+			viewer.clearFocus();
+			viewer.DOMFocus();
+			viewer.focusFirst();
 
 			return TPromise.as(null);
 		});

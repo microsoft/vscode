@@ -380,9 +380,15 @@ export class CollapseAllAction extends Action {
 	}
 
 	public run(): Promise {
-		if (this.viewlet.getControl()) {
-			return this.viewlet.getControl().collapseAll();
+		let tree = this.viewlet.getControl();
+		if (tree) {
+			tree.collapseAll();
+			tree.clearSelection();
+			tree.clearFocus();
+			tree.DOMFocus();
+			tree.focusFirst();
 		}
+
 		return TPromise.as(null);
 	}
 }
@@ -743,7 +749,7 @@ export class SearchViewlet extends Viewlet {
 		};
 
 		this.queryBox = builder.div({ 'class': 'query-box' }, (div) => {
-			let options:IFindInputOptions = {
+			let options: IFindInputOptions = {
 				label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search or Escape to cancel'),
 				validation: (value: string) => {
 					if (value.length === 0) {
@@ -889,8 +895,8 @@ export class SearchViewlet extends Viewlet {
 				controller: new SearchController(),
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider)
 			}, {
-				ariaLabel: nls.localize('treeAriaLabel', "Search Results")
-			});
+					ariaLabel: nls.localize('treeAriaLabel', "Search Results")
+				});
 
 			this.toUnbind.push(() => renderer.dispose());
 

@@ -46,12 +46,17 @@ export class ToggleOutputAction extends Action {
 
 export class ClearOutputAction extends Action {
 
-	constructor(@IOutputService private outputService: IOutputService) {
+	constructor(
+		@IOutputService private outputService: IOutputService,
+		@IPanelService private panelService: IPanelService
+	) {
 		super('workbench.output.action.clearOutput', nls.localize('clearOutput', "Clear Output"), 'output-action clear-output');
 	}
 
 	public run(): Promise {
 		this.outputService.clearOutput(this.outputService.getActiveChannel());
+		this.panelService.getActivePanel().focus();
+
 		return TPromise.as(true);
 	}
 }
