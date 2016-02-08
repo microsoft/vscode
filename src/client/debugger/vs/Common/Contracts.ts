@@ -43,8 +43,8 @@ export interface IPythonProcess extends NodeJS.EventEmitter {
     EnumChildren(text: string, stackFrame: IPythonStackFrame, timeout: number): Promise<IPythonEvaluationResult[]>;
     SetLineNumber(pythonStackFrame: IPythonStackFrame, lineNo: number);
     Threads: Map<number, IPythonThread>;
-    
-    //TODO:Fix this, shouldn't be exposed
+    ProgramDirectory: string;
+    //TODO:Fix this, shouldn't be exposed    
     PendingChildEnumCommands: Map<number, IChildEnumCommand>;
     PendingExecuteCommands: Map<number, IExecutionCommand>;
 }

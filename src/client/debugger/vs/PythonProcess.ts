@@ -4,7 +4,7 @@ import * as net from 'net';
 import {EventEmitter} from 'events';
 import {FrameKind, IPythonProcess, IPythonThread, IPythonModule, IPythonEvaluationResult, IPythonStackFrame, IStepCommand} from './Common/Contracts';
 import {IPythonBreakpoint, PythonBreakpointConditionKind, PythonBreakpointPassCountKind, IBreakpointCommand, IChildEnumCommand} from './Common/Contracts';
-import {PythonEvaluationResultReprKind, IExecutionCommand} from './Common/Contracts';
+import {PythonEvaluationResultReprKind, IExecutionCommand, enum_EXCEPTION_STATE} from './Common/Contracts';
 import {Commands} from './ProxyCommands';
 import * as utils from './Common/Utils';
 import {PythonProcessCallbackHandler} from './PythonProcessCallbackHandler';
@@ -44,7 +44,11 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
     public PendingExecuteCommands: Map<number, IExecutionCommand>;
     private callbackHandler: PythonProcessCallbackHandler;
     private stream: SocketStream;
-    constructor(id: number, guid: string) {
+    private programDirectory: string;
+    public get ProgramDirectory(): string {
+        return this.programDirectory;
+    }
+    constructor(id: number, guid: string, programDirectory: string) {
         super();
         this.id = id;
         this.guid = guid;
@@ -52,6 +56,7 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
         this._idDispenser = new utils.IdDispenser();
         this.PendingChildEnumCommands = new Map<number, IChildEnumCommand>();
         this.PendingExecuteCommands = new Map<number, IExecutionCommand>();
+        this.programDirectory = programDirectory;
     }
 
     public Terminate() {
@@ -130,7 +135,7 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
         });
     }
 
-    public SendExceptionInfo(defaultBreakOnMode: number, breakOn: Map<string, number>) {
+    public SendExceptionInfo(defaultBreakOnMode: enum_EXCEPTION_STATE, breakOn: Map<string, enum_EXCEPTION_STATE>) {
         this.stream.Write(Commands.SetExceptionInfoCommandBytes);
         this.stream.WriteInt32(defaultBreakOnMode);
         if (breakOn === null || breakOn === undefined) {

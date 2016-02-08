@@ -4,6 +4,8 @@ import * as utils from './Common/Utils';
 import {EventEmitter} from 'events';
 import {Commands} from './ProxyCommands';
 import {SocketStream} from './Common/SocketStream';
+import {ExtractTryStatements} from './Common/TryParser';
+import * as path from 'path';
 
 export class PythonProcessCallbackHandler extends EventEmitter {
     private process: IPythonProcess;
@@ -44,7 +46,8 @@ export class PythonProcessCallbackHandler extends EventEmitter {
             case "EXCR": this.HandleExecutionResult(); break;
             case "EXCE": this.HandleExecutionException(); break;
             default: {
-                var x = "";
+                console.error("Uhandled command = " + cmd);
+                this.emit("error", `Unhandled command '${cmd}'`);
             }
         }
 
@@ -181,16 +184,58 @@ export class PythonProcessCallbackHandler extends EventEmitter {
         if (this.stream.HasInsufficientDataForReading) {
             return;
         }
-        var y = "";
-        // this.emit("error", filename);
-        console.error("Exception handlers requested for: " + filename);
-        // var statements = GetHandledExceptionRanges(filename);
 
-        this.stream.Write(Commands.SetExceptionHandlerInfoCommandBytes);
-        this.stream.WriteString(filename);
+        var fullyQualifiedFileName = filename;
+        if (!path.isAbsolute(fullyQualifiedFileName)) {
+            fullyQualifiedFileName = path.join(this.process.ProgramDirectory, filename);
+        }
 
-        this.stream.WriteInt32(0);
+        this.GetHandledExceptionRanges(fullyQualifiedFileName).then(statements=> {
+            this.stream.Write(Commands.SetExceptionHandlerInfoCommandBytes);
+            this.stream.WriteString(filename);
+
+            this.stream.WriteInt32(statements.length);
+
+            statements.forEach(statement=> {
+                this.stream.WriteInt32(statement.startLine);
+                this.stream.WriteInt32(statement.endLine);
+
+                statement.expressions.forEach(expr=> {
+                    this.stream.WriteString(expr);
+                });
+                this.stream.WriteString("-");
+            });
+        });
     }
+    private GetHandledExceptionRanges(fileName: string): Promise<{ startLine: number, endLine: number, expressions: string[] }[]> {
+        return new Promise<{ startLine: number, endLine: number, expressions: string[] }[]>(resolve=> {
+            ExtractTryStatements(fileName).then(statements=> {
+                var exceptionRanges: { startLine: number, endLine: number, expressions: string[] }[] = []
+                statements.forEach(statement=> {
+                    var expressions = [];
+                    if (statement.Exceptions.length === 0 || statement.Exceptions.indexOf("*") >= 0) {
+                        expressions = ["*"];
+                    }
+                    else {
+                        statement.Exceptions.forEach(ex=> {
+                            if (expressions.indexOf(ex) === -1) {
+                                expressions.push(ex);
+                            }
+                        });
+                    }
+
+                    exceptionRanges.push({
+                        endLine: statement.EndLineNumber,
+                        startLine: statement.StartLineNumber,
+                        expressions: expressions
+                    });
+                });
+
+                resolve(exceptionRanges);
+            });
+        });
+    }
+
     private HandleException() {
         var typeName = this.stream.ReadString();
         var threadId = this.stream.ReadInt64();

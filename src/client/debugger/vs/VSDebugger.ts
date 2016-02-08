@@ -63,7 +63,7 @@ class PythonDebugSession extends DebugSession {
     private startDebugServer(): Promise<IDebugServer> {
         return new Promise<IDebugServer>((resolve, reject) => {
             var that = this;
-            this.pythonProcess = new PythonProcess(0, "");
+            this.pythonProcess = new PythonProcess(0, "", this.programDirectory);
             this.InitializeEventHandlers();
             this.debugSocketServer = net.createServer(c => { //'connection' listener
                 var pythonProcess: PythonProcess;
@@ -148,6 +148,7 @@ class PythonDebugSession extends DebugSession {
         this.pythonProcess.on("exceptionRaised", (pyThread, ex) => this.onPythonException(pyThread, ex));
         this.pythonProcess.on("breakpointHit", (pyThread, breakpointId) => this.onBreakpointHit(pyThread, breakpointId));
         this.pythonProcess.on("detach", () => this.onDetachDebugger());
+        this.pythonProcess.on("error", ex => this.sendEvent(new OutputEvent(ex, "stderr")));
     }
     private onDetachDebugger() {
         this.stopDebugServer();
@@ -177,8 +178,10 @@ class PythonDebugSession extends DebugSession {
     }
 
     private entryResponse: DebugProtocol.LaunchResponse;
+    private programDirectory: string;
     protected launchRequest(response: DebugProtocol.LaunchResponse, args: LaunchRequestArguments): void {
         var fileDir = path.dirname(args.program);
+        this.programDirectory = fileDir;
         var fileNameWithoutPath = path.basename(args.program);
         this.stopOnEntry = args.stopOnEntry;
         var pythonPath = "python";
@@ -486,26 +489,23 @@ class PythonDebugSession extends DebugSession {
         });
     }
             
-    //Unsupported features
     protected pauseRequest(response: DebugProtocol.PauseResponse): void {
         console.error('Not yet implemented: pauseRequest');
         this.sendErrorResponse(response, 2000, "Pause is not yet supported");
     }
 
     protected setExceptionBreakPointsRequest(response: DebugProtocol.SetExceptionBreakpointsResponse, args: DebugProtocol.SetExceptionBreakpointsArguments): void {
-        console.error('Not yet implemented: setExceptionBreakPointsRequest');
-        this.sendErrorResponse(response, 2000, "ExceptionBreakPointsRequest is not yet supported");
-        // this.debuggerLoaded.then(() => {
-        //     var mode = enum_EXCEPTION_STATE.BREAK_MODE_NEVER;
-        //     if (args.filters.indexOf("uncaught") >= 0) {
-        //         mode = enum_EXCEPTION_STATE.BREAK_MODE_UNHANDLED;
-        //     }
-        //     if (args.filters.indexOf("all") >= 0) {
-        //         mode = enum_EXCEPTION_STATE.BREAK_MODE_ALWAYS;
-        //     }
-        //     this.pythonProcess.SendExceptionInfo(mode, null);
-        //     this.sendResponse(response);
-        // });
+        this.debuggerLoaded.then(() => {
+            var mode = enum_EXCEPTION_STATE.BREAK_MODE_NEVER;
+            if (args.filters.indexOf("uncaught") >= 0) {
+                mode = enum_EXCEPTION_STATE.BREAK_MODE_UNHANDLED;
+            }
+            if (args.filters.indexOf("all") >= 0) {
+                mode = enum_EXCEPTION_STATE.BREAK_MODE_ALWAYS;
+            }
+            this.pythonProcess.SendExceptionInfo(mode, null);
+            this.sendResponse(response);
+        });
     }
 
     protected disconnectRequest(response: DebugProtocol.DisconnectResponse, args: DebugProtocol.DisconnectArguments) {
