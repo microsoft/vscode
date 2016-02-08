@@ -406,7 +406,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
-	public updateBreakpoints(data: { [id: string]: { line: number, verified: boolean } }): void {
+	public updateBreakpoints(data: { [id: string]: { line?: number, verified: boolean } }): void {
 		this.breakpoints.forEach(bp => {
 			const bpData = data[bp.getId()];
 			if (bpData) {

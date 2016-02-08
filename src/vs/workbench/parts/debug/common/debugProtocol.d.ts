@@ -117,6 +117,18 @@ declare module DebugProtocol {
 		};
 	}
 
+	/** Event message for "breakpoint" event type.
+		The event indicates that some information about a breakpoint has changed.
+	*/
+	export interface BreakpointEvent extends Event {
+		body: {
+			/** The reason for the event (such as: 'changed', 'new'). */
+			reason: string;
+			/** The breakpoint. */
+			breakpoint: Breakpoint;
+		}
+	}
+
 	//---- Requests
 
 	/** On error that is whenever 'success' is false, the body can provide more details.
@@ -225,7 +237,30 @@ declare module DebugProtocol {
 	*/
 	export interface SetBreakpointsResponse extends Response {
 		body: {
-			/** Information about the breakpoints. The array elements correspond to the elements of the 'lines' array. */
+			/** Information about the breakpoints. The array elements correspond to the elements of the 'breakpoints' (or the deprecated 'lines) array. */
+			breakpoints: Breakpoint[];
+		};
+	}
+
+	/** SetFunctionBreakpoints request; value of command field is "setFunctionBreakpoints".
+		Sets multiple function breakpoints and clears all previous function breakpoints.
+		To clear all function breakpoint, specify an empty array.
+		When a function breakpoint is hit, a StoppedEvent (event type 'function breakpoint') is generated.
+	*/
+	export interface SetFunctionBreakpointsRequest extends Request {
+		arguments: SetFunctionBreakpointsArguments;
+	}
+	/** Arguments for "setFunctionBreakpoints" request. */
+	export interface SetFunctionBreakpointsArguments {
+		/** The function names of the breakpoints. */
+		breakpoints: FunctionBreakpoint[];
+	}
+	/** Response to "setFunctionBreakpoints" request.
+		Returned is information about each breakpoint created by this request.
+	*/
+	export interface SetFunctionBreakpointsResponse extends Response {
+		body: {
+			/** Information about the breakpoints. The array elements correspond to the elements of the 'breakpoints' array. */
 			breakpoints: Breakpoint[];
 		};
 	}
@@ -538,13 +573,28 @@ declare module DebugProtocol {
 		condition?: string;
 	}
 
-	/** Information about a Breakpoint created in the setBreakpoints request.
+	/** Properties of a breakpoint passed to the setFunctionBreakpoints request.
+	*/
+	export interface FunctionBreakpoint {
+		/** The name of the function. */
+		name: string;
+		/** An optional expression for conditional breakpoints. */
+		condition?: string;
+	}
+
+	/** Information about a Breakpoint created in setBreakpoints or setFunctionBreakpoints.
 	*/
 	export interface Breakpoint {
-		/** If true breakpoint could be set (but not necessarily at the correct location). */
+		/** An optional unique identifier for the breakpoint. */
+		id?: number;
+		/** If true breakpoint could be set (but not necessarily at the desired location).  */
 		verified: boolean;
+		/** An optional message about the state of the breakpoint. This is shown to the user and can be used to explain why a breakpoint could not be verified. */
+		message?: string;
+		/** The source where the breakpoint is located. */
+		source?: Source;
 		/** The actual line of the breakpoint. */
-		line: number;
+		line?: number;
 		/** The actual column of the breakpoint. */
 		column?: number;
 	}

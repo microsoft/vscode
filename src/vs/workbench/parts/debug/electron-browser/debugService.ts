@@ -774,7 +774,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.session.setBreakpoints({ source: rawSource, lines: breakpointsToSend.map(bp => bp.desiredLineNumber),
 			breakpoints: breakpointsToSend.map(bp => ({ line: bp.desiredLineNumber, condition: bp.condition })) }).then(response => {
 
-			const data: {[id: string]: { line: number, verified: boolean } } = { };
+			const data: {[id: string]: { line?: number, verified: boolean } } = { };
 			for (let i = 0; i < breakpointsToSend.length; i++) {
 				data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
 			}
