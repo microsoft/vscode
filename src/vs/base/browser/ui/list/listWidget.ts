@@ -259,7 +259,7 @@ export class List<T> implements IDisposable {
 			this.setFocus(lastPageIndex);
 		} else {
 			const previousScrollTop = this.view.getScrollTop();
-			this.view.setScrollTop(previousScrollTop + this.view.renderHeight);
+			this.view.setScrollTop(previousScrollTop + this.view.renderHeight - this.view.elementHeight(lastPageIndex));
 
 			if (this.view.getScrollTop() !== previousScrollTop) {
 				// Let the scroll event listener run
