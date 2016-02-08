@@ -131,6 +131,9 @@ export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
 	}
 
 	private _onTips(tips: IExtension[]): void {
+		if (!this._domNode) {
+			return;
+		}
 
 		if (tips.length === 0) {
 			dom.addClass(this._domNode, 'disabled');
