@@ -53,7 +53,7 @@ export const language =
 			root: [
 
 				// headers (with #)
-				[/^(\s{0,3})(#+)((?:[^\\#]|@escapes)+)((?:#+)?)/, ['white', markdownTokenTypes.TOKEN_HEADER_LEAD, markdownTokenTypes.TOKEN_HEADER, markdownTokenTypes.TOKEN_HEADER]],
+				[/^(\s{0,3})(#+)(.*)/, ['white', markdownTokenTypes.TOKEN_HEADER_LEAD, markdownTokenTypes.TOKEN_HEADER]],
 
 				// headers (with =)
 				[/^\s*(=+|\-+)\s*$/, markdownTokenTypes.TOKEN_EXT_HEADER],
