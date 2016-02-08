@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/repl';
 import nls = require('vs/nls');
-import { TPromise, Promise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import lifecycle = require('vs/base/common/lifecycle');
 import actions = require('vs/base/common/actions');
@@ -155,7 +155,7 @@ export class Repl extends Panel {
 		this.replInput.focus();
 	}
 
-	public reveal(element: debug.ITreeElement): Promise {
+	public reveal(element: debug.ITreeElement): TPromise<void> {
 		return this.tree.reveal(element);
 	}
 

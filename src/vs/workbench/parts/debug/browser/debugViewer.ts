@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import lifecycle = require('vs/base/common/lifecycle');
 import { CommonKeybindings } from 'vs/base/common/keyCodes';
 import paths = require('vs/base/common/paths');
@@ -193,7 +193,7 @@ export class CallStackDataSource implements tree.IDataSource {
 		return element instanceof model.Model || element instanceof model.Thread;
 	}
 
-	public getChildren(tree: tree.ITree, element: any): Promise {
+	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
 		if (element instanceof model.Thread) {
 			return TPromise.as((<model.Thread> element).callStack);
 		}
@@ -211,7 +211,7 @@ export class CallStackDataSource implements tree.IDataSource {
 		}
 	}
 
-	public getParent(tree: tree.ITree, element: any): Promise {
+	public getParent(tree: tree.ITree, element: any): TPromise<any> {
 		return TPromise.as(null);
 	}
 }
@@ -335,7 +335,7 @@ export class VariablesActionProvider implements renderer.IActionProvider {
 		return element instanceof model.Variable;
 	}
 
-	public getSecondaryActions(tree: tree.ITree, element: any): Promise {
+	public getSecondaryActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
 		let actions: actions.Action[] = [];
 		const variable = <model.Variable> element;
 		actions.push(this.instantiationService.createInstance(debugactions.AddToWatchExpressionsAction, debugactions.AddToWatchExpressionsAction.ID, debugactions.AddToWatchExpressionsAction.LABEL, variable));
@@ -370,7 +370,7 @@ export class VariablesDataSource implements tree.IDataSource {
 		return variable.reference !== 0 && !strings.equalsIgnoreCase(variable.value, 'null');
 	}
 
-	public getChildren(tree: tree.ITree, element: any): Promise {
+	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
 		if (element instanceof viewmodel.ViewModel) {
 			let focusedStackFrame = (<viewmodel.ViewModel> element).getFocusedStackFrame();
 			return focusedStackFrame ? focusedStackFrame.getScopes(this.debugService) : TPromise.as([]);
@@ -380,7 +380,7 @@ export class VariablesDataSource implements tree.IDataSource {
 		return scope.getChildren(this.debugService);
 	}
 
-	public getParent(tree: tree.ITree, element: any): Promise {
+	public getParent(tree: tree.ITree, element: any): TPromise<any> {
 		return TPromise.as(null);
 	}
 }
@@ -484,7 +484,7 @@ export class WatchExpressionsActionProvider implements renderer.IActionProvider 
 		return true;
 	}
 
-	public getActions(tree: tree.ITree, element: any): Promise {
+	public getActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
 		return TPromise.as(this.getExpressionActions());
 	}
 
@@ -492,7 +492,7 @@ export class WatchExpressionsActionProvider implements renderer.IActionProvider 
 		return [this.instantiationService.createInstance(debugactions.RemoveWatchExpressionAction, debugactions.RemoveWatchExpressionAction.ID, debugactions.RemoveWatchExpressionAction.LABEL)];
 	}
 
-	public getSecondaryActions(tree: tree.ITree, element: any): Promise {
+	public getSecondaryActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
 		const actions: actions.Action[] = [];
 		if (element instanceof model.Expression) {
 			const expression = <model.Expression> element;
@@ -544,7 +544,7 @@ export class WatchExpressionsDataSource implements tree.IDataSource {
 		return watchExpression.reference !== 0 && !strings.equalsIgnoreCase(watchExpression.value, 'null');
 	}
 
-	public getChildren(tree: tree.ITree, element: any): Promise {
+	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
 		if (element instanceof model.Model) {
 			return TPromise.as((<model.Model> element).getWatchExpressions());
 		}
@@ -553,7 +553,7 @@ export class WatchExpressionsDataSource implements tree.IDataSource {
 		return expression.getChildren(this.debugService);
 	}
 
-	public getParent(tree: tree.ITree, element: any): Promise {
+	public getParent(tree: tree.ITree, element: any): TPromise<any> {
 		return TPromise.as(null);
 	}
 }
@@ -765,14 +765,14 @@ export class BreakpointsDataSource implements tree.IDataSource {
 		return element instanceof model.Model;
 	}
 
-	public getChildren(tree: tree.ITree, element: any): Promise {
+	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
 		const model = <model.Model> element;
 		const exBreakpoints = <debug.IEnablement[]> model.getExceptionBreakpoints();
 
 		return TPromise.as(exBreakpoints.concat(model.getFunctionBreakpoints()).concat(model.getBreakpoints()));
 	}
 
-	public getParent(tree: tree.ITree, element: any): Promise {
+	public getParent(tree: tree.ITree, element: any): TPromise<any> {
 		return TPromise.as(null);
 	}
 }

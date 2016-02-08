@@ -6,7 +6,7 @@
 import stream = require('stream');
 import uuid = require('vs/base/common/uuid');
 import ee = require('vs/base/common/eventEmitter');
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import debug = require('vs/workbench/parts/debug/common/debug');
 
 export abstract class V8Protocol extends ee.EventEmitter {
@@ -71,7 +71,7 @@ export abstract class V8Protocol extends ee.EventEmitter {
 	}
 
 	protected send(command: string, args: any): TPromise<DebugProtocol.Response> {
-		return new Promise((completeDispatch, errorDispatch) => {
+		return new TPromise((completeDispatch, errorDispatch) => {
 			this.doSend(command, args, (result: DebugProtocol.Response) => {
 				if (result.success) {
 					completeDispatch(result);

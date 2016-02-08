@@ -7,7 +7,7 @@ import 'vs/css!./media/debugViewlet';
 import nls = require('vs/nls');
 import dom = require('vs/base/browser/dom');
 import builder = require('vs/base/browser/builder');
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import lifecycle = require('vs/base/common/lifecycle');
 import events = require('vs/base/common/events');
@@ -487,9 +487,9 @@ export class DebugViewlet extends viewlet.Viewlet {
 		return TPromise.as(null);
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
+	public setVisible(visible: boolean): TPromise<any> {
 		return super.setVisible(visible).then(() => {
-			return Promise.join(this.views.map((view) => view.setVisible(visible)));
+			return TPromise.join(this.views.map((view) => view.setVisible(visible)));
 		});
 	}
 

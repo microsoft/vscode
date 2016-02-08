@@ -5,7 +5,7 @@
 
 import path = require('path');
 import nls = require('vs/nls');
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import objects = require('vs/base/common/objects');
 import uri from 'vs/base/common/uri';
 import { schemas } from 'vs/base/common/network';
@@ -223,7 +223,7 @@ export class ConfigurationManager {
 		return this.adapters.filter(adapter => adapter.type === this.configuration.type).pop();
 	}
 
-	public setConfiguration(name: string): Promise {
+	public setConfiguration(name: string): TPromise<void> {
 		return this.loadLaunchConfig().then(config => {
 			if (!config || !config.configurations) {
 				this.configuration = null;
@@ -290,9 +290,9 @@ export class ConfigurationManager {
 		});
 	}
 
-	private massageInitialConfigurations(adapter: Adapter): Promise {
+	private massageInitialConfigurations(adapter: Adapter): TPromise<void> {
 		if (!adapter || !adapter.initialConfigurations || adapter.type !== 'node') {
-			return TPromise.as(true);
+			return TPromise.as(undefined);
 		}
 
 		// check package.json for 'main' or 'scripts' so we generate a more pecise 'program' attribute in launch.json.

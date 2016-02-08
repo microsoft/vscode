@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import actions = require('vs/base/common/actions');
 import strings = require('vs/base/common/strings');
 import URI from 'vs/base/common/uri';
@@ -47,7 +47,7 @@ export class ReplExpressionsDataSource implements tree.IDataSource {
 		return element instanceof model.Model || element.reference > 0  || (element instanceof model.KeyValueOutputElement && element.getChildren().length > 0);
 	}
 
-	public getChildren(tree: tree.ITree, element: any): Promise {
+	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
 		if (element instanceof model.Model) {
 			return TPromise.as(element.getReplElements());
 		}
@@ -61,7 +61,7 @@ export class ReplExpressionsDataSource implements tree.IDataSource {
 		return (<debug.IExpression> element).getChildren(this.debugService);
 	}
 
-	public getParent(tree: tree.ITree, element: any): Promise {
+	public getParent(tree: tree.ITree, element: any): TPromise<any> {
 		return TPromise.as(null);
 	}
 }
