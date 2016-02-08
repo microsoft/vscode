@@ -270,7 +270,7 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 			data.documentationDetails.onclick = e => {
 				e.stopPropagation();
 				e.preventDefault();
-				// this.widget.toggleDetails();
+				this.widget.toggleDetails();
 			};
 		} else {
 			hide(data.documentationDetails);
@@ -381,7 +381,7 @@ class SuggestionDetails {
 		this.back.onclick = e => {
 			e.preventDefault();
 			e.stopPropagation();
-			// this.widget.toggleDetails();
+			this.widget.toggleDetails();
 		};
 
 		this.scrollable.onElementDimensions();
@@ -482,7 +482,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			editor.addListener2(EditorCommon.EventType.ModelModeChanged, () => this.onModelModeChanged()),
 			editor.addListener2(EditorCommon.EventType.ModelModeSupportChanged, (e: EditorCommon.IModeSupportChangedEvent) => e.suggestSupport && this.onModelModeChanged()),
 			SuggestRegistry.onDidChange(() => this.onModelModeChanged()),
-			// editor.addListener2(EditorCommon.EventType.EditorTextBlur, () => this.onEditorBlur()),
+			editor.addListener2(EditorCommon.EventType.EditorTextBlur, () => this.onEditorBlur()),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
 			this.editor.addListener2(EditorCommon.EventType.CursorSelectionChanged, () => this.onCursorSelectionChanged()),
@@ -545,7 +545,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		}
 
 		const index = e.indexes[0];
-		// const payload = e.payload;
 
 		this.resolveDetails(item, index);
 		this.suggestionSupportsAutoAccept.set(!(<CompletionItem>item).suggestion.noAutoAccept);
@@ -567,12 +566,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		if (item) {
 			this.list.reveal(index);
 		}
-
-		// this.list.refreshAll(elementsToRefresh).done(() => {
-		// 	if (item) {
-		// 		return this.list.reveal(item, (payload && payload.firstSuggestion) ? 0 : null);
-		// 	}
-		// }, onUnexpectedError);
 	}
 
 	private onModelModeChanged(): void {
@@ -655,7 +648,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	private onDidSuggest(e: ISuggestEvent): void {
 		clearTimeout(this.loadingTimeout);
 
-		// let model: CompletionModel = this.list.getInput();
 		let promise = TPromise.as(null);
 		let visibleCount: number;
 
@@ -773,19 +765,18 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	}
 
 	public selectNextPage(): boolean {
-		return false;
-		// switch (this.state) {
-		// 	case State.Hidden:
-		// 		return false;
-		// 	case State.Details:
-		// 		this.details.pageDown();
-		// 		return true;
-		// 	case State.Loading:
-		// 		return !this.isAuto;
-		// 	default:
-		// 		this.list.focusNextPage();
-		// 		return true;
-		// }
+		switch (this.state) {
+			case State.Hidden:
+				return false;
+			case State.Details:
+				this.details.pageDown();
+				return true;
+			case State.Loading:
+				return !this.isAuto;
+			default:
+				this.list.focusNextPage();
+				return true;
+		}
 	}
 
 	public selectNext(): boolean {
@@ -804,19 +795,18 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	}
 
 	public selectPreviousPage(): boolean {
-		return false;
-		// switch (this.state) {
-		// 	case State.Hidden:
-		// 		return false;
-		// 	case State.Details:
-		// 		this.details.pageUp();
-		// 		return true;
-		// 	case State.Loading:
-		// 		return !this.isAuto;
-		// 	default:
-		// 		this.list.focusPreviousPage();
-		// 		return true;
-		// }
+		switch (this.state) {
+			case State.Hidden:
+				return false;
+			case State.Details:
+				this.details.pageUp();
+				return true;
+			case State.Loading:
+				return !this.isAuto;
+			default:
+				this.list.focusPreviousPage();
+				return true;
+		}
 	}
 
 	public selectPrevious(): boolean {
@@ -875,7 +865,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	private show(): void {
 		this.updateWidgetHeight();
 		this._onDidVisibilityChange.fire(true);
-		// this.list.layout();
 		this.renderDetails();
 		TPromise.timeout(100).done(() => {
 			addClass(this.element, 'visible');

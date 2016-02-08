@@ -61,7 +61,7 @@ export class ListView<T> implements IScrollable, IDisposable {
 	private renderers: { [templateId: string]: IRenderer<T, any>; };
 
 	private renderTop: number;
-	private renderHeight: number;
+	private _renderHeight: number;
 
 	private _domNode: HTMLElement;
 	private gesture: Gesture;
@@ -84,7 +84,7 @@ export class ListView<T> implements IScrollable, IDisposable {
 		this.cache = new RowCache(this.renderers);
 
 		this.renderTop = 0;
-		this.renderHeight = 0;
+		this._renderHeight = 0;
 
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-list';
@@ -153,8 +153,8 @@ export class ListView<T> implements IScrollable, IDisposable {
 		return this.items.length;
 	}
 
-	get height(): number {
-		return this.renderHeight;
+	get renderHeight(): number {
+		return this._renderHeight;
 	}
 
 	element(index: number): T {
@@ -169,6 +169,14 @@ export class ListView<T> implements IScrollable, IDisposable {
 		return this.rangeMap.positionAt(index);
 	}
 
+	indexAt(position: number): number {
+		return this.rangeMap.indexAt(position);
+	}
+
+	indexAfter(position: number): number {
+		return this.rangeMap.indexAfter(position);
+	}
+
 	layout(height?: number): void {
 		this.setRenderHeight(height || DOM.getContentHeight(this._domNode));
 		this.setScrollTop(this.renderTop);
@@ -180,12 +188,12 @@ export class ListView<T> implements IScrollable, IDisposable {
 
 	private setRenderHeight(viewHeight: number) {
 		this.render(this.renderTop, viewHeight);
-		this.renderHeight = viewHeight;
+		this._renderHeight = viewHeight;
 	}
 
 	private render(renderTop: number, renderHeight: number): void {
 		const renderBottom = renderTop + renderHeight;
-		const thisRenderBottom = this.renderTop + this.renderHeight;
+		const thisRenderBottom = this.renderTop + this._renderHeight;
 		let i: number, stop: number;
 
 		// when view scrolls down, start rendering from the renderBottom
@@ -210,12 +218,12 @@ export class ListView<T> implements IScrollable, IDisposable {
 
 		this.rowsContainer.style.transform = `translate3d(0px, -${ renderTop }px, 0px)`;
 		this.renderTop = renderTop;
-		this.renderHeight = renderBottom - renderTop;
+		this._renderHeight = renderBottom - renderTop;
 	}
 
 	private getRenderedItemRanges(): IItemRange<T>[] {
 		const result: IItemRange<T>[] = [];
-		const renderBottom = this.renderTop + this.renderHeight;
+		const renderBottom = this.renderTop + this._renderHeight;
 
 		let start = this.renderTop;
 		let index = this.rangeMap.indexAt(start);
@@ -278,10 +286,10 @@ export class ListView<T> implements IScrollable, IDisposable {
 	}
 
 	setScrollTop(scrollTop: number): void {
-		scrollTop = Math.min(scrollTop, this.getScrollHeight() - this.renderHeight);
+		scrollTop = Math.min(scrollTop, this.getScrollHeight() - this._renderHeight);
 		scrollTop = Math.max(scrollTop, 0);
 
-		this.render(scrollTop, this.renderHeight);
+		this.render(scrollTop, this._renderHeight);
 		this.renderTop = scrollTop;
 
 		this._onScroll.fire({ vertical: true, horizontal: false });

@@ -249,6 +249,51 @@ export class List<T> implements IDisposable {
 		this.focus.set(Math.max(index, 0));
 	}
 
+	focusNextPage(): void {
+		let lastPageIndex = this.view.indexAt(this.view.getScrollTop() + this.view.renderHeight);
+		lastPageIndex = lastPageIndex === 0 ? 0 : lastPageIndex - 1;
+		const lastPageElement = this.view.element(lastPageIndex);
+		const currentlyFocusedElement = this.getFocus()[0];
+
+		if (currentlyFocusedElement !== lastPageElement) {
+			this.setFocus(lastPageIndex);
+		} else {
+			const previousScrollTop = this.view.getScrollTop();
+			this.view.setScrollTop(previousScrollTop + this.view.renderHeight);
+
+			if (this.view.getScrollTop() !== previousScrollTop) {
+				// Let the scroll event listener run
+				setTimeout(() => this.focusNextPage(), 0);
+			}
+		}
+	}
+
+	focusPreviousPage(): void {
+		let firstPageIndex:number;
+		const scrollTop = this.view.getScrollTop();
+
+		if (scrollTop === 0) {
+			firstPageIndex = this.view.indexAt(scrollTop);
+		} else {
+			firstPageIndex = this.view.indexAfter(scrollTop - 1);
+		}
+
+		const firstPageElement = this.view.element(firstPageIndex);
+		const currentlyFocusedElement = this.getFocus()[0];
+
+		if (currentlyFocusedElement !== firstPageElement) {
+			this.setFocus(firstPageIndex);
+		} else {
+			const previousScrollTop = scrollTop;
+			this.view.setScrollTop(scrollTop - this.view.renderHeight);
+
+			if (this.view.getScrollTop() !== previousScrollTop) {
+				// Let the scroll event listener run
+				setTimeout(() => this.focusPreviousPage(), 0);
+			}
+		}
+	}
+
 	getFocus(): T[] {
 		return this.focus.get().map(i => this.view.element(i));
 	}
@@ -263,16 +308,16 @@ export class List<T> implements IDisposable {
 			relativeTop = relativeTop > 1 ? 1 : relativeTop;
 
 			// y = mx + b
-			const m = elementHeight - this.view.height;
+			const m = elementHeight - this.view.renderHeight;
 			this.view.setScrollTop(m * relativeTop + elementTop);
 		} else {
 			const viewItemBottom = elementTop + elementHeight;
-			const wrapperBottom = scrollTop + this.view.height;
+			const wrapperBottom = scrollTop + this.view.renderHeight;
 
 			if (elementTop < scrollTop) {
 				this.view.setScrollTop(elementTop);
 			} else if (viewItemBottom >= wrapperBottom) {
-				this.view.setScrollTop(viewItemBottom - this.view.height);
+				this.view.setScrollTop(viewItemBottom - this.view.renderHeight);
 			}
 		}
 	}
