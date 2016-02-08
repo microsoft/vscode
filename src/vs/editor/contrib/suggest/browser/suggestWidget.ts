@@ -835,21 +835,20 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	}
 
 	public acceptSelectedSuggestion(): boolean {
-		return false;
-		// switch (this.state) {
-		// 	case State.Hidden:
-		// 		return false;
-		// 	case State.Loading:
-		// 		return !this.isAuto;
-		// 	default:
-		// 		const focus = this.list.getFocus();
-		// 		if (focus) {
-		// 			this.list.setSelection([focus]);
-		// 		} else {
-		// 			this.model.cancel();
-		// 		}
-		// 		return true;
-		// }
+		switch (this.state) {
+			case State.Hidden:
+				return false;
+			case State.Loading:
+				return !this.isAuto;
+			default:
+				const focus = this.list.getFocus()[0];
+				if (focus) {
+					this.list.setSelection(this.completionModel.items.indexOf(focus));
+				} else {
+					this.model.cancel();
+				}
+				return true;
+		}
 	}
 
 	public toggleDetails(): void {
