@@ -218,7 +218,7 @@ export class List<T> implements IDisposable {
 		if (this.length === 0) return;
 		const selection = this.selection.get();
 		let index = selection.length > 0 ? selection[0] + n : 0;
-		this.selection.set(loop ? index % this.length : Math.min(index, this.length - 1));
+		this.setSelection(loop ? index % this.length : Math.min(index, this.length - 1));
 	}
 
 	selectPrevious(n = 1, loop = false): void {
@@ -226,7 +226,7 @@ export class List<T> implements IDisposable {
 		const selection = this.selection.get();
 		let index = selection.length > 0 ? selection[0] - n : 0;
 		if (loop && index < 0) index = this.length + (index % this.length);
-		this.selection.set(Math.max(index, 0));
+		this.setSelection(Math.max(index, 0));
 	}
 
 	setFocus(...indexes: number[]): void {
@@ -238,7 +238,7 @@ export class List<T> implements IDisposable {
 		if (this.length === 0) return;
 		const focus = this.focus.get();
 		let index = focus.length > 0 ? focus[0] + n : 0;
-		this.focus.set(loop ? index % this.length : Math.min(index, this.length - 1));
+		this.setFocus(loop ? index % this.length : Math.min(index, this.length - 1));
 	}
 
 	focusPrevious(n = 1, loop = false): void {
@@ -246,7 +246,7 @@ export class List<T> implements IDisposable {
 		const focus = this.focus.get();
 		let index = focus.length > 0 ? focus[0] - n : 0;
 		if (loop && index < 0) index = this.length + (index % this.length);
-		this.focus.set(Math.max(index, 0));
+		this.setFocus(Math.max(index, 0));
 	}
 
 	focusNextPage(): void {

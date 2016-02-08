@@ -64,8 +64,6 @@ class CompletionItem {
 	support: ISuggestSupport;
 	container: ISuggestResult;
 
-	private _resolveDetails: TPromise<CompletionItem>;
-
 	constructor(public group: CompletionGroup, suggestion: ISuggestion, container: ISuggestResult2) {
 		this.id = String(CompletionItem._idPool++);
 		this.support = container.support;
@@ -73,22 +71,16 @@ class CompletionItem {
 		this.container = container;
 	}
 
-	resolveDetails(resource: URI, position: EditorCommon.IPosition): TPromise<CompletionItem> {
-		if (this._resolveDetails) {
-			return this._resolveDetails;
-		}
-
+	resolveDetails(resource: URI, position: EditorCommon.IPosition): TPromise<ISuggestion> {
 		if (!this.support || typeof this.support.getSuggestionDetails !== 'function') {
-			return this._resolveDetails = TPromise.as(this);
+			return TPromise.as(this.suggestion);
 		}
 
-		return this._resolveDetails = this.support
-			.getSuggestionDetails(resource, position, this.suggestion)
-			.then(
-				value => this.suggestion = assign(this.suggestion, value),
-				err => isPromiseCanceledError(err) ? this._resolveDetails = null : onUnexpectedError(err)
-			)
-			.then(() => this);
+		return this.support.getSuggestionDetails(resource, position, this.suggestion);
+	}
+
+	updateDetails(value: ISuggestion): void {
+		this.suggestion = assign(this.suggestion, value);
 	}
 }
 
@@ -425,7 +417,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	private shouldShowEmptySuggestionList: boolean;
 	private suggestionSupportsAutoAccept: IKeybindingContextKey<boolean>;
 	private loadingTimeout: number;
-	private currentSuggestionDetails: TPromise<CompletionItem>;
+	private currentSuggestionDetails: TPromise<void>;
 	private focusedItem: CompletionItem;
 	private completionModel: CompletionModel;
 
@@ -534,6 +526,11 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	}
 
 	private onListFocus(e: IFocusChangeEvent<CompletionItem>): void {
+		if (this.currentSuggestionDetails) {
+			this.currentSuggestionDetails.cancel();
+			this.currentSuggestionDetails = null;
+		}
+
 		if (!e.elements.length) {
 			return;
 		}
@@ -546,26 +543,24 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 
 		const index = e.indexes[0];
 
-		this.resolveDetails(item, index);
-		this.suggestionSupportsAutoAccept.set(!(<CompletionItem>item).suggestion.noAutoAccept);
-
-		if (this.focusedItem) {
-			const index = this.completionModel.items.indexOf(this.focusedItem);
-			if (index > -1) this.list.splice(index, 1, this.focusedItem);
-			this.focusedItem = null;
-		}
-
-		if (item) {
-			this.focusedItem = item;
-			this.list.splice(index, 1, item);
-			this.list.setFocus(index);
-		}
-
+		this.suggestionSupportsAutoAccept.set(item.suggestion.noAutoAccept);
+		this.focusedItem = item;
+		this.list.setFocus(index);
 		this.updateWidgetHeight();
+		this.list.reveal(index);
 
-		if (item) {
-			this.list.reveal(index);
-		}
+		const resource = this.editor.getModel().getAssociatedResource();
+		const position = this.model.getRequestPosition() || this.editor.getPosition();
+
+		this.currentSuggestionDetails = item.resolveDetails(resource, position)
+			.then(details => {
+				item.updateDetails(details);
+				this.list.setFocus(index);
+				this.updateWidgetHeight();
+				this.list.reveal(index);
+			})
+			.then(null, err => !isPromiseCanceledError(err) && onUnexpectedError(err))
+			.then(() => this.currentSuggestionDetails = null);
 	}
 
 	private onModelModeChanged(): void {
@@ -739,29 +734,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			this.telemetryTimer.stop();
 			this.telemetryTimer = null;
 		}
-	}
-
-	private resolveDetails(item: CompletionItem, index: number): void {
-		if (this.currentSuggestionDetails) {
-			this.currentSuggestionDetails.cancel();
-		}
-
-		this.currentSuggestionDetails = item.resolveDetails(
-			this.editor.getModel().getAssociatedResource(),
-			this.model.getRequestPosition() || this.editor.getPosition()
-		);
-
-		this.currentSuggestionDetails.then(() => {
-			this.currentSuggestionDetails = undefined;
-
-			if (item === this.focusedItem) {
-				this.list.splice(index, 1, item);
-				this.list.setFocus(index);
-				this.updateWidgetHeight();
-			}
-		},
-			err => !isPromiseCanceledError(err) && onUnexpectedError(err)
-		);
 	}
 
 	public selectNextPage(): boolean {
