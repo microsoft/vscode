@@ -21,6 +21,7 @@ import Errors = require('vs/base/common/errors');
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {StopWatch} from 'vs/base/common/stopwatch';
 import {TPromise} from 'vs/base/common/winjs.base';
+import {Range} from 'vs/editor/common/core/range';
 
 export class TokensInflatorMap implements EditorCommon.ITokensInflatorMap {
 
@@ -859,4 +860,111 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 
 		return BracketsHelper.matchBracket(this, this.validatePosition(position), inaccurateResultAcceptable);
 	}
+
+	public findPrevBracket(_position:EditorCommon.IPosition): EditorCommon.IFoundBracket {
+		if (this._isDisposed) {
+			throw new Error('TextModelWithTokens.findPrevBracket: Model is disposed');
+		}
+		let position = this.validatePosition(_position);
+
+		// let tokensMap = this._tokensInflatorMap;
+		let regex = /[\(\)\[\]\{\}]/;
+
+		for (let lineNumber = position.lineNumber; lineNumber >= 1; lineNumber--) {
+			let lineTokens = this._lines[lineNumber - 1].getTokens();
+			let lineText = this._lines[lineNumber - 1].text;
+			let tokens = lineTokens.getBinaryEncodedTokens();
+
+			let tokensLength = tokens.length;
+			let currentTokenEnd = lineText.length;
+			if (lineNumber === position.lineNumber) {
+				tokensLength = lineTokens.findIndexOfOffset(position.column - 1);
+				currentTokenEnd = Math.min(currentTokenEnd, position.column - 1);
+			}
+
+			for (let tokenIndex = tokensLength; tokenIndex >= 0; tokenIndex--) {
+				let currentToken = tokens[tokenIndex];
+				let currentTokenStart = getStartIndex(currentToken);
+				// let currentTokenType = getType(tokensMap, currentToken);
+				// TODO@Alex: skip comment, string, regex token types
+
+				// Because JS does not support backwards regex search, we search forwards in a reversed string ;)
+				let currentTokenReversedText = '';
+				for (let index = currentTokenEnd - 1; index >= currentTokenStart; index--) {
+					currentTokenReversedText += lineText.charAt(index);
+				}
+
+				let m = currentTokenReversedText.match(regex);
+
+				if (!m) {
+					currentTokenEnd = currentTokenStart;
+					continue;
+				}
+
+				let matchOffset = currentTokenReversedText.length - 1 - m.index;
+				let matchLength = m[0].length;
+				let absoluteMatchOffset = currentTokenStart + matchOffset;
+
+				return {
+					range: new Range(lineNumber, absoluteMatchOffset + 1, lineNumber, absoluteMatchOffset + 1 + matchLength),
+					text: lineText.substr(absoluteMatchOffset, matchLength)
+				};
+			}
+		}
+
+		return null;
+	}
+
+	public findNextBracket(_position:EditorCommon.IPosition): EditorCommon.IFoundBracket {
+		if (this._isDisposed) {
+			throw new Error('TextModelWithTokens.findNextBracket: Model is disposed');
+		}
+		let position = this.validatePosition(_position);
+
+		// let tokensMap = this._tokensInflatorMap;
+		let regex = /[\(\)\[\]\{\}]/;
+
+		for (let lineNumber = position.lineNumber, lineCount = this.getLineCount(); lineNumber <= lineCount; lineNumber++) {
+			let lineTokens = this._lines[lineNumber - 1].getTokens();
+			let lineText = this._lines[lineNumber - 1].text;
+			let tokens = lineTokens.getBinaryEncodedTokens();
+
+			let startTokenIndex = 0;
+			let currentTokenStart = getStartIndex(startTokenIndex);
+			if (lineNumber === position.lineNumber) {
+				startTokenIndex = lineTokens.findIndexOfOffset(position.column - 1);
+				currentTokenStart = Math.max(currentTokenStart, position.column - 1);
+			}
+
+			for (let tokenIndex = startTokenIndex, tokensLength = tokens.length; tokenIndex < tokensLength; tokenIndex++) {
+				// let currentToken = tokens[tokenIndex];
+				// let currentTokenType = getType(tokensMap, currentToken);
+				// TODO@Alex: skip comment, string, regex token type
+
+				let currentTokenEnd = tokenIndex + 1 < tokensLength ? getStartIndex(tokens[tokenIndex + 1]) : lineText.length;
+				let currentTokenText = lineText.substring(currentTokenStart, currentTokenEnd);
+
+				let m = currentTokenText.match(regex);
+
+				if (!m) {
+					currentTokenStart = currentTokenEnd;
+					continue;
+				}
+
+				let matchOffset = m.index;
+				let matchLength = m[0].length;
+				let absoluteMatchOffset = currentTokenStart + matchOffset;
+
+				return {
+					range: new Range(lineNumber, absoluteMatchOffset + 1, lineNumber, absoluteMatchOffset + 1 + matchLength),
+					text: lineText.substr(absoluteMatchOffset, matchLength)
+				};
+			}
+		}
+
+		return null;
+	}
 }
+
+var getType = EditorCommon.LineTokensBinaryEncoding.getType;
+var getStartIndex = EditorCommon.LineTokensBinaryEncoding.getStartIndex;
