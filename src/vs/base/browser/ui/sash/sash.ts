@@ -32,10 +32,8 @@ export interface IHorizontalSashLayoutProvider extends ISashLayoutProvider {
 export interface ISashEvent {
 	startX: number;
 	currentX: number;
-	instantDiffX: number;
 	startY: number;
 	currentY: number;
-	instantDiffY: number;
 }
 
 export interface ISashOptions {
@@ -107,10 +105,8 @@ export class Sash extends EventEmitter {
 		let startEvent: ISashEvent = {
 			startX: startX,
 			currentX: startX,
-			instantDiffX: 0,
 			startY: startY,
-			currentY: startY,
-			instantDiffY: 0
+			currentY: startY
 		};
 
 		this.$e.addClass('active');
@@ -138,10 +134,8 @@ export class Sash extends EventEmitter {
 			let event: ISashEvent = {
 				startX: startX,
 				currentX: mouseMoveEvent.posx,
-				instantDiffX: mouseMoveEvent.posx - lastCurrentX,
 				startY: startY,
-				currentY: mouseMoveEvent.posy,
-				instantDiffY: mouseMoveEvent.posy - lastCurrentY
+				currentY: mouseMoveEvent.posy
 			};
 
 			lastCurrentX = mouseMoveEvent.posx;
@@ -171,10 +165,8 @@ export class Sash extends EventEmitter {
 		this.emit('start', {
 			startX: startX,
 			currentX: startX,
-			instantDiffX: 0,
 			startY: startY,
-			currentY: startY,
-			instantDiffY: 0
+			currentY: startY
 		});
 
 		let lastCurrentX = startX;
@@ -185,10 +177,8 @@ export class Sash extends EventEmitter {
 				this.emit('change', {
 					startX: startX,
 					currentX: event.pageX,
-					instantDiffX: event.pageX - lastCurrentX,
 					startY: startY,
-					currentY: event.pageY,
-					instantDiffY: event.pageY - lastCurrentY
+					currentY: event.pageY
 				});
 
 				lastCurrentX = event.pageX;

@@ -35,7 +35,6 @@ export interface IOptions {
 export interface ISashEvent {
 	start: number;
 	current: number;
-	instantDiff: number;
 }
 
 interface IState {
@@ -448,11 +447,11 @@ export class SplitView implements
 		if (this.orientation === Orientation.VERTICAL) {
 			this.measureContainerSize = () => dom.getContentHeight(container);
 			this.layoutViewElement = (viewElement, size) => viewElement.style.height = size + 'px';
-			this.eventWrapper = e => { return { start: e.startY, current: e.currentY, instantDiff: e.instantDiffY }; };
+			this.eventWrapper = e => { return { start: e.startY, current: e.currentY }; };
 		} else {
 			this.measureContainerSize = () => dom.getContentWidth(container);
 			this.layoutViewElement = (viewElement, size) => viewElement.style.width = size + 'px';
-			this.eventWrapper = e => { return { start: e.startX, current: e.currentX, instantDiff: e.instantDiffX }; };
+			this.eventWrapper = e => { return { start: e.startX, current: e.currentX }; };
 		}
 
 		// The void space exists to handle the case where all other views are fixed size
