@@ -21,16 +21,14 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 export class Token implements Modes.IToken {
 	public startIndex:number;
 	public type:string;
-	public bracket:Modes.Bracket;
 
-	constructor(startIndex:number, type:string, bracket:Modes.Bracket) {
+	constructor(startIndex:number, type:string) {
 		this.startIndex = startIndex;
 		this.type = type;
-		this.bracket = bracket;
 	}
 
 	public toString(): string {
-		return '(' + this.startIndex + ', ' + this.type + ', ' + this.bracket + ')';
+		return '(' + this.startIndex + ', ' + this.type + ')';
 	}
 }
 
@@ -144,10 +142,6 @@ export class FilteredLineContext implements Modes.ILineContext {
 
 	public getTokenType(tokenIndex:number): string {
 		return this._actual.getTokenType(tokenIndex + this._firstTokenInModeIndex);
-	}
-
-	public getTokenBracket(tokenIndex:number): Modes.Bracket {
-		return this._actual.getTokenBracket(tokenIndex + this._firstTokenInModeIndex);
 	}
 
 	public getTokenText(tokenIndex:number): string {
@@ -357,7 +351,6 @@ export class TokenizationSupport extends AbstractSupport implements Modes.IToken
 		}
 
 		var maxPos = Math.min(stopAtOffset - deltaOffset, buffer.length);
-		var noneBracket = Modes.Bracket.None;
 		while (lineStream.pos() < maxPos) {
 			beforeTokenizeStreamPos = lineStream.pos();
 
@@ -379,7 +372,7 @@ export class TokenizationSupport extends AbstractSupport implements Modes.IToken
 			} while (!tokenResult.type && tokenResult.type !== '');
 
 			if (previousType !== tokenResult.type || tokenResult.bracket || previousType === null) {
-				prependTokens.push(new Token(beforeTokenizeStreamPos + deltaOffset, tokenResult.type, tokenResult.bracket || noneBracket));
+				prependTokens.push(new Token(beforeTokenizeStreamPos + deltaOffset, tokenResult.type));
 			}
 
 			previousType = tokenResult.type;
@@ -561,7 +554,16 @@ export class BracketElectricCharacterSupport extends AbstractSupport implements 
 	}
 }
 
-
+// TODO@Alex -> refactor to use `brackets` from language configuration
+export function getBracketFor(tokenType:string, tokenText:string, mode:Modes.IMode): Modes.Bracket {
+	if (tokenText === '{' || tokenText === '(' || tokenText === '[') {
+		return Modes.Bracket.Open;
+	}
+	if (tokenText === '}' || tokenText === ')' || tokenText === ']') {
+		return Modes.Bracket.Close;
+	}
+	return Modes.Bracket.None;
+}
 
 export interface IDeclarationContribution {
 	tokens?: string[];

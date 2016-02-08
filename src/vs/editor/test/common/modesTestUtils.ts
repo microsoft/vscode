@@ -48,7 +48,7 @@ export function createLineContextFromTokenText(tokens: TokenText[]): modes.ILine
 
 	var indexSoFar = 0;
 	for (var i = 0; i < tokens.length; ++i){
-		processedTokens.push({ startIndex: indexSoFar, type: tokens[i].type, bracket: (tokens[i].bracket ? tokens[i].bracket : modes.Bracket.None) });
+		processedTokens.push({ startIndex: indexSoFar, type: tokens[i].type });
 		line += tokens[i].text;
 		indexSoFar += tokens[i].text.length;
 	}
@@ -93,10 +93,6 @@ class TestLineContext implements modes.ILineContext {
 
 	public getTokenType(tokenIndex:number): string {
 		return this._tokens[tokenIndex].type;
-	}
-
-	public getTokenBracket(tokenIndex:number): modes.Bracket {
-		return this._tokens[tokenIndex].bracket;
 	}
 
 	public findIndexOfOffset(offset:number): number {

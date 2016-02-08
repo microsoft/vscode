@@ -177,7 +177,6 @@ function assertTokens(actual:modes.IToken[], expected:ITestToken[], message?:str
 	for (var i = 0; i < expected.length; i++) {
 		assert.equal(actual[i].startIndex, expected[i].startIndex, 'startIndex mismatch');
 		assert.equal(actual[i].type, expected[i].type, 'type mismatch');
-		assert.equal(actual[i].bracket, expected[i].bracket ? expected[i].bracket : modes.Bracket.None, 'bracket mismatch');
 	}
 };
 

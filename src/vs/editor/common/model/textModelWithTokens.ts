@@ -166,10 +166,6 @@ class LineContext implements Modes.ILineContext {
 		return this._lineTokens.getTokenType(tokenIndex);
 	}
 
-	public getTokenBracket(tokenIndex:number): Modes.Bracket {
-		return this._lineTokens.getTokenBracket(tokenIndex);
-	}
-
 	public getTokenText(tokenIndex:number): string {
 		var startIndex = this._lineTokens.getTokenStartIndex(tokenIndex);
 		var endIndex = this._lineTokens.getTokenEndIndex(tokenIndex, this._text.length);

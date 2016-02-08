@@ -103,8 +103,7 @@ export function nullTokenize(mode: Modes.IMode, buffer:string, state: Modes.ISta
 	var tokens:Modes.IToken[] = [
 		{
 			startIndex: deltaOffset,
-			type: '',
-			bracket: Modes.Bracket.None
+			type: ''
 		}
 	];
 

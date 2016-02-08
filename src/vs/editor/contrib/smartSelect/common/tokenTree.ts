@@ -8,6 +8,7 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
+import {getBracketFor} from 'vs/editor/common/modes/supports';
 
 export class Node {
 
@@ -108,6 +109,7 @@ class TokenScanner {
 	private _currentLineNumber: number;
 	private _currentTokenIndex: number;
 	private _currentLineTokens: EditorCommon.ILineTokens;
+	private _currentLineText: string;
 
 	constructor(model: EditorCommon.IModel) {
 		this._model = model;
@@ -127,22 +129,28 @@ class TokenScanner {
 		if (!this._currentLineTokens) {
 			// no tokens for this line
 			this._currentLineTokens = this._model.getLineTokens(this._currentLineNumber);
+			this._currentLineText = this._model.getLineContent(this._currentLineNumber);
 			this._currentTokenIndex = 0;
 		}
 		if (this._currentTokenIndex >= this._currentLineTokens.getTokenCount()) {
 			// last token of line visited
 			this._currentLineNumber += 1;
 			this._currentLineTokens = null;
+			this._currentLineText = null;
 			return this.next();
 		}
+		let tokenType = this._currentLineTokens.getTokenType(this._currentTokenIndex);
+		let tokenStartIndex = this._currentLineTokens.getTokenStartIndex(this._currentTokenIndex);
+		let tokenEndIndex = this._currentLineTokens.getTokenEndIndex(this._currentTokenIndex, this._currentLineText.length + 1);
+		let tokenText = this._currentLineText.substring(tokenStartIndex, tokenEndIndex);
 		var token: Token = {
-			type: this._currentLineTokens.getTokenType(this._currentTokenIndex),
-			bracket: this._currentLineTokens.getTokenBracket(this._currentTokenIndex),
+			type: tokenType,
+			bracket: getBracketFor(tokenType, tokenText, this._model.getMode()),
 			range: {
 				startLineNumber: this._currentLineNumber,
-				startColumn: 1 + this._currentLineTokens.getTokenStartIndex(this._currentTokenIndex),
+				startColumn: 1 + tokenStartIndex,
 				endLineNumber: this._currentLineNumber,
-				endColumn: 1 + this._currentLineTokens.getTokenEndIndex(this._currentTokenIndex, this._model.getLineMaxColumn(this._currentLineNumber))
+				endColumn: 1 + tokenEndIndex
 			}
 		};
 		//		token.__debugContent = this._model.getValueInRange(token.range);

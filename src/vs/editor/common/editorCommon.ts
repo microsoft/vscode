@@ -1171,16 +1171,13 @@ export interface ITokensInflatorMap {
 export interface ILineTokensBinaryEncoding {
 	START_INDEX_MASK: number;
 	TYPE_MASK: number;
-	BRACKET_MASK: number;
 	START_INDEX_OFFSET: number;
 	TYPE_OFFSET: number;
-	BRACKET_OFFSET: number;
 
 	deflateArr(map:ITokensInflatorMap, tokens:Modes.IToken[]): number[];
 	inflate(map:ITokensInflatorMap, binaryEncodedToken:number): Modes.IToken;
 	getStartIndex(binaryEncodedToken:number): number;
 	getType(map:ITokensInflatorMap, binaryEncodedToken:number): string;
-	getBracket(binaryEncodedToken:number): Modes.Bracket;
 	inflateArr(map:ITokensInflatorMap, binaryEncodedTokens:number[]): Modes.IToken[];
 	findIndexOfOffset(binaryEncodedTokens:number[], offset:number): number;
 	sliceAndInflate(map:ITokensInflatorMap, binaryEncodedTokens:number[], startOffset:number, endOffset:number, deltaStartIndex:number): Modes.IToken[];
@@ -1204,7 +1201,6 @@ export interface ILineTokens {
 	getTokenCount(): number;
 	getTokenStartIndex(tokenIndex:number): number;
 	getTokenType(tokenIndex:number): string;
-	getTokenBracket(tokenIndex:number): Modes.Bracket;
 	getTokenEndIndex(tokenIndex:number, textLength:number): number;
 
 	/**

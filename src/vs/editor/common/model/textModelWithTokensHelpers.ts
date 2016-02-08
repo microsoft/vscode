@@ -10,6 +10,7 @@ import Modes = require('vs/editor/common/modes');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {Arrays} from 'vs/editor/common/core/arrays';
 import Errors = require('vs/base/common/errors');
+import {getBracketFor} from 'vs/editor/common/modes/supports';
 
 export interface ITextSource {
 
@@ -29,7 +30,6 @@ export interface ITextSource {
 }
 
 var getType = EditorCommon.LineTokensBinaryEncoding.getType;
-var getBracket = EditorCommon.LineTokensBinaryEncoding.getBracket;
 var getStartIndex = EditorCommon.LineTokensBinaryEncoding.getStartIndex;
 
 export interface INonWordTokenMap {
@@ -241,24 +241,23 @@ export class BracketsHelper {
 
 	private static _findMatchingBracketUp(textSource:ITextSource, type:string, lineNumber:number, tokenIndex:number, initialCount:number): Range {
 
-		var i:number,
-			end:number,
-			j:number,
-			count = initialCount;
+		let mode = textSource.getMode();
+		let count = initialCount;
 
-		for (i = lineNumber; i >= 1; i--) {
+		for (let i = lineNumber; i >= 1; i--) {
 
-			var lineTokens = textSource.getLineTokens(i, false),
-				tokens = lineTokens.getBinaryEncodedTokens(),
-				tokensMap = lineTokens.getBinaryEncodedTokensMap(),
-				lineText = textSource.getLineContent(i);
+			let lineTokens = textSource.getLineTokens(i, false);
+			let tokens = lineTokens.getBinaryEncodedTokens();
+			let tokensMap = lineTokens.getBinaryEncodedTokensMap();
+			let lineText = textSource.getLineContent(i);
 
-			for (j = (i === lineNumber ? tokenIndex : tokens.length) - 1; j >= 0; j--) {
+			for (let j = (i === lineNumber ? tokenIndex : tokens.length) - 1; j >= 0; j--) {
 				if (getType(tokensMap, tokens[j]) === type) {
-					count += BracketsHelper._sign(getBracket(tokens[j]));
+					let start = getStartIndex(tokens[j]);
+					let end = (j === tokens.length - 1 ? lineText.length : getStartIndex(tokens[j + 1]));
+					count += BracketsHelper._sign(getBracketFor(type, lineText.substring(start, end), mode));
 					if (count === 0) {
-						end = (j === tokens.length - 1 ? lineText.length : getStartIndex(tokens[j + 1]));
-						return new Range(i, getStartIndex(tokens[j]) + 1, i, end + 1);
+						return new Range(i, start + 1, i, end + 1);
 					}
 				}
 			}
@@ -268,14 +267,10 @@ export class BracketsHelper {
 
 	private static _findMatchingBracketDown(textSource:ITextSource, type:string, lineNumber:number, tokenIndex:number, inaccurateResultAcceptable:boolean): { range:Range; isAccurate:boolean; } {
 
-		var i:number,
-			len:number,
-			end:number,
-			j:number,
-			lenJ:number,
-			count = 1;
+		let mode = textSource.getMode();
+		let count = 1;
 
-		for (i = lineNumber, len = textSource.getLineCount(); i <= len; i++) {
+		for (let i = lineNumber, len = textSource.getLineCount(); i <= len; i++) {
 			if (inaccurateResultAcceptable && !textSource._lineIsTokenized(i)) {
 				return {
 					range: null,
@@ -288,13 +283,14 @@ export class BracketsHelper {
 				tokensMap = lineTokens.getBinaryEncodedTokensMap(),
 				lineText = textSource.getLineContent(i);
 
-			for (j = (i === lineNumber ? tokenIndex + 1 : 0), lenJ = tokens.length; j < lenJ; j++) {
+			for (let j = (i === lineNumber ? tokenIndex + 1 : 0), lenJ = tokens.length; j < lenJ; j++) {
 				if (getType(tokensMap, tokens[j]) === type) {
-					count += BracketsHelper._sign(getBracket(tokens[j]));
+					let start = getStartIndex(tokens[j]);
+					let end = (j === tokens.length - 1 ? lineText.length : getStartIndex(tokens[j + 1]));
+					count += BracketsHelper._sign(getBracketFor(type, lineText.substring(start, end), mode));
 					if (count === 0) {
-						end = (j === tokens.length - 1 ? lineText.length : getStartIndex(tokens[j + 1]));
 						return {
-							range: new Range(i, getStartIndex(tokens[j]) + 1, i, end + 1),
+							range: new Range(i, start + 1, i, end + 1),
 							isAccurate: true
 						};
 					}
@@ -332,6 +328,9 @@ export class BracketsHelper {
 	}
 
 	public static matchBracket(textSource:ITextSource, position:EditorCommon.IPosition, inaccurateResultAcceptable:boolean): EditorCommon.IMatchBracketResult {
+
+		let mode = textSource.getMode();
+
 		if (inaccurateResultAcceptable && !textSource._lineIsTokenized(position.lineNumber)) {
 			return {
 				brackets: null,
@@ -364,9 +363,8 @@ export class BracketsHelper {
 				token = tokens[i];
 				tokenStartIndex = getStartIndex(token);
 				tokenType = getType(tokensMap, token);
-				tokenBracket = getBracket(token);
-
 				end = i === len - 1 ? lineText.length : getStartIndex(tokens[i + 1]);
+				tokenBracket = getBracketFor(tokenType, lineText.substring(tokenStartIndex, end), mode);
 
 				if (tokenStartIndex <= columnIndex && columnIndex <= end) {
 					if (tokenBracket < 0) {

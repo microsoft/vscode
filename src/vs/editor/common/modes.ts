@@ -176,7 +176,6 @@ export interface ILineContext {
 	getTokenCount(): number;
 	getTokenStartIndex(tokenIndex:number): number;
 	getTokenType(tokenIndex:number): string;
-	getTokenBracket(tokenIndex:number): Bracket;
 	getTokenText(tokenIndex:number): string;
 	getTokenEndIndex(tokenIndex:number): number;
 	findIndexOfOffset(offset:number): number;
@@ -332,7 +331,7 @@ export interface IMode {
 export interface IToken {
 	startIndex:number;
 	type:string;
-	bracket:Bracket;
+	bracket?:Bracket;
 }
 
 export interface IModeTransition {

@@ -12,30 +12,25 @@ import Errors = require('vs/base/common/errors');
 class InflatedToken implements Modes.IToken {
 	startIndex:number;
 	type:string;
-	bracket:Modes.Bracket;
 
-	constructor(startIndex:number, type:string, bracket:Modes.Bracket) {
+	constructor(startIndex:number, type:string) {
 		this.startIndex = startIndex;
 		this.type = type;
-		this.bracket = bracket;
 	}
 
 	public toString(): string {
-		return '{ ' + this.startIndex + ', \'' + this.type + '\', ' + this.bracket + '}';
+		return '{ ' + this.startIndex + ', \'' + this.type + '\'}';
 	}
 }
 
 export var START_INDEX_MASK = 0xffffffff;
 export var TYPE_MASK = 0xffff;
-export var BRACKET_MASK = 0xff;
 export var START_INDEX_OFFSET = 1;
 export var TYPE_OFFSET = Math.pow(2, 32);
-export var BRACKET_OFFSET = Math.pow(2, 48);
 
 var DEFAULT_TOKEN = {
 	startIndex: 0,
-	type: '',
-	bracket: 0
+	type: ''
 };
 var INFLATED_TOKENS_EMPTY_TEXT = <Modes.IToken[]>[];
 var DEFLATED_TOKENS_EMPTY_TEXT = <number[]>[];
@@ -46,14 +41,13 @@ export function deflateArr(map:EditorCommon.ITokensInflatorMap, tokens:Modes.ITo
 	if (tokens.length === 0) {
 		return DEFLATED_TOKENS_EMPTY_TEXT;
 	}
-	if (tokens.length === 1 && tokens[0].startIndex === 0 && !tokens[0].type && !tokens[0].bracket) {
+	if (tokens.length === 1 && tokens[0].startIndex === 0 && !tokens[0].type) {
 		return DEFLATED_TOKENS_NON_EMPTY_TEXT;
 	}
 
 	var i:number,
 		len:number,
 		deflatedToken:number,
-		deflatedBracket:number,
 		deflated:number,
 		token:Modes.IToken,
 		inflateMap = map._inflate,
@@ -80,11 +74,6 @@ export function deflateArr(map:EditorCommon.ITokensInflatorMap, tokens:Modes.ITo
 			inflateMap.push(token.type);
 		}
 
-		deflatedBracket = token.bracket;
-		if (deflatedBracket < 0) {
-			deflatedBracket = 2;
-		}
-
 		// http://stackoverflow.com/a/2803010
 		// All numbers in JavaScript are actually IEEE-754 compliant floating-point doubles.
 		// These have a 53-bit mantissa which should mean that any integer value with a magnitude
@@ -96,10 +85,9 @@ export function deflateArr(map:EditorCommon.ITokensInflatorMap, tokens:Modes.ITo
 
 		// 32 bits for startIndex => up to 2^32 = 4,294,967,296
 		// 16 bits for token => up to 2^16 = 65,536
-		// 2 bits for bracket => up to 2^2 = 4
 
-		// [bracket][token][startIndex]
-		deflated = deflatedBracket * BRACKET_OFFSET + deflatedToken * TYPE_OFFSET + token.startIndex * START_INDEX_OFFSET;
+		// [token][startIndex]
+		deflated = deflatedToken * TYPE_OFFSET + token.startIndex * START_INDEX_OFFSET;
 
 		result[i] = deflated;
 
@@ -116,13 +104,8 @@ export function inflate(map:EditorCommon.ITokensInflatorMap, binaryEncodedToken:
 
 	var startIndex = (binaryEncodedToken / START_INDEX_OFFSET) & START_INDEX_MASK;
 	var deflatedType = (binaryEncodedToken / TYPE_OFFSET) & TYPE_MASK;
-	var deflatedBracket = (binaryEncodedToken / BRACKET_OFFSET) & BRACKET_MASK;
 
-	if (deflatedBracket === 2) {
-		deflatedBracket = -1;
-	}
-
-	return new InflatedToken(startIndex, map._inflate[deflatedType], deflatedBracket);
+	return new InflatedToken(startIndex, map._inflate[deflatedType]);
 }
 
 export function getStartIndex(binaryEncodedToken:number): number {
@@ -135,16 +118,6 @@ export function getType(map:EditorCommon.ITokensInflatorMap, binaryEncodedToken:
 		return Strings.empty;
 	}
 	return map._inflate[deflatedType];
-}
-
-export function getBracket(binaryEncodedToken:number): Modes.Bracket {
-	var deflatedBracket = (binaryEncodedToken / BRACKET_OFFSET) & BRACKET_MASK;
-
-	if (deflatedBracket === 2) {
-		deflatedBracket = -1;
-	}
-
-	return deflatedBracket;
 }
 
 export function inflateArr(map:EditorCommon.ITokensInflatorMap, binaryEncodedTokens:number[]): Modes.IToken[] {
@@ -160,7 +133,6 @@ export function inflateArr(map:EditorCommon.ITokensInflatorMap, binaryEncodedTok
 		len:number,
 		deflated:number,
 		startIndex:number,
-		deflatedBracket:number,
 		deflatedType:number,
 		inflateMap = map._inflate;
 
@@ -169,13 +141,8 @@ export function inflateArr(map:EditorCommon.ITokensInflatorMap, binaryEncodedTok
 
 		startIndex = (deflated / START_INDEX_OFFSET) & START_INDEX_MASK;
 		deflatedType = (deflated / TYPE_OFFSET) & TYPE_MASK;
-		deflatedBracket = (deflated / BRACKET_OFFSET) & BRACKET_MASK;
 
-		if (deflatedBracket === 2) {
-			deflatedBracket = -1;
-		}
-
-		result[i] = new InflatedToken(startIndex, inflateMap[deflatedType], deflatedBracket);
+		result[i] = new InflatedToken(startIndex, inflateMap[deflatedType]);
 	}
 
 	return result;
@@ -200,15 +167,13 @@ export function sliceAndInflate(map:EditorCommon.ITokensInflatorMap, binaryEncod
 		originalStartIndex:number,
 		newStartIndex:number,
 		deflatedType:number,
-		deflatedBracket:number,
 		result: Modes.IToken[] = [],
 		inflateMap = map._inflate;
 
 	originalToken = binaryEncodedTokens[startIndex];
 	deflatedType = (originalToken / TYPE_OFFSET) & TYPE_MASK;
-	deflatedBracket = (originalToken / BRACKET_OFFSET) & BRACKET_MASK;
 	newStartIndex = 0;
-	result.push(new InflatedToken(newStartIndex, inflateMap[deflatedType], deflatedBracket));
+	result.push(new InflatedToken(newStartIndex, inflateMap[deflatedType]));
 
 	for (i = startIndex + 1, len = binaryEncodedTokens.length; i < len; i++) {
 		originalToken = binaryEncodedTokens[i];
@@ -219,9 +184,8 @@ export function sliceAndInflate(map:EditorCommon.ITokensInflatorMap, binaryEncod
 		}
 
 		deflatedType = (originalToken / TYPE_OFFSET) & TYPE_MASK;
-		deflatedBracket = (originalToken / BRACKET_OFFSET) & BRACKET_MASK;
 		newStartIndex = originalStartIndex - startOffset + deltaStartIndex;
-		result.push(new InflatedToken(newStartIndex, inflateMap[deflatedType], deflatedBracket));
+		result.push(new InflatedToken(newStartIndex, inflateMap[deflatedType]));
 	}
 
 	return result;
