@@ -11,10 +11,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import Event, { Emitter } from 'vs/base/common/event';
-import { append, addClass, removeClass, toggleClass, emmet as $, hide, show } from 'vs/base/browser/dom';
-import * as Tree from 'vs/base/parts/tree/browser/tree';
-import * as TreeImpl from 'vs/base/parts/tree/browser/treeImpl';
-import * as TreeDefaults from 'vs/base/parts/tree/browser/treeDefaults';
+import { append, addClass, removeClass, toggleClass, emmet as $, hide, show, addDisposableListener } from 'vs/base/browser/dom';
+import { IRenderer, IDelegate, IFocusChangeEvent, ISelectionChangeEvent } from 'vs/base/browser/ui/list/list';
+import { List } from 'vs/base/browser/ui/list/listWidget';
 import * as HighlightedLabel from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { SuggestModel, ICancelEvent, ISuggestEvent, ITriggerEvent } from './suggestModel';
 import * as Mouse from 'vs/base/browser/mouseEvent';
@@ -59,37 +58,29 @@ class CompletionItem {
 
 	private static _idPool: number = 0;
 
-	id: number;
+	id: string;
 	suggestion: ISuggestion;
 	highlights: IMatch[];
 	support: ISuggestSupport;
 	container: ISuggestResult;
 
-	private _resolveDetails: TPromise<CompletionItem>;
-
 	constructor(public group: CompletionGroup, suggestion: ISuggestion, container: ISuggestResult2) {
-		this.id = CompletionItem._idPool++;
+		this.id = String(CompletionItem._idPool++);
 		this.support = container.support;
 		this.suggestion = suggestion;
 		this.container = container;
 	}
 
-	resolveDetails(resource: URI, position: EditorCommon.IPosition): TPromise<CompletionItem> {
-		if (this._resolveDetails) {
-			return this._resolveDetails;
-		}
-
+	resolveDetails(resource: URI, position: EditorCommon.IPosition): TPromise<ISuggestion> {
 		if (!this.support || typeof this.support.getSuggestionDetails !== 'function') {
-			return this._resolveDetails = TPromise.as(this);
+			return TPromise.as(this.suggestion);
 		}
 
-		return this._resolveDetails = this.support
-			.getSuggestionDetails(resource, position, this.suggestion)
-			.then(
-				value => this.suggestion = assign(this.suggestion, value),
-				err => isPromiseCanceledError(err) ? this._resolveDetails = null : onUnexpectedError(err)
-			)
-			.then(() => this);
+		return this.support.getSuggestionDetails(resource, position, this.suggestion);
+	}
+
+	updateDetails(value: ISuggestion): void {
+		this.suggestion = assign(this.suggestion, value);
 	}
 }
 
@@ -202,55 +193,6 @@ function isRoot(element: any): boolean {
 	return element instanceof CompletionModel;
 }
 
-class DataSource implements Tree.IDataSource {
-
-	public getId(tree: Tree.ITree, element: any): string {
-		if (!element) {
-			return 'empty';
-		} else if (isRoot(element)) {
-			return 'root';
-		} else if (element instanceof CompletionItem) {
-			return (<CompletionItem>element).id.toString();
-		}
-
-		throw illegalArgument('element');
-	}
-
-	public getParent(tree: Tree.ITree, element: any): TPromise<any> {
-		if (isRoot(element)) {
-			return TPromise.as(null);
-		}
-
-		return TPromise.as((<CompletionItem>element).group.model);
-	}
-
-	public getChildren(tree: Tree.ITree, element: any): TPromise<any[]> {
-		if (isRoot(element)) {
-			return TPromise.as((<CompletionModel>element).items);
-		}
-
-		return TPromise.as([]);
-	}
-
-	public hasChildren(tree: Tree.ITree, element: any): boolean {
-		return isRoot(element);
-	}
-}
-
-class Controller extends TreeDefaults.DefaultController {
-
-	/* protected */ public onLeftClick(tree: Tree.ITree, element: any, event: Mouse.StandardMouseEvent): boolean {
-		event.preventDefault();
-		event.stopPropagation();
-		tree.setSelection([element], { origin: 'mouse' });
-		return true;
-	}
-}
-
-interface IMessageTemplateData {
-	element: HTMLElement;
-}
-
 interface ISuggestionTemplateData {
 	root: HTMLElement;
 	icon: HTMLElement;
@@ -261,7 +203,7 @@ interface ISuggestionTemplateData {
 	documentation: HTMLElement;
 }
 
-class Renderer implements Tree.IRenderer {
+class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 
 	private triggerKeybindingLabel: string;
 
@@ -273,28 +215,11 @@ class Renderer implements Tree.IRenderer {
 		this.triggerKeybindingLabel = keybindings.length === 0 ? '' : ` (${keybindingService.getLabelFor(keybindings[0])})`;
 	}
 
-	public getHeight(tree: Tree.ITree, element: any): number {
-		if (element instanceof CompletionItem) {
-			if ((<CompletionItem>element).suggestion.documentationLabel && tree.isFocused(element)) {
-				return 35;
-			}
-		}
-
-		return 19;
-	}
-
-	public getTemplateId(tree: Tree.ITree, element: any): string {
+	get templateId(): string {
 		return 'suggestion';
 	}
 
-	public renderTemplate(tree: Tree.ITree, templateId: string, container: HTMLElement): any {
-		if (templateId === 'message') {
-			const span = $('span');
-			span.style.opacity = '0.7';
-			container.appendChild(span);
-			return <IMessageTemplateData>{ element: span };
-		}
-
+	renderTemplate(container: HTMLElement): ISuggestionTemplateData {
 		const data = <ISuggestionTemplateData>Object.create(null);
 		data.root = container;
 
@@ -313,12 +238,7 @@ class Renderer implements Tree.IRenderer {
 		return data;
 	}
 
-	public renderElement(tree: Tree.ITree, element: any, templateId: string, templateData: any): void {
-		if (templateId === 'message') {
-			(<IMessageTemplateData>templateData).element.textContent = element.message;
-			return;
-		}
-
+	renderElement(element: CompletionItem, index: number, templateData: ISuggestionTemplateData): void {
 		const data = <ISuggestionTemplateData>templateData;
 		const suggestion = (<CompletionItem>element).suggestion;
 
@@ -350,13 +270,30 @@ class Renderer implements Tree.IRenderer {
 		}
 	}
 
-	public disposeTemplate(tree: Tree.ITree, templateId: string, templateData: any): void {
-		if (templateId === 'message') {
-			return;
+	disposeTemplate(templateData: ISuggestionTemplateData): void {
+		templateData.highlightedLabel.dispose();
+	}
+}
+
+const FocusHeight = 35;
+const UnfocusedHeight = 19;
+
+class Delegate implements IDelegate<CompletionItem> {
+
+	constructor(private listProvider: () => List<CompletionItem>) { }
+
+	getHeight(element: CompletionItem): number {
+		const focus = this.listProvider().getFocus()[0];
+
+		if (element.suggestion.documentationLabel && element === focus) {
+			return FocusHeight;
 		}
 
-		const data = <ISuggestionTemplateData>templateData;
-		data.highlightedLabel.dispose();
+		return UnfocusedHeight;
+	}
+
+	getTemplateId(element: CompletionItem): string {
+		return 'suggestion';
 	}
 }
 
@@ -480,8 +417,9 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	private shouldShowEmptySuggestionList: boolean;
 	private suggestionSupportsAutoAccept: IKeybindingContextKey<boolean>;
 	private loadingTimeout: number;
-	private currentSuggestionDetails: TPromise<CompletionItem>;
-	private oldFocus: CompletionItem;
+	private currentSuggestionDetails: TPromise<void>;
+	private focusedItem: CompletionItem;
+	private completionModel: CompletionModel;
 
 	private telemetryData: ITelemetryData;
 	private telemetryService: ITelemetryService;
@@ -489,10 +427,10 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 
 	private element: HTMLElement;
 	private messageElement: HTMLElement;
-	private treeElement: HTMLElement;
+	private listElement: HTMLElement;
 	private details: SuggestionDetails;
-	private tree: Tree.ITree;
-	private renderer: Renderer;
+	private delegate: IDelegate<CompletionItem>;
+	private list: List<CompletionItem>;
 
 	private toDispose: IDisposable[];
 
@@ -507,7 +445,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.isAuto = false;
-		this.oldFocus = null;
+		this.focusedItem = null;
 		this.suggestionSupportsAutoAccept = keybindingService.createKey(CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY, true);
 
 		this.telemetryData = null;
@@ -523,25 +461,13 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		}
 
 		this.messageElement = append(this.element, $('.message'));
-		this.treeElement = append(this.element, $('.tree'));
+		this.listElement = append(this.element, $('.tree'));
 		this.details = new SuggestionDetails(this.element, this);
-		this.renderer = instantiationService.createInstance(Renderer, this);
 
-		const configuration = {
-			renderer: this.renderer,
-			dataSource: new DataSource(),
-			controller: new Controller()
-		};
+		let renderer: IRenderer<CompletionItem, any> = instantiationService.createInstance(Renderer, this);
 
-		const options = {
-			twistiePixels: 0,
-			alwaysFocused: true,
-			verticalScrollMode: 'visible',
-			useShadows: false,
-			ariaLabel: nls.localize('treeAriaLabel', "Suggestions")
-		};
-
-		this.tree = new TreeImpl.Tree(this.treeElement, configuration, options);
+		this.delegate = new Delegate(() => this.list);
+		this.list = new List(this.listElement, this.delegate, [renderer]);
 
 		this.toDispose = [
 			editor.addListener2(EditorCommon.EventType.ModelChanged, () => this.onModelModeChanged()),
@@ -549,8 +475,8 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			editor.addListener2(EditorCommon.EventType.ModelModeSupportChanged, (e: EditorCommon.IModeSupportChangedEvent) => e.suggestSupport && this.onModelModeChanged()),
 			SuggestRegistry.onDidChange(() => this.onModelModeChanged()),
 			editor.addListener2(EditorCommon.EventType.EditorTextBlur, () => this.onEditorBlur()),
-			this.tree.addListener2('selection', e => this.onTreeSelection(e)),
-			this.tree.addListener2('focus', e => this.onTreeFocus(e)),
+			this.list.onSelectionChange(e => this.onListSelection(e)),
+			this.list.onFocusChange(e => this.onListFocus(e)),
 			this.editor.addListener2(EditorCommon.EventType.CursorSelectionChanged, () => this.onCursorSelectionChanged()),
 			this.model.onDidTrigger(e => this.onDidTrigger(e)),
 			this.model.onDidSuggest(e => this.onDidSuggest(e)),
@@ -578,63 +504,63 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		});
 	}
 
-	private onTreeSelection(e: Tree.ISelectionEvent): void {
-		if (!e.selection || e.selection.length === 0) {
+	private onListSelection(e: ISelectionChangeEvent<CompletionItem>): void {
+		if (!e.elements.length) {
 			return;
 		}
 
-		const element = e.selection[0];
-
-		if (!element.hasOwnProperty('suggestions')) {
-			const item: CompletionItem = element;
-			const navigator = this.tree.getNavigator();
-
+		setTimeout(() => {
 			this.telemetryData.selectedIndex = 0;
 			this.telemetryData.wasCancelled = false;
-
-			while (navigator.next() !== item) {
-				this.telemetryData.selectedIndex++;
-			}
-
+			this.telemetryData.selectedIndex = e.indexes[0];
 			this.submitTelemetryData();
 
+			const item = e.elements[0];
 			const container = item.container;
 			const overwriteBefore = (typeof item.suggestion.overwriteBefore === 'undefined') ? container.currentWord.length : item.suggestion.overwriteBefore;
 			const overwriteAfter = (typeof item.suggestion.overwriteAfter === 'undefined') ? 0 : Math.max(0, item.suggestion.overwriteAfter);
 			this.model.accept(item.suggestion, overwriteBefore, overwriteAfter);
 
 			this.editor.focus();
-		}
+		}, 0);
 	}
 
-	private onTreeFocus(e: Tree.IFocusEvent): void {
-		const focus = e.focus;
-		const payload = e.payload;
-
-		if (focus instanceof CompletionItem) {
-			this.resolveDetails(<CompletionItem>focus);
-			this.suggestionSupportsAutoAccept.set(!(<CompletionItem>focus).suggestion.noAutoAccept);
+	private onListFocus(e: IFocusChangeEvent<CompletionItem>): void {
+		if (this.currentSuggestionDetails) {
+			this.currentSuggestionDetails.cancel();
+			this.currentSuggestionDetails = null;
 		}
 
-		const elementsToRefresh: any[] = [];
-
-		if (this.oldFocus) {
-			elementsToRefresh.push(this.oldFocus);
+		if (!e.elements.length) {
+			return;
 		}
 
-		if (focus) {
-			elementsToRefresh.push(focus);
+		const item = e.elements[0];
+
+		if (item === this.focusedItem) {
+			return;
 		}
 
-		this.oldFocus = focus;
+		const index = e.indexes[0];
 
-		this.tree.refreshAll(elementsToRefresh).done(() => {
-			this.updateWidgetHeight();
+		this.suggestionSupportsAutoAccept.set(item.suggestion.noAutoAccept);
+		this.focusedItem = item;
+		this.list.setFocus(index);
+		this.updateWidgetHeight();
+		this.list.reveal(index);
 
-			if (focus) {
-				return this.tree.reveal(focus, (payload && payload.firstSuggestion) ? 0 : null);
-			}
-		}, onUnexpectedError);
+		const resource = this.editor.getModel().getAssociatedResource();
+		const position = this.model.getRequestPosition() || this.editor.getPosition();
+
+		this.currentSuggestionDetails = item.resolveDetails(resource, position)
+			.then(details => {
+				item.updateDetails(details);
+				this.list.setFocus(index);
+				this.updateWidgetHeight();
+				this.list.reveal(index);
+			})
+			.then(null, err => !isPromiseCanceledError(err) && onUnexpectedError(err))
+			.then(() => this.currentSuggestionDetails = null);
 	}
 
 	private onModelModeChanged(): void {
@@ -652,36 +578,36 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		switch (state) {
 			case State.Hidden:
 				hide(this.messageElement, this.details.element);
-				show(this.treeElement);
+				show(this.listElement);
 				this.hide();
 				if (stateChanged) {
-					this.tree.setInput(null);
+					this.list.splice(0, this.list.length);
 				}
 				break;
 			case State.Loading:
 				this.messageElement.innerText = SuggestWidget.LOADING_MESSAGE;
-				hide(this.treeElement, this.details.element);
+				hide(this.listElement, this.details.element);
 				show(this.messageElement);
 				this.show();
 				break;
 			case State.Empty:
 				this.messageElement.innerText = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
-				hide(this.treeElement, this.details.element);
+				hide(this.listElement, this.details.element);
 				show(this.messageElement);
 				this.show();
 				break;
 			case State.Open:
 				hide(this.messageElement, this.details.element);
-				show(this.treeElement);
+				show(this.listElement);
 				this.show();
 				break;
 			case State.Frozen:
 				hide(this.messageElement, this.details.element);
-				show(this.treeElement);
+				show(this.listElement);
 				this.show();
 				break;
 			case State.Details:
-				hide(this.messageElement, this.treeElement);
+				hide(this.messageElement, this.listElement);
 				show(this.details.element);
 				this.show();
 				break;
@@ -717,35 +643,33 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	private onDidSuggest(e: ISuggestEvent): void {
 		clearTimeout(this.loadingTimeout);
 
-		let model: CompletionModel = this.tree.getInput();
 		let promise = TPromise.as(null);
 		let visibleCount: number;
 
-		if (model && model.raw === e.suggestions) {
-			const oldCurrentWord = model.currentWord;
-			model.currentWord = e.currentWord;
-			visibleCount = model.items.length;
+		if (this.completionModel && this.completionModel.raw === e.suggestions) {
+			const oldCurrentWord = this.completionModel.currentWord;
+			this.completionModel.currentWord = e.currentWord;
+			visibleCount = this.completionModel.items.length;
 
 			if (!e.auto && visibleCount === 0) {
-				model.currentWord = oldCurrentWord;
+				this.completionModel.currentWord = oldCurrentWord;
 
-				if (model.items.length > 0) {
+				if (this.completionModel.items.length > 0) {
 					this.setState(State.Frozen);
 				} else {
 					this.setState(State.Empty);
 				}
 
 				return;
-			} else {
-				promise = this.tree.refresh();
 			}
 		} else {
-			model = new CompletionModel(e.suggestions, e.currentWord);
-			visibleCount = model.items.length;
-			promise = this.tree.setInput(model);
+			this.completionModel = new CompletionModel(e.suggestions, e.currentWord);
+			visibleCount = this.completionModel.items.length;
 		}
 
-		if (visibleCount === 0) {
+		const isEmpty = visibleCount === 0;
+
+		if (isEmpty) {
 			if (e.auto) {
 				this.setState(State.Hidden);
 			} else {
@@ -756,52 +680,40 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 				}
 			}
 
-			if (this.telemetryTimer) {
-				this.telemetryTimer.data = { reason: 'empty' };
-				this.telemetryTimer.stop();
-				this.telemetryTimer = null;
-			}
+			this.completionModel = null;
 
-			return;
-		}
-
-		promise.done(() => {
-			const navigator = this.tree.getNavigator();
+		} else {
 			const currentWord = e.currentWord;
 			const currentWordLowerCase = currentWord.toLowerCase();
-			const suggestions = model.items;
-
-			let index = 0;
 			let bestSuggestionIndex = -1;
-			let bestSuggestion = suggestions[0];
 			let bestScore = -1;
-			let item: CompletionItem;
 
-			while (item = navigator.next()) {
+			this.completionModel.items.forEach((item, index) => {
 				const score = computeScore(item.suggestion.label, currentWord, currentWordLowerCase);
 
 				if (score > bestScore) {
 					bestScore = score;
-					bestSuggestion = item;
 					bestSuggestionIndex = index;
 				}
-			}
-
-			this.tree.setFocus(bestSuggestion, { firstSuggestion: true });
+			});
 
 			this.telemetryData = this.telemetryData || {};
-			this.telemetryData.suggestionCount = suggestions.length;
+			this.telemetryData.suggestionCount = this.completionModel.items.length;
 			this.telemetryData.suggestedIndex = bestSuggestionIndex;
 			this.telemetryData.hintLength = currentWord.length;
 
-			this.setState(State.Open);
+			this.list.splice(0, this.list.length, ...this.completionModel.items);
+			this.list.setFocus(bestSuggestionIndex);
+			this.list.reveal(bestSuggestionIndex, 0);
 
-			if (this.telemetryTimer) {
-				this.telemetryTimer.data = { reason: 'results' };
-				this.telemetryTimer.stop();
-				this.telemetryTimer = null;
-			}
-		}, onUnexpectedError);
+			this.setState(State.Open);
+		}
+
+		if (this.telemetryTimer) {
+			this.telemetryTimer.data = { reason: isEmpty ? 'empty' : 'results' };
+			this.telemetryTimer.stop();
+			this.telemetryTimer = null;
+		}
 	}
 
 	private onDidCancel(e: ICancelEvent) {
@@ -824,27 +736,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		}
 	}
 
-	private resolveDetails(item: CompletionItem): void {
-		if (!item) {
-			return;
-		}
-
-		if (this.currentSuggestionDetails) {
-			this.currentSuggestionDetails.cancel();
-		}
-
-		this.currentSuggestionDetails = item.resolveDetails(
-			this.editor.getModel().getAssociatedResource(),
-			this.model.getRequestPosition() || this.editor.getPosition()
-		);
-
-		this.currentSuggestionDetails.then(() => {
-			this.currentSuggestionDetails = undefined;
-			return this.tree.refresh(item).then(() => this.updateWidgetHeight());
-		})
-			.done(null, err => !isPromiseCanceledError(err) && onUnexpectedError(err));
-	}
-
 	public selectNextPage(): boolean {
 		switch (this.state) {
 			case State.Hidden:
@@ -855,7 +746,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			case State.Loading:
 				return !this.isAuto;
 			default:
-				this.tree.focusNextPage();
+				this.list.focusNextPage();
 				return true;
 		}
 	}
@@ -870,11 +761,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			case State.Loading:
 				return !this.isAuto;
 			default:
-				const focus = this.tree.getFocus();
-				this.tree.focusNext(1);
-				if (focus === this.tree.getFocus()) {
-					this.tree.focusFirst();
-				}
+				this.list.focusNext(1, true);
 				return true;
 		}
 	}
@@ -889,7 +776,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			case State.Loading:
 				return !this.isAuto;
 			default:
-				this.tree.focusPreviousPage();
+				this.list.focusPreviousPage();
 				return true;
 		}
 	}
@@ -904,11 +791,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			case State.Loading:
 				return !this.isAuto;
 			default:
-				const focus = this.tree.getFocus();
-				this.tree.focusPrevious(1);
-				if (focus === this.tree.getFocus()) {
-					this.tree.focusLast();
-				}
+				this.list.focusPrevious(1, true);
 				return true;
 		}
 	}
@@ -920,9 +803,9 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			case State.Loading:
 				return !this.isAuto;
 			default:
-				const focus = this.tree.getFocus();
+				const focus = this.list.getFocus()[0];
 				if (focus) {
-					this.tree.setSelection([focus]);
+					this.list.setSelection(this.completionModel.items.indexOf(focus));
 				} else {
 					this.model.cancel();
 				}
@@ -941,7 +824,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 			return;
 		}
 
-		const item: CompletionItem = this.tree.getFocus();
+		const item = this.list.getFocus()[0];
 
 		if (!item || !item.suggestion.documentationLabel) {
 			return;
@@ -954,7 +837,6 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	private show(): void {
 		this.updateWidgetHeight();
 		this._onDidVisibilityChange.fire(true);
-		this.tree.layout();
 		this.renderDetails();
 		TPromise.timeout(100).done(() => {
 			addClass(this.element, 'visible');
@@ -998,32 +880,34 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.telemetryData = null;
 	}
 
-	private updateWidgetHeight(): void {
+	private updateWidgetHeight(): number {
 		let height = 0;
 
 		if (this.state === State.Empty || this.state === State.Loading) {
-			height = 19;
+			height = UnfocusedHeight;
 		} else if (this.state === State.Details) {
-			height = 12 * 19;
+			height = 12 * UnfocusedHeight;
 		} else {
-			const focus = this.tree.getFocus();
-			const focusHeight = focus ? this.renderer.getHeight(this.tree, focus) : 19;
-			height += focusHeight;
+			const focus = this.list.getFocus()[0];
+			const focusHeight = focus ? this.delegate.getHeight(focus) : UnfocusedHeight;
+			height = focusHeight;
 
-			const suggestionCount = (this.tree.getContentHeight() - focusHeight) / 19;
-			height += Math.min(suggestionCount, 11) * 19;
+			const suggestionCount = (this.list.contentHeight - focusHeight) / UnfocusedHeight;
+			height += Math.min(suggestionCount, 11) * UnfocusedHeight;
 		}
 
 		this.element.style.height = height + 'px';
-		this.tree.layout(height);
+		this.list.layout(height);
 		this.editor.layoutContentWidget(this);
+
+		return height;
 	}
 
 	private renderDetails(): void {
 		if (this.state !== State.Details) {
 			this.details.render(null);
 		} else {
-			this.details.render(this.tree.getFocus());
+			this.details.render(this.list.getFocus()[0]);
 		}
 	}
 
@@ -1031,18 +915,17 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.state = null;
 		this.suggestionSupportsAutoAccept = null;
 		this.currentSuggestionDetails = null;
-		this.oldFocus = null;
+		this.focusedItem = null;
 		this.telemetryData = null;
 		this.telemetryService = null;
 		this.telemetryTimer = null;
 		this.element = null;
 		this.messageElement = null;
-		this.treeElement = null;
+		this.listElement = null;
 		this.details.dispose();
 		this.details = null;
-		this.tree.dispose();
-		this.tree = null;
-		this.renderer = null;
+		this.list.dispose();
+		this.list = null;
 		this.toDispose = disposeAll(this.toDispose);
 		this._onDidVisibilityChange.dispose();
 		this._onDidVisibilityChange = null;
