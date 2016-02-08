@@ -10,11 +10,11 @@ import {Builder, $} from 'vs/base/browser/builder';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Gesture, EventType} from 'vs/base/browser/touch';
 import {ActionRunner, IAction} from 'vs/base/common/actions';
-import {ActionBar, ActionItem, IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
+import {ActionItem, IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
-import {ContextView, IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
-import {Menu, IMenuOptions} from 'vs/base/browser/ui/menu/menu';
+import {IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
+import {IMenuOptions} from 'vs/base/browser/ui/menu/menu';
 
 export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable;
