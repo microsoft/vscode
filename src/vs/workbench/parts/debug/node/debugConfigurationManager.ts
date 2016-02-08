@@ -323,9 +323,6 @@ export class ConfigurationManager {
 	}
 
 	public canSetBreakpointsIn(model: editor.IModel, lineNumber: number): boolean {
-		if (model.getLineLastNonWhitespaceColumn(lineNumber) === 0) {
-			return false;
-		}
 		if (model.getAssociatedResource().scheme === schemas.inMemory) {
 			return false;
 		}
