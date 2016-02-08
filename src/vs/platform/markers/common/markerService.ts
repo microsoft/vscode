@@ -13,7 +13,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import {IThreadService, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
 import {MainThreadAttr} from 'vs/platform/thread/common/threadService';
-import {IMarkerService, IMarkerData,  IResourceMarker, IMarker, MarkerStatistics} from './markers';
+import {IMarkerService, IMarkerData, IResourceMarker, IMarker, MarkerStatistics} from './markers';
 
 interface Key {
 	owner: string;
@@ -23,7 +23,7 @@ interface Key {
 module Key {
 
 	export function fromValue(value: string): Key {
-		var regexp = /^(.*)→(.*)$/.exec(value);
+		let regexp = /^(.*)→(.*)$/.exec(value);
 		return {
 			owner: regexp[1],
 			resource: URI.parse(regexp[2])
@@ -34,7 +34,7 @@ module Key {
 		return k.owner + '→' + k.resource;
 	}
 
-	var _selectorPattern = '^({0})→({1})$';
+	let _selectorPattern = '^({0})→({1})$';
 
 	export function selector(owner?: string, resource?: URI): RegExp {
 		return new RegExp(strings.format(_selectorPattern, owner ? strings.escapeRegExpCharacters(owner) : '.*', resource ? strings.escapeRegExpCharacters(resource.toString()) : '.*'));
@@ -64,15 +64,15 @@ export class MarkerService implements IMarkerService, IThreadSynchronizableObjec
 
 	// ---- IThreadSynchronizableObject ------------------------------
 
-	public getId():string {
+	public getId(): string {
 		return '__markerService';
 	}
 
-	public getSerializableState():MarkerData {
+	public getSerializableState(): MarkerData {
 		return this._data;
 	}
 
-	public setData(data: MarkerData):void {
+	public setData(data: MarkerData): void {
 		this._data = data;
 	}
 
@@ -98,7 +98,7 @@ export class MarkerService implements IMarkerService, IThreadSynchronizableObjec
 	}
 
 	public remove(owner: string, resources: URI[]): void {
-		if(arrays.isFalsyOrEmpty(resources)) {
+		if (arrays.isFalsyOrEmpty(resources)) {
 			return;
 		}
 		let changedResources: URI[];
@@ -117,14 +117,14 @@ export class MarkerService implements IMarkerService, IThreadSynchronizableObjec
 
 	private _doChangeOne(owner: string, resource: URI, markers: IMarkerData[]): boolean {
 
-		var key = Key.raw(owner, resource),
+		let key = Key.raw(owner, resource),
 			oldMarkers = this._data[key],
 			hasOldMarkers = !arrays.isFalsyOrEmpty(oldMarkers),
 			getsNewMarkers = !arrays.isFalsyOrEmpty(markers),
 			oldStats = this._computeStats(oldMarkers),
 			newStats = this._computeStats(markers);
 
-		if(!hasOldMarkers && !getsNewMarkers) {
+		if (!hasOldMarkers && !getsNewMarkers) {
 			return;
 		}
 		if (getsNewMarkers) {
@@ -140,12 +140,12 @@ export class MarkerService implements IMarkerService, IThreadSynchronizableObjec
 	}
 
 	public changeAll(owner: string, data: IResourceMarker[]): void {
-		var changedResources: { [n: string]: URI } = Object.create(null);
+		let changedResources: { [n: string]: URI } = Object.create(null);
 
 		// remove and record old markers
-		var oldStats = this._emptyStats();
+		let oldStats = this._emptyStats();
 		this._forEach(owner, undefined, undefined, -1, (e, r) => {
-			var resource = Key.fromValue(e.key).resource;
+			let resource = Key.fromValue(e.key).resource;
 			if (this._isStatRelevant(resource)) {
 				this._updateStatsPlus(oldStats, this._computeStats(e.value));
 			}
@@ -155,8 +155,8 @@ export class MarkerService implements IMarkerService, IThreadSynchronizableObjec
 		this._updateStatsMinus(oldStats);
 
 		// add and record new markers
-		if(!arrays.isFalsyOrEmpty(data)) {
-			var newStats = this._emptyStats();
+		if (!arrays.isFalsyOrEmpty(data)) {
+			let newStats = this._emptyStats();
 			data.forEach(d => {
 				changedResources[d.resource.toString()] = d.resource;
 				collections.lookupOrInsert(this._data, Key.raw(owner, d.resource), []).push(d.marker);
@@ -170,7 +170,7 @@ export class MarkerService implements IMarkerService, IThreadSynchronizableObjec
 	}
 
 	public read(filter: { owner?: string; resource?: URI; selector?: RegExp, take?: number; } = Object.create(null)): IMarker[] {
-		var ret: IMarker[] = [];
+		let ret: IMarker[] = [];
 		this._forEach(filter.owner, filter.resource, filter.selector, filter.take, entry => this._fromEntry(entry, ret));
 		return ret;
 	}
@@ -180,24 +180,24 @@ export class MarkerService implements IMarkerService, IThreadSynchronizableObjec
 		return resource.scheme !== network.schemas.inMemory;
 	}
 
-	private _forEach(owner: string, resource: URI, regexp: RegExp, take: number, callback: (entry: { key: string; value: IMarkerData[]; }, remove:Function) => any):void {
+	private _forEach(owner: string, resource: URI, regexp: RegExp, take: number, callback: (entry: { key: string; value: IMarkerData[]; }, remove: Function) => any): void {
 		//TODO@Joh: be smart and use an index
-		var selector = regexp || Key.selector(owner, resource),
+		let selector = regexp || Key.selector(owner, resource),
 			took = 0;
 
 		collections.forEach(this._data, (entry, remove) => {
-			if(selector.test(entry.key)) {
+			if (selector.test(entry.key)) {
 				callback(entry, remove);
-				if(take > 0 && took++ >= take) {
+				if (take > 0 && took++ >= take) {
 					return false;
 				}
 			}
 		});
 	}
 
-	private _fromEntry(entry: { key: string; value: IMarkerData[];}, bucket:IMarker[]):void {
+	private _fromEntry(entry: { key: string; value: IMarkerData[]; }, bucket: IMarker[]): void {
 
-		var key = Key.fromValue(entry.key);
+		let key = Key.fromValue(entry.key);
 
 		entry.value.forEach(data => {
 
@@ -220,12 +220,12 @@ export class MarkerService implements IMarkerService, IThreadSynchronizableObjec
 	}
 
 	private _computeStats(markers: IMarkerData[]): MarkerStatistics {
-		var errors = 0, warnings = 0, infos = 0, unknwons = 0;
+		let errors = 0, warnings = 0, infos = 0, unknwons = 0;
 		if (markers) {
-			for(var i = 0; i < markers.length; i++) {
-				var marker = markers[i];
+			for (let i = 0; i < markers.length; i++) {
+				let marker = markers[i];
 				if (marker.severity) {
-					switch(marker.severity) {
+					switch (marker.severity) {
 						case Severity.Error:
 							errors++;
 							break;
@@ -256,9 +256,9 @@ export class MarkerService implements IMarkerService, IThreadSynchronizableObjec
 		return { errors: 0, warnings: 0, infos: 0, unknwons: 0 };
 	}
 
-	private _updateStatsPlus(toAdd:MarkerStatistics): void;
-	private _updateStatsPlus(toUpdate:MarkerStatistics, toAdd:MarkerStatistics): void;
-	private _updateStatsPlus(toUpdate:MarkerStatistics, toAdd?:MarkerStatistics): void {
+	private _updateStatsPlus(toAdd: MarkerStatistics): void;
+	private _updateStatsPlus(toUpdate: MarkerStatistics, toAdd: MarkerStatistics): void;
+	private _updateStatsPlus(toUpdate: MarkerStatistics, toAdd?: MarkerStatistics): void {
 		if (!toAdd) {
 			toAdd = toUpdate;
 			toUpdate = this._stats;
@@ -269,9 +269,9 @@ export class MarkerService implements IMarkerService, IThreadSynchronizableObjec
 		toUpdate.unknwons += toAdd.unknwons;
 	}
 
-	private _updateStatsMinus(toSubtract:MarkerStatistics): void;
-	private _updateStatsMinus(toUpdate:MarkerStatistics, toSubtract:MarkerStatistics): void;
-	private _updateStatsMinus(toUpdate:MarkerStatistics, toSubtract?:MarkerStatistics): void {
+	private _updateStatsMinus(toSubtract: MarkerStatistics): void;
+	private _updateStatsMinus(toUpdate: MarkerStatistics, toSubtract: MarkerStatistics): void;
+	private _updateStatsMinus(toUpdate: MarkerStatistics, toSubtract?: MarkerStatistics): void {
 		if (!toSubtract) {
 			toSubtract = toUpdate;
 			toUpdate = this._stats;
@@ -282,8 +282,8 @@ export class MarkerService implements IMarkerService, IThreadSynchronizableObjec
 		toUpdate.unknwons -= toSubtract.unknwons;
 	}
 
-	private _updateStatsMarker(toUpdate:MarkerStatistics, marker:IMarkerData): void {
-		switch(marker.severity) {
+	private _updateStatsMarker(toUpdate: MarkerStatistics, marker: IMarkerData): void {
+		switch (marker.severity) {
 			case Severity.Error:
 				toUpdate.errors++;
 				break;

@@ -45,7 +45,7 @@ export class KeybindingResolver {
 	};
 	private _shouldWarnOnConflict: boolean;
 
-	constructor(defaultKeybindings: IKeybindingItem[], overrides: IKeybindingItem[], shouldWarnOnConflict:boolean = true) {
+	constructor(defaultKeybindings: IKeybindingItem[], overrides: IKeybindingItem[], shouldWarnOnConflict: boolean = true) {
 		defaultKeybindings = defaultKeybindings.slice(0).sort(sorter);
 
 		this._defaultKeybindings = defaultKeybindings;
@@ -72,7 +72,7 @@ export class KeybindingResolver {
 				k.context = k.context.normalize();
 			}
 
-			let entry:ICommandEntry = {
+			let entry: ICommandEntry = {
 				context: k.context,
 				keybinding: k.keybinding,
 				commandId: k.command
@@ -96,7 +96,7 @@ export class KeybindingResolver {
 		}
 	}
 
-	private _addKeyPress(keypress: number, entry: ICommandEntry, item:IKeybindingItem, isDefault:boolean): void {
+	private _addKeyPress(keypress: number, entry: ICommandEntry, item: IKeybindingItem, isDefault: boolean): void {
 
 		if (!this._map[keypress]) {
 			// There is no conflict so far
@@ -153,7 +153,7 @@ export class KeybindingResolver {
 		let aRulesArr = a.serialize().split(' && ');
 		let bRulesArr = b.serialize().split(' && ');
 
-		let aRules: { [rule:string]: boolean; } = Object.create(null);
+		let aRules: { [rule: string]: boolean; } = Object.create(null);
 		for (let i = 0, len = aRulesArr.length; i < len; i++) {
 			aRules[aRulesArr[i]] = true;
 		}
@@ -338,11 +338,11 @@ export class IOSupport {
 		} else {
 			out.write('"' + item.command + '" ');
 		}
-//		out.write(String(item.weight));
+		//		out.write(String(item.weight));
 		out.write('}');
 	}
 
-	public static readKeybindingItem(input: IUserFriendlyKeybinding, index:number): IKeybindingItem {
+	public static readKeybindingItem(input: IUserFriendlyKeybinding, index: number): IKeybindingItem {
 		let key = IOSupport.readKeybinding(input.key);
 		let context = IOSupport.readKeybindingContexts(input.when);
 		return {

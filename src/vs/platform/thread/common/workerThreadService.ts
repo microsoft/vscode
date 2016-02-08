@@ -12,16 +12,16 @@ import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IThreadService, IThreadServiceStatusListener, IThreadSynchronizableObject, ThreadAffinity} from 'vs/platform/thread/common/thread';
 
 export interface IMainThreadPublisher {
-	(messageName:string, payload:any): TPromise<any>;
+	(messageName: string, payload: any): TPromise<any>;
 }
 
 export class WorkerThreadService extends abstractThreadService.AbstractThreadService implements IThreadService {
 	public serviceId = IThreadService;
-	private _mainThreadData:abstractThreadService.IThreadServiceData;
-	private _publisher:IMainThreadPublisher;
+	private _mainThreadData: abstractThreadService.IThreadServiceData;
+	private _publisher: IMainThreadPublisher;
 	protected _remoteCom: remote.IRemoteCom;
 
-	constructor(mainThreadData:abstractThreadService.IThreadServiceData, remoteCom: remote.IRemoteCom, workerPublisher:IMainThreadPublisher) {
+	constructor(mainThreadData: abstractThreadService.IThreadServiceData, remoteCom: remote.IRemoteCom, workerPublisher: IMainThreadPublisher) {
 		super(false);
 		this._mainThreadData = mainThreadData;
 		this._remoteCom = remoteCom;
@@ -33,39 +33,39 @@ export class WorkerThreadService extends abstractThreadService.AbstractThreadSer
 		readThreadSynchronizableObjects().forEach((obj) => this.registerInstance(obj));
 	}
 
-	private _handleRequest(identifier:string, memberName:string, args:any[]): TPromise<any> {
+	private _handleRequest(identifier: string, memberName: string, args: any[]): TPromise<any> {
 		if (!this._boundObjects.hasOwnProperty(identifier)) {
 			// Wait until all objects are constructed
 			return TPromise.join(this._pendingObjects.slice(0)).then(() => {
 				if (!this._boundObjects.hasOwnProperty(identifier)) {
 					return TPromise.wrapError(new Error('Bound object `' + identifier + '` was not found.'));
 				}
-//					console.log(identifier + ' > ' + memberName);
-				var obj = this._boundObjects[identifier];
+				//					console.log(identifier + ' > ' + memberName);
+				let obj = this._boundObjects[identifier];
 				return TPromise.as(obj[memberName].apply(obj, args));
 			});
 		}
-//			console.log(identifier + ' > ' + memberName);
-		var obj = this._boundObjects[identifier];
+		//			console.log(identifier + ' > ' + memberName);
+		let obj = this._boundObjects[identifier];
 		return TPromise.as(obj[memberName].apply(obj, args));
 	}
 
-	public dispatch(data:{ type:string; payload:any; }):TPromise<any> {
+	public dispatch(data: { type: string; payload: any; }): TPromise<any> {
 		try {
-			var args = data.payload;
-			var result = this._handleRequest(args[0], args[1], args[2]);
+			let args = data.payload;
+			let result = this._handleRequest(args[0], args[1], args[2]);
 			return TPromise.is(result) ? result : TPromise.as(result);
-		} catch(e) {
+		} catch (e) {
 			// handler error
 			return TPromise.wrapError(e);
 		}
 	}
 
-	_finishInstance(instance:IThreadSynchronizableObject<any>): IThreadSynchronizableObject<any> {
-		var id = instance.getId();
+	_finishInstance(instance: IThreadSynchronizableObject<any>): IThreadSynchronizableObject<any> {
+		let id = instance.getId();
 
 		if (this._mainThreadData.hasOwnProperty(id)) {
-			var dataValue = this._mainThreadData[id];
+			let dataValue = this._mainThreadData[id];
 			delete this._mainThreadData[id];
 			if (!instance.setData) {
 				console.log('BROKEN INSTANCE!!! ' + id);
@@ -76,7 +76,7 @@ export class WorkerThreadService extends abstractThreadService.AbstractThreadSer
 		return super._finishInstance(instance);
 	}
 
-	MainThread(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): TPromise<any> {
+	MainThread(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): TPromise<any> {
 		return this._publisher('threadService', {
 			identifier: obj.getId(),
 			memberName: methodName,
@@ -84,15 +84,15 @@ export class WorkerThreadService extends abstractThreadService.AbstractThreadSer
 		});
 	}
 
-	OneWorker(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[], affinity:ThreadAffinity): TPromise<any> {
+	OneWorker(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[], affinity: ThreadAffinity): TPromise<any> {
 		return target.apply(obj, params);
 	}
 
-	AllWorkers(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): TPromise<any> {
+	AllWorkers(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): TPromise<any> {
 		return target.apply(obj, params);
 	}
 
-	Everywhere(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): TPromise<any> {
+	Everywhere(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): TPromise<any> {
 		return target.apply(obj, params);
 	}
 
@@ -100,11 +100,11 @@ export class WorkerThreadService extends abstractThreadService.AbstractThreadSer
 		// Nothing to do
 	}
 
-	addStatusListener(listener:IThreadServiceStatusListener): void {
+	addStatusListener(listener: IThreadServiceStatusListener): void {
 		// Nothing to do
 	}
 
-	removeStatusListener(listener:IThreadServiceStatusListener): void {
+	removeStatusListener(listener: IThreadServiceStatusListener): void {
 		// Nothing to do
 	}
 
@@ -112,7 +112,7 @@ export class WorkerThreadService extends abstractThreadService.AbstractThreadSer
 		return this._getOrCreateProxyInstance(this._remoteCom, id, descriptor);
 	}
 
-	protected _registerMainProcessActor<T>(id: string, actor:T): void {
+	protected _registerMainProcessActor<T>(id: string, actor: T): void {
 		throw new Error('Not supported in this runtime context!');
 	}
 
@@ -120,15 +120,15 @@ export class WorkerThreadService extends abstractThreadService.AbstractThreadSer
 		throw new Error('Not supported in this runtime context: Cannot communicate from Worker directly to Plugin Host!');
 	}
 
-	protected _registerPluginHostActor<T>(id: string, actor:T): void {
+	protected _registerPluginHostActor<T>(id: string, actor: T): void {
 		throw new Error('Not supported in this runtime context!');
 	}
 
-	protected _registerAndInstantiateWorkerActor<T>(id: string, descriptor: SyncDescriptor0<T>, whichWorker:ThreadAffinity): T {
+	protected _registerAndInstantiateWorkerActor<T>(id: string, descriptor: SyncDescriptor0<T>, whichWorker: ThreadAffinity): T {
 		return this._getOrCreateLocalInstance(id, descriptor);
 	}
 
-	protected _registerWorkerActor<T>(id: string, actor:T): void {
+	protected _registerWorkerActor<T>(id: string, actor: T): void {
 		this._registerLocalInstance(id, actor);
 	}
 }

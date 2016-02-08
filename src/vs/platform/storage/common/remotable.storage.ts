@@ -54,7 +54,7 @@ export class PluginHostStorage {
 		return this._proxy.getValue(shared, key).then(value => value || defaultValue);
 	}
 
-	setValue(shared:boolean, key: string, value: any): TPromise<void> {
+	setValue(shared: boolean, key: string, value: any): TPromise<void> {
 		return this._proxy.setValue(shared, key, value);
 	}
 }

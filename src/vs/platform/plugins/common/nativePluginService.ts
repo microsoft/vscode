@@ -17,7 +17,8 @@ import {PluginHostStorage} from 'vs/platform/storage/common/remotable.storage';
 import * as paths from 'vs/base/common/paths';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {disposeAll} from 'vs/base/common/lifecycle';
-var hasOwnProperty = Object.hasOwnProperty;
+
+const hasOwnProperty = Object.hasOwnProperty;
 
 class PluginMemento implements IPluginMemento {
 
@@ -25,10 +26,10 @@ class PluginMemento implements IPluginMemento {
 	private _shared: boolean;
 	private _storage: PluginHostStorage;
 
-	private _init:WinJS.TPromise<PluginMemento>;
-	private _value: { [n: string]: any;};
+	private _init: WinJS.TPromise<PluginMemento>;
+	private _value: { [n: string]: any; };
 
-	constructor(id: string, global:boolean, storage: PluginHostStorage) {
+	constructor(id: string, global: boolean, storage: PluginHostStorage) {
 		this._id = id;
 		this._shared = global;
 		this._storage = storage;
@@ -95,8 +96,8 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 	constructor(
 		contextService: IWorkspaceContextService,
 		threadService: IThreadService,
-		messageService:IMessageService,
-		telemetryService:ITelemetryService
+		messageService: IMessageService,
+		telemetryService: ITelemetryService
 	) {
 		let config = contextService.getConfiguration();
 		this._isDev = !config.env.isBuilt || !!config.env.pluginDevelopmentPath;
@@ -119,7 +120,7 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 	}
 
 	private getTelemetryActivationEvent(pluginDescription: IPluginDescription): any {
-		var event = {
+		let event = {
 			id: pluginDescription.id,
 			name: pluginDescription.name,
 			publisherDisplayName: pluginDescription.publisher,
@@ -135,19 +136,19 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 
 			switch (contribution) {
 				case 'debuggers':
-					let types = contributionDetails.reduce((p,c)=> p ? p + ',' + c['type']: c['type'], '');
+					let types = contributionDetails.reduce((p, c) => p ? p + ',' + c['type'] : c['type'], '');
 					event['contribution.debuggers'] = types;
 					break;
 				case 'grammars':
-					let grammers = contributionDetails.reduce((p,c)=> p ? p + ',' + c['language']: c['language'], '');
+					let grammers = contributionDetails.reduce((p, c) => p ? p + ',' + c['language'] : c['language'], '');
 					event['contribution.grammars'] = grammers;
 					break;
 				case 'languages':
-					let languages = contributionDetails.reduce((p,c)=> p ? p + ',' + c['id']: c['id'], '');
+					let languages = contributionDetails.reduce((p, c) => p ? p + ',' + c['id'] : c['id'], '');
 					event['contribution.languages'] = languages;
 					break;
 				case 'tmSnippets':
-					let tmSnippets = contributionDetails.reduce((p,c)=> p ? p + ',' + c['languageId']: c['languageId'], '');
+					let tmSnippets = contributionDetails.reduce((p, c) => p ? p + ',' + c['languageId'] : c['languageId'], '');
 					event['contribution.tmSnippets'] = tmSnippets;
 					break;
 				default:
@@ -158,12 +159,12 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 		return event;
 	}
 
-	protected _showMessage(severity:Severity, msg:string): void {
+	protected _showMessage(severity: Severity, msg: string): void {
 		this._proxy.$doShowMessage(severity, msg);
 		this.$doShowMessage(severity, msg);
 	}
 
-	public showMessage(severity:Severity, source: string, message:string) {
+	public showMessage(severity: Severity, source: string, message: string) {
 		super.showMessage(severity, source, message);
 		if (!this._pluginsStatus[source]) {
 			this._pluginsStatus[source] = { messages: [] };
@@ -171,7 +172,7 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 		this._pluginsStatus[source].messages.push({ type: severity, source, message });
 	}
 
-	public $doShowMessage(severity:Severity, msg:string): void {
+	public $doShowMessage(severity: Severity, msg: string): void {
 		let messageShown = false;
 		if (severity === Severity.Error || severity === Severity.Warning) {
 			if (this._isDev) {
@@ -199,7 +200,7 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 		return this._pluginsStatus;
 	}
 
-	public deactivate(pluginId:string): void {
+	public deactivate(pluginId: string): void {
 		this._proxy.deactivate(pluginId);
 	}
 
@@ -217,16 +218,16 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 
 	// -- called by plugin host
 
-	public $onPluginHostReady(pluginDescriptions: IPluginDescription[], messages:IMessage[]): void {
+	public $onPluginHostReady(pluginDescriptions: IPluginDescription[], messages: IMessage[]): void {
 		PluginsRegistry.registerPlugins(pluginDescriptions);
 		this.registrationDone(messages);
 	}
 
-	public $onPluginActivatedInPluginHost(pluginId:string): void {
+	public $onPluginActivatedInPluginHost(pluginId: string): void {
 		this.activatedPlugins[pluginId] = new MainProcessSuccessPlugin();
 	}
 
-	public $onPluginActivationFailedInPluginHost(pluginId:string): void {
+	public $onPluginActivationFailedInPluginHost(pluginId: string): void {
 		this.activatedPlugins[pluginId] = new MainProcessFailedPlugin();
 	}
 }
@@ -278,12 +279,12 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 		this._proxy = this._threadService.getRemotable(MainProcessPluginService);
 	}
 
-	protected _showMessage(severity:Severity, msg:string): void {
+	protected _showMessage(severity: Severity, msg: string): void {
 		this._proxy.$doShowMessage(severity, msg);
 		this.$doShowMessage(severity, msg);
 	}
 
-	public $doShowMessage(severity:Severity, msg:string): void {
+	public $doShowMessage(severity: Severity, msg: string): void {
 		switch (severity) {
 			case Severity.Error:
 				console.error(msg);
@@ -303,7 +304,7 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 		return this.activatedPlugins[pluginId].exports;
 	}
 
-	public deactivate(pluginId:string): void {
+	public deactivate(pluginId: string): void {
 		let plugin = this.activatedPlugins[pluginId];
 		if (!plugin) {
 			return;
@@ -314,14 +315,14 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 			if (typeof plugin.module.deactivate === 'function') {
 				plugin.module.deactivate();
 			}
-		} catch(err) {
+		} catch (err) {
 			// TODO: Do something with err if this is not the shutdown case
 		}
 
 		// clean up subscriptions
 		try {
 			disposeAll(plugin.subscriptions);
-		} catch(err) {
+		} catch (err) {
 			// TODO: Do something with err if this is not the shutdown case
 		}
 	}
@@ -332,7 +333,7 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 
 	// -- overwriting AbstractPluginService
 
-	public registrationDone(messages:IMessage[]): void {
+	public registrationDone(messages: IMessage[]): void {
 		super.registrationDone([]);
 		this._proxy.$onPluginHostReady(PluginsRegistry.getAllPluginDescriptions(), messages);
 	}
@@ -356,7 +357,7 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 				workspaceState,
 				subscriptions: [],
 				get extensionPath() { return pluginDescription.extensionFolderPath; },
-				asAbsolutePath: (relativePath:string) => { return paths.normalize(paths.join(pluginDescription.extensionFolderPath, relativePath), true); }
+				asAbsolutePath: (relativePath: string) => { return paths.normalize(paths.join(pluginDescription.extensionFolderPath, relativePath), true); }
 			});
 		});
 	}
@@ -420,10 +421,10 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 }
 
 function loadCommonJSModule<T>(modulePath: string): WinJS.TPromise<T> {
-	var r: T = null;
+	let r: T = null;
 	try {
 		r = require.__$__nodeRequire<T>(modulePath);
-	} catch(e) {
+	} catch (e) {
 		return WinJS.TPromise.wrapError(e);
 	}
 	return WinJS.TPromise.as(r);
@@ -435,7 +436,7 @@ function loadCommonJSModule<T>(modulePath: string): WinJS.TPromise<T> {
 // * src\vs\workbench\electron-main\bootstrap.js
 // * src\vs\platform\plugins\common\nativePluginService.ts
 function uriFromPath(_path) {
-	var pathName = _path.replace(/\\/g, '/');
+	let pathName = _path.replace(/\\/g, '/');
 
 	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
 		pathName = '/' + pathName;

@@ -8,8 +8,8 @@ import {AbstractRemoteTelemetryService} from 'vs/platform/telemetry/common/abstr
 
 export class WorkerTelemetryService extends AbstractRemoteTelemetryService {
 
-	protected handleEvent(eventName:string, data?:any):void {
-		var data = data || {};
+	protected handleEvent(eventName: string, data?: any): void {
+		data = data || {};
 		data['workerTelemetry'] = true;
 		super.handleEvent(eventName, data);
 	}

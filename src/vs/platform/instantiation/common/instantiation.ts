@@ -295,7 +295,7 @@ export interface ServiceIdentifier<T> {
  */
 export function createDecorator<T>(serviceId: string): { (...args: any[]): void; type: T; } {
 
-	var ret = function(target: any, key: string, index: number): any {
+	let ret = function(target: any, key: string, index: number): any {
 
 		if (arguments.length !== 3) {
 			throw new Error('@IServiceName-decorator can only be used to decorate a parameter');
@@ -325,7 +325,7 @@ export interface Context {
 /*
  * Dummy service to make signal that the new service injection is used. I will go away once we remove the old way (using ctx)
  */
-export var INullService = createDecorator<IInstantiationService>('nullService');
+export const INullService = createDecorator<IInstantiationService>('nullService');
 
 export interface INullService {
 	serviceId: ServiceIdentifier<any>;

@@ -9,7 +9,7 @@ import Severity from 'vs/base/common/severity';
 import Event from 'vs/base/common/event';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
-export var IMarkerService = createDecorator<IMarkerService>('markerService');
+export const IMarkerService = createDecorator<IMarkerService>('markerService');
 
 export interface IMarkerService {
 	serviceId: ServiceIdentifier<any>;

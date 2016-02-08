@@ -22,7 +22,7 @@ export interface ICommandDescriptor extends ICommandRule {
 }
 
 export interface IKeybindingsRegistry {
-	registerCommandRule(rule:ICommandRule);
+	registerCommandRule(rule: ICommandRule);
 	registerCommandDesc(desc: ICommandDescriptor): void;
 	getCommands(): ICommandsMap;
 	getDefaultKeybindings(): IKeybindingItem[];
@@ -31,8 +31,8 @@ export interface IKeybindingsRegistry {
 		editorCore(importance?: number): number;
 		editorContrib(importance?: number): number;
 		workbenchContrib(importance?: number): number;
-		builtinExtension(importance?:number): number;
-		externalExtension(importance?:number): number;
+		builtinExtension(importance?: number): number;
+		externalExtension(importance?: number): number;
 	};
 }
 
@@ -51,10 +51,10 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		workbenchContrib: (importance: number = 0): number => {
 			return 200 + importance;
 		},
-		builtinExtension: (importance:number = 0): number => {
+		builtinExtension: (importance: number = 0): number => {
 			return 300 + importance;
 		},
-		externalExtension: (importance:number = 0): number => {
+		externalExtension: (importance: number = 0): number => {
 			return 400 + importance;
 		}
 	};
@@ -67,7 +67,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	/**
 	 * Take current platform into account and reduce to primary & secondary.
 	 */
-	private static bindToCurrentPlatform(kb:IKeybindings): { primary?: number; secondary?: number[]; } {
+	private static bindToCurrentPlatform(kb: IKeybindings): { primary?: number; secondary?: number[]; } {
 		if (Platform.isWindows) {
 			if (kb && kb.win) {
 				return kb.win;
@@ -85,7 +85,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		return kb;
 	}
 
-	public registerCommandRule(rule:ICommandRule): void {
+	public registerCommandRule(rule: ICommandRule): void {
 		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
 
 		if (actualKb && actualKb.primary) {
@@ -131,7 +131,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		return this._commands;
 	}
 
-	private registerDefaultKeybinding(keybinding: number, commandId:string, weight1: number, weight2:number, context:KbExpr): void {
+	private registerDefaultKeybinding(keybinding: number, commandId: string, weight1: number, weight2: number, context: KbExpr): void {
 		if (Platform.isWindows) {
 			if (BinaryKeybindings.hasCtrlCmd(keybinding) && !BinaryKeybindings.hasShift(keybinding) && BinaryKeybindings.hasAlt(keybinding) && !BinaryKeybindings.hasWinCtrl(keybinding)) {
 				if (/^[A-Z0-9\[\]\|\;\'\,\.\/\`]$/.test(KeyCode.toString(BinaryKeybindings.extractKeyCode(keybinding)))) {
@@ -152,7 +152,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		return this._keybindings;
 	}
 }
-export let KeybindingsRegistry:IKeybindingsRegistry = new KeybindingsRegistryImpl();
+export let KeybindingsRegistry: IKeybindingsRegistry = new KeybindingsRegistryImpl();
 
 // Define extension point ids
 export let Extensions = {

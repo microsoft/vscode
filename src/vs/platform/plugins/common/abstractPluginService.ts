@@ -11,14 +11,14 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import Severity from 'vs/base/common/severity';
 
-var hasOwnProperty = Object.hasOwnProperty;
+const hasOwnProperty = Object.hasOwnProperty;
 
 export interface IPluginContext {
 	subscriptions: IDisposable[];
 	workspaceState: IPluginMemento;
 	globalState: IPluginMemento;
 	extensionPath: string;
-	asAbsolutePath(relativePath:string): string;
+	asAbsolutePath(relativePath: string): string;
 }
 
 export interface IPluginMemento {
@@ -50,7 +50,7 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 	private _onReady: WinJS.TPromise<boolean>;
 	private _onReadyC: (v: boolean) => void;
 
-	constructor(isReadyByDefault:boolean) {
+	constructor(isReadyByDefault: boolean) {
 		if (isReadyByDefault) {
 			this._onReady = WinJS.TPromise.as(true);
 			this._onReadyC = (v: boolean) => { /*No-op*/ };
@@ -65,11 +65,11 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 		this.activatedPlugins = {};
 	}
 
-	public abstract deactivate(pluginId:string): void;
-	protected abstract _showMessage(severity:Severity, message:string): void;
+	public abstract deactivate(pluginId: string): void;
+	protected abstract _showMessage(severity: Severity, message: string): void;
 
-	protected showMessage(severity:Severity, source:string, message:string): void {
-		this._showMessage(severity, ( source ? '[' + source + ']: ' : '') + message);
+	protected showMessage(severity: Severity, source: string, message: string): void {
+		this._showMessage(severity, (source ? '[' + source + ']: ' : '') + message);
 	}
 
 	public registrationDone(messages: IMessage[]): void {
@@ -92,7 +92,7 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 		return null;
 	}
 
-	public isActivated(pluginId:string): boolean {
+	public isActivated(pluginId: string): boolean {
 		return hasOwnProperty.call(this.activatedPlugins, pluginId);
 	}
 
@@ -106,7 +106,7 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 
 	public activateAndGet(pluginId: string): WinJS.TPromise<void> {
 		return this._onReady.then(() => {
-			var desc = PluginsRegistry.getPluginDescription(pluginId);
+			let desc = PluginsRegistry.getPluginDescription(pluginId);
 			if (!desc) {
 				throw new Error('Plugin `' + pluginId + '` is not known');
 			}
@@ -119,7 +119,7 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 	 * Handle semantics related to dependencies for `currentPlugin`.
 	 * semantics: `redExtensions` must wait for `greenExtensions`.
 	 */
-	private _handleActivateRequest(currentPlugin:IPluginDescription, greenExtensions: { [id:string]: IPluginDescription; }, redExtensions: IPluginDescription[]): void {
+	private _handleActivateRequest(currentPlugin: IPluginDescription, greenExtensions: { [id: string]: IPluginDescription; }, redExtensions: IPluginDescription[]): void {
 		let depIds = (typeof currentPlugin.extensionDependencies === 'undefined' ? [] : currentPlugin.extensionDependencies);
 		let currentPluginGetsGreenLight = true;
 
@@ -156,7 +156,7 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 		}
 	}
 
-	private _activatePlugins(pluginDescriptions: IPluginDescription[], recursionLevel:number): WinJS.TPromise<void> {
+	private _activatePlugins(pluginDescriptions: IPluginDescription[], recursionLevel: number): WinJS.TPromise<void> {
 		// console.log(recursionLevel, '_activatePlugins: ', pluginDescriptions.map(p => p.id));
 		if (pluginDescriptions.length === 0) {
 			return WinJS.TPromise.as(void 0);
@@ -177,7 +177,7 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 			return WinJS.TPromise.as(void 0);
 		}
 
-		let greenMap: { [id:string]: IPluginDescription; } = Object.create(null),
+		let greenMap: { [id: string]: IPluginDescription; } = Object.create(null),
 			red: IPluginDescription[] = [];
 
 		for (let i = 0, len = pluginDescriptions.length; i < len; i++) {
@@ -221,7 +221,7 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 			console.log('Here is the error stack: ', err.stack);
 			// Treat the plugin as being empty
 			return this._createFailedPlugin();
-		}).then((x:T) => {
+		}).then((x: T) => {
 			this.activatedPlugins[pluginDescription.id] = x;
 			delete this.activatingPlugins[pluginDescription.id];
 		});

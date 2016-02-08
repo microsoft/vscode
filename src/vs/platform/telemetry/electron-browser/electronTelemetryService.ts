@@ -13,15 +13,15 @@ import errors = require('vs/base/common/errors');
 import uuid = require('vs/base/common/uuid');
 
 class StorageKeys {
-		public static MachineId: string = 'telemetry.machineId';
-		public static InstanceId: string = 'telemetry.instanceId';
+	public static MachineId: string = 'telemetry.machineId';
+	public static InstanceId: string = 'telemetry.instanceId';
 }
 
 export class ElectronTelemetryService extends MainTelemetryService implements ITelemetryService {
 
 	private _setupIds: Promise<ITelemetryInfo>;
 
-	constructor(@IStorageService private storageService: IStorageService, config?:TelemetryServiceConfig) {
+	constructor( @IStorageService private storageService: IStorageService, config?: TelemetryServiceConfig) {
 		super(config);
 
 		this._setupIds = this.setupIds();
@@ -35,18 +35,18 @@ export class ElectronTelemetryService extends MainTelemetryService implements IT
 	}
 
 	private setupIds(): Promise<ITelemetryInfo> {
-		return Promise.all([this.setupInstanceId(), this.setupMachineId()]).then(()=> {
-				return {
-					machineId: this.machineId,
-					instanceId: this.instanceId,
-					sessionId: this.sessionId
-				};
+		return Promise.all([this.setupInstanceId(), this.setupMachineId()]).then(() => {
+			return {
+				machineId: this.machineId,
+				instanceId: this.instanceId,
+				sessionId: this.sessionId
+			};
 		});
 	}
 
 	private setupInstanceId(): Promise<string> {
-		var instanceId = this.storageService.get(StorageKeys.InstanceId);
-		if(!instanceId) {
+		let instanceId = this.storageService.get(StorageKeys.InstanceId);
+		if (!instanceId) {
 			instanceId = uuid.generateUuid();
 			this.storageService.store(StorageKeys.InstanceId, instanceId);
 		}
@@ -55,7 +55,7 @@ export class ElectronTelemetryService extends MainTelemetryService implements IT
 	}
 
 	private setupMachineId(): Promise<string> {
-		var machineId = this.storageService.get(StorageKeys.MachineId);
+		let machineId = this.storageService.get(StorageKeys.MachineId);
 		if (machineId) {
 			this.machineId = machineId;
 			return Promise.resolve(this.machineId);

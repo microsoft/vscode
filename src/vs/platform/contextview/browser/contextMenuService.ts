@@ -5,8 +5,7 @@
 'use strict';
 
 import {ContextMenuHandler} from './contextMenuHandler';
-import {IContextViewService, IContextMenuService, IContextViewDelegate, IContextMenuDelegate} from './contextView';
-import {ContextView} from 'vs/base/browser/ui/contextview/contextview';
+import {IContextViewService, IContextMenuService, IContextMenuDelegate} from './contextView';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IMessageService} from 'vs/platform/message/common/message';
 
@@ -15,11 +14,11 @@ export class ContextMenuService implements IContextMenuService {
 
 	private contextMenuHandler: ContextMenuHandler;
 
-	constructor(container: HTMLElement, telemetryService:ITelemetryService, messageService:IMessageService, contextViewService: IContextViewService) {
+	constructor(container: HTMLElement, telemetryService: ITelemetryService, messageService: IMessageService, contextViewService: IContextViewService) {
 		this.contextMenuHandler = new ContextMenuHandler(container, contextViewService, telemetryService, messageService);
 	}
 
-	public dispose():void {
+	public dispose(): void {
 		this.contextMenuHandler.dispose();
 	}
 
@@ -29,7 +28,7 @@ export class ContextMenuService implements IContextMenuService {
 
 	// ContextMenu
 
-	public showContextMenu(delegate: IContextMenuDelegate):void {
+	public showContextMenu(delegate: IContextMenuDelegate): void {
 		this.contextMenuHandler.showContextMenu(delegate);
 	}
 }

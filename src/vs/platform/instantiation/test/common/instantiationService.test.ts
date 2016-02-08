@@ -17,11 +17,11 @@ export class Target1 {
 		assert.ok(!!platformServices.editorService);
 	}
 
-	validate():boolean {
+	validate(): boolean {
 		try {
 			this.platformServices.editorService;
 			return false;
-		} catch(e) {
+		} catch (e) {
 			return e instanceof Error;
 		}
 	}
@@ -29,18 +29,18 @@ export class Target1 {
 
 export class Target2 {
 
-	constructor(private platformServices, private far:boolean) {
+	constructor(private platformServices, private far: boolean) {
 		assert.ok(!!platformServices.editorService);
 	}
 
-	validate():boolean {
-		if(!this.far) {
+	validate(): boolean {
+		if (!this.far) {
 			return false;
 		}
 		try {
 			this.platformServices.editorService;
 			return false;
-		} catch(e) {
+		} catch (e) {
 			return e instanceof Error;
 		}
 	}
@@ -66,10 +66,10 @@ export class EvilTarget1 {
 	}
 }
 
-var IService1 = instantiation.createDecorator<IService1>('service1')
+let IService1 = instantiation.createDecorator<IService1>('service1');
 
 interface IService1 {
-	serviceId : instantiation.ServiceIdentifier<any>;
+	serviceId: instantiation.ServiceIdentifier<any>;
 	c: number;
 }
 
@@ -78,10 +78,10 @@ class Service1 implements IService1 {
 	c = 1;
 }
 
-var IService2 = instantiation.createDecorator<IService2>('service2');
+let IService2 = instantiation.createDecorator<IService2>('service2');
 
 interface IService2 {
-	serviceId : instantiation.ServiceIdentifier<any>;
+	serviceId: instantiation.ServiceIdentifier<any>;
 	d: boolean;
 }
 
@@ -90,10 +90,10 @@ class Service2 implements IService2 {
 	d = true;
 }
 
-var IService3 = instantiation.createDecorator<IService3>('service3');
+let IService3 = instantiation.createDecorator<IService3>('service3');
 
 interface IService3 {
-	serviceId : instantiation.ServiceIdentifier<any>;
+	serviceId: instantiation.ServiceIdentifier<any>;
 	s: string;
 }
 
@@ -102,10 +102,10 @@ class Service3 implements IService3 {
 	s = 'farboo';
 }
 
-var IDependentService = instantiation.createDecorator<IDependentService>('dependentService')
+let IDependentService = instantiation.createDecorator<IDependentService>('dependentService');
 
 interface IDependentService {
-	serviceId : instantiation.ServiceIdentifier<any>;
+	serviceId: instantiation.ServiceIdentifier<any>;
 	name: string;
 }
 
@@ -127,7 +127,7 @@ class ParameterTarget {
 }
 
 class ParameterTarget2 {
-	constructor(v:boolean, @IService1 service1: IService1) {
+	constructor(v: boolean, @IService1 service1: IService1) {
 		assert.ok(v);
 		assert.ok(service1);
 		assert.equal(service1.c, 1);
@@ -138,7 +138,7 @@ class TargetOptional {
 	constructor( @IService1 service1: IService1, @IService2 service2?: IService2) {
 		assert.ok(service1);
 		assert.equal(service1.c, 1);
-		assert.ok(service2 === void 0)
+		assert.ok(service2 === void 0);
 	}
 }
 
@@ -150,7 +150,7 @@ class DependentServiceTarget {
 }
 
 class DependentServiceTarget2 {
-	constructor( @IDependentService d:IDependentService, @IService1 s:IService1) {
+	constructor( @IDependentService d: IDependentService, @IService1 s: IService1) {
 		assert.ok(d);
 		assert.equal(d.name, 'farboo');
 		assert.ok(s);
@@ -172,13 +172,13 @@ class ServiceLoop2 implements IService2 {
 	serviceId = IService2;
 	d = true;
 
-	constructor(@IService1 s:IService1) {
+	constructor( @IService1 s: IService1) {
 
 	}
 }
 
 suite('Instantiation Service', () => {
-	var service:instantiation.IInstantiationService;
+	let service: instantiation.IInstantiationService;
 
 	setup(() => {
 		service = instantiationService.create({
@@ -186,37 +186,37 @@ suite('Instantiation Service', () => {
 		});
 	});
 
-	test('sync create, platformServices only', function(){
-		var instance = service.createInstance(Target1);
+	test('sync create, platformServices only', function() {
+		let instance = service.createInstance(Target1);
 		assert.ok(instance.validate());
 	});
 
-	test('sync create, platformServices & argument', function(){
-		var instance = service.createInstance(Target2, true);
+	test('sync create, platformServices & argument', function() {
+		let instance = service.createInstance(Target2, true);
 		assert.ok(instance.validate());
 	});
 
-	test('sync create, access service defined by child instantiation service', function(){
-		var instance = service.createChild({ editorService: 'wee' } ).createInstance(Target2, true);
+	test('sync create, access service defined by child instantiation service', function() {
+		let instance = service.createChild({ editorService: 'wee' }).createInstance(Target2, true);
 		assert.ok(instance.validate());
 	});
 
-	test('sync create, access service defined in a child instantiation service', function(){
-		var instance = service.createChild({ someOtherService: 'hey' } ).createInstance(Target2, true);
+	test('sync create, access service defined in a child instantiation service', function() {
+		let instance = service.createChild({ someOtherService: 'hey' }).createInstance(Target2, true);
 		assert.ok(instance.validate());
 	});
 
-	test('sync create, platformServices & static argument', function(){
-		var descriptor = createSyncDescriptor(Target2, true);
-		var instance = service.createInstance(descriptor);
+	test('sync create, platformServices & static argument', function() {
+		let descriptor = createSyncDescriptor(Target2, true);
+		let instance = service.createInstance(descriptor);
 		assert.ok(instance.validate());
 	});
 
-	test('sync create, register NEW service', function(){
+	test('sync create, register NEW service', function() {
 		service.registerService('far', 1234);
 		service.createInstance(Target3);
 
-		var child = service.createChild({});
+		let child = service.createChild({});
 		child.createInstance(Target3);
 	});
 
@@ -225,7 +225,7 @@ suite('Instantiation Service', () => {
 	});
 
 	// test('async create, platformServices only', (done) => {
-	// 	var descriptor = new services.AsyncDescriptor<Target1>('vs/platform/instantiation/tests/instantiationService.test', 'Target1');
+	// 	let descriptor = new services.AsyncDescriptor<Target1>('vs/platform/instantiation/tests/instantiationService.test', 'Target1');
 	// 	service.createInstance(descriptor, true).then((instance) => {
 	// 		assert.ok(instance.validate());
 	// 		done();
@@ -235,7 +235,7 @@ suite('Instantiation Service', () => {
 	// });
 
 	// test('async create, platformServices only & argument', (done) => {
-	// 	var descriptor = new services.AsyncDescriptor<Target2>('vs/platform/instantiation/tests/instantiationService.test', 'Target1');
+	// 	let descriptor = new services.AsyncDescriptor<Target2>('vs/platform/instantiation/tests/instantiationService.test', 'Target1');
 	// 	service.createInstance(descriptor, true).then((instance) => {
 	// 		assert.ok(instance.validate());
 	// 		done();
@@ -245,7 +245,7 @@ suite('Instantiation Service', () => {
 	// });
 
 	// test('async create, platformServices only & static argument', (done) => {
-	// 	var descriptor = new services.AsyncDescriptor<Target2>('vs/platform/instantiation/tests/instantiationService.test', 'Target1', true);
+	// 	let descriptor = new services.AsyncDescriptor<Target2>('vs/platform/instantiation/tests/instantiationService.test', 'Target1', true);
 	// 	service.createInstance(descriptor).then((instance) => {
 	// 		assert.ok(instance.validate());
 	// 		done();
@@ -255,7 +255,7 @@ suite('Instantiation Service', () => {
 	// });
 
 	// test('async create, illegal ctor name', (done) => {
-	// 	var descriptor = new services.AsyncDescriptor<Target2>('vs/platform/instantiation/tests/instantiationService.test', 'TaRget1', true);
+	// 	let descriptor = new services.AsyncDescriptor<Target2>('vs/platform/instantiation/tests/instantiationService.test', 'TaRget1', true);
 	// 	service.createInstance(descriptor).then((instance) => {
 	// 		assert.ok(false);
 	// 		done();
@@ -268,8 +268,8 @@ suite('Instantiation Service', () => {
 		assert.throws(() => service.createInstance(EvilTarget1));
 	});
 
-	test('@Param - simple clase', function () {
-		var service = instantiationService.create(Object.create(null));
+	test('@Param - simple clase', function() {
+		let service = instantiationService.create(Object.create(null));
 		service.addSingleton(IService1, new Service1());
 		service.addSingleton(IService2, new Service2());
 		service.addSingleton(IService3, new Service3());
@@ -277,8 +277,8 @@ suite('Instantiation Service', () => {
 		service.createInstance(ParameterTarget);
 	});
 
-	test('@Param - fixed args', function () {
-		var service = instantiationService.create(Object.create(null));
+	test('@Param - fixed args', function() {
+		let service = instantiationService.create(Object.create(null));
 		service.addSingleton(IService1, new Service1());
 		service.addSingleton(IService2, new Service2());
 		service.addSingleton(IService3, new Service3());
@@ -287,7 +287,7 @@ suite('Instantiation Service', () => {
 	});
 
 	test('@Param - optional', function() {
-		var service = instantiationService.create(Object.create(null));
+		let service = instantiationService.create(Object.create(null));
 		service.addSingleton(IService1, new Service1());
 		// service.addSingleton(IService2, new Service2());
 
@@ -296,7 +296,7 @@ suite('Instantiation Service', () => {
 
 	// we made this a warning
 	// test('@Param - too many args', function () {
-	// 	var service = instantiationService.create(Object.create(null));
+	// 	let service = instantiationService.create(Object.create(null));
 	// 	service.addSingleton(IService1, new Service1());
 	// 	service.addSingleton(IService2, new Service2());
 	// 	service.addSingleton(IService3, new Service3());
@@ -305,7 +305,7 @@ suite('Instantiation Service', () => {
 	// });
 
 	// test('@Param - too few args', function () {
-	// 	var service = instantiationService.create(Object.create(null));
+	// 	let service = instantiationService.create(Object.create(null));
 	// 	service.addSingleton(IService1, new Service1());
 	// 	service.addSingleton(IService2, new Service2());
 	// 	service.addSingleton(IService3, new Service3());
@@ -313,42 +313,42 @@ suite('Instantiation Service', () => {
 	// 	assert.throws(() => service.createInstance(ParameterTarget2));
 	// });
 
-	test('SyncDesc - no dependencies', function () {
-		var service = instantiationService.create(Object.create(null));
+	test('SyncDesc - no dependencies', function() {
+		let service = instantiationService.create(Object.create(null));
 		service.addSingleton(IService1, new SyncDescriptor<IService1>(Service1));
 
-		var service1 = service.getInstance(IService1);
+		let service1 = service.getInstance(IService1);
 		assert.ok(service1);
 		assert.equal(service1.c, 1);
 
-		var service2 = service.getInstance(IService1);
+		let service2 = service.getInstance(IService1);
 		assert.ok(service1 === service2);
 	});
 
-	test('SyncDesc - service with service dependency', function () {
-		var service = instantiationService.create(Object.create(null));
+	test('SyncDesc - service with service dependency', function() {
+		let service = instantiationService.create(Object.create(null));
 		service.addSingleton(IService1, new SyncDescriptor<IService1>(Service1));
 		service.addSingleton(IDependentService, new SyncDescriptor<IDependentService>(DependentService));
 
-		var d = service.getInstance(IDependentService);
+		let d = service.getInstance(IDependentService);
 		assert.ok(d);
 		assert.equal(d.name, 'farboo');
 	});
 
-	test('SyncDesc - target depends on service future', function () {
-		var service = instantiationService.create(Object.create(null));
+	test('SyncDesc - target depends on service future', function() {
+		let service = instantiationService.create(Object.create(null));
 		service.addSingleton(IService1, new SyncDescriptor<IService1>(Service1));
 		service.addSingleton(IDependentService, new SyncDescriptor<IDependentService>(DependentService));
 
-		var d = service.createInstance(DependentServiceTarget);
+		let d = service.createInstance(DependentServiceTarget);
 		assert.ok(d instanceof DependentServiceTarget);
 
-		var d2 = service.createInstance(DependentServiceTarget2);
+		let d2 = service.createInstance(DependentServiceTarget2);
 		assert.ok(d2 instanceof DependentServiceTarget2);
 	});
 
-	test('SyncDesc - explode on loop', function () {
-		var service = instantiationService.create(Object.create(null));
+	test('SyncDesc - explode on loop', function() {
+		let service = instantiationService.create(Object.create(null));
 		service.addSingleton(IService1, new SyncDescriptor<IService1>(ServiceLoop1));
 		service.addSingleton(IService2, new SyncDescriptor<IService2>(ServiceLoop2));
 
@@ -357,7 +357,7 @@ suite('Instantiation Service', () => {
 	});
 
 	test('Invoke - get services', function() {
-		var service = instantiationService.create(Object.create(null));
+		let service = instantiationService.create(Object.create(null));
 		service.addSingleton(IService1, new Service1());
 		service.addSingleton(IService2, new Service2());
 
@@ -372,7 +372,7 @@ suite('Instantiation Service', () => {
 	});
 
 	test('Invoke - keeping accessor NOT allowed', function() {
-		var service = instantiationService.create(Object.create(null));
+		let service = instantiationService.create(Object.create(null));
 		service.addSingleton(IService1, new Service1());
 		service.addSingleton(IService2, new Service2());
 
@@ -391,7 +391,7 @@ suite('Instantiation Service', () => {
 	});
 
 	test('Invoke - throw error', function() {
-		var service = instantiationService.create(Object.create(null));
+		let service = instantiationService.create(Object.create(null));
 		service.addSingleton(IService1, new Service1());
 		service.addSingleton(IService2, new Service2());
 
@@ -400,5 +400,5 @@ suite('Instantiation Service', () => {
 		}
 
 		assert.throws(() => service.invokeFunction(test));
-	})
+	});
 });

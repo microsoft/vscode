@@ -24,10 +24,10 @@ export interface IConfirmation {
 	secondaryButton?: string;
 }
 
-export var CloseAction = new Action('close.message', nls.localize('close', "Close"), null, true, () => TPromise.as(true));
-export var CancelAction = new Action('close.message', nls.localize('cancel', "Cancel"), null, true, () => TPromise.as(true));
+export const CloseAction = new Action('close.message', nls.localize('close', "Close"), null, true, () => TPromise.as(true));
+export const CancelAction = new Action('close.message', nls.localize('cancel', "Cancel"), null, true, () => TPromise.as(true));
 
-export var IMessageService = createDecorator<IMessageService>('messageService');
+export const IMessageService = createDecorator<IMessageService>('messageService');
 
 export interface IMessageService {
 	serviceId: ServiceIdentifier<any>;

@@ -69,7 +69,7 @@ export abstract class ConfigurationService extends eventEmitter.EventEmitter imp
 		this.callOnDispose = () => {
 			unbind();
 			subscription.dispose();
-		}
+		};
 
 		this.onDidUpdateConfiguration = fromEventEmitter(this, ConfigurationServiceEventTypes.UPDATED);
 	}
@@ -92,9 +92,9 @@ export abstract class ConfigurationService extends eventEmitter.EventEmitter imp
 		}
 
 		return this.loadConfigurationPromise.then((res: ILoadConfigResult) => {
-			var result = section ? res.merged[section] : res.merged;
+			let result = section ? res.merged[section] : res.merged;
 
-			var parseErrors = res.consolidated.parseErrors;
+			let parseErrors = res.consolidated.parseErrors;
 			if (res.globals.parseErrors) {
 				parseErrors.push.apply(parseErrors, res.globals.parseErrors);
 			}
@@ -119,10 +119,10 @@ export abstract class ConfigurationService extends eventEmitter.EventEmitter imp
 			return this.loadWorkspaceConfiguration().then((values) => {
 
 				// Consolidate
-				var consolidated = model.consolidate(values);
+				let consolidated = model.consolidate(values);
 
 				// Override with workspace locals
-				var merged = objects.mixin(
+				let merged = objects.mixin(
 					objects.clone(globals.contents), 	// target: global/default values (but dont modify!)
 					consolidated.contents,				// source: workspace configured values
 					true								// overwrite
@@ -186,10 +186,10 @@ export abstract class ConfigurationService extends eventEmitter.EventEmitter imp
 	}
 
 	private handleFileEvents(event: Files.FileChangesEvent): void {
-		var events = event.changes;
-		var affectedByChanges = false;
-		for (var i = 0, len = events.length; i < len; i++) {
-			var workspacePath = this.contextService.toWorkspaceRelativePath(events[i].resource);
+		let events = event.changes;
+		let affectedByChanges = false;
+		for (let i = 0, len = events.length; i < len; i++) {
+			let workspacePath = this.contextService.toWorkspaceRelativePath(events[i].resource);
 			if (!workspacePath) {
 				continue; // event is not inside workspace
 			}
@@ -240,4 +240,4 @@ export class NullConfigurationService extends eventEmitter.EventEmitter implemen
 	}
 }
 
-export var nullService = new NullConfigurationService();
+export let nullService = new NullConfigurationService();

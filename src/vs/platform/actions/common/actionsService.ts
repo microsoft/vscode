@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IPluginService, IPluginDescription, IPointListener} from 'vs/platform/plugins/common/plugins';
+import {IPluginService} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
-import {Registry} from 'vs/platform/platform';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IAction, Action} from 'vs/base/common/actions';
 import {localize} from 'vs/nls';
@@ -28,8 +26,8 @@ function isCommands(thing: Command | Command[]): thing is Command[] {
 	return Array.isArray(thing);
 }
 
-function isValidCommand(candidate:Command, rejects: string[]): boolean {
-	if(!candidate) {
+function isValidCommand(candidate: Command, rejects: string[]): boolean {
+	if (!candidate) {
 		rejects.push(localize('nonempty', "expected non-empty value."));
 		return false;
 	}

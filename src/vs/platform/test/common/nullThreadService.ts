@@ -24,19 +24,19 @@ export class NullThreadService extends abstractThreadService.AbstractThreadServi
 		return super._doCreateInstance(params);
 	}
 
-	MainThread(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): winjs.Promise {
+	MainThread(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): winjs.Promise {
 		return target.apply(obj, params);
 	}
 
-	OneWorker(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[], affinity:ThreadAffinity): winjs.Promise {
+	OneWorker(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[], affinity: ThreadAffinity): winjs.Promise {
 		return winjs.TPromise.as(null);
 	}
 
-	AllWorkers(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): winjs.Promise {
+	AllWorkers(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): winjs.Promise {
 		return winjs.TPromise.as(null);
 	}
 
-	Everywhere(obj:IThreadSynchronizableObject<any>, methodName:string, target:Function, params:any[]): any {
+	Everywhere(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): any {
 		return target.apply(obj, params);
 	}
 
@@ -44,11 +44,11 @@ export class NullThreadService extends abstractThreadService.AbstractThreadServi
 		// Nothing to do
 	}
 
-	addStatusListener(listener:IThreadServiceStatusListener): void {
+	addStatusListener(listener: IThreadServiceStatusListener): void {
 		// Nothing to do
 	}
 
-	removeStatusListener(listener:IThreadServiceStatusListener): void {
+	removeStatusListener(listener: IThreadServiceStatusListener): void {
 		// Nothing to do
 	}
 
@@ -56,7 +56,7 @@ export class NullThreadService extends abstractThreadService.AbstractThreadServi
 		return this._getOrCreateLocalInstance(id, descriptor);
 	}
 
-	protected _registerMainProcessActor<T>(id: string, actor:T): void {
+	protected _registerMainProcessActor<T>(id: string, actor: T): void {
 		this._registerLocalInstance(id, actor);
 	}
 
@@ -64,21 +64,21 @@ export class NullThreadService extends abstractThreadService.AbstractThreadServi
 		return this._getOrCreateLocalInstance(id, descriptor);
 	}
 
-	protected _registerPluginHostActor<T>(id: string, actor:T): void {
+	protected _registerPluginHostActor<T>(id: string, actor: T): void {
 		throw new Error('Not supported in this runtime context!');
 	}
 
-	protected _registerAndInstantiateWorkerActor<T>(id: string, descriptor: SyncDescriptor0<T>, whichWorker:ThreadAffinity): T {
+	protected _registerAndInstantiateWorkerActor<T>(id: string, descriptor: SyncDescriptor0<T>, whichWorker: ThreadAffinity): T {
 		return this._getOrCreateProxyInstance({
-			callOnRemote: (proxyId: string, path: string, args:any[]): winjs.Promise => {
+			callOnRemote: (proxyId: string, path: string, args: any[]): winjs.Promise => {
 				return winjs.TPromise.as(null);
 			}
 		}, id, descriptor);
 	}
 
-	protected _registerWorkerActor<T>(id: string, actor:T): void {
+	protected _registerWorkerActor<T>(id: string, actor: T): void {
 		throw new Error('Not supported in this runtime context!');
 	}
 }
 
-export var NULL_THREAD_SERVICE = new NullThreadService();
+export const NULL_THREAD_SERVICE = new NullThreadService();
