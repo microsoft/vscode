@@ -8,6 +8,7 @@ import lifecycle = require('vs/base/common/lifecycle');
 import mime = require('vs/base/common/mime');
 import ee = require('vs/base/common/eventEmitter');
 import uri from 'vs/base/common/uri';
+import { Action } from 'vs/base/common/actions';
 import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
@@ -15,6 +16,16 @@ import severity from 'vs/base/common/severity';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import editor = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
+import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
+import {IMarkerService} from 'vs/platform/markers/common/markers';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IPluginService } from 'vs/platform/plugins/common/plugins';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IFileService, FileChangesEvent, FileChangeType, EventType } from 'vs/platform/files/common/files';
+import { IEventService } from 'vs/platform/event/common/event';
+import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import wbeditorcommon = require('vs/workbench/common/editor');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import session = require('vs/workbench/parts/debug/node/rawDebugSession');
@@ -32,17 +43,8 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITextFileService } from 'vs/workbench/parts/files/common/files';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IFileService, FileChangesEvent, FileChangeType, EventType } from 'vs/platform/files/common/files';
-import { IEventService } from 'vs/platform/event/common/event';
-import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IPluginService } from 'vs/platform/plugins/common/plugins';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
-import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
 import { IWindowService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ILogEntry, PLUGIN_LOG_BROADCAST_CHANNEL, PLUGIN_ATTACH_BROADCAST_CHANNEL } from 'vs/workbench/services/thread/electron-browser/threadService';
 
@@ -84,7 +86,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService:IInstantiationService,
 		@IPluginService private pluginService: IPluginService,
-		@IOutputService private outputService: IOutputService
+		@IOutputService private outputService: IOutputService,
+		@IMarkerService private markerService: IMarkerService
 	) {
 		super();
 
@@ -505,7 +508,21 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 				return Promise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type {0} is not supported.", configuration.type)));
 			}
 
-			return this.runPreLaunchTask(configuration).then(() => this.doCreateSession(configuration, openViewlet));
+			return this.runPreLaunchTask(configuration.preLaunchTask).then(() => {
+				const errorCount = configuration.preLaunchTask ? this.markerService.getStatistics().errors : 0;
+				if (errorCount === 0) {
+					this.doCreateSession(configuration, openViewlet);
+				} else {
+					this.messageService.show(severity.Error, {
+						message: errorCount === 1 ? nls.localize('preLaunchTaskError', "{0} error detected after running preLaunchTask '{1}'.", errorCount, configuration.preLaunchTask) :
+							nls.localize('preLaunchTaskErrors', "{0} errors detected after running preLaunchTask '{1}'.", errorCount, configuration.preLaunchTask),
+						actions: [CloseAction, new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
+							this.messageService.hideAll();
+							return this.doCreateSession(configuration, openViewlet);
+						})]
+					});
+				}
+			});
 		});
 	}
 
@@ -545,27 +562,27 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		});
 	}
 
-	private runPreLaunchTask(config: debug.IConfig): Promise {
-		if (!config.preLaunchTask) {
+	private runPreLaunchTask(taskName: string): Promise {
+		if (!taskName) {
 			return TPromise.as(true);
 		}
 
-		// run a build task before starting a debug session
+		// run a task before starting a debug session
 		return this.taskService.tasks().then(descriptions => {
-			let filteredTasks = descriptions.filter(task => task.name === config.preLaunchTask);
+			const filteredTasks = descriptions.filter(task => task.name === taskName);
 			if (filteredTasks.length !== 1) {
-				this.messageService.show(severity.Warning, nls.localize('DebugTaskNotFound', "Could not find a unique task \'{0}\'. Make sure the task exists and that it has a unique name.", config.preLaunchTask));
+				this.messageService.show(severity.Warning, nls.localize('DebugTaskNotFound', "Could not find a unique task \'{0}\'. Make sure the task exists and that it has a unique name.", taskName));
 				return TPromise.as(true);
 			}
 
 			// task is already running - nothing to do.
-			if (this.lastTaskEvent && this.lastTaskEvent.taskName === config.preLaunchTask) {
+			if (this.lastTaskEvent && this.lastTaskEvent.taskName === taskName) {
 				return TPromise.as(true);
 			}
 
 			if (this.lastTaskEvent) {
 				// there is a different task running currently.
-				return Promise.wrapError(errors.create(nls.localize('differentTaskRunning', "There is a task {0} running. Can not run pre launch task {1}.", this.lastTaskEvent.taskName, config.preLaunchTask)));
+				return Promise.wrapError(errors.create(nls.localize('differentTaskRunning', "There is a task {0} running. Can not run pre launch task {1}.", this.lastTaskEvent.taskName, taskName)));
 			}
 
 			// no task running, execute the preLaunchTask.
@@ -577,7 +594,15 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 				this.lastTaskEvent = null;
 			});
 
-			return filteredTasks[0].isWatching ? TPromise.as(true) : taskPromise;
+			if (filteredTasks[0].isWatching) {
+				return new TPromise((c, e) => {
+					this.taskService.addOneTimeListener(TaskServiceEvents.Inactive, () => {
+						c(true);
+					});
+				});
+			}
+
+			return taskPromise;
 		});
 	}
 
