@@ -187,40 +187,7 @@ export function getBracketFor(tokenType:string, tokenText:string, mode:Modes.IMo
 }
 
 
-export interface ITypeDeclarationContribution {
-	tokens: string[];
-	findTypeDeclaration: (resource: URI, position: EditorCommon.IPosition) => TPromise<Modes.IReference>;
-}
-export class TypeDeclarationSupport extends AbstractSupport implements Modes.ITypeDeclarationSupport {
 
-	private contribution: ITypeDeclarationContribution;
-
-	/**
-	 * Provide the token type postfixes for the tokens where a declaration can be found in the 'tokens' argument.
-	 */
-	constructor(mode: Modes.IMode, contribution: ITypeDeclarationContribution) {
-		super(mode);
-		this.contribution = contribution;
-	}
-
-	public canFindTypeDeclaration(context: Modes.ILineContext, offset:number):boolean {
-		return handleEvent(context, offset, (nestedMode:Modes.IMode, context:Modes.ILineContext, offset:number) => {
-			if (this.mode === nestedMode) {
-				return (!Array.isArray(this.contribution.tokens) ||
-					this.contribution.tokens.length < 1 ||
-					isLineToken(context, offset, this.contribution.tokens));
-			} else if (nestedMode.typeDeclarationSupport) {
-				return nestedMode.typeDeclarationSupport.canFindTypeDeclaration(context, offset);
-			} else {
-				return false;
-			}
-		});
-	}
-
-	public findTypeDeclaration(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.IReference> {
-		return this.contribution.findTypeDeclaration(resource, position);
-	}
-}
 
 export class ParameterHintsSupport extends AbstractSupport implements Modes.IParameterHintsSupport {
 
