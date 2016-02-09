@@ -84,9 +84,7 @@ export class NullMode implements Modes.IMode {
 
 	constructor() {
 		this.richEditSupport = {
-			tokenTypeClassification: {
-				getWordDefinition: () => NullMode.DEFAULT_WORD_REGEXP
-			}
+			wordDefinition: NullMode.DEFAULT_WORD_REGEXP
 		};
 	}
 

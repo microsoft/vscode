@@ -39,22 +39,7 @@ export interface INonWordTokenMap {
 export class WordHelper {
 
 	private static _safeGetWordDefinition(mode:Modes.IMode): RegExp {
-		let richEditSupport = mode.richEditSupport;
-		if (!richEditSupport) {
-			return null;
-		}
-		if (!richEditSupport.tokenTypeClassification) {
-			return null;
-		}
-
-		var result: RegExp = null;
-		try {
-			result = richEditSupport.tokenTypeClassification.getWordDefinition();
-		} catch(e) {
-			Errors.onUnexpectedError(e);
-		}
-
-		return result;
+		return (mode.richEditSupport ? mode.richEditSupport.wordDefinition : null);
 	}
 
 	public static ensureValidWordDefinition(wordDefinition?:RegExp): RegExp {

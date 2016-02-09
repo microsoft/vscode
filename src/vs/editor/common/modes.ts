@@ -754,13 +754,6 @@ export interface IRichEditCharacterPair {
 	getSurroundingPairs():IAutoClosingPair[];
 }
 
-/**
- * Interface used to support the classification of tokens.
- */
-export interface IRichEditTokenTypeClassification {
-	getWordDefinition():RegExp;
-}
-
 export interface IRichEditSupport {
 	/**
 	 * Optional adapter for electric characters.
@@ -780,7 +773,7 @@ export interface IRichEditSupport {
 	/**
 	 * Optional adapter for classification of tokens.
 	 */
-	tokenTypeClassification?:IRichEditTokenTypeClassification;
+	wordDefinition?: RegExp;
 
 	/**
 	 * Optional adapter for custom Enter handling.

@@ -21,7 +21,7 @@ suite('JS - Auto Indent', () => {
 		modesUtil.load('javascript').then(mode => {
 			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
 			onElectricCharacter = modesUtil.createOnElectricCharacter(mode);
-			wordDefinition = mode.richEditSupport.tokenTypeClassification.getWordDefinition();
+			wordDefinition = mode.richEditSupport.wordDefinition;
 			done();
 		});
 	});

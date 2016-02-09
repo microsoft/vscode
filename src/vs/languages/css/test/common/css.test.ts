@@ -22,7 +22,7 @@ suite('CSS Colorizing', () => {
 		modesUtil.load('css').then(mode => {
 			tokenizationSupport = mode.tokenizationSupport;
 			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
-			wordDefinition = mode.richEditSupport.tokenTypeClassification.getWordDefinition();
+			wordDefinition = mode.richEditSupport.wordDefinition;
 			done();
 		});
 	});

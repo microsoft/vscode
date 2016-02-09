@@ -8,8 +8,8 @@ import * as Modes from 'vs/editor/common/modes';
 import {OnEnterSupport, IOnEnterSupportOptions, IIndentationRules, IOnEnterRegExpRules} from 'vs/editor/common/modes/supports/onEnter';
 import {CharacterPairSupport} from 'vs/editor/common/modes/supports/characterPair';
 import {BracketElectricCharacterSupport, IBracketElectricCharacterContribution} from 'vs/editor/common/modes/supports/electricCharacter';
-import {TokenTypeClassificationSupport} from 'vs/editor/common/modes/supports/tokenTypeClassification';
 import {ICharacterPairContribution} from 'vs/editor/common/modes/supports/characterPair';
+import {NullMode} from 'vs/editor/common/modes/nullMode';
 
 export type CharacterPair = [string, string];
 
@@ -33,7 +33,7 @@ export class RichEditSupport implements Modes.IRichEditSupport {
 	public electricCharacter: Modes.IRichEditElectricCharacter;
 	public comments: Modes.ICommentsConfiguration;
 	public characterPair: Modes.IRichEditCharacterPair;
-	public tokenTypeClassification: Modes.IRichEditTokenTypeClassification;
+	public wordDefinition: RegExp;
 	public onEnter: Modes.IRichEditOnEnter;
 
 	constructor(modeId:string, conf:IRichEditConfiguration) {
@@ -50,9 +50,7 @@ export class RichEditSupport implements Modes.IRichEditSupport {
 			this.electricCharacter = new BracketElectricCharacterSupport(modeId, conf.__electricCharacterSupport);
 		}
 
-		this.tokenTypeClassification = new TokenTypeClassificationSupport({
-			wordDefinition: conf.wordPattern
-		});
+		this.wordDefinition = conf.wordPattern || NullMode.DEFAULT_WORD_REGEXP;
 	}
 
 	private _handleOnEnter(modeId:string, conf:IRichEditConfiguration): void {
