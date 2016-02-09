@@ -1,3 +1,5 @@
+'use strict';
+
 import {IPythonProcess, IPythonThread, IPythonModule, IPythonEvaluationResult} from './Contracts';
 import * as path from 'path';
 

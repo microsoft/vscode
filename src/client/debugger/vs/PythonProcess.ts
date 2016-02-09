@@ -1,4 +1,4 @@
-"use string";
+'use strict';
 
 import * as net from 'net';
 import {EventEmitter} from 'events';
@@ -47,7 +47,7 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
     private programDirectory: string;
     public get ProgramDirectory(): string {
         return this.programDirectory;
-    }
+    } 
     constructor(id: number, guid: string, programDirectory: string) {
         super();
         this.id = id;
@@ -60,6 +60,7 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
     }
 
     public Terminate() {
+        this.stream.Write(Commands.ExitCommandBytes);
     }
 
     public Connect(buffer: Buffer, socket: net.Socket) {

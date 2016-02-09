@@ -1,3 +1,5 @@
+'use strict';
+
 import * as net from 'net';
 var uint64be = require("uint64be");
 

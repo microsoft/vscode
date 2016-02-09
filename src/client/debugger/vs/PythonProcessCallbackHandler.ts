@@ -1,3 +1,5 @@
+'use strict';
+
 import {FrameKind, IPythonProcess, IPythonThread, IPythonModule, IPythonEvaluationResult, IPythonStackFrame} from './Common/Contracts';
 import {IDjangoStackFrame, PythonEvaluationResultFlags, PythonLanguageVersion, IChildEnumCommand, IPythonException, IExecutionCommand} from './Common/Contracts';
 import * as utils from './Common/Utils';
@@ -47,6 +49,7 @@ export class PythonProcessCallbackHandler extends EventEmitter {
             case "EXCE": this.HandleExecutionException(); break;
             case "ASBR": this.HandleAsyncBreak(); break;
             default: {
+
                 console.error("Uhandled command = " + cmd);
                 this.emit("error", `Unhandled command '${cmd}'`);
             }

@@ -17,7 +17,6 @@ Works on both Windows and Mac.
 ## Issues and Feature Requests 
 [Github Issues](https://github.com/DonJayamanne/pythonVSCode/issues)
 * Remote Debugging (coming soon)
-* Debugging django (in development)
 
 ## Feature Details (with confiuration)
 * IDE Features
@@ -98,6 +97,10 @@ Works on both Windows and Mac.
 * - pip install nose
 
 ## Change Log
+
+### Version 0.2.4
+* Introduced experimental debugging of django (debugging templates not supported)
+* Added support for optionally breaking into python code as soon as debugger starts 
 
 ### Version 0.2.4
 * Fixed issue where debugger would break into all exceptions

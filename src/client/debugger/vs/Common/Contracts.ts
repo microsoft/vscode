@@ -1,3 +1,5 @@
+'use strict';
+
 export interface IDebugServer {
     port: number;
 }

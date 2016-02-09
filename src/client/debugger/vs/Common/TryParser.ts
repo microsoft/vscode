@@ -1,3 +1,5 @@
+'use strict';
+
 import * as path from 'path';
 var LineByLineReader = require('line-by-line');
 

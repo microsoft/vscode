@@ -1,3 +1,5 @@
+'use strict';
+
 export class Commands {
     public static ExitCommandBytes: Buffer = new Buffer("exit");
     public static StepIntoCommandBytes: Buffer = new Buffer("stpi");
