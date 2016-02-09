@@ -86,6 +86,15 @@
 	border-color: rgb(0, 157, 255);
 }
 
+.quick-open-widget .monaco-tree.focused .monaco-tree-row.focused .extension .actions .action-label:focus {
+	outline: 1px solid #DF740C;
+	outline-offset: -1px;
+}
+
+.quick-open-widget .monaco-tree.focused .monaco-tree-row.focused .extension .actions .action-label:active {
+	outline: none;
+}
+
 .quick-open-widget .extension .actions .action-label:not(.icon) {
 	padding: 1px 3px;
 	display: inline-block;
