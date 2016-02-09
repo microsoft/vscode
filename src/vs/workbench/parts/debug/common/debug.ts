@@ -119,7 +119,8 @@ export var SessionEvents = {
 	SERVER_EXIT: 'exit',
 	CONTINUED: 'continued',
 	THREAD: 'thread',
-	OUTPUT: 'output'
+	OUTPUT: 'output',
+	BREAKPOINT: 'breakpoint'
 };
 
 // model interfaces

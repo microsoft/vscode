@@ -289,6 +289,19 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			}
 		}));
 
+		this.toDispose.push(this.session.addListener2(debug.SessionEvents.BREAKPOINT, (event: DebugProtocol.BreakpointEvent) => {
+			const id = event.body && event.body.breakpoint ? event.body.breakpoint.id : undefined;
+			const breakpoint = this.model.getBreakpoints().filter(bp => bp.getId() === <any>id).pop();
+			if (breakpoint) {
+				this.model.updateBreakpoints({ [breakpoint.getId()]: event.body.breakpoint });
+			} else {
+				const functionBreakpoint = this.model.getFunctionBreakpoints().filter(bp => bp.getId() === <any>id).pop();
+				if (functionBreakpoint) {
+					this.model.updateFunctionBreakpoints({ [functionBreakpoint.getId()]: event.body.breakpoint });
+				}
+			}
+		}));
+
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.SERVER_EXIT, event => {
 			if (this.session && this.session.getId() === event.sessionId) {
 				this.onSessionEnd();
