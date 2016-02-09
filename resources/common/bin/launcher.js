@@ -8,27 +8,38 @@
 var packageJson = require('../../../package.json');
 var os = require('os');
 var spawn = require('child_process').spawn;
-var yargs = require('yargs');
 
-function parseArgs() {
+function ArgParser(args) {
+	this.args = args;
+}
+
+ArgParser.prototype.hasFlag = function (flag, alias) {
+	return (flag && this.args.indexOf('--' + flag) >= 0) ||
+		(alias && this.args.indexOf('-' + alias) >= 0);
+}
+
+ArgParser.prototype.printHelp = function () {
 	var executable = 'code' + (os.platform() == 'win32' ? '.exe' : '');
-	var options = yargs(process.argv.slice(1));
-	options.usage(
+	console.log(
 		'Visual Studio Code v' + packageJson.version + '\n' +
 		'\n' +
-		'Usage: ' + executable + ' [arguments] [path]');
-	options.alias('h', 'help').boolean('h').describe('h', 'Print usage.');
-	options.string('locale').describe('locale', 'Use a specific locale.');
-	options.boolean('n').describe('n', 'Force a new instance of code.');
-	options.alias('v', 'version').boolean('v').describe('v', 'Print version.');
+		'Usage: ' + executable + ' [arguments] [paths...]\n' +
+		'\n' +
+		'Options:\n' +
+		'  -h, --help     Print usage.\n' +
+		'  --locale       Use a specific locale.\n' +
+		'  -n             Force a new instance of code.\n' +
+		'  -v, --version  Print version.');
+}
 
-	var args = options.argv;
-	if (args.help) {
-		process.stdout.write(options.help());
+function parseArgs() {
+	var argParser = new ArgParser(process.argv.slice(2));
+	if (argParser.hasFlag('help', 'h')) {
+		argParser.printHelp();
 		process.exit(0);
 	}
-	if (args.version) {
-		process.stdout.write(packageJson.version + '\n');
+	if (argParser.hasFlag('version', 'v')) {
+		console.log(packageJson.version);
 		process.exit(0);
 	}
 }
