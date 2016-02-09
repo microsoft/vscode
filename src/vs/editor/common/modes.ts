@@ -697,7 +697,7 @@ export interface IElectricAction {
 
 	// The line will be indented at the same level of the line
 	// which contains the matching given bracket type.
-	matchBracketType?:string;
+	matchOpenBracket?:EditorCommon.IFindBracketRequest;
 
 	// The text will be appended after the electric character.
 	appendText?:string;

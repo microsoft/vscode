@@ -5,8 +5,11 @@
 'use strict';
 
 import * as Modes from 'vs/editor/common/modes';
-import {handleEvent} from 'vs/editor/common/modes/supports';
+import {handleEvent, ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
 import Strings = require('vs/base/common/strings');
+import {Range} from 'vs/editor/common/core/range';
+import {IFoundBracket} from 'vs/editor/common/editorCommon';
+import {Arrays} from 'vs/editor/common/core/arrays';
 
 /**
  * Definition of documentation comments (e.g. Javadoc/JSdoc)
@@ -34,7 +37,7 @@ export class BracketElectricCharacterSupport implements Modes.IRichEditElectricC
 	constructor(modeId: string, contribution: IBracketElectricCharacterContribution) {
 		this._modeId = modeId;
 		this.contribution = contribution;
-		this.brackets = new Brackets(contribution.brackets, contribution.docComment, contribution.caseInsensitive);
+		this.brackets = new Brackets(modeId, contribution.brackets, contribution.docComment, contribution.caseInsensitive);
 	}
 
 	public getElectricCharacters(): string[]{
@@ -61,6 +64,7 @@ enum Lettercase { Unknown, Lowercase, Uppercase, Camelcase}
 
 export class Brackets {
 
+	private _modeId: string;
 	private brackets: Modes.IBracketPair[];
 	private docComment: IDocComment;
 	private caseInsensitive: boolean;
@@ -74,8 +78,8 @@ export class Brackets {
 	 * - stringIsBracket
 	 *
 	 */
-	constructor(brackets: Modes.IBracketPair[], docComment: IDocComment = null,
-		caseInsensitive: boolean = false) {
+	constructor(modeId: string, brackets: Modes.IBracketPair[], docComment: IDocComment = null, caseInsensitive: boolean = false) {
+		this._modeId = modeId;
 		this.brackets = brackets;
 		this.docComment = docComment ? docComment : null;
 		this.caseInsensitive = caseInsensitive ? caseInsensitive : false;
@@ -152,29 +156,82 @@ export class Brackets {
 		return true;
 	}
 
-	private _onElectricCharacterStandardBrackets(context: Modes.ILineContext, offset: number): Modes.IElectricAction {
-		var tokenIndex = context.findIndexOfOffset(offset);
-		var tokenText = context.getTokenText(tokenIndex);
-		var tokenType = context.getTokenType(tokenIndex);
-		if (!this.stringIsBracket(tokenText)) {
-			// This is not a brace type that we are aware of.
-			// Keep in mind that tokenType above might be different than what this.tokenTypeFromString(tokenText)
-			// returns, which could happen when using TextMate bundles.
+	// TODO: dup in textModelWithTokens
+	private static _findPrevBracketInText(reversedBracketRegex:RegExp, lineNumber:number, reversedText:string, offset:number): Range {
+		let m = reversedText.match(reversedBracketRegex);
+
+		if (!m) {
 			return null;
 		}
 
-		if (tokenIndex >= 0 && context.getTokenEndIndex(tokenIndex)-1 > offset) {
-			// We're in the middle of a token, do not do anything
+		let matchOffset = reversedText.length - 1 - m.index;
+		let matchLength = m[0].length;
+		let absoluteMatchOffset = offset + matchOffset;
+
+		return new Range(lineNumber, absoluteMatchOffset + 1, lineNumber, absoluteMatchOffset + 1 + matchLength);
+	}
+
+	// TODO: dup in textModelWithTokens
+	private static _findPrevBracketInToken(reversedBracketRegex:RegExp, lineNumber:number, lineText:string, currentTokenStart:number, currentTokenEnd:number): Range {
+		// Because JS does not support backwards regex search, we search forwards in a reversed string with a reversed regex ;)
+		let currentTokenReversedText = '';
+		for (let index = currentTokenEnd - 1; index >= currentTokenStart; index--) {
+			currentTokenReversedText += lineText.charAt(index);
+		}
+
+		return this._findPrevBracketInText(reversedBracketRegex, lineNumber, currentTokenReversedText, currentTokenStart);
+	}
+
+	// TODO: dup in textModelWithTokens
+	private static _toFoundBracket(r:Range, text:string): IFoundBracket {
+		if (!r) {
 			return null;
 		}
+
+		// TODO@Alex: use mode's brackets
+		switch (text) {
+			case '(': return { range: r, open: '(', close: ')', isOpen: true };
+			case ')': return { range: r, open: '(', close: ')', isOpen: false };
+			case '[': return { range: r, open: '[', close: ']', isOpen: true };
+			case ']': return { range: r, open: '[', close: ']', isOpen: false };
+			case '{': return { range: r, open: '{', close: '}', isOpen: true };
+			case '}': return { range: r, open: '{', close: '}', isOpen: false };
+		}
+		return null;
+	}
+
+	private _onElectricCharacterStandardBrackets(context: Modes.ILineContext, offset: number): Modes.IElectricAction {
+
+		let reversedBracketRegex = /[\(\)\[\]\{\}]/; // TODO@Alex: use mode's brackets
+
+		let lineText = context.getLineContent();
+		let tokenIndex = context.findIndexOfOffset(offset);
+		let tokenStart = context.getTokenStartIndex(tokenIndex);
+		let tokenEnd = offset + 1;
 
 		var firstNonWhitespaceIndex = Strings.firstNonWhitespaceIndex(context.getLineContent());
-
-		if (firstNonWhitespaceIndex !== -1 && firstNonWhitespaceIndex <= offset-tokenText.length) {
+		if (firstNonWhitespaceIndex !== -1 && firstNonWhitespaceIndex < tokenStart) {
 			return null;
 		}
 
-		return { matchBracketType: tokenType };
+		if (!ignoreBracketsInToken(context.getTokenType(tokenIndex))) {
+			let r = Brackets._findPrevBracketInToken(reversedBracketRegex, 1, lineText, tokenStart, tokenEnd);
+			if (r) {
+				let text = lineText.substring(r.startColumn - 1, r.endColumn - 1);
+				let data = Brackets._toFoundBracket(r, text);
+				if (!data.isOpen) {
+					return {
+						matchOpenBracket: {
+							modeId: this._modeId,
+							open: data.open,
+							close: data.close
+						}
+					}
+				}
+			}
+		}
+
+		return null;
 	}
 
 	private _onElectricCharacterDocComment(context: Modes.ILineContext, offset: number): Modes.IElectricAction {

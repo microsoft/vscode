@@ -8,7 +8,7 @@ import nls = require('vs/nls');
 
 import Timer = require('vs/base/common/timer');
 import {NullMode, NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
-import {WordHelper, BracketsHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
+import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 import {TokenIterator} from 'vs/editor/common/model/tokenIterator';
 import {ModelLine} from 'vs/editor/common/model/modelLine';
 import {TextModel} from 'vs/editor/common/model/textModel';
@@ -23,6 +23,7 @@ import {StopWatch} from 'vs/base/common/stopwatch';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import * as Strings from 'vs/base/common/strings';
+import {ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
 
 export class TokensInflatorMap implements EditorCommon.ITokensInflatorMap {
 
@@ -846,12 +847,12 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 		return result;
 	}
 
-	public findMatchingBracketUp(tokenType:string, position:EditorCommon.IPosition): EditorCommon.IEditorRange {
+	public findMatchingBracketUp(request:EditorCommon.IFindBracketRequest, _position:EditorCommon.IPosition): EditorCommon.IEditorRange {
 		if (this._isDisposed) {
 			throw new Error('TextModelWithTokens.findMatchingBracketUp: Model is disposed');
 		}
 
-		return BracketsHelper.findMatchingBracketUp(this, tokenType, this.validatePosition(position));
+		return this._findMatchingBracketUp(request.open, request.close, this.validatePosition(_position));
 	}
 
 	public matchBracket(position:EditorCommon.IPosition, inaccurateResultAcceptable:boolean = false): EditorCommon.IMatchBracketResult {
@@ -882,7 +883,7 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 			let prevTokenType = getType(tokensMap, tokens[prevTokenIndex]);
 
 			// check that previous token is not to be ignored
-			if (!TextModelWithTokens._ignoreBracketsInToken(prevTokenType)) {
+			if (!ignoreBracketsInToken(prevTokenType)) {
 				let prevTokenStart = getStartIndex(tokens[prevTokenIndex]);
 
 				// limit search in case previous token is very large, there's no need to go beyond `maxBracketLength`
@@ -903,7 +904,7 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 		}
 
 		// check that the token is not to be ignored
-		if (!TextModelWithTokens._ignoreBracketsInToken(getType(tokensMap, tokens[currentTokenIndex]))) {
+		if (!ignoreBracketsInToken(getType(tokensMap, tokens[currentTokenIndex]))) {
 
 			// limit search to not go before `maxBracketLength`
 			currentTokenStart = Math.max(currentTokenStart, position.column - 1 - maxBracketLength);
@@ -1027,7 +1028,7 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 				let currentTokenType = getType(tokensMap, currentToken);
 				let currentTokenStart = getStartIndex(currentToken);
 
-				if (!TextModelWithTokens._ignoreBracketsInToken(currentTokenType)) {
+				if (!ignoreBracketsInToken(currentTokenType)) {
 
 					while (true) {
 						let r = TextModelWithTokens._findPrevBracketInToken(reversedBracketRegex, lineNumber, lineText, currentTokenStart, currentTokenEnd);
@@ -1083,7 +1084,7 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 				let currentTokenEnd = tokenIndex + 1 < tokensLength ? getStartIndex(tokens[tokenIndex + 1]) : lineText.length;
 
 
-				if (!TextModelWithTokens._ignoreBracketsInToken(currentTokenType)) {
+				if (!ignoreBracketsInToken(currentTokenType)) {
 					while (true) {
 						let r = TextModelWithTokens._findNextBracketInToken(bracketRegex, lineNumber, lineText, currentTokenStart, currentTokenEnd);
 						if (!r) {
@@ -1111,11 +1112,6 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 		}
 
 		return null;
-	}
-
-
-	private static _ignoreBracketsInToken(tokenType:string): boolean {
-		return /\b(comment|string|regex)\b/.test(tokenType);
 	}
 
 	private static _findPrevBracketInText(reversedBracketRegex:RegExp, lineNumber:number, reversedText:string, offset:number): Range {
@@ -1168,7 +1164,7 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 				let currentTokenType = getType(tokensMap, currentToken);
 				let currentTokenStart = getStartIndex(currentToken);
 
-				if (!TextModelWithTokens._ignoreBracketsInToken(currentTokenType)) {
+				if (!ignoreBracketsInToken(currentTokenType)) {
 					let r = TextModelWithTokens._findPrevBracketInToken(reversedBracketRegex, lineNumber, lineText, currentTokenStart, currentTokenEnd);
 					if (r) {
 						return this._toFoundBracket(r);
@@ -1228,7 +1224,7 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 				let currentTokenType = getType(tokensMap, currentToken);
 				let currentTokenEnd = tokenIndex + 1 < tokensLength ? getStartIndex(tokens[tokenIndex + 1]) : lineText.length;
 
-				if (!TextModelWithTokens._ignoreBracketsInToken(currentTokenType)) {
+				if (!ignoreBracketsInToken(currentTokenType)) {
 					let r = TextModelWithTokens._findNextBracketInToken(bracketRegex, lineNumber, lineText, currentTokenStart, currentTokenEnd);
 					if (r) {
 						return this._toFoundBracket(r);

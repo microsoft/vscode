@@ -1156,13 +1156,13 @@ export class OneCursorOp {
 		}
 
 		if (electricAction) {
-			var matchBracketType = electricAction.matchBracketType;
+			let matchOpenBracket = electricAction.matchOpenBracket;
 			var appendText = electricAction.appendText;
-			if (matchBracketType) {
-				var match:EditorCommon.IEditorRange = null;
-				if (matchBracketType) {
-					match = cursor.model.findMatchingBracketUp(matchBracketType, position);
-				}
+			if (matchOpenBracket) {
+				var match = cursor.model.findMatchingBracketUp(matchOpenBracket, {
+					lineNumber: position.lineNumber,
+					column: position.column - matchOpenBracket.close.length
+				});
 				if (match) {
 					var matchLineNumber = match.startLineNumber;
 					var matchLine = cursor.model.getLineContent(matchLineNumber);

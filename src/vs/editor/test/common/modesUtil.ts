@@ -25,18 +25,6 @@ export interface ITestItem {
 	tokens: IRelaxedToken[];
 }
 
-export interface IOnElectricCharacterFunc {
-	(line:string, offset:number, state?:modes.IState): modes.IElectricAction;
-}
-
-export function createOnElectricCharacter(mode:modes.IMode): IOnElectricCharacterFunc {
-	return function onElectricCharacter(line:string, offset:number, state?:modes.IState): modes.IElectricAction {
-		state = state || mode.tokenizationSupport.getInitialState();
-		var lineTokens = mode.tokenizationSupport.tokenize(line, state);
-		return mode.richEditSupport.electricCharacter.onElectricCharacter(createLineContext(line, lineTokens), offset);
-	};
-}
-
 export function assertWords(actual:string[], expected:string[], message?:string): void {
 	assert.deepEqual(actual, expected, message);
 }

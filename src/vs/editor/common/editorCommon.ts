@@ -1376,6 +1376,12 @@ export interface ITextModel {
 	isDisposed(): boolean;
 }
 
+export interface IFindBracketRequest {
+	modeId: string;
+	open: string;
+	close: string;
+}
+
 export interface IFoundBracket {
 	range: IEditorRange;
 	open: string;
@@ -1475,12 +1481,12 @@ export interface ITokenizedModel extends ITextModel {
 	tokenIterator(position: IPosition, callback: (it: ITokenIterator) =>any): any;
 
 	/**
-	 * Find the matching bracket of `tokenType` up, counting brackets.
-	 * @param tokenType The token type of the bracket we're searching for
+	 * Find the matching bracket of `request` up, counting brackets.
+	 * @param request The bracket we're searching for
 	 * @param position The position at which to start the search.
 	 * @return The range of the matching bracket, or null if the bracket match was not found.
 	 */
-	findMatchingBracketUp(tokenType:string, position:IPosition): IEditorRange;
+	findMatchingBracketUp(request:IFindBracketRequest, position:IPosition): IEditorRange;
 
 	/**
 	 * Find the first bracket in the model before `position`.
