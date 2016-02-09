@@ -226,7 +226,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 	private registerSessionListeners(): void {
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.INITIALIZED, (event: DebugProtocol.InitializedEvent) =>
-			this.sendAllBreakpoints().then(() => this.sendExceptionBreakpoints()).then(() => {
+			this.sendAllBreakpoints().then(() => {
 				if (this.session.capablities.supportsConfigurationDoneRequest) {
 					this.session.configurationDone().done(null, errors.onUnexpectedError);
 				}
@@ -413,8 +413,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			const breakpoint = <model.Breakpoint> element;
 			return this.sendBreakpoints(breakpoint.source.uri);
 		} else if (element instanceof model.FunctionBreakpoint) {
-			return TPromise.as(null);
-			// TODO@Isidor send function breakpoints and return
+			return this.sendFunctionBreakpoints();
 		}
 
 		return this.sendExceptionBreakpoints();
@@ -445,20 +444,17 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 	public addFunctionBreakpoint(functionName?: string): TPromise<void> {
 		this.model.addFunctionBreakpoint(functionName);
-		// TODO@Isidor send updated function breakpoints
-		return TPromise.as(null);
+		return this.sendFunctionBreakpoints();
 	}
 
 	public renameFunctionBreakpoint(id: string, newFunctionName: string): TPromise<void> {
 		this.model.renameFunctionBreakpoint(id, newFunctionName);
-		// TODO@Isidor send updated function breakpoints
-		return TPromise.as(null);
+		return this.sendFunctionBreakpoints();
 	}
 
 	public removeFunctionBreakpoints(id?: string): TPromise<void> {
 		this.model.removeFunctionBreakpoints(id);
-		// TODO@Isidor send updated function breakpoints
-		return TPromise.as(null);
+		return this.sendFunctionBreakpoints();
 	}
 
 	public addReplExpression(name: string): TPromise<void> {
@@ -784,12 +780,15 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	public sendAllBreakpoints(): TPromise<any> {
-		return TPromise.join(arrays.distinct(this.model.getBreakpoints(), bp => bp.source.uri.toString()).map(bp => this.sendBreakpoints(bp.source.uri)));
+		return TPromise.join(arrays.distinct(this.model.getBreakpoints(), bp => bp.source.uri.toString()).map(bp => this.sendBreakpoints(bp.source.uri)))
+			.then(() => this.sendFunctionBreakpoints())
+			// send exception breakpoints at the end since some debug adapters rely on the order
+			.then(() => this.sendExceptionBreakpoints());
 	}
 
 	private sendBreakpoints(modelUri: uri): TPromise<void> {
 		if (!this.session || !this.session.readyForBreakpoints) {
-			return TPromise.as(undefined);
+			return TPromise.as(null);
 		}
 
 		const breakpointsToSend = arrays.distinct(
@@ -810,13 +809,25 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		});
 	}
 
-	private sendExceptionBreakpoints(): TPromise<any> {
+	private sendFunctionBreakpoints(): TPromise<void> {
 		if (!this.session || !this.session.readyForBreakpoints) {
-			return TPromise.as(undefined);
+			return TPromise.as(null);
 		}
 
-		const enabledExBreakpoints = this.model.getExceptionBreakpoints().filter(exb => exb.enabled);
-		return this.session.setExceptionBreakpoints({ filters: enabledExBreakpoints.map(exb => exb.name) });
+		const breakpoints = this.model.getFunctionBreakpoints().filter(fbp => fbp.enabled);
+		return this.session.setFunctionBreakpoints({ breakpoints }).then(response => {
+			let index = 0;
+			breakpoints.forEach(bp => bp.verified = response.body.breakpoints[index++].verified);
+		});
+	}
+
+	private sendExceptionBreakpoints(): TPromise<any> {
+		if (!this.session || !this.session.readyForBreakpoints) {
+			return TPromise.as(null);
+		}
+
+		const enabledExceptionBps = this.model.getExceptionBreakpoints().filter(exb => exb.enabled);
+		return this.session.setExceptionBreakpoints({ filters: enabledExceptionBps.map(exb => exb.name) });
 	}
 
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {

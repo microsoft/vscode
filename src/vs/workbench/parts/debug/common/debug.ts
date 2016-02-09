@@ -86,6 +86,7 @@ export interface IBreakpoint extends IEnablement {
 
 export interface IFunctionBreakpoint extends IEnablement {
 	name: string;
+	verified: boolean;
 }
 
 export interface IExceptionBreakpoint extends IEnablement {

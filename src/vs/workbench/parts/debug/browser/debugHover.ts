@@ -86,7 +86,6 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		namesToFind.push(hoveringOver);
 		namesToFind[0] = namesToFind[0].substring(namesToFind[0].lastIndexOf(' ') + 1);
 
-
 		this.getExpression(namesToFind).done(expression => {
 			if (!expression || !expression.available) {
 				this.hide();

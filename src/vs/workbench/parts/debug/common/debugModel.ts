@@ -301,10 +301,10 @@ export class Breakpoint implements debug.IBreakpoint {
 export class FunctionBreakpoint implements debug.IFunctionBreakpoint {
 
 	private id: string;
-	public error: boolean;
+	public verified: boolean;
 
 	constructor(public name: string, public enabled: boolean) {
-		this.error = false;
+		this.verified = false;
 		this.id = uuid.generateUuid();
 	}
 
