@@ -6,8 +6,8 @@
 
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
-import DomUtils = require('vs/base/browser/dom');
 import {Position} from 'vs/editor/common/core/position';
+import {StyleMutator} from 'vs/base/browser/styleMutator';
 
 export class ContentHoverWidget implements EditorBrowser.IContentWidget {
 
@@ -53,15 +53,15 @@ export class ContentHoverWidget implements EditorBrowser.IContentWidget {
 		var editorMaxWidth = Math.min(800, parseInt(this._containerDomNode.style.maxWidth, 10));
 
 		// When scrolled horizontally, the div does not want to occupy entire visible area.
-		DomUtils.StyleMutator.setWidth(this._containerDomNode, editorMaxWidth);
-		DomUtils.StyleMutator.setHeight(this._containerDomNode, 0);
-		DomUtils.StyleMutator.setLeft(this._containerDomNode, 0);
+		StyleMutator.setWidth(this._containerDomNode, editorMaxWidth);
+		StyleMutator.setHeight(this._containerDomNode, 0);
+		StyleMutator.setLeft(this._containerDomNode, 0);
 
 		var renderedWidth = Math.min(editorMaxWidth, this._domNode.clientWidth + 5);
 		var renderedHeight = this._domNode.clientHeight + 1;
 
-		DomUtils.StyleMutator.setWidth(this._containerDomNode, renderedWidth);
-		DomUtils.StyleMutator.setHeight(this._containerDomNode, renderedHeight);
+		StyleMutator.setWidth(this._containerDomNode, renderedWidth);
+		StyleMutator.setHeight(this._containerDomNode, renderedHeight);
 
 		this._editor.layoutContentWidget(this);
 		// Simply force a synchronous render on the editor

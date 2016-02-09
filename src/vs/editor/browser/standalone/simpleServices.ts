@@ -7,7 +7,6 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import Errors = require('vs/base/common/errors');
 import Network = require('vs/base/common/network');
-import URI from 'vs/base/common/uri';
 import EventEmitter = require('vs/base/common/eventEmitter');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -19,11 +18,10 @@ import {IEditorInput, IEditorService, IEditorOptions, Position, IEditor, IResour
 import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IKeybindingContextKey, IKeybindingItem, ICommandHandler, ICommandsMap} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingItem, ICommandHandler, ICommandsMap} from 'vs/platform/keybinding/common/keybindingService';
 import {AbstractPluginService, ActivatedPlugin} from 'vs/platform/plugins/common/abstractPluginService';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
-import {PluginsRegistry, PluginsMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
 
 export class SimpleEditor implements IEditor {
 
@@ -123,7 +121,7 @@ export class SimpleEditorService implements IEditorService {
 		if (selection) {
 			if (typeof selection.endLineNumber === 'number' && typeof selection.endColumn === 'number') {
 				editor.setSelection(selection);
-				editor.revealRangeInCenter(selection)
+				editor.revealRangeInCenter(selection);
 			} else {
 				var pos = {
 					lineNumber: selection.startLineNumber,

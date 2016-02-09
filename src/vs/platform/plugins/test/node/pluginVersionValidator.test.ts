@@ -6,10 +6,10 @@
 
 import assert = require('assert');
 import {
-	isValidVersionStr, isValidVersion,
-	parseVersion, IParsedVersion,
-	normalizeVersion, INormalizedVersion,
-	IReducedExtensionDescription, isValidExtensionVersion
+isValidVersionStr, isValidVersion,
+parseVersion, IParsedVersion,
+normalizeVersion, INormalizedVersion,
+IReducedExtensionDescription, isValidExtensionVersion
 } from 'vs/platform/plugins/node/pluginVersionValidator';
 
 suite('Plugin Version Validator', () => {
@@ -34,9 +34,9 @@ suite('Plugin Version Validator', () => {
 	});
 
 	test('parseVersion', () => {
-		function assertParseVersion(version:string, hasCaret:boolean, majorBase:number, majorMustEqual:boolean, minorBase:number, minorMustEqual:boolean, patchBase:number, patchMustEqual:boolean, preRelease:string): void {
-			var actual = parseVersion(version);
-			var expected: IParsedVersion = {
+		function assertParseVersion(version: string, hasCaret: boolean, majorBase: number, majorMustEqual: boolean, minorBase: number, minorMustEqual: boolean, patchBase: number, patchMustEqual: boolean, preRelease: string): void {
+			let actual = parseVersion(version);
+			let expected: IParsedVersion = {
 				hasCaret: hasCaret,
 				majorBase: majorBase,
 				majorMustEqual: majorMustEqual,
@@ -65,9 +65,9 @@ suite('Plugin Version Validator', () => {
 	});
 
 	test('normalizeVersion', () => {
-		function assertNormalizeVersion(version:string, majorBase:number, majorMustEqual:boolean, minorBase:number, minorMustEqual:boolean, patchBase:number, patchMustEqual:boolean): void {
-			var actual = normalizeVersion(parseVersion(version));
-			var expected: INormalizedVersion = {
+		function assertNormalizeVersion(version: string, majorBase: number, majorMustEqual: boolean, minorBase: number, minorMustEqual: boolean, patchBase: number, patchMustEqual: boolean): void {
+			let actual = normalizeVersion(parseVersion(version));
+			let expected: INormalizedVersion = {
 				majorBase: majorBase,
 				majorMustEqual: majorMustEqual,
 				minorBase: minorBase,
@@ -94,7 +94,7 @@ suite('Plugin Version Validator', () => {
 	});
 
 	test('isValidVersion', () => {
-		function testIsValidVersion(version:string, desiredVersion:string, expectedResult:boolean): void {
+		function testIsValidVersion(version: string, desiredVersion: string, expectedResult: boolean): void {
 			let actual = isValidVersion(version, desiredVersion);
 			assert.equal(actual, expectedResult, 'extension - vscode: ' + version + ', desiredVersion: ' + desiredVersion + ' should be ' + expectedResult);
 		}
@@ -156,13 +156,13 @@ suite('Plugin Version Validator', () => {
 
 	test('isValidExtensionVersion', () => {
 
-		function testExtensionVersion(version:string, desiredVersion:string, isBuiltin:boolean, hasMain:boolean, expectedResult:boolean): void {
+		function testExtensionVersion(version: string, desiredVersion: string, isBuiltin: boolean, hasMain: boolean, expectedResult: boolean): void {
 			let desc: IReducedExtensionDescription = {
 				isBuiltin: isBuiltin,
 				engines: {
 					vscode: desiredVersion
 				},
-				main: hasMain ? 'something': undefined
+				main: hasMain ? 'something' : undefined
 			};
 			let reasons: string[] = [];
 			let actual = isValidExtensionVersion(version, desc, reasons);
@@ -170,15 +170,15 @@ suite('Plugin Version Validator', () => {
 			assert.equal(actual, expectedResult, "version: " + version + ", desiredVersion: " + desiredVersion + ", desc: " + JSON.stringify(desc) + ", reasons: " + JSON.stringify(reasons));
 		}
 
-		function testIsInvalidExtensionVersion(version:string, desiredVersion:string, isBuiltin:boolean, hasMain:boolean): void {
+		function testIsInvalidExtensionVersion(version: string, desiredVersion: string, isBuiltin: boolean, hasMain: boolean): void {
 			testExtensionVersion(version, desiredVersion, isBuiltin, hasMain, false);
 		}
 
-		function testIsValidExtensionVersion(version:string, desiredVersion:string, isBuiltin:boolean, hasMain:boolean): void {
+		function testIsValidExtensionVersion(version: string, desiredVersion: string, isBuiltin: boolean, hasMain: boolean): void {
 			testExtensionVersion(version, desiredVersion, isBuiltin, hasMain, true);
 		}
 
-		function testIsValidVersion(version:string, desiredVersion:string, expectedResult:boolean): void {
+		function testIsValidVersion(version: string, desiredVersion: string, expectedResult: boolean): void {
 			testExtensionVersion(version, desiredVersion, false, true, expectedResult);
 		}
 

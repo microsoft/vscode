@@ -148,9 +148,9 @@ export class ExtHostAPIImplementation {
 		// env namespace
 		let telemetryInfo: ITelemetryInfo;
 		this.env = Object.freeze({
-			get machineId() { return telemetryInfo.machineId },
-			get sessionId() { return telemetryInfo.sessionId },
-			get language() { return contextService.getConfiguration().env.language }
+			get machineId() { return telemetryInfo.machineId; },
+			get sessionId() { return telemetryInfo.sessionId; },
+			get language() { return contextService.getConfiguration().env.language; }
 		});
 		telemetryService.getTelemetryInfo().then(info => telemetryInfo = info, errors.onUnexpectedError);
 

@@ -6,7 +6,6 @@
 
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Model = require('vs/editor/common/model/model');
-import {Selection} from 'vs/editor/common/core/selection';
 
 export function pos(lineNumber:number, column:number): EditorCommon.IPosition {
 	return {

@@ -119,7 +119,7 @@ class Controller extends TreeDefaults.DefaultController {
 }
 
 function getHeight(tree:Tree.ITree, element:any): number {
-	var fix = <IQuickFix2>element;
+	// var fix = <IQuickFix2>element;
 
 	// if (!(element instanceof Message) && !!fix.documentation && tree.isFocused(fix)) {
 	// 	return 35;

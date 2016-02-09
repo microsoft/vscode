@@ -6,7 +6,6 @@
 
 import Lifecycle = require('vs/base/common/lifecycle');
 
-import Objects = require('vs/base/common/objects');
 import {LinesLayout} from 'vs/editor/common/viewLayout/linesLayout';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import {ScrollManager} from 'vs/editor/browser/viewLayout/scrollManager';
@@ -83,7 +82,6 @@ export class LayoutProvider extends ViewEventHandler implements Lifecycle.IDispo
 
 	public onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): boolean {
 		if (e.layoutInfo) {
-			var layoutInfo = this.configuration.editor.layoutInfo;
 			this.scrollable.setWidth(this.configuration.editor.layoutInfo.contentWidth);
 			this.scrollable.setHeight(this.configuration.editor.layoutInfo.contentHeight);
 			this.scrollManager.onSizeProviderLayoutChanged();

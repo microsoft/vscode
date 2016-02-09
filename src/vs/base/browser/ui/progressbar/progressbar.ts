@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./progressbar';
-import {Promise, ValueCallback} from 'vs/base/common/winjs.base';
+import {TPromise, ValueCallback} from 'vs/base/common/winjs.base';
 import assert = require('vs/base/common/assert');
 import browser = require('vs/base/browser/browser');
 import {Builder, $} from 'vs/base/browser/builder';
@@ -99,7 +99,7 @@ export class ProgressBar {
 			this.bit.style.width = 'inherit';
 
 			if (delayed) {
-				Promise.timeout(200).then(() => this.off());
+				TPromise.timeout(200).then(() => this.off());
 			} else {
 				this.off();
 			}
@@ -109,7 +109,7 @@ export class ProgressBar {
 		else {
 			this.bit.style.opacity = '0';
 			if (delayed) {
-				Promise.timeout(200).then(() => this.off());
+				TPromise.timeout(200).then(() => this.off());
 			} else {
 				this.off();
 			}
@@ -148,7 +148,7 @@ export class ProgressBar {
 
 		let counter = 0;
 		let animationFn: () => void = () => {
-			Promise.timeout(50).then(() => {
+			TPromise.timeout(50).then(() => {
 
 				// Return if another manualInfinite() call was made
 				if (currentProgressToken !== this.currentProgressToken) {

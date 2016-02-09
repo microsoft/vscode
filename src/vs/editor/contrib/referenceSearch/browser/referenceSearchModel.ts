@@ -75,10 +75,6 @@ export class FilePreview {
 		this._lineStarts = strings.computeLineStarts(value);
 	}
 
-	private _getOffsetFromPosition(line: number, column: number): number {
-		return this._lineStarts[line - 1] + column - 1;
-	}
-
 	public preview(range: IRange, n: number = 8): { before: string; inside: string; after: string } {
 
 		var lineStart = this._lineStarts[range.startLineNumber - 1],

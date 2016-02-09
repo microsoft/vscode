@@ -97,7 +97,7 @@ export class OutputEditorInput extends StringEditorInput {
 			let otherOutputEditorInput = <OutputEditorInput>otherInput;
 			if (otherOutputEditorInput.getChannel() === this.channel) {
 				return super.matches(otherInput);
-			};
+			}
 		}
 
 		return false;

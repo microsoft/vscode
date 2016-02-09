@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/editorstatus';
 import nls = require('vs/nls');
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import { emmet as $, append, show, hide } from 'vs/base/browser/dom';
 import objects = require('vs/base/common/objects');
 import encoding = require('vs/base/common/bits/encoding');
@@ -428,7 +428,7 @@ export class ChangeModeAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let modesRegistry = <IEditorModesRegistry>Registry.as(Extensions.EditorModes);
 		let languages = modesRegistry.getRegisteredLanguageNames();
 		let activeEditor = this.editorService.getActiveEditor();
@@ -510,7 +510,7 @@ export class ChangeEOLAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		let activeEditor = this.editorService.getActiveEditor();
 		if (!(activeEditor instanceof BaseTextEditor)) {
@@ -559,7 +559,7 @@ export class ChangeEncodingAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let activeEditor = this.editorService.getActiveEditor();
 		if (!(activeEditor instanceof BaseTextEditor) || !activeEditor.input) {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
@@ -575,9 +575,9 @@ export class ChangeEncodingAction extends Action {
 		let reopenWithEncodingPick: IPickOpenEntry = { label: nls.localize('reopenWithEncoding', "Reopen with Encoding") };
 
 		if (encodingSupport instanceof UntitledEditorInput) {
-			pickActionPromise = Promise.as(saveWithEncodingPick);
+			pickActionPromise = TPromise.as(saveWithEncodingPick);
 		} else if (!isWritableCodeEditor(<BaseTextEditor>activeEditor)) {
-			pickActionPromise = Promise.as(reopenWithEncodingPick);
+			pickActionPromise = TPromise.as(reopenWithEncodingPick);
 		} else {
 			pickActionPromise = this.quickOpenService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: nls.localize('pickAction', "Select Action") });
 		}
@@ -587,7 +587,7 @@ export class ChangeEncodingAction extends Action {
 				return;
 			}
 
-			return Promise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() => {
+			return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() => {
 				let isReopenWithEncoding = (action === reopenWithEncodingPick);
 
 				return this.configurationService.loadConfiguration().then((configuration: IFilesConfiguration) => {

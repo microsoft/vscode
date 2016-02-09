@@ -7,7 +7,7 @@ import 'vs/css!./media/debugViewlet';
 import nls = require('vs/nls');
 import dom = require('vs/base/browser/dom');
 import builder = require('vs/base/browser/builder');
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import lifecycle = require('vs/base/common/lifecycle');
 import events = require('vs/base/common/events');
@@ -77,8 +77,9 @@ class VariablesView extends viewlet.CollapsibleViewletView {
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.VariablesDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(viewer.VariablesRenderer),
+			accessibilityProvider: new viewer.VariablesAccessibilityProvider(),
 			controller: new viewer.BaseDebugController(this.debugService, this.contextMenuService, new viewer.VariablesActionProvider(this.instantiationService))
-		}, debugTreeOptions(nls.localize('variablesAriaTreeLabel', "Variables")));
+		}, debugTreeOptions(nls.localize('variablesAriaTreeLabel', "Debug Variables")));
 
 		const viewModel = this.debugService.getViewModel();
 
@@ -145,8 +146,9 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.WatchExpressionsDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(viewer.WatchExpressionsRenderer, actionProvider, this.actionRunner),
+			accessibilityProvider: new viewer.WatchExpressionsAccessibilityProvider(),
 			controller: new viewer.WatchExpressionsController(this.debugService, this.contextMenuService, actionProvider)
-		}, debugTreeOptions(nls.localize('watchAriaTreeLabel', "Watch Expressions")));
+		}, debugTreeOptions(nls.localize('watchAriaTreeLabel', "Debug Watch Expressions")));
 
 		this.tree.setInput(this.debugService.getModel());
 
@@ -177,7 +179,7 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 
 	private onWatchExpressionsUpdated(we: model.Expression): void {
 		this.tree.refresh().done(() => {
-			return we instanceof model.Expression ? this.tree.reveal(we): Promise.as(true);
+			return we instanceof model.Expression ? this.tree.reveal(we): TPromise.as(true);
 		}, errors.onUnexpectedError);
 	}
 
@@ -215,8 +217,9 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.CallStackDataSource(),
-			renderer: this.instantiationService.createInstance(viewer.CallStackRenderer)
-		}, debugTreeOptions(nls.localize('callStackAriaLabel', "Call Stack")));
+			renderer: this.instantiationService.createInstance(viewer.CallStackRenderer),
+			accessibilityProvider: this.instantiationService.createInstance(viewer.CallstackAccessibilityProvider)
+		}, debugTreeOptions(nls.localize('callStackAriaLabel', "Debug Call Stack")));
 
 		const debugModel = this.debugService.getModel();
 
@@ -332,6 +335,7 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.BreakpointsDataSource(),
 			renderer: this.instantiationService.createInstance(viewer.BreakpointsRenderer, actionProvider, this.actionRunner),
+			accessibilityProvider: this.instantiationService.createInstance(viewer.BreakpointsAccessibilityProvider),
 			controller: new viewer.BreakpointsController(this.debugService, this.contextMenuService, actionProvider),
 			sorter: {
 				compare(tree: tree.ITree, element: any, otherElement: any): number {
@@ -357,7 +361,7 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 					return first.desiredLineNumber - second.desiredLineNumber;
 				}
 			}
-		}, debugTreeOptions(nls.localize('breakpointsAriaTreeLabel', "Breakpoints")));
+		}, debugTreeOptions(nls.localize('breakpointsAriaTreeLabel', "Debug Breakpoints")));
 
 		const debugModel = this.debugService.getModel();
 
@@ -391,7 +395,7 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 
 	public getActions(): actions.IAction[] {
 		return [
-			// this.instantiationService.createInstance(debugactions.AddFunctionBreakpointAction, debugactions.AddFunctionBreakpointAction.ID, debugactions.AddFunctionBreakpointAction.LABEL),
+			this.instantiationService.createInstance(debugactions.AddFunctionBreakpointAction, debugactions.AddFunctionBreakpointAction.ID, debugactions.AddFunctionBreakpointAction.LABEL),
 			this.instantiationService.createInstance(debugactions.ReapplyBreakpointsAction, debugactions.ReapplyBreakpointsAction.ID, debugactions.ReapplyBreakpointsAction.LABEL),
 			this.instantiationService.createInstance(debugactions.ToggleBreakpointsActivatedAction, debugactions.ToggleBreakpointsActivatedAction.ID, debugactions.ToggleBreakpointsActivatedAction.LABEL),
 			this.instantiationService.createInstance(debugactions.RemoveAllBreakpointsAction, debugactions.RemoveAllBreakpointsAction.ID, debugactions.RemoveAllBreakpointsAction.LABEL)
@@ -429,6 +433,8 @@ export class DebugViewlet extends viewlet.Viewlet {
 	private splitView: splitview.SplitView;
 	private views: viewlet.IViewletView[];
 
+	private lastFocusedView: viewlet.CollapsibleViewletView | viewlet.AdaptiveCollapsibleViewletView;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IProgressService private progressService: IProgressService,
@@ -464,6 +470,11 @@ export class DebugViewlet extends viewlet.Viewlet {
 			this.splitView = new splitview.SplitView(this.$el.getHTMLElement());
 			this.toDispose.push(this.splitView);
 			this.views.forEach(v => this.splitView.addView(<any> v));
+
+			// Track focus
+			this.toDispose.push(this.splitView.onFocus((view: viewlet.CollapsibleViewletView | viewlet.AdaptiveCollapsibleViewletView) => {
+				this.lastFocusedView = view;
+			}));
 		} else {
 			this.$el.append($([
 				'<div class="noworkspace-view">',
@@ -473,12 +484,12 @@ export class DebugViewlet extends viewlet.Viewlet {
 			].join('')));
 		}
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
+	public setVisible(visible: boolean): TPromise<any> {
 		return super.setVisible(visible).then(() => {
-			return Promise.join(this.views.map((view) => view.setVisible(visible)));
+			return TPromise.join(this.views.map((view) => view.setVisible(visible)));
 		});
 	}
 
@@ -490,6 +501,11 @@ export class DebugViewlet extends viewlet.Viewlet {
 
 	public focus(): void {
 		super.focus();
+
+		if (this.lastFocusedView && this.lastFocusedView.isExpanded()) {
+			this.lastFocusedView.focusBody();
+			return;
+		}
 
 		if (this.views.length > 0) {
 			(<VariablesView>this.views[0]).focusBody();

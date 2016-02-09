@@ -11,7 +11,7 @@ import dom = require('vs/base/browser/dom');
 import mouse = require('vs/base/browser/mouseEvent');
 import keyboard = require('vs/base/browser/keyboardEvent');
 import _ = require('vs/base/parts/tree/browser/tree');
-import {CommonKeybindings} from 'vs/base/common/keyCodes'
+import {CommonKeybindings} from 'vs/base/common/keyCodes';
 
 export interface ILegacyTemplateData {
 	root: HTMLElement;
@@ -363,9 +363,13 @@ export class DefaultController implements _.IController {
 			return true;
 		}
 
-		if (tree.getFocus() || tree.getSelection().length) {
-			tree.clearFocus(payload);
+		if (tree.getSelection().length) {
 			tree.clearSelection(payload);
+			return true;
+		}
+
+		if (tree.getFocus()) {
+			tree.clearFocus(payload);
 			return true;
 		}
 

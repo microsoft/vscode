@@ -43,18 +43,10 @@
                 <string>\b(?:EQU|NEQ|LSS|LEQ|GTR|GEQ)\b</string>
             </dict>
             <dict>
-                <key>captures</key>
-                <dict>
-                    <key>1</key>
-                    <dict>
-                        <key>name</key>
-                        <string>keyword.command.rem.dosbatch</string>
-                    </dict>
-                </dict>
                 <key>name</key>
                 <string>comment.line.rem.dosbatch</string>
                 <key>match</key>
-                <string>\b((?i)rem)(?:$|\s.*$)</string>
+                <string>\b(?i)rem(?:$|\s.*$)</string>
             </dict>
             <dict>
                 <key>name</key>

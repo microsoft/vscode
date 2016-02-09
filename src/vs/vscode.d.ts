@@ -1053,7 +1053,7 @@ declare namespace vscode {
 		 * true if this file system watcher has been created such that
 		 * it ignores delete file system events.
 		 */
-		ignoreDeleteEvents: boolean
+		ignoreDeleteEvents: boolean;
 
 		/**
 		 * An event which fires on file/folder creation.
@@ -2879,7 +2879,7 @@ declare namespace vscode {
 		/**
 		 * An [event](#Event) which fires when the view column of an editor das changed.
 		 */
-		export const onDidChangeTextEditorViewColumn: Event<TextEditorViewColumnChangeEvent>
+		export const onDidChangeTextEditorViewColumn: Event<TextEditorViewColumnChangeEvent>;
 
 		/**
 		 * Show the given document in a text editor. A [column](#ViewColumn) can be provided

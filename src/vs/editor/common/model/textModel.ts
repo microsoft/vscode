@@ -11,7 +11,6 @@ import {Range} from 'vs/editor/common/core/range';
 import {ModelLine} from 'vs/editor/common/model/modelLine';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Platform = require('vs/base/common/platform');
-import Event, {Emitter} from 'vs/base/common/event';
 
 var __space = ' '.charCodeAt(0);
 var __tab = '\t'.charCodeAt(0);
@@ -19,10 +18,6 @@ var LIMIT_FIND_COUNT = 999;
 var DEFAULT_PLATFORM_EOL = (Platform.isLinux || Platform.isMacintosh) ? '\n' : '\r\n';
 
 export interface IIndentationFactors {
-	/**
-	 * number of lines with indentation
-	 */
-	linesWithIndentationCount:number;
 	/**
 	 * The number of lines that are indented with tabs
 	 */
@@ -329,10 +324,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 			prevLineCharCode:number,
 			lines = this._lines,
 			/**
-			 * number of lines with indentation
-			 */
-			linesWithIndentationCount = 0,
-			/**
 			 * text on current line
 			 */
 			currentLineText: string,
@@ -395,7 +386,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 			}
 
 			if (currentLineHasContent && (tmpTabCounts > 0 || tmpSpaceCounts > 0)) {
-				linesWithIndentationCount++;
 				if (tmpTabCounts > 0) {
 					linesIndentedWithTabs++;
 				}
@@ -461,7 +451,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 		}
 
 		return {
-			linesWithIndentationCount: linesWithIndentationCount,
 			linesIndentedWithTabs: linesIndentedWithTabs,
 			relativeSpaceCounts: relativeSpaceCounts,
 			absoluteSpaceCounts: absoluteSpaceCounts
@@ -476,7 +465,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 		let i:number,
 			len:number,
 			factors = this._extractIndentationFactors(),
-			linesWithIndentationCount = factors.linesWithIndentationCount,
 			linesIndentedWithTabs = factors.linesIndentedWithTabs,
 			absoluteSpaceCounts = factors.absoluteSpaceCounts,
 			relativeSpaceCounts = factors.relativeSpaceCounts;
@@ -513,7 +501,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 		}
 
 		// console.log('----------');
-		// console.log('linesWithIndentationCount: ', linesWithIndentationCount);
 		// console.log('linesIndentedWithTabs: ', linesIndentedWithTabs);
 		// console.log('absoluteSpaceCounts: ', absoluteSpaceCounts);
 		// console.log('relativeSpaceCounts: ', relativeSpaceCounts);

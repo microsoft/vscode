@@ -302,7 +302,7 @@ export function assertRegExp(pattern: string, modifiers: string): void {
 
 export function colorize(code: number, value: string): string {
 	return '\x1b[' + code + 'm' + value + '\x1b[0m';
-};
+}
 
 /**
  * Returns first index of the string that is not whitespace.

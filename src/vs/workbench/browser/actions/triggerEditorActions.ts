@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import types = require('vs/base/common/types');
 import {Action, IAction} from 'vs/base/common/actions';
@@ -31,17 +31,17 @@ export class SplitEditorAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Can only split with active editor
 		let activeEditor = this.editorService.getActiveEditor();
 		if (!activeEditor) {
-			return Promise.as(true);
+			return TPromise.as(true);
 		}
 
 		// Return if the editor to split does not support split editing
 		if (!(<BaseEditor>activeEditor).supportsSplitEditor()) {
-			return Promise.as(true);
+			return TPromise.as(true);
 		}
 
 		// Count editors
@@ -84,7 +84,7 @@ export class SplitEditorAction extends Action {
 			return this.editorService.openEditor(activeEditor.input, null, targetPosition);
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -96,12 +96,12 @@ export class CycleEditorAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Can cycle split with active editor
 		let activeEditor = this.editorService.getActiveEditor();
 		if (!activeEditor) {
-			return Promise.as(false);
+			return TPromise.as(false);
 		}
 
 		// Cycle to the left and use module to start at 0 again
@@ -126,7 +126,7 @@ export class FocusFirstEditorAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Find left editor and focus it
 		let editors = this.editorService.getVisibleEditors();
@@ -152,7 +152,7 @@ export class FocusFirstEditorAction extends Action {
 			}
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -171,7 +171,7 @@ export abstract class BaseFocusSideEditorAction extends Action {
 
 	protected abstract getTargetEditorSide(): Position;
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Require at least the reference editor to be visible
 		let editors = this.editorService.getVisibleEditors();
@@ -213,7 +213,7 @@ export abstract class BaseFocusSideEditorAction extends Action {
 			}
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -269,12 +269,12 @@ export class NavigateToLeftEditorAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Require an active editor
 		let activeEditor = this.editorService.getActiveEditor();
 		if (!activeEditor) {
-			return Promise.as(true);
+			return TPromise.as(true);
 		}
 
 
@@ -309,7 +309,7 @@ export class NavigateToRightEditorAction extends Action {
 		this.navigateActions[Position.RIGHT] = instantiationService.createInstance(FocusThirdEditorAction, FOCUS_THIRD_EDITOR_ACTION_ID, FOCUS_THIRD_EDITOR_ACTION_LABEL);
 	}
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<any> {
 
 		// Find the next position to the right to use
 		let nextPosition: Position;
@@ -327,7 +327,7 @@ export class NavigateToRightEditorAction extends Action {
 			return this.navigateActions[nextPosition].run(event);
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -349,13 +349,13 @@ export class OpenToSideAction extends Action {
 		this.enabled = (!activeEditor || activeEditor.position !== Position.RIGHT);
 	}
 
-	public run(context: any): Promise {
+	public run(context: any): TPromise<any> {
 		let entry = toEditorQuickOpenEntry(context);
 		if (entry) {
 			return this.editorService.openEditor(<EditorInput>entry.getInput(), entry.getOptions(), true);
 		}
 
-		return Promise.as(false);
+		return TPromise.as(false);
 	}
 }
 
@@ -414,21 +414,19 @@ function toEditorQuickOpenEntry(element: any): IEditorQuickOpenEntry {
 	return null;
 }
 
-let CLOSE_EDITOR_ACTION_ID = 'workbench.action.closeActiveEditor';
-let CLOSE_EDITOR_ACTION_LABEL = nls.localize('closeActiveEditor', "Close Editor");
 export class CloseEditorAction extends Action {
 
 	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
 			return this.editorService.closeEditor(activeEditor);
 		}
 
-		return Promise.as(false);
+		return TPromise.as(false);
 	}
 }
 
@@ -440,7 +438,7 @@ export class CloseAllEditorsAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		return this.editorService.closeEditors();
 	}
 }
@@ -453,7 +451,7 @@ export class CloseOtherEditorsAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		return this.editorService.closeEditors(true);
 	}
 }
@@ -466,7 +464,7 @@ export class MoveEditorLeftAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor && (activeEditor.position === Position.CENTER || activeEditor.position === Position.RIGHT)) {
 			let newPosition = (activeEditor.position === Position.CENTER) ? Position.LEFT : Position.CENTER;
@@ -475,7 +473,7 @@ export class MoveEditorLeftAction extends Action {
 			this.editorService.moveEditor(activeEditor.position, newPosition);
 		}
 
-		return Promise.as(false);
+		return TPromise.as(false);
 	}
 }
 
@@ -487,7 +485,7 @@ export class MoveEditorRightAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let editors = this.editorService.getVisibleEditors();
 		let activeEditor = this.editorService.getActiveEditor();
 		if ((editors.length === 2 && activeEditor.position === Position.LEFT) || (editors.length === 3 && activeEditor.position !== Position.RIGHT)) {
@@ -497,7 +495,7 @@ export class MoveEditorRightAction extends Action {
 			this.editorService.moveEditor(activeEditor.position, newPosition);
 		}
 
-		return Promise.as(false);
+		return TPromise.as(false);
 	}
 }
 
@@ -509,10 +507,10 @@ export class MinimizeOtherEditorsAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		this.editorService.arrangeEditors(EditorArrangement.MINIMIZE_OTHERS);
 
-		return Promise.as(false);
+		return TPromise.as(false);
 	}
 }
 
@@ -524,10 +522,10 @@ export class EvenEditorWidthsAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		this.editorService.arrangeEditors(EditorArrangement.EVEN_WIDTH);
 
-		return Promise.as(false);
+		return TPromise.as(false);
 	}
 }
 
@@ -544,13 +542,13 @@ export class MaximizeEditorAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		if (this.editorService.getActiveEditor()) {
 			this.editorService.arrangeEditors(EditorArrangement.MINIMIZE_OTHERS);
 			this.partService.setSideBarHidden(true);
 		}
 
-		return Promise.as(false);
+		return TPromise.as(false);
 	}
 }
 

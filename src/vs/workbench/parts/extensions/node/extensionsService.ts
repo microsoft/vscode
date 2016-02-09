@@ -54,7 +54,7 @@ function validate(zipPath: string, extension?: IExtension): TPromise<IExtension>
 				}
 			}
 
-			return Promise.as(manifest);
+			return TPromise.as(manifest);
 		});
 }
 

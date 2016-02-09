@@ -445,7 +445,7 @@ export class Repository {
 		return this.run([ 'clean', '-fd' ]).then(() => {
 			return this.run([ 'checkout', '--', '.' ]).then(null, (err: GitError) => {
 				if (/did not match any file\(s\) known to git\./.test(err.stderr)) {
-					return Promise.as(null);
+					return TPromise.as(null);
 				}
 
 				return Promise.wrapError(err);
@@ -486,7 +486,7 @@ export class Repository {
 				// In case there are merge conflicts to be resolved, git reset will output
 				// some "needs merge" data. We try to get around that.
 				if (/([^:]+: needs merge\n)+/m.test(err.stdout)) {
-					return Promise.as(null);
+					return TPromise.as(null);
 				}
 
 				return Promise.wrapError(err);

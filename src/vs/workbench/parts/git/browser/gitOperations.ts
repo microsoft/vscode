@@ -31,7 +31,7 @@ export class CommandOperation implements git.IGitOperation {
 	}
 
 	public run(): winjs.Promise {
-		return winjs.Promise.as(null);
+		return winjs.TPromise.as(null);
 	}
 
 	public dispose(): void {

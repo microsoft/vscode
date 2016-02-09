@@ -223,21 +223,21 @@ export abstract class BaseStageAction extends GitAction {
 		return this.gitService.add(flatten(context)).then((status: IModel) => {
 			var targetEditor = this.findGitWorkingTreeEditor();
 			if (!targetEditor) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var currentGitEditorInput = <inputs.IEditorInputWithStatus>(<any>targetEditor.input);
 			var currentFileStatus = currentGitEditorInput.getFileStatus();
 
 			if (flatContext && flatContext.every((f) => f !== currentFileStatus)) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var path = currentGitEditorInput.getFileStatus().getPath();
 			var fileStatus = status.getStatus().find(path, StatusType.INDEX);
 
 			if (!fileStatus) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var editorControl = <any>targetEditor.getControl();
@@ -326,7 +326,7 @@ export abstract class BaseUndoAction extends GitAction {
 
 	public run(context?: any):Promise {
 		if (!this.messageService.confirm(this.getConfirm(context))) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		var promises: Promise[] = [];
@@ -365,21 +365,21 @@ export abstract class BaseUndoAction extends GitAction {
 
 		return Promise.join(promises).then((statuses: IModel[]) => {
 			if (statuses.length === 0) {
-				return Promise.as(null);
+				return TPromise.as(null);
 			}
 
 			var status = statuses[statuses.length - 1];
 
 			var targetEditor = this.findWorkingTreeDiffEditor();
 			if (!targetEditor) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var currentGitEditorInput = <inputs.GitWorkingTreeDiffEditorInput> targetEditor.input;
 			var currentFileStatus = currentGitEditorInput.getFileStatus();
 
 			if (all && all.every((f) => f !== currentFileStatus)) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var path = currentGitEditorInput.getFileStatus().getPath();
@@ -499,21 +499,21 @@ export abstract class BaseUnstageAction extends GitAction {
 		return this.gitService.revertFiles('HEAD', flatContext).then((status: IModel) => {
 			var targetEditor = this.findGitIndexEditor();
 			if (!targetEditor) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var currentGitEditorInput = <inputs.IEditorInputWithStatus>(<any>targetEditor.input);
 			var currentFileStatus = currentGitEditorInput.getFileStatus();
 
 			if (flatContext && flatContext.every((f) => f !== currentFileStatus)) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var path = currentGitEditorInput.getFileStatus().getPath();
 			var fileStatus = status.getStatus().find(path, StatusType.WORKING_TREE);
 
 			if (!fileStatus) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var editorControl = <any> targetEditor.getControl();
@@ -626,7 +626,7 @@ export class CheckoutAction extends GitAction {
 		if (this.state !== LifecycleState.Alive) {
 			return Promise.wrapError('action disposed');
 		} else if (this.HEAD && this.HEAD.name === this.branch.name) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		var result = this.gitService.checkout(this.branch.name).then(null, (err) => {
@@ -675,7 +675,7 @@ export class BranchAction extends GitAction {
 
 	public run(context?: any):Promise {
 		if (!isString(context)) {
-			return Promise.as(false);
+			return TPromise.as(false);
 		}
 
 		return this.gitService.branch(<string> context, this.checkout);
@@ -707,7 +707,7 @@ export abstract class BaseCommitAction extends GitAction {
 	public run(context?: any):Promise {
 		if (!this.commitState.getCommitMessage()) {
 			this.commitState.onEmptyCommitMessage();
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		return this.gitService.commit(this.commitState.getCommitMessage());
@@ -750,7 +750,7 @@ export class StageAndCommitAction extends BaseCommitAction {
 	public run(context?: any):Promise {
 		if (!this.commitState.getCommitMessage()) {
 			this.commitState.onEmptyCommitMessage();
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		return this.gitService.commit(this.commitState.getCommitMessage(), false, true);
@@ -807,7 +807,7 @@ export class SmartCommitAction extends BaseCommitAction {
 	public run(context?: any):Promise {
 		if (!this.commitState.getCommitMessage()) {
 			this.commitState.onEmptyCommitMessage();
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		var status = this.gitService.getModel().getStatus();
@@ -1025,7 +1025,7 @@ export abstract class BaseSyncAction extends GitAction {
 
 	public run(context?: any):Promise {
 		if (!this.enabled) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		return this.gitService.sync().then(null, (err) => {
@@ -1137,7 +1137,7 @@ export class StartGitCheckoutAction extends Action {
 
 	public run(event?:any): Promise {
 		this.quickOpenService.show('git checkout ');
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -1154,6 +1154,6 @@ export class StartGitBranchAction extends Action {
 
 	public run(event?:any): Promise {
 		this.quickOpenService.show('git branch ');
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }

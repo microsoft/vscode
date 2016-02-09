@@ -18,7 +18,6 @@ import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceE
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import rawHttpService = require('vs/workbench/services/request/node/rawHttpService');
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import { IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 interface IRawHttpService {
@@ -30,7 +29,7 @@ interface IXHRFunction {
 	(options: http.IXHROptions): TPromise<http.IXHRResponse>;
 }
 
-export class RequestService extends BaseRequestService implements IThreadSynchronizableObject<{}> {
+export class RequestService extends BaseRequestService {
 	private callOnDispose: Function[];
 
 	constructor(
@@ -65,13 +64,6 @@ export class RequestService extends BaseRequestService implements IThreadSynchro
 		lifecycle.cAll(this.callOnDispose);
 	}
 
-	/**
-	 * IThreadSynchronizableObject Id. Must match id in WorkerRequestService.
-	 */
-	public getId(): string {
-		return 'NativeRequestService';
-	}
-
 	public makeRequest(options: http.IXHROptions): TPromise<http.IXHRResponse> {
 		let url = options.url;
 		if (!url) {
@@ -96,7 +88,7 @@ export class RequestService extends BaseRequestService implements IThreadSynchro
 	 * Make a cross origin request using NodeJS.
 	 * Note: This method is also called from workers.
 	 */
-	public makeCrossOriginRequest(options: http.IXHROptions): TPromise<http.IXHRResponse> {
+	protected makeCrossOriginRequest(options: http.IXHROptions): TPromise<http.IXHRResponse> {
 		let timerVar: timer.ITimerEvent = timer.nullEvent;
 		return this.rawHttpServicePromise.then((rawHttpService: IRawHttpService) => {
 			return async.always(rawHttpService.xhr(options), ((xhr: http.IXHRResponse) => {

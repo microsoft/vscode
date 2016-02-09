@@ -11,7 +11,7 @@ import * as descriptors from './descriptors';
 
 export namespace _util {
 
-	export const DI_TARGET = '$di$target'
+	export const DI_TARGET = '$di$target';
 	export const DI_DEPENDENCIES = '$di$dependencies';
 	export const DI_PROVIDES = '$di$provides_service';
 
@@ -295,7 +295,7 @@ export interface ServiceIdentifier<T> {
  */
 export function createDecorator<T>(serviceId: string): { (...args: any[]): void; type: T; } {
 
-	var ret = function(target: any, key: string, index: number): any {
+	let ret = function(target: any, key: string, index: number): any {
 
 		if (arguments.length !== 3) {
 			throw new Error('@IServiceName-decorator can only be used to decorate a parameter');
@@ -307,7 +307,7 @@ export function createDecorator<T>(serviceId: string): { (...args: any[]): void;
 			target[_util.DI_DEPENDENCIES] = [{ serviceId, index }];
 			target[_util.DI_TARGET] = target;
 		}
-	}
+	};
 
 	ret[_util.DI_PROVIDES] = serviceId;
 	// ret['type'] = undefined;
@@ -325,7 +325,7 @@ export interface Context {
 /*
  * Dummy service to make signal that the new service injection is used. I will go away once we remove the old way (using ctx)
  */
-export var INullService = createDecorator<IInstantiationService>('nullService');
+export const INullService = createDecorator<IInstantiationService>('nullService');
 
 export interface INullService {
 	serviceId: ServiceIdentifier<any>;

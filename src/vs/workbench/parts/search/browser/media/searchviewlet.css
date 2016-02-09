@@ -39,15 +39,15 @@
 	margin-right: 0.5em;
 	cursor: pointer;
 	width: 16px;
-	height: 16px;
+	height: 13px;
 }
 
 .monaco-workbench.vs-dark .search-viewlet .query-details .more {
-	background: url('ellipsis-inverse.svg') center center no-repeat;
+	background: url('ellipsis-inverse.svg') top center no-repeat;
 }
 
 .monaco-workbench.vs .search-viewlet .query-details .more {
-	background: url('ellipsis.svg') center center no-repeat;
+	background: url('ellipsis.svg') top center no-repeat;
 }
 
 .search-viewlet .query-details .file-types {

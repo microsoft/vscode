@@ -5,7 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Registry} from 'vs/platform/platform';
 import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
@@ -254,7 +254,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 		}, (error) => {
 			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[this.resource.toString()] = null; // Remove from pending loaders in case of an error
 
-			return Promise.wrapError(error);
+			return TPromise.wrapError(error);
 		});
 	}
 
@@ -290,7 +290,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 			}
 
 			// Bubble any other error up
-			return Promise.wrapError(error);
+			return TPromise.wrapError(error);
 		});
 	}
 

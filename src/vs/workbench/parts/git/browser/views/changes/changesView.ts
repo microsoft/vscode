@@ -135,7 +135,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 				showMessage: true,
 				validation: (): InputBox.IMessage => null
 			},
-			ariaLabel: nls.localize('commitMessageAriaLabel', "Type commit message (press {0} to commit)", ChangesView.COMMIT_KEYBINDING),
+			ariaLabel: nls.localize('commitMessageAriaLabel', "Git: Type commit message and press {0} to commit", ChangesView.COMMIT_KEYBINDING),
 			flexibleHeight: true
 		});
 
@@ -176,7 +176,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		}, {
 			indentPixels: 0,
 			twistiePixels: 20,
-			ariaLabel: nls.localize('treeAriaLabel', "Changes View")
+			ariaLabel: nls.localize('treeAriaLabel', "Git Changes View")
 		});
 
 		this.tree.setInput(this.gitService.getModel().getStatus());
@@ -223,7 +223,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 
 		} else {
 			this.tree.onHidden();
-			return WinJS.Promise.as(null);
+			return WinJS.TPromise.as(null);
 		}
 	}
 
@@ -295,26 +295,24 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		}
 	}
 
-	private onEditorInputChanged(input: IEditorInput): WinJS.Promise {
+	private onEditorInputChanged(input: IEditorInput): WinJS.TPromise<void> {
 		if (!this.tree) {
-			return WinJS.Promise.as(null);
+			return WinJS.TPromise.as(null);
 		}
 
 		var status = this.getStatusFromInput(input);
 
 		if (!status) {
 			this.tree.clearSelection();
-			this.tree.clearFocus();
 		}
 
 		if (this.visible && this.tree.getSelection().indexOf(status) === -1) {
 			return this.tree.reveal(status, 0.5).then(() => {
 				this.tree.setSelection([status], { origin: 'implicit' });
-				this.tree.setFocus(status);
 			});
 		}
 
-		return WinJS.Promise.as(null);
+		return WinJS.TPromise.as(null);
 	}
 
 	private onSelection(e: Tree.ISelectionEvent): void {

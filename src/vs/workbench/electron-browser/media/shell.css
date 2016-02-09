@@ -92,17 +92,28 @@
 	outline: 1px solid #007ACC; /* higher contrast color for focusable elements in a row that shows focus feedback */
 }
 
-.monaco-shell.vs .monaco-tree.focused.no-item-focus:focus {
+.monaco-shell .monaco-tree.focused.no-focused-item:focus:before {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	z-index: 5; /* make sure we are on top of the tree items */
+	content: "";
+	pointer-events: none; /* enable click through */
+}
+
+.monaco-shell.vs .monaco-tree.focused.no-focused-item:focus:before {
 	outline: 1px solid rgba(0, 122, 204, 0.4); /* we still need to handle the empty tree or no focus item case */
 	outline-offset: -1px;
 }
 
-.monaco-shell.vs-dark .monaco-tree.focused.no-item-focus:focus {
+.monaco-shell.vs-dark .monaco-tree.focused.no-focused-item:focus:before {
 	outline: 1px solid rgba(14, 99, 156, 0.6); /* we still need to handle the empty tree or no focus item case */
 	outline-offset: -1px;
 }
 
-.monaco-shell.hc-black .monaco-tree.focused.no-item-focus:focus {
+.monaco-shell.hc-black .monaco-tree.focused.no-focused-item:focus:before {
 	outline: 2px solid #DF740C; /* we still need to handle the empty tree or no focus item case */
 	outline-offset: -2px;
 }
@@ -121,7 +132,7 @@
 }
 
 .monaco-shell .monaco-tree.focused:focus {
-	outline: 0; /* tree indicates focus not via outline but through the focussed item */
+	outline: 0 !important; /* tree indicates focus not via outline but through the focussed item */
 }
 
 .monaco-shell [tabindex="0"]:active,
@@ -129,12 +140,18 @@
 .monaco-shell input[type="button"]:active,
 .monaco-shell input[type="submit"]:active,
 .monaco-shell input[type="checkbox"]:active,
-.monaco-shell .monaco-tree.focused.no-item-focus:active {
+.monaco-shell .monaco-tree .monaco-tree-row .monaco-action-bar .action-item [tabindex="0"]:hover,
+.monaco-shell .monaco-tree.focused.no-focused-item:active:before {
 	outline: 0 !important; /* fixes some flashing outlines from showing up when clicking */
 }
 
 .monaco-shell .activitybar [tabindex="0"]:focus {
-	outline: 0; /* activity bar indicates focus custom */
+	outline: 0 !important; /* activity bar indicates focus custom */
+}
+
+.monaco-shell .part.editor .iframe-container,
+.monaco-shell .part.editor .binary-container {
+	outline: 0 !important; /* TODO@Ben we need focus indication for those too */
 }
 
 /* END Keyboard Focus Indication Styles */

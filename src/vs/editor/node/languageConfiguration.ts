@@ -5,7 +5,7 @@
 'use strict';
 
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {ILanguageExtensionPoint, LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
+import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import pfs = require('vs/base/node/pfs');
 import Supports = require ('vs/editor/common/modes/supports');

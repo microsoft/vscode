@@ -110,7 +110,7 @@ export class CSSLanguageService implements ILanguageService {
 	}
 
 	public join():winjs.TPromise<void> {
-		return (this.activeDelay || winjs.Promise.as(null));
+		return (this.activeDelay || winjs.TPromise.as(null));
 	}
 
 	private _isMyMirrorModel(resource:EditorCommon.IMirrorModel): boolean {

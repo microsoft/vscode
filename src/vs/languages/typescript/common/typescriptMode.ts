@@ -86,7 +86,7 @@ class SemanticValidator {
 			return () => {
 
 				if (!this._modelService.getModel(r)) {
-					return WinJS.Promise.as(undefined);
+					return WinJS.TPromise.as(undefined);
 				}
 
 				if (thisValidationReq === this._lastValidationReq) {

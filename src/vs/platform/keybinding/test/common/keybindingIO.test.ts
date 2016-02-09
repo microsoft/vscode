@@ -15,27 +15,27 @@ suite('Keybinding IO', () => {
 		const MACINTOSH = { isMacintosh: true, isWindows: false };
 		const LINUX = { isMacintosh: false, isWindows: false };
 
-		function testOneSerialization(keybinding:number, expected:string, msg:string, Platform:ISimplifiedPlatform): void {
+		function testOneSerialization(keybinding: number, expected: string, msg: string, Platform: ISimplifiedPlatform): void {
 			let actualSerialized = IOSupport.writeKeybinding(keybinding, Platform);
 			assert.equal(actualSerialized, expected, expected + ' - ' + msg);
 		}
-		function testSerialization(keybinding:number, expectedWin:string, expectedMac:string, expectedLinux:string): void {
+		function testSerialization(keybinding: number, expectedWin: string, expectedMac: string, expectedLinux: string): void {
 			testOneSerialization(keybinding, expectedWin, 'win', WINDOWS);
 			testOneSerialization(keybinding, expectedMac, 'mac', MACINTOSH);
 			testOneSerialization(keybinding, expectedLinux, 'linux', LINUX);
 		}
 
-		function testOneDeserialization(keybinding:string, expected:number, msg:string, Platform:ISimplifiedPlatform): void {
+		function testOneDeserialization(keybinding: string, expected: number, msg: string, Platform: ISimplifiedPlatform): void {
 			let actualDeserialized = IOSupport.readKeybinding(keybinding, Platform);
 			assert.equal(actualDeserialized, expected, keybinding + ' - ' + msg);
 		}
-		function testDeserialization(inWin:string, inMac:string, inLinux:string, expected:number): void {
+		function testDeserialization(inWin: string, inMac: string, inLinux: string, expected: number): void {
 			testOneDeserialization(inWin, expected, 'win', WINDOWS);
 			testOneDeserialization(inMac, expected, 'mac', MACINTOSH);
 			testOneDeserialization(inLinux, expected, 'linux', LINUX);
 		}
 
-		function testRoundtrip(keybinding:number, expectedWin:string, expectedMac:string, expectedLinux:string): void {
+		function testRoundtrip(keybinding: number, expectedWin: string, expectedMac: string, expectedLinux: string): void {
 			testSerialization(keybinding, expectedWin, expectedMac, expectedLinux);
 			testDeserialization(expectedWin, expectedMac, expectedLinux, keybinding);
 		}

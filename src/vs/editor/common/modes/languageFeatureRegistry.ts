@@ -58,7 +58,7 @@ export default class LanguageFeatureRegistry<T> {
 					}
 				}
 			}
-		}
+		};
 	}
 
 	has(model: IModel): boolean {

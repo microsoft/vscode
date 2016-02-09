@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import actions = require('vs/base/common/actions');
 import strings = require('vs/base/common/strings');
 import URI from 'vs/base/common/uri';
-import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
+import keyboard = require('vs/base/browser/keyboardEvent');
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
 import dom = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
@@ -29,7 +30,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 const $ = dom.emmet;
 
 function getExpressionClassName(): string {
-	return isMacintosh ? '.expression.mac' : '.expression.win-linux'
+	return isMacintosh ? '.expression.mac' : '.expression.win-linux';
 }
 
 export class ReplExpressionsDataSource implements tree.IDataSource {
@@ -46,22 +47,22 @@ export class ReplExpressionsDataSource implements tree.IDataSource {
 		return element instanceof model.Model || element.reference > 0  || (element instanceof model.KeyValueOutputElement && element.getChildren().length > 0);
 	}
 
-	public getChildren(tree: tree.ITree, element: any): Promise {
+	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
 		if (element instanceof model.Model) {
-			return Promise.as(element.getReplElements());
+			return TPromise.as(element.getReplElements());
 		}
 		if (element instanceof model.KeyValueOutputElement) {
-			return Promise.as(element.getChildren());
+			return TPromise.as(element.getChildren());
 		}
 		if (element instanceof model.ValueOutputElement) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		return (<debug.IExpression> element).getChildren(this.debugService);
 	}
 
-	public getParent(tree: tree.ITree, element: any): Promise {
-		return Promise.as(null);
+	public getParent(tree: tree.ITree, element: any): TPromise<any> {
+		return TPromise.as(null);
 	}
 }
 
@@ -229,13 +230,6 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		} else {
 			templateData.counter.textContent = '';
 			templateData.counter.className = 'counter';
-		}
-
-		// group
-		if (output.grouped) {
-			dom.addClass(templateData.container, 'grouped');
-		} else {
-			dom.removeClass(templateData.container, 'grouped');
 		}
 
 		// value
@@ -416,17 +410,30 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 			templateData.annotation.className = '';
 			templateData.annotation.title = '';
 		}
-
-		// group
-		if (output.grouped) {
-			dom.addClass(templateData.container, 'grouped');
-		} else {
-			dom.removeClass(templateData.container, 'grouped');
-		}
 	}
 
 	public disposeTemplate(tree: tree.ITree, templateId: string, templateData: any): void {
 		// noop
+	}
+}
+
+export class ReplExpressionsAccessibilityProvider implements tree.IAccessibilityProvider {
+
+	public getAriaLabel(tree: tree.ITree, element: any): string {
+		if (element instanceof model.Variable) {
+			return nls.localize('replVariableAriaLabel', "Variable {0} has value {1}, read eval print loop, debug", (<model.Variable>element).name, (<model.Variable>element).value);
+		}
+		if (element instanceof model.Expression) {
+			return nls.localize('replExpressionAriaLabel', "Expression {0} has value {1}, read eval print loop, debug", (<model.Expression>element).name, (<model.Expression>element).value);
+		}
+		if (element instanceof model.ValueOutputElement) {
+			return nls.localize('replValueOutputAriaLabel', "{0}, read eval print loop, debug", (<model.ValueOutputElement>element).value);
+		}
+		if (element instanceof model.KeyValueOutputElement) {
+			return nls.localize('replKeyValueOutputAriaLabel', "Output variable {0} has value {1}, read eval print loop, debug", (<model.KeyValueOutputElement>element).key, (<model.KeyValueOutputElement>element).value);
+		}
+
+		return null;
 	}
 }
 
@@ -441,7 +448,7 @@ export class ReplExpressionsActionProvider implements renderer.IActionProvider {
 	}
 
 	public getActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
-		return Promise.as([]);
+		return TPromise.as([]);
 	}
 
 	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
@@ -453,15 +460,10 @@ export class ReplExpressionsActionProvider implements renderer.IActionProvider {
 		if (element instanceof model.Variable || element instanceof model.Expression) {
 			actions.push(this.instantiationService.createInstance(debugactions.AddToWatchExpressionsAction, debugactions.AddToWatchExpressionsAction.ID, debugactions.AddToWatchExpressionsAction.LABEL, element));
 			actions.push(new actionbar.Separator());
-			if (element.reference === 0) {
-				actions.push(this.instantiationService.createInstance(debugactions.CopyValueAction, debugactions.CopyValueAction.ID, debugactions.CopyValueAction.LABEL, element.value));
-			}
-		} else if (element instanceof model.OutputElement) {
-			actions.push(this.instantiationService.createInstance(debugactions.CopyValueAction, debugactions.CopyValueAction.ID, debugactions.CopyValueAction.LABEL, element.value));
 		}
-
 		actions.push(this.instantiationService.createInstance(debugactions.ClearReplAction, debugactions.ClearReplAction.ID, debugactions.ClearReplAction.LABEL));
-		return Promise.as(actions);
+
+		return TPromise.as(actions);
 	}
 
 	public getActionItem(tree: tree.ITree, element: any, action: actions.IAction): actionbar.IActionItem {
@@ -471,19 +473,19 @@ export class ReplExpressionsActionProvider implements renderer.IActionProvider {
 
 export class ReplExpressionsController extends debugviewer.BaseDebugController {
 
-		private lastSelectedString: string = null;
+	private lastSelectedString: string = null;
 
-		constructor(
-			debugService: debug.IDebugService,
-			contextMenuService: IContextMenuService,
-			actionProvider: renderer.IActionProvider,
-			private replInput: HTMLInputElement,
-			focusOnContextMenu = true
-		) {
-			super(debugService, contextMenuService, actionProvider, focusOnContextMenu);
-		}
+	constructor(
+		debugService: debug.IDebugService,
+		contextMenuService: IContextMenuService,
+		actionProvider: renderer.IActionProvider,
+		private replInput: HTMLInputElement,
+		focusOnContextMenu = true
+	) {
+		super(debugService, contextMenuService, actionProvider, focusOnContextMenu);
+	}
 
-	/* protected */ public onLeftClick(tree: tree.ITree, element: any, eventish: treedefaults.ICancelableEvent, origin: string = 'mouse'): boolean {
+	protected onLeftClick(tree: tree.ITree, element: any, eventish: treedefaults.ICancelableEvent, origin: string = 'mouse'): boolean {
 		const mouseEvent = <mouse.StandardMouseEvent> eventish;
 		// input and output are one element in the tree => we only expand if the user clicked on the output.
 		if ((element.reference > 0 || (element instanceof model.KeyValueOutputElement && element.getChildren().length > 0)) && mouseEvent.target.className.indexOf('input expression') === -1) {
@@ -498,6 +500,18 @@ export class ReplExpressionsController extends debugviewer.BaseDebugController {
 			this.replInput.focus();
 		}
 		this.lastSelectedString = selection.toString();
+
+		return true;
+	}
+
+	protected onDown(tree: tree.ITree, event: keyboard.StandardKeyboardEvent): boolean {
+		if (tree.getFocus()) {
+			return super.onDown(tree, event);
+		}
+
+		const payload = { origin: 'keyboard', originalEvent: event };
+		tree.focusLast(payload);
+		tree.reveal(tree.getFocus()).done(null, errors.onUnexpectedError);
 
 		return true;
 	}

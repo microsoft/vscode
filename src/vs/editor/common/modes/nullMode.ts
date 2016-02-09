@@ -5,7 +5,6 @@
 'use strict';
 
 import Modes = require('vs/editor/common/modes');
-import EditorCommon = require('vs/editor/common/editorCommon');
 
 export class NullState implements Modes.IState {
 

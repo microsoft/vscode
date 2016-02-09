@@ -6,11 +6,9 @@
 
 import WinJS = require('vs/base/common/winjs.base');
 import Monarch = require('vs/editor/common/modes/monarch/monarch');
-import Network = require('vs/base/common/network');
 import URI from 'vs/base/common/uri';
 import Types = require('vs/editor/common/modes/monarch/monarchTypes');
 import Compile = require('vs/editor/common/modes/monarch/monarchCompile');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import MarkdownWorker = require('vs/languages/markdown/common/markdownWorker');
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';

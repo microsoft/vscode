@@ -86,11 +86,11 @@ export class LcsDiff2 {
 		this.backwardPrev = [];
 		this.backwardCurr = [];
 
-		for (var i = 0, length = this.x.getLength(); i < length; i++) {
+		for (let i = 0, length = this.x.getLength(); i < length; i++) {
 			this.resultX[i] = false;
 		}
 
-		for (i = 0, length = this.y.getLength(); i <= length; i++) {
+		for (let i = 0, length = this.y.getLength(); i <= length; i++) {
 			this.resultY[i] = false;
 		}
 
@@ -98,20 +98,20 @@ export class LcsDiff2 {
 	}
 
 	private ComputeUniqueIdentifiers() {
-		var xLength = this.x.getLength();
-		var yLength = this.y.getLength();
+		let xLength = this.x.getLength();
+		let yLength = this.y.getLength();
 		this.ids_for_x = new Array<number>(xLength);
 		this.ids_for_y = new Array<number>(yLength);
 
 		// Create a new hash table for unique elements from the original
 		// sequence.
-		var hashTable:{[key:string]:number;} = {};
-		var currentUniqueId = 1;
-		var i:number;
+		let hashTable:{[key:string]:number;} = {};
+		let currentUniqueId = 1;
+		let i:number;
 
 		// Fill up the hash table for unique elements
 		for (i = 0; i < xLength; i++) {
-			var xElementHash = this.x.getElementHash(i);
+			let xElementHash = this.x.getElementHash(i);
 			if (!hashTable.hasOwnProperty(xElementHash)) {
 				// No entry in the hashtable so this is a new unique element.
 				// Assign the element a new unique identifier and add it to the
@@ -125,7 +125,7 @@ export class LcsDiff2 {
 
 		// Now match up modified elements
 		for (i = 0; i < yLength; i++) {
-			var yElementHash = this.y.getElementHash(i);
+			let yElementHash = this.y.getElementHash(i);
 			if (!hashTable.hasOwnProperty(yElementHash)) {
 				this.ids_for_y[i] = currentUniqueId++;
 				hashTable[yElementHash] = this.ids_for_y[i];
@@ -139,17 +139,17 @@ export class LcsDiff2 {
 		return this.ids_for_x[xIndex] === this.ids_for_y[yIndex];
 	}
 
-	private ComputeDiff(): IDiffChange[] {
-		var xLength = this.x.getLength();
-		var yLength = this.y.getLength();
+	public ComputeDiff(): IDiffChange[] {
+		let xLength = this.x.getLength();
+		let yLength = this.y.getLength();
 
 		this.execute(0, xLength - 1, 0, yLength - 1);
 
 		// Construct the changes
-		var i = 0;
-		var j = 0;
-		var xChangeStart, yChangeStart;
-		var changes = [];
+		let i = 0;
+		let j = 0;
+		let xChangeStart, yChangeStart;
+		let changes = [];
 		while (i < xLength && j < yLength) {
 			if (this.resultX[i] && this.resultY[j]) {
 				// No change
@@ -177,7 +177,7 @@ export class LcsDiff2 {
 	}
 
 	private forward(xStart:number, xStop:number, yStart:number, yStop:number): number[] {
-		var prev = this.forwardPrev,
+		let prev = this.forwardPrev,
 			curr = this.forwardCurr,
 			tmp:number[],
 			i:number,
@@ -212,7 +212,7 @@ export class LcsDiff2 {
 	}
 
 	private backward(xStart:number, xStop:number, yStart:number, yStop:number): number[] {
-		var prev = this.backwardPrev,
+		let prev = this.backwardPrev,
 			curr = this.backwardCurr,
 			tmp:number[],
 			i:number,
@@ -247,14 +247,14 @@ export class LcsDiff2 {
 	}
 
 	private findCut(xStart:number, xStop:number, yStart:number, yStop:number, middle:number): number {
-		var L1 = this.forward(xStart, middle, yStart, yStop);
-		var L2 = this.backward(middle + 1, xStop, yStart, yStop);
+		let L1 = this.forward(xStart, middle, yStart, yStop);
+		let L2 = this.backward(middle + 1, xStop, yStart, yStop);
 
 		// First cut
-		var max = L2[yStart], cut = yStart-1;
+		let max = L2[yStart], cut = yStart-1;
 
 		// Middle cut
-		for (var j = yStart; j < yStop; j++) {
+		for (let j = yStart; j < yStop; j++) {
 			if (L1[j] + L2[j+1] > max) {
 				max = L1[j] + L2[j+1];
 				cut = j;
@@ -291,7 +291,7 @@ export class LcsDiff2 {
 			return;
 		}
 
-		var found:number, i:number;
+		let found:number, i:number;
 		if (xStart === xStop) {
 			found = -1;
 			for (i = yStart; i <= yStop; i++) {
@@ -318,8 +318,8 @@ export class LcsDiff2 {
 				this.resultY[yStart] = true;
 			}
 		} else {
-			var middle = Math.floor((xStart + xStop) / 2);
-			var cut = this.findCut(xStart, xStop, yStart, yStop, middle);
+			let middle = Math.floor((xStart + xStop) / 2);
+			let cut = this.findCut(xStart, xStop, yStart, yStop, middle);
 
 			if (yStart <= cut) {
 				this.execute(xStart, middle, yStart, cut);

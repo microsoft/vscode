@@ -6,21 +6,19 @@
 
 import Platform = require('vs/base/common/platform');
 import Browser = require('vs/base/browser/browser');
-import Hash = require('vs/base/common/bits/hash');
 import WinJS = require('vs/base/common/winjs.base');
 import Lifecycle = require('vs/base/common/lifecycle');
 import DOM = require('vs/base/browser/dom');
-import EventEmitter = require('vs/base/common/eventEmitter');
 import Diff = require('vs/base/common/diff/diff');
 import Touch = require('vs/base/browser/touch');
 import Mouse = require('vs/base/browser/mouseEvent');
 import Keyboard = require('vs/base/browser/keyboardEvent');
 import Model = require('vs/base/parts/tree/browser/treeModel');
 import dnd = require('./treeDnd');
-import { IIterator, ArrayIterator, MappedIterator } from 'vs/base/common/iterator';
+import { ArrayIterator, MappedIterator } from 'vs/base/common/iterator';
 import Scroll = require('vs/base/browser/ui/scrollbar/scrollableElement');
 import ScrollableElementImpl = require('vs/base/browser/ui/scrollbar/scrollableElementImpl');
-import { HeightMap } from 'vs/base/parts/tree/browser/treeViewModel'
+import { HeightMap } from 'vs/base/parts/tree/browser/treeViewModel';
 import _ = require('vs/base/parts/tree/browser/tree');
 import { IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
 import {IScrollable} from 'vs/base/common/scrollable';
@@ -468,7 +466,7 @@ export class TreeView extends HeightMap implements IScrollable {
 		this.items = {};
 
 		this.domNode = document.createElement('div');
-		this.domNode.className = 'monaco-tree';
+		this.domNode.className = 'monaco-tree no-focused-item';
 		this.domNode.tabIndex = 0;
 
 		// ARIA
@@ -511,8 +509,8 @@ export class TreeView extends HeightMap implements IScrollable {
 		this.rowsContainer.className = 'monaco-tree-rows';
 
 		var focusTracker = DOM.trackFocus(this.domNode);
-		focusTracker.addFocusListener((e: FocusEvent) => this.onFocus(e));
-		focusTracker.addBlurListener((e: FocusEvent) => this.onBlur(e));
+		focusTracker.addFocusListener(() => this.onFocus());
+		focusTracker.addBlurListener(() => this.onBlur());
 		this.viewListeners.push(focusTracker);
 
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'keydown', (e) => this.onKeyDown(e)));
@@ -889,7 +887,7 @@ export class TreeView extends HeightMap implements IScrollable {
 		var viewItem = this.items[item.id];
 
 		if (viewItem) {
-			viewItem.loadingPromise = WinJS.Promise.timeout(TreeView.LOADING_DECORATION_DELAY).then(() => {
+			viewItem.loadingPromise = WinJS.TPromise.timeout(TreeView.LOADING_DECORATION_DELAY).then(() => {
 				viewItem.loadingPromise = null;
 				viewItem.loading = true;
 			});
@@ -1096,7 +1094,7 @@ export class TreeView extends HeightMap implements IScrollable {
 	private onModelFocusChange(): void {
 		const focus = this.model && this.model.getFocus();
 
-		DOM.toggleClass(this.domNode, 'no-item-focus', !focus);
+		DOM.toggleClass(this.domNode, 'no-focused-item', !focus);
 
 		// ARIA
 		if (focus) {
@@ -1501,7 +1499,7 @@ export class TreeView extends HeightMap implements IScrollable {
 					}
 				}
 
-				this.currentDropPromise = WinJS.Promise.timeout(500).then(() => {
+				this.currentDropPromise = WinJS.TPromise.timeout(500).then(() => {
 					return this.context.tree.expand(this.currentDropElement).then(() => {
 						this.shouldInvalidateDropReaction = true;
 					});
@@ -1542,13 +1540,13 @@ export class TreeView extends HeightMap implements IScrollable {
 		delete this.dragAndDropMouseY;
 	}
 
-	private onFocus(e: FocusEvent): void {
+	private onFocus(): void {
 		if (!this.context.options.alwaysFocused) {
 			DOM.addClass(this.domNode, 'focused');
 		}
 	}
 
-	private onBlur(e: FocusEvent): void {
+	private onBlur(): void {
 		if (!this.context.options.alwaysFocused) {
 			DOM.removeClass(this.domNode, 'focused');
 		}

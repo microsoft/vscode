@@ -22,6 +22,13 @@ If you are interested in fixing issues and contributing directly to the code bas
 * [Coding Guidelines](https://github.com/Microsoft/vscode/wiki/Coding-Guidelines)
 * [Submitting pull requests](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#pull-requests)
 
+## Feedback
+
+* Ask a question on [Stack Overflow](http://stackoverflow.com/questions/tagged/vscode).
+* Request a feature on [User Voice](https://visualstudio.uservoice.com/forums/293070-visual-studio-code).
+* File a bug in [Github Issues](https://github.com/Microsoft/vscode/issues).
+* [Tweet](https://twitter.com/code) us with other feedback.
+
 ## Related Projects
 Many of the core components and extensions to Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug)
 

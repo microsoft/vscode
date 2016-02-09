@@ -55,11 +55,11 @@ class TestEditorPart implements IEditorPart {
 	}
 
 	public setEditors(inputs: EditorInput[]): Promise {
-		return Promise.as([]);
+		return TPromise.as([]);
 	}
 
 	public closeEditors(othersOnly?: boolean): Promise {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
@@ -69,7 +69,11 @@ class TestEditorPart implements IEditorPart {
 		openedEditorOptions = options;
 		openedEditorPosition = arg;
 
-		return Promise.as(activeEditor);
+		return TPromise.as(activeEditor);
+	}
+
+	public activateEditor(editor: IEditor): void {
+		// Unsupported
 	}
 
 	public getActiveEditor(): BaseEditor {
@@ -100,7 +104,7 @@ class TestEditorPart implements IEditorPart {
 class TestViewletService implements IViewletService {
 	public serviceId = IViewletService;
 	public openViewlet(id: string, focus?: boolean): Promise {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public getActiveViewlet(): IViewlet {
@@ -193,7 +197,7 @@ suite('Workbench UI Services', () => {
 	test('WorkbenchEditorService', function() {
 		const TestFileService = {
 			resolveContent: function(resource) {
-				return Promise.as({
+				return TPromise.as({
 					resource: resource,
 					value: 'Hello Html',
 					etag: 'index.txt',
@@ -205,7 +209,7 @@ suite('Workbench UI Services', () => {
 			},
 
 			updateContent: function(res) {
-				return Promise.timeout(1).then(() => {
+				return TPromise.timeout(1).then(() => {
 					return {
 						resource: res,
 						etag: 'index.txt',
@@ -457,12 +461,12 @@ suite('Workbench UI Services', () => {
 		assert.strictEqual(80, testProgressBar.fTotal);
 
 		// Acive: Show While
-		let p = Promise.as(null);
+		let p = TPromise.as(null);
 		service.showWhile(p).then(() => {
 			assert.strictEqual(true, testProgressBar.fDone);
 
 			eventService.emit(EventType.EDITOR_CLOSED, { editorId: 'test.scopeId' });
-			p = Promise.as(null);
+			p = TPromise.as(null);
 			service.showWhile(p).then(() => {
 				assert.strictEqual(true, testProgressBar.fDone);
 

@@ -61,7 +61,7 @@ class OpenSnippetsAction extends actions.Action {
 				return fileExists(snippetPath).then((success) => {
 					if (success) {
 						this.openFile(snippetPath);
-						return winjs.Promise.as(null);
+						return winjs.TPromise.as(null);
 					}
 					var defaultContent = [
 						'{',
@@ -88,7 +88,7 @@ class OpenSnippetsAction extends actions.Action {
 					});
 				});
 			}
-			return winjs.Promise.as(null);
+			return winjs.TPromise.as(null);
 		});
 	}
 }

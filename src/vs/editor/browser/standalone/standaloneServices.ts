@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
 import mainThreadService = require('vs/platform/thread/common/mainThreadService');
@@ -38,7 +37,6 @@ import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IPluginService} from 'vs/platform/plugins/common/plugins';
-import {AbstractPluginService} from 'vs/platform/plugins/common/abstractPluginService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
 

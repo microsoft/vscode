@@ -82,14 +82,6 @@ suite('dom', () => {
 	//	}
 	//});
 
-	test('removeScriptTags', function () {
-		var input = "<div>test</div>";
-		assert(dom.removeScriptTags(input) === input);
-
-		var inputWithScript = "<div>test<script>window.alert('foo');</script></div>";
-		assert(dom.removeScriptTags(inputWithScript) === "<div>test</div>");
-	});
-
 	test('safeStringify', function() {
 		var obj1 = {
 			friend: null

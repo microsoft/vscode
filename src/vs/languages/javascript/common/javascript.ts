@@ -118,7 +118,7 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 				});
 			});
 		} else {
-			return winjs.Promise.as(this);
+			return winjs.TPromise.as(this);
 		}
 	}
 

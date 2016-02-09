@@ -205,14 +205,14 @@ class DirtyDiffModelDecorator {
 
 				// return early if nothing has changed
 				if (!this.firstRun && this.model.getProperty('original') === contents) {
-					return winjs.Promise.as(null);
+					return winjs.TPromise.as(null);
 				}
 
 				this.firstRun = false;
 				this.model.setProperty('original', contents);
 
 				// wait a bit, for the 'original' property to propagate
-				return winjs.Promise.timeout(500).then(() =>  this.triggerDiff());
+				return winjs.TPromise.timeout(500).then(() =>  this.triggerDiff());
 			});
 	}
 
@@ -225,22 +225,22 @@ class DirtyDiffModelDecorator {
 
 	private triggerDiff(): winjs.Promise {
 		if (!this.diffDelayer) {
-			return winjs.Promise.as(null);
+			return winjs.TPromise.as(null);
 		}
 
 		return this.diffDelayer.trigger(() => {
 			if (!this.model || this.model.isDisposed()) {
-				return winjs.Promise.as([]); // disposed
+				return winjs.TPromise.as<any>([]); // disposed
 			}
 
 			var mode = this.model.getMode(); // might be null
 
 			if (!mode || !mode.dirtyDiffSupport) {
-				return winjs.Promise.as([]);
+				return winjs.TPromise.as<any>([]);
 			}
 
 			return mode.dirtyDiffSupport.computeDirtyDiff(this.model.getAssociatedResource(), true);
-		}).then(diff => {
+		}).then((diff:common.IChange[]) => {
 			if (!this.model || this.model.isDisposed()) {
 				return; // disposed
 			}

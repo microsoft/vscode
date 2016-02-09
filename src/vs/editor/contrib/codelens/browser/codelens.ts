@@ -625,7 +625,7 @@ export class CodeLensContribution implements EditorCommon.IEditorContribution {
 
 			return TPromise.join(promises).then(() => {
 				lenses[i].updateCommands(resolvedSymbols, currentModelsVersionId);
-			})
+			});
 		});
 
 		this._currentFindOccPromise = TPromise.join(promises).then(() => {

@@ -18,8 +18,6 @@ export interface IRemoteCom extends IProxyHelper {
 	registerBigHandler(handler:IManyHandler): void;
 }
 
-var hasOwnProperty = Object.prototype.hasOwnProperty;
-
 export function createProxyFromCtor(remote:IProxyHelper, id:string, ctor:Function): any {
 	var result: any = {
 		$__IS_REMOTE_OBJ: true

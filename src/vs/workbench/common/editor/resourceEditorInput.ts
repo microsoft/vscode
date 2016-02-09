@@ -89,7 +89,7 @@ export class ResourceEditorInput extends EditorInput {
 								lastError = err;
 							});
 						}
-					}
+					};
 				})).then(() => {
 					if (!result && lastError) {
 						reject(lastError);

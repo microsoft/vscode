@@ -12,7 +12,7 @@ import {DelayedDragHandler} from 'vs/base/browser/dnd';
 import {Action} from 'vs/base/common/actions';
 import {BaseActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IEmitterEvent} from 'vs/base/common/eventEmitter';
-import {ProgressBadge, TextBadge, NumberBadge, IBadge} from 'vs/workbench/services/activity/common/activityService';
+import {ProgressBadge, TextBadge, NumberBadge, IconBadge, IBadge} from 'vs/workbench/services/activity/common/activityService';
 
 export class ActivityAction extends Action {
 
@@ -141,6 +141,11 @@ export class ActivityActionItem extends BaseActionItem {
 			// Text
 			else if (badge instanceof TextBadge) {
 				this.$badgeContent.text((<TextBadge>badge).text);
+				this.$badge.show();
+			}
+
+			// Text
+			else if (badge instanceof IconBadge) {
 				this.$badge.show();
 			}
 

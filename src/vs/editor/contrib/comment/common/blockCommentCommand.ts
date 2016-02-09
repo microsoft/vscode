@@ -43,7 +43,6 @@ export class BlockCommentCommand implements EditorCommon.ICommand {
 		var startColumn = selection.startColumn;
 		var endLineNumber = selection.endLineNumber;
 		var endColumn = selection.endColumn;
-		var selectionIsEmpty = Range.isEmpty(selection);
 
 		var startToken = config.blockCommentStartToken;
 		var endToken = config.blockCommentEndToken;

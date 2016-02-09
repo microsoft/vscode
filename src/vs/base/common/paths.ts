@@ -90,7 +90,7 @@ export function dirnames(path: string): { next: () => { done: boolean; value: st
 		return {
 			value,
 			done
-		}
+		};
 	}
 	return {
 		next

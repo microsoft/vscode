@@ -153,7 +153,7 @@ class TestDataSource implements _.IDataSource {
 	}
 
 	public getChildren(tree, element):WinJS.Promise {
-		return WinJS.Promise.as(element.children);
+		return WinJS.TPromise.as(element.children);
 	}
 
 	public getParent(tree, element):WinJS.Promise {
@@ -1147,10 +1147,10 @@ class DynamicModel extends Events.EventEmitter implements _.IDataSource {
 
 	public getChildren(tree, element):WinJS.Promise {
 		this.emit('getChildren', element);
-		var result = this.promiseFactory ? this.promiseFactory() : WinJS.Promise.as(null);
+		var result = this.promiseFactory ? this.promiseFactory() : WinJS.TPromise.as(null);
 		return result.then(() => {
 			this.emit('gotChildren', element);
-			return WinJS.Promise.as(this.data[element]);
+			return WinJS.TPromise.as(this.data[element]);
 		});
 	}
 
@@ -1347,7 +1347,7 @@ suite('TreeModel - Dynamic data model', () => {
 			dataModel.addChild('father', 'brother');
 			dataModel.addChild('mother', 'sister');
 
-			dataModel.promiseFactory = () => { return WinJS.Promise.timeout(0); };
+			dataModel.promiseFactory = () => { return WinJS.TPromise.timeout(0); };
 
 			var getTimes = 0;
 			var gotTimes = 0;
@@ -1618,7 +1618,7 @@ suite('TreeModel - Dynamic data model', () => {
 		model.setInput('root').then(() => {
 
 			// delay expansions and refreshes
-			dataModel.promiseFactory = () => { return WinJS.Promise.timeout(0); };
+			dataModel.promiseFactory = () => { return WinJS.TPromise.timeout(0); };
 
 			var promises: WinJS.Promise[] = [];
 
@@ -1662,7 +1662,7 @@ suite('TreeModel - bugs', () => {
 				getChildren: (_, e) => {
 					if (e === 'root') { return getRootChildren(); }
 					if (e === 'bart') { return getBartChildren(); }
-					return WinJS.Promise.as([]);
+					return WinJS.TPromise.as([]);
 				},
 				getParent: (_, e): WinJS.Promise => { throw new Error('not implemented'); },
 			}
@@ -1671,9 +1671,9 @@ suite('TreeModel - bugs', () => {
 		let listeners = <any> [];
 
 		// helpers
-		var getGetRootChildren = (children: string[], timeout = 0) => () => WinJS.Promise.timeout(timeout).then(() => children);
+		var getGetRootChildren = (children: string[], timeout = 0) => () => WinJS.TPromise.timeout(timeout).then(() => children);
 		var getRootChildren = getGetRootChildren(['homer', 'bart', 'lisa', 'marge', 'maggie'], 0);
-		var getGetBartChildren = (timeout = 0) => () => WinJS.Promise.timeout(timeout).then(() => ['milhouse', 'nelson']);
+		var getGetBartChildren = (timeout = 0) => () => WinJS.TPromise.timeout(timeout).then(() => ['milhouse', 'nelson']);
 		var getBartChildren = getGetBartChildren(0);
 
 		// item expanding should not exist!

@@ -5,7 +5,7 @@
 'use strict';
 
 import 'vs/css!./builder';
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import strings = require('vs/base/common/strings');
@@ -1306,7 +1306,7 @@ export class Builder implements IDisposable {
 		// Cancel any pending showDelayed() invocation
 		this.cancelVisibilityPromise();
 
-		let promise = Promise.timeout(delay);
+		let promise = TPromise.timeout(delay);
 		this.setProperty(VISIBILITY_BINDING_ID, promise);
 
 		promise.done(() => {
@@ -1360,7 +1360,7 @@ export class Builder implements IDisposable {
 	}
 
 	private cancelVisibilityPromise(): void {
-		let promise: Promise = this.getProperty(VISIBILITY_BINDING_ID);
+		let promise: TPromise<void> = this.getProperty(VISIBILITY_BINDING_ID);
 		if (promise) {
 			promise.cancel();
 			this.removeProperty(VISIBILITY_BINDING_ID);

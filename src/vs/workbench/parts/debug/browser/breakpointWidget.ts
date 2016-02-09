@@ -92,6 +92,7 @@ export class BreakpointWidget extends ZoneWidget {
 			const isEscape = e.equals(CommonKeybindings.ESCAPE);
 			const isEnter = e.equals(CommonKeybindings.ENTER);
 			if (isEscape || isEnter) {
+				e.stopPropagation();
 				wrapUp(isEnter);
 			}
 		}));
@@ -102,6 +103,7 @@ export class BreakpointWidget extends ZoneWidget {
 		this.breakpointWidgetVisible.reset();
 		BreakpointWidget.INSTANCE = undefined;
 		lifecycle.disposeAll(this.toDispose);
+		setTimeout(() => this.editor.focus(), 0);
 	}
 }
 

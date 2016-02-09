@@ -208,7 +208,7 @@ export enum Visibility {
 	Auto,
 	Hidden,
 	Visible
-};
+}
 
 export function visibilityFromString(visibility: string): Visibility {
 	switch (visibility) {

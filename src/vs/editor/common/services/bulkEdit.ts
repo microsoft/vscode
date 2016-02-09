@@ -309,5 +309,5 @@ export function createBulkEdit(eventService: IEventService, editorService: IEdit
 	return {
 		add,
 		finish
-	}
+	};
 }

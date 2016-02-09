@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/fileactions';
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {isWindows, isLinux, isMacintosh} from 'vs/base/common/platform';
 import {sequence, ITask} from 'vs/base/common/async';
@@ -25,7 +25,6 @@ import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
 import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
 import Files = require('vs/workbench/parts/files/common/files');
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
-import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import workbenchEditorCommon = require('vs/workbench/common/editor');
 import {IEditorSelection} from 'vs/editor/common/editorCommon';
@@ -42,7 +41,7 @@ import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpe
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
-import {IResourceInput, Position} from 'vs/platform/editor/common/editor';
+import {IResourceInput, Position, IEditor} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService, INewConstructorSignature2, INullService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction} from 'vs/platform/message/common/message';
@@ -134,7 +133,7 @@ export class BaseFileAction extends Action {
 		this._messageService.show(Severity.Warning, warning);
 	}
 
-	protected onErrorWithRetry(error: any, retry: () => Promise, extraAction?: Action): void {
+	protected onErrorWithRetry(error: any, retry: () => TPromise<any>, extraAction?: Action): void {
 		let actions = [
 			CancelAction,
 			new Action(this.id, nls.localize('retry', "Retry"), null, true, () => retry())
@@ -154,7 +153,7 @@ export class BaseFileAction extends Action {
 
 	protected handleDirty(): TPromise<boolean /* cancel */> {
 		if (this.textFileService.isDirty(this._element.resource)) {
-			let res = this.textFileService.confirmSave(this._element.resource);
+			let res = this.textFileService.confirmSave([this._element.resource]);
 			if (res === Files.ConfirmResult.SAVE) {
 				return this.textFileService.save(this._element.resource).then(() => false);
 			}
@@ -163,10 +162,10 @@ export class BaseFileAction extends Action {
 				return this.textFileService.revert(this._element.resource).then(() => false);
 			}
 
-			return Promise.as(true);
+			return TPromise.as(true);
 		}
 
-		return Promise.as(false);
+		return TPromise.as(false);
 	}
 
 	public dispose(): void {
@@ -206,19 +205,19 @@ export class TriggerRenameFileAction extends BaseFileAction {
 		return this.renameAction.validateFileName(this.element.parent, name);
 	}
 
-	public run(context?: any): Promise {
+	public run(context?: any): TPromise<any> {
 		if (!context) {
-			return Promise.wrapError('No context provided to BaseEnableFileRenameAction.');
+			return TPromise.wrapError('No context provided to BaseEnableFileRenameAction.');
 		}
 
 		let viewletState = <IFileViewletState>context.viewletState;
 		if (!viewletState) {
-			return Promise.wrapError('Invalid viewlet state provided to BaseEnableFileRenameAction.');
+			return TPromise.wrapError('Invalid viewlet state provided to BaseEnableFileRenameAction.');
 		}
 
 		let stat = <IFileStat>context.stat;
 		if (!stat) {
-			return Promise.wrapError('Invalid stat provided to BaseEnableFileRenameAction.');
+			return TPromise.wrapError('Invalid stat provided to BaseEnableFileRenameAction.');
 		}
 
 		viewletState.setEditable(stat, {
@@ -271,14 +270,14 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		this.element = element;
 	}
 
-	public run(context?: any): Promise {
+	public run(context?: any): TPromise<any> {
 		if (!context) {
-			return Promise.wrapError('No context provided to BaseRenameFileAction.');
+			return TPromise.wrapError('No context provided to BaseRenameFileAction.');
 		}
 
 		let name = <string>context.value;
 		if (!name) {
-			return Promise.wrapError('No new name provided to BaseRenameFileAction.');
+			return TPromise.wrapError('No new name provided to BaseRenameFileAction.');
 		}
 
 		// Automatically trim whitespaces and trailing dots to produce nice file names
@@ -287,7 +286,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 
 		// Return early if name is invalid or didn't change
 		if (name === existingName || this.validateFileName(this.element.parent, name)) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		// Call function and Emit Event through viewer
@@ -322,7 +321,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		return validateFileName(parent, name, false);
 	}
 
-	public abstract runAction(newName: string): Promise;
+	public abstract runAction(newName: string): TPromise<any>;
 
 	public onSuccess(stat: IFileStat): void {
 		let before: IFileStat = null;
@@ -353,19 +352,19 @@ export class RenameFileAction extends BaseRenameAction {
 		this._updateEnablement();
 	}
 
-	public runAction(newName: string): Promise {
+	public runAction(newName: string): TPromise<any> {
 
 		// Check if file is dirty in editor and save it to avoid data loss
 		return this.handleDirty().then((cancel: boolean) => {
 			if (cancel) {
-				return Promise.as(null);
+				return TPromise.as(null);
 			}
 
 			// If the file is still dirty, do not touch it because a save is pending to disk and we can not abort it
 			if (this.textFileService.isDirty(this.element.resource)) {
 				this.onWarning(nls.localize('warningFileDirty', "File '{0}' is currently being saved, please try again later.", getPathLabel(this.element.resource)));
 
-				return Promise.as(null);
+				return TPromise.as(null);
 			}
 
 			return this.fileService.rename(this.element.resource, newName).then(null, (error: Error) => {
@@ -407,14 +406,14 @@ export class BaseNewAction extends BaseFileAction {
 		this.renameAction = editableAction;
 	}
 
-	public run(context?: any): Promise {
+	public run(context?: any): TPromise<any> {
 		if (!context) {
-			return Promise.wrapError('No context provided to BaseNewAction.');
+			return TPromise.wrapError('No context provided to BaseNewAction.');
 		}
 
 		let viewletState = <IFileViewletState>context.viewletState;
 		if (!viewletState) {
-			return Promise.wrapError('Invalid viewlet state provided to BaseNewAction.');
+			return TPromise.wrapError('Invalid viewlet state provided to BaseNewAction.');
 		}
 
 		let folder: FileStat = this.presetFolder;
@@ -428,7 +427,7 @@ export class BaseNewAction extends BaseFileAction {
 		}
 
 		if (!folder) {
-			return Promise.wrapError('Invalid parent folder to create.');
+			return TPromise.wrapError('Invalid parent folder to create.');
 		}
 
 		return this.tree.reveal(folder, 0.5).then(() => {
@@ -528,9 +527,9 @@ export abstract class BaseGlobalNewAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		return this.viewletService.openViewlet(Files.VIEWLET_ID, true).then((viewlet) => {
-			return Promise.timeout(100).then(() => { // use a timeout to prevent the explorer from revealing the active file
+			return TPromise.timeout(100).then(() => { // use a timeout to prevent the explorer from revealing the active file
 				viewlet.focus();
 
 				let explorer = <ExplorerViewlet>viewlet;
@@ -575,7 +574,7 @@ export class GlobalNewFileAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let input = this.untitledEditorService.createOrGet();
 
 		// Make sure this untitled buffer shows up in working files set
@@ -628,7 +627,7 @@ export class CreateFileAction extends BaseCreateAction {
 		this._updateEnablement();
 	}
 
-	public runAction(fileName: string): Promise {
+	public runAction(fileName: string): TPromise<any> {
 		return this.fileService.createFile(URI.file(paths.join(this.element.parent.resource.fsPath, fileName))).then((stat) => {
 			this.textFileService.getWorkingFilesModel().addEntry(stat.resource); // add to working files
 
@@ -660,7 +659,7 @@ export class CreateFolderAction extends BaseCreateAction {
 		this._updateEnablement();
 	}
 
-	public runAction(fileName: string): Promise {
+	public runAction(fileName: string): TPromise<any> {
 		return this.fileService.createFolder(URI.file(paths.join(this.element.parent.resource.fsPath, fileName))).then(null, (error) => {
 			this.onErrorWithRetry(error, () => this.runAction(fileName));
 		});
@@ -694,7 +693,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Remove highlight
 		if (this.tree) {
@@ -719,21 +718,21 @@ export class BaseDeleteFileAction extends BaseFileAction {
 			}
 
 			if (!this.messageService.confirm(confirm)) {
-				return Promise.as(null);
+				return TPromise.as(null);
 			}
 		}
 
 		// Check if file is dirty in editor and save it to avoid data loss
 		return this.handleDirty().then((cancel: boolean) => {
 			if (cancel) {
-				return Promise.as(null);
+				return TPromise.as(null);
 			}
 
 			// If the file is still dirty, do not touch it because a save is pending to disk and we can not abort it
 			if (this.textFileService.isDirty(this.element.resource)) {
 				this.onWarning(nls.localize('warningFileDirty', "File '{0}' is currently being saved, please try again later.", getPathLabel(this.element.resource)));
 
-				return Promise.as(null);
+				return TPromise.as(null);
 			}
 
 			// Since a delete operation can take a while we want to emit the event proactively to avoid issues
@@ -838,9 +837,9 @@ export class ImportFileAction extends BaseFileAction {
 		return this.tree;
 	}
 
-	public run(context?: any): Promise {
+	public run(context?: any): TPromise<any> {
 		let multiFileProgressTracker: IProgressRunner;
-		let importPromise = Promise.as(null).then(() => {
+		let importPromise = TPromise.as(null).then(() => {
 			let input = context.input;
 			if (input.files && input.files.length > 0) {
 
@@ -895,7 +894,7 @@ export class ImportFileAction extends BaseFileAction {
 					}
 
 					// Run import in sequence to not consume too many connections
-					let importPromisesFactory: ITask<Promise>[] = [];
+					let importPromisesFactory: ITask<TPromise<void>>[] = [];
 					filesArray.forEach((file) => {
 						importPromisesFactory.push(() => {
 							return this.fileService.importFile(URI.file((<any>file).path), targetElement.resource).then((result: IImportResult) => {
@@ -991,7 +990,7 @@ export class CopyFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Remember as file/folder to copy
 		fileToCopy = this.element;
@@ -1003,7 +1002,7 @@ export class CopyFileAction extends BaseFileAction {
 
 		this.tree.DOMFocus();
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -1055,7 +1054,7 @@ export class PasteFileAction extends BaseFileAction {
 		return true;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Find target
 		let target: FileStat;
@@ -1099,7 +1098,7 @@ export class DuplicateFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Remove highlight
 		if (this.tree) {
@@ -1194,7 +1193,7 @@ export class OpenToSideAction extends Action {
 		this.enabled = (!activeEditor || activeEditor.position !== Position.RIGHT);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Remove highlight
 		this.tree.clearHighlight();
@@ -1222,7 +1221,7 @@ export class SelectResourceForCompareAction extends Action {
 		this.enabled = true;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Remember as source file to compare
 		globalResourceToCompare = this.resource;
@@ -1233,7 +1232,7 @@ export class SelectResourceForCompareAction extends Action {
 			this.tree.DOMFocus();
 		}
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -1255,7 +1254,7 @@ export class GlobalCompareResourcesAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let fileInput = workbenchEditorCommon.asFileEditorInput(this.editorService.getActiveEditorInput());
 		if (fileInput) {
 
@@ -1288,7 +1287,7 @@ export class GlobalCompareResourcesAction extends Action {
 			this.messageService.show(Severity.Info, nls.localize('openFileToCompare', "Open a file first to compare it with another file."));
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -1366,7 +1365,7 @@ export class CompareResourcesAction extends Action {
 		return true;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Remove highlight
 		if (this.tree) {
@@ -1389,8 +1388,10 @@ export class RefreshViewExplorerAction extends Action {
 	constructor(explorerView: ExplorerView, clazz: string, @INullService ns) {
 		super('workbench.files.action.refreshExplorer', nls.localize('refresh', "Refresh"), clazz, true, (context: any) => {
 			if (explorerView.getViewer().getHighlight()) {
-				return Promise.as(null); // Global action disabled if user is in edit mode from another action
+				return TPromise.as(null); // Global action disabled if user is in edit mode from another action
 			}
+
+			explorerView.focusBody();
 
 			return explorerView.refresh(true, true, true);
 		});
@@ -1499,7 +1500,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 					}
 
 					// Reopen editors for the resource based on the positions
-					let reopenPromise = Promise.as(null);
+					let reopenPromise = TPromise.as(null);
 					if (target.toString() !== source.toString() && positionsOfSource.length) {
 						let targetInput = this.instantiationService.createInstance(FileEditorInput, target, mimeOfSource, encodingOfSource);
 
@@ -1528,7 +1529,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 			return this.textFileService.save(source);
 		}
 
-		return Promise.as(false);
+		return TPromise.as(false);
 	}
 }
 
@@ -1614,7 +1615,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 			// all saved - now try to reopen saved untitled ones
 			if (this.includeUntitled()) {
 				let untitledResults = result.results.filter((res) => res.source.scheme === 'untitled');
-				let reopenPromises: { (): Promise }[] = [];
+				let reopenPromises: { (): TPromise<IEditor> }[] = [];
 
 				// Create a promise function for each editor open call to reopen
 				untitledResults.forEach((res) => {
@@ -1643,7 +1644,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 				});
 
 				// Build a promise that completes when reopen is done
-				let reopenPromise = Promise.as(null);
+				let reopenPromise = TPromise.as(null);
 				if (reopenPromises.length) {
 					reopenPromise = reopenPromises[0]().then(() => {
 						if (reopenPromises.length > 1) {
@@ -1728,7 +1729,7 @@ export class RevertFileAction extends Action {
 		this.resource = resource;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let resource: URI;
 		if (this.resource) {
 			resource = this.resource;
@@ -1743,7 +1744,7 @@ export class RevertFileAction extends Action {
 			return this.textFileService.revert(resource, true /* force */);
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -1763,9 +1764,9 @@ export class OpenResourcesAction extends Action {
 		this.filesToOpen = filesToOpen;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		return this.partService.joinCreation().then(() => {
-			let viewletPromise = Promise.as(null);
+			let viewletPromise = TPromise.as(null);
 			if (!this.partService.isSideBarHidden()) {
 				viewletPromise = this.viewletService.openViewlet(Files.VIEWLET_ID, false);
 			}
@@ -1794,65 +1795,62 @@ export class OpenResourcesAction extends Action {
 	}
 }
 
-export class CloseWorkingFileAction extends Action {
-
-	public static ID = 'workbench.files.action.closeWorkingFiles';
-
-	private model: WorkingFilesModel;
-	private element: WorkingFileEntry;
-	private listenerToDispose: IDisposable;
+export abstract class BaseCloseWorkingFileAction extends Action {
+	protected model: WorkingFilesModel;
+	private elements: URI[];
 
 	constructor(
+		id: string,
+		label: string,
+		clazz: string,
 		model: WorkingFilesModel,
-		element: WorkingFileEntry,
+		elements: WorkingFileEntry[],
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IMessageService private messageService: IMessageService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
-		super(CloseWorkingFileAction.ID, element ? nls.localize('closeLabel', "Close File") : nls.localize('closeAllLabel', "Close All Files"), element ? (element.dirty ? 'action-close-dirty-file' : 'action-close-file') : 'action-close-all-files');
+		super(id, label, clazz);
 
 		this.model = model;
-		this.element = element;
-
-		if (this.model) {
-			this.enabled = (this.model.count() > 0);
-			this.listenerToDispose = this.model.onModelChange(this.onModelChange, this);
-		}
+		this.elements = elements ? elements.map(e => e.resource) : void 0 /* all */;
 	}
 
-	private onModelChange(event: Files.IWorkingFileModelChangeEvent): void {
-		this.enabled = (this.model.count() > 0);
-	}
-
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let workingFilesCount = this.model.getEntries().length;
 
 		// Handle dirty
-		let saveOrRevertPromise: TPromise<Files.ITextFileOperationResult> = Promise.as(null);
-		if (this.textFileService.isDirty(this.element ? this.element.resource : void 0 /* all */)) {
-			let confirmResult = this.textFileService.confirmSave(this.element ? this.element.resource : void 0 /* all */);
+		let isDirty: boolean;
+		if (this.elements) {
+			isDirty = this.elements.some(e => this.textFileService.isDirty(e));
+		} else {
+			isDirty = this.textFileService.isDirty();
+		}
+
+		let saveOrRevertPromise: TPromise<Files.ITextFileOperationResult> = TPromise.as(null);
+		if (isDirty) {
+			let confirmResult = this.textFileService.confirmSave(this.elements);
 
 			switch (confirmResult) {
 				case Files.ConfirmResult.SAVE:
-					if (this.element) {
-						saveOrRevertPromise = this.textFileService.saveAll([this.element.resource]);
+					if (this.elements) {
+						saveOrRevertPromise = this.textFileService.saveAll(this.elements);
 					} else {
 						saveOrRevertPromise = this.textFileService.saveAll(true /* include untitled */);
 					}
 
 					break;
 				case Files.ConfirmResult.DONT_SAVE:
-					if (this.element) {
-						saveOrRevertPromise = this.textFileService.revertAll([this.element.resource]);
+					if (this.elements) {
+						saveOrRevertPromise = this.textFileService.revertAll(this.elements);
 					} else {
 						saveOrRevertPromise = this.textFileService.revertAll();
 					}
 
 					break;
 				case Files.ConfirmResult.CANCEL:
-					return Promise.as(null);
+					return TPromise.as(null);
 			}
 		}
 
@@ -1860,8 +1858,8 @@ export class CloseWorkingFileAction extends Action {
 
 			// Collect resources to dispose
 			let resourcesToDispose: URI[] = [];
-			if (this.element) {
-				resourcesToDispose.push(this.element.resource);
+			if (this.elements) {
+				resourcesToDispose = this.elements;
 			} else {
 				resourcesToDispose = this.model.getEntries().map((e) => e.resource);
 			}
@@ -1901,6 +1899,31 @@ export class CloseWorkingFileAction extends Action {
 			input.dispose();
 		}
 	}
+}
+
+export class CloseAllWorkingFilesAction extends BaseCloseWorkingFileAction {
+
+	public static ID = 'workbench.files.action.closeAllWorkingFiles';
+
+	private listenerToDispose: IDisposable;
+
+	constructor(
+		model: WorkingFilesModel,
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@ITextFileService textFileService: ITextFileService,
+		@IMessageService messageService: IMessageService,
+		@IQuickOpenService quickOpenService: IQuickOpenService
+	) {
+		super(CloseAllWorkingFilesAction.ID, nls.localize('closeAllLabel', "Close All Files"), 'action-close-all-files', model, null, untitledEditorService, editorService, textFileService, messageService, quickOpenService);
+
+		this.enabled = (model.count() > 0);
+		this.listenerToDispose = model.onModelChange(this.onModelChange, this);
+	}
+
+	private onModelChange(event: Files.IWorkingFileModelChangeEvent): void {
+		this.enabled = (this.model.count() > 0);
+	}
 
 	public dispose(): void {
 		if (this.listenerToDispose) {
@@ -1910,7 +1933,60 @@ export class CloseWorkingFileAction extends Action {
 
 		super.dispose();
 	}
-};
+}
+
+export class CloseOneWorkingFileAction extends BaseCloseWorkingFileAction {
+
+	public static ID = 'workbench.files.action.closeOneWorkingFile';
+
+	constructor(
+		model: WorkingFilesModel,
+		element: WorkingFileEntry,
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@ITextFileService textFileService: ITextFileService,
+		@IMessageService messageService: IMessageService,
+		@IQuickOpenService quickOpenService: IQuickOpenService
+	) {
+		super(CloseAllWorkingFilesAction.ID, nls.localize('closeLabel', "Close File"), element.dirty ? 'action-close-dirty-file' : 'action-close-file', model, [element], untitledEditorService, editorService, textFileService, messageService, quickOpenService);
+	}
+}
+
+export class CloseOtherWorkingFilesAction extends BaseCloseWorkingFileAction {
+
+	public static ID = 'workbench.files.action.closeOtherWorkingFiles';
+
+	constructor(
+		model: WorkingFilesModel,
+		element: WorkingFileEntry,
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@ITextFileService textFileService: ITextFileService,
+		@IMessageService messageService: IMessageService,
+		@IQuickOpenService quickOpenService: IQuickOpenService
+	) {
+		super(CloseAllWorkingFilesAction.ID, nls.localize('closeOtherLabel', "Close Other Files"), 'action-close-file', model, model.getEntries().filter(e => e !== element), untitledEditorService, editorService, textFileService, messageService, quickOpenService);
+	}
+}
+
+function disposeNonDirtyFileInputs(editorService: IWorkbenchEditorService, quickopenService: IQuickOpenService, textFileService: ITextFileService, exclude?: URI): void {
+	let activeFileInputs = editorService.getVisibleEditors().map(e => workbenchEditorCommon.asFileEditorInput(e.input, true)).filter(i => i instanceof FileEditorInput);
+	activeFileInputs.forEach((f: FileEditorInput) => {
+		if (exclude && exclude.toString() === f.getResource().toString()) {
+			return; // excluded
+		}
+
+		if (textFileService.isDirty(f.getResource())) {
+			return; // do not touch dirty
+		}
+
+		fileEditorInputsForResource(f.getResource(), editorService, quickopenService).forEach(i => {
+			if (!i.isDisposed()) {
+				i.dispose(true);
+			}
+		});
+	});
+}
 
 function fileEditorInputsForResource(resource: URI, editorService: IWorkbenchEditorService, quickopenService: IQuickOpenService): FileEditorInput[] {
 
@@ -1955,7 +2031,7 @@ export class CloseFileAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let input = this.editorService.getActiveEditorInput();
 		let resource = workbenchEditorCommon.getUntitledOrFileResource(input, true);
 
@@ -1966,7 +2042,7 @@ export class CloseFileAction extends Action {
 
 			// Use action to close a working file that will take care of everthing
 			if (entry) {
-				let closeAction = this.instantiationService.createInstance(CloseWorkingFileAction, model, entry);
+				let closeAction = this.instantiationService.createInstance(CloseOneWorkingFileAction, model, entry);
 				closeAction.run().done(() => closeAction.dispose(), errors.onUnexpectedError);
 			}
 
@@ -1997,7 +2073,49 @@ export class CloseFileAction extends Action {
 			this.messageService.show(Severity.Info, nls.localize('noFileOpen', "There is currently no file opened to close."));
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
+	}
+}
+
+export class CloseOtherFilesAction extends Action {
+
+	public static ID = 'workbench.files.action.closeOtherFiles';
+	public static LABEL = nls.localize('closeOtherFiles', "Close Other Files");
+
+	constructor(
+		id: string,
+		label: string,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@ITextFileService private textFileService: ITextFileService,
+		@IMessageService private messageService: IMessageService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const workingFilesModel = this.textFileService.getWorkingFilesModel();
+
+		let activeResource = workbenchEditorCommon.getUntitledOrFileResource(this.editorService.getActiveEditorInput(), true);
+		let actionToRun: IAction;
+
+		// Close all but active resource
+		if (activeResource && workingFilesModel.hasEntry(activeResource)) {
+			actionToRun = this.instantiationService.createInstance(CloseOtherWorkingFilesAction, workingFilesModel, workingFilesModel.findEntry(activeResource));
+		}
+
+		// Without active resource: Close all
+		else {
+			actionToRun = this.instantiationService.createInstance(CloseAllWorkingFilesAction, workingFilesModel);
+		}
+
+		return actionToRun.run().then(() => {
+			actionToRun.dispose();
+
+			// Dispose remaining non dirty ones except for active one
+			disposeNonDirtyFileInputs(this.editorService, this.quickOpenService, this.textFileService, activeResource);
+		});
 	}
 }
 
@@ -2018,24 +2136,15 @@ export class CloseAllFilesAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
-		let activeFileInputs = this.editorService.getVisibleEditors().map(e => workbenchEditorCommon.asFileEditorInput(e.input, true)).filter(i => i instanceof FileEditorInput);
+	public run(): TPromise<any> {
 
 		// Close all Working Files
-		let closeAction = this.instantiationService.createInstance(CloseWorkingFileAction, this.textFileService.getWorkingFilesModel(), null);
+		let closeAction = this.instantiationService.createInstance(CloseAllWorkingFilesAction, this.textFileService.getWorkingFilesModel());
 		return closeAction.run().then(() => {
 			closeAction.dispose();
 
 			// Dispose remaining non dirty ones
-			activeFileInputs.forEach((f: FileEditorInput) => {
-				if (!this.textFileService.isDirty(f.getResource())) {
-					fileEditorInputsForResource(f.getResource(), this.editorService, this.quickOpenService).forEach(i => {
-						if (!i.isDisposed()) {
-							i.dispose(true);
-						}
-					});
-				}
-			});
+			disposeNonDirtyFileInputs(this.editorService, this.quickOpenService, this.textFileService);
 		});
 	}
 }
@@ -2055,7 +2164,7 @@ export class OpenNextWorkingFile extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let model = this.textFileService.getWorkingFilesModel();
 
 		// Return: No working files
@@ -2069,7 +2178,7 @@ export class OpenNextWorkingFile extends Action {
 			return this.editorService.openEditor({ resource: model.next(resource).resource });
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -2088,7 +2197,7 @@ export class OpenPreviousWorkingFile extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let model = this.textFileService.getWorkingFilesModel();
 
 		// Return: No working files
@@ -2102,7 +2211,7 @@ export class OpenPreviousWorkingFile extends Action {
 			return this.editorService.openEditor({ resource: model.previous(resource).resource });
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -2121,7 +2230,7 @@ export class AddToWorkingFiles extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let fileInput = workbenchEditorCommon.asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 		if (fileInput) {
 			this.textFileService.getWorkingFilesModel().addEntry(fileInput.getResource());
@@ -2129,7 +2238,7 @@ export class AddToWorkingFiles extends Action {
 			this.messageService.show(Severity.Info, nls.localize('openFileToAdd', "Open a file first to add it to working files"));
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -2146,10 +2255,10 @@ export class FocusWorkingFiles extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		return this.viewletService.openViewlet(Files.VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
 			viewlet.getWorkingFilesView().expand();
-			viewlet.getWorkingFilesView().focus();
+			viewlet.getWorkingFilesView().getViewer().DOMFocus();
 		});
 	}
 }

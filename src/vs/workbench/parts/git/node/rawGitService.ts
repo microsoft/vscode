@@ -110,7 +110,7 @@ export class RawGitService implements IRawGitService {
 	public fetch(): TPromise<IRawStatus> {
 		return this.repo.fetch().then(null, (err) => {
 			if (err.gitErrorCode === GitErrorCodes.NoRemoteRepositorySpecified) {
-				return Promise.as(null);
+				return TPromise.as(null);
 			}
 
 			return Promise.wrapError(err);
@@ -130,7 +130,7 @@ export class RawGitService implements IRawGitService {
 	}
 
 	public commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus> {
-		var promise: Promise = Promise.as(null);
+		var promise: Promise = TPromise.as(null);
 
 		if (stage) {
 			promise = this.repo.add(null);

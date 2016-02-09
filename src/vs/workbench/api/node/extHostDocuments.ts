@@ -274,21 +274,21 @@ export class ExtHostDocumentData extends MirrorModel2 {
 		if (!this.isDocumentReferenced) {
 			const data = this;
 			const doc = {
-				get uri() { return data._uri },
-				get fileName() { return data._uri.fsPath },
-				get isUntitled() { return data._uri.scheme !== 'file' },
-				get languageId() { return data._languageId },
-				get version() { return data._versionId },
-				get isDirty() { return data._isDirty },
-				save() { return data._proxy._trySaveDocument(data._uri) },
-				getText(range?) { return range ? data._getTextInRange(range) : data.getText() },
-				get lineCount() { return data._lines.length },
-				lineAt(lineOrPos) { return data.lineAt(lineOrPos) },
-				offsetAt(pos) { return data.offsetAt(pos) },
-				positionAt(offset) { return data.positionAt(offset) },
-				validateRange(ran) { return data.validateRange(ran) },
-				validatePosition(pos) { return data.validatePosition(pos) },
-				getWordRangeAtPosition(pos) { return data.getWordRangeAtPosition(pos) }
+				get uri() { return data._uri; },
+				get fileName() { return data._uri.fsPath; },
+				get isUntitled() { return data._uri.scheme !== 'file'; },
+				get languageId() { return data._languageId; },
+				get version() { return data._versionId; },
+				get isDirty() { return data._isDirty; },
+				save() { return data._proxy._trySaveDocument(data._uri); },
+				getText(range?) { return range ? data._getTextInRange(range) : data.getText(); },
+				get lineCount() { return data._lines.length; },
+				lineAt(lineOrPos) { return data.lineAt(lineOrPos); },
+				offsetAt(pos) { return data.offsetAt(pos); },
+				positionAt(offset) { return data.positionAt(offset); },
+				validateRange(ran) { return data.validateRange(ran); },
+				validatePosition(pos) { return data.validatePosition(pos); },
+				getWordRangeAtPosition(pos) { return data.getWordRangeAtPosition(pos); }
 			};
 			this._documentRef = weak(doc);
 		}
@@ -505,7 +505,7 @@ export class MainThreadDocuments {
 		}));
 
 		const handle = setInterval(() => this._runDocumentCleanup(), 30 * 1000);
-		this._toDispose.push({ dispose() { clearInterval(handle) } });
+		this._toDispose.push({ dispose() { clearInterval(handle); } });
 
 		this._modelToDisposeMap = Object.create(null);
 		this._resourceContentProvider = Object.create(null);

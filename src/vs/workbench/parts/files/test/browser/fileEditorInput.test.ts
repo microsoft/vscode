@@ -6,7 +6,6 @@
 
 import 'vs/workbench/parts/files/browser/files.contribution'; // load our contribution into the test
 import * as assert from 'assert';
-import {Promise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import {join} from 'vs/base/common/paths';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
@@ -14,7 +13,7 @@ import {create} from 'vs/platform/instantiation/common/instantiationService';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {MainTelemetryService} from 'vs/platform/telemetry/browser/mainTelemetryService';
 import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
-import {TestFileService, TestLifecycleService, TestEditorService, TestPartService, MockRequestService, TestConfigurationService, TestEventService, TestContextService, TestStorageService, TestWorkspace} from 'vs/workbench/test/browser/servicesTestUtils';
+import {TestFileService, TestLifecycleService, TestEditorService, TestPartService, TestConfigurationService, TestEventService, TestContextService, TestStorageService} from 'vs/workbench/test/browser/servicesTestUtils';
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 
 function toResource(path) {
@@ -24,8 +23,6 @@ function toResource(path) {
 function createInstantiationService(services) {
 	return create(services);
 }
-
-let counter = 0;
 
 suite('Files - FileEditorInput', () => {
 

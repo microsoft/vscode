@@ -24,7 +24,7 @@ import {IEditorModesRegistry, Extensions} from 'vs/editor/common/modes/modesRegi
 import MonarchCommonTypes = require('vs/editor/common/modes/monarch/monarchCommon');
 import {OnEnterSupport, IOnEnterSupportOptions} from 'vs/editor/common/modes/supports/onEnter';
 import {IDisposable, combinedDispose, empty as EmptyDisposable} from 'vs/base/common/lifecycle';
-import {AsyncDescriptor, createAsyncDescriptor0, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
+import {createAsyncDescriptor0, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
 
 interface IModeConfigurationMap { [modeId: string]: any; }
 
@@ -254,7 +254,7 @@ export class ModeServiceImpl implements IModeService {
 			dispose: () => {
 				promise.done(disposable => disposable.dispose(), null);
 			}
-		}
+		};
 	}
 
 	protected doRegisterMonarchDefinition(modeId:string, lexer: MonarchCommonTypes.ILexer): IDisposable {

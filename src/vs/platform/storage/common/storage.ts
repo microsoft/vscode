@@ -8,9 +8,9 @@ import {PropertyChangeEvent} from 'vs/base/common/events';
 import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
-export var ID = 'storageService';
+export const ID = 'storageService';
 
-export var IStorageService = createDecorator<IStorageService>(ID);
+export const IStorageService = createDecorator<IStorageService>(ID);
 
 export interface IStorageService extends IEventEmitter {
 	serviceId: ServiceIdentifier<any>;
@@ -71,7 +71,7 @@ export namespace StorageEventType {
 	 * Event type for when a storage value is changed.
 	 */
 	export const STORAGE = 'storage';
-};
+}
 
 /**
  * Storage events are being emitted when user settings change which are persisted to local storage.

@@ -29,7 +29,7 @@ export function getQuickFixes(model: IModel, range: IRange): TPromise<IQuickFix2
 	const promises = QuickFixRegistry.all(model).map(support => {
 		return support.getQuickFixes(model.getAssociatedResource(), range).then(result => {
 			if (!Array.isArray(result)) {
-				return
+				return;
 			}
 			for (let fix of result) {
 				quickFixes.push({

@@ -330,9 +330,9 @@ class Renderer extends treeDefaults.LegacyRenderer {
 			var fileReferences = <model.FileReferences> element,
 				fileReferencesContainer = builder.$('.reference-file');
 
-			let lrwidget = new leftRightWidget.LeftRightWidget(fileReferencesContainer, (left: HTMLElement) => {
+			new leftRightWidget.LeftRightWidget(fileReferencesContainer, (left: HTMLElement) => {
 				var resource = fileReferences.resource;
-				let label = new fileLabel.FileLabel(left, resource, this._contextService);
+				new fileLabel.FileLabel(left, resource, this._contextService);
 
 				return <lifecycle.IDisposable> null;
 

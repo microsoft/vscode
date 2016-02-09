@@ -204,7 +204,7 @@ export abstract class AbstractProcess<TProgressData> {
 						result.cmdCode = <number>data;
 					}
 					cc(result);
-				}
+				};
 				if (this.shell && Platform.isWindows) {
 					let options: any = Objects.clone(this.options);
 					options.windowsVerbatimArguments = true;
@@ -228,7 +228,7 @@ export abstract class AbstractProcess<TProgressData> {
 					];
 					if (quotedCommand) {
 						if (quotedArg) {
-							args.push('"' + commandLine.join(' ') + '"')
+							args.push('"' + commandLine.join(' ') + '"');
 						} else if (commandLine.length > 1) {
 							args.push('"' + commandLine[0] + '"' + ' ' + commandLine.slice(1).join(' '));
 						} else {

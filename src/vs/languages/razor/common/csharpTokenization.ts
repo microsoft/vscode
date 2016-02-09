@@ -5,9 +5,7 @@
 'use strict';
 
 import objects = require('vs/base/common/objects');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import modesExtensions = require('vs/editor/common/modes/modesRegistry');
 import htmlMode = require('vs/languages/html/common/html');
 import VSXML = require('vs/languages/vsxml/common/vsxml');
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
@@ -53,10 +51,10 @@ var brackets = (function() {
 			return !!MAP[text];
 		},
 		tokenTypeFromString: (text:string): string => {
-			return MAP[text].tokenType
+			return MAP[text].tokenType;
 		},
 		bracketTypeFromString: (text:string): Modes.Bracket => {
-			return MAP[text].bracketType
+			return MAP[text].bracketType;
 		}
 	};
 })();

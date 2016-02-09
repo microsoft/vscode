@@ -69,7 +69,9 @@ export class MonarchLexer extends AbstractState {
 		if (!super.equals(other)) {
 			return false;
 		}
-		if (!(other instanceof MonarchLexer)) return false;
+		if (!(other instanceof MonarchLexer)) {
+			return false;
+		}
 		var otherm: MonarchLexer = <MonarchLexer>other;
 		if ((this.stack.length !== otherm.stack.length) || (this.lexer.name !== otherm.lexer.name) ||
 			(this.embeddedMode !== otherm.embeddedMode)) {
@@ -78,7 +80,9 @@ export class MonarchLexer extends AbstractState {
 		var idx: string;
 		for (idx in this.stack) {
 			if (this.stack.hasOwnProperty(idx)) {
-				if (this.stack[idx] !== otherm.stack[idx]) return false;
+				if (this.stack[idx] !== otherm.stack[idx]) {
+					return false;
+				}
 			}
 		}
 		return true;
@@ -132,7 +136,9 @@ export class MonarchLexer extends AbstractState {
 
 			// get the rules for this state
 			var rules = this.lexer.tokenizer[state];
-			if (!rules) rules = MonarchCommonTypes.findRules(this.lexer, state); // do parent matching
+			if (!rules) {
+				rules = MonarchCommonTypes.findRules(this.lexer, state); // do parent matching
+			}
 
 			if (!rules) {
 				MonarchCommonTypes.throwError(this.lexer, 'tokenizer state is not defined: ' + state);
@@ -228,7 +234,9 @@ export class MonarchLexer extends AbstractState {
 			}
 			if (action.switchTo && typeof action.switchTo === 'string') {
 				var nextState = MonarchCommonTypes.substituteMatches(this.lexer, action.switchTo, matched, matches, state);  // switch state without a push...
-				if (nextState[0] === '@') nextState = nextState.substr(1); // peel off starting '@'
+				if (nextState[0] === '@') {
+					nextState = nextState.substr(1); // peel off starting '@'
+				}
 				if (!MonarchCommonTypes.findRules(this.lexer, nextState)) {
 					MonarchCommonTypes.throwError(this.lexer, 'trying to switch to a state \'' + nextState + '\' that is undefined in rule: ' + rule.name);
 				}
@@ -261,11 +269,15 @@ export class MonarchLexer extends AbstractState {
 					}
 				}
 				else if (action.next === '@popall') {
-					if (this.stack.length > 1) this.stack = [this.stack[this.stack.length - 1]];
+					if (this.stack.length > 1) {
+						this.stack = [this.stack[this.stack.length - 1]];
+					}
 				}
 				else {
 					var nextState = MonarchCommonTypes.substituteMatches(this.lexer, action.next, matched, matches, state);
-					if (nextState[0] === '@') nextState = nextState.substr(1); // peel off starting '@'
+					if (nextState[0] === '@') {
+						nextState = nextState.substr(1); // peel off starting '@'
+					}
 
 					if (!MonarchCommonTypes.findRules(this.lexer, nextState)) {
 						MonarchCommonTypes.throwError(this.lexer, 'trying to set a next state \'' + nextState + '\' that is undefined in rule: ' + rule.name);
@@ -357,14 +369,16 @@ export class MonarchLexer extends AbstractState {
  * Searches for a bracket in the 'brackets' attribute that matches the input.
  */
 function findBracket(lexer: MonarchCommonTypes.ILexer, matched: string) {
-	if (!matched) return null;
+	if (!matched) {
+		return null;
+	}
 	matched = MonarchCommonTypes.fixCase(lexer, matched);
 
 	var brackets = lexer.brackets;
 	for (var i = 0; i < brackets.length; i++) {
 		var bracket = brackets[i];
 		if (bracket.open === matched) {
-			return { token: bracket.token, bracketType: Modes.Bracket.Open }
+			return { token: bracket.token, bracketType: Modes.Bracket.Open };
 		}
 		else if (bracket.close === matched) {
 			return { token: bracket.token, bracketType: Modes.Bracket.Close };
@@ -420,7 +434,9 @@ export function createTokenizationSupport(modeService:IModeService, mode:Modes.I
 			while (!stream.eos() && mstate.embeddedMode) {
 				mstate.tokenize(stream, true); // allow no consumption for @rematch
 			}
-			if (mstate.embeddedMode) return null;  // don't leave yet
+			if (mstate.embeddedMode) {
+				return null;  // don't leave yet
+			}
 
 			var end = stream.pos();
 			return {

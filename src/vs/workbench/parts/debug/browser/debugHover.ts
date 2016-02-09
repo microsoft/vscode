@@ -35,7 +35,6 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	private isVisible: boolean;
 	private tree: ITree;
 	private showAtPosition: editorcommon.IEditorPosition;
-	private lastHoveringOver: string;
 	private highlightDecorations: string[];
 	private treeContainer: HTMLElement;
 	private valueContainer: HTMLElement;
@@ -59,7 +58,6 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
 		this.isVisible = false;
 		this.showAtPosition = null;
-		this.lastHoveringOver = null;
 		this.highlightDecorations = [];
 
 		this.editor.addContentWidget(this);
@@ -73,14 +71,11 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		return this.domNode;
 	}
 
-	public showAt(range: editorcommon.IEditorRange): void {
+	public showAt(range: editorcommon.IEditorRange, hoveringOver: string): void {
 		const pos = range.getStartPosition();
 		const model = this.editor.getModel();
-		const wordAtPosition = model.getWordAtPosition(pos);
-		const hoveringOver = wordAtPosition ? wordAtPosition.word : null;
 		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
-		if (!hoveringOver || !focusedStackFrame || (this.isVisible && hoveringOver === this.lastHoveringOver) ||
-			(focusedStackFrame.source.uri.toString() !== model.getAssociatedResource().toString())) {
+		if (!hoveringOver || !focusedStackFrame || (focusedStackFrame.source.uri.toString() !== model.getAssociatedResource().toString())) {
 			return;
 		}
 
@@ -90,7 +85,6 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			.split('.').map(word => word.trim()).filter(word => !!word);
 		namesToFind.push(hoveringOver);
 		namesToFind[0] = namesToFind[0].substring(namesToFind[0].lastIndexOf(' ') + 1);
-
 
 		this.getExpression(namesToFind).done(expression => {
 			if (!expression || !expression.available) {
@@ -103,14 +97,13 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 				range: {
 					startLineNumber: pos.lineNumber,
 					endLineNumber: pos.lineNumber,
-					startColumn: wordAtPosition.startColumn,
-					endColumn: wordAtPosition.endColumn
+					startColumn: pos.column,
+					endColumn: pos.column
 				},
 				options: {
 					className: 'hoverHighlight'
 				}
 			}]);
-			this.lastHoveringOver = hoveringOver;
 			this.doShow(pos, expression);
 		}, errors.onUnexpectedError);
 	}

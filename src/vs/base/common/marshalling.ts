@@ -11,7 +11,7 @@ export function stringify(obj: any): string {
 }
 
 export function parse(text: string): any {
-	return JSON.parse(text, reviver)
+	return JSON.parse(text, reviver);
 }
 
 interface MarshalledObject {
@@ -25,7 +25,7 @@ function replacer(key: string, value: any): any {
 			$mid: 2,
 			source: (<RegExp>value).source,
 			flags: ((<RegExp>value).global ? 'g' : '') + ((<RegExp>value).ignoreCase ? 'i' : '') + ((<RegExp>value).multiline ? 'm' : ''),
-		}
+		};
 	}
 	return value;
 }

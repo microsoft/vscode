@@ -27,7 +27,7 @@ suite('ExtHostTypes', function() {
 			scheme: 'file',
 			authority: '',
 			path: '/path/test.file',
-			fsPath: '/path/test.file'.replace('/', isWindows ? '\\' : '/'),
+			fsPath: '/path/test.file'.replace(/\//g, isWindows ? '\\' : '/'),
 			query: '',
 			fragment: '',
 			external: 'file:///path/test.file'

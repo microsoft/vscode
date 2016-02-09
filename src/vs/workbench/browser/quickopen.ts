@@ -36,6 +36,13 @@ export class QuickOpenHandler {
 	}
 
 	/**
+	 * The ARIA label to apply when this quick open handler is active in quick open.
+	 */
+	public getAriaLabel(): string {
+		return null;
+	}
+
+	/**
 	 * Extra CSS class name to add to the quick open widget to do custom styling of entries.
 	 */
 	public getClass(): string {
@@ -279,6 +286,10 @@ class CommandEntry extends QuickOpenEntry {
 
 	public getLabel(): string {
 		return this.command.aliases[0];
+	}
+
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, command", this.getLabel());
 	}
 
 	public run(mode: Mode, context: IContext): boolean {

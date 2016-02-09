@@ -238,7 +238,7 @@ export class PeriodThrottledDelayer<T> extends ThrottledDelayer<T> {
 		return super.trigger(() => {
 			return this.periodThrottler.queue(() => {
 				return Promise.join([
-					Promise.timeout(this.minimumPeriod),
+					TPromise.timeout(this.minimumPeriod),
 					promiseFactory()
 				]).then(r => r[1]);
 			});
@@ -356,7 +356,7 @@ export function sequence<T>(promiseFactory: ITask<TPromise<T>>[]): TPromise<T[]>
 		return TPromise.as(results);
 	}
 
-	return Promise.as(null).then(thenHandler);
+	return TPromise.as(null).then(thenHandler);
 }
 
 export interface IFunction<A, R> {
@@ -529,7 +529,7 @@ export class RunOnceScheduler {
 	 * Cancel current scheduled runner (if any).
 	 */
 	public cancel(): void {
-		if (this.timeoutToken !== -1) {
+		if (this.isScheduled()) {
 			platform.clearTimeout(this.timeoutToken);
 			this.timeoutToken = -1;
 		}
@@ -555,6 +555,13 @@ export class RunOnceScheduler {
 	public schedule(): void {
 		this.cancel();
 		this.timeoutToken = platform.setTimeout(this.timeoutHandler, this.timeout);
+	}
+
+	/**
+	 * Returns true if scheduled.
+	 */
+	public isScheduled(): boolean {
+		return this.timeoutToken !== -1;
 	}
 
 	private onTimeout() {

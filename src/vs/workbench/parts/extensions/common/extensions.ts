@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
@@ -52,4 +52,12 @@ export interface IExtensionsService {
 	install(zipPath: string): TPromise<IExtension>;
 	uninstall(extension: IExtension): TPromise<void>;
 	getInstalled(includeDuplicateVersions?: boolean): TPromise<IExtension[]>;
+}
+
+export var IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');
+
+export interface IExtensionTipsService {
+	serviceId: ServiceIdentifier<any>;
+	tips: IExtension[];
+	onDidChangeTips: Event<IExtension[]>;
 }

@@ -7,14 +7,14 @@
 
 import 'vs/css!./dropdown';
 import {Builder, $} from 'vs/base/browser/builder';
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Gesture, EventType} from 'vs/base/browser/touch';
 import {ActionRunner, IAction} from 'vs/base/common/actions';
-import {ActionBar, ActionItem, IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
+import {ActionItem, IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
-import {ContextView, IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
-import {Menu, IMenuOptions} from 'vs/base/browser/ui/menu/menu';
+import {IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
+import {IMenuOptions} from 'vs/base/browser/ui/menu/menu';
 
 export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable;
@@ -76,7 +76,7 @@ export class BaseDropdown extends ActionRunner {
 			};
 		}
 
-		this.$label.on(['click', EventType.Tap], (e: Event) => {
+		this.$label.on(['mousedown', EventType.Tap], (e: Event) => {
 			e.preventDefault();
 			e.stopPropagation();
 
@@ -193,7 +193,7 @@ export class Dropdown extends BaseDropdown {
 
 export interface IContextMenuDelegate {
 	getAnchor(): any;
-	getActions(): Promise;
+	getActions(): TPromise<IAction[]>;
 	getActionItem?(action: IAction): IActionItem;
 	getActionsContext?(): any;
 	getMenuClassName?(): string;
@@ -267,7 +267,7 @@ export class DropdownMenu extends BaseDropdown {
 
 		this._contextMenuProvider.showContextMenu({
 			getAnchor: () => this.$el.getHTMLElement(),
-			getActions: () => Promise.as(this.actions),
+			getActions: () => TPromise.as(this.actions),
 			getActionsContext: () => this.menuOptions ? this.menuOptions.context : null,
 			getActionItem: (action) => this.menuOptions && this.menuOptions.actionItemProvider ? this.menuOptions.actionItemProvider(action) : null,
 			getMenuClassName: () => this.menuClassName,

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import lifecycle = require('vs/base/common/lifecycle');
 import { CommonKeybindings } from 'vs/base/common/keyCodes';
 import paths = require('vs/base/common/paths');
@@ -30,6 +30,7 @@ import { IContextViewService, IContextMenuService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 const $ = dom.emmet;
 const booleanRegex = /^true|false$/i;
@@ -62,7 +63,7 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression|strin
 
 export function renderVariable(tree: tree.ITree, variable: model.Variable, data: IVariableTemplateData, debugInactive: boolean, showChanged: boolean): void {
 	if (variable.available) {
-		data.name.textContent = `${variable.name}:`;
+		data.name.textContent = variable.name + ':';
 	}
 
 	if (variable.value) {
@@ -105,6 +106,8 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 
 			tree.clearHighlight();
 			tree.DOMFocus();
+			tree.setFocus(element);
+			
 			// need to remove the input box since this template will be reused.
 			container.removeChild(inputBoxContainer);
 			lifecycle.disposeAll(toDispose);
@@ -121,6 +124,14 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 	toDispose.push(dom.addDisposableListener(inputBox.inputElement, 'blur', () => {
 		wrapUp(true);
 	}));
+}
+
+function getSourceName(source: Source, contextService: IWorkspaceContextService): string {
+	if (source.inMemory) {
+		return source.name;
+	}
+
+	return labels.getPathLabel(paths.basename(source.uri.fsPath), contextService);
 }
 
 export class BaseDebugController extends treedefaults.DefaultController {
@@ -184,9 +195,9 @@ export class CallStackDataSource implements tree.IDataSource {
 		return element instanceof model.Model || element instanceof model.Thread;
 	}
 
-	public getChildren(tree: tree.ITree, element: any): Promise {
+	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
 		if (element instanceof model.Thread) {
-			return Promise.as((<model.Thread> element).callStack);
+			return TPromise.as((<model.Thread> element).callStack);
 		}
 
 		const threads = (<model.Model> element).getThreads();
@@ -196,14 +207,14 @@ export class CallStackDataSource implements tree.IDataSource {
 		});
 
 		if (threadsArray.length === 1) {
-			return Promise.as(threadsArray[0].callStack);
+			return TPromise.as(threadsArray[0].callStack);
 		} else {
-			return Promise.as(threadsArray);
+			return TPromise.as(threadsArray);
 		}
 	}
 
-	public getParent(tree: tree.ITree, element: any): Promise {
-		return Promise.as(null);
+	public getParent(tree: tree.ITree, element: any): TPromise<any> {
+		return TPromise.as(null);
 	}
 }
 
@@ -277,16 +288,30 @@ export class CallStackRenderer implements tree.IRenderer {
 		stackFrame.source.available ? dom.removeClass(data.stackFrame, 'disabled') : dom.addClass(data.stackFrame, 'disabled');
 		data.file.title = stackFrame.source.uri.fsPath;
 		data.label.textContent = stackFrame.name;
-		if (stackFrame.source.inMemory) {
-			data.fileName.textContent = stackFrame.source.name;
-		} else {
-			data.fileName.textContent = labels.getPathLabel(paths.basename(stackFrame.source.uri.fsPath), this.contextService);
-		}
+		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService);
 		data.lineNumber.textContent = stackFrame.lineNumber !== undefined ? `${ stackFrame.lineNumber }` : '';
 	}
 
 	public disposeTemplate(tree: tree.ITree, templateId: string, templateData: any): void {
 		// noop
+	}
+}
+
+export class CallstackAccessibilityProvider implements tree.IAccessibilityProvider {
+
+	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
+		// noop
+	}
+
+	public getAriaLabel(tree: tree.ITree, element: any): string {
+		if (element instanceof model.Thread) {
+			return nls.localize('threadAriaLabel', "Thread {0}, callstack, debug", (<model.Thread>element).name);
+		}
+		if (element instanceof model.StackFrame) {
+			return nls.localize('stackFrameAriaLabel', "Stack Frame {0} on line {1} in {2}, callstack, debug", (<model.StackFrame>element).name, (<model.StackFrame>element).lineNumber, getSourceName((<model.StackFrame>element).source, this.contextService));
+		}
+
+		return null;
 	}
 }
 
@@ -305,14 +330,14 @@ export class VariablesActionProvider implements renderer.IActionProvider {
 	}
 
 	public getActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
-		return Promise.as([]);
+		return TPromise.as([]);
 	}
 
 	public hasSecondaryActions(tree: tree.ITree, element: any): boolean {
 		return element instanceof model.Variable;
 	}
 
-	public getSecondaryActions(tree: tree.ITree, element: any): Promise {
+	public getSecondaryActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
 		let actions: actions.Action[] = [];
 		const variable = <model.Variable> element;
 		actions.push(this.instantiationService.createInstance(debugactions.AddToWatchExpressionsAction, debugactions.AddToWatchExpressionsAction.ID, debugactions.AddToWatchExpressionsAction.LABEL, variable));
@@ -320,7 +345,7 @@ export class VariablesActionProvider implements renderer.IActionProvider {
 			actions.push(this.instantiationService.createInstance(debugactions.CopyValueAction, debugactions.CopyValueAction.ID, debugactions.CopyValueAction.LABEL, variable));
 		}
 
-		return Promise.as(actions);
+		return TPromise.as(actions);
 	}
 
 	public getActionItem(tree: tree.ITree, element: any, action: actions.IAction): actionbar.IActionItem {
@@ -347,18 +372,18 @@ export class VariablesDataSource implements tree.IDataSource {
 		return variable.reference !== 0 && !strings.equalsIgnoreCase(variable.value, 'null');
 	}
 
-	public getChildren(tree: tree.ITree, element: any): Promise {
+	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
 		if (element instanceof viewmodel.ViewModel) {
 			let focusedStackFrame = (<viewmodel.ViewModel> element).getFocusedStackFrame();
-			return focusedStackFrame ? focusedStackFrame.getScopes(this.debugService) : Promise.as([]);
+			return focusedStackFrame ? focusedStackFrame.getScopes(this.debugService) : TPromise.as([]);
 		}
 
 		let scope = <model.Scope> element;
 		return scope.getChildren(this.debugService);
 	}
 
-	public getParent(tree: tree.ITree, element: any): Promise {
-		return Promise.as(null);
+	public getParent(tree: tree.ITree, element: any): TPromise<any> {
+		return TPromise.as(null);
 	}
 }
 
@@ -389,7 +414,7 @@ export class VariablesRenderer implements tree.IRenderer {
 		if (element instanceof model.Scope) {
 			return VariablesRenderer.SCOPE_TEMPLATE_ID;
 		}
-		if (element instanceof model.Expression) {
+		if (element instanceof model.Variable) {
 			return VariablesRenderer.VARIABLE_TEMPLATE_ID;
 		}
 
@@ -429,6 +454,20 @@ export class VariablesRenderer implements tree.IRenderer {
 	}
 }
 
+export class VariablesAccessibilityProvider implements tree.IAccessibilityProvider {
+
+	public getAriaLabel(tree: tree.ITree, element: any): string {
+		if (element instanceof model.Scope) {
+			return nls.localize('variableScopeAriaLabel', "Scope {0}, variables, debug", (<model.Scope>element).name);
+		}
+		if (element instanceof model.Variable) {
+			return nls.localize('variableAriaLabel', "Variable {0} has value {1}, variables, debug", (<model.Variable>element).name, (<model.Variable>element).value);
+		}
+
+		return null;
+	}
+}
+
 // watch expressions
 
 export class WatchExpressionsActionProvider implements renderer.IActionProvider {
@@ -447,15 +486,15 @@ export class WatchExpressionsActionProvider implements renderer.IActionProvider 
 		return true;
 	}
 
-	public getActions(tree: tree.ITree, element: any): Promise {
-		return Promise.as(this.getExpressionActions());
+	public getActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
+		return TPromise.as(this.getExpressionActions());
 	}
 
 	public getExpressionActions(): actions.IAction[] {
 		return [this.instantiationService.createInstance(debugactions.RemoveWatchExpressionAction, debugactions.RemoveWatchExpressionAction.ID, debugactions.RemoveWatchExpressionAction.LABEL)];
 	}
 
-	public getSecondaryActions(tree: tree.ITree, element: any): Promise {
+	public getSecondaryActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
 		const actions: actions.Action[] = [];
 		if (element instanceof model.Expression) {
 			const expression = <model.Expression> element;
@@ -480,7 +519,7 @@ export class WatchExpressionsActionProvider implements renderer.IActionProvider 
 			actions.push(this.instantiationService.createInstance(debugactions.RemoveAllWatchExpressionsAction, debugactions.RemoveAllWatchExpressionsAction.ID, debugactions.RemoveAllWatchExpressionsAction.LABEL));
 		}
 
-		return Promise.as(actions);
+		return TPromise.as(actions);
 	}
 
 	public getActionItem(tree: tree.ITree, element: any, action: actions.IAction): actionbar.IActionItem {
@@ -507,17 +546,17 @@ export class WatchExpressionsDataSource implements tree.IDataSource {
 		return watchExpression.reference !== 0 && !strings.equalsIgnoreCase(watchExpression.value, 'null');
 	}
 
-	public getChildren(tree: tree.ITree, element: any): Promise {
+	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
 		if (element instanceof model.Model) {
-			return Promise.as((<model.Model> element).getWatchExpressions());
+			return TPromise.as((<model.Model> element).getWatchExpressions());
 		}
 
 		let expression = <model.Expression> element;
 		return expression.getChildren(this.debugService);
 	}
 
-	public getParent(tree: tree.ITree, element: any): Promise {
-		return Promise.as(null);
+	public getParent(tree: tree.ITree, element: any): TPromise<any> {
+		return TPromise.as(null);
 	}
 }
 
@@ -597,6 +636,20 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 	}
 }
 
+export class WatchExpressionsAccessibilityProvider implements tree.IAccessibilityProvider {
+
+	public getAriaLabel(tree: tree.ITree, element: any): string {
+		if (element instanceof model.Expression) {
+			return nls.localize('watchExpressionAriaLabel', "Expression {0} has value {1}, watch, debug", (<model.Expression>element).name, (<model.Expression>element).value);
+		}
+		if (element instanceof model.Variable) {
+			return nls.localize('watchVariableAriaLabel', "Variable {0} has value {1}, watch, debug", (<model.Variable>element).name, (<model.Variable>element).value);
+		}
+
+		return null;
+	}
+}
+
 export class WatchExpressionsController extends BaseDebugController {
 
 	constructor(debugService: debug.IDebugService, contextMenuService: IContextMenuService, actionProvider: renderer.IActionProvider) {
@@ -666,10 +719,10 @@ export class BreakpointsActionProvider implements renderer.IActionProvider {
 
 	public getActions(tree: tree.ITree, element: any): TPromise<actions.IAction[]> {
 		if (element instanceof model.Breakpoint) {
-			return Promise.as(this.getBreakpointActions());
+			return TPromise.as(this.getBreakpointActions());
 		}
 
-		return Promise.as([]);
+		return TPromise.as([]);
 	}
 
 	public getBreakpointActions(): actions.IAction[] {
@@ -691,12 +744,12 @@ export class BreakpointsActionProvider implements renderer.IActionProvider {
 		actions.push(this.instantiationService.createInstance(debugactions.DisableAllBreakpointsAction, debugactions.DisableAllBreakpointsAction.ID, debugactions.DisableAllBreakpointsAction.LABEL));
 		actions.push(new actionbar.Separator());
 
-		// actions.push(this.instantiationService.createInstance(debugactions.AddFunctionBreakpointAction, debugactions.AddFunctionBreakpointAction.ID, debugactions.AddFunctionBreakpointAction.LABEL));
-		// actions.push(new actionbar.Separator());
+		actions.push(this.instantiationService.createInstance(debugactions.AddFunctionBreakpointAction, debugactions.AddFunctionBreakpointAction.ID, debugactions.AddFunctionBreakpointAction.LABEL));
+		actions.push(new actionbar.Separator());
 
 		actions.push(this.instantiationService.createInstance(debugactions.ReapplyBreakpointsAction, debugactions.ReapplyBreakpointsAction.ID, debugactions.ReapplyBreakpointsAction.LABEL));
 
-		return Promise.as(actions);
+		return TPromise.as(actions);
 	}
 
 	public getActionItem(tree: tree.ITree, element: any, action: actions.IAction): actionbar.IActionItem {
@@ -714,15 +767,15 @@ export class BreakpointsDataSource implements tree.IDataSource {
 		return element instanceof model.Model;
 	}
 
-	public getChildren(tree: tree.ITree, element: any): Promise {
+	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
 		const model = <model.Model> element;
 		const exBreakpoints = <debug.IEnablement[]> model.getExceptionBreakpoints();
 
-		return Promise.as(exBreakpoints.concat(model.getFunctionBreakpoints()).concat(model.getBreakpoints()));
+		return TPromise.as(exBreakpoints.concat(model.getFunctionBreakpoints()).concat(model.getBreakpoints()));
 	}
 
-	public getParent(tree: tree.ITree, element: any): Promise {
-		return Promise.as(null);
+	public getParent(tree: tree.ITree, element: any): TPromise<any> {
+		return TPromise.as(null);
 	}
 }
 
@@ -855,6 +908,27 @@ export class BreakpointsRenderer implements tree.IRenderer {
 		if (templateId === BreakpointsRenderer.BREAKPOINT_TEMPLATE_ID || templateId === BreakpointsRenderer.FUNCTION_BREAKPOINT_TEMPLATE_ID) {
 			templateData.actionBar.dispose();
 		}
+	}
+}
+
+export class BreakpointsAccessibilityProvider implements tree.IAccessibilityProvider {
+
+	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
+		// noop
+	}
+
+	public getAriaLabel(tree: tree.ITree, element: any): string {
+		if (element instanceof model.Breakpoint) {
+			return nls.localize('breakpointAriaLabel', "Breakpoint on line {0} in {1}, breakpoints, debug", (<model.Breakpoint>element).lineNumber, getSourceName((<model.Breakpoint>element).source, this.contextService));
+		}
+		if (element instanceof model.FunctionBreakpoint) {
+			return nls.localize('functionBreakpointAriaLabel', "Funktion breakpoint {0}, breakpoints, debug", (<model.FunctionBreakpoint>element).name);
+		}
+		if (element instanceof model.ExceptionBreakpoint) {
+			return nls.localize('exceptionBreakpointAriaLabel', "Exception breakpoint {0}, breakpoints, debug", (<model.ExceptionBreakpoint>element).name);
+		}
+
+		return null;
 	}
 }
 

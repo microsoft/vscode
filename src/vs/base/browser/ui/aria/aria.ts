@@ -6,22 +6,43 @@
 'use strict';
 
 import 'vs/css!./aria';
+import nls = require('vs/nls');
 import {Builder, $} from 'vs/base/browser/builder';
 
-let ariaAlertContainer: Builder;
-export function setAlertContainer(parent: HTMLElement) {
-	ariaAlertContainer = $('.aria-alert-container').attr({ 'role': 'alert' }).appendTo(parent);
+let ariaContainer: Builder;
+let alertContainer: Builder;
+let statusContainer: Builder;
+export function setARIAContainer(parent: HTMLElement) {
+	ariaContainer = $('.aria-container').appendTo(parent);
+
+	alertContainer = $('.alert').appendTo(ariaContainer).attr({ 'role': 'alert', 'aria-atomic': 'true' });
+	statusContainer = $('.status').appendTo(ariaContainer).attr({ 'role': 'status', 'aria-atomic': 'true' });
 }
 
 /**
  * Given the provided message, will make sure that it is read as alert to screen readers.
  */
 export function alert(msg: string): void {
-	if (!ariaAlertContainer) {
-		console.warn('ARIA alert support needs a container. Call setAlertContainer() first.');
+	insertMessage(alertContainer, msg);
+}
+
+/**
+ * Given the provided message, will make sure that it is read as status to screen readers.
+ */
+export function status(msg: string): void {
+	insertMessage(statusContainer, msg);
+}
+
+function insertMessage(target: Builder, msg: string): void {
+	if (!ariaContainer) {
+		console.warn('ARIA support needs a container. Call setARIAContainer() first.');
 		return;
 	}
 
-	$(ariaAlertContainer).empty();
-	$('span').text(msg).appendTo(ariaAlertContainer);
+	if (target.getHTMLElement().textContent === msg) {
+		msg = nls.localize('repeated', "{0} (occurred again)", msg);
+	}
+
+	$(target).empty();
+	$(target).text(msg);
 }

@@ -7,13 +7,11 @@
 import errors = require('vs/base/common/errors');
 import types = require('vs/base/common/types');
 import {safeStringify} from 'vs/base/common/objects';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {IStorageService} from 'vs/platform/storage/common/storage';
 import {ITelemetryAppender} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 import winreg = require('winreg');
-import getmac = require('getmac');
-import crypto = require('crypto');
 import os = require('os');
 import appInsights = require('applicationinsights');
 
@@ -79,7 +77,7 @@ export class NodeAppInsightsTelemetryAppender implements ITelemetryAppender {
 
 		if(asimovKey) {
 			this.appInsightsVortex = appInsights.getClient(asimovKey);
-			this.appInsightsVortex.config.endpointUrl = "https://vortex.data.microsoft.com/collect/v1";
+			this.appInsightsVortex.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
 			this.setupAIClient(this.appInsightsVortex);
 		}
 

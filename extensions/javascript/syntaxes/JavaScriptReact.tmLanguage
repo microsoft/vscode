@@ -113,6 +113,30 @@
 			<key>name</key>
 			<string>constant.language.boolean.ts.jsx</string>
 		</dict>
+		<key>case-clause</key>
+		<dict>
+			<key>begin</key>
+			<string>(?&lt;!\.)\b(case|default)\b</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>keyword.control.ts.jsx</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>:</string>
+			<key>name</key>
+			<string>case-clause.expr.ts.jsx</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#expression</string>
+				</dict>
+			</array>
+		</dict>
 		<key>comment</key>
 		<dict>
 			<key>name</key>
@@ -298,6 +322,10 @@
 				</dict>
 				<dict>
 					<key>include</key>
+					<string>#switch-statement</string>
+				</dict>
+				<dict>
+					<key>include</key>
 					<string>#block</string>
 				</dict>
 				<dict>
@@ -330,7 +358,7 @@
 				</dict>
 				<dict>
 					<key>include</key>
-					<string>#switch-case</string>
+					<string>#case-clause</string>
 				</dict>
 				<dict>
 					<key>include</key>
@@ -341,7 +369,7 @@
 		<key>expression-operator</key>
 		<dict>
 			<key>match</key>
-			<string>=&gt;|\b(delete|export|import|in|instanceof|module|namespace|new|typeof|void|as)\b</string>
+			<string>=&gt;|\b(delete|export|import|from|in|instanceof|module|namespace|new|typeof|void|as)\b</string>
 			<key>name</key>
 			<string>keyword.operator.ts.jsx</string>
 		</dict>
@@ -363,7 +391,7 @@
 				</dict>
 			</dict>
 			<key>end</key>
-			<string>(?=\}|;|,)|(?&lt;=\})</string>
+			<string>(?=\}|;|,|$)|(?&lt;=\})</string>
 			<key>name</key>
 			<string>meta.field.declaration.ts.jsx</string>
 			<key>patterns</key>
@@ -596,7 +624,7 @@
 		<key>jsx</key>
 		<dict>
 			<key>name</key>
-			<string>meta.ts.jsx.ts.jsx</string>
+			<string>meta.jsx.ts.jsx</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -621,7 +649,7 @@
 					<key>end</key>
 					<string>(?=&lt;/)</string>
 					<key>name</key>
-					<string>meta.ts.jsx.children.ts.jsx</string>
+					<string>meta.jsx.children.ts.jsx</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -1325,6 +1353,10 @@
 				</dict>
 				<dict>
 					<key>include</key>
+					<string>#object-heritage</string>
+				</dict>
+				<dict>
+					<key>include</key>
 					<string>#type-parameters</string>
 				</dict>
 				<dict>
@@ -1562,27 +1594,63 @@
 			<key>name</key>
 			<string>constant.character.escape</string>
 		</dict>
-		<key>switch-case</key>
+		<key>switch-block</key>
 		<dict>
 			<key>begin</key>
-			<string>(?&lt;!\.)\b(case|default)\b</string>
-			<key>beginCaptures</key>
-			<dict>
-				<key>1</key>
-				<dict>
-					<key>name</key>
-					<string>keyword.control.ts.jsx</string>
-				</dict>
-			</dict>
+			<string>{</string>
 			<key>end</key>
-			<string>:</string>
+			<string>(?=\})</string>
 			<key>name</key>
-			<string>case.expr.ts.jsx</string>
+			<string>switch-block.expr.ts.jsx</string>
 			<key>patterns</key>
 			<array>
 				<dict>
 					<key>include</key>
 					<string>#expression</string>
+				</dict>
+			</array>
+		</dict>
+		<key>switch-expression</key>
+		<dict>
+			<key>begin</key>
+			<string>\b(switch)\b\s*\(</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>keyword.operator.ts.jsx</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>\)</string>
+			<key>name</key>
+			<string>switch-expression.expr.ts.jsx</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#expression</string>
+				</dict>
+			</array>
+		</dict>
+		<key>switch-statement</key>
+		<dict>
+			<key>begin</key>
+			<string>(?=\bswitch\b\s*\()</string>
+			<key>end</key>
+			<string>}</string>
+			<key>name</key>
+			<string>switch-statement.expr.ts.jsx</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#switch-expression</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#switch-block</string>
 				</dict>
 			</array>
 		</dict>
@@ -1759,7 +1827,7 @@
 				</dict>
 			</dict>
 			<key>end</key>
-			<string>(?=[,);&gt;]|var|type|function|class|interface)</string>
+			<string>(?=$|[,);&gt;]|var|type|function|class|interface)</string>
 			<key>name</key>
 			<string>meta.type.declaration.ts.jsx</string>
 			<key>patterns</key>
@@ -2004,7 +2072,7 @@
 		<key>var-expr</key>
 		<dict>
 			<key>begin</key>
-			<string>(?&lt;!\()\s*\b(var|let|const(?!\s+enum))\s+([a-zA-Z_$][\w$]*)</string>
+			<string>(?&lt;!\()\s*\b(var|let|const(?!\s+enum)\b)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
@@ -2012,16 +2080,39 @@
 					<key>name</key>
 					<string>storage.type.ts.jsx</string>
 				</dict>
-				<key>2</key>
+			</dict>
+			<key>end</key>
+			<string>(?=$|;)</string>
+			<key>name</key>
+			<string>meta.var.expr.ts.jsx</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#var-single-variable</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#comment</string>
+				</dict>
+			</array>
+		</dict>
+		<key>var-single-variable</key>
+		<dict>
+			<key>begin</key>
+			<string>\b([a-zA-Z_$][\w$]*)\s*(=?)</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>1</key>
 				<dict>
 					<key>name</key>
 					<string>variable.ts.jsx</string>
 				</dict>
 			</dict>
 			<key>end</key>
-			<string>(?=$|[;=\}\{])|(?&lt;=\})</string>
+			<string>(?=$|[;,])</string>
 			<key>name</key>
-			<string>meta.var.expr.ts.jsx</string>
+			<string>meta.var-single-variable.expr.ts.jsx</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -2035,6 +2126,10 @@
 				<dict>
 					<key>include</key>
 					<string>#comment</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#expression</string>
 				</dict>
 			</array>
 		</dict>
@@ -2067,4 +2162,3 @@
 	<string>805375ec-d614-41f5-8993-5843fe63ea82</string>
 </dict>
 </plist>
-

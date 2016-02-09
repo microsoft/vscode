@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { Build, Builder, MultiBuilder, Binding, Dimension, Position, Box, $ } from 'vs/base/browser/builder';
 import * as Types from 'vs/base/common/types';
 import * as DomUtils from 'vs/base/browser/dom';
-import { Promise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 var withElementsBySelector = function(selector: string, offdom: boolean = false) {
@@ -810,7 +810,7 @@ suite("Builder", () => {
 		b.showDelayed(20);
 		assert(b.hasClass("hidden"));
 
-		Promise.timeout(30).then(function() {
+		TPromise.timeout(30).then(function() {
 			assert(!b.hasClass("hidden"));
 			done();
 		});
@@ -825,7 +825,7 @@ suite("Builder", () => {
 
 		b.hide(); // Should cancel the visibility promise
 
-		Promise.timeout(30).then(function() {
+		TPromise.timeout(30).then(function() {
 			assert(b.hasClass("hidden"));
 			done();
 		});

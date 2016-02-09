@@ -2,8 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 'use strict';
 
+import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
 import filters = require('vs/base/common/filters');
 import types = require('vs/base/common/types');
@@ -59,6 +61,10 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 
 	public getLabel(): string {
 		return this.input.getName();
+	}
+
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, recently opened", this.getLabel());
 	}
 
 	public getDescription(): string {

@@ -12,7 +12,6 @@ import monarchTypes = require('vs/editor/common/modes/monarch/monarchTypes');
 import monarchCompile = require('vs/editor/common/modes/monarch/monarchCompile');
 import monarchLexer = require('vs/editor/common/modes/monarch/monarchLexer');
 import {createLineContext} from 'vs/editor/test/common/modesTestUtils';
-import Supports = require('vs/editor/common/modes/supports');
 import {Model} from 'vs/editor/common/model/model';
 
 export interface IRelaxedToken {

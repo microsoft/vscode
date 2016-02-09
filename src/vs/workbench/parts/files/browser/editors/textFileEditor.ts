@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
 import {MIME_BINARY, MIME_TEXT} from 'vs/base/common/mime';
@@ -177,7 +177,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// Offer to create a file from the error if we have a file not found and the name is valid
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && paths.isValidBasename(paths.basename((<FileEditorInput>input).getResource().fsPath))) {
-				return Promise.wrapError(errors.create(errors.toErrorMessage(error), { actions: [
+				return TPromise.wrapError(errors.create(errors.toErrorMessage(error), { actions: [
 					CancelAction,
 					new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {
 						return this.fileService.updateContent((<FileEditorInput>input).getResource(), '').then(() => {
@@ -203,7 +203,7 @@ export class TextFileEditor extends BaseTextEditor {
 			}
 
 			// Otherwise make sure the error bubbles up
-			return Promise.wrapError(error);
+			return TPromise.wrapError(error);
 		});
 	}
 
@@ -223,7 +223,7 @@ export class TextFileEditor extends BaseTextEditor {
 	private openAsFolder(input: EditorInput): boolean {
 
 		// Since we cannot open a folder, we have to restore the previous input if any or close the editor
-		let handleEditorPromise: Promise;
+		let handleEditorPromise: TPromise<BaseTextEditor>;
 		let previousInput = this.quickOpenService.getEditorHistory()[1];
 		if (previousInput) {
 			handleEditorPromise = this.editorService.openEditor(previousInput, null, this.position);

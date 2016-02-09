@@ -75,4 +75,4 @@ MonacoEditorLanguages.forEach((language) => {
 let MonacoEditorSchemas: { [url:string]: IJSONSchema } = this.MonacoEditorSchemas || {};
 for (var uri in MonacoEditorSchemas) {
 	standaloneCodeEditor.registerStandaloneSchema(uri, MonacoEditorSchemas[uri]);
-};
+}

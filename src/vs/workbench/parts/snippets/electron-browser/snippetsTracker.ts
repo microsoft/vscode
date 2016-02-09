@@ -129,7 +129,7 @@ function readFilesInDir(dirPath: string, namePattern:RegExp = null): winjs.TProm
 		return winjs.TPromise.join(
 			children.map((child) => {
 				if (namePattern && !namePattern.test(child)) {
-					return winjs.Promise.as(null);
+					return winjs.TPromise.as(null);
 				}
 				return fileExists(paths.join(dirPath, child)).then(isFile => {
 					return isFile ? child : null;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import uri from 'vs/base/common/uri';
-import { TPromise, Promise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import ee = require('vs/base/common/eventEmitter');
 import severity from 'vs/base/common/severity';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
@@ -86,6 +86,7 @@ export interface IBreakpoint extends IEnablement {
 
 export interface IFunctionBreakpoint extends IEnablement {
 	name: string;
+	verified: boolean;
 }
 
 export interface IExceptionBreakpoint extends IEnablement {
@@ -107,7 +108,8 @@ export var ViewModelEvents = {
 };
 
 export var ServiceEvents = {
-	STATE_CHANGED: 'StateChanged'
+	STATE_CHANGED: 'StateChanged',
+	TYPE_NOT_SUPPORTED: 'TypeNotSupported'
 };
 
 export var SessionEvents = {
@@ -117,7 +119,8 @@ export var SessionEvents = {
 	SERVER_EXIT: 'exit',
 	CONTINUED: 'continued',
 	THREAD: 'thread',
-	OUTPUT: 'output'
+	OUTPUT: 'output',
+	BREAKPOINT: 'breakpoint'
 };
 
 // model interfaces
@@ -191,6 +194,7 @@ export interface IRawAdapter extends IRawEnvAdapter {
 	configurationAttributes?: any;
 	initialConfigurations?: any[];
 	win?: IRawEnvAdapter;
+	winx86?: IRawEnvAdapter;
 	windows?: IRawEnvAdapter;
 	osx?: IRawEnvAdapter;
 	linux?: IRawEnvAdapter;
@@ -221,26 +225,26 @@ export interface IDebugService extends ee.IEventEmitter {
 	canSetBreakpointsIn(model: editor.IModel, lineNumber: number): boolean;
 
 	getConfigurationName(): string;
-	setConfiguration(name: string): Promise;
+	setConfiguration(name: string): TPromise<void>;
 	openConfigFile(sideBySide: boolean): TPromise<boolean>;
 	loadLaunchConfig(): TPromise<IGlobalConfig>;
 
 	setFocusedStackFrameAndEvaluate(focusedStackFrame: IStackFrame): void;
 
-	setBreakpointsForModel(modelUri: uri, data: IRawBreakpoint[]): Promise;
-	toggleBreakpoint(IRawBreakpoint): Promise;
-	enableOrDisableAllBreakpoints(enabled: boolean): Promise;
-	toggleEnablement(element: IEnablement): Promise;
-	toggleBreakpointsActivated(): Promise;
-	removeAllBreakpoints(): Promise;
-	sendAllBreakpoints(): Promise;
-	editBreakpoint(editor: editorbrowser.ICodeEditor, lineNumber: number): Promise;
+	setBreakpointsForModel(modelUri: uri, data: IRawBreakpoint[]): TPromise<void>;
+	toggleBreakpoint(IRawBreakpoint): TPromise<void>;
+	enableOrDisableAllBreakpoints(enabled: boolean): TPromise<void>;
+	toggleEnablement(element: IEnablement): TPromise<void>;
+	toggleBreakpointsActivated(): TPromise<void>;
+	removeAllBreakpoints(): TPromise<any>;
+	sendAllBreakpoints(): TPromise<any>;
+	editBreakpoint(editor: editorbrowser.ICodeEditor, lineNumber: number): TPromise<void>;
 
-	addFunctionBreakpoint(functionName?: string): Promise;
-	renameFunctionBreakpoint(id: string, newFunctionName: string): Promise;
-	removeFunctionBreakpoints(id?: string): Promise;
+	addFunctionBreakpoint(): void;
+	renameFunctionBreakpoint(id: string, newFunctionName: string): TPromise<void>;
+	removeFunctionBreakpoints(id?: string): TPromise<void>;
 
-	addReplExpression(name: string): Promise;
+	addReplExpression(name: string): TPromise<void>;
 	clearReplExpressions(): void;
 
 	logToRepl(value: string, severity?: severity): void;
@@ -248,20 +252,20 @@ export interface IDebugService extends ee.IEventEmitter {
 
 	appendReplOutput(value: string, severity?: severity): void;
 
-	addWatchExpression(name?: string): Promise;
-	renameWatchExpression(id: string, newName: string): Promise;
+	addWatchExpression(name?: string): TPromise<void>;
+	renameWatchExpression(id: string, newName: string): TPromise<void>;
 	clearWatchExpressions(id?: string): void;
 
-	createSession(): Promise;
-	restartSession(): Promise;
-	rawAttach(port: number): Promise;
+	createSession(): TPromise<any>;
+	restartSession(): TPromise<any>;
+	rawAttach(port: number): TPromise<any>;
 	getActiveSession(): IRawDebugSession;
 
 	getModel(): IModel;
 	getViewModel(): IViewModel;
 
-	openOrRevealEditor(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): Promise;
-	revealRepl(inBackground?:boolean): Promise;
+	openOrRevealEditor(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any>;
+	revealRepl(inBackground?:boolean): TPromise<void>;
 }
 
 // utils
@@ -277,5 +281,5 @@ export function formatPII(value:string, excludePII: boolean, args: {[key: string
 		return args.hasOwnProperty(group) ?
 			args[group] :
 			match;
-	})
+	});
 }

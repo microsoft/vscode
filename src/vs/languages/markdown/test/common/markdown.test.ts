@@ -6,8 +6,6 @@
 
 import 'vs/languages/markdown/common/markdown.contribution';
 import modesUtil = require('vs/editor/test/common/modesUtil');
-import markdownMode = require('vs/languages/markdown/common/markdown');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import {htmlTokenTypes} from 'vs/languages/html/common/html';
 import {cssTokenTypes} from 'vs/languages/css/common/css';

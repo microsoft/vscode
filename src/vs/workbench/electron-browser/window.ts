@@ -154,6 +154,10 @@ export class ElectronWindow {
 		this.win.close();
 	}
 
+	public reload(): void {
+		ipc.send('vscode:reloadWindow', this.win.id);
+	}
+
 	public showMessageBox(options: Electron.Dialog.ShowMessageBoxOptions): number {
 		return remote.dialog.showMessageBox(this.win, options);
 	}
@@ -176,11 +180,7 @@ export class ElectronWindow {
 
 	public focus(): void {
 		if (!this.win.isFocused()) {
-			if (platform.isWindows || platform.isLinux) {
-				this.win.show(); // Windows & Linux sometimes cannot bring the window to the front when it is in the background
-			} else {
-				this.win.focus();
-			}
+			this.win.focus();
 		}
 	}
 

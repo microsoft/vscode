@@ -5,9 +5,9 @@
 
 "use strict";
 
-import Platform = require('vs/base/common/platform');
-import Browser = require('vs/base/browser/browser');
-import {KeyMod, KeyCode, BinaryKeybindings} from 'vs/base/common/keyCodes';
+import * as Platform from 'vs/base/common/platform';
+import * as Browser from 'vs/base/browser/browser';
+import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
 let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
 (function() {
@@ -163,7 +163,7 @@ let extractKeyCode = function extractKeyCode(e:KeyboardEvent): KeyCode {
 		return KeyCode.fromString(char);
 	}
 	return lookupKeyCode(e);
-}
+};
 
 export function setExtractKeyCode(newExtractKeyCode:(e:KeyboardEvent)=>KeyCode): void {
 	extractKeyCode = newExtractKeyCode;
@@ -229,7 +229,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 			this.metaKey = e.metaKey;
 			this.keyCode = extractKeyCode(e);
 
-			// console.info(e.type + ": keyCode: " + e.keyCode + ", which: " + e.which + ", charCode: " + e.charCode + ", detail: " + e.detail + " ====> " + this.key + ' -- ' + KeyCode[this.keyCode]);
+			// console.info(e.type + ": keyCode: " + e.keyCode + ", which: " + e.which + ", charCode: " + e.charCode + ", detail: " + e.detail + " ====> " + this.keyCode + ' -- ' + KeyCode[this.keyCode]);
 
 			this.ctrlKey = this.ctrlKey || this.keyCode === KeyCode.Ctrl;
 			this.altKey = this.altKey || this.keyCode === KeyCode.Alt;

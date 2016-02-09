@@ -7,9 +7,10 @@
 import * as Browser from 'vs/base/browser/browser';
 import {ARROW_IMG_SIZE, AbstractScrollbar, ScrollbarState, IMouseMoveEventData} from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import {StandardMouseEvent, StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
-import {IDomNodePosition, StyleMutator} from 'vs/base/browser/dom';
+import {IDomNodePosition} from 'vs/base/browser/dom';
 import {IParent, IScrollableElementOptions, Visibility} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {IScrollable} from 'vs/base/common/scrollable';
+import {StyleMutator} from 'vs/base/browser/styleMutator';
 
 export class HorizontalScrollbar extends AbstractScrollbar {
 

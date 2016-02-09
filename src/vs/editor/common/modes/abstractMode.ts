@@ -17,7 +17,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
-import {AsyncDescriptor0, AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
+import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 
 export function createWordRegExp(allowInWords:string = ''): RegExp {
 	return NullMode.createWordRegExp(allowInWords);
@@ -264,7 +264,7 @@ class SimplifiedMode implements Modes.IMode {
 					let newEvent = SimplifiedMode._createModeSupportChangedEvent(e);
 					this._eventEmitter.emit('modeSupportChanged', newEvent);
 				}
-			})
+			});
 		}
 	}
 

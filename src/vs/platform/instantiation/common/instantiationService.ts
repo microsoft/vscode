@@ -154,7 +154,7 @@ class ServicesMap {
 					let value = instantiation._util.getServiceId(id);
 					return <T>this[value];
 				}
-			}
+			};
 
 			return fn.apply(undefined, [accessor].concat(args));
 		});
@@ -300,8 +300,8 @@ class InstantiationService implements IInstantiationService {
 
 	createInstance<T>(param: any): any {
 
-		var rest = new Array<any>(arguments.length - 1);
-		for (var i = 1, len = arguments.length; i < len; i++) {
+		let rest = new Array<any>(arguments.length - 1);
+		for (let i = 1, len = arguments.length; i < len; i++) {
 			rest[i - 1] = arguments[i];
 		}
 

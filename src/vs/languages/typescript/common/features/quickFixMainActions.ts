@@ -41,7 +41,7 @@ export class QuickFixMainActions {
 				return this.evaluateAddTypeDefinitionProposal(command.name, resource);
 			}
 		}
-		return winjs.Promise.as(null);
+		return winjs.TPromise.as(null);
 	}
 
 	public evaluateAddTypeDefinitionProposal(typingsReference: string, resource: URI): winjs.TPromise<Modes.IQuickFixResult> {
@@ -49,7 +49,7 @@ export class QuickFixMainActions {
 		var dtsFileResource = this._contextService.toResource(dtsFile);
 		var jsConfigResource = this._contextService.toResource('jsconfig.json');
 		if (!dtsFileResource || !jsConfigResource) {
-			return winjs.Promise.as(null);
+			return winjs.TPromise.as(null);
 		}
 
 		var resourcePath = this._contextService.toWorkspaceRelativePath(resource);

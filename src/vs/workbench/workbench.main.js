@@ -35,6 +35,7 @@ define([
 	'vs/workbench/parts/quickopen/browser/quickopen.contribution',
 
 	'vs/workbench/parts/files/browser/explorerViewlet',
+	'vs/workbench/parts/files/browser/workingFilesPicker',
 	'vs/workbench/parts/files/browser/fileActions.contribution',
 	'vs/workbench/parts/files/browser/files.contribution',
 	'vs/workbench/parts/files/electron-browser/files.electron.contribution',

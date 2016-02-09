@@ -25,19 +25,23 @@ export class Adapter {
 		if (rawAdapter.windows) {
 			rawAdapter.win = rawAdapter.windows;
 		}
-		if (platform.isWindows && rawAdapter.win) {
+
+		if (platform.isWindows && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432') && rawAdapter.winx86) {
+			this.runtime = rawAdapter.winx86.runtime;
+			this.runtimeArgs = rawAdapter.winx86.runtimeArgs;
+			this.program = rawAdapter.winx86.program;
+			this.args = rawAdapter.winx86.args;
+		} else if (platform.isWindows && rawAdapter.win) {
 			this.runtime = rawAdapter.win.runtime;
 			this.runtimeArgs = rawAdapter.win.runtimeArgs;
 			this.program = rawAdapter.win.program;
 			this.args = rawAdapter.win.args;
-		}
-		if (platform.isMacintosh && rawAdapter.osx) {
+		} else if (platform.isMacintosh && rawAdapter.osx) {
 			this.runtime = rawAdapter.osx.runtime;
 			this.runtimeArgs = rawAdapter.osx.runtimeArgs;
 			this.program = rawAdapter.osx.program;
 			this.args = rawAdapter.osx.args;
-		}
-		if (platform.isLinux && rawAdapter.linux) {
+		} else if (platform.isLinux && rawAdapter.linux) {
 			this.runtime = rawAdapter.linux.runtime;
 			this.runtimeArgs = rawAdapter.linux.runtimeArgs;
 			this.program = rawAdapter.linux.program;

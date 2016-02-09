@@ -360,7 +360,7 @@ export class TextEdit {
 	}
 }
 
-export class Uri extends URI { };
+export class Uri extends URI { }
 
 export class WorkspaceEdit {
 
@@ -640,7 +640,7 @@ export enum CompletionItemKind {
 export class CompletionItem {
 
 	label: string;
-	kind: CompletionItemKind
+	kind: CompletionItemKind;
 	detail: string;
 	documentation: string;
 	sortText: string;
