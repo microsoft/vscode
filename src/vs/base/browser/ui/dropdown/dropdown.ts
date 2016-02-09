@@ -76,7 +76,7 @@ export class BaseDropdown extends ActionRunner {
 			};
 		}
 
-		this.$label.on(['click', EventType.Tap], (e: Event) => {
+		this.$label.on(['mousedown', EventType.Tap], (e: Event) => {
 			e.preventDefault();
 			e.stopPropagation();
 
