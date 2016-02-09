@@ -499,7 +499,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.model.clearWatchExpressions(id);
 	}
 
-	public createSession(openViewlet = true): TPromise<any> {
+	public createSession(openViewlet = !this.partService.isSideBarHidden()): TPromise<any> {
 		this.textFileService.saveAll().done(null, errors.onUnexpectedError);
 		this.clearReplExpressions();
 
