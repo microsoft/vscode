@@ -8,7 +8,7 @@
 import net = require('net');
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
-import { Server as IPCServer, Client as IPCClient, IServiceCtor, IServiceMap, IMessagePassingProtocol } from 'vs/base/common/service';
+import { Server as IPCServer, Client as IPCClient, IServiceCtor, IServiceMap, IMessagePassingProtocol, IClient } from 'vs/base/common/service';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 function bufferIndexOf(buffer: Buffer, value: number, start = 0) {
@@ -92,7 +92,7 @@ export class Server implements IDisposable {
 	}
 }
 
-export class Client implements IDisposable {
+export class Client implements IDisposable, IClient {
 
 	private ipcClient: IPCClient;
 	private _onClose = new Emitter<void>();

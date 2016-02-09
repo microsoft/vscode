@@ -97,62 +97,11 @@ import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/servic
 import {CrashReporter} from 'vs/workbench/electron-browser/crashReporter';
 import {IThemeService, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
 import {ThemeService} from 'vs/workbench/services/themes/node/themeService';
-import { IServiceCtor, isServiceEvent } from 'vs/base/common/service';
+import { IServiceCtor, isServiceEvent, getService } from 'vs/base/common/service';
 import { connect, Client } from 'vs/base/node/service.net';
 import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsService } from 'vs/workbench/parts/extensions/node/extensionsService';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
-
-/**
- * This ugly code is needed because at the point when we need shared services
- * in the instantiation service, the connection to the shared process is not yet
- * completed. This create a delayed service wrapper that waits on that connection
- * and then relays all requests to the shared services.
- *
- * TODO@Joao remove
- */
-export function getDelayedService<TService>(clientPromise: TPromise<Client>, serviceName: string, serviceCtor: IServiceCtor<TService>): TService {
-	let _servicePromise: TPromise<TService>;
-	let servicePromise = () => {
-		if (!_servicePromise) {
-			_servicePromise = clientPromise.then(client => client.getService(serviceName, serviceCtor));
-		}
-		return _servicePromise;
-	};
-
-	return Object.keys(serviceCtor.prototype)
-		.filter(key => key !== 'constructor')
-		.reduce((result, key) => {
-			if (isServiceEvent(serviceCtor.prototype[key])) {
-				let promise: TPromise<void>;
-				let disposable: IDisposable;
-
-				const emitter = new Emitter<any>({
-					onFirstListenerAdd: () => {
-						promise = servicePromise().then(service => {
-							disposable = service[key](e => emitter.fire(e));
-						});
-					},
-					onLastListenerRemove: () => {
-						if (disposable) {
-							disposable.dispose();
-							disposable = null;
-						}
-						promise.cancel();
-						promise = null;
-					}
-				});
-
-				return objects.assign(result, { [key]: emitter.event });
-			}
-
-			return objects.assign(result, {
-				[key]: (...args) => {
-					return servicePromise().then(service => service[key](...args));
-				}
-			});
-		}, {} as TService);
-}
 
 /**
  * The Monaco Workbench Shell contains the Monaco workbench with a rich header containing navigation and the activity bar.
@@ -220,7 +169,7 @@ export class WorkbenchShell {
 			});
 		}, errors.onUnexpectedError);
 
-		instantiationService.addSingleton(IExtensionsService, getDelayedService<IExtensionsService>(sharedProcessClientPromise, 'ExtensionService', ExtensionsService));
+		instantiationService.addSingleton(IExtensionsService, getService<IExtensionsService>(sharedProcessClientPromise, 'ExtensionService', ExtensionsService));
 
 		// Workbench
 		this.workbench = new Workbench(workbenchContainer.getHTMLElement(), this.workspace, this.configuration, this.options, instantiationService);
