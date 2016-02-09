@@ -51,7 +51,9 @@ var vscodeEntryPoints = _.flatten([
 ]);
 
 var vscodeResources = [
+	'out-build/main.js',
 	'out-build/bootstrap.js',
+	'out-build/bootstrap-amd.js',
 	'out-build/vs/**/*.{svg,png,cur}',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh}',
 	'out-build/vs/base/worker/workerMainCompatibility.html',
@@ -62,7 +64,6 @@ var vscodeResources = [
 	'out-build/vs/languages/markdown/common/*.css',
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/electron-browser/index.html',
-	'out-build/vs/workbench/electron-main/bootstrap.js',
 	'out-build/vs/workbench/parts/debug/**/*.json',
 	'out-build/vs/workbench/parts/execution/**/*.scpt',
 	'out-build/vs/workbench/parts/git/**/*.html',
