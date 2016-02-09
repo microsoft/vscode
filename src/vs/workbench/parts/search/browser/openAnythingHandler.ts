@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {ThrottledDelayer} from 'vs/base/common/async';
 import types = require('vs/base/common/types');
@@ -107,7 +107,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			// Symbol Results (unless a range is specified)
 			let resultPromises: TPromise<QuickOpenModel>[] = [];
 			if (!searchWithRange) {
-				let symbolSearchTimeoutPromiseFn: (timeout: number) => Promise = (timeout) => {
+				let symbolSearchTimeoutPromiseFn: (timeout: number) => TPromise<QuickOpenModel> = (timeout) => {
 					return TPromise.timeout(timeout).then(() => {
 
 						// As long as the file search query did not return, push out the symbol timeout
@@ -126,7 +126,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				let timeoutPromise = symbolSearchTimeoutPromiseFn(OpenAnythingHandler.SYMBOL_SEARCH_INITIAL_TIMEOUT);
 
 				// Timeout lookup after N seconds to not block file search results
-				resultPromises.push(Promise.any([lookupPromise, timeoutPromise]).then((result) => {
+				resultPromises.push(TPromise.any([lookupPromise, timeoutPromise]).then((result) => {
 					return result.value;
 				}));
 			} else {

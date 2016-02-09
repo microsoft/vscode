@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/workbench';
-import {TPromise, Promise, ValueCallback} from 'vs/base/common/winjs.base';
+import {TPromise, ValueCallback} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import strings = require('vs/base/common/strings');
@@ -200,7 +200,7 @@ export class Workbench implements IPartService {
 			this.registerEmitters();
 
 			// Load composits and editors in parallel
-			let compositeAndEditorPromises: Promise[] = [];
+			let compositeAndEditorPromises: TPromise<any>[] = [];
 
 			// Show default viewlet unless sidebar is hidden or we dont have a default viewlet
 			let viewletRegistry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
@@ -236,7 +236,7 @@ export class Workbench implements IPartService {
 				options.push(...filesToCreate.map(r => null)); // fill empty options for files to create because we dont have options there
 
 				// Files to open
-				resolveEditorInputsPromise = Promise.join(filesToOpen.map((resourceInput) => this.editorService.inputToType(resourceInput))).then((inputsToOpen) => {
+				resolveEditorInputsPromise = TPromise.join<EditorInput>(filesToOpen.map((resourceInput) => this.editorService.inputToType(resourceInput))).then((inputsToOpen) => {
 					inputs.push(...inputsToOpen);
 					options.push(...filesToOpen.map(resourceInput => TextEditorOptions.from(resourceInput)));
 
@@ -258,7 +258,7 @@ export class Workbench implements IPartService {
 			}));
 
 			// Flag workbench as created once done
-			Promise.join(compositeAndEditorPromises).then(() => {
+			TPromise.join(compositeAndEditorPromises).then(() => {
 				this.workbenchCreated = true;
 				this.eventService.emit(EventType.WORKBENCH_CREATED);
 				this.creationPromiseComplete(true);

@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/quickopen';
-import {TPromise, Promise, ValueCallback} from 'vs/base/common/winjs.base';
+import {TPromise, ValueCallback} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Dimension, withElementById} from 'vs/base/browser/builder';
 import strings = require('vs/base/common/strings');
@@ -490,7 +490,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	public show(prefix?: string, quickNavigateConfiguration?: IQuickNavigateConfiguration): TPromise<void> {
 		this.previousValue = prefix;
 
-		let promiseCompletedOnHide = new Promise((c) => {
+		let promiseCompletedOnHide = new TPromise<void>((c) => {
 			this.promisesToCompleteOnHide.push(c);
 		});
 
@@ -707,7 +707,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 			resolvePromises.push(this.resolveHandler(defaultHandler));
 		});
 
-		return Promise.join(resolvePromises).then((resolvedHandlers: QuickOpenHandler[]) => {
+		return TPromise.join(resolvePromises).then((resolvedHandlers: QuickOpenHandler[]) => {
 			let resultPromises: TPromise<void>[] = [];
 			resolvedHandlers.forEach((resolvedHandler) => {
 
@@ -731,7 +731,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				}));
 			});
 
-			return TPromise.join(resultPromises);
+			return TPromise.join(resultPromises).then(() => void 0);
 		});
 	}
 

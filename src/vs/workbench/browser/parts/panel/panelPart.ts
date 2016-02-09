@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/panelPart';
 import nls = require('vs/nls');
-import {TPromise, Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {KeyMod, KeyCode, CommonKeybindings} from 'vs/base/common/keyCodes';
 import {Action, IAction} from 'vs/base/common/actions';
 import {Builder} from 'vs/base/browser/builder';
@@ -119,7 +119,7 @@ class ClosePanelAction extends Action {
 		super(id, name, 'close-editor-action');
 	}
 
-	public run(): Promise {
+	public run(): TPromise<boolean> {
 		this.partService.setPanelHidden(true);
 		return TPromise.as(true);
 	}
@@ -137,7 +137,7 @@ class TogglePanelAction extends Action {
 		super(id, name, null);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<boolean> {
 		this.partService.setPanelHidden(!this.partService.isPanelHidden());
 		return TPromise.as(true);
 	}

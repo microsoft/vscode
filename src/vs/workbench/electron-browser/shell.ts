@@ -14,7 +14,7 @@ import 'vs/css!vs/workbench/browser/media/vs-theme';
 import 'vs/css!vs/workbench/browser/media/vs-dark-theme';
 import 'vs/css!vs/workbench/browser/media/hc-black-theme';
 
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
 import dom = require('vs/base/browser/dom');
@@ -122,7 +122,7 @@ export function getDelayedService<TService>(clientPromise: TPromise<Client>, ser
 		.filter(key => key !== 'constructor')
 		.reduce((result, key) => {
 			if (isServiceEvent(serviceCtor.prototype[key])) {
-				let promise: Promise;
+				let promise: TPromise<void>;
 				let disposable: IDisposable;
 
 				const emitter = new Emitter<any>({

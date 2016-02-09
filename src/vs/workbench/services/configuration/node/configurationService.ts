@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {TPromise, Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import platform = require('vs/base/common/platform');
@@ -35,7 +35,7 @@ export class ConfigurationService extends CommonConfigurationService {
 	protected resolveContents(resources: uri[]): TPromise<IContent[]> {
 		let contents: IContent[] = [];
 
-		return Promise.join(resources.map((resource) => {
+		return TPromise.join(resources.map((resource) => {
 			return this.resolveContent(resource).then((content) => {
 				contents.push(content);
 			});

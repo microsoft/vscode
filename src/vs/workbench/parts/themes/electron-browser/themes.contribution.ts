@@ -38,18 +38,17 @@ class SelectThemeAction extends actions.Action {
 		super(id, label);
 	}
 
-	public run(): winjs.Promise {
+	public run(): winjs.TPromise<void> {
 
 		return this.themeService.getThemes().then(contributedThemes => {
 			let currentTheme = this.storageService.get(Constants.Preferences.THEME, StorageScope.GLOBAL, DEFAULT_THEME_ID);
-			let selectedIndex = 0;
 
 			let picks: IPickOpenEntry[] = [];
 			Themes.getBaseThemes(commonPlatform.isWindows).forEach(baseTheme => {
 				picks.push({ label: Themes.toLabel(baseTheme), id: Themes.toId(baseTheme) });
 			});
 
-			let contributedThemesById : { [id:string]: IThemeData } = {};
+			let contributedThemesById: { [id: string]: IThemeData } = {};
 			contributedThemes.forEach(theme => {
 				picks.push({ id: theme.id, label: theme.label, description: theme.description });
 				contributedThemes[theme.id] = theme;
@@ -57,7 +56,7 @@ class SelectThemeAction extends actions.Action {
 
 			picks = picks.sort((t1, t2) => t1.label.localeCompare(t2.label));
 
-			let selectedPickIndex:number;
+			let selectedPickIndex: number;
 			picks.forEach((p, index) => {
 				if (p.id === currentTheme) {
 					selectedPickIndex = index;
@@ -87,11 +86,11 @@ class SelectThemeAction extends actions.Action {
 				return winjs.TPromise.as(null);
 			};
 
-			return this.quickOpenService.pick(picks, { placeHolder: nls.localize('themes.selectTheme', "Select Color Theme"), autoFocus: { autoFocusIndex: selectedPickIndex }}).then(pickTheme, null, pickTheme);
+			return this.quickOpenService.pick(picks, { placeHolder: nls.localize('themes.selectTheme', "Select Color Theme"), autoFocus: { autoFocusIndex: selectedPickIndex } }).then(pickTheme, null, pickTheme);
 		});
 	}
 }
 
 const category = nls.localize('preferences', "Preferences");
-let workbenchActionsRegistry = <workbenchActionRegistry.IWorkbenchActionRegistry> platform.Registry.as(workbenchActionRegistry.Extensions.WorkbenchActions);
+let workbenchActionsRegistry = <workbenchActionRegistry.IWorkbenchActionRegistry>platform.Registry.as(workbenchActionRegistry.Extensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectThemeAction, SelectThemeAction.ID, SelectThemeAction.LABEL), category);

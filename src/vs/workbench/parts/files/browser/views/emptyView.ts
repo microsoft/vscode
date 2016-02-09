@@ -7,7 +7,7 @@
 import nls = require('vs/nls');
 import env = require('vs/base/common/platform');
 import DOM = require('vs/base/browser/dom');
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {IAction, Action} from 'vs/base/common/actions';
 import {Button} from 'vs/base/browser/ui/button/button';
 import {$} from 'vs/base/browser/builder';

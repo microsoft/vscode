@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/commandsHandler';
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
@@ -343,7 +343,7 @@ export class QuickCommandsEditorAction extends EditorAction {
 		return '4_tools/1_commands';
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Pass focus to editor first before running quick open action
 		this.editor.focus();

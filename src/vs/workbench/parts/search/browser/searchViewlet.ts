@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/searchviewlet';
-import {Promise, TPromise, PPromise} from 'vs/base/common/winjs.base';
+import {TPromise, PPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {EditorType} from 'vs/editor/common/editorCommon';
 import lifecycle = require('vs/base/common/lifecycle');
@@ -75,7 +75,7 @@ export class FindInFolderAction extends Action {
 		this.resource = resource;
 	}
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<any> {
 		return this.viewletService.openViewlet(ID, true).then((viewlet: SearchViewlet) => {
 			viewlet.searchInFolder(this.resource);
 		});
@@ -95,7 +95,7 @@ export class SearchDataSource implements IDataSource {
 		assert.ok(false);
 	}
 
-	public getChildren(tree: ITree, element: any): Promise {
+	public getChildren(tree: ITree, element: any): TPromise<any[]> {
 		let value: any[] = [];
 		if (element instanceof FileMatch) {
 			value = element.matches();
@@ -109,7 +109,7 @@ export class SearchDataSource implements IDataSource {
 		return element instanceof FileMatch || element instanceof SearchResult;
 	}
 
-	public getParent(tree: ITree, element: any): Promise {
+	public getParent(tree: ITree, element: any): TPromise<any> {
 		let value: any = null;
 		if (element instanceof Match) {
 			value = element.parent();
@@ -210,7 +210,7 @@ class RemoveAction extends Action {
 		this._fileMatch = element;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let parent = this._fileMatch.parent();
 		parent.remove(this._fileMatch);
 		return this._viewer.refresh(parent);
@@ -302,7 +302,7 @@ export class RefreshAction extends Action {
 		this.viewlet = viewlet;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<void> {
 		this.viewlet.onQueryChanged(true);
 		return TPromise.as(null);
 	}
@@ -322,8 +322,8 @@ export class SelectOrRemoveAction extends Action {
 		this.viewlet = viewlet;
 	}
 
-	public run(): Promise {
-		let result: Promise;
+	public run(): TPromise<any> {
+		let result: TPromise<any>;
 		if (this.selectMode) {
 			result = this.runAsSelect();
 		} else {
@@ -334,12 +334,12 @@ export class SelectOrRemoveAction extends Action {
 		return result;
 	}
 
-	private runAsSelect(): Promise {
+	private runAsSelect(): TPromise<void> {
 		this.viewlet.getResults().addClass('select');
 		return TPromise.as(null);
 	}
 
-	private runAsRemove(): Promise {
+	private runAsRemove(): TPromise<void> {
 
 		let elements: any[] = [],
 			tree: ITree = this.viewlet.getControl();
@@ -379,7 +379,7 @@ export class CollapseAllAction extends Action {
 		this.viewlet = viewlet;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<void> {
 		let tree = this.viewlet.getControl();
 		if (tree) {
 			tree.collapseAll();
@@ -405,7 +405,7 @@ export class ClearSearchResultsAction extends Action {
 		this.viewlet = viewlet;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<void> {
 		this.viewlet.clearSearchResults();
 
 		return TPromise.as(null);
@@ -425,7 +425,7 @@ class ConfigureGlobalExclusionsAction extends Action {
 		this.instantiationService = instantiationService;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<void> {
 		let action = this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL);
 		action.run().done(() => action.dispose(), errors.onUnexpectedError);
 

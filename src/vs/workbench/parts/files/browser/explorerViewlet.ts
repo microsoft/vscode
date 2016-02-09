@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/explorerviewlet';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder} from 'vs/base/browser/builder';
 import {Scope} from 'vs/workbench/common/memento';
 import {VIEWLET_ID} from 'vs/workbench/parts/files/common/files';
@@ -69,7 +69,7 @@ export class ExplorerViewlet extends Viewlet {
 			this.lastFocusedView = view;
 		});
 
-		return Promise.join(this.views.map((view) => view.create()));
+		return TPromise.join(this.views.map((view) => view.create())).then(() => void 0);
 	}
 
 	private addWorkingFilesView(): void {
@@ -103,7 +103,7 @@ export class ExplorerViewlet extends Viewlet {
 	 * @param reveal if set to true, the current active input will be revealed in the explorer
 	 */
 	public refresh(focus: boolean, reveal: boolean, instantProgress?: boolean): TPromise<void> {
-		return Promise.join(this.views.map((view) => view.refresh(focus, reveal, instantProgress)));
+		return TPromise.join(this.views.map((view) => view.refresh(focus, reveal, instantProgress))).then(() => void 0);
 	}
 
 	public getExplorerView(): ExplorerView {
@@ -116,7 +116,7 @@ export class ExplorerViewlet extends Viewlet {
 
 	public setVisible(visible: boolean): TPromise<void> {
 		return super.setVisible(visible).then(() => {
-			return Promise.join(this.views.map((view) => view.setVisible(visible)));
+			return TPromise.join(this.views.map((view) => view.setVisible(visible))).then(() => void 0);
 		});
 	}
 

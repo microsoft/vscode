@@ -5,7 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {TPromise, Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import platform = require('vs/base/common/platform');
 import {$} from 'vs/base/browser/builder';
 import {IDataSource, ITree, ISorter, IElementCallback, IAccessibilityProvider, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT, DRAG_OVER_REJECT, ContextMenuEvent} from 'vs/base/parts/tree/browser/tree';
@@ -55,7 +55,7 @@ export class WorkingFilesDataSource implements IDataSource {
 		return false;
 	}
 
-	public getChildren(tree: ITree, element: any): Promise {
+	public getChildren(tree: ITree, element: any): TPromise<any[]> {
 		if (element instanceof WorkingFilesModel) {
 			return TPromise.as((<WorkingFilesModel>element).getEntries());
 		}
@@ -63,7 +63,7 @@ export class WorkingFilesDataSource implements IDataSource {
 		return TPromise.as([]);
 	}
 
-	public getParent(tree: ITree, element: any): Promise {
+	public getParent(tree: ITree, element: any): TPromise<any> {
 		return TPromise.as(null);
 	}
 }

@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/textdiffeditor';
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Builder} from 'vs/base/browser/builder';
 import {Action, IAction} from 'vs/base/common/actions';
@@ -188,7 +188,7 @@ export class TextDiffEditor extends BaseTextEditor {
 			}
 
 			// Otherwise make sure the error bubbles up
-			return Promise.wrapError(error);
+			return TPromise.wrapError(error);
 		});
 	}
 

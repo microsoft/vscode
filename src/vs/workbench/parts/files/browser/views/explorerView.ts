@@ -5,7 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, $} from 'vs/base/browser/builder';
 import URI from 'vs/base/common/uri';
 import {ThrottledDelayer} from 'vs/base/common/async';
@@ -22,6 +22,7 @@ import {FileImportedEvent, RefreshViewExplorerAction, NewFolderAction, NewFileAc
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider} from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import lifecycle = require('vs/base/common/lifecycle');
+import {IEditor} from 'vs/platform/editor/common/editor';
 import DOM = require('vs/base/browser/dom');
 import {CollapseAction, CollapsibleViewletView} from 'vs/workbench/browser/viewlet';
 import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
@@ -265,7 +266,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		return false;
 	}
 
-	private openOrFocusEditor(input: FileEditorInput): Promise {
+	private openOrFocusEditor(input: FileEditorInput): TPromise<IEditor> {
 
 		// First try to find if input already visible
 		let editors = this.editorService.getVisibleEditors();
@@ -640,7 +641,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		// Load Root Stat with given target path configured
 		let options: IResolveFileOptions = { resolveTo: targetsToResolve };
 		let promise = this.fileService.resolveFile(this.workspace.resource, options).then((stat: IFileStat) => {
-			let explorerPromise: Promise;
+			let explorerPromise: TPromise<void>;
 
 			// Convert to model
 			let modelStat = FileStat.create(stat, options.resolveTo);
@@ -666,7 +667,7 @@ export class ExplorerView extends CollapsibleViewletView {
 			}
 
 			return explorerPromise.then(() => {
-				let revealPromise: Promise;
+				let revealPromise: TPromise<void>;
 
 				// Reveal if path is set
 				if (revealResource) {
@@ -683,7 +684,7 @@ export class ExplorerView extends CollapsibleViewletView {
 					}
 				});
 			});
-		}, (e: any) => Promise.wrapError(e));
+		}, (e: any) => TPromise.wrapError(e));
 
 		this.progressService.showWhile(promise, instantProgress ? 0 : this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 

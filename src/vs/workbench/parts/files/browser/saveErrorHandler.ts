@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
 import paths = require('vs/base/common/paths');
@@ -257,7 +257,7 @@ export class AcceptLocalChangesAction extends EditorInputAction {
 		this.messagesToHide = [];
 	}
 
-	public run(): Promise {
+	public run(): TPromise<void> {
 		let conflictInput = <ConflictResolutionDiffEditorInput>this.input;
 		let model = conflictInput.getModel();
 		let localModelValue = model.getValue();
@@ -323,7 +323,7 @@ export class RevertLocalChangesAction extends EditorInputAction {
 		super('workbench.action.files.revert', nls.localize('revertLocalChanges', "Discard local changes and revert to content on disk"), 'conflict-editor-action revert-changes');
 	}
 
-	public run(): Promise {
+	public run(): TPromise<void> {
 		let conflictInput = <ConflictResolutionDiffEditorInput>this.input;
 		let model = conflictInput.getModel();
 

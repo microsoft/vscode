@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
 import arrays = require('vs/base/common/arrays');
@@ -32,7 +32,7 @@ export class ToggleOutputAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<any> {
 		const panel = this.panelService.getActivePanel();
 		if (panel && panel.getId() === OUTPUT_PANEL_ID) {
 			this.partService.setPanelHidden(true);
@@ -53,7 +53,7 @@ export class ClearOutputAction extends Action {
 		super('workbench.output.action.clearOutput', nls.localize('clearOutput', "Clear Output"), 'output-action clear-output');
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		this.outputService.clearOutput(this.outputService.getActiveChannel());
 		this.panelService.getActivePanel().focus();
 
@@ -100,7 +100,7 @@ export class SwitchOutputAction extends Action {
 		this.class = 'output-action switch-to-output';
 	}
 
-	public run(channel?: string): Promise {
+	public run(channel?: string): TPromise<any> {
 		return this.outputService.showOutput(channel);
 	}
 }

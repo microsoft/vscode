@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/editorstatus';
 import nls = require('vs/nls');
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import { emmet as $, append, show, hide } from 'vs/base/browser/dom';
 import objects = require('vs/base/common/objects');
 import encoding = require('vs/base/common/bits/encoding');

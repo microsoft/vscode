@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Client} from 'vs/base/node/service.cp';
 import uri from 'vs/base/common/uri';
 import {EventType} from 'vs/platform/files/common/files';
@@ -19,7 +19,7 @@ export interface IWatcherRequest {
 }
 
 export class WatcherService {
-	public watch(request: IWatcherRequest): Promise {
+	public watch(request: IWatcherRequest): TPromise<void> {
 		throw new Error('not implemented');
 	}
 }
@@ -32,7 +32,6 @@ export class FileWatcher {
 	}
 
 	public startWatching(): () => void /* dispose */ {
-
 		const client = new Client(
 			uri.parse(require.toUrl('bootstrap')).fsPath,
 			{
@@ -51,7 +50,7 @@ export class FileWatcher {
 		// Start watching
 		service.watch({ basePath: this.basePath, ignored: this.ignored, verboseLogging: this.verboseLogging }).then(null, (err) => {
 			if (!(err instanceof Error && err.name === 'Canceled' && err.message === 'Canceled')) {
-				return Promise.wrapError(err); // the service lib uses the promise cancel error to indicate the process died, we do not want to bubble this up
+				return TPromise.wrapError(err); // the service lib uses the promise cancel error to indicate the process died, we do not want to bubble this up
 			}
 		}, (events: IRawFileChange[]) => this.onRawFileEvents(events)).done(() => {
 

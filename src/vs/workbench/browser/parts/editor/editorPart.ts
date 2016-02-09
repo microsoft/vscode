@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/editorpart';
 import 'vs/workbench/browser/parts/editor/editor.contribution';
-import {TPromise, Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Registry} from 'vs/platform/platform';
 import timer = require('vs/base/common/timer');
 import {EventType} from 'vs/base/common/events';
@@ -340,7 +340,7 @@ export class EditorPart extends Part implements IEditorPart {
 						loaded = true;
 						delete this.mapEditorLoadingPromiseToEditor[position][editorDescriptor.getId()];
 
-						return Promise.wrapError(error);
+						return TPromise.wrapError(error);
 					});
 
 					if (!loaded) {
@@ -369,7 +369,7 @@ export class EditorPart extends Part implements IEditorPart {
 				// Register as Emitter to Workbench Bus
 				this.visibleEditorListeners[position].push(this.eventService.addEmitter(this.visibleEditors[position], this.visibleEditors[position].getId()));
 
-				let createEditorPromise: TPromise<BaseEditor>;
+				let createEditorPromise: TPromise<any>;
 				if (newlyCreatedEditorContainerBuilder) { // Editor created for the first time
 
 					// create editor
@@ -381,7 +381,7 @@ export class EditorPart extends Part implements IEditorPart {
 						created = true;
 						delete this.mapEditorCreationPromiseToEditor[position][editorDescriptor.getId()];
 
-						return Promise.wrapError(error);
+						return TPromise.wrapError(error);
 					});
 
 					if (!created) {
@@ -453,7 +453,7 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	public closeEditors(othersOnly?: boolean, inputs?: EditorInput[]): TPromise<void> {
-		let promises: Promise[] = [];
+		let promises: TPromise<BaseEditor>[] = [];
 
 		let editors = this.getVisibleEditors().reverse(); // start from the end to prevent layout to happen through rochade
 		for (var i = 0; i < editors.length; i++) {
@@ -467,7 +467,7 @@ export class EditorPart extends Part implements IEditorPart {
 			}
 		}
 
-		return Promise.join(promises);
+		return TPromise.join(promises).then(() => void 0);
 	}
 
 	private findPosition(sideBySide?: boolean, widthRatios?: number[]): Position;
@@ -940,7 +940,7 @@ export class EditorPart extends Part implements IEditorPart {
 			}
 
 			// Open editor inputs in parallel if any
-			let promises: Promise[] = [];
+			let promises: TPromise<BaseEditor>[] = [];
 			inputsToRestore.forEach((input, index) => {
 				let preserveFocus = (input !== activeInput);
 				let option: EditorOptions;
@@ -954,7 +954,7 @@ export class EditorPart extends Part implements IEditorPart {
 				promises.push(this.openEditor(input, option, index, widthRatios));
 			});
 
-			return Promise.join(promises).then(() => {
+			return TPromise.join(promises).then(editors => {
 
 				// Workaround for bad layout issue: If any of the editors fails to load, reset side by side by closing
 				// all editors. This fixes an issue where a side editor might show, but no editor to the left hand side.
@@ -964,10 +964,12 @@ export class EditorPart extends Part implements IEditorPart {
 
 				// Full layout side by side
 				this.sideBySideControl.layout(this.dimension);
+
+				return editors;
 			});
 		}
 
-		return TPromise.as(null);
+		return TPromise.as([]);
 	}
 
 	public activateEditor(editor: BaseEditor): void {

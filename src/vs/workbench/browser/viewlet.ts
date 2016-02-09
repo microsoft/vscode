@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
 import {Registry} from 'vs/platform/platform';
@@ -221,7 +221,7 @@ export class ToggleViewletAction extends Action {
 		this.enabled = !!this.viewletService && !!this.editorService;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Pass focus to viewlet if not open or focussed
 		if (this.otherViewletShowing() || !this.sidebarHasFocus()) {

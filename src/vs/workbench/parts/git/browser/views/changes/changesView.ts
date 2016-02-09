@@ -295,7 +295,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		}
 	}
 
-	private onEditorInputChanged(input: IEditorInput): WinJS.Promise {
+	private onEditorInputChanged(input: IEditorInput): WinJS.TPromise<void> {
 		if (!this.tree) {
 			return WinJS.TPromise.as(null);
 		}

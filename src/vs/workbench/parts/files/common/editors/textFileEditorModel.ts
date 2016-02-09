@@ -5,7 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {TPromise, Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {onUnexpectedError, toErrorMessage} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {IDisposable} from 'vs/base/common/lifecycle';
@@ -197,7 +197,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 				undo();
 			}
 
-			return Promise.wrapError(error);
+			return TPromise.wrapError(error);
 		});
 	}
 
@@ -289,7 +289,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 				}, (error) => {
 					this.createTextEditorModelPromise = null;
 
-					return Promise.wrapError(error);
+					return TPromise.wrapError(error);
 				});
 
 				return this.createTextEditorModelPromise;
@@ -304,7 +304,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 			}
 
 			// Otherwise bubble up the error
-			return Promise.wrapError(error);
+			return TPromise.wrapError(error);
 		});
 	}
 

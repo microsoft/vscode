@@ -6,7 +6,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Registry} from 'vs/platform/platform';
 import {IEditorModesRegistry, Extensions as ModesExtensions} from 'vs/editor/common/modes/modesRegistry';
 import paths = require('vs/base/common/paths');
@@ -260,7 +260,7 @@ export class TextFileService extends AbstractTextFileService {
 		return super.saveAll(fileResources).then((result) => {
 
 			// Handle untitled
-			let untitledSaveAsPromises: Promise[] = [];
+			let untitledSaveAsPromises: TPromise<void>[] = [];
 			targetsForUntitled.forEach((target, index) => {
 				let untitledSaveAsPromise = this.saveAs(untitledResources[index], target).then((uri) => {
 					result.results.push({
@@ -273,7 +273,7 @@ export class TextFileService extends AbstractTextFileService {
 				untitledSaveAsPromises.push(untitledSaveAsPromise);
 			});
 
-			return Promise.join(untitledSaveAsPromises).then(() => {
+			return TPromise.join(untitledSaveAsPromises).then(() => {
 				return result;
 			});
 		});

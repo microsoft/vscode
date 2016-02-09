@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import objects = require('vs/base/common/objects');
@@ -167,9 +167,9 @@ export class FileActionProvider extends ContributableActionProvider {
 		return super.getSecondaryActions(tree, stat);
 	}
 
-	public runAction(tree: ITree, stat: FileStat, action: Actions.IAction, context?: any): Promise;
-	public runAction(tree: ITree, stat: FileStat, actionID: string, context?: any): Promise;
-	public runAction(tree: ITree, stat: FileStat, arg: any, context: any = {}): Promise {
+	public runAction(tree: ITree, stat: FileStat, action: Actions.IAction, context?: any): TPromise<any>;
+	public runAction(tree: ITree, stat: FileStat, actionID: string, context?: any): TPromise<any>;
+	public runAction(tree: ITree, stat: FileStat, arg: any, context: any = {}): TPromise<any> {
 		context = objects.mixin({
 			viewletState: this.state,
 			stat: stat
@@ -246,7 +246,7 @@ export class ActionRunner extends Actions.ActionRunner implements Actions.IActio
 		this.viewletState = state;
 	}
 
-	public run(action: Actions.IAction, context?: any): Promise {
+	public run(action: Actions.IAction, context?: any): TPromise<any> {
 		return super.run(action, { viewletState: this.viewletState });
 	}
 }
@@ -615,7 +615,7 @@ export class FileController extends DefaultController {
 		return false;
 	}
 
-	private runAction(tree: ITree, stat: FileStat, id: string): Promise {
+	private runAction(tree: ITree, stat: FileStat, id: string): TPromise<any> {
 		return this.state.actionProvider.runAction(tree, stat, id);
 	}
 }
@@ -795,7 +795,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 	}
 
 	public drop(tree: ITree, data: IDragAndDropData, target: FileStat, originalEvent: DragMouseEvent): void {
-		let promise: Promise = TPromise.as(null);
+		let promise: TPromise<void> = TPromise.as(null);
 
 		// Desktop DND (Import file)
 		if (data instanceof DesktopDragAndDropData) {
@@ -821,7 +821,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 				}
 
 				// Handle dirty
-				let saveOrRevertPromise: Promise = TPromise.as(null);
+				let saveOrRevertPromise: TPromise<boolean> = TPromise.as(null);
 				if (this.textFileService.isDirty(source.resource)) {
 					let res = this.textFileService.confirmSave([source.resource]);
 					if (res === ConfirmResult.SAVE) {

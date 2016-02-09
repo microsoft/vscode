@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/fileactions';
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {isWindows, isLinux, isMacintosh} from 'vs/base/common/platform';
 import {sequence, ITask} from 'vs/base/common/async';
@@ -41,7 +41,7 @@ import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpe
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
-import {IResourceInput, Position} from 'vs/platform/editor/common/editor';
+import {IResourceInput, Position, IEditor} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService, INewConstructorSignature2, INullService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction} from 'vs/platform/message/common/message';
@@ -133,7 +133,7 @@ export class BaseFileAction extends Action {
 		this._messageService.show(Severity.Warning, warning);
 	}
 
-	protected onErrorWithRetry(error: any, retry: () => Promise, extraAction?: Action): void {
+	protected onErrorWithRetry(error: any, retry: () => TPromise<any>, extraAction?: Action): void {
 		let actions = [
 			CancelAction,
 			new Action(this.id, nls.localize('retry', "Retry"), null, true, () => retry())
@@ -205,19 +205,19 @@ export class TriggerRenameFileAction extends BaseFileAction {
 		return this.renameAction.validateFileName(this.element.parent, name);
 	}
 
-	public run(context?: any): Promise {
+	public run(context?: any): TPromise<any> {
 		if (!context) {
-			return Promise.wrapError('No context provided to BaseEnableFileRenameAction.');
+			return TPromise.wrapError('No context provided to BaseEnableFileRenameAction.');
 		}
 
 		let viewletState = <IFileViewletState>context.viewletState;
 		if (!viewletState) {
-			return Promise.wrapError('Invalid viewlet state provided to BaseEnableFileRenameAction.');
+			return TPromise.wrapError('Invalid viewlet state provided to BaseEnableFileRenameAction.');
 		}
 
 		let stat = <IFileStat>context.stat;
 		if (!stat) {
-			return Promise.wrapError('Invalid stat provided to BaseEnableFileRenameAction.');
+			return TPromise.wrapError('Invalid stat provided to BaseEnableFileRenameAction.');
 		}
 
 		viewletState.setEditable(stat, {
@@ -270,14 +270,14 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		this.element = element;
 	}
 
-	public run(context?: any): Promise {
+	public run(context?: any): TPromise<any> {
 		if (!context) {
-			return Promise.wrapError('No context provided to BaseRenameFileAction.');
+			return TPromise.wrapError('No context provided to BaseRenameFileAction.');
 		}
 
 		let name = <string>context.value;
 		if (!name) {
-			return Promise.wrapError('No new name provided to BaseRenameFileAction.');
+			return TPromise.wrapError('No new name provided to BaseRenameFileAction.');
 		}
 
 		// Automatically trim whitespaces and trailing dots to produce nice file names
@@ -321,7 +321,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		return validateFileName(parent, name, false);
 	}
 
-	public abstract runAction(newName: string): Promise;
+	public abstract runAction(newName: string): TPromise<any>;
 
 	public onSuccess(stat: IFileStat): void {
 		let before: IFileStat = null;
@@ -352,7 +352,7 @@ export class RenameFileAction extends BaseRenameAction {
 		this._updateEnablement();
 	}
 
-	public runAction(newName: string): Promise {
+	public runAction(newName: string): TPromise<any> {
 
 		// Check if file is dirty in editor and save it to avoid data loss
 		return this.handleDirty().then((cancel: boolean) => {
@@ -406,14 +406,14 @@ export class BaseNewAction extends BaseFileAction {
 		this.renameAction = editableAction;
 	}
 
-	public run(context?: any): Promise {
+	public run(context?: any): TPromise<any> {
 		if (!context) {
-			return Promise.wrapError('No context provided to BaseNewAction.');
+			return TPromise.wrapError('No context provided to BaseNewAction.');
 		}
 
 		let viewletState = <IFileViewletState>context.viewletState;
 		if (!viewletState) {
-			return Promise.wrapError('Invalid viewlet state provided to BaseNewAction.');
+			return TPromise.wrapError('Invalid viewlet state provided to BaseNewAction.');
 		}
 
 		let folder: FileStat = this.presetFolder;
@@ -427,7 +427,7 @@ export class BaseNewAction extends BaseFileAction {
 		}
 
 		if (!folder) {
-			return Promise.wrapError('Invalid parent folder to create.');
+			return TPromise.wrapError('Invalid parent folder to create.');
 		}
 
 		return this.tree.reveal(folder, 0.5).then(() => {
@@ -527,7 +527,7 @@ export abstract class BaseGlobalNewAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		return this.viewletService.openViewlet(Files.VIEWLET_ID, true).then((viewlet) => {
 			return TPromise.timeout(100).then(() => { // use a timeout to prevent the explorer from revealing the active file
 				viewlet.focus();
@@ -574,7 +574,7 @@ export class GlobalNewFileAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let input = this.untitledEditorService.createOrGet();
 
 		// Make sure this untitled buffer shows up in working files set
@@ -627,7 +627,7 @@ export class CreateFileAction extends BaseCreateAction {
 		this._updateEnablement();
 	}
 
-	public runAction(fileName: string): Promise {
+	public runAction(fileName: string): TPromise<any> {
 		return this.fileService.createFile(URI.file(paths.join(this.element.parent.resource.fsPath, fileName))).then((stat) => {
 			this.textFileService.getWorkingFilesModel().addEntry(stat.resource); // add to working files
 
@@ -659,7 +659,7 @@ export class CreateFolderAction extends BaseCreateAction {
 		this._updateEnablement();
 	}
 
-	public runAction(fileName: string): Promise {
+	public runAction(fileName: string): TPromise<any> {
 		return this.fileService.createFolder(URI.file(paths.join(this.element.parent.resource.fsPath, fileName))).then(null, (error) => {
 			this.onErrorWithRetry(error, () => this.runAction(fileName));
 		});
@@ -693,7 +693,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Remove highlight
 		if (this.tree) {
@@ -837,7 +837,7 @@ export class ImportFileAction extends BaseFileAction {
 		return this.tree;
 	}
 
-	public run(context?: any): Promise {
+	public run(context?: any): TPromise<any> {
 		let multiFileProgressTracker: IProgressRunner;
 		let importPromise = TPromise.as(null).then(() => {
 			let input = context.input;
@@ -894,7 +894,7 @@ export class ImportFileAction extends BaseFileAction {
 					}
 
 					// Run import in sequence to not consume too many connections
-					let importPromisesFactory: ITask<Promise>[] = [];
+					let importPromisesFactory: ITask<TPromise<void>>[] = [];
 					filesArray.forEach((file) => {
 						importPromisesFactory.push(() => {
 							return this.fileService.importFile(URI.file((<any>file).path), targetElement.resource).then((result: IImportResult) => {
@@ -990,7 +990,7 @@ export class CopyFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Remember as file/folder to copy
 		fileToCopy = this.element;
@@ -1054,7 +1054,7 @@ export class PasteFileAction extends BaseFileAction {
 		return true;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Find target
 		let target: FileStat;
@@ -1098,7 +1098,7 @@ export class DuplicateFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Remove highlight
 		if (this.tree) {
@@ -1193,7 +1193,7 @@ export class OpenToSideAction extends Action {
 		this.enabled = (!activeEditor || activeEditor.position !== Position.RIGHT);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Remove highlight
 		this.tree.clearHighlight();
@@ -1221,7 +1221,7 @@ export class SelectResourceForCompareAction extends Action {
 		this.enabled = true;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Remember as source file to compare
 		globalResourceToCompare = this.resource;
@@ -1254,7 +1254,7 @@ export class GlobalCompareResourcesAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let fileInput = workbenchEditorCommon.asFileEditorInput(this.editorService.getActiveEditorInput());
 		if (fileInput) {
 
@@ -1365,7 +1365,7 @@ export class CompareResourcesAction extends Action {
 		return true;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Remove highlight
 		if (this.tree) {
@@ -1615,7 +1615,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 			// all saved - now try to reopen saved untitled ones
 			if (this.includeUntitled()) {
 				let untitledResults = result.results.filter((res) => res.source.scheme === 'untitled');
-				let reopenPromises: { (): Promise }[] = [];
+				let reopenPromises: { (): TPromise<IEditor> }[] = [];
 
 				// Create a promise function for each editor open call to reopen
 				untitledResults.forEach((res) => {
@@ -1729,7 +1729,7 @@ export class RevertFileAction extends Action {
 		this.resource = resource;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let resource: URI;
 		if (this.resource) {
 			resource = this.resource;
@@ -1764,7 +1764,7 @@ export class OpenResourcesAction extends Action {
 		this.filesToOpen = filesToOpen;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		return this.partService.joinCreation().then(() => {
 			let viewletPromise = TPromise.as(null);
 			if (!this.partService.isSideBarHidden()) {
@@ -1817,7 +1817,7 @@ export abstract class BaseCloseWorkingFileAction extends Action {
 		this.elements = elements ? elements.map(e => e.resource) : void 0 /* all */;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let workingFilesCount = this.model.getEntries().length;
 
 		// Handle dirty
@@ -2031,7 +2031,7 @@ export class CloseFileAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let input = this.editorService.getActiveEditorInput();
 		let resource = workbenchEditorCommon.getUntitledOrFileResource(input, true);
 
@@ -2094,7 +2094,7 @@ export class CloseOtherFilesAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		const workingFilesModel = this.textFileService.getWorkingFilesModel();
 
 		let activeResource = workbenchEditorCommon.getUntitledOrFileResource(this.editorService.getActiveEditorInput(), true);
@@ -2136,7 +2136,7 @@ export class CloseAllFilesAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Close all Working Files
 		let closeAction = this.instantiationService.createInstance(CloseAllWorkingFilesAction, this.textFileService.getWorkingFilesModel());
@@ -2164,7 +2164,7 @@ export class OpenNextWorkingFile extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let model = this.textFileService.getWorkingFilesModel();
 
 		// Return: No working files
@@ -2197,7 +2197,7 @@ export class OpenPreviousWorkingFile extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let model = this.textFileService.getWorkingFilesModel();
 
 		// Return: No working files
@@ -2230,7 +2230,7 @@ export class AddToWorkingFiles extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let fileInput = workbenchEditorCommon.asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 		if (fileInput) {
 			this.textFileService.getWorkingFilesModel().addEntry(fileInput.getResource());
@@ -2255,7 +2255,7 @@ export class FocusWorkingFiles extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		return this.viewletService.openViewlet(Files.VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
 			viewlet.getWorkingFilesView().expand();
 			viewlet.getWorkingFilesView().getViewer().DOMFocus();
