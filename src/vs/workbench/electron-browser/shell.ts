@@ -14,6 +14,7 @@ import 'vs/css!vs/workbench/browser/media/vs-theme';
 import 'vs/css!vs/workbench/browser/media/vs-dark-theme';
 import 'vs/css!vs/workbench/browser/media/hc-black-theme';
 
+import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
@@ -100,6 +101,7 @@ import { IServiceCtor, isServiceEvent } from 'vs/base/common/service';
 import { connect, Client } from 'vs/base/node/service.net';
 import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsService } from 'vs/workbench/parts/extensions/node/extensionsService';
+import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 
 /**
  * This ugly code is needed because at the point when we need shared services
@@ -149,7 +151,7 @@ export function getDelayedService<TService>(clientPromise: TPromise<Client>, ser
 					return servicePromise().then(service => service[key](...args));
 				}
 			});
-		}, <TService>{});
+		}, {} as TService);
 }
 
 /**
@@ -200,20 +202,28 @@ export class WorkbenchShell {
 		let workbenchContainer = $(parent).div();
 
 		// Instantiation service with services
-		let service = this.initInstantiationService();
+		let instantiationService = this.initInstantiationService();
 
 		//crash reporting
 		if (!!this.configuration.env.crashReporter) {
-			let crashReporter = service.createInstance(CrashReporter, this.configuration.env.version, this.configuration.env.commitHash);
+			let crashReporter = instantiationService.createInstance(CrashReporter, this.configuration.env.version, this.configuration.env.commitHash);
 			crashReporter.start(this.configuration.env.crashReporter);
 		}
 
 		const sharedProcessClientPromise = connect(process.env['VSCODE_SHARED_IPC_HOOK']);
-		sharedProcessClientPromise.done(null, errors.onUnexpectedError);
-		service.addSingleton(IExtensionsService, getDelayedService<IExtensionsService>(sharedProcessClientPromise, 'ExtensionService', ExtensionsService));
+		sharedProcessClientPromise.done(service => {
+			service.onClose(() => {
+				this.messageService.show(Severity.Error, {
+					message: nls.localize('sharedProcessCrashed', "The shared process terminated unexpectedly. Please reload the window."),
+					actions: [instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)]
+				});
+			});
+		}, errors.onUnexpectedError);
+
+		instantiationService.addSingleton(IExtensionsService, getDelayedService<IExtensionsService>(sharedProcessClientPromise, 'ExtensionService', ExtensionsService));
 
 		// Workbench
-		this.workbench = new Workbench(workbenchContainer.getHTMLElement(), this.workspace, this.configuration, this.options, service);
+		this.workbench = new Workbench(workbenchContainer.getHTMLElement(), this.workspace, this.configuration, this.options, instantiationService);
 		this.workbench.startup({
 			onServicesCreated: () => {
 				this.initPluginSystem();

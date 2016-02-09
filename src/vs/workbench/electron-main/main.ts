@@ -125,7 +125,8 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 			ipcServer = null;
 		}
 
-		sharedProcess.kill();
+		sharedProcess.dispose();
+
 		if (windowsMutex) {
 			windowsMutex.release();
 		}
