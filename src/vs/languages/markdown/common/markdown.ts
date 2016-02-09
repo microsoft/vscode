@@ -52,7 +52,7 @@ export const language =
 		tokenizer: {
 			root: [
 
-				// headers (with #)
+				// headers (with #*)
 				[/^(\s{0,3})(#+)(.*)/, ['white', markdownTokenTypes.TOKEN_HEADER_LEAD, markdownTokenTypes.TOKEN_HEADER]],
 
 				// headers (with =)
