@@ -276,7 +276,7 @@ export class VSCodeMenu {
 		let checkForUpdates = this.getUpdateMenuItems();
 		let preferences = this.getPreferencesMenu();
 		let hide = new MenuItem({ label: nls.localize('mHide', "Hide {0}", env.product.nameLong), role: 'hide', accelerator: 'Command+H' });
-		let hideOthers = new MenuItem({ label: nls.localize('mHideOthers', "Hide Others"), role: 'hideothers', accelerator: 'Command+Shift+H' });
+		let hideOthers = new MenuItem({ label: nls.localize('mHideOthers', "Hide Others"), role: 'hideothers', accelerator: 'Command+Alt+H' });
 		let showAll = new MenuItem({ label: nls.localize('mShowAll', "Show All"), role: 'unhide' });
 		let quit = new MenuItem({ label: nls.localize('miQuit', "Quit {0}", env.product.nameLong), click: () => this.quit(), accelerator: 'Command+Q' });
 
