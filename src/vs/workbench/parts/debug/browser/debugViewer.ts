@@ -63,7 +63,7 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression|strin
 
 export function renderVariable(tree: tree.ITree, variable: model.Variable, data: IVariableTemplateData, debugInactive: boolean, showChanged: boolean): void {
 	if (variable.available) {
-		data.name.textContent = `${variable.name}:`;
+		data.name.textContent = variable.name + ':';
 	}
 
 	if (variable.value) {
@@ -106,6 +106,8 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 
 			tree.clearHighlight();
 			tree.DOMFocus();
+			tree.setFocus(element);
+			
 			// need to remove the input box since this template will be reused.
 			container.removeChild(inputBoxContainer);
 			lifecycle.disposeAll(toDispose);
