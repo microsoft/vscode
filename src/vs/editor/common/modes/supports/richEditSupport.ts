@@ -10,6 +10,7 @@ import {CharacterPairSupport} from 'vs/editor/common/modes/supports/characterPai
 import {BracketElectricCharacterSupport, IBracketElectricCharacterContribution} from 'vs/editor/common/modes/supports/electricCharacter';
 import {TokenTypeClassificationSupport} from 'vs/editor/common/modes/supports/tokenTypeClassification';
 import {CommentsSupport, ICommentsSupportContribution} from 'vs/editor/common/modes/supports/comments';
+import {ICharacterPairContribution} from 'vs/editor/common/modes/supports/characterPair';
 
 export type CharacterPair = [string, string];
 
@@ -25,7 +26,7 @@ export interface IRichEditConfiguration {
 	indentationRules?: IIndentationRules;
 	onEnterRules?: IOnEnterRegExpRules[];
 	__electricCharacterSupport?: IBracketElectricCharacterContribution;
-	__characterPairSupport?: Modes.ICharacterPairContribution;
+	__characterPairSupport?: ICharacterPairContribution;
 }
 
 export class RichEditSupport implements Modes.IRichEditSupport {

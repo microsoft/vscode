@@ -11,7 +11,7 @@ import pfs = require('vs/base/node/pfs');
 import Supports = require ('vs/editor/common/modes/supports');
 import {IOnEnterSupportOptions} from 'vs/editor/common/modes/supports/onEnter';
 import json = require('vs/base/common/json');
-import {ICharacterPairContribution} from 'vs/editor/common/modes';
+import {ICharacterPairContribution} from 'vs/editor/common/modes/supports/characterPair';
 import {IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
 
 type CharacterPair = [string, string];

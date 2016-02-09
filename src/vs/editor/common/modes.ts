@@ -689,11 +689,6 @@ export interface IAutoClosingPairConditional extends IAutoClosingPair {
 	notIn?: string[];
 }
 
-export interface ICharacterPairContribution {
-	autoClosingPairs: IAutoClosingPairConditional[];
-	surroundingPairs?: IAutoClosingPair[];
-}
-
 /**
  * Interface used to support electric characters
  */

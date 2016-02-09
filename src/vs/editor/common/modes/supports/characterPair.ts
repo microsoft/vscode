@@ -7,13 +7,18 @@
 import {handleEvent} from 'vs/editor/common/modes/supports';
 import * as Modes from 'vs/editor/common/modes';
 
+export interface ICharacterPairContribution {
+	autoClosingPairs: Modes.IAutoClosingPairConditional[];
+	surroundingPairs?: Modes.IAutoClosingPair[];
+}
+
 export class CharacterPairSupport implements Modes.IRichEditCharacterPair {
 
 	private _modeId: string;
 	private _autoClosingPairs: Modes.IAutoClosingPairConditional[];
 	private _surroundingPairs: Modes.IAutoClosingPair[];
 
-	constructor(modeId: string, contribution: Modes.ICharacterPairContribution) {
+	constructor(modeId: string, contribution: ICharacterPairContribution) {
 		this._modeId = modeId;
 		this._autoClosingPairs = contribution.autoClosingPairs;
 		this._surroundingPairs = Array.isArray(contribution.surroundingPairs) ? contribution.surroundingPairs : contribution.autoClosingPairs;
