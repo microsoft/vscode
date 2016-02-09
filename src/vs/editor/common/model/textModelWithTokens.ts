@@ -861,6 +861,29 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 		return BracketsHelper.matchBracket(this, this.validatePosition(position), inaccurateResultAcceptable);
 	}
 
+	private static _findPrevBracketInToken(reversedBracketRegex:RegExp, lineNumber:number, lineText:string, currentTokenStart:number, currentTokenEnd:number): EditorCommon.IFoundBracket {
+		// Because JS does not support backwards regex search, we search forwards in a reversed string ;)
+		let currentTokenReversedText = '';
+		for (let index = currentTokenEnd - 1; index >= currentTokenStart; index--) {
+			currentTokenReversedText += lineText.charAt(index);
+		}
+
+		let m = currentTokenReversedText.match(reversedBracketRegex);
+
+		if (!m) {
+			return null;
+		}
+
+		let matchOffset = currentTokenReversedText.length - 1 - m.index;
+		let matchLength = m[0].length;
+		let absoluteMatchOffset = currentTokenStart + matchOffset;
+
+		return {
+			range: new Range(lineNumber, absoluteMatchOffset + 1, lineNumber, absoluteMatchOffset + 1 + matchLength),
+			text: lineText.substr(absoluteMatchOffset, matchLength)
+		};
+	}
+
 	public findPrevBracket(_position:EditorCommon.IPosition): EditorCommon.IFoundBracket {
 		if (this._isDisposed) {
 			throw new Error('TextModelWithTokens.findPrevBracket: Model is disposed');
@@ -879,7 +902,7 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 			let currentTokenEnd = lineText.length;
 			if (lineNumber === position.lineNumber) {
 				tokensLength = lineTokens.findIndexOfOffset(position.column - 1);
-				currentTokenEnd = Math.min(currentTokenEnd, position.column - 1);
+				currentTokenEnd = position.column - 1;
 			}
 
 			for (let tokenIndex = tokensLength; tokenIndex >= 0; tokenIndex--) {
@@ -888,31 +911,34 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 				// let currentTokenType = getType(tokensMap, currentToken);
 				// TODO@Alex: skip comment, string, regex token types
 
-				// Because JS does not support backwards regex search, we search forwards in a reversed string ;)
-				let currentTokenReversedText = '';
-				for (let index = currentTokenEnd - 1; index >= currentTokenStart; index--) {
-					currentTokenReversedText += lineText.charAt(index);
+				let r = TextModelWithTokens._findPrevBracketInToken(regex, lineNumber, lineText, currentTokenStart, currentTokenEnd);
+				if (r) {
+					return r;
 				}
-
-				let m = currentTokenReversedText.match(regex);
-
-				if (!m) {
-					currentTokenEnd = currentTokenStart;
-					continue;
-				}
-
-				let matchOffset = currentTokenReversedText.length - 1 - m.index;
-				let matchLength = m[0].length;
-				let absoluteMatchOffset = currentTokenStart + matchOffset;
-
-				return {
-					range: new Range(lineNumber, absoluteMatchOffset + 1, lineNumber, absoluteMatchOffset + 1 + matchLength),
-					text: lineText.substr(absoluteMatchOffset, matchLength)
-				};
+				currentTokenEnd = currentTokenStart;
 			}
 		}
 
 		return null;
+	}
+
+	private static _findNextBracketInToken(bracketRegex:RegExp, lineNumber:number, lineText:string, currentTokenStart:number, currentTokenEnd:number): EditorCommon.IFoundBracket {
+		let currentTokenText = lineText.substring(currentTokenStart, currentTokenEnd);
+
+		let m = currentTokenText.match(bracketRegex);
+
+		if (!m) {
+			return null;
+		}
+
+		let matchOffset = m.index;
+		let matchLength = m[0].length;
+		let absoluteMatchOffset = currentTokenStart + matchOffset;
+
+		return {
+			range: new Range(lineNumber, absoluteMatchOffset + 1, lineNumber, absoluteMatchOffset + 1 + matchLength),
+			text: lineText.substr(absoluteMatchOffset, matchLength)
+		};
 	}
 
 	public findNextBracket(_position:EditorCommon.IPosition): EditorCommon.IFoundBracket {
@@ -942,23 +968,12 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 				// TODO@Alex: skip comment, string, regex token type
 
 				let currentTokenEnd = tokenIndex + 1 < tokensLength ? getStartIndex(tokens[tokenIndex + 1]) : lineText.length;
-				let currentTokenText = lineText.substring(currentTokenStart, currentTokenEnd);
 
-				let m = currentTokenText.match(regex);
-
-				if (!m) {
-					currentTokenStart = currentTokenEnd;
-					continue;
+				let r = TextModelWithTokens._findNextBracketInToken(regex, lineNumber, lineText, currentTokenStart, currentTokenEnd);
+				if (r) {
+					return r;
 				}
-
-				let matchOffset = m.index;
-				let matchLength = m[0].length;
-				let absoluteMatchOffset = currentTokenStart + matchOffset;
-
-				return {
-					range: new Range(lineNumber, absoluteMatchOffset + 1, lineNumber, absoluteMatchOffset + 1 + matchLength),
-					text: lineText.substr(absoluteMatchOffset, matchLength)
-				};
+				currentTokenStart = currentTokenEnd;
 			}
 		}
 
