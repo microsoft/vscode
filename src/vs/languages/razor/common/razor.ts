@@ -86,12 +86,6 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 
 			__electricCharacterSupport: {
 				brackets: [],
-				regexBrackets: [{
-					tokenType: htmlMode.htmlTokenTypes.getTag('$1'),
-					open: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join("|")}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-					closeComplete: '</$1>',
-					close: /<\/(\w[\w\d]*)\s*>$/i
-				}],
 				caseInsensitive: true,
 				embeddedElectricCharacters: ['*', '}', ']', ')']
 			},

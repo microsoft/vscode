@@ -20,7 +20,6 @@ export interface IDocComment {
 
 export interface IBracketElectricCharacterContribution {
 	brackets: Modes.IBracketPair[];
-	regexBrackets?: Modes.IRegexBracketPair[];
 	docComment?: IDocComment;
 	caseInsensitive?: boolean;
 	embeddedElectricCharacters?: string[];
@@ -35,8 +34,7 @@ export class BracketElectricCharacterSupport implements Modes.IRichEditElectricC
 	constructor(modeId: string, contribution: IBracketElectricCharacterContribution) {
 		this._modeId = modeId;
 		this.contribution = contribution;
-		this.brackets = new Brackets(contribution.brackets, contribution.regexBrackets,
-			contribution.docComment, contribution.caseInsensitive);
+		this.brackets = new Brackets(contribution.brackets, contribution.docComment, contribution.caseInsensitive);
 	}
 
 	public getElectricCharacters(): string[]{
@@ -64,7 +62,6 @@ enum Lettercase { Unknown, Lowercase, Uppercase, Camelcase}
 export class Brackets {
 
 	private brackets: Modes.IBracketPair[];
-	private regexBrackets: Modes.IRegexBracketPair[];
 	private docComment: IDocComment;
 	private caseInsensitive: boolean;
 
@@ -77,10 +74,9 @@ export class Brackets {
 	 * - stringIsBracket
 	 *
 	 */
-	constructor(brackets: Modes.IBracketPair[], regexBrackets: Modes.IRegexBracketPair[] = [], docComment: IDocComment = null,
+	constructor(brackets: Modes.IBracketPair[], docComment: IDocComment = null,
 		caseInsensitive: boolean = false) {
 		this.brackets = brackets;
-		this.regexBrackets = regexBrackets ? regexBrackets : [];
 		this.docComment = docComment ? docComment : null;
 		this.caseInsensitive = caseInsensitive ? caseInsensitive : false;
 	}
@@ -96,19 +92,6 @@ export class Brackets {
 			if (bracketPair.isElectric) {
 				var lastChar = bracketPair.close.charAt(bracketPair.close.length - 1);
 				result.push(this.caseInsensitive ? lastChar.toLowerCase() : lastChar);
-			}
-		}
-
-		// Regexp brackets (always electric)
-		var regexBracketPair: Modes.IRegexBracketPair;
-		length = this.regexBrackets.length;
-		for (var i = 0; i < length; i++) {
-			regexBracketPair = this.regexBrackets[i];
-			if (regexBracketPair.openTrigger) {
-				result.push( this.caseInsensitive ? regexBracketPair.openTrigger.toLowerCase() : regexBracketPair.openTrigger);
-			}
-			if (regexBracketPair.closeTrigger) {
-				result.push( this.caseInsensitive ? regexBracketPair.closeTrigger.toLowerCase() : regexBracketPair.closeTrigger);
 			}
 		}
 
@@ -140,7 +123,6 @@ export class Brackets {
 		}
 
 		return (this._onElectricCharacterDocComment(context, offset) ||
-			this._onElectricCharacterRegexBrackets(context, offset) ||
 			this._onElectricCharacterStandardBrackets(context, offset));
 	}
 
@@ -193,47 +175,6 @@ export class Brackets {
 		}
 
 		return { matchBracketType: tokenType };
-	}
-
-	private _onElectricCharacterRegexBrackets(context: Modes.ILineContext, offset: number): Modes.IElectricAction {
-		// Handle regular expression brackets
-		var line = context.getLineContent();
-		for (var i = 0; i < this.regexBrackets.length; ++i) {
-			var regexBracket = this.regexBrackets[i];
-
-			// Check if an open bracket matches the line up to offset.
-			if (regexBracket.openTrigger && regexBracket.closeComplete &&
-				(line.charAt(offset) === regexBracket.openTrigger ||
-					(this.caseInsensitive && line.charAt(offset).toLowerCase() === regexBracket.openTrigger.toLowerCase()))) {
-
-				var matchLine = line.substr(0, offset+1);
-				var matches = matchLine.match(regexBracket.open);
-				if (matches) {
-					// Auto-complete with closing bracket.
-					var finalText = matches[0].replace(regexBracket.open, regexBracket.closeComplete);
-					if (regexBracket.matchCase) {
-						finalText = this._changeLettercase(finalText, this._detectLetercase(matches[0]));
-					}
-					return { appendText: finalText };
-				}
-			}
-
-			// Check if a close bracket matches the line up to offset.
-			if (regexBracket.closeTrigger &&
-					(line.charAt(offset) === regexBracket.closeTrigger ||
-						(this.caseInsensitive && line.charAt(offset).toLowerCase() === regexBracket.closeTrigger.toLowerCase()))) {
-				var matches = matchLine.match(regexBracket.close);
-				if (matches) {
-					// Auto-indent to the level of the opening bracket.
-					var properCaseMatch = matches[0];
-					if (this.caseInsensitive) {
-						properCaseMatch = properCaseMatch.toLowerCase();
-					}
-					return { matchBracketType: properCaseMatch.replace(regexBracket.close, regexBracket.tokenType)};
-				}
-			}
-		}
-		return null;
 	}
 
 	private _onElectricCharacterDocComment(context: Modes.ILineContext, offset: number): Modes.IElectricAction {
