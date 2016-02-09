@@ -9,7 +9,6 @@ import Strings = require('vs/base/common/strings');
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {LineStream} from 'vs/editor/common/modes/lineStream';
 import {NullMode, NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
-import {Brackets} from 'vs/editor/common/modes/autoIndentation';
 import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
 import Modes = require('vs/editor/common/modes');
 import EditorCommon = require('vs/editor/common/editorCommon');

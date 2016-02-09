@@ -5,7 +5,7 @@
 'use strict';
 
 import assert = require('assert');
-import autoIndentation = require('vs/editor/common/modes/autoIndentation');
+import autoIndentation = require('vs/editor/common/modes/supports/electricCharacter');
 import modes = require('vs/editor/common/modes');
 import modesUtil = require('vs/editor/test/common/modesTestUtils');
 
