@@ -5,7 +5,7 @@
   "author": {
     "name": "Microsoft Corporation"
   },
-  "main": "./out/vs/workbench/electron-main/bootstrap",
+  "main": "./out/main",
   "private": true,
   "engines": {
     "node": ">= 0.10.0 < 0.11.0"
