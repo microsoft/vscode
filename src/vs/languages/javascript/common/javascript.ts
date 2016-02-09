@@ -22,6 +22,7 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
 import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
+import {ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
 
 export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaScriptWorker> {
 
@@ -50,7 +51,7 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 			tokens: [],
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 
-		this.parameterHintsSupport = new supports.ParameterHintsSupport(this, {
+		this.parameterHintsSupport = new ParameterHintsSupport(this.getId(), {
 			triggerCharacters: ['(', ','],
 			excludeTokens: ['string.js', 'string.escape.js'],
 			getParameterHints: (resource, position) => this.getParameterHints(resource, position)});

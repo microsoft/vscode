@@ -438,12 +438,6 @@ export interface IParameterHints {
 	signatures:ISignature[];
 }
 
-export interface IParameterHintsContribution {
-	triggerCharacters: string[];
-	excludeTokens: string[];
-	getParameterHints: (resource: URI, position: EditorCommon.IPosition) => TPromise<IParameterHints>;
-}
-
 /**
  * Interface used to get parameter hints.
  */

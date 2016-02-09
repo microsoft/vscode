@@ -28,6 +28,7 @@ import {createAsyncDescriptor0, createAsyncDescriptor1} from 'vs/platform/instan
 import {RichEditSupport, IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
 import {DeclarationSupport, IDeclarationContribution} from 'vs/editor/common/modes/supports/declarationSupport';
 import {ReferenceSupport, IReferenceContribution} from 'vs/editor/common/modes/supports/referenceSupport';
+import {ParameterHintsSupport, IParameterHintsContribution} from 'vs/editor/common/modes/supports/parameterHintsSupport';
 
 interface IModeConfigurationMap { [modeId: string]: any; }
 
@@ -307,8 +308,8 @@ export class ModeServiceImpl implements IModeService {
 		return this.registerModeSupport(modeId, 'outlineSupport', (mode) => support);
 	}
 
-	public registerDeclarativeParameterHintsSupport(modeId: string, support: Modes.IParameterHintsContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'parameterHintsSupport', (mode) => new Supports.ParameterHintsSupport(mode, support));
+	public registerDeclarativeParameterHintsSupport(modeId: string, support: IParameterHintsContribution): IDisposable {
+		return this.registerModeSupport(modeId, 'parameterHintsSupport', (mode) => new ParameterHintsSupport(modeId, support));
 	}
 
 	public registerQuickFixSupport(modeId: string, support: Modes.IQuickFixSupport): IDisposable {

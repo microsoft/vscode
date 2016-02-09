@@ -29,6 +29,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
 import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
+import {ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
 
 class SemanticValidator {
 
@@ -262,7 +263,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 			tokens: ['identifier.ts', 'string.ts', 'attribute.value.vs'],
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 
-		this.parameterHintsSupport = new supports.ParameterHintsSupport(this, {
+		this.parameterHintsSupport = new ParameterHintsSupport(this.getId(), {
 			triggerCharacters: ['(', ','],
 			excludeTokens: ['string.ts'],
 			getParameterHints: (resource, position) => this.getParameterHints(resource, position)});

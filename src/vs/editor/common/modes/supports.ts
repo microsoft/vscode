@@ -189,42 +189,7 @@ export function getBracketFor(tokenType:string, tokenText:string, mode:Modes.IMo
 
 
 
-export class ParameterHintsSupport extends AbstractSupport implements Modes.IParameterHintsSupport {
 
-	private contribution: Modes.IParameterHintsContribution;
-
-	constructor(mode: Modes.IMode, contribution: Modes.IParameterHintsContribution) {
-		super(mode);
-		this.contribution = contribution;
-	}
-
-	public getParameterHintsTriggerCharacters(): string[]
-	{
-		return this.contribution.triggerCharacters;
-	}
-
-	public shouldTriggerParameterHints(context: Modes.ILineContext, offset: number): boolean
-	{
-		return handleEvent(context, offset, (nestedMode:Modes.IMode, context:Modes.ILineContext, offset:number) => {
-			if (this.mode === nestedMode) {
-				if (!Array.isArray(this.contribution.excludeTokens)) {
-					return true;
-				}
-				if (this.contribution.excludeTokens.length === 1 && this.contribution.excludeTokens[0] === '*') {
-					return false;
-				}
-				return !isLineToken(context, offset-1, this.contribution.excludeTokens);
-			} else if (nestedMode.parameterHintsSupport) {
-				return nestedMode.parameterHintsSupport.shouldTriggerParameterHints(context, offset);
-			} else {
-				return false;
-			}
-		});
-	}
-	public getParameterHints(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.IParameterHints> {
-		return this.contribution.getParameterHints(resource, position);
-	}
-}
 
 export interface ISuggestContribution {
 	triggerCharacters: string[];

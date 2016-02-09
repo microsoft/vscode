@@ -29,6 +29,7 @@ import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
 // import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
 import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
+import {ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
 
 export { htmlTokenTypes }; // export to be used by Razor. We are the main module, so Razor should get ot from use.
 export { EMPTY_ELEMENTS }; // export to be used by Razor. We are the main module, so Razor should get ot from use.
@@ -310,7 +311,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 			findReferences: (resource, position, includeDeclaration) => this.findReferences(resource, position, includeDeclaration)});
 		this.logicalSelectionSupport = this;
 
-		this.parameterHintsSupport = new supports.ParameterHintsSupport(this, {
+		this.parameterHintsSupport = new ParameterHintsSupport(this.getId(), {
 			triggerCharacters: ['(', ','],
 			excludeTokens: ['*'],
 			getParameterHints: (resource, position) => this.getParameterHints(resource, position)});
