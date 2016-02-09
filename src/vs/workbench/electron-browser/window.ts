@@ -176,11 +176,7 @@ export class ElectronWindow {
 
 	public focus(): void {
 		if (!this.win.isFocused()) {
-			if (platform.isWindows || platform.isLinux) {
-				this.win.show(); // Windows & Linux sometimes cannot bring the window to the front when it is in the background
-			} else {
-				this.win.focus();
-			}
+			this.win.focus();
 		}
 	}
 
