@@ -30,6 +30,8 @@ export interface ILinesCollection {
 	getOutputLineTokens(outputLineNumber:number, inaccurateTokensAcceptable:boolean): EditorCommon.IViewLineTokens;
 	convertOutputPositionToInputPosition(viewLineNumber:number, viewColumn:number): EditorCommon.IEditorPosition;
 	convertInputPositionToOutputPosition(inputLineNumber:number, inputColumn:number): EditorCommon.IEditorPosition;
+	setHiddenAreas(ranges:EditorCommon.IRange[], emit:(evenType:string, payload:any)=>void): void;
+	dispose(): void;
 }
 
 export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
@@ -78,6 +80,14 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 		}));
 	}
 
+	public setHiddenAreas(ranges:EditorCommon.IRange[]): void {
+		this.deferredEmit(() => {
+			this.lines.setHiddenAreas(ranges, (eventType:string, payload:any) => this.emit(eventType, payload));
+			this.decorations.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
+			this.cursors.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
+		});
+	}
+
 	public dispose(): void {
 		this.listenersToRemove.forEach((element) => {
 			element();
@@ -86,6 +96,7 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 		this.listenersToRemove = [];
 		this.decorations.dispose();
 		this.decorations = null;
+		this.lines.dispose();
 		this.lines = null;
 		this.configuration = null;
 		this.model = null;

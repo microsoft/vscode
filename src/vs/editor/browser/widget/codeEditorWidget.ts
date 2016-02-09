@@ -365,6 +365,12 @@ export class CodeEditorWidget extends CommonCodeEditor implements EditorBrowser.
 		this._view.render(true);
 	}
 
+	public setHiddenAreas(ranges:EditorCommon.IRange[]): void {
+		if (this.viewModel) {
+			this.viewModel.setHiddenAreas(ranges);
+		}
+	}
+
 	_attachModel(model:EditorCommon.IModel): void {
 		this._view = null;
 

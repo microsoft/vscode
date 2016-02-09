@@ -591,6 +591,11 @@ export interface ICodeEditor extends EditorCommon.ICommonCodeEditor {
 	 * Warning: the results of this method are innacurate for positions that are outside the current editor viewport.
 	 */
 	getScrolledVisiblePosition(position: EditorCommon.IPosition): { top: number; left: number; height: number; };
+
+	/**
+	 * Set the model ranges that will be hidden in the view.
+	 */
+	setHiddenAreas(ranges:EditorCommon.IRange[]): void;
 }
 
 /**
