@@ -272,15 +272,9 @@ export class StageRangesAction extends baseeditor.EditorInputAction {
 		if (!this.gitService || !this.editorService) {
 			return false;
 		}
-
-		var changes = this.editor.getLineChanges();
-		var selections = this.editor.getSelections();
-
-		if (!changes || !selections || selections.length === 0) {
-			return false;
-		}
-
-		return stageranges.getSelectedChanges(changes, selections).length > 0;
+		const selection = this.editor.getSelection();
+		
+		return selection && !selection.isEmpty();
 	}
 
 	public run():TPromise<any> {
