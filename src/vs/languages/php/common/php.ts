@@ -17,6 +17,7 @@ import {IThreadService} from 'vs/platform/thread/common/thread';
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
+import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
 var bracketsSource : Modes.IBracketPair[]= [
 	{ tokenType:'delimiter.bracket.php', open: '{', close: '}', isElectric: true },
@@ -506,7 +507,7 @@ export class PHPMode extends AbstractMode<AbstractModeWorker> implements ITokeni
 			}
 		});
 
-		this.suggestSupport = new supports.SuggestSupport(this, {
+		this.suggestSupport = new SuggestSupport(this.getId(), {
 			triggerCharacters: ['.', ':', '$'],
 			excludeTokens: ['comment'],
 			suggest: (resource, position) => this.suggest(resource, position)});

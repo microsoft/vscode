@@ -18,6 +18,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import Modes = require('vs/editor/common/modes');
 import {IOnEnterSupportOptions} from 'vs/editor/common/modes/supports/onEnter';
 import {CharacterPair, IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
+import {IComposableSuggestContribution} from 'vs/editor/common/modes/supports/suggestSupport';
 
 export function createRichEditSupport(lexer: MonarchCommonTypes.ILexer): IRichEditConfiguration {
 
@@ -71,7 +72,7 @@ function _addSuggestionsAtPosition(model: EditorCommon.IModel, position:EditorCo
 	return superSuggestions;
 }
 
-export function createSuggestSupport(modelService: IModelService, mode:Modes.IMode, lexer:MonarchCommonTypes.ILexer): Supports.IComposableSuggestContribution {
+export function createSuggestSupport(modelService: IModelService, mode:Modes.IMode, lexer:MonarchCommonTypes.ILexer): IComposableSuggestContribution {
 	if (lexer.suggestSupport.textualCompletions && mode instanceof AbstractMode) {
 		return {
 			triggerCharacters:lexer.suggestSupport.triggerCharacters,

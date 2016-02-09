@@ -22,6 +22,7 @@ import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {ComposableSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
 /**
  * The MonarchMode creates a Monaco language mode given a certain language description
@@ -45,6 +46,6 @@ export class MonarchMode<W extends AbstractModeWorker> extends AbstractMode<W> {
 
 		this.richEditSupport = new RichEditSupport(this.getId(), MonarchDefinition.createRichEditSupport(lexer));
 
-		this.suggestSupport = new Supports.ComposableSuggestSupport(this, MonarchDefinition.createSuggestSupport(modelService, this, lexer));
+		this.suggestSupport = new ComposableSuggestSupport(this.getId(), MonarchDefinition.createSuggestSupport(modelService, this, lexer));
 	}
 }

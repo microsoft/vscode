@@ -23,6 +23,7 @@ import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
 import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
+import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
 export var language = <Types.ILanguage>{
 	displayName: 'Sass',
@@ -310,7 +311,7 @@ export class SASSMode extends Monarch.MonarchMode<sassWorker.SassWorker> impleme
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 		this.outlineSupport = this;
 
-		this.suggestSupport = new supports.SuggestSupport(this, {
+		this.suggestSupport = new SuggestSupport(this.getId(), {
 			triggerCharacters: [],
 			excludeTokens: ['comment.sass', 'string.sass'],
 			suggest: (resource, position) => this.suggest(resource, position)});

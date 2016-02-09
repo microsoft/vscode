@@ -30,6 +30,7 @@ import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
 import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
 import {ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
+import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
 class SemanticValidator {
 
@@ -268,7 +269,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 			excludeTokens: ['string.ts'],
 			getParameterHints: (resource, position) => this.getParameterHints(resource, position)});
 
-		this.suggestSupport = new supports.SuggestSupport(this, {
+		this.suggestSupport = new SuggestSupport(this.getId(), {
 			triggerCharacters: ['.'],
 			excludeTokens: ['string', 'comment', 'number'],
 			suggest: (resource, position) => this.suggest(resource, position),

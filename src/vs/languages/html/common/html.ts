@@ -30,6 +30,7 @@ import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData, IT
 // import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
 import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
 import {ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
+import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
 export { htmlTokenTypes }; // export to be used by Razor. We are the main module, so Razor should get ot from use.
 export { EMPTY_ELEMENTS }; // export to be used by Razor. We are the main module, so Razor should get ot from use.
@@ -320,7 +321,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 		// 		tokens: ['invalid'],
 		// 		findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 
-		this.suggestSupport = new supports.SuggestSupport(this, {
+		this.suggestSupport = new SuggestSupport(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
 			excludeTokens: ['comment'],
 			suggest: (resource, position) => this.suggest(resource, position)});

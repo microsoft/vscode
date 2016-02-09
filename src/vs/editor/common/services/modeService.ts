@@ -15,6 +15,7 @@ import {IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSu
 import {IDeclarationContribution} from 'vs/editor/common/modes/supports/declarationSupport';
 import {IReferenceContribution} from 'vs/editor/common/modes/supports/referenceSupport';
 import {IParameterHintsContribution} from 'vs/editor/common/modes/supports/parameterHintsSupport';
+import {ISuggestContribution} from 'vs/editor/common/modes/supports/suggestSupport';
 
 export var IModeService = createDecorator<IModeService>('modeService');
 
@@ -49,7 +50,7 @@ export interface IModeService {
 	registerQuickFixSupport(modeId: string, support: Modes.IQuickFixSupport): IDisposable;
 	registerDeclarativeReferenceSupport(modeId: string, contribution: IReferenceContribution): IDisposable;
 	registerRenameSupport(modeId: string, support: Modes.IRenameSupport): IDisposable;
-	registerDeclarativeSuggestSupport(modeId: string, declaration: Supports.ISuggestContribution): IDisposable;
+	registerDeclarativeSuggestSupport(modeId: string, declaration: ISuggestContribution): IDisposable;
 	registerTokenizationSupport(modeId: string, callback: (mode: Modes.IMode) => Modes.ITokenizationSupport): IDisposable;
 	registerRichEditSupport(modeId: string, support: IRichEditConfiguration): IDisposable;
 

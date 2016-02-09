@@ -24,6 +24,7 @@ import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
 import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
+import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
 export enum States {
 	Selector,
@@ -347,7 +348,7 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 			tokens: [cssTokenTypes.TOKEN_VALUE + '.css'],
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 
-		this.suggestSupport = new supports.SuggestSupport(this, {
+		this.suggestSupport = new SuggestSupport(this.getId(), {
 			triggerCharacters: [' ', ':'],
 			excludeTokens: ['comment.css', 'string.css'],
 			suggest: (resource, position) => this.suggest(resource, position)});

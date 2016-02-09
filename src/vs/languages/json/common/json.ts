@@ -23,6 +23,7 @@ import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {IJSONContributionRegistry, Extensions, ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
 export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Modes.IExtraInfoSupport, Modes.IOutlineSupport, IThreadSynchronizableObject<ISchemaContributions> {
 
@@ -90,7 +91,7 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 
 		this.formattingSupport = this;
 
-		this.suggestSupport = new supports.SuggestSupport(this, {
+		this.suggestSupport = new SuggestSupport(this.getId(), {
 			triggerCharacters: [],
 			excludeTokens: ['comment.line.json', 'comment.block.json'],
 			suggest: (resource, position) => this.suggest(resource, position)});

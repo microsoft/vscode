@@ -23,6 +23,7 @@ import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
 import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
 import {ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
+import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
 export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaScriptWorker> {
 
@@ -114,7 +115,7 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 			}
 		});
 
-		this.suggestSupport = new supports.SuggestSupport(this, {
+		this.suggestSupport = new SuggestSupport(this.getId(), {
 			triggerCharacters: ['.'],
 			excludeTokens: ['string', 'comment', 'number', 'numeric'],
 			suggest: (resource, position) => this.suggest(resource, position),

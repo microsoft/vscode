@@ -29,6 +29,7 @@ import {RichEditSupport, IRichEditConfiguration} from 'vs/editor/common/modes/su
 import {DeclarationSupport, IDeclarationContribution} from 'vs/editor/common/modes/supports/declarationSupport';
 import {ReferenceSupport, IReferenceContribution} from 'vs/editor/common/modes/supports/referenceSupport';
 import {ParameterHintsSupport, IParameterHintsContribution} from 'vs/editor/common/modes/supports/parameterHintsSupport';
+import {SuggestSupport, ComposableSuggestSupport, ISuggestContribution} from 'vs/editor/common/modes/supports/suggestSupport';
 
 interface IModeConfigurationMap { [modeId: string]: any; }
 
@@ -324,8 +325,8 @@ export class ModeServiceImpl implements IModeService {
 		return this.registerModeSupport(modeId, 'renameSupport', (mode) => support);
 	}
 
-	public registerDeclarativeSuggestSupport(modeId: string, declaration: Supports.ISuggestContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'suggestSupport', (mode) => new Supports.SuggestSupport(mode, declaration));
+	public registerDeclarativeSuggestSupport(modeId: string, declaration: ISuggestContribution): IDisposable {
+		return this.registerModeSupport(modeId, 'suggestSupport', (mode) => new SuggestSupport(modeId, declaration));
 	}
 
 	public registerTokenizationSupport(modeId: string, callback: (mode: Modes.IMode) => Modes.ITokenizationSupport): IDisposable {
@@ -377,7 +378,7 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 			super.doRegisterMonarchDefinition(modeId, lexer),
 
 			this.registerModeSupport(modeId, 'suggestSupport', (mode) => {
-				return new Supports.ComposableSuggestSupport(mode, MonarchDefinition.createSuggestSupport(this._modelService, mode, lexer));
+				return new ComposableSuggestSupport(modeId, MonarchDefinition.createSuggestSupport(this._modelService, mode, lexer));
 			})
 		);
 	}
