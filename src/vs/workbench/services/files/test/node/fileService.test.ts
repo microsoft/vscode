@@ -58,8 +58,6 @@ suite('FileService', () => {
 	});
 
 	test('createFile', function(done: () => void) {
-		this.timeout(10000); // TODO@Ben test tends to need longer?
-
 		let contents = 'Hello World';
 		service.createFile(uri.file(path.join(testDir, 'test.txt')), contents).done(s => {
 			assert.equal(s.name, 'test.txt');
@@ -259,8 +257,6 @@ suite('FileService', () => {
 	});
 
 	test('updateContent', function(done: () => void) {
-		this.timeout(10000); // TODO@Ben test tends to need longer?
-		
 		let resource = uri.file(path.join(testDir, 'small.txt'));
 
 		service.resolveContent(resource).done(c => {
