@@ -39,23 +39,6 @@ suite('Editor Modes - Auto Indentation', () => {
 				close: /<\/(\w[\w\d]*)\s*>$/i }
 		], null, true);
 
-		assert.equal(brackets.onEnter(modesUtil.createLineContextFromTokenText([
-			{ text: '', type: '' }
-		]), 0), null);
-		assert.equal(brackets.onEnter(modesUtil.createLineContextFromTokenText([
-			{ text: '<', type: 'delim' },
-			{ text: 'tag', type: 'tag', bracket: modes.Bracket.Open },
-			{ text: '>', type: 'delim' },
-		]), 5).indentAction, modes.IndentAction.Indent);
-		assert.equal(brackets.onEnter(modesUtil.createLineContextFromTokenText([
-			{ text: '<', type: 'delim' },
-			{ text: 'tag', type: 'tag', bracket: modes.Bracket.Open },
-			{ text: '>', type: 'delim' },
-			{ text: '</', type: 'delim' },
-			{ text: 'TAg', type: 'tag', bracket: modes.Bracket.Close},
-			{ text: '>', type: 'delim' },
-		]), 5).indentAction, modes.IndentAction.IndentOutdent);
-
 		assert.equal(brackets.onElectricCharacter(modesUtil.createLineContextFromTokenText([
 			{ text: '<', type: 'delim' },
 			{ text: 'tag', type: 'tag', bracket: modes.Bracket.Open },

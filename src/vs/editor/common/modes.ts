@@ -752,7 +752,6 @@ export interface IRichEditElectricCharacter {
 	getElectricCharacters():string[];
 	// Should return opening bracket type to match indentation with
 	onElectricCharacter(context:ILineContext, offset:number):IElectricAction;
-	onEnter(context:ILineContext, offset:number):IEnterAction;
 }
 
 export interface IRichEditOnEnter {

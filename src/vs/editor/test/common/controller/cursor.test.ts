@@ -786,10 +786,8 @@ class OnEnterMode extends TestMode {
 	constructor(indentAction: Modes.IndentAction) {
 		super();
 		this.richEditSupport = {
-			electricCharacter: {
-				getElectricCharacters: ():string[] => null,
-				onElectricCharacter: (context:Modes.ILineContext, offset:number): Modes.IElectricAction => null,
-				onEnter: (context:Modes.ILineContext, offset:number): Modes.IEnterAction => {
+			onEnter: {
+				onEnter: (model, position) => {
 					return {
 						indentAction: indentAction
 					};

@@ -57,18 +57,6 @@ export class BracketElectricCharacterSupport implements Modes.IRichEditElectricC
 			}
 		});
 	}
-
-	public onEnter(context: Modes.ILineContext, offset: number): Modes.IEnterAction {
-		return handleEvent(context, offset, (nestedMode:Modes.IMode, context:Modes.ILineContext, offset:number) => {
-			if (this._modeId === nestedMode.getId()) {
-				return this.brackets.onEnter(context, offset);
-			} else if (nestedMode.richEditSupport && nestedMode.richEditSupport.electricCharacter) {
-				return nestedMode.richEditSupport.electricCharacter.onEnter(context, offset);
-			} else {
-				return null;
-			}
-		});
-	}
 }
 
 enum Lettercase { Unknown, Lowercase, Uppercase, Camelcase}
@@ -146,14 +134,6 @@ export class Brackets {
 		return result;
 	}
 
-	public onEnter(context: Modes.ILineContext, offset: number): Modes.IEnterAction {
-		if (context.getTokenCount() === 0) {
-			return null;
-		}
-
-		return this._onEnterRegexBrackets(context, offset);
-	}
-
 	public onElectricCharacter(context: Modes.ILineContext, offset: number): Modes.IElectricAction {
 		if (context.getTokenCount() === 0) {
 			return null;
@@ -188,38 +168,6 @@ export class Brackets {
 			}
 		}
 		return true;
-	}
-
-	private _onEnterRegexBrackets(context: Modes.ILineContext, offset: number): Modes.IEnterAction {
-		// Handle regular expression brackets
-		for (var i = 0; i < this.regexBrackets.length; ++i) {
-			var regexBracket = this.regexBrackets[i];
-			var line = context.getLineContent();
-
-			if (this.caseInsensitive) {
-				line = line.toLowerCase(); // Even with the /../i regexes we need this for the indexof below
-			}
-
-			// Check if an open bracket matches the line up to offset.
-			var matchLine = line.substr(0, offset);
-			var matches = matchLine.match(regexBracket.open);
-
-			if (matches) {
-
-				// The opening bracket matches. Check the closing one.
-				if (regexBracket.closeComplete) {
-					matchLine = line.substring(offset);
-					var matchAfter = matches[0].replace(regexBracket.open, regexBracket.closeComplete);
-					if (matchLine.indexOf(matchAfter) === 0) {
-						return { indentAction: Modes.IndentAction.IndentOutdent };
-					}
-				}
-
-				return { indentAction: Modes.IndentAction.Indent };
-			}
-		}
-
-		return null;
 	}
 
 	private _onElectricCharacterStandardBrackets(context: Modes.ILineContext, offset: number): Modes.IElectricAction {

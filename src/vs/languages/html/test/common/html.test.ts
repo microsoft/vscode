@@ -14,18 +14,18 @@ import modesUtil = require('vs/editor/test/common/modesUtil');
 import {Model} from 'vs/editor/common/model/model';
 import Supports = require('vs/editor/common/modes/supports');
 import {getTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE, COMMENT, DELIM_COMMENT, DELIM_DOCTYPE, DOCTYPE} from 'vs/languages/html/common/htmlTokenTypes';
-
+import {getRawEnterActionAtPosition} from 'vs/editor/common/modes/supports/onEnter';
+import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
+import {TextModel} from 'vs/editor/common/model/textModel';
 
 suite('Colorizing - HTML', () => {
 
-	var onEnter: modesUtil.IOnEnterFunc;
 	var tokenizationSupport: Modes.ITokenizationSupport;
 	var _mode: Modes.IMode;
 
 	suiteSetup((done) => {
 		modesUtil.load('html').then(mode => {
 			tokenizationSupport = mode.tokenizationSupport;
-			onEnter = modesUtil.createOnEnter(mode);
 			_mode = mode;
 			done();
 		});
@@ -620,21 +620,38 @@ suite('Colorizing - HTML', () => {
 	});
 
 	test('onEnter', function() {
-		assert.equal(onEnter('', 0), null);
-		assert.equal(onEnter('>', 1), null);
-		assert.equal(onEnter('span>', 5), null);
-		assert.equal(onEnter('</span>', 7), null);
-		assert.equal(onEnter('<img />', 7), null);
-		assert.equal(onEnter('<span>', 6).indentAction, Modes.IndentAction.Indent);
-		assert.equal(onEnter('<p>', 3).indentAction, Modes.IndentAction.Indent);
-		assert.equal(onEnter('<span><span>', 6).indentAction, Modes.IndentAction.Indent);
-		assert.equal(onEnter('<p><span>', 3).indentAction, Modes.IndentAction.Indent);
-		assert.equal(onEnter('<span></span>', 6).indentAction, Modes.IndentAction.IndentOutdent);
-		assert.equal(onEnter('<p></p>', 3).indentAction, Modes.IndentAction.IndentOutdent);
-		assert.equal(onEnter('<span>a</span>', 6).indentAction, Modes.IndentAction.Indent);
-		assert.equal(onEnter('<span>a</span>', 7).indentAction, Modes.IndentAction.IndentOutdent);
-		assert.equal(onEnter('<span> </span>', 6).indentAction, Modes.IndentAction.Indent);
-		assert.equal(onEnter('<span> </span>', 7).indentAction, Modes.IndentAction.IndentOutdent);
+
+		function onEnter(line:string, offset:number): Modes.IEnterAction {
+			let model = new TextModelWithTokens([], TextModel.toRawText(line), false, _mode);
+			let result = getRawEnterActionAtPosition(model, 1, offset + 1);
+			model.dispose();
+			return result;
+		}
+
+		function assertOnEnter(text:string, offset:number, expected: Modes.IndentAction): void {
+			let _actual = onEnter(text, offset);
+			let actual = _actual ? _actual.indentAction : null;
+			let actualStr = actual ? Modes.IndentAction[actual] : null;
+			let expectedStr = expected ? Modes.IndentAction[expected] : null;
+			assert.equal(actualStr, expectedStr, 'TEXT: <<' + text + '>>, OFFSET: <<' + offset + '>>');
+		}
+
+		assertOnEnter('', 0, null);
+		assertOnEnter('>', 1, null);
+		assertOnEnter('span>', 5, null);
+		assertOnEnter('</span>', 7, null);
+		assertOnEnter('<img />', 7, null);
+		assertOnEnter('<span>', 6, Modes.IndentAction.Indent);
+		assertOnEnter('<p>', 3, Modes.IndentAction.Indent);
+		assertOnEnter('<span><span>', 6, Modes.IndentAction.Indent);
+		assertOnEnter('<p><span>', 3, Modes.IndentAction.Indent);
+		assertOnEnter('<span></SPan>', 6, Modes.IndentAction.IndentOutdent);
+		assertOnEnter('<span></span>', 6, Modes.IndentAction.IndentOutdent);
+		assertOnEnter('<p></p>', 3, Modes.IndentAction.IndentOutdent);
+		assertOnEnter('<span>a</span>', 6, Modes.IndentAction.Indent);
+		assertOnEnter('<span>a</span>', 7, Modes.IndentAction.IndentOutdent);
+		assertOnEnter('<span> </span>', 6, Modes.IndentAction.Indent);
+		assertOnEnter('<span> </span>', 7, Modes.IndentAction.IndentOutdent);
 	});
 });
 

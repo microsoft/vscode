@@ -182,32 +182,18 @@ export class OnEnterSupport implements IRichEditOnEnter {
 }
 
 export function getRawEnterActionAtPosition(model:ITokenizedModel, lineNumber:number, column:number): IEnterAction {
-	let enterAction:IEnterAction;
-
+	let result:IEnterAction;
 	let richEditSupport = model.getMode().richEditSupport;
 
 	if (richEditSupport && richEditSupport.onEnter) {
 		try {
-			enterAction = richEditSupport.onEnter.onEnter(model, new Position(lineNumber, column));
+			result = richEditSupport.onEnter.onEnter(model, new Position(lineNumber, column));
 		} catch (e) {
 			onUnexpectedError(e);
 		}
 	}
 
-	if (!enterAction) {
-		if (richEditSupport && richEditSupport.electricCharacter) {
-			let lineContext = model.getLineContext(lineNumber);
-			try {
-				enterAction = richEditSupport.electricCharacter.onEnter(lineContext, column - 1);
-			} catch(e) {
-				onUnexpectedError(e);
-			}
-		}
-	} else {
-		// console.log('USING NEW INDENTATION LOGIC!');
-	}
-
-	return enterAction;
+	return result;
 }
 
 export function getEnterActionAtPosition(model:ITokenizedModel, lineNumber:number, column:number): { enterAction: IEnterAction; indentation: string; } {

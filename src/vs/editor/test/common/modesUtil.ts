@@ -25,11 +25,6 @@ export interface ITestItem {
 	tokens: IRelaxedToken[];
 }
 
-
-export interface IOnEnterFunc {
-	(line:string, offset:number, state?:modes.IState): modes.IEnterAction;
-}
-
 export interface IOnElectricCharacterFunc {
 	(line:string, offset:number, state?:modes.IState): modes.IElectricAction;
 }
@@ -44,14 +39,6 @@ export function createOnElectricCharacter(mode:modes.IMode): IOnElectricCharacte
 
 export function assertWords(actual:string[], expected:string[], message?:string): void {
 	assert.deepEqual(actual, expected, message);
-}
-
-export function createOnEnter(mode:modes.IMode): IOnEnterFunc {
-	return function onEnter(line:string, offset:number, state?:modes.IState): modes.IEnterAction {
-		state = state || mode.tokenizationSupport.getInitialState();
-		var lineTokens = mode.tokenizationSupport.tokenize(line, state);
-		return mode.richEditSupport.electricCharacter.onEnter(createLineContext(line, lineTokens), offset);
-	};
 }
 
 export function load(modeId: string, preloadModes: string[] = [] ): TPromise<modes.IMode> {

@@ -368,7 +368,19 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 					{ open: '"', close: '"' },
 					{ open: '\'', close: '\'' }
 				]
-			}
+			},
+
+			onEnterRules: [
+				{
+					beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join("|")}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+					afterText: /^<\/(\w[\w\d]*)\s*>$/i,
+					action: { indentAction: Modes.IndentAction.IndentOutdent }
+				},
+				{
+					beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join("|")}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+					action: { indentAction: Modes.IndentAction.Indent }
+				}
+			],
 		});
 	}
 
