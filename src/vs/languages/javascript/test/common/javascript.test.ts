@@ -68,9 +68,9 @@ suite('JS - Auto Indent', () => {
 			assert.deepEqual(actual, expected, 'LINE <<<' + line + '>>>, OFFSET: <<<' + offset + '>>>');
 		}
 
-		const CURLY = { matchOpenBracket: { modeId:'javascript', open:'{', close:'}' } };
-		const ROUND = { matchOpenBracket: { modeId:'javascript', open:'(', close:')' } };
-		const SQUARE = { matchOpenBracket: { modeId:'javascript', open:'[', close:']' } };
+		const CURLY = { matchOpenBracket: '}' };
+		const ROUND = { matchOpenBracket: ')' };
+		const SQUARE = { matchOpenBracket: ']' };
 
 		testElectricCharacter('var f = function() {}', 20, null);
 		testElectricCharacter('}', 0, CURLY);

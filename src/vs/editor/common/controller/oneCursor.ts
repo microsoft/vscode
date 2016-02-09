@@ -1161,7 +1161,7 @@ export class OneCursorOp {
 			if (matchOpenBracket) {
 				var match = cursor.model.findMatchingBracketUp(matchOpenBracket, {
 					lineNumber: position.lineNumber,
-					column: position.column - matchOpenBracket.close.length
+					column: position.column - matchOpenBracket.length
 				});
 				if (match) {
 					var matchLineNumber = match.startLineNumber;

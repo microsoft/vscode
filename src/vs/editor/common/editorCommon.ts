@@ -1376,10 +1376,11 @@ export interface ITextModel {
 	isDisposed(): boolean;
 }
 
-export interface IFindBracketRequest {
-	modeId: string;
+export interface IRichEditBracket {
 	open: string;
 	close: string;
+	forwardRegex: RegExp;
+	reversedRegex: RegExp;
 }
 
 export interface IFoundBracket {
@@ -1486,7 +1487,7 @@ export interface ITokenizedModel extends ITextModel {
 	 * @param position The position at which to start the search.
 	 * @return The range of the matching bracket, or null if the bracket match was not found.
 	 */
-	findMatchingBracketUp(request:IFindBracketRequest, position:IPosition): IEditorRange;
+	findMatchingBracketUp(bracket:string, position:IPosition): IEditorRange;
 
 	/**
 	 * Find the first bracket in the model before `position`.

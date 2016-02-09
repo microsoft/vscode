@@ -697,7 +697,7 @@ export interface IElectricAction {
 
 	// The line will be indented at the same level of the line
 	// which contains the matching given bracket type.
-	matchOpenBracket?:EditorCommon.IFindBracketRequest;
+	matchOpenBracket?:string;
 
 	// The text will be appended after the electric character.
 	appendText?:string;
@@ -754,6 +754,15 @@ export interface IRichEditCharacterPair {
 	getSurroundingPairs():IAutoClosingPair[];
 }
 
+export interface IRichEditBrackets {
+	maxBracketLength: number;
+	forwardRegex: RegExp;
+	reversedRegex: RegExp;
+	brackets: EditorCommon.IRichEditBracket[];
+	textIsBracket: {[text:string]:EditorCommon.IRichEditBracket;};
+	textIsOpenBracket: {[text:string]:boolean;};
+}
+
 export interface IRichEditSupport {
 	/**
 	 * Optional adapter for electric characters.
@@ -779,4 +788,9 @@ export interface IRichEditSupport {
 	 * Optional adapter for custom Enter handling.
 	 */
 	onEnter?: IRichEditOnEnter;
+
+	/**
+	 * Optional adapter for brackets.
+	 */
+	brackets?: IRichEditBrackets;
 }

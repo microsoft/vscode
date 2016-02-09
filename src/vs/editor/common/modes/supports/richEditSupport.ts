@@ -30,11 +30,12 @@ export interface IRichEditConfiguration {
 
 export class RichEditSupport implements Modes.IRichEditSupport {
 
-	public electricCharacter: Modes.IRichEditElectricCharacter;
+	public electricCharacter: BracketElectricCharacterSupport;
 	public comments: Modes.ICommentsConfiguration;
 	public characterPair: Modes.IRichEditCharacterPair;
 	public wordDefinition: RegExp;
 	public onEnter: Modes.IRichEditOnEnter;
+	public brackets: Modes.IRichEditBrackets;
 
 	constructor(modeId:string, conf:IRichEditConfiguration) {
 
@@ -48,6 +49,7 @@ export class RichEditSupport implements Modes.IRichEditSupport {
 
 		if (conf.__electricCharacterSupport) {
 			this.electricCharacter = new BracketElectricCharacterSupport(modeId, conf.__electricCharacterSupport);
+			this.brackets = this.electricCharacter.getRichEditBrackets();
 		}
 
 		this.wordDefinition = conf.wordPattern || NullMode.DEFAULT_WORD_REGEXP;

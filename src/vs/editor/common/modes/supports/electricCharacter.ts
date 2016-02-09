@@ -8,7 +8,7 @@ import * as Modes from 'vs/editor/common/modes';
 import {handleEvent, ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
 import Strings = require('vs/base/common/strings');
 import {Range} from 'vs/editor/common/core/range';
-import {IFoundBracket} from 'vs/editor/common/editorCommon';
+import {IRichEditBracket} from 'vs/editor/common/editorCommon';
 import {Arrays} from 'vs/editor/common/core/arrays';
 
 /**
@@ -58,6 +58,10 @@ export class BracketElectricCharacterSupport implements Modes.IRichEditElectricC
 			}
 		});
 	}
+
+	public getRichEditBrackets(): Modes.IRichEditBrackets {
+		return this.brackets.getRichEditBrackets();
+	}
 }
 
 interface ISimpleInternalBracket {
@@ -65,24 +69,15 @@ interface ISimpleInternalBracket {
 	close: string;
 }
 
-interface IInternalBrackets extends ISimpleInternalBracket {
-	forwardRegex: RegExp;
-	reversedRegex: RegExp;
-}
-
-interface ITextBracket {
-	open: string;
-	close: string;
-	isOpen: boolean;
-}
-
 export class Brackets {
 
 	private _modeId: string;
-	private _brackets: IInternalBrackets[];
+	private _brackets: IRichEditBracket[];
 	private _bracketsForwardRegex: RegExp;
 	private _bracketsReversedRegex: RegExp;
-	private _text2Bracket: {[text:string]:ITextBracket;};
+	private _maxBracketLength: number;
+	private _textIsBracket: {[text:string]:IRichEditBracket;};
+	private _textIsOpenBracket: {[text:string]:boolean;};
 	private _docComment: IDocComment;
 
 	constructor(modeId: string, brackets: Modes.IBracketPair[], docComment: IDocComment = null, caseInsensitive: boolean = false) {
@@ -97,12 +92,33 @@ export class Brackets {
 		});
 		this._bracketsForwardRegex = getRegexForBrackets(this._brackets);
 		this._bracketsReversedRegex = getReversedRegexForBrackets(this._brackets);
-		this._text2Bracket = {};
+
+		this._textIsBracket = {};
+		this._textIsOpenBracket = {};
+		this._maxBracketLength = 0;
 		this._brackets.forEach((b) => {
-			this._text2Bracket[b.open] = { open: b.open, close: b.close, isOpen: true };
-			this._text2Bracket[b.close] = { open: b.open, close: b.close, isOpen: false };
+			this._textIsBracket[b.open] = b;
+			this._textIsBracket[b.close] = b;
+			this._textIsOpenBracket[b.open] = true;
+			this._textIsOpenBracket[b.close] = false;
+			this._maxBracketLength = Math.max(this._maxBracketLength, b.open.length);
+			this._maxBracketLength = Math.max(this._maxBracketLength, b.close.length);
 		});
 		this._docComment = docComment ? docComment : null;
+	}
+
+	public getRichEditBrackets(): Modes.IRichEditBrackets {
+		if (this._brackets.length === 0) {
+			return null;
+		}
+		return {
+			maxBracketLength: this._maxBracketLength,
+			forwardRegex: this._bracketsForwardRegex,
+			reversedRegex: this._bracketsReversedRegex,
+			brackets: this._brackets,
+			textIsBracket: this._textIsBracket,
+			textIsOpenBracket: this._textIsOpenBracket
+		};
 	}
 
 	public getElectricCharacters():string[] {
@@ -168,15 +184,11 @@ export class Brackets {
 			let r = BracketsUtils.findPrevBracketInToken(reversedBracketRegex, 1, lineText, tokenStart, tokenEnd);
 			if (r) {
 				let text = lineText.substring(r.startColumn - 1, r.endColumn - 1);
-				let data = this._text2Bracket[text];
-				if (!data.isOpen) {
+				let isOpen = this._textIsOpenBracket[text];
+				if (!isOpen) {
 					return {
-						matchOpenBracket: {
-							modeId: this._modeId,
-							open: data.open,
-							close: data.close
-						}
-					}
+						matchOpenBracket: text
+					};
 				}
 			}
 		}
@@ -228,7 +240,6 @@ function once<T, R>(keyFn:(input:T)=>string, computeFn:(input:T)=>R):(input:T)=>
 	}
 }
 
-// TODO: dup in textModelWithTokens
 var getRegexForBracketPair = once<ISimpleInternalBracket,RegExp>(
 	(input) => `${input.open};${input.close}`,
 	(input) => {
@@ -236,7 +247,6 @@ var getRegexForBracketPair = once<ISimpleInternalBracket,RegExp>(
 	}
 );
 
-// TODO: dup in textModelWithTokens
 var getReversedRegexForBracketPair = once<ISimpleInternalBracket,RegExp>(
 	(input) => `${input.open};${input.close}`,
 	(input) => {
@@ -273,7 +283,6 @@ function createOrRegex(pieces:string[]): RegExp {
 	return Strings.createRegExp(regexStr, true, false, false, false);
 }
 
-// TODO: dup in textModelWithTokens
 function toReversedString(str:string): string {
 	let reversedStr = '';
 	for (let i = str.length - 1; i >= 0; i--) {
@@ -284,7 +293,6 @@ function toReversedString(str:string): string {
 
 export class BracketsUtils {
 
-	// TODO: dup in textModelWithTokens
 	private static _findPrevBracketInText(reversedBracketRegex:RegExp, lineNumber:number, reversedText:string, offset:number): Range {
 		let m = reversedText.match(reversedBracketRegex);
 
@@ -299,7 +307,6 @@ export class BracketsUtils {
 		return new Range(lineNumber, absoluteMatchOffset + 1, lineNumber, absoluteMatchOffset + 1 + matchLength);
 	}
 
-	// TODO: dup in textModelWithTokens
 	public static findPrevBracketInToken(reversedBracketRegex:RegExp, lineNumber:number, lineText:string, currentTokenStart:number, currentTokenEnd:number): Range {
 		// Because JS does not support backwards regex search, we search forwards in a reversed string with a reversed regex ;)
 		let currentTokenReversedText = '';
@@ -308,6 +315,26 @@ export class BracketsUtils {
 		}
 
 		return this._findPrevBracketInText(reversedBracketRegex, lineNumber, currentTokenReversedText, currentTokenStart);
+	}
+
+	public static findNextBracketInText(bracketRegex:RegExp, lineNumber:number, text:string, offset:number): Range {
+		let m = text.match(bracketRegex);
+
+		if (!m) {
+			return null;
+		}
+
+		let matchOffset = m.index;
+		let matchLength = m[0].length;
+		let absoluteMatchOffset = offset + matchOffset;
+
+		return new Range(lineNumber, absoluteMatchOffset + 1, lineNumber, absoluteMatchOffset + 1 + matchLength);
+	}
+
+	public static findNextBracketInToken(bracketRegex:RegExp, lineNumber:number, lineText:string, currentTokenStart:number, currentTokenEnd:number): Range {
+		let currentTokenText = lineText.substring(currentTokenStart, currentTokenEnd);
+
+		return this.findNextBracketInText(bracketRegex, lineNumber, currentTokenText, currentTokenStart);
 	}
 
 }

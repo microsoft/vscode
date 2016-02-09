@@ -24,6 +24,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import * as Strings from 'vs/base/common/strings';
 import {ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
+import {BracketsUtils} from 'vs/editor/common/modes/supports/electricCharacter';
 
 export class TokensInflatorMap implements EditorCommon.ITokensInflatorMap {
 
@@ -847,12 +848,28 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 		return result;
 	}
 
-	public findMatchingBracketUp(request:EditorCommon.IFindBracketRequest, _position:EditorCommon.IPosition): EditorCommon.IEditorRange {
+	public findMatchingBracketUp(bracket:string, _position:EditorCommon.IPosition): EditorCommon.IEditorRange {
 		if (this._isDisposed) {
 			throw new Error('TextModelWithTokens.findMatchingBracketUp: Model is disposed');
 		}
 
-		return this._findMatchingBracketUp(request.open, request.close, this.validatePosition(_position));
+		let position = this.validatePosition(_position);
+		let modeTransitions = this._lines[position.lineNumber - 1].getModeTransitions().toArray(this._mode);
+		let currentModeIndex = Arrays.findIndexInSegmentsArray(modeTransitions, position.column - 1);
+		let currentMode = modeTransitions[currentModeIndex];
+		let currentModeBrackets = currentMode.mode.richEditSupport ? currentMode.mode.richEditSupport.brackets : null;
+
+		if (!currentModeBrackets) {
+			return null;
+		}
+
+		let data = currentModeBrackets.textIsBracket[bracket];
+
+		if (!data) {
+			return null;
+		}
+
+		return this._findMatchingBracketUp(data, position);
 	}
 
 	public matchBracket(position:EditorCommon.IPosition, inaccurateResultAcceptable:boolean = false): EditorCommon.IMatchBracketResult {
@@ -864,18 +881,19 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 	}
 
 	private _matchBracket(position:EditorCommon.IEditorPosition): EditorCommon.IMatchBracketResult {
-
-		let reversedBracketRegex = /[\(\)\[\]\{\}]/; // TODO@Alex: use mode's brackets
-		let bracketRegex = /[\(\)\[\]\{\}]/; // TODO@Alex: use mode's brackets
-		let maxBracketLength = 1; // TODO@Alex: use mode's brackets
-
 		let tokensMap = this._tokensInflatorMap;
 		let lineNumber = position.lineNumber;
-		let lineTokens = this._lines[lineNumber - 1].getTokens();
 		let lineText = this._lines[lineNumber - 1].text;
+
+		let lineTokens = this._lines[lineNumber - 1].getTokens();
 		let tokens = lineTokens.getBinaryEncodedTokens();
 		let currentTokenIndex = lineTokens.findIndexOfOffset(position.column - 1);
 		let currentTokenStart = getStartIndex(tokens[currentTokenIndex]);
+
+		let modeTransitions = this._lines[lineNumber - 1].getModeTransitions().toArray(this._mode);
+		let currentModeIndex = Arrays.findIndexInSegmentsArray(modeTransitions, position.column - 1);
+		let currentMode = modeTransitions[currentModeIndex];
+		let currentModeBrackets = currentMode.mode.richEditSupport ? currentMode.mode.richEditSupport.brackets : null;
 
 		// If position is in between two tokens, try first looking in the previous token
 		if (currentTokenIndex > 0 && currentTokenStart === position.column - 1) {
@@ -886,18 +904,29 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 			if (!ignoreBracketsInToken(prevTokenType)) {
 				let prevTokenStart = getStartIndex(tokens[prevTokenIndex]);
 
-				// limit search in case previous token is very large, there's no need to go beyond `maxBracketLength`
-				prevTokenStart = Math.max(prevTokenStart, position.column - 1 - maxBracketLength);
+				let prevMode = currentMode;
+				let prevModeBrackets = currentModeBrackets;
+				// check if previous token is in a different mode
+				if (currentModeIndex > 0 && currentMode.startIndex === position.column - 1) {
+					prevMode = modeTransitions[currentModeIndex - 1];
+					prevModeBrackets = prevMode.mode.richEditSupport ? prevMode.mode.richEditSupport.brackets : null;
+				}
 
-				let foundBracket = TextModelWithTokens._findPrevBracketInToken(reversedBracketRegex, lineNumber, lineText, prevTokenStart, currentTokenStart);
+				if (prevModeBrackets) {
+					// limit search in case previous token is very large, there's no need to go beyond `maxBracketLength`
+					prevTokenStart = Math.max(prevTokenStart, position.column - 1 - prevModeBrackets.maxBracketLength);
 
-				// check that we didn't hit a bracket too far away from position
-				if (foundBracket && foundBracket.startColumn <= position.column && position.column <= foundBracket.endColumn) {
-					let r = this._matchFoundBracket(foundBracket);
+					let foundBracket = BracketsUtils.findPrevBracketInToken(prevModeBrackets.reversedRegex, lineNumber, lineText, prevTokenStart, currentTokenStart);
 
-					// check that we can actually match this bracket
-					if (r) {
-						return r;
+					// check that we didn't hit a bracket too far away from position
+					if (foundBracket && foundBracket.startColumn <= position.column && position.column <= foundBracket.endColumn) {
+						let foundBracketText = lineText.substring(foundBracket.startColumn - 1, foundBracket.endColumn - 1);
+						let r = this._matchFoundBracket(foundBracket, prevModeBrackets.textIsBracket[foundBracketText], prevModeBrackets.textIsOpenBracket[foundBracketText]);
+
+						// check that we can actually match this bracket
+						if (r) {
+							return r;
+						}
 					}
 				}
 			}
@@ -906,32 +935,35 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 		// check that the token is not to be ignored
 		if (!ignoreBracketsInToken(getType(tokensMap, tokens[currentTokenIndex]))) {
 
-			// limit search to not go before `maxBracketLength`
-			currentTokenStart = Math.max(currentTokenStart, position.column - 1 - maxBracketLength);
+			if (currentModeBrackets) {
+				// limit search to not go before `maxBracketLength`
+				currentTokenStart = Math.max(currentTokenStart, position.column - 1 - currentModeBrackets.maxBracketLength);
 
-			// limit search to not go after `maxBracketLength`
-			let currentTokenEnd = (currentTokenIndex + 1 < tokens.length ? getStartIndex(tokens[currentTokenIndex + 1]) : lineText.length);
-			currentTokenEnd = Math.min(currentTokenEnd, position.column - 1 + maxBracketLength);
+				// limit search to not go after `maxBracketLength`
+				let currentTokenEnd = (currentTokenIndex + 1 < tokens.length ? getStartIndex(tokens[currentTokenIndex + 1]) : lineText.length);
+				currentTokenEnd = Math.min(currentTokenEnd, position.column - 1 + currentModeBrackets.maxBracketLength);
 
-			// it might still be the case that [currentTokenStart -> currentTokenEnd] contains multiple brackets
-			while(true) {
-				let foundBracket = TextModelWithTokens._findNextBracketInText(bracketRegex, lineNumber, lineText.substring(currentTokenStart, currentTokenEnd), currentTokenStart);
-				if (!foundBracket) {
-					// there are no brackets in this text
-					break;
-				}
-
-				// check that we didn't hit a bracket too far away from position
-				if (foundBracket.startColumn <= position.column && position.column <= foundBracket.endColumn) {
-					let r = this._matchFoundBracket(foundBracket);
-
-					// check that we can actually match this bracket
-					if (r) {
-						return r;
+				// it might still be the case that [currentTokenStart -> currentTokenEnd] contains multiple brackets
+				while(true) {
+					let foundBracket = BracketsUtils.findNextBracketInText(currentModeBrackets.forwardRegex, lineNumber, lineText.substring(currentTokenStart, currentTokenEnd), currentTokenStart);
+					if (!foundBracket) {
+						// there are no brackets in this text
+						break;
 					}
-				}
 
-				currentTokenStart = foundBracket.endColumn - 1;
+					// check that we didn't hit a bracket too far away from position
+					if (foundBracket.startColumn <= position.column && position.column <= foundBracket.endColumn) {
+						let foundBracketText = lineText.substring(foundBracket.startColumn - 1, foundBracket.endColumn - 1);
+						let r = this._matchFoundBracket(foundBracket, currentModeBrackets.textIsBracket[foundBracketText], currentModeBrackets.textIsOpenBracket[foundBracketText]);
+
+						// check that we can actually match this bracket
+						if (r) {
+							return r;
+						}
+					}
+
+					currentTokenStart = foundBracket.endColumn - 1;
+				}
 			}
 		}
 
@@ -941,19 +973,17 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 		};
 	}
 
-	private _matchFoundBracket(foundBracket:Range): EditorCommon.IMatchBracketResult {
-		let data = this._toFoundBracket(foundBracket);
-
-		if (data.isOpen) {
-			let matched = this._findMatchingBracketDown(data.open, data.close, data.range.getEndPosition());
+	private _matchFoundBracket(foundBracket:Range, data:EditorCommon.IRichEditBracket, isOpen:boolean): EditorCommon.IMatchBracketResult {
+		if (isOpen) {
+			let matched = this._findMatchingBracketDown(data, foundBracket.getEndPosition());
 			if (matched) {
 				return {
 					brackets: [foundBracket, matched],
 					isAccurate: true
 				};
 			}
-		} else if (!data.isOpen) {
-			let matched = this._findMatchingBracketUp(data.open, data.close, data.range.getStartPosition());
+		} else {
+			let matched = this._findMatchingBracketUp(data, foundBracket.getStartPosition());
 			if (matched) {
 				return {
 					brackets: [foundBracket, matched],
@@ -965,50 +995,13 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 		return null;
 	}
 
-	private static _getReversedString(str:string): string {
-		let reversedStr = '';
-		for (let i = str.length - 1; i >= 0; i--) {
-			reversedStr += str.charAt(i);
-		}
-		return reversedStr;
-	}
+	private _findMatchingBracketUp(bracket:EditorCommon.IRichEditBracket, position:EditorCommon.IEditorPosition): Range {
+		// console.log('_findMatchingBracketUp: ', 'bracket: ', JSON.stringify(bracket), 'startPosition: ', String(position));
 
-	private static _REVERSED_REGEX_BRACKET_PAIR_CACHE: {[key:string]: RegExp;} = {};
-	private static _getReversedRegexForBracketPair(open:string, close:string): RegExp {
-		let key = open + ';' + close;
-		if (!this._REVERSED_REGEX_BRACKET_PAIR_CACHE.hasOwnProperty(key)) {
-			let reversedOpen = this._getReversedString(open);
-			let reversedClose = this._getReversedString(close);
-
-			let reversedOpenEscaped = Strings.escapeRegExpCharacters(reversedOpen);
-			let reversedCloseEscaped = Strings.escapeRegExpCharacters(reversedClose);
-
-			let regexStr = `(${reversedOpenEscaped})|(${reversedCloseEscaped})`;
-
-			this._REVERSED_REGEX_BRACKET_PAIR_CACHE[key] = Strings.createRegExp(regexStr, true, false, false, false);
-		}
-		return this._REVERSED_REGEX_BRACKET_PAIR_CACHE[key];
-	}
-
-	private static _REGEX_BRACKET_PAIR_CACHE: {[key:string]: RegExp;} = {};
-	private static _getRegexForBracketPair(open:string, close:string): RegExp {
-		let key = open + ';' + close;
-		if (!this._REGEX_BRACKET_PAIR_CACHE.hasOwnProperty(key)) {
-			let openEscaped = Strings.escapeRegExpCharacters(open);
-			let closeEscaped = Strings.escapeRegExpCharacters(close);
-
-			let regexStr = `(${openEscaped})|(${closeEscaped})`;
-
-			this._REGEX_BRACKET_PAIR_CACHE[key] = Strings.createRegExp(regexStr, true, false, false, false);
-		}
-		return this._REGEX_BRACKET_PAIR_CACHE[key];
-	}
-
-	private _findMatchingBracketUp(openBracket:string, closeBracket:string, position:EditorCommon.IEditorPosition): Range {
-		// console.log('_findMatchingBracketUp: ', 'openBracket: ', openBracket, 'closeBracket: ', closeBracket, 'startPosition: ', String(position));
 
 		let tokensMap = this._tokensInflatorMap;
-		let reversedBracketRegex = TextModelWithTokens._getReversedRegexForBracketPair(openBracket, closeBracket);
+		// TODO@Alex: account for mode transitions
+		let reversedBracketRegex = bracket.reversedRegex;
 		let count = -1;
 
 		for (let lineNumber = position.lineNumber; lineNumber >= 1; lineNumber--) {
@@ -1031,16 +1024,16 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 				if (!ignoreBracketsInToken(currentTokenType)) {
 
 					while (true) {
-						let r = TextModelWithTokens._findPrevBracketInToken(reversedBracketRegex, lineNumber, lineText, currentTokenStart, currentTokenEnd);
+						let r = BracketsUtils.findPrevBracketInToken(reversedBracketRegex, lineNumber, lineText, currentTokenStart, currentTokenEnd);
 						if (!r) {
 							break;
 						}
 
 						let hitText = lineText.substring(r.startColumn - 1, r.endColumn - 1);
 
-						if (hitText === openBracket) {
+						if (hitText === bracket.open) {
 							count++;
-						} else if (hitText === closeBracket) {
+						} else if (hitText === bracket.close) {
 							count--;
 						}
 
@@ -1059,11 +1052,12 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 		return null;
 	}
 
-	private _findMatchingBracketDown(openBracket:string, closeBracket:string, position:EditorCommon.IEditorPosition): Range {
-		// console.log('_findMatchingBracketDown: ', 'openBracket: ', openBracket, 'closeBracket: ', closeBracket, 'startPosition: ', String(position));
+	private _findMatchingBracketDown(bracket:EditorCommon.IRichEditBracket, position:EditorCommon.IEditorPosition): Range {
+		// console.log('_findMatchingBracketDown: ', 'bracket: ', JSON.stringify(bracket), 'startPosition: ', String(position));
 
 		let tokensMap = this._tokensInflatorMap;
-		let bracketRegex = TextModelWithTokens._getRegexForBracketPair(openBracket, closeBracket);
+		// TODO@Alex: account for mode transitions
+		let bracketRegex = bracket.forwardRegex;
 		let count = 1;
 
 		for (let lineNumber = position.lineNumber, lineCount = this.getLineCount(); lineNumber <= lineCount; lineNumber++) {
@@ -1086,16 +1080,16 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 
 				if (!ignoreBracketsInToken(currentTokenType)) {
 					while (true) {
-						let r = TextModelWithTokens._findNextBracketInToken(bracketRegex, lineNumber, lineText, currentTokenStart, currentTokenEnd);
+						let r = BracketsUtils.findNextBracketInToken(bracketRegex, lineNumber, lineText, currentTokenStart, currentTokenEnd);
 						if (!r) {
 							break;
 						}
 
 						let hitText = lineText.substring(r.startColumn - 1, r.endColumn - 1);
 
-						if (hitText === openBracket) {
+						if (hitText === bracket.open) {
 							count++;
-						} else if (hitText === closeBracket) {
+						} else if (hitText === bracket.close) {
 							count--;
 						}
 
@@ -1112,30 +1106,6 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 		}
 
 		return null;
-	}
-
-	private static _findPrevBracketInText(reversedBracketRegex:RegExp, lineNumber:number, reversedText:string, offset:number): Range {
-		let m = reversedText.match(reversedBracketRegex);
-
-		if (!m) {
-			return null;
-		}
-
-		let matchOffset = reversedText.length - 1 - m.index;
-		let matchLength = m[0].length;
-		let absoluteMatchOffset = offset + matchOffset;
-
-		return new Range(lineNumber, absoluteMatchOffset + 1, lineNumber, absoluteMatchOffset + 1 + matchLength);
-	}
-
-	private static _findPrevBracketInToken(reversedBracketRegex:RegExp, lineNumber:number, lineText:string, currentTokenStart:number, currentTokenEnd:number): Range {
-		// Because JS does not support backwards regex search, we search forwards in a reversed string with a reversed regex ;)
-		let currentTokenReversedText = '';
-		for (let index = currentTokenEnd - 1; index >= currentTokenStart; index--) {
-			currentTokenReversedText += lineText.charAt(index);
-		}
-
-		return this._findPrevBracketInText(reversedBracketRegex, lineNumber, currentTokenReversedText, currentTokenStart);
 	}
 
 	public findPrevBracket(_position:EditorCommon.IPosition): EditorCommon.IFoundBracket {
@@ -1165,7 +1135,7 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 				let currentTokenStart = getStartIndex(currentToken);
 
 				if (!ignoreBracketsInToken(currentTokenType)) {
-					let r = TextModelWithTokens._findPrevBracketInToken(reversedBracketRegex, lineNumber, lineText, currentTokenStart, currentTokenEnd);
+					let r = BracketsUtils.findPrevBracketInToken(reversedBracketRegex, lineNumber, lineText, currentTokenStart, currentTokenEnd);
 					if (r) {
 						return this._toFoundBracket(r);
 					}
@@ -1176,26 +1146,6 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 		}
 
 		return null;
-	}
-
-	private static _findNextBracketInText(bracketRegex:RegExp, lineNumber:number, text:string, offset:number): Range {
-		let m = text.match(bracketRegex);
-
-		if (!m) {
-			return null;
-		}
-
-		let matchOffset = m.index;
-		let matchLength = m[0].length;
-		let absoluteMatchOffset = offset + matchOffset;
-
-		return new Range(lineNumber, absoluteMatchOffset + 1, lineNumber, absoluteMatchOffset + 1 + matchLength);
-	}
-
-	private static _findNextBracketInToken(bracketRegex:RegExp, lineNumber:number, lineText:string, currentTokenStart:number, currentTokenEnd:number): Range {
-		let currentTokenText = lineText.substring(currentTokenStart, currentTokenEnd);
-
-		return this._findNextBracketInText(bracketRegex, lineNumber, currentTokenText, currentTokenStart);
 	}
 
 	public findNextBracket(_position:EditorCommon.IPosition): EditorCommon.IFoundBracket {
@@ -1225,7 +1175,7 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 				let currentTokenEnd = tokenIndex + 1 < tokensLength ? getStartIndex(tokens[tokenIndex + 1]) : lineText.length;
 
 				if (!ignoreBracketsInToken(currentTokenType)) {
-					let r = TextModelWithTokens._findNextBracketInToken(bracketRegex, lineNumber, lineText, currentTokenStart, currentTokenEnd);
+					let r = BracketsUtils.findNextBracketInToken(bracketRegex, lineNumber, lineText, currentTokenStart, currentTokenEnd);
 					if (r) {
 						return this._toFoundBracket(r);
 					}
