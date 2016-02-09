@@ -27,7 +27,7 @@ export interface IConfigurationService extends IEventEmitter {
 	/**
 	 * Event that fires when the configuration changes.
 	 */
-	onDidUpdateConfiguration: Event<{ config: any }>
+	onDidUpdateConfiguration: Event<{ config: any }>;
 }
 
 export class ConfigurationServiceEventTypes {

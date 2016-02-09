@@ -90,7 +90,7 @@ class JSONContributionRegistry implements IJSONContributionRegistry {
 		return {
 			schemas: this.schemasById,
 			schemaAssociations: this.schemaAssociations
-		}
+		};
 	}
 
 }

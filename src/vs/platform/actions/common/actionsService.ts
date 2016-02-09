@@ -32,15 +32,15 @@ function isValidCommand(candidate: Command, rejects: string[]): boolean {
 		return false;
 	}
 	if (typeof candidate.command !== 'string') {
-		rejects.push(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'command'))
+		rejects.push(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'command'));
 		return false;
 	}
 	if (typeof candidate.title !== 'string') {
-		rejects.push(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'title'))
+		rejects.push(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'title'));
 		return false;
 	}
 	if (candidate.category && typeof candidate.category !== 'string') {
-		rejects.push(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'category'))
+		rejects.push(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'category'));
 		return false;
 	}
 	return true;
@@ -87,7 +87,7 @@ export default class ActionsService implements IActionsService {
 		this._keybindingsService = keybindingsService;
 		commandsExtPoint.setHandler((extensions) => {
 			for (let d of extensions) {
-				this._onDescription(d.value, d.collector)
+				this._onDescription(d.value, d.collector);
 			}
 		});
 	}

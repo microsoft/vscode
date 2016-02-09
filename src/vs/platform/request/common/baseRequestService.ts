@@ -86,7 +86,7 @@ export class BaseRequestService implements IRequestService {
 			let additionalHeaders = {};
 			if (this._telemetryService) {
 				additionalHeaders['X-TelemetrySession'] = this._telemetryService.getSessionId();
-			};
+			}
 			additionalHeaders['X-Requested-With'] = 'XMLHttpRequest';
 			xhrOptions.headers = objects.mixin(xhrOptions.headers, additionalHeaders);
 		}

@@ -21,7 +21,7 @@ export interface IContextViewService {
 }
 
 export interface IContextViewDelegate {
-	getAnchor(): HTMLElement | { x: number; y: number; }
+	getAnchor(): HTMLElement | { x: number; y: number; };
 	render(container: HTMLElement): Lifecycle.IDisposable;
 	canRelayout?: boolean; // Default: true
 	onDOMEvent?(e: Event, activeElement: HTMLElement): void;
@@ -36,7 +36,7 @@ export interface IContextMenuService {
 }
 
 export interface IContextMenuDelegate {
-	getAnchor(): HTMLElement | { x: number; y: number; }
+	getAnchor(): HTMLElement | { x: number; y: number; };
 	getActions(): TPromise<IAction[]>;
 	getActionItem?(action: IAction): ActionBar.IActionItem;
 	getActionsContext?(): any;
