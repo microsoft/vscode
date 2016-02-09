@@ -7,7 +7,47 @@
 global.vscodeStart = Date.now();
 
 var app = require('electron').app;
+var fs = require('fs');
 var path = require('path');
+
+// Duplicated in ../index.html for the renderes.
+function getNLSConfiguration() {
+	var locale = undefined;
+	var localeOpts = '--locale';
+	for (var i = 0; i < process.argv.length; i++) {
+		var arg = process.argv[i];
+		if (arg.slice(0, localeOpts.length) == localeOpts) {
+			var segments = arg.split('=');
+			locale = segments[1];
+			break;
+		}
+	}
+
+	if (locale === 'pseudo') {
+		return { availableLanguages: {}, pseudo: true }
+	}
+	if (process.env.VSCODE_DEV) {
+		return { availableLanguages: {} };
+	}
+	// We have a built version so we have extracted nls file. Try to find
+	// the right file to use.
+	locale = locale || app.getLocale();
+	while (locale) {
+		var candidate = path.join(__dirname, 'main.nls.') + locale + '.js';
+		if (fs.existsSync(candidate)) {
+			return { availableLanguages: { '*': locale } };
+		} else {
+			var index = locale.lastIndexOf('-');
+			if (index > 0) {
+				locale = locale.substring(0, index);
+			} else {
+				locale = null;
+			}
+		}
+	}
+
+	return { availableLanguages: {} };
+}
 
 // Change cwd if given via env variable
 try {
@@ -30,6 +70,9 @@ global.macOpenFiles = [];
 app.on('open-file', function(event, path) {
 	global.macOpenFiles.push(path);
 });
+
+var nlsConfig = getNLSConfiguration();
+process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 
 // Load our code once ready
 app.once('ready', function() {
