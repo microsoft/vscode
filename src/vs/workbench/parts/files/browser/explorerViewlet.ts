@@ -123,16 +123,16 @@ export class ExplorerViewlet extends Viewlet {
 	public focus(): void {
 		super.focus();
 
-		if (this.lastFocusedView && this.lastFocusedView.isExpanded()) {
+		if (this.lastFocusedView && this.lastFocusedView.isExpanded() && this.hasSelectionOrFocus(this.lastFocusedView)) {
 			this.lastFocusedView.focusBody();
 			return;
 		}
 
-		if (this.hasSelection(this.workingFilesView)) {
+		if (this.hasSelectionOrFocus(this.workingFilesView)) {
 			return this.workingFilesView.focusBody();
 		}
 
-		if (this.hasSelection(this.explorerView)) {
+		if (this.hasSelectionOrFocus(this.explorerView)) {
 			return this.explorerView.focusBody();
 		}
 
@@ -147,7 +147,7 @@ export class ExplorerViewlet extends Viewlet {
 		return this.workingFilesView.focus();
 	}
 
-	private hasSelection(view: ExplorerView|WorkingFilesView): boolean {
+	private hasSelectionOrFocus(view: ExplorerView|WorkingFilesView): boolean {
 		if (!view) {
 			return false;
 		}
@@ -161,7 +161,7 @@ export class ExplorerViewlet extends Viewlet {
 			return false;
 		}
 
-		return viewer.getSelection() && viewer.getSelection().length > 0;
+		return !!viewer.getFocus() || (viewer.getSelection() && viewer.getSelection().length > 0);
 	}
 
 	public layout(dimension: Dimension): void {
