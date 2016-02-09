@@ -114,14 +114,6 @@ class PluginHostProcessManager {
 			env: objects.mixin(objects.clone(process.env), { AMD_ENTRYPOINT: 'vs/workbench/node/pluginHostProcess', PIPE_LOGGING: 'true', VERBOSE_LOGGING: true })
 		};
 
-		// Make sure the nls configuration travels to the plugin host.
-		if (globalRequire && typeof globalRequire.getConfig === 'function') {
-			let nlsConfig = globalRequire.getConfig()['vs/nls'];
-			if (nlsConfig) {
-				opts.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
-			}
-		}
-
 		// Help in case we fail to start it
 		if (isDev) {
 			this.initializeTimer = setTimeout(() => {

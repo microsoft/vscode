@@ -43,13 +43,6 @@ export function spawnSharedProcess(): cp.ChildProcess {
 		})
 	};
 
-	if (globalRequire && typeof globalRequire.getConfig === 'function') {
-		let nlsConfig = globalRequire.getConfig()['vs/nls'];
-		if (nlsConfig) {
-			opts.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
-		}
-	}
-
 	const result = cp.fork(boostrapPath, ['--type=SharedProcess'], opts);
 
 	// handshake

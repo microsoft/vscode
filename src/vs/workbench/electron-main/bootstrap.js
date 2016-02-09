@@ -88,8 +88,9 @@ function getNLSConfiguration() {
 // Load our code once ready
 app.once('ready', function() {
 	var nlsConfig = getNLSConfiguration();
-	var loader = require('../../loader');
+	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 
+	var loader = require('../../loader');
 	loader.config({
 		nodeRequire: require,
 		nodeMain: __filename,

@@ -123,13 +123,6 @@ export class Client implements IDisposable {
 					forkOpts.execArgv = ['--nolazy', '--debug-brk=' + this.options.debugBrk];
 				}
 			}
-			if (globalRequire && typeof globalRequire.getConfig === 'function') {
-				let nlsConfig = globalRequire.getConfig()['vs/nls'];
-				if (nlsConfig) {
-					forkOpts.env = forkOpts.env || clone(process.env);
-					forkOpts.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
-				}
-			}
 
 			this.child = cp.fork(this.modulePath, args, forkOpts);
 			this._client = new IPCClient({
