@@ -48,7 +48,7 @@ export interface ILexer extends ILexerMin {
 	autoClosingPairs: Modes.IAutoClosingPairConditional[];
 
 	standardBrackets: Modes.IBracketPair[];
-	enhancedBrackets: Modes.IRegexBracketPair[];
+	// enhancedBrackets: Modes.IRegexBracketPair[];
 	outdentTriggers: string;
 }
 
