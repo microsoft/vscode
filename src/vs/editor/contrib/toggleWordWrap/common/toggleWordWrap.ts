@@ -38,7 +38,7 @@ class ToggleWordWrapAction extends EditorAction {
 }
 
 // register actions
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ToggleWordWrapAction, ToggleWordWrapAction.ID, nls.localize('toggle.wordwrap', "ww: Toggle Word Wrap"), {
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ToggleWordWrapAction, ToggleWordWrapAction.ID, nls.localize('toggle.wordwrap', "View: Toggle Word Wrap"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Alt | KeyCode.KEY_Z,
 	mac: { primary: KeyMod.Alt |  KeyCode.KEY_Z },
