@@ -736,12 +736,9 @@ export interface IRichEditOnEnter {
  * Interface used to support insertion of mode specific comments.
  */
 export interface ICommentsConfiguration {
-	lineCommentTokens?:string[];
+	lineCommentToken?:string;
 	blockCommentStartToken?:string;
 	blockCommentEndToken?:string;
-}
-export interface IRichEditComments {
-	getCommentsConfiguration():ICommentsConfiguration;
 }
 
 /**
@@ -773,7 +770,7 @@ export interface IRichEditSupport {
 	/**
 	 * Optional adapter for comment insertion.
 	 */
-	comments?:IRichEditComments;
+	comments?:ICommentsConfiguration;
 
 	/**
 	 * Optional adapter for insertion of character pair.

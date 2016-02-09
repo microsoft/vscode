@@ -122,13 +122,7 @@ export class BlockCommentCommand implements EditorCommon.ICommand {
 		var endColumn = this._selection.endColumn;
 
 		let richEditSupport = model.getModeAtPosition(startLineNumber, startColumn).richEditSupport;
-		var commentsSupport = richEditSupport? richEditSupport.comments : null;
-		if (!commentsSupport) {
-			// Mode does not support comments
-			return;
-		}
-
-		var config = commentsSupport.getCommentsConfiguration();
+		let config = richEditSupport ? richEditSupport.comments : null;
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
 			// Mode does not support block comments
 			return;

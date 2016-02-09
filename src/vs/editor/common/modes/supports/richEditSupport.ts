@@ -9,7 +9,6 @@ import {OnEnterSupport, IOnEnterSupportOptions, IIndentationRules, IOnEnterRegEx
 import {CharacterPairSupport} from 'vs/editor/common/modes/supports/characterPair';
 import {BracketElectricCharacterSupport, IBracketElectricCharacterContribution} from 'vs/editor/common/modes/supports/electricCharacter';
 import {TokenTypeClassificationSupport} from 'vs/editor/common/modes/supports/tokenTypeClassification';
-import {CommentsSupport, ICommentsSupportContribution} from 'vs/editor/common/modes/supports/comments';
 import {ICharacterPairContribution} from 'vs/editor/common/modes/supports/characterPair';
 
 export type CharacterPair = [string, string];
@@ -32,7 +31,7 @@ export interface IRichEditConfiguration {
 export class RichEditSupport implements Modes.IRichEditSupport {
 
 	public electricCharacter: Modes.IRichEditElectricCharacter;
-	public comments: Modes.IRichEditComments;
+	public comments: Modes.ICommentsConfiguration;
 	public characterPair: Modes.IRichEditCharacterPair;
 	public tokenTypeClassification: Modes.IRichEditTokenTypeClassification;
 	public onEnter: Modes.IRichEditOnEnter;
@@ -84,20 +83,20 @@ export class RichEditSupport implements Modes.IRichEditSupport {
 	}
 
 	private _handleComments(modeId:string, conf:IRichEditConfiguration): void {
-		let {comments} = conf;
+		let commentRule = conf.comments;
 
 		// comment configuration
-		if (comments) {
-			let contrib: ICommentsSupportContribution = { commentsConfiguration: {} };
-			if (comments.lineComment) {
-				contrib.commentsConfiguration.lineCommentTokens = [comments.lineComment];
+		if (commentRule) {
+			this.comments = {};
+
+			if (commentRule.lineComment) {
+				this.comments.lineCommentToken = commentRule.lineComment;
 			}
-			if (comments.blockComment) {
-				let [blockStart, blockEnd] = comments.blockComment;
-				contrib.commentsConfiguration.blockCommentStartToken = blockStart;
-				contrib.commentsConfiguration.blockCommentEndToken = blockEnd;
+			if (commentRule.blockComment) {
+				let [blockStart, blockEnd] = commentRule.blockComment;
+				this.comments.blockCommentStartToken = blockStart;
+				this.comments.blockCommentEndToken = blockEnd;
 			}
-			this.comments = new CommentsSupport(contrib);
 		}
 	}
 

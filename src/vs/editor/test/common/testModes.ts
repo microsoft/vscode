@@ -45,9 +45,7 @@ export class CommentMode extends AbstractMode<AbstractModeWorker> {
 		}, false, false);
 
 		this.richEditSupport = {
-			comments: {
-				getCommentsConfiguration: () => commentsConfig
-			}
+			comments:commentsConfig
 		};
 	}
 }
