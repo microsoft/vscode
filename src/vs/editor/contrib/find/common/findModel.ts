@@ -286,7 +286,7 @@ export class FindModelBoundToEditorModel {
 		if (!this._state.isRegex) {
 			return this._state.replaceString;
 		}
-		let regexp = Strings.createRegExp(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord);
+		let regexp = Strings.createRegExp(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord, true);
 		// Parse the replace string to support that \t or \n mean the right thing
 		let parsedReplaceString = parseReplaceString(this._state.replaceString);
 		return matchedString.replace(regexp, parsedReplaceString);

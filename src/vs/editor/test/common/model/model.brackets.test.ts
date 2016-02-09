@@ -19,15 +19,29 @@ suite('TextModelWithTokens', () => {
 		}
 		return {
 			range: a.range.toString(),
-			text: a.text
+			open: a.open,
+			close: a.close,
+			isOpen: a.isOpen
 		};
 	}
 
 	function testBrackets(contents: string[], brackets:string[][]): void {
 		let charIsBracket: {[char:string]:boolean} = {};
+		let charIsOpenBracket: {[char:string]:boolean} = {};
+		let openForChar: {[char:string]:string} = {};
+		let closeForChar: {[char:string]:string} = {};
 		brackets.forEach((b) => {
 			charIsBracket[b[0]] = true;
 			charIsBracket[b[1]] = true;
+
+			charIsOpenBracket[b[0]] = true;
+			charIsOpenBracket[b[1]] = false;
+
+			openForChar[b[0]] = b[0];
+			closeForChar[b[0]] = b[1];
+
+			openForChar[b[1]] = b[0];
+			closeForChar[b[1]] = b[1];
 		});
 
 		let expectedBrackets:IFoundBracket[] = [];
@@ -38,7 +52,9 @@ suite('TextModelWithTokens', () => {
 				let ch = lineText.charAt(charIndex);
 				if (charIsBracket[ch]) {
 					expectedBrackets.push({
-						text: ch,
+						open: openForChar[ch],
+						close: closeForChar[ch],
+						isOpen: charIsOpenBracket[ch],
 						range: new Range(lineIndex + 1, charIndex + 1, lineIndex + 1, charIndex + 2)
 					});
 				}

@@ -1378,7 +1378,9 @@ export interface ITextModel {
 
 export interface IFoundBracket {
 	range: IEditorRange;
-	text: string;
+	open: string;
+	close: string;
+	isOpen: boolean;
 }
 
 /**

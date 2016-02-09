@@ -41,7 +41,7 @@ export class Engine implements ISearchEngine {
 		this.rootFolders = config.rootFolders;
 		this.extraFiles = config.extraFiles;
 		this.walker = walker;
-		this.contentPattern = strings.createRegExp(config.contentPattern.pattern, config.contentPattern.isRegExp, config.contentPattern.isCaseSensitive, config.contentPattern.isWordMatch);
+		this.contentPattern = strings.createRegExp(config.contentPattern.pattern, config.contentPattern.isRegExp, config.contentPattern.isCaseSensitive, config.contentPattern.isWordMatch, true);
 		this.isCanceled = false;
 		this.limitReached = false;
 		this.maxResults = config.maxResults;
