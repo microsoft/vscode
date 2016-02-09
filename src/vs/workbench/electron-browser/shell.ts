@@ -20,7 +20,6 @@ import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
 import dom = require('vs/base/browser/dom');
 import aria = require('vs/base/browser/ui/aria/aria');
-import {Emitter} from 'vs/base/common/event';
 import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import {ContextViewService} from 'vs/platform/contextview/browser/contextViewService';
@@ -97,11 +96,11 @@ import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/servic
 import {CrashReporter} from 'vs/workbench/electron-browser/crashReporter';
 import {IThemeService, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
 import {ThemeService} from 'vs/workbench/services/themes/node/themeService';
-import { IServiceCtor, isServiceEvent, getService } from 'vs/base/common/service';
-import { connect, Client } from 'vs/base/node/service.net';
-import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
-import { ExtensionsService } from 'vs/workbench/parts/extensions/node/extensionsService';
-import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
+import {getService } from 'vs/base/common/service';
+import {connect} from 'vs/base/node/service.net';
+import {IExtensionsService} from 'vs/workbench/parts/extensions/common/extensions';
+import {ExtensionsService} from 'vs/workbench/parts/extensions/node/extensionsService';
+import {ReloadWindowAction} from 'vs/workbench/electron-browser/actions';
 
 /**
  * The Monaco Workbench Shell contains the Monaco workbench with a rich header containing navigation and the activity bar.
@@ -163,7 +162,7 @@ export class WorkbenchShell {
 		sharedProcessClientPromise.done(service => {
 			service.onClose(() => {
 				this.messageService.show(Severity.Error, {
-					message: nls.localize('sharedProcessCrashed', "The shared process terminated unexpectedly. Please reload the window."),
+					message: nls.localize('sharedProcessCrashed', "The shared process terminated unexpectedly. Please reload the window to recover."),
 					actions: [instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL)]
 				});
 			});

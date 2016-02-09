@@ -154,6 +154,10 @@ export class ElectronWindow {
 		this.win.close();
 	}
 
+	public reload(): void {
+		ipc.send('vscode:reloadWindow', this.win.id);
+	}
+
 	public showMessageBox(options: Electron.Dialog.ShowMessageBoxOptions): number {
 		return remote.dialog.showMessageBox(this.win, options);
 	}

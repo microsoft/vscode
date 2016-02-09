@@ -376,7 +376,7 @@ export class ReloadWindowAction extends Action {
 	}
 
 	public run(): TPromise<boolean> {
-		ipc.send('vscode:reloadWindow', this.windowService.getWindowId());
+		this.windowService.getWindow().reload();
 
 		return TPromise.as(true);
 	}
