@@ -35,7 +35,7 @@ export interface ILanguage {
 	autoClosingPairs?: string[][];				// for example [['"','"']]
 	wordDefinition?: RegExp;					// word definition regular expression
 	outdentTriggers?: string;					// characters that could potentially cause outdentation
-	enhancedBrackets?: IRegexBracketPair[];     // Advanced auto completion, auto indenting, and bracket matching
+	// enhancedBrackets?: IRegexBracketPair[];     // Advanced auto completion, auto indenting, and bracket matching
 }
 
 /**

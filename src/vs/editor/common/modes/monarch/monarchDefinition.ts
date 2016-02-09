@@ -43,7 +43,7 @@ export function createRichEditSupport(lexer: MonarchCommonTypes.ILexer): IRichEd
 
 		__electricCharacterSupport: {
 			brackets: lexer.standardBrackets,
-			regexBrackets: lexer.enhancedBrackets,
+			// regexBrackets: lexer.enhancedBrackets,
 			caseInsensitive: lexer.ignoreCase,
 			embeddedElectricCharacters: lexer.outdentTriggers.split('')
 		},
