@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as Modes from 'vs/editor/common/modes';
+import {IRichEditTokenTypeClassification} from 'vs/editor/common/modes';
 import {NullMode} from 'vs/editor/common/modes/nullMode';
 
 export interface ITokenTypeClassificationSupportContribution {
 	wordDefinition?: RegExp;
 }
 
-export class TokenTypeClassificationSupport implements Modes.IRichEditTokenTypeClassification {
+export class TokenTypeClassificationSupport implements IRichEditTokenTypeClassification {
 
 	private _contribution: ITokenTypeClassificationSupportContribution;
 

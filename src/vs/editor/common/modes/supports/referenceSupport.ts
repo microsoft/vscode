@@ -5,17 +5,17 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import * as Modes from 'vs/editor/common/modes';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {IReference, IReferenceSupport, ILineContext, IMode} from 'vs/editor/common/modes';
+import {IPosition} from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
 import {handleEvent, isLineToken} from 'vs/editor/common/modes/supports';
 
 export interface IReferenceContribution {
 	tokens: string[];
-	findReferences: (resource: URI, position: EditorCommon.IPosition, includeDeclaration: boolean) => TPromise<Modes.IReference[]>;
+	findReferences: (resource: URI, position: IPosition, includeDeclaration: boolean) => TPromise<IReference[]>;
 }
 
-export class ReferenceSupport implements Modes.IReferenceSupport {
+export class ReferenceSupport implements IReferenceSupport {
 
 	private _modeId: string;
 	private contribution: IReferenceContribution;
@@ -28,8 +28,8 @@ export class ReferenceSupport implements Modes.IReferenceSupport {
 		this.contribution = contribution;
 	}
 
-	public canFindReferences(context: Modes.ILineContext, offset:number):boolean {
-		return handleEvent(context, offset, (nestedMode:Modes.IMode, context:Modes.ILineContext, offset:number) => {
+	public canFindReferences(context: ILineContext, offset:number):boolean {
+		return handleEvent(context, offset, (nestedMode:IMode, context:ILineContext, offset:number) => {
 			if (this._modeId === nestedMode.getId()) {
 				return (!Array.isArray(this.contribution.tokens) ||
 					this.contribution.tokens.length < 1 ||
@@ -42,7 +42,7 @@ export class ReferenceSupport implements Modes.IReferenceSupport {
 		});
 	}
 
-	public findReferences(resource: URI, position: EditorCommon.IPosition, includeDeclaration: boolean): TPromise<Modes.IReference[]> {
+	public findReferences(resource: URI, position: IPosition, includeDeclaration: boolean): TPromise<IReference[]> {
 		return this.contribution.findReferences(resource, position, includeDeclaration);
 	}
 }

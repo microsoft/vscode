@@ -705,15 +705,6 @@ export interface IRegexBracketPair {
 					// Only used to auto-(un)indent a closing bracket.
 }
 
-/**
- * Definition of documentation comments (e.g. Javadoc/JSdoc)
- */
-export interface IDocComment {
-	scope: string; // What tokens should be used to detect a doc comment (e.g. 'comment.documentation').
-	open: string; // The string that starts a doc comment (e.g. '/**')
-	lineStart: string; // The string that appears at the start of each line, except the first and last (e.g. ' * ').
-	close?: string; // The string that appears on the last line and closes the doc comment (e.g. ' */').
-}
 
 export interface IAutoClosingPairConditional extends IAutoClosingPair {
 	notIn?: string[];

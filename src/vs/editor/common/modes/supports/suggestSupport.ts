@@ -6,8 +6,8 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
-import Modes = require('vs/editor/common/modes');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {ISuggestResult, ISuggestSupport, ISuggestion, ILineContext, IMode, ISuggestionFilter} from 'vs/editor/common/modes';
+import {IPosition} from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
 import {handleEvent, isLineToken} from 'vs/editor/common/modes/supports';
 
@@ -15,17 +15,17 @@ export interface ISuggestContribution {
 	triggerCharacters: string[];
 	disableAutoTrigger?: boolean;
 	excludeTokens: string[];
-	suggest: (resource: URI, position: EditorCommon.IPosition) => TPromise<Modes.ISuggestResult[]>;
-	getSuggestionDetails? : (resource:URI, position:EditorCommon.IPosition, suggestion:Modes.ISuggestion) => TPromise<Modes.ISuggestion>;
+	suggest: (resource: URI, position: IPosition) => TPromise<ISuggestResult[]>;
+	getSuggestionDetails? : (resource:URI, position:IPosition, suggestion:ISuggestion) => TPromise<ISuggestion>;
 }
 
-export class SuggestSupport implements Modes.ISuggestSupport {
+export class SuggestSupport implements ISuggestSupport {
 
 	private _modeId: string;
 	private contribution: ISuggestContribution;
 
-	public suggest : (resource:URI, position:EditorCommon.IPosition) => TPromise<Modes.ISuggestResult[]>;
-	public getSuggestionDetails : (resource:URI, position:EditorCommon.IPosition, suggestion:Modes.ISuggestion) => TPromise<Modes.ISuggestion>;
+	public suggest : (resource:URI, position:IPosition) => TPromise<ISuggestResult[]>;
+	public getSuggestionDetails : (resource:URI, position:IPosition, suggestion:ISuggestion) => TPromise<ISuggestion>;
 
 	constructor(modeId: string, contribution : ISuggestContribution){
 		this._modeId = modeId;
@@ -37,8 +37,8 @@ export class SuggestSupport implements Modes.ISuggestSupport {
 		}
 	}
 
-	shouldAutotriggerSuggest(context: Modes.ILineContext, offset: number, triggeredByCharacter: string): boolean {
-		return handleEvent(context, offset, (nestedMode:Modes.IMode, context:Modes.ILineContext, offset:number) => {
+	shouldAutotriggerSuggest(context: ILineContext, offset: number, triggeredByCharacter: string): boolean {
+		return handleEvent(context, offset, (nestedMode:IMode, context:ILineContext, offset:number) => {
 			if (this._modeId === nestedMode.getId()) {
 				if (this.contribution.disableAutoTrigger) {
 					return false;
@@ -58,7 +58,7 @@ export class SuggestSupport implements Modes.ISuggestSupport {
 		});
 	}
 
-	public getFilter(): Modes.ISuggestionFilter {
+	public getFilter(): ISuggestionFilter {
 		return DefaultFilter;
 	}
 
@@ -72,7 +72,7 @@ export class SuggestSupport implements Modes.ISuggestSupport {
 }
 
 export interface IComposableSuggestContribution extends ISuggestContribution {
-	composeSuggest(resource:URI, position:EditorCommon.IPosition, superSuggestions:Modes.ISuggestResult[]): TPromise<Modes.ISuggestResult[]>;
+	composeSuggest(resource:URI, position:IPosition, superSuggestions:ISuggestResult[]): TPromise<ISuggestResult[]>;
 }
 
 export class ComposableSuggestSupport extends SuggestSupport {

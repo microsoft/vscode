@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as Modes from 'vs/editor/common/modes';
+import {ICommentsConfiguration, IRichEditComments} from 'vs/editor/common/modes';
 
 export interface ICommentsSupportContribution {
-	commentsConfiguration: Modes.ICommentsConfiguration;
+	commentsConfiguration: ICommentsConfiguration;
 }
 
-export class CommentsSupport implements Modes.IRichEditComments {
+export class CommentsSupport implements IRichEditComments {
 
 	private _contribution: ICommentsSupportContribution;
 
@@ -18,7 +18,7 @@ export class CommentsSupport implements Modes.IRichEditComments {
 		this._contribution = contribution;
 	}
 
-	public getCommentsConfiguration(): Modes.ICommentsConfiguration {
+	public getCommentsConfiguration(): ICommentsConfiguration {
 		return this._contribution.commentsConfiguration;
 	}
 

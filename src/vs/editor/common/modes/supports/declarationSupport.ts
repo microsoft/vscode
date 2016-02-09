@@ -5,16 +5,16 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import * as Modes from 'vs/editor/common/modes';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {IReference, IDeclarationSupport, ILineContext, IMode} from 'vs/editor/common/modes';
+import {IPosition} from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
 import {handleEvent, isLineToken} from 'vs/editor/common/modes/supports';
 
 export interface IDeclarationContribution {
 	tokens?: string[];
-	findDeclaration: (resource: URI, position: EditorCommon.IPosition) => TPromise<Modes.IReference>;
+	findDeclaration: (resource: URI, position: IPosition) => TPromise<IReference>;
 }
-export class DeclarationSupport implements Modes.IDeclarationSupport {
+export class DeclarationSupport implements IDeclarationSupport {
 
 	private _modeId: string;
 	private contribution: IDeclarationContribution;
@@ -27,8 +27,8 @@ export class DeclarationSupport implements Modes.IDeclarationSupport {
 		this.contribution = contribution;
 	}
 
-	public canFindDeclaration(context: Modes.ILineContext, offset:number):boolean {
-		return handleEvent(context, offset, (nestedMode:Modes.IMode, context:Modes.ILineContext, offset:number) => {
+	public canFindDeclaration(context: ILineContext, offset:number):boolean {
+		return handleEvent(context, offset, (nestedMode:IMode, context:ILineContext, offset:number) => {
 			if (this._modeId === nestedMode.getId()) {
 				return (!Array.isArray(this.contribution.tokens) ||
 					this.contribution.tokens.length < 1 ||
@@ -41,7 +41,7 @@ export class DeclarationSupport implements Modes.IDeclarationSupport {
 		});
 	}
 
-	public findDeclaration(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.IReference>{
+	public findDeclaration(resource: URI, position: IPosition): TPromise<IReference>{
 		return this.contribution.findDeclaration(resource, position);
 	}
 }

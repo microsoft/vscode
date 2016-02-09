@@ -5,8 +5,8 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import Modes = require('vs/editor/common/modes');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {IInplaceReplaceSupport, IInplaceReplaceSupportResult} from 'vs/editor/common/modes';
+import {ITokenizedModel, IRange} from 'vs/editor/common/editorCommon';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import URI from 'vs/base/common/uri';
 
@@ -48,10 +48,10 @@ function isFunction(something) {
 
 export interface IInplaceReplaceSupportCustomization {
 	textReplace?: (value: string, up: boolean) => string;
-	navigateValueSetFallback?: (resource: URI, range: EditorCommon.IRange, up: boolean) => TPromise<Modes.IInplaceReplaceSupportResult>;
+	navigateValueSetFallback?: (resource: URI, range: IRange, up: boolean) => TPromise<IInplaceReplaceSupportResult>;
 }
 
-export class AbstractInplaceReplaceSupport implements Modes.IInplaceReplaceSupport {
+export class AbstractInplaceReplaceSupport implements IInplaceReplaceSupport {
 
 	private defaults: {
 		textReplace: boolean;
@@ -67,7 +67,7 @@ export class AbstractInplaceReplaceSupport implements Modes.IInplaceReplaceSuppo
 		this.customization = customization;
 	}
 
-	public navigateValueSet(resource:URI, range:EditorCommon.IRange, up:boolean):TPromise<Modes.IInplaceReplaceSupportResult> {
+	public navigateValueSet(resource:URI, range:IRange, up:boolean):TPromise<IInplaceReplaceSupportResult> {
 		var result = this.doNavigateValueSet(resource, range, up, true);
 		if (result && result.value && result.range) {
 			return TPromise.as(result);
@@ -78,10 +78,10 @@ export class AbstractInplaceReplaceSupport implements Modes.IInplaceReplaceSuppo
 		return this.customization.navigateValueSetFallback(resource, range, up);
 	}
 
-	private doNavigateValueSet(resource:URI, range:EditorCommon.IRange, up:boolean, selection:boolean):Modes.IInplaceReplaceSupportResult {
+	private doNavigateValueSet(resource:URI, range:IRange, up:boolean, selection:boolean):IInplaceReplaceSupportResult {
 
 		var model = this.getModel(resource),
-			result:Modes.IInplaceReplaceSupportResult = { range:null, value: null },
+			result:IInplaceReplaceSupportResult = { range:null, value: null },
 			text:string;
 
 		if(selection) {
@@ -154,7 +154,7 @@ export class AbstractInplaceReplaceSupport implements Modes.IInplaceReplaceSuppo
 			|| ReplaceSupport.valueSetsReplace(this._defaultValueSet, value, up);
 	}
 
-	protected getModel(resource:URI): EditorCommon.ITokenizedModel {
+	protected getModel(resource:URI): ITokenizedModel {
 		throw new Error('Not implemented');
 	}
 }
@@ -168,7 +168,7 @@ export class WorkerInplaceReplaceSupport extends AbstractInplaceReplaceSupport {
 		this.resourceService = resourceService;
 	}
 
-	protected getModel(resource:URI): EditorCommon.ITokenizedModel {
+	protected getModel(resource:URI): ITokenizedModel {
 		return this.resourceService.get(resource);
 	}
 }

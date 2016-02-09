@@ -5,18 +5,18 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import * as Modes from 'vs/editor/common/modes';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {IParameterHints, IParameterHintsSupport, ILineContext, IMode} from 'vs/editor/common/modes';
+import {IPosition} from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
 import {handleEvent, isLineToken} from 'vs/editor/common/modes/supports';
 
 export interface IParameterHintsContribution {
 	triggerCharacters: string[];
 	excludeTokens: string[];
-	getParameterHints: (resource: URI, position: EditorCommon.IPosition) => TPromise<Modes.IParameterHints>;
+	getParameterHints: (resource: URI, position: IPosition) => TPromise<IParameterHints>;
 }
 
-export class ParameterHintsSupport implements Modes.IParameterHintsSupport {
+export class ParameterHintsSupport implements IParameterHintsSupport {
 
 	private _modeId: string;
 	private contribution: IParameterHintsContribution;
@@ -31,9 +31,9 @@ export class ParameterHintsSupport implements Modes.IParameterHintsSupport {
 		return this.contribution.triggerCharacters;
 	}
 
-	public shouldTriggerParameterHints(context: Modes.ILineContext, offset: number): boolean
+	public shouldTriggerParameterHints(context: ILineContext, offset: number): boolean
 	{
-		return handleEvent(context, offset, (nestedMode:Modes.IMode, context:Modes.ILineContext, offset:number) => {
+		return handleEvent(context, offset, (nestedMode:IMode, context:ILineContext, offset:number) => {
 			if (this._modeId === nestedMode.getId()) {
 				if (!Array.isArray(this.contribution.excludeTokens)) {
 					return true;
@@ -49,7 +49,7 @@ export class ParameterHintsSupport implements Modes.IParameterHintsSupport {
 			}
 		});
 	}
-	public getParameterHints(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.IParameterHints> {
+	public getParameterHints(resource: URI, position: IPosition): TPromise<IParameterHints> {
 		return this.contribution.getParameterHints(resource, position);
 	}
 }

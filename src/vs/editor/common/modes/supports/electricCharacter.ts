@@ -8,10 +8,20 @@ import * as Modes from 'vs/editor/common/modes';
 import {handleEvent} from 'vs/editor/common/modes/supports';
 import Strings = require('vs/base/common/strings');
 
+/**
+ * Definition of documentation comments (e.g. Javadoc/JSdoc)
+ */
+export interface IDocComment {
+	scope: string; // What tokens should be used to detect a doc comment (e.g. 'comment.documentation').
+	open: string; // The string that starts a doc comment (e.g. '/**')
+	lineStart: string; // The string that appears at the start of each line, except the first and last (e.g. ' * ').
+	close?: string; // The string that appears on the last line and closes the doc comment (e.g. ' */').
+}
+
 export interface IBracketElectricCharacterContribution {
 	brackets: Modes.IBracketPair[];
 	regexBrackets?: Modes.IRegexBracketPair[];
-	docComment?: Modes.IDocComment;
+	docComment?: IDocComment;
 	caseInsensitive?: boolean;
 	embeddedElectricCharacters?: string[];
 }
@@ -67,7 +77,7 @@ export class Brackets {
 
 	private brackets: Modes.IBracketPair[];
 	private regexBrackets: Modes.IRegexBracketPair[];
-	private docComment: Modes.IDocComment;
+	private docComment: IDocComment;
 	private caseInsensitive: boolean;
 
 	/**
@@ -79,7 +89,7 @@ export class Brackets {
 	 * - stringIsBracket
 	 *
 	 */
-	constructor(brackets: Modes.IBracketPair[], regexBrackets: Modes.IRegexBracketPair[] = [], docComment: Modes.IDocComment = null,
+	constructor(brackets: Modes.IBracketPair[], regexBrackets: Modes.IRegexBracketPair[] = [], docComment: IDocComment = null,
 		caseInsensitive: boolean = false) {
 		this.brackets = brackets;
 		this.regexBrackets = regexBrackets ? regexBrackets : [];
