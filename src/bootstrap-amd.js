@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 var path = require('path');
-var fs = require('fs');
-var app = require('electron').app;
 var loader = require('./vs/loader');
 
 function uriFromPath(_path) {
