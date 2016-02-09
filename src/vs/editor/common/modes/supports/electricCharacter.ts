@@ -60,57 +60,63 @@ export class BracketElectricCharacterSupport implements Modes.IRichEditElectricC
 	}
 }
 
-enum Lettercase { Unknown, Lowercase, Uppercase, Camelcase}
+interface ISimpleInternalBracket {
+	open: string;
+	close: string;
+}
+
+interface IInternalBrackets extends ISimpleInternalBracket {
+	forwardRegex: RegExp;
+	reversedRegex: RegExp;
+}
+
+interface ITextBracket {
+	open: string;
+	close: string;
+	isOpen: boolean;
+}
 
 export class Brackets {
 
 	private _modeId: string;
-	private brackets: Modes.IBracketPair[];
-	private docComment: IDocComment;
-	private caseInsensitive: boolean;
+	private _brackets: IInternalBrackets[];
+	private _bracketsForwardRegex: RegExp;
+	private _bracketsReversedRegex: RegExp;
+	private _text2Bracket: {[text:string]:ITextBracket;};
+	private _docComment: IDocComment;
 
-	/**
-	 * In case of case insensitive brackets, these assumptions must be met:
-	 * - all standard brackets are passed as lowercase
-	 * - the passed regular expressions already contain the /i flag
-	 *
-	 * Brackets defined in 'regexBrackets' are not used in the following methods:
-	 * - stringIsBracket
-	 *
-	 */
 	constructor(modeId: string, brackets: Modes.IBracketPair[], docComment: IDocComment = null, caseInsensitive: boolean = false) {
 		this._modeId = modeId;
-		this.brackets = brackets;
-		this.docComment = docComment ? docComment : null;
-		this.caseInsensitive = caseInsensitive ? caseInsensitive : false;
+		this._brackets = brackets.map((b) => {
+			return {
+				open: b.open,
+				close: b.close,
+				forwardRegex: getRegexForBracketPair({ open: b.open, close: b.close }),
+				reversedRegex: getReversedRegexForBracketPair({ open: b.open, close: b.close })
+			};
+		});
+		this._bracketsForwardRegex = getRegexForBrackets(this._brackets);
+		this._bracketsReversedRegex = getReversedRegexForBrackets(this._brackets);
+		this._text2Bracket = {};
+		this._brackets.forEach((b) => {
+			this._text2Bracket[b.open] = { open: b.open, close: b.close, isOpen: true };
+			this._text2Bracket[b.close] = { open: b.open, close: b.close, isOpen: false };
+		});
+		this._docComment = docComment ? docComment : null;
 	}
 
 	public getElectricCharacters():string[] {
 		var result: string[] = [];
 
-		// Plain brackets
-		var bracketPair: Modes.IBracketPair;
-		var length = this.brackets.length;
-		for (var i = 0; i < length; i++) {
-			bracketPair = this.brackets[i];
-			if (bracketPair.isElectric) {
-				var lastChar = bracketPair.close.charAt(bracketPair.close.length - 1);
-				result.push(this.caseInsensitive ? lastChar.toLowerCase() : lastChar);
-			}
+		for (let i = 0, len = this._brackets.length; i < len; i++) {
+			let bracketPair = this._brackets[i];
+			let lastChar = bracketPair.close.charAt(bracketPair.close.length - 1);
+			result.push(lastChar);
 		}
 
 		// Doc comments
-		if (this.docComment){
-			result.push(this.docComment.open.charAt(this.docComment.open.length - 1));
-		}
-
-		// Add uppercase if needed
-		if (this.caseInsensitive)
-		{
-			var oldLength = result.length;
-			for (var i = 0; i < oldLength; ++i) {
-				result.push(result[i].toUpperCase());
-			}
+		if (this._docComment){
+			result.push(this._docComment.open.charAt(this._docComment.open.length - 1));
 		}
 
 		// Filter duplicate entries
@@ -130,22 +136,6 @@ export class Brackets {
 			this._onElectricCharacterStandardBrackets(context, offset));
 	}
 
-	public stringIsBracket(text: string): boolean {
-		var caseCorrectString = text;
-		if (this.caseInsensitive) {
-			caseCorrectString = text.toLowerCase();
-		}
-
-		var bracketPair: Modes.IBracketPair;
-		for (var i = 0; i < this.brackets.length; i++) {
-			bracketPair = this.brackets[i];
-			if (caseCorrectString === bracketPair.open || caseCorrectString === bracketPair.close) {
-				return true;
-			}
-		}
-		return false;
-	}
-
 	private containsTokenTypes(fullTokenSpec: string, tokensToLookFor: string): boolean {
 		var array = tokensToLookFor.split('.');
 		for (var i = 0; i < array.length; ++i) {
@@ -156,53 +146,13 @@ export class Brackets {
 		return true;
 	}
 
-	// TODO: dup in textModelWithTokens
-	private static _findPrevBracketInText(reversedBracketRegex:RegExp, lineNumber:number, reversedText:string, offset:number): Range {
-		let m = reversedText.match(reversedBracketRegex);
-
-		if (!m) {
-			return null;
-		}
-
-		let matchOffset = reversedText.length - 1 - m.index;
-		let matchLength = m[0].length;
-		let absoluteMatchOffset = offset + matchOffset;
-
-		return new Range(lineNumber, absoluteMatchOffset + 1, lineNumber, absoluteMatchOffset + 1 + matchLength);
-	}
-
-	// TODO: dup in textModelWithTokens
-	private static _findPrevBracketInToken(reversedBracketRegex:RegExp, lineNumber:number, lineText:string, currentTokenStart:number, currentTokenEnd:number): Range {
-		// Because JS does not support backwards regex search, we search forwards in a reversed string with a reversed regex ;)
-		let currentTokenReversedText = '';
-		for (let index = currentTokenEnd - 1; index >= currentTokenStart; index--) {
-			currentTokenReversedText += lineText.charAt(index);
-		}
-
-		return this._findPrevBracketInText(reversedBracketRegex, lineNumber, currentTokenReversedText, currentTokenStart);
-	}
-
-	// TODO: dup in textModelWithTokens
-	private static _toFoundBracket(r:Range, text:string): IFoundBracket {
-		if (!r) {
-			return null;
-		}
-
-		// TODO@Alex: use mode's brackets
-		switch (text) {
-			case '(': return { range: r, open: '(', close: ')', isOpen: true };
-			case ')': return { range: r, open: '(', close: ')', isOpen: false };
-			case '[': return { range: r, open: '[', close: ']', isOpen: true };
-			case ']': return { range: r, open: '[', close: ']', isOpen: false };
-			case '{': return { range: r, open: '{', close: '}', isOpen: true };
-			case '}': return { range: r, open: '{', close: '}', isOpen: false };
-		}
-		return null;
-	}
-
 	private _onElectricCharacterStandardBrackets(context: Modes.ILineContext, offset: number): Modes.IElectricAction {
 
-		let reversedBracketRegex = /[\(\)\[\]\{\}]/; // TODO@Alex: use mode's brackets
+		if (this._brackets.length === 0) {
+			return null;
+		}
+
+		let reversedBracketRegex = this._bracketsReversedRegex;
 
 		let lineText = context.getLineContent();
 		let tokenIndex = context.findIndexOfOffset(offset);
@@ -215,10 +165,10 @@ export class Brackets {
 		}
 
 		if (!ignoreBracketsInToken(context.getTokenType(tokenIndex))) {
-			let r = Brackets._findPrevBracketInToken(reversedBracketRegex, 1, lineText, tokenStart, tokenEnd);
+			let r = BracketsUtils.findPrevBracketInToken(reversedBracketRegex, 1, lineText, tokenStart, tokenEnd);
 			if (r) {
 				let text = lineText.substring(r.startColumn - 1, r.endColumn - 1);
-				let data = Brackets._toFoundBracket(r, text);
+				let data = this._text2Bracket[text];
 				if (!data.isOpen) {
 					return {
 						matchOpenBracket: {
@@ -236,7 +186,7 @@ export class Brackets {
 
 	private _onElectricCharacterDocComment(context: Modes.ILineContext, offset: number): Modes.IElectricAction {
 		// We only auto-close, so do nothing if there is no closing part.
-		if (!this.docComment || !this.docComment.close) {
+		if (!this._docComment || !this._docComment.close) {
 			return null;
 		}
 
@@ -244,58 +194,120 @@ export class Brackets {
 		var char: string = line[offset];
 
 		// See if the right electric character was pressed
-		if (char !== this.docComment.open.charAt(this.docComment.open.length - 1)) {
+		if (char !== this._docComment.open.charAt(this._docComment.open.length - 1)) {
 			return null;
 		}
 
 		// If this line already contains the closing tag, do nothing.
-		if (line.indexOf(this.docComment.close, offset) >= 0) {
+		if (line.indexOf(this._docComment.close, offset) >= 0) {
 			return null;
 		}
 
 		// If we're not in a documentation comment, do nothing.
 		var lastTokenIndex = context.findIndexOfOffset(offset);
-		if (! this.containsTokenTypes(context.getTokenType(lastTokenIndex), this.docComment.scope)) {
+		if (! this.containsTokenTypes(context.getTokenType(lastTokenIndex), this._docComment.scope)) {
 			return null;
 		}
 
-		if (line.substring(context.getTokenStartIndex(lastTokenIndex), offset+1/* include electric char*/) !== this.docComment.open) {
+		if (line.substring(context.getTokenStartIndex(lastTokenIndex), offset+1/* include electric char*/) !== this._docComment.open) {
 			return null;
 		}
 
-		return { appendText: this.docComment.close};
+		return { appendText: this._docComment.close};
+	}
+}
+
+function once<T, R>(keyFn:(input:T)=>string, computeFn:(input:T)=>R):(input:T)=>R {
+	let cache: {[key:string]:R;} = {};
+	return (input:T):R => {
+		let key = keyFn(input);
+		if (!cache.hasOwnProperty(key)) {
+			cache[key] = computeFn(input);
+		}
+		return cache[key];
+	}
+}
+
+// TODO: dup in textModelWithTokens
+var getRegexForBracketPair = once<ISimpleInternalBracket,RegExp>(
+	(input) => `${input.open};${input.close}`,
+	(input) => {
+		return createOrRegex([input.open, input.close]);
+	}
+);
+
+// TODO: dup in textModelWithTokens
+var getReversedRegexForBracketPair = once<ISimpleInternalBracket,RegExp>(
+	(input) => `${input.open};${input.close}`,
+	(input) => {
+		return createOrRegex([toReversedString(input.open), toReversedString(input.close)]);
+	}
+);
+
+var getRegexForBrackets = once<ISimpleInternalBracket[],RegExp>(
+	(input) => input.map(b => `${b.open};${b.close}`).join(';'),
+	(input) => {
+		let pieces: string[] = [];
+		input.forEach((b) => {
+			pieces.push(b.open);
+			pieces.push(b.close);
+		});
+		return createOrRegex(pieces);
+	}
+);
+
+var getReversedRegexForBrackets = once<ISimpleInternalBracket[],RegExp>(
+	(input) => input.map(b => `${b.open};${b.close}`).join(';'),
+	(input) => {
+		let pieces: string[] = [];
+		input.forEach((b) => {
+			pieces.push(toReversedString(b.open));
+			pieces.push(toReversedString(b.close));
+		});
+		return createOrRegex(pieces);
+	}
+);
+
+function createOrRegex(pieces:string[]): RegExp {
+	let regexStr = `(${pieces.map(Strings.escapeRegExpCharacters).join(')|(')})`;
+	return Strings.createRegExp(regexStr, true, false, false, false);
+}
+
+// TODO: dup in textModelWithTokens
+function toReversedString(str:string): string {
+	let reversedStr = '';
+	for (let i = str.length - 1; i >= 0; i--) {
+		reversedStr += str.charAt(i);
+	}
+	return reversedStr;
+}
+
+export class BracketsUtils {
+
+	// TODO: dup in textModelWithTokens
+	private static _findPrevBracketInText(reversedBracketRegex:RegExp, lineNumber:number, reversedText:string, offset:number): Range {
+		let m = reversedText.match(reversedBracketRegex);
+
+		if (!m) {
+			return null;
+		}
+
+		let matchOffset = reversedText.length - 1 - m.index;
+		let matchLength = m[0].length;
+		let absoluteMatchOffset = offset + matchOffset;
+
+		return new Range(lineNumber, absoluteMatchOffset + 1, lineNumber, absoluteMatchOffset + 1 + matchLength);
 	}
 
-	private _detectLetercase(s: string): Lettercase {
-		if (s.toLowerCase() === s) {
-			return Lettercase.Lowercase;
-		}
-		if (s.toUpperCase() === s) {
-			return Lettercase.Uppercase;
-		}
-		if (s.length > 1) {
-			if (s.charAt(0).toUpperCase() === s.charAt(0) && s.charAt(1).toLowerCase() === s.charAt(1)) {
-				return Lettercase.Camelcase;
-			}
+	// TODO: dup in textModelWithTokens
+	public static findPrevBracketInToken(reversedBracketRegex:RegExp, lineNumber:number, lineText:string, currentTokenStart:number, currentTokenEnd:number): Range {
+		// Because JS does not support backwards regex search, we search forwards in a reversed string with a reversed regex ;)
+		let currentTokenReversedText = '';
+		for (let index = currentTokenEnd - 1; index >= currentTokenStart; index--) {
+			currentTokenReversedText += lineText.charAt(index);
 		}
 
-		return Lettercase.Unknown;
+		return this._findPrevBracketInText(reversedBracketRegex, lineNumber, currentTokenReversedText, currentTokenStart);
 	}
 
-	private _changeLettercase(s: string, newCase: Lettercase): string {
-		switch (newCase) {
-			case Lettercase.Lowercase:
-				return s.toLowerCase();
-			case Lettercase.Uppercase:
-				return s.toUpperCase();
-			case Lettercase.Camelcase:
-				var words = s.toLowerCase().split(' ');
-				for (var i = 0; i < words.length; ++i) {
-					words[i] = words[i].charAt(0).toUpperCase() + words[i].substr(1);
-				}
-				return words.join(' ');
-			default:
-				return s;
-		}
-	}
 }

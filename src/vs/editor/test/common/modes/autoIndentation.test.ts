@@ -10,24 +10,6 @@ import modes = require('vs/editor/common/modes');
 import modesUtil = require('vs/editor/test/common/modesTestUtils');
 
 suite('Editor Modes - Auto Indentation', () => {
-
-	test('Bracket Pairs', () => {
-		var brackets = new autoIndentation.Brackets('test', [
-			{ tokenType:'b', open: '{', close: '}', isElectric: false },
-			{ tokenType:'a', open: '[', close: ']', isElectric: true },
-			{ tokenType:'p', open: '(', close: ')', isElectric: false }
-		]);
-
-		assert.equal(brackets.stringIsBracket(''), false);
-		assert.equal(brackets.stringIsBracket('<'), false);
-		assert.equal(brackets.stringIsBracket('{'), true);
-		assert.equal(brackets.stringIsBracket('}'), true);
-		assert.equal(brackets.stringIsBracket('['), true);
-		assert.equal(brackets.stringIsBracket(']'), true);
-		assert.equal(brackets.stringIsBracket('('), true);
-		assert.equal(brackets.stringIsBracket(')'), true);
-	});
-
 	test('Doc comments', () => {
 		var brackets = new autoIndentation.Brackets('test', [],
 			{ scope: 'doc', open: '/**', lineStart: ' * ', close: ' */' });
