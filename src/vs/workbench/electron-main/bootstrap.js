@@ -10,8 +10,6 @@ global.vscodeStart = Date.now();
 
 var app = require('electron').app;
 var path = require('path');
-var process = require('process');
-var os = require('os');
 var fs = require('fs');
 
 // Change cwd if given via env variable
@@ -20,31 +18,6 @@ try {
 } catch (err) {
 	// noop
 }
-
-function parseArgs() {
-	var executable = 'code' + (os.platform() == 'win32' ? '.exe' : '');
-	var options = require('yargs')(process.argv.slice(1));
-	options.usage(
-		'Visual Studio Code v' + app.getVersion() + '\n' +
-		'\n' +
-		'Usage: ' + executable + ' [arguments] [path]');
-	options.alias('h', 'help').boolean('h').describe('h', 'Print usage.');
-	options.string('locale').describe('locale', 'Use a specific locale.');
-	options.boolean('n').describe('n', 'Force a new instance of code.');
-	options.alias('v', 'version').boolean('v').describe('v', 'Print version.');
-
-	var args = options.argv;
-	if (args.help) {
-		process.stdout.write(options.help());
-		process.exit(0);
-	}
-	if (args.version) {
-		process.stdout.write(app.getVersion() + '\n');
-		process.exit(0);
-	}
-}
-
-parseArgs();
 
 // Set path according to being built or not
 if (!!process.env.VSCODE_DEV) {
