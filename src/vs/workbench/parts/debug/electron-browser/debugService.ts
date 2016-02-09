@@ -442,13 +442,12 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return TPromise.as(null);
 	}
 
-	public addFunctionBreakpoint(functionName?: string): TPromise<void> {
-		this.model.addFunctionBreakpoint(functionName);
-		return this.sendFunctionBreakpoints();
+	public addFunctionBreakpoint(): void {
+		this.model.addFunctionBreakpoint('');
 	}
 
 	public renameFunctionBreakpoint(id: string, newFunctionName: string): TPromise<void> {
-		this.model.renameFunctionBreakpoint(id, newFunctionName);
+		this.model.updateFunctionBreakpoints({ [id]: { name: newFunctionName } });
 		return this.sendFunctionBreakpoints();
 	}
 
@@ -814,10 +813,14 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			return TPromise.as(null);
 		}
 
-		const breakpoints = this.model.getFunctionBreakpoints().filter(fbp => fbp.enabled);
-		return this.session.setFunctionBreakpoints({ breakpoints }).then(response => {
-			let index = 0;
-			breakpoints.forEach(bp => bp.verified = response.body.breakpoints[index++].verified);
+		const breakpointsToSend = this.model.getFunctionBreakpoints().filter(fbp => fbp.enabled);
+		return this.session.setFunctionBreakpoints({ breakpoints: breakpointsToSend }).then(response => {
+			const data: {[id: string]: { name?: string, verified?: boolean } } = { };
+			for (let i = 0; i < breakpointsToSend.length; i++) {
+				data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
+			}
+
+			this.model.updateFunctionBreakpoints(data);
 		});
 	}
 

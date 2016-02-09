@@ -406,7 +406,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
-	public updateBreakpoints(data: { [id: string]: { line?: number, verified: boolean } }): void {
+	public updateBreakpoints(data: { [id: string]: DebugProtocol.Breakpoint }): void {
 		this.breakpoints.forEach(bp => {
 			const bpData = data[bp.getId()];
 			if (bpData) {
@@ -447,12 +447,16 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
-	public renameFunctionBreakpoint(id: string, newFunctionName: string): void {
-		const fbp = this.functionBreakpoints.filter(bp => bp.getId() === id).pop();
-		if (fbp) {
-			fbp.name = newFunctionName;
-			this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
-		}
+	public updateFunctionBreakpoints(data: { [id: string]: { name?: string, verified?: boolean } }): void {
+		this.functionBreakpoints.forEach(fbp => {
+			const fbpData = data[fbp.getId()];
+			if (fbpData) {
+				fbp.name = fbpData.name || fbp.name;
+				fbp.verified = fbpData.verified;
+			}
+		});
+
+		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
 	public removeFunctionBreakpoints(id?: string): void {

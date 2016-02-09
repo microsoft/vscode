@@ -239,7 +239,7 @@ export interface IDebugService extends ee.IEventEmitter {
 	sendAllBreakpoints(): TPromise<any>;
 	editBreakpoint(editor: editorbrowser.ICodeEditor, lineNumber: number): TPromise<void>;
 
-	addFunctionBreakpoint(functionName?: string): TPromise<void>;
+	addFunctionBreakpoint(): void;
 	renameFunctionBreakpoint(id: string, newFunctionName: string): TPromise<void>;
 	removeFunctionBreakpoints(id?: string): TPromise<void>;
 
