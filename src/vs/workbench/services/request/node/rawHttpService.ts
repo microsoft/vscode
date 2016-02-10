@@ -7,6 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
+import { IXHRResponse } from 'vs/base/common/http';
 import { request, IRequestOptions } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { createGunzip } from 'zlib';
@@ -15,11 +16,6 @@ import { Stream } from 'stream';
 export interface IXHROptions extends IRequestOptions {
 	responseType?: string;
 	followRedirects: number;
-}
-
-export interface IXHRResponse {
-	responseText: string;
-	status: number;
 }
 
 let proxyUrl: string = null;
@@ -60,9 +56,11 @@ export function xhr(options: IXHROptions): TPromise<IXHRResponse> {
 				}
 			}
 
-			let response: IXHRResponse = {
+			const response: IXHRResponse = {
 				responseText: data.join(''),
-				status
+				status,
+				getResponseHeader: header => res.headers[header],
+				readyState: 4
 			};
 
 			if ((status >= 200 && status < 300) || status === 1223) {
