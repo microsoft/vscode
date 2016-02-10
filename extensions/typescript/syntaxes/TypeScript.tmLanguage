@@ -704,7 +704,7 @@
 		<key>logic-operator</key>
 		<dict>
 			<key>match</key>
-			<string>\!|&amp;|~|\||&amp;&amp;|\|\|</string>
+			<string>\!|&amp;&amp;|\|\||&amp;|~|\|</string>
 			<key>name</key>
 			<string>keyword.operator.arithmetic.ts</string>
 		</dict>
@@ -1211,7 +1211,7 @@
 		<key>relational-operator</key>
 		<dict>
 			<key>match</key>
-			<string>===|==|=|!=|!==|&lt;=|&gt;=|&lt;&gt;|&lt;|&gt;</string>
+			<string>===|!==|==|=|!=|&lt;=|&gt;=|&lt;&gt;|&lt;|&gt;</string>
 			<key>name</key>
 			<string>keyword.operator.comparison.ts</string>
 		</dict>
