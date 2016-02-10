@@ -82,11 +82,13 @@ export interface IBreakpoint extends IEnablement {
 	desiredLineNumber: number;
 	condition: string;
 	verified: boolean;
+	idFromAdapter: number;
 }
 
 export interface IFunctionBreakpoint extends IEnablement {
 	name: string;
 	verified: boolean;
+	idFromAdapter: number;
 }
 
 export interface IExceptionBreakpoint extends IEnablement {
