@@ -32,6 +32,7 @@ var indentationFilter = [
 	'**',
 	'!ThirdPartyNotices.txt',
 	'!**/*.md',
+	'!**/*.template',
 	'!**/*.yml',
 	'!**/lib/**',
 	'!**/*.d.ts',
@@ -58,8 +59,10 @@ var indentationFilter = [
 
 var copyrightFilter = [
 	'**',
+	'!**/*.desktop',
 	'!**/*.json',
 	'!**/*.html',
+	'!**/*.template',
 	'!**/test/**',
 	'!**/*.md',
 	'!**/*.bat',

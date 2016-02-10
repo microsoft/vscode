@@ -9,6 +9,7 @@ out-editor/
 out-editor-min/
 out-editor-ossfree/
 out-editor-ossfree-min/
+out-linux/
 out-vscode/
 out-vscode-min/
 build/node_modules
