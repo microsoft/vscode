@@ -524,17 +524,17 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			return this.runPreLaunchTask(configuration.preLaunchTask).then(() => {
 				const errorCount = configuration.preLaunchTask ? this.markerService.getStatistics().errors : 0;
 				if (errorCount === 0) {
-					this.doCreateSession(configuration, openViewlet);
-				} else {
-					this.messageService.show(severity.Error, {
-						message: errorCount === 1 ? nls.localize('preLaunchTaskError', "{0} error detected after running preLaunchTask '{1}'.", errorCount, configuration.preLaunchTask) :
-							nls.localize('preLaunchTaskErrors', "{0} errors detected after running preLaunchTask '{1}'.", errorCount, configuration.preLaunchTask),
-						actions: [CloseAction, new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
-							this.messageService.hideAll();
-							return this.doCreateSession(configuration, openViewlet);
-						})]
-					});
+					return this.doCreateSession(configuration, openViewlet);
 				}
+
+				this.messageService.show(severity.Error, {
+					message: errorCount === 1 ? nls.localize('preLaunchTaskError', "{0} error detected after running preLaunchTask '{1}'.", errorCount, configuration.preLaunchTask) :
+						nls.localize('preLaunchTaskErrors', "{0} errors detected after running preLaunchTask '{1}'.", errorCount, configuration.preLaunchTask),
+					actions: [CloseAction, new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
+						this.messageService.hideAll();
+						return this.doCreateSession(configuration, openViewlet);
+					})]
+				});
 			});
 		});
 	}
