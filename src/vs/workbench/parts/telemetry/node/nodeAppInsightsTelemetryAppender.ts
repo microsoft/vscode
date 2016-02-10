@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+/* tslint:disable:semicolon */
+
 import errors = require('vs/base/common/errors');
 import types = require('vs/base/common/types');
 import {safeStringify} from 'vs/base/common/objects';
