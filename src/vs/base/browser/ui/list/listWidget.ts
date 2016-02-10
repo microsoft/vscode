@@ -245,7 +245,7 @@ export class List<T> implements IDisposable {
 		if (this.length === 0) return;
 		const focus = this.focus.get();
 		let index = focus.length > 0 ? focus[0] - n : 0;
-		if (loop && index < 0) index = this.length + (index % this.length);
+		if (loop && index < 0) index = (this.length + (index % this.length)) % this.length;
 		this.setFocus(Math.max(index, 0));
 	}
 
