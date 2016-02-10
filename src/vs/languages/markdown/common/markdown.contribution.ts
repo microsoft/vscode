@@ -32,6 +32,11 @@ configurationRegistry.registerConfiguration({
 			'items': {
 				'type': 'string'
 			}
+		},
+		'markdown.previewFrontmatter': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('previewFrontmatter', "A boolean that when set to false will strip out YAML frontmatter when previewing Markdown")
 		}
 	}
 });
