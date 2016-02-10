@@ -15,6 +15,7 @@ import errors = require('vs/base/common/errors');
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import editor = require('vs/editor/common/editorCommon');
+import aria = require('vs/base/browser/ui/aria/aria');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
@@ -225,16 +226,18 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private registerSessionListeners(): void {
-		this.toDispose.push(this.session.addListener2(debug.SessionEvents.INITIALIZED, (event: DebugProtocol.InitializedEvent) =>
+		this.toDispose.push(this.session.addListener2(debug.SessionEvents.INITIALIZED, (event: DebugProtocol.InitializedEvent) => {
+			aria.alert(nls.localize('programStarted', "Program started."));
 			this.sendAllBreakpoints().then(() => {
 				if (this.session.capablities.supportsConfigurationDoneRequest) {
 					this.session.configurationDone().done(null, errors.onUnexpectedError);
 				}
-			})
-		));
+			});
+		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.STOPPED, (event: DebugProtocol.StoppedEvent) => {
 			this.setStateAndEmit(debug.State.Stopped);
+			aria.alert(nls.localize('programStopped', "Program stopped, reason {0}.", event.body.reason));
 			const threadId = event.body.threadId;
 
 			this.getThreadData(threadId).then(() => {
@@ -276,6 +279,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.DEBUGEE_TERMINATED, (event: DebugProtocol.TerminatedEvent) => {
+			aria.alert(nls.localize('programTerminated', "Program terminated."));
 			if (this.session && this.session.getId() === (<any>event).sessionId) {
 				this.session.disconnect().done(null, errors.onUnexpectedError);
 			}
