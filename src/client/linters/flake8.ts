@@ -5,7 +5,7 @@ import * as baseLinter from './baseLinter';
 import * as settings from './../common/configSettings';
 import {OutputChannel} from 'vscode';
 
-const FLAKE8_COMMANDLINE = " --format=%(row)d,%(col)d,%(code)s,%(code)s:%(text)s";
+const FLAKE8_COMMANDLINE = " --format='%(row)d,%(col)d,%(code)s,%(code)s:%(text)s'";
 
 export class Linter extends baseLinter.BaseLinter {
     constructor(rootDir: string, pythonSettings: settings.IPythonSettings, outputChannel: OutputChannel) {
