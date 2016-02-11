@@ -16,39 +16,46 @@ import Modes = require('vs/editor/common/modes');
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {TPromise} from 'vs/base/common/winjs.base';
 import foldStrategy = require('vs/editor/contrib/folding/common/indentFoldStrategy');
-import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingRange';
+import {IFoldingRange, toString as rangeToString} from 'vs/editor/contrib/folding/common/foldingRange';
 
 
 class CollapsableRegion {
 
-	public visualDecorationId:string;
-	public rangeDecorationId:string;
-	public isCollapsed:boolean;
+	private decorationIds: string[];
+	private _isCollapsed:boolean;
+
+	private _lastRange: IFoldingRange;
 
 	public constructor(range:IFoldingRange, model:EditorCommon.IModel, changeAccessor:EditorCommon.IModelDecorationsChangeAccessor, isCollapsed:boolean) {
-		this.isCollapsed = isCollapsed;
-
-		var maxColumn = model.getLineMaxColumn(range.startLineNumber);
-		var visualRng = {
-			startLineNumber: range.startLineNumber,
-			startColumn: maxColumn - 1,
-			endLineNumber: range.startLineNumber,
-			endColumn: maxColumn
-		};
-
-		this.visualDecorationId = changeAccessor.addDecoration(visualRng, this.getVisualDecorationOptions());
-
-		var colRng = {
-			startLineNumber: range.startLineNumber,
-			startColumn: 1,
-			endLineNumber: range.endLineNumber,
-			endColumn: model.getLineMaxColumn(range.endLineNumber)
-		};
-		this.rangeDecorationId = changeAccessor.addDecoration(colRng, {});
+		this._isCollapsed = isCollapsed;
+		this.decorationIds = [];
+		this.update(range, model, changeAccessor);
 	}
 
-	public getVisualDecorationOptions():EditorCommon.IModelDecorationOptions {
-		if (this.isCollapsed) {
+	public get isCollapsed() : boolean {
+		return this._isCollapsed;
+	}
+
+	public get lastRange() :IFoldingRange {
+		return this._lastRange;
+	}
+
+	public setCollapsed(isCollaped: boolean, changeAccessor:EditorCommon.IModelDecorationsChangeAccessor) : void {
+		this._isCollapsed = isCollaped;
+		if (this.decorationIds.length > 0) {
+			changeAccessor.changeDecorationOptions(this.decorationIds[0], this.getVisualDecorationOptions());
+		}
+	}
+
+	public getDecorationRange(model:EditorCommon.IModel) : EditorCommon.IEditorRange {
+		if (this.decorationIds.length > 0) {
+			return model.getDecorationRange(this.decorationIds[1]);
+		}
+		return null;
+	}
+
+	private getVisualDecorationOptions():EditorCommon.IModelDecorationOptions {
+		if (this._isCollapsed) {
 			return {
 				inlineClassName: 'inline-folded',
 				linesDecorationsClassName: 'folding collapsed'
@@ -60,9 +67,35 @@ class CollapsableRegion {
 		}
 	}
 
+	public update(range:IFoldingRange, model:EditorCommon.IModel, changeAccessor:EditorCommon.IModelDecorationsChangeAccessor): void {
+		this._lastRange = range;
+
+		let newDecorations : EditorCommon.IModelDeltaDecoration[] = [];
+
+		var maxColumn = model.getLineMaxColumn(range.startLineNumber);
+		var visualRng = {
+			startLineNumber: range.startLineNumber,
+			startColumn: maxColumn - 1,
+			endLineNumber: range.startLineNumber,
+			endColumn: maxColumn
+		};
+		newDecorations.push({ range: visualRng, options: this.getVisualDecorationOptions() });
+
+		var colRng = {
+			startLineNumber: range.startLineNumber,
+			startColumn: 1,
+			endLineNumber: range.endLineNumber,
+			endColumn: model.getLineMaxColumn(range.endLineNumber)
+		};
+		newDecorations.push({ range: colRng, options: {} });
+
+		this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, newDecorations);
+	}
+
+
 	public dispose(changeAccessor:EditorCommon.IModelDecorationsChangeAccessor): void {
-		changeAccessor.removeDecoration(this.visualDecorationId);
-		changeAccessor.removeDecoration(this.rangeDecorationId);
+		this._lastRange = null;
+		this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []);
 	}
 }
 
@@ -109,6 +142,8 @@ export class Folding implements EditorCommon.IEditorContribution {
 	private onModelChanged(): void {
 		this.cleanState();
 
+		let log = console.log;
+
 		var model = this.editor.getModel();
 		if (!model) {
 			return;
@@ -122,22 +157,58 @@ export class Folding implements EditorCommon.IEditorContribution {
 					// A new request was made in the meantime or the model was changed
 					return;
 				}
-				this.editor.changeDecorations((changeAccessor:EditorCommon.IModelDecorationsChangeAccessor) => {
-					var collapsedStartLineNumbers:{[lineNumber:string]:boolean} = {};
-					this.decorations.forEach((dec) => {
-						if (dec.isCollapsed) {
-							var oldRange = model.getDecorationRange(dec.visualDecorationId);
-							collapsedStartLineNumbers[oldRange.startLineNumber.toString()] = true;
+				regions = regions.sort((r1, r2) => r1.startLineNumber - r2.startLineNumber);
+				log('compute ranges ' + regions.map(rangeToString).join(', '));
+
+				this.editor.changeDecorations(changeAccessor => {
+
+					let newDecorations : CollapsableRegion[] = [];
+
+					let k = 0, i = 0;
+					while (i < this.decorations.length && k < regions.length) {
+						let dec = this.decorations[i];
+						var decRange = dec.getDecorationRange(model);
+						if (!decRange) {
+							log('range no longer valid, was ' + rangeToString(dec.lastRange));
+							dec.dispose(changeAccessor);
+							i++;
+						} else {
+							while (k < regions.length && decRange.startLineNumber > regions[k].startLineNumber) {
+								log('new range ' + rangeToString(regions[k]));
+								newDecorations.push(new CollapsableRegion(regions[k], model, changeAccessor, false));
+								k++;
+							}
+							if (k < regions.length) {
+								let currRange = regions[k];
+								if (decRange.startLineNumber < currRange.startLineNumber) {
+									log('range no longer valid, was ' + rangeToString(dec.lastRange));
+									dec.dispose(changeAccessor);
+									i++;
+								} else if (decRange.startLineNumber === currRange.startLineNumber) {
+									if (decRange.endLineNumber !== currRange.endLineNumber) {
+										log('range update, from ' + rangeToString(decRange) + ' to ' + rangeToString(currRange));
+										dec.update(currRange, model, changeAccessor)
+									} else {
+										log('range unchanged: ' + rangeToString(currRange));
+									}
+									newDecorations.push(dec);
+									i++;
+									k++;
+								}
+							}
 						}
-						changeAccessor.removeDecoration(dec.rangeDecorationId);
-						changeAccessor.removeDecoration(dec.visualDecorationId);
-					});
-
-					this.decorations = [];
-
-					regions.forEach(region => {
-						this.decorations.push(new CollapsableRegion(region, model, changeAccessor, collapsedStartLineNumbers[region.startLineNumber.toString()]));
-					});
+					}
+					while (i < this.decorations.length) {
+						log('range no longer valid, was ' + rangeToString(this.decorations[i].lastRange));
+						this.decorations[i].dispose(changeAccessor);
+						i++;
+					}
+					while (k < regions.length) {
+						log('new range ' + rangeToString(regions[k]));
+						newDecorations.push(new CollapsableRegion(regions[k], model, changeAccessor, false));
+						k++;
+					}
+					this.decorations = newDecorations;
 				});
 
 				this.updateHiddenAreas();
@@ -185,13 +256,12 @@ export class Folding implements EditorCommon.IEditorContribution {
 
 		var hasChanges = false;
 
-		this.editor.changeDecorations((changeAccessor:EditorCommon.IModelDecorationsChangeAccessor) => {
+		this.editor.changeDecorations(changeAccessor => {
 			for (var i = 0; i < this.decorations.length; i++) {
 				var dec = this.decorations[i];
-				var decRange = model.getDecorationRange(dec.rangeDecorationId);
+				var decRange = dec.getDecorationRange(model);
 				if (decRange.startLineNumber === position.lineNumber) {
-					dec.isCollapsed = !dec.isCollapsed;
-					changeAccessor.changeDecorationOptions(dec.visualDecorationId, dec.getVisualDecorationOptions());
+					dec.setCollapsed(!dec.isCollapsed, changeAccessor);
 					hasChanges = true;
 					break;
 				}
@@ -207,8 +277,8 @@ export class Folding implements EditorCommon.IEditorContribution {
 	private updateHiddenAreas(): void {
 		var model = this.editor.getModel();
 		var hiddenAreas:EditorCommon.IRange[] = [];
-		this.decorations.filter((dec) => dec.isCollapsed).forEach((dec) => {
-			var decRange = model.getDecorationRange(dec.rangeDecorationId);
+		this.decorations.filter(dec => dec.isCollapsed).forEach(dec => {
+			var decRange = dec.getDecorationRange(model);
 			hiddenAreas.push({
 				startLineNumber: decRange.startLineNumber + 1,
 				startColumn: 1,
