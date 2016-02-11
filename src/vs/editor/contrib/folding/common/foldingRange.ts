@@ -10,6 +10,6 @@ export interface IFoldingRange {
 	endLineNumber:number;
 }
 
-export function toString(range: IFoldingRange) {
+export function toString(range: IFoldingRange): string {
 	return range ? range.startLineNumber + '/' + range.endLineNumber : 'null';
 }

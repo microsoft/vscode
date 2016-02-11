@@ -23,13 +23,13 @@ import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
 import nls = require('vs/nls');
 
 let log = function(msg: string) {
-	console.log(msg);
+	//console.log(msg);
 };
 
-class CollapsableRegion {
+class CollapsibleRegion {
 
 	private decorationIds: string[];
-	private _isCollapsed:boolean;
+	private _isCollapsed: boolean;
 
 	private _lastRange: IFoldingRange;
 
@@ -39,25 +39,25 @@ class CollapsableRegion {
 		this.update(range, model, changeAccessor);
 	}
 
-	public get isCollapsed() : boolean {
+	public get isCollapsed(): boolean {
 		return this._isCollapsed;
 	}
 
-	public setCollapsed(isCollaped: boolean, changeAccessor:EditorCommon.IModelDecorationsChangeAccessor) : void {
+	public setCollapsed(isCollaped: boolean, changeAccessor:EditorCommon.IModelDecorationsChangeAccessor): void {
 		this._isCollapsed = isCollaped;
 		if (this.decorationIds.length > 0) {
 			changeAccessor.changeDecorationOptions(this.decorationIds[0], this.getVisualDecorationOptions());
 		}
 	}
 
-	public getDecorationRange(model:EditorCommon.IModel) : EditorCommon.IEditorRange {
+	public getDecorationRange(model:EditorCommon.IModel): EditorCommon.IEditorRange {
 		if (this.decorationIds.length > 0) {
 			return model.getDecorationRange(this.decorationIds[1]);
 		}
 		return null;
 	}
 
-	private getVisualDecorationOptions():EditorCommon.IModelDecorationOptions {
+	private getVisualDecorationOptions(): EditorCommon.IModelDecorationOptions {
 		if (this._isCollapsed) {
 			return {
 				stickiness: EditorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore,
@@ -72,7 +72,7 @@ class CollapsableRegion {
 		}
 	}
 
-	private getRangeDecorationOptions():EditorCommon.IModelDecorationOptions {
+	private getRangeDecorationOptions(): EditorCommon.IModelDecorationOptions {
 		return {
 			stickiness: EditorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore
 		}
@@ -83,8 +83,8 @@ class CollapsableRegion {
 
 		let newDecorations : EditorCommon.IModelDeltaDecoration[] = [];
 
-		var maxColumn = model.getLineMaxColumn(newRange.startLineNumber);
-		var visualRng = {
+		let maxColumn = model.getLineMaxColumn(newRange.startLineNumber);
+		let visualRng = {
 			startLineNumber: newRange.startLineNumber,
 			startColumn: maxColumn - 1,
 			endLineNumber: newRange.startLineNumber,
@@ -92,7 +92,7 @@ class CollapsableRegion {
 		};
 		newDecorations.push({ range: visualRng, options: this.getVisualDecorationOptions() });
 
-		var colRng = {
+		let colRng = {
 			startLineNumber: newRange.startLineNumber,
 			startColumn: 1,
 			endLineNumber: newRange.endLineNumber,
@@ -110,7 +110,7 @@ class CollapsableRegion {
 	}
 
 	public toString(): string {
-		var str = this.isCollapsed ? 'collapsed ': 'expanded ';
+		let str = this.isCollapsed ? 'collapsed ': 'expanded ';
 		if (this._lastRange) {
 			str += (this._lastRange.startLineNumber + '/' + this._lastRange.endLineNumber);
 		} else {
@@ -129,14 +129,14 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 		return <FoldingController>editor.getContribution(FoldingController.ID);
 	}
 
-	private editor:ICodeEditor;
-	private globalToDispose:IDisposable[];
+	private editor: ICodeEditor;
+	private globalToDispose: IDisposable[];
 
-	private computeToken:number;
-	private updateScheduler:RunOnceScheduler;
-	private localToDispose:IDisposable[];
+	private computeToken: number;
+	private updateScheduler: RunOnceScheduler;
+	private localToDispose: IDisposable[];
 
-	private decorations:CollapsableRegion[];
+	private decorations: CollapsibleRegion[];
 
 	constructor(editor:ICodeEditor, @INullService nullService) {
 		this.editor = editor;
@@ -177,15 +177,15 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 			return;
 		}
 
-		var model = this.editor.getModel();
+		let model = this.editor.getModel();
 		if (!model) {
 			return;
 		}
 
 		this.updateScheduler = new RunOnceScheduler(() => {
-			var myToken = (++this.computeToken);
+			let myToken = (++this.computeToken);
 
-			this.computeCollapsableRegions().then(regions => {
+			this.computeCollapsibleRegions().then(regions => {
 				if (myToken !== this.computeToken) {
 					// A new request was made in the meantime or the model was changed
 					return;
@@ -195,12 +195,12 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 
 				this.editor.changeDecorations(changeAccessor => {
 
-					let newDecorations : CollapsableRegion[] = [];
+					let newDecorations : CollapsibleRegion[] = [];
 
 					let k = 0, i = 0;
 					while (i < this.decorations.length && k < regions.length) {
 						let dec = this.decorations[i];
-						var decRange = dec.getDecorationRange(model);
+						let decRange = dec.getDecorationRange(model);
 						if (!decRange) {
 							log('range no longer valid, was ' + dec.toString());
 							dec.dispose(changeAccessor);
@@ -208,7 +208,7 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 						} else {
 							while (k < regions.length && decRange.startLineNumber > regions[k].startLineNumber) {
 								log('new range ' + rangeToString(regions[k]));
-								newDecorations.push(new CollapsableRegion(regions[k], model, changeAccessor, false));
+								newDecorations.push(new CollapsibleRegion(regions[k], model, changeAccessor, false));
 								k++;
 							}
 							if (k < regions.length) {
@@ -233,7 +233,7 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 					}
 					while (k < regions.length) {
 						log('new range ' + rangeToString(regions[k]));
-						newDecorations.push(new CollapsableRegion(regions[k], model, changeAccessor, false));
+						newDecorations.push(new CollapsibleRegion(regions[k], model, changeAccessor, false));
 						k++;
 					}
 					this.decorations = newDecorations;
@@ -256,9 +256,9 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 		this.updateScheduler.schedule();
 	}
 
-	private computeCollapsableRegions() : TPromise<IFoldingRange[]> {
+	private computeCollapsibleRegions(): TPromise<IFoldingRange[]> {
 		let tabSize = this.editor.getIndentationOptions().tabSize;
-		var model = this.editor.getModel();
+		let model = this.editor.getModel();
 		if (!model) {
 			return TPromise.as([]);
 		}
@@ -272,7 +272,7 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 		if (this.decorations.length === 0) {
 			return;
 		}
-		var range = e.target.range;
+		let range = e.target.range;
 		if (!range || !range.isEmpty) {
 			return;
 		}
@@ -280,9 +280,9 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 			return;
 		}
 
-		var model = this.editor.getModel();
+		let model = this.editor.getModel();
 
-		var toggleClicked = false;
+		let toggleClicked = false;
 		switch (e.target.type) {
 			case EditorCommon.MouseTargetType.GUTTER_LINE_DECORATIONS:
 				toggleClicked = true;
@@ -296,12 +296,12 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 				return;
 		}
 
-		var hasChanges = false;
+		let hasChanges = false;
 
 		this.editor.changeDecorations(changeAccessor => {
-			for (var i = 0; i < this.decorations.length; i++) {
-				var dec = this.decorations[i];
-				var decRange = dec.getDecorationRange(model);
+			for (let i = 0; i < this.decorations.length; i++) {
+				let dec = this.decorations[i];
+				let decRange = dec.getDecorationRange(model);
 				if (decRange.startLineNumber === range.startLineNumber) {
 					if (toggleClicked || dec.isCollapsed) {
 						dec.setCollapsed(!dec.isCollapsed, changeAccessor);
@@ -319,10 +319,10 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 	}
 
 	private updateHiddenAreas(): void {
-		var model = this.editor.getModel();
-		var hiddenAreas:EditorCommon.IRange[] = [];
+		let model = this.editor.getModel();
+		let hiddenAreas:EditorCommon.IRange[] = [];
 		this.decorations.filter(dec => dec.isCollapsed).forEach(dec => {
-			var decRange = dec.getDecorationRange(model);
+			let decRange = dec.getDecorationRange(model);
 			hiddenAreas.push({
 				startLineNumber: decRange.startLineNumber + 1,
 				startColumn: 1,
@@ -333,13 +333,13 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 		this.editor.setHiddenAreas(hiddenAreas);
 	}
 
-	private findRegions(lineNumber: number, collapsed: boolean) : CollapsableRegion[] {
-		var model = this.editor.getModel();
+	private findRegions(lineNumber: number, collapsed: boolean): CollapsibleRegion[] {
+		let model = this.editor.getModel();
 		return this.decorations.filter(dec => {
 			if (dec.isCollapsed !== collapsed) {
 				return false;
 			}
-			var decRange = dec.getDecorationRange(model);
+			let decRange = dec.getDecorationRange(model);
 			return decRange && decRange.startLineNumber <= lineNumber && lineNumber < decRange.endLineNumber;
 		});
 	}
@@ -381,11 +381,11 @@ abstract class FoldingAction extends EditorAction {
 		super(descriptor, editor);
 	}
 
-	abstract invoke(foldingController: FoldingController, lineNumber: number) : void;
+	abstract invoke(foldingController: FoldingController, lineNumber: number): void;
 
 	public run(): TPromise<boolean> {
-		var foldingController = FoldingController.getFoldingController(this.editor);
-		var selection = this.editor.getSelection();
+		let foldingController = FoldingController.getFoldingController(this.editor);
+		let selection = this.editor.getSelection();
 		if (selection && selection.isEmpty) {
 			this.invoke(foldingController, selection.startLineNumber);
 		}
@@ -397,7 +397,7 @@ abstract class FoldingAction extends EditorAction {
 class UnfoldAction extends FoldingAction {
 	public static ID = 'editor.fold';
 
-	public invoke(foldingController: FoldingController, lineNumber: number) : void {
+	invoke(foldingController: FoldingController, lineNumber: number): void {
 		foldingController.unfold(lineNumber, false);
 	}
 }
@@ -405,7 +405,7 @@ class UnfoldAction extends FoldingAction {
 class FoldAction extends FoldingAction {
 	public static ID = 'editor.unfold';
 
-	public invoke(foldingController: FoldingController, lineNumber: number) : void {
+	invoke(foldingController: FoldingController, lineNumber: number): void {
 		foldingController.fold(lineNumber, false);
 	}
 }
@@ -413,7 +413,7 @@ class FoldAction extends FoldingAction {
 class FoldAllAction extends FoldingAction {
 	public static ID = 'editor.foldAll';
 
-	public invoke(foldingController: FoldingController, lineNumber: number) : void {
+	invoke(foldingController: FoldingController, lineNumber: number): void {
 		foldingController.unfold(lineNumber, true);
 	}
 }
@@ -421,7 +421,7 @@ class FoldAllAction extends FoldingAction {
 class UnfoldAllAction extends FoldingAction {
 	public static ID = 'editor.unfoldAll';
 
-	public invoke(foldingController: FoldingController, lineNumber: number) : void {
+	invoke(foldingController: FoldingController, lineNumber: number): void {
 		foldingController.fold(lineNumber, true);
 	}
 }
