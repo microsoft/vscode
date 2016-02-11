@@ -114,8 +114,6 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 	) {
 		super(descriptor, instantiationService, threadService, modeService);
 
-		this.formattingSupport = null;
-
 		this.onEnterSupport = new OnEnterSupport(this.getId(), {
 			brackets: [
 				{ open: '<!--', close: '-->' },
