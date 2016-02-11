@@ -104,7 +104,7 @@ export class ASTNode {
 			if ((<string[]>schema.type).indexOf(this.type) === -1) {
 				validationResult.warnings.push({
 					location: { start: this.start, end: this.end },
-					message: nls.localize('typeArrayMismatchWarning', 'Incorrect type. Expected one of {0}', schema.type.join())
+					message: nls.localize('typeArrayMismatchWarning', 'Incorrect type. Expected one of {0}', schema.type.join(', '))
 				});
 			}
 		}

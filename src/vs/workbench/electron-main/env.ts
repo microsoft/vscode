@@ -37,6 +37,7 @@ export interface IProductConfiguration {
 	expiryUrl: string;
 	extensionsGallery: {
 		serviceUrl: string;
+		cacheUrl: string;
 		itemUrl: string;
 	};
 	crashReporter: Electron.CrashReporterStartOptions;

@@ -282,6 +282,7 @@ export class Breakpoint implements debug.IBreakpoint {
 
 	public lineNumber: number;
 	public verified: boolean;
+	public idFromAdapter: number;
 	private id: string;
 
 	constructor(public source: Source, public desiredLineNumber: number, public enabled: boolean, public condition: string) {
@@ -302,6 +303,7 @@ export class FunctionBreakpoint implements debug.IFunctionBreakpoint {
 
 	private id: string;
 	public verified: boolean;
+	public idFromAdapter: number;
 
 	constructor(public name: string, public enabled: boolean) {
 		this.verified = false;
@@ -412,6 +414,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 			if (bpData) {
 				bp.lineNumber = bpData.line;
 				bp.verified = bpData.verified;
+				bp.idFromAdapter = bpData.id;
 			}
 		});
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
@@ -447,12 +450,13 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
-	public updateFunctionBreakpoints(data: { [id: string]: { name?: string, verified?: boolean } }): void {
+	public updateFunctionBreakpoints(data: { [id: string]: { name?: string, verified?: boolean; id?: number } }): void {
 		this.functionBreakpoints.forEach(fbp => {
 			const fbpData = data[fbp.getId()];
 			if (fbpData) {
 				fbp.name = fbpData.name || fbp.name;
 				fbp.verified = fbpData.verified;
+				fbp.idFromAdapter = fbpData.id;
 			}
 		});
 

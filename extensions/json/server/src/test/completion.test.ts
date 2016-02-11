@@ -29,7 +29,7 @@ suite('JSON Completion', () => {
 			assert.equal(applyEdits(document, [ matches[0].textEdit ]), resultText);
 		}
 	};
-	
+
 
 	var testSuggestionsFor = function(value: string, stringAfter: string, schema: JsonSchema.IJSONSchema, test: (items: CompletionItem[], document: ITextDocument) => void) : Thenable<void> {
 		var uri = 'test://test.json';
@@ -187,6 +187,34 @@ suite('JSON Completion', () => {
 			testSuggestionsFor('{ "a": "John"/**/ }', '/**/', schema, result => {
 				assert.strictEqual(result.length, 3);
 				assertSuggestion(result, '"John"');
+			})
+		]).then(() => testDone(), (error) => testDone(error));
+	});
+
+	test('Complete value with schema: booleans, null', function(testDone) {
+
+		var schema: JsonSchema.IJSONSchema = {
+			type: 'object',
+			properties: {
+				'a': {
+					type: 'boolean'
+				},
+				'b': {
+					type: ['boolean', 'null']
+				},
+			}
+		};
+		Promise.all([
+			testSuggestionsFor('{ "a": /**/ }', '/**/', schema, result => {
+				assert.strictEqual(result.length, 2);
+				assertSuggestion(result, 'true');
+				assertSuggestion(result, 'false');
+			}),
+			testSuggestionsFor('{ "b": "/**/ }', '/**/', schema, result => {
+				assert.strictEqual(result.length, 3);
+				assertSuggestion(result, 'true');
+				assertSuggestion(result, 'false');
+				assertSuggestion(result, 'null');
 			})
 		]).then(() => testDone(), (error) => testDone(error));
 	});

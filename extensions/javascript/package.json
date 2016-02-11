@@ -41,8 +41,8 @@
 		"grammars": [
 			{
 				"language": "javascriptreact",
-				"scopeName": "source.jsx",
-				"path": "./syntaxes/JavaScriptReact.tmLanguage"
+				"scopeName": "source.js",
+				"path": "./syntaxes/JavaScript.tmLanguage"
 			},
 			{
 				"language": "javascript",
@@ -50,7 +50,6 @@
 				"path": "./syntaxes/JavaScript.tmLanguage"
 			},
 			{
-				// referenced by other grammars
 				"scopeName": "source.js.regexp",
 				"path": "./syntaxes/Regular Expressions (JavaScript).tmLanguage"
 			}
