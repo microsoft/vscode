@@ -45,7 +45,6 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITextFileService } from 'vs/workbench/parts/files/common/files';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IWindowService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ILogEntry, PLUGIN_LOG_BROADCAST_CHANNEL, PLUGIN_ATTACH_BROADCAST_CHANNEL } from 'vs/workbench/services/thread/electron-browser/threadService';
 
@@ -87,7 +86,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService:IInstantiationService,
 		@IPluginService private pluginService: IPluginService,
-		@IOutputService private outputService: IOutputService,
 		@IMarkerService private markerService: IMarkerService
 	) {
 		super();
@@ -597,8 +595,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			}
 
 			// no task running, execute the preLaunchTask.
-			this.outputService.showOutput('Tasks', true);
-
 			const taskPromise = this.taskService.run(filteredTasks[0].id).then(result => {
 				this.lastTaskEvent = null;
 			}, err => {
