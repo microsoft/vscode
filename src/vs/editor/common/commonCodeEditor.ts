@@ -198,7 +198,7 @@ export abstract class CommonCodeEditor extends EventEmitter.EventEmitter impleme
 	}
 
 	public getConfiguration(): EditorCommon.IInternalEditorOptions {
-		return Objects.clone(this._configuration.editor);
+		return this._configuration.editorClone;
 	}
 
 	public getRawConfiguration(): EditorCommon.IEditorOptions {
@@ -206,7 +206,11 @@ export abstract class CommonCodeEditor extends EventEmitter.EventEmitter impleme
 	}
 
 	public getIndentationOptions(): EditorCommon.IInternalIndentationOptions {
-		return Objects.clone(this._configuration.getIndentationOptions());
+		let r = this._configuration.getIndentationOptions();
+		return {
+			tabSize: r.tabSize,
+			insertSpaces: r.insertSpaces
+		};
 	}
 
 	public normalizeIndentation(str:string): string {
@@ -643,6 +647,7 @@ export abstract class CommonCodeEditor extends EventEmitter.EventEmitter impleme
 		this._decorationTypeKeysToIds[decorationTypeKey] = this.deltaDecorations(oldDecorationIds, ranges.map((r) : EditorCommon.IModelDeltaDecoration => {
 			let decOpts: EditorCommon.IModelDecorationOptions;
 			if (r.hoverMessage) {
+				// TODO@Alex: avoid Objects.clone
 				decOpts = Objects.clone(opts);
 				decOpts.htmlMessage = r.hoverMessage;
 			} else {

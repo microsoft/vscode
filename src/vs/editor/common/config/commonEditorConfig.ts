@@ -62,6 +62,107 @@ export class ConfigurationWithDefaults {
 	}
 }
 
+function cloneInternalEditorOptions(opts: EditorCommon.IInternalEditorOptions): EditorCommon.IInternalEditorOptions {
+	return {
+		experimentalScreenReader: opts.experimentalScreenReader,
+		rulers: opts.rulers.slice(0),
+		ariaLabel: opts.ariaLabel,
+		lineNumbers: opts.lineNumbers,
+		selectOnLineNumbers: opts.selectOnLineNumbers,
+		glyphMargin: opts.glyphMargin,
+		revealHorizontalRightPadding: opts.revealHorizontalRightPadding,
+		roundedSelection: opts.roundedSelection,
+		theme: opts.theme,
+		readOnly: opts.readOnly,
+		scrollbar: {
+			arrowSize: opts.scrollbar.arrowSize,
+			vertical: opts.scrollbar.vertical,
+			horizontal: opts.scrollbar.horizontal,
+			useShadows: opts.scrollbar.useShadows,
+			verticalHasArrows: opts.scrollbar.verticalHasArrows,
+			horizontalHasArrows: opts.scrollbar.horizontalHasArrows,
+			handleMouseWheel: opts.scrollbar.handleMouseWheel,
+			horizontalScrollbarSize: opts.scrollbar.horizontalScrollbarSize,
+			horizontalSliderSize: opts.scrollbar.horizontalSliderSize,
+			verticalScrollbarSize: opts.scrollbar.verticalScrollbarSize,
+			verticalSliderSize: opts.scrollbar.verticalSliderSize,
+			mouseWheelScrollSensitivity: opts.scrollbar.mouseWheelScrollSensitivity,
+		},
+		overviewRulerLanes: opts.overviewRulerLanes,
+		cursorBlinking: opts.cursorBlinking,
+		cursorStyle: opts.cursorStyle,
+		fontLigatures: opts.fontLigatures,
+		hideCursorInOverviewRuler: opts.hideCursorInOverviewRuler,
+		scrollBeyondLastLine: opts.scrollBeyondLastLine,
+		wrappingIndent: opts.wrappingIndent,
+		wordWrapBreakBeforeCharacters: opts.wordWrapBreakBeforeCharacters,
+		wordWrapBreakAfterCharacters: opts.wordWrapBreakAfterCharacters,
+		wordWrapBreakObtrusiveCharacters: opts.wordWrapBreakObtrusiveCharacters,
+		tabFocusMode: opts.tabFocusMode,
+		stopLineTokenizationAfter: opts.stopLineTokenizationAfter,
+		stopRenderingLineAfter: opts.stopRenderingLineAfter,
+		longLineBoundary: opts.longLineBoundary,
+		forcedTokenizationBoundary: opts.forcedTokenizationBoundary,
+		hover: opts.hover,
+		contextmenu: opts.contextmenu,
+		quickSuggestions: opts.quickSuggestions,
+		quickSuggestionsDelay: opts.quickSuggestionsDelay,
+		iconsInSuggestions: opts.iconsInSuggestions,
+		autoClosingBrackets: opts.autoClosingBrackets,
+		formatOnType: opts.formatOnType,
+		suggestOnTriggerCharacters: opts.suggestOnTriggerCharacters,
+		selectionHighlight: opts.selectionHighlight,
+		outlineMarkers: opts.outlineMarkers,
+		referenceInfos: opts.referenceInfos,
+		renderWhitespace: opts.renderWhitespace,
+		layoutInfo: {
+			width: opts.layoutInfo.width,
+			height: opts.layoutInfo.height,
+			glyphMarginLeft: opts.layoutInfo.glyphMarginLeft,
+			glyphMarginWidth: opts.layoutInfo.glyphMarginWidth,
+			glyphMarginHeight: opts.layoutInfo.glyphMarginHeight,
+			lineNumbersLeft: opts.layoutInfo.lineNumbersLeft,
+			lineNumbersWidth: opts.layoutInfo.lineNumbersWidth,
+			lineNumbersHeight: opts.layoutInfo.lineNumbersHeight,
+			decorationsLeft: opts.layoutInfo.decorationsLeft,
+			decorationsWidth: opts.layoutInfo.decorationsWidth,
+			decorationsHeight: opts.layoutInfo.decorationsHeight,
+			contentLeft: opts.layoutInfo.contentLeft,
+			contentWidth: opts.layoutInfo.contentWidth,
+			contentHeight: opts.layoutInfo.contentHeight,
+			verticalScrollbarWidth: opts.layoutInfo.verticalScrollbarWidth,
+			horizontalScrollbarHeight: opts.layoutInfo.horizontalScrollbarHeight,
+			overviewRuler:{
+				width: opts.layoutInfo.overviewRuler.width,
+				height: opts.layoutInfo.overviewRuler.height,
+				top: opts.layoutInfo.overviewRuler.top,
+				right: opts.layoutInfo.overviewRuler.right,
+			}
+		},
+		stylingInfo: {
+			editorClassName: opts.stylingInfo.editorClassName,
+			fontFamily: opts.stylingInfo.fontFamily,
+			fontSize: opts.stylingInfo.fontSize,
+			lineHeight: opts.stylingInfo.lineHeight,
+		},
+		wrappingInfo: {
+			isViewportWrapping: opts.wrappingInfo.isViewportWrapping,
+			wrappingColumn: opts.wrappingInfo.wrappingColumn,
+		},
+		indentInfo: {
+			tabSize: opts.indentInfo.tabSize,
+			insertSpaces: opts.indentInfo.insertSpaces,
+		},
+		observedOuterWidth: opts.observedOuterWidth,
+		observedOuterHeight: opts.observedOuterHeight,
+		lineHeight: opts.lineHeight,
+		pageSize: opts.pageSize,
+		typicalHalfwidthCharacterWidth: opts.typicalHalfwidthCharacterWidth,
+		typicalFullwidthCharacterWidth: opts.typicalFullwidthCharacterWidth,
+		fontSize: opts.fontSize,
+	};
+}
+
 class InternalEditorOptionsHelper {
 
 	constructor() {
@@ -444,6 +545,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements Ed
 
 	public handlerDispatcher:EditorCommon.IHandlerDispatcher;
 	public editor:EditorCommon.IInternalEditorOptions;
+	public editorClone:EditorCommon.IInternalEditorOptions;
 
 	protected _configWithDefaults:ConfigurationWithDefaults;
 	private _indentationGuesser:IIndentationGuesser;
@@ -467,6 +569,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements Ed
 		this.handlerDispatcher = new HandlerDispatcher();
 
 		this.editor = this._computeInternalOptions();
+		this.editorClone = cloneInternalEditorOptions(this.editor);
 	}
 
 	public dispose(): void {
@@ -476,6 +579,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements Ed
 	protected _recomputeOptions(): void {
 		let oldOpts = this.editor;
 		this.editor = this._computeInternalOptions();
+		this.editorClone = cloneInternalEditorOptions(this.editor);
 
 		let changeEvent = InternalEditorOptionsHelper.createConfigurationChangedEvent(oldOpts, this.editor);
 

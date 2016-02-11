@@ -8,7 +8,7 @@
 import 'vs/css!./media/editorstatus';
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
-import { emmet as $, append, show, hide } from 'vs/base/browser/dom';
+import { emmet as $, append } from 'vs/base/browser/dom';
 import encoding = require('vs/base/common/bits/encoding');
 import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
@@ -21,6 +21,7 @@ import {Registry} from 'vs/platform/platform';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {IFileEditorInput, EncodingMode, IEncodingSupport, asFileEditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
 import {IDisposable, combinedDispose} from 'vs/base/common/lifecycle';
+import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {EndOfLineSequence, ITokenizedModel, EditorType, IEditorSelection, ITextModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
 import {EventType, ResourceEvent, EditorEvent, TextEditorSelectionEvent} from 'vs/workbench/common/events';
@@ -33,6 +34,21 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {StyleMutator} from 'vs/base/browser/styleMutator';
+
+function getCodeEditor(e: IBaseEditor): ICommonCodeEditor {
+	if (e instanceof BaseTextEditor) {
+		let editorWidget = e.getControl();
+		if (editorWidget.getEditorType() === EditorType.IDiffEditor) {
+			return (<IDiffEditor>editorWidget).getModifiedEditor();
+		}
+		if (editorWidget.getEditorType() === EditorType.ICodeEditor) {
+			return (<ICodeEditor>editorWidget);
+		}
+		return null;
+	}
+	return null;
+}
 
 function getTextModel(editorWidget: IEditor): ITextModel {
 	let textModel: ITextModel;
@@ -164,6 +180,13 @@ const nlsMultiSelection = nls.localize('multiSelection', "{0} selections");
 const nlsEOLLF = nls.localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = nls.localize('endOfLineCarriageReturnLineFeed', "CRLF");
 const nlsTabFocusMode = nls.localize('tabFocusModeEnabled', "Tab moves focus");
+
+function show(el:HTMLElement): void {
+	StyleMutator.setDisplay(el, '');
+}
+function hide(el:HTMLElement): void {
+	StyleMutator.setDisplay(el, 'none');
+}
 
 export class EditorStatus implements IStatusbarItem {
 
@@ -408,15 +431,15 @@ export class EditorStatus implements IStatusbarItem {
 			return;
 		}
 
-		let info: StateDelta = { EOL: null };
+		let codeEditor = getCodeEditor(e);
+		if (!codeEditor) {
+			return;
+		}
 
-		// We only support writable text based code editors
-		if (e instanceof BaseTextEditor && isWritableCodeEditor(e)) {
-			let editorWidget = e.getControl();
-			let textModel = getTextModel(editorWidget);
-			if (textModel) {
-				info = { EOL: textModel.getEOL() };
-			}
+		let info: StateDelta = { EOL: null };
+		if (!codeEditor.getConfiguration().readOnly) {
+			let codeEditorModel = codeEditor.getModel();
+			info.EOL = codeEditorModel.getEOL();
 		}
 
 		this.updateState(info);
