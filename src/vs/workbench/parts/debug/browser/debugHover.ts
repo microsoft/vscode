@@ -35,7 +35,6 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	private isVisible: boolean;
 	private tree: ITree;
 	private showAtPosition: editorcommon.IEditorPosition;
-	private highlightDecorations: string[];
 	private treeContainer: HTMLElement;
 	private valueContainer: HTMLElement;
 
@@ -58,7 +57,6 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
 		this.isVisible = false;
 		this.showAtPosition = null;
-		this.highlightDecorations = [];
 
 		this.editor.addContentWidget(this);
 	}
@@ -93,17 +91,6 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			}
 
 			// show it
-			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
-				range: {
-					startLineNumber: pos.lineNumber,
-					endLineNumber: pos.lineNumber,
-					startColumn: pos.column,
-					endColumn: pos.column
-				},
-				options: {
-					className: 'hoverHighlight'
-				}
-			}]);
 			this.doShow(pos, expression);
 		}, errors.onUnexpectedError);
 	}
@@ -148,22 +135,22 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	}
 
 	private doShow(position: editorcommon.IEditorPosition, expression: debug.IExpression, forceValueHover = false): void {
+		this.showAtPosition = position;
+		this.isVisible = true;
+
 		if (expression.reference > 0 && !forceValueHover) {
 			this.valueContainer.hidden = true;
 			this.treeContainer.hidden = false;
 			this.tree.setInput(expression).then(() => {
 				this.layoutTree();
-			}).done(null, errors.onUnexpectedError);
+			}).then(() => this.editor.layoutContentWidget(this), errors.onUnexpectedError);
 		} else {
 			this.treeContainer.hidden = true;
 			this.valueContainer.hidden = false;
 			viewer.renderExpressionValue(expression, false, this.valueContainer, false);
 			this.valueContainer.title = '';
+			this.editor.layoutContentWidget(this);
 		}
-
-		this.showAtPosition = position;
-		this.isVisible = true;
-		this.editor.layoutContentWidget(this);
 	}
 
 	private layoutTree(): void {
@@ -191,8 +178,6 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			return;
 		}
 		this.isVisible = false;
-		this.editor.deltaDecorations(this.highlightDecorations, []);
-		this.highlightDecorations = [];
 		this.editor.layoutContentWidget(this);
 	}
 
