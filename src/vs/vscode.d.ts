@@ -533,12 +533,12 @@ declare namespace vscode {
 		 *  - the rendering width of a tab character;
 		 *  - the number of spaces to insert when [insertSpaces](#TextEditorOptions.insertSpaces) is true.
 		 */
-		tabSize: number;
+		tabSize: number | string;
 
 		/**
 		 * When pressing Tab insert [n](#TextEditorOptions.tabSize) spaces.
 		 */
-		insertSpaces: boolean;
+		insertSpaces: boolean | string;
 	}
 
 	/**
