@@ -29,7 +29,7 @@
 	color: grey;
 	margin: 0.1em 0.2em 0 0.2em;
 	content: "⋯";
-	display: inline-block;
+	display: inline;
 	line-height: 1em;
 }
 

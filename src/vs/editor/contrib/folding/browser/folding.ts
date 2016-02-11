@@ -39,10 +39,6 @@ class CollapsableRegion {
 		return this._isCollapsed;
 	}
 
-	public get lastRange() :IFoldingRange {
-		return this._lastRange;
-	}
-
 	public setCollapsed(isCollaped: boolean, changeAccessor:EditorCommon.IModelDecorationsChangeAccessor) : void {
 		this._isCollapsed = isCollaped;
 		if (this.decorationIds.length > 0) {
@@ -107,6 +103,17 @@ class CollapsableRegion {
 	public dispose(changeAccessor:EditorCommon.IModelDecorationsChangeAccessor): void {
 		this._lastRange = null;
 		this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []);
+	}
+
+	public toString(): string {
+		var str = this.isCollapsed ? 'collapsed ': 'expanded ';
+		if (this._lastRange) {
+			str += (this._lastRange.startLineNumber + '/' + this._lastRange.endLineNumber);
+		} else {
+			str += 'no range';
+		}
+
+		return  str;
 	}
 }
 
@@ -178,7 +185,7 @@ export class Folding implements EditorCommon.IEditorContribution {
 						let dec = this.decorations[i];
 						var decRange = dec.getDecorationRange(model);
 						if (!decRange) {
-							log('range no longer valid, was ' + rangeToString(dec.lastRange));
+							log('range no longer valid, was ' + dec.toString());
 							dec.dispose(changeAccessor);
 							i++;
 						} else {
@@ -190,7 +197,7 @@ export class Folding implements EditorCommon.IEditorContribution {
 							if (k < regions.length) {
 								let currRange = regions[k];
 								if (decRange.startLineNumber < currRange.startLineNumber) {
-									log('range no longer valid, was ' + rangeToString(dec.lastRange));
+									log('range no longer valid, was ' + dec.toString());
 									dec.dispose(changeAccessor);
 									i++;
 								} else if (decRange.startLineNumber === currRange.startLineNumber) {
@@ -203,7 +210,7 @@ export class Folding implements EditorCommon.IEditorContribution {
 						}
 					}
 					while (i < this.decorations.length) {
-						log('range no longer valid, was ' + rangeToString(this.decorations[i].lastRange));
+						log('range no longer valid, was ' + this.decorations[i].toString());
 						this.decorations[i].dispose(changeAccessor);
 						i++;
 					}
@@ -223,8 +230,8 @@ export class Folding implements EditorCommon.IEditorContribution {
 		this.localToDispose.push(this.editor.addListener2('change', () => this.updateScheduler.schedule()));
 		this.localToDispose.push({ dispose: () => {
 			++this.computeToken;
-			this.editor.changeDecorations((changeAccessor:EditorCommon.IModelDecorationsChangeAccessor) => {
-				this.decorations.forEach((dec) => dec.dispose(changeAccessor));
+			this.editor.changeDecorations(changeAccessor => {
+				this.decorations.forEach(dec => dec.dispose(changeAccessor));
 			});
 		}});
 		this.localToDispose.push(this.editor.addListener2(EditorCommon.EventType.MouseDown, (e) => this._onEditorMouseDown(e)));
@@ -244,19 +251,33 @@ export class Folding implements EditorCommon.IEditorContribution {
 		return TPromise.as(ranges);
 	}
 
-	private _onEditorMouseDown(e:IMouseEvent): void {
-		if (e.target.type !== EditorCommon.MouseTargetType.GUTTER_LINE_DECORATIONS) {
-			return;
-		}
+	private _onEditorMouseDown(e: IMouseEvent): void {
 		if (this.decorations.length === 0) {
 			return;
 		}
-		var position = e.target.position;
-		if (!position) {
+		var range = e.target.range;
+		if (!range || !range.isEmpty) {
+			return;
+		}
+		if (!e.event.leftButton) {
 			return;
 		}
 
 		var model = this.editor.getModel();
+
+		var toggleClicked = false;
+		switch (e.target.type) {
+			case EditorCommon.MouseTargetType.GUTTER_LINE_DECORATIONS:
+				toggleClicked = true;
+				break;
+			case EditorCommon.MouseTargetType.CONTENT_TEXT:
+				if (range.isEmpty && range.startColumn === model.getLineMaxColumn(range.startLineNumber)) {
+					break;
+				}
+				return;
+			default:
+				return;
+		}
 
 		var hasChanges = false;
 
@@ -264,9 +285,11 @@ export class Folding implements EditorCommon.IEditorContribution {
 			for (var i = 0; i < this.decorations.length; i++) {
 				var dec = this.decorations[i];
 				var decRange = dec.getDecorationRange(model);
-				if (decRange.startLineNumber === position.lineNumber) {
-					dec.setCollapsed(!dec.isCollapsed, changeAccessor);
-					hasChanges = true;
+				if (decRange.startLineNumber === range.startLineNumber) {
+					if (toggleClicked || dec.isCollapsed) {
+						dec.setCollapsed(!dec.isCollapsed, changeAccessor);
+						hasChanges = true;
+					}
 					break;
 				}
 			}
