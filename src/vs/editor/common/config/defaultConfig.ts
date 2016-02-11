@@ -67,6 +67,7 @@ class ConfigClass implements IConfiguration {
 			selectionHighlight: true,
 			outlineMarkers: false,
 			referenceInfos: true,
+			folding: false,
 			renderWhitespace: false,
 
 			tabSize: 4,

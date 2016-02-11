@@ -495,6 +495,11 @@ export interface IEditorOptions {
 	 */
 	referenceInfos?: boolean;
 	/**
+	 * Enable code folding
+	 * Defaults to false.
+	 */
+	folding?: boolean;
+	/**
 	 * Enable rendering of leading whitespace.
 	 * Defaults to false.
 	 */
@@ -625,6 +630,7 @@ export interface IInternalEditorOptions {
 	selectionHighlight:boolean;
 	outlineMarkers: boolean;
 	referenceInfos: boolean;
+	folding: boolean;
 	renderWhitespace: boolean;
 
 	// ---- Options that are computed
@@ -712,6 +718,7 @@ export interface IConfigurationChangedEvent {
 	selectionHighlight: boolean;
 	outlineMarkers: boolean;
 	referenceInfos: boolean;
+	folding: boolean;
 	renderWhitespace: boolean;
 
 	// ---- Options that are computed

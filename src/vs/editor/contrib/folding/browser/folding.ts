@@ -148,6 +148,11 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 
 		this.globalToDispose.push(this.editor.addListener2(EditorCommon.EventType.ModelChanged, () => this.onModelChanged()));
 		this.globalToDispose.push(this.editor.addListener2(EditorCommon.EventType.ModelModeChanged, () => this.onModelChanged()));
+		this.globalToDispose.push(this.editor.addListener2(EditorCommon.EventType.ConfigurationChanged, (e: EditorCommon.IConfigurationChangedEvent) => {
+			if (e.folding) {
+				this.onModelChanged();
+			}
+		}));
 
 		this.onModelChanged();
 	}
@@ -167,6 +172,10 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 
 	private onModelChanged(): void {
 		this.cleanState();
+
+		if (!this.editor.getConfiguration().folding) {
+			return;
+		}
 
 		var model = this.editor.getModel();
 		if (!model) {

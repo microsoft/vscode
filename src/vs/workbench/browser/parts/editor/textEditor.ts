@@ -111,7 +111,6 @@ export abstract class BaseTextEditor extends BaseEditor {
 			overviewRulerLanes: 3,
 			readOnly: this.contextService.getOptions().readOnly,
 			glyphMargin: true,
-			lineDecorationsWidth: 24,
 			lineNumbersMinChars: 3,
 			theme: this._storageService.get(Preferences.THEME, StorageScope.GLOBAL, DEFAULT_THEME_ID)
 		};

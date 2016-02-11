@@ -109,6 +109,9 @@ class InternalEditorOptionsHelper {
 		let lineNumbers = opts.lineNumbers;
 		let lineNumbersMinChars = toInteger(opts.lineNumbersMinChars, 1);
 		let lineDecorationsWidth = toInteger(opts.lineDecorationsWidth, 0);
+		if (opts.folding) {
+			lineDecorationsWidth += 16;
+		}
 		let layoutInfo = EditorLayoutProvider.compute({
 			outerWidth: outerWidth,
 			outerHeight: outerHeight,
@@ -200,6 +203,7 @@ class InternalEditorOptionsHelper {
 			selectionHighlight: toBoolean(opts.selectionHighlight),
 			outlineMarkers: toBoolean(opts.outlineMarkers),
 			referenceInfos: toBoolean(opts.referenceInfos),
+			folding: toBoolean(opts.folding),
 			renderWhitespace: toBoolean(opts.renderWhitespace),
 
 			layoutInfo: layoutInfo,
@@ -291,6 +295,7 @@ class InternalEditorOptionsHelper {
 			selectionHighlight:				(prevOpts.selectionHighlight !== newOpts.selectionHighlight),
 			outlineMarkers:					(prevOpts.outlineMarkers !== newOpts.outlineMarkers),
 			referenceInfos:					(prevOpts.referenceInfos !== newOpts.referenceInfos),
+			folding:						(prevOpts.folding !== newOpts.folding),
 			renderWhitespace:				(prevOpts.renderWhitespace !== newOpts.renderWhitespace),
 
 			layoutInfo: 					(!EditorLayoutProvider.layoutEqual(prevOpts.layoutInfo, newOpts.layoutInfo)),
@@ -892,6 +897,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': DefaultConfig.editor.referenceInfos,
 			'description': nls.localize('referenceInfos', "Controls if the editor shows reference information for the modes that support it")
+		},
+		'editor.folding' : {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.folding,
+			'description': nls.localize('folding', "Controls wheter the editor has code folding enabled")
 		},
 		'diffEditor.renderSideBySide' : {
 			'type': 'boolean',
