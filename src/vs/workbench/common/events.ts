@@ -98,7 +98,7 @@ export class EventType {
 	static COMPOSITE_OPENING = 'compositeOpening';
 
 	/**
-	 * Event type for when a viewlet is opened.
+	 * Event type for when a composite is opened.
 	 */
 	static COMPOSITE_OPENED = 'compositeOpened';
 

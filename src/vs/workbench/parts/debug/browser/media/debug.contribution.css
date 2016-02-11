@@ -75,14 +75,6 @@
 
 /* Actionbar actions */
 
-.monaco-workbench .debug-action.configure {
-	background: url('configure.svg') center center no-repeat;
-}
-
-.monaco-workbench .debug-action.toggle-repl {
-	background: url('repl.svg') center center no-repeat;
-}
-
 .monaco-workbench .debug-action.step-over {
 	background: url('step-over.svg') center center no-repeat;
 }
@@ -274,14 +266,6 @@
 	background: url('stackframe-and-breakpoint-dark.svg') center center no-repeat;
 }
 
-.monaco-workbench.vs-dark .debug-action.configure {
-	background: url('configure-inverse.svg') center center no-repeat;
-}
-
-.monaco-workbench.vs-dark .debug-action.toggle-repl {
-	background: url('repl-inverse.svg') center center no-repeat;
-}
-
 .monaco-workbench.vs-dark .debug-action.step-over {
 	background: url('step-over-inverse.svg') center center no-repeat;
 }
@@ -343,10 +327,6 @@
 	left: 8px;
 	height: 16px;
 	width: 16px;
-}
-
-.monaco-workbench.hc-black .debug-action.toggle-repl:before {
-	content: url('repl-inverse.svg');
 }
 
 .monaco-workbench.hc-black .debug-actions-widget {
