@@ -267,7 +267,7 @@ export interface IDebugService extends ee.IEventEmitter {
 	getViewModel(): IViewModel;
 
 	openOrRevealEditor(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any>;
-	revealRepl(inBackground?:boolean): TPromise<void>;
+	revealRepl(focus?: boolean): TPromise<void>;
 }
 
 // utils
