@@ -59,27 +59,45 @@ suite('Folding', () => {
 		], 4, [] );
 	});
 
+	test('Java', () => {
+		assertRanges([
+		/* 1*/	'class A {',
+		/* 2*/	'  void foo() {',
+		/* 3*/	'    console.log();',
+		/* 4*/	'    console.log();',
+		/* 5*/	'  }',
+		/* 6*/	'',
+		/* 7*/	'  void bar() {',
+		/* 8*/	'    console.log();',
+		/* 9*/	'  }',
+		/*10*/	'}',
+		/*11*/	'interface B {',
+		/*12*/	'  void bar();',
+		/*13*/	'}',
+		], 4, [r(1, 9), r(2, 4), r(7, 8), r(11, 12)] );
+	});
+
 	test('Javadoc', () => {
 		assertRanges([
-			'/**',
-			' * Comment',
-			' */',
-			'class A {',
-			'  void foo() {',
-			'  }',
-			'}',
+		/* 1*/	'/**',
+		/* 2*/	' * Comment',
+		/* 3*/	' */',
+		/* 4*/	'class A {',
+		/* 5*/	'  void foo() {',
+		/* 6*/	'  }',
+		/* 7*/	'}',
 		], 4, [r(1, 3), r(4, 6)] );
 	});
 	test('Whitespace', () => {
 		assertRanges([
-			'class A {',
-			'',
-			'  void foo() {',
-			'     ',
-			'     return 0;',
-			'  }',
-			'      ',
-			'}',
+		/* 1*/	'class A {',
+		/* 2*/	'',
+		/* 3*/	'  void foo() {',
+		/* 4*/	'     ',
+		/* 5*/	'     return 0;',
+		/* 6*/	'  }',
+		/* 7*/	'      ',
+		/* 8*/	'}',
 		], 4, [r(1, 7), r(3, 5)] );
 	});
 

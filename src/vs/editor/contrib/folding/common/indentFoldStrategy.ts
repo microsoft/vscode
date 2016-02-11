@@ -13,15 +13,8 @@ export function computeRanges(model:EditorCommon.IModel, tabSize: number, minimu
 
 	let result : IFoldingRange[] = [];
 
-	let createRange = (startLineNumber: number, endLineNumber: number) => {
-		// create a collapsible region only if has the minimumRangeSize
-		if (endLineNumber - startLineNumber >= minimumRangeSize) {
-			result.push({startLineNumber, endLineNumber});
-		}
-	}
-
 	var previousRegions : { indent: number, line: number}[] = [];
-	previousRegions.push({indent: -1, line: model.getLineCount() + 1}); // sentinel, not make sure there's at least one entry
+	previousRegions.push({indent: -1, line: model.getLineCount() + 1}); // sentinel, to make sure there's at least one entry
 
 	for (var line = model.getLineCount(); line > 0; line--) {
 		var indent = computeIndentLevel(model.getLineContent(line), tabSize);
@@ -31,19 +24,22 @@ export function computeRanges(model:EditorCommon.IModel, tabSize: number, minimu
 
 		let previous = previousRegions[previousRegions.length - 1];
 
-		// all previous regions with larger indent can be completed
 		if (previous.indent > indent) {
+			// discard all regions with larger indent
 			do {
 				previousRegions.pop();
 				previous = previousRegions[previousRegions.length - 1];
 			} while (previous.indent > indent);
-			createRange(line, previous.line - 1);
-			if (previous.indent === indent) {
-				previous.line = line;
+
+			// new folding range
+			let endLineNumber = previous.line - 1;
+			if (endLineNumber - line >= minimumRangeSize) {
+				result.push({startLineNumber: line, endLineNumber});
 			}
 		}
-
-		if (previous.indent < indent) {
+		if (previous.indent === indent) {
+			previous.line = line;
+		} else { // previous.indent < indent
 			// new region with a bigger indent
 			previousRegions.push({indent, line});
 		}
