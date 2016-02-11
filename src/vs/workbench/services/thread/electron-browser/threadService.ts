@@ -53,7 +53,7 @@ export class MainThreadService extends CommonMainThreadService {
 		// Message: Window --> Plugin Host
 		this.remoteCom = pluginsIPC.create((msg) => {
 			if (logCommunication) {
-				console.log('%c[Window \u2192 Plugin]%c[len: ' + strings.pad(msg.length, 5, ' ') + ']', 'color: darkgreen', 'color: grey', JSON.parse(msg));
+				console.log('%c[Window \u2192 Plugin]%c[len: ' + strings.pad(msg.length, 5, ' ') + ']', 'color: darkgreen', 'color: grey', msg);
 			}
 
 			this.pluginHostProcessManager.postMessage(msg);
@@ -62,7 +62,7 @@ export class MainThreadService extends CommonMainThreadService {
 		// Message: Plugin Host --> Window
 		this.pluginHostProcessManager.startPluginHostProcess((msg) => {
 			if (logCommunication) {
-				console.log('%c[Plugin \u2192 Window]%c[len: ' + strings.pad(msg.length, 5, ' ') + ']', 'color: darkgreen', 'color: grey', JSON.parse(msg));
+				console.log('%c[Plugin \u2192 Window]%c[len: ' + strings.pad(msg.length, 5, ' ') + ']', 'color: darkgreen', 'color: grey', msg);
 			}
 
 			this.remoteCom.handle(msg);
