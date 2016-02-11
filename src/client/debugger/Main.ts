@@ -187,7 +187,10 @@ export class PythonDebugger extends DebugSession {
 
         this.canStartDebugger().then(() => {
             this.startDebugServer().then(dbgServer => {
-                that.debugClient.LaunchApplicationToDebug(dbgServer);
+                that.debugClient.LaunchApplicationToDebug(dbgServer).then(() => { }, error=> {
+                    this.sendEvent(new OutputEvent(error + "\n", "stderr"));
+                    this.sendErrorResponse(that.entryResponse, 2000, error);
+                });
             });
         }, error=> {
             this.sendEvent(new OutputEvent(error + "\n", "stderr"));

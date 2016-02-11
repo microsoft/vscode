@@ -62,7 +62,7 @@ export class LocalDebugClient extends DebugClient {
             //If this is a windows pc and if console is to be launched, then do so
             
             if (this.args.externalConsole === true) {
-                if (fs.existsSync(pythonPath)) {
+                if (!fs.existsSync(pythonPath)) {
                     return reject("Please provide a valid and fully qualified path to the python executable");
                 }
 
@@ -82,7 +82,7 @@ export class LocalDebugClient extends DebugClient {
             console.log(commandLine);
 
             this.pyProc = child_process.exec(commandLine, { cwd: processCwd }, (error, stdout, stderr) => {
-                if (this.debugServer && this.debugServer.IsRunning) {
+                if (!this.debugServer && this.debugServer.IsRunning) {
                     return;
                 }
                 var hasErrors = (error && error.message.length > 0) || (stderr && stderr.length > 0);
