@@ -25,6 +25,10 @@ export function computeRanges(model:EditorCommon.IModel, tabSize: number, minimu
 
 	for (var line = model.getLineCount(); line > 0; line--) {
 		var indent = computeIndentLevel(model.getLineContent(line), tabSize);
+		if (indent === -1) {
+			continue; // only whitespace
+		}
+
 		let previous = previousRegions[previousRegions.length - 1];
 
 		// all previous regions with larger indent can be completed
@@ -62,6 +66,9 @@ function computeIndentLevel(line: string, tabSize: number): number {
 			break;
 		}
 		i++;
+	}
+	if (i === line.length) {
+		return -1; // line only consists of whitespace
 	}
 	return indent;
 }

@@ -70,6 +70,18 @@ suite('Folding', () => {
 			'}',
 		], 4, [r(1, 3), r(4, 6)] );
 	});
+	test('Whitespace', () => {
+		assertRanges([
+			'class A {',
+			'',
+			'  void foo() {',
+			'     ',
+			'     return 0;',
+			'  }',
+			'      ',
+			'}',
+		], 4, [r(1, 7), r(3, 5)] );
+	});
 
 
 })
