@@ -18,6 +18,9 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import foldStrategy = require('vs/editor/contrib/folding/common/indentFoldStrategy');
 import {IFoldingRange, toString as rangeToString} from 'vs/editor/contrib/folding/common/foldingRange';
 
+let log = function(msg: string) {
+	console.log(msg);
+};
 
 class CollapsableRegion {
 
@@ -57,37 +60,45 @@ class CollapsableRegion {
 	private getVisualDecorationOptions():EditorCommon.IModelDecorationOptions {
 		if (this._isCollapsed) {
 			return {
+				stickiness: EditorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore,
 				inlineClassName: 'inline-folded',
 				linesDecorationsClassName: 'folding collapsed'
 			};
 		} else {
 			return {
+				stickiness: EditorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore,
 				linesDecorationsClassName: 'folding'
 			};
 		}
 	}
 
-	public update(range:IFoldingRange, model:EditorCommon.IModel, changeAccessor:EditorCommon.IModelDecorationsChangeAccessor): void {
-		this._lastRange = range;
+	private getRangeDecorationOptions():EditorCommon.IModelDecorationOptions {
+		return {
+			stickiness: EditorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore
+		}
+	}
+
+	public update(newRange:IFoldingRange, model:EditorCommon.IModel, changeAccessor:EditorCommon.IModelDecorationsChangeAccessor): void {
+		this._lastRange = newRange;
 
 		let newDecorations : EditorCommon.IModelDeltaDecoration[] = [];
 
-		var maxColumn = model.getLineMaxColumn(range.startLineNumber);
+		var maxColumn = model.getLineMaxColumn(newRange.startLineNumber);
 		var visualRng = {
-			startLineNumber: range.startLineNumber,
+			startLineNumber: newRange.startLineNumber,
 			startColumn: maxColumn - 1,
-			endLineNumber: range.startLineNumber,
+			endLineNumber: newRange.startLineNumber,
 			endColumn: maxColumn
 		};
 		newDecorations.push({ range: visualRng, options: this.getVisualDecorationOptions() });
 
 		var colRng = {
-			startLineNumber: range.startLineNumber,
+			startLineNumber: newRange.startLineNumber,
 			startColumn: 1,
-			endLineNumber: range.endLineNumber,
-			endColumn: model.getLineMaxColumn(range.endLineNumber)
+			endLineNumber: newRange.endLineNumber,
+			endColumn: model.getLineMaxColumn(newRange.endLineNumber)
 		};
-		newDecorations.push({ range: colRng, options: {} });
+		newDecorations.push({ range: colRng, options: this.getRangeDecorationOptions() });
 
 		this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, newDecorations);
 	}
@@ -142,8 +153,6 @@ export class Folding implements EditorCommon.IEditorContribution {
 	private onModelChanged(): void {
 		this.cleanState();
 
-		let log = console.log;
-
 		var model = this.editor.getModel();
 		if (!model) {
 			return;
@@ -185,12 +194,7 @@ export class Folding implements EditorCommon.IEditorContribution {
 									dec.dispose(changeAccessor);
 									i++;
 								} else if (decRange.startLineNumber === currRange.startLineNumber) {
-									if (decRange.endLineNumber !== currRange.endLineNumber) {
-										log('range update, from ' + rangeToString(decRange) + ' to ' + rangeToString(currRange));
-										dec.update(currRange, model, changeAccessor)
-									} else {
-										log('range unchanged: ' + rangeToString(currRange));
-									}
+									dec.update(currRange, model, changeAccessor);
 									newDecorations.push(dec);
 									i++;
 									k++;
@@ -213,7 +217,7 @@ export class Folding implements EditorCommon.IEditorContribution {
 
 				this.updateHiddenAreas();
 			});
-		}, 500);
+		}, 200);
 
 		this.localToDispose.push(this.updateScheduler);
 		this.localToDispose.push(this.editor.addListener2('change', () => this.updateScheduler.schedule()));
