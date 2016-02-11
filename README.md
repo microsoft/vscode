@@ -16,7 +16,8 @@ Works on both Windows and Mac.
 
 ## Issues and Feature Requests 
 [Github Issues](https://github.com/DonJayamanne/pythonVSCode/issues)
-* Remote Debugging (coming soon)
+* Remote Debugging (in development)
+* Debugging Django applications (in development)
 
 ## Feature Details (with confiuration)
 * IDE Features
@@ -98,9 +99,12 @@ Works on both Windows and Mac.
 
 ## Change Log
 
-### Version 0.2.4
-* Introduced experimental debugging of django (debugging templates not supported)
+### Version 0.2.5
 * Added support for optionally breaking into python code as soon as debugger starts 
+* Added support for conditional break points
+* Fixed debugging when current thread if busy processing.
+* Added ability to display the shell window (command window in PC and Terminal window in Mac)
+* - Useful in accepting input from applications being debugged.
 
 ### Version 0.2.4
 * Fixed issue where debugger would break into all exceptions

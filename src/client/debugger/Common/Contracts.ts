@@ -1,4 +1,48 @@
 'use strict';
+import * as net from 'net';
+import {DebugProtocol} from 'vscode-debugprotocol';
+
+export const DjangoApp = "DJANGO";
+export enum DebugFlags {
+    None = 0,
+    IgnoreCommandBursts = 1
+}
+
+export class DebugOptions {
+    public static get WaitOnAbnormalExit(): string { return "WaitOnAbnormalExit"; }
+    public static get WaitOnNormalExit(): string { return "WaitOnNormalExit"; }
+    public static get RedirectOutput(): string { return "RedirectOutput"; }
+    public static get DjangoDebugging(): string { return "DjangoDebugging"; }
+    public static get DebugStdLib(): string { return "DebugStdLib"; }
+    public static get BreakOnSystemExitZero(): string { return "BreakOnSystemExitZero"; }
+}
+export interface LaunchRequestArguments extends DebugProtocol.LaunchRequestArguments {
+    /** An absolute path to the program to debug. */
+    program: string;
+    pythonPath: string;
+    /** Automatically stop target after launch. If not specified, target does not stop. */
+    stopOnEntry?: boolean;
+    args: string[];
+    applicationType?: string;
+    externalConsole?: boolean;
+    cwd?: string;
+    debugOptions?: string[];
+}
+// 
+// export interface LaunchDjangoRequestArguments extends LaunchRequestArguments {
+//     port?: number;
+//     noReload?: boolean;
+//     settings?: string;
+// }
+
+export interface AttachRequestArguments extends DebugProtocol.AttachRequestArguments {
+    /** An absolute path to local directory with source. */
+    localRoot: string;
+    remoteRoot: string;
+    port?: number;
+    url?: string;
+    secret?: string;
+}
 
 export interface IDebugServer {
     port: number;
@@ -35,8 +79,11 @@ export enum PythonEvaluationResultFlags {
 }
 
 export interface IPythonProcess extends NodeJS.EventEmitter {
+    Connect(buffer: Buffer, socket: net.Socket, isRemoteProcess: boolean);
+    HandleIncomingData(buffer: Buffer);
+    Detach();
     SendStepInto(threadId: number);
-    SendStepOver(threadId: number): Promise<IPythonThread>;
+    SendStepOver(threadId: number);
     SendStepOut(threadId: number);
     SendResumeThread(threadId: number);
     AutoResumeThread(threadId: number);

@@ -24,6 +24,8 @@ export abstract class BaseFormatter {
     protected provideDocumentFormattingEdits(document: vscode.TextDocument, options: vscode.FormattingOptions, token: vscode.CancellationToken, cmdLine: string): Thenable<vscode.TextEdit[]> {
         var fileDir = path.dirname(document.uri.fsPath);
         return new Promise<vscode.TextEdit[]>((resolve, reject) => {
+            //Todo: Save the contents of the file to a temporary file and format that instead saving the actual file
+            //This could unnecessarily trigger other behaviours
             document.save().then(saved=> {
                 var filePath = document.uri.fsPath;
                 if (!fs.existsSync(filePath)) {

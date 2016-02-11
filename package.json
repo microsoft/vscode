@@ -19,7 +19,7 @@
         "theme": "dark"
     },
     "engines": {
-        "vscode": "^0.10.1"
+        "vscode": "^0.10.8"
     },
     "categories": [
         "Languages",
@@ -60,7 +60,7 @@
                         "python"
                     ]
                 },
-                "program": "./out/client/debugger/vs/PythonDebugger.js",
+                "program": "./out/client/debugger/main.js",
                 "runtime": "node",
                 "configurationAttributes": {
                     "launch": {
@@ -70,23 +70,86 @@
                         "properties": {
                             "program": {
                                 "type": "string",
-                                "description": "Workspace relative path to a text file.",
-                                "default": "${workspaceRoot}/__init__.py"
+                                "description": "Absolute path to the program.",
+                                "default": "${file}"
                             },
                             "pythonPath": {
                                 "type": "string",
-                                "description": "Path (fully qualified) to python executable. Use this if you want to use a custom pthon executable version.",
+                                "description": "Path (fully qualified) to python executable.",
                                 "default": ""
                             },
                             "args": {
                                 "type": "array",
-                                "description": "List of arguments for the program",
+                                "description": "Command line arguments passed to the program",
                                 "default": []
                             },
                             "stopOnEntry": {
                                 "type": "boolean",
                                 "description": "Automatically stop after launch.",
                                 "default": true
+                            },
+                            "externalConsole": {
+                                "type": "boolean",
+                                "description": "Launch debug target in external console window.",
+                                "default": false
+                            },
+                            "cwd": {
+                                "type": "string",
+                                "description": "Absolute path to the working directory of the program being debugged. Default is the root directory of the file (leave null).",
+                                "default": null
+                            },
+                            "debugOptions": {
+                                "type": "array",
+                                "description": "Advanced options, view read me for further details.",
+                                "items": {
+                                    "type": "string",
+                                    "enum": [
+                                        "WaitOnAbnormalExit",
+                                        "WaitOnNormalExit",
+                                        "RedirectOutput",
+                                        "DjangoDebugging",
+                                        "DebugStdLib",
+                                        "BreakOnSystemExitZero"
+                                    ]
+                                },
+                                "default": [
+                                    "WaitOnAbnormalExit",
+                                    "WaitOnNormalExit",
+                                    "RedirectOutput"
+                                ]
+                            }
+                        }
+                    },
+                    "attach": {
+                        "required": [
+                            "localRoot",
+                            "remoteRoot"
+                        ],
+                        "properties": {
+                            "localRoot": {
+                                "type": "string",
+                                "description": "Local source root that corrresponds to the 'remoteRoot'.",
+                                "default": "${workspaceRoot}"
+                            },
+                            "remoteRoot": {
+                                "type": "string",
+                                "description": "The source root of the remote host.",
+                                "default": null
+                            },
+                            "port": {
+                                "type": "number",
+                                "description": "Debug port to attach",
+                                "default": null
+                            },
+                            "url": {
+                                "type": "string",
+                                "description": "Url of remote server.",
+                                "default": true
+                            },
+                            "secret": {
+                                "type": "string",
+                                "description": "Secret used to authenticate for remote debugging.",
+                                "default": ""
                             }
                         }
                     }
@@ -97,63 +160,42 @@
                         "type": "python",
                         "request": "launch",
                         "stopOnEntry": true,
-                        "program": "${workspaceRoot}/__init__.py"
-                    }
-                ]
-            },
-            {
-                "type": "python_django",
-                "label": "Django",
-                "enableBreakpointsFor": {
-                    "languageIds": [
-                        "python"
-                    ]
-                },
-                "program": "./out/client/debugger/vs/vsDebugger.js",
-                "runtime": "node",
-                "configurationAttributes": {
-                    "launch": {
-                        "required": [
-                            "program"
-                        ],
-                        "properties": {
-                            "program": {
-                                "type": "string",
-                                "description": "Workspace relative path to a text file.",
-                                "default": "${workspaceRoot}/manage.py"
-                            },
-                            "pythonPath": {
-                                "type": "string",
-                                "description": "Path (fully qualified) to python executable. Use this if you want to use a custom pthon executable version.",
-                                "default": ""
-                            },
-                            "port": {
-                                "type": "number",
-                                "description": "Port number, leave empty or 0 for dyanamic generation of ports.",
-                                "default": 0
-                            },
-                            "noReload": {
-                                "type": "boolean",
-                                "description": "Whether not to reload.",
-                                "default": true
-                            },
-                            "settings": {
-                                "type": "string",
-                                "description": "Settings",
-                                "default": ""
-                            }
-                        }
-                    }
-                },
-                "initialConfigurations": [
+                        "program": "${file}",
+                        "debugOptions": [
+                            "WaitOnAbnormalExit",
+                            "WaitOnNormalExit",
+                            "RedirectOutput"
+                        ]
+                    },
                     {
-                        "name": "Python",
+                        "name": "Python Console App",
+                        "type": "python",
+                        "request": "launch",
+                        "pythonPath": "c:/python27/python.exe",
+                        "stopOnEntry": true,
+                        "program": "${file}",
+                        "externalConsole": true,
+                        "debugOptions": [
+                            "WaitOnAbnormalExit",
+                            "WaitOnNormalExit"
+                        ]
+                    },
+                    {
+                        "name": "Django",
                         "type": "python",
                         "request": "launch",
                         "program": "${workspaceRoot}/manage.py",
-                        "port": 5002,
-                        "noReload": true,
-                        "settings": ""
+                        "args": [
+                            "runserver",
+                            "--noreload",
+                            5002
+                        ],
+                        "debugOptions": [
+                            "WaitOnAbnormalExit",
+                            "WaitOnNormalExit",
+                            "RedirectOutput",
+                            "DjangoDebugging"
+                        ]
                     }
                 ]
             }
@@ -316,7 +358,8 @@
     },
     "scripts": {
         "vscode:prepublish": "node ./node_modules/vscode/bin/compile",
-        "compile": "node ./node_modules/vscode/bin/compile  -watch -p ./ && installServerIntoExtension ./out ./src/server/package.json ./src/server/tsconfig.json"
+        "compile": "node ./node_modules/vscode/bin/compile  -watch -p ./ && installServerIntoExtension ./out ./src/server/package.json ./src/server/tsconfig.json",
+        "postinstall": "node ./node_modules/vscode/bin/install"
     },
     "dependencies": {
         "line-by-line": "^0.1.4",
@@ -329,7 +372,7 @@
         "vscode-languageserver": "^1.1.0"
     },
     "devDependencies": {
-        "typescript": "^1.6.2",
-        "vscode": "0.10.x"
+        "typescript": "^1.7.5",
+        "vscode": "^0.11.0"
     }
 }

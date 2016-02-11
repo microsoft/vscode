@@ -43,11 +43,11 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
     public PendingChildEnumCommands: Map<number, IChildEnumCommand>;
     public PendingExecuteCommands: Map<number, IExecutionCommand>;
     private callbackHandler: PythonProcessCallbackHandler;
-    private stream: SocketStream;
+    private stream: SocketStream = null;
     private programDirectory: string;
     public get ProgramDirectory(): string {
         return this.programDirectory;
-    } 
+    }
     constructor(id: number, guid: string, programDirectory: string) {
         super();
         this.id = id;
@@ -63,13 +63,19 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
         this.stream.Write(Commands.ExitCommandBytes);
     }
 
-    public Connect(buffer: Buffer, socket: net.Socket) {
+    public Detach() {
+        this.stream.Write(Commands.DetachCommandBytes);
+    }
+
+    public Connect(buffer: Buffer, socket: net.Socket, isRemoteProcess: boolean = false) {
         this.stream = new SocketStream(socket, buffer);
 
-        var guid = this.stream.ReadString();
-        var result = this.stream.ReadInt32();
-        console.log(guid);
-        console.log(result);
+        if (!isRemoteProcess) {
+            var guid = this.stream.ReadString();
+            var result = this.stream.ReadInt32();
+            console.log(guid);
+            console.log(result);
+        }
 
         this.callbackHandler = new PythonProcessCallbackHandler(this, this.stream, this._idDispenser);
         this.callbackHandler.on("detach", () => this.emit("detach"));
@@ -101,40 +107,13 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
     }
     
     //#region Step Commands
-    private stepCommands: IStepCommand[] = [];
     private onPythonStepCompleted(pyThread: IPythonThread) {
         this._lastExecutedThread = pyThread;
-        //Find the last step command associated with this threadCreated
-        var index = this.stepCommands.findIndex(cmd=> cmd.PythonThreadId === pyThread.Id);
-        if (index === -1) {
-            this.emit("error", "command.step.completed", `Uknown thread ${pyThread.Id}`);
-            //Hmm this is not possible, log this exception and carry on
-            return;
-        }
-
-        var cmd = this.stepCommands.splice(index, 1)[0];
-        cmd.PromiseResolve(pyThread);
+        this.emit("stepCompleted", pyThread);
     }
-    private sendStepCommand(threadId: number, command: Buffer, doNotWaitForResponse: boolean = false): Promise<IPythonThread> {
-        return new Promise<IPythonThread>((resolve, reject) => {
-            var cmd: IStepCommand = {
-                PromiseResolve: resolve,
-                PythonThreadId: threadId
-            };
-
-            this.stepCommands.push(cmd);
-            this.stream.Write(command);
-            this.stream.WriteInt64(threadId);
-
-            if (doNotWaitForResponse) {
-                if (this.Threads.has(threadId)) {
-                    resolve(this.Threads.get(threadId));
-                }
-                else {
-                    resolve();
-                }
-            }
-        });
+    private sendStepCommand(threadId: number, command: Buffer) {
+        this.stream.Write(command);
+        this.stream.WriteInt64(threadId);
     }
 
     public SendExceptionInfo(defaultBreakOnMode: enum_EXCEPTION_STATE, breakOn: Map<string, enum_EXCEPTION_STATE>) {
@@ -152,7 +131,7 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
         }
     }
 
-    public SendStepOver(threadId: number): Promise<IPythonThread> {
+    public SendStepOver(threadId: number) {
         return this.sendStepCommand(threadId, Commands.StepOverCommandBytes);
     }
     public SendStepOut(threadId: number) {
@@ -194,7 +173,6 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
         this.stream.WriteInt32(breakpoint.LineNo);
         this.stream.WriteInt32(breakpoint.Id);
         if (breakpoint.IsDjangoBreakpoint) {
-            // this.writeStringToSocket(breakpoint.Filename);
             this.stream.WriteString(breakpoint.Filename);
         }
     }
@@ -215,9 +193,7 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
                 this.stream.Write(Commands.SetBreakPointCommandBytes);
             }
             this.stream.WriteInt32(brkpoint.Id);
-
             this.stream.WriteInt32(brkpoint.LineNo);
-
             this.stream.WriteString(brkpoint.Filename);
 
             if (!brkpoint.IsDjangoBreakpoint) {
@@ -237,8 +213,8 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
         this.stream.WriteInt32(breakpoint.PassCount);
     }
 
-    public SendResumeThread(threadId: number): Promise<IPythonThread> {
-        return this.sendStepCommand(threadId, Commands.ResumeThreadCommandBytes, true);
+    public SendResumeThread(threadId: number) {
+        return this.sendStepCommand(threadId, Commands.ResumeThreadCommandBytes);
     }
     public SendContinue(): Promise<IPythonThread> {
         return new Promise<IPythonThread>(resolve => {
@@ -310,5 +286,4 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
     public SetLineNumber(pythonStackFrame: IPythonStackFrame, lineNo: number) {
 
     }
-
 }

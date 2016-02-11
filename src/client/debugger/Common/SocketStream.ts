@@ -34,7 +34,9 @@ export class SocketStream {
     private buffer: Buffer;
     private isInTransaction: boolean;
     private bytesRead: number = 0;
-
+    public get Buffer(): Buffer {
+        return this.buffer;
+    }
     public BeginTransaction() {
         this.isInTransaction = true;
         this.bytesRead = 0;

@@ -28,38 +28,8 @@
             "request": "launch",
             "runtimeArgs": [
                 "--harmony"
-            ],
-            "program": "${workspaceRoot}/out/client/debugger/vs/PythonDebugger.js",
-            "stopOnEntry": false,
-            "args": [
-                "--server=4711"
-            ],
-            "sourceMaps": true,
-            "outDir": "${workspaceRoot}/out/client"
-        },
-        {
-            "name": "Attach to python_django debug server",
-            "type": "node",
-            "request": "launch",
-            "runtimeArgs": [
-                "--harmony"
-            ],
-            "program": "${workspaceRoot}/out/client/debugger/vs/DjangoDebugger.js",
-            "stopOnEntry": false,
-            "args": [
-                "--server=4711"
-            ],
-            "sourceMaps": true,
-            "outDir": "${workspaceRoot}/out/client"
-        },
-        {
-            "name": "Attach to old vs debug server",
-            "type": "node",
-            "request": "launch",
-            "runtimeArgs": [
-                "--harmony"
-            ],
-            "program": "${workspaceRoot}/out/client/debugger/vs/VSDebugger.js",
+            ],            
+            "program": "${workspaceRoot}/out/client/debugger/Main.js",
             "stopOnEntry": false,
             "args": [
                 "--server=4711"

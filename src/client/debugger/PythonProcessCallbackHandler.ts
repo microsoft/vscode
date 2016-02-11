@@ -84,13 +84,10 @@ export class PythonProcessCallbackHandler extends EventEmitter {
         if (this.stream.HasInsufficientDataForReading) {
             return;
         }
-
         if (filename != null) {
-            // console.log(`Module Loaded ${moduleId}: ${filename}`);
             this.emit("moduleLoaded", utils.CreatePythonModule(moduleId, filename));
         }
     }
-
     private HandleDebuggerOutput() {
         var threadId = this.stream.ReadInt64();
         var output = this.stream.ReadString();
@@ -512,6 +509,4 @@ export class PythonProcessCallbackHandler extends EventEmitter {
 
         return pythonEvaluationResult;
     }
-
-
 }
