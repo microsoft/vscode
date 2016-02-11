@@ -5,6 +5,7 @@
 
 .monaco-editor .margin-view-overlays .folding {
 	background-repeat: no-repeat;
+	border-left: 3px solid transparent; /* copy of what the Git decorator does */
 	margin-left: 5px;
 }
 
