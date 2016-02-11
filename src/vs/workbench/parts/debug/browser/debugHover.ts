@@ -35,6 +35,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	private isVisible: boolean;
 	private tree: ITree;
 	private showAtPosition: editorcommon.IEditorPosition;
+	private highlightDecorations: string[];
 	private treeContainer: HTMLElement;
 	private valueContainer: HTMLElement;
 
@@ -57,6 +58,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 
 		this.isVisible = false;
 		this.showAtPosition = null;
+		this.highlightDecorations = [];
 
 		this.editor.addContentWidget(this);
 	}
@@ -91,6 +93,17 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			}
 
 			// show it
+			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
+				range: {
+					startLineNumber: pos.lineNumber,
+					endLineNumber: pos.lineNumber,
+					startColumn: lineContent.indexOf(hoveringOver) + 1,
+					endColumn: lineContent.indexOf(hoveringOver) + 1 + hoveringOver.length
+				},
+				options: {
+					className: 'hoverHighlight'
+				}
+			}]);
 			this.doShow(pos, expression);
 		}, errors.onUnexpectedError);
 	}
@@ -178,6 +191,8 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			return;
 		}
 		this.isVisible = false;
+		this.editor.deltaDecorations(this.highlightDecorations, []);
+		this.highlightDecorations = [];
 		this.editor.layoutContentWidget(this);
 	}
 
