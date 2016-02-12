@@ -83,8 +83,8 @@ function pos(lineNumber: number, column: number): Position.Position {
 	return new Position.Position(lineNumber, column);
 }
 
-function createSplitLine(splitLengths:number[], wrappedLinesPrefix:string): SplitLinesCollection.SplitLine {
-	return new SplitLinesCollection.SplitLine(createLineMapping(splitLengths, wrappedLinesPrefix));
+function createSplitLine(splitLengths:number[], wrappedLinesPrefix:string, isVisible: boolean = true): SplitLinesCollection.SplitLine {
+	return new SplitLinesCollection.SplitLine(createLineMapping(splitLengths, wrappedLinesPrefix), isVisible);
 }
 
 function createLineMapping(breakingLengths:number[], wrappedLinesPrefix:string): SplitLinesCollection.ILineMapping {

@@ -49,24 +49,20 @@
 
 /* Git dirty diff editor decorations */
 .monaco-editor .git-dirty-modified-diff-glyph {
-	background-color: rgba(0, 122, 204, 0.6);
+	border-left: 3px solid rgba(0, 122, 204, 0.6);
 	margin-left: 5px;
-	width: 3px !important;
 }
 .monaco-editor.vs-dark .git-dirty-modified-diff-glyph {
-	background-color: rgba(0, 188, 242, 0.6);
+	border-left: 3px solid rgba(0, 188, 242, 0.6);
 	margin-left: 5px;
-	width: 3px !important;
 }
 .monaco-editor .git-dirty-added-diff-glyph {
-	background-color: rgba(45, 136, 62, 0.6);
+	border-left: 3px solid rgba(45, 136, 62, 0.6);
 	margin-left: 5px;
-	width: 3px !important;
 }
 .monaco-editor.vs-dark .git-dirty-added-diff-glyph {
-	background-color: rgba(127, 186, 0, 0.6);
+	border-left: 3px solid  rgba(127, 186, 0, 0.6);
 	margin-left: 5px;
-	width: 3px !important;
 }
 .monaco-editor .git-dirty-deleted-diff-glyph:after {
 	content: '';

@@ -495,6 +495,11 @@ export interface IEditorOptions {
 	 */
 	referenceInfos?: boolean;
 	/**
+	 * Enable code folding
+	 * Defaults to true.
+	 */
+	folding?: boolean;
+	/**
 	 * Enable rendering of leading whitespace.
 	 * Defaults to false.
 	 */
@@ -625,6 +630,7 @@ export interface IInternalEditorOptions {
 	selectionHighlight:boolean;
 	outlineMarkers: boolean;
 	referenceInfos: boolean;
+	folding: boolean;
 	renderWhitespace: boolean;
 
 	// ---- Options that are computed
@@ -712,6 +718,7 @@ export interface IConfigurationChangedEvent {
 	selectionHighlight: boolean;
 	outlineMarkers: boolean;
 	referenceInfos: boolean;
+	folding: boolean;
 	renderWhitespace: boolean;
 
 	// ---- Options that are computed
@@ -2303,6 +2310,7 @@ export interface IViewState {
 export interface ICodeEditorViewState extends IEditorViewState {
 	cursorState:ICursorState[];
 	viewState:IViewState;
+	contributionsState: {[id:string]:any};
 }
 
 /**
@@ -2994,6 +3002,14 @@ export interface IEditorContribution {
 	 * Dispose this contribution.
 	 */
 	dispose(): void;
+	/**
+	 * Store view state.
+	 */
+	saveViewState?(): any;
+	/**
+	 * Restore view state.
+	 */
+	restoreViewState?(state: any): void;
 }
 
 export type MarkedString = string | { language: string; value: string };
