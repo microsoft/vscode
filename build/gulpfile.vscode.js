@@ -259,29 +259,8 @@ function packageTask(platform, arch, opts) {
 	};
 }
 
-function getFolderSize(root) {
-	var size = 0;
-	var paths = [root];
-	while (paths.length > 0) {
-		var current = path.normalize(paths.pop());
-		var stat = fs.statSync(current);
-		size += stat.size;
-		if (stat.isDirectory()) {
-			var newPaths = fs.readdirSync(current);
-			newPaths.forEach(function(newPath) {
-				paths.push(path.join(current, newPath));
-			});
-		}
-	}
-	return size;
-}
-
 function getDebPackageArch(arch) {
-	if (arch === 'x64')
-		return 'amd64'
-	if (arch === 'ia32')
-		return 'i386';
-	return undefined;
+	return { x64: 'amd64', ia32: 'i386' }[arch];
 }
 
 function prepareDebPackage(arch) {
@@ -292,10 +271,7 @@ function prepareDebPackage(arch) {
 
 	return function () {
 		var shortcut = gulp.src('resources/common/bin/code.sh', { base: '.' })
-			.pipe(rename(function (p) {
-				p.extname = ''
-				p.dirname = 'usr/bin';
-			}));
+			.pipe(rename(function (p) { p.extname = ''; p.dirname = 'usr/bin'; }));
 
 		var desktop = gulp.src('resources/linux/debian/code.desktop', { base: '.' })
 			.pipe(rename(function (p) { p.dirname = 'usr/share/applications'; }));
@@ -303,35 +279,29 @@ function prepareDebPackage(arch) {
 		var icon = gulp.src('resources/linux/code.png', { base: '.' })
 			.pipe(rename(function (p) { p.dirname = 'usr/share/pixmaps'; }));
 
-		var installedSize = Math.ceil(getFolderSize(root + '/' + binaryDir) / 1024);
+		var code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
+			.pipe(rename(function (p) { p.dirname = 'usr/share/code/' + p.dirname; }));
 
-		var control = gulp.src('resources/linux/debian/control.template', { base: '.' })
-			.pipe(replace('@@VERSION@@', packageJson.version + '-' + packageRevision))
-			.pipe(replace('@@ARCHITECTURE@@', debArch))
-			.pipe(replace('@@INSTALLEDSIZE@@', installedSize))
-			.pipe(rename(function (p) {
-				p.extname = '';
-				p.dirname = 'DEBIAN';
+		var size = 0;
+		var control = code.pipe(es.through(
+			function (f) { size += f.isDirectory() ? 4096 : f.contents.length; },
+			function () {
+				var that = this;
+				gulp.src('resources/linux/debian/control.template', { base: '.' })
+					.pipe(replace('@@VERSION@@', packageJson.version + '-' + packageRevision))
+					.pipe(replace('@@ARCHITECTURE@@', debArch))
+					.pipe(replace('@@INSTALLEDSIZE@@', Math.ceil(size / 1024)))
+					.pipe(rename(function (p) { p.extname = ''; p.dirname = 'DEBIAN'; }))
+					.pipe(es.through(function (f) { that.emit('data', f); }, function () { that.emit('end'); }));
 			}));
 
-		var all = es.merge(
-			control,
-			desktop,
-			icon,
-			shortcut);
-
-		all.pipe(symdest(destination));
-
-		var binaryResult = gulp.src(binaryDir + '/**/*', { base: binaryDir })
-			.pipe(gulp.dest(destination + '/usr/share/code'));
-
-		return es.merge(all, binaryResult);
+		return es.merge(control, desktop, icon, shortcut, code)
+			.pipe(symdest(destination));
 	};
 }
 
 function buildDebPackage(arch) {
-	var debArch = getDebPackageArch(arch);
-	return shell.task(['fakeroot dpkg-deb -b ' + path.join(root, 'out-linux', 'vscode-' + debArch)]);
+	return shell.task(['fakeroot dpkg-deb -b ' + path.join(root, 'out-linux', 'vscode-' + getDebPackageArch(arch))]);
 }
 
 gulp.task('clean-vscode-win32', util.rimraf(path.join(path.dirname(root), 'VSCode-win32')));
@@ -355,7 +325,7 @@ gulp.task('vscode-linux-x64-min', ['minify-vscode', 'clean-vscode-linux-x64'], p
 gulp.task('vscode-linux-arm-min', ['minify-vscode', 'clean-vscode-linux-arm'], packageTask('linux', 'arm', { minified: true }));
 
 gulp.task('vscode-linux-ia32-prepare-deb', ['clean-vscode-linux-ia32-deb', 'vscode-linux-ia32'], prepareDebPackage('ia32'));
-gulp.task('vscode-linux-x64-prepare-deb', ['clean-vscode-linux-x64-deb'/*, 'vscode-linux-x64'*/], prepareDebPackage('x64'));
+gulp.task('vscode-linux-x64-prepare-deb', ['clean-vscode-linux-x64-deb', 'vscode-linux-x64'], prepareDebPackage('x64'));
 gulp.task('vscode-linux-ia32-build-deb', ['vscode-linux-ia32-prepare-deb'], buildDebPackage('ia32'));
 gulp.task('vscode-linux-x64-build-deb', ['vscode-linux-x64-prepare-deb'], buildDebPackage('x64'));
 gulp.task('vscode-linux-packages', ['vscode-linux-ia32-build-deb', 'vscode-linux-x64-build-deb']);
