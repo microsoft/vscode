@@ -23,7 +23,7 @@ class ArgParser {
 	}
 
 	help(): string {
-		const executable = 'code' + (os.platform() == 'win32' ? '.exe' : '');
+		const executable = 'code' + (os.platform() === 'win32' ? '.exe' : '');
 
 		return `Visual Studio Code v${ packageJson.version }
 
