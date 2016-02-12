@@ -282,7 +282,7 @@ function prepareDebPackage(arch) {
 		var desktop = gulp.src('resources/linux/debian/code.desktop')
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(rename('usr/share/applications/' + product.applicatioName + '.desktop'));
+			.pipe(rename('usr/share/applications/' + product.applicationName + '.desktop'));
 
 		var icon = gulp.src('resources/linux/code.png')
 			.pipe(rename('usr/share/pixmaps/' + product.applicationName + '.png'));
