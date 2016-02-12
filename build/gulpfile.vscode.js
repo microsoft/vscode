@@ -217,12 +217,12 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true))
 			.pipe(util.cleanNodeModule('weak', ['binding.gyp', 'build/**', 'src/**'], true));
 
-		var resources = gulp.src(['resources/*','resources/common/**'], { base: '.' });
+		var resources;
 
 		if (platform === 'win32') {
-			resources = es.merge(resources, gulp.src('resources/win32/code_file.ico', { base: '.' }));
+			resources = gulp.src('resources/win32/code_file.ico', { base: '.' });
 		} else if (platform === 'linux') {
-			resources = es.merge(resources, gulp.src('resources/linux/code.png', { base: '.' }));
+			resources = gulp.src('resources/linux/code.png', { base: '.' });
 		}
 
 		var extraExtensions = util.downloadExtensions(builtInExtensions)
@@ -238,7 +238,7 @@ function packageTask(platform, arch, opts) {
 			sources,
 			deps,
 			extraExtensions,
-			resources
+			resources || es.through()
 		).pipe(util.skipDirectories());
 
 		var result = all
