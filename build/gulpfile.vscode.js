@@ -275,10 +275,12 @@ function prepareDebPackage(arch) {
 			.pipe(rename('usr/bin/' + product.applicationName));
 
 		var desktop = gulp.src('resources/linux/debian/code.desktop')
-			.pipe(rename('usr/share/applications/code.desktop'));
+			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(rename('usr/share/applications/' + product.applicatioName + '.desktop'));
 
 		var icon = gulp.src('resources/linux/code.png')
-			.pipe(rename('usr/share/pixmaps/code.png'));
+			.pipe(rename('usr/share/pixmaps/' + product.applicationName + '.png'));
 
 		var code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
 			.pipe(rename(function (p) { p.dirname = 'usr/share/' + product.applicationName + '/' + p.dirname; }));

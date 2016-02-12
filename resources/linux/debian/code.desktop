@@ -1,9 +1,9 @@
 [Desktop Entry]
-Name=Visual Studio Code
+Name=@@NAME_LONG@@
 Comment=Code Editing. Redefined.
 GenericName=Text Editor
-Exec=/usr/bin/code %U
-Icon=code
+Exec=/usr/bin/@@NAME@@ %U
+Icon=@@NAME@@
 Type=Application
 StartupNotify=true
 Categories=Utility;TextEditor;Development;IDE;
