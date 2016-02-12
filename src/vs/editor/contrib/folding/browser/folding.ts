@@ -59,13 +59,13 @@ class CollapsibleRegion {
 	private getVisualDecorationOptions(): EditorCommon.IModelDecorationOptions {
 		if (this._isCollapsed) {
 			return {
-				stickiness: EditorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore,
+				stickiness: EditorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				inlineClassName: 'inline-folded',
 				linesDecorationsClassName: 'folding collapsed'
 			};
 		} else {
 			return {
-				stickiness: EditorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore,
+				stickiness: EditorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				linesDecorationsClassName: 'folding'
 			};
 		}
