@@ -114,6 +114,7 @@ function cloneInternalEditorOptions(opts: EditorCommon.IInternalEditorOptions): 
 		selectionHighlight: opts.selectionHighlight,
 		outlineMarkers: opts.outlineMarkers,
 		referenceInfos: opts.referenceInfos,
+		folding: opts.folding,
 		renderWhitespace: opts.renderWhitespace,
 		layoutInfo: {
 			width: opts.layoutInfo.width,
