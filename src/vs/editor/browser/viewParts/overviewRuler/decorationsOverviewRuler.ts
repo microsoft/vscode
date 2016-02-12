@@ -218,7 +218,8 @@ export class DecorationsOverviewRuler extends ViewPart {
 					ctx2.beginPath();
 					ctx2.lineWidth = 1;
 					ctx2.strokeStyle = 'rgba(197,197,197,0.8)';
-					ctx2.rect(0, 0, this._overviewRuler.getWidth(), this._overviewRuler.getHeight());
+					ctx2.moveTo(0, 0);
+					ctx2.lineTo(0, this._overviewRuler.getHeight());
 					ctx2.stroke();
 				}
 			});

@@ -189,8 +189,8 @@ export class ExtHostModelService {
 		this._onDidAddDocumentEventEmitter.fire(data.document);
 	}
 
-	public _acceptModelModeChanged(url: URI, oldModeId: string, newModeId: string): void {
-		let data = this._documentData[url.toString()];
+	public _acceptModelModeChanged(strURL: string, oldModeId: string, newModeId: string): void {
+		let data = this._documentData[strURL];
 
 		// Treat a mode change as a remove + add
 
@@ -199,35 +199,34 @@ export class ExtHostModelService {
 		this._onDidAddDocumentEventEmitter.fire(data.document);
 	}
 
-	public _acceptModelSaved(url: URI): void {
-		let data = this._documentData[url.toString()];
+	public _acceptModelSaved(strURL: string): void {
+		let data = this._documentData[strURL];
 		data._acceptIsDirty(false);
 		this._onDidSaveDocumentEventEmitter.fire(data.document);
 	}
 
-	public _acceptModelDirty(url: URI): void {
-		let document = this._documentData[url.toString()];
+	public _acceptModelDirty(strURL: string): void {
+		let document = this._documentData[strURL];
 		document._acceptIsDirty(true);
 	}
 
-	public _acceptModelReverted(url: URI): void {
-		let document = this._documentData[url.toString()];
+	public _acceptModelReverted(strURL: string): void {
+		let document = this._documentData[strURL];
 		document._acceptIsDirty(false);
 	}
 
-	public _acceptModelRemoved(url: URI): void {
-		let key = url.toString();
-		if (!this._documentData[key]) {
-			throw new Error('Document `' + key + '` does not exist.');
+	public _acceptModelRemoved(strURL: string): void {
+		if (!this._documentData[strURL]) {
+			throw new Error('Document `' + strURL + '` does not exist.');
 		}
-		let data = this._documentData[key];
-		delete this._documentData[key];
+		let data = this._documentData[strURL];
+		delete this._documentData[strURL];
 		this._onDidRemoveDocumentEventEmitter.fire(data.document);
 		data.dispose();
 	}
 
-	public _acceptModelChanged(url: URI, events: EditorCommon.IModelContentChangedEvent2[]): void {
-		let data = this._documentData[url.toString()];
+	public _acceptModelChanged(strURL: string, events: EditorCommon.IModelContentChangedEvent2[]): void {
+		let data = this._documentData[strURL];
 		data.onEvents(events);
 		this._onDidChangeDocumentEventEmitter.fire({
 			document: data.document,
@@ -495,13 +494,13 @@ export class MainThreadDocuments {
 		modelService.onModelModeChanged(this._onModelModeChanged, this, this._toDispose);
 
 		this._toDispose.push(eventService.addListener2(FileEventType.FILE_SAVED, (e: LocalFileChangeEvent) => {
-			this._proxy._acceptModelSaved(e.getAfter().resource);
+			this._proxy._acceptModelSaved(e.getAfter().resource.toString());
 		}));
 		this._toDispose.push(eventService.addListener2(FileEventType.FILE_REVERTED, (e: LocalFileChangeEvent) => {
-			this._proxy._acceptModelReverted(e.getAfter().resource);
+			this._proxy._acceptModelReverted(e.getAfter().resource.toString());
 		}));
 		this._toDispose.push(eventService.addListener2(FileEventType.FILE_DIRTY, (e: LocalFileChangeEvent) => {
-			this._proxy._acceptModelDirty(e.getAfter().resource);
+			this._proxy._acceptModelDirty(e.getAfter().resource.toString());
 		}));
 
 		const handle = setInterval(() => this._runDocumentCleanup(), 30 * 1000);
@@ -544,7 +543,7 @@ export class MainThreadDocuments {
 		if (!this._modelIsSynced[modelUrl.toString()]) {
 			return;
 		}
-		this._proxy._acceptModelModeChanged(model.getAssociatedResource(), oldModeId, model.getMode().getId());
+		this._proxy._acceptModelModeChanged(model.getAssociatedResource().toString(), oldModeId, model.getMode().getId());
 	}
 
 	private _onModelRemoved(model: EditorCommon.IModel): void {
@@ -555,7 +554,7 @@ export class MainThreadDocuments {
 		delete this._modelIsSynced[modelUrl.toString()];
 		this._modelToDisposeMap[modelUrl.toString()].dispose();
 		delete this._modelToDisposeMap[modelUrl.toString()];
-		this._proxy._acceptModelRemoved(modelUrl);
+		this._proxy._acceptModelRemoved(modelUrl.toString());
 	}
 
 	private _onModelEvents(modelUrl: URI, events: IEmitterEvent[]): void {
@@ -569,7 +568,7 @@ export class MainThreadDocuments {
 			}
 		}
 		if (changedEvents.length > 0) {
-			this._proxy._acceptModelChanged(modelUrl, changedEvents);
+			this._proxy._acceptModelChanged(modelUrl.toString(), changedEvents);
 		}
 	}
 
@@ -622,7 +621,7 @@ export class MainThreadDocuments {
 				if (input.getResource().toString() !== uri.toString()) {
 					throw new Error(`expected URI ${uri.toString() } BUT GOT ${input.getResource().toString() }`);
 				}
-				return this._proxy._acceptModelDirty(uri); // mark as dirty
+				return this._proxy._acceptModelDirty(uri.toString()); // mark as dirty
 			}).then(() => {
 				return true;
 			});

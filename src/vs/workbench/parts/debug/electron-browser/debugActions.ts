@@ -10,6 +10,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import editorCommon = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { EditorAction, Behaviour } from 'vs/editor/common/editorAction';
+import { IEventService } from 'vs/platform/event/common/event';
+import { EventType, CompositeEvent } from 'vs/workbench/common/events';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -668,20 +670,38 @@ export class ToggleReplAction extends AbstractDebugAction {
 		@IDebugService debugService: IDebugService,
 		@IPartService private partService: IPartService,
 		@IPanelService private panelService: IPanelService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IEventService private eventService: IEventService
 	) {
 		super(id, label, 'debug-action toggle-repl', debugService, keybindingService);
 		this.enabled = this.debugService.getState() !== debug.State.Disabled;
+		this.registerListeners();
 	}
 
 	public run(): TPromise<any> {
-		const panel = this.panelService.getActivePanel();
-		if (panel && panel.getId() === debug.REPL_ID) {
+		if (this.isReplVisible()) {
 			this.partService.setPanelHidden(true);
-
 			return TPromise.as(null);
 		}
 
 		return this.debugService.revealRepl();
+	}
+
+	private registerListeners(): void {
+		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.REPL_ELEMENTS_UPDATED, () => {
+			if (!this.isReplVisible()) {
+				this.class = 'debug-action toggle-repl notification';
+			}
+		}));
+		this.toDispose.push(this.eventService.addListener2(EventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
+			if (e.compositeId === debug.REPL_ID) {
+				this.class = 'debug-action toggle-repl';
+			}
+		}));
+	}
+
+	private isReplVisible(): boolean {
+		const panel = this.panelService.getActivePanel();
+		return panel && panel.getId() === debug.REPL_ID;
 	}
 }

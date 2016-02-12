@@ -6,7 +6,6 @@
 import 'vs/css!../browser/media/debug.contribution';
 import 'vs/css!../browser/media/debugHover';
 import nls = require('vs/nls');
-import lifecycle = require('vs/base/common/lifecycle');
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { CommonEditorRegistry, ContextKey, EditorActionDescriptor } from 'vs/editor/common/editorCommonExtensions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -26,7 +25,6 @@ import debugwidget = require('vs/workbench/parts/debug/browser/debugActionsWidge
 import service = require('vs/workbench/parts/debug/electron-browser/debugService');
 import { DebugEditorContribution } from 'vs/workbench/parts/debug/browser/debugEditorContribution';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
-import { IActivityService, IconBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activityService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 import IDebugService = debug.IDebugService;
@@ -42,41 +40,6 @@ class OpenDebugViewletAction extends viewlet.ToggleViewletAction {
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService
 	) {
 		super(id, label, debug.VIEWLET_ID, viewletService, editorService);
-	}
-}
-
-class StatusUpdater implements wbext.IWorkbenchContribution {
-	static ID = 'Monaco.IDE.UI.Viewlets.DebugViewlet.Workbench.StatusUpdater';
-
-	private toDispose: lifecycle.IDisposable[];
-	private pausedBadge: ProgressBadge;
-	private runningBadge: IconBadge;
-
-	constructor(
-		@IActivityService private activityService: IActivityService,
-		@IDebugService private debugService: IDebugService
-	) {
-		this.pausedBadge = new IconBadge(() => { return nls.localize('debugPaused', "Paused"); });
-		this.runningBadge = new ProgressBadge(() => { return nls.localize('debugRunning', "Running"); });
-		this.toDispose = [this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => this.onDebugServiceStateChange())];
-	}
-
-	private onDebugServiceStateChange(): void {
-		if (this.debugService.getState() === debug.State.Stopped) {
-			this.activityService.showActivity(debug.VIEWLET_ID, this.pausedBadge, 'debug-viewlet-paused-label');
-		} else if (this.debugService.getState() === debug.State.Running) {
-			this.activityService.showActivity(debug.VIEWLET_ID, this.runningBadge, 'debug-viewlet-running-label');
-		} else {
-			this.activityService.clearActivity(debug.VIEWLET_ID);
-		}
-	}
-
-	public getId(): string {
-		return StatusUpdater.ID;
-	}
-
-	public dispose(): void {
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
 	}
 }
 
@@ -138,8 +101,3 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.ReapplyBrea
 
 // register service
 registerSingleton(IDebugService, service.DebugService);
-
-// Register StatusUpdater
-(<wbext.IWorkbenchContributionsRegistry>platform.Registry.as(wbext.Extensions.Workbench)).registerWorkbenchContribution(
-	StatusUpdater
-);

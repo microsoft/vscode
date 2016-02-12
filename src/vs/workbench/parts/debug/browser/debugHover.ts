@@ -97,8 +97,8 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 				range: {
 					startLineNumber: pos.lineNumber,
 					endLineNumber: pos.lineNumber,
-					startColumn: pos.column,
-					endColumn: pos.column
+					startColumn: lineContent.indexOf(hoveringOver) + 1,
+					endColumn: lineContent.indexOf(hoveringOver) + 1 + hoveringOver.length
 				},
 				options: {
 					className: 'hoverHighlight'
@@ -148,22 +148,22 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	}
 
 	private doShow(position: editorcommon.IEditorPosition, expression: debug.IExpression, forceValueHover = false): void {
+		this.showAtPosition = position;
+		this.isVisible = true;
+
 		if (expression.reference > 0 && !forceValueHover) {
 			this.valueContainer.hidden = true;
 			this.treeContainer.hidden = false;
 			this.tree.setInput(expression).then(() => {
 				this.layoutTree();
-			}).done(null, errors.onUnexpectedError);
+			}).then(() => this.editor.layoutContentWidget(this), errors.onUnexpectedError);
 		} else {
 			this.treeContainer.hidden = true;
 			this.valueContainer.hidden = false;
 			viewer.renderExpressionValue(expression, false, this.valueContainer, false);
 			this.valueContainer.title = '';
+			this.editor.layoutContentWidget(this);
 		}
-
-		this.showAtPosition = position;
-		this.isVisible = true;
-		this.editor.layoutContentWidget(this);
 	}
 
 	private layoutTree(): void {

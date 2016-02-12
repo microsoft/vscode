@@ -9,6 +9,46 @@
 	height: 100%;
 }
 
+/* Actionbar actions */
+
+.monaco-workbench .debug-action.configure {
+	background: url('configure.svg') center center no-repeat;
+}
+
+.monaco-workbench .debug-action.toggle-repl {
+	background: url('repl.svg') center center no-repeat;
+}
+
+.monaco-workbench .debug-action.toggle-repl.notification:before {
+	content: '';
+	width: 6px;
+	height: 6px;
+	background-color: #CC6633;
+	position: absolute;
+	top: 11px;
+	right: 5px;
+	border-radius: 10px;
+	border: 1px solid white;
+}
+
+.monaco-workbench.vs-dark .debug-action.configure {
+	background: url('configure-inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench.vs-dark .debug-action.toggle-repl {
+	background: url('repl-inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench.hc-black .debug-action.configure {
+	background: url('configure-inverse.svg') center center no-repeat;
+}
+
+.monaco-workbench.hc-black .debug-action.toggle-repl:before {
+	content: url('repl-inverse.svg');
+}
+
+/* Debug viewlet trees */
+
 .debug-viewlet .monaco-tree .monaco-tree-row > .content {
 	line-height: 22px;
 }

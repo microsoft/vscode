@@ -45,7 +45,6 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITextFileService } from 'vs/workbench/parts/files/common/files';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IWindowService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ILogEntry, PLUGIN_LOG_BROADCAST_CHANNEL, PLUGIN_ATTACH_BROADCAST_CHANNEL } from 'vs/workbench/services/thread/electron-browser/threadService';
 
@@ -87,7 +86,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService:IInstantiationService,
 		@IPluginService private pluginService: IPluginService,
-		@IOutputService private outputService: IOutputService,
 		@IMarkerService private markerService: IMarkerService
 	) {
 		super();
@@ -219,9 +217,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			if (simpleVals.length) {
 				this.logToRepl(simpleVals.join(' '), sev);
 			}
-
-			// show repl
-			this.revealRepl(true /* in background */).done(null, errors.onUnexpectedError);
 		}
 	}
 
@@ -316,7 +311,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	private onOutput(event: DebugProtocol.OutputEvent): void {
 		const outputSeverity = event.body.category === 'stderr' ? severity.Error : event.body.category === 'console' ? severity.Warning : severity.Info;
 		this.appendReplOutput(event.body.output, outputSeverity);
-		this.revealRepl(true /* in background */).done(null, errors.onUnexpectedError);
 	}
 
 	private getThreadData(threadId: number): TPromise<void> {
@@ -564,6 +558,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 				glyphMargin: true
 			});
 			this.inDebugMode.set(true);
+			this.revealRepl(false).done(undefined, errors.onUnexpectedError);
 
 			this.telemetryService.publicLog('debugSessionStart', { type: configuration.type, breakpointCount: this.model.getBreakpoints().length, exceptionBreakpoints: this.model.getExceptionBreakpoints() });
 		}).then(undefined, (error: Error) => {
@@ -600,8 +595,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			}
 
 			// no task running, execute the preLaunchTask.
-			this.outputService.showOutput('Tasks', true);
-
 			const taskPromise = this.taskService.run(filteredTasks[0].id).then(result => {
 				this.lastTaskEvent = null;
 			}, err => {
@@ -754,10 +747,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.editorService.openEditor(editorInput, wbeditorcommon.TextEditorOptions.create({ preserveFocus: true }), sideBySide);
 	}
 
-	public revealRepl(inBackground: boolean = false): TPromise<void> {
-		return this.panelService.openPanel(debug.REPL_ID, !inBackground).then((repl: Repl) => {
+	public revealRepl(focus = true): TPromise<void> {
+		return this.panelService.openPanel(debug.REPL_ID, focus).then((repl: Repl) => {
 			const elements = this.model.getReplElements();
-			if (!inBackground && elements.length > 0) {
+			if (elements.length > 0) {
 				return repl.reveal(elements[elements.length - 1]);
 			}
 		});

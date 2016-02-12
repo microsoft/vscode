@@ -155,6 +155,7 @@ export class Model extends EditableTextModel implements EditorCommon.IModel {
 			throw new Error('Model.getProperties: Model is disposed');
 		}
 
+		// TODO@Alex: avoid Objects.clone
 		return Objects.clone(this._extraProperties);
 	}
 

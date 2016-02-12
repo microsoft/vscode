@@ -175,7 +175,7 @@ export interface ITaskSummary {
 
 export interface ITaskRunResult {
 	restartOnFileChanges?: string;
-	promise: TPromise<ITaskSummary>
+	promise: TPromise<ITaskSummary>;
 }
 
 export namespace TaskSystemEvents {
