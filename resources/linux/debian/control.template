@@ -3,7 +3,7 @@ Version: @@VERSION@@
 Section: devel
 Priority: optional
 Architecture: @@ARCHITECTURE@@
-Maintainer: Microsoft Corporation
+Maintainer: Microsoft Corporation <vscode-linux@microsoft.com>
 Homepage: https://code.visualstudio.com/
 Installed-Size: @@INSTALLEDSIZE@@
 Description: Code Editing. Redefined.
