@@ -271,7 +271,7 @@ function prepareDebPackage(arch) {
 	var packageRevision = '1';
 
 	return function () {
-		var shortcut = gulp.src('resources/common/bin/code.sh', { base: '.' })
+		var shortcut = gulp.src('resources/linux/bin/code.sh', { base: '.' })
 			.pipe(rename(function (p) { p.extname = ''; p.dirname = 'usr/bin'; }));
 
 		var desktop = gulp.src('resources/linux/debian/code.desktop', { base: '.' })

@@ -46,7 +46,7 @@ export function main(argv: string[]) {
 		console.log(packageJson.version);
 	} else {
 		delete process.env['ELECTRON_RUN_AS_NODE'];
-		spawn(process.env['VSCODE_PATH'], process.argv.slice(2), { detached: true, stdio: 'ignore' });
+		spawn(process.execPath, process.argv.slice(2), { detached: true, stdio: 'ignore' });
 	}
 
 	process.exit(0);

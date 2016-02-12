@@ -5,16 +5,14 @@
 
 VSCODE_DIR="/usr/share/code"
 if [ -x "$VSCODE_DIR/Code" ]; then
-	ELECTRON_FILE="Code"
+	ELECTRON="$VSCODE_DIR/Code"
 elif [ -x "$VSCODE_DIR/Code - OSS" ]; then
-	ELECTRON_FILE="Code - OSS"
+	ELECTRON="$VSCODE_DIR/Code - OSS"
 else
 	echo "Could not locate Visual Studio Code executable."
 	exit 1
 fi
 
-VSCODE_LAUNCHER="$VSCODE_DIR/resources/app/out/cli.js"
-
-ELECTRON_RUN_AS_NODE=1 VSCODE_PATH="$VSCODE_DIR/$ELECTRON_FILE" \
-	"$VSCODE_DIR/$ELECTRON_FILE" $VSCODE_LAUNCHER "$@"
+CLI="$VSCODE_DIR/resources/app/out/cli.js"
+ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" "$@"
 exit $?
