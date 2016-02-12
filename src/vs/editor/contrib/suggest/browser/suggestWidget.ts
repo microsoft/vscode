@@ -476,29 +476,14 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	private onDidSuggest(e: ISuggestEvent): void {
 		clearTimeout(this.loadingTimeout);
 
-		let promise = TPromise.as(null);
-		let visibleCount: number;
+		this.completionModel = e.completionModel;
 
-		if (this.completionModel && this.completionModel.raw === e.suggestions) {
-			const oldCurrentWord = this.completionModel.currentWord;
-			this.completionModel.currentWord = e.currentWord;
-			visibleCount = this.completionModel.items.length;
-
-			if (!e.auto && visibleCount === 0) {
-				this.completionModel.currentWord = oldCurrentWord;
-
-				if (this.completionModel.items.length > 0) {
-					this.setState(State.Frozen);
-				} else {
-					this.setState(State.Empty);
-				}
-
-				return;
-			}
-		} else {
-			this.completionModel = new CompletionModel(e.suggestions, e.currentWord);
-			visibleCount = this.completionModel.items.length;
+		if (e.isFrozen) {
+			this.setState(State.Frozen);
+			return;
 		}
+
+		let visibleCount = this.completionModel.items.length;
 
 		const isEmpty = visibleCount === 0;
 

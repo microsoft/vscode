@@ -68,21 +68,14 @@ export class CompletionItem {
 
 export class CompletionGroup {
 
-	// incomplete: boolean;
 	private _items: CompletionItem[];
 	private cache: CompletionItem[];
 	private cacheCurrentWord: string;
-	// size: number;
 	filter: ISuggestionFilter;
 
 	constructor(public model: CompletionModel, public index: number, raw: ISuggestResult2[]) {
-		// this.incomplete = false;
-		// this.size = 0;
 
 		this._items = raw.reduce<CompletionItem[]>((items, result) => {
-			// this.incomplete = result.incomplete || this.incomplete;
-			// this.size += result.suggestions.length;
-
 			return items.concat(
 				result.suggestions
 					.map(suggestion => new CompletionItem(this, suggestion, result))
@@ -131,25 +124,16 @@ export class CompletionGroup {
 
 export class CompletionModel {
 
-	// incomplete: boolean;
-	// size: number;
 	private groups: CompletionGroup[];
 	private cache: CompletionItem[];
 	private cacheCurrentWord: string;
 
 	constructor(public raw: ISuggestResult2[][], public currentWord: string) {
-		// this.incomplete = false;
-		// this.size = 0;
 
 		this.groups = raw
 			.filter(s => !!s)
 			.map((suggestResults, index) => {
-				const group = new CompletionGroup(this, index, suggestResults);
-
-				// this.incomplete = group.incomplete || this.incomplete;
-				// this.size += group.size;
-
-				return group;
+				return new CompletionGroup(this, index, suggestResults);
 			})
 			.sort(completionGroupCompare);
 	}
