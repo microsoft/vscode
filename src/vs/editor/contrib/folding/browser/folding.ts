@@ -33,8 +33,7 @@ class CollapsibleRegion {
 
 	private _lastRange: IFoldingRange;
 
-	public constructor(range:IFoldingRange, model:EditorCommon.IModel, changeAccessor:EditorCommon.IModelDecorationsChangeAccessor, isCollapsed:boolean) {
-		this._isCollapsed = isCollapsed;
+	public constructor(range:IFoldingRange, model:EditorCommon.IModel, changeAccessor:EditorCommon.IModelDecorationsChangeAccessor) {
 		this.decorationIds = [];
 		this.update(range, model, changeAccessor);
 	}
@@ -80,6 +79,7 @@ class CollapsibleRegion {
 
 	public update(newRange:IFoldingRange, model:EditorCommon.IModel, changeAccessor:EditorCommon.IModelDecorationsChangeAccessor): void {
 		this._lastRange = newRange;
+		this._isCollapsed = !!newRange.isCollapsed;
 
 		let newDecorations : EditorCommon.IModelDeltaDecoration[] = [];
 
@@ -166,19 +166,103 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 		this.globalToDispose = disposeAll(this.globalToDispose);
 	}
 
+	/**
+	 * Store view state.
+	 */
+	public saveViewState(): any {
+		let model = this.editor.getModel();
+		if (!model) {
+			return {};
+		}
+		var collapsedRegions : IFoldingRange[] = [];
+		this.decorations.forEach(d => {
+			if (d.isCollapsed) {
+				var range = d.getDecorationRange(model);
+				if (range) {
+					collapsedRegions.push({ startLineNumber: range.startLineNumber, endLineNumber: range.endLineNumber, isCollapsed: true});
+				}
+			};
+		});
+		return collapsedRegions;
+	}
+
+	/**
+	 * Restore view state.
+	 */
+	public restoreViewState(state: any): void {
+		if (!Array.isArray(state)) {
+			return;
+		}
+		this.applyRegions(<IFoldingRange[]> state);
+	}
+
 	private cleanState(): void {
 		this.localToDispose = disposeAll(this.localToDispose);
+	}
+
+	private applyRegions(regions: IFoldingRange[]) {
+		let model = this.editor.getModel();
+		if (!model) {
+			return;
+		}
+
+		regions = regions.sort((r1, r2) => r1.startLineNumber - r2.startLineNumber);
+		log('imput ranges ' + regions.map(rangeToString).join(', '));
+
+		this.editor.changeDecorations(changeAccessor => {
+
+			let newDecorations : CollapsibleRegion[] = [];
+
+			let k = 0, i = 0;
+			while (i < this.decorations.length && k < regions.length) {
+				let dec = this.decorations[i];
+				let decRange = dec.getDecorationRange(model);
+				if (!decRange) {
+					log('range no longer valid, was ' + dec.toString());
+					dec.dispose(changeAccessor);
+					i++;
+				} else {
+					while (k < regions.length && decRange.startLineNumber > regions[k].startLineNumber) {
+						log('new range ' + rangeToString(regions[k]));
+						newDecorations.push(new CollapsibleRegion(regions[k], model, changeAccessor));
+						k++;
+					}
+					if (k < regions.length) {
+						let currRange = regions[k];
+						if (decRange.startLineNumber < currRange.startLineNumber) {
+							log('range no longer valid, was ' + dec.toString());
+							dec.dispose(changeAccessor);
+							i++;
+						} else if (decRange.startLineNumber === currRange.startLineNumber) {
+							currRange.isCollapsed = dec.isCollapsed; // preserve collapse state
+							dec.update(currRange, model, changeAccessor);
+							newDecorations.push(dec);
+							i++;
+							k++;
+						}
+					}
+				}
+			}
+			while (i < this.decorations.length) {
+				log('range no longer valid, was ' + this.decorations[i].toString());
+				this.decorations[i].dispose(changeAccessor);
+				i++;
+			}
+			while (k < regions.length) {
+				log('new range ' + rangeToString(regions[k]));
+				newDecorations.push(new CollapsibleRegion(regions[k], model, changeAccessor));
+				k++;
+			}
+			this.decorations = newDecorations;
+		});
+		this.updateHiddenAreas();
 	}
 
 	private onModelChanged(): void {
 		this.cleanState();
 
-		if (!this.editor.getConfiguration().folding) {
-			return;
-		}
-
 		let model = this.editor.getModel();
-		if (!model) {
+		if (!this.editor.getConfiguration().folding || !model) {
 			return;
 		}
 
@@ -187,59 +271,9 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 
 			this.computeCollapsibleRegions().then(regions => {
 				if (myToken !== this.computeToken) {
-					// A new request was made in the meantime or the model was changed
-					return;
+					return; // A new request was made in the meantime or the model was changed
 				}
-				regions = regions.sort((r1, r2) => r1.startLineNumber - r2.startLineNumber);
-				log('compute ranges ' + regions.map(rangeToString).join(', '));
-
-				this.editor.changeDecorations(changeAccessor => {
-
-					let newDecorations : CollapsibleRegion[] = [];
-
-					let k = 0, i = 0;
-					while (i < this.decorations.length && k < regions.length) {
-						let dec = this.decorations[i];
-						let decRange = dec.getDecorationRange(model);
-						if (!decRange) {
-							log('range no longer valid, was ' + dec.toString());
-							dec.dispose(changeAccessor);
-							i++;
-						} else {
-							while (k < regions.length && decRange.startLineNumber > regions[k].startLineNumber) {
-								log('new range ' + rangeToString(regions[k]));
-								newDecorations.push(new CollapsibleRegion(regions[k], model, changeAccessor, false));
-								k++;
-							}
-							if (k < regions.length) {
-								let currRange = regions[k];
-								if (decRange.startLineNumber < currRange.startLineNumber) {
-									log('range no longer valid, was ' + dec.toString());
-									dec.dispose(changeAccessor);
-									i++;
-								} else if (decRange.startLineNumber === currRange.startLineNumber) {
-									dec.update(currRange, model, changeAccessor);
-									newDecorations.push(dec);
-									i++;
-									k++;
-								}
-							}
-						}
-					}
-					while (i < this.decorations.length) {
-						log('range no longer valid, was ' + this.decorations[i].toString());
-						this.decorations[i].dispose(changeAccessor);
-						i++;
-					}
-					while (k < regions.length) {
-						log('new range ' + rangeToString(regions[k]));
-						newDecorations.push(new CollapsibleRegion(regions[k], model, changeAccessor, false));
-						k++;
-					}
-					this.decorations = newDecorations;
-				});
-
-				this.updateHiddenAreas();
+				this.applyRegions(regions);
 			});
 		}, 200);
 
@@ -249,6 +283,7 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 			++this.computeToken;
 			this.editor.changeDecorations(changeAccessor => {
 				this.decorations.forEach(dec => dec.dispose(changeAccessor));
+				this.decorations = [];
 			});
 		}});
 		this.localToDispose.push(this.editor.addListener2(EditorCommon.EventType.MouseDown, (e) => this._onEditorMouseDown(e)));
@@ -262,7 +297,6 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 		if (!model) {
 			return TPromise.as([]);
 		}
-
 
 		let ranges = foldStrategy.computeRanges(model, tabSize);
 		return TPromise.as(ranges);
@@ -320,7 +354,7 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 
 	private updateHiddenAreas(): void {
 		let model = this.editor.getModel();
-		let hiddenAreas:EditorCommon.IRange[] = [];
+		let hiddenAreas: EditorCommon.IRange[] = [];
 		this.decorations.filter(dec => dec.isCollapsed).forEach(dec => {
 			let decRange = dec.getDecorationRange(model);
 			hiddenAreas.push({
@@ -377,7 +411,7 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 }
 
 abstract class FoldingAction extends EditorAction {
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor: EditorCommon.IEditorActionDescriptorData, editor: EditorCommon.ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor);
 	}
 

@@ -181,11 +181,20 @@ export class CodeEditorWidget extends CommonCodeEditor implements EditorBrowser.
 		if (!this.cursor || !this.hasView) {
 			return null;
 		}
+		let contributionsState: {[key:string]:any} = {};
+		for (let id in this.contributions) {
+			let contribution = this.contributions[id];
+			if (typeof contribution.saveViewState === 'function') {
+				contributionsState[id] = contribution.saveViewState();
+			}
+		}
+
 		var cursorState = this.cursor.saveState();
 		var viewState = this._view.saveState();
 		return {
 			cursorState: cursorState,
-			viewState: viewState
+			viewState: viewState,
+			contributionsState: contributionsState
 		};
 	}
 
@@ -204,6 +213,14 @@ export class CodeEditorWidget extends CommonCodeEditor implements EditorBrowser.
 				this.cursor.restoreState([<EditorCommon.ICursorState>cursorState]);
 			}
 			this._view.restoreState(codeEditorState.viewState);
+
+			let contributionsState = s.contributionsState || {};
+			for (let id in this.contributions) {
+				let contribution = this.contributions[id];
+				if (typeof contribution.restoreViewState === 'function') {
+					contribution.restoreViewState(contributionsState[id]);
+				}
+			}
 		}
 	}
 

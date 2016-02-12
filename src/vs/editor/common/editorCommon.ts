@@ -2310,6 +2310,7 @@ export interface IViewState {
 export interface ICodeEditorViewState extends IEditorViewState {
 	cursorState:ICursorState[];
 	viewState:IViewState;
+	contributionsState: {[id:string]:any};
 }
 
 /**
@@ -3001,6 +3002,14 @@ export interface IEditorContribution {
 	 * Dispose this contribution.
 	 */
 	dispose(): void;
+	/**
+	 * Store view state.
+	 */
+	saveViewState?(): any;
+	/**
+	 * Restore view state.
+	 */
+	restoreViewState?(state: any): void;
 }
 
 export type MarkedString = string | { language: string; value: string };

@@ -8,8 +8,9 @@
 export interface IFoldingRange {
 	startLineNumber:number;
 	endLineNumber:number;
+	isCollapsed?:boolean;
 }
 
 export function toString(range: IFoldingRange): string {
-	return range ? range.startLineNumber + '/' + range.endLineNumber : 'null';
+	return (range ? range.startLineNumber + '/' + range.endLineNumber : 'null') + range.isCollapsed ? ' (collapsed)' : '';
 }
