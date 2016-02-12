@@ -319,7 +319,34 @@ export class SplitLinesCollection implements ILinesCollection {
 		}).sort(Range.compareRangesUsingStarts);
 	}
 
-	public setHiddenAreas(ranges:EditorCommon.IRange[], emit:(evenType:string, payload:any)=>void): void {
+	private _reduceRanges(_ranges:EditorCommon.IRange[]): EditorCommon.IEditorRange[] {
+		if (_ranges.length === 0) {
+			return [];
+		}
+		let ranges = _ranges.map(r => this.model.validateRange(r)).sort(Range.compareRangesUsingStarts);
+
+		let result: Range[] = [];
+		let currentRangeStart = ranges[0].startLineNumber;
+		let currentRangeEnd = ranges[0].endLineNumber;
+
+		for (let i = 1, len = ranges.length; i < len; i++) {
+			let range = ranges[i];
+
+			if (range.startLineNumber > currentRangeEnd + 1) {
+				result.push(new Range(currentRangeStart, 1, currentRangeEnd, 1));
+				currentRangeStart = range.startLineNumber;
+				currentRangeEnd = range.endLineNumber;
+			} else if (range.endLineNumber > currentRangeEnd) {
+				currentRangeEnd = range.endLineNumber;
+			}
+		}
+		result.push(new Range(currentRangeStart, 1, currentRangeEnd, 1));
+		return result;
+	}
+
+	public setHiddenAreas(_ranges:EditorCommon.IRange[], emit:(evenType:string, payload:any)=>void): void {
+		let ranges = this._reduceRanges(_ranges);
+
 		var newDecorations:EditorCommon.IModelDeltaDecoration[] = [];
 		for (var i = 0; i < ranges.length; i++) {
 			newDecorations.push({
@@ -331,7 +358,7 @@ export class SplitLinesCollection implements ILinesCollection {
 
 		this.hiddenAreasIds = this.model.deltaDecorations(this.hiddenAreasIds, newDecorations);
 
-		var hiddenAreas = this.getHiddenAreas();
+		var hiddenAreas = ranges;
 		var hiddenAreaStart = 1, hiddenAreaEnd = 0;
 		var hiddenAreaIdx = -1;
 		var nextLineNumberToUpdateHiddenArea = (hiddenAreaIdx + 1 < hiddenAreas.length) ? hiddenAreaEnd + 1 : this.lines.length + 2;
