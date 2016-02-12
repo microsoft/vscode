@@ -17,6 +17,7 @@ export interface IOptions {
 	showArrow?: boolean;
 	frameColor?: string;
 	className?: string;
+	isAccessible?: boolean;
 }
 
 var defaultOptions:IOptions = {
@@ -104,8 +105,10 @@ export class ZoneWidget extends Events.EventEmitter {
 		this.overlayWidget = null;
 		this.lastView = null;
 		this.domNode = document.createElement('div');
-		this.domNode.setAttribute('aria-hidden', 'true');
-		this.domNode.setAttribute('role', 'presentation');
+		if (!this.options.isAccessible) {
+			this.domNode.setAttribute('aria-hidden', 'true');
+			this.domNode.setAttribute('role', 'presentation');
+		}
 
 		this.container = null;
 		this.listenersToRemove = [];

@@ -15,7 +15,6 @@ import severity from 'vs/base/common/severity';
 import DOM = require('vs/base/browser/dom');
 import {TPromise} from 'vs/base/common/winjs.base';
 import ZoneWidget = require('vs/editor/contrib/zoneWidget/browser/zoneWidget');
-import Builder = require('vs/base/browser/builder');
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
@@ -31,9 +30,7 @@ import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/
 import {IEventService} from 'vs/platform/event/common/event';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {bulkEdit} from 'vs/editor/common/services/bulkEdit';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-
-var $ = Builder.$;
+import {KeyMod, KeyCode, CommonKeybindings} from 'vs/base/common/keyCodes';
 
 class MarkerModel {
 
@@ -193,16 +190,20 @@ class MarkerModel {
 
 var zoneOptions: ZoneWidget.IOptions = {
 	showFrame: true,
-	showArrow: true
+	showArrow: true,
+	isAccessible: true
 };
 
 class MarkerNavigationWidget extends ZoneWidget.ZoneWidget {
 
 	private _eventService: IEventService;
 	private _editorService: IEditorService;
-	private _element: Builder.Builder;
-	private _quickFixSection: Builder.Builder;
+	private _container: HTMLElement;
+	private _element: HTMLElement;
+	private _quickFixSection: HTMLElement;
 	private _callOnDispose: lifecycle.IDisposable[] = [];
+	private _localCleanup: lifecycle.IDisposable[] = [];
+	private _quickFixEntries: HTMLElement[];
 
 	constructor(eventService:IEventService, editorService:IEditorService, editor: EditorBrowser.ICodeEditor, private _model: MarkerModel) {
 		super(editor, zoneOptions);
@@ -213,18 +214,64 @@ class MarkerNavigationWidget extends ZoneWidget.ZoneWidget {
 	}
 
 	public fillContainer(container: HTMLElement): void {
+		this._container = container;
 
-		var $container = $(container).addClass('marker-widget');
+		DOM.addClass(this._container, 'marker-widget');
+		this._container.tabIndex = 0;
+		this._container.setAttribute('role', 'tooltip');
 
-		$container.div({ class: 'descriptioncontainer' }, (div: Builder.Builder) => {
-			this._element = div;
-		});
-		$container.div((div: Builder.Builder) => {
-			this._quickFixSection = div;
-		});
-		$container.on(DOM.EventType.CLICK, () => {
-			this.editor.focus();
-		});
+		this._element = document.createElement('div');
+		this._element.className = 'descriptioncontainer';
+		this._element.setAttribute('aria-live', 'assertive');
+		this._element.setAttribute('role', 'alert');
+		this._container.appendChild(this._element);
+
+		this._quickFixSection = document.createElement('div');
+		this._container.appendChild(this._quickFixSection);
+
+		this._callOnDispose.push(DOM.addStandardDisposableListener(this._container, 'keydown', (e) => {
+			switch(e.asKeybinding()) {
+				case CommonKeybindings.LEFT_ARROW:
+					this._goLeft();
+					e.preventDefault();
+					e.stopPropagation();
+					break;
+				case CommonKeybindings.RIGHT_ARROW:
+					this._goRight();
+					e.preventDefault();
+					e.stopPropagation();
+					break;
+
+			}
+		}));
+	}
+
+	private _goLeft(): void {
+		if (!this._quickFixEntries) {
+			return;
+		}
+		let idx = this._quickFixEntries.indexOf(<HTMLElement>document.activeElement);
+		if (idx === -1) {
+			idx = 1;
+		}
+		idx = (idx + this._quickFixEntries.length - 1) % this._quickFixEntries.length;
+		this._quickFixEntries[idx].focus();
+	}
+
+	private _goRight(): void {
+		if (!this._quickFixEntries) {
+			return;
+		}
+		let idx = this._quickFixEntries.indexOf(<HTMLElement>document.activeElement);
+		idx = (idx + 1) % this._quickFixEntries.length;
+		this._quickFixEntries[idx].focus();
+	}
+
+	public show(where:EditorCommon.IRange, heightInLines:number):void;
+	public show(where:EditorCommon.IPosition, heightInLines:number):void;
+	public show(where:any, heightInLines:number):void {
+		super.show(where, heightInLines);
+		this._container.focus();
 	}
 
 	private _wireModelAndView(): void {
@@ -248,45 +295,76 @@ class MarkerNavigationWidget extends ZoneWidget.ZoneWidget {
 				break;
 		}
 
+		this._localCleanup = lifecycle.disposeAll(this._localCleanup);
+
 		// update label and show
 		let text = strings.format('({0}/{1}) ', this._model.indexOf(marker) + 1, this._model.length());
 		if (marker.source) {
 			text = `${text}[${marker.source}] `;
 		}
-		this._element.text(text);
-		var htmlElem = this._element.getHTMLElement();
-		htmlElem.appendChild(HtmlContentRenderer.renderHtml(marker.message));
+		DOM.clearNode(this._element);
+		this._element.appendChild(document.createTextNode(text));
+		this._element.appendChild(HtmlContentRenderer.renderHtml(marker.message));
 
 		var mode = this.editor.getModel().getMode();
-		this._quickFixSection.hide();
+		this._quickFixSection.style.display = 'none';
 
 		if (mode.quickFixSupport) {
 			var promise = mode.quickFixSupport.getQuickFixes(this.editor.getModel().getAssociatedResource(), marker);
 			promise.then((result: Modes.IQuickFix[]) => {
-				this._quickFixSection.clearChildren();
+				DOM.clearNode(this._quickFixSection);
 				if (result.length > 0) {
-					var container = $(this._quickFixSection);
-					container.span({
-						class: 'quickfixhead',
-						text: result.length > 1 ? nls.localize('quickfix.multiple.label', 'Suggested fixes: ') : nls.localize('quickfix.single.label', 'Suggested fix: ')
-					}).span({ class: 'quickfixcontainer' },(quickFixContainer: Builder.Builder) => {
-						result.forEach((fix, idx, arr) => {
-							var container = $(quickFixContainer);
-							if (idx > 0) {
-								container = container.span({ text: ', ' });
-							}
-							container.span({
-								class: 'quickfixentry',
-								text: fix.command.title
-							}).on(DOM.EventType.CLICK,() => {
-								mode.quickFixSupport.runQuickFixAction(this.editor.getModel().getAssociatedResource(), marker, fix).then(result => {
-									return bulkEdit(this._eventService, this._editorService, this.editor, result.edits);
-								});
-								return true;
-							});
-						});
+
+					this._localCleanup.push({
+						dispose:() => {
+							this._quickFixEntries = [];
+						}
 					});
-					this._quickFixSection.show();
+
+					let quickfixhead = document.createElement('span');
+					quickfixhead.className = 'quickfixhead';
+					quickfixhead.appendChild(document.createTextNode(result.length > 1 ? nls.localize('quickfix.multiple.label', 'Suggested fixes: ') : nls.localize('quickfix.single.label', 'Suggested fix: ')));
+					this._quickFixSection.appendChild(quickfixhead);
+
+					this._quickFixEntries = [];
+					let quickfixcontainer = document.createElement('span');
+					quickfixcontainer.className = 'quickfixcontainer';
+					result.forEach((fix, idx, arr) => {
+						var container = quickfixcontainer;
+						if (idx > 0) {
+							let separator = document.createElement('span');
+							separator.appendChild(document.createTextNode(', '));
+							container.appendChild(separator);
+						}
+
+						let entry = document.createElement('a');
+						entry.tabIndex = 0;
+						entry.className = 'quickfixentry';
+						entry.appendChild(document.createTextNode(fix.command.title));
+						this._localCleanup.push(DOM.addDisposableListener(entry, DOM.EventType.CLICK, () => {
+							mode.quickFixSupport.runQuickFixAction(this.editor.getModel().getAssociatedResource(), marker, fix).then(result => {
+								return bulkEdit(this._eventService, this._editorService, this.editor, result.edits);
+							});
+							return true;
+						}));
+						this._localCleanup.push(DOM.addStandardDisposableListener(entry, 'keydown', (e) => {
+							switch (e.asKeybinding()) {
+								case CommonKeybindings.ENTER:
+								case CommonKeybindings.SPACE:
+									mode.quickFixSupport.runQuickFixAction(this.editor.getModel().getAssociatedResource(), marker, fix).then(result => {
+										return bulkEdit(this._eventService, this._editorService, this.editor, result.edits);
+									});
+									e.preventDefault();
+									e.stopPropagation();
+							}
+						}));
+						container.appendChild(entry);
+
+						this._quickFixEntries.push(entry);
+					});
+					this._quickFixSection.appendChild(quickfixcontainer);
+
+					this._quickFixSection.style.display = '';
 					this.show(new Position(marker.startLineNumber, marker.startColumn), 4);
 				}
 			},(error) => {
@@ -398,6 +476,7 @@ class MarkerController implements EditorCommon.IEditorContribution {
 
 	public closeMarkersNavigation(): void {
 		this._cleanUp();
+		this.editor.focus();
 	}
 
 	private _onMarkerChanged(changedResources: URI[]): void {
