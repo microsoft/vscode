@@ -238,6 +238,11 @@ function packageTask(platform, arch, opts) {
 			all = es.merge(all, gulp.src('resources/win32/code_file.ico', { base: '.' }));
 		} else if (platform === 'linux') {
 			all = es.merge(all, gulp.src('resources/linux/code.png', { base: '.' }));
+		} else if (platform === 'darwin') {
+			var shortcut = gulp.src('resources/darwin/bin/code.sh')
+				.pipe(rename('bin/code'));
+
+			all = es.merge(all, shortcut);
 		}
 
 		var result = all
