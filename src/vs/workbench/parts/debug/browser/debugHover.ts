@@ -42,6 +42,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	constructor(private editor: editorbrowser.ICodeEditor, private debugService: debug.IDebugService, private instantiationService: IInstantiationService) {
 		this.domNode = $('.debug-hover-widget monaco-editor-background');
 		this.treeContainer = dom.append(this.domNode, $('.debug-hover-tree'));
+		this.treeContainer.setAttribute('role', 'tree');
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: new viewer.VariablesDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
@@ -55,6 +56,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		});
 
 		this.valueContainer = dom.append(this.domNode, $('.value'));
+		this.valueContainer.setAttribute('role', 'tooltip');
 
 		this.isVisible = false;
 		this.showAtPosition = null;
