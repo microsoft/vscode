@@ -6,7 +6,7 @@
 'use strict';
 
 import {WorkerServer} from 'vs/base/common/worker/workerServer';
-import {marked, MarkedOptions} from 'vs/base/common/marked/marked';
+import {marked} from 'vs/base/common/marked/marked';
 
 
 function link(href, title, text): string {
@@ -18,9 +18,9 @@ export const value = {
 
 	markdownToHtml(main: WorkerServer, resolve: Function, reject: Function, progress: Function, data: { source: string; highlight: boolean; }): void {
 
-		function highlight(code: string, lang: string, callback?: (error: Error, result: string) => void) {
-			main.request('highlight', { code, lang }).then(value => callback(void 0, value), err => callback(err, void 0));
-		};
+		// function highlight(code: string, lang: string, callback?: (error: Error, result: string) => void) {
+		// 	main.request('highlight', { code, lang }).then(value => callback(void 0, value), err => callback(err, void 0));
+		// }
 
 		const renderer = new marked.Renderer();
 		renderer.link = link;

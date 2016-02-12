@@ -11,7 +11,7 @@ import platform = require('vs/platform/platform');
 import modesExtensions = require('vs/editor/common/modes/modesRegistry');
 import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
 import options = require('vs/languages/typescript/common/options');
-import defaults = options.typeScriptOptions;
+let defaults = options.typeScriptOptions;
 
 // ----- Registration and Configuration --------------------------------------------------------
 

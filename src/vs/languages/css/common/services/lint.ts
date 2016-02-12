@@ -203,7 +203,7 @@ export class LintVisitor implements nodes.IVisitor {
 			if (missingVendorSpecific || needsStandard) {
 				keyframes.data[name].nodes.forEach(addVendorSpecificWarnings);
 			}
-		};
+		}
 
 		return true;
 	}

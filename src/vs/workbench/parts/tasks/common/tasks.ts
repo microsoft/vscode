@@ -15,15 +15,7 @@ import { Executable, ExecutableParser, Config  as ProcessConfig} from 'vs/base/c
 
 import { ProblemMatcher, Config as ProblemMatcherConfig, ProblemMatcherParser, registry as ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
 
-import { IPluginDescription } from 'vs/platform/plugins/common/plugins';
-
 export namespace Config {
-
-	export namespace ShowOutput {
-		let always: string = 'always';
-		let silent: string = 'silent';
-		let never: string = 'never';
-	}
 
 	/**
 	 * The description of a task.
@@ -256,7 +248,7 @@ export class TaskParser  extends Parser {
 	// TODO@Dirk: provide JSON schema here
 // });
 
-const extensionPoint: string = 'tasks';
+// const extensionPoint: string = 'tasks';
 
 export class TaskRegistry {
 	private tasks: IStringDictionary<Task>;
@@ -278,25 +270,25 @@ export class TaskRegistry {
 		*/
 	}
 
-	private onDescriptions(descriptions: IPluginDescription[]) {
-		descriptions.forEach(description => {
-			let extensions = description.contributes[extensionPoint];
-			if (Types.isArray(extensions)) {
-				(<Config.Task[]>extensions).forEach(this.onTask, this);
-			} else {
-				this.onTask(extensions);
-			}
-		});
-	}
+	// private onDescriptions(descriptions: IPluginDescription[]) {
+	// 	descriptions.forEach(description => {
+	// 		let extensions = description.contributes[extensionPoint];
+	// 		if (Types.isArray(extensions)) {
+	// 			(<Config.Task[]>extensions).forEach(this.onTask, this);
+	// 		} else {
+	// 			this.onTask(extensions);
+	// 		}
+	// 	});
+	// }
 
-	private onTask(json: Config.Task): void {
-		let logger: ILogger = {
-			log: (message) => { console.warn(message); }
-		};
-		let parser = new TaskParser(ProblemMatcherRegistry, logger);
-		let result = parser.parse(json, { emptyExecutable: true, emptyCommand: true });
-		this.add(result);
-	}
+	// private onTask(json: Config.Task): void {
+	// 	let logger: ILogger = {
+	// 		log: (message) => { console.warn(message); }
+	// 	};
+	// 	let parser = new TaskParser(ProblemMatcherRegistry, logger);
+	// 	let result = parser.parse(json, { emptyExecutable: true, emptyCommand: true });
+	// 	this.add(result);
+	// }
 
 	public add(task: Task): void {
 		this.tasks[task.id] = task;

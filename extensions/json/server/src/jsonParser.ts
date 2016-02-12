@@ -8,7 +8,6 @@ import nls = require('./utils/nls');
 import Json = require('./json-toolbox/json');
 import JsonSchema = require('./json-toolbox/jsonSchema');
 import {JSONLocation} from './jsonLocation';
-import SchemaService = require('./jsonSchemaService');
 
 export interface IRange {
 	start: number;

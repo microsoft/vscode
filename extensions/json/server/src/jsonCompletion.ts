@@ -5,14 +5,13 @@
 'use strict';
 
 
-import URI from './utils/uri';
 import Parser = require('./jsonParser');
 import SchemaService = require('./jsonSchemaService');
 import JsonSchema = require('./json-toolbox/jsonSchema');
 import nls = require('./utils/nls');
 import {IJSONWorkerContribution} from './jsonContributions';
 
-import {CompletionItem, CompletionItemKind, CompletionList, CompletionOptions, ITextDocument, TextDocumentIdentifier, TextDocumentPosition, Range, TextEdit} from 'vscode-languageserver';
+import {CompletionItem, CompletionItemKind, CompletionList, ITextDocument, TextDocumentPosition, Range, TextEdit} from 'vscode-languageserver';
 
 export interface ISuggestionsCollector {
 	add(suggestion: CompletionItem): void;

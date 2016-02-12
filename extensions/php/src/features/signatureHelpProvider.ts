@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {SignatureHelpProvider, SignatureHelp, SignatureInformation, ParameterInformation, Uri, CancellationToken, TextLine, TextDocument, Position} from 'vscode';
+import {SignatureHelpProvider, SignatureHelp, SignatureInformation, CancellationToken, TextDocument, Position} from 'vscode';
 import phpGlobals = require('./phpGlobals');
 
 var _NL = '\n'.charCodeAt(0);

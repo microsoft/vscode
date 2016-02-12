@@ -9,11 +9,10 @@ import 'vs/css!./media/activityBarPart';
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, $} from 'vs/base/browser/builder';
-import {Action, IAction} from 'vs/base/common/actions';
+import {Action} from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
 import {ActionsOrientation, ActionBar, IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions} from 'vs/workbench/browser/actionBarRegistry';
-import {CONTEXT, ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
+import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {Registry} from 'vs/platform/platform';
 import {CompositeEvent, EventType} from 'vs/workbench/common/events';
 import {ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
@@ -187,41 +186,41 @@ export class ActivitybarPart extends Part implements IActivityService {
 	// 	this.globalToolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions))();
 	// }
 
-	private getGlobalActions(primary: boolean): IAction[] {
-		let actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
+	// private getGlobalActions(primary: boolean): IAction[] {
+	// 	let actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
 
-		// Collect actions from actionbar contributor
-		let actions: IAction[];
-		if (primary) {
-			actions = actionBarRegistry.getActionBarActionsForContext(Scope.GLOBAL, CONTEXT);
-		} else {
-			actions = actionBarRegistry.getSecondaryActionBarActionsForContext(Scope.GLOBAL, CONTEXT);
-		}
+	// 	// Collect actions from actionbar contributor
+	// 	let actions: IAction[];
+	// 	if (primary) {
+	// 		actions = actionBarRegistry.getActionBarActionsForContext(Scope.GLOBAL, CONTEXT);
+	// 	} else {
+	// 		actions = actionBarRegistry.getSecondaryActionBarActionsForContext(Scope.GLOBAL, CONTEXT);
+	// 	}
 
-		return actions.map((action: Action) => {
-			if (primary) {
-				let keybinding: string = null;
-				let keys = this.keybindingService.lookupKeybindings(action.id).map(k => this.keybindingService.getLabelFor(k));
-				if (keys && keys.length) {
-					keybinding = keys[0];
-				}
+	// 	return actions.map((action: Action) => {
+	// 		if (primary) {
+	// 			let keybinding: string = null;
+	// 			let keys = this.keybindingService.lookupKeybindings(action.id).map(k => this.keybindingService.getLabelFor(k));
+	// 			if (keys && keys.length) {
+	// 				keybinding = keys[0];
+	// 			}
 
-				let actionItem = actionBarRegistry.getActionItemForContext(Scope.GLOBAL, CONTEXT, action);
+	// 			let actionItem = actionBarRegistry.getActionItemForContext(Scope.GLOBAL, CONTEXT, action);
 
-				if (!actionItem) {
-					actionItem = new ActivityActionItem(action, action.label, keybinding);
-				}
+	// 			if (!actionItem) {
+	// 				actionItem = new ActivityActionItem(action, action.label, keybinding);
+	// 			}
 
-				if (actionItem instanceof ActivityActionItem) {
-					(<ActivityActionItem> actionItem).keybinding = keybinding;
-				}
+	// 			if (actionItem instanceof ActivityActionItem) {
+	// 				(<ActivityActionItem> actionItem).keybinding = keybinding;
+	// 			}
 
-				this.activityActionItems[action.id] = actionItem;
-			}
+	// 			this.activityActionItems[action.id] = actionItem;
+	// 		}
 
-			return action;
-		});
-	}
+	// 		return action;
+	// 	});
+	// }
 
 	public dispose(): void {
 		if (this.viewletSwitcherBar) {

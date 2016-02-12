@@ -56,7 +56,6 @@ export class JavaScriptWorker extends typeScriptWorker.TypeScriptWorker2 {
 
 		// perform the semantic checks on the rewritten project and
 		// filter/translate the error markers
-		var missing: URI[] = [];
 		var project = this._projectService.getProject(resource, this._fancyRewriters);
 		var result = diagnostics.getSemanticDiagnostics(project.languageService, resource, this._options);
 		if (result) {

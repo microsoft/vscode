@@ -6,8 +6,8 @@
 
 import * as path from 'path';
 
-import {workspace, languages, Disposable, ExtensionContext, extensions, Uri} from 'vscode';
-import {LanguageClient, LanguageClientOptions, RequestType, SettingMonitor, ServerOptions, TransportKind, NotificationType} from 'vscode-languageclient';
+import {workspace, languages, ExtensionContext, extensions, Uri} from 'vscode';
+import {LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType} from 'vscode-languageclient';
 
 namespace TelemetryNotification {
 	export const type: NotificationType<{ key: string, data: any }> = { get method() { return 'telemetry'; } };

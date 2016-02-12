@@ -5,7 +5,6 @@
 
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingRange';
 

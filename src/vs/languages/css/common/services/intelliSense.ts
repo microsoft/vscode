@@ -12,7 +12,6 @@ import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import nls = require('vs/nls');
-import scanner = require('vs/languages/css/common/parser/cssScanner');
 
 export class CSSIntellisense {
 
@@ -267,7 +266,7 @@ export class CSSIntellisense {
 					type: 'function'
 				});
 			});
-		};
+		}
 		return result;
 	}
 
@@ -281,7 +280,7 @@ export class CSSIntellisense {
 					type: 'value'
 				});
 			}
-		};
+		}
 		return result;
 	}
 
@@ -295,7 +294,7 @@ export class CSSIntellisense {
 					type: 'value'
 				});
 			}
-		};
+		}
 		return result;
 	}
 
@@ -309,7 +308,7 @@ export class CSSIntellisense {
 					type: 'value'
 				});
 			}
-		};
+		}
 		if (entry.restrictions.indexOf('line-width') !== -1) {
 			languageFacts.lineWidthKeywords.forEach((lineWidth) => {
 				result.push({
@@ -318,7 +317,7 @@ export class CSSIntellisense {
 					type: 'value'
 				});
 			});
-		};
+		}
 		return result;
 	}
 
@@ -333,7 +332,7 @@ export class CSSIntellisense {
 					type: 'value'
 				});
 			}
-		};
+		}
 		if (entry.restrictions.indexOf('box') !== -1 || geometryBox !== -1) {
 			for (var box in languageFacts.boxKeywords) {
 				result.push({
@@ -343,7 +342,7 @@ export class CSSIntellisense {
 					type: 'value'
 				});
 			}
-		};
+		}
 		return result;
 	}
 
@@ -357,7 +356,7 @@ export class CSSIntellisense {
 					type: 'function'
 				});
 			}
-		};
+		}
 		return result;
 	}
 
@@ -371,7 +370,7 @@ export class CSSIntellisense {
 					type: 'function'
 				});
 			}
-		};
+		}
 		return result;
 	}
 
@@ -385,7 +384,7 @@ export class CSSIntellisense {
 					type: 'function'
 				});
 			}
-		};
+		}
 		return result;
 	}
 

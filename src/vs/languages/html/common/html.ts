@@ -368,7 +368,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 				open: key,
 				close: map[key]
 			});
-		};
+		}
 
 		return result;
 	}

@@ -10,7 +10,7 @@ import platform = require('vs/platform/platform');
 import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
 import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
 import Options = require('vs/languages/typescript/common/options');
-import defaults = Options.javaScriptOptions;
+let defaults = Options.javaScriptOptions;
 
 if (!env.enableTypeScriptServiceModeForJS) {
 

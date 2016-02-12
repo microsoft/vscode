@@ -70,7 +70,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		}
 		this.errorsShown = false;
 		let parseResult = FileConfig.parse(fileConfig, this);
-		this.validationStatus = parseResult.validationStatus;;
+		this.validationStatus = parseResult.validationStatus;
 		this.configuration = parseResult.configuration;
 		this.defaultBuildTaskIdentifier = parseResult.defaultBuildTaskIdentifier;
 		this.defaultTestTaskIdentifier = parseResult.defaultTestTaskIdentifier;

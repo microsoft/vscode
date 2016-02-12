@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ITextDocument, DocumentFormattingParams, Range, Position, FormattingOptions, TextEdit} from 'vscode-languageserver';
+import {ITextDocument, TextEdit} from 'vscode-languageserver';
 import assert = require('assert');
 
 export function applyEdits(document: ITextDocument, edits: TextEdit[]) : string {
@@ -19,5 +19,5 @@ export function applyEdits(document: ITextDocument, edits: TextEdit[]) : string 
 		formatted = formatted.substring(0, startOffset) + e.newText + formatted.substring(endOffset, formatted.length);
 		lastOffset = startOffset;
 	});
-	return formatted;	
+	return formatted;
 }

@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as path from 'path';
 import * as cp from 'child_process';
-import ChildProcess = cp.ChildProcess;
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
 
 import * as vscode from 'vscode';
@@ -163,14 +161,12 @@ export default class PHPValidationProvider {
 	private doValidate(textDocument: vscode.TextDocument): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			let executable = this.executable || 'php';
-			let filePath = textDocument.fileName;
 			let decoder = new LineDecoder();
 			let diagnostics: vscode.Diagnostic[] = [];
 			let processLine = (line: string) => {
 				let matches = line.match(PHPValidationProvider.MatchExpression);
 				if (matches) {
 					let message = matches[1];
-					let file = matches[2];
 					let line = parseInt(matches[3]) - 1;
 					let diagnostic: vscode.Diagnostic = new vscode.Diagnostic(
 						new vscode.Range(line, 0, line, Number.MAX_VALUE),

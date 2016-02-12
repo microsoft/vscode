@@ -15,8 +15,7 @@ class ES6PropertyDeclarator implements rewriter.ISyntaxRewriter {
 
 	public computeEdits(context: rewriter.AnalyzerContext): void {
 
-		var offset = 0,
-			sourceText = context.sourceFile.getFullText(),
+		var sourceText = context.sourceFile.getFullText(),
 			pattern = /\bclass\b/g;
 
 		while (pattern.test(sourceText)) {

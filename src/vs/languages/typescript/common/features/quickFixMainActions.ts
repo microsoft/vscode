@@ -55,13 +55,6 @@ export class QuickFixMainActions {
 			resourcePath = resource.fsPath;
 		}
 
-		var currentFolderPath = strings.rtrim(paths.dirname(resourcePath), '/');
-		var relativeDtsPath = paths.relative(currentFolderPath, dtsFile);
-
-		var action = {
-			edits: []
-		};
-
 		return this._fileService.resolveFile(dtsFileResource).then(file => {
 			// file exists already
 			return {

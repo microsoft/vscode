@@ -6,10 +6,10 @@
 
 import {
 	IPCMessageReader, IPCMessageWriter,
-	createConnection, IConnection, TextDocumentSyncKind,
+	createConnection, IConnection,
 	TextDocuments, ITextDocument, Diagnostic, DiagnosticSeverity,
 	InitializeParams, InitializeResult, TextDocumentIdentifier, TextDocumentPosition, CompletionList,
-	CompletionItem, CompletionItemKind, Files, Hover, SymbolInformation, TextEdit, DocumentFormattingParams,
+	Hover, SymbolInformation, DocumentFormattingParams,
 	DocumentRangeFormattingParams, NotificationType, RequestType
 } from 'vscode-languageserver';
 
@@ -18,7 +18,7 @@ import path = require('path');
 import fs = require('fs');
 import URI from './utils/uri';
 import Strings = require('./utils/strings');
-import {IWorkspaceContextService, ITelemetryService, JSONSchemaService, ISchemaContributions, ISchemaAssociations} from './jsonSchemaService';
+import {JSONSchemaService, ISchemaAssociations} from './jsonSchemaService';
 import {parse as parseJSON, ObjectASTNode, JSONDocument} from './jsonParser';
 import {JSONCompletion} from './jsonCompletion';
 import {JSONHover} from './jsonHover';

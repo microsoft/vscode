@@ -9,7 +9,7 @@ import PHPCompletionItemProvider from './features/completionItemProvider';
 import PHPHoverProvider from './features/hoverProvider';
 import PHPSignatureHelpProvider from './features/signatureHelpProvider';
 import PHPValidationProvider from './features/validationProvider';
-import {ExtensionContext, languages, extensions} from 'vscode';
+import {ExtensionContext, languages} from 'vscode';
 
 export function activate(context: ExtensionContext): any {
 

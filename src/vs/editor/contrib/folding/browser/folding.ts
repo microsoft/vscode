@@ -7,19 +7,17 @@
 'use strict';
 
 import {RunOnceScheduler} from 'vs/base/common/async';
-import {Range} from 'vs/editor/common/core/range';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IMouseEvent, ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
-import Modes = require('vs/editor/common/modes');
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {TPromise} from 'vs/base/common/winjs.base';
 import foldStrategy = require('vs/editor/contrib/folding/common/indentFoldStrategy');
 import {IFoldingRange, toString as rangeToString} from 'vs/editor/contrib/folding/common/foldingRange';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
+import {EditorAction} from 'vs/editor/common/editorAction';
 import nls = require('vs/nls');
 
 let log = function(msg: string) {
@@ -74,7 +72,7 @@ class CollapsibleRegion {
 	private getRangeDecorationOptions(): EditorCommon.IModelDecorationOptions {
 		return {
 			stickiness: EditorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore
-		}
+		};
 	}
 
 	public update(newRange:IFoldingRange, model:EditorCommon.IModel, changeAccessor:EditorCommon.IModelDecorationsChangeAccessor): void {
@@ -181,7 +179,7 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 				if (range) {
 					collapsedRegions.push({ startLineNumber: range.startLineNumber, endLineNumber: range.endLineNumber, isCollapsed: true});
 				}
-			};
+			}
 		});
 		return collapsedRegions;
 	}

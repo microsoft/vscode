@@ -10,8 +10,6 @@ import {IJSONSchema} from './json-toolbox/jsonSchema';
 import {IXHROptions, IXHRResponse, getErrorStatusDescription} from './utils/httpRequest';
 import URI from './utils/uri';
 import Strings = require('./utils/strings');
-import {parse as parseURL} from 'url';
-import path = require('path');
 import Parser = require('./jsonParser');
 
 export interface IJSONSchemaService {

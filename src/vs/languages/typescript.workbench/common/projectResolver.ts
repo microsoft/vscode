@@ -540,25 +540,6 @@ class ProjectResolver implements typescript.IProjectResolver2 {
 		}
 	}
 
-	private static _lookUpProjects(resource: URI, index: { [dirname: string]: URI }): URI[] {
-
-		var dirnames = paths.dirnames(resource.fsPath),
-			element = dirnames.next(),
-			result: URI[];
-
-		while (!element.done) {
-			var project = index[element.value];
-			if (project) {
-				if (!result) {
-					result = [];
-				}
-				result.push(project);
-			}
-			element = dirnames.next();
-		}
-		return result;
-	}
-
 	private static _asChangeKind(fileChangeType: Files.FileChangeType): typescript.ChangeKind {
 		switch (fileChangeType) {
 			case Files.FileChangeType.UPDATED: return typescript.ChangeKind.Changed;

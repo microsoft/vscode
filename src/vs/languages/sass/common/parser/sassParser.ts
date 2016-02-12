@@ -217,7 +217,7 @@ export class SassParser extends cssParser.Parser {
 		if (this.accept(scanner.TokenType.AtKeyword, '@extend')) {
 			if (!node.setSelector(this._parseSimpleSelector())) {
 				return this.finish(node, errors.ParseError.SelectorExpected);
-			};
+			}
 			if (this.accept(scanner.TokenType.Exclamation)) {
 				if (!this.accept(scanner.TokenType.Ident, 'optional', true)) {
 					return this.finish(node, errors.ParseError.UnknownKeyword);
@@ -282,7 +282,7 @@ export class SassParser extends cssParser.Parser {
 		this.consumeToken(); // @if or if
 		if (!node.setExpression(this._parseBinaryExpr())) {
 			return this.finish(node, errors.ParseError.ExpressionExpected);
-		};
+		}
 		this._parseBody(node, parseStatement);
 		if (this.accept(scanner.TokenType.AtKeyword, '@else')) {
 			if (this.peek(scanner.TokenType.Ident, 'if')) {
@@ -311,13 +311,13 @@ export class SassParser extends cssParser.Parser {
 		}
 		if (!node.addChild(this._parseBinaryExpr())) {
 			return this.finish(node, errors.ParseError.ExpressionExpected, [ scanner.TokenType.CurlyR ]);
-		};
+		}
 		if (!this.accept(scanner.TokenType.Ident, 'to') && !this.accept(scanner.TokenType.Ident, 'through')) {
 			return this.finish(node, sassErrors.ParseError.ThroughOrToExpected, [ scanner.TokenType.CurlyR ]);
 		}
 		if (!node.addChild(this._parseBinaryExpr())) {
 			return this.finish(node, errors.ParseError.ExpressionExpected, [ scanner.TokenType.CurlyR ]);
-		};
+		}
 
 		return this._parseBody(node, parseStatement);
 	}
@@ -337,7 +337,7 @@ export class SassParser extends cssParser.Parser {
 		}
 		if (!node.addChild(this._parseExpr())) {
 			return this.finish(node, errors.ParseError.ExpressionExpected, [ scanner.TokenType.CurlyR ]);
-		};
+		}
 
 		return this._parseBody(node, parseStatement);
 	}
@@ -351,7 +351,7 @@ export class SassParser extends cssParser.Parser {
 		this.consumeToken(); // @while
 		if (!node.addChild(this._parseBinaryExpr())) {
 			return this.finish(node, errors.ParseError.ExpressionExpected, [ scanner.TokenType.CurlyR ]);
-		};
+		}
 
 		return this._parseBody(node, parseStatement);
 	}

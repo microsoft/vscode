@@ -223,7 +223,9 @@ export class List<T> implements IDisposable {
 		if (this.length === 0) { return; }
 		const selection = this.selection.get();
 		let index = selection.length > 0 ? selection[0] - n : 0;
-		if (loop && index < 0) index = this.length + (index % this.length);
+		if (loop && index < 0) {
+			index = this.length + (index % this.length);
+		}
 		this.setSelection(Math.max(index, 0));
 	}
 

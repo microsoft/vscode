@@ -44,7 +44,6 @@ export function getSemanticDiagnostics(languageService: ts.LanguageService, reso
 	if (options.validate.enable && options.validate.semanticValidation) {
 
 		var diagnostics = languageService.getSemanticDiagnostics(resource.toString()),
-			unresolved: string[] = [],
 			classifier = createDiagnosticClassifier(options);
 
 		for (var i = 0; i < diagnostics.length; i++) {
@@ -205,7 +204,6 @@ function _getJavaScriptSemanticDiagnostics(sourceFile: ts.SourceFile, options: t
 			case ts.SyntaxKind.GetAccessor:
 			case ts.SyntaxKind.SetAccessor:
 			case ts.SyntaxKind.FunctionExpression:
-			case ts.SyntaxKind.FunctionDeclaration:
 			case ts.SyntaxKind.FunctionDeclaration:
 				var functionDeclaration = <ts.FunctionLikeDeclaration>node;
 				if (checkModifiers(functionDeclaration.modifiers) ||

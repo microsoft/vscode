@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { workspace, DocumentSymbolProvider, SymbolInformation, SymbolKind, TextDocument, Position, Range, CancellationToken } from 'vscode';
+import { DocumentSymbolProvider, SymbolInformation, SymbolKind, TextDocument, Range, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';

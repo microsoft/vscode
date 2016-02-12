@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { workspace, RenameProvider, WorkspaceEdit, TextDocument, Position, Range, CancellationToken } from 'vscode';
+import { RenameProvider, WorkspaceEdit, TextDocument, Position, Range, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';

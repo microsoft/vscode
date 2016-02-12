@@ -18,11 +18,6 @@ import { ITypescriptServiceClient, ITypescriptServiceClientHost }  from './types
 
 import * as SalsaStatus from './utils/salsaStatus';
 
-let isWin = /^win/.test(process.platform);
-let isDarwin = /^darwin/.test(process.platform);
-let isLinux = /^linux/.test(process.platform);
-let arch = process.arch;
-
 interface CallbackItem {
 	c: (value: any) => void;
 	e: (err: any) => void;

@@ -122,7 +122,7 @@ export class CSSLanguageService implements ILanguageService {
 
 	private updateResources():void {
 
-		var t1 = new Date().getTime(), n = 0;
+		var n = 0;
 
 		this.resourceService.all().filter((element) => this._isMyMirrorModel(element)).forEach((model:EditorCommon.IMirrorModel) => {
 			// Reparse changes or new models

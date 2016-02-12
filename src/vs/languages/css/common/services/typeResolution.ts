@@ -73,7 +73,6 @@ export function typeFromNode(node:nodes.Node):IType {
 		case nodes.NodeType.NumericValue: return typeFromNumeric(<nodes.NumericValue> node);
 		case nodes.NodeType.HexColorValue: return SimpleType.Color;
 		case nodes.NodeType.Identifier: return typeFromLiteral(node);
-		case nodes.NodeType.Function: return typeFromFunction(<nodes.Function> node);
 		case nodes.NodeType.FunctionArgument: return typeFromFunctionArgument(<nodes.FunctionArgument> node);
 	}
 

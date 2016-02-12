@@ -138,16 +138,12 @@ export class MultiLineStream {
 }
 
 var _a = 'a'.charCodeAt(0);
-var _c = 'c'.charCodeAt(0);
 var _e = 'e'.charCodeAt(0);
 var _f = 'f'.charCodeAt(0);
-var _h = 'h'.charCodeAt(0);
 var _i = 'i'.charCodeAt(0);
 var _l = 'l'.charCodeAt(0);
 var _p = 'p'.charCodeAt(0);
 var _r = 'r'.charCodeAt(0);
-var _s = 's'.charCodeAt(0);
-var _t = 't'.charCodeAt(0);
 var _u = 'u'.charCodeAt(0);
 var _x = 'x'.charCodeAt(0);
 var _z = 'z'.charCodeAt(0);
@@ -514,7 +510,7 @@ export class Scanner {
 				}
 				return true;
 			}
-			if (ch !== _CAR && ch !== _LFD && ch != _NWL) {
+			if (ch !== _CAR && ch !== _LFD && ch !== _NWL) {
 				this.stream.advance(1);
 				result.push(String.fromCharCode(ch));
 				return true;

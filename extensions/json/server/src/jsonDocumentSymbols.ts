@@ -5,7 +5,6 @@
 'use strict';
 
 import Parser = require('./jsonParser');
-import SchemaService = require('./jsonSchemaService');
 import Strings = require('./utils/strings');
 
 import {SymbolInformation, SymbolKind, ITextDocument, Range, Location} from 'vscode-languageserver';

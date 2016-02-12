@@ -33,9 +33,6 @@ function getEnvironment(): IEnvironment {
 	return configuration;
 }
 
-// The amd loader has the global scope assigned to this.
-const globalRequire = this.require;
-
 function _spawnSharedProcess(): cp.ChildProcess {
 	// Make sure the nls configuration travels to the plugin host.
 	const opts = {

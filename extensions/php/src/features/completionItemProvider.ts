@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {CompletionItemProvider, CompletionItem, CompletionItemKind, CancellationToken, TextDocument, Range, Position} from 'vscode';
+import {CompletionItemProvider, CompletionItem, CompletionItemKind, CancellationToken, TextDocument, Position} from 'vscode';
 import phpGlobals = require('./phpGlobals');
 
 export default class PHPCompletionItemProvider implements CompletionItemProvider {

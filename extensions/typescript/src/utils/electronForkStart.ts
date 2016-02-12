@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 var net = require('net'),
-	fs = require('fs'),
-	stream = require('stream'),
-	util = require('util');
+	fs = require('fs');
 
 var ENABLE_LOGGING = false;
 
