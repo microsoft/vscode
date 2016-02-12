@@ -54,6 +54,7 @@ var vscodeEntryPoints = _.flatten([
 
 var vscodeResources = [
 	'out-build/main.js',
+	'out-build/cli.js',
 	'out-build/bootstrap.js',
 	'out-build/bootstrap-amd.js',
 	'out-build/vs/**/*.{svg,png,cur}',

@@ -21,6 +21,7 @@ exports.collectModules= function(excludes) {
 
 	return [
 		createModuleDescription('vs/workbench/electron-main/main', []),
+		createModuleDescription('vs/workbench/electron-main/cli', []),
 
 		createModuleDescription('vs/workbench/parts/search/browser/searchViewlet', excludes),
 		createModuleDescription('vs/workbench/parts/search/browser/openAnythingHandler', excludes),
