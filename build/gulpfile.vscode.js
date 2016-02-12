@@ -117,6 +117,7 @@ var config = {
 		iconFile: 'resources/darwin/code_file.icns'
 	}],
 	darwinCredits: darwinCreditsTemplate ? new Buffer(darwinCreditsTemplate({ commit: commit, date: new Date().toISOString() })) : void 0,
+	linuxExecutableName: product.applicationName,
 	winIcon: 'resources/win32/code.ico',
 	token: process.env['GITHUB_TOKEN'] || void 0
 };
@@ -270,6 +271,7 @@ function prepareDebPackage(arch) {
 
 	return function () {
 		var shortcut = gulp.src('resources/linux/bin/code.sh', { base: '.' })
+			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename(function (p) { p.extname = ''; p.dirname = 'usr/bin'; }));
 
 		var desktop = gulp.src('resources/linux/debian/code.desktop', { base: '.' })
@@ -279,7 +281,7 @@ function prepareDebPackage(arch) {
 			.pipe(rename(function (p) { p.dirname = 'usr/share/pixmaps'; }));
 
 		var code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
-			.pipe(rename(function (p) { p.dirname = 'usr/share/code/' + p.dirname; }));
+			.pipe(rename(function (p) { p.dirname = 'usr/share/' + product.applicationName + '/' + p.dirname; }));
 
 		var size = 0;
 		var control = code.pipe(es.through(
