@@ -218,14 +218,6 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true))
 			.pipe(util.cleanNodeModule('weak', ['binding.gyp', 'build/**', 'src/**'], true));
 
-		var resources;
-
-		if (platform === 'win32') {
-			resources = gulp.src('resources/win32/code_file.ico', { base: '.' });
-		} else if (platform === 'linux') {
-			resources = gulp.src('resources/linux/code.png', { base: '.' });
-		}
-
 		var extraExtensions = util.downloadExtensions(builtInExtensions)
 			.pipe(rename(function (p) {
 				p.dirname = path.posix.join('extensions', p.dirname);
@@ -238,11 +230,17 @@ function packageTask(platform, arch, opts) {
 			license,
 			sources,
 			deps,
-			extraExtensions,
-			resources || es.through()
-		).pipe(util.skipDirectories());
+			extraExtensions
+		);
+
+		if (platform === 'win32') {
+			all = es.merge(all, gulp.src('resources/win32/code_file.ico', { base: '.' }));
+		} else if (platform === 'linux') {
+			all = es.merge(all, gulp.src('resources/linux/code.png', { base: '.' }));
+		}
 
 		var result = all
+			.pipe(util.skipDirectories())
 			.pipe(util.fixWin32DirectoryPermissions())
 			.pipe(electron(_.extend({}, config, { platform: platform, arch: arch })))
 			.pipe(filter(['**', '!LICENSE', '!LICENSES.chromium.html', '!version']));
