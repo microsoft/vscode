@@ -9,6 +9,7 @@
 	background-size: 1em 1em;
 	border-left: 3px solid transparent; /* copy of what the Git decorator does */
 	margin-left: 5px;
+	cursor: pointer;
 }
 
 .monaco-editor .margin-view-overlays:hover .folding {
@@ -33,5 +34,6 @@
 	content: "⋯";
 	display: inline;
 	line-height: 1em;
+	cursor: pointer;
 }
 
