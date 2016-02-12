@@ -107,4 +107,4 @@ process.on('uncaughtException', function (err) {
 	}
 });
 
-require('./bootstrap-amd');
+require('./bootstrap-amd').bootstrap(process.env['AMD_ENTRYPOINT']);
