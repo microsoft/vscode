@@ -23,7 +23,7 @@ var log = (function() {
 			return;
 		}
 		fs.appendFileSync(LOG_LOCATION, str + '\n');
-	}
+	};
 })();
 
 var stdInPipeName = process.env['STDIN_PIPE_NAME'];

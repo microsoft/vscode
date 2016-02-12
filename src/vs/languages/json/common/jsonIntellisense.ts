@@ -21,7 +21,7 @@ export class JSONIntellisense {
 
 	private schemaService: SchemaService.IJSONSchemaService;
 	private requestService: IRequestService;
-	private contributions: JsonWorker.IJSONWorkerContribution[]
+	private contributions: JsonWorker.IJSONWorkerContribution[];
 
 	constructor(schemaService: SchemaService.IJSONSchemaService, requestService: IRequestService, contributions: JsonWorker.IJSONWorkerContribution[]) {
 		this.schemaService = schemaService;

@@ -59,7 +59,7 @@ export class JSONDocumentSymbols {
 				});
 			}
 			return result;
-		}
+		};
 		let result = collectOutlineEntries([], root, void 0);
 		return Promise.resolve(result);
 	}

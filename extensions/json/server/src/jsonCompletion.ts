@@ -40,7 +40,7 @@ export class JSONCompletion {
 		let result: CompletionList = {
 			items: [],
 			isIncomplete: false
-		}
+		};
 
 		if (node && (node.type === 'string' || node.type === 'number' || node.type === 'boolean' || node.type === 'null')) {
 			overwriteRange = Range.create(document.positionAt(node.start), document.positionAt(node.end));
@@ -401,7 +401,7 @@ export class JSONCompletion {
 			case 'string': return CompletionItemKind.Text;
 			case 'object': return CompletionItemKind.Module;
 			case 'property': return CompletionItemKind.Property;
-			default: return CompletionItemKind.Value
+			default: return CompletionItemKind.Value;
 		}
 	}
 

@@ -101,7 +101,7 @@ export function fork(modulePath: string, args: string[], options: IForkOptions, 
 		}
 		serverClosed = true;
 		server.close();
-	}
+	};
 
 	// Create the process
 	let bootstrapperPath = path.join(__dirname, 'electronForkStart');

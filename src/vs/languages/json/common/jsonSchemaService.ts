@@ -282,7 +282,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 				var fpa = this.getOrAddFilePatternAssociation(pattern);
 				associations.forEach(schemaId => {
 					var id = this.normalizeId(schemaId);
-					fpa.addSchema(id)
+					fpa.addSchema(id);
 				});
 			}
 		}
@@ -399,7 +399,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 				resolveErrors.push(nls.localize('json.schema.invalidref', '$ref \'{0}\' in {1} can not be resolved.', linkPath, linkedSchema.id));
 			}
 			delete node.$ref;
-		}
+		};
 
 		var resolveExternalLink = (node: any, uri: string, linkPath: string): WinJS.Promise => {
 			return this.getOrAddSchemaHandle(uri).getUnresolvedSchema().then(unresolvedSchema => {
@@ -410,7 +410,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 				resolveLink(node, unresolvedSchema.schema, linkPath);
 				return resolveRefs(node, unresolvedSchema.schema);
 			});
-		}
+		};
 
 		var resolveRefs = (node:any, parentSchema: any) : WinJS.Promise => {
 			var toWalk = [ node ];
@@ -444,7 +444,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 				}
 			}
 			return WinJS.Promise.join(openPromises);
-		}
+		};
 
 		return resolveRefs(schema, schema).then(_ => new ResolvedSchema(schema, resolveErrors));
 	}
@@ -485,7 +485,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 		} else {
 			var combinedSchema: IJSONSchema = {
 				allOf: schemaIds.map(schemaId => ({ $ref: schemaId }))
-			}
+			};
 			return this.addSchemaHandle(combinedSchemaId, combinedSchema);
 		}
 	}

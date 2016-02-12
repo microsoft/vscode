@@ -93,7 +93,6 @@ export abstract class Parser {
 				destination[key] = sourceValue;
 			} else {
 				if (overwrite) {
-					let source
 					if (Types.isObject(destValue) && Types.isObject(sourceValue)) {
 						this.merge(destValue, sourceValue, overwrite);
 					} else {

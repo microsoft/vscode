@@ -10,7 +10,7 @@ import {marked, MarkedOptions} from 'vs/base/common/marked/marked';
 
 
 function link(href, title, text): string {
-	return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`
+	return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`;
 }
 
 
@@ -38,4 +38,4 @@ export const value = {
 			}
 		});
 	}
-}
+};
