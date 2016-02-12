@@ -291,10 +291,11 @@ function prepareDebPackage(arch) {
 			function () {
 				var that = this;
 				gulp.src('resources/linux/debian/control.template', { base: '.' })
+					.pipe(replace('@@NAME@@', product.applicationName))
 					.pipe(replace('@@VERSION@@', packageJson.version + '-' + packageRevision))
 					.pipe(replace('@@ARCHITECTURE@@', debArch))
 					.pipe(replace('@@INSTALLEDSIZE@@', Math.ceil(size / 1024)))
-					.pipe(rename(function (p) { p.extname = ''; p.dirname = 'DEBIAN'; }))
+					.pipe(rename('DEBIAN/control'))
 					.pipe(es.through(function (f) { that.emit('data', f); }, function () { that.emit('end'); }));
 			}));
 
