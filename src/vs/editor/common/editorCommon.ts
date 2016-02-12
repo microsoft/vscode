@@ -496,7 +496,7 @@ export interface IEditorOptions {
 	referenceInfos?: boolean;
 	/**
 	 * Enable code folding
-	 * Defaults to false.
+	 * Defaults to true.
 	 */
 	folding?: boolean;
 	/**
