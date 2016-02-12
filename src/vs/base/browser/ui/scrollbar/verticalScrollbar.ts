@@ -20,7 +20,8 @@ export class VerticalScrollbar extends AbstractScrollbar {
 		let s = new ScrollbarState(
 			(options.verticalHasArrows ? options.arrowSize : 0),
 			(options.vertical === Visibility.Hidden ? 0 : options.verticalScrollbarSize),
-			(options.horizontal === Visibility.Hidden ? 0 : options.horizontalScrollbarSize)
+			// give priority to vertical scroll bar over horizontal and let it scroll all the way to the bottom
+			0
 		);
 		super(options.forbidTranslate3dUse, parent, s, options.vertical, 'vertical');
 		this._scrollable = scrollable;

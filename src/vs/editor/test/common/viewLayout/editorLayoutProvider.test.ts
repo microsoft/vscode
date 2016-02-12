@@ -103,7 +103,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			overviewRuler: {
 				top: 13,
 				width: 11,
-				height: (800 - 2 * 13 - 12),
+				height: (800 - 2 * 13),
 				right: 0
 			}
 		});
