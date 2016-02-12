@@ -6,23 +6,16 @@
 
 import NLS = require('vs/nls');
 
-import * as Objects from 'vs/base/common/objects';
-import { IStringDictionary, values } from 'vs/base/common/collections';
-import * as Platform from 'vs/base/common/platform';
+import { IStringDictionary } from 'vs/base/common/collections';
 import * as Types from 'vs/base/common/types';
-import * as Strings from 'vs/base/common/strings';
 import * as UUID from 'vs/base/common/uuid';
-import Severity from 'vs/base/common/severity';
 
 import { ValidationStatus, ValidationState, ILogger, Parser } from 'vs/base/common/parsers';
 import { Executable, ExecutableParser, Config  as ProcessConfig} from 'vs/base/common/processes';
 
-import { NamedProblemMatcher, ProblemMatcher, Config as ProblemMatcherConfig, ProblemMatcherParser, registry as ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
+import { ProblemMatcher, Config as ProblemMatcherConfig, ProblemMatcherParser, registry as ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
 
 import { IPluginDescription } from 'vs/platform/plugins/common/plugins';
-import { PluginsRegistry } from 'vs/platform/plugins/common/pluginsRegistry';
-
-import * as TaskSystem from './taskSystem';
 
 export namespace Config {
 

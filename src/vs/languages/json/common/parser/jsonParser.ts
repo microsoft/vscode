@@ -10,7 +10,6 @@ import Types = require('vs/base/common/types');
 import Json = require('vs/base/common/json');
 import JsonSchema = require('vs/base/common/jsonSchema');
 import {JSONLocation} from './jsonLocation';
-import SchemaService = require('vs/languages/json/common/jsonSchemaService');
 
 export interface IRange {
 	start:number;

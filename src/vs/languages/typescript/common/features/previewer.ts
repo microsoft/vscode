@@ -5,7 +5,6 @@
 'use strict';
 
 import strings = require('vs/base/common/strings');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import ts = require('vs/languages/typescript/common/lib/typescriptServices');
 import htmlContent = require('vs/base/common/htmlContent');
 

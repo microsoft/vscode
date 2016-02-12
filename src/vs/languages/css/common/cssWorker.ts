@@ -14,7 +14,6 @@ import languageService = require('vs/languages/css/common/services/cssLanguageSe
 import languageFacts = require('vs/languages/css/common/services/languageFacts');
 import occurrences = require('./services/occurrences');
 import cssIntellisense = require('vs/languages/css/common/services/intelliSense');
-import network = require('vs/base/common/network');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import nodes = require('vs/languages/css/common/parser/cssNodes');

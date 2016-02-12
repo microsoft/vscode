@@ -5,7 +5,7 @@
 
 import { IRenderer } from './list';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { append, emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
+import { emmet as $, addClass, removeClass } from 'vs/base/browser/dom';
 
 export interface IRow {
 	domNode: HTMLElement;

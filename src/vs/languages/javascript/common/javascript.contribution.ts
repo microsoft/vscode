@@ -9,11 +9,8 @@ import env = require('vs/base/common/flags');
 import platform = require('vs/platform/platform');
 import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
 import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
-import typescript = require('vs/languages/typescript/common/typescript');
-import extensions = require('vs/languages/javascript/common/javascript.extensions');
 import Options = require('vs/languages/typescript/common/options');
 import defaults = Options.javaScriptOptions;
-import Mime = require('vs/base/common/mime');
 
 if (!env.enableTypeScriptServiceModeForJS) {
 

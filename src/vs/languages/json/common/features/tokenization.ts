@@ -5,7 +5,6 @@
 'use strict';
 
 import json = require('vs/base/common/json');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import jsonTokenTypes = require('vs/languages/json/common/features/jsonTokenTypes');
 

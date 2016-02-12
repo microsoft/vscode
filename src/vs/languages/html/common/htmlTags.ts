@@ -8,9 +8,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import strings = require('vs/base/common/strings');
-import arrays = require('vs/base/common/arrays');
 import nls = require('vs/nls');
-import {isEmptyElement} from 'vs/languages/html/common/htmlEmptyTagsShared';
 
 export interface IHTMLTagProvider {
 	collectTags(collector: (tag:string, label:string) => void): void;

@@ -6,9 +6,7 @@
 
 import nls = require('vs/nls');
 import URI from 'vs/base/common/uri';
-import network = require('vs/base/common/network');
 import strings = require('vs/base/common/strings');
-import errors = require('vs/base/common/errors');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import winjs = require('vs/base/common/winjs.base');

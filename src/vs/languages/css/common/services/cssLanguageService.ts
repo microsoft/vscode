@@ -8,7 +8,6 @@ import URI from 'vs/base/common/uri';
 import winjs = require('vs/base/common/winjs.base');
 import nodes = require('vs/languages/css/common/parser/cssNodes');
 import parser = require('vs/languages/css/common/parser/cssParser');
-import eventEmitter = require('vs/base/common/eventEmitter');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import resourceService = require('vs/editor/common/services/resourceService');
 

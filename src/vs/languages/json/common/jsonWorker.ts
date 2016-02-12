@@ -10,8 +10,6 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import HtmlContent = require('vs/base/common/htmlContent');
-import Network = require('vs/base/common/network');
-import Json = require('vs/base/common/json');
 import Parser = require('./parser/jsonParser');
 import JSONFormatter = require('vs/languages/json/common/features/jsonFormatter');
 import SchemaService = require('./jsonSchemaService');

@@ -7,12 +7,9 @@
 import URI from 'vs/base/common/uri';
 import modesExtensions = require('vs/editor/common/modes/modesRegistry');
 import supports = require('vs/editor/common/modes/supports');
-import arrays = require('vs/base/common/arrays');
-import strings = require('vs/base/common/strings');
 import Platform = require('vs/platform/platform');
 import { AsyncDescriptor2, createAsyncDescriptor2 } from 'vs/platform/instantiation/common/descriptors';
 import winjs = require('vs/base/common/winjs.base');
-import network = require('vs/base/common/network');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import htmlWorker = require('vs/languages/html/common/htmlWorker');

@@ -5,11 +5,8 @@
 'use strict';
 
 import nls = require('vs/nls');
-import Objects = require('vs/base/common/objects');
-import Arrays = require('vs/base/common/arrays');
 import Filters = require('vs/base/common/filters');
 import { TPromise } from 'vs/base/common/winjs.base';
-import Severity from 'vs/base/common/severity';
 import Quickopen = require('vs/workbench/browser/quickopen');
 import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');

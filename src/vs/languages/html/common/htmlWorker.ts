@@ -15,7 +15,6 @@ import Modes = require('vs/editor/common/modes');
 import strings = require('vs/base/common/strings');
 import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
-import {IRequestService} from 'vs/platform/request/common/request';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';

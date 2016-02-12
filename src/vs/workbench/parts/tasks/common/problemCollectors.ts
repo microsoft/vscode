@@ -11,8 +11,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 
-import { ILineMatcher, createLineMatcher, ProblemMatcher, FileLocationKind, ProblemMatch, ApplyToKind, WatchingPattern, getResource } from 'vs/platform/markers/common/problemMatcher';
-import { IMarkerService, IMarkerData, MarkerType, IResourceMarker, IMarker, MarkerStatistics } from 'vs/platform/markers/common/markers';
+import { ILineMatcher, createLineMatcher, ProblemMatcher, ProblemMatch, ApplyToKind, WatchingPattern, getResource } from 'vs/platform/markers/common/problemMatcher';
+import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
 
 export namespace ProblemCollectorEvents {
 	export let WatchingBeginDetected: string = 'watchingBeginDetected';

@@ -5,15 +5,11 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import objects = require('vs/base/common/objects');
 import arrays = require('vs/base/common/arrays');
-import strings = require('vs/base/common/strings');
-import lifecycle = require('vs/base/common/lifecycle');
 import typescript = require('vs/languages/typescript/common/typescript');
 import paths = require('vs/base/common/paths');
 import ts = require('vs/languages/typescript/common/lib/typescriptServices');
 import snapshots = require('vs/languages/typescript/common/project/snapshots');
-import network = require('vs/base/common/network');
 import rewriting = require('vs/languages/typescript/common/js/rewriting');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import textEdits = require('vs/languages/typescript/common/js/textEdits');

@@ -22,14 +22,10 @@ import { EventEmitter, ListenerUnbind } from 'vs/base/common/eventEmitter';
 import * as Builder from 'vs/base/browser/builder';
 import URI from 'vs/base/common/uri';
 import * as Types from 'vs/base/common/types';
-import * as Strings from 'vs/base/common/strings';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { match } from 'vs/base/common/glob';
 import { setTimeout } from 'vs/base/common/platform';
-import { Executable, TerminateResponse, resolveExecutable } from 'vs/base/common/processes';
-import { ISystemVariables, AbstractSystemVariables } from 'vs/base/common/parsers';
-
-import { LineProcess, LineData } from 'vs/base/node/processes';
+import { TerminateResponse } from 'vs/base/common/processes';
 
 import { Registry } from 'vs/platform/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -44,7 +40,6 @@ import { IFileService, FileChangesEvent, FileChangeType, EventType as FileEventT
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPluginService } from 'vs/platform/plugins/common/plugins';
 
-import { IModel } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
@@ -62,7 +57,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
-import { ITextFileService, EventType, TextFileChangeEvent } from 'vs/workbench/parts/files/common/files';
+import { ITextFileService, EventType } from 'vs/workbench/parts/files/common/files';
 import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/parts/output/common/output';
 
 import { ITaskSystem, ITaskSummary, ITaskRunResult, TaskError, TaskConfiguration, TaskDescription, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';

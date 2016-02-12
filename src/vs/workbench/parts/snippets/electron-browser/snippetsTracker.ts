@@ -7,10 +7,7 @@
 
 import workbenchExt = require('vs/workbench/common/contributions');
 import paths = require('vs/base/common/paths');
-import arrays = require('vs/base/common/arrays');
 import async = require('vs/base/common/async');
-import Errors = require('vs/base/common/errors');
-import URI from 'vs/base/common/uri';
 import winjs = require('vs/base/common/winjs.base');
 import extfs = require('vs/base/node/extfs');
 import lifecycle = require('vs/base/common/lifecycle');

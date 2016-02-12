@@ -12,8 +12,6 @@ import URI from 'vs/base/common/uri';
 import Types = require('vs/base/common/types');
 import Parser = require('vs/languages/json/common/parser/jsonParser');
 import WinJS = require('vs/base/common/winjs.base');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import EventEmitter = require('vs/base/common/eventEmitter');
 import {IResourceService, ResourceEvents, IResourceChangedEvent} from 'vs/editor/common/services/resourceService';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';

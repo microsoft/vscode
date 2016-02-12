@@ -27,9 +27,6 @@ import {ipcRenderer as ipc} from 'electron';
 export const PLUGIN_LOG_BROADCAST_CHANNEL = 'vscode:pluginLog';
 export const PLUGIN_ATTACH_BROADCAST_CHANNEL = 'vscode:pluginAttach';
 
-// The amd loader has the global scope assigned to this.
-const globalRequire = this.require;
-
 // Enable to see detailed message communication between window and plugin host
 const logPluginHostCommunication = false;
 
