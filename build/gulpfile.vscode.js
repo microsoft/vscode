@@ -270,15 +270,15 @@ function prepareDebPackage(arch) {
 	var packageRevision = '1';
 
 	return function () {
-		var shortcut = gulp.src('resources/linux/bin/code.sh', { base: '.' })
+		var shortcut = gulp.src('resources/linux/bin/code.sh')
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(rename(function (p) { p.extname = ''; p.dirname = 'usr/bin'; }));
+			.pipe(rename('usr/bin/' + product.applicationName));
 
-		var desktop = gulp.src('resources/linux/debian/code.desktop', { base: '.' })
-			.pipe(rename(function (p) { p.dirname = 'usr/share/applications'; }));
+		var desktop = gulp.src('resources/linux/debian/code.desktop')
+			.pipe(rename('usr/share/applications/code.desktop'));
 
-		var icon = gulp.src('resources/linux/code.png', { base: '.' })
-			.pipe(rename(function (p) { p.dirname = 'usr/share/pixmaps'; }));
+		var icon = gulp.src('resources/linux/code.png')
+			.pipe(rename('usr/share/pixmaps/code.png'));
 
 		var code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
 			.pipe(rename(function (p) { p.dirname = 'usr/share/' + product.applicationName + '/' + p.dirname; }));
