@@ -33,7 +33,13 @@ if (nlsConfig.pseudo) {
 	});
 }
 
-var entrypoint = process.env['AMD_ENTRYPOINT'];
-if (entrypoint) {
+var bootstrap = exports.bootstrap = function (entrypoint) {
 	loader([entrypoint], function () { }, function (err) { console.error(err); });
+};
+
+if (require.main === module) {
+	var entrypoint = process.env['AMD_ENTRYPOINT'];
+	if (entrypoint) {
+		bootstrap(entrypoint);
+	}
 }
