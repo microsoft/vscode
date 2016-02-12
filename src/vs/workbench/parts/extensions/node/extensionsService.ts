@@ -10,7 +10,6 @@ import { tmpdir } from 'os';
 import * as path from 'path';
 import types = require('vs/base/common/types');
 import { ServiceEvent } from 'vs/base/common/service';
-import errors = require('vs/base/common/errors');
 import * as pfs from 'vs/base/node/pfs';
 import { assign } from 'vs/base/common/objects';
 import { flatten } from 'vs/base/common/arrays';
@@ -91,16 +90,16 @@ export class ExtensionsService implements IExtensionsService {
 	private obsoleteFileLimiter: Limiter<void>;
 
 	private _onInstallExtension = new Emitter<IExtensionManifest>();
-	@ServiceEvent onInstallExtension = this._onInstallExtension.event;
+	@ServiceEvent onInstallExtension: Event<IExtension> = this._onInstallExtension.event;
 
 	private _onDidInstallExtension = new Emitter<IExtension>();
-	@ServiceEvent onDidInstallExtension = this._onDidInstallExtension.event;
+	@ServiceEvent onDidInstallExtension: Event<IExtension> = this._onDidInstallExtension.event;
 
 	private _onUninstallExtension = new Emitter<IExtension>();
-	@ServiceEvent onUninstallExtension = this._onUninstallExtension.event;
+	@ServiceEvent onUninstallExtension: Event<IExtension> = this._onUninstallExtension.event;
 
 	private _onDidUninstallExtension = new Emitter<IExtension>();
-	@ServiceEvent onDidUninstallExtension = this._onDidUninstallExtension.event;
+	@ServiceEvent onDidUninstallExtension: Event<IExtension> = this._onDidUninstallExtension.event;
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
@@ -210,10 +209,6 @@ export class ExtensionsService implements IExtensionsService {
 					})))
 					.then(result => result.filter(a => !!a));
 			});
-	}
-
-	private getExtensionId(extension: IExtension): string {
-		return `${ extension.publisher }.${ extension.name }-${ extension.version }`;
 	}
 
 	public removeDeprecatedExtensions(): TPromise<void> {

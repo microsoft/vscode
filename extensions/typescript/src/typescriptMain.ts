@@ -51,14 +51,14 @@ export function activate(context: ExtensionContext): void {
 	client.onReady().then(() => {
 		registerSupports(MODE_ID_TS, clientHost, client);
 		registerSupports(MODE_ID_TSX, clientHost, client);
-		let useSalsa = !!process.env['CODE_TSJS'] || !!process.env['VSCODE_TSJS']
+		let useSalsa = !!process.env['CODE_TSJS'] || !!process.env['VSCODE_TSJS'];
 		if (useSalsa) {
 			registerSupports(MODE_ID_JS, clientHost, client);
 			registerSupports(MODE_ID_JSX, clientHost, client);
 		}
 	}, () => {
 		// Nothing to do here. The client did show a message;
-	})
+	});
 }
 
 function registerSupports(modeID: string, host: TypeScriptServiceClientHost, client: TypeScriptServiceClient) {
@@ -168,7 +168,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			setTimeout(() => {
 				this.triggerAllDiagnostics();
 			}, 1500);
-		}
+		};
 		let watcher = workspace.createFileSystemWatcher('**/tsconfig.json');
 		watcher.onDidCreate(handleProjectCreateOrDelete);
 		watcher.onDidDelete(handleProjectCreateOrDelete);

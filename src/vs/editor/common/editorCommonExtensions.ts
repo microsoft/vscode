@@ -27,6 +27,7 @@ export enum ContextKey {
 export interface IEditorActionKeybindingOptions extends IKeybindings {
 	handler?: ICommandHandler;
 	context: ContextKey;
+	kbExpr?: KbExpr;
 }
 export interface IEditorCommandKeybindingOptions extends IKeybindings {
 	context: ContextKey;
@@ -177,10 +178,14 @@ class EditorContributionRegistry {
 		}
 
 		var context: KbExpr = null;
-		if (desc.kbOpts.context === ContextKey.EditorTextFocus) {
-			context = KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS);
-		} else if (desc.kbOpts.context === ContextKey.EditorFocus) {
-			context = KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS);
+		if (typeof desc.kbOpts.kbExpr === 'undefined') {
+			if (desc.kbOpts.context === ContextKey.EditorTextFocus) {
+				context = KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS);
+			} else if (desc.kbOpts.context === ContextKey.EditorFocus) {
+				context = KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS);
+			}
+		} else {
+			context = desc.kbOpts.kbExpr;
 		}
 
 		var commandDesc: ICommandDescriptor = {

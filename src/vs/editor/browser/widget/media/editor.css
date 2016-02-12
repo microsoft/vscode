@@ -53,6 +53,14 @@
 	overflow: hidden;
 }
 
+/*.monaco-editor .inputarea {
+	position: fixed !important;
+	width: 200px !important;
+	height: 200px !important;
+	top: initial !important;
+	bottom: 0 !important;
+}*/
+
 .monaco-editor.ff .inputarea,
 .monaco-editor.ie .inputarea {
 	width: 0;

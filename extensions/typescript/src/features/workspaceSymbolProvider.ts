@@ -21,7 +21,7 @@ _kindMapping['var'] = SymbolKind.Variable;
 export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbolProvider {
 
 	private client: ITypescriptServiceClient;
-	private modeId: string
+	private modeId: string;
 
 	public constructor(client: ITypescriptServiceClient, modeId: string) {
 		this.client = client;

@@ -28,7 +28,7 @@ import Severity from 'vs/base/common/severity';
 import { IGitService, IFileStatus, Status, StatusType, ServiceState,
 	IModel, IBranch, GitErrorCodes, ServiceOperations }
 	from 'vs/workbench/parts/git/common/git';
-import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 

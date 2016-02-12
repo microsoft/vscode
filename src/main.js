@@ -76,6 +76,5 @@ process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 
 // Load our code once ready
 app.once('ready', function() {
-	process.env['AMD_ENTRYPOINT'] = 'vs/workbench/electron-main/main';
-	require('./bootstrap-amd');
+	require('./bootstrap-amd').bootstrap('vs/workbench/electron-main/main');
 });

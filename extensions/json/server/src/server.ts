@@ -69,7 +69,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 			documentRangeFormattingProvider: true,
 			documentFormattingProvider: true
 		}
-	}
+	};
 });
 
 let workspaceContext = {
@@ -79,20 +79,20 @@ let workspaceContext = {
 		}
 		return workspaceRelativePath;
 	}
-}
+};
 
 let telemetry = {
 	log: (key: string, data: any) => {
 		connection.sendNotification(TelemetryNotification.type, { key, data });
 	}
-}
+};
 
 let request = (options: IXHROptions): Thenable<IXHRResponse>  => {
 	if (Strings.startsWith(options.url, 'file://')) {
 		let fsPath = URI.parse(options.url).fsPath;
 		return new Promise<IXHRResponse>((c, e) => {
 			fs.readFile(fsPath, 'UTF-8', (err, result) => {
-				err ? e({ responseText: '', status: 404 }) : c({ responseText: result.toString(), status: 200 })
+				err ? e({ responseText: '', status: 404 }) : c({ responseText: result.toString(), status: 200 });
 			});
 		});
 	} else if (Strings.startsWith(options.url, 'vscode://')) {
@@ -105,11 +105,11 @@ let request = (options: IXHROptions): Thenable<IXHRResponse>  => {
 			return {
 				responseText: error.message,
 				status: 404
-			}
+			};
 		});
 	}
 	return xhr(options);
-}
+};
 
 let contributions = [
 	new ProjectJSONContribution(request),
@@ -134,17 +134,17 @@ documents.onDidChangeContent((change) => {
 // The settings interface describe the server relevant settings part
 interface Settings {
 	json: {
-		schemas: JSONSchemaSettings[]
-	},
+		schemas: JSONSchemaSettings[];
+	};
 	http : {
-		proxy: string,
-		proxyStrictSSL: boolean
-	}
+		proxy: string;
+		proxyStrictSSL: boolean;
+	};
 }
 
 interface JSONSchemaSettings {
-	fileMatch?: string[],
-	url?: string,
+	fileMatch?: string[];
+	url?: string;
 	schema?: IJSONSchema;
 }
 
@@ -153,9 +153,9 @@ let schemaAssociations : ISchemaAssociations = void 0;
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
-	var settings = <Settings>change.settings
+	var settings = <Settings>change.settings;
 	configureHttpRequests(settings.http && settings.http.proxy, settings.http && settings.http.proxyStrictSSL);
-	
+
 	jsonConfigurationSettings = settings.json && settings.json.schemas;
 	updateConfiguration();
 });
@@ -174,7 +174,7 @@ function updateConfiguration() {
 			if (Array.isArray(association)) {
 				association.forEach(url => {
 					jsonSchemaService.registerExternalSchema(url, [pattern]);
-				})
+				});
 			}
 		}
 	}

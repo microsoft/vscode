@@ -132,7 +132,7 @@ function functionsAndGlobals(languageService: ts.LanguageService, resource: URI)
 	}
 
 	// add classes
-	let items = languageService.getNavigationBarItems(sourceFile.fileName)
+	let items = languageService.getNavigationBarItems(sourceFile.fileName);
 	for (let item of items) {
 		if (item.kind === ts.ScriptElementKind.classElement) {
 			let entry = _convert(sourceFile, item);

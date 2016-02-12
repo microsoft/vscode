@@ -25,7 +25,7 @@ export class OcticonLabel {
 	set text(text: string) {
 		let innerHTML = text || '';
 		innerHTML = escape(innerHTML);
-		innerHTML = expand(innerHTML)
+		innerHTML = expand(innerHTML);
 		this._container.innerHTML = innerHTML;
 	}
 }

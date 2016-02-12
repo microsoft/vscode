@@ -101,7 +101,7 @@ function isUpper(code: number): boolean {
  */
 export function matches(target: string, queryLower: string): boolean {
 	if (!target || !queryLower) {
-		return false // return early if target or query are undefined
+		return false; // return early if target or query are undefined
 	}
 
 	const queryLen = queryLower.length;

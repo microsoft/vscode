@@ -77,7 +77,7 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 				var snippetPath = paths.join(this.snippetFolder, snippetFile);
 				return tmsnippets.snippetUpdated(modeId, snippetPath);
 			}));
-		})
+		});
 	}
 
 	private unregisterListener(): void {

@@ -54,6 +54,7 @@ var vscodeEntryPoints = _.flatten([
 
 var vscodeResources = [
 	'out-build/main.js',
+	'out-build/cli.js',
 	'out-build/bootstrap.js',
 	'out-build/bootstrap-amd.js',
 	'out-build/vs/**/*.{svg,png,cur}',
@@ -116,6 +117,7 @@ var config = {
 		iconFile: 'resources/darwin/code_file.icns'
 	}],
 	darwinCredits: darwinCreditsTemplate ? new Buffer(darwinCreditsTemplate({ commit: commit, date: new Date().toISOString() })) : void 0,
+	linuxExecutableName: product.applicationName,
 	winIcon: 'resources/win32/code.ico',
 	token: process.env['GITHUB_TOKEN'] || void 0
 };
@@ -217,14 +219,6 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true))
 			.pipe(util.cleanNodeModule('weak', ['binding.gyp', 'build/**', 'src/**'], true));
 
-		var resources = gulp.src(['resources/*','resources/common/**'], { base: '.' });
-
-		if (platform === 'win32') {
-			resources = es.merge(resources, gulp.src('resources/win32/code_file.ico', { base: '.' }));
-		} else if (platform === 'linux') {
-			resources = es.merge(resources, gulp.src('resources/linux/code.png', { base: '.' }));
-		}
-
 		var extraExtensions = util.downloadExtensions(builtInExtensions)
 			.pipe(rename(function (p) {
 				p.dirname = path.posix.join('extensions', p.dirname);
@@ -237,11 +231,22 @@ function packageTask(platform, arch, opts) {
 			license,
 			sources,
 			deps,
-			extraExtensions,
-			resources
-		).pipe(util.skipDirectories());
+			extraExtensions
+		);
+
+		if (platform === 'win32') {
+			all = es.merge(all, gulp.src('resources/win32/code_file.ico', { base: '.' }));
+		} else if (platform === 'linux') {
+			all = es.merge(all, gulp.src('resources/linux/code.png', { base: '.' }));
+		} else if (platform === 'darwin') {
+			var shortcut = gulp.src('resources/darwin/bin/code.sh')
+				.pipe(rename('bin/code'));
+
+			all = es.merge(all, shortcut);
+		}
 
 		var result = all
+			.pipe(util.skipDirectories())
 			.pipe(util.fixWin32DirectoryPermissions())
 			.pipe(electron(_.extend({}, config, { platform: platform, arch: arch })))
 			.pipe(filter(['**', '!LICENSE', '!LICENSES.chromium.html', '!version']));
@@ -251,7 +256,7 @@ function packageTask(platform, arch, opts) {
 
 			result = es.merge(result, gulp.src('resources/win32/bin/**', { base: 'resources/win32' }))
 				.pipe(shortcutFilter)
-				.pipe(rename(function (f) { f.basename = product.win32ShortcutName; }))
+				.pipe(rename(function (f) { f.basename = product.applicationName; }))
 				.pipe(shortcutFilter.restore);
 		}
 
@@ -266,21 +271,24 @@ function getDebPackageArch(arch) {
 function prepareDebPackage(arch) {
 	var binaryDir = '../VSCode-linux-' + arch;
 	var debArch = getDebPackageArch(arch);
-	var destination = './out-linux/vscode-' + debArch;
+	var destination = '.build/linux/vscode-' + debArch;
 	var packageRevision = '1';
 
 	return function () {
-		var shortcut = gulp.src('resources/common/bin/code.sh', { base: '.' })
-			.pipe(rename(function (p) { p.extname = ''; p.dirname = 'usr/bin'; }));
+		var shortcut = gulp.src('resources/linux/bin/code.sh')
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(rename('usr/bin/' + product.applicationName));
 
-		var desktop = gulp.src('resources/linux/debian/code.desktop', { base: '.' })
-			.pipe(rename(function (p) { p.dirname = 'usr/share/applications'; }));
+		var desktop = gulp.src('resources/linux/debian/code.desktop')
+			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(rename('usr/share/applications/' + product.applicatioName + '.desktop'));
 
-		var icon = gulp.src('resources/linux/code.png', { base: '.' })
-			.pipe(rename(function (p) { p.dirname = 'usr/share/pixmaps'; }));
+		var icon = gulp.src('resources/linux/code.png')
+			.pipe(rename('usr/share/pixmaps/' + product.applicationName + '.png'));
 
 		var code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
-			.pipe(rename(function (p) { p.dirname = 'usr/share/code/' + p.dirname; }));
+			.pipe(rename(function (p) { p.dirname = 'usr/share/' + product.applicationName + '/' + p.dirname; }));
 
 		var size = 0;
 		var control = code.pipe(es.through(
@@ -288,10 +296,11 @@ function prepareDebPackage(arch) {
 			function () {
 				var that = this;
 				gulp.src('resources/linux/debian/control.template', { base: '.' })
+					.pipe(replace('@@NAME@@', product.applicationName))
 					.pipe(replace('@@VERSION@@', packageJson.version + '-' + packageRevision))
 					.pipe(replace('@@ARCHITECTURE@@', debArch))
 					.pipe(replace('@@INSTALLEDSIZE@@', Math.ceil(size / 1024)))
-					.pipe(rename(function (p) { p.extname = ''; p.dirname = 'DEBIAN'; }))
+					.pipe(rename('DEBIAN/control'))
 					.pipe(es.through(function (f) { that.emit('data', f); }, function () { that.emit('end'); }));
 			}));
 
@@ -301,7 +310,7 @@ function prepareDebPackage(arch) {
 }
 
 function buildDebPackage(arch) {
-	return shell.task(['fakeroot dpkg-deb -b ' + path.join(root, 'out-linux', 'vscode-' + getDebPackageArch(arch))]);
+	return shell.task(['fakeroot dpkg-deb -b .build/linux/vscode-' + getDebPackageArch(arch)]);
 }
 
 gulp.task('clean-vscode-win32', util.rimraf(path.join(path.dirname(root), 'VSCode-win32')));
@@ -309,8 +318,8 @@ gulp.task('clean-vscode-darwin', util.rimraf(path.join(path.dirname(root), 'VSCo
 gulp.task('clean-vscode-linux-ia32', util.rimraf(path.join(path.dirname(root), 'VSCode-linux-ia32')));
 gulp.task('clean-vscode-linux-x64', util.rimraf(path.join(path.dirname(root), 'VSCode-linux-x64')));
 gulp.task('clean-vscode-linux-arm', util.rimraf(path.join(path.dirname(root), 'VSCode-linux-arm')));
-gulp.task('clean-vscode-linux-ia32-deb', util.rimraf('out-linux/vscode-i386*'));
-gulp.task('clean-vscode-linux-x64-deb', util.rimraf('out-linux/vscode-amd64*'));
+gulp.task('clean-vscode-linux-ia32-deb', util.rimraf('.build/linux/vscode-i386*'));
+gulp.task('clean-vscode-linux-x64-deb', util.rimraf('.build/linux/vscode-amd64*'));
 
 gulp.task('vscode-win32', ['optimize-vscode', 'clean-vscode-win32'], packageTask('win32'));
 gulp.task('vscode-darwin', ['optimize-vscode', 'clean-vscode-darwin'], packageTask('darwin'));
@@ -324,8 +333,8 @@ gulp.task('vscode-linux-ia32-min', ['minify-vscode', 'clean-vscode-linux-ia32'],
 gulp.task('vscode-linux-x64-min', ['minify-vscode', 'clean-vscode-linux-x64'], packageTask('linux', 'x64', { minified: true }));
 gulp.task('vscode-linux-arm-min', ['minify-vscode', 'clean-vscode-linux-arm'], packageTask('linux', 'arm', { minified: true }));
 
-gulp.task('vscode-linux-ia32-prepare-deb', ['clean-vscode-linux-ia32-deb', 'vscode-linux-ia32'], prepareDebPackage('ia32'));
-gulp.task('vscode-linux-x64-prepare-deb', ['clean-vscode-linux-x64-deb', 'vscode-linux-x64'], prepareDebPackage('x64'));
+gulp.task('vscode-linux-ia32-prepare-deb', ['clean-vscode-linux-ia32-deb', 'vscode-linux-ia32-min'], prepareDebPackage('ia32'));
+gulp.task('vscode-linux-x64-prepare-deb', ['clean-vscode-linux-x64-deb', 'vscode-linux-x64-min'], prepareDebPackage('x64'));
 gulp.task('vscode-linux-ia32-build-deb', ['vscode-linux-ia32-prepare-deb'], buildDebPackage('ia32'));
 gulp.task('vscode-linux-x64-build-deb', ['vscode-linux-x64-prepare-deb'], buildDebPackage('x64'));
 gulp.task('vscode-linux-packages', ['vscode-linux-ia32-build-deb', 'vscode-linux-x64-build-deb']);

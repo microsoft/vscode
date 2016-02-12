@@ -33,7 +33,7 @@ export class Delayer<T> {
 
 		if (!this.completionPromise) {
 			this.completionPromise = new Promise<T>((resolve) => {
-				this.onSuccess = resolve
+				this.onSuccess = resolve;
 			}).then(() => {
 				this.completionPromise = null;
 				this.onSuccess = null;

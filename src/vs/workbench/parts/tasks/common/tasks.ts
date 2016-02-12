@@ -291,7 +291,7 @@ export class TaskRegistry {
 			if (Types.isArray(extensions)) {
 				(<Config.Task[]>extensions).forEach(this.onTask, this);
 			} else {
-				this.onTask(extensions)
+				this.onTask(extensions);
 			}
 		});
 	}
@@ -299,7 +299,7 @@ export class TaskRegistry {
 	private onTask(json: Config.Task): void {
 		let logger: ILogger = {
 			log: (message) => { console.warn(message); }
-		}
+		};
 		let parser = new TaskParser(ProblemMatcherRegistry, logger);
 		let result = parser.parse(json, { emptyExecutable: true, emptyCommand: true });
 		this.add(result);

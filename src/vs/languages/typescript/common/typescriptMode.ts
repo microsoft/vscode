@@ -92,7 +92,7 @@ class SemanticValidator {
 				if (thisValidationReq === this._lastValidationReq) {
 					return this._mode.performSemanticValidation(r);
 				}
-			}
+			};
 		}));
 
 		validate.done(undefined, err => console.warn(err));
@@ -300,7 +300,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 		return this._canAcceptFileChanges(newLengthTotal).then(canAccept => {
 			if (canAccept === false) { // explict compare with false because the tests return null here
 				return WinJS.TPromise.wrapError(nls.localize('err.tooMuchData',
-					"Sorry, but there are too many JavaScript source files for VS Code. Consider using the exclude-property in jsconfig.json."))
+					"Sorry, but there are too many JavaScript source files for VS Code. Consider using the exclude-property in jsconfig.json."));
 			}
 			return this._doAcceptFileChanges(changes).then(accepted => {
 				this._semanticValidator.validateOpen();

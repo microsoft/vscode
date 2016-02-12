@@ -107,9 +107,9 @@ export class AbstractProblemCollector extends EventEmitter implements IDisposabl
 			case ApplyToKind.allDocuments:
 				return true;
 			case ApplyToKind.openDocuments:
-				return this.openModels[result.resource.toString()]
+				return this.openModels[result.resource.toString()];
 			case ApplyToKind.closedDocuments:
-				return !this.openModels[result.resource.toString()]
+				return !this.openModels[result.resource.toString()];
 			default:
 				return true;
 		}
@@ -274,7 +274,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				this.watchingBeginsPatterns.push({ problemMatcher: matcher, pattern: matcher.watching.beginsPattern });
 				this.watchingEndsPatterns.push({ problemMatcher: matcher, pattern: matcher.watching.endsPattern });
 			}
-		})
+		});
 	}
 
 	public aboutToStart(): void {
@@ -292,7 +292,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 					this.ignoreOpenResourcesByOwner[matcher.owner] = newValue;
 				}
 			}
-		})
+		});
 	}
 
 	public processLine(line: string): void {

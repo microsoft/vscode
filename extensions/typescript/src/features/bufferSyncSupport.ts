@@ -95,7 +95,7 @@ export default class BufferSyncSupport {
 	public reOpenDocuments(): void {
 		Object.keys(this.syncedBuffers).forEach(key => {
 			this.syncedBuffers[key].open();
-		})
+		});
 	}
 
 	public dispose(): void {

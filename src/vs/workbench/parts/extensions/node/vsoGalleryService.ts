@@ -3,17 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { assign } from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IGalleryService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
 import { IXHRResponse } from 'vs/base/common/http';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
-
-import { nfcall } from 'vs/base/common/async';
-import * as fs from 'fs';
 
 export interface IGalleryExtensionFile {
 	assetType: string;

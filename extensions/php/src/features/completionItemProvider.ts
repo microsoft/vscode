@@ -34,7 +34,7 @@ export default class PHPCompletionItemProvider implements CompletionItemProvider
 
 		var matches = (name:string) => {
 			return prefix.length === 0 || name.length > prefix.length && name.substr(0, prefix.length) === prefix;
-		}
+		};
 
 		for (var name in phpGlobals.globalvariables) {
 			if (phpGlobals.globalvariables.hasOwnProperty(name) && matches(name)) {

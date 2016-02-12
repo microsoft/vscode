@@ -11,15 +11,6 @@ import pfs = require('vs/base/node/pfs');
 import { Repository, GitError } from 'vs/workbench/parts/git/node/git.lib';
 import { IRawGitService, RawServiceState, IRawStatus, IHead, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
 
-function pathsAreEqual(p1: string, p2: string): boolean {
-	if (/^(win32|darwin)$/.test(process.platform)) {
-		p1 = p1.toLowerCase();
-		p2 = p2.toLowerCase();
-	}
-
-	return p1 === p2;
-}
-
 export class RawGitService implements IRawGitService {
 
 	private repo: Repository;

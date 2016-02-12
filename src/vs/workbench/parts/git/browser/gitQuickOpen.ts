@@ -5,8 +5,6 @@
 'use strict';
 
 import nls = require('vs/nls');
-import objects = require('vs/base/common/objects');
-import arrays = require('vs/base/common/arrays');
 import filters = require('vs/base/common/filters');
 import winjs = require('vs/base/common/winjs.base');
 import severity from 'vs/base/common/severity';
@@ -14,7 +12,6 @@ import git = require('vs/workbench/parts/git/common/git');
 import quickopenwb = require('vs/workbench/browser/quickopen');
 import quickopen = require('vs/base/parts/quickopen/common/quickOpen');
 import model = require('vs/base/parts/quickopen/browser/quickOpenModel');
-import widget = require('vs/base/parts/quickopen/browser/quickOpenWidget');
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IMessageService} from 'vs/platform/message/common/message';
 

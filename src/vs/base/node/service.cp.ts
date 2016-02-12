@@ -10,9 +10,6 @@ import { Delayer } from 'vs/base/common/async';
 import { clone, assign } from 'vs/base/common/objects';
 import { IServiceCtor, Server as IPCServer, Client as IPCClient, IServiceMap } from 'vs/base/common/service';
 
-// The amd loader has the global scope assigned to this.
-const globalRequire = this.require;
-
 export class Server extends IPCServer {
 	constructor() {
 		super({

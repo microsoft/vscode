@@ -68,14 +68,14 @@ namespace RunTrigger {
 	export let strings = {
 		onSave: 'onSave',
 		onType: 'onType'
-	}
+	};
 	export let from = function(value: string): RunTrigger {
 		if (value === 'onType') {
 			return RunTrigger.onType;
 		} else {
 			return RunTrigger.onSave;
 		}
-	}
+	};
 }
 
 export default class PHPValidationProvider {
@@ -175,10 +175,10 @@ export default class PHPValidationProvider {
 					let diagnostic: vscode.Diagnostic = new vscode.Diagnostic(
 						new vscode.Range(line, 0, line, Number.MAX_VALUE),
 						message
-					)
+					);
 					diagnostics.push(diagnostic);
 				}
-			}
+			};
 
 			let options = vscode.workspace.rootPath ? { cwd: vscode.workspace.rootPath } : undefined;
 			let args: string[];

@@ -12,7 +12,7 @@ import uuid = require('vs/base/common/uuid');
 import nls = require('vs/nls');
 import strings = require('vs/base/common/strings');
 import { IRawFileStatus, IHead, ITag, IBranch, IRemote, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
-import { detectMimesFromStream } from 'vs/base/node/mime'
+import { detectMimesFromStream } from 'vs/base/node/mime';
 import files = require('vs/platform/files/common/files');
 import { spawn, ChildProcess } from 'child_process';
 import iconv = require('iconv-lite');
@@ -508,7 +508,7 @@ export class Repository {
 
 	public pull(rebase?: boolean): Promise {
 		const args = ['pull'];
-		if (rebase) args.push('-r');
+		if (rebase) { args.push('-r'); }
 
 		return this.run(args).then(null, (err: GitError) => {
 			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout)) {
@@ -527,9 +527,9 @@ export class Repository {
 
 	public push(remote?: string, name?: string, options?:IPushOptions): Promise {
 		const args = ['push'];
-		if (options && options.setUpstream) args.push('-u');
-		if (remote) args.push(remote);
-		if (name) args.push(name);
+		if (options && options.setUpstream) { args.push('-u'); }
+		if (remote) { args.push(remote); }
+		if (name) { args.push(name); }
 
 		return this.run(args).then(null, (err: GitError) => {
 			if (/^error: failed to push some refs to\b/m.test(err.stderr)) {

@@ -208,7 +208,7 @@ export interface IWorkspaceContextService {
 }
 
 export interface IRequestService {
-	(options: IXHROptions): Thenable<IXHRResponse>
+	(options: IXHROptions): Thenable<IXHRResponse>;
 }
 
 export class JSONSchemaService implements IJSONSchemaService {
@@ -277,7 +277,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 				var fpa = this.getOrAddFilePatternAssociation(pattern);
 				associations.forEach(schemaId => {
 					let id = this.normalizeId(schemaId);
-					fpa.addSchema(id)
+					fpa.addSchema(id);
 				});
 			}
 		}
@@ -398,7 +398,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 				resolveErrors.push(nls.localize('json.schema.invalidref', '$ref \'{0}\' in {1} can not be resolved.', linkPath, linkedSchema.id));
 			}
 			delete node.$ref;
-		}
+		};
 
 		let resolveExternalLink = (node: any, uri: string, linkPath: string): Thenable<any> => {
 			return this.getOrAddSchemaHandle(uri).getUnresolvedSchema().then(unresolvedSchema => {
@@ -409,7 +409,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 				resolveLink(node, unresolvedSchema.schema, linkPath);
 				return resolveRefs(node, unresolvedSchema.schema);
 			});
-		}
+		};
 
 		let resolveRefs = (node: any, parentSchema: any): Thenable<any> => {
 			let toWalk = [node];
@@ -443,7 +443,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 				}
 			}
 			return Promise.all(openPromises);
-		}
+		};
 
 		return resolveRefs(schema, schema).then(_ => new ResolvedSchema(schema, resolveErrors));
 	}
@@ -486,7 +486,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 		} else {
 			let combinedSchema: IJSONSchema = {
 				allOf: schemaIds.map(schemaId => ({ $ref: schemaId }))
-			}
+			};
 			return this.addSchemaHandle(combinedSchemaId, combinedSchema);
 		}
 	}

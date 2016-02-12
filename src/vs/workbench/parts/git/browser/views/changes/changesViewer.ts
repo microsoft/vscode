@@ -7,7 +7,6 @@
 import winjs = require('vs/base/common/winjs.base');
 import nls = require('vs/nls');
 import platform = require('vs/base/common/platform');
-import errors = require('vs/base/common/errors');
 import paths = require('vs/base/common/paths');
 import severity from 'vs/base/common/severity';
 import lifecycle = require('vs/base/common/lifecycle');
@@ -22,7 +21,7 @@ import tree = require('vs/base/parts/tree/browser/tree');
 import treednd = require('vs/base/parts/tree/browser/treeDnd');
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import actionsrenderer = require('vs/base/parts/tree/browser/actionsRenderer');
-import git = require('vs/workbench/parts/git/common/git');
+import * as git from 'vs/workbench/parts/git/common/git';
 import gitmodel = require('vs/workbench/parts/git/common/gitModel');
 import gitactions = require('vs/workbench/parts/git/browser/gitActions');
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -32,7 +31,7 @@ import { CommonKeybindings } from 'vs/base/common/keyCodes';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
 
-import IGitService = git.IGitService
+import IGitService = git.IGitService;
 
 function toReadablePath(path: string): string {
 	if (!platform.isWindows) {
@@ -354,7 +353,7 @@ export class Renderer implements tree.IRenderer {
 			data.renameFolder.textContent = folder;
 
 			const resource = URI.file(paths.normalize(paths.join(repositoryRoot, renamePath)));
-			isInWorkspace = paths.isEqualOrParent(resource.fsPath, workspaceRoot)
+			isInWorkspace = paths.isEqualOrParent(resource.fsPath, workspaceRoot);
 		}
 
 		if (isInWorkspace) {

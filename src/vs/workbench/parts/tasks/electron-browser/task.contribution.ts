@@ -25,7 +25,7 @@ import * as Types from 'vs/base/common/types';
 import * as Strings from 'vs/base/common/strings';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { match } from 'vs/base/common/glob';
-import { setTimeout } from 'vs/base/common/platform'
+import { setTimeout } from 'vs/base/common/platform';
 import { Executable, TerminateResponse, resolveExecutable } from 'vs/base/common/processes';
 import { ISystemVariables, AbstractSystemVariables } from 'vs/base/common/parsers';
 
@@ -667,7 +667,7 @@ class TaskService extends EventEmitter implements ITaskService {
 									// We need to give the child process a change to stop.
 									setTimeout(() => {
 										this.executeTarget(fn);
-									}, 2000)
+									}, 2000);
 								});
 							}
 						});

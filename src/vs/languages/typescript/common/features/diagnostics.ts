@@ -89,7 +89,7 @@ _categorySeverity[ts.DiagnosticCategory.Message] = Severity.Info;
 
 export function createDiagnosticClassifier(options: Options): DiagnosticClassifier {
 	var map: { [code: number]: Severity } = Object.create(null);
-	map[2403] = Severity.fromValue(options.validate.lint.redeclaredVariables)
+	map[2403] = Severity.fromValue(options.validate.lint.redeclaredVariables);
 	map[2403] = Severity.fromValue(options.validate.lint.redeclaredVariables);
 	map[2304] = Severity.fromValue(options.validate.lint.undeclaredVariables);
 	map[2339] = Severity.fromValue(options.validate.lint.unknownProperty);

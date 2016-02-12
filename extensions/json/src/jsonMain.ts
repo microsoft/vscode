@@ -37,7 +37,7 @@ export function activate(context: ExtensionContext) {
 	let serverOptions: ServerOptions = {
 		run: { module: serverModule, transport: TransportKind.ipc },
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
-	}
+	};
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
@@ -48,7 +48,7 @@ export function activate(context: ExtensionContext) {
 			configurationSection: ['json.schemas', 'http.proxy', 'http.proxyStrictSSL'],
 			fileEvents: workspace.createFileSystemWatcher('**/.json')
 		}
-	}
+	};
 
 	// Create the language client and start the client.
 	let client = new LanguageClient('JSON Server', serverOptions, clientOptions);
@@ -62,7 +62,7 @@ export function activate(context: ExtensionContext) {
 		return workspace.openTextDocument(uri).then(doc => {
 			return doc.getText();
 		}, error => {
-			return Promise.reject(error)
+			return Promise.reject(error);
 		});
 	});
 

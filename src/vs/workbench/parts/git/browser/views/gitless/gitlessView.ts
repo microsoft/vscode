@@ -7,7 +7,6 @@
 
 import 'vs/css!./gitlessView';
 import nls = require('vs/nls');
-import git = require('vs/workbench/parts/git/common/git');
 import platform = require('vs/base/common/platform');
 import winjs = require('vs/base/common/winjs.base');
 import ee = require('vs/base/common/eventEmitter');

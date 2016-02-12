@@ -33,7 +33,7 @@ function rename(project: projectService.IProject, resource: URI, position: Edito
 
 	result.edits = project.languageService.findRenameLocations(filename, offset, false, false)
 		.filter(location => {
-			return !typescript.isDefaultLib(location.fileName)
+			return !typescript.isDefaultLib(location.fileName);
 		})
 		.map(location => {
 			return {
