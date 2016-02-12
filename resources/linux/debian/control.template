@@ -1,0 +1,10 @@
+Package: visual-studio-code
+Version: @@VERSION@@
+Section: devel
+Priority: optional
+Architecture: @@ARCHITECTURE@@
+Maintainer: Microsoft Corporation <vscode-linux@microsoft.com>
+Homepage: https://github.com/Microsoft/vscode
+Installed-Size: @@INSTALLEDSIZE@@
+Description: Code Editing. Redefined.
+ Build and debug modern web and cloud applications.
