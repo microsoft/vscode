@@ -5,7 +5,6 @@
 
 'use strict';
 
-import events = require('vs/base/common/eventEmitter');
 import { connect } from 'vs/base/node/service.net';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as fs from 'fs';
@@ -19,10 +18,6 @@ export class GitAskpassServiceStub {
 	public askpass(id: string, host: string, command: string): TPromise<ICredentials> {
 		throw new Error('not implemented');
 	}
-}
-
-function generateId(): string {
-	return Math.floor(Math.random()*Math.pow(10,10)).toString(16);
 }
 
 function fatal(err: any): void {

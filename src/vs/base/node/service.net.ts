@@ -96,7 +96,7 @@ export class Client implements IDisposable, IClient {
 
 	private ipcClient: IPCClient;
 	private _onClose = new Emitter<void>();
-	get onClose() { return this._onClose.event; }
+	get onClose(): Event<void> { return this._onClose.event; }
 
 	constructor(private socket: net.Socket) {
 		this.ipcClient = new IPCClient(new Protocol(socket));

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Url, parse as parseUrl } from 'url';
+import { parse as parseUrl } from 'url';
 import { getProxyAgent } from './proxy';
 import https = require('https');
 import http = require('http');

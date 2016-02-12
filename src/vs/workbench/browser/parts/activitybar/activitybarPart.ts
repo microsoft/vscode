@@ -154,39 +154,39 @@ export class ActivitybarPart extends Part implements IActivityService {
 		this.viewletSwitcherBar.push(viewletActions, { label: true, icon: true });
 	}
 
-	private createGlobalToolBarArea(div: Builder): void {
+	// private createGlobalToolBarArea(div: Builder): void {
 
-		// Global action bar is on the bottom
-		this.globalToolBar = new ToolBar(div.getHTMLElement(), this.contextMenuService, {
-			actionItemProvider: (action: Action) => this.activityActionItems[action.id],
-			orientation: ActionsOrientation.VERTICAL
-		});
-		this.globalToolBar.getContainer().addClass('global');
+	// 	// Global action bar is on the bottom
+	// 	this.globalToolBar = new ToolBar(div.getHTMLElement(), this.contextMenuService, {
+	// 		actionItemProvider: (action: Action) => this.activityActionItems[action.id],
+	// 		orientation: ActionsOrientation.VERTICAL
+	// 	});
+	// 	this.globalToolBar.getContainer().addClass('global');
 
-		this.globalToolBar.actionRunner.addListener(events.EventType.RUN, (e: any) => {
+	// 	this.globalToolBar.actionRunner.addListener(events.EventType.RUN, (e: any) => {
 
-			// Check for Error
-			if (e.error && !errors.isPromiseCanceledError(e.error)) {
-				this.messageService.show(Severity.Error, e.error);
-			}
+	// 		// Check for Error
+	// 		if (e.error && !errors.isPromiseCanceledError(e.error)) {
+	// 			this.messageService.show(Severity.Error, e.error);
+	// 		}
 
-			// Log in telemetry
-			if (this.telemetryService) {
-				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'activityBar' });
-			}
-		});
+	// 		// Log in telemetry
+	// 		if (this.telemetryService) {
+	// 			this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'activityBar' });
+	// 		}
+	// 	});
 
-		// Build Global Actions in correct order
-		let primaryActions = this.getGlobalActions(true);
-		let secondaryActions = this.getGlobalActions(false);
+	// 	// Build Global Actions in correct order
+	// 	let primaryActions = this.getGlobalActions(true);
+	// 	let secondaryActions = this.getGlobalActions(false);
 
-		if (primaryActions.length + secondaryActions.length > 0) {
-			this.globalToolBar.getContainer().addClass('position-bottom');
-		}
+	// 	if (primaryActions.length + secondaryActions.length > 0) {
+	// 		this.globalToolBar.getContainer().addClass('position-bottom');
+	// 	}
 
-		// Add to global action bar
-		this.globalToolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions))();
-	}
+	// 	// Add to global action bar
+	// 	this.globalToolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions))();
+	// }
 
 	private getGlobalActions(primary: boolean): IAction[] {
 		let actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);

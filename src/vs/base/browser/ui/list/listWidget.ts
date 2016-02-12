@@ -22,8 +22,6 @@ interface ITraitChangeEvent {
 
 class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData<D>>
 {
-	private elements: { [id: string]: T };
-
 	constructor(
 		private controller: Trait,
 		private renderer: IRenderer<T,D>
@@ -215,14 +213,14 @@ export class List<T> implements IDisposable {
 	}
 
 	selectNext(n = 1, loop = false): void {
-		if (this.length === 0) return;
+		if (this.length === 0) { return; }
 		const selection = this.selection.get();
 		let index = selection.length > 0 ? selection[0] + n : 0;
 		this.setSelection(loop ? index % this.length : Math.min(index, this.length - 1));
 	}
 
 	selectPrevious(n = 1, loop = false): void {
-		if (this.length === 0) return;
+		if (this.length === 0) { return; }
 		const selection = this.selection.get();
 		let index = selection.length > 0 ? selection[0] - n : 0;
 		if (loop && index < 0) index = this.length + (index % this.length);
@@ -235,17 +233,17 @@ export class List<T> implements IDisposable {
 	}
 
 	focusNext(n = 1, loop = false): void {
-		if (this.length === 0) return;
+		if (this.length === 0) { return; }
 		const focus = this.focus.get();
 		let index = focus.length > 0 ? focus[0] + n : 0;
 		this.setFocus(loop ? index % this.length : Math.min(index, this.length - 1));
 	}
 
 	focusPrevious(n = 1, loop = false): void {
-		if (this.length === 0) return;
+		if (this.length === 0) { return; }
 		const focus = this.focus.get();
 		let index = focus.length > 0 ? focus[0] - n : 0;
-		if (loop && index < 0) index = (this.length + (index % this.length)) % this.length;
+		if (loop && index < 0) { index = (this.length + (index % this.length)) % this.length; }
 		this.setFocus(Math.max(index, 0));
 	}
 

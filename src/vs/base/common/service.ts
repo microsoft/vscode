@@ -8,7 +8,7 @@
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
 import { IDisposable, fnToDisposable }  from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 
 enum RequestType {
 	Common,
