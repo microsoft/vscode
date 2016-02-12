@@ -379,35 +379,45 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 	}
 
 
-	public unfold(lineNumber: number, all: boolean): void {
+	public unfold(lineNumber: number): void {
 		let surrounding = this.findRegions(lineNumber, true);
 		if (surrounding.length > 0) {
 			this.editor.changeDecorations(changeAccessor => {
-				for (let i = 0; i < surrounding.length; i++) {
-					surrounding[i].setCollapsed(false, changeAccessor);
-					if (!all) {
-						return;
-					}
-				}
+				surrounding[0].setCollapsed(false, changeAccessor);
 			});
 			this.updateHiddenAreas();
 		}
 	}
 
-	public fold(lineNumber: number, all: boolean): void {
+	public fold(lineNumber: number): void {
 		let surrounding = this.findRegions(lineNumber, false);
 		if (surrounding.length > 0) {
 			this.editor.changeDecorations(changeAccessor => {
-				for (let i = surrounding.length - 1; i >= 0; i--) {
-					surrounding[i].setCollapsed(true, changeAccessor);
-					if (!all) {
-						return;
-					}
-				}
+				surrounding[surrounding.length - 1].setCollapsed(true, changeAccessor);
 			});
 			this.updateHiddenAreas();
 		}
 	}
+
+
+	public changeAll(collapse: boolean): void {
+		if (this.decorations.length > 0) {
+			let hasChanges = true;
+			this.editor.changeDecorations(changeAccessor => {
+				this.decorations.forEach(d => {
+					if (collapse !== d.isCollapsed) {
+						d.setCollapsed(collapse, changeAccessor);
+						hasChanges = true;
+					}
+				});
+			});
+			if (hasChanges) {
+				this.updateHiddenAreas();
+			}
+		}
+	}
+
+
 }
 
 abstract class FoldingAction extends EditorAction {
@@ -432,7 +442,7 @@ class UnfoldAction extends FoldingAction {
 	public static ID = 'editor.fold';
 
 	invoke(foldingController: FoldingController, lineNumber: number): void {
-		foldingController.unfold(lineNumber, false);
+		foldingController.unfold(lineNumber);
 	}
 }
 
@@ -440,7 +450,7 @@ class FoldAction extends FoldingAction {
 	public static ID = 'editor.unfold';
 
 	invoke(foldingController: FoldingController, lineNumber: number): void {
-		foldingController.fold(lineNumber, false);
+		foldingController.fold(lineNumber);
 	}
 }
 
@@ -448,7 +458,7 @@ class FoldAllAction extends FoldingAction {
 	public static ID = 'editor.foldAll';
 
 	invoke(foldingController: FoldingController, lineNumber: number): void {
-		foldingController.unfold(lineNumber, true);
+		foldingController.changeAll(true);
 	}
 }
 
@@ -456,7 +466,7 @@ class UnfoldAllAction extends FoldingAction {
 	public static ID = 'editor.unfoldAll';
 
 	invoke(foldingController: FoldingController, lineNumber: number): void {
-		foldingController.fold(lineNumber, true);
+		foldingController.changeAll(false);
 	}
 }
 
@@ -464,11 +474,11 @@ EditorBrowserRegistry.registerEditorContribution(FoldingController);
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(UnfoldAction, UnfoldAction.ID, nls.localize('unfoldAction.label', "Unfold"), {
 	context: ContextKey.EditorFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_CLOSE_SQUARE_BRACKET
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET
 }));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldAction, FoldAction.ID, nls.localize('foldAction.label', "Fold"), {
 	context: ContextKey.EditorFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_OPEN_SQUARE_BRACKET
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET
 }));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(UnfoldAllAction, UnfoldAllAction.ID, nls.localize('foldAllAction.label', "Fold All"), {
 	context: ContextKey.EditorFocus,
