@@ -54,7 +54,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			this.layoutTree();
 		});
 
-		this.valueContainer = dom.append(this.domNode, $('.debug-hover-value'));
+		this.valueContainer = dom.append(this.domNode, $('.value'));
 
 		this.isVisible = false;
 		this.showAtPosition = null;

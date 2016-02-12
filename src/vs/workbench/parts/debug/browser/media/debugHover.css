@@ -66,6 +66,7 @@
 }
 
 .monaco-editor .debug-hover-widget .value {
+	word-wrap: break-word;
 	color: rgba(108, 108, 108, 0.8);
 }
 
