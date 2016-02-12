@@ -252,7 +252,7 @@ function packageTask(platform, arch, opts) {
 
 			result = es.merge(result, gulp.src('resources/win32/bin/**', { base: 'resources/win32' }))
 				.pipe(shortcutFilter)
-				.pipe(rename(function (f) { f.basename = product.win32ShortcutName; }))
+				.pipe(rename(function (f) { f.basename = product.applicationName; }))
 				.pipe(shortcutFilter.restore);
 		}
 
