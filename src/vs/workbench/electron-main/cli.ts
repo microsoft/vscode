@@ -45,7 +45,7 @@ export function main(argv: string[]) {
 	} else if (argParser.hasFlag('version', 'v')) {
 		console.log(packageJson.version);
 	} else {
-		delete process.env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
+		delete process.env['ELECTRON_RUN_AS_NODE'];
 		spawn(process.env['VSCODE_PATH'], process.argv.slice(2), { detached: true, stdio: 'ignore' });
 	}
 
