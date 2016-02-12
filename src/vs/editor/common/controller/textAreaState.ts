@@ -61,11 +61,16 @@ export enum TextAreaStrategy {
 	NVDA
 }
 
+const USE_NVDA_FULL_TEXT = false;
+
 export function createTextAreaState(strategy:TextAreaStrategy): TextAreaState {
 	if (strategy === TextAreaStrategy.IENarrator) {
 		return IENarratorTextAreaState.EMPTY;
 	}
-	return NVDATextAreaState.EMPTY;
+	if (USE_NVDA_FULL_TEXT) {
+		return NVDAFullTextAreaState.EMPTY;
+	}
+	return NVDAPagedTextAreaState.EMPTY;
 }
 
 export abstract class TextAreaState {
@@ -221,7 +226,10 @@ export class IENarratorTextAreaState extends TextAreaState {
 		if (strategy === TextAreaStrategy.IENarrator) {
 			return this;
 		}
-		return new NVDATextAreaState(this.previousState, this.value, this.selectionStart, this.selectionEnd, this.isInOverwriteMode);
+		if (USE_NVDA_FULL_TEXT) {
+			return new NVDAFullTextAreaState(this.previousState, this.value, this.selectionStart, this.selectionEnd, this.isInOverwriteMode);
+		}
+		return new NVDAPagedTextAreaState(this.previousState, this.value, this.selectionStart, this.selectionEnd, this.isInOverwriteMode);
 	}
 
 	public equals(other:TextAreaState): boolean {
@@ -299,19 +307,116 @@ export class IENarratorTextAreaState extends TextAreaState {
 	}
 }
 
-export class NVDATextAreaState extends TextAreaState {
-	public static EMPTY = new NVDATextAreaState(null, '', 0, 0, false);
+export class NVDAPagedTextAreaState extends TextAreaState {
+	public static EMPTY = new NVDAPagedTextAreaState(null, '', 0, 0, false);
+	private static _LINES_PER_PAGE = 10;
 
 	constructor(previousState:TextAreaState, value:string, selectionStart:number, selectionEnd:number, isInOverwriteMode:boolean) {
 		super(previousState, value, selectionStart, selectionEnd, isInOverwriteMode);
 	}
 
 	protected shallowClone(): TextAreaState {
-		return new NVDATextAreaState(null, this.value, this.selectionStart, this.selectionEnd, this.isInOverwriteMode);
+		return new NVDAPagedTextAreaState(null, this.value, this.selectionStart, this.selectionEnd, this.isInOverwriteMode);
 	}
 
 	public toEmpty(): TextAreaState {
-		return NVDATextAreaState.EMPTY;
+		return NVDAPagedTextAreaState.EMPTY;
+	}
+
+	public toString(): string {
+		return '[ <' + this.value + '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ', isInOverwriteMode: ' + this.isInOverwriteMode + ']';
+	}
+
+	public toStrategy(strategy:TextAreaStrategy): TextAreaState {
+		if (strategy === TextAreaStrategy.NVDA) {
+			return this;
+		}
+		return new IENarratorTextAreaState(this.previousState, this.value, this.selectionStart, this.selectionEnd, this.isInOverwriteMode, 0);
+	}
+
+	public equals(other:TextAreaState): boolean {
+		if (other instanceof NVDAPagedTextAreaState) {
+			return (
+				this.value === other.value
+				&& this.selectionStart === other.selectionStart
+				&& this.selectionEnd === other.selectionEnd
+				&& this.isInOverwriteMode === other.isInOverwriteMode
+			);
+		}
+		return false;
+	}
+
+	public fromTextArea(textArea:ITextAreaWrapper): TextAreaState {
+		return new NVDAPagedTextAreaState(this, textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd(), textArea.isInOverwriteMode());
+	}
+
+	private static _getPageOfLine(lineNumber:number): number {
+		return Math.floor((lineNumber - 1) / NVDAPagedTextAreaState._LINES_PER_PAGE);
+	}
+
+	private static _getRangeForPage(page:number): Range {
+		let offset = page * NVDAPagedTextAreaState._LINES_PER_PAGE;
+		let startLineNumber = offset + 1;
+		let endLineNumber = offset + NVDAPagedTextAreaState._LINES_PER_PAGE;
+		return new Range(startLineNumber, 1, endLineNumber, Number.MAX_VALUE);
+	}
+
+	public fromEditorSelection(model:ISimpleModel, selection:EditorCommon.IEditorRange): TextAreaState {
+
+		let selectionStartPage = NVDAPagedTextAreaState._getPageOfLine(selection.startLineNumber);
+		let selectionStartPageRange = NVDAPagedTextAreaState._getRangeForPage(selectionStartPage);
+
+		let selectionEndPage = NVDAPagedTextAreaState._getPageOfLine(selection.endLineNumber);
+		let selectionEndPageRange = NVDAPagedTextAreaState._getRangeForPage(selectionEndPage);
+
+		let pretextRange = selectionStartPageRange.intersectRanges(new Range(1, 1, selection.startLineNumber, selection.startColumn));
+		let pretext = model.getValueInRange(pretextRange, EditorCommon.EndOfLinePreference.LF);
+
+		let lastLine = model.getLineCount();
+		let lastLineMaxColumn = model.getLineMaxColumn(lastLine);
+		let posttextRange = selectionEndPageRange.intersectRanges(new Range(selection.endLineNumber, selection.endColumn, lastLine, lastLineMaxColumn));
+		let posttext = model.getValueInRange(posttextRange, EditorCommon.EndOfLinePreference.LF);
+
+		let text:string = null;
+		if (selectionStartPage <= selectionEndPage) {
+			// take full selection
+			text = model.getValueInRange(selection, EditorCommon.EndOfLinePreference.LF);
+		} else {
+			let selectionRange1 = selectionStartPageRange.intersectRanges(selection);
+			let selectionRange2 = selectionEndPageRange.intersectRanges(selection);
+			text = (
+				model.getValueInRange(selectionRange1, EditorCommon.EndOfLinePreference.LF)
+				+ String.fromCharCode(8230)
+				+ model.getValueInRange(selectionRange2, EditorCommon.EndOfLinePreference.LF)
+			);
+		}
+
+		return new NVDAPagedTextAreaState(this, pretext + text + posttext, pretext.length, pretext.length + text.length, false);
+	}
+
+	public fromText(text:string): TextAreaState {
+		return new NVDAPagedTextAreaState(this, text, 0, text.length, false);
+	}
+
+	public resetSelection(): TextAreaState {
+		return new NVDAPagedTextAreaState(this.previousState, this.value, this.value.length, this.value.length, this.isInOverwriteMode);
+	}
+}
+
+
+export class NVDAFullTextAreaState extends TextAreaState {
+	public static EMPTY = new NVDAFullTextAreaState(null, '', 0, 0, false);
+
+	constructor(previousState:TextAreaState, value:string, selectionStart:number, selectionEnd:number, isInOverwriteMode:boolean) {
+		super(previousState, value, selectionStart, selectionEnd, isInOverwriteMode);
+	}
+
+	protected shallowClone(): TextAreaState {
+		return new NVDAFullTextAreaState(null, this.value, this.selectionStart, this.selectionEnd, this.isInOverwriteMode);
+	}
+
+	public toEmpty(): TextAreaState {
+		return NVDAFullTextAreaState.EMPTY;
 	}
 
 	public toString(): string {
@@ -326,7 +431,7 @@ export class NVDATextAreaState extends TextAreaState {
 	}
 
 	public equals(other:TextAreaState): boolean {
-		if (other instanceof NVDATextAreaState) {
+		if (other instanceof NVDAFullTextAreaState) {
 			return (
 				this.value === other.value
 				&& this.selectionStart === other.selectionStart
@@ -338,7 +443,7 @@ export class NVDATextAreaState extends TextAreaState {
 	}
 
 	public fromTextArea(textArea:ITextAreaWrapper): TextAreaState {
-		return new NVDATextAreaState(this, textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd(), textArea.isInOverwriteMode());
+		return new NVDAFullTextAreaState(this, textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd(), textArea.isInOverwriteMode());
 	}
 
 	public fromEditorSelection(model:ISimpleModel, selection:EditorCommon.IEditorRange): TextAreaState {
@@ -348,14 +453,14 @@ export class NVDATextAreaState extends TextAreaState {
 		let lastLineMaxColumn = model.getLineMaxColumn(lastLine);
 		let posttext = model.getValueInRange(new Range(selection.endLineNumber, selection.endColumn, lastLine, lastLineMaxColumn), EditorCommon.EndOfLinePreference.LF);
 
-		return new NVDATextAreaState(this, pretext + text + posttext, pretext.length, pretext.length + text.length, false);
+		return new NVDAFullTextAreaState(this, pretext + text + posttext, pretext.length, pretext.length + text.length, false);
 	}
 
 	public fromText(text:string): TextAreaState {
-		return new NVDATextAreaState(this, text, 0, text.length, false);
+		return new NVDAFullTextAreaState(this, text, 0, text.length, false);
 	}
 
 	public resetSelection(): TextAreaState {
-		return new NVDATextAreaState(this.previousState, this.value, this.value.length, this.value.length, this.isInOverwriteMode);
+		return new NVDAFullTextAreaState(this.previousState, this.value, this.value.length, this.value.length, this.isInOverwriteMode);
 	}
 }
