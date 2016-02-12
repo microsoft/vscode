@@ -149,6 +149,8 @@ declare module DebugProtocol {
 	export interface InitializeRequestArguments {
 		/** The ID of the debugger adapter. Used to select or verify debugger adapter. */
 		adapterID: string;
+		/** The locale to use for all user visible information returned by this debug adapter. If no locale is specified, the default locale of the OS will be used. */
+		locale?: string;
 		/** If true all line numbers are 1-based (default). */
 		linesStartAt1?: boolean;
 		/** If true all column numbers are 1-based (default). */
