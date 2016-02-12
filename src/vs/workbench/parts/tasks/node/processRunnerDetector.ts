@@ -171,7 +171,7 @@ export class ProcessRunnerDetector {
 							return value;
 						}
 						return { config: null, stderr: this.stderr };
-					})
+					});
 				});
 			});
 		}
