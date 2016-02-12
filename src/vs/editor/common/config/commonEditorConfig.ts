@@ -212,7 +212,7 @@ class InternalEditorOptionsHelper {
 		let lineNumbersMinChars = toInteger(opts.lineNumbersMinChars, 1);
 		let lineDecorationsWidth = toInteger(opts.lineDecorationsWidth, 0);
 		if (opts.folding) {
-			lineDecorationsWidth += 16;
+			lineDecorationsWidth += (opts.fontSize || 16);
 		}
 		let layoutInfo = EditorLayoutProvider.compute({
 			outerWidth: outerWidth,
