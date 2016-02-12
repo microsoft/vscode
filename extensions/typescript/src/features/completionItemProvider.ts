@@ -124,6 +124,89 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		});
 	}
 
+	/**
+	 * This method extract parameters and functions for completion
+	 * Mode: lambda will generate lambda expression for functions as parameter and
+	 * anything else will keep place holder for function name.
+	 * isNested: will keep track of nested functions in parameter
+	 */
+	private templateProvider(displayParts: any, mode = "lambda", isNested = false) {
+		let result = '';
+		while (displayParts.length > 0) {
+			let nextItem = displayParts.length > 1 ? displayParts[1].text : '';
+			if (nextItem === '(') {
+				let currentFunctionName = displayParts[0].text;
+
+				//drop function name and parentheses
+				displayParts = displayParts.slice(2);
+
+				let openParentheses = 1;
+				let innerParameters = [];
+				while (openParentheses !== 0) {
+					if (displayParts[0].text === '(') {
+						openParentheses++;
+					}
+					else if (displayParts[0].text === ')') {
+						openParentheses--;
+					}
+					else {
+						innerParameters.push(displayParts.shift());
+					}
+					if (openParentheses === 0) {
+						//drop close parenthesis
+						displayParts.shift();
+
+						if (mode === 'lambda') {
+							result += this.generateLambdaTemplate(innerParameters)
+						} else {
+							result += `{{${currentFunctionName}}}`;
+						}
+						result += displayParts.length > 0 ? ', ' : '';
+					}
+				}
+			} else {
+				result += isNested ? displayParts.shift().text.substr(0, 3) : `{{${displayParts.shift().text}}}`;
+				result += displayParts.length > 0 ? ', ' : '';
+
+			}
+		}
+		return `(${result})`;
+
+	}
+
+
+	private generateLambdaTemplate(args) {
+		let result = '';
+		result += args.length === 0 ? '()' : '';
+		result += args.length === 1 ? args[0].text.substr(0, 3) : '';
+		result += this.templateProvider(args, "lambda", true);
+		result += ` => {\n\t\t{{}}\n\t}`;
+		return result;
+	}
+
+	/**
+	 * Filter everythings except parameterName and parenthesis
+	 */
+	private extractArguments(displayParts: any) {
+
+		let reachedFirstParameter = false;
+		let args = displayParts
+			.filter(part=> {
+				if (!reachedFirstParameter)
+					reachedFirstParameter = part.kind === 'parameterName'
+				return reachedFirstParameter
+			})
+			.filter(part=>
+				part.kind === 'parameterName' ||
+				/(\(|\))+/ig.test(part.text)
+			)
+		//drop method close parenthesis
+		args.pop();
+
+		return args;
+	}
+
+
 	public resolveCompletionItem(item: CompletionItem, token: CancellationToken): any | Thenable<any> {
 		if (item instanceof MyCompletionItem) {
 
@@ -142,19 +225,12 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 					item.detail = Previewer.plain(detail.displayParts);
 				}
 
-				if (detail && this.config.useCodeSnippetsOnMethodSuggest && item.kind === CompletionItemKind.Function) {
+				if (detail && ( this.config.useCodeSnippetsOnMethodSuggest === "lambda" ||  this.config.useCodeSnippetsOnMethodSuggest === "func" )  && item.kind === CompletionItemKind.Function) {
 					let codeSnippet = detail.name;
-					let suggestionArgumentNames: string[];
 
-					suggestionArgumentNames = detail.displayParts
-						.filter(part => part.kind === 'parameterName')
-						.map(part => `{{${part.text}}}`);
+					let args = this.extractArguments(detail.displayParts);
 
-					if (suggestionArgumentNames.length > 0) {
-						codeSnippet += '(' + suggestionArgumentNames.join(', ') + '){{}}';
-					} else {
-						codeSnippet += '()';
-					}
+					codeSnippet += this.templateProvider(args, this.config.useCodeSnippetsOnMethodSuggest)
 
 					item.insertText = codeSnippet;
 				}

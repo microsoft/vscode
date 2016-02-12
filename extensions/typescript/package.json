@@ -59,8 +59,13 @@
 			"title": "TypeScript configuration",
 			"properties": {
 				"typescript.useCodeSnippetsOnMethodSuggest": {
-					"type": "boolean",
-					"default": false,
+					"type": "string",
+					"enum": [
+						"lambda",
+						"func",
+						"none"
+					],
+					"default": "lambda",
 					"description": "Complete functions with their parameter signature."
 				},
 				"typescript.tsdk": {
