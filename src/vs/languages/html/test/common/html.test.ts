@@ -17,6 +17,7 @@ import {getTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE,
 import {getRawEnterActionAtPosition} from 'vs/editor/common/modes/supports/onEnter';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
 import {TextModel} from 'vs/editor/common/model/textModel';
+import {Range} from 'vs/editor/common/core/range';
 
 suite('Colorizing - HTML', () => {
 
@@ -653,5 +654,51 @@ suite('Colorizing - HTML', () => {
 		assertOnEnter('<span> </span>', 6, Modes.IndentAction.Indent);
 		assertOnEnter('<span> </span>', 7, Modes.IndentAction.IndentOutdent);
 	});
-});
 
+	test('matchBracket', () => {
+
+		function toString(brackets:EditorCommon.IEditorRange[]): string[] {
+			if (!brackets) {
+				return null;
+			}
+			brackets.sort(Range.compareRangesUsingStarts);
+			return brackets.map(b => b.toString());
+		}
+
+		function assertBracket(lines:string[], lineNumber:number, column:number, expected:EditorCommon.IEditorRange[]): void {
+			let model = new TextModelWithTokens([], TextModel.toRawText(lines.join('\n')), false, _mode);
+			// force tokenization
+			model.getLineContext(model.getLineCount());
+			let actual = model.matchBracket({
+				lineNumber: lineNumber,
+				column: column
+			});
+			let actualStr = actual ? toString(actual.brackets) : null;
+			let expectedStr = toString(expected);
+			assert.deepEqual(actualStr, expectedStr, 'TEXT <<' + lines.join('\n') + '>>, POS: ' + lineNumber + ', ' + column);
+		}
+
+		assertBracket(['<p></p>'], 1, 1, [new Range(1, 1, 1, 2), new Range(1, 3, 1, 4)]);
+		assertBracket(['<p></p>'], 1, 2, [new Range(1, 1, 1, 2), new Range(1, 3, 1, 4)]);
+		assertBracket(['<p></p>'], 1, 3, [new Range(1, 1, 1, 2), new Range(1, 3, 1, 4)]);
+		assertBracket(['<p></p>'], 1, 4, [new Range(1, 1, 1, 2), new Range(1, 3, 1, 4)]);
+		assertBracket(['<p></p>'], 1, 5, [new Range(1, 4, 1, 5), new Range(1, 7, 1, 8)]);
+		assertBracket(['<p></p>'], 1, 6, null);
+		assertBracket(['<p></p>'], 1, 7, [new Range(1, 4, 1, 5), new Range(1, 7, 1, 8)]);
+		assertBracket(['<p></p>'], 1, 8, [new Range(1, 4, 1, 5), new Range(1, 7, 1, 8)]);
+
+		assertBracket(['<script>a[a</script>a[a<script>a]a'], 1, 10, [new Range(1, 10, 1, 11), new Range(1, 33, 1, 34)]);
+		assertBracket(['<script>a[a</script>a[a<script>a]a'], 1, 11, [new Range(1, 10, 1, 11), new Range(1, 33, 1, 34)]);
+		assertBracket(['<script>a[a</script>a[a<script>a]a'], 1, 22, null);
+		assertBracket(['<script>a[a</script>a[a<script>a]a'], 1, 23, null);
+		assertBracket(['<script>a[a</script>a[a<script>a]a'], 1, 33, [new Range(1, 10, 1, 11), new Range(1, 33, 1, 34)]);
+		assertBracket(['<script>a[a</script>a[a<script>a]a'], 1, 34, [new Range(1, 10, 1, 11), new Range(1, 33, 1, 34)]);
+
+		assertBracket(['<script>a[a</script>a]a<script>a]a'], 1, 10, [new Range(1, 10, 1, 11), new Range(1, 33, 1, 34)]);
+		assertBracket(['<script>a[a</script>a]a<script>a]a'], 1, 11, [new Range(1, 10, 1, 11), new Range(1, 33, 1, 34)]);
+		assertBracket(['<script>a[a</script>a]a<script>a]a'], 1, 22, null);
+		assertBracket(['<script>a[a</script>a]a<script>a]a'], 1, 23, null);
+		assertBracket(['<script>a[a</script>a]a<script>a]a'], 1, 33, [new Range(1, 10, 1, 11), new Range(1, 33, 1, 34)]);
+		assertBracket(['<script>a[a</script>a]a<script>a]a'], 1, 34, [new Range(1, 10, 1, 11), new Range(1, 33, 1, 34)]);
+	});
+});

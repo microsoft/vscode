@@ -998,9 +998,8 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 	private _findMatchingBracketUp(bracket:EditorCommon.IRichEditBracket, position:EditorCommon.IEditorPosition): Range {
 		// console.log('_findMatchingBracketUp: ', 'bracket: ', JSON.stringify(bracket), 'startPosition: ', String(position));
 
-
+		let modeId = bracket.modeId;
 		let tokensMap = this._tokensInflatorMap;
-		// TODO@Alex: account for mode transitions
 		let reversedBracketRegex = bracket.reversedRegex;
 		let count = -1;
 
@@ -1008,12 +1007,20 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 			let lineTokens = this._lines[lineNumber - 1].getTokens();
 			let lineText = this._lines[lineNumber - 1].text;
 			let tokens = lineTokens.getBinaryEncodedTokens();
+			let modeTransitions = this._lines[lineNumber - 1].getModeTransitions().toArray(this._mode);
+			let currentModeIndex = modeTransitions.length - 1;
+			let currentModeStart = modeTransitions[currentModeIndex].startIndex;
+			let currentModeId = modeTransitions[currentModeIndex].mode.getId();
 
 			let tokensLength = tokens.length - 1;
 			let currentTokenEnd = lineText.length;
 			if (lineNumber === position.lineNumber) {
 				tokensLength = lineTokens.findIndexOfOffset(position.column - 1);
 				currentTokenEnd = position.column - 1;
+
+				currentModeIndex = Arrays.findIndexInSegmentsArray(modeTransitions, position.column - 1);
+				currentModeStart = modeTransitions[currentModeIndex].startIndex;
+				currentModeId = modeTransitions[currentModeIndex].mode.getId();
 			}
 
 			for (let tokenIndex = tokensLength; tokenIndex >= 0; tokenIndex--) {
@@ -1021,7 +1028,13 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 				let currentTokenType = getType(tokensMap, currentToken);
 				let currentTokenStart = getStartIndex(currentToken);
 
-				if (!ignoreBracketsInToken(currentTokenType)) {
+				if (currentTokenStart < currentModeStart) {
+					currentModeIndex--;
+					currentModeStart = modeTransitions[currentModeIndex].startIndex;
+					currentModeId = modeTransitions[currentModeIndex].mode.getId();
+				}
+
+				if (currentModeId === modeId && !ignoreBracketsInToken(currentTokenType)) {
 
 					while (true) {
 						let r = BracketsUtils.findPrevBracketInToken(reversedBracketRegex, lineNumber, lineText, currentTokenStart, currentTokenEnd);
@@ -1055,8 +1068,8 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 	private _findMatchingBracketDown(bracket:EditorCommon.IRichEditBracket, position:EditorCommon.IEditorPosition): Range {
 		// console.log('_findMatchingBracketDown: ', 'bracket: ', JSON.stringify(bracket), 'startPosition: ', String(position));
 
+		let modeId = bracket.modeId;
 		let tokensMap = this._tokensInflatorMap;
-		// TODO@Alex: account for mode transitions
 		let bracketRegex = bracket.forwardRegex;
 		let count = 1;
 
@@ -1064,12 +1077,20 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 			let lineTokens = this._lines[lineNumber - 1].getTokens();
 			let lineText = this._lines[lineNumber - 1].text;
 			let tokens = lineTokens.getBinaryEncodedTokens();
+			let modeTransitions = this._lines[lineNumber - 1].getModeTransitions().toArray(this._mode);
+			let currentModeIndex = 0;
+			let nextModeStart = (currentModeIndex + 1 < modeTransitions.length ? modeTransitions[currentModeIndex + 1].startIndex : lineText.length);
+			let currentModeId = modeTransitions[currentModeIndex].mode.getId();
 
 			let startTokenIndex = 0;
 			let currentTokenStart = getStartIndex(startTokenIndex);
 			if (lineNumber === position.lineNumber) {
 				startTokenIndex = lineTokens.findIndexOfOffset(position.column - 1);
 				currentTokenStart = Math.max(currentTokenStart, position.column - 1);
+
+				currentModeIndex = Arrays.findIndexInSegmentsArray(modeTransitions, position.column - 1);
+				nextModeStart = (currentModeIndex + 1 < modeTransitions.length ? modeTransitions[currentModeIndex + 1].startIndex : lineText.length);
+				currentModeId = modeTransitions[currentModeIndex].mode.getId();
 			}
 
 			for (let tokenIndex = startTokenIndex, tokensLength = tokens.length; tokenIndex < tokensLength; tokenIndex++) {
@@ -1077,8 +1098,13 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 				let currentTokenType = getType(tokensMap, currentToken);
 				let currentTokenEnd = tokenIndex + 1 < tokensLength ? getStartIndex(tokens[tokenIndex + 1]) : lineText.length;
 
+				if (currentTokenStart >= nextModeStart) {
+					currentModeIndex++;
+					nextModeStart = (currentModeIndex + 1 < modeTransitions.length ? modeTransitions[currentModeIndex + 1].startIndex : lineText.length);
+					currentModeId = modeTransitions[currentModeIndex].mode.getId();
+				}
 
-				if (!ignoreBracketsInToken(currentTokenType)) {
+				if (currentModeId === modeId && !ignoreBracketsInToken(currentTokenType)) {
 					while (true) {
 						let r = BracketsUtils.findNextBracketInToken(bracketRegex, lineNumber, lineText, currentTokenStart, currentTokenEnd);
 						if (!r) {

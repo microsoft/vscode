@@ -1377,6 +1377,7 @@ export interface ITextModel {
 }
 
 export interface IRichEditBracket {
+	modeId: string;
 	open: string;
 	close: string;
 	forwardRegex: RegExp;

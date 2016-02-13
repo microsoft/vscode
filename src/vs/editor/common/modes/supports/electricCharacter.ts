@@ -84,6 +84,7 @@ export class Brackets {
 		this._modeId = modeId;
 		this._brackets = brackets.map((b) => {
 			return {
+				modeId: modeId,
 				open: b.open,
 				close: b.close,
 				forwardRegex: getRegexForBracketPair({ open: b.open, close: b.close }),
