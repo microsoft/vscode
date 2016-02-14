@@ -10,7 +10,6 @@ import Modes = require('vs/editor/common/modes');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {Arrays} from 'vs/editor/common/core/arrays';
 import Errors = require('vs/base/common/errors');
-import {getBracketFor} from 'vs/editor/common/modes/supports';
 
 export interface ITextSource {
 

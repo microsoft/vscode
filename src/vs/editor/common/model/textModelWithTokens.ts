@@ -1079,7 +1079,7 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 			let tokens = lineTokens.getBinaryEncodedTokens();
 			let modeTransitions = this._lines[lineNumber - 1].getModeTransitions().toArray(this._mode);
 			let currentModeIndex = 0;
-			let nextModeStart = (currentModeIndex + 1 < modeTransitions.length ? modeTransitions[currentModeIndex + 1].startIndex : lineText.length);
+			let nextModeStart = (currentModeIndex + 1 < modeTransitions.length ? modeTransitions[currentModeIndex + 1].startIndex : lineText.length + 1);
 			let currentModeId = modeTransitions[currentModeIndex].mode.getId();
 
 			let startTokenIndex = 0;
@@ -1089,7 +1089,7 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 				currentTokenStart = Math.max(currentTokenStart, position.column - 1);
 
 				currentModeIndex = Arrays.findIndexInSegmentsArray(modeTransitions, position.column - 1);
-				nextModeStart = (currentModeIndex + 1 < modeTransitions.length ? modeTransitions[currentModeIndex + 1].startIndex : lineText.length);
+				nextModeStart = (currentModeIndex + 1 < modeTransitions.length ? modeTransitions[currentModeIndex + 1].startIndex : lineText.length + 1);
 				currentModeId = modeTransitions[currentModeIndex].mode.getId();
 			}
 
@@ -1100,7 +1100,7 @@ export class TextModelWithTokens extends TextModel implements EditorCommon.IToke
 
 				if (currentTokenStart >= nextModeStart) {
 					currentModeIndex++;
-					nextModeStart = (currentModeIndex + 1 < modeTransitions.length ? modeTransitions[currentModeIndex + 1].startIndex : lineText.length);
+					nextModeStart = (currentModeIndex + 1 < modeTransitions.length ? modeTransitions[currentModeIndex + 1].startIndex : lineText.length + 1);
 					currentModeId = modeTransitions[currentModeIndex].mode.getId();
 				}
 
