@@ -77,8 +77,16 @@ sys.path[0] = ''
 # exclude ourselves from being debugged
 vspd.DONT_DEBUG.append(os.path.normcase(__file__))
 
+## Begin modification by Don Jayamanne
+# Get current Process id to pass back to debugger
+currentPid = os.getpid()
+## End Modification by Don Jayamanne
+
 # remove all state we imported
 del sys, os
 
 # and start debugging
-vspd.debug(filename, port_num, debug_id, debug_options, run_as)
+## Begin modification by Don Jayamanne
+# Pass current Process id to pass back to debugger
+vspd.debug(filename, port_num, debug_id, debug_options, currentPid, run_as)
+## End Modification by Don Jayamanne

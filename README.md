@@ -102,9 +102,10 @@ Works on both Windows and Mac.
 ### Version 0.2.5
 * Added support for optionally breaking into python code as soon as debugger starts 
 * Added support for conditional break points
-* Fixed debugging when current thread if busy processing.
-* Added ability to display the shell window (command window in PC and Terminal window in Mac)
-* - Useful in accepting input from applications being debugged.
+* Fixed debugging when current thread is busy processing.
+* Added ability to optionally display the shell window
+* - Allowing an interactive shell window, which isn't supported in VSCode.
+* Updated documentation with samples and instructions
 
 ### Version 0.2.4
 * Fixed issue where debugger would break into all exceptions

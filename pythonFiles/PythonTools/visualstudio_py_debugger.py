@@ -2177,7 +2177,9 @@ def intercept_threads(for_attach = False):
     global _INTERCEPTING_FOR_ATTACH
     _INTERCEPTING_FOR_ATTACH = for_attach
 
-def attach_process(port_num, debug_id, debug_options, report = False, block = False):
+## Modified parameters by Don Jayamanne
+# Accept current Process id to pass back to debugger
+def attach_process(port_num, debug_id, debug_options, currentPid, report = False, block = False):
     global conn
     for i in xrange(50):
         try:
@@ -2185,6 +2187,10 @@ def attach_process(port_num, debug_id, debug_options, report = False, block = Fa
             conn.connect(('127.0.0.1', port_num))
             write_string(conn, debug_id)
             write_int(conn, 0)  # success
+            ## Begin modification by Don Jayamanne
+            # Pass current Process id to pass back to debugger
+            write_int(conn, currentPid)  # success
+            ## End Modification by Don Jayamanne
             break
         except:
             import time
@@ -2460,7 +2466,9 @@ def print_exception(exc_type, exc_value, exc_tb):
 def parse_debug_options(s):
     return set([opt.strip() for opt in s.split(',')])
 
-def debug(file, port_num, debug_id, debug_options, run_as = 'script'):
+## Modified parameters by Don Jayamanne
+# Accept current Process id to pass back to debugger
+def debug(file, port_num, debug_id, debug_options, currentPid, run_as = 'script'):
     # remove us from modules so there's no trace of us
     sys.modules['$visualstudio_py_debugger'] = sys.modules['visualstudio_py_debugger']
     __name__ = '$visualstudio_py_debugger'
@@ -2468,8 +2476,11 @@ def debug(file, port_num, debug_id, debug_options, run_as = 'script'):
 
     wait_on_normal_exit = 'WaitOnNormalExit' in debug_options
 
-    attach_process(port_num, debug_id, debug_options, report = True)
-
+    ## Begin modification by Don Jayamanne
+    # Pass current Process id to pass back to debugger
+    attach_process(port_num, debug_id, debug_options, currentPid, report = True)
+    ## End Modification by Don Jayamanne
+     
     # setup the current thread
     cur_thread = new_thread()
     cur_thread.stepping = STEPPING_LAUNCH_BREAK

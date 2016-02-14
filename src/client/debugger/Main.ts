@@ -63,9 +63,13 @@ export class PythonDebugger extends DebugSession {
         return this.debugServer.Start();
     }
     private stopDebugServer() {
-        if (!this.debugClient) { return; }
-        this.debugClient.Stop();
-        this.debugClient = null;
+        if (this.debugClient) {
+            this.debugClient.Stop();
+            this.debugClient = null;
+        }
+        if (this.pythonProcess) {
+            this.pythonProcess.Kill();
+        }
     }
     private InitializeEventHandlers() {
         this.pythonProcess.on("last", arg => this.onDetachDebugger());
@@ -187,7 +191,9 @@ export class PythonDebugger extends DebugSession {
 
         this.canStartDebugger().then(() => {
             this.startDebugServer().then(dbgServer => {
-                that.debugClient.LaunchApplicationToDebug(dbgServer).then(() => { }, error=> {
+                that.debugClient.LaunchApplicationToDebug(dbgServer).then(() => {
+
+                }, error=> {
                     this.sendEvent(new OutputEvent(error + "\n", "stderr"));
                     this.sendErrorResponse(that.entryResponse, 2000, error);
                 });

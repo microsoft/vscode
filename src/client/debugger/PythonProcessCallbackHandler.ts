@@ -22,6 +22,9 @@ export class PythonProcessCallbackHandler extends EventEmitter {
     }
 
     public HandleIncomingData() {
+        if (this.stream.Length === 0) {
+            return;
+        }
         this.stream.BeginTransaction();
 
         var cmd = this.stream.ReadAsciiString(4);

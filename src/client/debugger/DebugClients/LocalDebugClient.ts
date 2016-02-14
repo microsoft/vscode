@@ -7,6 +7,7 @@ import * as child_process from 'child_process';
 import {LaunchRequestArguments} from '../Common/Contracts';
 import {DebugClient, DebugType} from './DebugClient';
 import * as fs from 'fs';
+import {open} from '../../Common/open';
 
 export class LocalDebugClient extends DebugClient {
     protected args: LaunchRequestArguments;
@@ -58,36 +59,44 @@ export class LocalDebugClient extends DebugClient {
             var currentFileName = module.filename;
             var ptVSToolsFilePath = path.join(path.dirname(currentFileName), "..", "..", "..", "..", "pythonFiles", "PythonTools", "visualstudio_py_launcher.py");
             var launcherArgs = this.buildLauncherArguments();
-        
-            //If this is a windows pc and if console is to be launched, then do so
-            
+
+            var args = [ptVSToolsFilePath, fileDir, dbgServer.port.toString(), "34806ad9-833a-4524-8cd6-18ca4aa74f14"].concat(launcherArgs);
+            console.log(pythonPath + " " + args.join(" "));
             if (this.args.externalConsole === true) {
-                if (!fs.existsSync(pythonPath)) {
-                    return reject("Please provide a valid and fully qualified path to the python executable");
-                }
+                open({ wait: false, app: [pythonPath].concat(args) }).then(proc=> {
+                    this.pyProc = proc;
+                    resolve();
+                }, error=> {
+                    if (!this.debugServer && this.debugServer.IsRunning) {
+                        return;
+                    }
+                    var errorMsg = (error && error.message.length > 0) ? error.message : "";
+                    if (errorMsg.length > 0) {
+                        this.debugSession.sendEvent(new OutputEvent(errorMsg + "\n", "stderr"));
+                        console.error(errorMsg);
+                    }
+                });
 
-                processCwd = path.dirname(pythonPath);
-                pythonPath = path.basename(pythonPath);
-                
-                //Only include the file name, the path to the file is specified in cwd
-                //we don't need to fully qualify 
-                pythonPath = `start ${pythonPath}`;
+                return;
             }
-            else {
-                //This could be the full path, we need to quote it
-                pythonPath = `\"${pythonPath}\"`;
-            }
 
-            var commandLine = `${pythonPath} \"${ptVSToolsFilePath}\" \"${fileDir}" ${dbgServer.port} 34806ad9-833a-4524-8cd6-18ca4aa74f14 ${launcherArgs}`;
-            console.log(commandLine);
-
-            this.pyProc = child_process.exec(commandLine, { cwd: processCwd }, (error, stdout, stderr) => {
+            this.pyProc = child_process.spawn(pythonPath, args, { cwd: processCwd });
+            this.pyProc.on("error", error=> {
                 if (!this.debugServer && this.debugServer.IsRunning) {
                     return;
                 }
-                var hasErrors = (error && error.message.length > 0) || (stderr && stderr.length > 0);
-                if (hasErrors && (typeof stdout !== "string" || stdout.length === 0)) {
-                    var errorMsg = (error && error.message) ? error.message : (stderr && stderr.length > 0 ? stderr.toString("utf-8") : "");
+                var errorMsg = (error && error.message.length > 0) ? error.message : "";
+                if (errorMsg.length > 0) {
+                    this.debugSession.sendEvent(new OutputEvent(errorMsg + "\n", "stderr"));
+                    console.error(errorMsg);
+                }
+            });
+            this.pyProc.on("stderr", error=> {
+                if (!this.debugServer && this.debugServer.IsRunning) {
+                    return;
+                }
+                var errorMsg = (error && error.length > 0) ? error.toString() : "";
+                if (errorMsg.length > 0) {
                     this.debugSession.sendEvent(new OutputEvent(errorMsg + "\n", "stderr"));
                     console.error(errorMsg);
                 }
@@ -96,13 +105,13 @@ export class LocalDebugClient extends DebugClient {
             resolve();
         });
     }
-    protected buildLauncherArguments(): string {
+    protected buildLauncherArguments(): string[] {
         var vsDebugOptions = "WaitOnAbnormalExit, WaitOnNormalExit, RedirectOutput";
         if (Array.isArray(this.args.debugOptions)) {
             vsDebugOptions = this.args.debugOptions.join(", ");
         }
 
-        var programArgs = Array.isArray(this.args.args) && this.args.args.length > 0 ? this.args.args.join(" ") : "";
-        return `\"${vsDebugOptions}\" \"${this.args.program}\" ${programArgs}`;
+        var programArgs = Array.isArray(this.args.args) && this.args.args.length > 0 ? this.args.args : [];
+        return [vsDebugOptions, this.args.program].concat(programArgs);
     }
 }
