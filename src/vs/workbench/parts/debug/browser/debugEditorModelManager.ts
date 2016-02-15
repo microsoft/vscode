@@ -260,13 +260,13 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		const activated = this.debugService.getModel().areBreakpointsActivated();
 		const state = this.debugService.getState();
 		const debugActive = state === State.Running || state === State.Stopped || state === State.Initializing;
-		const capabilites = this.debugService.getActiveSession() ? this.debugService.getActiveSession().capablities : null;
+		const session = this.debugService.getActiveSession();
 		const result = (!breakpoint.enabled || !activated) ? DebugEditorModelManager.BREAKPOINT_DISABLED_DECORATION :
 			debugActive && !breakpoint.verified ? DebugEditorModelManager.BREAKPOINT_UNVERIFIED_DECORATION :
 			!breakpoint.condition ? DebugEditorModelManager.BREAKPOINT_DECORATION : null;
 
 		return result ? result :
-			capabilites && capabilites.supportsConditionalBreakpoints ? {
+			!session || session.capablities.supportsConditionalBreakpoints ? {
 				glyphMarginClassName: 'debug-breakpoint-conditional-glyph',
 				hoverMessage: breakpoint.condition,
 				stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
