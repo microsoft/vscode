@@ -233,7 +233,10 @@ export interface IDebugService extends ee.IEventEmitter {
 
 	setFocusedStackFrameAndEvaluate(focusedStackFrame: IStackFrame): void;
 
-	setBreakpointsForModel(modelUri: uri, data: IRawBreakpoint[]): TPromise<void>;
+	/**
+	 * Sets breakpoints for a model. Does not send them to the adapter.
+	 */
+	setBreakpointsForModel(modelUri: uri, rawData: IRawBreakpoint[]): void;
 	toggleBreakpoint(IRawBreakpoint): TPromise<void>;
 	enableOrDisableAllBreakpoints(enabled: boolean): TPromise<void>;
 	toggleEnablement(element: IEnablement): TPromise<void>;

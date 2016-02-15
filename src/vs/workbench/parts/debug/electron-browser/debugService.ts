@@ -394,12 +394,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}
 	}
 
-	public setBreakpointsForModel(modelUri: uri, rawData: debug.IRawBreakpoint[]): TPromise<void> {
+	public setBreakpointsForModel(modelUri: uri, rawData: debug.IRawBreakpoint[]): void {
 		this.model.removeBreakpoints(
 			this.model.getBreakpoints().filter(bp => bp.source.uri.toString() === modelUri.toString()));
 		this.model.addBreakpoints(rawData);
-
-		return this.sendBreakpoints(modelUri);
 	}
 
 	public toggleBreakpoint(rawBreakpoint: debug.IRawBreakpoint): TPromise<void> {
