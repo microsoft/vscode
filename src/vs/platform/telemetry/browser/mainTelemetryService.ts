@@ -5,9 +5,8 @@
 
 'use strict';
 
-import Platform = require('vs/base/common/platform');
-import Objects = require('vs/base/common/objects');
-import uuid = require('vs/base/common/uuid');
+import * as Platform from 'vs/base/common/platform';
+import * as uuid from 'vs/base/common/uuid';
 import {AbstractTelemetryService} from 'vs/platform/telemetry/common/abstractTelemetryService';
 import {ITelemetryService, ITelemetryServiceConfig} from 'vs/platform/telemetry/common/telemetry';
 import {IdleMonitor, UserStatus} from 'vs/base/browser/idleMonitor';
