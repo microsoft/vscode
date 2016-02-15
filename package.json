@@ -110,7 +110,6 @@
                     "WaitOnAbnormalExit",
                     "WaitOnNormalExit",
                     "RedirectOutput",
-                    "DjangoDebugging",
                     "DebugStdLib",
                     "BreakOnSystemExitZero"
                   ]
@@ -174,30 +173,12 @@
             "name": "Python Console App",
             "type": "python",
             "request": "launch",
-            "pythonPath": "c:/python27/python.exe",
             "stopOnEntry": true,
             "program": "${file}",
             "externalConsole": true,
             "debugOptions": [
               "WaitOnAbnormalExit",
               "WaitOnNormalExit"
-            ]
-          },
-          {
-            "name": "Django",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceRoot}/manage.py",
-            "args": [
-              "runserver",
-              "--noreload",
-              5002
-            ],
-            "debugOptions": [
-              "WaitOnAbnormalExit",
-              "WaitOnNormalExit",
-              "RedirectOutput",
-              "DjangoDebugging"
             ]
           }
         ]

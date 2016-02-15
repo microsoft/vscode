@@ -15,9 +15,10 @@ Works on both Windows and Mac.
 * Snippets
 
 ## Issues and Feature Requests 
-[Github Issues](https://github.com/DonJayamanne/pythonVSCode/issues)
-* Remote Debugging (in development)
+[Issues & Features](https://github.com/DonJayamanne/pythonVSCode/issues)
 * Debugging Django applications (in development)
+* Support of shebang (in development)
+* Remote Debugging (testing)
 
 ## Feature Details (with confiuration)
 * IDE Features
