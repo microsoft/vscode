@@ -1,8 +1,6 @@
 # Python
 Linting, Debugging (multi threaded, web apps), Intellisense, auto-completion, code formatting, snippets, unit testing, and more.
 Works on both Windows and Mac.
-
-##[Documentation](https://github.com/DonJayamanne/pythonVSCode/wiki)
  
 ##Features
 * Linting (PyLint, Pep8, Flake8 with config files and plugins)
@@ -16,8 +14,9 @@ Works on both Windows and Mac.
 * Sorting imports
 * Snippets
 
-## Issues and Feature Requests 
-[Issues & Features](https://github.com/DonJayamanne/pythonVSCode/issues)
+##[Wiki](https://github.com/DonJayamanne/pythonVSCode/wiki)
+
+##[Issues and Feature Requests](https://github.com/DonJayamanne/pythonVSCode/issues)
 * Debugging Django applications (in development)
 * Support of shebang (in development)
 * Remote Debugging (testing)
