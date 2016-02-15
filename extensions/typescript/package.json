@@ -56,17 +56,17 @@
 		],
 		"configuration": {
 			"type": "object",
-			"title": "TypeScript configuration",
+			"title": "%configuration.typescript%",
 			"properties": {
 				"typescript.useCodeSnippetsOnMethodSuggest": {
 					"type": "boolean",
 					"default": false,
-					"description": "Complete functions with their parameter signature."
+					"description": "%typescript.useCodeSnippetsOnMethodSuggest.dec%"
 				},
 				"typescript.tsdk": {
 					"type": ["string", "null"],
 					"default": null,
-					"description": "Specifies the folder path containing the tsserver and lib*.d.ts files to use."
+					"description": "%typescript.tsdk.desc%"
 				}
 			}
 		},
@@ -78,7 +78,7 @@
 		"commands": [
 			{
 				"command": "typescript.reloadProjects",
-				"title": "Reload Projects",
+				"title": "%typescript.reloadProjects.title%",
 				"category": "TypeScript"
 			}
 		],

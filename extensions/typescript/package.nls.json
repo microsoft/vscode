@@ -1,0 +1,6 @@
+{
+	"typescript.reloadProjects.title": "Reload Project",
+	"configuration.typescript": "TypeScript configuration",
+	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Complete functions with their parameter signature.",
+	"typescript.tsdk.desc": "Specifies the folder path containing the tsserver and lib*.d.ts files to use."
+}
