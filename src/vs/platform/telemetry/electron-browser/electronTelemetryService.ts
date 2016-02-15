@@ -6,8 +6,8 @@
 import getmac = require('getmac');
 import crypto = require('crypto');
 
-import {MainTelemetryService, TelemetryServiceConfig} from 'vs/platform/telemetry/browser/mainTelemetryService';
-import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
+import {MainTelemetryService} from 'vs/platform/telemetry/browser/mainTelemetryService';
+import {ITelemetryService, ITelemetryInfo, ITelemetryServiceConfig} from 'vs/platform/telemetry/common/telemetry';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import errors = require('vs/base/common/errors');
 import uuid = require('vs/base/common/uuid');
@@ -21,7 +21,7 @@ export class ElectronTelemetryService extends MainTelemetryService implements IT
 
 	private _setupIds: Promise<ITelemetryInfo>;
 
-	constructor( @IStorageService private storageService: IStorageService, config?: TelemetryServiceConfig) {
+	constructor( @IStorageService private storageService: IStorageService, config?: ITelemetryServiceConfig) {
 		super(config);
 
 		this._setupIds = this.setupIds();

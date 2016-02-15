@@ -9,24 +9,9 @@ import Platform = require('vs/base/common/platform');
 import Objects = require('vs/base/common/objects');
 import uuid = require('vs/base/common/uuid');
 import {AbstractTelemetryService} from 'vs/platform/telemetry/common/abstractTelemetryService';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryService, ITelemetryServiceConfig} from 'vs/platform/telemetry/common/telemetry';
 import {IdleMonitor, UserStatus} from 'vs/base/browser/idleMonitor';
 
-export interface TelemetryServiceConfig {
-	enableTelemetry?: boolean;
-
-	enableHardIdle?: boolean;
-	enableSoftIdle?: boolean;
-	sessionID?: string;
-	commitHash?: string;
-	version?: string;
-}
-
-const DefaultTelemetryServiceConfig: TelemetryServiceConfig = {
-	enableTelemetry: true,
-	enableHardIdle: true,
-	enableSoftIdle: true
-};
 
 export class MainTelemetryService extends AbstractTelemetryService implements ITelemetryService {
 	// how long of inactivity before a user is considered 'inactive' - 2 minutes
@@ -34,17 +19,14 @@ export class MainTelemetryService extends AbstractTelemetryService implements IT
 	public static IDLE_START_EVENT_NAME = 'UserIdleStart';
 	public static IDLE_STOP_EVENT_NAME = 'UserIdleStop';
 
-	protected config: TelemetryServiceConfig;
-
 	private hardIdleMonitor: IdleMonitor;
 	private softIdleMonitor: IdleMonitor;
 	private eventCount: number;
 	private userIdHash: string;
 	private startTime: Date;
 
-	constructor(config?: TelemetryServiceConfig) {
-		this.config = Objects.withDefaults(config, DefaultTelemetryServiceConfig);
-		super();
+	constructor(config?: ITelemetryServiceConfig) {
+		super(config);
 
 		this.sessionId = this.config.sessionID || (uuid.generateUuid() + Date.now());
 
