@@ -31,9 +31,9 @@ Works on both Windows and Mac.
 * [Intellisense and Autocomplete](https://github.com/DonJayamanne/pythonVSCode/wiki/Autocomplete-Intellisense)
  + Full intellisense
  + Support for docstring
- +  Ability to include custom module paths (e.g. include paths for libraries like Google App Engine, etc)
- + - - Use the setting python.autoComplete.extraPaths = []
- + - - For instance getting autocomplete/intellisense for Google App Engine, add the following to your settings file:
+ + Ability to include custom module paths (e.g. include paths for libraries like Google App Engine, etc)
+ + Use the setting python.autoComplete.extraPaths = []
+ + For instance getting autocomplete/intellisense for Google App Engine, add the following to your settings file:
 ```json
 "python.autoComplete.extraPaths": [
     "C:/Program Files (x86)/Google/google_appengine",
@@ -62,6 +62,7 @@ Works on both Windows and Mac.
  + Local variables and arguments
  + Multiple Threads and Web Applications (such as Flask) (Windows and Mac)
  + Expanding values (viewing children, properties, etc) (Windows and Mac)
+ + Conditional breakpoints
 * Unit Testing
  + unittests (default is on)
  + nosetests (default is off)
@@ -101,7 +102,7 @@ Works on both Windows and Mac.
 
 ## Change Log
 
-### Version 0.2.7
+### Version 0.2.8
 * Added support for conditional break points
 * Added ability to optionally display the shell window (Windows Only, Mac is coming soon)
   +  Allowing an interactive shell window, which isn't supported in VSCode.
