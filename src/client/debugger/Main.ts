@@ -106,7 +106,7 @@ export class PythonDebugger extends DebugSession {
         this.sendEvent(new ThreadEvent("exited", pyThread.Id));
     }
     private onPythonProcessPaused(pyThread: IPythonThread) {
-        this.sendEvent(new StoppedEvent("pause", pyThread.Id));
+        this.sendEvent(new StoppedEvent("user request", pyThread.Id));
     }
     private onPythonModuleLoaded(module: IPythonModule) {
     }

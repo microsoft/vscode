@@ -63,7 +63,7 @@ export class LocalDebugClient extends DebugClient {
             var args = [ptVSToolsFilePath, fileDir, dbgServer.port.toString(), "34806ad9-833a-4524-8cd6-18ca4aa74f14"].concat(launcherArgs);
             console.log(pythonPath + " " + args.join(" "));
             if (this.args.externalConsole === true) {
-                open({ wait: false, app: [pythonPath].concat(args) }).then(proc=> {
+                open({ wait: false, app: [pythonPath].concat(args), cwd:processCwd }).then(proc=> {
                     this.pyProc = proc;
                     resolve();
                 }, error=> {
