@@ -10,5 +10,8 @@
 	"Kasik96.format-indent": "{**/*.php}",
 	"felixfbecker.php-debug": "{**/*.php}",
 	"linyang95.phpmd": "{**/*.php}",
-	"ikappas.phpcs": "{**/*.php}"
+	"ikappas.phpcs": "{**/*.php}",
+	"tht13.python": "{**/*.py}",
+	"donjayamanne.python": "{**/*.py}",
+	"magicstack.MagicPython": "{**/*.py}"
 }
