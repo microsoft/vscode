@@ -24,12 +24,24 @@ class StorageKeys {
 	public static InstanceId: string = 'telemetry.instanceId';
 }
 
+interface ITelemetryEvent {
+	eventName: string;
+	data?: any;
+}
+
 export class ElectronTelemetryService extends MainTelemetryService implements ITelemetryService {
 
+	private static MAX_BUFFER_SIZE = 100;
+
 	private _setupIds: Promise<ITelemetryInfo>;
+	private _buffer: ITelemetryEvent[];
+	private _optInStatusLoaded: boolean;
 
 	constructor(@IConfigurationService private configurationService: IConfigurationService, @IStorageService private storageService: IStorageService, config?: ITelemetryServiceConfig) {
 		super(config);
+
+		this._buffer = [];
+		this._optInStatusLoaded = false;
 
 		this.loadOptinSettings();
 		this._setupIds = this.setupIds();
@@ -41,8 +53,36 @@ export class ElectronTelemetryService extends MainTelemetryService implements IT
 	public getTelemetryInfo(): Promise<ITelemetryInfo> {
 		return this._setupIds;
 	}
+	/**
+	 * override the base publicLog to prevent reporting any events before the optIn status is read from configuration
+	 */
+	public publicLog(eventName:string, data?: any): void {
+		if (this._optInStatusLoaded) {
+			super.publicLog(eventName, data);
+		} else {
+			// in case loading configuration is delayed, make sure the buffer does not grow beyond MAX_BUFFER_SIZE
+			if (this._buffer.length > ElectronTelemetryService.MAX_BUFFER_SIZE) {
+				this._buffer = [];
+			}
+			this._buffer.push({eventName: eventName, data: data});
+		}
+	}
+
+	private flushBuffer(): void {
+		let event: ITelemetryEvent = null;
+		while(event = this._buffer.pop()) {
+			super.publicLog(event.eventName, event.data);
+		}
+	}
 
 	private loadOptinSettings(): void {
+		this.configurationService.loadConfiguration(TELEMETRY_SECTION_ID).done(config => {
+			this.config.userOptIn = config ? config.enableTelemetry : this.config.userOptIn;
+			this._optInStatusLoaded = true;
+			this.publicLog('optInStatus', {optIn: this.config.userOptIn});
+			this.flushBuffer();
+		});
+
 		this.toUnbind.push(this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
 			this.config.userOptIn = e.config && e.config[TELEMETRY_SECTION_ID] ? e.config[TELEMETRY_SECTION_ID].enableTelemetry : this.config.userOptIn;
 		}));

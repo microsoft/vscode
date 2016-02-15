@@ -24,6 +24,7 @@ export class MainTelemetryService extends AbstractTelemetryService implements IT
 	private eventCount: number;
 	private userIdHash: string;
 	private startTime: Date;
+	private optInFriendly: string[];
 
 	constructor(config?: ITelemetryServiceConfig) {
 		super(config);
@@ -41,6 +42,9 @@ export class MainTelemetryService extends AbstractTelemetryService implements IT
 
 		this.eventCount = 0;
 		this.startTime = new Date();
+
+		//holds a cache of predefined events that can be sent regardress of user optin status
+		this.optInFriendly = ['optInStatus'];
 	}
 
 	private onUserIdle(): void {
@@ -68,13 +72,13 @@ export class MainTelemetryService extends AbstractTelemetryService implements IT
 			return;
 		}
 
-		// don't send telemetry when not enabled
+		// don't send telemetry when channel is not enabled
 		if (!this.config.enableTelemetry) {
 			return;
 		}
 
-		// don't send events when user is optout
-		if(!this.config.userOptIn) {
+		// don't send events when the user is optout unless the event is flaged as optin friendly
+		if(!this.config.userOptIn && this.optInFriendly.indexOf(eventName) === -1) {
 			return;
 		}
 

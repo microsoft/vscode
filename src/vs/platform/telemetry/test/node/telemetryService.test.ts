@@ -16,6 +16,8 @@ import Platform = require('vs/platform/platform');
 import * as sinon from 'sinon';
 import {createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 
+const optInStatusEventName: string = 'optInStatus';
+
 class TestTelemetryAppender implements TelemetryService.ITelemetryAppender {
 
 	public events: any[];
@@ -776,6 +778,21 @@ suite('TelemetryService', () => {
 		service.publicLog('testEvent');
 		assert.equal(testAppender.getEventsCount(), 1);
 
+		service.dispose();
+	}));
+
+	test('Telemetry Service allows optin friendly events', sinon.test(function() {
+		let service = new MainTelemetryService.MainTelemetryService({userOptIn: false, enableTelemetry: true});
+		let testAppender = new TestTelemetryAppender();
+		service.addTelemetryAppender(testAppender);
+
+		service.publicLog('testEvent');
+		assert.equal(testAppender.getEventsCount(), 0);
+
+		service.publicLog(optInStatusEventName, {userOptIn: false});
+		assert.equal(testAppender.getEventsCount(), 1);
+		assert.equal(testAppender.events[0].eventName, optInStatusEventName);
+		assert.equal(testAppender.events[0].data.userOptIn, false);
 		service.dispose();
 	}));
 });
