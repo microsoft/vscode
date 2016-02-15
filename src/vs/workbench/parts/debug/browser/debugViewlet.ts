@@ -192,8 +192,8 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 class CallStackView extends viewlet.CollapsibleViewletView {
 
 	private static MEMENTO = 'callstackview.memento';
-	private messageBox: HTMLDivElement;
-	private fullSize: number;
+	private pauseMessage: builder.Builder;
+	private pauseMessageLabel: builder.Builder;
 
 	constructor(actionRunner: actions.IActionRunner, private settings: any,
 		@IMessageService messageService: IMessageService,
@@ -206,13 +206,15 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 
 	public renderHeader(container: HTMLElement): void {
 		super.renderHeader(container);
-		const titleDiv = $('div.title').appendTo(container);
-		$('span').text(nls.localize('callStack', "Call Stack")).appendTo(titleDiv);
+		const title = $('div.debug-call-stack-title').appendTo(container);
+		$('span.title').text(nls.localize('callStack', "Call Stack")).appendTo(title);
+		this.pauseMessage = $('span.pause-message').appendTo(title);
+		this.pauseMessage.hide();
+		this.pauseMessageLabel = $('span.label').appendTo(this.pauseMessage);
 	}
 
 	public renderBody(container: HTMLElement): void {
 		dom.addClass(container, 'debug-call-stack');
-		this.renderMessageBox(container);
 		this.treeContainer = renderViewTree(container);
 
 		this.tree = new treeimpl.Tree(this.treeContainer, {
@@ -255,18 +257,12 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 		}));
 		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => {
 			const focussedThread = this.debugService.getModel().getThreads()[this.debugService.getViewModel().getFocusedThreadId()];
-			const previouslyHidden = this.messageBox.hidden;
 			if (focussedThread && focussedThread.stoppedReason && focussedThread.stoppedReason !== 'step') {
-				this.messageBox.textContent = nls.localize('debugStopped', "Paused on {0}.", focussedThread.stoppedReason);
-				focussedThread.stoppedReason === 'exception' ? this.messageBox.classList.add('exception') : this.messageBox.classList.remove('exception');
-
-				this.messageBox.hidden = false;
+				this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", focussedThread.stoppedReason));
+				focussedThread.stoppedReason === 'exception' ? this.pauseMessageLabel.addClass('exception') : this.pauseMessageLabel.removeClass('exception');
+				this.pauseMessage.show();
 			} else {
-				this.messageBox.hidden = true;
-			}
-
-			if (previouslyHidden !== this.messageBox.hidden) {
-				this.layoutBody(this.fullSize);
+				this.pauseMessage.hide();
 			}
 		}));
 
@@ -282,19 +278,6 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 				this.tree.setFocus(focused);
 			}
 		}));
-	}
-
-	public layoutBody(size: number): void {
-		this.fullSize = size;
-		const sizeWithRespectToMessageBox = this.messageBox && !this.messageBox.hidden ? size - 27 : size;
-		super.layoutBody(sizeWithRespectToMessageBox);
-	}
-
-	private renderMessageBox(container: HTMLElement): void {
-		this.messageBox = document.createElement('div');
-		dom.addClass(this.messageBox, 'debug-message-box');
-		this.messageBox.hidden = true;
-		container.appendChild(this.messageBox);
 	}
 
 	public shutdown(): void {
