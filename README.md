@@ -2,6 +2,8 @@
 Linting, Debugging (multi threaded, web apps), Intellisense, auto-completion, code formatting, snippets, unit testing, and more.
 Works on both Windows and Mac.
 
+##[Documentation](https://github.com/DonJayamanne/pythonVSCode/wiki)
+ 
 ##Features
 * Linting (PyLint, Pep8, Flake8 with config files and plugins)
 * Intellisense and autocompletion
@@ -27,7 +29,7 @@ Works on both Windows and Mac.
 * - Find all references
 * - View Signature
 * - Sorting Import statements (use "Python: Sort Imports" command)
-* Intellisense and Autocomplete
+* [Intellisense and Autocomplete](https://github.com/DonJayamanne/pythonVSCode/wiki/Autocomplete-Intellisense)
 * - Full intellisense
 * - Support for docstring
 * - Ability to include custom module paths (e.g. include paths for libraries like Google App Engine, etc)
@@ -38,11 +40,11 @@ Works on both Windows and Mac.
     "C:/Program Files (x86)/Google/google_appengine",
     "C:/Program Files (x86)/Google/google_appengine/lib" ]
 ```
-* Code formatting
+* [Code formatting](https://github.com/DonJayamanne/pythonVSCode/wiki/Formatting)
 * - Use either yapf or autopep8 for code formatting (defaults to autopep8)
 * - auutopep8 configuration files supported
 * - yapf configuration files supported
-* Linting
+* [Linting](https://github.com/DonJayamanne/pythonVSCode/wiki/Linting)
 * - It can be turned off (default is turn it on and use pylint)
 * - pylint can be turned on/off (default is on), supports standard configuaration files
 * - pep8 can be turned on/off (default is off), supports standard configuaration files
@@ -53,7 +55,7 @@ Works on both Windows and Mac.
 ```json
 "python.linting.pylintPath": "pylint --load-plugins pylint_django"
 ``` 
-* Debuggging
+* [Debuggging](https://github.com/DonJayamanne/pythonVSCode/wiki/Debugging)
 * - Watch window
 * - Evaluate Expressions
 * - Step through code (Step in, Step out, Continue)
@@ -99,6 +101,9 @@ Works on both Windows and Mac.
 * - pip install nose
 
 ## Change Log
+
+### Version 0.2.6
+* Updated readme
 
 ### Version 0.2.5
 * Added support for conditional break points
