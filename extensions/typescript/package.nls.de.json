@@ -1,4 +1,0 @@
-{
-	"typescript.reloadProjects.title": "Lade Project neu",
-	"typescript.tsdk.desc": "Legt das Verzeichnis fest in dem sich der tsserver und lib*.d.ts Dateien befinden."
-}

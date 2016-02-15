@@ -12,7 +12,7 @@ import {groupBy, values} from 'vs/base/common/collections';
 import paths = require('vs/base/common/paths');
 import json = require('vs/base/common/json');
 import Types = require('vs/base/common/types');
-import {IPluginsMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
+import {IPluginsMessageCollector, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
 import {isValidPluginDescription} from 'vs/platform/plugins/node/pluginVersionValidator';
 import * as semver from 'semver';
 
@@ -30,7 +30,7 @@ const nlsConfig = function(): NlsConfiguration {
 		} catch (err) {
 			return {
 				locale: undefined,
-				pseudo: true
+				pseudo: false
 			};
 		}
 	}
@@ -69,7 +69,7 @@ export class PluginScanner {
 	 * Strings to replace are one values of a key. So for example string[] are ignored.
 	 * This is done to speed things up.
 	 */
-	private static replaceStrings<T>(literal: T, messages: { [key: string]: string; }): void {
+	private static replaceStrings<T>(literal: T, messages: { [key: string]: string; }, builder: IMessageCollector): void {
 		Object.keys(literal).forEach(key => {
 			if (literal.hasOwnProperty(key)) {
 				let value = literal[key];
@@ -85,14 +85,16 @@ export class PluginScanner {
 								message = '\uFF3B' + message.replace(/[aouei]/g, '$&$&') + '\uFF3D';
 							}
 							literal[key] = message;
+						} else {
+							builder.warn(`Couldn't find message for key ${messageKey}.`);
 						}
 					}
 				} else if (Types.isObject(value)) {
-					PluginScanner.replaceStrings(value, messages);
+					PluginScanner.replaceStrings(value, messages, builder);
 				} else if (Types.isArray(value)) {
 					(<any[]>value).forEach(element => {
 						if (Types.isObject(element)) {
-							PluginScanner.replaceStrings(element, messages);
+							PluginScanner.replaceStrings(element, messages, builder);
 						}
 					});
 				}
@@ -140,8 +142,7 @@ export class PluginScanner {
 			let basename = absoluteManifestPath.substr(0, absoluteManifestPath.length - extension.length);
 			return pfs.fileExists(basename + '.nls' + extension).then(exists => {
 				if (!exists) {
-					// To make the compiler happy. This is not necessary from a runtime perspective.
-					return TPromise.as<IPluginDescription>(pluginDescFromFile);
+					return pluginDescFromFile;
 				}
 				return PluginScanner.findMessageBundle(basename).then(messageBundle => {
 					if (!messageBundle) {
@@ -156,7 +157,7 @@ export class PluginScanner {
 							});
 							return pluginDescFromFile;
 						}
-						PluginScanner.replaceStrings(pluginDescFromFile, messages);
+						PluginScanner.replaceStrings(pluginDescFromFile, messages, builder);
 						return pluginDescFromFile;
 					});
 				});
