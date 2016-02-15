@@ -13,5 +13,6 @@
 	"ikappas.phpcs": "{**/*.php}",
 	"tht13.python": "{**/*.py}",
 	"donjayamanne.python": "{**/*.py}",
-	"magicstack.MagicPython": "{**/*.py}"
+	"magicstack.MagicPython": "{**/*.py}",
+	"saviorisdead.RustyCode": "{**/*.rs,**/*.rslib}"
 }
