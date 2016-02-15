@@ -24,50 +24,50 @@ Works on both Windows and Mac.
 
 ## Feature Details (with confiuration)
 * IDE Features
-* - Rename and navigate to symbols
-* - Go to, Peek and hover definition
-* - Find all references
-* - View Signature
-* - Sorting Import statements (use "Python: Sort Imports" command)
+ + Rename and navigate to symbols
+ + Go to, Peek and hover definition
+ + Find all references
+ + View Signature
+ + Sorting Import statements (use "Python: Sort Imports" command)
 * [Intellisense and Autocomplete](https://github.com/DonJayamanne/pythonVSCode/wiki/Autocomplete-Intellisense)
-* - Full intellisense
-* - Support for docstring
-* - Ability to include custom module paths (e.g. include paths for libraries like Google App Engine, etc)
-* - - Use the setting python.autoComplete.extraPaths = []
-* - - For instance getting autocomplete/intellisense for Google App Engine, add the following to your settings file:
+ + Full intellisense
+ + Support for docstring
+ +  Ability to include custom module paths (e.g. include paths for libraries like Google App Engine, etc)
+ + - - Use the setting python.autoComplete.extraPaths = []
+ + - - For instance getting autocomplete/intellisense for Google App Engine, add the following to your settings file:
 ```json
 "python.autoComplete.extraPaths": [
     "C:/Program Files (x86)/Google/google_appengine",
     "C:/Program Files (x86)/Google/google_appengine/lib" ]
 ```
 * [Code formatting](https://github.com/DonJayamanne/pythonVSCode/wiki/Formatting)
-* - Use either yapf or autopep8 for code formatting (defaults to autopep8)
-* - auutopep8 configuration files supported
-* - yapf configuration files supported
+ + Use either yapf or autopep8 for code formatting (defaults to autopep8)
+ + auutopep8 configuration files supported
+ + yapf configuration files supported
 * [Linting](https://github.com/DonJayamanne/pythonVSCode/wiki/Linting)
-* - It can be turned off (default is turn it on and use pylint)
-* - pylint can be turned on/off (default is on), supports standard configuaration files
-* - pep8 can be turned on/off (default is off), supports standard configuaration files
-* - flake8 can be turned on/off (default is on), supports standard configuaration files
-* - Different categories of errors reported by pylint can be configured as warnings, errors, information or hits
-* - Path to pylint, pep8 and flake8 and pep8 can be configured
-* - Custom plugins such as pylint plugin for Django can be easily used by modifying the settings as follows:
+ + It can be turned off (default is turn it on and use pylint)
+ + pylint can be turned on/off (default is on), supports standard configuaration files
+ + pep8 can be turned on/off (default is off), supports standard configuaration files
+ + flake8 can be turned on/off (default is on), supports standard configuaration files
+ + Different categories of errors reported by pylint can be configured as warnings, errors, information or hits
+ + Path to pylint, pep8 and flake8 and pep8 can be configured
+ + Custom plugins such as pylint plugin for Django can be easily used by modifying the settings as follows:
 ```json
 "python.linting.pylintPath": "pylint --load-plugins pylint_django"
 ``` 
 * [Debuggging](https://github.com/DonJayamanne/pythonVSCode/wiki/Debugging)
-* - Watch window
-* - Evaluate Expressions
-* - Step through code (Step in, Step out, Continue)
-* - Add/remove break points
-* - Local variables and arguments
-* - Multiple Threads and Web Applications (such as Flask) (Windows and Mac)
-* - Expanding values (viewing children, properties, etc) (Windows and Mac)
+ + Watch window
+ + Evaluate Expressions
+ + Step through code (Step in, Step out, Continue)
+ + Add/remove break points
+ + Local variables and arguments
+ + Multiple Threads and Web Applications (such as Flask) (Windows and Mac)
+ + Expanding values (viewing children, properties, etc) (Windows and Mac)
 * Unit Testing
-* - unittests (default is on)
-* - nosetests (default is off)
-* - Test resutls are displayed in the "Python" output window
-* - Future release will display results in a more structured manner integrated into the IDE
+ + unittests (default is on)
+ + nosetests (default is off)
+ + Test resutls are displayed in the "Python" output window
+ + Future release will display results in a more structured manner integrated into the IDE
 * Snippets
 
 
@@ -85,27 +85,24 @@ Works on both Windows and Mac.
 
 ## Requirements
 * Python is installed on the current system
-* - Path to python can be configured
+ + Path to python can be configured
 * Pylint is installed for linting (optional)
-* - pip install pylint
+ + pip install pylint
 * Pep8 is installed for linting (optional)
-* - pip install pep8
+ + pip install pep8
 * Flake8 is installed for linting (optional)
-* - pip install flake8
+ + pip install flake8
 * Autopep8 is installed for code formatting (optional) 
-* - pip install pep8
-* - pip install --upgrade autopep8
+ + pip install pep8
+ + pip install --upgrade autopep8
 * Yapf is installed for code formatting (optional)
-* - pip install yapf
+ + pip install yapf
 * nosetests for unit testing  (optional)
-* - pip install nose
+ + pip install nose
 
 ## Change Log
 
-### Version 0.2.6
-* Updated readme
-
-### Version 0.2.5
+### Version 0.2.7
 * Added support for conditional break points
 * Added ability to optionally display the shell window (Windows Only, Mac is coming soon)
   +  Allowing an interactive shell window, which isn't supported in VSCode.
