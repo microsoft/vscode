@@ -28,9 +28,9 @@ export class LocalDebugServer extends BaseDebugServer {
             this.debugSocketServer = net.createServer(c => { //'connection' listener
                 var connected = false;
                 console.log('client connected');
-                c.on('end', (ex) => {
+                c.on('end', (ex) => { 
                     var msg = "Debugger client disconneced, " + ex;
-                    that.debugSession.sendEvent(new OutputEvent(msg + "\n", "stderr"));
+                    //that.debugSession.sendEvent(new OutputEvent(msg + "\n", "stderr"));
                     console.log(msg);
                 });
                 c.on("data", (buffer: Buffer) => {
