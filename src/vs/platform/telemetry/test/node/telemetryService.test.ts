@@ -745,4 +745,37 @@ suite('TelemetryService', () => {
 		assert.equal(service.getSessionId(), testSessionId);
 		service.dispose();
 	}));
+
+	test('Telemetry Service respects user opt-in settings', sinon.test(function() {
+		let service = new MainTelemetryService.MainTelemetryService({userOptIn: false, enableTelemetry: true});
+		let testAppender = new TestTelemetryAppender();
+		service.addTelemetryAppender(testAppender);
+
+		service.publicLog('testEvent');
+		assert.equal(testAppender.getEventsCount(), 0);
+
+		service.dispose();
+	}));
+
+	test('Telemetry Service dont send events when enableTelemetry is off even if user is optin', sinon.test(function() {
+		let service = new MainTelemetryService.MainTelemetryService({userOptIn: true, enableTelemetry: false});
+		let testAppender = new TestTelemetryAppender();
+		service.addTelemetryAppender(testAppender);
+
+		service.publicLog('testEvent');
+		assert.equal(testAppender.getEventsCount(), 0);
+
+		service.dispose();
+	}));
+
+	test('Telemetry Service sends events when enableTelemetry is on even user optin is on', sinon.test(function() {
+		let service = new MainTelemetryService.MainTelemetryService({userOptIn: true, enableTelemetry: true});
+		let testAppender = new TestTelemetryAppender();
+		service.addTelemetryAppender(testAppender);
+
+		service.publicLog('testEvent');
+		assert.equal(testAppender.getEventsCount(), 1);
+
+		service.dispose();
+	}));
 });

@@ -73,6 +73,11 @@ export class MainTelemetryService extends AbstractTelemetryService implements IT
 			return;
 		}
 
+		// don't send events when user is optout
+		if(!this.config.userOptIn) {
+			return;
+		}
+
 		this.eventCount++;
 
 		data = this.addCommonProperties(data);

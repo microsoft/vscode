@@ -17,7 +17,8 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 const DefaultTelemetryServiceConfig: ITelemetryServiceConfig = {
 	enableTelemetry: true,
 	enableHardIdle: true,
-	enableSoftIdle: true
+	enableSoftIdle: true,
+	userOptIn: true
 };
 
 /**
@@ -28,7 +29,6 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 
 	public serviceId = ITelemetryService;
 
-	private toUnbind: any[];
 	private timeKeeper: TimeKeeper;
 	private appenders: ITelemetryAppender[];
 	private oldOnError: any;
@@ -40,6 +40,7 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 	protected sessionId: string;
 	protected instanceId: string;
 	protected machineId: string;
+	protected toUnbind: any[];
 
 	protected config: ITelemetryServiceConfig;
 
