@@ -8,7 +8,8 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
-import {getBracketFor} from 'vs/editor/common/modes/supports';
+import {ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
+import {BracketsUtils} from 'vs/editor/common/modes/supports/electricCharacter';
 
 export class Node {
 
@@ -108,7 +109,12 @@ class TokenScanner {
 	private _versionId: number;
 	private _currentLineNumber: number;
 	private _currentTokenIndex: number;
+	private _currentTokenStart: number;
 	private _currentLineTokens: EditorCommon.ILineTokens;
+	private _currentLineModeTransitions: Modes.IModeTransition[];
+	private _currentModeIndex: number;
+	private _nextModeStart: number;
+	private _currentModeBrackets: Modes.IRichEditBrackets;
 	private _currentLineText: string;
 
 	constructor(model: EditorCommon.IModel) {
@@ -130,31 +136,86 @@ class TokenScanner {
 			// no tokens for this line
 			this._currentLineTokens = this._model.getLineTokens(this._currentLineNumber);
 			this._currentLineText = this._model.getLineContent(this._currentLineNumber);
+			this._currentLineModeTransitions = this._model._getLineModeTransitions(this._currentLineNumber);
 			this._currentTokenIndex = 0;
+			this._currentTokenStart = 0;
+			this._currentModeIndex = -1;
+			this._nextModeStart = 0;
 		}
 		if (this._currentTokenIndex >= this._currentLineTokens.getTokenCount()) {
 			// last token of line visited
 			this._currentLineNumber += 1;
 			this._currentLineTokens = null;
-			this._currentLineText = null;
 			return this.next();
 		}
+
+		if (this._currentTokenStart >= this._nextModeStart) {
+			this._currentModeIndex++;
+			this._nextModeStart = (this._currentModeIndex + 1 < this._currentLineModeTransitions.length ? this._currentLineModeTransitions[this._currentModeIndex + 1].startIndex : this._currentLineText.length + 1);
+			let mode = (this._currentModeIndex < this._currentLineModeTransitions.length ? this._currentLineModeTransitions[this._currentModeIndex] : null);
+			this._currentModeBrackets = (mode && mode.mode.richEditSupport ? mode.mode.richEditSupport.brackets : null);
+		}
+
 		let tokenType = this._currentLineTokens.getTokenType(this._currentTokenIndex);
-		let tokenStartIndex = this._currentLineTokens.getTokenStartIndex(this._currentTokenIndex);
-		let tokenEndIndex = this._currentLineTokens.getTokenEndIndex(this._currentTokenIndex, this._currentLineText.length + 1);
-		let tokenText = this._currentLineText.substring(tokenStartIndex, tokenEndIndex);
-		var token: Token = {
-			type: tokenType,
-			bracket: getBracketFor(tokenType, tokenText, this._model.getMode()),
+		let tokenEndIndex = this._currentLineTokens.getTokenEndIndex(this._currentTokenIndex, this._currentLineText.length);
+
+		let nextBracket: Range = null;
+		if (this._currentModeBrackets && !ignoreBracketsInToken(tokenType)) {
+			nextBracket = BracketsUtils.findNextBracketInToken(this._currentModeBrackets.forwardRegex, this._currentLineNumber, this._currentLineText, this._currentTokenStart, tokenEndIndex);
+		}
+
+		if (nextBracket && this._currentTokenStart < nextBracket.startColumn - 1) {
+			// found a bracket, but it is not at the beginning of the token
+			tokenEndIndex = nextBracket.startColumn - 1;
+			nextBracket = null;
+		}
+
+		let bracketData: EditorCommon.IRichEditBracket = null;
+		let bracketIsOpen: boolean = false;
+		if (nextBracket) {
+			let bracketText = this._currentLineText.substring(nextBracket.startColumn - 1, nextBracket.endColumn - 1);
+			bracketData = this._currentModeBrackets.textIsBracket[bracketText];
+			bracketIsOpen = this._currentModeBrackets.textIsOpenBracket[bracketText];
+		}
+
+		if (!bracketData) {
+			let token: Token = {
+				type: tokenType,
+				bracket: Modes.Bracket.None,
+				range: {
+					startLineNumber: this._currentLineNumber,
+					startColumn: 1 + this._currentTokenStart,
+					endLineNumber: this._currentLineNumber,
+					endColumn: 1 + tokenEndIndex
+				}
+			};
+			// console.log('TOKEN: <<' + this._currentLineText.substring(this._currentTokenStart, tokenEndIndex) + '>>');
+
+			this._currentTokenIndex += 1;
+			this._currentTokenStart = (this._currentTokenIndex < this._currentLineTokens.getTokenCount() ? this._currentLineTokens.getTokenStartIndex(this._currentTokenIndex) : 0);
+			return token;
+		}
+
+		let type = `${bracketData.modeId};${bracketData.open};${bracketData.close}`;
+		let token: Token = {
+			type: type,
+			bracket: bracketIsOpen ? Modes.Bracket.Open : Modes.Bracket.Close,
 			range: {
 				startLineNumber: this._currentLineNumber,
-				startColumn: 1 + tokenStartIndex,
+				startColumn: 1 + this._currentTokenStart,
 				endLineNumber: this._currentLineNumber,
-				endColumn: 1 + tokenEndIndex
+				endColumn: nextBracket.endColumn
 			}
 		};
-		//		token.__debugContent = this._model.getValueInRange(token.range);
-		this._currentTokenIndex += 1;
+		// console.log('BRACKET: <<' + this._currentLineText.substring(this._currentTokenStart, nextBracket.endColumn - 1) + '>>');
+
+		if (nextBracket.endColumn - 1 < tokenEndIndex) {
+			// found a bracket, but it is not at the end of the token
+			this._currentTokenStart = nextBracket.endColumn - 1;
+		} else {
+			this._currentTokenIndex += 1;
+			this._currentTokenStart = (this._currentTokenIndex < this._currentLineTokens.getTokenCount() ? this._currentLineTokens.getTokenStartIndex(this._currentTokenIndex) : 0);
+		}
 		return token;
 	}
 }

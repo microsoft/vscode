@@ -151,14 +151,3 @@ export class FilteredLineContext implements Modes.ILineContext {
 export function ignoreBracketsInToken(tokenType:string): boolean {
 	return /\b(comment|string|regex)\b/.test(tokenType);
 }
-
-// TODO@Alex -> refactor to use `brackets` from language configuration
-export function getBracketFor(tokenType:string, tokenText:string, mode:Modes.IMode): Modes.Bracket {
-	if (tokenText === '{' || tokenText === '(' || tokenText === '[') {
-		return Modes.Bracket.Open;
-	}
-	if (tokenText === '}' || tokenText === ')' || tokenText === ']') {
-		return Modes.Bracket.Close;
-	}
-	return Modes.Bracket.None;
-}
