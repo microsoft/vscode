@@ -17,7 +17,6 @@ Works on both Windows and Mac.
 ##[Wiki](https://github.com/DonJayamanne/pythonVSCode/wiki)
 
 ##[Issues and Feature Requests](https://github.com/DonJayamanne/pythonVSCode/issues)
-* Debugging Django applications (in development)
 * Support of shebang (in development)
 * Remote Debugging (testing)
 
@@ -101,6 +100,10 @@ Works on both Windows and Mac.
  + pip install nose
 
 ## Change Log
+
+### Version 0.2.8
+* Added support for debugging django applications
+ + Debugging templates is not supported at this stage
 
 ### Version 0.2.8
 * Added support for conditional break points

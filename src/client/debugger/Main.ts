@@ -48,8 +48,8 @@ export class PythonDebugger extends DebugSession {
     protected initializeRequest(response: DebugProtocol.InitializeResponse, args: DebugProtocol.InitializeRequestArguments): void {
         response.body.supportsEvaluateForHovers = true;
         this.sendResponse(response);
-        // // now we are ready to accept breakpoints -> fire the initialized event to give UI a chance to set breakpoints
-        // this.sendEvent(new InitializedEvent());
+        // now we are ready to accept breakpoints -> fire the initialized event to give UI a chance to set breakpoints
+        this.sendEvent(new InitializedEvent());
     }
 
     private pythonProcess: PythonProcess;
@@ -111,57 +111,13 @@ export class PythonDebugger extends DebugSession {
     private onPythonModuleLoaded(module: IPythonModule) {
     }
     private onPythonProcessLoaded(pyThread: IPythonThread) {
-        var isDjango = false;//Array.isArray(this.launchArgs.debugOptions) && this.launchArgs.debugOptions.indexOf(DebugOptions.DjangoDebugging) >= 0;
-        if (this.debugClient.DebugType === DebugType.Local && !isDjango) {
-            // now we are ready to accept breakpoints -> fire the initialized event to give UI a chance to set breakpoints
-            this.sendEvent(new InitializedEvent());
-            this.sendResponse(this.entryResponse);
-            if (this.launchArgs && this.launchArgs.stopOnEntry === true) {
-                this.sendEvent(new StoppedEvent("entry", pyThread.Id));
-            }
-            else {
-                this.pythonProcess.SendResumeThread(pyThread.Id);
-            }
-            this.debuggerLoadedPromiseResolve();
-            return;
+        this.sendResponse(this.entryResponse);
+        this.debuggerLoadedPromiseResolve();
+        if (this.launchArgs && this.launchArgs.stopOnEntry === true) {
+            this.sendEvent(new StoppedEvent("entry", pyThread.Id));
         }
-        // 
-        //         if (this.debugClient.DebugType === DebugType.Local && isDjango) {
-        //             // now we are ready to accept breakpoints -> fire the initialized event to give UI a chance to set breakpoints
-        //             this.sendEvent(new InitializedEvent());
-        //             this.sendResponse(this.entryResponse);
-        //             if (this.launchArgs && this.launchArgs.stopOnEntry === true) {
-        //                 this.sendEvent(new StoppedEvent("entry", pyThread.Id));
-        //             }
-        //             else {
-        //                 this.pythonProcess.SendResumeThread(pyThread.Id);
-        //             }
-        //             return;
-        //         }
-        
-        //Todo: May be we can have another promise that tells the debugger whether it is ready to accept breakpoints
-        //Cuz with django, untill the framework is fully initialized we cannot add breakpoints even if python may have started executing
-        //Cuz the files get loaded much later
-                                        
-        //                 var djangoArgs = <LaunchDjangoRequestArguments>this.launchArgs;
-        // 
-        //                 this.sendResponse(this.entryResponse);
-        //                 this.pythonProcess.SendResumeThread(pyThread.Id);
-        //                  
-        //                 //Wait for the port to open before loading breakpoints
-        //                 WaitForPortToOpen(djangoArgs.port, 60000).then(() => {
-        //                     this.debuggerLoadedPromiseResolve();    
-        //                     // now we are ready to accept breakpoints -> fire the initialized event to give UI a chance to set breakpoints
-        //                     this.sendEvent(new InitializedEvent());
-        //                 }, error=> {
-        //                     this.sendEvent(new OutputEvent(error, "stderr"));
-        //                 });
-        //                 break;                
-        if (this.debugClient.DebugType === DebugType.Local && isDjango) {
-            // now we are ready to accept breakpoints -> fire the initialized event to give UI a chance to set breakpoints
-            this.sendEvent(new InitializedEvent());
-            this.sendResponse(this.entryResponse);
-            this.debuggerLoadedPromiseResolve();
+        else {
+            this.pythonProcess.SendResumeThread(pyThread.Id);
         }
     }
 
@@ -224,7 +180,8 @@ export class PythonDebugger extends DebugSession {
         });
     }
     private onBreakpointHit(pyThread: IPythonThread, breakpointId: number) {
-        if (this.registeredBreakpoints.has(breakpointId)) {
+        //Break only if the breakpoint exists and it is enabled
+        if (this.registeredBreakpoints.has(breakpointId) && this.registeredBreakpoints.get(breakpointId).Enabled === true) {
             this.sendEvent(new StoppedEvent("breakpoint", pyThread.Id));
         }
         else {
@@ -249,7 +206,8 @@ export class PythonDebugger extends DebugSession {
             LineNo: line,
             PassCount: 0,
             PassCountKind: PythonBreakpointPassCountKind.Always,
-            IsDjangoBreakpoint: isDjangoFile
+            IsDjangoBreakpoint: isDjangoFile,
+            Enabled: true
         };
     }
     protected setBreakPointsRequest(response: DebugProtocol.SetBreakpointsResponse, args: DebugProtocol.SetBreakpointsArguments): void {
@@ -261,13 +219,27 @@ export class PythonDebugger extends DebugSession {
             var breakpoints: { verified: boolean, line: number }[] = [];
             var breakpointsToRemove = [];
             var linesToAdd = args.breakpoints.map(b=> b.line);
-            var linesToRemove = [];
             var registeredBks = this.registeredBreakpointsByFileName.get(args.source.path);
-            linesToRemove = registeredBks.map(b=> b.LineNo).filter(oldLine=> linesToAdd.indexOf(oldLine) === -1);
-
+            var linesToRemove = registeredBks.map(b=> b.LineNo).filter(oldLine=> linesToAdd.indexOf(oldLine) === -1);
+            var linesToUpdate = registeredBks.map(b=> b.LineNo).filter(oldLine=> linesToAdd.indexOf(oldLine) >= 0);
+            
+            //Always add new breakpoints, don't re-enable previous breakpoints
+            //Cuz sometimes some breakpoints get added too early (e.g. in django) and don't get registeredBks
+            //and the response comes back indicating it wasn't set properly
+            //However, at a later point in time, the program breaks at that point!!!            
             var linesToAddPromises = args.breakpoints.map(bk=> {
                 return new Promise(resolve=> {
-                    var breakpoint: IPythonBreakpoint = this.buildBreakpointDetails(args.source.path, bk.line, bk.condition);
+                    var breakpoint: IPythonBreakpoint;
+                    var existingBreakpointsForThisLine = registeredBks.filter(registeredBk=> registeredBk.LineNo === bk.line);
+                    if (existingBreakpointsForThisLine.length > 0) {
+                        //We have an existing breakpoint for this line
+                        //just enable that
+                        breakpoint = existingBreakpointsForThisLine[0]
+                        breakpoint.Enabled = true;
+                    }
+                    else {
+                        breakpoint = this.buildBreakpointDetails(args.source.path, bk.line, bk.condition);
+                    }
 
                     this.pythonProcess.BindBreakpoint(breakpoint).then(() => {
                         this.registeredBreakpoints.set(breakpoint.Id, breakpoint);
@@ -277,6 +249,7 @@ export class PythonDebugger extends DebugSession {
                     }, reason=> {
                         this.registeredBreakpoints.set(breakpoint.Id, breakpoint);
                         breakpoints.push({ verified: false, line: bk.line });
+                        registeredBks.push(breakpoint);
                         resolve();
                     });
                 });
@@ -286,7 +259,10 @@ export class PythonDebugger extends DebugSession {
                 return new Promise(resolve=> {
                     var registeredBks = this.registeredBreakpointsByFileName.get(args.source.path);
                     var bk = registeredBks.filter(b=> b.LineNo === line)[0];
+                    //Ok, we won't get a response back, so update the breakpoints list  indicating this has been disabled
+                    bk.Enabled = false;
                     this.pythonProcess.DisableBreakPoint(bk);
+                    resolve();
                 });
             });
 
