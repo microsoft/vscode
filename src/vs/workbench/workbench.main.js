@@ -81,6 +81,8 @@ define([
 
 	'vs/workbench/parts/gettingStarted/electron-browser/electronGettingStarted.contribution',
 
+	'vs/workbench/electron-browser/darwin/cli.contribution',
+
 	'vs/workbench/electron-browser/main.contribution',
 	'vs/workbench/electron-browser/main'
 
