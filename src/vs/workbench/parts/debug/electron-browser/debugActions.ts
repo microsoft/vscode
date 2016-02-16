@@ -392,6 +392,20 @@ export class AddFunctionBreakpointAction extends AbstractDebugAction {
 	}
 }
 
+export class RenameFunctionBreakpointAction extends AbstractDebugAction {
+	static ID = 'workbench.debug.viewlet.action.renameFunctionBreakpointAction';
+	static LABEL = nls.localize('renameFunctionBreakpoint', "Rename Function Breakpoint");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, null, debugService, keybindingService);
+	}
+
+	public run(fbp: debug.IFunctionBreakpoint): TPromise<any> {
+		this.debugService.getViewModel().setSelectedFunctionBreakpoint(fbp);
+		return TPromise.as(null);
+	}
+}
+
 export class AddConditionalBreakpointAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.addConditionalBreakpointAction';
 	static LABEL = nls.localize('addConditionalBreakpoint', "Add Conditional Breakpoint");
