@@ -403,7 +403,7 @@ export function createTokenizationSupport(modeService:IModeService, mode:Modes.I
 		getNestedMode: (rawState: Modes.IState): Supports.IEnteringNestedModeData => {
 			var mime = (<MonarchLexer>rawState).embeddedMode;
 
-			if (!modesRegistry.isRegisteredMode(mime)) {
+			if (!modeService.isRegisteredMode(mime)) {
 				// unknown mode
 				return {
 					mode: modeService.getMode('text/plain'),

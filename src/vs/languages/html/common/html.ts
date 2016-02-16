@@ -400,7 +400,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 		var missingModePromise: winjs.Promise = null;
 
 		if (htmlState.embeddedContentType !== null) {
-			if (modesRegistry.isRegisteredMode(htmlState.embeddedContentType)) {
+			if (this.modeService.isRegisteredMode(htmlState.embeddedContentType)) {
 				result = this.modeService.getMode(htmlState.embeddedContentType);
 				if (!result) {
 					missingModePromise = this.modeService.getOrCreateMode(htmlState.embeddedContentType);

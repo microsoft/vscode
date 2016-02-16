@@ -16,7 +16,6 @@ import textMate = require('vscode-textmate');
 import TMState = require('vs/editor/common/modes/TMState');
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
-import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
 
 export interface ITMSyntaxExtensionPoint {
 	language: string;
@@ -75,7 +74,7 @@ export class MainProcessTextMateSyntax {
 	}
 
 	private _handleGrammarExtensionPointUser(extensionFolderPath:string, syntax:ITMSyntaxExtensionPoint, collector: IMessageCollector): void {
-		if (syntax.language && ((typeof syntax.language !== 'string') || !LanguageExtensions.isRegisteredMode(syntax.language))) {
+		if (syntax.language && ((typeof syntax.language !== 'string') || !this._modeService.isRegisteredMode(syntax.language))) {
 			collector.error(nls.localize('invalid.language', "Unknown language in `contributes.{0}.language`. Provided value: {1}", grammarsExtPoint.name, String(syntax.language)));
 			return;
 		}

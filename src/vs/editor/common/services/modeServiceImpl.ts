@@ -87,6 +87,10 @@ export class ModeServiceImpl implements IModeService {
 		});
 	}
 
+	public isRegisteredMode(mimetypeOrModeId: string): boolean {
+		return LanguageExtensions.isRegisteredMode(mimetypeOrModeId);
+	}
+
 	// --- instantiation
 
 	public lookup(commaSeparatedMimetypesOrCommaSeparatedIds: string): IModeLookupResult[]{
