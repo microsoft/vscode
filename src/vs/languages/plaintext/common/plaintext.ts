@@ -11,6 +11,7 @@ import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
+import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 
 class State extends AbstractState {
 
@@ -47,7 +48,7 @@ export class Mode extends AbstractMode<AbstractModeWorker> {
 		@IThreadService threadService: IThreadService
 	) {
 		super(descriptor, instantiationService, threadService);
-		this.tokenizationSupport = new supports.TokenizationSupport(this, {
+		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new State(this)
 		}, false, false);
 	}

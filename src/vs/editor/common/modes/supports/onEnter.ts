@@ -5,9 +5,9 @@
 'use strict';
 
 import {handleEvent} from 'vs/editor/common/modes/supports';
-import {IEnterAction, IndentAction, IOnEnterSupport, ILineContext, IMode} from 'vs/editor/common/modes';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Errors = require('vs/base/common/errors');
+import {IEnterAction, IndentAction, IRichEditOnEnter, ILineContext, IMode} from 'vs/editor/common/modes';
+import {ITokenizedModel, ITextModel, IPosition} from 'vs/editor/common/editorCommon';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import Strings = require('vs/base/common/strings');
 import {Position} from 'vs/editor/common/core/position';
 
@@ -40,7 +40,7 @@ interface IProcessedBracketPair extends IBracketPair {
 	closeRegExp: RegExp;
 }
 
-export class OnEnterSupport implements IOnEnterSupport {
+export class OnEnterSupport implements IRichEditOnEnter {
 
 	private static _INDENT: IEnterAction = { indentAction: IndentAction.Indent };
 	private static _INDENT_OUTDENT: IEnterAction = { indentAction: IndentAction.IndentOutdent };
@@ -72,21 +72,21 @@ export class OnEnterSupport implements IOnEnterSupport {
 		this._indentationRules = opts.indentationRules;
 	}
 
-	public onEnter(model:EditorCommon.ITokenizedModel, position: EditorCommon.IPosition): IEnterAction {
+	public onEnter(model:ITokenizedModel, position: IPosition): IEnterAction {
 		var context = model.getLineContext(position.lineNumber);
 
 		return handleEvent(context, position.column - 1, (nestedMode:IMode, context:ILineContext, offset:number) => {
 			if (this._modeId === nestedMode.getId()) {
 				return this._onEnter(model, position);
-			} else if (nestedMode.onEnterSupport) {
-				return nestedMode.onEnterSupport.onEnter(model, position);
+			} else if (nestedMode.richEditSupport && nestedMode.richEditSupport.onEnter) {
+				return nestedMode.richEditSupport.onEnter.onEnter(model, position);
 			} else {
 				return null;
 			}
 		});
 	}
 
-	private _onEnter(model:EditorCommon.ITextModel, position: EditorCommon.IPosition): IEnterAction {
+	private _onEnter(model:ITextModel, position: IPosition): IEnterAction {
 		let lineText = model.getLineContent(position.lineNumber);
 		let beforeEnterText = lineText.substr(0, position.column - 1);
 		let afterEnterText = lineText.substr(position.column - 1);
@@ -175,40 +175,28 @@ export class OnEnterSupport implements IOnEnterSupport {
 		try {
 			return new RegExp(def);
 		} catch(err) {
-			Errors.onUnexpectedError(err);
+			onUnexpectedError(err);
 			return null;
 		}
 	}
 }
 
-export function getRawEnterActionAtPosition(model:EditorCommon.ITokenizedModel, lineNumber:number, column:number): IEnterAction {
-	let enterAction:IEnterAction;
+export function getRawEnterActionAtPosition(model:ITokenizedModel, lineNumber:number, column:number): IEnterAction {
+	let result:IEnterAction;
+	let richEditSupport = model.getMode().richEditSupport;
 
-	if (model.getMode().onEnterSupport) {
+	if (richEditSupport && richEditSupport.onEnter) {
 		try {
-			enterAction = model.getMode().onEnterSupport.onEnter(model, new Position(lineNumber, column));
+			result = richEditSupport.onEnter.onEnter(model, new Position(lineNumber, column));
 		} catch (e) {
-			Errors.onUnexpectedError(e);
+			onUnexpectedError(e);
 		}
 	}
 
-	if (!enterAction) {
-		if (model.getMode().electricCharacterSupport) {
-			let lineContext = model.getLineContext(lineNumber);
-			try {
-				enterAction = model.getMode().electricCharacterSupport.onEnter(lineContext, column - 1);
-			} catch(e) {
-				Errors.onUnexpectedError(e);
-			}
-		}
-	} else {
-		// console.log('USING NEW INDENTATION LOGIC!');
-	}
-
-	return enterAction;
+	return result;
 }
 
-export function getEnterActionAtPosition(model:EditorCommon.ITokenizedModel, lineNumber:number, column:number): { enterAction: IEnterAction; indentation: string; } {
+export function getEnterActionAtPosition(model:ITokenizedModel, lineNumber:number, column:number): { enterAction: IEnterAction; indentation: string; } {
 	let lineText = model.getLineContent(lineNumber);
 	let indentation = Strings.getLeadingWhitespace(lineText);
 	if (indentation.length > column - 1) {

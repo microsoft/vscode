@@ -9,6 +9,7 @@ import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer'
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import modes = require('vs/editor/common/modes');
 import supports = require('vs/editor/common/modes/supports');
+import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 
 suite('Editor Modes - textToHtmlTokenizer', () => {
 	test('TextToHtmlTokenizer', () => {
@@ -76,7 +77,7 @@ class Mode implements modes.IMode {
 	public tokenizationSupport: modes.ITokenizationSupport;
 
 	constructor() {
-		this.tokenizationSupport = new supports.TokenizationSupport(this, {
+		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new State(this)
 		}, false, false);
 	}

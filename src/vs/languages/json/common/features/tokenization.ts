@@ -180,8 +180,7 @@ function tokenize(mode:Modes.IMode, comments:boolean, line:string, state:JSONSta
 		ret.endState = new JSONState(state.getMode(), state.getStateData(), scanner.getTokenError(), lastWasColon);
 		ret.tokens.push({
 			startIndex: offset,
-			type: type,
-			bracket: bracket
+			type: type
 		});
 	}
 

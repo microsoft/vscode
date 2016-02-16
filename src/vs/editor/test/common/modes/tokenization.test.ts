@@ -15,6 +15,7 @@ import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer'
 import {createLineContext} from 'vs/editor/test/common/modesTestUtils';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IDisposable, empty as EmptyDisposable} from 'vs/base/common/lifecycle';
+import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 
 export class State extends AbstractState {
 
@@ -36,7 +37,7 @@ export class Mode implements modes.IMode {
 	public tokenizationSupport: modes.ITokenizationSupport;
 
 	constructor() {
-		this.tokenizationSupport = new supports.TokenizationSupport(this, {
+		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new State(this)
 		}, false, false);
 	}
@@ -111,7 +112,7 @@ export class SwitchingMode implements modes.IMode {
 	constructor(id:string, descriptor:IModeSwitchingDescriptor) {
 		this._id = id;
 		this._switchingModeDescriptor = descriptor;
-		this.tokenizationSupport = new supports.TokenizationSupport(this, this, true, false);
+		this.tokenizationSupport = new TokenizationSupport(this, this, true, false);
 	}
 
 	public getId():string {
@@ -144,7 +145,7 @@ export class SwitchingMode implements modes.IMode {
 		}
 	}
 
-	public getNestedMode(state:modes.IState): supports.IEnteringNestedModeData {
+	public getNestedMode(state:modes.IState): IEnteringNestedModeData {
 		var s = <StateMemorizingLastWord>state;
 		return {
 			mode: this._switchingModeDescriptor[s.lastWord].mode,
@@ -152,7 +153,7 @@ export class SwitchingMode implements modes.IMode {
 		};
 	}
 
-	public getLeavingNestedModeData(line:string, state:modes.IState):supports.ILeavingNestedModeData {
+	public getLeavingNestedModeData(line:string, state:modes.IState): ILeavingNestedModeData {
 		var s = <StateMemorizingLastWord>state;
 		var endChar = this._switchingModeDescriptor[s.lastWord].endCharacter;
 		var endCharPosition = line.indexOf(endChar);
@@ -177,7 +178,6 @@ function assertTokens(actual:modes.IToken[], expected:ITestToken[], message?:str
 	for (var i = 0; i < expected.length; i++) {
 		assert.equal(actual[i].startIndex, expected[i].startIndex, 'startIndex mismatch');
 		assert.equal(actual[i].type, expected[i].type, 'type mismatch');
-		assert.equal(actual[i].bracket, expected[i].bracket ? expected[i].bracket : modes.Bracket.None, 'bracket mismatch');
 	}
 };
 

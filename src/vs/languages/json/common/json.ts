@@ -20,12 +20,13 @@ import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiatio
 import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {IJSONContributionRegistry, Extensions, ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
 export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Modes.IExtraInfoSupport, Modes.IOutlineSupport, IThreadSynchronizableObject<ISchemaContributions> {
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
-	public electricCharacterSupport: Modes.IElectricCharacterSupport;
-	public characterPairSupport: Modes.ICharacterPairSupport;
+	public richEditSupport: Modes.IRichEditSupport;
 
 	public extraInfoSupport: Modes.IExtraInfoSupport;
 	public outlineSupport: Modes.IOutlineSupport;
@@ -35,8 +36,6 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 
 	public outlineGroupLabel : { [name: string]: string; };
 
-	public onEnterSupport: Modes.IOnEnterSupport;
-
 	constructor(
 		descriptor:Modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -45,10 +44,36 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 		super(descriptor, instantiationService, threadService);
 
 		this.tokenizationSupport = tokenization.createTokenizationSupport(this, true);
-		this.electricCharacterSupport = new supports.BracketElectricCharacterSupport(this, { brackets: [
-			{ tokenType:'delimiter.bracket.json', open: '{', close: '}', isElectric: true },
-			{ tokenType:'delimiter.array.json', open: '[', close: ']', isElectric: true }
-		] });
+
+		this.richEditSupport = new RichEditSupport(this.getId(), {
+
+			wordPattern: createWordRegExp('.-'),
+
+			comments: {
+				lineComment: '//',
+				blockComment: ['/*', '*/']
+			},
+
+			brackets: [
+				['{', '}'],
+				['[', ']']
+			],
+
+			__electricCharacterSupport: {
+				brackets: [
+					{ tokenType:'delimiter.bracket.json', open: '{', close: '}', isElectric: true },
+					{ tokenType:'delimiter.array.json', open: '[', close: ']', isElectric: true }
+				]
+			},
+
+			__characterPairSupport: {
+				autoClosingPairs: [
+					{ open: '{', close: '}', notIn: ['string'] },
+					{ open: '[', close: ']', notIn: ['string'] },
+					{ open: '"', close: '"', notIn: ['string'] }
+				]
+			}
+		});
 
 		this.extraInfoSupport = this;
 
@@ -64,24 +89,10 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 
 		this.formattingSupport = this;
 
-		this.characterPairSupport = new supports.CharacterPairSupport(this, {
-			autoClosingPairs:
-				[	{ open: '{', close: '}', notIn: ['string'] },
-					{ open: '[', close: ']', notIn: ['string'] },
-					{ open: '"', close: '"', notIn: ['string'] }
-				]});
-
-		this.suggestSupport = new supports.SuggestSupport(this, {
+		this.suggestSupport = new SuggestSupport(this.getId(), {
 			triggerCharacters: [],
 			excludeTokens: ['comment.line.json', 'comment.block.json'],
 			suggest: (resource, position) => this.suggest(resource, position)});
-
-		this.onEnterSupport = new OnEnterSupport(this.getId(), {
-			brackets: [
-				{ open: '{', close: '}' },
-				{ open: '[', close: ']' }
-			]
-		});
 	}
 
 	public creationDone(): void {
@@ -139,18 +150,5 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 	static $formatRange = OneWorkerAttr(JSONMode, JSONMode.prototype.formatRange);
 	public formatRange(resource:URI, range:EditorCommon.IRange, options:Modes.IFormattingOptions):WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
 		return this._worker((w) => w.format(resource, range, options));
-	}
-
-	public getCommentsConfiguration():Modes.ICommentsConfiguration {
-		return {
-			lineCommentTokens: ['//'],
-			blockCommentStartToken: '/*',
-			blockCommentEndToken: '*/'
-		};
-	}
-
-	private static WORD_DEFINITION = createWordRegExp('.-');
-	public getWordDefinition():RegExp {
-		return JSONMode.WORD_DEFINITION;
 	}
 }

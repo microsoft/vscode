@@ -15,7 +15,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 suite('Editor Contrib - Line Comment Command', () => {
 
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		var mode = new ModelModes.CommentMode({ lineCommentTokens: ['!@#'], blockCommentStartToken: '<!@#', blockCommentEndToken: '#@!>' });
+		var mode = new ModelModes.CommentMode({ lineCommentToken: '!@#', blockCommentStartToken: '<!@#', blockCommentEndToken: '#@!>' });
 		TU.testCommand(lines, mode, selection, (sel) => new LineCommentCommand.LineCommentCommand(sel, 4, LineCommentCommand.Type.Toggle), expectedLines, expectedSelection);
 	}
 
@@ -490,7 +490,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 suite('Editor Contrib - Line Comment As Block Comment', () => {
 
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		var mode = new ModelModes.CommentMode({ lineCommentTokens: [''], blockCommentStartToken: '(', blockCommentEndToken: ')' });
+		var mode = new ModelModes.CommentMode({ lineCommentToken: '', blockCommentStartToken: '(', blockCommentEndToken: ')' });
 		TU.testCommand(lines, mode, selection, (sel) => new LineCommentCommand.LineCommentCommand(sel, 4, LineCommentCommand.Type.Toggle), expectedLines, expectedSelection);
 	}
 
@@ -600,7 +600,7 @@ suite('Editor Contrib - Line Comment As Block Comment', () => {
 
 suite('Editor Contrib - Line Comment As Block Comment 2', () => {
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		var mode = new ModelModes.CommentMode({ lineCommentTokens: [], blockCommentStartToken: '<!@#', blockCommentEndToken: '#@!>' });
+		var mode = new ModelModes.CommentMode({ lineCommentToken: null, blockCommentStartToken: '<!@#', blockCommentEndToken: '#@!>' });
 		TU.testCommand(lines, mode, selection, (sel) => new LineCommentCommand.LineCommentCommand(sel, 4, LineCommentCommand.Type.Toggle), expectedLines, expectedSelection);
 	}
 

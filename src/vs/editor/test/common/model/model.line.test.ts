@@ -248,7 +248,7 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 	test('insertion on empty line', () => {
 		var line = new ModelLine.ModelLine(1, 'some text');
 		var map = new TextModelWithTokens.TokensInflatorMap();
-		line.setTokens(map, [{startIndex: 0, type:'bar', bracket:0}], null, []);
+		line.setTokens(map, [{startIndex: 0, type:'bar'}], null, []);
 
 		line.applyEdits({}, [{startColumn:1, endColumn:10, text:'', forceMoveMarkers: false}]);
 		line.setTokens(map, [], null, []);
@@ -256,8 +256,7 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		line.applyEdits({}, [{startColumn:1, endColumn:1, text:'a', forceMoveMarkers: false}]);
 		assertLineTokens(line.getTokens(), [{
 			startIndex: 0,
-			type:'',
-			bracket:0
+			type:''
 		}]);
 	})
 
@@ -265,9 +264,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			],
 			[{
 				startColumn: 1,
@@ -277,9 +276,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'aabcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 5, type: '2', bracket: 1 },
-				{ startIndex: 6, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 5, type: '2' },
+				{ startIndex: 6, type: '3' }
 			]
 		);
 	});
@@ -288,9 +287,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'aabcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 5, type: '2', bracket: 1 },
-				{ startIndex: 6, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 5, type: '2' },
+				{ startIndex: 6, type: '3' }
 			],
 			[{
 				startColumn: 2,
@@ -300,9 +299,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'axabcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 6, type: '2', bracket: 1 },
-				{ startIndex: 7, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 6, type: '2' },
+				{ startIndex: 7, type: '3' }
 			]
 		);
 	});
@@ -311,9 +310,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'axabcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 6, type: '2', bracket: 1 },
-				{ startIndex: 7, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 6, type: '2' },
+				{ startIndex: 7, type: '3' }
 			],
 			[{
 				startColumn: 3,
@@ -323,9 +322,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'axstuabcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 9, type: '2', bracket: 1 },
-				{ startIndex: 10, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 9, type: '2' },
+				{ startIndex: 10, type: '3' }
 			]
 		);
 	});
@@ -334,9 +333,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'axstuabcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 9, type: '2', bracket: 1 },
-				{ startIndex: 10, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 9, type: '2' },
+				{ startIndex: 10, type: '3' }
 			],
 			[{
 				startColumn: 10,
@@ -346,9 +345,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'axstuabcd\t efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 10, type: '2', bracket: 1 },
-				{ startIndex: 11, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 10, type: '2' },
+				{ startIndex: 11, type: '3' }
 			]
 		);
 	});
@@ -357,9 +356,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'axstuabcd\t efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 10, type: '2', bracket: 1 },
-				{ startIndex: 11, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 10, type: '2' },
+				{ startIndex: 11, type: '3' }
 			],
 			[{
 				startColumn: 12,
@@ -369,9 +368,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'axstuabcd\t ddefgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 10, type: '2', bracket: 1 },
-				{ startIndex: 13, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 10, type: '2' },
+				{ startIndex: 13, type: '3' }
 			]
 		);
 	});
@@ -380,9 +379,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'axstuabcd\t ddefgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 10, type: '2', bracket: 1 },
-				{ startIndex: 13, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 10, type: '2' },
+				{ startIndex: 13, type: '3' }
 			],
 			[{
 				startColumn: 18,
@@ -392,9 +391,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'axstuabcd\t ddefghxyz',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 10, type: '2', bracket: 1 },
-				{ startIndex: 13, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 10, type: '2' },
+				{ startIndex: 13, type: '3' }
 			]
 		);
 	});
@@ -403,9 +402,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'axstuabcd\t ddefghxyz',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 10, type: '2', bracket: 1 },
-				{ startIndex: 13, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 10, type: '2' },
+				{ startIndex: 13, type: '3' }
 			],
 			[{
 				startColumn: 1,
@@ -415,9 +414,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'xaxstuabcd\t ddefghxyz',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 11, type: '2', bracket: 1 },
-				{ startIndex: 14, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 11, type: '2' },
+				{ startIndex: 14, type: '3' }
 			]
 		);
 	});
@@ -426,9 +425,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'xaxstuabcd\t ddefghxyz',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 11, type: '2', bracket: 1 },
-				{ startIndex: 14, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 11, type: '2' },
+				{ startIndex: 14, type: '3' }
 			],
 			[{
 				startColumn: 22,
@@ -438,9 +437,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'xaxstuabcd\t ddefghxyzx',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 11, type: '2', bracket: 1 },
-				{ startIndex: 14, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 11, type: '2' },
+				{ startIndex: 14, type: '3' }
 			]
 		);
 	});
@@ -449,9 +448,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'xaxstuabcd\t ddefghxyzx',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 11, type: '2', bracket: 1 },
-				{ startIndex: 14, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 11, type: '2' },
+				{ startIndex: 14, type: '3' }
 			],
 			[{
 				startColumn: 2,
@@ -461,9 +460,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'xaxstuabcd\t ddefghxyzx',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 11, type: '2', bracket: 1 },
-				{ startIndex: 14, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 11, type: '2' },
+				{ startIndex: 14, type: '3' }
 			]
 		);
 	});
@@ -480,7 +479,7 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'a',
 			[
-				{ startIndex: 0, type: '', bracket: 0 }
+				{ startIndex: 0, type: '' }
 			]
 		);
 	});
@@ -489,9 +488,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcdefghij',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 3, type: '2', bracket: 1 },
-				{ startIndex: 6, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 3, type: '2' },
+				{ startIndex: 6, type: '3' }
 			],
 			[{
 				startColumn: 4,
@@ -501,8 +500,8 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'abcghij',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 3, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 3, type: '3' }
 			]
 		);
 	});
@@ -511,9 +510,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcdefghij',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 3, type: '2', bracket: 1 },
-				{ startIndex: 6, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 3, type: '2' },
+				{ startIndex: 6, type: '3' }
 			],
 			[{
 				startColumn: 4,
@@ -523,9 +522,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'abchellodefghij',
 			[
-				{ startIndex:  0, type: '1', bracket: 0 },
-				{ startIndex:  8, type: '2', bracket: 1 },
-				{ startIndex: 11, type: '3', bracket: -1 }
+				{ startIndex:  0, type: '1' },
+				{ startIndex:  8, type: '2' },
+				{ startIndex: 11, type: '3' }
 			]
 		);
 	});
@@ -534,9 +533,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			],
 			[{
 				startColumn: 1,
@@ -546,9 +545,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'bcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 3, type: '2', bracket: 1 },
-				{ startIndex: 4, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 3, type: '2' },
+				{ startIndex: 4, type: '3' }
 			]
 		);
 	});
@@ -557,9 +556,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			],
 			[{
 				startColumn: 2,
@@ -569,9 +568,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'ad efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 2, type: '2', bracket: 1 },
-				{ startIndex: 3, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 2, type: '2' },
+				{ startIndex: 3, type: '3' }
 			]
 		);
 	});
@@ -580,9 +579,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			],
 			[{
 				startColumn: 1,
@@ -592,8 +591,8 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			' efgh',
 			[
-				{ startIndex: 0, type: '2', bracket: 1 },
-				{ startIndex: 1, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '2' },
+				{ startIndex: 1, type: '3' }
 			]
 		);
 	});
@@ -602,9 +601,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			],
 			[{
 				startColumn: 5,
@@ -614,8 +613,8 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'abcdefgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '3' }
 			]
 		);
 	});
@@ -624,9 +623,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			],
 			[{
 				startColumn: 5,
@@ -636,8 +635,8 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'abcdfgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '3' }
 			]
 		);
 	});
@@ -646,9 +645,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			],
 			[{
 				startColumn: 5,
@@ -658,7 +657,7 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'abcd',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 }
+				{ startIndex: 0, type: '1' }
 			]
 		);
 	});
@@ -667,9 +666,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			],
 			[{
 				startColumn: 1,
@@ -686,9 +685,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			],
 			[{
 				startColumn: 1,
@@ -698,9 +697,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			]
 		);
 	});
@@ -709,9 +708,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			],
 			[{
 				startColumn: 1,
@@ -721,9 +720,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'cd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 2, type: '2', bracket: 1 },
-				{ startIndex: 3, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 2, type: '2' },
+				{ startIndex: 3, type: '3' }
 			]
 		);
 	});
@@ -732,9 +731,9 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			],
 			[{
 				startColumn: 5,
@@ -744,7 +743,7 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'abcd',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 }
+				{ startIndex: 0, type: '1' }
 			]
 		);
 	});
@@ -753,11 +752,11 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'Hello world, ciao',
 			[
-				{ startIndex: 0, type: 'hello', bracket: 0 },
-				{ startIndex: 5, type: '', bracket: 0 },
-				{ startIndex: 6, type: 'world', bracket: 0 },
-				{ startIndex: 11, type: '', bracket: 0 },
-				{ startIndex: 13, type: '', bracket: 0 },
+				{ startIndex: 0, type: 'hello' },
+				{ startIndex: 5, type: '' },
+				{ startIndex: 6, type: 'world' },
+				{ startIndex: 11, type: '' },
+				{ startIndex: 13, type: '' },
 			],
 			[{
 				startColumn: 1,
@@ -767,11 +766,11 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'Hi world, ciao',
 			[
-				{ startIndex: 0, type: 'hello', bracket: 0 },
-				{ startIndex: 2, type: '', bracket: 0 },
-				{ startIndex: 3, type: 'world', bracket: 0 },
-				{ startIndex: 8, type: '', bracket: 0 },
-				{ startIndex: 10, type: '', bracket: 0 },
+				{ startIndex: 0, type: 'hello' },
+				{ startIndex: 2, type: '' },
+				{ startIndex: 3, type: 'world' },
+				{ startIndex: 8, type: '' },
+				{ startIndex: 10, type: '' },
 			]
 		);
 	});
@@ -780,11 +779,11 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'Hello world, ciao',
 			[
-				{ startIndex: 0, type: 'hello', bracket: 0 },
-				{ startIndex: 5, type: '', bracket: 0 },
-				{ startIndex: 6, type: 'world', bracket: 0 },
-				{ startIndex: 11, type: '', bracket: 0 },
-				{ startIndex: 13, type: '', bracket: 0 },
+				{ startIndex: 0, type: 'hello' },
+				{ startIndex: 5, type: '' },
+				{ startIndex: 6, type: 'world' },
+				{ startIndex: 11, type: '' },
+				{ startIndex: 13, type: '' },
 			],
 			[{
 				startColumn: 1,
@@ -799,11 +798,11 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			}],
 			'Hi wmy friends, ciao',
 			[
-				{ startIndex: 0, type: 'hello', bracket: 0 },
-				{ startIndex: 2, type: '', bracket: 0 },
-				{ startIndex: 3, type: 'world', bracket: 0 },
-				{ startIndex: 14, type: '', bracket: 0 },
-				{ startIndex: 16, type: '', bracket: 0 },
+				{ startIndex: 0, type: 'hello' },
+				{ startIndex: 2, type: '' },
+				{ startIndex: 3, type: 'world' },
+				{ startIndex: 14, type: '' },
+				{ startIndex: 16, type: '' },
 			]
 		);
 	});
@@ -825,9 +824,9 @@ suite('Editor Model - ModelLine.split text & tokens', () => {
 		testLineSplitTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			],
 			1,
 			'',
@@ -840,17 +839,17 @@ suite('Editor Model - ModelLine.split text & tokens', () => {
 		testLineSplitTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			],
 			10,
 			'abcd efgh',
 			'',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			]
 		);
 	});
@@ -859,15 +858,15 @@ suite('Editor Model - ModelLine.split text & tokens', () => {
 		testLineSplitTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			],
 			5,
 			'abcd',
 			' efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 }
+				{ startIndex: 0, type: '1' }
 			]
 		);
 	});
@@ -876,16 +875,16 @@ suite('Editor Model - ModelLine.split text & tokens', () => {
 		testLineSplitTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			],
 			6,
 			'abcd ',
 			'efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' }
 			]
 		);
 	});
@@ -911,17 +910,17 @@ suite('Editor Model - ModelLine.append text & tokens', () => {
 		testLineAppendTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			],
 			'',
 			[],
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			]
 		);
 	});
@@ -932,15 +931,15 @@ suite('Editor Model - ModelLine.append text & tokens', () => {
 			[],
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			],
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			]
 		);
 	});
@@ -949,24 +948,24 @@ suite('Editor Model - ModelLine.append text & tokens', () => {
 		testLineAppendTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			],
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '4', bracket: 0 },
-				{ startIndex: 4, type: '5', bracket: 1 },
-				{ startIndex: 5, type: '6', bracket: -1 }
+				{ startIndex: 0, type: '4' },
+				{ startIndex: 4, type: '5' },
+				{ startIndex: 5, type: '6' }
 			],
 			'abcd efghabcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 },
-				{ startIndex: 9, type: '4', bracket: 0 },
-				{ startIndex: 13, type: '5', bracket: 1 },
-				{ startIndex: 14, type: '6', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' },
+				{ startIndex: 9, type: '4' },
+				{ startIndex: 13, type: '5' },
+				{ startIndex: 14, type: '6' }
 			]
 		);
 	});
@@ -975,18 +974,18 @@ suite('Editor Model - ModelLine.append text & tokens', () => {
 		testLineAppendTokens(
 			'abcd ',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' }
 			],
 			'efgh',
 			[
-				{ startIndex: 0, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '3' }
 			],
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			]
 		);
 	});
@@ -995,18 +994,18 @@ suite('Editor Model - ModelLine.append text & tokens', () => {
 		testLineAppendTokens(
 			'abcd',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
+				{ startIndex: 0, type: '1' },
 			],
 			' efgh',
 			[
-				{ startIndex: 0, type: '2', bracket: 1 },
-				{ startIndex: 1, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '2' },
+				{ startIndex: 1, type: '3' }
 			],
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1', bracket: 0 },
-				{ startIndex: 4, type: '2', bracket: 1 },
-				{ startIndex: 5, type: '3', bracket: -1 }
+				{ startIndex: 0, type: '1' },
+				{ startIndex: 4, type: '2' },
+				{ startIndex: 5, type: '3' }
 			]
 		);
 	});

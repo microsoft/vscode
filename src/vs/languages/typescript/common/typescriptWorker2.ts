@@ -32,6 +32,7 @@ import emitting = require('vs/languages/typescript/common/features/emitting');
 import rename = require('vs/languages/typescript/common/features/rename');
 import {IResourceService, ResourceEvents, IResourceAddedEvent, IResourceRemovedEvent} from 'vs/editor/common/services/resourceService';
 import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
+import {WorkerInplaceReplaceSupport, ReplaceSupport} from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 
 export class TypeScriptWorker2 extends AbstractModeWorker {
 
@@ -150,7 +151,7 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 	// ---- Implementation of various IXYZSupports
 
 	protected _createInPlaceReplaceSupport(): Modes.IInplaceReplaceSupport {
-		return new supports.WorkerInplaceReplaceSupport(this.resourceService, this);
+		return new WorkerInplaceReplaceSupport(this.resourceService, this);
 	}
 
 	public doValidate(resource: URI): void {
@@ -257,7 +258,7 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 			['string', 'number', 'boolean', 'void', 'any'],
 			['private', 'public']
 		];
-		return supports.ReplaceSupport.valueSetsReplace(valueSets, value, up);
+		return ReplaceSupport.valueSetsReplace(valueSets, value, up);
 	}
 
 	public findReferences(resource: URI, position: EditorCommon.IPosition, includeDeclaration: boolean): winjs.TPromise<Modes.IReference[]> {

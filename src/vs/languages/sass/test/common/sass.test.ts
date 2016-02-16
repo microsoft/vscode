@@ -18,7 +18,7 @@ suite('Sass Colorizer', () => {
 	setup((done) => {
 		modesUtil.load('sass').then(mode => {
 			tokenizationSupport = mode.tokenizationSupport;
-			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.onEnterSupport);
+			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
 			done();
 		});
 	});

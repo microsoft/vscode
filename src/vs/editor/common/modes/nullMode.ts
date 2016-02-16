@@ -80,10 +80,12 @@ export class NullMode implements Modes.IMode {
 
 	public static ID = 'vs.editor.modes.nullMode';
 
-	public tokenTypeClassificationSupport: Modes.ITokenTypeClassificationSupport;
+	public richEditSupport: Modes.IRichEditSupport;
 
 	constructor() {
-		this.tokenTypeClassificationSupport = this;
+		this.richEditSupport = {
+			wordDefinition: NullMode.DEFAULT_WORD_REGEXP
+		};
 	}
 
 	public getId():string {
@@ -93,18 +95,13 @@ export class NullMode implements Modes.IMode {
 	public toSimplifiedMode(): Modes.IMode {
 		return this;
 	}
-
-	public getWordDefinition():RegExp {
-		return NullMode.DEFAULT_WORD_REGEXP;
-	}
 }
 
 export function nullTokenize(mode: Modes.IMode, buffer:string, state: Modes.IState, deltaOffset:number = 0, stopAtOffset?:number): Modes.ILineTokens {
 	var tokens:Modes.IToken[] = [
 		{
 			startIndex: deltaOffset,
-			type: '',
-			bracket: Modes.Bracket.None
+			type: ''
 		}
 	];
 

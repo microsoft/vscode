@@ -75,10 +75,10 @@ export interface ILanguage {
 	 * characters that could potentially cause outdentation
 	 */
 	outdentTriggers?: string;
-	/**
-	 * Advanced auto completion, auto indenting, and bracket matching
-	 */
-	enhancedBrackets?: Modes.IRegexBracketPair[];
+	// /**
+	//  * Advanced auto completion, auto indenting, and bracket matching
+	//  */
+	// enhancedBrackets?: Modes.IRegexBracketPair[];
 
 	suggestSupport?: {
 		textualCompletions?: boolean;

@@ -20,8 +20,15 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IThreadService } from 'vs/platform/thread/common/thread';
 import * as htmlTokenTypes from 'vs/languages/html/common/htmlTokenTypes';
 import {EMPTY_ELEMENTS} from 'vs/languages/html/common/htmlEmptyTagsShared';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
+// import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
+import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
+import {ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
+import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
 export { htmlTokenTypes }; // export to be used by Razor. We are the main module, so Razor should get ot from use.
+export { EMPTY_ELEMENTS }; // export to be used by Razor. We are the main module, so Razor should get ot from use.
 
 export enum States {
 	Content,
@@ -265,11 +272,10 @@ export class State extends AbstractState {
 	}
 }
 
-export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> implements supports.ITokenizationCustomization {
+export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> implements ITokenizationCustomization {
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
-	public electricCharacterSupport: Modes.IElectricCharacterSupport;
-	public characterPairSupport: Modes.ICharacterPairSupport;
+	public richEditSupport: Modes.IRichEditSupport;
 
 	public extraInfoSupport:Modes.IExtraInfoSupport;
 	public occurrencesSupport:Modes.IOccurrencesSupport;
@@ -278,7 +284,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 	public formattingSupport: Modes.IFormattingSupport;
 	public parameterHintsSupport: Modes.IParameterHintsSupport;
 	public suggestSupport: Modes.ISuggestSupport;
-	public onEnterSupport: Modes.IOnEnterSupport;
 
 	private modeService:IModeService;
 
@@ -292,46 +297,29 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 
 		this.modeService = modeService;
 
-		this.tokenizationSupport = new supports.TokenizationSupport(this, this, true, true);
-		this.electricCharacterSupport = new supports.BracketElectricCharacterSupport(this,
-			{
-				brackets: [],
-				regexBrackets:[
-					{	tokenType: htmlTokenTypes.getTag('$1'),
-						open: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join("|")}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-						closeComplete: '</$1>',
-						close: /<\/(\w[\w\d]*)\s*>$/i }],
-				caseInsensitive:true,
-				embeddedElectricCharacters: ['*', '}', ']', ')']
-			});
+		this.tokenizationSupport = new TokenizationSupport(this, this, true, true);
 
 		this.formattingSupport = this;
 		this.extraInfoSupport = this;
 		this.occurrencesSupport = this;
-		this.referenceSupport = new supports.ReferenceSupport(this, {
+		this.referenceSupport = new ReferenceSupport(this.getId(), {
 			tokens: ['invalid'],
 			findReferences: (resource, position, includeDeclaration) => this.findReferences(resource, position, includeDeclaration)});
 		this.logicalSelectionSupport = this;
 
-		this.parameterHintsSupport = new supports.ParameterHintsSupport(this, {
+		this.parameterHintsSupport = new ParameterHintsSupport(this.getId(), {
 			triggerCharacters: ['(', ','],
 			excludeTokens: ['*'],
 			getParameterHints: (resource, position) => this.getParameterHints(resource, position)});
 		// TODO@Alex TODO@Joh: there is something off about declaration support of embedded JS in HTML
-		// this.declarationSupport = new supports.DeclarationSupport(this, {
+		// this.declarationSupport = new DeclarationSupport(this, {
 		// 		tokens: ['invalid'],
 		// 		findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 
-		this.suggestSupport = new supports.SuggestSupport(this, {
+		this.suggestSupport = new SuggestSupport(this.getId(), {
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
 			excludeTokens: ['comment'],
 			suggest: (resource, position) => this.suggest(resource, position)});
-
-		this.onEnterSupport = new OnEnterSupport(this.getId(), {
-			brackets: [
-				{ open: '<!--', close: '-->' }
-			]
-		});
 	}
 
 	public asyncCtor(): winjs.Promise {
@@ -340,13 +328,52 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 			this.modeService.getOrCreateMode('text/css')
 		]).then((embeddableModes) => {
 			var autoClosingPairs = this._getAutoClosingPairs(embeddableModes);
+			this.richEditSupport = this._createRichEditSupport(autoClosingPairs);
+		});
+	}
 
-			this.characterPairSupport = new supports.CharacterPairSupport(this, {
-				autoClosingPairs: autoClosingPairs.slice(0),
+	protected _createRichEditSupport(embeddedAutoClosingPairs: Modes.IAutoClosingPair[]): Modes.IRichEditSupport {
+		return new RichEditSupport(this.getId(), {
+
+			wordPattern: createWordRegExp('#-?%'),
+
+			comments: {
+				blockComment: ['<!--', '-->']
+			},
+
+			brackets: [
+				['<!--', '-->'],
+				['<', '>'],
+			],
+
+			__electricCharacterSupport: {
+				brackets: [
+					{ tokenType: 'bla', open: '<!--', close: '-->', isElectric: true },
+					{ tokenType: 'bla', open: '<', close: '>', isElectric: true }
+				],
+				caseInsensitive: true,
+				embeddedElectricCharacters: ['*', '}', ']', ')']
+			},
+
+			__characterPairSupport: {
+				autoClosingPairs: embeddedAutoClosingPairs.slice(0),
 				surroundingPairs: [
-						{ open: '"', close: '"' },
-						{ open: '\'', close: '\'' }
-					]});
+					{ open: '"', close: '"' },
+					{ open: '\'', close: '\'' }
+				]
+			},
+
+			onEnterRules: [
+				{
+					beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join("|")}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+					afterText: /^<\/(\w[\w\d]*)\s*>$/i,
+					action: { indentAction: Modes.IndentAction.IndentOutdent }
+				},
+				{
+					beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join("|")}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+					action: { indentAction: Modes.IndentAction.Indent }
+				}
+			],
 		});
 	}
 
@@ -372,12 +399,13 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 	}
 
 	private _collectAutoClosingPairs(result:{[key:string]:string;}, mode:Modes.IMode): void {
-		if (mode && mode.characterPairSupport) {
-			var acp = mode.characterPairSupport.getAutoClosingPairs();
-			if (acp !== null) {
-				for(var i = 0; i < acp.length; i++) {
-					result[acp[i].open] = acp[i].close;
-				}
+		if (!mode || !mode.richEditSupport || !mode.richEditSupport.characterPair) {
+			return;
+		}
+		var acp = mode.richEditSupport.characterPair.getAutoClosingPairs();
+		if (acp !== null) {
+			for(var i = 0; i < acp.length; i++) {
+				result[acp[i].open] = acp[i].close;
 			}
 		}
 	}
@@ -392,7 +420,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 		return state instanceof State && (<State>state).kind === States.WithinEmbeddedContent;
 	}
 
-	public getNestedMode(state:Modes.IState): supports.IEnteringNestedModeData {
+	public getNestedMode(state:Modes.IState): IEnteringNestedModeData {
 		var result:Modes.IMode = null;
 		var htmlState:State = <State>state;
 		var missingModePromise: winjs.Promise = null;
@@ -424,7 +452,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 		};
 	}
 
-	public getLeavingNestedModeData(line:string, state:Modes.IState):supports.ILeavingNestedModeData {
+	public getLeavingNestedModeData(line:string, state:Modes.IState):ILeavingNestedModeData {
 		var tagName = (<State>state).lastTagName;
 		var regexp = new RegExp('<\\/' + tagName + '\\s*>', 'i');
 		var match:any = regexp.exec(line);
@@ -436,15 +464,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 			};
 		}
 		return null;
-	}
-
-	public static WORD_DEFINITION = createWordRegExp('#-?%');
-	public getWordDefinition():RegExp {
-		return HTMLMode.WORD_DEFINITION;
-	}
-
-	public getCommentsConfiguration():Modes.ICommentsConfiguration {
-		return { blockCommentStartToken: '<!--', blockCommentEndToken: '-->' };
 	}
 
 	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], htmlWorker.HTMLWorker> {

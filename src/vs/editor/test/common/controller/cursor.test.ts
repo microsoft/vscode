@@ -15,7 +15,7 @@ import {Handler, EventType, IPosition, ISelection, EndOfLinePreference} from 'vs
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import {CharacterPairSupport} from 'vs/editor/common/modes/supports';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
 let H = Handler;
 
@@ -768,28 +768,30 @@ class TestMode {
 }
 
 class SurroundingMode extends TestMode {
-	public characterPairSupport: Modes.ICharacterPairSupport;
+	public richEditSupport: Modes.IRichEditSupport;
 
 	constructor() {
 		super();
-		this.characterPairSupport = new CharacterPairSupport(this, {
-			autoClosingPairs: [{ open: '(', close: ')' }]
+		this.richEditSupport = new RichEditSupport(this.getId(), {
+			__characterPairSupport: {
+				autoClosingPairs: [{ open: '(', close: ')' }]
+			}
 		});
 	}
 }
 
 class OnEnterMode extends TestMode {
-	public electricCharacterSupport: Modes.IElectricCharacterSupport;
+	public richEditSupport: Modes.IRichEditSupport;
 
 	constructor(indentAction: Modes.IndentAction) {
 		super();
-		this.electricCharacterSupport = {
-			getElectricCharacters: ():string[] => null,
-			onElectricCharacter: (context:Modes.ILineContext, offset:number): Modes.IElectricAction => null,
-			onEnter: (context:Modes.ILineContext, offset:number): Modes.IEnterAction => {
-				return {
-					indentAction: indentAction
-				};
+		this.richEditSupport = {
+			onEnter: {
+				onEnter: (model, position) => {
+					return {
+						indentAction: indentAction
+					};
+				}
 			}
 		};
 	}

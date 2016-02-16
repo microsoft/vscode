@@ -1035,7 +1035,9 @@ export class OneCursorOp {
 			return false;
 		}
 
-		if(!cursor.model.getMode().characterPairSupport) {
+		let richEditSupport = cursor.model.getMode().richEditSupport;
+
+		if(!richEditSupport || !richEditSupport.characterPair) {
 			return false;
 		}
 
@@ -1061,7 +1063,7 @@ export class OneCursorOp {
 
 		var shouldAutoClosePair = false;
 		try {
-			shouldAutoClosePair = cursor.model.getMode().characterPairSupport.shouldAutoClosePair(ch, lineContext, position.column - 1);
+			shouldAutoClosePair = richEditSupport.characterPair.shouldAutoClosePair(ch, lineContext, position.column - 1);
 		} catch(e) {
 			Errors.onUnexpectedError(e);
 		}
@@ -1144,22 +1146,23 @@ export class OneCursorOp {
 		var lineContext = cursor.model.getLineContext(position.lineNumber);
 
 		var electricAction:IElectricAction;
-		if(cursor.model.getMode().electricCharacterSupport) {
+		let richEditSupport = cursor.model.getMode().richEditSupport;
+		if(richEditSupport && richEditSupport.electricCharacter) {
 			try {
-				electricAction = cursor.model.getMode().electricCharacterSupport.onElectricCharacter(lineContext, position.column - 2);
+				electricAction = richEditSupport.electricCharacter.onElectricCharacter(lineContext, position.column - 2);
 			} catch(e) {
 				Errors.onUnexpectedError(e);
 			}
 		}
 
 		if (electricAction) {
-			var matchBracketType = electricAction.matchBracketType;
+			let matchOpenBracket = electricAction.matchOpenBracket;
 			var appendText = electricAction.appendText;
-			if (matchBracketType) {
-				var match:EditorCommon.IEditorRange = null;
-				if (matchBracketType) {
-					match = cursor.model.findMatchingBracketUp(matchBracketType, position);
-				}
+			if (matchOpenBracket) {
+				var match = cursor.model.findMatchingBracketUp(matchOpenBracket, {
+					lineNumber: position.lineNumber,
+					column: position.column - matchOpenBracket.length
+				});
 				if (match) {
 					var matchLineNumber = match.startLineNumber;
 					var matchLine = cursor.model.getLineContent(matchLineNumber);

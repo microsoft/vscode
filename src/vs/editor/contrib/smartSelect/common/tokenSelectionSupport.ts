@@ -21,6 +21,10 @@ class TokenSelectionSupport implements Modes.ILogicalSelectionSupport {
 	}
 
 	public getRangesToPosition(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.ILogicalSelectionEntry[]> {
+		return TPromise.as(this.getRangesToPositionSync(resource, position));
+	}
+
+	public getRangesToPositionSync(resource: URI, position: EditorCommon.IPosition): Modes.ILogicalSelectionEntry[] {
 		var model = this._modelService.getModel(resource),
 			entries: Modes.ILogicalSelectionEntry[] = [];
 
@@ -33,7 +37,7 @@ class TokenSelectionSupport implements Modes.ILogicalSelectionSupport {
 			});
 		}
 
-		return TPromise.as(entries);
+		return entries;
 	}
 
 	private _doGetRangesToPosition(model: EditorCommon.IModel, position: EditorCommon.IPosition): EditorCommon.IRange[] {
