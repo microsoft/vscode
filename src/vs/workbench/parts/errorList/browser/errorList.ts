@@ -23,9 +23,7 @@ interface IMarkerTemplateData {
 	icon: HTMLElement;
 	label: HTMLElement;
 
-	file: HTMLElement;
-	line: HTMLElement;
-	column: HTMLElement;
+	location: HTMLElement;
 }
 
 class Renderer implements IRenderer<IMarker, IMarkerTemplateData> {
@@ -44,9 +42,7 @@ class Renderer implements IRenderer<IMarker, IMarkerTemplateData> {
 		data.icon = append(container, $('.icon'));
 		data.label = append(container, $('span.label'));
 
-		data.column = append(container, $('.column'));
-		data.line = append(container, $('.line'));
-		data.file = append(container, $('.file'));
+		data.location = append(container, $('.location'));
 
 		return data;
 	}
@@ -59,9 +55,7 @@ class Renderer implements IRenderer<IMarker, IMarkerTemplateData> {
 		templateData.icon.className = 'icon ' + Renderer.iconClassNameFor(element);
 		templateData.label.textContent = element.message;
 
-		templateData.file.textContent = paths.basename(element.resource.fsPath);
-		templateData.line.textContent = String(element.startLineNumber);
-		templateData.column.textContent = String(element.startColumn);
+		templateData.location.textContent = `${paths.basename(element.resource.fsPath)}:${element.startLineNumber}:${element.startColumn}`;
 	}
 
 	private static iconClassNameFor(element: IMarker): string {

@@ -50,26 +50,11 @@
 	/* line: 20 + 4 + 4 */
 	/* col: 20 + 4 + 4 */
 	/* file: 100 + 4 + 4 */
-	max-width: calc(100% - 24px - 28px - 28px - 108px - 20px)
+	max-width: calc(100% - 24px - 200px - 20px)
 }
 
-.new-error-list .file {
+.new-error-list .location {
 	float: right;
 	margin: 0 4px;
-	width: 100px;
-}
-
-.new-error-list .line {
-	float: right;
-	margin: 0 4px;
-	width: 20px;
-	text-align: center;
-}
-
-.new-error-list .column {
-	float: right;
-	margin: 0 4px;
-	margin-right: 20px;
-	width: 20px;
-	text-align: center;
+	width: 200px;
 }
