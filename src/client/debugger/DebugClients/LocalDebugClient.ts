@@ -7,7 +7,7 @@ import * as child_process from 'child_process';
 import {LaunchRequestArguments} from '../Common/Contracts';
 import {DebugClient, DebugType} from './DebugClient';
 import * as fs from 'fs';
-import {open} from '../../Common/open';
+import {open} from '../../common/open';
 
 export class LocalDebugClient extends DebugClient {
     protected args: LaunchRequestArguments;
