@@ -43,6 +43,10 @@ export var debuggersExtPoint = pluginsRegistry.PluginsRegistry.registerExtension
 				description: nls.localize('vscode.extension.contributes.debuggers.label', "Display name for this debug adapter."),
 				type: 'string'
 			},
+			telemetryKey: {
+				description: nls.localize('vscode.extension.contributes.debuggers.telemetryKey', "All telemetry information generated from the adapter will be tagged with this key."),
+				type: 'string'
+			},
 			enableBreakpointsFor: {
 				description: nls.localize('vscode.extension.contributes.debuggers.enableBreakpointsFor', "Allow breakpoints for these languages."),
 				type: 'object',

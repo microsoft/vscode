@@ -20,6 +20,7 @@ export class Adapter {
 	private configurationAttributes: any;
 	public initialConfigurations: any[];
 	public enableBreakpointsFor: { languageIds: string[] };
+	public telemetryKey: string;
 
 	constructor(rawAdapter: debug.IRawAdapter, systemVariables: SystemVariables, extensionFolderPath: string) {
 		if (rawAdapter.windows) {
@@ -67,6 +68,7 @@ export class Adapter {
 		this.initialConfigurations = rawAdapter.initialConfigurations;
 		this._label = rawAdapter.label;
 		this.enableBreakpointsFor = rawAdapter.enableBreakpointsFor;
+		this.telemetryKey = rawAdapter.telemetryKey;
 	}
 
 	public get label() {
