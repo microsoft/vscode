@@ -48,6 +48,8 @@ define([
 
 	'vs/workbench/parts/debug/electron-browser/debug.contribution',
 
+	'vs/workbench/parts/errorList/browser/errorList.contribution',
+
 	'vs/workbench/parts/html/browser/html.contribution',
 
 	'vs/workbench/parts/extensions/electron-browser/extensions.contribution',
