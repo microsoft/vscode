@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as nls from 'vs/nls';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
@@ -51,7 +52,7 @@ export class LanguageConfigurationFileHandler {
 			var errors = [];
 			var configuration = <ILanguageConfiguration>json.parse(fileContents.toString(), errors);
 			if (errors.length) {
-				console.error("Errors parsing " + configFilePath + ": " + errors.join('\n'));
+				console.error(nls.localize('parseErrors', "Errors parsing {0}: {1}", configFilePath, errors.join('\n')));
 			}
 			this._handleConfig(modeId, configuration);
 		}, (err) => {

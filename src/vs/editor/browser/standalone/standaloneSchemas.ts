@@ -748,7 +748,7 @@ MonacoEditorSchemas['http://json.schemastore.org/tsconfig'] = {
 				},
 				'watch': {
 					'description': nls.localize('tsconfig.json.compilerOptions.watch', "Watch input files."),
-					"type": 'boolean'
+					'type': 'boolean'
 				},
 				'jsx': {
 					'description': nls.localize('tsconfig.json.compilerOptions.jsx', "Enable the JSX option (requires TypeScript 1.6):  'preserve', 'react'."),

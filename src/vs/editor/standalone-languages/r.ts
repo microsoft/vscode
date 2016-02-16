@@ -117,7 +117,7 @@ export var language = <ILanguage> {
 		'\\a',
 		'\\f',
 		'\\v',
-		"\\'",
+		'\\\'',
 		'\\"',
 		'\\\\'
 	],

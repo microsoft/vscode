@@ -168,7 +168,7 @@ class UninstallAction extends Action {
 	run(): TPromise<void> {
 		return pfs.unlink(this.target)
 			.then(null, ignore('ENOENT'))
-			.then(() => this.messageService.show(Severity.Info, nls.localize('success', 'Shortcut \'{0}\' successfully uninstalled from PATH.', this.applicationName)))
+			.then(() => this.messageService.show(Severity.Info, nls.localize('success', 'Shortcut \'{0}\' successfully uninstalled from PATH.', this.applicationName)));
 	}
 }
 

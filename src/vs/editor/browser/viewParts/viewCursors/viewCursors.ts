@@ -177,11 +177,11 @@ export class ViewCursors extends ViewPart {
 		if (this._editorHasFocus) {
 			if (this._primaryCursor.getIsInEditableRange() && !this._context.configuration.editor.readOnly) {
 				switch (this._context.configuration.editor.cursorBlinking) {
-					case ("blink"):
+					case 'blink':
 						return RenderType.Blink;
-					case ("visible"):
+					case 'visible':
 						return RenderType.Visible;
-					case ("hidden"):
+					case 'hidden':
 						return RenderType.Hidden;
 					default:
 						return RenderType.Blink;

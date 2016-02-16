@@ -236,7 +236,7 @@ export function createSafeRegExp(searchString:string, isRegex:boolean, matchCase
 export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 	// Exit early if it's one of these special cases which are meant to match
 	// against an empty string
-	if (regexp.source === "^" || regexp.source === "^$" || regexp.source === "$") {
+	if (regexp.source === '^' || regexp.source === '^$' || regexp.source === '$') {
 		return false;
 	}
 
