@@ -55,10 +55,12 @@
 
 /*.monaco-editor .inputarea {
 	position: fixed !important;
-	width: 200px !important;
+	width: 800px !important;
 	height: 200px !important;
 	top: initial !important;
+	left: initial !important;
 	bottom: 0 !important;
+	right: 0 !important;
 }*/
 
 .monaco-editor.ff .inputarea,
