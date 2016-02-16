@@ -72,16 +72,16 @@ export class EmptyBlocksWithoutComment implements rules.IStyleRule<ts.Block> {
 		context.reportError(node, this.name, this.code);
 	}
 
-	private _hasComment(block: ts.Node): boolean {
-		var insideBlock = block.getChildAt(1);
-		if (insideBlock) {
-			var text = ts.getTextOfNode(insideBlock);
-			if (text && text.trim().length > 0) {
-				return true;
-			}
-		}
+	// private _hasComment(block: ts.Node): boolean {
+	// 	var insideBlock = block.getChildAt(1);
+	// 	if (insideBlock) {
+	// 		var text = ts.getTextOfNode(insideBlock);
+	// 		if (text && text.trim().length > 0) {
+	// 			return true;
+	// 		}
+	// 	}
 
-		return false;
-	}
+	// 	return false;
+	// }
 }
 
