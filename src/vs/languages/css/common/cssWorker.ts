@@ -22,7 +22,6 @@ import parser = require('vs/languages/css/common/parser/cssParser');
 import selectorPrinting = require('vs/languages/css/common/services/selectorPrinting');
 import lint = require('vs/languages/css/common/services/lint');
 import lintRules = require('vs/languages/css/common/services/lintRules');
-import supports = require('vs/editor/common/modes/supports');
 import {IMarker, IMarkerData} from 'vs/platform/markers/common/markers';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';

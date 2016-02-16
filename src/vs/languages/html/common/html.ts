@@ -5,7 +5,6 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import supports = require('vs/editor/common/modes/supports');
 import { AsyncDescriptor2, createAsyncDescriptor2 } from 'vs/platform/instantiation/common/descriptors';
 import winjs = require('vs/base/common/winjs.base');
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -15,7 +14,6 @@ import { AbstractMode, createWordRegExp } from 'vs/editor/common/modes/abstractM
 import { AbstractState } from 'vs/editor/common/modes/abstractState';
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService } from 'vs/platform/thread/common/thread';
 import * as htmlTokenTypes from 'vs/languages/html/common/htmlTokenTypes';

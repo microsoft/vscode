@@ -5,7 +5,6 @@
 'use strict';
 
 import WinJS = require('vs/base/common/winjs.base');
-import supports = require('vs/editor/common/modes/supports');
 import objects = require('vs/base/common/objects');
 import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -17,7 +16,6 @@ import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {IMarker} from 'vs/platform/markers/common/markers';
-import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';

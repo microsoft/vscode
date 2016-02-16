@@ -12,7 +12,6 @@ import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import sassWorker = require('vs/languages/sass/common/sassWorker');
-import supports = require('vs/editor/common/modes/supports');
 import * as sassTokenTypes from 'vs/languages/sass/common/sassTokenTypes';
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';

@@ -5,7 +5,6 @@
 'use strict';
 
 import Modes = require('vs/editor/common/modes');
-import supports = require('vs/editor/common/modes/supports');
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';

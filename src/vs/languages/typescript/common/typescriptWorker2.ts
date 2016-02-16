@@ -15,7 +15,6 @@ import objects = require('vs/base/common/objects');
 import ts = require('vs/languages/typescript/common/lib/typescriptServices');
 import Options = require('vs/languages/typescript/common/options');
 import typescript = require('vs/languages/typescript/common/typescript');
-import supports = require('vs/editor/common/modes/supports');
 import projectService = require('vs/languages/typescript/common/project/projectService');
 import format = require('vs/languages/typescript/common/features/format');
 import logicalSelection = require('vs/languages/typescript/common/features/logicalSelection');

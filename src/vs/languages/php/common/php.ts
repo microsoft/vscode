@@ -6,12 +6,10 @@
 
 import WinJS = require('vs/base/common/winjs.base');
 import objects = require('vs/base/common/objects');
-import supports = require('vs/editor/common/modes/supports');
 import Modes = require('vs/editor/common/modes');
 import {AbstractMode, isDigit, createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';

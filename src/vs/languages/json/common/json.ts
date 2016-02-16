@@ -8,7 +8,6 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import URI from 'vs/base/common/uri';
 import WinJS = require('vs/base/common/winjs.base');
-import supports = require('vs/editor/common/modes/supports');
 import Platform = require('vs/platform/platform');
 import nls = require('vs/nls');
 import jsonWorker = require('vs/languages/json/common/jsonWorker');
@@ -17,7 +16,6 @@ import {AbstractMode, createWordRegExp} from 'vs/editor/common/modes/abstractMod
 import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import {IThreadService, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
-import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {IJSONContributionRegistry, Extensions, ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';

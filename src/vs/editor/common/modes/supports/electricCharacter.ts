@@ -9,7 +9,6 @@ import {handleEvent, ignoreBracketsInToken} from 'vs/editor/common/modes/support
 import Strings = require('vs/base/common/strings');
 import {Range} from 'vs/editor/common/core/range';
 import {IRichEditBracket} from 'vs/editor/common/editorCommon';
-import {Arrays} from 'vs/editor/common/core/arrays';
 
 /**
  * Definition of documentation comments (e.g. Javadoc/JSdoc)
@@ -238,7 +237,7 @@ function once<T, R>(keyFn:(input:T)=>string, computeFn:(input:T)=>R):(input:T)=>
 			cache[key] = computeFn(input);
 		}
 		return cache[key];
-	}
+	};
 }
 
 var getRegexForBracketPair = once<ISimpleInternalBracket,RegExp>(

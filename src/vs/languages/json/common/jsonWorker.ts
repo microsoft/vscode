@@ -19,7 +19,6 @@ import WinJS = require('vs/base/common/winjs.base');
 import Strings = require('vs/base/common/strings');
 import {JSONMode} from './json';
 import ProjectJSONContribution = require('./contributions/projectJSONContribution');
-import supports = require('vs/editor/common/modes/supports');
 import PackageJSONContribution = require('./contributions/packageJSONContribution');
 import BowerJSONContribution = require('./contributions/bowerJSONContribution');
 import GlobPatternContribution = require('./contributions/globPatternContribution');

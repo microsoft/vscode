@@ -13,7 +13,6 @@ import Types = require('vs/editor/common/modes/monarch/monarchTypes');
 import Compile = require('vs/editor/common/modes/monarch/monarchCompile');
 import lessWorker = require('vs/languages/less/common/lessWorker');
 import * as lessTokenTypes from 'vs/languages/less/common/lessTokenTypes';
-import supports = require('vs/editor/common/modes/supports');
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';

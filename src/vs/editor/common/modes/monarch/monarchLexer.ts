@@ -11,7 +11,6 @@
 
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {LineStream} from 'vs/editor/common/modes/lineStream';
-import Supports = require('vs/editor/common/modes/supports');
 import MonarchCommonTypes = require('vs/editor/common/modes/monarch/monarchCommon');
 import Modes = require('vs/editor/common/modes');
 import {IModeService} from 'vs/editor/common/services/modeService';

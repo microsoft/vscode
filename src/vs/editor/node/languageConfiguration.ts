@@ -8,10 +8,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import pfs = require('vs/base/node/pfs');
-import Supports = require ('vs/editor/common/modes/supports');
-import {IOnEnterSupportOptions} from 'vs/editor/common/modes/supports/onEnter';
 import json = require('vs/base/common/json');
-import {ICharacterPairContribution} from 'vs/editor/common/modes/supports/characterPair';
 import {IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
 
 type CharacterPair = [string, string];
@@ -78,7 +75,7 @@ export class LanguageConfigurationFileHandler {
 					let [open, close] = pair;
 					return { open: open, close: close };
 				})
-			}
+			};
 		}
 
 		// TMSyntax hard-codes these and tokenizes them as brackets

@@ -11,7 +11,6 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import lifecycle = require('vs/base/common/lifecycle');
 import async = require('vs/base/common/async');
-import supports = require('vs/editor/common/modes/supports');
 import tokenization = require('vs/languages/typescript/common/features/tokenization');
 import quickFixMainActions = require('vs/languages/typescript/common/features/quickFixMainActions');
 import typescriptWorker = require('vs/languages/typescript/common/typescriptWorker2');
@@ -24,7 +23,6 @@ import {AsyncDescriptor, AsyncDescriptor2, createAsyncDescriptor2} from 'vs/plat
 import {IMarker} from 'vs/platform/markers/common/markers';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
-import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';

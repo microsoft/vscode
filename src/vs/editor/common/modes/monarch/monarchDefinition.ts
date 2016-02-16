@@ -11,12 +11,10 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
-import Supports = require('vs/editor/common/modes/supports');
 import MonarchCommonTypes = require('vs/editor/common/modes/monarch/monarchCommon');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IModelService} from 'vs/editor/common/services/modelService';
 import Modes = require('vs/editor/common/modes');
-import {IOnEnterSupportOptions} from 'vs/editor/common/modes/supports/onEnter';
 import {CharacterPair, IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
 import {IComposableSuggestContribution} from 'vs/editor/common/modes/supports/suggestSupport';
 

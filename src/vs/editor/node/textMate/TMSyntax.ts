@@ -176,8 +176,7 @@ class Tokenizer {
 
 			let i: number,
 				charCode: number,
-				isBracket: string,
-				bracketType: Modes.Bracket;
+				isBracket: string;
 
 			for (i = tokenStartIndex; i < tokenEndIndex; i++) {
 				charCode = line.charCodeAt(i);

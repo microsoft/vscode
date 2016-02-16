@@ -5,10 +5,7 @@
 'use strict';
 
 import Modes = require('vs/editor/common/modes');
-import supports = require('vs/editor/common/modes/supports');
 import htmlMode = require('vs/languages/html/common/html');
-import winjs = require('vs/base/common/winjs.base');
-import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import handlebarsTokenTypes = require('vs/languages/handlebars/common/handlebarsTokenTypes');
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';

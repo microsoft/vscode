@@ -11,11 +11,9 @@ import typescriptMode = require('vs/languages/typescript/common/typescriptMode')
 import typescript = require('vs/languages/typescript/common/typescript');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import supports = require('vs/editor/common/modes/supports');
 import extensions = require('vs/languages/javascript/common/javascript.extensions');
 import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {AsyncDescriptor, AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
-import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
