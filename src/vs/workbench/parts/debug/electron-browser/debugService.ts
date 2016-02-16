@@ -5,6 +5,7 @@
 
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
+import Objects = require('vs/base/common/objects');
 import mime = require('vs/base/common/mime');
 import ee = require('vs/base/common/eventEmitter');
 import uri from 'vs/base/common/uri';
@@ -70,6 +71,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	private lastTaskEvent: TaskEvent;
 	private toDispose: lifecycle.IDisposable[];
 	private inDebugMode: IKeybindingContextKey<boolean>;
+	private telemetryInfo: any;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -110,6 +112,12 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.viewModel = new viewmodel.ViewModel();
 
 		this.registerListeners(eventService, lifecycleService);
+
+		this.telemetryInfo = Object.create(null);
+		this.telemetryService.getTelemetryInfo().then(info => {
+			this.telemetryInfo['common.vscodemachineid'] = info.machineId;
+			this.telemetryInfo['common.vscodesessionid'] = info.sessionId;
+		});
 	}
 
 	private registerListeners(eventService: IEventService, lifecycleService: ILifecycleService): void {
@@ -290,8 +298,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 					if (!this.telemetryAdapter) {
 						this.telemetryAdapter = new AIAdapter(key, this.session.getType());
 					}
-
-					this.telemetryAdapter.log(event.body.output, event.body.data);
+					let data = Objects.mixin(event.body.data, this.telemetryInfo);
+					this.telemetryAdapter.log(event.body.output, data);
 				}
 			} else if (event.body && typeof event.body.output === 'string' && event.body.output.length > 0) {
 				this.onOutput(event);
