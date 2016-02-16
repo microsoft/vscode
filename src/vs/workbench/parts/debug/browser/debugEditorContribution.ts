@@ -203,7 +203,7 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 	// end hover business
 
 	private static BREAKPOINT_HELPER_DECORATION: editorcommon.IModelDecorationOptions = {
-		glyphMarginClassName: 'debug-breakpoint-glyph-hint',
+		glyphMarginClassName: 'debug-breakpoint-hint-glyph',
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 
