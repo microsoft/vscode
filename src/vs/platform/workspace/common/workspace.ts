@@ -92,6 +92,9 @@ export interface IEnvironment {
 	isBuilt: boolean;
 	execPath: string;
 
+	applicationName: string;
+	darwinBundleIdentifier: string;
+
 	version: string;
 	commitHash: string;
 
