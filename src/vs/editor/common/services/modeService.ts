@@ -27,7 +27,9 @@ export interface IModeService {
 	configureAllModes(config:any): void;
 	getConfigurationForMode(modeId:string): any;
 
+	// --- reading
 	isRegisteredMode(mimetypeOrModeId: string): boolean;
+	getRegisteredModes(): string[];
 
 	// --- instantiation
 	lookup(commaSeparatedMimetypesOrCommaSeparatedIds: string): IModeLookupResult[];

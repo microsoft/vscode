@@ -79,8 +79,7 @@ export class ModeServiceImpl implements IModeService {
 		if (!config) {
 			return;
 		}
-		var modeRegistry = <IEditorModesRegistry> Registry.as(Extensions.EditorModes);
-		var modes = modeRegistry.getRegisteredModes();
+		var modes = LanguageExtensions.getRegisteredModes();
 		modes.forEach((modeIdentifier) => {
 			var configuration = config[modeIdentifier];
 			this.configureModeById(modeIdentifier, configuration);
@@ -89,6 +88,10 @@ export class ModeServiceImpl implements IModeService {
 
 	public isRegisteredMode(mimetypeOrModeId: string): boolean {
 		return LanguageExtensions.isRegisteredMode(mimetypeOrModeId);
+	}
+
+	public getRegisteredModes(): string[] {
+		return LanguageExtensions.getRegisteredModes();
 	}
 
 	// --- instantiation

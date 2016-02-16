@@ -28,7 +28,6 @@ export interface IEditorModesRegistry {
 	registerMode(def:ILegacyLanguageDefinition): void;
 
 	// --- reading
-	getRegisteredModes(): string[];
 	getRegisteredMimetypes(): string[];
 	getRegisteredLanguageNames(): string[];
 	getExtensions(alias: string): string[];
@@ -69,10 +68,6 @@ class EditorModesRegistry implements IEditorModesRegistry {
 	}
 
 	// --- modes registration
-
-	public getRegisteredModes(): string[] {
-		return LanguageExtensions.getRegisteredModes();
-	}
 
 	public getRegisteredMimetypes(): string[] {
 		return LanguageExtensions.getRegisteredMimetypes();

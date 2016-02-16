@@ -19,6 +19,7 @@ import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
+import {IModeService} from 'vs/editor/common/services/modeService';
 
 import {ipcRenderer as ipc} from 'electron';
 import fs = require('fs');
@@ -32,7 +33,8 @@ class OpenSnippetsAction extends actions.Action {
 		id: string,
 		label:string,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IQuickOpenService private quickOpenService:IQuickOpenService
+		@IQuickOpenService private quickOpenService:IQuickOpenService,
+		@IModeService private modeService:IModeService
 	) {
 		super(id, label);
 	}
@@ -43,7 +45,7 @@ class OpenSnippetsAction extends actions.Action {
 
 	public run(): winjs.Promise {
 		var modesRegistry = <modesExtensions.IEditorModesRegistry>platform.Registry.as(modesExtensions.Extensions.EditorModes);
-		var modeIds = modesRegistry.getRegisteredModes();
+		var modeIds = this.modeService.getRegisteredModes();
 		var picks: IPickOpenEntry[] = [];
 		modeIds.forEach((modeId) => {
 			var name = modesRegistry.getLanguageName(modeId);
