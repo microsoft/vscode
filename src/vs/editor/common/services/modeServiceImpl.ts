@@ -8,7 +8,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IModeService, IModeLookupResult} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import Modes = require('vs/editor/common/modes');
-import Supports = require ('vs/editor/common/modes/supports');
 import {IPluginService} from 'vs/platform/plugins/common/plugins';
 import {FrankensteinMode} from 'vs/editor/common/modes/abstractMode';
 import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
@@ -22,9 +21,13 @@ import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
 import {Registry} from 'vs/platform/platform';
 import {IEditorModesRegistry, Extensions} from 'vs/editor/common/modes/modesRegistry';
 import MonarchCommonTypes = require('vs/editor/common/modes/monarch/monarchCommon');
-import {OnEnterSupport, IOnEnterSupportOptions} from 'vs/editor/common/modes/supports/onEnter';
 import {IDisposable, combinedDispose, empty as EmptyDisposable} from 'vs/base/common/lifecycle';
 import {createAsyncDescriptor0, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
+import {RichEditSupport, IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
+import {DeclarationSupport, IDeclarationContribution} from 'vs/editor/common/modes/supports/declarationSupport';
+import {ReferenceSupport, IReferenceContribution} from 'vs/editor/common/modes/supports/referenceSupport';
+import {ParameterHintsSupport, IParameterHintsContribution} from 'vs/editor/common/modes/supports/parameterHintsSupport';
+import {SuggestSupport, ComposableSuggestSupport, ISuggestContribution} from 'vs/editor/common/modes/supports/suggestSupport';
 
 interface IModeConfigurationMap { [modeId: string]: any; }
 
@@ -79,12 +82,49 @@ export class ModeServiceImpl implements IModeService {
 		if (!config) {
 			return;
 		}
-		var modeRegistry = <IEditorModesRegistry> Registry.as(Extensions.EditorModes);
-		var modes = modeRegistry.getRegisteredModes();
+		var modes = LanguageExtensions.getRegisteredModes();
 		modes.forEach((modeIdentifier) => {
 			var configuration = config[modeIdentifier];
 			this.configureModeById(modeIdentifier, configuration);
 		});
+	}
+
+	public isRegisteredMode(mimetypeOrModeId: string): boolean {
+		return LanguageExtensions.isRegisteredMode(mimetypeOrModeId);
+	}
+
+	public getRegisteredModes(): string[] {
+		return LanguageExtensions.getRegisteredModes();
+	}
+
+	public getRegisteredLanguageNames(): string[] {
+		return LanguageExtensions.getRegisteredLanguageNames();
+	}
+
+	public getExtensions(alias: string): string[] {
+		return LanguageExtensions.getExtensions(alias);
+	}
+
+	public getMimeForMode(modeId: string): string {
+		return LanguageExtensions.getMimeForMode(modeId);
+	}
+
+	public getLanguageName(modeId: string): string {
+		return LanguageExtensions.getLanguageName(modeId);
+	}
+
+	public getModeIdForLanguageName(alias:string): string {
+		return LanguageExtensions.getModeIdForLanguageNameLowercase(alias);
+	}
+
+	public getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string {
+		var modeIds = LanguageExtensions.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
+
+		if (modeIds.length > 0) {
+			return modeIds[0];
+		}
+
+		return null;
 	}
 
 	// --- instantiation
@@ -124,16 +164,6 @@ export class ModeServiceImpl implements IModeService {
 			}).done(null, Errors.onUnexpectedError);
 			return r;
 		}
-	}
-
-	public getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string {
-		var modeIds = LanguageExtensions.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
-
-		if (modeIds.length > 0) {
-			return modeIds[0];
-		}
-
-		return null;
 	}
 
 	public getModeIdByLanguageName(languageName: string): string {
@@ -263,15 +293,7 @@ export class ModeServiceImpl implements IModeService {
 				return createTokenizationSupport(this, mode, lexer);
 			}),
 
-			this.registerDeclarativeCommentsSupport(modeId, MonarchDefinition.createCommentsSupport(lexer)),
-
-			this.registerDeclarativeElectricCharacterSupport(modeId, MonarchDefinition.createBracketElectricCharacterContribution(lexer)),
-
-			this.registerDeclarativeTokenTypeClassificationSupport(modeId, MonarchDefinition.createTokenTypeClassificationSupportContribution(lexer)),
-
-			this.registerDeclarativeCharacterPairSupport(modeId, MonarchDefinition.createCharacterPairContribution(lexer)),
-
-			this.registerDeclarativeOnEnterSupport(modeId, MonarchDefinition.createOnEnterSupportOptions(lexer))
+			this.registerRichEditSupport(modeId, MonarchDefinition.createRichEditSupport(lexer))
 		);
 	}
 
@@ -280,24 +302,16 @@ export class ModeServiceImpl implements IModeService {
 		return this.doRegisterMonarchDefinition(modeId, lexer);
 	}
 
-	public registerDeclarativeCharacterPairSupport(modeId: string, support: Modes.ICharacterPairContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'characterPairSupport', (mode) => new Supports.CharacterPairSupport(mode, support));
-	}
-
 	public registerCodeLensSupport(modeId: string, support: Modes.ICodeLensSupport): IDisposable {
 		return this.registerModeSupport(modeId, 'codeLensSupport', (mode) => support);
 	}
 
-	public registerDeclarativeCommentsSupport(modeId: string, support: Supports.ICommentsSupportContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'commentsSupport', (mode) => new Supports.CommentsSupport(support));
+	public registerRichEditSupport(modeId: string, support: IRichEditConfiguration): IDisposable {
+		return this.registerModeSupport(modeId, 'richEditSupport', (mode) => new RichEditSupport(modeId, support));
 	}
 
-	public registerDeclarativeDeclarationSupport(modeId: string, contribution: Supports.IDeclarationContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'declarationSupport', (mode) => new Supports.DeclarationSupport(mode, contribution));
-	}
-
-	public registerDeclarativeElectricCharacterSupport(modeId: string, support: Supports.IBracketElectricCharacterContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'electricCharacterSupport', (mode) => new Supports.BracketElectricCharacterSupport(mode, support));
+	public registerDeclarativeDeclarationSupport(modeId: string, contribution: IDeclarationContribution): IDisposable {
+		return this.registerModeSupport(modeId, 'declarationSupport', (mode) => new DeclarationSupport(modeId, contribution));
 	}
 
 	public registerExtraInfoSupport(modeId: string, support: Modes.IExtraInfoSupport): IDisposable {
@@ -320,36 +334,28 @@ export class ModeServiceImpl implements IModeService {
 		return this.registerModeSupport(modeId, 'outlineSupport', (mode) => support);
 	}
 
-	public registerDeclarativeParameterHintsSupport(modeId: string, support: Modes.IParameterHintsContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'parameterHintsSupport', (mode) => new Supports.ParameterHintsSupport(mode, support));
+	public registerDeclarativeParameterHintsSupport(modeId: string, support: IParameterHintsContribution): IDisposable {
+		return this.registerModeSupport(modeId, 'parameterHintsSupport', (mode) => new ParameterHintsSupport(modeId, support));
 	}
 
 	public registerQuickFixSupport(modeId: string, support: Modes.IQuickFixSupport): IDisposable {
 		return this.registerModeSupport(modeId, 'quickFixSupport', (mode) => support);
 	}
 
-	public registerDeclarativeReferenceSupport(modeId: string, contribution: Supports.IReferenceContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'referenceSupport', (mode) => new Supports.ReferenceSupport(mode, contribution));
+	public registerDeclarativeReferenceSupport(modeId: string, contribution: IReferenceContribution): IDisposable {
+		return this.registerModeSupport(modeId, 'referenceSupport', (mode) => new ReferenceSupport(modeId, contribution));
 	}
 
 	public registerRenameSupport(modeId: string, support: Modes.IRenameSupport): IDisposable {
 		return this.registerModeSupport(modeId, 'renameSupport', (mode) => support);
 	}
 
-	public registerDeclarativeSuggestSupport(modeId: string, declaration: Supports.ISuggestContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'suggestSupport', (mode) => new Supports.SuggestSupport(mode, declaration));
+	public registerDeclarativeSuggestSupport(modeId: string, declaration: ISuggestContribution): IDisposable {
+		return this.registerModeSupport(modeId, 'suggestSupport', (mode) => new SuggestSupport(modeId, declaration));
 	}
 
 	public registerTokenizationSupport(modeId: string, callback: (mode: Modes.IMode) => Modes.ITokenizationSupport): IDisposable {
 		return this.registerModeSupport(modeId, 'tokenizationSupport', callback);
-	}
-
-	public registerDeclarativeTokenTypeClassificationSupport(modeId: string, support: Supports.ITokenTypeClassificationSupportContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'tokenTypeClassificationSupport', (mode) => new Supports.TokenTypeClassificationSupport(support));
-	}
-
-	public registerDeclarativeOnEnterSupport(modeId: string, opts: IOnEnterSupportOptions): IDisposable {
-		return this.registerModeSupport(modeId, 'onEnterSupport', (mode) => new OnEnterSupport(modeId, opts));
 	}
 }
 
@@ -397,7 +403,7 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 			super.doRegisterMonarchDefinition(modeId, lexer),
 
 			this.registerModeSupport(modeId, 'suggestSupport', (mode) => {
-				return new Supports.ComposableSuggestSupport(mode, MonarchDefinition.createSuggestSupport(this._modelService, mode, lexer));
+				return new ComposableSuggestSupport(modeId, MonarchDefinition.createSuggestSupport(this._modelService, mode, lexer));
 			})
 		);
 	}

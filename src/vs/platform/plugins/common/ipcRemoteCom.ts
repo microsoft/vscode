@@ -136,7 +136,7 @@ export function create(send: (obj: string[]) => void): IPluginsIPC {
 
 	let r: IPluginsIPC = {
 		callOnRemote: rpc,
-		registerBigHandler: (_bigHandler: remote.IManyHandler): void => {
+		setManyHandler: (_bigHandler: remote.IManyHandler): void => {
 			bigHandler = _bigHandler;
 		},
 		handle: (rawmsg) => {

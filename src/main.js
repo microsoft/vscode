@@ -24,18 +24,19 @@ function getNLSConfiguration() {
 	}
 
 	if (locale === 'pseudo') {
-		return { availableLanguages: {}, pseudo: true }
+		return { locale: locale, availableLanguages: {}, pseudo: true }
 	}
+	locale = locale || app.getLocale();
+	var initialLocale = locale;
 	if (process.env.VSCODE_DEV) {
-		return { availableLanguages: {} };
+		return { locale: locale, availableLanguages: {} };
 	}
 	// We have a built version so we have extracted nls file. Try to find
 	// the right file to use.
-	locale = locale || app.getLocale();
 	while (locale) {
 		var candidate = path.join(__dirname, 'main.nls.') + locale + '.js';
 		if (fs.existsSync(candidate)) {
-			return { availableLanguages: { '*': locale } };
+			return { locale: initialLocale, availableLanguages: { '*': locale } };
 		} else {
 			var index = locale.lastIndexOf('-');
 			if (index > 0) {
@@ -46,7 +47,7 @@ function getNLSConfiguration() {
 		}
 	}
 
-	return { availableLanguages: {} };
+	return { locale: initialLocale, availableLanguages: {} };
 }
 
 // Change cwd if given via env variable

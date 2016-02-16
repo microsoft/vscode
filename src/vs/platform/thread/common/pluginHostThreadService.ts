@@ -19,7 +19,7 @@ export class PluginHostThreadService extends abstractThreadService.AbstractThrea
 	constructor(remoteCom: remote.IRemoteCom) {
 		super(false);
 		this._remoteCom = remoteCom;
-		this._remoteCom.registerBigHandler(this);
+		this._remoteCom.setManyHandler(this);
 
 		// Register all statically instantiated synchronizable objects
 		readThreadSynchronizableObjects().forEach((obj) => this.registerInstance(obj));

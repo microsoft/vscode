@@ -5,6 +5,7 @@
 
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
+import Objects = require('vs/base/common/objects');
 import mime = require('vs/base/common/mime');
 import ee = require('vs/base/common/eventEmitter');
 import uri from 'vs/base/common/uri';
@@ -16,6 +17,7 @@ import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import editor = require('vs/editor/common/editorCommon');
 import aria = require('vs/base/browser/ui/aria/aria');
+import { AIAdapter } from 'vs/base/node/aiAdapter';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
@@ -65,9 +67,11 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	private viewModel: viewmodel.ViewModel;
 	private configurationManager: ConfigurationManager;
 	private debugStringEditorInputs: DebugStringEditorInput[];
+	private telemetryAdapter: AIAdapter;
 	private lastTaskEvent: TaskEvent;
 	private toDispose: lifecycle.IDisposable[];
 	private inDebugMode: IKeybindingContextKey<boolean>;
+	private telemetryInfo: any;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -108,6 +112,12 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.viewModel = new viewmodel.ViewModel();
 
 		this.registerListeners(eventService, lifecycleService);
+
+		this.telemetryInfo = Object.create(null);
+		this.telemetryService.getTelemetryInfo().then(info => {
+			this.telemetryInfo['common.vscodemachineid'] = info.machineId;
+			this.telemetryInfo['common.vscodesessionid'] = info.sessionId;
+		});
 	}
 
 	private registerListeners(eventService: IEventService, lifecycleService: ILifecycleService): void {
@@ -282,7 +292,15 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.OUTPUT, (event: DebugProtocol.OutputEvent) => {
 			if (event.body && event.body.category === 'telemetry') {
-				this.telemetryService.publicLog(event.body.output, event.body.data);
+				const key = this.configurationManager.getAdapter().aiKey;
+				// only log telemetry events from debug adapter if the adapter provided the telemetry key
+				if (key) {
+					if (!this.telemetryAdapter) {
+						this.telemetryAdapter = new AIAdapter(key, this.session.getType());
+					}
+					let data = Objects.mixin(event.body.data, this.telemetryInfo);
+					this.telemetryAdapter.log(event.body.output, data);
+				}
 			} else if (event.body && typeof event.body.output === 'string' && event.body.output.length > 0) {
 				this.onOutput(event);
 			}
@@ -394,12 +412,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}
 	}
 
-	public setBreakpointsForModel(modelUri: uri, rawData: debug.IRawBreakpoint[]): TPromise<void> {
+	public setBreakpointsForModel(modelUri: uri, rawData: debug.IRawBreakpoint[]): void {
 		this.model.removeBreakpoints(
 			this.model.getBreakpoints().filter(bp => bp.source.uri.toString() === modelUri.toString()));
 		this.model.addBreakpoints(rawData);
-
-		return this.sendBreakpoints(modelUri);
 	}
 
 	public toggleBreakpoint(rawBreakpoint: debug.IRawBreakpoint): TPromise<void> {
@@ -613,7 +629,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		});
 	}
 
-	public rawAttach(port: number): TPromise<any> {
+	private rawAttach(port: number): TPromise<any> {
 		if (this.session) {
 			if (!this.session.isAttach) {
 				return this.session.attach({ port });
@@ -675,6 +691,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		});
 		this.model.updateBreakpoints(data);
 
+		if (this.telemetryAdapter) {
+			this.telemetryAdapter.dispose();
+			this.telemetryAdapter = null;
+		}
 		this.inDebugMode.reset();
 	}
 
@@ -756,8 +776,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		});
 	}
 
-	public canSetBreakpointsIn(model: editor.IModel, lineNumber: number): boolean {
-		return this.configurationManager.canSetBreakpointsIn(model, lineNumber);
+	public canSetBreakpointsIn(model: editor.IModel): boolean {
+		return this.configurationManager.canSetBreakpointsIn(model);
 	}
 
 	public getConfigurationName(): string {

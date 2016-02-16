@@ -171,9 +171,8 @@ export class ModelLine {
 				if (currentTokenStartIndex > 0 && delta !== 0) {
 					// adjust token's `startIndex` by `delta`
 					let deflatedType = (tokens[tokensIndex] / BIN.TYPE_OFFSET) & BIN.TYPE_MASK;
-					let deflatedBracket = (tokens[tokensIndex] / BIN.BRACKET_OFFSET) & BIN.BRACKET_MASK;
 					let newStartIndex = Math.max(minimumAllowedIndex, currentTokenStartIndex + delta);
-					let newToken = deflatedBracket * BIN.BRACKET_OFFSET + deflatedType * BIN.TYPE_OFFSET + newStartIndex * BIN.START_INDEX_OFFSET;
+					let newToken = deflatedType * BIN.TYPE_OFFSET + newStartIndex * BIN.START_INDEX_OFFSET;
 
 					if (delta < 0) {
 						// pop all previous tokens that have become `collapsed`
@@ -439,9 +438,8 @@ export class ModelLine {
 
 					let deflatedStartIndex = (token / BIN.START_INDEX_OFFSET) & BIN.START_INDEX_MASK;
 					let deflatedType = (token / BIN.TYPE_OFFSET) & BIN.TYPE_MASK;
-					let deflatedBracket = (token / BIN.BRACKET_OFFSET) & BIN.BRACKET_MASK;
 					let newStartIndex = deflatedStartIndex + thisTextLength;
-					let newToken = deflatedBracket * BIN.BRACKET_OFFSET + deflatedType * BIN.TYPE_OFFSET + newStartIndex * BIN.START_INDEX_OFFSET;
+					let newToken = deflatedType * BIN.TYPE_OFFSET + newStartIndex * BIN.START_INDEX_OFFSET;
 
 					otherTokens[i] = newToken;
 				}
@@ -618,7 +616,7 @@ function toLineTokens(map:EditorCommon.ITokensInflatorMap, tokens:Modes.IToken[]
 				return null;
 			}
 		} else {
-			if (tokens[0].startIndex === 0 && tokens[0].type === '' && !tokens[0].bracket) {
+			if (tokens[0].startIndex === 0 && tokens[0].type === '') {
 				return null;
 			}
 		}
@@ -628,7 +626,6 @@ function toLineTokens(map:EditorCommon.ITokensInflatorMap, tokens:Modes.IToken[]
 
 var getStartIndex = EditorCommon.LineTokensBinaryEncoding.getStartIndex;
 var getType = EditorCommon.LineTokensBinaryEncoding.getType;
-var getBracket = EditorCommon.LineTokensBinaryEncoding.getBracket;
 var findIndexOfOffset = EditorCommon.LineTokensBinaryEncoding.findIndexOfOffset;
 
 export class LineTokens implements EditorCommon.ILineTokens {
@@ -667,10 +664,6 @@ export class LineTokens implements EditorCommon.ILineTokens {
 
 	public getTokenType(tokenIndex:number): string {
 		return getType(this.map, this._tokens[tokenIndex]);
-	}
-
-	public getTokenBracket(tokenIndex:number): Modes.Bracket {
-		return getBracket(this._tokens[tokenIndex]);
 	}
 
 	public getTokenEndIndex(tokenIndex:number, textLength:number): number {
@@ -714,10 +707,6 @@ class EmptyLineTokens implements EditorCommon.ILineTokens {
 		return Strings.empty;
 	}
 
-	public getTokenBracket(tokenIndex:number): Modes.Bracket {
-		return 0;
-	}
-
 	public getTokenEndIndex(tokenIndex:number, textLength:number): number {
 		return 0;
 	}
@@ -754,10 +743,6 @@ export class DefaultLineTokens implements EditorCommon.ILineTokens {
 
 	public getTokenType(tokenIndex:number): string {
 		return Strings.empty;
-	}
-
-	public getTokenBracket(tokenIndex:number): Modes.Bracket {
-		return 0;
 	}
 
 	public getTokenEndIndex(tokenIndex:number, textLength:number): number {

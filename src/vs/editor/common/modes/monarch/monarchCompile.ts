@@ -646,46 +646,46 @@ export function compile(json: MonarchTypes.ILanguage): MonarchCommonTypes.ILexer
 	}
 
 	// Set enhanced brackets
-	var enhancedBrackets : Modes.IRegexBracketPair[] = [];
-	if (json.enhancedBrackets) {
-		if (!(Array.isArray(<any>json.enhancedBrackets))) {
-			MonarchCommonTypes.throwError(lexer, 'the \'enhancedBrackets\' attribute must be defined as an array');
-		}
+	// var enhancedBrackets : Modes.IRegexBracketPair[] = [];
+	// if (json.enhancedBrackets) {
+	// 	if (!(Array.isArray(<any>json.enhancedBrackets))) {
+	// 		MonarchCommonTypes.throwError(lexer, 'the \'enhancedBrackets\' attribute must be defined as an array');
+	// 	}
 
-		for (var bracketIdx in json.enhancedBrackets) {
-			if (json.enhancedBrackets.hasOwnProperty(bracketIdx)) {
-				var desc = <any> json.enhancedBrackets[bracketIdx];
-				if (desc.hasOwnProperty('openTrigger') && typeof (desc.openTrigger) !== 'string') {
-					MonarchCommonTypes.throwError(lexer, 'openTrigger in the \'enhancedBrackets\' array must be a string');
-				}
-				if (desc.hasOwnProperty('open') && !(desc.open instanceof RegExp)) {
-					MonarchCommonTypes.throwError(lexer, 'open in the \'enhancedBrackets\' array must be a regex');
-				}
-				if (desc.hasOwnProperty('closeComplete') && typeof (desc.closeComplete) !== 'string') {
-					MonarchCommonTypes.throwError(lexer, 'closeComplete in the \'enhancedBrackets\' array must be a string');
-				}
-				if (desc.hasOwnProperty('matchCase') && typeof (desc.matchCase) !== 'boolean') {
-					MonarchCommonTypes.throwError(lexer, 'matchCase in the \'enhancedBrackets\' array must be a boolean');
-				}
-				if (desc.hasOwnProperty('closeTrigger') && typeof (desc.closeTrigger) !== 'string') {
-					MonarchCommonTypes.throwError(lexer, 'closeTrigger in the \'enhancedBrackets\' array must be a string');
-				}
-				if (desc.hasOwnProperty('close') && !(desc.close instanceof RegExp)) {
-					MonarchCommonTypes.throwError(lexer, 'close in the \'enhancedBrackets\' array must be a regex');
-				}
-				if (desc.hasOwnProperty('tokenType')) {
-					if (typeof (desc.tokenType) !== 'string') {
-						MonarchCommonTypes.throwError(lexer, 'tokenType in the \'enhancedBrackets\' array must be a string');
-					}
-					else {
-						desc.tokenType += lexer.tokenPostfix;
-					}
-				}
-				enhancedBrackets.push(desc);
-			}
-		}
-	}
-	lexer.enhancedBrackets = enhancedBrackets;
+	// 	for (var bracketIdx in json.enhancedBrackets) {
+	// 		if (json.enhancedBrackets.hasOwnProperty(bracketIdx)) {
+	// 			var desc = <any> json.enhancedBrackets[bracketIdx];
+	// 			if (desc.hasOwnProperty('openTrigger') && typeof (desc.openTrigger) !== 'string') {
+	// 				MonarchCommonTypes.throwError(lexer, 'openTrigger in the \'enhancedBrackets\' array must be a string');
+	// 			}
+	// 			if (desc.hasOwnProperty('open') && !(desc.open instanceof RegExp)) {
+	// 				MonarchCommonTypes.throwError(lexer, 'open in the \'enhancedBrackets\' array must be a regex');
+	// 			}
+	// 			if (desc.hasOwnProperty('closeComplete') && typeof (desc.closeComplete) !== 'string') {
+	// 				MonarchCommonTypes.throwError(lexer, 'closeComplete in the \'enhancedBrackets\' array must be a string');
+	// 			}
+	// 			if (desc.hasOwnProperty('matchCase') && typeof (desc.matchCase) !== 'boolean') {
+	// 				MonarchCommonTypes.throwError(lexer, 'matchCase in the \'enhancedBrackets\' array must be a boolean');
+	// 			}
+	// 			if (desc.hasOwnProperty('closeTrigger') && typeof (desc.closeTrigger) !== 'string') {
+	// 				MonarchCommonTypes.throwError(lexer, 'closeTrigger in the \'enhancedBrackets\' array must be a string');
+	// 			}
+	// 			if (desc.hasOwnProperty('close') && !(desc.close instanceof RegExp)) {
+	// 				MonarchCommonTypes.throwError(lexer, 'close in the \'enhancedBrackets\' array must be a regex');
+	// 			}
+	// 			if (desc.hasOwnProperty('tokenType')) {
+	// 				if (typeof (desc.tokenType) !== 'string') {
+	// 					MonarchCommonTypes.throwError(lexer, 'tokenType in the \'enhancedBrackets\' array must be a string');
+	// 				}
+	// 				else {
+	// 					desc.tokenType += lexer.tokenPostfix;
+	// 				}
+	// 			}
+	// 			enhancedBrackets.push(desc);
+	// 		}
+	// 	}
+	// }
+	// lexer.enhancedBrackets = enhancedBrackets;
 
 	var standardBrackets: Modes.IBracketPair[] = [];
 	for (var i = 0; i < brackets.length; ++i) {

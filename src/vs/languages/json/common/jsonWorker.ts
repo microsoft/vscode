@@ -19,7 +19,6 @@ import WinJS = require('vs/base/common/winjs.base');
 import Strings = require('vs/base/common/strings');
 import {JSONMode} from './json';
 import ProjectJSONContribution = require('./contributions/projectJSONContribution');
-import supports = require('vs/editor/common/modes/supports');
 import PackageJSONContribution = require('./contributions/packageJSONContribution');
 import BowerJSONContribution = require('./contributions/bowerJSONContribution');
 import GlobPatternContribution = require('./contributions/globPatternContribution');
@@ -31,6 +30,7 @@ import {ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContribut
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {JSONLocation} from './parser/jsonLocation';
+import {WorkerInplaceReplaceSupport, ReplaceSupport} from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 
 export interface IOptionsSchema {
 	/**
@@ -101,7 +101,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 	}
 
 	protected _createInPlaceReplaceSupport(): Modes.IInplaceReplaceSupport {
-		return new supports.WorkerInplaceReplaceSupport(this.resourceService, this);
+		return new WorkerInplaceReplaceSupport(this.resourceService, this);
 	}
 
 	/**
@@ -318,7 +318,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 	}
 
 	public textReplace(value:string, up:boolean):string {
-		return supports.ReplaceSupport.valueSetReplace(['true', 'false'], value, up);
+		return ReplaceSupport.valueSetReplace(['true', 'false'], value, up);
 	}
 
 	public format(resource: URI, range: EditorCommon.IRange, options: Modes.IFormattingOptions): WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {

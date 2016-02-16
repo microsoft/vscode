@@ -5,11 +5,9 @@
 'use strict';
 
 import {NullMode} from 'vs/editor/common/modes/nullMode';
-import {Range} from 'vs/editor/common/core/range';
 import Modes = require('vs/editor/common/modes');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {Arrays} from 'vs/editor/common/core/arrays';
-import Errors = require('vs/base/common/errors');
 
 export interface ITextSource {
 
@@ -28,10 +26,6 @@ export interface ITextSource {
 	getLineTokens(lineNumber:number, inaccurateTokensAcceptable:boolean): EditorCommon.ILineTokens;
 }
 
-var getType = EditorCommon.LineTokensBinaryEncoding.getType;
-var getBracket = EditorCommon.LineTokensBinaryEncoding.getBracket;
-var getStartIndex = EditorCommon.LineTokensBinaryEncoding.getStartIndex;
-
 export interface INonWordTokenMap {
 	[key:string]:boolean;
 }
@@ -39,17 +33,7 @@ export interface INonWordTokenMap {
 export class WordHelper {
 
 	private static _safeGetWordDefinition(mode:Modes.IMode): RegExp {
-		var result: RegExp = null;
-
-		if (mode.tokenTypeClassificationSupport) {
-			try {
-				result = mode.tokenTypeClassificationSupport.getWordDefinition();
-			} catch(e) {
-				Errors.onUnexpectedError(e);
-			}
-		}
-
-		return result;
+		return (mode.richEditSupport ? mode.richEditSupport.wordDefinition : null);
 	}
 
 	public static ensureValidWordDefinition(wordDefinition?:RegExp): RegExp {
@@ -230,161 +214,5 @@ export class WordHelper {
 		}
 
 		return null;
-	}
-}
-
-export class BracketsHelper {
-
-	private static _sign(n:number): number {
-		return n < 0 ? -1 : n > 0 ? 1 : 0;
-	}
-
-	private static _findMatchingBracketUp(textSource:ITextSource, type:string, lineNumber:number, tokenIndex:number, initialCount:number): Range {
-
-		var i:number,
-			end:number,
-			j:number,
-			count = initialCount;
-
-		for (i = lineNumber; i >= 1; i--) {
-
-			var lineTokens = textSource.getLineTokens(i, false),
-				tokens = lineTokens.getBinaryEncodedTokens(),
-				tokensMap = lineTokens.getBinaryEncodedTokensMap(),
-				lineText = textSource.getLineContent(i);
-
-			for (j = (i === lineNumber ? tokenIndex : tokens.length) - 1; j >= 0; j--) {
-				if (getType(tokensMap, tokens[j]) === type) {
-					count += BracketsHelper._sign(getBracket(tokens[j]));
-					if (count === 0) {
-						end = (j === tokens.length - 1 ? lineText.length : getStartIndex(tokens[j + 1]));
-						return new Range(i, getStartIndex(tokens[j]) + 1, i, end + 1);
-					}
-				}
-			}
-		}
-		return null;
-	}
-
-	private static _findMatchingBracketDown(textSource:ITextSource, type:string, lineNumber:number, tokenIndex:number, inaccurateResultAcceptable:boolean): { range:Range; isAccurate:boolean; } {
-
-		var i:number,
-			len:number,
-			end:number,
-			j:number,
-			lenJ:number,
-			count = 1;
-
-		for (i = lineNumber, len = textSource.getLineCount(); i <= len; i++) {
-			if (inaccurateResultAcceptable && !textSource._lineIsTokenized(i)) {
-				return {
-					range: null,
-					isAccurate: false
-				};
-			}
-
-			var lineTokens = textSource.getLineTokens(i, false),
-				tokens = lineTokens.getBinaryEncodedTokens(),
-				tokensMap = lineTokens.getBinaryEncodedTokensMap(),
-				lineText = textSource.getLineContent(i);
-
-			for (j = (i === lineNumber ? tokenIndex + 1 : 0), lenJ = tokens.length; j < lenJ; j++) {
-				if (getType(tokensMap, tokens[j]) === type) {
-					count += BracketsHelper._sign(getBracket(tokens[j]));
-					if (count === 0) {
-						end = (j === tokens.length - 1 ? lineText.length : getStartIndex(tokens[j + 1]));
-						return {
-							range: new Range(i, getStartIndex(tokens[j]) + 1, i, end + 1),
-							isAccurate: true
-						};
-					}
-				}
-			}
-		}
-
-		return {
-			range: null,
-			isAccurate: true
-		};
-	}
-
-	public static findMatchingBracketUp(textSource:ITextSource, tokenType:string, position:EditorCommon.IPosition): EditorCommon.IEditorRange {
-
-		var i:number,
-			len:number,
-			end:number,
-			columnIndex = position.column - 1,
-			tokenIndex = -1,
-			lineTokens = textSource.getLineTokens(position.lineNumber, false),
-			tokens = lineTokens.getBinaryEncodedTokens(),
-			lineText = textSource.getLineContent(position.lineNumber);
-
-		for (i = 0, len = tokens.length; tokenIndex === -1 && i < len; i++) {
-			end = i === len - 1 ? lineText.length : getStartIndex(tokens[i + 1]);
-
-			if (getStartIndex(tokens[i]) <= columnIndex && columnIndex <= end) {
-				tokenIndex = i;
-			}
-		}
-
-		// Start looking one token after the bracket
-		return BracketsHelper._findMatchingBracketUp(textSource, tokenType, position.lineNumber, tokenIndex + 1, 0);
-	}
-
-	public static matchBracket(textSource:ITextSource, position:EditorCommon.IPosition, inaccurateResultAcceptable:boolean): EditorCommon.IMatchBracketResult {
-		if (inaccurateResultAcceptable && !textSource._lineIsTokenized(position.lineNumber)) {
-			return {
-				brackets: null,
-				isAccurate: false
-			};
-		}
-
-		var lineText = textSource.getLineContent(position.lineNumber),
-			i:number,
-			len:number;
-
-		var result:EditorCommon.IMatchBracketResult = {
-			brackets: null,
-			isAccurate: true
-		};
-
-		if (lineText.length > 0) {
-			var columnIndex = position.column - 1;
-			var token:number;
-			var end:number;
-
-			var lineTokens = textSource.getLineTokens(position.lineNumber, false),
-				tokens = lineTokens.getBinaryEncodedTokens(),
-				tokensMap = lineTokens.getBinaryEncodedTokensMap(),
-				tokenStartIndex:number,
-				tokenBracket:number,
-				tokenType:string;
-
-			for (i = 0, len = tokens.length; result.brackets === null && i < len; i++) {
-				token = tokens[i];
-				tokenStartIndex = getStartIndex(token);
-				tokenType = getType(tokensMap, token);
-				tokenBracket = getBracket(token);
-
-				end = i === len - 1 ? lineText.length : getStartIndex(tokens[i + 1]);
-
-				if (tokenStartIndex <= columnIndex && columnIndex <= end) {
-					if (tokenBracket < 0) {
-						var upMatch = BracketsHelper._findMatchingBracketUp(textSource, tokenType, position.lineNumber, i, -1);
-						if (upMatch) {
-							result.brackets = [new Range(position.lineNumber, tokenStartIndex + 1, position.lineNumber, end + 1), upMatch];
-						}
-					}
-					if (result.brackets === null && tokenBracket > 0) {
-						var downMatch = BracketsHelper._findMatchingBracketDown(textSource, tokenType, position.lineNumber, i, inaccurateResultAcceptable);
-						result.isAccurate = downMatch.isAccurate;
-						if (downMatch.range) {
-							result.brackets = [new Range(position.lineNumber, tokenStartIndex + 1, position.lineNumber, end + 1), downMatch.range];
-						}
-					}
-				}
-			}
-		}
-		return result;
 	}
 }

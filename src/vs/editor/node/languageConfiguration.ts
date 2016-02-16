@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as nls from 'vs/nls';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import pfs = require('vs/base/node/pfs');
-import Supports = require ('vs/editor/common/modes/supports');
-import {IOnEnterSupportOptions} from 'vs/editor/common/modes/supports/onEnter';
 import json = require('vs/base/common/json');
-import {ICharacterPairContribution} from 'vs/editor/common/modes';
+import {IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
 
 type CharacterPair = [string, string];
 
@@ -53,7 +52,7 @@ export class LanguageConfigurationFileHandler {
 			var errors = [];
 			var configuration = <ILanguageConfiguration>json.parse(fileContents.toString(), errors);
 			if (errors.length) {
-				console.error("Errors parsing " + configFilePath + ": " + errors.join('\n'));
+				console.error(nls.localize('parseErrors', "Errors parsing {0}: {1}", configFilePath, errors.join('\n')));
 			}
 			this._handleConfig(modeId, configuration);
 		}, (err) => {
@@ -62,47 +61,33 @@ export class LanguageConfigurationFileHandler {
 	}
 
 	private _handleConfig(modeId:string, configuration:ILanguageConfiguration): void {
+
+		let richEditConfig:IRichEditConfiguration = {};
+
 		if (configuration.comments) {
-			let comments = configuration.comments;
-			let contrib: Supports.ICommentsSupportContribution = { commentsConfiguration: {} };
-
-			if (comments.lineComment) {
-				contrib.commentsConfiguration.lineCommentTokens = [comments.lineComment];
-			}
-			if (comments.blockComment) {
-				contrib.commentsConfiguration.blockCommentStartToken = comments.blockComment[0];
-				contrib.commentsConfiguration.blockCommentEndToken = comments.blockComment[1];
-			}
-
-			this._modeService.registerDeclarativeCommentsSupport(modeId, contrib);
+			richEditConfig.comments = configuration.comments;
 		}
 
 		if (configuration.brackets) {
-			let brackets = configuration.brackets;
+			richEditConfig.brackets = configuration.brackets;
 
-			let onEnterContrib: IOnEnterSupportOptions = {};
-			onEnterContrib.brackets = brackets.map(pair => {
-				let [open, close] = pair;
-				return { open: open, close: close };
-			});
-			this._modeService.registerDeclarativeOnEnterSupport(modeId, onEnterContrib);
-
-			let characterPairContrib: ICharacterPairContribution = {
-				autoClosingPairs: brackets.map(pair => {
+			richEditConfig.__characterPairSupport = {
+				autoClosingPairs: configuration.brackets.map(pair => {
 					let [open, close] = pair;
 					return { open: open, close: close };
 				})
 			};
-			this._modeService.registerDeclarativeCharacterPairSupport(modeId, characterPairContrib);
 		}
 
 		// TMSyntax hard-codes these and tokenizes them as brackets
-		this._modeService.registerDeclarativeElectricCharacterSupport(modeId, {
+		richEditConfig.__electricCharacterSupport = {
 			brackets: [
 				{ tokenType:'delimiter.curly.' + modeId, open: '{', close: '}', isElectric: true },
 				{ tokenType:'delimiter.square.' + modeId, open: '[', close: ']', isElectric: true },
 				{ tokenType:'delimiter.paren.' + modeId, open: '(', close: ')', isElectric: true }
 			]
-		});
+		};
+
+		this._modeService.registerRichEditSupport(modeId, richEditConfig);
 	}
 }

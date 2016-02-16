@@ -5,10 +5,11 @@
 'use strict';
 
 import modes = require('vs/editor/common/modes');
-import supports = require('vs/editor/common/modes/supports');
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 
 export class CommentState extends AbstractState {
 
@@ -32,21 +33,19 @@ export class CommentState extends AbstractState {
 
 export class CommentMode extends AbstractMode<AbstractModeWorker> {
 
-	private commentsConfig:modes.ICommentsConfiguration;
-
 	public tokenizationSupport: modes.ITokenizationSupport;
+	public richEditSupport: modes.IRichEditSupport;
 
 	constructor(commentsConfig:modes.ICommentsConfiguration) {
 		super({ id: 'tests.commentMode', workerParticipants: [] }, null, null);
-		this.commentsConfig = commentsConfig;
 
-		this.tokenizationSupport = new supports.TokenizationSupport(this, {
+		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new CommentState(this, 0)
 		}, false, false);
-	}
 
-	public getCommentsConfiguration():modes.ICommentsConfiguration {
-		return this.commentsConfig;
+		this.richEditSupport = {
+			comments:commentsConfig
+		};
 	}
 }
 
@@ -105,7 +104,7 @@ export class ModelMode1 extends TestingMode {
 	constructor() {
 		super();
 		this.calledFor = [];
-		this.tokenizationSupport = new supports.TokenizationSupport(this, {
+		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new ModelState1(this)
 		}, false, false);
 	}
@@ -146,7 +145,7 @@ export class ModelMode2 extends TestingMode {
 	constructor() {
 		super();
 		this.calledFor = null;
-		this.tokenizationSupport = new supports.TokenizationSupport(this, {
+		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new ModelState2(this, '')
 		}, false, false);
 	}
@@ -220,12 +219,22 @@ export class BracketState extends AbstractState {
 export class BracketMode extends TestingMode {
 
 	public tokenizationSupport: modes.ITokenizationSupport;
+	public richEditSupport: modes.IRichEditSupport;
 
 	constructor() {
 		super();
-		this.tokenizationSupport = new supports.TokenizationSupport(this, {
+		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new BracketState(this)
 		}, false, false);
+		this.richEditSupport = new RichEditSupport(this.getId(), {
+			__electricCharacterSupport: {
+				brackets: [
+					{ tokenType: 'asd', open: '{', close: '}', isElectric: true },
+					{ tokenType: 'qwe', open: '[', close: ']', isElectric: true },
+					{ tokenType: 'zxc', open: '(', close: ')', isElectric: true }
+				]
+			}
+		});
 	}
 }
 
@@ -268,7 +277,7 @@ export class NMode extends TestingMode {
 	constructor(n:number) {
 		this.n = n;
 		super();
-		this.tokenizationSupport = new supports.TokenizationSupport(this, {
+		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new NState(this, this.n)
 		}, false, false);
 	}

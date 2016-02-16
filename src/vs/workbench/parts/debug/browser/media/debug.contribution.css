@@ -25,15 +25,15 @@
 	background: rgba(206, 231, 206, 0.45);
 }
 
-.monaco-editor .debug-breakpoint-glyph-hint {
+.monaco-editor .debug-breakpoint-hint-glyph {
 	background: url('breakpoint-hint.svg') center center no-repeat;
 }
 
-.monaco-editor .debug-breakpoint-glyph-disabled {
+.monaco-editor .debug-breakpoint-disabled-glyph {
 	background: url('breakpoint-disabled.svg') center center no-repeat;
 }
 
-.monaco-editor .debug-breakpoint-glyph-unverified {
+.monaco-editor .debug-breakpoint-unverified-glyph {
 	background: url('breakpoint-unverified.svg') center center no-repeat;
 }
 
@@ -51,6 +51,10 @@
 
 .monaco-editor .debug-breakpoint-conditional-glyph {
 	background: url('breakpoint-conditional.svg') center center no-repeat;
+}
+
+.monaco-editor .debug-breakpoint-unsupported-glyph {
+	background: url('breakpoint-unsupported.svg') center center no-repeat;
 }
 
 .monaco-editor .debug-top-stack-frame-glyph.debug-breakpoint-glyph,
@@ -240,11 +244,15 @@
 	background: url('breakpoint-conditional-dark.svg') center center no-repeat;
 }
 
-.monaco-editor.vs-dark .debug-breakpoint-glyph-disabled {
+.monaco-editor.vs-dark .debug-breakpoint-unsupported-glyph {
+	background: url('breakpoint-unsupported-dark.svg') center center no-repeat;
+}
+
+.monaco-editor.vs-dark .debug-breakpoint-disabled-glyph {
 	background: url('breakpoint-disabled-dark.svg') center center no-repeat;
 }
 
-.monaco-editor.vs-dark .debug-breakpoint-glyph-unverified {
+.monaco-editor.vs-dark .debug-breakpoint-unverified-glyph {
 	background: url('breakpoint-unverified-dark.svg') center center no-repeat;
 }
 

@@ -11,11 +11,11 @@ import {computeLinks} from 'vs/editor/common/modes/linkComputer';
 import {DiffComputer} from 'vs/editor/common/diff/diffComputer';
 import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
 import {TextModel} from 'vs/editor/common/model/textModel';
-import {WorkerInplaceReplaceSupport} from 'vs/editor/common/modes/supports';
 import {ValidationHelper} from 'vs/editor/common/worker/validationHelper';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import {TPromise} from 'vs/base/common/winjs.base';
+import {WorkerInplaceReplaceSupport} from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 
 export class AbstractModeWorker {
 

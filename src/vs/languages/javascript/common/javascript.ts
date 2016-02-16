@@ -11,14 +11,17 @@ import typescriptMode = require('vs/languages/typescript/common/typescriptMode')
 import typescript = require('vs/languages/typescript/common/typescript');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import supports = require('vs/editor/common/modes/supports');
 import extensions = require('vs/languages/javascript/common/javascript.extensions');
 import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {AsyncDescriptor, AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
-import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
+import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
+import {ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
+import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
 export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaScriptWorker> {
 
@@ -29,7 +32,6 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 	public logicalSelectionSupport: Modes.ILogicalSelectionSupport;
 	public typeDeclarationSupport: Modes.ITypeDeclarationSupport;
 	public suggestSupport: Modes.ISuggestSupport;
-	public onEnterSupport: Modes.IOnEnterSupport;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
@@ -40,44 +42,34 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 		super(descriptor, instantiationService, threadService, telemetryService);
 
 		this.tokenizationSupport = tokenization.createTokenizationSupport(this, tokenization.Language.EcmaScript5);
-		this.referenceSupport = new supports.ReferenceSupport(this, {
+		this.referenceSupport = new ReferenceSupport(this.getId(), {
 			tokens: [],
 			findReferences: (resource, position, includeDeclaration) => this.findReferences(resource, position, includeDeclaration)});
 
-		this.declarationSupport = new supports.DeclarationSupport(this, {
+		this.declarationSupport = new DeclarationSupport(this.getId(), {
 			tokens: [],
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 
-		this.parameterHintsSupport = new supports.ParameterHintsSupport(this, {
+		this.parameterHintsSupport = new ParameterHintsSupport(this.getId(), {
 			triggerCharacters: ['(', ','],
 			excludeTokens: ['string.js', 'string.escape.js'],
 			getParameterHints: (resource, position) => this.getParameterHints(resource, position)});
 
-		this.electricCharacterSupport = new supports.BracketElectricCharacterSupport(this,
-			{
-				brackets: [
-					{ tokenType: 'delimiter.bracket.js', open: '{', close: '}', isElectric: true },
-					{ tokenType: 'delimiter.array.js', open: '[', close: ']', isElectric: true },
-					{ tokenType: 'delimiter.parenthesis.js', open: '(', close: ')', isElectric: true } ],
-				docComment: { scope: 'comment.doc', open: '/**', lineStart: ' * ', close: ' */' }
-			});
+		this.richEditSupport = new RichEditSupport(this.getId(), {
+			wordPattern: createWordRegExp('$'),
 
-		this.characterPairSupport = new supports.CharacterPairSupport(this, {
-			autoClosingPairs:
-				[	{ open: '{', close: '}' },
-					{ open: '[', close: ']' },
-					{ open: '(', close: ')' },
-					{ open: '"', close: '"', notIn: ['string'] },
-					{ open: '\'', close: '\'', notIn: ['string', 'comment'] }
-				]});
+			comments: {
+				lineComment: '//',
+				blockComment: ['/*', '*/']
+			},
 
-		this.onEnterSupport = new OnEnterSupport(this.getId(), {
 			brackets: [
-				{ open: '(', close: ')' },
-				{ open: '{', close: '}' },
-				{ open: '[', close: ']' }
+				['{', '}'],
+				['[', ']'],
+				['(', ')']
 			],
-			regExpRules: [
+
+			onEnterRules: [
 				{
 					// e.g. /** | */
 					beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
@@ -99,10 +91,29 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 					beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
 					action: { indentAction: Modes.IndentAction.None, removeText: 1 }
 				}
-			]
+			],
+
+			__electricCharacterSupport: {
+				brackets: [
+					{ tokenType: 'delimiter.bracket.js', open: '{', close: '}', isElectric: true },
+					{ tokenType: 'delimiter.array.js', open: '[', close: ']', isElectric: true },
+					{ tokenType: 'delimiter.parenthesis.js', open: '(', close: ')', isElectric: true }
+				],
+				docComment: { scope: 'comment.doc', open: '/**', lineStart: ' * ', close: ' */' }
+			},
+
+			__characterPairSupport: {
+				autoClosingPairs: [
+					{ open: '{', close: '}' },
+					{ open: '[', close: ']' },
+					{ open: '(', close: ')' },
+					{ open: '"', close: '"', notIn: ['string'] },
+					{ open: '\'', close: '\'', notIn: ['string', 'comment'] }
+				]
+			}
 		});
 
-		this.suggestSupport = new supports.SuggestSupport(this, {
+		this.suggestSupport = new SuggestSupport(this.getId(), {
 			triggerCharacters: ['.'],
 			excludeTokens: ['string', 'comment', 'number', 'numeric'],
 			suggest: (resource, position) => this.suggest(resource, position),
@@ -134,15 +145,6 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 
 	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], javascriptWorker.JavaScriptWorker> {
 		return createAsyncDescriptor2('vs/languages/javascript/common/javascriptWorker', 'JavaScriptWorker');
-	}
-
-	public getCommentsConfiguration(): Modes.ICommentsConfiguration {
-		return { lineCommentTokens: ['//'], blockCommentStartToken: '/*', blockCommentEndToken: '*/' };
-	}
-
-	private static JS_WORD_DEFINITION = createWordRegExp('$');
-	public getWordDefinition(): RegExp {
-		return JSMode.JS_WORD_DEFINITION;
 	}
 
 	public get filter() {

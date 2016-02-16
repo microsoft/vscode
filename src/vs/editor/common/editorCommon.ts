@@ -757,13 +757,9 @@ export interface IModeSupportChangedEvent {
 	emitOutputSupport:boolean;
 	linkSupport:boolean;
 	configSupport:boolean;
-	electricCharacterSupport:boolean;
-	commentsSupport:boolean;
-	characterPairSupport:boolean;
-	tokenTypeClassificationSupport:boolean;
 	quickFixSupport: boolean;
 	codeLensSupport: boolean;
-	onEnterSupport: boolean;
+	richEditSupport: boolean;
 }
 
 /**
@@ -1178,16 +1174,13 @@ export interface ITokensInflatorMap {
 export interface ILineTokensBinaryEncoding {
 	START_INDEX_MASK: number;
 	TYPE_MASK: number;
-	BRACKET_MASK: number;
 	START_INDEX_OFFSET: number;
 	TYPE_OFFSET: number;
-	BRACKET_OFFSET: number;
 
 	deflateArr(map:ITokensInflatorMap, tokens:Modes.IToken[]): number[];
 	inflate(map:ITokensInflatorMap, binaryEncodedToken:number): Modes.IToken;
 	getStartIndex(binaryEncodedToken:number): number;
 	getType(map:ITokensInflatorMap, binaryEncodedToken:number): string;
-	getBracket(binaryEncodedToken:number): Modes.Bracket;
 	inflateArr(map:ITokensInflatorMap, binaryEncodedTokens:number[]): Modes.IToken[];
 	findIndexOfOffset(binaryEncodedTokens:number[], offset:number): number;
 	sliceAndInflate(map:ITokensInflatorMap, binaryEncodedTokens:number[], startOffset:number, endOffset:number, deltaStartIndex:number): Modes.IToken[];
@@ -1211,7 +1204,6 @@ export interface ILineTokens {
 	getTokenCount(): number;
 	getTokenStartIndex(tokenIndex:number): number;
 	getTokenType(tokenIndex:number): string;
-	getTokenBracket(tokenIndex:number): Modes.Bracket;
 	getTokenEndIndex(tokenIndex:number, textLength:number): number;
 
 	/**
@@ -1391,6 +1383,21 @@ export interface ITextModel {
 	isDisposed(): boolean;
 }
 
+export interface IRichEditBracket {
+	modeId: string;
+	open: string;
+	close: string;
+	forwardRegex: RegExp;
+	reversedRegex: RegExp;
+}
+
+export interface IFoundBracket {
+	range: IEditorRange;
+	open: string;
+	close: string;
+	isOpen: boolean;
+}
+
 /**
  * A model that is tokenized.
  */
@@ -1483,12 +1490,26 @@ export interface ITokenizedModel extends ITextModel {
 	tokenIterator(position: IPosition, callback: (it: ITokenIterator) =>any): any;
 
 	/**
-	 * Find the matching bracket of `tokenType` up, counting brackets.
-	 * @param tokenType The token type of the bracket we're searching for
+	 * Find the matching bracket of `request` up, counting brackets.
+	 * @param request The bracket we're searching for
 	 * @param position The position at which to start the search.
 	 * @return The range of the matching bracket, or null if the bracket match was not found.
 	 */
-	findMatchingBracketUp(tokenType:string, position:IPosition): IEditorRange;
+	findMatchingBracketUp(bracket:string, position:IPosition): IEditorRange;
+
+	/**
+	 * Find the first bracket in the model before `position`.
+	 * @param position The position at which to start the search.
+	 * @return The info for the first bracket before `position`, or null if there are no more brackets before `positions`.
+	 */
+	findPrevBracket(position:IPosition): IFoundBracket;
+
+	/**
+	 * Find the first bracket in the model after `position`.
+	 * @param position The position at which to start the search.
+	 * @return The info for the first bracket after `position`, or null if there are no more brackets after `positions`.
+	 */
+	findNextBracket(position:IPosition): IFoundBracket;
 
 	/**
 	 * Given a `position`, if the position is on top or near a bracket,

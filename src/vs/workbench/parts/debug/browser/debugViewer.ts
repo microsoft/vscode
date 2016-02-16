@@ -36,7 +36,7 @@ const $ = dom.emmet;
 const booleanRegex = /^true|false$/i;
 const stringRegex = /^(['"]).*\1$/;
 
-export function renderExpressionValue(expressionOrValue: debug.IExpression|string, debugInactive: boolean, container: HTMLElement, showChanged: boolean): void {
+export function renderExpressionValue(expressionOrValue: debug.IExpression|string, container: HTMLElement, showChanged: boolean): void {
 	let value = typeof expressionOrValue === 'string' ? expressionOrValue : expressionOrValue.value;
 
 	// remove stale classes
@@ -44,7 +44,9 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression|strin
 	// when resolving expressions we represent errors from the server as a variable with name === null.
 	if (value === null || ((expressionOrValue instanceof model.Expression || expressionOrValue instanceof model.Variable) && !expressionOrValue.available)) {
 		dom.addClass(container, 'unavailable');
-		debugInactive ? dom.removeClass(container, 'error') : dom.addClass(container, 'error');
+		if (value !== model.Expression.DEFAULT_VALUE) {
+			dom.addClass(container, 'error');
+		}
 	} else if (!isNaN(+value)) {
 		dom.addClass(container, 'number');
 	} else if (booleanRegex.test(value)) {
@@ -61,13 +63,13 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression|strin
 	container.title = value;
 }
 
-export function renderVariable(tree: tree.ITree, variable: model.Variable, data: IVariableTemplateData, debugInactive: boolean, showChanged: boolean): void {
+export function renderVariable(tree: tree.ITree, variable: model.Variable, data: IVariableTemplateData, showChanged: boolean): void {
 	if (variable.available) {
 		data.name.textContent = variable.name + ':';
 	}
 
 	if (variable.value) {
-		renderExpressionValue(variable, debugInactive, data.value, showChanged);
+		renderExpressionValue(variable, data.value, showChanged);
 	} else {
 		data.value.textContent = '';
 		data.value.title = '';
@@ -107,7 +109,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 			tree.clearHighlight();
 			tree.DOMFocus();
 			tree.setFocus(element);
-			
+
 			// need to remove the input box since this template will be reused.
 			container.removeChild(inputBoxContainer);
 			lifecycle.disposeAll(toDispose);
@@ -402,10 +404,6 @@ export class VariablesRenderer implements tree.IRenderer {
 	private static SCOPE_TEMPLATE_ID = 'scope';
 	private static VARIABLE_TEMPLATE_ID = 'variable';
 
-	constructor(@debug.IDebugService private debugService: debug.IDebugService) {
-		// noop
-	}
-
 	public getHeight(tree: tree.ITree, element: any): number {
 		return 22;
 	}
@@ -441,7 +439,7 @@ export class VariablesRenderer implements tree.IRenderer {
 		if (templateId === VariablesRenderer.SCOPE_TEMPLATE_ID) {
 			this.renderScope(element, templateData);
 		} else {
-			renderVariable(tree, element, templateData, this.debugService.getState() === debug.State.Inactive, true);
+			renderVariable(tree, element, templateData, true);
 		}
 	}
 
@@ -610,7 +608,7 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 		if (templateId === WatchExpressionsRenderer.WATCH_EXPRESSION_TEMPLATE_ID) {
 			this.renderWatchExpression(tree, element, templateData);
 		} else {
-			renderVariable(tree, element, templateData, this.debugService.getState() === debug.State.Inactive, true);
+			renderVariable(tree, element, templateData, true);
 		}
 	}
 
@@ -623,7 +621,7 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 
 		data.name.textContent = `${watchExpression.name}:`;
 		if (watchExpression.value) {
-			renderExpressionValue(watchExpression, this.debugService.getState() === debug.State.Inactive, data.value, true);
+			renderExpressionValue(watchExpression, data.value, true);
 		}
 	}
 
@@ -662,7 +660,7 @@ export class WatchExpressionsController extends BaseDebugController {
 		}
 	}
 
-	/* protected */ public onLeftClick(tree: tree.ITree, element: any, event: mouse.StandardMouseEvent): boolean {
+	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.StandardMouseEvent): boolean {
 		// double click on primitive value: open input box to be able to select and copy value.
 		if (element instanceof model.Expression && event.detail === 2) {
 			const expression = <debug.IExpression> element;
@@ -733,7 +731,9 @@ export class BreakpointsActionProvider implements renderer.IActionProvider {
 		const actions: actions.Action[] = [this.instantiationService.createInstance(debugactions.ToggleEnablementAction, debugactions.ToggleEnablementAction.ID, debugactions.ToggleEnablementAction.LABEL)];
 		actions.push(new actionbar.Separator());
 
-		actions.push(this.instantiationService.createInstance(debugactions.RemoveBreakpointAction, debugactions.RemoveBreakpointAction.ID, debugactions.RemoveBreakpointAction.LABEL));
+		if (element instanceof model.Breakpoint || element instanceof model.FunctionBreakpoint) {
+			actions.push(this.instantiationService.createInstance(debugactions.RemoveBreakpointAction, debugactions.RemoveBreakpointAction.ID, debugactions.RemoveBreakpointAction.LABEL));
+		}
 		actions.push(this.instantiationService.createInstance(debugactions.RemoveAllBreakpointsAction, debugactions.RemoveAllBreakpointsAction.ID, debugactions.RemoveAllBreakpointsAction.LABEL));
 		actions.push(new actionbar.Separator());
 
@@ -745,6 +745,9 @@ export class BreakpointsActionProvider implements renderer.IActionProvider {
 		actions.push(new actionbar.Separator());
 
 		actions.push(this.instantiationService.createInstance(debugactions.AddFunctionBreakpointAction, debugactions.AddFunctionBreakpointAction.ID, debugactions.AddFunctionBreakpointAction.LABEL));
+		if (element instanceof model.FunctionBreakpoint) {
+			actions.push(this.instantiationService.createInstance(debugactions.RenameFunctionBreakpointAction, debugactions.RenameFunctionBreakpointAction.ID, debugactions.RenameFunctionBreakpointAction.LABEL));
+		}
 		actions.push(new actionbar.Separator());
 
 		actions.push(this.instantiationService.createInstance(debugactions.ReapplyBreakpointsAction, debugactions.ReapplyBreakpointsAction.ID, debugactions.ReapplyBreakpointsAction.LABEL));
@@ -881,7 +884,8 @@ export class BreakpointsRenderer implements tree.IRenderer {
 	}
 
 	private renderFunctionBreakpoint(tree: tree.ITree, functionBreakpoint: debug.IFunctionBreakpoint, data: IFunctionBreakpointTemplateData): void {
-		if (!functionBreakpoint.name) {
+		const selected = this.debugService.getViewModel().getSelectedFunctionBreakpoint();
+		if (!functionBreakpoint.name || (selected && selected.getId() === functionBreakpoint.getId())) {
 			renderRenameBox(this.debugService, this.contextViewService, tree, functionBreakpoint, data.breakpoint, nls.localize('functionBreakpointPlaceholder', "Function to break on"), nls.localize('functionBreakPointInputAriaLabel', "Type function breakpoint"));
 		} else {
 			this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [functionBreakpoint]) : tree.addTraits('disabled', [functionBreakpoint]);
@@ -934,19 +938,24 @@ export class BreakpointsAccessibilityProvider implements tree.IAccessibilityProv
 
 export class BreakpointsController extends BaseDebugController {
 
-	/* protected */ public onLeftClick(tree:tree.ITree, element: any, eventish:treedefaults.ICancelableEvent, origin: string = 'mouse'):boolean {
+	protected onLeftClick(tree:tree.ITree, element: any, event: mouse.StandardMouseEvent): boolean {
 		if (element instanceof model.ExceptionBreakpoint) {
 			return false;
 		}
 
-		return super.onLeftClick(tree, element, eventish, origin);
+		if (element instanceof model.FunctionBreakpoint && event.detail === 2) {
+			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
+			return true;
+		}
+
+		return super.onLeftClick(tree, element, event);
 	}
 
-	/* protected */ public onUp(tree:tree.ITree, event:keyboard.StandardKeyboardEvent): boolean {
+	protected onUp(tree:tree.ITree, event:keyboard.StandardKeyboardEvent): boolean {
 		return this.doNotFocusExceptionBreakpoint(tree, super.onUp(tree, event));
 	}
 
-	/* protected */ public onPageUp(tree:tree.ITree, event:keyboard.StandardKeyboardEvent): boolean {
+	protected onPageUp(tree:tree.ITree, event:keyboard.StandardKeyboardEvent): boolean {
 		return this.doNotFocusExceptionBreakpoint(tree, super.onPageUp(tree, event));
 	}
 

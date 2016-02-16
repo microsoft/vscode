@@ -164,7 +164,6 @@ export interface ILanguageExtensionPointHandler {
 
 	isRegisteredMode(mimetypeOrModeId: string): boolean;
 	getRegisteredModes(): string[];
-	getRegisteredMimetypes(): string[];
 	getRegisteredLanguageNames(): string[];
 	getLanguageName(modeId: string): string;
 	getExtensions(languageName: string): string[];
@@ -396,10 +395,6 @@ class LanguageExtensionPointHandler implements IThreadSynchronizableObject<ILang
 
 	public getRegisteredModes(): string[] {
 		return Object.keys(this.knownModeIds);
-	}
-
-	public getRegisteredMimetypes(): string[] {
-		return Object.keys(this.mime2LanguageId);
 	}
 
 	public getRegisteredLanguageNames(): string[]{

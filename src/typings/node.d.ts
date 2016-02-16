@@ -496,6 +496,7 @@ declare module "os" {
     export function freemem(): number;
     export function cpus(): { model: string; speed: number; times: { user: number; nice: number; sys: number; idle: number; irq: number; }; }[];
     export function networkInterfaces(): any;
+		export function homedir(): string;
     export var EOL: string;
 }
 

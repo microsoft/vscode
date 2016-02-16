@@ -103,30 +103,38 @@
 
 /* Call stack */
 
-.debug-viewlet .debug-message-box {
-	border: 1px solid #F2CB1D;
-	border-style: solid none;
-	background: #F6F5D2;
-	padding: 0.4em 1em .3em 1.9em;
-	font-size: 8pt;
-	line-height: 18px;
-
-	-webkit-user-select: text;
+.debug-viewlet .debug-call-stack-title {
+	display: flex;
 }
 
-.debug-viewlet .debug-message-box.exception {
-	border-color: #E51400;
-	background: #f2dede;
+.debug-viewlet .debug-call-stack-title > .pause-message {
+	flex: 1;
+	text-align: right;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
+	padding-left: 5px;
 }
 
-.vs-dark .debug-viewlet .debug-message-box {
-	border-color: #B89500;
-	background: #352A05;
+.debug-viewlet .debug-call-stack-title > .pause-message > .label {
+	border-radius: 3px;
+	padding: 1px 2px;
+	font-size: 9px;
 }
 
-.vs-dark .debug-viewlet .debug-message-box.exception {
-	background-color: #5A1D1D;
-	border-color: #BE1100;
+.debug-viewlet .debug-call-stack-title > .pause-message > .label.exception {
+	background-color: #A31515;
+	color: rgb(255, 255, 255);
+}
+
+.vs-dark .debug-viewlet .debug-call-stack-title > .pause-message > .label.exception {
+	background-color: #6C2022;
+	color: inherit;
+}
+
+.hc-black .debug-viewlet .debug-call-stack-title > .pause-message > .label.exception {
+	background-color: #6C2022;
+	color: inherit;
 }
 
 .debug-viewlet .debug-call-stack .stack-frame {
@@ -283,17 +291,6 @@
 	background-color: #3C3C3C;
 	border-color: #3C3C3C;
 	color: rgb(204, 204, 204);
-}
-
-.hc-black.monaco-workbench .debug-message-box {
-	border: 1px solid #B89500;
-	border-style: solid none;
-	background: #352A05;
-}
-
-.hc-black .debug-viewlet .debug-message-box.exception {
-	background-color: #5A1D1D;
-	border-color: #BE1100;
 }
 
 .hc-black .debug-viewlet .debug-action.remove {

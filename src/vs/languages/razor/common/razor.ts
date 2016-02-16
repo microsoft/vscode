@@ -5,17 +5,17 @@
 'use strict';
 
 import Modes = require('vs/editor/common/modes');
-import supports = require('vs/editor/common/modes/supports');
 import htmlMode = require('vs/languages/html/common/html');
 import csharpTokenization = require('vs/languages/razor/common/csharpTokenization');
 import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
-import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import razorTokenTypes = require('vs/languages/razor/common/razorTokenTypes');
 import {RAZORWorker} from 'vs/languages/razor/common/razorWorker';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 
 // for a brief description of the razor syntax see http://www.mikesdotnetting.com/Article/153/Inline-Razor-Syntax-Overview
 
@@ -65,13 +65,48 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 		super(descriptor, instantiationService, threadService, modeService);
 
 		this.formattingSupport = null;
+	}
 
-		this.onEnterSupport = new OnEnterSupport(this.getId(), {
+	protected _createRichEditSupport(embeddedAutoClosingPairs: Modes.IAutoClosingPair[]): Modes.IRichEditSupport {
+		return new RichEditSupport(this.getId(), {
+
+			wordPattern: createWordRegExp('#?%'),
+
+			comments: {
+				blockComment: ['<!--', '-->']
+			},
+
 			brackets: [
-				{ open: '<!--', close: '-->' },
-				{ open: '{', close: '}' },
-				{ open: '(', close: ')' },
-			]
+				['<!--', '-->'],
+				['{', '}'],
+				['(', ')']
+			],
+
+			__electricCharacterSupport: {
+				brackets: [],
+				caseInsensitive: true,
+				embeddedElectricCharacters: ['*', '}', ']', ')']
+			},
+
+			__characterPairSupport: {
+				autoClosingPairs: embeddedAutoClosingPairs.slice(0),
+				surroundingPairs: [
+					{ open: '"', close: '"' },
+					{ open: '\'', close: '\'' }
+				]
+			},
+
+			onEnterRules: [
+				{
+					beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join("|")}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+					afterText: /^<\/(\w[\w\d]*)\s*>$/i,
+					action: { indentAction: Modes.IndentAction.IndentOutdent }
+				},
+				{
+					beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join("|")}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+					action: { indentAction: Modes.IndentAction.Indent }
+				}
+			],
 		});
 	}
 
@@ -83,12 +118,7 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 		return new RAZORState(this, htmlMode.States.Content, '', '', '', '', '');
 	}
 
-	public static WORD_DEFINITION = createWordRegExp('#?%');
-	public getWordDefinition():RegExp {
-		return RAZORMode.WORD_DEFINITION;
-	}
-
-	public getLeavingNestedModeData(line:string, state:Modes.IState): supports.ILeavingNestedModeData {
+	public getLeavingNestedModeData(line:string, state:Modes.IState): ILeavingNestedModeData {
 		var leavingNestedModeData = super.getLeavingNestedModeData(line, state);
 		if (leavingNestedModeData) {
 			leavingNestedModeData.stateAfterNestedMode = new RAZORState(this, htmlMode.States.Content, '', '', '', '', '');
@@ -96,4 +126,3 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 		return leavingNestedModeData;
 	}
 }
-

@@ -139,7 +139,7 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 		if (this._proxyObjMap[id]) {
 			return this._proxyObjMap[id];
 		}
-		let result = remote.createProxyFromCtor(remoteCom, id, descriptor.ctor);
+		let result = createProxyFromCtor(remoteCom, id, descriptor.ctor);
 		this._proxyObjMap[id] = result;
 		return result;
 	}
@@ -207,4 +207,22 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 	protected abstract _registerPluginHostActor<T>(id: string, actor: T): void;
 	protected abstract _registerAndInstantiateWorkerActor<T>(id: string, descriptor: SyncDescriptor0<T>, whichWorker: ThreadAffinity): T;
 	protected abstract _registerWorkerActor<T>(id: string, actor: T): void;
+}
+
+function createProxyFromCtor(remote:remote.IProxyHelper, id:string, ctor:Function): any {
+	var result: any = {
+		$__IS_REMOTE_OBJ: true
+	};
+	for (var prop in ctor.prototype) {
+		if (typeof ctor.prototype[prop] === 'function') {
+			result[prop] = createMethodProxy(remote, id, prop);
+		}
+	}
+	return result;
+}
+
+function createMethodProxy(remote:remote.IProxyHelper, proxyId: string, path: string): (...myArgs: any[]) => TPromise<any> {
+	return (...myArgs: any[]) => {
+		return remote.callOnRemote(proxyId, path, myArgs);
+	};
 }

@@ -13,7 +13,7 @@ import * as UUID from 'vs/base/common/uuid';
 import { ValidationStatus, ValidationState, ILogger, Parser } from 'vs/base/common/parsers';
 import { Executable, ExecutableParser, Config  as ProcessConfig} from 'vs/base/common/processes';
 
-import { ProblemMatcher, Config as ProblemMatcherConfig, ProblemMatcherParser, registry as ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
+import { ProblemMatcher, Config as ProblemMatcherConfig, ProblemMatcherParser } from 'vs/platform/markers/common/problemMatcher';
 
 export namespace Config {
 

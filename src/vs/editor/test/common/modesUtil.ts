@@ -11,7 +11,6 @@ import modes = require('vs/editor/common/modes');
 import monarchTypes = require('vs/editor/common/modes/monarch/monarchTypes');
 import monarchCompile = require('vs/editor/common/modes/monarch/monarchCompile');
 import monarchLexer = require('vs/editor/common/modes/monarch/monarchLexer');
-import {createLineContext} from 'vs/editor/test/common/modesTestUtils';
 import {Model} from 'vs/editor/common/model/model';
 
 export interface IRelaxedToken {
@@ -25,33 +24,8 @@ export interface ITestItem {
 	tokens: IRelaxedToken[];
 }
 
-
-export interface IOnEnterFunc {
-	(line:string, offset:number, state?:modes.IState): modes.IEnterAction;
-}
-
-export interface IOnElectricCharacterFunc {
-	(line:string, offset:number, state?:modes.IState): modes.IElectricAction;
-}
-
-export function createOnElectricCharacter(mode:modes.IMode): IOnElectricCharacterFunc {
-	return function onElectricCharacter(line:string, offset:number, state?:modes.IState): modes.IElectricAction {
-		state = state || mode.tokenizationSupport.getInitialState();
-		var lineTokens = mode.tokenizationSupport.tokenize(line, state);
-		return mode.electricCharacterSupport.onElectricCharacter(createLineContext(line, lineTokens), offset);
-	};
-}
-
 export function assertWords(actual:string[], expected:string[], message?:string): void {
 	assert.deepEqual(actual, expected, message);
-}
-
-export function createOnEnter(mode:modes.IMode): IOnEnterFunc {
-	return function onEnter(line:string, offset:number, state?:modes.IState): modes.IEnterAction {
-		state = state || mode.tokenizationSupport.getInitialState();
-		var lineTokens = mode.tokenizationSupport.tokenize(line, state);
-		return mode.electricCharacterSupport.onEnter(createLineContext(line, lineTokens), offset);
-	};
 }
 
 export function load(modeId: string, preloadModes: string[] = [] ): TPromise<modes.IMode> {
@@ -72,7 +46,7 @@ export function assertTokenization(tokenizationSupport: modes.ITokenizationSuppo
 		assert.ok(true, tests[i].line);
 		var result = tokenizationSupport.tokenize(tests[i].line, state);
 		if (tests[i].tokens) {
-			assert.deepEqual(generateRelaxedTokens(result.tokens, tests[i].tokens), tests[i].tokens, JSON.stringify(result.tokens, null, '\t'));
+			assert.deepEqual(toRelaxedTokens(result.tokens), toRelaxedTokens(tests[i].tokens), JSON.stringify(result.tokens, null, '\t'));
 		}
 
 		state = result.endState;
@@ -103,13 +77,13 @@ class SimpleMode implements modes.IMode {
 	}
 }
 
-export function createOnEnterAsserter(modeId:string, onEnterSupport: modes.IOnEnterSupport): IOnEnterAsserter {
+export function createOnEnterAsserter(modeId:string, richEditSupport: modes.IRichEditSupport): IOnEnterAsserter {
 	var assertOne = (oneLineAboveText:string, beforeText:string, afterText:string, expected: modes.IndentAction) => {
 		var model = new Model(
 			[ oneLineAboveText, beforeText + afterText ].join('\n'),
 			new SimpleMode(modeId)
 		);
-		var actual = onEnterSupport.onEnter(model, { lineNumber: 2, column: beforeText.length + 1 });
+		var actual = richEditSupport.onEnter.onEnter(model, { lineNumber: 2, column: beforeText.length + 1 });
 		if (expected === modes.IndentAction.None) {
 			assert.equal(actual, null, oneLineAboveText + '\\n' + beforeText + '|' + afterText);
 		} else {
@@ -151,24 +125,13 @@ export function executeMonarchTokenizationTests(name:string, language:monarchTyp
 	executeTests(tokenizationSupport, tests);
 }
 
-function generateRelaxedTokens(actualTokens: modes.IToken[], expectedTokens: IRelaxedToken[]): IRelaxedToken[] {
-	var r = actualTokens.map((token, index) => {
-		// Remove bracket if it's missing in expectedTokens too
-		if (expectedTokens[index] && typeof expectedTokens[index].bracket !== 'undefined') {
-			return {
-				startIndex: token.startIndex,
-				type: token.type,
-				bracket: token.bracket
-			};
-		} else {
-			return {
-				startIndex: token.startIndex,
-				type: token.type
-			};
-		}
+function toRelaxedTokens(tokens: modes.IToken[]): IRelaxedToken[] {
+	return tokens.map((t) => {
+		return {
+			startIndex: t.startIndex,
+			type: t.type
+		};
 	});
-
-	return r;
 }
 
 function executeTest(tokenizationSupport: modes.ITokenizationSupport, tests:ITestItem[]): void {
@@ -187,5 +150,5 @@ function executeTest(tokenizationSupport: modes.ITokenizationSupport, tests:ITes
 }
 
 function assertTokens(actual:modes.IToken[], expected:IRelaxedToken[], message?:string): void {
-	assert.deepEqual(generateRelaxedTokens(actual, expected), expected, message + ': ' + JSON.stringify(actual, null, '\t'));
+	assert.deepEqual(toRelaxedTokens(actual), toRelaxedTokens(expected), message + ': ' + JSON.stringify(actual, null, '\t'));
 }

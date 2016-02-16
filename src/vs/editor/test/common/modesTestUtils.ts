@@ -4,51 +4,49 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import modes = require('vs/editor/common/modes');
+import Modes = require('vs/editor/common/modes');
 import {Arrays} from 'vs/editor/common/core/arrays';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
-class SimpleTokenTypeClassificationMode implements modes.IMode {
+class SimpleTokenTypeClassificationMode implements Modes.IMode {
 
 	private _id:string;
-	public tokenTypeClassificationSupport: modes.ITokenTypeClassificationSupport;
 
-	constructor(id:string, tokenTypeClassificationSupport: modes.ITokenTypeClassificationSupport) {
+	public richEditSupport: Modes.IRichEditSupport;
+
+	constructor(id:string, wordRegExp:RegExp) {
 		this._id = id;
-		this.tokenTypeClassificationSupport = tokenTypeClassificationSupport;
+		this.richEditSupport = new RichEditSupport(this._id, {
+			wordPattern: wordRegExp
+		});
 	}
 
 	public getId(): string {
 		return this._id;
 	}
 
-	public toSimplifiedMode(): modes.IMode {
+	public toSimplifiedMode(): Modes.IMode {
 		return this;
 	}
 }
 
-export function createMockMode(id:string, wordRegExp:RegExp = null):modes.IMode {
-	var tokenTypeClassificationSupport: modes.ITokenTypeClassificationSupport;
-	if (wordRegExp) {
-		tokenTypeClassificationSupport = {
-			getWordDefinition: () => wordRegExp
-		};
-	}
-	return new SimpleTokenTypeClassificationMode(id, tokenTypeClassificationSupport);
+export function createMockMode(id:string, wordRegExp:RegExp = null):Modes.IMode {
+	return new SimpleTokenTypeClassificationMode(id, wordRegExp);
 }
 
 export interface TokenText {
 	text: string;
 	type: string;
-	bracket?: modes.Bracket;
+	bracket?: Modes.Bracket;
 }
 
-export function createLineContextFromTokenText(tokens: TokenText[]): modes.ILineContext {
+export function createLineContextFromTokenText(tokens: TokenText[]): Modes.ILineContext {
 	var line = '';
-	var processedTokens: modes.IToken[] = [];
+	var processedTokens: Modes.IToken[] = [];
 
 	var indexSoFar = 0;
 	for (var i = 0; i < tokens.length; ++i){
-		processedTokens.push({ startIndex: indexSoFar, type: tokens[i].type, bracket: (tokens[i].bracket ? tokens[i].bracket : modes.Bracket.None) });
+		processedTokens.push({ startIndex: indexSoFar, type: tokens[i].type });
 		line += tokens[i].text;
 		indexSoFar += tokens[i].text.length;
 	}
@@ -56,17 +54,17 @@ export function createLineContextFromTokenText(tokens: TokenText[]): modes.ILine
 	return new TestLineContext(line, processedTokens, null);
 }
 
-export function createLineContext(line:string, tokens:modes.ILineTokens): modes.ILineContext {
+export function createLineContext(line:string, tokens:Modes.ILineTokens): Modes.ILineContext {
 	return new TestLineContext(line, tokens.tokens, tokens.modeTransitions);
 }
 
-class TestLineContext implements modes.ILineContext {
+class TestLineContext implements Modes.ILineContext {
 
-	public modeTransitions: modes.IModeTransition[];
+	public modeTransitions: Modes.IModeTransition[];
 	private _line:string;
-	private _tokens: modes.IToken[];
+	private _tokens: Modes.IToken[];
 
-	constructor(line:string, tokens: modes.IToken[], modeTransitions:modes.IModeTransition[]) {
+	constructor(line:string, tokens: Modes.IToken[], modeTransitions:Modes.IModeTransition[]) {
 		this.modeTransitions = modeTransitions;
 		this._line = line;
 		this._tokens = tokens;
@@ -93,10 +91,6 @@ class TestLineContext implements modes.ILineContext {
 
 	public getTokenType(tokenIndex:number): string {
 		return this._tokens[tokenIndex].type;
-	}
-
-	public getTokenBracket(tokenIndex:number): modes.Bracket {
-		return this._tokens[tokenIndex].bracket;
 	}
 
 	public findIndexOfOffset(offset:number): number {

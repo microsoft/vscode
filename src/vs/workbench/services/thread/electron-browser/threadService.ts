@@ -65,7 +65,7 @@ export class MainThreadService extends CommonMainThreadService {
 			this.remoteCom.handle(msg);
 		});
 
-		this.remoteCom.registerBigHandler(this);
+		this.remoteCom.setManyHandler(this);
 	}
 
 	public dispose(): void {

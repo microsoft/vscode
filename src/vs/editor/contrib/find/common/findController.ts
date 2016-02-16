@@ -324,7 +324,7 @@ export class StartFindReplaceAction extends EditorAction {
 		let controller = CommonFindController.getFindController(this.editor);
 		controller.start({
 			forceRevealReplace: true,
-			seedSearchStringFromSelection: (controller.getState().searchString.length === 0),
+			seedSearchStringFromSelection: true,
 			seedSearchScopeFromSelection: true,
 			shouldFocus: FindStartFocusAction.FocusReplaceInput,
 			shouldAnimate: true

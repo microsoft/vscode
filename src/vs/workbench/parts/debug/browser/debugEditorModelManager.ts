@@ -7,7 +7,7 @@ import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import editorcommon = require('vs/editor/common/editorCommon');
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService, ModelEvents, ViewModelEvents, IBreakpoint, IRawBreakpoint, State } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, ModelEvents, ViewModelEvents, IBreakpoint, IRawBreakpoint, State, ServiceEvents } from 'vs/workbench/parts/debug/common/debug';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 function toMap(arr: string[]): { [key: string]: boolean; } {
@@ -36,6 +36,7 @@ interface IDebugEditorModelData {
 	breakpointDecorationsAsMap: { [decorationId: string]: boolean; };
 	currentStackDecorations: string[];
 	topStackFrameRange: editorcommon.IRange;
+	dirty: boolean;
 }
 
 export class DebugEditorModelManager implements IWorkbenchContribution {
@@ -80,6 +81,11 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 		this.toDispose.push(this.debugService.getModel().addListener2(ModelEvents.BREAKPOINTS_UPDATED, () => this.onBreakpointsChanged()));
 		this.toDispose.push(this.debugService.getViewModel().addListener2(ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => this.onFocusedStackFrameUpdated()));
+		this.toDispose.push(this.debugService.addListener2(ServiceEvents.STATE_CHANGED, () => {
+			if (this.debugService.getState() === State.Inactive) {
+				Object.keys(this.modelData).forEach(key => this.modelData[key].dirty = false);
+			}
+		}));
 	}
 
 	private onModelAdded(model: editorcommon.IModel): void {
@@ -99,7 +105,8 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			breakpointLines: breakpoints.map(bp => bp.lineNumber),
 			breakpointDecorationsAsMap: toMap(breakPointDecorations),
 			currentStackDecorations: currentStackDecorations,
-			topStackFrameRange: null
+			topStackFrameRange: null,
+			dirty: false
 		};
 	}
 
@@ -182,7 +189,6 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	}
 
 	// breakpoints management. Represent data coming from the debug service and also send data back.
-
 	private onModelDecorationsChanged(modelUrlStr: string, e: editorcommon.IModelDecorationsChangedEvent): void {
 		const modelData = this.modelData[modelUrlStr];
 		if (!e.addedOrChangedDecorations.some(d => modelData.breakpointDecorationsAsMap.hasOwnProperty(d.id))) {
@@ -214,6 +220,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				});
 			}
 		}
+		modelData.dirty = !!this.debugService.getActiveSession();
 
 		this.debugService.setBreakpointsForModel(modelUrl, data);
 	}
@@ -260,15 +267,20 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		const activated = this.debugService.getModel().areBreakpointsActivated();
 		const state = this.debugService.getState();
 		const debugActive = state === State.Running || state === State.Stopped || state === State.Initializing;
+		const modelData = this.modelData[breakpoint.source.uri.toString()];
+		const session = this.debugService.getActiveSession();
+
 		const result = (!breakpoint.enabled || !activated) ? DebugEditorModelManager.BREAKPOINT_DISABLED_DECORATION :
+			debugActive && modelData && modelData.dirty ? DebugEditorModelManager.BREAKPOINT_DIRTY_DECORATION :
 			debugActive && !breakpoint.verified ? DebugEditorModelManager.BREAKPOINT_UNVERIFIED_DECORATION :
 			!breakpoint.condition ? DebugEditorModelManager.BREAKPOINT_DECORATION : null;
 
-		return result ? result : {
-			glyphMarginClassName: 'debug-breakpoint-conditional-glyph',
-			hoverMessage: breakpoint.condition,
-			stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-		};
+		return result ? result :
+			!session || session.capablities.supportsConditionalBreakpoints ? {
+				glyphMarginClassName: 'debug-breakpoint-conditional-glyph',
+				hoverMessage: breakpoint.condition,
+				stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+			} : DebugEditorModelManager.BREAKPOINT_UNSUPPORTED_DECORATION;
 	}
 
 	// editor decorations
@@ -280,14 +292,26 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	};
 
 	private static BREAKPOINT_DISABLED_DECORATION: editorcommon.IModelDecorationOptions = {
-		glyphMarginClassName: 'debug-breakpoint-glyph-disabled',
+		glyphMarginClassName: 'debug-breakpoint-disabled-glyph',
 		hoverMessage: nls.localize('breakpointDisabledHover', "Disabled Breakpoint"),
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 
 	private static BREAKPOINT_UNVERIFIED_DECORATION: editorcommon.IModelDecorationOptions = {
-		glyphMarginClassName: 'debug-breakpoint-glyph-unverified',
+		glyphMarginClassName: 'debug-breakpoint-unverified-glyph',
 		hoverMessage: nls.localize('breakpointDisabledHover', "Unverified Breakpoint"),
+		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+	};
+
+	private static BREAKPOINT_DIRTY_DECORATION: editorcommon.IModelDecorationOptions = {
+		glyphMarginClassName: 'debug-breakpoint-unverified-glyph',
+		hoverMessage: nls.localize('breakpointDisabledHover', "Unverified breakpoint. File is modified, please restart debug session."),
+		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+	};
+
+	private static BREAKPOINT_UNSUPPORTED_DECORATION: editorcommon.IModelDecorationOptions = {
+		glyphMarginClassName: 'debug-breakpoint-unsupported-glyph',
+		hoverMessage: nls.localize('breakpointUnsupported', "Conditional breakpoints not supported by this debug type"),
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 

@@ -492,17 +492,17 @@ export function registerContributions(): void {
 		title: nls.localize('gitConfigurationTitle', "Git configuration"),
 		type: 'object',
 		properties: {
-			"git.enabled": {
+			'git.enabled': {
 				type: 'boolean',
 				description: nls.localize('gitEnabled', "Is git enabled"),
 				default: true
 			},
-			"git.path": {
+			'git.path': {
 				type: ['string', 'null'],
 				description: nls.localize('gitPath', "Path to the git executable"),
 				default: null
 			},
-			"git.autofetch": {
+			'git.autofetch': {
 				type: 'boolean',
 				description: nls.localize('gitAutoFetch', "Whether auto fetching is enabled."),
 				default: true

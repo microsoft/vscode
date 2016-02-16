@@ -97,7 +97,7 @@ function tokenize(bracketTypeTable: { [i: number]: string }, tokenTypeTable: { [
 
 	function appendFn(startIndex:number, type:string, bracket:Modes.Bracket):void {
 		if(ret.tokens.length === 0 || bracket !== void 0 || arrays.tail(ret.tokens).type !== type) {
-			ret.tokens.push(new supports.Token(startIndex, type, bracket || Modes.Bracket.None));
+			ret.tokens.push(new supports.Token(startIndex, type));
 		}
 	}
 

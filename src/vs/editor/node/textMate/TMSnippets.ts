@@ -12,8 +12,8 @@ import json = require('vs/base/common/json');
 import modesExt = require('vs/editor/common/modes/modesRegistry');
 import paths = require('vs/base/common/paths');
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {IModeService} from 'vs/editor/common/services/modeService';
 import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
-import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
 
 import pfs = require('vs/base/node/pfs');
 
@@ -53,11 +53,14 @@ let snippetsExtensionPoint = PluginsRegistry.registerExtensionPoint<ITMSnippetsE
 
 export class MainProcessTextMateSnippet {
 	private _modelService: IModelService;
+	private _modeService: IModeService;
 
 	constructor(
-		@IModelService modelService: IModelService
+		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService
 	) {
 		this._modelService = modelService;
+		this._modeService = modeService;
 
 		snippetsExtensionPoint.setHandler((extensions) => {
 			for (let i = 0; i < extensions.length; i++) {
@@ -70,7 +73,7 @@ export class MainProcessTextMateSnippet {
 	}
 
 	private _withTMSnippetContribution(extensionFolderPath:string, snippet:ITMSnippetsExtensionPoint, collector:IMessageCollector): void {
-		if (!snippet.language || (typeof snippet.language !== 'string') || !LanguageExtensions.isRegisteredMode(snippet.language)) {
+		if (!snippet.language || (typeof snippet.language !== 'string') || !this._modeService.isRegisteredMode(snippet.language)) {
 			collector.error(nls.localize('invalid.language', "Unknown language in `contributes.{0}.language`. Provided value: {1}", snippetsExtensionPoint.name, String(snippet.language)));
 			return;
 		}

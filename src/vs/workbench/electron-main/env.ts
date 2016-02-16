@@ -25,8 +25,10 @@ export interface IUpdateInfo {
 export interface IProductConfiguration {
 	nameShort: string;
 	nameLong: string;
+	applicationName: string;
 	win32AppUserModelId: string;
 	win32MutexName: string;
+	darwinBundleIdentifier: string;
 	dataFolderName: string;
 	downloadUrl: string;
 	updateUrl?: string;

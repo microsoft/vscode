@@ -76,9 +76,15 @@ export declare class TPromise<V> {
 	constructor(init:(complete: TValueCallback<V>, error:(err:any)=>void, progress:ProgressCallback)=>void, oncancel?: any);
 
 	public then<U>(success?: (value:V)=>TPromise<U>, error?: (err:any)=>TPromise<U>, progress?:ProgressCallback): TPromise<U>;
+	public then<U>(success?: (value:V)=>TPromise<U>, error?: (err:any)=>TPromise<U>|U, progress?:ProgressCallback): TPromise<U>;
 	public then<U>(success?: (value:V)=>TPromise<U>, error?: (err:any)=>U, progress?:ProgressCallback): TPromise<U>;
 	public then<U>(success?: (value:V)=>TPromise<U>, error?: (err:any)=>void, progress?:ProgressCallback): TPromise<U>;
+	public then<U>(success?: (value:V)=>TPromise<U>|U, error?: (err:any)=>TPromise<U>, progress?:ProgressCallback): TPromise<U>;
+	public then<U>(success?: (value:V)=>TPromise<U>|U, error?: (err:any)=>TPromise<U>|U, progress?:ProgressCallback): TPromise<U>;
+	public then<U>(success?: (value:V)=>TPromise<U>|U, error?: (err:any)=>U, progress?:ProgressCallback): TPromise<U>;
+	public then<U>(success?: (value:V)=>TPromise<U>|U, error?: (err:any)=>void, progress?:ProgressCallback): TPromise<U>;
 	public then<U>(success?: (value:V)=>U, error?: (err:any)=>TPromise<U>, progress?:ProgressCallback): TPromise<U>;
+	public then<U>(success?: (value:V)=>U, error?: (err:any)=>TPromise<U>|U, progress?:ProgressCallback): TPromise<U>;
 	public then<U>(success?: (value:V)=>U, error?: (err:any)=>U, progress?:ProgressCallback): TPromise<U>;
 	public then<U>(success?: (value:V)=>U, error?: (err:any)=>void, progress?:ProgressCallback): TPromise<U>;
 

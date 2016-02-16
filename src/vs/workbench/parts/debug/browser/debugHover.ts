@@ -162,7 +162,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		} else {
 			this.treeContainer.hidden = true;
 			this.valueContainer.hidden = false;
-			viewer.renderExpressionValue(expression, false, this.valueContainer, false);
+			viewer.renderExpressionValue(expression, this.valueContainer, false);
 			this.valueContainer.title = '';
 			this.editor.layoutContentWidget(this);
 		}

@@ -11,7 +11,7 @@ import {BlockCommentCommand} from 'vs/editor/contrib/comment/common/blockComment
 import {Selection} from 'vs/editor/common/core/selection';
 
 function testBlockCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	var mode = new CommentMode({ lineCommentTokens: ['!@#'], blockCommentStartToken: '<0', blockCommentEndToken: '0>' });
+	var mode = new CommentMode({ lineCommentToken: '!@#', blockCommentStartToken: '<0', blockCommentEndToken: '0>' });
 	testCommand(lines, mode, selection, (sel) => new BlockCommentCommand(sel), expectedLines, expectedSelection);
 }
 

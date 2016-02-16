@@ -6,11 +6,9 @@
 
 import nls = require('vs/nls');
 import URI from 'vs/base/common/uri';
-import strings = require('vs/base/common/strings');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import winjs = require('vs/base/common/winjs.base');
-import paths = require('vs/base/common/paths');
 import http = require('vs/base/common/http');
 import {IFileService} from 'vs/platform/files/common/files';
 import {IRequestService} from 'vs/platform/request/common/request';

@@ -75,7 +75,7 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 			if (e.target.type !== editorcommon.MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail) {
 				return;
 			}
-			if (!this.debugService.canSetBreakpointsIn(this.editor.getModel(), e.target.position.lineNumber)) {
+			if (!this.debugService.canSetBreakpointsIn(this.editor.getModel())) {
 				return;
 			}
 
@@ -98,7 +98,7 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 
 		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseMove, (e: editorbrowser.IMouseEvent) => {
 			var showBreakpointHintAtLineNumber = -1;
-			if (e.target.type === editorcommon.MouseTargetType.GUTTER_GLYPH_MARGIN && this.debugService.canSetBreakpointsIn(this.editor.getModel(), e.target.position.lineNumber)) {
+			if (e.target.type === editorcommon.MouseTargetType.GUTTER_GLYPH_MARGIN && this.debugService.canSetBreakpointsIn(this.editor.getModel())) {
 				if (!e.target.detail) {
 					// is not after last line
 					showBreakpointHintAtLineNumber = e.target.position.lineNumber;
@@ -203,7 +203,7 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 	// end hover business
 
 	private static BREAKPOINT_HELPER_DECORATION: editorcommon.IModelDecorationOptions = {
-		glyphMarginClassName: 'debug-breakpoint-glyph-hint',
+		glyphMarginClassName: 'debug-breakpoint-hint-glyph',
 		stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	};
 

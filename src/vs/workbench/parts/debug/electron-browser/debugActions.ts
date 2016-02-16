@@ -392,6 +392,20 @@ export class AddFunctionBreakpointAction extends AbstractDebugAction {
 	}
 }
 
+export class RenameFunctionBreakpointAction extends AbstractDebugAction {
+	static ID = 'workbench.debug.viewlet.action.renameFunctionBreakpointAction';
+	static LABEL = nls.localize('renameFunctionBreakpoint', "Rename Function Breakpoint");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, null, debugService, keybindingService);
+	}
+
+	public run(fbp: debug.IFunctionBreakpoint): TPromise<any> {
+		this.debugService.getViewModel().setSelectedFunctionBreakpoint(fbp);
+		return TPromise.as(null);
+	}
+}
+
 export class AddConditionalBreakpointAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.addConditionalBreakpointAction';
 	static LABEL = nls.localize('addConditionalBreakpoint', "Add Conditional Breakpoint");
@@ -429,7 +443,7 @@ export class ToggleBreakpointAction extends EditorAction {
 		if (this.debugService.getState() !== debug.State.Disabled) {
 			const lineNumber = this.editor.getPosition().lineNumber;
 			const modelUrl = this.editor.getModel().getAssociatedResource();
-			if (this.debugService.canSetBreakpointsIn(this.editor.getModel(), lineNumber)) {
+			if (this.debugService.canSetBreakpointsIn(this.editor.getModel())) {
 				return this.debugService.toggleBreakpoint({ uri: modelUrl, lineNumber: lineNumber });
 			}
 		}
@@ -448,7 +462,7 @@ export class EditorConditionalBreakpointAction extends EditorAction {
 	public run(): TPromise<any> {
 		if (this.debugService.getState() !== debug.State.Disabled) {
 			const lineNumber = this.editor.getPosition().lineNumber;
-			if (this.debugService.canSetBreakpointsIn(this.editor.getModel(), lineNumber)) {
+			if (this.debugService.canSetBreakpointsIn(this.editor.getModel())) {
 				return this.debugService.editBreakpoint(<editorbrowser.ICodeEditor>this.editor, lineNumber);
 			}
 		}

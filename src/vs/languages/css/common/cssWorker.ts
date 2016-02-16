@@ -22,10 +22,10 @@ import parser = require('vs/languages/css/common/parser/cssParser');
 import selectorPrinting = require('vs/languages/css/common/services/selectorPrinting');
 import lint = require('vs/languages/css/common/services/lint');
 import lintRules = require('vs/languages/css/common/services/lintRules');
-import supports = require('vs/editor/common/modes/supports');
 import {IMarker, IMarkerData} from 'vs/platform/markers/common/markers';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
+import {WorkerInplaceReplaceSupport} from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 
 export class CSSWorker extends AbstractModeWorker {
 
@@ -44,7 +44,7 @@ export class CSSWorker extends AbstractModeWorker {
 	}
 
 	protected _createInPlaceReplaceSupport(): Modes.IInplaceReplaceSupport {
-		return new supports.WorkerInplaceReplaceSupport(this.resourceService, this);
+		return new WorkerInplaceReplaceSupport(this.resourceService, this);
 	}
 
 	public createLanguageService(resourceService:IResourceService, modeId:string): languageService.CSSLanguageService {

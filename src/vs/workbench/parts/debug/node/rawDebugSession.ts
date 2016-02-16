@@ -34,6 +34,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		private adapter: Adapter
 	) {
 		super();
+		this.capablities = {};
 	}
 
 	private initServer(): TPromise<void> {
@@ -67,7 +68,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 
 	public initialize(args: DebugProtocol.InitializeRequestArguments): TPromise<DebugProtocol.InitializeResponse> {
 		return this.send('initialize', args).then(response => {
-			this.capablities = response.body || { };
+			this.capablities = response.body || this.capablities;
 			return response;
 		});
 	}

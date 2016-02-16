@@ -5,15 +5,15 @@
 'use strict';
 
 import Modes = require('vs/editor/common/modes');
-import supports = require('vs/editor/common/modes/supports');
 import htmlMode = require('vs/languages/html/common/html');
-import winjs = require('vs/base/common/winjs.base');
-import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import handlebarsTokenTypes = require('vs/languages/handlebars/common/handlebarsTokenTypes');
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
+import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 
 export enum States {
 	HTML,
@@ -114,28 +114,51 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 	) {
 		super(descriptor, instantiationService, threadService, modeService);
 
-		this.onEnterSupport = new OnEnterSupport(this.getId(), {
-			brackets: [
-				{ open: '<!--', close: '-->' },
-				{ open: '{{', close: '}}' },
-			]
-		});
+		this.formattingSupport = null;
 	}
 
-	public asyncCtor(): winjs.Promise {
-		return super.asyncCtor().then(() => {
-			var pairs = this.characterPairSupport.getAutoClosingPairs().slice(0).concat([
-				{ open: '{', close: '}'}
-			]);
+	protected _createRichEditSupport(embeddedAutoClosingPairs: Modes.IAutoClosingPair[]): Modes.IRichEditSupport {
+		return new RichEditSupport(this.getId(), {
 
-			this.characterPairSupport = new supports.CharacterPairSupport(this, {
-				autoClosingPairs:  pairs.slice(0),
+			wordPattern: createWordRegExp('#-?%'),
+
+			comments: {
+				blockComment: ['<!--', '-->']
+			},
+
+			brackets: [
+				['<!--', '-->'],
+				['{{', '}}']
+			],
+
+			__electricCharacterSupport: {
+				brackets: [],
+				caseInsensitive: true,
+				embeddedElectricCharacters: ['*', '}', ']', ')']
+			},
+
+			__characterPairSupport: {
+				autoClosingPairs: embeddedAutoClosingPairs.slice(0).concat([
+					{ open: '{', close: '}'}
+				]),
 				surroundingPairs: [
 					{ open: '<', close: '>' },
 					{ open: '"', close: '"' },
 					{ open: '\'', close: '\'' }
 				]
-			});
+			},
+
+			onEnterRules: [
+				{
+					beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join("|")}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+					afterText: /^<\/(\w[\w\d]*)\s*>$/i,
+					action: { indentAction: Modes.IndentAction.IndentOutdent }
+				},
+				{
+					beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join("|")}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+					action: { indentAction: Modes.IndentAction.Indent }
+				}
+			],
 		});
 	}
 
@@ -143,7 +166,7 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 		return new HandlebarsState(this, htmlMode.States.Content, States.HTML, '', '', '', '', '');
 	}
 
-	public getLeavingNestedModeData(line:string, state:Modes.IState):supports.ILeavingNestedModeData {
+	public getLeavingNestedModeData(line:string, state:Modes.IState):ILeavingNestedModeData {
 		var leavingNestedModeData = super.getLeavingNestedModeData(line, state);
 		if (leavingNestedModeData) {
 			leavingNestedModeData.stateAfterNestedMode = new HandlebarsState(this, htmlMode.States.Content, States.HTML, '', '', '', '', '');

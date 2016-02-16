@@ -108,7 +108,6 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 	private characterWidth: number;
 
 	constructor(
-		@debug.IDebugService private debugService: debug.IDebugService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
@@ -202,7 +201,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 
 	public renderElement(tree: tree.ITree, element: any, templateId: string, templateData: any): void {
 		if (templateId === ReplExpressionsRenderer.VARIABLE_TEMPLATE_ID) {
-			debugviewer.renderVariable(tree, element, templateData, this.debugService.getState() === debug.State.Inactive, false);
+			debugviewer.renderVariable(tree, element, templateData, false);
 		} else if (templateId === ReplExpressionsRenderer.INPUT_OUTPUT_PAIR_TEMPLATE_ID) {
 			this.renderInputOutputPair(tree, element, templateData);
 		} else if (templateId === ReplExpressionsRenderer.VALUE_OUTPUT_TEMPLATE_ID) {
@@ -214,7 +213,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 
 	private renderInputOutputPair(tree: tree.ITree, expression: debug.IExpression, templateData: IInputOutputPairTemplateData): void {
 		templateData.input.textContent = expression.name;
-		debugviewer.renderExpressionValue(expression, this.debugService.getState() === debug.State.Inactive, templateData.value, false);
+		debugviewer.renderExpressionValue(expression, templateData.value, false);
 		if (expression.reference > 0) {
 			templateData.annotation.className = 'annotation octicon octicon-info';
 			templateData.annotation.title = nls.localize('stateCapture', "Object state is captured from first evaluation");
@@ -400,7 +399,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		}
 
 		// value
-		debugviewer.renderExpressionValue(output.value, false, templateData.value, false);
+		debugviewer.renderExpressionValue(output.value, templateData.value, false);
 
 		// annotation if any
 		if (output.annotation) {

@@ -487,8 +487,18 @@ declare module DebugProtocol {
 		supportsConfigurationDoneRequest?: boolean;
 		/** The debug adapter supports functionBreakpoints. */
 		supportsFunctionBreakpoints?: boolean;
+		/** The debug adapter supports conditionalBreakpoints. */
+		supportsConditionalBreakpoints?: boolean;
 		/** The debug adapter supports a (side effect free) evaluate request for data hovers. */
 		supportsEvaluateForHovers?: boolean;
+
+		/** Available filters for the setExceptionBreakpoints request. */
+		exceptionBreakpointFilters?: [
+			{
+				filter: string,
+				label: string
+			}
+		]
 	}
 
 	/** A structured message object. Used to return errors from requests. */

@@ -176,7 +176,6 @@ export interface ILineContext {
 	getTokenCount(): number;
 	getTokenStartIndex(tokenIndex:number): number;
 	getTokenType(tokenIndex:number): string;
-	getTokenBracket(tokenIndex:number): Bracket;
 	getTokenText(tokenIndex:number): string;
 	getTokenEndIndex(tokenIndex:number): number;
 	findIndexOfOffset(offset:number): number;
@@ -284,26 +283,6 @@ export interface IMode {
 	configSupport?:IConfigurationSupport;
 
 	/**
-	 * Optional adapter to support electric characters.
-	 */
-	electricCharacterSupport?:IElectricCharacterSupport;
-
-	/**
-	 * Optional adapter to support comment insertion.
-	 */
-	commentsSupport?:ICommentsSupport;
-
-	/**
-	 * Optional adapter to support insertion of character pair.
-	 */
-	characterPairSupport?:ICharacterPairSupport;
-
-	/**
-	 * Optional adapter to support classification of tokens.
-	 */
-	tokenTypeClassificationSupport?:ITokenTypeClassificationSupport;
-
-	/**
 	 * Optional adapter to support quick fix of typing errors.
 	 */
 	quickFixSupport?:IQuickFixSupport;
@@ -323,7 +302,10 @@ export interface IMode {
 	 */
 	taskSupport?: ITaskSupport;
 
-	onEnterSupport?: IOnEnterSupport;
+	/**
+	 * Optional adapter to support rich editing.
+	 */
+	richEditSupport?: IRichEditSupport;
 }
 
 /**
@@ -332,7 +314,7 @@ export interface IMode {
 export interface IToken {
 	startIndex:number;
 	type:string;
-	bracket:Bracket;
+	bracket?:Bracket;
 }
 
 export interface IModeTransition {
@@ -454,12 +436,6 @@ export interface IParameterHints {
 	currentSignature:number;
 	currentParameter:number;
 	signatures:ISignature[];
-}
-
-export interface IParameterHintsContribution {
-	triggerCharacters: string[];
-	excludeTokens: string[];
-	getParameterHints: (resource: URI, position: EditorCommon.IPosition) => TPromise<IParameterHints>;
 }
 
 /**
@@ -645,87 +621,6 @@ export interface IConfigurationSupport {
 	configure(options:any):TPromise<boolean>;
 }
 
-
-
-
-/**
- * Interface used to support electric characters
- */
-export interface IElectricAction {
-	// Only one of the following properties should be defined:
-
-	// The line will be indented at the same level of the line
-	// which contains the matching given bracket type.
-	matchBracketType?:string;
-
-	// The text will be appended after the electric character.
-	appendText?:string;
-
-	// The number of characters to advance the cursor, useful with appendText
-	advanceCount?:number;
-}
-
-export enum IndentAction {
-	None,
-	Indent,
-	IndentOutdent,
-	Outdent
-}
-
-/**
- * An action the editor executes when 'enter' is being pressed
- */
-export interface IEnterAction {
-	indentAction:IndentAction;
-	appendText?:string;
-	removeText?:number;
-}
-
-export interface IElectricCharacterSupport {
-	getElectricCharacters():string[];
-	// Should return opening bracket type to match indentation with
-	onElectricCharacter(context:ILineContext, offset:number):IElectricAction;
-	onEnter(context:ILineContext, offset:number):IEnterAction;
-}
-
-export interface IOnEnterSupport {
-	onEnter(model:EditorCommon.ITokenizedModel, position: EditorCommon.IPosition): IEnterAction;
-}
-
-/**
- * Interface used to support insertion of mode specific comments.
- */
-export interface ICommentsConfiguration {
-	lineCommentTokens?:string[];
-	blockCommentStartToken?:string;
-	blockCommentEndToken?:string;
-}
-export interface ICommentsSupport {
-	getCommentsConfiguration():ICommentsConfiguration;
-}
-
-
-
-/**
- * Interface used to support insertion of matching characters like brackets and qoutes.
- */
-export interface IAutoClosingPair {
-	open:string;
-	close:string;
-}
-export interface ICharacterPairSupport {
-	getAutoClosingPairs():IAutoClosingPairConditional[];
-	shouldAutoClosePair(character:string, context:ILineContext, offset:number):boolean;
-	getSurroundingPairs():IAutoClosingPair[];
-}
-
-/**
- * Interface used to support the classification of tokens.
- */
-export interface ITokenTypeClassificationSupport {
-	getWordDefinition():RegExp;
-}
-
 export interface IResourceEdit {
 	resource: URI;
 	range?: EditorCommon.IRange;
@@ -790,41 +685,112 @@ export interface IBracketPair {
 	isElectric:boolean;
 }
 
-/**
- * Regular expression based brackets. These are always electric.
- */
-export interface IRegexBracketPair {
-	openTrigger?: string; // The character that will trigger the evaluation of 'open'.
-	open: RegExp; // The definition of when an opening brace is detected. This regex is matched against the entire line upto, and including the last typed character (the trigger character).
-	closeComplete?: string; // How to complete a matching open brace. Matches from 'open' will be expanded, e.g. '</$1>'
-	matchCase?: boolean; // If set to true, the case of the string captured in 'open' will be detected an applied also to 'closeComplete'.
-						// This is useful for cases like BEGIN/END or begin/end where the opening and closing phrases are unrelated.
-						// For identical phrases, use the $1 replacement syntax above directly in closeComplete, as it will
-						// include the proper casing from the captured string in 'open'.
-						// Upper/Lower/Camel cases are detected. Camel case dection uses only the first two characters and assumes
-						// that 'closeComplete' contains wors separated by spaces (e.g. 'End Loop')
-
-	closeTrigger?: string; // The character that will trigger the evaluation of 'close'.
-	close?: RegExp; // The definition of when a closing brace is detected. This regex is matched against the entire line upto, and including the last typed character (the trigger character).
-	tokenType?: string; // The type of the token. Matches from 'open' or 'close' will be expanded, e.g. 'keyword.$1'.
-					// Only used to auto-(un)indent a closing bracket.
-}
-
-/**
- * Definition of documentation comments (e.g. Javadoc/JSdoc)
- */
-export interface IDocComment {
-	scope: string; // What tokens should be used to detect a doc comment (e.g. 'comment.documentation').
-	open: string; // The string that starts a doc comment (e.g. '/**')
-	lineStart: string; // The string that appears at the start of each line, except the first and last (e.g. ' * ').
-	close?: string; // The string that appears on the last line and closes the doc comment (e.g. ' */').
-}
-
 export interface IAutoClosingPairConditional extends IAutoClosingPair {
 	notIn?: string[];
 }
 
-export interface ICharacterPairContribution {
-	autoClosingPairs: IAutoClosingPairConditional[];
-	surroundingPairs?: IAutoClosingPair[];
+/**
+ * Interface used to support electric characters
+ */
+export interface IElectricAction {
+	// Only one of the following properties should be defined:
+
+	// The line will be indented at the same level of the line
+	// which contains the matching given bracket type.
+	matchOpenBracket?:string;
+
+	// The text will be appended after the electric character.
+	appendText?:string;
+
+	// The number of characters to advance the cursor, useful with appendText
+	advanceCount?:number;
+}
+
+export enum IndentAction {
+	None,
+	Indent,
+	IndentOutdent,
+	Outdent
+}
+
+/**
+ * An action the editor executes when 'enter' is being pressed
+ */
+export interface IEnterAction {
+	indentAction:IndentAction;
+	appendText?:string;
+	removeText?:number;
+}
+
+export interface IRichEditElectricCharacter {
+	getElectricCharacters():string[];
+	// Should return opening bracket type to match indentation with
+	onElectricCharacter(context:ILineContext, offset:number):IElectricAction;
+}
+
+export interface IRichEditOnEnter {
+	onEnter(model:EditorCommon.ITokenizedModel, position: EditorCommon.IPosition): IEnterAction;
+}
+
+/**
+ * Interface used to support insertion of mode specific comments.
+ */
+export interface ICommentsConfiguration {
+	lineCommentToken?:string;
+	blockCommentStartToken?:string;
+	blockCommentEndToken?:string;
+}
+
+/**
+ * Interface used to support insertion of matching characters like brackets and qoutes.
+ */
+export interface IAutoClosingPair {
+	open:string;
+	close:string;
+}
+export interface IRichEditCharacterPair {
+	getAutoClosingPairs():IAutoClosingPairConditional[];
+	shouldAutoClosePair(character:string, context:ILineContext, offset:number):boolean;
+	getSurroundingPairs():IAutoClosingPair[];
+}
+
+export interface IRichEditBrackets {
+	maxBracketLength: number;
+	forwardRegex: RegExp;
+	reversedRegex: RegExp;
+	brackets: EditorCommon.IRichEditBracket[];
+	textIsBracket: {[text:string]:EditorCommon.IRichEditBracket;};
+	textIsOpenBracket: {[text:string]:boolean;};
+}
+
+export interface IRichEditSupport {
+	/**
+	 * Optional adapter for electric characters.
+	 */
+	electricCharacter?:IRichEditElectricCharacter;
+
+	/**
+	 * Optional adapter for comment insertion.
+	 */
+	comments?:ICommentsConfiguration;
+
+	/**
+	 * Optional adapter for insertion of character pair.
+	 */
+	characterPair?:IRichEditCharacterPair;
+
+	/**
+	 * Optional adapter for classification of tokens.
+	 */
+	wordDefinition?: RegExp;
+
+	/**
+	 * Optional adapter for custom Enter handling.
+	 */
+	onEnter?: IRichEditOnEnter;
+
+	/**
+	 * Optional adapter for brackets.
+	 */
+	brackets?: IRichEditBrackets;
 }

@@ -16,7 +16,6 @@ import textMate = require('vscode-textmate');
 import TMState = require('vs/editor/common/modes/TMState');
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
-import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
 
 export interface ITMSyntaxExtensionPoint {
 	language: string;
@@ -75,7 +74,7 @@ export class MainProcessTextMateSyntax {
 	}
 
 	private _handleGrammarExtensionPointUser(extensionFolderPath:string, syntax:ITMSyntaxExtensionPoint, collector: IMessageCollector): void {
-		if (syntax.language && ((typeof syntax.language !== 'string') || !LanguageExtensions.isRegisteredMode(syntax.language))) {
+		if (syntax.language && ((typeof syntax.language !== 'string') || !this._modeService.isRegisteredMode(syntax.language))) {
 			collector.error(nls.localize('invalid.language', "Unknown language in `contributes.{0}.language`. Provided value: {1}", grammarsExtPoint.name, String(syntax.language)));
 			return;
 		}
@@ -162,10 +161,6 @@ class Tokenizer {
 			modeTransitions: [{ startIndex: offsetDelta, mode: freshState.getMode() }],
 		};
 
-		let noBracket = Modes.Bracket.None,
-			openBracket = Modes.Bracket.Open,
-			closeBracket = Modes.Bracket.Close;
-
 		for (let tokenIndex = 0, len = textMateResult.tokens.length; tokenIndex < len; tokenIndex++) {
 			let token = textMateResult.tokens[tokenIndex];
 			let tokenStartIndex = token.startIndex;
@@ -175,63 +170,55 @@ class Tokenizer {
 
 			if (t.isOpaqueToken) {
 				// Should not do any smartness to detect brackets on this token
-				ret.tokens.push(new supports.Token(tokenStartIndex + offsetDelta, t.tokenType, noBracket));
+				ret.tokens.push(new supports.Token(tokenStartIndex + offsetDelta, t.tokenType));
 				continue;
 			}
 
 			let i: number,
 				charCode: number,
-				isBracket: string,
-				bracketType: Modes.Bracket;
+				isBracket: string;
 
 			for (i = tokenStartIndex; i < tokenEndIndex; i++) {
 				charCode = line.charCodeAt(i);
 				isBracket = null;
-				bracketType = noBracket;
 
 				switch (charCode) {
 					case _openParen: // (
 						isBracket = 'delimiter.paren';
-						bracketType = openBracket;
 						break;
 					case _closeParen: // )
 						isBracket = 'delimiter.paren';
-						bracketType = closeBracket;
 						break;
 					case _openCurly: // {
 						isBracket = 'delimiter.curly';
-						bracketType = openBracket;
 						break;
 					case _closeCurly: // }
 						isBracket = 'delimiter.curly';
-						bracketType = closeBracket;
 						break;
 					case _openSquare: // [
 						isBracket = 'delimiter.square';
-						bracketType = openBracket;
 						break;
 					case _closeSquare: // ]
 						isBracket = 'delimiter.square';
-						bracketType = closeBracket;
 						break;
 				}
 
 				if (isBracket) {
 					if (tokenStartIndex < i) {
 						// push a token before character `i`
-						ret.tokens.push(new supports.Token(tokenStartIndex + offsetDelta, t.tokenType, noBracket));
+						ret.tokens.push(new supports.Token(tokenStartIndex + offsetDelta, t.tokenType));
 						tokenStartIndex = i;
 					}
 
 					// push character `i` as a token
-					ret.tokens.push(new supports.Token(tokenStartIndex + offsetDelta, isBracket + '.' + t.modeToken, bracketType));
+					ret.tokens.push(new supports.Token(tokenStartIndex + offsetDelta, isBracket + '.' + t.modeToken));
 					tokenStartIndex = i + 1;
 				}
 			}
 
 			if (tokenStartIndex < tokenEndIndex) {
 				// push the remaining text as a token
-				ret.tokens.push(new supports.Token(tokenStartIndex + offsetDelta, t.tokenType, noBracket));
+				ret.tokens.push(new supports.Token(tokenStartIndex + offsetDelta, t.tokenType));
 			}
 		}
 

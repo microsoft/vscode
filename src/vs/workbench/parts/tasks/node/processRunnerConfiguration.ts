@@ -29,9 +29,9 @@ export class ProblemHandling {
 }
 
 export namespace ShowOutput {
-	let always: string = 'always';
-	let silent: string = 'silent';
-	let never: string = 'never';
+	// let always: string = 'always';
+	// let silent: string = 'silent';
+	// let never: string = 'never';
 }
 
 /**

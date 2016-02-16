@@ -95,7 +95,7 @@ gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compil
 }));
 
 gulp.task('clean-minified-vscode', util.rimraf('out-vscode-min'));
-gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.minifyTask('out-vscode', false));
+gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.minifyTask('out-vscode', true));
 
 // Package
 var product = require('../product.json');
@@ -341,7 +341,7 @@ gulp.task('vscode-linux-packages', ['vscode-linux-ia32-build-deb', 'vscode-linux
 
 // Sourcemaps
 
-gulp.task('vscode-sourcemaps', ['minify-vscode'], function () {
+gulp.task('upload-vscode-sourcemaps', ['minify-vscode'], function () {
 	return gulp.src('out-vscode-min/**/*.map')
 		.pipe(azure.upload({
 			account: process.env.AZURE_STORAGE_ACCOUNT,
