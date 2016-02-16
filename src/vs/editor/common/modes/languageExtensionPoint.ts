@@ -15,6 +15,8 @@ import Mime = require('vs/base/common/mime');
 import Errors = require('vs/base/common/errors');
 import Event, {Emitter} from 'vs/base/common/event';
 import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
+import {IEditorModesRegistry, ILegacyLanguageDefinition, Extensions} from 'vs/editor/common/modes/modesRegistry';
+import {Registry} from 'vs/platform/platform';
 
 interface ILanguagePointData {
 	knownModeIds: { [id: string]: boolean; };
@@ -133,17 +135,6 @@ function isValidLanguageExtensionPoint(value:ILanguageExtensionPoint, collector:
 	return true;
 }
 
-export interface ILegacyLanguageDefinition {
-	id: string;
-	extensions: string[];
-	filenames?: string[];
-	firstLine?: string;
-	aliases: string[];
-	mimetypes: string[];
-	moduleId: string;
-	ctorName: string;
-}
-
 var hasOwnProperty = Object.prototype.hasOwnProperty;
 
 export interface ILanguageExtensionPointHandler {
@@ -171,6 +162,8 @@ export interface ICompatModeDescriptor {
 	ctorName: string;
 }
 
+let modesRegistry = <IEditorModesRegistry>Registry.as(Extensions.EditorModes);
+
 class LanguageExtensionPointHandler implements IThreadSynchronizableObject<ILanguagePointData>, ILanguageExtensionPointHandler {
 
 	private knownModeIds: { [id: string]: boolean; };
@@ -197,6 +190,12 @@ class LanguageExtensionPointHandler implements IThreadSynchronizableObject<ILang
 		this.lowerName2Id = {};
 		this.id2ConfigurationFiles = {};
 		this._isRegisteredWithThreadService = false;
+
+		modesRegistry.getCompatModes().forEach((m) => this.registerCompatMode(m));
+		modesRegistry.onDidAddCompatMode((m) => this.registerCompatMode(m));
+
+		modesRegistry.getLanguages().forEach((m) => this.registerLanguage(m));
+		modesRegistry.onDidAddLanguage((m) => this.registerLanguage(m));
 	}
 
 	// -- BEGIN IThreadSynchronizableObject

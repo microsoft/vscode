@@ -32,12 +32,12 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import colorizer = require('vs/editor/browser/standalone/colorizer');
 import {IEditorModesRegistry, Extensions} from 'vs/editor/common/modes/modesRegistry';
 import {Registry} from 'vs/platform/platform';
-import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
 import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
+import {registerLanguage} from 'vs/editor/common/modes/modesRegistry';
 
 // Set defaults for standalone editor
 DefaultConfig.editor.wrappingIndent = 'none';
@@ -418,7 +418,7 @@ export function createCustomMode(language:MonarchTypes.ILanguage): TPromise<Mode
 	var modeId = language.name;
 	var name = language.name;
 
-	LanguageExtensions.registerLanguage({
+	registerLanguage({
 		id: modeId,
 		aliases: [name]
 	});
@@ -431,7 +431,7 @@ export function createCustomMode(language:MonarchTypes.ILanguage): TPromise<Mode
 }
 
 export function registerStandaloneLanguage(language:ILanguageExtensionPoint, defModule:string): void {
-	LanguageExtensions.registerLanguage(language);
+	registerLanguage(language);
 
 	PluginsRegistry.registerOneTimeActivationEventListener('onLanguage:' + language.id, () => {
 		require([defModule], (value:{language:MonarchTypes.ILanguage}) => {

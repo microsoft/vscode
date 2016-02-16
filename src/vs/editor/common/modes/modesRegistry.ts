@@ -4,12 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {LanguageExtensions, ILegacyLanguageDefinition} from 'vs/editor/common/modes/languageExtensionPoint';
 import Modes = require('vs/editor/common/modes');
 import Strings = require('vs/base/common/strings');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {Registry} from 'vs/platform/platform';
 import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
+import Event, {Emitter} from 'vs/base/common/event';
+
+export interface ILegacyLanguageDefinition {
+	id: string;
+	extensions: string[];
+	filenames?: string[];
+	firstLine?: string;
+	aliases: string[];
+	mimetypes: string[];
+	moduleId: string;
+	ctorName: string;
+}
 
 // Define extension point ids
 export var Extensions = {
@@ -17,6 +28,9 @@ export var Extensions = {
 };
 
 export interface IEditorModesRegistry {
+
+	onDidAddCompatMode: Event<ILegacyLanguageDefinition>;
+	onDidAddLanguage: Event<ILanguageExtensionPoint>;
 
 	// --- worker participants registration
 	registerWorkerParticipant(modeId:string, moduleId:string, ctorName?:string):void;
@@ -27,21 +41,34 @@ export interface IEditorModesRegistry {
 
 	// --- modes registration
 	registerCompatMode(def:ILegacyLanguageDefinition): void;
+	getCompatModes(): ILegacyLanguageDefinition[];
+
 	registerLanguage(def:ILanguageExtensionPoint): void;
+	getLanguages(): ILanguageExtensionPoint[];
 }
 
 class EditorModesRegistry implements IEditorModesRegistry {
 
-	private workerParticipants: Modes.IWorkerParticipantDescriptor[];
+	private _workerParticipants: Modes.IWorkerParticipantDescriptor[];
+	private _compatModes: ILegacyLanguageDefinition[];
+	private _languages: ILanguageExtensionPoint[];
+
+	private _onDidAddCompatMode: Emitter<ILegacyLanguageDefinition> = new Emitter<ILegacyLanguageDefinition>();
+	public onDidAddCompatMode: Event<ILegacyLanguageDefinition> = this._onDidAddCompatMode.event;
+
+	private _onDidAddLanguage: Emitter<ILanguageExtensionPoint> = new Emitter<ILanguageExtensionPoint>();
+	public onDidAddLanguage: Event<ILanguageExtensionPoint> = this._onDidAddLanguage.event;
 
 	constructor() {
-		this.workerParticipants = [];
+		this._workerParticipants = [];
+		this._compatModes = [];
+		this._languages = [];
 	}
 
 	// --- worker participants registration
 
 	public registerWorkerParticipant(modeId:string, moduleId:string, ctorName?:string):void {
-		this.workerParticipants.push({
+		this._workerParticipants.push({
 			modeId: modeId,
 			moduleId: moduleId,
 			ctorName: ctorName
@@ -49,23 +76,35 @@ class EditorModesRegistry implements IEditorModesRegistry {
 	}
 
 	public _getAllWorkerParticipants(): Modes.IWorkerParticipantDescriptor[] {
-		return this.workerParticipants;
+		return this._workerParticipants;
 	}
 
 	public _setWorkerParticipants(participants:Modes.IWorkerParticipantDescriptor[]): void {
-		this.workerParticipants = participants;
+		this._workerParticipants = participants;
 	}
 
 	public getWorkerParticipants(modeId:string):Modes.IWorkerParticipantDescriptor[] {
-		return this.workerParticipants.filter(p => p.modeId === modeId);
+		return this._workerParticipants.filter(p => p.modeId === modeId);
 	}
+
 
 	public registerCompatMode(def:ILegacyLanguageDefinition): void {
-		LanguageExtensions.registerCompatMode(def);
+		this._compatModes.push(def);
+		this._onDidAddCompatMode.fire(def);
 	}
 
+	public getCompatModes(): ILegacyLanguageDefinition[] {
+		return this._compatModes.slice(0);
+	}
+
+
 	public registerLanguage(def:ILanguageExtensionPoint): void {
-		LanguageExtensions.registerLanguage(def);
+		this._languages.push(def);
+		this._onDidAddLanguage.fire(def);
+	}
+
+	public getLanguages(): ILanguageExtensionPoint[] {
+		return this._languages.slice(0);
 	}
 }
 
