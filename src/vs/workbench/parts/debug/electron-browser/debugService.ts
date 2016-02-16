@@ -16,6 +16,7 @@ import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import editor = require('vs/editor/common/editorCommon');
 import aria = require('vs/base/browser/ui/aria/aria');
+import { AIAdapter } from 'vs/base/node/aiAdapter';
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
@@ -65,6 +66,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	private viewModel: viewmodel.ViewModel;
 	private configurationManager: ConfigurationManager;
 	private debugStringEditorInputs: DebugStringEditorInput[];
+	private telemetryAdapter: AIAdapter;
 	private lastTaskEvent: TaskEvent;
 	private toDispose: lifecycle.IDisposable[];
 	private inDebugMode: IKeybindingContextKey<boolean>;
@@ -282,7 +284,15 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.OUTPUT, (event: DebugProtocol.OutputEvent) => {
 			if (event.body && event.body.category === 'telemetry') {
-				this.telemetryService.publicLog(event.body.output, event.body.data);
+				const key = this.configurationManager.getAdapter().aiKey;
+				// only log telemetry events from debug adapter if the adapter provided the telemetry key
+				if (key) {
+					if (!this.telemetryAdapter) {
+						this.telemetryAdapter = new AIAdapter(key, this.session.getType());
+					}
+
+					this.telemetryAdapter.log(event.body.output, event.body.data);
+				}
 			} else if (event.body && typeof event.body.output === 'string' && event.body.output.length > 0) {
 				this.onOutput(event);
 			}
@@ -673,6 +683,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		});
 		this.model.updateBreakpoints(data);
 
+		if (this.telemetryAdapter) {
+			this.telemetryAdapter.dispose();
+			this.telemetryAdapter = null;
+		}
 		this.inDebugMode.reset();
 	}
 
