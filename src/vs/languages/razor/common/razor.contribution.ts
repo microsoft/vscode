@@ -6,7 +6,7 @@
 
 import modesExtensions = require('vs/editor/common/modes/modesRegistry');
 
-modesExtensions.registerMode({
+modesExtensions.registerCompatMode({
 	id: 'razor',
 	extensions: ['.cshtml'],
 	aliases: ['Razor', 'razor'],

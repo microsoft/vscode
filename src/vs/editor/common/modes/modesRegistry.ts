@@ -9,6 +9,7 @@ import Modes = require('vs/editor/common/modes');
 import Strings = require('vs/base/common/strings');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {Registry} from 'vs/platform/platform';
+import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
 
 // Define extension point ids
 export var Extensions = {
@@ -25,7 +26,8 @@ export interface IEditorModesRegistry {
 	_setWorkerParticipants(participants:Modes.IWorkerParticipantDescriptor[]);
 
 	// --- modes registration
-	registerMode(def:ILegacyLanguageDefinition): void;
+	registerCompatMode(def:ILegacyLanguageDefinition): void;
+	registerLanguage(def:ILanguageExtensionPoint): void;
 }
 
 class EditorModesRegistry implements IEditorModesRegistry {
@@ -58,16 +60,24 @@ class EditorModesRegistry implements IEditorModesRegistry {
 		return this.workerParticipants.filter(p => p.modeId === modeId);
 	}
 
-	public registerMode(def:ILegacyLanguageDefinition): void {
+	public registerCompatMode(def:ILegacyLanguageDefinition): void {
 		LanguageExtensions.registerCompatMode(def);
+	}
+
+	public registerLanguage(def:ILanguageExtensionPoint): void {
+		LanguageExtensions.registerLanguage(def);
 	}
 }
 
 var mR = new EditorModesRegistry();
 Registry.add(Extensions.EditorModes, mR);
 
-export function registerMode(def:ILegacyLanguageDefinition): void {
-	mR.registerMode(def);
+export function registerCompatMode(def:ILegacyLanguageDefinition): void {
+	mR.registerCompatMode(def);
+}
+
+export function registerLanguage(def:ILanguageExtensionPoint): void {
+	mR.registerLanguage(def);
 }
 
 export function registerWorkerParticipant(modeId:string, moduleId:string, ctorName?:string): void {

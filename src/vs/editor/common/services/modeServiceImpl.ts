@@ -28,6 +28,7 @@ import {DeclarationSupport, IDeclarationContribution} from 'vs/editor/common/mod
 import {ReferenceSupport, IReferenceContribution} from 'vs/editor/common/modes/supports/referenceSupport';
 import {ParameterHintsSupport, IParameterHintsContribution} from 'vs/editor/common/modes/supports/parameterHintsSupport';
 import {SuggestSupport, ComposableSuggestSupport, ISuggestContribution} from 'vs/editor/common/modes/supports/suggestSupport';
+import Event, {Emitter} from 'vs/base/common/event';
 
 interface IModeConfigurationMap { [modeId: string]: any; }
 
@@ -41,6 +42,9 @@ export class ModeServiceImpl implements IModeService {
 	private _frankensteinModes: { [modeId: string]: FrankensteinMode; };
 	private _config: IModeConfigurationMap;
 
+	private _onDidAddMode: Emitter<string> = new Emitter<string>();
+	public onDidAddMode: Event<string> = this._onDidAddMode.event;
+
 	constructor(threadService:IThreadService, pluginService:IPluginService) {
 		this._threadService = threadService;
 		this._pluginService = pluginService;
@@ -48,6 +52,8 @@ export class ModeServiceImpl implements IModeService {
 		this._instantiatedModes = {};
 		this._frankensteinModes = {};
 		this._config = {};
+
+		LanguageExtensions.onDidAddMode((modeId) => this._onDidAddMode.fire(modeId));
 	}
 
 	public getConfigurationForMode(modeId:string): any {
@@ -125,6 +131,10 @@ export class ModeServiceImpl implements IModeService {
 		}
 
 		return null;
+	}
+
+	public getConfigurationFiles(modeId: string): string[] {
+		return LanguageExtensions.getConfigurationFiles(modeId);
 	}
 
 	// --- instantiation

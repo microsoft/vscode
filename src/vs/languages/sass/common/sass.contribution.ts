@@ -11,7 +11,7 @@ import nls = require('vs/nls');
 import LintRules = require('vs/languages/css/common/services/lintRules');
 import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
 
-ModesExt.registerMode({
+ModesExt.registerCompatMode({
 	id: 'sass',
 	extensions: ['.scss'],
 	aliases: ['Sass', 'sass', 'scss'],

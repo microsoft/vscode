@@ -9,7 +9,7 @@ import ConfigurationRegistry = require('vs/platform/configuration/common/configu
 import Platform = require('vs/platform/platform');
 import modesExtensions = require('vs/editor/common/modes/modesRegistry');
 
-modesExtensions.registerMode({
+modesExtensions.registerCompatMode({
 	id: 'json',
 	extensions: ['.json', '.bowerrc', '.jshintrc', '.jscsrc', '.eslintrc'],
 	aliases: ['JSON', 'json'],

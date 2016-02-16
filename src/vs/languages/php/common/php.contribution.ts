@@ -6,7 +6,7 @@
 
 import modesExtensions = require('vs/editor/common/modes/modesRegistry');
 
-modesExtensions.registerMode({
+modesExtensions.registerCompatMode({
 	id: 'php',
 	extensions: ['.php', '.phtml', '.ctp'],
 	aliases: ['PHP', 'php'],

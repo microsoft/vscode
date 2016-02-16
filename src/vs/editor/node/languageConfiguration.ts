@@ -6,7 +6,6 @@
 
 import * as nls from 'vs/nls';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import pfs = require('vs/base/node/pfs');
 import json = require('vs/base/common/json');
@@ -33,15 +32,15 @@ export class LanguageConfigurationFileHandler {
 	) {
 		this._modeService = modeService;
 
-		LanguageExtensions.getRegisteredModes().forEach(modeId => this._handleMode(modeId));
-		LanguageExtensions.onDidAddMode((modeId) => this._handleMode(modeId));
+		this._modeService.getRegisteredModes().forEach(modeId => this._handleMode(modeId));
+		this._modeService.onDidAddMode((modeId) => this._handleMode(modeId));
 	}
 
 	private _handleMode(modeId:string): void {
 		let activationEvent = 'onLanguage:' + modeId;
 
 		PluginsRegistry.registerOneTimeActivationEventListener(activationEvent, () => {
-			let configurationFiles = LanguageExtensions.getConfigurationFiles(modeId);
+			let configurationFiles = this._modeService.getConfigurationFiles(modeId);
 
 			configurationFiles.forEach((configFilePath) => this._handleConfigFile(modeId, configFilePath));
 		});

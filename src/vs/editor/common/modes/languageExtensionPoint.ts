@@ -14,6 +14,7 @@ import {PluginsRegistry, IExtensionPointUser, IMessageCollector} from 'vs/platfo
 import Mime = require('vs/base/common/mime');
 import Errors = require('vs/base/common/errors');
 import Event, {Emitter} from 'vs/base/common/event';
+import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
 
 interface ILanguagePointData {
 	knownModeIds: { [id: string]: boolean; };
@@ -85,17 +86,6 @@ let languagesExtPoint = PluginsRegistry.registerExtensionPoint<ILanguageExtensio
 		}
 	}
 });
-
-export interface ILanguageExtensionPoint {
-	id: string;
-	extensions?: string[];
-	filenames?: string[];
-	filenamePatterns?: string[];
-	firstLine?: string;
-	aliases?: string[];
-	mimetypes?: string[];
-	configuration?: string;
-}
 
 function isUndefinedOrStringArray(value: string[]): boolean {
 	if (typeof value === 'undefined') {

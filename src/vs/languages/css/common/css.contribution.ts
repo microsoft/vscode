@@ -11,7 +11,7 @@ import modesExtensions = require('vs/editor/common/modes/modesRegistry');
 import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
 import lintRules = require('vs/languages/css/common/services/lintRules');
 
-modesExtensions.registerMode({
+modesExtensions.registerCompatMode({
 	id: 'css',
 	extensions: ['.css'],
 	aliases: ['CSS', 'css'],

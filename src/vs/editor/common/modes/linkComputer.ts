@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Modes = require('vs/editor/common/modes');
+import {ILink} from 'vs/editor/common/modes';
 
 export interface ILinkComputerTarget {
 	getLineCount(): number;
@@ -72,7 +72,7 @@ var getCharacterClasses = (function() {
 
 class LinkComputer {
 
-	private static _createLink(line:string, lineNumber:number, linkBeginIndex:number, linkEndIndex:number):Modes.ILink {
+	private static _createLink(line:string, lineNumber:number, linkBeginIndex:number, linkEndIndex:number):ILink {
 		return {
 			range: {
 				startLineNumber: lineNumber,
@@ -84,11 +84,11 @@ class LinkComputer {
 		};
 	}
 
-	public static computeLinks(model:ILinkComputerTarget):Modes.ILink[] {
+	public static computeLinks(model:ILinkComputerTarget):ILink[] {
 
 		var i:number,
 			lineCount:number,
-			result:Modes.ILink[] = [];
+			result:ILink[] = [];
 
 		var line:string,
 			j:number,
@@ -177,7 +177,7 @@ class LinkComputer {
  * document. *Note* that this operation is computational
  * expensive and should not run in the UI thread.
  */
-export function computeLinks(model:ILinkComputerTarget):Modes.ILink[] {
+export function computeLinks(model:ILinkComputerTarget):ILink[] {
 	if (!model || typeof model.getLineCount !== 'function' || typeof model.getLineContent !== 'function') {
 		// Unknown caller!
 		return [];

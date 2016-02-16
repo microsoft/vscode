@@ -9,7 +9,7 @@
 import 'vs/languages/plaintext/common/plaintext';
 import modesExtensions = require('vs/editor/common/modes/modesRegistry');
 
-modesExtensions.registerMode({
+modesExtensions.registerCompatMode({
 	id: 'plaintext',
 	extensions: ['.txt', '.gitignore'],
 	aliases: ['Plain Text', 'text'],

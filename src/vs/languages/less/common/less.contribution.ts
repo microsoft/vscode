@@ -11,7 +11,7 @@ import lintRules = require('vs/languages/css/common/services/lintRules');
 import modesExtensions = require('vs/editor/common/modes/modesRegistry');
 import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
 
-modesExtensions.registerMode({
+modesExtensions.registerCompatMode({
 	id: 'less',
 	extensions: ['.less'],
 	aliases: ['Less', 'less'],

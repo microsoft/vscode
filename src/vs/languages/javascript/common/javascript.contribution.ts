@@ -8,11 +8,12 @@ import nls = require('vs/nls');
 import env = require('vs/base/common/flags');
 import platform = require('vs/platform/platform');
 import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
-import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
 import Options = require('vs/languages/typescript/common/options');
+import modesExtensions = require('vs/editor/common/modes/modesRegistry');
+
 let defaults = Options.javaScriptOptions;
 
-LanguageExtensions.registerCompatMode({
+modesExtensions.registerCompatMode({
 	id: 'javascript',
 	extensions: ['.js', '.es6'],
 	firstLine: '^#!.*\\bnode',

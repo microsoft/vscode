@@ -14,6 +14,7 @@ import {IDeclarationContribution} from 'vs/editor/common/modes/supports/declarat
 import {IReferenceContribution} from 'vs/editor/common/modes/supports/referenceSupport';
 import {IParameterHintsContribution} from 'vs/editor/common/modes/supports/parameterHintsSupport';
 import {ISuggestContribution} from 'vs/editor/common/modes/supports/suggestSupport';
+import Event from 'vs/base/common/event';
 
 export var IModeService = createDecorator<IModeService>('modeService');
 
@@ -22,8 +23,21 @@ export interface IModeLookupResult {
 	isInstantiated: boolean;
 }
 
+export interface ILanguageExtensionPoint {
+	id: string;
+	extensions?: string[];
+	filenames?: string[];
+	filenamePatterns?: string[];
+	firstLine?: string;
+	aliases?: string[];
+	mimetypes?: string[];
+	configuration?: string;
+}
+
 export interface IModeService {
 	serviceId: ServiceIdentifier<any>;
+
+	onDidAddMode: Event<string>;
 
 	configureMode(modeName: string, options: any): void;
 	configureModeById(modeId: string, options: any): void;
@@ -39,6 +53,7 @@ export interface IModeService {
 	getLanguageName(modeId:string): string;
 	getModeIdForLanguageName(alias:string): string;
 	getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string;
+	getConfigurationFiles(modeId: string): string[];
 
 	// --- instantiation
 	lookup(commaSeparatedMimetypesOrCommaSeparatedIds: string): IModeLookupResult[];

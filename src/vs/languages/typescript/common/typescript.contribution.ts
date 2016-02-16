@@ -17,7 +17,7 @@ let defaults = options.typeScriptOptions;
 
 if (!env.enableTypeScriptServiceMode) {
 
-	modesExtensions.registerMode({
+	modesExtensions.registerCompatMode({
 		id: 'typescript',
 		extensions: ['.ts'],
 		aliases: ['TypeScript', 'ts', 'typescript'],
