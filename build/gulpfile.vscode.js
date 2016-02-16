@@ -95,7 +95,7 @@ gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compil
 }));
 
 gulp.task('clean-minified-vscode', util.rimraf('out-vscode-min'));
-gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.minifyTask('out-vscode', false));
+gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-vscode'], common.minifyTask('out-vscode', true));
 
 // Package
 var product = require('../product.json');
