@@ -8,7 +8,7 @@ import 'vs/css!./typescript';
 import nls = require('vs/nls');
 import env = require('vs/base/common/flags');
 import platform = require('vs/platform/platform');
-import modesExtensions = require('vs/editor/common/modes/modesRegistry');
+import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
 import options = require('vs/languages/typescript/common/options');
 let defaults = options.typeScriptOptions;
@@ -17,7 +17,7 @@ let defaults = options.typeScriptOptions;
 
 if (!env.enableTypeScriptServiceMode) {
 
-	modesExtensions.registerCompatMode({
+	ModesRegistry.registerCompatMode({
 		id: 'typescript',
 		extensions: ['.ts'],
 		aliases: ['TypeScript', 'ts', 'typescript'],

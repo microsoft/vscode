@@ -7,7 +7,7 @@ import 'vs/css!../browser/media/output.contribution';
 import nls = require('vs/nls');
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {registerCompatMode} from 'vs/editor/common/modes/modesRegistry';
+import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import platform = require('vs/platform/platform');
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
@@ -21,7 +21,7 @@ import panel = require('vs/workbench/browser/panel');
 registerSingleton(IOutputService, OutputService);
 
 // Register Output Mode
-registerCompatMode({
+ModesRegistry.registerCompatMode({
 	id: OUTPUT_MODE_ID,
 	extensions: [],
 	aliases: [null],

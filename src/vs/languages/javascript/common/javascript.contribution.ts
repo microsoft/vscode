@@ -9,11 +9,11 @@ import env = require('vs/base/common/flags');
 import platform = require('vs/platform/platform');
 import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
 import Options = require('vs/languages/typescript/common/options');
-import modesExtensions = require('vs/editor/common/modes/modesRegistry');
+import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 
 let defaults = Options.javaScriptOptions;
 
-modesExtensions.registerCompatMode({
+ModesRegistry.registerCompatMode({
 	id: 'javascript',
 	extensions: ['.js', '.es6'],
 	firstLine: '^#!.*\\bnode',
@@ -23,8 +23,6 @@ modesExtensions.registerCompatMode({
 	moduleId: 'vs/languages/javascript/common/javascript',
 	ctorName: 'JSMode'
 });
-
-// ----- Registration and Configuration --------------------------------------------------------
 
 var configurationRegistry = <ConfigurationRegistry.IConfigurationRegistry>platform.Registry.as(ConfigurationRegistry.Extensions.Configuration);
 

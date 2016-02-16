@@ -22,30 +22,10 @@ export interface ILegacyLanguageDefinition {
 
 // Define extension point ids
 export var Extensions = {
-	EditorModes: 'editor.modes'
+	ModesRegistry: 'editor.modesRegistry'
 };
 
-export interface IEditorModesRegistry {
-
-	onDidAddCompatMode: Event<ILegacyLanguageDefinition>;
-	onDidAddLanguage: Event<ILanguageExtensionPoint>;
-
-	// --- worker participants registration
-	registerWorkerParticipant(modeId:string, moduleId:string, ctorName?:string):void;
-	getWorkerParticipants(modeId:string):Modes.IWorkerParticipantDescriptor[];
-
-	_getAllWorkerParticipants(): Modes.IWorkerParticipantDescriptor[];
-	_setWorkerParticipants(participants:Modes.IWorkerParticipantDescriptor[]);
-
-	// --- modes registration
-	registerCompatMode(def:ILegacyLanguageDefinition): void;
-	getCompatModes(): ILegacyLanguageDefinition[];
-
-	registerLanguage(def:ILanguageExtensionPoint): void;
-	getLanguages(): ILanguageExtensionPoint[];
-}
-
-class EditorModesRegistry implements IEditorModesRegistry {
+export class EditorModesRegistry {
 
 	private _workerParticipants: Modes.IWorkerParticipantDescriptor[];
 	private _compatModes: ILegacyLanguageDefinition[];
@@ -106,17 +86,5 @@ class EditorModesRegistry implements IEditorModesRegistry {
 	}
 }
 
-var mR = new EditorModesRegistry();
-Registry.add(Extensions.EditorModes, mR);
-
-export function registerCompatMode(def:ILegacyLanguageDefinition): void {
-	mR.registerCompatMode(def);
-}
-
-export function registerLanguage(def:ILanguageExtensionPoint): void {
-	mR.registerLanguage(def);
-}
-
-export function registerWorkerParticipant(modeId:string, moduleId:string, ctorName?:string): void {
-	mR.registerWorkerParticipant(modeId, moduleId, ctorName);
-}
+export var ModesRegistry = new EditorModesRegistry();
+Registry.add(Extensions.ModesRegistry, ModesRegistry);

@@ -30,14 +30,13 @@ import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import colorizer = require('vs/editor/browser/standalone/colorizer');
-import {IEditorModesRegistry, Extensions} from 'vs/editor/common/modes/modesRegistry';
+import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import {Registry} from 'vs/platform/platform';
 import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
-import {registerLanguage} from 'vs/editor/common/modes/modesRegistry';
 
 // Set defaults for standalone editor
 DefaultConfig.editor.wrappingIndent = 'none';
@@ -402,8 +401,7 @@ export function configureMode(modeId: string, options: any): void {
 }
 
 export function registerWorkerParticipant(modeId:string, moduleName:string, ctorName:string): void {
-	var modeRegistry = <IEditorModesRegistry> Registry.as(Extensions.EditorModes);
-	modeRegistry.registerWorkerParticipant(modeId, moduleName, ctorName);
+	ModesRegistry.registerWorkerParticipant(modeId, moduleName, ctorName);
 }
 
 export function getAPI(): typeof vscode {
@@ -418,7 +416,7 @@ export function createCustomMode(language:MonarchTypes.ILanguage): TPromise<Mode
 	var modeId = language.name;
 	var name = language.name;
 
-	registerLanguage({
+	ModesRegistry.registerLanguage({
 		id: modeId,
 		aliases: [name]
 	});
@@ -431,7 +429,7 @@ export function createCustomMode(language:MonarchTypes.ILanguage): TPromise<Mode
 }
 
 export function registerStandaloneLanguage(language:ILanguageExtensionPoint, defModule:string): void {
-	registerLanguage(language);
+	ModesRegistry.registerLanguage(language);
 
 	PluginsRegistry.registerOneTimeActivationEventListener('onLanguage:' + language.id, () => {
 		require([defModule], (value:{language:MonarchTypes.ILanguage}) => {

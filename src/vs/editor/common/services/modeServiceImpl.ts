@@ -18,8 +18,7 @@ import Objects = require('vs/base/common/objects');
 import MonarchDefinition = require('vs/editor/common/modes/monarch/monarchDefinition');
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
-import {Registry} from 'vs/platform/platform';
-import {IEditorModesRegistry, Extensions} from 'vs/editor/common/modes/modesRegistry';
+import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import MonarchCommonTypes = require('vs/editor/common/modes/monarch/monarchCommon');
 import {IDisposable, combinedDispose, empty as EmptyDisposable} from 'vs/base/common/lifecycle';
 import {createAsyncDescriptor0, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
@@ -273,8 +272,7 @@ export class ModeServiceImpl implements IModeService {
 	}
 
 	private _createModeDescriptor(modeId:string): Modes.IModeDescriptor {
-		var modesRegistry = <IEditorModesRegistry>Registry.as(Extensions.EditorModes);
-		var workerParticipants = modesRegistry.getWorkerParticipants(modeId);
+		var workerParticipants = ModesRegistry.getWorkerParticipants(modeId);
 		return {
 			id: modeId,
 			workerParticipants: workerParticipants.map(p => createAsyncDescriptor0(p.moduleId, p.ctorName))
@@ -383,8 +381,7 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 		let r = this._threadService.getRemotable(ModeServiceWorkerHelper);
 		if (!this._hasInitialized) {
 			this._hasInitialized = true;
-			let modeRegistry = <IEditorModesRegistry> Registry.as(Extensions.EditorModes);
-			r.initialize(modeRegistry._getAllWorkerParticipants());
+			r.initialize(ModesRegistry._getAllWorkerParticipants());
 		}
 		return r;
 	}
@@ -428,8 +425,7 @@ export class ModeServiceWorkerHelper {
 	}
 
 	public initialize(workerParticipants:Modes.IWorkerParticipantDescriptor[]): void {
-		var modeRegistry = <IEditorModesRegistry> Registry.as(Extensions.EditorModes);
-		modeRegistry._setWorkerParticipants(workerParticipants);
+		ModesRegistry._setWorkerParticipants(workerParticipants);
 	}
 
 	public instantiateMode(modeId:string): void {
