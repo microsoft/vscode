@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
+import { Action } from 'vs/base/common/actions';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import platform = require('vs/platform/platform');
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import panel = require('vs/workbench/browser/panel');
-import {ERROR_LIST_PANEL_ID} from 'vs/workbench/parts/errorList/browser/errorListConstants';
-import {Action} from 'vs/base/common/actions';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import { ERROR_LIST_PANEL_ID } from 'vs/workbench/parts/errorList/browser/errorListConstants';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 
 class ToggleErrorListAction extends Action {
 
@@ -37,7 +37,6 @@ class ToggleErrorListAction extends Action {
 
 		return this.panelService.openPanel(ERROR_LIST_PANEL_ID, true);
 	}
-
 }
 
 // register panel

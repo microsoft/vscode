@@ -5,32 +5,27 @@
 
 import 'vs/css!./media/errorList';
 import { TPromise } from 'vs/base/common/winjs.base';
-import lifecycle = require('vs/base/common/lifecycle');
-import { Panel } from 'vs/workbench/browser/panel';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import builder = require('vs/base/browser/builder');
-import {ERROR_LIST_PANEL_ID} from 'vs/workbench/parts/errorList/browser/errorListConstants';
-import {IMarkerService, IMarker} from 'vs/platform/markers/common/markers';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IRenderer, IDelegate } from 'vs/base/browser/ui/list/list';
-import { append, addClass, emmet as $ } from 'vs/base/browser/dom';
-import Severity from 'vs/base/common/severity';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import * as errors from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
+import lifecycle = require('vs/base/common/lifecycle');
+import Severity from 'vs/base/common/severity';
+import builder = require('vs/base/browser/builder');
+import { append, addClass, emmet as $ } from 'vs/base/browser/dom';
+import { List } from 'vs/base/browser/ui/list/listWidget';
+import { IRenderer, IDelegate } from 'vs/base/browser/ui/list/list';
+import { IMarkerService, IMarker } from 'vs/platform/markers/common/markers';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Panel } from 'vs/workbench/browser/panel';
+import { ERROR_LIST_PANEL_ID } from 'vs/workbench/parts/errorList/browser/errorListConstants';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 interface IMarkerTemplateData {
 	icon: HTMLElement;
 	label: HTMLElement;
-
 	location: HTMLElement;
 }
 
 class Renderer implements IRenderer<IMarker, IMarkerTemplateData> {
-
-	constructor() {
-
-	}
 
 	get templateId(): string {
 		return 'errorListItem';
@@ -41,7 +36,6 @@ class Renderer implements IRenderer<IMarker, IMarkerTemplateData> {
 
 		data.icon = append(container, $('.icon'));
 		data.label = append(container, $('span.label'));
-
 		data.location = append(container, $('.location'));
 
 		return data;
@@ -54,8 +48,7 @@ class Renderer implements IRenderer<IMarker, IMarkerTemplateData> {
 	renderElement(element: IMarker, index: number, templateData: IMarkerTemplateData): void {
 		templateData.icon.className = 'icon ' + Renderer.iconClassNameFor(element);
 		templateData.label.textContent = element.message;
-
-		templateData.location.textContent = `${paths.basename(element.resource.fsPath)}:${element.startLineNumber}:${element.startColumn}`;
+		templateData.location.textContent = `${ paths.basename(element.resource.fsPath) }:${ element.startLineNumber }:${ element.startColumn }`;
 	}
 
 	private static iconClassNameFor(element: IMarker): string {
@@ -73,14 +66,12 @@ class Renderer implements IRenderer<IMarker, IMarkerTemplateData> {
 	}
 }
 
-const HEIGHT = 22;
-
 class Delegate implements IDelegate<IMarker> {
 
 	constructor(private listProvider: () => List<IMarker>) { }
 
 	getHeight(element: IMarker): number {
-		return HEIGHT;
+		return 22;
 	}
 
 	getTemplateId(element: IMarker): string {
@@ -93,17 +84,13 @@ export class ErrorList extends Panel {
 	private toDispose: lifecycle.IDisposable[];
 	private list: List<IMarker>;
 	private delegate: IDelegate<IMarker>;
-	private markerService: IMarkerService;
-	private _editorService: IWorkbenchEditorService;
 
 	constructor(
-		@IMarkerService markerService: IMarkerService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IMarkerService private markerService: IMarkerService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(ERROR_LIST_PANEL_ID, telemetryService);
-		this.markerService = markerService;
-		this._editorService = editorService;
 
 		this.toDispose = [];
 	}
@@ -119,14 +106,14 @@ export class ErrorList extends Panel {
 		this.list = new List(parent.getHTMLElement(), this.delegate, [renderer]);
 
 		this.toDispose.push(this.markerService.onMarkerChanged((changedResources) => {
-			this._onMarkersChanged();
+			this.onMarkersChanged();
 		}));
 		this.toDispose.push(this.list.onSelectionChange((e) => {
 			if (!e.elements.length) {
 				return;
 			}
 			let el = e.elements[0];
-			this._editorService.openEditor({
+			this.editorService.openEditor({
 				resource: el.resource,
 				options: {
 					selection: {
@@ -138,12 +125,12 @@ export class ErrorList extends Panel {
 				}
 			}).done(null, errors.onUnexpectedError);
 		}));
-		this._onMarkersChanged();
+		this.onMarkersChanged();
 
 		return TPromise.as(null);
 	}
 
-	private _onMarkersChanged(): void {
+	private onMarkersChanged(): void {
 		let allMarkers = this.markerService.read().slice(0);
 
 		allMarkers.sort((a, b) => {
