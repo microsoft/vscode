@@ -11,7 +11,7 @@ import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
 import {ISuggestSupport, ISuggestResult} from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {getSnippets} from 'vs/editor/common/modes/modesRegistry';
+import {SnippetsRegistry} from 'vs/editor/common/modes/supports';
 
 export var CONTEXT_SUGGEST_WIDGET_VISIBLE = 'suggestWidgetVisible';
 export var CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY = 'suggestionSupportsAcceptOnKey';
@@ -78,7 +78,7 @@ export function suggest(model: IModel, position: IPosition, triggerCharacter: st
 
 	return sequence(factory).then(() => {
 		// add snippets to the first group
-		const snippets = getSnippets(model, position);
+		const snippets = SnippetsRegistry.getSnippets(model, position);
 		if (suggestions.length === 0) {
 			suggestions.push([snippets]);
 		} else {

@@ -9,11 +9,11 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import Modes = require('vs/editor/common/modes');
 import snippets = require('vs/editor/contrib/snippet/common/snippet');
 import json = require('vs/base/common/json');
-import modesExt = require('vs/editor/common/modes/modesRegistry');
 import paths = require('vs/base/common/paths');
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
+import {SnippetsRegistry} from 'vs/editor/common/modes/supports';
 
 import pfs = require('vs/base/node/pfs');
 
@@ -27,7 +27,7 @@ export function snippetUpdated(modeId: string, filePath: string): TPromise<void>
 		var errors: string[] = [];
 		var snippets = json.parse(fileContents.toString(), errors);
 		var adaptedSnippets = TMSnippetsAdaptor.adapt(snippets);
-		modesExt.registerSnippets(modeId, filePath, adaptedSnippets);
+		SnippetsRegistry.registerSnippets(modeId, filePath, adaptedSnippets);
 	});
 }
 
@@ -99,7 +99,7 @@ export class MainProcessTextMateSnippet {
 			var errors: string[] = [];
 			var snippets = json.parse(fileContents.toString(), errors);
 			var adaptedSnippets = TMSnippetsAdaptor.adapt(snippets);
-			modesExt.registerDefaultSnippets(modeId, adaptedSnippets);
+			SnippetsRegistry.registerDefaultSnippets(modeId, adaptedSnippets);
 		});
 	}
 }
