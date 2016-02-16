@@ -165,12 +165,9 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 
 			this.tree.refresh(expression, false).then(() => {
 				this.tree.setHighlight(expression);
-
-				const unbind = this.tree.addListener(events.EventType.HIGHLIGHT, (e: tree.IHighlightEvent) => {
+				this.tree.addOneTimeListener(events.EventType.HIGHLIGHT, (e: tree.IHighlightEvent) => {
 					if (!e.highlight) {
 						this.debugService.getViewModel().setSelectedExpression(null);
-						this.tree.refresh(expression).done(null, errors.onUnexpectedError);
-						unbind();
 					}
 				});
 			}).done(null, errors.onUnexpectedError);
@@ -373,6 +370,21 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 				const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
 				this.debugService.openOrRevealEditor(breakpoint.source, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
 			}
+		}));
+
+		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.SELECTED_FUNCTION_BREAKPOINT_UPDATED, (fbp: debug.IFunctionBreakpoint) => {
+			if (!fbp || !(fbp instanceof model.FunctionBreakpoint)) {
+				return;
+			}
+
+			this.tree.refresh(fbp, false).then(() => {
+				this.tree.setHighlight(fbp);
+				this.tree.addOneTimeListener(events.EventType.HIGHLIGHT, (e: tree.IHighlightEvent) => {
+					if (!e.highlight) {
+						this.debugService.getViewModel().setSelectedFunctionBreakpoint(null);
+					}
+				});
+			}).done(null, errors.onUnexpectedError);
 		}));
 	}
 

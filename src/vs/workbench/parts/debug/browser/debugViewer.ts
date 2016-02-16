@@ -660,7 +660,7 @@ export class WatchExpressionsController extends BaseDebugController {
 		}
 	}
 
-	/* protected */ public onLeftClick(tree: tree.ITree, element: any, event: mouse.StandardMouseEvent): boolean {
+	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.StandardMouseEvent): boolean {
 		// double click on primitive value: open input box to be able to select and copy value.
 		if (element instanceof model.Expression && event.detail === 2) {
 			const expression = <debug.IExpression> element;
@@ -879,7 +879,8 @@ export class BreakpointsRenderer implements tree.IRenderer {
 	}
 
 	private renderFunctionBreakpoint(tree: tree.ITree, functionBreakpoint: debug.IFunctionBreakpoint, data: IFunctionBreakpointTemplateData): void {
-		if (!functionBreakpoint.name) {
+		const selected = this.debugService.getViewModel().getSelectedFunctionBreakpoint();
+		if (!functionBreakpoint.name || (selected && selected.getId() === functionBreakpoint.getId())) {
 			renderRenameBox(this.debugService, this.contextViewService, tree, functionBreakpoint, data.breakpoint, nls.localize('functionBreakpointPlaceholder', "Function to break on"), nls.localize('functionBreakPointInputAriaLabel', "Type function breakpoint"));
 		} else {
 			this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [functionBreakpoint]) : tree.addTraits('disabled', [functionBreakpoint]);
@@ -932,19 +933,24 @@ export class BreakpointsAccessibilityProvider implements tree.IAccessibilityProv
 
 export class BreakpointsController extends BaseDebugController {
 
-	/* protected */ public onLeftClick(tree:tree.ITree, element: any, eventish:treedefaults.ICancelableEvent, origin: string = 'mouse'):boolean {
+	protected onLeftClick(tree:tree.ITree, element: any, event: mouse.StandardMouseEvent): boolean {
 		if (element instanceof model.ExceptionBreakpoint) {
 			return false;
 		}
 
-		return super.onLeftClick(tree, element, eventish, origin);
+		if (element instanceof model.FunctionBreakpoint && event.detail === 2) {
+			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
+			return true;
+		}
+
+		return super.onLeftClick(tree, element, event);
 	}
 
-	/* protected */ public onUp(tree:tree.ITree, event:keyboard.StandardKeyboardEvent): boolean {
+	protected onUp(tree:tree.ITree, event:keyboard.StandardKeyboardEvent): boolean {
 		return this.doNotFocusExceptionBreakpoint(tree, super.onUp(tree, event));
 	}
 
-	/* protected */ public onPageUp(tree:tree.ITree, event:keyboard.StandardKeyboardEvent): boolean {
+	protected onPageUp(tree:tree.ITree, event:keyboard.StandardKeyboardEvent): boolean {
 		return this.doNotFocusExceptionBreakpoint(tree, super.onPageUp(tree, event));
 	}
 

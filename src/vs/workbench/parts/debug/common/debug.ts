@@ -106,7 +106,8 @@ export var ModelEvents = {
 
 export var ViewModelEvents = {
 	FOCUSED_STACK_FRAME_UPDATED: 'FocusedStackFrameUpdated',
-	SELECTED_EXPRESSION_UPDATED: 'SelectedExpressionUpdated'
+	SELECTED_EXPRESSION_UPDATED: 'SelectedExpressionUpdated',
+	SELECTED_FUNCTION_BREAKPOINT_UPDATED: 'SelectedFunctionBreakpointUpdated'
 };
 
 export var ServiceEvents = {
@@ -132,6 +133,8 @@ export interface IViewModel extends ee.EventEmitter {
 	getSelectedExpression(): IExpression;
 	getFocusedThreadId(): number;
 	setSelectedExpression(expression: IExpression);
+	getSelectedFunctionBreakpoint(): IFunctionBreakpoint;
+	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint): void;
 }
 
 export interface IModel extends ee.IEventEmitter, ITreeElement {
