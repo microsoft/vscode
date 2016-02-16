@@ -15,23 +15,5 @@ export interface IProxyHelper {
 }
 
 export interface IRemoteCom extends IProxyHelper {
-	registerBigHandler(handler:IManyHandler): void;
-}
-
-export function createProxyFromCtor(remote:IProxyHelper, id:string, ctor:Function): any {
-	var result: any = {
-		$__IS_REMOTE_OBJ: true
-	};
-	for (var prop in ctor.prototype) {
-		if (typeof ctor.prototype[prop] === 'function') {
-			result[prop] = createMethodProxy(remote, id, prop);
-		}
-	}
-	return result;
-}
-
-function createMethodProxy(remote:IProxyHelper, proxyId: string, path: string): (...myArgs: any[]) => TPromise<any> {
-	return (...myArgs: any[]) => {
-		return remote.callOnRemote(proxyId, path, myArgs);
-	};
+	setManyHandler(handler:IManyHandler): void;
 }

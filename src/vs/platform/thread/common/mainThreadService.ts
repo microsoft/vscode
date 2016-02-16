@@ -164,7 +164,7 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 			},
 			workerId
 		);
-		worker.getRemoteCom().registerBigHandler(this);
+		worker.getRemoteCom().setManyHandler(this);
 		worker.onModuleLoaded = worker.request('initialize', {
 			threadService: this._getRegisteredObjectsData(),
 			contextService: {

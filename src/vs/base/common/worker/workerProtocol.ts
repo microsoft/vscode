@@ -93,7 +93,7 @@ export class RemoteCom implements remote.IRemoteCom {
 		});
 	}
 
-	public registerBigHandler(handler:remote.IManyHandler): void {
+	public setManyHandler(handler:remote.IManyHandler): void {
 		this._bigHandler = handler;
 	}
 

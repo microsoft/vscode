@@ -25,7 +25,7 @@ export class WorkerThreadService extends abstractThreadService.AbstractThreadSer
 		super(false);
 		this._mainThreadData = mainThreadData;
 		this._remoteCom = remoteCom;
-		this._remoteCom.registerBigHandler(this);
+		this._remoteCom.setManyHandler(this);
 
 		this._publisher = workerPublisher;
 
