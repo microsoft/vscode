@@ -284,7 +284,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.OUTPUT, (event: DebugProtocol.OutputEvent) => {
 			if (event.body && event.body.category === 'telemetry') {
-				const key = this.configurationManager.getAdapter().telemetryKey;
+				const key = this.configurationManager.getAdapter().aiKey;
 				// only log telemetry events from debug adapter if the adapter provided the telemetry key
 				if (key) {
 					if (!this.telemetryAdapter) {

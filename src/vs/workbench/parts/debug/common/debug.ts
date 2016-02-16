@@ -195,7 +195,7 @@ export interface IRawAdapter extends IRawEnvAdapter {
 	enableBreakpointsFor?: { languageIds: string[] };
 	configurationAttributes?: any;
 	initialConfigurations?: any[];
-	telemetryKey?: string;
+	aiKey?: string;
 	win?: IRawEnvAdapter;
 	winx86?: IRawEnvAdapter;
 	windows?: IRawEnvAdapter;
