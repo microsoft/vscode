@@ -498,5 +498,3 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 		return this._worker((w) => w.getParameterHints(resource, position));
 	}
 }
-
-var modesRegistry = <modesExtensions.IEditorModesRegistry>Platform.Registry.as(modesExtensions.Extensions.EditorModes);

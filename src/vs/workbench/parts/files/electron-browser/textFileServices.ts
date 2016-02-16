@@ -25,10 +25,13 @@ import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/c
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IModeService} from 'vs/editor/common/services/modeService';
 
 import {remote} from 'electron';
 
 export class TextFileService extends AbstractTextFileService {
+
+	private modeService: IModeService;
 
 	constructor(
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -38,9 +41,11 @@ export class TextFileService extends AbstractTextFileService {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IEventService eventService: IEventService
+		@IEventService eventService: IEventService,
+		@IModeService modeService: IModeService
 	) {
 		super(contextService, instantiationService, configurationService, telemetryService, lifecycleService, eventService);
+		this.modeService = modeService;
 
 		this.init();
 	}
@@ -387,8 +392,8 @@ export class TextFileService extends AbstractTextFileService {
 		let ext: string = paths.extname(defaultPath);
 		let matchingFilter: IFilter;
 		let modesRegistry = <IEditorModesRegistry>Registry.as(ModesExtensions.EditorModes);
-		let filters: IFilter[] = modesRegistry.getRegisteredLanguageNames().map(languageName => {
-			let extensions = modesRegistry.getExtensions(languageName);
+		let filters: IFilter[] = this.modeService.getRegisteredLanguageNames().map(languageName => {
+			let extensions = this.modeService.getExtensions(languageName);
 			if (!extensions || !extensions.length) {
 				return null;
 			}

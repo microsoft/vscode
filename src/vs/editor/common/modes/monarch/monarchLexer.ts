@@ -29,6 +29,8 @@ export class MonarchLexer extends AbstractState {
 
 	static ID = 0;
 
+	private modeService:IModeService;
+
 	private id: number;
 	private lexer: MonarchCommonTypes.ILexer;
 	private stack: string[];
@@ -41,9 +43,10 @@ export class MonarchLexer extends AbstractState {
 	private groupMatched: string[];
 	private groupRule: MonarchCommonTypes.IRule;
 
-	constructor(mode: Modes.IMode, lexer: MonarchCommonTypes.ILexer, stack?: string[], embeddedMode?: string) {
+	constructor(mode: Modes.IMode, modeService:IModeService, lexer: MonarchCommonTypes.ILexer, stack?: string[], embeddedMode?: string) {
 		super(mode);
 		this.id = MonarchLexer.ID++; // for debugging, assigns unique id to each instance
+		this.modeService = modeService;
 
 		this.lexer = lexer; // (compiled) lexer description
 		this.stack = (stack ? stack : [lexer.start]); // stack of states
@@ -62,7 +65,7 @@ export class MonarchLexer extends AbstractState {
 	}
 
 	public makeClone(): MonarchLexer {
-		return new MonarchLexer(this.getMode(), this.lexer, this.stack.slice(0), this.embeddedMode);
+		return new MonarchLexer(this.getMode(), this.modeService, this.lexer, this.stack.slice(0), this.embeddedMode);
 	}
 
 	public equals(other: Modes.IState): boolean {
@@ -219,7 +222,7 @@ export class MonarchLexer extends AbstractState {
 					this.embeddedMode = MonarchCommonTypes.substituteMatches(this.lexer, action.nextEmbedded, matched, matches, state);
 
 					// substitute language alias to known modes to support syntax highlighting
-					var embeddedMode = modesRegistry.getModeIdForLanguageName(this.embeddedMode);
+					var embeddedMode = this.modeService.getModeIdForLanguageName(this.embeddedMode);
 					if (this.embeddedMode && embeddedMode) {
 						this.embeddedMode = embeddedMode;
 					}
@@ -390,7 +393,7 @@ function findBracket(lexer: MonarchCommonTypes.ILexer, matched: string) {
 export function createTokenizationSupport(modeService:IModeService, mode:Modes.IMode, lexer: MonarchCommonTypes.ILexer): Modes.ITokenizationSupport {
 	return new Supports.TokenizationSupport(mode, {
 		getInitialState: (): Modes.IState => {
-			return new MonarchLexer(mode, lexer);
+			return new MonarchLexer(mode, modeService, lexer);
 		},
 
 		enterNestedMode: (state: Modes.IState): boolean => {

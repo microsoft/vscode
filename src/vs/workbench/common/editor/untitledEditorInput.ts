@@ -16,6 +16,7 @@ import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorMode
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IModeService} from 'vs/editor/common/services/modeService';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -36,7 +37,8 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 		modeId: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IModeService private modeService: IModeService
 	) {
 		super();
 
@@ -87,9 +89,7 @@ export class UntitledEditorInput extends AbstractUntitledEditorInput {
 
 	public getMime(): string {
 		if (this.cachedModel) {
-			let modesRegistry = <IEditorModesRegistry>Registry.as(Extensions.EditorModes);
-
-			return modesRegistry.getMimeForMode(this.cachedModel.getModeId());
+			return this.modeService.getMimeForMode(this.cachedModel.getModeId());
 		}
 
 		return null;

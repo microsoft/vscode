@@ -98,8 +98,12 @@ export class MarkdownWorker extends AbstractModeWorker {
 
 	private modeService: IModeService;
 
-	constructor(mode: Modes.IMode, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
-		@IMarkerService markerService: IMarkerService, @IModeService modeService: IModeService) {
+	constructor(
+		mode: Modes.IMode, participants: Modes.IWorkerParticipant[],
+		@IResourceService resourceService: IResourceService,
+		@IMarkerService markerService: IMarkerService,
+		@IModeService modeService: IModeService
+	) {
 		super(mode, participants, resourceService, markerService);
 
 		this.modeService = modeService;
@@ -156,8 +160,7 @@ export class MarkdownWorker extends AbstractModeWorker {
 		let highlighter = function(code: string, lang: string, callback?: (error: Error, result: string) => void) {
 
 			// Lookup the mode and use the tokenizer to get the HTML
-			let modesRegistry = <ModesExtensions.IEditorModesRegistry>Platform.Registry.as(ModesExtensions.Extensions.EditorModes);
-			let mimeForLang = modesRegistry.getModeIdForLanguageName(lang) || lang || MarkdownWorker.DEFAULT_MODE;
+			let mimeForLang = this.modeService.getModeIdForLanguageName(lang) || lang || MarkdownWorker.DEFAULT_MODE;
 			modeService.getOrCreateMode(mimeForLang).then((mode) => {
 				callback(null, tokenizeToString(code, mode));
 			});

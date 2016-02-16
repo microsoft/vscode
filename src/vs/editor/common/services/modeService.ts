@@ -30,6 +30,12 @@ export interface IModeService {
 	// --- reading
 	isRegisteredMode(mimetypeOrModeId: string): boolean;
 	getRegisteredModes(): string[];
+	getRegisteredLanguageNames(): string[];
+	getExtensions(alias: string): string[];
+	getMimeForMode(modeId: string): string;
+	getLanguageName(modeId:string): string;
+	getModeIdForLanguageName(alias:string): string;
+	getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string;
 
 	// --- instantiation
 	lookup(commaSeparatedMimetypesOrCommaSeparatedIds: string): IModeLookupResult[];

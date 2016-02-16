@@ -44,11 +44,10 @@ class OpenSnippetsAction extends actions.Action {
 	}
 
 	public run(): winjs.Promise {
-		var modesRegistry = <modesExtensions.IEditorModesRegistry>platform.Registry.as(modesExtensions.Extensions.EditorModes);
 		var modeIds = this.modeService.getRegisteredModes();
 		var picks: IPickOpenEntry[] = [];
 		modeIds.forEach((modeId) => {
-			var name = modesRegistry.getLanguageName(modeId);
+			var name = this.modeService.getLanguageName(modeId);
 			if (name) {
 				picks.push({ label: name, id: modeId });
 			}

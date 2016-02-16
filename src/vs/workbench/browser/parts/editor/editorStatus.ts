@@ -203,7 +203,8 @@ export class EditorStatus implements IStatusbarItem {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEventService private eventService: IEventService
+		@IEventService private eventService: IEventService,
+		@IModeService private modeService: IModeService
 	) {
 		this.toDispose = [];
 		this.state = new State();
@@ -374,13 +375,11 @@ export class EditorStatus implements IStatusbarItem {
 			let editorWidget = e.getControl();
 			let textModel = getTextModel(editorWidget);
 			if (textModel) {
-				let modesRegistry = <IEditorModesRegistry>Registry.as(Extensions.EditorModes);
-
 				// Compute mode
 				if (!!(<ITokenizedModel>textModel).getMode) {
 					let mode = (<ITokenizedModel>textModel).getMode();
 					if (mode) {
-						info = { mode: modesRegistry.getLanguageName(mode.getId()) };
+						info = { mode: this.modeService.getLanguageName(mode.getId()) };
 					}
 				}
 			}
@@ -540,8 +539,7 @@ export class ChangeModeAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let modesRegistry = <IEditorModesRegistry>Registry.as(Extensions.EditorModes);
-		let languages = modesRegistry.getRegisteredLanguageNames();
+		let languages = this.modeService.getRegisteredLanguageNames();
 		let activeEditor = this.editorService.getActiveEditor();
 		if (!(activeEditor instanceof BaseTextEditor)) {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
@@ -555,7 +553,7 @@ export class ChangeModeAction extends Action {
 		if (!!(<ITokenizedModel>textModel).getMode) {
 			let mode = (<ITokenizedModel>textModel).getMode();
 			if (mode) {
-				currentModeId = modesRegistry.getLanguageName(mode.getId());
+				currentModeId = this.modeService.getLanguageName(mode.getId());
 			}
 		}
 

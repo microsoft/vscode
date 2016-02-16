@@ -94,6 +94,36 @@ export class ModeServiceImpl implements IModeService {
 		return LanguageExtensions.getRegisteredModes();
 	}
 
+	public getRegisteredLanguageNames(): string[] {
+		return LanguageExtensions.getRegisteredLanguageNames();
+	}
+
+	public getExtensions(alias: string): string[] {
+		return LanguageExtensions.getExtensions(alias);
+	}
+
+	public getMimeForMode(modeId: string): string {
+		return LanguageExtensions.getMimeForMode(modeId);
+	}
+
+	public getLanguageName(modeId: string): string {
+		return LanguageExtensions.getLanguageName(modeId);
+	}
+
+	public getModeIdForLanguageName(alias:string): string {
+		return LanguageExtensions.getModeIdForLanguageNameLowercase(alias);
+	}
+
+	public getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string {
+		var modeIds = LanguageExtensions.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
+
+		if (modeIds.length > 0) {
+			return modeIds[0];
+		}
+
+		return null;
+	}
+
 	// --- instantiation
 
 	public lookup(commaSeparatedMimetypesOrCommaSeparatedIds: string): IModeLookupResult[]{
@@ -131,16 +161,6 @@ export class ModeServiceImpl implements IModeService {
 			}).done(null, Errors.onUnexpectedError);
 			return r;
 		}
-	}
-
-	public getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string {
-		var modeIds = LanguageExtensions.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
-
-		if (modeIds.length > 0) {
-			return modeIds[0];
-		}
-
-		return null;
 	}
 
 	public getModeIdByLanguageName(languageName: string): string {

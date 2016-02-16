@@ -26,15 +26,6 @@ export interface IEditorModesRegistry {
 
 	// --- modes registration
 	registerMode(def:ILegacyLanguageDefinition): void;
-
-	// --- reading
-	getRegisteredMimetypes(): string[];
-	getRegisteredLanguageNames(): string[];
-	getExtensions(alias: string): string[];
-	getMimeForMode(modeId: string): string;
-	getLanguageName(modeId:string): string;
-	getModeIdForLanguageName(alias:string): string;
-	getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string;
 }
 
 class EditorModesRegistry implements IEditorModesRegistry {
@@ -67,44 +58,8 @@ class EditorModesRegistry implements IEditorModesRegistry {
 		return this.workerParticipants.filter(p => p.modeId === modeId);
 	}
 
-	// --- modes registration
-
-	public getRegisteredMimetypes(): string[] {
-		return LanguageExtensions.getRegisteredMimetypes();
-	}
-
-	public getRegisteredLanguageNames(): string[] {
-		return LanguageExtensions.getRegisteredLanguageNames();
-	}
-
-	public getExtensions(alias: string): string[] {
-		return LanguageExtensions.getExtensions(alias);
-	}
-
-	public getMimeForMode(modeId: string): string {
-		return LanguageExtensions.getMimeForMode(modeId);
-	}
-
-	public getLanguageName(modeId: string): string {
-		return LanguageExtensions.getLanguageName(modeId);
-	}
-
-	public getModeIdForLanguageName(alias:string): string {
-		return LanguageExtensions.getModeIdForLanguageNameLowercase(alias);
-	}
-
 	public registerMode(def:ILegacyLanguageDefinition): void {
 		LanguageExtensions.registerCompatMode(def);
-	}
-
-	public getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string {
-		var modeIds = LanguageExtensions.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
-
-		if (modeIds.length > 0) {
-			return modeIds[0];
-		}
-
-		return null;
 	}
 }
 
