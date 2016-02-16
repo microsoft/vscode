@@ -7,7 +7,7 @@ import nls = require('vs/nls');
 import platform = require('vs/platform/platform');
 import panel = require('vs/workbench/browser/panel');
 import {ERROR_LIST_PANEL_ID} from 'vs/workbench/parts/errorList/browser/errorListConstants';
-import {IAction, Action} from 'vs/base/common/actions';
+import {Action} from 'vs/base/common/actions';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {TPromise} from 'vs/base/common/winjs.base';

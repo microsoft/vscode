@@ -9,8 +9,6 @@ import types = require('vs/base/common/types');
 import {EndOfLinePreference, IModel, EventType} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 import {EditorModel} from 'vs/workbench/common/editor';
-import {Registry} from 'vs/platform/platform';
-import {IEditorModesRegistry, Extensions} from 'vs/editor/common/modes/modesRegistry';
 import URI from 'vs/base/common/uri';
 import {NullMode} from 'vs/editor/common/modes/nullMode';
 import {ITextEditorModel} from 'vs/platform/editor/common/editor';

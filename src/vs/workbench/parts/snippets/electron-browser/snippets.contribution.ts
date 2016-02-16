@@ -13,7 +13,6 @@ import platform = require('vs/platform/platform');
 import workbenchActionRegistry = require('vs/workbench/common/actionRegistry');
 import workbenchContributions = require('vs/workbench/common/contributions');
 import snippetsTracker = require('./snippetsTracker');
-import modesExtensions = require('vs/editor/common/modes/modesRegistry');
 import errors = require('vs/base/common/errors');
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';

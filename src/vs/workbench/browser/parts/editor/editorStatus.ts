@@ -16,8 +16,6 @@ import uri from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import {IStatusbarItem} from 'vs/workbench/browser/parts/statusbar/statusbar';
 import {Action} from 'vs/base/common/actions';
-import {IEditorModesRegistry, Extensions} from 'vs/editor/common/modes/modesRegistry';
-import {Registry} from 'vs/platform/platform';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {IFileEditorInput, EncodingMode, IEncodingSupport, asFileEditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
 import {IDisposable, combinedDispose} from 'vs/base/common/lifecycle';

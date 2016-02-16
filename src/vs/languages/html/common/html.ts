@@ -5,9 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import modesExtensions = require('vs/editor/common/modes/modesRegistry');
 import supports = require('vs/editor/common/modes/supports');
-import Platform = require('vs/platform/platform');
 import { AsyncDescriptor2, createAsyncDescriptor2 } from 'vs/platform/instantiation/common/descriptors';
 import winjs = require('vs/base/common/winjs.base');
 import EditorCommon = require('vs/editor/common/editorCommon');

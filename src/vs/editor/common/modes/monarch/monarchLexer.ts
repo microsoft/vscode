@@ -11,14 +11,10 @@
 
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {LineStream} from 'vs/editor/common/modes/lineStream';
-import ModesRegistry = require('vs/editor/common/modes/modesRegistry');
 import Supports = require('vs/editor/common/modes/supports');
 import MonarchCommonTypes = require('vs/editor/common/modes/monarch/monarchCommon');
 import Modes = require('vs/editor/common/modes');
-import {Registry} from 'vs/platform/platform';
 import {IModeService} from 'vs/editor/common/services/modeService';
-
-var modesRegistry = <ModesRegistry.IEditorModesRegistry>Registry.as(ModesRegistry.Extensions.EditorModes);
 
 /**
  * The MonarchLexer class implements a monaco lexer that highlights source code.
