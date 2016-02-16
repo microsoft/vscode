@@ -611,7 +611,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		});
 	}
 
-	public rawAttach(port: number): TPromise<any> {
+	private rawAttach(port: number): TPromise<any> {
 		if (this.session) {
 			if (!this.session.isAttach) {
 				return this.session.attach({ port });
@@ -754,8 +754,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		});
 	}
 
-	public canSetBreakpointsIn(model: editor.IModel, lineNumber: number): boolean {
-		return this.configurationManager.canSetBreakpointsIn(model, lineNumber);
+	public canSetBreakpointsIn(model: editor.IModel): boolean {
+		return this.configurationManager.canSetBreakpointsIn(model);
 	}
 
 	public getConfigurationName(): string {

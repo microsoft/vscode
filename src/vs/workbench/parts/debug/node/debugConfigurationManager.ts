@@ -322,7 +322,7 @@ export class ConfigurationManager {
 		});
 	}
 
-	public canSetBreakpointsIn(model: editor.IModel, lineNumber: number): boolean {
+	public canSetBreakpointsIn(model: editor.IModel): boolean {
 		if (model.getAssociatedResource().scheme === schemas.inMemory) {
 			return false;
 		}

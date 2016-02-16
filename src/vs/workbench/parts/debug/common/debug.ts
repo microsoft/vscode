@@ -224,7 +224,7 @@ export var IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
 export interface IDebugService extends ee.IEventEmitter {
 	serviceId: ServiceIdentifier<any>;
 	getState(): State;
-	canSetBreakpointsIn(model: editor.IModel, lineNumber: number): boolean;
+	canSetBreakpointsIn(model: editor.IModel): boolean;
 
 	getConfigurationName(): string;
 	setConfiguration(name: string): TPromise<void>;
@@ -261,15 +261,39 @@ export interface IDebugService extends ee.IEventEmitter {
 	renameWatchExpression(id: string, newName: string): TPromise<void>;
 	clearWatchExpressions(id?: string): void;
 
+	/**
+	 * Creates a new debug session. Depending on the configuration will either 'launch' or 'attach'.
+	 */
 	createSession(): TPromise<any>;
+
+	/**
+	 * Restarts an active debug session or creates a new one if there is no active session.
+	 */
 	restartSession(): TPromise<any>;
-	rawAttach(port: number): TPromise<any>;
+
+	/**
+	 * Returns the active debug session or null if debug is inactive.
+	 */
 	getActiveSession(): IRawDebugSession;
 
+	/**
+	 * Gets the current debug model.
+	 */
 	getModel(): IModel;
+
+	/**
+	 * Gets the current view model.
+	 */
 	getViewModel(): IViewModel;
 
+	/**
+	 * Opens a new or reveals an already visible editor showing the source.
+	 */
 	openOrRevealEditor(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any>;
+
+	/**
+	 * Reveals the repl.
+	 */
 	revealRepl(focus?: boolean): TPromise<void>;
 }
 
