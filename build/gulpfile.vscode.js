@@ -341,7 +341,7 @@ gulp.task('vscode-linux-packages', ['vscode-linux-ia32-build-deb', 'vscode-linux
 
 // Sourcemaps
 
-gulp.task('vscode-sourcemaps', ['minify-vscode'], function () {
+gulp.task('upload-vscode-sourcemaps', ['minify-vscode'], function () {
 	return gulp.src('out-vscode-min/**/*.map')
 		.pipe(azure.upload({
 			account: process.env.AZURE_STORAGE_ACCOUNT,
