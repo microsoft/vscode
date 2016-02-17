@@ -290,6 +290,7 @@ export class CallStackRenderer implements tree.IRenderer {
 		stackFrame.source.available ? dom.removeClass(data.stackFrame, 'disabled') : dom.addClass(data.stackFrame, 'disabled');
 		data.file.title = stackFrame.source.uri.fsPath;
 		data.label.textContent = stackFrame.name;
+		data.label.title = stackFrame.name;
 		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService);
 		data.lineNumber.textContent = stackFrame.lineNumber !== undefined ? `${ stackFrame.lineNumber }` : '';
 	}
