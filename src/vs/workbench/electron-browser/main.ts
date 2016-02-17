@@ -21,7 +21,6 @@ import {IWorkspace, IConfiguration, IEnvironment} from 'vs/platform/workspace/co
 
 import path = require('path');
 import fs = require('fs');
-import child_process = require('child_process');
 
 import gracefulFs = require('graceful-fs');
 gracefulFs.gracefulify(fs);
@@ -32,15 +31,8 @@ export interface IPath {
 	columnNumber?: number;
 }
 
-export interface IMainConfiguration {
-	window: {
-
-	}
-}
-
 export interface IMainEnvironment extends IEnvironment {
 	workspacePath?: string;
-	autoSaveDelay?: number;
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
 	extensionsToInstall?: string[];
@@ -57,6 +49,9 @@ export function startup(environment: IMainEnvironment, globalSettings: IGlobalSe
 		env: environment
 	};
 
+	// Inherit navigator language
+	environment.language = navigator.language;
+
 	// Shell Options
 	let filesToOpen = environment.filesToOpen && environment.filesToOpen.length ? toInputs(environment.filesToOpen) : null;
 	let filesToCreate = environment.filesToCreate && environment.filesToCreate.length ? toInputs(environment.filesToCreate) : null;
@@ -65,7 +60,6 @@ export function startup(environment: IMainEnvironment, globalSettings: IGlobalSe
 		filesToOpen: filesToOpen,
 		filesToCreate: filesToCreate,
 		extensionsToInstall: environment.extensionsToInstall,
-		autoSaveDelay: environment.autoSaveDelay,
 		globalSettings: globalSettings
 	};
 

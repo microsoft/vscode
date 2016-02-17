@@ -23,11 +23,11 @@ export var language = <ILanguage> {
 		{ open:'(', close:')', token:'delimiter.parenthesis'}
 	],
 
-	enhancedBrackets: [
-			{ open: /for$/ }, { open: /while$/ },	{ open: /loop$/ }, { open: /if$/ }, { open: /unless$/ },
-			{ open: /else$/ }, { open: /switch$/ }, { open: /try$/ }, { open: /catch$/ }, { open: /finally$/ },
-			{ open: /class$/ }, { open: /->$/ }
-		],
+	// enhancedBrackets: [
+	// 		{ open: /for$/ }, { open: /while$/ },	{ open: /loop$/ }, { open: /if$/ }, { open: /unless$/ },
+	// 		{ open: /else$/ }, { open: /switch$/ }, { open: /try$/ }, { open: /catch$/ }, { open: /finally$/ },
+	// 		{ open: /class$/ }, { open: /->$/ }
+	// 	],
 
 	// the default separators
 	wordDefinition: /(-?\d*\.\d\w*)|([^\`\~\!\@\#%\^\&\*\(\)\=\$\-\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,

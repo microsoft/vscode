@@ -20,7 +20,7 @@ import { RawGitService, DelayedRawGitService } from 'vs/workbench/parts/git/node
 import URI from 'vs/base/common/uri';
 import { spawn, exec } from 'child_process';
 import { join } from 'path';
-import * as remote from 'remote';
+import { remote } from 'electron';
 
 function findSpecificGit(gitPath: string): Promise {
 	return new Promise((c, e) => {
@@ -52,7 +52,14 @@ function findGitDarwin(): Promise {
 					return e('git not found');
 				}
 
-				return c(gitPath);
+				// make sure git executes
+				exec('git --version', err => {
+					if (err) {
+						return e('git not found');
+					}
+
+					return c(gitPath);
+				});
 			});
 		});
 	});
@@ -126,7 +133,7 @@ class ElectronRawGitService extends DelayedRawGitService {
 			var enabled = conf.git ? conf.git.enabled : true;
 
 			if (!enabled) {
-				return Promise.as(new DisabledRawGitService());
+				return TPromise.as(new DisabledRawGitService());
 			}
 
 			var gitPath = (conf.git && conf.git.path) || null;
@@ -150,7 +157,7 @@ export class ElectronGitService extends GitService {
 		let workspace = contextService.getWorkspace();
 		let raw = !workspace
 			? new NoOpGitService()
-			: instantiationService.createInstance(ElectronRawGitService, workspace.resource.fsPath)
+			: instantiationService.createInstance(ElectronRawGitService, workspace.resource.fsPath);
 
 		super(raw, instantiationService, eventService, messageService, editorService, outputService, contextService, lifecycleService);
 	}

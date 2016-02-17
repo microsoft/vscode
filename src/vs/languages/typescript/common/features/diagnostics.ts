@@ -8,7 +8,6 @@ import URI from 'vs/base/common/uri';
 import ts = require('vs/languages/typescript/common/lib/typescriptServices');
 import Options = require('vs/languages/typescript/common/options');
 import Severity from 'vs/base/common/severity';
-import EditorCommon = require('vs/editor/common/editorCommon');
 import converter = require('vs/languages/typescript/common/features/converter');
 import lint = require('vs/languages/typescript/common/lint/lint');
 import {IMarkerData} from 'vs/platform/markers/common/markers';
@@ -45,7 +44,6 @@ export function getSemanticDiagnostics(languageService: ts.LanguageService, reso
 	if (options.validate.enable && options.validate.semanticValidation) {
 
 		var diagnostics = languageService.getSemanticDiagnostics(resource.toString()),
-			unresolved: string[] = [],
 			classifier = createDiagnosticClassifier(options);
 
 		for (var i = 0; i < diagnostics.length; i++) {
@@ -89,7 +87,7 @@ _categorySeverity[ts.DiagnosticCategory.Message] = Severity.Info;
 
 export function createDiagnosticClassifier(options: Options): DiagnosticClassifier {
 	var map: { [code: number]: Severity } = Object.create(null);
-	map[2403] = Severity.fromValue(options.validate.lint.redeclaredVariables)
+	map[2403] = Severity.fromValue(options.validate.lint.redeclaredVariables);
 	map[2403] = Severity.fromValue(options.validate.lint.redeclaredVariables);
 	map[2304] = Severity.fromValue(options.validate.lint.undeclaredVariables);
 	map[2339] = Severity.fromValue(options.validate.lint.unknownProperty);
@@ -207,7 +205,6 @@ function _getJavaScriptSemanticDiagnostics(sourceFile: ts.SourceFile, options: t
 			case ts.SyntaxKind.SetAccessor:
 			case ts.SyntaxKind.FunctionExpression:
 			case ts.SyntaxKind.FunctionDeclaration:
-			case ts.SyntaxKind.FunctionDeclaration:
 				var functionDeclaration = <ts.FunctionLikeDeclaration>node;
 				if (checkModifiers(functionDeclaration.modifiers) ||
 					checkTypeParameters(functionDeclaration.typeParameters) ||
@@ -281,7 +278,7 @@ function _getJavaScriptSemanticDiagnostics(sourceFile: ts.SourceFile, options: t
 			case ts.SyntaxKind.Decorator:
 				if(!options.experimentalDecorators) {
 					let diag = createDiagnosticForNode(node);
-					diag.messageText = 'Decorators is an experimental feature which must be enabled explicitly. Use a jsconfig.json-file and the \'experimentalDecorators\' switch.';
+					diag.messageText = 'Decorators is an experimental feature which must be enabled explicitly. Use a jsconfig.json file and the \'experimentalDecorators\' switch.';
 					diag.category = ts.DiagnosticCategory.Warning;
 					diagnostics.push(diag);
 				}
@@ -342,7 +339,7 @@ function _getJavaScriptSemanticDiagnostics(sourceFile: ts.SourceFile, options: t
 			length,
 			messageText: !target
 				? 'This can only be used in ts files.'
-				: 'This can only be used with ES6. Make sure to have a jsconfig.json-file which sets the target to ES6.',
+				: 'This can only be used with ES6. Make sure to have a jsconfig.json file which sets the target to ES6.',
 			category: ts.DiagnosticCategory.Error,
 			code: -1
 		};

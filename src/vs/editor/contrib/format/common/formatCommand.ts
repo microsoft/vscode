@@ -7,7 +7,6 @@
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Strings = require('vs/base/common/strings');
 import {Range} from 'vs/editor/common/core/range';
-import {Position} from 'vs/editor/common/core/position';
 
 export class EditOperationsCommand implements EditorCommon.ICommand {
 

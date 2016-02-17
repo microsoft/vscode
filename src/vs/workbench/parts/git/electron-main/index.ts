@@ -10,8 +10,7 @@ import env = require('vs/workbench/electron-main/env');
 import events = require('vs/base/common/eventEmitter');
 import platform = require('vs/base/common/platform');
 
-import BrowserWindow = require('browser-window');
-import ipc = require('ipc');
+import { ipcMain as ipc, BrowserWindow } from 'electron';
 
 interface ICredentialsContext {
 	id: number;
@@ -31,7 +30,7 @@ interface ICredentialsResult {
 
 interface IContext {
 	credentials: ICredentials;
-	window: BrowserWindow;
+	window: Electron.BrowserWindow;
 }
 
 export function configure(bus: events.EventEmitter): void {
@@ -55,8 +54,8 @@ export function configure(bus: events.EventEmitter): void {
 		}
 
 		var win = new BrowserWindow({
-			'always-on-top': true,
-			'skip-taskbar': true,
+			alwaysOnTop: true,
+			skipTaskbar: true,
 			resizable: false,
 			width: 450,
 			height: platform.isWindows ? 280 : 260,
@@ -71,7 +70,7 @@ export function configure(bus: events.EventEmitter): void {
 			credentials: null
 		};
 
-		win.loadUrl(require.toUrl('vs/workbench/parts/git/electron-main/index.html'));
+		win.loadURL(require.toUrl('vs/workbench/parts/git/electron-main/index.html'));
 		win.webContents.executeJavaScript('init(' + JSON.stringify(context) + ')');
 
 		win.once('closed', () => {

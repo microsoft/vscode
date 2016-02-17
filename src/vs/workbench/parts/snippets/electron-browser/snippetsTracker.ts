@@ -7,10 +7,7 @@
 
 import workbenchExt = require('vs/workbench/common/contributions');
 import paths = require('vs/base/common/paths');
-import arrays = require('vs/base/common/arrays');
 import async = require('vs/base/common/async');
-import Errors = require('vs/base/common/errors');
-import URI from 'vs/base/common/uri';
 import winjs = require('vs/base/common/winjs.base');
 import extfs = require('vs/base/node/extfs');
 import lifecycle = require('vs/base/common/lifecycle');
@@ -19,8 +16,6 @@ import {IFileService} from 'vs/platform/files/common/files';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
-import remote = require('remote');
-import ipc = require('ipc');
 import fs = require('fs');
 
 export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
@@ -69,7 +64,7 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 			// the path might not exist anymore, ignore this error and return
 		}
 
-		this.lifecycleService.onShutdown.add(this.dispose, this);
+		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
 	private scanUserSnippets() : winjs.Promise {
@@ -79,7 +74,7 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 				var snippetPath = paths.join(this.snippetFolder, snippetFile);
 				return tmsnippets.snippetUpdated(modeId, snippetPath);
 			}));
-		})
+		});
 	}
 
 	private unregisterListener(): void {
@@ -131,7 +126,7 @@ function readFilesInDir(dirPath: string, namePattern:RegExp = null): winjs.TProm
 		return winjs.TPromise.join(
 			children.map((child) => {
 				if (namePattern && !namePattern.test(child)) {
-					return winjs.Promise.as(null);
+					return winjs.TPromise.as(null);
 				}
 				return fileExists(paths.join(dirPath, child)).then(isFile => {
 					return isFile ? child : null;

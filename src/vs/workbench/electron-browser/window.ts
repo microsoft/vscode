@@ -9,36 +9,30 @@ import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import {Identifiers} from 'vs/workbench/common/constants';
-import {EventType, EditorEvent} from 'vs/workbench/browser/events';
+import {EventType, EditorEvent} from 'vs/workbench/common/events';
 import workbenchEditorCommon = require('vs/workbench/common/editor');
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import dom = require('vs/base/browser/dom');
-import {AnchorAlignment, ContextView} from 'vs/base/browser/ui/contextview/contextview';
-import {IDisposable} from 'vs/base/common/lifecycle';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
-import remote = require('remote');
-import ipc = require('ipc');
-
-const Shell = remote.require('shell');
-const Dialog = remote.require('dialog');
+import {ipcRenderer as ipc, shell, remote} from 'electron';
 
 export interface IWindowConfiguration {
 	window: {
 		openFilesInNewWindow: boolean;
 		reopenFolders: string;
 		zoomLevel: number;
-	}
+	};
 }
 
 export class ElectronWindow {
-	private win: remote.BrowserWindow;
+	private win: Electron.BrowserWindow;
 
 	constructor(
-		win: remote.BrowserWindow,
+		win: Electron.BrowserWindow,
 		shellContainer: HTMLElement,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEventService private eventService: IEventService,
@@ -129,10 +123,10 @@ export class ElectronWindow {
 		});
 
 		// Handle window.open() calls
-		window.open = function(url: string, target: string, features: string, replace: boolean) {
-			Shell.openExternal(url);
+		(<any>window).open = function(url: string, target: string, features: string, replace: boolean) {
+			shell.openExternal(url);
 
-			return <Window>null;
+			return null;
 		};
 	}
 
@@ -160,8 +154,12 @@ export class ElectronWindow {
 		this.win.close();
 	}
 
-	public showMessageBox(options: remote.IMessageBoxOptions): number {
-		return Dialog.showMessageBox(this.win, options);
+	public reload(): void {
+		ipc.send('vscode:reloadWindow', this.win.id);
+	}
+
+	public showMessageBox(options: Electron.Dialog.ShowMessageBoxOptions): number {
+		return remote.dialog.showMessageBox(this.win, options);
 	}
 
 	public setFullScreen(fullscreen: boolean): void {
@@ -169,7 +167,7 @@ export class ElectronWindow {
 	}
 
 	public openDevTools(): void {
-		this.win.openDevTools();
+		this.win.webContents.openDevTools();
 	}
 
 	public isFullScreen(): boolean {
@@ -182,11 +180,7 @@ export class ElectronWindow {
 
 	public focus(): void {
 		if (!this.win.isFocused()) {
-			if (platform.isWindows || platform.isLinux) {
-				this.win.show(); // Windows & Linux sometimes cannot bring the window to the front when it is in the background
-			} else {
-				this.win.focus();
-			}
+			this.win.focus();
 		}
 	}
 

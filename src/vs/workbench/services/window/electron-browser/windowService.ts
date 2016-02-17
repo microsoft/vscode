@@ -7,11 +7,9 @@
 
 import {ElectronWindow} from 'vs/workbench/electron-browser/window';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {EventProvider} from 'vs/base/common/eventProvider';
-import {EventSource} from 'vs/base/common/eventSource';
+import Event, {Emitter} from 'vs/base/common/event';
 
-import remote = require('remote');
-import ipc = require('ipc');
+import {ipcRenderer as ipc, remote} from 'electron';
 
 export var IWindowService = createDecorator<IWindowService>('windowService');
 
@@ -35,29 +33,29 @@ export interface IWindowService {
 
 	broadcast(b: IBroadcast, target?: string): void;
 
-	onBroadcast: EventProvider<(b: IBroadcast) => void>;
+	onBroadcast: Event<IBroadcast>;
 }
 
 export class WindowService implements IWindowService {
 	public serviceId = IWindowService;
 
 	private win: ElectronWindow;
-	private _onBroadcast: EventSource<(b: IBroadcast) => void>;
+	private _onBroadcast: Emitter<IBroadcast>;
 
 	constructor() {
-		this._onBroadcast = new EventSource<(b: IBroadcast) => void>();
+		this._onBroadcast = new Emitter<IBroadcast>();
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		ipc.on('vscode:broadcast', (b: IBroadcast) => {
+		ipc.on('vscode:broadcast', (event, b: IBroadcast) => {
 			this._onBroadcast.fire(b);
 		});
 	}
 
-	public get onBroadcast(): EventProvider<(event: IBroadcast) => void> {
-		return this._onBroadcast.value;
+	public get onBroadcast(): Event<IBroadcast> {
+		return this._onBroadcast.event;
 	}
 
 	public getWindowId(): number {

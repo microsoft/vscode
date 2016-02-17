@@ -6,23 +6,24 @@
 'use strict';
 
 import * as assert from 'assert';
-import {TestKeybindingService, TestConfigurationService, TestContextService, TestStorageService, TestEventService, TestEditorService, TestQuickOpenService} from 'vs/workbench/test/browser/servicesTestUtils';
+import {TestConfigurationService, TestContextService, TestStorageService, TestEventService, TestEditorService, TestQuickOpenService} from 'vs/workbench/test/browser/servicesTestUtils';
+import {MockKeybindingService} from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import {Registry} from 'vs/platform/platform';
 import {EditorHistoryModel, EditorHistoryEntry} from 'vs/workbench/browser/parts/quickopen/editorHistoryModel';
 import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions} from 'vs/workbench/browser/quickopen';
 import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpenController';
-import {Mode} from 'vs/base/parts/quickopen/browser/quickOpen';
+import {Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
-import {StringEditorInput} from 'vs/workbench/browser/parts/editor/stringEditorInput';
+import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {EditorInput} from 'vs/workbench/common/editor';
 import {isEmptyObject} from 'vs/base/common/types';
 import {join} from 'vs/base/common/paths';
 import {BaseEditor, EditorInputAction, EditorInputActionContributor, EditorDescriptor, Extensions, IEditorRegistry, IEditorInputFactory} from 'vs/workbench/browser/parts/editor/baseEditor';
 import URI from 'vs/base/common/uri';
 import {create} from 'vs/platform/instantiation/common/instantiationService';
-import {EventType, EditorEvent} from 'vs/workbench/browser/events';
+import {EventType, EditorEvent} from 'vs/workbench/common/events';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import {IEditorInput, IEditorModel, IEditorOptions, ITextInput, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
+import {IEditorInput, IEditorModel, IEditorOptions, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 
 function toResource(path) {
 	return URI.file(join('C:\\', path));
@@ -64,7 +65,7 @@ suite('Workbench QuickOpen', () => {
 		let input2 = inst.createInstance(StringEditorInput, "name2", 'description', "value2", "text/plain", false);
 		(<any>input2).getResource = () => "path";
 		let entry2 = new EditorHistoryEntry(editorService, contextService, input2, null, null, model);
-		assert.equal(entry2.getResource(), "path");
+		assert.ok(!entry2.getResource()); // inputs with getResource are not taken as resource for entry, only files and untitled
 
 		assert(!entry1.matches(entry2.getInput()));
 		assert(entry1.matches(entry1.getInput()));
@@ -216,7 +217,7 @@ suite('Workbench QuickOpen', () => {
 			null,
 			null,
 			contextService,
-			new TestKeybindingService()
+			new MockKeybindingService()
 		);
 
 		controller.create();

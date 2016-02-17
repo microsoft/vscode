@@ -6,13 +6,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Promise } from 'vs/base/common/winjs.base';
+import {TPromise } from 'vs/base/common/winjs.base';
 import * as Strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
-import {StringEditorInput} from 'vs/workbench/browser/parts/editor/stringEditorInput';
-import {LogEditorInput} from 'vs/workbench/browser/parts/editor/logEditorInput';
-import {ResourceEditorInput} from 'vs/workbench/browser/parts/editor/resourceEditorInput';
-import {ResourceEditorModel} from 'vs/workbench/browser/parts/editor/resourceEditorModel';
+import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
+import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
+import {ResourceEditorModel} from 'vs/workbench/common/editor/resourceEditorModel';
 import {TestWorkspace, TestEditorService, MockRequestService} from 'vs/workbench/test/browser/servicesTestUtils';
 import * as InstantiationService from 'vs/platform/instantiation/common/instantiationService';
 import {createMockModelService, createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
@@ -93,7 +92,7 @@ suite("Workbench - StringEditorInput", () => {
 	test("Input.matches() - StringEditorInput", function() {
 		let inst = InstantiationService.create({});
 
-		let promise = Promise.as("value");
+		let promise = TPromise.as("value");
 
 		let stringEditorInput = inst.createInstance(StringEditorInput, "name", 'description', "value", "mime", false);
 		let promiseEditorInput = inst.createInstance(ResourceEditorInput, "name", "description", URI.create('inMemory', null, 'thePath'));
@@ -109,17 +108,6 @@ suite("Workbench - StringEditorInput", () => {
 
 		assert.strictEqual(promiseEditorInput.matches(promiseEditorInput2), true);
 		assert.strictEqual(stringEditorInput.matches(stringEditorInput2), true);
-	});
-
-	test("LogEditorInput", function() {
-		let inst = InstantiationService.create({});
-
-		let logEditorInput = inst.createInstance(LogEditorInput, "name", 'description', "value\nvalue\nvalue", "mime", false);
-		let logEditorInput2 = inst.createInstance(LogEditorInput, "name", 'description', "value\nvalue\nvalue", "mime", false);
-		let stringEditorInput = inst.createInstance(StringEditorInput, "name", 'description', "value", "mime", false);
-
-		assert.strictEqual(logEditorInput.matches(stringEditorInput), false);
-		assert.strictEqual(logEditorInput.matches(logEditorInput2), true);
 	});
 
 	test("ResourceEditorInput", function(done) {

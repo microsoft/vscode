@@ -12,7 +12,7 @@ import uuid = require('vs/base/common/uuid');
 import nls = require('vs/nls');
 import strings = require('vs/base/common/strings');
 import { IRawFileStatus, IHead, ITag, IBranch, IRemote, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
-import { detectMimesFromStream } from 'vs/base/node/mime'
+import { detectMimesFromStream } from 'vs/base/node/mime';
 import files = require('vs/platform/files/common/files');
 import { spawn, ChildProcess } from 'child_process';
 import iconv = require('iconv-lite');
@@ -26,12 +26,12 @@ export interface IExecutionResult {
 function exec(child: ChildProcess, encoding = 'utf8'): TPromise<IExecutionResult> {
 	const disposables: IDisposable[] = [];
 
-	const once = (ee: EventEmitter, name: string, fn: Function) => {
+	const once = (ee: NodeJS.EventEmitter, name: string, fn: Function) => {
 		ee.once(name, fn);
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};
 
-	const on = (ee: EventEmitter, name: string, fn: Function) => {
+	const on = (ee: NodeJS.EventEmitter, name: string, fn: Function) => {
 		ee.on(name, fn);
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};
@@ -44,12 +44,12 @@ function exec(child: ChildProcess, encoding = 'utf8'): TPromise<IExecutionResult
 		new TPromise<string>(c => {
 			let buffers: Buffer[] = [];
 			on(child.stdout, 'data', b => buffers.push(b));
-			once(child.stdout, 'close', () => c(Buffer.concat(buffers).toString(encoding)));
+			once(child.stdout, 'close', () => c(iconv.decode(Buffer.concat(buffers), encoding)));
 		}),
 		new TPromise<string>(c => {
 			let buffers: Buffer[] = [];
 			on(child.stderr, 'data', b => buffers.push(b));
-			once(child.stderr, 'close', () => c(Buffer.concat(buffers).toString(encoding)));
+			once(child.stderr, 'close', () => c(iconv.decode(Buffer.concat(buffers), encoding)));
 		})
 	]).then(values => {
 		disposeAll(disposables);
@@ -445,7 +445,7 @@ export class Repository {
 		return this.run([ 'clean', '-fd' ]).then(() => {
 			return this.run([ 'checkout', '--', '.' ]).then(null, (err: GitError) => {
 				if (/did not match any file\(s\) known to git\./.test(err.stderr)) {
-					return Promise.as(null);
+					return TPromise.as(null);
 				}
 
 				return Promise.wrapError(err);
@@ -486,7 +486,7 @@ export class Repository {
 				// In case there are merge conflicts to be resolved, git reset will output
 				// some "needs merge" data. We try to get around that.
 				if (/([^:]+: needs merge\n)+/m.test(err.stdout)) {
-					return Promise.as(null);
+					return TPromise.as(null);
 				}
 
 				return Promise.wrapError(err);
@@ -508,7 +508,7 @@ export class Repository {
 
 	public pull(rebase?: boolean): Promise {
 		const args = ['pull'];
-		rebase && args.push('-r');
+		if (rebase) { args.push('-r'); }
 
 		return this.run(args).then(null, (err: GitError) => {
 			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout)) {
@@ -527,9 +527,9 @@ export class Repository {
 
 	public push(remote?: string, name?: string, options?:IPushOptions): Promise {
 		const args = ['push'];
-		options && options.setUpstream && args.push('-u');
-		remote && args.push(remote);
-		name && args.push(name);
+		if (options && options.setUpstream) { args.push('-u'); }
+		if (remote) { args.push(remote); }
+		if (name) { args.push(name); }
 
 		return this.run(args).then(null, (err: GitError) => {
 			if (/^error: failed to push some refs to\b/m.test(err.stderr)) {

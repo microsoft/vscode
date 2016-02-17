@@ -7,6 +7,7 @@
 
 import 'vs/css!./lineNumbers';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
+import * as Platform from 'vs/base/common/platform';
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
 
@@ -98,11 +99,12 @@ export class LineNumbersOverlay extends ViewEventHandler implements EditorBrowse
 
 		var output: IRenderResult = {};
 
+		var lineHeightClassName = (Platform.isLinux ? (this._context.configuration.editor.lineHeight % 2 === 0 ? ' lh-even': ' lh-odd') : '');
 		var lineHeight = this._context.configuration.editor.lineHeight.toString(),
 			lineNumber:number,
 			renderLineNumber:string;
 
-		var common = '<div class="' + EditorBrowser.ClassNames.LINE_NUMBERS + '" style="left:' + this._lineNumbersLeft.toString() + 'px;width:' + this._lineNumbersWidth.toString() + 'px;height:' + lineHeight + 'px;">';
+		var common = '<div class="' + EditorBrowser.ClassNames.LINE_NUMBERS + lineHeightClassName + '" style="left:' + this._lineNumbersLeft.toString() + 'px;width:' + this._lineNumbersWidth.toString() + 'px;height:' + lineHeight + 'px;">';
 
 		for (lineNumber = ctx.visibleRange.startLineNumber; lineNumber <= ctx.visibleRange.endLineNumber; lineNumber++) {
 			renderLineNumber = this._context.model.getLineRenderLineNumber(lineNumber);

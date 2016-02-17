@@ -6,6 +6,9 @@
 'use strict';
 
 export interface IHTMLContentElement {
+	/**
+	 * supports **bold**, __italics__, and [[actions]]
+	 */
 	formattedText?:string;
 	text?: string;
 	className?: string;
@@ -13,7 +16,8 @@ export interface IHTMLContentElement {
 	customStyle?: any;
 	tagName?: string;
 	children?: IHTMLContentElement[];
-	code?: { language: string; value: string; };
 	isText?: boolean;
 	role?: string;
+	markdown?: string;
+	code?: { language: string; value: string; };
 }

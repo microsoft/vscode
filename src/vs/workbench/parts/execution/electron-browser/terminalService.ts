@@ -6,13 +6,13 @@
 
 import errors = require('vs/base/common/errors');
 import uri from 'vs/base/common/uri';
-import severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ITerminalService, IExecutionService} from 'vs/workbench/parts/execution/common/execution';
+import {ITerminalService} from 'vs/workbench/parts/execution/common/execution';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IMessageService} from 'vs/platform/message/common/message';
 
 import cp = require('child_process');
+import processes = require('vs/base/node/processes');
 
 export class WinTerminalService implements ITerminalService {
 	public serviceId = ITerminalService;
@@ -24,7 +24,7 @@ export class WinTerminalService implements ITerminalService {
 	}
 
 	public openTerminal(path: string): void {
-		cp.spawn('cmd.exe', ['/c', 'start', '/wait'], { cwd: path });
+		cp.spawn(processes.getWindowsShell(), ['/c', 'start', '/wait'], { cwd: path });
 	}
 }
 

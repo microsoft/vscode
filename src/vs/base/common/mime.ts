@@ -7,6 +7,7 @@
 import paths = require('vs/base/common/paths');
 import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
+import {match} from 'vs/base/common/glob';
 
 export let MIME_TEXT = 'text/plain';
 export let MIME_BINARY = 'application/octet-stream';
@@ -25,7 +26,7 @@ export function generateKnownFilenames(onlyExtensions: boolean = true): any {
 	};
 	let removeLeadingDot = (ext: string) => {
 		return ext.replace(/^\./, '');
-	}
+	};
 
 	let list: string[] = [];
 	list = list.concat(Object.keys(registeredTextMimesByFilename));
@@ -40,7 +41,7 @@ export function generateKnownFilenames(onlyExtensions: boolean = true): any {
 
 	let pushCurrentRow = () => {
 		if (currentRow.length > 0) {
-			result.push('\'' + currentRow.join('\', \'') + '\'')
+			result.push('\'' + currentRow.join('\', \'') + '\'');
 		}
 	};
 
@@ -71,12 +72,12 @@ export function generateKnownFilenames(onlyExtensions: boolean = true): any {
 /**
  * Allow to register extra text mimes dynamically based on filename
  */
-export function registerTextMimeByFilename(nameOrExtension: string, mime: string): void {
-	if (nameOrExtension && mime) {
-		if (registeredTextMimesByFilename[nameOrExtension] && registeredTextMimesByFilename[nameOrExtension] !== mime) {
-			console.warn('Overwriting filename <<' + nameOrExtension + '>> to now point to mime <<' + mime + '>>');
+export function registerTextMimeByFilename(nameOrPatternOrPrefix: string, mime: string): void {
+	if (nameOrPatternOrPrefix && mime) {
+		if (registeredTextMimesByFilename[nameOrPatternOrPrefix] && registeredTextMimesByFilename[nameOrPatternOrPrefix] !== mime) {
+			console.warn('Overwriting filename <<' + nameOrPatternOrPrefix + '>> to now point to mime <<' + mime + '>>');
 		}
-		registeredTextMimesByFilename[nameOrExtension] = mime;
+		registeredTextMimesByFilename[nameOrPatternOrPrefix] = mime;
 	}
 }
 
@@ -139,25 +140,32 @@ export function guessMimeTypes(path: string, firstLine?: string): string[] {
 	// Check with file name and extension
 	path = path.toLowerCase();
 	let filename = paths.basename(path);
-	let extension = paths.extname(path);
 
 	let exactNameMatch: string;
 	let extensionMatch: string;
+	let patternNameMatch: string;
 
 	// Check for dynamically registered match based on filename and extension
-	for (let nameOrExtension in registeredTextMimesByFilename) {
-		let nameOrExtensionLower:string = nameOrExtension.toLowerCase();
+	for (let nameOrPatternOrPrefix in registeredTextMimesByFilename) {
+		let nameOrPatternOrExtensionLower: string = nameOrPatternOrPrefix.toLowerCase();
 
 		// First exact name match
-		if (!exactNameMatch && filename === nameOrExtensionLower) {
-			exactNameMatch = nameOrExtension;
+		if (!exactNameMatch && filename === nameOrPatternOrExtensionLower) {
+			exactNameMatch = nameOrPatternOrPrefix;
 			break; // take it!
 		}
 
+		// Longest pattern match
+		if (match(nameOrPatternOrExtensionLower, filename)) {
+			if (!patternNameMatch || nameOrPatternOrExtensionLower.length > patternNameMatch.length) {
+				patternNameMatch = nameOrPatternOrPrefix;
+			}
+		}
+
 		// Longest extension match
-		if (nameOrExtension[0] === '.' && strings.endsWith(filename, nameOrExtensionLower)) {
-			if (!extensionMatch || nameOrExtensionLower.length > extensionMatch.length) {
-				extensionMatch = nameOrExtension;
+		if (nameOrPatternOrPrefix[0] === '.' && strings.endsWith(filename, nameOrPatternOrExtensionLower)) {
+			if (!extensionMatch || nameOrPatternOrExtensionLower.length > extensionMatch.length) {
+				extensionMatch = nameOrPatternOrPrefix;
 			}
 		}
 	}
@@ -167,7 +175,12 @@ export function guessMimeTypes(path: string, firstLine?: string): string[] {
 		return [registeredTextMimesByFilename[exactNameMatch], MIME_TEXT];
 	}
 
-	// 3.) Match on extension comes last
+	// 3.) Match on pattern
+	if (patternNameMatch) {
+		return [registeredTextMimesByFilename[patternNameMatch], MIME_TEXT];
+	}
+
+	// 4.) Match on extension comes next
 	if (extensionMatch) {
 		return [registeredTextMimesByFilename[extensionMatch], MIME_TEXT];
 	}

@@ -4,21 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('vs/base/common/assert');
 import winjs = require('vs/base/common/winjs.base');
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-import nls = require('vs/nls');
-import encoding = require('vs/base/common/bits/encoding');
-import types = require('vs/base/common/types');
-import strings = require('vs/base/common/strings');
 import glob = require('vs/base/common/glob');
-import arrays = require('vs/base/common/arrays');
 import events = require('vs/base/common/events');
-import mimes = require('vs/base/common/mime');
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
-export var IFileService = createDecorator<IFileService>('fileService');
+export const IFileService = createDecorator<IFileService>('fileService');
 
 export interface IFileService {
 	serviceId: ServiceIdentifier<any>;
@@ -155,7 +148,7 @@ export interface IFileChange {
 	 * The unified resource identifier of the file that changed.
 	 */
 	resource: URI;
-};
+}
 
 export class FileChangesEvent extends events.Event {
 	private _changes: IFileChange[];
@@ -419,10 +412,18 @@ export enum FileOperationResult {
 	FILE_TOO_LARGE
 }
 
+export const AutoSaveConfiguration = {
+	OFF: 'off',
+	AFTER_DELAY: 'afterDelay',
+	ON_FOCUS_CHANGE: 'onFocusChange'
+};
+
 export interface IFilesConfiguration {
 	files: {
 		exclude: glob.IExpression;
 		encoding: string;
 		trimTrailingWhitespace: boolean;
+		autoSave: string;
+		autoSaveDelay: number;
 	};
 }

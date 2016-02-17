@@ -11,11 +11,10 @@ import quickFixModel = require('./quickFixModel');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
+import {EditorAction} from 'vs/editor/common/editorAction';
 import Severity from 'vs/base/common/severity';
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
-import codeEditorWidget = require('vs/editor/browser/widget/codeEditorWidget');
 import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -60,7 +59,7 @@ export class QuickFixController implements EditorCommon.IEditorContribution {
 
 		this.quickFixWidgetVisible = keybindingService.createKey(CONTEXT_QUICK_FIX_WIDGET_VISIBLE, false);
 		this.suggestWidget = new quickFixSelectionWidget.QuickFixSelectionWidget(this.editor, telemetryService,() => {
-			this.quickFixWidgetVisible.set(true)
+			this.quickFixWidgetVisible.set(true);
 		},() => {
 			this.quickFixWidgetVisible.reset();
 		});

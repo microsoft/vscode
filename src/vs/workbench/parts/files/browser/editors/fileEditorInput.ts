@@ -5,7 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Registry} from 'vs/platform/platform';
 import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
@@ -16,11 +16,11 @@ import strings = require('vs/base/common/strings');
 import assert = require('vs/base/common/assert');
 import {EditorModel, IInputStatus, EncodingMode} from 'vs/workbench/common/editor';
 import {IEditorRegistry, Extensions, EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {BinaryEditorModel} from 'vs/workbench/browser/parts/editor/binaryEditorModel';
+import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {FileEditorDescriptor} from 'vs/workbench/parts/files/browser/files';
-import {BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput} from 'vs/workbench/parts/files/common/files';
-import {CACHE, TextFileEditorModel, State} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
+import {ITextFileService, BINARY_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID, FileEditorInput as CommonFileEditorInput, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
+import {CACHE, TextFileEditorModel, State} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
@@ -63,7 +63,8 @@ export class FileEditorInput extends CommonFileEditorInput {
 		mime: string,
 		preferredEncoding: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
 
@@ -157,11 +158,11 @@ export class FileEditorInput extends CommonFileEditorInput {
 				}
 
 				case State.DIRTY: {
-					return { state: 'dirty', decoration: !this.contextService.isAutoSaveEnabled() ? '\u25cf' : '', displayText: FileEditorInput.nlsDirtyDisplay, description: FileEditorInput.nlsDirtyMeta };
+					return { state: 'dirty', decoration: (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) ? '\u25cf' : '', displayText: FileEditorInput.nlsDirtyDisplay, description: FileEditorInput.nlsDirtyMeta };
 				}
 
 				case State.PENDING_SAVE:
-					return { state: 'saving', decoration: !this.contextService.isAutoSaveEnabled() ? '\u25cf' : '', displayText: FileEditorInput.nlsPendingSaveDisplay, description: FileEditorInput.nlsPendingSaveMeta };
+					return { state: 'saving', decoration: (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) ? '\u25cf' : '', displayText: FileEditorInput.nlsPendingSaveDisplay, description: FileEditorInput.nlsPendingSaveMeta };
 
 				case State.ERROR:
 					return { state: 'error', decoration: '\u25cf', displayText: FileEditorInput.nlsErrorDisplay, description: FileEditorInput.nlsErrorMeta };
@@ -253,7 +254,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 		}, (error) => {
 			FileEditorInput.FILE_EDITOR_MODEL_LOADERS[this.resource.toString()] = null; // Remove from pending loaders in case of an error
 
-			return Promise.wrapError(error);
+			return TPromise.wrapError(error);
 		});
 	}
 
@@ -280,8 +281,8 @@ export class FileEditorInput extends CommonFileEditorInput {
 		let textModel = this.instantiationService.createInstance(TextFileEditorModel, this.resource, this.preferredEncoding);
 		return textModel.load().then(() => textModel, (error) => {
 
-			// In case of an error that indicates that the file is binary, just return with the binary editor model
-			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY) {
+			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
+			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
 				textModel.dispose();
 
 				let binaryModel = new BinaryEditorModel(this.resource, this.getName());
@@ -289,7 +290,7 @@ export class FileEditorInput extends CommonFileEditorInput {
 			}
 
 			// Bubble any other error up
-			return Promise.wrapError(error);
+			return TPromise.wrapError(error);
 		});
 	}
 

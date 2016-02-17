@@ -14,6 +14,7 @@
 		<string>t</string>
 		<string>PL</string>
 		<string>psgi</string>
+		<string>vcl</string>
 	</array>
 	<key>firstLineMatch</key>
 	<string>^#!.*\bperl\b</string>
@@ -304,7 +305,7 @@
 			<key>applyEndPatternLast</key>
 			<integer>1</integer>
 			<key>begin</key>
-			<string>\b(?=m\s*[^\sa-zA-Z0-9])</string>
+			<string>(?&lt;!\{|\+|\-)\b(?=m\s*[^\sa-zA-Z0-9])</string>
 			<key>comment</key>
 			<string>string.regexp.find-m.perl</string>
 			<key>end</key>
@@ -503,7 +504,7 @@
 				</dict>
 				<dict>
 					<key>begin</key>
-					<string>(m)\s*([^\sa-zA-Z0-9'\{\[\(\&lt;])</string>
+					<string>(?&lt;!\{|\+|\-)(m)\s*([^\sa-zA-Z0-9'\{\[\(\&lt;])</string>
 					<key>captures</key>
 					<dict>
 						<key>0</key>
@@ -1040,7 +1041,7 @@
 			<key>comment</key>
 			<string>string.regexp.replace.extended</string>
 			<key>end</key>
-			<string>\2((([egimosradlupc]*x[egimosradlupc]*)))\b</string>
+			<string>((([egimosradlupc]*x[egimosradlupc]*)))\b</string>
 			<key>endCaptures</key>
 			<dict>
 				<key>1</key>
@@ -1343,9 +1344,25 @@
 		</dict>
 		<dict>
 			<key>match</key>
-			<string>\b(__FILE__|__LINE__|__PACKAGE__|__SUB__|__DATA__|__END__)\b</string>
+			<string>\b(__FILE__|__LINE__|__PACKAGE__|__SUB__)\b</string>
 			<key>name</key>
 			<string>constant.language.perl</string>
+		</dict>
+		<dict>
+			<key>begin</key>
+			<string>\b(__DATA__|__END__)\n?</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>constant.language.perl</string>
+				</dict>
+			</dict>
+			<key>contentName</key>
+			<string>text.plain</string>
+			<key>end</key>
+			<string>\z</string>
 		</dict>
 		<dict>
 			<key>match</key>

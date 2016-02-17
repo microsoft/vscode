@@ -5,10 +5,9 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {IPluginDescription, IPointListener, IActivationEventListener, IMessage} from 'vs/platform/plugins/common/plugins';
+import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {isValidPluginDescription as baseIsValidPluginDescription} from 'vs/platform/plugins/common/pluginsRegistry';
-
-import {satisfies} from 'semver';
+import * as semver from 'semver';
 
 export interface IParsedVersion {
 	hasCaret: boolean;
@@ -32,12 +31,12 @@ export interface INormalizedVersion {
 
 const VERSION_REGEXP = /^(\^)?((\d+)|x)\.((\d+)|x)\.((\d+)|x)(\-.*)?$/;
 
-export function isValidVersionStr(version:string): boolean {
+export function isValidVersionStr(version: string): boolean {
 	version = version.trim();
 	return (version === '*' || VERSION_REGEXP.test(version));
 }
 
-export function parseVersion(version:string): IParsedVersion {
+export function parseVersion(version: string): IParsedVersion {
 	if (!isValidVersionStr(version)) {
 		return null;
 	}
@@ -101,15 +100,15 @@ export function normalizeVersion(version: IParsedVersion): INormalizedVersion {
 	};
 }
 
-export function isValidVersion(_version:string|INormalizedVersion, _desiredVersion:string|INormalizedVersion): boolean {
-	let version:INormalizedVersion;
+export function isValidVersion(_version: string | INormalizedVersion, _desiredVersion: string | INormalizedVersion): boolean {
+	let version: INormalizedVersion;
 	if (typeof _version === 'string') {
 		version = normalizeVersion(parseVersion(_version));
 	} else {
 		version = _version;
 	}
 
-	let desiredVersion:INormalizedVersion;
+	let desiredVersion: INormalizedVersion;
 	if (typeof _desiredVersion === 'string') {
 		desiredVersion = normalizeVersion(parseVersion(_desiredVersion));
 	} else {
@@ -166,7 +165,7 @@ export interface IReducedExtensionDescription {
 	main?: string;
 }
 
-export function isValidExtensionVersion(version: string, extensionDesc:IReducedExtensionDescription, notices:string[]): boolean {
+export function isValidExtensionVersion(version: string, extensionDesc: IReducedExtensionDescription, notices: string[]): boolean {
 
 	if (extensionDesc.isBuiltin || typeof extensionDesc.main === 'undefined') {
 		// No version check for builtin or declarative extensions
@@ -204,9 +203,14 @@ export function isValidExtensionVersion(version: string, extensionDesc:IReducedE
 	return true;
 }
 
-export function isValidPluginDescription(version: string, extensionFolderPath: string, pluginDescription:IPluginDescription, notices:string[]): boolean {
+export function isValidPluginDescription(version: string, extensionFolderPath: string, pluginDescription: IPluginDescription, notices: string[]): boolean {
 
 	if (!baseIsValidPluginDescription(extensionFolderPath, pluginDescription, notices)) {
+		return false;
+	}
+
+	if (!semver.valid(pluginDescription.version)) {
+		notices.push(nls.localize('notSemver', "Extension version is not semver compatible."));
 		return false;
 	}
 

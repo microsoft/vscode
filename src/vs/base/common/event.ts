@@ -102,7 +102,7 @@ export class Emitter<T> {
 	 * To be kept private to fire an event to
 	 * subscribers
 	 */
-	fire(event: T): any {
+	fire(event?: T): any {
 		if (this._callbacks) {
 			this._callbacks.invoke.call(this._callbacks, event);
 		}
@@ -149,4 +149,9 @@ export function fromEventEmitter<T>(emitter: EventEmitter, eventType: string): E
 		}
 		return result;
 	};
+}
+
+export function mapEvent<I,O>(event: Event<I>, map: (i:I)=>O): Event<O> {
+	return (listener, thisArgs?, disposables?) =>
+		event(i => listener(map(i)), thisArgs, disposables);
 }

@@ -5,10 +5,9 @@
 'use strict';
 
 import ScrollableElement = require('vs/base/browser/ui/scrollbar/scrollableElement');
-import ScrollableElementImpl = require('vs/base/browser/ui/scrollbar/impl/scrollableElement');
+import ScrollableElementImpl = require('vs/base/browser/ui/scrollbar/scrollableElementImpl');
 import DomUtils = require('vs/base/browser/dom');
 import Lifecycle = require('vs/base/common/lifecycle');
-import Objects = require('vs/base/common/objects');
 
 import {EditorScrollable} from 'vs/editor/common/viewLayout/editorScrollable';
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
@@ -43,7 +42,7 @@ export class ScrollManager implements Lifecycle.IDisposable {
 
 		var configScrollbarOpts = this.configuration.editor.scrollbar;
 
-		var scrollbarOptions:ScrollableElement.ICreationOptions = {
+		var scrollbarOptions:ScrollableElement.IScrollableElementCreationOptions = {
 			scrollable: this.scrollable,
 			listenOnDomNode: viewDomNode,
 			vertical: configScrollbarOpts.vertical,
@@ -72,7 +71,7 @@ export class ScrollManager implements Lifecycle.IDisposable {
 		this.toDispose.push(this.scrollable.addInternalSizeChangeListener(() => {
 			this.scrollbar.onElementInternalDimensions();
 		}));
-		this.toDispose.push(this.configuration.addListener2(EditorCommon.EventType.ConfigurationChanged, (e:EditorCommon.IConfigurationChangedEvent) => {
+		this.toDispose.push(this.configuration.onDidChange((e:EditorCommon.IConfigurationChangedEvent) => {
 			this.scrollbar.updateClassName(this.configuration.editor.theme);
 			if (e.scrollbar) {
 				this.scrollbar.updateOptions(this.configuration.editor.scrollbar);

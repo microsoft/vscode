@@ -329,7 +329,6 @@ export class VerticalObjects {
 
 	public getVerticalOffsetForWhitespaceIndex(whitespaceIndex:number, deviceLineHeight:number): number {
 
-		var previousLinesHeight:number;
 		var afterLineNumber = this.whitespaces.getAfterLineNumberForWhitespaceIndex(whitespaceIndex);
 
 		var previousLinesHeight:number;

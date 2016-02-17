@@ -4,34 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import URI from 'vs/base/common/uri';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {computeLinks} from 'vs/editor/common/modes/linkComputer';
 import {DiffComputer} from 'vs/editor/common/diff/diffComputer';
-import {DefaultFilter, and} from 'vs/editor/common/modes/modesFilters';
+import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
 import {TextModel} from 'vs/editor/common/model/textModel';
-import {WorkerInplaceReplaceSupport} from 'vs/editor/common/modes/supports';
 import {ValidationHelper} from 'vs/editor/common/worker/validationHelper';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import {TPromise} from 'vs/base/common/winjs.base';
-
-function isIValidateParticipant(thing:any):boolean {
-	return typeof (<Modes.IValidateParticipant> thing).validate === 'function';
-}
-
-function isISuggestParticipant(thing:any):boolean {
-	return typeof (<Modes.ISuggestParticipant> thing).suggest === 'function' || typeof (<Modes.ISuggestParticipant> thing).filter === 'function';
-}
+import {WorkerInplaceReplaceSupport} from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 
 export class AbstractModeWorker {
 
 	static filter: Modes.ISuggestionFilter = DefaultFilter;
 
-	private _validationParticipants:Modes.IValidateParticipant[] = [];
-	private _suggestParticipants:Modes.ISuggestParticipant[] = [];
 	private _participants:Modes.IWorkerParticipant[] = [];
 
 	public resourceService:IResourceService;
@@ -57,10 +46,6 @@ export class AbstractModeWorker {
 			(resource) => this._shouldIncludeModelInValidation(resource),
 			500
 		);
-
-		// add contributed participants
-		this._validationParticipants = this._getWorkerParticipants<Modes.IValidateParticipant>(p => isIValidateParticipant(p));
-		this._suggestParticipants = this._getWorkerParticipants<Modes.ISuggestParticipant>(p => isISuggestParticipant(p));
 
 		this.inplaceReplaceSupport = this._createInPlaceReplaceSupport();
 	}
@@ -90,9 +75,6 @@ export class AbstractModeWorker {
 
 	private _newValidate(changed:URI[], notChanged:URI[], dueToConfigurationChange:boolean): void {
 		this.doValidateOnChange(changed, notChanged, dueToConfigurationChange);
-		for (var i = 0; i < changed.length; i++) {
-			this.triggerValidateParticipation(changed[i], this._getContextForValidationParticipants(changed[i]));
-		}
 	}
 
 	public _getContextForValidationParticipants(resource:URI):any {
@@ -114,66 +96,35 @@ export class AbstractModeWorker {
 		}
 	}
 
-	public triggerValidateParticipation(resource:URI, context:any=null):void {
-
-		var model = this.resourceService.get(resource);
-		this._validationParticipants.forEach(participant => {
-			try {
-				participant.validate(model, this.markerService, context);
-			} catch(e) {
-				/// We should install a watch dog here. If a participant fails
-				/// too often we should shut the participant down.
-			}
-		});
-	}
-
 	public doValidate(resource:URI): void {
 		return null;
 	}
 
 	// ---- suggestion ---------------------------------------------------------------------------------------
 
-	public suggest(resource:URI, position:EditorCommon.IPosition):TPromise<Modes.ISuggestResult[]> {
+	public suggest(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.ISuggestResult[]> {
 
-		return this._getSuggestContext(resource).then((context) => {
-			var promises = [ this.doSuggest(resource, position) ];
-			promises.push.apply(promises, this._participantSuggests(resource, position, context));
-			return TPromise.join(promises);
+		return this.doSuggest(resource, position).then(value => {
 
-		}).then((values) => {
-			// filter suggestions
-			var accept = this.getSuggestionFilterMain(),
-				result:Modes.ISuggestResult[] = [];
-
-			for (var i = 0, len = values.length; i < len; i++) {
-				var value = values[i];
-				if(!value) {
-					continue;
-				}
-				result.push(<Modes.ISuggestResult> {
-					currentWord: value.currentWord,
-					suggestions: value.suggestions.filter((element) => !!accept(values[i].currentWord, element)),
-					incomplete: value.incomplete
-				});
+			if (!value) {
+				return;
 			}
+			// filter suggestions
+			var accept = this.getSuggestionFilter(),
+				result: Modes.ISuggestResult[] = [];
+
+			result.push(<Modes.ISuggestResult>{
+				currentWord: value.currentWord,
+				suggestions: value.suggestions.filter((element) => !!accept(value.currentWord, element)),
+				incomplete: value.incomplete
+			});
 			return result;
 
 		}, (error) => {
-			return <Modes.ISuggestResult[]> [{
+			return <Modes.ISuggestResult[]>[{
 				currentWord: '',
 				suggestions: []
 			}];
-		});
-	}
-
-	public _participantSuggests(resource:URI, position:EditorCommon.IPosition, context:any):TPromise<Modes.ISuggestResult>[] {
-		return this._suggestParticipants.map((participant) => {
-			try {
-				return participant.suggest(resource, position, context);
-			} catch(e) {
-				/// We should install a watch dog here. If a participant fails
-				/// too often we should shut the participant down.
-			}
 		});
 	}
 
@@ -221,45 +172,8 @@ export class AbstractModeWorker {
 		return [];
 	}
 
-	private getSuggestionFilterMain():Modes.ISuggestionFilter {
-		var filter = this.getSuggestionFilter();
-
-		// Collect Suggestion Participants
-		this._suggestParticipants.forEach((participant:any) => {
-			if (typeof participant.filter === 'function') {
-				filter = and(filter, (<Modes.ISuggestParticipant>participant).filter);
-			}
-		});
-
-		return filter;
-	}
-
 	public getSuggestionFilter():Modes.ISuggestionFilter {
 		return AbstractModeWorker.filter;
-	}
-
-	// ---- occurrences ---------------------------------------------------------------
-
-	public findOccurrences(resource:URI, position:EditorCommon.IPosition, strict?:boolean):TPromise<Modes.IOccurence[]> {
-
-		var model = this.resourceService.get(resource),
-			wordAtPosition = model.getWordAtPosition(position),
-			currentWord = (wordAtPosition ? wordAtPosition.word : ''),
-			result:Modes.IOccurence[] = [];
-
-		var words = model.getAllWordsWithRange(),
-			upperBound = Math.min(1000, words.length); // Limit find occurences to 1000 occurences
-
-		for(var i = 0; i < upperBound; i++) {
-			if(words[i].text === currentWord) {
-				result.push({
-					range: words[i].range,
-					kind: 'text'
-				});
-			}
-		}
-
-		return TPromise.as(result);
 	}
 
 	// ---- diff --------------------------------------------------------------------------

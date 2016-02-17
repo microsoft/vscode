@@ -12,7 +12,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import * as InstantiationService from 'vs/platform/instantiation/common/instantiationService';
 import * as Platform from 'vs/platform/platform';
 import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {StringEditorInput} from 'vs/workbench/browser/parts/editor/stringEditorInput';
+import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {NullTelemetryService} from 'vs/platform/telemetry/common/nullTelemetryService';
 import mime = require('vs/base/common/mime');

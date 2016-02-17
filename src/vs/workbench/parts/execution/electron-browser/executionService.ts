@@ -15,6 +15,7 @@ import exec = require('vs/workbench/parts/execution/common/execution');
 import uri from 'vs/base/common/uri';
 
 import cp = require('child_process');
+import processes = require('vs/base/node/processes');
 
 export class AbstractExecutionService implements exec.IExecutionService {
 	public serviceId = exec.IExecutionService;
@@ -66,12 +67,14 @@ export class WinExecutionService extends AbstractExecutionService {
 
 		return new TPromise<any>((c, e, p) => {
 
-			// we use `start` to get another cmd.exe where `& pause` can be handled
+			const shell = processes.getWindowsShell();
+
+			// we use `start` to get another shell where `& pause` can be handled
 			args = [
 				'/c',
 				'start',
 				'/wait',
-				'cmd.exe',
+				shell,
 				'/c',
 				strings.format('"{0} {1} & pause"', file, args.join(' '))
 			];
@@ -79,7 +82,7 @@ export class WinExecutionService extends AbstractExecutionService {
 			options = options || <any>{};
 			(<any>options).windowsVerbatimArguments = true;
 
-			childProcess = cp.spawn('cmd.exe', args, options);
+			childProcess = cp.spawn(shell, args, options);
 
 			childProcess.on('exit', c);
 			childProcess.on('error', e);

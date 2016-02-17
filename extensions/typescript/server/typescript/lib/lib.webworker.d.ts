@@ -286,7 +286,7 @@ interface Console {
     select(element: any): void;
     time(timerName?: string): void;
     timeEnd(timerName?: string): void;
-    trace(): void;
+    trace(message?: any, ...optionalParams: any[]): void;
     warn(message?: any, ...optionalParams: any[]): void;
 }
 
@@ -526,9 +526,9 @@ interface IDBDatabase extends EventTarget {
     objectStoreNames: DOMStringList;
     onabort: (ev: Event) => any;
     onerror: (ev: Event) => any;
-    version: string;
+    version: number;
     close(): void;
-    createObjectStore(name: string, optionalParameters?: any): IDBObjectStore;
+    createObjectStore(name: string, optionalParameters?: IDBObjectStoreParameters): IDBObjectStore;
     deleteObjectStore(name: string): void;
     transaction(storeNames: any, mode?: string): IDBTransaction;
     addEventListener(type: "abort", listener: (ev: Event) => any, useCapture?: boolean): void;
@@ -553,10 +553,11 @@ declare var IDBFactory: {
 }
 
 interface IDBIndex {
-    keyPath: string;
+    keyPath: string | string[];
     name: string;
     objectStore: IDBObjectStore;
     unique: boolean;
+    multiEntry: boolean;
     count(key?: any): IDBRequest;
     get(key: any): IDBRequest;
     getKey(key: any): IDBRequest;
@@ -593,7 +594,7 @@ interface IDBObjectStore {
     add(value: any, key?: any): IDBRequest;
     clear(): IDBRequest;
     count(key?: any): IDBRequest;
-    createIndex(name: string, keyPath: string, optionalParameters?: any): IDBIndex;
+    createIndex(name: string, keyPath: string | string[], optionalParameters?: IDBIndexParameters): IDBIndex;
     delete(key: any): IDBRequest;
     deleteIndex(indexName: string): void;
     get(key: any): IDBRequest;
@@ -677,18 +678,16 @@ declare var IDBVersionChangeEvent: {
 }
 
 interface ImageData {
-    data: number[];
+    data: Uint8ClampedArray;
     height: number;
     width: number;
 }
 
-interface ImageDataConstructor {
+declare var ImageData: {
     prototype: ImageData;
     new(width: number, height: number): ImageData;
     new(array: Uint8ClampedArray, width: number, height: number): ImageData;
 }
-
-declare var ImageData: ImageDataConstructor;
 
 interface MSApp {
     clearTemporaryWebDataAsync(): MSAppAsyncOperation;
@@ -1109,6 +1108,16 @@ interface WorkerUtils extends Object, WindowBase64 {
     setImmediate(handler: any, ...args: any[]): number;
     setInterval(handler: any, timeout?: any, ...args: any[]): number;
     setTimeout(handler: any, timeout?: any, ...args: any[]): number;
+}
+
+interface IDBObjectStoreParameters {
+    keyPath?: string | string[];
+    autoIncrement?: boolean;
+}
+
+interface IDBIndexParameters {
+    unique?: boolean;
+    multiEntry?: boolean;
 }
 
 interface BlobPropertyBag {

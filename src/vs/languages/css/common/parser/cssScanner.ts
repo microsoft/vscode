@@ -138,16 +138,12 @@ export class MultiLineStream {
 }
 
 var _a = 'a'.charCodeAt(0);
-var _c = 'c'.charCodeAt(0);
 var _e = 'e'.charCodeAt(0);
 var _f = 'f'.charCodeAt(0);
-var _h = 'h'.charCodeAt(0);
 var _i = 'i'.charCodeAt(0);
 var _l = 'l'.charCodeAt(0);
 var _p = 'p'.charCodeAt(0);
 var _r = 'r'.charCodeAt(0);
-var _s = 's'.charCodeAt(0);
-var _t = 't'.charCodeAt(0);
 var _u = 'u'.charCodeAt(0);
 var _x = 'x'.charCodeAt(0);
 var _z = 'z'.charCodeAt(0);
@@ -277,6 +273,8 @@ export class Scanner {
 			}
 		}
 
+		let tokenType: TokenType = void 0;
+
 		// Comment - CSS
 		if (this._comment()) {
 			if (!this.ignoreComment) {
@@ -302,7 +300,7 @@ export class Scanner {
 		}
 
 		// URL
-		var tokenType = this._url();
+		tokenType = this._url();
 		if (tokenType !== null) {
 			return this.finishToken(result, tokenType);
 		}
@@ -349,8 +347,8 @@ export class Scanner {
 				// Percentage 43%
 				return this.finishToken(result, TokenType.Percentage);
 			} else if (this.ident(content)) {
-				var dim = this.stream.substring(pos).toLowerCase();
-				var tokenType = <TokenType>staticUnitTable[dim];
+				let dim = this.stream.substring(pos).toLowerCase();
+				tokenType = <TokenType>staticUnitTable[dim];
 				if (typeof tokenType !== 'undefined') {
 					// Known dimension 43px
 					return this.finishToken(result, tokenType, content.join(''));
@@ -365,13 +363,13 @@ export class Scanner {
 
 		// String, BadString
 		content = [];
-		var tokenType = this._string(content);
+		tokenType = this._string(content);
 		if (tokenType !== null) {
 			return this.finishToken(result, tokenType, content.join(''));
 		}
 
 		// single character tokens
-		var tokenType = <TokenType>staticTokenTable[this.stream.peekChar()];
+		tokenType = <TokenType>staticTokenTable[this.stream.peekChar()];
 		if (typeof tokenType !== 'undefined') {
 			this.stream.advance(1);
 			return this.finishToken(result, tokenType);
@@ -512,7 +510,7 @@ export class Scanner {
 				}
 				return true;
 			}
-			if (ch !== _CAR && ch !== _LFD && ch != _NWL) {
+			if (ch !== _CAR && ch !== _LFD && ch !== _NWL) {
 				this.stream.advance(1);
 				result.push(String.fromCharCode(ch));
 				return true;

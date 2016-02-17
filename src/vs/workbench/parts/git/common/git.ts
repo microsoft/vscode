@@ -8,8 +8,7 @@ import WinJS = require('vs/base/common/winjs.base');
 import WorkbenchEditorCommon = require('vs/workbench/common/editor');
 import EventEmitter = require('vs/base/common/eventEmitter');
 import Lifecycle = require('vs/base/common/lifecycle');
-import output = require('vs/workbench/parts/output/common/output');
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation'
+import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
 // Model raw interfaces
 
@@ -109,7 +108,7 @@ export interface IStatusGroup extends EventEmitter.IEventEmitter {
 	getType(): StatusType;
 	update(statusList: IFileStatus[]): void;
 	all(): IFileStatus[];
-	find(path: string): IFileStatus
+	find(path: string): IFileStatus;
 }
 
 export interface IStatusSummary {
@@ -199,7 +198,8 @@ export var ServiceEvents = {
 	OPERATION_START: 'operationStart',
 	OPERATION_END: 'operationEnd',
 	OPERATION: 'operation',
-	ERROR: 'error'
+	ERROR: 'error',
+	DISPOSE: 'dispose'
 };
 
 // Service operations

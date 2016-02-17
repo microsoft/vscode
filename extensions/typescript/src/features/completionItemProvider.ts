@@ -51,6 +51,8 @@ class MyCompletionItem extends CompletionItem {
 				return CompletionItemKind.Class;
 			case PConst.Kind.interface:
 				return CompletionItemKind.Interface;
+			case PConst.Kind.warning:
+				return CompletionItemKind.File;
 		}
 
 		return CompletionItemKind.Property;

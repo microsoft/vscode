@@ -10,11 +10,7 @@ import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import lifecycle = require('vs/base/common/lifecycle');
-import objects = require('vs/base/common/objects');
-import types = require('vs/base/common/types');
 import async = require('vs/base/common/async');
-import supports = require('vs/editor/common/modes/supports');
-import services = require('vs/platform/services');
 import tokenization = require('vs/languages/typescript/common/features/tokenization');
 import quickFixMainActions = require('vs/languages/typescript/common/features/quickFixMainActions');
 import typescriptWorker = require('vs/languages/typescript/common/typescriptWorker2');
@@ -27,8 +23,12 @@ import {AsyncDescriptor, AsyncDescriptor2, createAsyncDescriptor2} from 'vs/plat
 import {IMarker} from 'vs/platform/markers/common/markers';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
-import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
+import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
+import {ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
+import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
 class SemanticValidator {
 
@@ -38,17 +38,17 @@ class SemanticValidator {
 	private _lastChangedResource: URI;
 	private _listener: { [r: string]: Function } = Object.create(null);
 
-	constructor(ctx: services.IServicesContext, mode: TypeScriptMode<any>) {
-		this._modelService = ctx['modelService'];
+	constructor(mode: TypeScriptMode<any>, @IModelService modelService: IModelService) {
+		this._modelService = modelService;
 		this._mode = mode;
 		this._validation = new async.RunOnceScheduler(this._doValidate.bind(this), 750);
 		if (this._modelService) {
-			this._modelService.onModelAdded.add(this._onModelAdded, this);
-			this._modelService.onModelRemoved.add(this._onModelRemoved, this);
-			this._modelService.onModelModeChanged.add((model, oldModeId) => {
+			this._modelService.onModelAdded(this._onModelAdded, this);
+			this._modelService.onModelRemoved(this._onModelRemoved, this);
+			this._modelService.onModelModeChanged(event => {
 				// Handle a model mode changed as a remove + add
-				this._onModelRemoved(model);
-				this._onModelAdded(model);
+				this._onModelRemoved(event.model);
+				this._onModelAdded(event.model);
 			}, this);
 			this._modelService.getModels().forEach(this._onModelAdded, this);
 		// } else {
@@ -89,13 +89,13 @@ class SemanticValidator {
 			return () => {
 
 				if (!this._modelService.getModel(r)) {
-					return WinJS.Promise.as(undefined);
+					return WinJS.TPromise.as(undefined);
 				}
 
 				if (thisValidationReq === this._lastValidationReq) {
 					return this._mode.performSemanticValidation(r);
 				}
-			}
+			};
 		}));
 
 		validate.done(undefined, err => console.warn(err));
@@ -131,10 +131,10 @@ class SemanticValidator {
 export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extends AbstractMode<W> implements lifecycle.IDisposable {
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
-	public electricCharacterSupport: Modes.IElectricCharacterSupport;
-	public characterPairSupport: Modes.ICharacterPairSupport;
+	public richEditSupport: Modes.IRichEditSupport;
 	public referenceSupport: Modes.IReferenceSupport;
 	public extraInfoSupport:Modes.IExtraInfoSupport;
+	public occurrencesSupport:Modes.IOccurrencesSupport;
 	public quickFixSupport:Modes.IQuickFixSupport;
 	public logicalSelectionSupport:Modes.ILogicalSelectionSupport;
 	public parameterHintsSupport:Modes.IParameterHintsSupport;
@@ -144,8 +144,6 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	public emitOutputSupport:Modes.IEmitOutputSupport;
 	public renameSupport: Modes.IRenameSupport;
 	public suggestSupport: Modes.ISuggestSupport;
-
-	public onEnterSupport: Modes.IOnEnterSupport;
 
 	private _telemetryService: ITelemetryService;
 	private _disposables: lifecycle.IDisposable[] = [];
@@ -188,6 +186,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 		}
 
 		this.extraInfoSupport = this;
+		this.occurrencesSupport = this;
 		this.formattingSupport = this;
 		this.quickFixSupport = this;
 		this.logicalSelectionSupport = this;
@@ -196,51 +195,21 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 		this.renameSupport = this;
 		this.tokenizationSupport = tokenization.createTokenizationSupport(this, tokenization.Language.TypeScript);
 
-		this.electricCharacterSupport = new supports.BracketElectricCharacterSupport(this, {
+		this.richEditSupport = new RichEditSupport(this.getId(), {
+			wordPattern: createWordRegExp('$'),
+
+			comments: {
+				lineComment: '//',
+				blockComment: ['/*', '*/']
+			},
+
 			brackets: [
-				{ tokenType:'delimiter.bracket.ts', open: '{', close: '}', isElectric: true },
-				{ tokenType:'delimiter.array.ts', open: '[', close: ']', isElectric: true },
-				{ tokenType:'delimiter.parenthesis.ts', open: '(', close: ')', isElectric: true }
+				['{', '}'],
+				['[', ']'],
+				['(', ')']
 			],
-			docComment: {scope:'comment.doc', open:'/**', lineStart:' * ', close:' */'} });
 
-		this.referenceSupport = new supports.ReferenceSupport(this, {
-			tokens: ['identifier.ts'],
-			findReferences: (resource, position, includeDeclaration) => this.findReferences(resource, position, includeDeclaration)});
-
-		this.declarationSupport = new supports.DeclarationSupport(this, {
-			tokens: ['identifier.ts', 'string.ts', 'attribute.value.vs'],
-			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
-
-		this.parameterHintsSupport = new supports.ParameterHintsSupport(this, {
-			triggerCharacters: ['(', ','],
-			excludeTokens: ['string.ts'],
-			getParameterHints: (resource, position) => this.getParameterHints(resource, position)});
-
-		this.characterPairSupport = new supports.CharacterPairSupport(this, {
-			autoClosingPairs:
-				[	{ open: '{', close: '}' },
-					{ open: '[', close: ']' },
-					{ open: '(', close: ')' },
-					{ open: '"', close: '"', notIn: ['string'] },
-					{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
-					{ open: '`', close: '`' }
-				]});
-
-		this.suggestSupport = new supports.SuggestSupport(this, {
-			triggerCharacters: ['.'],
-			excludeTokens: ['string', 'comment', 'number'],
-			sortBy: [{type:'reference', partSeparator: '/'}],
-			suggest: (resource, position) => this.suggest(resource, position),
-			getSuggestionDetails: (resource, position, suggestion) => this.getSuggestionDetails(resource, position, suggestion)});
-
-		this.onEnterSupport = new OnEnterSupport(this.getId(), {
-			brackets: [
-				{ open: '{', close: '}' },
-				{ open: '[', close: ']' },
-				{ open: '(', close: ')' },
-			],
-			regExpRules: [
+			onEnterRules: [
 				{
 					// e.g. /** | */
 					beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
@@ -254,7 +223,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 				},
 				{
 					// e.g.  * ...|
-					beforeText: /^(\t|(\ \ ))*\ \*\ ([^\*]|\*(?!\/))*$/,
+					beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
 					action: { indentAction: Modes.IndentAction.None, appendText: '* ' }
 				},
 				{
@@ -262,8 +231,47 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 					beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
 					action: { indentAction: Modes.IndentAction.None, removeText: 1 }
 				}
-			]
+			],
+
+			__electricCharacterSupport: {
+				brackets: [
+					{ tokenType:'delimiter.bracket.ts', open: '{', close: '}', isElectric: true },
+					{ tokenType:'delimiter.array.ts', open: '[', close: ']', isElectric: true },
+					{ tokenType:'delimiter.parenthesis.ts', open: '(', close: ')', isElectric: true }
+				],
+				docComment: {scope:'comment.doc', open:'/**', lineStart:' * ', close:' */'}
+			},
+
+			__characterPairSupport: {
+				autoClosingPairs: [
+					{ open: '{', close: '}' },
+					{ open: '[', close: ']' },
+					{ open: '(', close: ')' },
+					{ open: '"', close: '"', notIn: ['string'] },
+					{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+					{ open: '`', close: '`' }
+				]
+			}
 		});
+
+		this.referenceSupport = new ReferenceSupport(this.getId(), {
+			tokens: ['identifier.ts'],
+			findReferences: (resource, position, includeDeclaration) => this.findReferences(resource, position, includeDeclaration)});
+
+		this.declarationSupport = new DeclarationSupport(this.getId(), {
+			tokens: ['identifier.ts', 'string.ts', 'attribute.value.vs'],
+			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
+
+		this.parameterHintsSupport = new ParameterHintsSupport(this.getId(), {
+			triggerCharacters: ['(', ','],
+			excludeTokens: ['string.ts'],
+			getParameterHints: (resource, position) => this.getParameterHints(resource, position)});
+
+		this.suggestSupport = new SuggestSupport(this.getId(), {
+			triggerCharacters: ['.'],
+			excludeTokens: ['string', 'comment', 'number'],
+			suggest: (resource, position) => this.suggest(resource, position),
+			getSuggestionDetails: (resource, position, suggestion) => this.getSuggestionDetails(resource, position, suggestion)});
 	}
 
 	public dispose(): void {
@@ -302,7 +310,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 		return this._canAcceptFileChanges(newLengthTotal).then(canAccept => {
 			if (canAccept === false) { // explict compare with false because the tests return null here
 				return WinJS.TPromise.wrapError(nls.localize('err.tooMuchData',
-					"Sorry, but there are too many JavaScript source files for VS Code. Consider using the exclude-property in jsconfig.json."))
+					"Sorry, but there are too many JavaScript source files for VS Code. Consider using the exclude-property in jsconfig.json."));
 			}
 			return this._doAcceptFileChanges(changes).then(accepted => {
 				this._semanticValidator.validateOpen();
@@ -369,10 +377,6 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 		return createAsyncDescriptor2('vs/languages/typescript/common/typescriptWorker2', 'TypeScriptWorker2');
 	}
 
-	public getCommentsConfiguration():Modes.ICommentsConfiguration {
-		return { lineCommentTokens: ['//'], blockCommentStartToken: '/*', blockCommentEndToken: '*/' };
-	}
-
 	static $_pickAWorkerToValidate = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype._pickAWorkerToValidate, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group3);
 	public _pickAWorkerToValidate(): WinJS.Promise {
 		return this._worker((w) => w.enableValidator());
@@ -432,11 +436,6 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	static $getEmitOutput = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.getEmitOutput, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group3);
 	public getEmitOutput(resource:URI, type:string = undefined):WinJS.Promise {
 		return this._worker((w) => w.getEmitOutput(resource, type));
-	}
-
-	private static WORD_DEFINITION = createWordRegExp('$');
-	public getWordDefinition():RegExp {
-		return TypeScriptMode.WORD_DEFINITION;
 	}
 
 	static $findReferences = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.findReferences, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group3);

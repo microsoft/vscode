@@ -5,16 +5,15 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {TPromise, Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import platform = require('vs/base/common/platform');
 import {$} from 'vs/base/browser/builder';
-import tree = require('vs/base/parts/tree/common/tree');
+import {IDataSource, ITree, ISorter, IElementCallback, IAccessibilityProvider, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT, DRAG_OVER_REJECT, ContextMenuEvent} from 'vs/base/parts/tree/browser/tree';
 import {FileLabel} from 'vs/base/browser/ui/filelabel/fileLabel';
 import {ExternalElementsDragAndDropData, ElementsDragAndDropData, DesktopDragAndDropData} from 'vs/base/parts/tree/browser/treeDnd';
 import {ClickBehavior, DefaultController, DefaultDragAndDrop} from 'vs/base/parts/tree/browser/treeDefaults';
 import errors = require('vs/base/common/errors');
 import mime = require('vs/base/common/mime');
-import severity from 'vs/base/common/severity';
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {StandardMouseEvent, DragMouseEvent} from 'vs/base/browser/mouseEvent';
@@ -23,11 +22,10 @@ import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import actions = require('vs/base/common/actions');
 import {ActionsRenderer} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
-import {keybindingForAction, CloseWorkingFileAction, SelectResourceForCompareAction, CompareResourcesAction, SaveFileAsAction, SaveFileAction, RevertFileAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';
-import files = require('vs/workbench/parts/files/browser/files');
-import {asFileResource} from 'vs/workbench/parts/files/common/files';
-import {WorkingFileEntry, WorkingFilesModel} from 'vs/workbench/parts/files/browser/workingFilesModel';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
+import {keybindingForAction, CloseOneWorkingFileAction, CloseOtherWorkingFilesAction, CloseAllWorkingFilesAction, SelectResourceForCompareAction, CompareResourcesAction, SaveFileAsAction, SaveFileAction, RevertFileAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';
+import {asFileResource, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
+import {WorkingFileEntry, WorkingFilesModel} from 'vs/workbench/parts/files/common/workingFilesModel';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
@@ -37,11 +35,11 @@ import {CommonKeybindings, Keybinding} from 'vs/base/common/keyCodes';
 
 const ROOT_ID = '__WORKING_FILES_ROOT';
 
-export class WorkingFilesDataSource implements tree.IDataSource {
+export class WorkingFilesDataSource implements IDataSource {
 
 	constructor( @INullService ns) { }
 
-	public getId(tree: tree.ITree, element: any): string {
+	public getId(tree: ITree, element: any): string {
 		if (element instanceof WorkingFileEntry) {
 			return (<WorkingFileEntry>element).resource.toString();
 		}
@@ -49,7 +47,7 @@ export class WorkingFilesDataSource implements tree.IDataSource {
 		return ROOT_ID;
 	}
 
-	public hasChildren(tree: tree.ITree, element: any): boolean {
+	public hasChildren(tree: ITree, element: any): boolean {
 		if (element instanceof WorkingFilesModel) {
 			return (<WorkingFilesModel>element).count() > 0;
 		}
@@ -57,31 +55,31 @@ export class WorkingFilesDataSource implements tree.IDataSource {
 		return false;
 	}
 
-	public getChildren(tree: tree.ITree, element: any): Promise {
+	public getChildren(tree: ITree, element: any): TPromise<any[]> {
 		if (element instanceof WorkingFilesModel) {
-			return Promise.as((<WorkingFilesModel>element).getEntries());
+			return TPromise.as((<WorkingFilesModel>element).getEntries());
 		}
 
-		return Promise.as([]);
+		return TPromise.as([]);
 	}
 
-	public getParent(tree: tree.ITree, element: any): Promise {
-		return Promise.as(null);
+	public getParent(tree: ITree, element: any): TPromise<any> {
+		return TPromise.as(null);
 	}
 }
 
-export class WorkingFilesSorter implements tree.ISorter {
+export class WorkingFilesSorter implements ISorter {
 
-	constructor( @INullService ns) { }
+	constructor(@INullService ns) { }
 
-	public compare(tree: tree.ITree, element: any, otherElement: any): number {
+	public compare(tree: ITree, element: any, otherElement: any): number {
 		return WorkingFilesModel.compare(element, otherElement);
 	}
 }
 
 export class WorkingFilesRenderer extends ActionsRenderer {
 
-	public static FILE_ITEM_HEIGHT = 24;
+	public static FILE_ITEM_HEIGHT = 22;
 
 	constructor(
 		model: WorkingFilesModel,
@@ -95,11 +93,11 @@ export class WorkingFilesRenderer extends ActionsRenderer {
 		});
 	}
 
-	public getHeight(tree: tree.ITree, element: any): number {
+	public getHeight(tree: ITree, element: any): number {
 		return WorkingFilesRenderer.FILE_ITEM_HEIGHT;
 	}
 
-	public renderContents(tree: tree.ITree, element: any, container: HTMLElement): tree.IElementCallback {
+	public renderContents(tree: ITree, element: any, container: HTMLElement): IElementCallback {
 		let entry = <WorkingFileEntry>element;
 		let $el = $(container).clearChildren();
 		let item = $('.working-files-item').appendTo($el);
@@ -117,39 +115,48 @@ export class WorkingFilesRenderer extends ActionsRenderer {
 	}
 }
 
+export class WorkingFilesAccessibilityProvider implements IAccessibilityProvider {
+
+	getAriaLabel(tree: ITree, element: any): string {
+		let entry = <WorkingFileEntry>element;
+
+		return nls.localize('workingFilesViewerAriaLabel', "{0}, Working Files", paths.basename(entry.resource.fsPath));
+	}
+}
+
 export class WorkingFilesActionProvider extends ContributableActionProvider {
 	private model: WorkingFilesModel;
 
 	constructor(model: WorkingFilesModel,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
 
 		this.model = model;
 	}
 
-	public hasActions(tree: tree.ITree, element: WorkingFileEntry): boolean {
+	public hasActions(tree: ITree, element: WorkingFileEntry): boolean {
 		return element instanceof WorkingFileEntry || super.hasActions(tree, element);
 	}
 
 	// we don't call into super here because we put only one primary action to the left (Remove/Dirty Indicator)
-	public getActions(tree: tree.ITree, element: WorkingFileEntry): TPromise<actions.IAction[]> {
+	public getActions(tree: ITree, element: WorkingFileEntry): TPromise<actions.IAction[]> {
 		let actions: actions.IAction[] = [];
 
 		if (element instanceof WorkingFileEntry) {
-			actions.push(this.instantiationService.createInstance(CloseWorkingFileAction, this.model, element));
+			actions.push(this.instantiationService.createInstance(CloseOneWorkingFileAction, this.model, element));
 		}
 
-		return Promise.as(actions);
+		return TPromise.as(actions);
 	}
 
-	public hasSecondaryActions(tree: tree.ITree, element: WorkingFileEntry): boolean {
+	public hasSecondaryActions(tree: ITree, element: WorkingFileEntry): boolean {
 		return element instanceof WorkingFileEntry || super.hasActions(tree, element);
 	}
 
-	public getSecondaryActions(tree: tree.ITree, element: WorkingFileEntry): TPromise<actions.IAction[]> {
+	public getSecondaryActions(tree: ITree, element: WorkingFileEntry): TPromise<actions.IAction[]> {
 		return super.getSecondaryActions(tree, element).then((actions) => {
 			if (element instanceof WorkingFileEntry) {
 
@@ -158,7 +165,7 @@ export class WorkingFilesActionProvider extends ContributableActionProvider {
 				actions.unshift(openToSideAction); // be on top
 
 				// Files: Save / Revert
-				let autoSaveEnabled = this.contextService.isAutoSaveEnabled();
+				let autoSaveEnabled = (this.textFileService.getAutoSaveMode() !== AutoSaveMode.OFF);
 				if ((!autoSaveEnabled || element.dirty) && element.isFile) {
 					actions.push(new Separator());
 
@@ -202,7 +209,12 @@ export class WorkingFilesActionProvider extends ContributableActionProvider {
 
 				// Close
 				actions.push(new Separator());
-				actions.push(this.instantiationService.createInstance(CloseWorkingFileAction, this.model, element));
+				actions.push(this.instantiationService.createInstance(CloseOneWorkingFileAction, this.model, element));
+				actions.push(this.instantiationService.createInstance(CloseAllWorkingFilesAction, this.model));
+
+				if (this.model.count() > 1) {
+					actions.push(this.instantiationService.createInstance(CloseOtherWorkingFilesAction, this.model, element));
+				}
 			}
 
 			return actions;
@@ -219,11 +231,11 @@ export class WorkingFilesDragAndDrop extends DefaultDragAndDrop {
 		this.model = model;
 	}
 
-	public getDragURI(tree: tree.ITree, element: WorkingFileEntry): string {
+	public getDragURI(tree: ITree, element: WorkingFileEntry): string {
 		return element.resource.toString();
 	}
 
-	public onDragStart(tree: tree.ITree, data: tree.IDragAndDropData, originalEvent: DragMouseEvent): void {
+	public onDragStart(tree: ITree, data: IDragAndDropData, originalEvent: DragMouseEvent): void {
 		let sources = data.getData();
 		let source: WorkingFileEntry = null;
 		if (Array.isArray(sources)) {
@@ -238,27 +250,27 @@ export class WorkingFilesDragAndDrop extends DefaultDragAndDrop {
 		}
 	}
 
-	public onDragOver(baum: tree.ITree, data: tree.IDragAndDropData, target: WorkingFileEntry, originalEvent: DragMouseEvent): tree.IDragOverReaction {
+	public onDragOver(baum: ITree, data: IDragAndDropData, target: WorkingFileEntry, originalEvent: DragMouseEvent): IDragOverReaction {
 		if (!(target instanceof WorkingFileEntry)) {
-			return tree.DRAG_OVER_REJECT;
+			return DRAG_OVER_REJECT;
 		}
 
 		if (data instanceof ExternalElementsDragAndDropData) {
 			let resource = asFileResource(data.getData()[0]);
 
 			if (!resource) {
-				return tree.DRAG_OVER_REJECT;
+				return DRAG_OVER_REJECT;
 			}
 
-			return resource.isDirectory ? tree.DRAG_OVER_REJECT : tree.DRAG_OVER_ACCEPT;
+			return resource.isDirectory ? DRAG_OVER_REJECT : DRAG_OVER_ACCEPT;
 		}
 
 		if (data instanceof DesktopDragAndDropData) {
-			return tree.DRAG_OVER_REJECT;
+			return DRAG_OVER_REJECT;
 		}
 
 		if (!(data instanceof ElementsDragAndDropData)) {
-			return tree.DRAG_OVER_REJECT;
+			return DRAG_OVER_REJECT;
 		}
 
 		let sourceResource: uri;
@@ -270,20 +282,20 @@ export class WorkingFilesDragAndDrop extends DefaultDragAndDrop {
 		} else {
 			let source = asFileResource(draggedData);
 			if (!source) {
-				return tree.DRAG_OVER_REJECT;
+				return DRAG_OVER_REJECT;
 			}
 
 			sourceResource = source.resource;
 		}
 
 		if (!targetResource || !sourceResource) {
-			return tree.DRAG_OVER_REJECT;
+			return DRAG_OVER_REJECT;
 		}
 
-		return targetResource.toString() === sourceResource.toString() ? tree.DRAG_OVER_REJECT : tree.DRAG_OVER_ACCEPT;
+		return targetResource.toString() === sourceResource.toString() ? DRAG_OVER_REJECT : DRAG_OVER_ACCEPT;
 	}
 
-	public drop(tree: tree.ITree, data: tree.IDragAndDropData, target: WorkingFileEntry, originalEvent: DragMouseEvent): void {
+	public drop(tree: ITree, data: IDragAndDropData, target: WorkingFileEntry, originalEvent: DragMouseEvent): void {
 		let draggedElement: WorkingFileEntry;
 
 		// Support drop from explorer viewer
@@ -307,7 +319,6 @@ export class WorkingFilesDragAndDrop extends DefaultDragAndDrop {
 }
 
 export class WorkingFilesController extends DefaultController {
-	private didCatchEnterDown: boolean;
 	private actionProvider: WorkingFilesActionProvider;
 	private model: WorkingFilesModel;
 
@@ -319,12 +330,10 @@ export class WorkingFilesController extends DefaultController {
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
 
-		this.didCatchEnterDown = false;
 		this.model = model;
 		this.actionProvider = provider;
 
 		this.downKeyBindingDispatcher.set(CommonKeybindings.ENTER, this.onEnterDown.bind(this));
-		this.upKeyBindingDispatcher.set(CommonKeybindings.ENTER, this.onEnterUp.bind(this));
 		if (platform.isMacintosh) {
 			this.upKeyBindingDispatcher.set(CommonKeybindings.WINCTRL_ENTER, this.onModifierEnterUp.bind(this)); // Mac: somehow Cmd+Enter does not work
 		} else {
@@ -332,11 +341,11 @@ export class WorkingFilesController extends DefaultController {
 		}
 	}
 
-	/* protected */ public onClick(tree: tree.ITree, element: any, event: StandardMouseEvent): boolean {
+	/* protected */ public onClick(tree: ITree, element: any, event: StandardMouseEvent): boolean {
 
 		// Close working file on middle mouse click
 		if (element instanceof WorkingFileEntry && event.browserEvent && event.browserEvent.button === 1 /* Middle Button */) {
-			const closeAction = this.instantiationService.createInstance(CloseWorkingFileAction, this.model, element);
+			const closeAction = this.instantiationService.createInstance(CloseOneWorkingFileAction, this.model, element);
 			closeAction.run().done(() => {
 				closeAction.dispose();
 			}, errors.onUnexpectedError);
@@ -347,7 +356,7 @@ export class WorkingFilesController extends DefaultController {
 		return super.onClick(tree, element, event);
 	}
 
-	/* protected */ public onLeftClick(tree: tree.ITree, element: any, event: StandardMouseEvent, origin: string = 'mouse'): boolean {
+	/* protected */ public onLeftClick(tree: ITree, element: any, event: StandardMouseEvent, origin: string = 'mouse'): boolean {
 		let payload = { origin: origin };
 		let isDoubleClick = (origin === 'mouse' && event.detail === 2);
 
@@ -371,12 +380,9 @@ export class WorkingFilesController extends DefaultController {
 
 		// Allow to unselect
 		if (event.shiftKey) {
-			let focus = tree.getFocus();
 			let selection = tree.getSelection();
-
-			if ((selection && selection.length > 0 && selection[0] === element) || focus === element) {
+			if (selection && selection.length > 0 && selection[0] === element) {
 				tree.clearSelection(payload);
-				tree.clearFocus(payload);
 			}
 		}
 
@@ -396,7 +402,7 @@ export class WorkingFilesController extends DefaultController {
 		return true;
 	}
 
-	private onEnterDown(tree: tree.ITree, event: StandardKeyboardEvent): boolean {
+	private onEnterDown(tree: ITree, event: StandardKeyboardEvent): boolean {
 		let payload = { origin: 'keyboard' };
 
 		let element = tree.getFocus();
@@ -405,38 +411,19 @@ export class WorkingFilesController extends DefaultController {
 			this.openEditor(<WorkingFileEntry>element, false, false);
 		}
 
-		this.didCatchEnterDown = true;
-
 		return true;
 	}
 
-	private onEnterUp(tree: tree.ITree, event: StandardKeyboardEvent): boolean {
-		if (!this.didCatchEnterDown) {
-			return false;
-		}
-
-		let element = tree.getFocus();
-		if (element) {
-			this.openEditor(<WorkingFileEntry>element, false, false);
-		}
-
-		this.didCatchEnterDown = false;
-
-		return true;
-	}
-
-	private onModifierEnterUp(tree: tree.ITree, event: StandardKeyboardEvent): boolean {
+	private onModifierEnterUp(tree: ITree, event: StandardKeyboardEvent): boolean {
 		let element = tree.getFocus();
 		if (element) {
 			this.openEditor(<WorkingFileEntry>element, false, true);
 		}
 
-		this.didCatchEnterDown = false;
-
 		return true;
 	}
 
-	public onContextMenu(tree: tree.ITree, element: WorkingFileEntry, event: tree.ContextMenuEvent): boolean {
+	public onContextMenu(tree: ITree, element: WorkingFileEntry, event: ContextMenuEvent): boolean {
 		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 			return false;
 		}

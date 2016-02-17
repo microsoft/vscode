@@ -11,41 +11,44 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
-import Supports = require('vs/editor/common/modes/supports');
 import MonarchCommonTypes = require('vs/editor/common/modes/monarch/monarchCommon');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IModelService} from 'vs/editor/common/services/modelService';
 import Modes = require('vs/editor/common/modes');
-import {IOnEnterSupportOptions} from 'vs/editor/common/modes/supports/onEnter';
+import {CharacterPair, IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
+import {IComposableSuggestContribution} from 'vs/editor/common/modes/supports/suggestSupport';
 
-export function createCommentsSupport(lexer: MonarchCommonTypes.ILexer): Supports.ICommentsSupportContribution {
+export function createRichEditSupport(lexer: MonarchCommonTypes.ILexer): IRichEditConfiguration {
+
+	function toBracket(input:Modes.IBracketPair): CharacterPair {
+		return [input.open, input.close];
+	}
+
+	function toBrackets(input:Modes.IBracketPair[]): CharacterPair[] {
+		return input.map(toBracket);
+	}
+
 	return {
-		commentsConfiguration: {
-			lineCommentTokens: [lexer.lineComment],
-			blockCommentStartToken: lexer.blockCommentStart,
-			blockCommentEndToken: lexer.blockCommentEnd
+
+		wordPattern: lexer.wordDefinition,
+
+		comments: {
+			lineComment: lexer.lineComment,
+			blockComment: [lexer.blockCommentStart, lexer.blockCommentEnd]
+		},
+
+		brackets: toBrackets(lexer.standardBrackets),
+
+		__electricCharacterSupport: {
+			brackets: lexer.standardBrackets,
+			// regexBrackets: lexer.enhancedBrackets,
+			caseInsensitive: lexer.ignoreCase,
+			embeddedElectricCharacters: lexer.outdentTriggers.split('')
+		},
+
+		__characterPairSupport: {
+			autoClosingPairs: lexer.autoClosingPairs
 		}
-	};
-}
-
-export function createBracketElectricCharacterContribution(lexer: MonarchCommonTypes.ILexer): Supports.IBracketElectricCharacterContribution {
-	return {
-		brackets: lexer.standardBrackets,
-		regexBrackets: lexer.enhancedBrackets,
-		caseInsensitive: lexer.ignoreCase,
-		embeddedElectricCharacters: lexer.outdentTriggers.split('')
-	};
-}
-
-export function createTokenTypeClassificationSupportContribution(lexer: MonarchCommonTypes.ILexer): Supports.ITokenTypeClassificationSupportContribution {
-	return {
-		wordDefinition: lexer.wordDefinition
-	};
-}
-
-export function createCharacterPairContribution(lexer: MonarchCommonTypes.ILexer): Modes.ICharacterPairContribution {
-	return {
-		autoClosingPairs: lexer.autoClosingPairs
 	};
 }
 
@@ -67,13 +70,7 @@ function _addSuggestionsAtPosition(model: EditorCommon.IModel, position:EditorCo
 	return superSuggestions;
 }
 
-export function createOnEnterSupportOptions(lexer:MonarchCommonTypes.ILexer): IOnEnterSupportOptions {
-	return {
-		brackets: lexer.standardBrackets
-	};
-}
-
-export function createSuggestSupport(modelService: IModelService, mode:Modes.IMode, lexer:MonarchCommonTypes.ILexer): Supports.IComposableSuggestContribution {
+export function createSuggestSupport(modelService: IModelService, mode:Modes.IMode, lexer:MonarchCommonTypes.ILexer): IComposableSuggestContribution {
 	if (lexer.suggestSupport.textualCompletions && mode instanceof AbstractMode) {
 		return {
 			triggerCharacters:lexer.suggestSupport.triggerCharacters,

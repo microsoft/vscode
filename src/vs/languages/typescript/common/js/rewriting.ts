@@ -85,8 +85,10 @@ export function translate(_rewriter: ISyntaxRewriter[], snapshot:string|ts.IScri
 	var result = textEdits.apply(context.edits, value);
 	$perf['_apply'] = Date.now() - $t1;
 	$perf['_total'] = Date.now() - $perf['_total'];
-	$measurePerf && console.info($perf);
-	$measurePerf && console.info(result.value);
+	if ($measurePerf) {
+		console.info($perf);
+		console.info(result.value);
+	}
 	return result;
 }
 
@@ -173,8 +175,10 @@ export function decodeVariableNames(name: string|htmlContent.IHTMLContentElement
 		var stack = name.slice(0);
 		while (stack.length) {
 			var element = stack.shift();
-			element.text = element.text && _doDecodeVariableName(element.text, sourceFile);
-			element.children && stack.push.apply(stack, element.children);
+			element.markdown = element.markdown && _doDecodeVariableName(element.markdown, sourceFile);
+			if(element.children){
+				stack.push.apply(stack, element.children);
+			}
 		}
 	}
 }

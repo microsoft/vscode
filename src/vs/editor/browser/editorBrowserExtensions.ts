@@ -4,13 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Platform = require('vs/platform/platform');
-import Errors = require('vs/base/common/errors');
-import Strings = require('vs/base/common/strings');
-import config = require('vs/editor/common/config/config');
 import {IInstantiationService, INewConstructorSignature1} from 'vs/platform/instantiation/common/instantiation';
 
 export namespace EditorBrowserRegistry {

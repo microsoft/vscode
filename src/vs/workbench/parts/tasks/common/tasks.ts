@@ -6,31 +6,16 @@
 
 import NLS = require('vs/nls');
 
-import * as Objects from 'vs/base/common/objects';
-import { IStringDictionary, values } from 'vs/base/common/collections';
-import * as Platform from 'vs/base/common/platform';
+import { IStringDictionary } from 'vs/base/common/collections';
 import * as Types from 'vs/base/common/types';
-import * as Strings from 'vs/base/common/strings';
 import * as UUID from 'vs/base/common/uuid';
-import Severity from 'vs/base/common/severity';
 
 import { ValidationStatus, ValidationState, ILogger, Parser } from 'vs/base/common/parsers';
 import { Executable, ExecutableParser, Config  as ProcessConfig} from 'vs/base/common/processes';
 
-import { NamedProblemMatcher, ProblemMatcher, Config as ProblemMatcherConfig, ProblemMatcherParser, registry as ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
-
-import { IPluginDescription } from 'vs/platform/plugins/common/plugins';
-import { PluginsRegistry } from 'vs/platform/plugins/common/pluginsRegistry';
-
-import * as TaskSystem from './taskSystem';
+import { ProblemMatcher, Config as ProblemMatcherConfig, ProblemMatcherParser } from 'vs/platform/markers/common/problemMatcher';
 
 export namespace Config {
-
-	export namespace ShowOutput {
-		let always: string = 'always';
-		let silent: string = 'silent';
-		let never: string = 'never';
-	}
 
 	/**
 	 * The description of a task.
@@ -55,7 +40,12 @@ export namespace Config {
 		/**
 		 * Whether the executed command is kept alive and is watching the file system.
 		 */
-		isWatching?:boolean;
+		isWatching?: boolean;
+
+		/**
+		 * Whether the task should prompt on close for confirmation if running.
+		 */
+		promptOnClose?: boolean;
 
 		/**
 		 * Controls whether the output view of the running tasks is brought to front or not.
@@ -134,6 +124,11 @@ export interface Task {
 	isWatching: boolean;
 
 	/**
+	 * Whether the task should prompt on close for confirmation if running.
+	 */
+	promptOnClose?: boolean;
+
+	/**
 	 * Controls whether the output view of the running tasks is brought to front or not.
 	 * See BaseTaskRunnerConfiguration#showOutput for details.
 	 */
@@ -205,6 +200,12 @@ export class TaskParser  extends Parser {
 		if (this.is(json.isWatching, Types.isBoolean)) {
 			isWatching = json.isWatching;
 		}
+		let promptOnClose: boolean = true;
+		if (this.is(json.promptOnClose, Types.isBoolean)) {
+			promptOnClose = json.promptOnClose;
+		} else {
+			promptOnClose = !isWatching;
+		}
 		if (this.is(json.showOutput, Types.isString)) {
 			showOutput = ShowOutput.fromString(json.showOutput) || ShowOutput.Always;
 		}
@@ -229,7 +230,7 @@ export class TaskParser  extends Parser {
 				problemMatcher.push(matcher);
 			}
 		}
-		return { id, name, trigger, executable, isWatching, showOutput, echoCommand, settings, problemMatcher };
+		return { id, name, trigger, executable, isWatching, promptOnClose, showOutput, echoCommand, settings, problemMatcher };
 	}
 
 	private parseProblemMatcher(json: string | ProblemMatcherConfig.ProblemMatcher): ProblemMatcher {
@@ -247,7 +248,7 @@ export class TaskParser  extends Parser {
 	// TODO@Dirk: provide JSON schema here
 // });
 
-const extensionPoint: string = 'tasks';
+// const extensionPoint: string = 'tasks';
 
 export class TaskRegistry {
 	private tasks: IStringDictionary<Task>;
@@ -269,25 +270,25 @@ export class TaskRegistry {
 		*/
 	}
 
-	private onDescriptions(descriptions: IPluginDescription[]) {
-		descriptions.forEach(description => {
-			let extensions = description.contributes[extensionPoint];
-			if (Types.isArray(extensions)) {
-				(<Config.Task[]>extensions).forEach(this.onTask, this);
-			} else {
-				this.onTask(extensions)
-			}
-		});
-	}
+	// private onDescriptions(descriptions: IPluginDescription[]) {
+	// 	descriptions.forEach(description => {
+	// 		let extensions = description.contributes[extensionPoint];
+	// 		if (Types.isArray(extensions)) {
+	// 			(<Config.Task[]>extensions).forEach(this.onTask, this);
+	// 		} else {
+	// 			this.onTask(extensions);
+	// 		}
+	// 	});
+	// }
 
-	private onTask(json: Config.Task): void {
-		let logger: ILogger = {
-			log: (message) => { console.warn(message); }
-		}
-		let parser = new TaskParser(ProblemMatcherRegistry, logger);
-		let result = parser.parse(json, { emptyExecutable: true, emptyCommand: true });
-		this.add(result);
-	}
+	// private onTask(json: Config.Task): void {
+	// 	let logger: ILogger = {
+	// 		log: (message) => { console.warn(message); }
+	// 	};
+	// 	let parser = new TaskParser(ProblemMatcherRegistry, logger);
+	// 	let result = parser.parse(json, { emptyExecutable: true, emptyCommand: true });
+	// 	this.add(result);
+	// }
 
 	public add(task: Task): void {
 		this.tasks[task.id] = task;

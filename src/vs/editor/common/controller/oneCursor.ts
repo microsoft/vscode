@@ -11,7 +11,7 @@ import {ShiftCommand} from 'vs/editor/common/commands/shiftCommand';
 import {ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition} from 'vs/editor/common/commands/replaceCommand';
 import {SurroundSelectionCommand} from 'vs/editor/common/commands/surroundSelectionCommand';
 import {Selection} from 'vs/editor/common/core/selection';
-import {IEnterAction,IndentAction,IElectricAction} from 'vs/editor/common/modes';
+import {IndentAction,IElectricAction} from 'vs/editor/common/modes';
 import {CursorMoveHelper, ICursorMoveHelperModel, IMoveResult} from 'vs/editor/common/controller/cursorMoveHelper';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Errors = require('vs/base/common/errors');
@@ -161,7 +161,7 @@ export class OneCursor {
 			viewPosition: this.viewPosition,
 			leftoverVisibleColumns: this.leftoverVisibleColumns,
 			selectionStartLeftoverVisibleColumns: this.selectionStartLeftoverVisibleColumns
-		}
+		};
 	}
 
 	public restoreState(state:IOneCursorState): void {
@@ -598,7 +598,7 @@ export class OneCursorOp {
 			viewLineNumber = viewSelectionEnd.lineNumber;
 			viewColumn = viewSelectionEnd.column;
 		} else {
-			var validatedViewPosition = cursor.getValidViewPosition();;
+			var validatedViewPosition = cursor.getValidViewPosition();
 			var r = cursor.getRightOfViewPosition(validatedViewPosition.lineNumber, validatedViewPosition.column);
 			viewLineNumber = r.lineNumber;
 			viewColumn = r.column;
@@ -649,7 +649,7 @@ export class OneCursorOp {
 			viewLineNumber = viewSelectionEnd.lineNumber;
 			viewColumn = viewSelectionEnd.column;
 		} else {
-			var validatedViewPosition = cursor.getValidViewPosition();;
+			var validatedViewPosition = cursor.getValidViewPosition();
 			viewLineNumber = validatedViewPosition.lineNumber;
 			viewColumn = validatedViewPosition.column;
 		}
@@ -1035,7 +1035,9 @@ export class OneCursorOp {
 			return false;
 		}
 
-		if(!cursor.model.getMode().characterPairSupport) {
+		let richEditSupport = cursor.model.getMode().richEditSupport;
+
+		if(!richEditSupport || !richEditSupport.characterPair) {
 			return false;
 		}
 
@@ -1061,7 +1063,7 @@ export class OneCursorOp {
 
 		var shouldAutoClosePair = false;
 		try {
-			shouldAutoClosePair = cursor.model.getMode().characterPairSupport.shouldAutoClosePair(ch, lineContext, position.column - 1);
+			shouldAutoClosePair = richEditSupport.characterPair.shouldAutoClosePair(ch, lineContext, position.column - 1);
 		} catch(e) {
 			Errors.onUnexpectedError(e);
 		}
@@ -1144,22 +1146,23 @@ export class OneCursorOp {
 		var lineContext = cursor.model.getLineContext(position.lineNumber);
 
 		var electricAction:IElectricAction;
-		if(cursor.model.getMode().electricCharacterSupport) {
+		let richEditSupport = cursor.model.getMode().richEditSupport;
+		if(richEditSupport && richEditSupport.electricCharacter) {
 			try {
-				electricAction = cursor.model.getMode().electricCharacterSupport.onElectricCharacter(lineContext, position.column - 2);
+				electricAction = richEditSupport.electricCharacter.onElectricCharacter(lineContext, position.column - 2);
 			} catch(e) {
 				Errors.onUnexpectedError(e);
 			}
 		}
 
 		if (electricAction) {
-			var matchBracketType = electricAction.matchBracketType;
+			let matchOpenBracket = electricAction.matchOpenBracket;
 			var appendText = electricAction.appendText;
-			if (matchBracketType) {
-				var match:EditorCommon.IEditorRange = null;
-				if (matchBracketType) {
-					match = cursor.model.findMatchingBracketUp(matchBracketType, position);
-				}
+			if (matchOpenBracket) {
+				var match = cursor.model.findMatchingBracketUp(matchOpenBracket, {
+					lineNumber: position.lineNumber,
+					column: position.column - matchOpenBracket.length
+				});
 				if (match) {
 					var matchLineNumber = match.startLineNumber;
 					var matchLine = cursor.model.getLineContent(matchLineNumber);
@@ -1226,14 +1229,11 @@ export class OneCursorOp {
 		return this.actualType(cursor, ch, false, ctx);
 	}
 
-	public static replacePreviousChar(cursor:OneCursor, txt: string, ctx: IOneCursorOperationContext): boolean {
-		var pos = cursor.getPosition();
-		var range: EditorCommon.IEditorRange;
-		if (pos.column > 1) {
-			range = new Range(pos.lineNumber, pos.column - 1, pos.lineNumber, pos.column);
-		} else {
-			range = new Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column);
-		}
+	public static replacePreviousChar(cursor:OneCursor, txt: string, replaceCharCnt:number, ctx: IOneCursorOperationContext): boolean {
+		let pos = cursor.getPosition();
+		let range: EditorCommon.IEditorRange;
+		let startColumn = Math.max(1, pos.column - replaceCharCnt);
+		range = new Range(pos.lineNumber, startColumn, pos.lineNumber, pos.column);
 		ctx.executeCommand = new ReplaceCommand(range, txt);
 		return true;
 	}
@@ -1360,6 +1360,10 @@ export class OneCursorOp {
 		// Returns true if delete was handled.
 
 		if (!cursor.configuration.editor.autoClosingBrackets) {
+			return false;
+		}
+
+		if (!cursor.getSelection().isEmpty()) {
 			return false;
 		}
 

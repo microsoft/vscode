@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import {IMessageService} from 'vs/platform/message/common/message';
 import {BaseLifecycleService} from 'vs/platform/lifecycle/common/baseLifecycleService';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import severity from 'vs/base/common/severity';
 
-import ipc = require('ipc');
+import {ipcRenderer as ipc} from 'electron';
 
 export class LifecycleService extends BaseLifecycleService {
 
@@ -29,7 +28,7 @@ export class LifecycleService extends BaseLifecycleService {
 		let windowId = this.windowService.getWindowId();
 
 		// Main side indicates that window is about to unload, check for vetos
-		ipc.on('vscode:beforeUnload', (reply: { okChannel: string, cancelChannel: string }) => {
+		ipc.on('vscode:beforeUnload', (event, reply: { okChannel: string, cancelChannel: string }) => {
 			let veto = this.beforeUnload();
 
 			if (typeof veto === 'boolean') {
@@ -100,6 +99,6 @@ export class LifecycleService extends BaseLifecycleService {
 			return false; // return directly when no veto was provided
 		}
 
-		return Promise.join(vetoPromises).then(() => hasPromiseWithVeto);
+		return TPromise.join(vetoPromises).then(() => hasPromiseWithVeto);
 	}
 }

@@ -70,6 +70,13 @@
 			<key>name</key>
 			<string>keyword.operator.assignment.tsx</string>
 		</dict>
+		<key>await-modifier</key>
+		<dict>
+			<key>match</key>
+			<string>await</string>
+			<key>name</key>
+			<string>storage.modifier.tsx</string>
+		</dict>
 		<key>block</key>
 		<dict>
 			<key>begin</key>
@@ -112,6 +119,30 @@
 			<string>\b(false|true)\b</string>
 			<key>name</key>
 			<string>constant.language.boolean.tsx</string>
+		</dict>
+		<key>case-clause</key>
+		<dict>
+			<key>begin</key>
+			<string>(?&lt;!\.)\b(case|default)\b</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>keyword.control.tsx</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>:</string>
+			<key>name</key>
+			<string>case-clause.expr.tsx</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#expression</string>
+				</dict>
+			</array>
 		</dict>
 		<key>comment</key>
 		<dict>
@@ -161,7 +192,7 @@
 		<key>control-statement</key>
 		<dict>
 			<key>match</key>
-			<string>(?&lt;!\.)\b(break|catch|continue|debugger|declare|do|else|finally|for|if|return|switch|throw|try|while|with|super|switch|case)\b</string>
+			<string>(?&lt;!\.)\b(break|catch|continue|debugger|declare|do|else|finally|for|if|return|switch|throw|try|while|with|super|case|default)\b</string>
 			<key>name</key>
 			<string>keyword.control.tsx</string>
 		</dict>
@@ -298,6 +329,10 @@
 				</dict>
 				<dict>
 					<key>include</key>
+					<string>#switch-statement</string>
+				</dict>
+				<dict>
+					<key>include</key>
 					<string>#block</string>
 				</dict>
 				<dict>
@@ -330,7 +365,7 @@
 				</dict>
 				<dict>
 					<key>include</key>
-					<string>#switch-case</string>
+					<string>#case-clause</string>
 				</dict>
 				<dict>
 					<key>include</key>
@@ -341,7 +376,7 @@
 		<key>expression-operator</key>
 		<dict>
 			<key>match</key>
-			<string>=&gt;|\b(delete|export|import|in|instanceof|module|namespace|new|typeof|void|as)\b</string>
+			<string>=&gt;|\b(delete|export|import|from|in|instanceof|module|namespace|new|typeof|void|as)\b</string>
 			<key>name</key>
 			<string>keyword.operator.tsx</string>
 		</dict>
@@ -363,7 +398,7 @@
 				</dict>
 			</dict>
 			<key>end</key>
-			<string>(?=\}|;|,)|(?&lt;=\})</string>
+			<string>(?=\}|;|,|$)|(?&lt;=\})</string>
 			<key>name</key>
 			<string>meta.field.declaration.tsx</string>
 			<key>patterns</key>
@@ -402,6 +437,10 @@
 			<array>
 				<dict>
 					<key>include</key>
+					<string>#await-modifier</string>
+				</dict>
+				<dict>
+					<key>include</key>
 					<string>#type-parameters</string>
 				</dict>
 				<dict>
@@ -413,7 +452,7 @@
 		<key>function-declaration</key>
 		<dict>
 			<key>begin</key>
-			<string>\b(?:(export)\s+)?(function\b)(?:\s+([a-zA-Z_$][\w$]*))?\s*</string>
+			<string>\b(?:(export)\s+)?(?:(async)\s+)?(function\b)(?:\s+([a-zA-Z_$][\w$]*))?\s*</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
@@ -424,9 +463,14 @@
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>storage.type.function.tsx</string>
+					<string>storage.modifier.tsx</string>
 				</dict>
 				<key>3</key>
+				<dict>
+					<key>name</key>
+					<string>storage.type.function.tsx</string>
+				</dict>
+				<key>4</key>
 				<dict>
 					<key>name</key>
 					<string>entity.name.function.tsx</string>
@@ -1033,7 +1077,7 @@
 		<key>method-declaration</key>
 		<dict>
 			<key>begin</key>
-			<string>\b(?:(abstract)\s+)?\b(?:(public|private|protected)\s+)?(?:(get|set)\s+)?(?:(new)|(?:([a-zA-Z_$][\.\w$]*)\s*(\??)))?\s*(?=\(|\&lt;)</string>
+			<string>\b(?:(abstract)\s+)?\b(?:(public|private|protected)\s+)?\b(?:(async)\s+)?(?:(get|set)\s+)?(?:(new)|(?:([a-zA-Z_$][\.\w$]*)\s*(\??)))?\s*(?=\(|\&lt;)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
@@ -1049,19 +1093,24 @@
 				<key>3</key>
 				<dict>
 					<key>name</key>
-					<string>storage.type.property.tsx</string>
+					<string>storage.modifier.tsx</string>
 				</dict>
 				<key>4</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.tsx</string>
+					<string>storage.type.property.tsx</string>
 				</dict>
 				<key>5</key>
 				<dict>
 					<key>name</key>
-					<string>entity.name.function.tsx</string>
+					<string>keyword.operator.tsx</string>
 				</dict>
 				<key>6</key>
+				<dict>
+					<key>name</key>
+					<string>entity.name.function.tsx</string>
+				</dict>
+				<key>7</key>
 				<dict>
 					<key>name</key>
 					<string>keyword.operator.tsx</string>
@@ -1111,21 +1160,36 @@
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.tsx</string>
+					<string>storage.modifier.tsx</string>
 				</dict>
 				<key>3</key>
 				<dict>
 					<key>name</key>
-					<string>entity.name.function.tsx</string>
+					<string>storage.modifier.tsx</string>
 				</dict>
 				<key>4</key>
+				<dict>
+					<key>name</key>
+					<string>storage.type.property.tsx</string>
+				</dict>
+				<key>5</key>
+				<dict>
+					<key>name</key>
+					<string>keyword.operator.tsx</string>
+				</dict>
+				<key>6</key>
+				<dict>
+					<key>name</key>
+					<string>entity.name.function.tsx</string>
+				</dict>
+				<key>7</key>
 				<dict>
 					<key>name</key>
 					<string>keyword.operator.tsx</string>
 				</dict>
 			</dict>
 			<key>match</key>
-			<string>\b(?:(public|private|protected)\s+)?(?:(new)|(?:([a-zA-Z_$][\.\w$]*)\s*(\??)))?\s*(?=\(|\&lt;)</string>
+			<string>\b(?:(abstract)\s+)?\b(?:(public|private|protected)\s+)?\b(?:(async)\s+)?(?:(get|set)\s+)?(?:(new)|(?:([a-zA-Z_$][\.\w$]*)\s*(\??)))?\s*(?=\(|\&lt;)</string>
 			<key>name</key>
 			<string>meta.method.overload.declaration.tsx</string>
 		</dict>
@@ -1150,6 +1214,10 @@
 				<dict>
 					<key>include</key>
 					<string>#type</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#comment</string>
 				</dict>
 			</array>
 		</dict>
@@ -1322,6 +1390,10 @@
 				<dict>
 					<key>include</key>
 					<string>#comment</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#object-heritage</string>
 				</dict>
 				<dict>
 					<key>include</key>
@@ -1562,27 +1634,63 @@
 			<key>name</key>
 			<string>constant.character.escape</string>
 		</dict>
-		<key>switch-case</key>
+		<key>switch-block</key>
 		<dict>
 			<key>begin</key>
-			<string>(?&lt;!\.)\b(case|default)\b</string>
-			<key>beginCaptures</key>
-			<dict>
-				<key>1</key>
-				<dict>
-					<key>name</key>
-					<string>keyword.control.tsx</string>
-				</dict>
-			</dict>
+			<string>{</string>
 			<key>end</key>
-			<string>:</string>
+			<string>(?=\})</string>
 			<key>name</key>
-			<string>case.expr.tsx</string>
+			<string>switch-block.expr.tsx</string>
 			<key>patterns</key>
 			<array>
 				<dict>
 					<key>include</key>
 					<string>#expression</string>
+				</dict>
+			</array>
+		</dict>
+		<key>switch-expression</key>
+		<dict>
+			<key>begin</key>
+			<string>\b(switch)\b\s*\(</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>keyword.operator.tsx</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>\)</string>
+			<key>name</key>
+			<string>switch-expression.expr.tsx</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#expression</string>
+				</dict>
+			</array>
+		</dict>
+		<key>switch-statement</key>
+		<dict>
+			<key>begin</key>
+			<string>(?=\bswitch\b\s*\()</string>
+			<key>end</key>
+			<string>}</string>
+			<key>name</key>
+			<string>switch-statement.expr.tsx</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#switch-expression</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#switch-block</string>
 				</dict>
 			</array>
 		</dict>
@@ -1759,7 +1867,7 @@
 				</dict>
 			</dict>
 			<key>end</key>
-			<string>(?=[,);&gt;]|var|type|function|class|interface)</string>
+			<string>(?=$|[,);&gt;]|var|type|function|class|interface)</string>
 			<key>name</key>
 			<string>meta.type.declaration.tsx</string>
 			<key>patterns</key>
@@ -2004,7 +2112,7 @@
 		<key>var-expr</key>
 		<dict>
 			<key>begin</key>
-			<string>(?&lt;!\()\s*\b(var|let|const(?!\s+enum))\s+([a-zA-Z_$][\w$]*)</string>
+			<string>(?&lt;!\()\s*\b(var|let|const(?!\s+enum)\b)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
@@ -2012,16 +2120,39 @@
 					<key>name</key>
 					<string>storage.type.tsx</string>
 				</dict>
-				<key>2</key>
+			</dict>
+			<key>end</key>
+			<string>(?=$|;)</string>
+			<key>name</key>
+			<string>meta.var.expr.tsx</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#var-single-variable</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#comment</string>
+				</dict>
+			</array>
+		</dict>
+		<key>var-single-variable</key>
+		<dict>
+			<key>begin</key>
+			<string>\b([a-zA-Z_$][\w$]*)\s*(=?)</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>1</key>
 				<dict>
 					<key>name</key>
 					<string>variable.tsx</string>
 				</dict>
 			</dict>
 			<key>end</key>
-			<string>(?=$|[;=\}\{])|(?&lt;=\})</string>
+			<string>(?=$|[;,])</string>
 			<key>name</key>
-			<string>meta.var.expr.tsx</string>
+			<string>meta.var-single-variable.expr.tsx</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -2035,6 +2166,10 @@
 				<dict>
 					<key>include</key>
 					<string>#comment</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#expression</string>
 				</dict>
 			</array>
 		</dict>
@@ -2067,3 +2202,4 @@
 	<string>805375ec-d614-41f5-8993-5843fe63ea82</string>
 </dict>
 </plist>
+

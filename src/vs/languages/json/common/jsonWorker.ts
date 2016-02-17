@@ -10,8 +10,6 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import HtmlContent = require('vs/base/common/htmlContent');
-import Network = require('vs/base/common/network');
-import Json = require('vs/base/common/json');
 import Parser = require('./parser/jsonParser');
 import JSONFormatter = require('vs/languages/json/common/features/jsonFormatter');
 import SchemaService = require('./jsonSchemaService');
@@ -21,7 +19,6 @@ import WinJS = require('vs/base/common/winjs.base');
 import Strings = require('vs/base/common/strings');
 import {JSONMode} from './json';
 import ProjectJSONContribution = require('./contributions/projectJSONContribution');
-import supports = require('vs/editor/common/modes/supports');
 import PackageJSONContribution = require('./contributions/packageJSONContribution');
 import BowerJSONContribution = require('./contributions/bowerJSONContribution');
 import GlobPatternContribution = require('./contributions/globPatternContribution');
@@ -33,6 +30,7 @@ import {ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContribut
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {JSONLocation} from './parser/jsonLocation';
+import {WorkerInplaceReplaceSupport, ReplaceSupport} from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 
 export interface IOptionsSchema {
 	/**
@@ -103,7 +101,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 	}
 
 	protected _createInPlaceReplaceSupport(): Modes.IInplaceReplaceSupport {
-		return new supports.WorkerInplaceReplaceSupport(this.resourceService, this);
+		return new WorkerInplaceReplaceSupport(this.resourceService, this);
 	}
 
 	/**
@@ -218,7 +216,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 		}
 
 		if (!node) {
-			return WinJS.Promise.as(null);
+			return WinJS.TPromise.as(null);
 		}
 
 		return this.schemaService.getSchemaForResource(resource.toString(), doc).then((schema) => {
@@ -274,12 +272,12 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 		var doc = parser.parse(modelMirror.getValue());
 		var root = doc.root;
 		if (!root) {
-			return WinJS.Promise.as(null);
+			return WinJS.TPromise.as(null);
 		}
 
 		// special handling for key bindings
 		var resourceString = resource.toString();
-		if ((resourceString === 'inmemory://defaults/keybindings.json') || Strings.endsWith(resourceString.toLowerCase(), '/user/keybindings.json')) {
+		if ((resourceString === 'vscode://defaultsettings/keybindings.json') || Strings.endsWith(resourceString.toLowerCase(), '/user/keybindings.json')) {
 			if (root.type === 'array') {
 				var result : Modes.IOutlineEntry[] = [];
 				(<Parser.ArrayASTNode> root).items.forEach((item) => {
@@ -291,7 +289,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 						}
 					}
 				});
-				return WinJS.Promise.as(result);
+				return WinJS.TPromise.as(result);
 			}
 		}
 
@@ -316,11 +314,11 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 			return result;
 		}
 		var result = collectOutlineEntries([], root);
-		return WinJS.Promise.as(result);
+		return WinJS.TPromise.as(result);
 	}
 
 	public textReplace(value:string, up:boolean):string {
-		return supports.ReplaceSupport.valueSetReplace(['true', 'false'], value, up);
+		return ReplaceSupport.valueSetReplace(['true', 'false'], value, up);
 	}
 
 	public format(resource: URI, range: EditorCommon.IRange, options: Modes.IFormattingOptions): WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
@@ -357,7 +355,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 					};
 
 					this.jsonIntellisense.getValueSuggestions(resource, schema, doc, node.parent, node.start, collector);
-					
+
 					var range = modelMirror.getRangeFromOffsetAndLength(node.start, node.end - node.start);
 					var text = modelMirror.getValueInRange(range);
 					for (var i = 0, len = proposals.length; i < len; i++) {

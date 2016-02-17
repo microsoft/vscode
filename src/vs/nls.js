@@ -13,8 +13,6 @@
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *--------------------------------------------------------------------------------------------*/
-/// <reference path="declares.ts" />
-/// <reference path="loader.ts" />
 'use strict';
 var _nlsPluginGlobal = this;
 var NLSLoaderPlugin;
@@ -67,6 +65,9 @@ var NLSLoaderPlugin;
         function NLSPlugin() {
             this.localize = localize;
         }
+        NLSPlugin.prototype.setPseudoTranslation = function (value) {
+            IS_PSEUDO = value;
+        };
         NLSPlugin.prototype.create = function (key, data) {
             return {
                 localize: createScopedLocalize(data[key])
@@ -81,7 +82,7 @@ var NLSLoaderPlugin;
             }
             else {
                 var suffix;
-                if (Resources) {
+                if (Resources && Resources.getString) {
                     suffix = '.nls.keys';
                     req([name + suffix], function (keyMap) {
                         load({

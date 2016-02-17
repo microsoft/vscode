@@ -2,18 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 'use strict';
 
+import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
 import filters = require('vs/base/common/filters');
-import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import labels = require('vs/base/common/labels');
 import {EventType} from 'vs/base/common/events';
-import comparers = require('vs/base/common/comparers');
-import {Mode, IContext} from 'vs/base/parts/quickopen/browser/quickOpen';
+import {Mode, IContext} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, QuickOpenModel, IHighlight} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
 import {IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -41,16 +41,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 
 		this.input = input;
 		this.model = model;
-
-		let resource = getUntitledOrFileResource(input);
-		if (resource) {
-			this.resource = resource;
-		} else {
-			let inputWithResource: { getResource(): URI } = <any>input;
-			if (types.isFunction(inputWithResource.getResource)) {
-				this.resource = inputWithResource.getResource();
-			}
-		}
+		this.resource = getUntitledOrFileResource(input);
 
 		this.setHighlights(labelHighlights, descriptionHighlights);
 	}
@@ -70,6 +61,10 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 
 	public getLabel(): string {
 		return this.input.getName();
+	}
+
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, recently opened", this.getLabel());
 	}
 
 	public getDescription(): string {

@@ -12,9 +12,9 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
-class ToggleTabFocusModeAction extends EditorAction {
+export class ToggleTabFocusModeAction extends EditorAction {
 
-	static ID = 'editor.action.toggleTabFocusMode';
+	public static ID = 'editor.action.toggleTabFocusMode';
 
 	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor, Behaviour.TextFocus);

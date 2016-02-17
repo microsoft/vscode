@@ -14,7 +14,8 @@
 	},
 	"activationEvents": [
 		"onLanguage:typescript",
-		"onLanguage:typescriptreact"
+		"onLanguage:typescriptreact",
+		"onCommand:typescript.reloadProjects"
 	],
 	"main": "./out/typescriptMain",
 	"contributes": {
@@ -55,17 +56,17 @@
 		],
 		"configuration": {
 			"type": "object",
-			"title": "TypeScript configuration",
+			"title": "%configuration.typescript%",
 			"properties": {
 				"typescript.useCodeSnippetsOnMethodSuggest": {
 					"type": "boolean",
 					"default": false,
-					"description": "Complete functions with their parameter signature."
+					"description": "%typescript.useCodeSnippetsOnMethodSuggest.dec%"
 				},
 				"typescript.tsdk": {
-					"type": "string",
+					"type": ["string", "null"],
 					"default": null,
-					"description": "Specifies the folder path containing the tsserver and lib*.d.ts files to use."
+					"description": "%typescript.tsdk.desc%"
 				}
 			}
 		},
@@ -74,12 +75,19 @@
 			"command": "^acceptSelectedSuggestion",
 			"when": "editorTextFocus && suggestWidgetVisible && editorLangId == 'typescript' && suggestionSupportsAcceptOnKey"
 		},
+		"commands": [
+			{
+				"command": "typescript.reloadProjects",
+				"title": "%typescript.reloadProjects.title%",
+				"category": "TypeScript"
+			}
+		],
 		"debuggers": [
 			{
 				"type": "node",
 				"enableBreakpointsFor": {
 					"languageIds": [
-						"typescript"
+						"typescript", "typescriptreact"
 					]
 				}
 			},
@@ -106,6 +114,10 @@
 			{
 				"fileMatch": "tsconfig.json",
 				"url": "http://json.schemastore.org/tsconfig"
+			},
+			{
+				"fileMatch": "tsconfig.json",
+				"url": "./schemas/tsconfig.schema.json"
 			}
 		]
 	}

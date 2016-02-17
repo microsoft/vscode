@@ -10,13 +10,8 @@ import env = require('vs/base/common/flags');
 import platform = require('vs/platform/platform');
 import modesExtensions = require('vs/editor/common/modes/modesRegistry');
 import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
-import typescript = require('vs/languages/typescript/common/typescript');
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import suggest = require('vs/editor/contrib/suggest/common/suggest');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import options = require('vs/languages/typescript/common/options');
-import defaults = options.typeScriptOptions;
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+let defaults = options.typeScriptOptions;
 
 // ----- Registration and Configuration --------------------------------------------------------
 
@@ -30,8 +25,6 @@ if (!env.enableTypeScriptServiceMode) {
 		moduleId: 'vs/languages/typescript/common/typescriptMode',
 		ctorName: 'TypeScriptMode'
 	});
-
-	modesExtensions.registerWorkerParticipant('typescript', 'vs/languages/typescript/common/participants/filenameSuggestions', 'FilenameSuggestions');
 
 	var configurationRegistry = <ConfigurationRegistry.IConfigurationRegistry>platform.Registry.as(ConfigurationRegistry.Extensions.Configuration);
 	configurationRegistry.registerConfiguration({

@@ -10,8 +10,8 @@ import errors = require('vs/base/common/errors');
 import dom = require('vs/base/browser/dom');
 import mouse = require('vs/base/browser/mouseEvent');
 import keyboard = require('vs/base/browser/keyboardEvent');
-import _ = require('vs/base/parts/tree/common/tree');
-import {CommonKeybindings} from 'vs/base/common/keyCodes'
+import _ = require('vs/base/parts/tree/browser/tree');
+import {CommonKeybindings} from 'vs/base/common/keyCodes';
 
 export interface ILegacyTemplateData {
 	root: HTMLElement;
@@ -363,9 +363,13 @@ export class DefaultController implements _.IController {
 			return true;
 		}
 
-		if (tree.getFocus() || tree.getSelection().length) {
-			tree.clearFocus(payload);
+		if (tree.getSelection().length) {
 			tree.clearSelection(payload);
+			return true;
+		}
+
+		if (tree.getFocus()) {
+			tree.clearFocus(payload);
 			return true;
 		}
 
@@ -403,5 +407,12 @@ export class DefaultSorter implements _.ISorter {
 
 	public compare(tree: _.ITree, element: any, otherElement: any):number {
 		return 0;
+	}
+}
+
+export class DefaultAccessibilityProvider implements _.IAccessibilityProvider {
+
+	getAriaLabel(tree: _.ITree, element: any): string {
+		return null;
 	}
 }

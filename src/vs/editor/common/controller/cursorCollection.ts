@@ -307,19 +307,21 @@ export class CursorCollection {
 	}
 
 	private getModeConfiguration(): IModeConfiguration {
-		var i: number;
+		let i: number;
 
-		var result: IModeConfiguration = {
+		let result: IModeConfiguration = {
 			electricChars: {},
 			autoClosingPairsOpen: {},
 			autoClosingPairsClose: {},
 			surroundingPairs: {}
 		};
 
-		var electricChars: string[];
-		if (this.model.getMode().electricCharacterSupport) {
+		let richEditSupport = this.model.getMode().richEditSupport;
+
+		let electricChars: string[];
+		if (richEditSupport && richEditSupport.electricCharacter) {
 			try {
-				electricChars = this.model.getMode().electricCharacterSupport.getElectricCharacters();
+				electricChars = richEditSupport.electricCharacter.getElectricCharacters();
 			} catch(e) {
 				Errors.onUnexpectedError(e);
 				electricChars = null;
@@ -331,10 +333,10 @@ export class CursorCollection {
 			}
 		}
 
-		var autoClosingPairs: IAutoClosingPair[];
-		if (this.model.getMode().characterPairSupport) {
+		let autoClosingPairs: IAutoClosingPair[];
+		if (richEditSupport && richEditSupport.characterPair) {
 			try {
-				autoClosingPairs = this.model.getMode().characterPairSupport.getAutoClosingPairs();
+				autoClosingPairs = richEditSupport.characterPair.getAutoClosingPairs();
 			} catch(e) {
 				Errors.onUnexpectedError(e);
 				autoClosingPairs = null;
@@ -347,10 +349,10 @@ export class CursorCollection {
 			}
 		}
 
-		var surroundingPairs: IAutoClosingPair[];
-		if (this.model.getMode().characterPairSupport) {
+		let surroundingPairs: IAutoClosingPair[];
+		if (richEditSupport && richEditSupport.characterPair) {
 			try {
-				surroundingPairs = this.model.getMode().characterPairSupport.getSurroundingPairs();
+				surroundingPairs = richEditSupport.characterPair.getSurroundingPairs();
 			} catch(e) {
 				Errors.onUnexpectedError(e);
 				surroundingPairs = null;

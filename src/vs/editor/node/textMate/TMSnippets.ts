@@ -6,18 +6,14 @@
 
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
-import network = require('vs/base/common/network');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import snippets = require('vs/editor/contrib/snippet/common/snippet');
 import json = require('vs/base/common/json');
 import modesExt = require('vs/editor/common/modes/modesRegistry');
 import paths = require('vs/base/common/paths');
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {IThreadService} from 'vs/platform/thread/common/thread';
-import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
+import {IModeService} from 'vs/editor/common/services/modeService';
 import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
-import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
 
 import pfs = require('vs/base/node/pfs');
 
@@ -26,7 +22,7 @@ export interface ITMSnippetsExtensionPoint {
 	path: string;
 }
 
-export function snippetUpdated(modeId: string, filePath: string) {
+export function snippetUpdated(modeId: string, filePath: string): TPromise<void> {
 	return pfs.readFile(filePath).then((fileContents) => {
 		var errors: string[] = [];
 		var snippets = json.parse(fileContents.toString(), errors);
@@ -57,11 +53,14 @@ let snippetsExtensionPoint = PluginsRegistry.registerExtensionPoint<ITMSnippetsE
 
 export class MainProcessTextMateSnippet {
 	private _modelService: IModelService;
+	private _modeService: IModeService;
 
 	constructor(
-		@IModelService modelService: IModelService
+		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService
 	) {
 		this._modelService = modelService;
+		this._modeService = modeService;
 
 		snippetsExtensionPoint.setHandler((extensions) => {
 			for (let i = 0; i < extensions.length; i++) {
@@ -74,7 +73,7 @@ export class MainProcessTextMateSnippet {
 	}
 
 	private _withTMSnippetContribution(extensionFolderPath:string, snippet:ITMSnippetsExtensionPoint, collector:IMessageCollector): void {
-		if (!snippet.language || (typeof snippet.language !== 'string') || !LanguageExtensions.isRegisteredMode(snippet.language)) {
+		if (!snippet.language || (typeof snippet.language !== 'string') || !this._modeService.isRegisteredMode(snippet.language)) {
 			collector.error(nls.localize('invalid.language', "Unknown language in `contributes.{0}.language`. Provided value: {1}", snippetsExtensionPoint.name, String(snippet.language)));
 			return;
 		}
@@ -126,11 +125,12 @@ class TMSnippetsAdaptor {
 						type: 'snippet',
 						label: prefix,
 						documentationLabel: snippet['description'] || description,
-						codeSnippet: convertedSnippet
+						codeSnippet: convertedSnippet,
+						noAutoAccept: true
 					});
 				}
 			}
-		}
+		};
 
 		topLevelProperties.forEach(topLevelProperty => {
 			var scopeOrTemplate = snippets[topLevelProperty];
@@ -140,7 +140,7 @@ class TMSnippetsAdaptor {
 				var snippetNames = Object.keys(scopeOrTemplate);
 				snippetNames.forEach(name => {
 					processSnippet(scopeOrTemplate[name], name);
-				})
+				});
 			}
 		});
 		return result;

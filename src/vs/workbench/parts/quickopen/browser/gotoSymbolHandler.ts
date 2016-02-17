@@ -6,31 +6,24 @@
 'use strict';
 
 import 'vs/css!./media/gotoSymbolHandler';
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import arrays = require('vs/base/common/arrays');
-import env = require('vs/base/common/platform');
 import errors = require('vs/base/common/errors');
 import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
-import {IContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/browser/quickOpen';
+import {IContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenModel, IHighlight} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
-import {Registry} from 'vs/platform/platform';
-import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandler, EditorQuickOpenEntryGroup} from 'vs/workbench/browser/quickopen';
+import {QuickOpenHandler, EditorQuickOpenEntryGroup} from 'vs/workbench/browser/quickopen';
 import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {TextEditorOptions, EditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import filters = require('vs/base/common/filters');
-import {ICommonCodeEditor, IEditorActionDescriptorData, IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IModel, ITokenizedModel, IDiffEditorModel, IEditorViewState} from 'vs/editor/common/editorCommon';
-import {IOutlineEntry} from 'vs/editor/common/modes';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
+import {IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IModel, ITokenizedModel, IDiffEditorModel, IEditorViewState} from 'vs/editor/common/editorCommon';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {Position} from 'vs/platform/editor/common/editor';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {OutlineRegistry, getOutlineEntries} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 
 export const GOTO_SYMBOL_PREFIX = '@';
@@ -210,26 +203,37 @@ class OutlineModel extends QuickOpenModel {
 	}
 
 	private renderGroupLabel(type: string, count: number, outline: Outline): string {
-		if (outline.outlineGroupLabel) {
-			let label = outline.outlineGroupLabel[type];
-			if (label) {
-				return nls.localize('grouplabel', "{0} ({1})", label, count);
-			}
-		}
-		switch (type) {
-			case 'module': return nls.localize('modules', "modules ({0})", count);
-			case 'class': return nls.localize('class', "classes ({0})", count);
-			case 'interface': return nls.localize('interface', "interfaces ({0})", count);
-			case 'method': return nls.localize('method', "methods ({0})", count);
-			case 'function': return nls.localize('function', "functions ({0})", count);
-			case 'property': return nls.localize('property', "properties ({0})", count);
-			case 'variable': return nls.localize('variable', "variables ({0})", count);
-			case 'var': return nls.localize('variable2', "variables ({0})", count);
-			case 'constructor': return nls.localize('_constructor', "constructors ({0})", count);
-			case 'call': return nls.localize('call', "calls ({0})", count);
+
+		let pattern = outline.outlineGroupLabel[type] || OutlineModel.getDefaultGroupLabelPatterns()[type];
+		if (pattern) {
+			return strings.format(pattern, count);
 		}
 
 		return type;
+	}
+
+	private static getDefaultGroupLabelPatterns(): { [type: string]: string } {
+		const result: { [type: string]: string } = Object.create(null);
+		result['method'] = nls.localize('method', "methods ({0})");
+		result['function'] = nls.localize('function', "functions ({0})");
+		result['constructor'] = <any>nls.localize('_constructor', "constructors ({0})");
+		result['variable'] = nls.localize('variable', "variables ({0})");
+		result['class'] = nls.localize('class', "classes ({0})");
+		result['interface'] = nls.localize('interface', "interfaces ({0})");
+		result['namespace'] = nls.localize('namespace', "namespaces ({0})");
+		result['package'] = nls.localize('package', "packages ({0})");
+		result['module'] = nls.localize('modules', "modules ({0})");
+		result['property'] = nls.localize('property', "properties ({0})");
+		result['enum'] = nls.localize('enum', "enumerations ({0})");
+		result['string'] = nls.localize('string', "strings ({0})");
+		result['rule'] = nls.localize('rule', "rules ({0})");
+		result['file'] = nls.localize('file', "files ({0})");
+		result['array'] = nls.localize('array', "arrays ({0})");
+		result['number'] = nls.localize('number', "numbers ({0})");
+		result['boolean'] = nls.localize('boolean', "booleans ({0})");
+		result['object'] = nls.localize('object', "objects ({0})");
+		result['key'] = nls.localize('key', "keys ({0})");
+		return result;
 	}
 }
 
@@ -237,19 +241,17 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 	private editorService: IWorkbenchEditorService;
 	private index: number;
 	private name: string;
-	private meta: string;
 	private type: string;
 	private icon: string;
 	private description: string;
 	private range: IRange;
 	private handler: GotoSymbolHandler;
 
-	constructor(index: number, name: string, meta: string, type: string, description: string, icon: string, range: IRange, highlights: IHighlight[], editorService: IWorkbenchEditorService, handler: GotoSymbolHandler) {
+	constructor(index: number, name: string, type: string, description: string, icon: string, range: IRange, highlights: IHighlight[], editorService: IWorkbenchEditorService, handler: GotoSymbolHandler) {
 		super();
 
 		this.index = index;
 		this.name = name;
-		this.meta = meta;
 		this.type = type;
 		this.icon = icon;
 		this.description = description;
@@ -267,8 +269,8 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		return this.name;
 	}
 
-	public getMeta(): string {
-		return this.meta;
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, symbols", this.getLabel());
 	}
 
 	public getIcon(): string {
@@ -420,6 +422,10 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return nls.localize('noSymbolsFound', "No symbols found");
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('gotoSymbolHandlerAriaLabel', "Type to narrow down symbols of the currently active editor.");
+	}
+
 	public canRun(): boolean | string {
 		let canRun = false;
 
@@ -430,7 +436,6 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			if (model && (<IDiffEditorModel>model).modified && (<IDiffEditorModel>model).original) {
 				model = (<IDiffEditorModel>model).modified; // Support for diff editor models
 			}
-
 
 			if (model && types.isFunction((<ITokenizedModel>model).getMode)) {
 				canRun = OutlineRegistry.has(<IModel>model);
@@ -466,7 +471,6 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		for (let i = 0; i < flattened.length; i++) {
 			let element = flattened[i];
 			let label = strings.trim(element.label);
-			let meta: string = null;
 
 			// Show parent scope as description
 			let description: string = element.containerLabel;
@@ -476,7 +480,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 			// Add
 			let icon = element.icon || element.type;
-			results.push(new SymbolEntry(i, label, meta, element.type, description, icon, element.range, null, this.editorService, this));
+			results.push(new SymbolEntry(i, label, element.type, description, icon, element.range, null, this.editorService, this));
 		}
 
 		return results;

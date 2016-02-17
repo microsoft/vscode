@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import WinJS = require('vs/base/common/winjs.base');
-import Platform = require('vs/base/common/platform');
-import Types = require('vs/base/common/types');
-import Actions = require('vs/base/common/actions');
-import Dropdown = require('vs/base/browser/ui/dropdown/dropdown');
+import {TPromise} from 'vs/base/common/winjs.base';
+import {isMacintosh} from 'vs/base/common/platform';
+import {isFunction} from 'vs/base/common/types';
+import {Action} from 'vs/base/common/actions';
+import {DropdownMenu, IDropdownMenuOptions} from 'vs/base/browser/ui/dropdown/dropdown';
 
-export interface ILinksDropdownMenuOptions extends Dropdown.IDropdownMenuOptions {
+export interface ILinksDropdownMenuOptions extends IDropdownMenuOptions {
 	tooltip: string;
 }
 
-export class LinksDropdownMenu extends Dropdown.DropdownMenu {
+export class LinksDropdownMenu extends DropdownMenu {
 
-	constructor (container:HTMLElement, options: ILinksDropdownMenuOptions) {
+	constructor(container: HTMLElement, options: ILinksDropdownMenuOptions) {
 		super(container, options);
 
 		this.tooltip = options.tooltip;
 	}
 
-	/*protected*/ public onEvent(e:Event, activeElement: HTMLElement):void {
-		if (e instanceof KeyboardEvent && ((<KeyboardEvent>e).ctrlKey || (Platform.isMacintosh && (<KeyboardEvent>e).metaKey))) {
+	/*protected*/ public onEvent(e: Event, activeElement: HTMLElement): void {
+		if (e instanceof KeyboardEvent && ((<KeyboardEvent>e).ctrlKey || (isMacintosh && (<KeyboardEvent>e).metaKey))) {
 			return; // allow to use Ctrl/Meta in workspace dropdown menu
 		}
 
@@ -31,25 +31,25 @@ export class LinksDropdownMenu extends Dropdown.DropdownMenu {
 	}
 }
 
-export class LinkDropdownAction extends Actions.Action {
+export class LinkDropdownAction extends Action {
 
-	constructor(id:string, name:string, clazz:string, url:()=>string, forceOpenInNewTab?:boolean);
-	constructor(id:string, name:string, clazz:string, url:string, forceOpenInNewTab?:boolean);
-	constructor(id:string, name:string, clazz:string, url:any, forceOpenInNewTab?:boolean) {
-		super(id, name, clazz, true, (e:Event)=>{
-			var urlString = url;
+	constructor(id: string, name: string, clazz: string, url: () => string, forceOpenInNewTab?: boolean);
+	constructor(id: string, name: string, clazz: string, url: string, forceOpenInNewTab?: boolean);
+	constructor(id: string, name: string, clazz: string, url: any, forceOpenInNewTab?: boolean) {
+		super(id, name, clazz, true, (e: Event) => {
+			let urlString = url;
 
-			if (Types.isFunction(url)) {
+			if (isFunction(url)) {
 				urlString = url();
 			}
 
-			if (forceOpenInNewTab || (e instanceof MouseEvent && ((<MouseEvent>e).ctrlKey || (Platform.isMacintosh && (<MouseEvent>e).metaKey)))) {
+			if (forceOpenInNewTab || (e instanceof MouseEvent && ((<MouseEvent>e).ctrlKey || (isMacintosh && (<MouseEvent>e).metaKey)))) {
 				window.open(urlString, '_blank');
 			} else {
 				window.location.href = urlString;
 			}
 
-			return WinJS.Promise.as(true);
+			return TPromise.as(true);
 		});
 	}
 }

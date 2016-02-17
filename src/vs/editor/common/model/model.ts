@@ -11,7 +11,6 @@ import {EditableTextModel} from 'vs/editor/common/model/editableTextModel';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import URI from 'vs/base/common/uri';
 import Objects = require('vs/base/common/objects');
-import {IDisposable} from 'vs/base/common/lifecycle';
 
 // The hierarchy is:
 // Model -> EditableTextModel -> TextModelWithDecorations -> TextModelWithTrackedRanges -> TextModelWithMarkers -> TextModelWithTokens -> TextModel
@@ -156,6 +155,7 @@ export class Model extends EditableTextModel implements EditorCommon.IModel {
 			throw new Error('Model.getProperties: Model is disposed');
 		}
 
+		// TODO@Alex: avoid Objects.clone
 		return Objects.clone(this._extraProperties);
 	}
 

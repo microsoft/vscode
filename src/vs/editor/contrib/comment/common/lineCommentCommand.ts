@@ -23,7 +23,7 @@ export interface ILinePreflightData {
 	commentStr: string;
 	commentStrOffset: number;
 	commentStrLength: number;
-};
+}
 
 export interface IPreflightData {
 	supported: boolean;
@@ -81,9 +81,9 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 			if (seenModes[modeId]) {
 				commentStr = seenModes[modeId];
 			} else {
-				config = (mode.commentsSupport ? mode.commentsSupport.getCommentsConfiguration() : null);
-				commentStr = (config && config.lineCommentTokens && config.lineCommentTokens.length > 0 ? config.lineCommentTokens[0] : null);
-				if (commentStr === null || commentStr.length === 0) {
+				config = (mode.richEditSupport ? mode.richEditSupport.comments : null);
+				commentStr = (config ? config.lineCommentToken : null);
+				if (!commentStr) {
 					// Mode does not support line comments
 					return null;
 				}
@@ -110,15 +110,12 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 		var lineData: ILinePreflightData,
 			lineContentStartOffset:number,
 			commentStrEndOffset:number,
-			seenModes: {[modeId:string]:string;} = Object.create(null),
 			i:number,
 			lineCount:number,
 			lineNumber:number,
 			shouldRemoveComments:boolean,
 			lineContent: string,
 			_space = ' '.charCodeAt(0),
-			_tab = '\t'.charCodeAt(0),
-			char: number,
 			onlyWhitespaceLines = true;
 
 		if (type === Type.Toggle) {
@@ -232,10 +229,16 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 	}
 
 	private _attemptRemoveBlockComment(model:EditorCommon.ITokenizedModel, s:EditorCommon.IEditorSelection, startToken: string, endToken: string): EditorCommon.IIdentifiedSingleEditOperation[] {
-		var startLineNumber = s.startLineNumber;
-		var endLineNumber = s.endLineNumber;
-		var startTokenIndex = model.getLineContent(startLineNumber).lastIndexOf(startToken, s.startColumn - 1 + endToken.length);
-		var endTokenIndex = model.getLineContent(endLineNumber).indexOf(endToken, s.endColumn - 1 - startToken.length);
+		let startLineNumber = s.startLineNumber;
+		let endLineNumber = s.endLineNumber;
+
+		let startTokenAllowedBeforeColumn = endToken.length + Math.max(
+			model.getLineFirstNonWhitespaceColumn(s.startLineNumber),
+			s.startColumn
+		);
+
+		let startTokenIndex = model.getLineContent(startLineNumber).lastIndexOf(startToken, startTokenAllowedBeforeColumn - 1);
+		let endTokenIndex = model.getLineContent(endLineNumber).indexOf(endToken, s.endColumn - 1 - startToken.length);
 
 		if (startTokenIndex !== -1 && endTokenIndex === -1) {
 			endTokenIndex = model.getLineContent(startLineNumber).indexOf(endToken, startTokenIndex + startToken.length);
@@ -270,20 +273,15 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 	 * Given an unsuccessful analysis, delegate to the block comment command
 	 */
 	private _executeBlockComment(model:EditorCommon.ITokenizedModel, builder:EditorCommon.IEditOperationBuilder, s:EditorCommon.IEditorSelection): void {
-		var commentsSupport = model.getModeAtPosition(s.startLineNumber, s.startColumn).commentsSupport;
-		if (!commentsSupport) {
-			// Mode does not support comments
-			return;
-		}
-
-		var config = commentsSupport.getCommentsConfiguration();
+		let richEditSupport = model.getModeAtPosition(s.startLineNumber, s.startColumn).richEditSupport;
+		let config = richEditSupport ? richEditSupport.comments : null;
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
 			// Mode does not support block comments
 			return;
 		}
 
-		var startToken = config.blockCommentStartToken, startTokenLength = startToken.length;
-		var endToken = config.blockCommentEndToken, endTokenLength = endToken.length;
+		var startToken = config.blockCommentStartToken;
+		var endToken = config.blockCommentEndToken;
 
 		var ops = this._attemptRemoveBlockComment(model, s, startToken, endToken);
 		if (!ops) {

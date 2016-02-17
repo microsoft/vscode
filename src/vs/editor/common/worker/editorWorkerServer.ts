@@ -21,12 +21,10 @@ import {ResourceService} from 'vs/editor/common/services/resourceServiceImpl';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 import {ModelServiceWorkerHelper} from 'vs/editor/common/services/modelServiceImpl';
 import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
-import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import {PromiseSource} from 'vs/base/common/async';
-import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
-import {AbstractPluginService} from 'vs/platform/plugins/common/abstractPluginService';
+import {AbstractPluginService, ActivatedPlugin} from 'vs/platform/plugins/common/abstractPluginService';
 import {ModeServiceImpl,ModeServiceWorkerHelper} from 'vs/editor/common/services/modeServiceImpl';
 import Severity from 'vs/base/common/severity';
 
@@ -51,7 +49,7 @@ export interface ICallback {
 	(something:any):void;
 }
 
-class WorkerPluginService extends AbstractPluginService {
+class WorkerPluginService extends AbstractPluginService<ActivatedPlugin> {
 
 	constructor() {
 		super(true);
@@ -75,6 +73,14 @@ class WorkerPluginService extends AbstractPluginService {
 
 	public deactivate(pluginId:string): void {
 		// nothing to do
+	}
+
+	protected _createFailedPlugin(): ActivatedPlugin {
+		throw new Error('unexpected');
+	}
+
+	protected _actualActivatePlugin(pluginDescription: IPluginDescription): TPromise<ActivatedPlugin> {
+		throw new Error('unexpected');
 	}
 
 }
@@ -121,18 +127,6 @@ export class EditorWorkerServer {
 		};
 
 		var servicePromise = TPromise.as(null);
-
-		var additionalWorkerServices = contextService.getConfiguration().additionalWorkerServices;
-		if (additionalWorkerServices) {
-			additionalWorkerServices.forEach(additionalWorkerService => {
-				servicePromise = servicePromise.then((_) => {
-					var descriptor = AsyncDescriptor.create(additionalWorkerService.moduleName, additionalWorkerService.ctorName);
-					return InstantiationService.create(_services).createInstance(descriptor).then((serviceInstance) => {
-						_services[additionalWorkerService.serviceId] = serviceInstance;
-					});
-				});
-			});
-		}
 
 		servicePromise.then((_) => {
 

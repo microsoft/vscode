@@ -14,24 +14,22 @@ import lifecycle = require('vs/base/common/lifecycle');
 import timer = require('vs/base/common/timer');
 import platform = require('vs/platform/platform');
 import async = require('vs/base/common/async');
-import {IRequestService} from 'vs/platform/request/common/request';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import rawHttpService = require('vs/workbench/services/request/node/rawHttpService');
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import { IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 interface IRawHttpService {
 	xhr(options: http.IXHROptions): TPromise<http.IXHRResponse>;
-	configure(proxy: string): void;
+	configure(proxy: string, strictSSL: boolean): void;
 }
 
 interface IXHRFunction {
 	(options: http.IXHROptions): TPromise<http.IXHRResponse>;
 }
 
-export class RequestService extends BaseRequestService implements IThreadSynchronizableObject<{}> {
+export class RequestService extends BaseRequestService {
 	private callOnDispose: Function[];
 
 	constructor(
@@ -42,14 +40,10 @@ export class RequestService extends BaseRequestService implements IThreadSynchro
 		super(contextService, telemetryService);
 		this.callOnDispose = [];
 
-		let configureRawService = (rawHttpService: IRawHttpService, configuration: any) => {
-			rawHttpService.configure(configuration.http && configuration.http.proxy);
-		};
-
 		// proxy setting updating
 		this.callOnDispose.push(configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
 			this.rawHttpServicePromise.then((rawHttpService) => {
-				rawHttpService.configure(e.config.http && e.config.http.proxy);
+				rawHttpService.configure(e.config.http && e.config.http.proxy, e.config.http.proxyStrictSSL);
 			});
 		}));
 	}
@@ -58,7 +52,7 @@ export class RequestService extends BaseRequestService implements IThreadSynchro
 	private get rawHttpServicePromise(): TPromise<IRawHttpService> {
 		if (!this._rawHttpServicePromise) {
 			this._rawHttpServicePromise = this.configurationService.loadConfiguration().then((configuration: any) => {
-				rawHttpService.configure(configuration.http && configuration.http.proxy);
+				rawHttpService.configure(configuration.http && configuration.http.proxy, configuration.http.proxyStrictSSL);
 				return rawHttpService;
 			});
 		}
@@ -68,13 +62,6 @@ export class RequestService extends BaseRequestService implements IThreadSynchro
 
 	public dispose(): void {
 		lifecycle.cAll(this.callOnDispose);
-	}
-
-	/**
-	 * IThreadSynchronizableObject Id. Must match id in WorkerRequestService.
-	 */
-	public getId(): string {
-		return 'NativeRequestService';
 	}
 
 	public makeRequest(options: http.IXHROptions): TPromise<http.IXHRResponse> {
@@ -101,7 +88,7 @@ export class RequestService extends BaseRequestService implements IThreadSynchro
 	 * Make a cross origin request using NodeJS.
 	 * Note: This method is also called from workers.
 	 */
-	public makeCrossOriginRequest(options: http.IXHROptions): TPromise<http.IXHRResponse> {
+	protected makeCrossOriginRequest(options: http.IXHROptions): TPromise<http.IXHRResponse> {
 		let timerVar: timer.ITimerEvent = timer.nullEvent;
 		return this.rawHttpServicePromise.then((rawHttpService: IRawHttpService) => {
 			return async.always(rawHttpService.xhr(options), ((xhr: http.IXHRResponse) => {

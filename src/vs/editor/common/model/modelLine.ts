@@ -171,9 +171,8 @@ export class ModelLine {
 				if (currentTokenStartIndex > 0 && delta !== 0) {
 					// adjust token's `startIndex` by `delta`
 					let deflatedType = (tokens[tokensIndex] / BIN.TYPE_OFFSET) & BIN.TYPE_MASK;
-					let deflatedBracket = (tokens[tokensIndex] / BIN.BRACKET_OFFSET) & BIN.BRACKET_MASK;
 					let newStartIndex = Math.max(minimumAllowedIndex, currentTokenStartIndex + delta);
-					let newToken = deflatedBracket * BIN.BRACKET_OFFSET + deflatedType * BIN.TYPE_OFFSET + newStartIndex * BIN.START_INDEX_OFFSET;
+					let newToken = deflatedType * BIN.TYPE_OFFSET + newStartIndex * BIN.START_INDEX_OFFSET;
 
 					if (delta < 0) {
 						// pop all previous tokens that have become `collapsed`
@@ -235,6 +234,25 @@ export class ModelLine {
 		}
 	}
 
+	// private _printMarkers(): string {
+	// 	if (!this._markers) {
+	// 		return '[]';
+	// 	}
+	// 	if (this._markers.length === 0) {
+	// 		return '[]';
+	// 	}
+
+	// 	var markers = this._markers;
+
+	// 	var printMarker = (m:ILineMarker) => {
+	// 		if (m.stickToPreviousCharacter) {
+	// 			return '|' + m.column;
+	// 		}
+	// 		return m.column + '|';
+	// 	}
+	// 	return '[' + markers.map(printMarker).join(', ') + ']';
+	// }
+
 	private _createMarkersAdjuster(changedMarkers:IChangedMarkers): IMarkersAdjuster {
 		if (!this._markers) {
 			return NO_OP_MARKERS_ADJUSTER;
@@ -250,22 +268,12 @@ export class ModelLine {
 		var markersIndex = 0;
 		var marker = markers[markersIndex];
 
-		// var printMarker = (m:ILineMarker) => {
-		// 	if (m.stickToPreviousCharacter) {
-		// 		return '|' + m.column;
-		// 	}
-		// 	return m.column + '|';
-		// }
-		// var printMarkers = () => {
-		// 	return '[' + markers.map(printMarker).join(', ') + ']';
-		// };
-
-		// console.log('------------- INITIAL MARKERS: ' + printMarkers());
+		// console.log('------------- INITIAL MARKERS: ' + this._printMarkers());
 
 		let adjust = (toColumn:number, delta:number, minimumAllowedColumn:number, forceStickToPrevious:boolean, forceMoveMarkers:boolean) => {
 			// console.log('------------------------------');
 			// console.log('adjust called: toColumn: ' + toColumn + ', delta: ' + delta + ', minimumAllowedColumn: ' + minimumAllowedColumn + ', forceStickToPrevious: ' + forceStickToPrevious + ', forceMoveMarkers:' + forceMoveMarkers);
-			// console.log('BEFORE::: markersIndex: ' + markersIndex + ' : ' + printMarkers());
+			// console.log('BEFORE::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
 			while (
 				markersIndex < markersLength
 				&& (
@@ -292,13 +300,13 @@ export class ModelLine {
 					marker = markers[markersIndex];
 				}
 			}
-			// console.log('AFTER::: markersIndex: ' + markersIndex + ' : ' + printMarkers());
+			// console.log('AFTER::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
 		};
 
 		let finish = (delta:number, lineTextLength:number) => {
 			adjust(Number.MAX_VALUE, delta, 1, false, false);
 
-			// console.log('------------- FINAL MARKERS: ' + printMarkers());
+			// console.log('------------- FINAL MARKERS: ' + this._printMarkers());
 		};
 
 		return {
@@ -361,13 +369,14 @@ export class ModelLine {
 	}
 
 	public split(changedMarkers: IChangedMarkers, splitColumn:number, forceMoveMarkers:boolean): ModelLine {
-		// console.log('--> split: ' + splitColumn);
+		// console.log('--> split @ ' + splitColumn + '::: ' + this._printMarkers());
 		var myText = this.text.substring(0, splitColumn - 1);
 		var otherText = this.text.substring(splitColumn - 1);
 
 		var otherMarkers: ILineMarker[] = null;
 
 		if (this._markers) {
+			this._markers.sort(ModelLine._compareMarkers);
 			for (let i = 0, len = this._markers.length; i < len; i++) {
 				let marker = this._markers[i];
 
@@ -410,7 +419,8 @@ export class ModelLine {
 	}
 
 	public append(changedMarkers: IChangedMarkers, other:ModelLine): void {
-		// console.log('--> append: ');
+		// console.log('--> append: THIS :: ' + this._printMarkers());
+		// console.log('--> append: OTHER :: ' + this._printMarkers());
 		var thisTextLength = this.text.length;
 		this._setText(this.text + other.text);
 
@@ -428,9 +438,8 @@ export class ModelLine {
 
 					let deflatedStartIndex = (token / BIN.START_INDEX_OFFSET) & BIN.START_INDEX_MASK;
 					let deflatedType = (token / BIN.TYPE_OFFSET) & BIN.TYPE_MASK;
-					let deflatedBracket = (token / BIN.BRACKET_OFFSET) & BIN.BRACKET_MASK;
 					let newStartIndex = deflatedStartIndex + thisTextLength;
-					let newToken = deflatedBracket * BIN.BRACKET_OFFSET + deflatedType * BIN.TYPE_OFFSET + newStartIndex * BIN.START_INDEX_OFFSET;
+					let newToken = deflatedType * BIN.TYPE_OFFSET + newStartIndex * BIN.START_INDEX_OFFSET;
 
 					otherTokens[i] = newToken;
 				}
@@ -607,7 +616,7 @@ function toLineTokens(map:EditorCommon.ITokensInflatorMap, tokens:Modes.IToken[]
 				return null;
 			}
 		} else {
-			if (tokens[0].startIndex === 0 && tokens[0].type === '' && !tokens[0].bracket) {
+			if (tokens[0].startIndex === 0 && tokens[0].type === '') {
 				return null;
 			}
 		}
@@ -617,7 +626,6 @@ function toLineTokens(map:EditorCommon.ITokensInflatorMap, tokens:Modes.IToken[]
 
 var getStartIndex = EditorCommon.LineTokensBinaryEncoding.getStartIndex;
 var getType = EditorCommon.LineTokensBinaryEncoding.getType;
-var getBracket = EditorCommon.LineTokensBinaryEncoding.getBracket;
 var findIndexOfOffset = EditorCommon.LineTokensBinaryEncoding.findIndexOfOffset;
 
 export class LineTokens implements EditorCommon.ILineTokens {
@@ -656,10 +664,6 @@ export class LineTokens implements EditorCommon.ILineTokens {
 
 	public getTokenType(tokenIndex:number): string {
 		return getType(this.map, this._tokens[tokenIndex]);
-	}
-
-	public getTokenBracket(tokenIndex:number): Modes.Bracket {
-		return getBracket(this._tokens[tokenIndex]);
 	}
 
 	public getTokenEndIndex(tokenIndex:number, textLength:number): number {
@@ -703,10 +707,6 @@ class EmptyLineTokens implements EditorCommon.ILineTokens {
 		return Strings.empty;
 	}
 
-	public getTokenBracket(tokenIndex:number): Modes.Bracket {
-		return 0;
-	}
-
 	public getTokenEndIndex(tokenIndex:number, textLength:number): number {
 		return 0;
 	}
@@ -743,10 +743,6 @@ export class DefaultLineTokens implements EditorCommon.ILineTokens {
 
 	public getTokenType(tokenIndex:number): string {
 		return Strings.empty;
-	}
-
-	public getTokenBracket(tokenIndex:number): Modes.Bracket {
-		return 0;
 	}
 
 	public getTokenEndIndex(tokenIndex:number, textLength:number): number {

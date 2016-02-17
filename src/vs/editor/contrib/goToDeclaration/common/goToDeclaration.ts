@@ -5,7 +5,6 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {IModel, IPosition} from 'vs/editor/common/editorCommon';
@@ -43,4 +42,4 @@ export function getDeclarationsAtPosition(model: IModel, position: IPosition): T
 	});
 }
 
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeDefinitionProvider', getDeclarationsAtPosition)
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeDefinitionProvider', getDeclarationsAtPosition);

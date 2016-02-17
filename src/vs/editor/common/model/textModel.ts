@@ -11,7 +11,6 @@ import {Range} from 'vs/editor/common/core/range';
 import {ModelLine} from 'vs/editor/common/model/modelLine';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Platform = require('vs/base/common/platform');
-import Event, {Emitter} from 'vs/base/common/event';
 
 var __space = ' '.charCodeAt(0);
 var __tab = '\t'.charCodeAt(0);
@@ -19,10 +18,6 @@ var LIMIT_FIND_COUNT = 999;
 var DEFAULT_PLATFORM_EOL = (Platform.isLinux || Platform.isMacintosh) ? '\n' : '\r\n';
 
 export interface IIndentationFactors {
-	/**
-	 * number of lines with indentation
-	 */
-	linesWithIndentationCount:number;
 	/**
 	 * The number of lines that are indented with tabs
 	 */
@@ -124,6 +119,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 			rangeLength: rangeLength,
 			text: text,
+			eol: this._EOL,
 			versionId: this.getVersionId(),
 			isUndoing: isUndoing,
 			isRedoing: isRedoing
@@ -328,10 +324,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 			prevLineCharCode:number,
 			lines = this._lines,
 			/**
-			 * number of lines with indentation
-			 */
-			linesWithIndentationCount = 0,
-			/**
 			 * text on current line
 			 */
 			currentLineText: string,
@@ -394,7 +386,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 			}
 
 			if (currentLineHasContent && (tmpTabCounts > 0 || tmpSpaceCounts > 0)) {
-				linesWithIndentationCount++;
 				if (tmpTabCounts > 0) {
 					linesIndentedWithTabs++;
 				}
@@ -460,7 +451,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 		}
 
 		return {
-			linesWithIndentationCount: linesWithIndentationCount,
 			linesIndentedWithTabs: linesIndentedWithTabs,
 			relativeSpaceCounts: relativeSpaceCounts,
 			absoluteSpaceCounts: absoluteSpaceCounts
@@ -472,38 +462,20 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 			throw new Error('TextModel.guessIndentation: Model is disposed');
 		}
 
-		var i:number,
+		let i:number,
 			len:number,
 			factors = this._extractIndentationFactors(),
-			linesWithIndentationCount = factors.linesWithIndentationCount,
 			linesIndentedWithTabs = factors.linesIndentedWithTabs,
 			absoluteSpaceCounts = factors.absoluteSpaceCounts,
 			relativeSpaceCounts = factors.relativeSpaceCounts;
 
 		// Count the absolute number of times tabs or spaces have been used as indentation
-		var linesIndentedWithSpaces = 0;
+		let linesIndentedWithSpaces = 0;
 		for (i = 1, len = absoluteSpaceCounts.length; i < len; i++) {
 			linesIndentedWithSpaces += (absoluteSpaceCounts[i] || 0);
 		}
 
-		// Give preference to spaces over tabs (when evidence is the same)
-		// or when there are not enough clues (too little indentation in the file)
-		if (linesIndentedWithTabs >= linesIndentedWithSpaces) {
-			return {
-				insertSpaces: true,
-				tabSize: defaultTabSize
-			};
-		}
-
-		if (linesWithIndentationCount < 6 && linesIndentedWithTabs > 0) {
-			// Making a guess with 6 indented lines, of which tabs are used besides spaces is very difficult
-			return {
-				insertSpaces: true,
-				tabSize: defaultTabSize
-			};
-		}
-
-		var candidate:number,
+		let candidate:number,
 			candidateScore:number,
 			penalization:number,
 			m:number,
@@ -528,18 +500,17 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 			scores[candidate] = candidateScore / (1 + penalization);
 		}
 
-//		console.log('----------');
-//		console.log('linesWithIndentationCount: ', linesWithIndentationCount);
-//		console.log('linesIndentedWithTabs: ', linesIndentedWithTabs);
-//		console.log('absoluteSpaceCounts: ', absoluteSpaceCounts);
-//		console.log('relativeSpaceCounts: ', relativeSpaceCounts);
-//		console.log('=> linesIndentedWithSpaces: ', linesIndentedWithSpaces);
-//		console.log('=> scores: ', scores);
+		// console.log('----------');
+		// console.log('linesIndentedWithTabs: ', linesIndentedWithTabs);
+		// console.log('absoluteSpaceCounts: ', absoluteSpaceCounts);
+		// console.log('relativeSpaceCounts: ', relativeSpaceCounts);
+		// console.log('=> linesIndentedWithSpaces: ', linesIndentedWithSpaces);
+		// console.log('=> scores: ', scores);
 
-		var bestCandidate = defaultTabSize,
+		let bestCandidate = defaultTabSize,
 			bestCandidateScore = 0;
 
-		var allowedGuesses = [2, 4, 6, 8];
+		let allowedGuesses = [2, 4, 6, 8];
 
 		for (i = 0; i < allowedGuesses.length; i++) {
 			candidate = allowedGuesses[i];
@@ -549,8 +520,15 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 				bestCandidateScore = candidateScore;
 			}
 		}
+
+		let insertSpaces = true;
+		if (linesIndentedWithTabs > linesIndentedWithSpaces) {
+			// More lines indented with tabs
+			insertSpaces = false;
+		}
+
 		return {
-			insertSpaces: true,
+			insertSpaces: insertSpaces,
 			tabSize: bestCandidate
 		};
 	}
@@ -859,37 +837,12 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 		throw new Error('Unknown EOL preference');
 	}
 
-	private _toRegExp(searchString:string, isRegex:boolean, matchCase:boolean, wholeWord:boolean): RegExp {
-		if (searchString === '') {
-			return null;
-		}
-
-		// Try to create a RegExp out of the params
-		var regex:RegExp = null;
-		try {
-			regex = Strings.createRegExp(searchString, isRegex, matchCase, wholeWord);
-		} catch (err) {
-			return null;
-		}
-
-		// Guard against endless loop RegExps & wrap around try-catch as very long regexes produce an exception when executed the first time
-		try {
-			if (Strings.regExpLeadsToEndlessLoop(regex)) {
-				return null;
-			}
-		} catch (err) {
-			return null;
-		}
-
-		return regex;
-	}
-
 	public findMatches(searchString:string, rawSearchScope:any, isRegex:boolean, matchCase:boolean, wholeWord:boolean, limitResultCount:number = LIMIT_FIND_COUNT): EditorCommon.IEditorRange[] {
 		if (this._isDisposed) {
 			throw new Error('Model.findMatches: Model is disposed');
 		}
 
-		var regex = this._toRegExp(searchString, isRegex, matchCase, wholeWord);
+		var regex = Strings.createSafeRegExp(searchString, isRegex, matchCase, wholeWord);
 		if (!regex) {
 			return [];
 		}
@@ -909,7 +862,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 			throw new Error('Model.findNextMatch: Model is disposed');
 		}
 
-		var regex = this._toRegExp(searchString, isRegex, matchCase, wholeWord);
+		var regex = Strings.createSafeRegExp(searchString, isRegex, matchCase, wholeWord);
 		if (!regex) {
 			return null;
 		}
@@ -931,6 +884,41 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 			var lineIndex = (startLineNumber + i - 1) % lineCount;
 			text = this._lines[lineIndex].text;
 			r = this._findMatchInLine(regex, text, lineIndex + 1, 0);
+			if (r) {
+				return r;
+			}
+		}
+
+		return null;
+	}
+
+	public findPreviousMatch(searchString:string, rawSearchStart:EditorCommon.IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): EditorCommon.IEditorRange {
+		if (this._isDisposed) {
+			throw new Error('Model.findPreviousMatch: Model is disposed');
+		}
+
+		var regex = Strings.createSafeRegExp(searchString, isRegex, matchCase, wholeWord);
+		if (!regex) {
+			return null;
+		}
+
+		var searchStart = this.validatePosition(rawSearchStart),
+			lineCount = this.getLineCount(),
+			startLineNumber = searchStart.lineNumber,
+			text: string,
+			r: EditorCommon.IEditorRange;
+
+		// Look in first line
+		text = this._lines[startLineNumber - 1].text.substring(0, searchStart.column - 1);
+		r = this._findLastMatchInLine(regex, text, startLineNumber);
+		if (r) {
+			return r;
+		}
+
+		for (var i = 1; i < lineCount; i++) {
+			var lineIndex = (lineCount + startLineNumber - i - 1) % lineCount;
+			text = this._lines[lineIndex].text;
+			r = this._findLastMatchInLine(regex, text, lineIndex + 1);
 			if (r) {
 				return r;
 			}
@@ -975,6 +963,19 @@ export class TextModel extends OrderGuaranteeEventEmitter implements EditorCommo
 			return null;
 		}
 		return new Range(lineNumber, m.index + 1 + deltaOffset, lineNumber, m.index + 1 + m[0].length + deltaOffset);
+	}
+
+	private _findLastMatchInLine(searchRegex:RegExp, text:string, lineNumber:number): EditorCommon.IEditorRange {
+		let bestResult: EditorCommon.IEditorRange = null;
+		let m:RegExpExecArray;
+		while ((m = searchRegex.exec(text))) {
+			let result = new Range(lineNumber, m.index + 1, lineNumber, m.index + 1 + m[0].length);
+			if (result.equalsRange(bestResult)) {
+				break;
+			}
+			bestResult = result;
+		}
+		return bestResult;
 	}
 
 	private _findMatchesInLine(searchRegex:RegExp, text:string, lineNumber:number, deltaOffset:number, counter:number, result:EditorCommon.IEditorRange[], limitResultCount:number): number {

@@ -264,7 +264,7 @@ export class LessParser extends cssParser.Parser {
 		}
 		if (!node.setSelector(this._parseSimpleSelector())) {
 			return this.finish(node, errors.ParseError.SelectorExpected);
-		};
+		}
 		if (!this.accept(scanner.TokenType.ParenthesisR)) {
 			return this.finish(node, errors.ParseError.RightParenthesisExpected);
 		}

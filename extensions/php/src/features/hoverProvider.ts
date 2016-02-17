@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {HoverProvider, Hover, MarkedString, TextDocument, CancellationToken, Range, Position} from 'vscode';
+import {HoverProvider, Hover, MarkedString, TextDocument, CancellationToken, Position} from 'vscode';
 import phpGlobals = require('./phpGlobals');
 
 export default class PHPHoverProvider implements HoverProvider {

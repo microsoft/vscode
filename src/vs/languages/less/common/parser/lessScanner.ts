@@ -6,8 +6,6 @@
 
 import scanner = require('vs/languages/css/common/parser/cssScanner');
 
-var _PRC = '%'.charCodeAt(0);
-var _LPA = '('.charCodeAt(0);
 var _FSL = '/'.charCodeAt(0);
 var _NWL = '\n'.charCodeAt(0);
 var _CAR = '\r'.charCodeAt(0);

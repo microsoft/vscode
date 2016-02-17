@@ -105,7 +105,7 @@ export class LinesDecorationsOverlay extends ViewEventHandler implements EditorB
 			className:string,
 			lineOutput:string[],
 			lineNumber: number,
-			lineNumberStr: string;;
+			lineNumberStr: string;
 
 		for (i = 0, lenI = decorations.length; i < lenI; i++) {
 			d = decorations[i];

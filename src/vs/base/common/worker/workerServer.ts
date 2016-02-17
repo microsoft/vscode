@@ -24,7 +24,6 @@ export class WorkerServer {
 	private _lastReq: number;
 	private _awaitedReplies: { [req:string]: IReplyCallbacks; };
 	private _remoteCom: protocol.RemoteCom;
-	private _proxiesMarshalling: remote.ProxiesMarshallingContribution;
 
 	constructor(postSerializedMessage:(msg:string)=>void) {
 		this._postSerializedMessage = postSerializedMessage;
@@ -35,7 +34,6 @@ export class WorkerServer {
 		this._bindConsole();
 
 		this._remoteCom = new protocol.RemoteCom(this);
-		this._proxiesMarshalling = new remote.ProxiesMarshallingContribution(this._remoteCom);
 	}
 
 	public getRemoteCom(): remote.IRemoteCom {
@@ -122,11 +120,11 @@ export class WorkerServer {
 	}
 
 	public onmessage(msg:string): void {
-		this._onmessage(marshalling.demarshallObject(msg, this._proxiesMarshalling));
+		this._onmessage(marshalling.parse(msg));
 	}
 
 	private _postMessage(msg:protocol.IServerMessage): void {
-		this._postSerializedMessage(marshalling.marshallObject(msg, this._proxiesMarshalling));
+		this._postSerializedMessage(marshalling.stringify(msg));
 	}
 
 	private _onmessage(msg:protocol.IClientMessage): void {
@@ -172,6 +170,14 @@ export class WorkerServer {
 							delete loaderConfig.paths['vs'];
 						}
 					}
+					let nlsConfig = loaderConfig['vs/nls'];
+					// We need to have pseudo translation
+					if (nlsConfig && nlsConfig.pseudo) {
+						require(['vs/nls'], function(nlsPlugin) {
+							nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
+						});
+					}
+
 					// Since this is in a web worker, enable catching errors
 					loaderConfig.catchError = true;
 					(<any>self).require.config(loaderConfig);

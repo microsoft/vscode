@@ -107,13 +107,17 @@ export class MockNode extends MockEventTarget implements Node {
 		this.appendChild(this.ownerDocument.createTextNode(value));
 	}
 
-	removeChild(oldChild: Node): Node {
+	public removeChild(oldChild: Node): Node {
 		var i = this._childNodes.indexOf(oldChild);
 		if(i >= 0) {
 			var removed = this._childNodes.splice(i, 1);
 			return removed[0];
 		}
 		return null;
+	}
+
+	public contains(node: Node): boolean {
+		return this._childNodes.indexOf(node) !== -1;
 	}
 
 	appendChild(newChild: Node): Node {
@@ -238,6 +242,14 @@ export class MockElement extends MockNode implements Element {
 		return filter.length ? filter[0].value : '';
 	}
 
+	get innerHTML(): string {
+		throw new Error('Not implemented!');
+	}
+
+	set innerHTML(value: string) {
+		throw new Error('Not implemented!');
+	}
+
 	getElementsByTagNameNS(namespaceURI: string, localName: string): NodeListOf<Element> {
 		throw new Error('Not implemented!');
 	}
@@ -299,6 +311,10 @@ export class MockElement extends MockNode implements Element {
 		this._attributes.push(attr);
 	}
 	removeAttributeNS(namespaceURI: string, localName: string): void {
+		throw new Error('Not implemented!');
+	}
+
+	matches(selector: string): boolean {
 		throw new Error('Not implemented!');
 	}
 
@@ -585,10 +601,8 @@ class TextParser implements IParserState {
 		switch(char) {
 			case '<':
 				return new TagParser();
-				break;
 			case '>':
 				return new ErrorState('Unexpected >');
-				break;
 			default:
 				this.textContent += char;
 				return this;
@@ -631,7 +645,6 @@ class TagParser implements IParserState {
 			case '/':
 				this.isClosing = true;
 				return this;
-				break;
 			case '>':
 				if(this.tagName) {
 					return new TextParser();
@@ -639,7 +652,6 @@ class TagParser implements IParserState {
 				else {
 					return new ErrorState('No tag name specified');
 				}
-				break;
 			case ' ':
 				if(this.tagName) {
 					if(this.isClosing) {
@@ -708,15 +720,12 @@ class AttributeParser implements IParserState {
 				} else {
 					return this;
 				}
-				break;
 			case '=':
 				this.inValue = true;
 				return new AttributeValueParser(this);
-				break;
 			case '>':
 				stream.back();
 				return this.tag;
-				break;
 			default:
 				if(this.inValue === false) {
 					this.attributeName += char;
@@ -736,7 +745,6 @@ class AttributeParser implements IParserState {
 class AttributeValueParser implements IParserState {
 	public name: string;
 	private attribute: AttributeParser;
-	private attributeName:string;
 	private value:string;
 	private quote:boolean;
 
@@ -758,7 +766,6 @@ class AttributeValueParser implements IParserState {
 				else {
 					return this.attribute;
 				}
-				break;
 			default:
 				if(this.quote === false) {
 					return new ErrorState('Expected " character');

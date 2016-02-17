@@ -7,7 +7,7 @@
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, HandlerEditorAction, Behaviour} from 'vs/editor/common/editorAction';
+import {EditorAction, HandlerEditorAction} from 'vs/editor/common/editorAction';
 import CopyLinesCommand = require('./copyLinesCommand');
 import DeleteLinesCommand = require('./deleteLinesCommand');
 import MoveLinesCommand = require('./moveLinesCommand');

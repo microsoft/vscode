@@ -13,6 +13,11 @@
 	-webkit-text-size-adjust: 100%;
 }
 
+.monaco-editor.enable-ligatures {
+	-webkit-font-feature-settings: "liga" on, "calt" on;
+	font-feature-settings: "liga" on, "calt" on;
+}
+
 .monaco-editor .overflow-guard {
 	position: relative;
 	overflow: hidden;
@@ -42,11 +47,21 @@
 	margin: 0;
 	padding: 0;
 	position: absolute;
-	outline: none;
+	outline: none !important;
 	resize: none;
 	border: none;
 	overflow: hidden;
 }
+
+/*.monaco-editor .inputarea {
+	position: fixed !important;
+	width: 800px !important;
+	height: 200px !important;
+	top: initial !important;
+	left: initial !important;
+	bottom: 0 !important;
+	right: 0 !important;
+}*/
 
 .monaco-editor.ff .inputarea,
 .monaco-editor.ie .inputarea {
@@ -54,7 +69,7 @@
 	height: 0;
 }
 
-.monaco-editor.ime-input .inputarea, 
+.monaco-editor.ime-input .inputarea,
 .monaco-editor.ie.ime-input .inputarea,
 .monaco-editor.ff.ime-input .inputarea、 {
 	width: 500px;
@@ -143,5 +158,5 @@
 /* All widgets */
 /* I am not a big fan of this rule */
 .monaco-editor .editor-widget input {
-	color: inherit;	
+	color: inherit;
 }

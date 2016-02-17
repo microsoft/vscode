@@ -5,10 +5,8 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import network = require('vs/base/common/network');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
 import projectService = require('vs/languages/typescript/common/project/projectService');
 
 export function findDeclaration(project: projectService.IProject, resource: URI, position: EditorCommon.IPosition): Modes.IReference {

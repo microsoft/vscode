@@ -5,6 +5,7 @@
 
 import * as cp from 'child_process';
 import URI from 'vs/base/common/uri';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import { IEnvironment } from 'vs/platform/workspace/common/workspace';
 import env = require('vs/workbench/electron-main/env');
@@ -32,12 +33,15 @@ function getEnvironment(): IEnvironment {
 	return configuration;
 }
 
-export function spawnSharedProcess(): cp.ChildProcess {
-	const result = cp.fork(boostrapPath, ['--type=SharedProcess'], {
+function _spawnSharedProcess(): cp.ChildProcess {
+	// Make sure the nls configuration travels to the plugin host.
+	const opts = {
 		env: assign(assign({}, process.env), {
 			AMD_ENTRYPOINT: 'vs/workbench/electron-main/sharedProcessMain'
 		})
-	});
+	};
+
+	const result = cp.fork(boostrapPath, ['--type=SharedProcess'], opts);
 
 	// handshake
 	result.once('message', () => {
@@ -52,4 +56,31 @@ export function spawnSharedProcess(): cp.ChildProcess {
 	});
 
 	return result;
+}
+
+let spawnCount = 0;
+
+export function spawnSharedProcess(): IDisposable {
+	let child: cp.ChildProcess;
+
+	const spawn = () => {
+		if (++spawnCount > 10) {
+			return;
+		}
+
+		child = _spawnSharedProcess();
+		child.on('exit', spawn);
+	};
+
+	spawn();
+
+	return {
+		dispose: () => {
+			if (child) {
+				child.removeListener('exit', spawn);
+				child.kill();
+				child = null;
+			}
+		}
+	};
 }

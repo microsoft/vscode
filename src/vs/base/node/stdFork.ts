@@ -29,7 +29,7 @@ function makeRandomHexString(length:number): string {
 }
 
 function generatePipeName(): string {
-	var randomName = 'vscode-' + makeRandomHexString(40);
+	let randomName = 'vscode-' + makeRandomHexString(40);
 	if (process.platform === 'win32') {
 		return '\\\\.\\pipe\\' + randomName + '-sock';
 	}
@@ -41,8 +41,8 @@ function generatePipeName(): string {
 function generatePatchedEnv(env:any, stdInPipeName:string, stdOutPipeName:string): any {
 	// Set the two unique pipe names and the electron flag as process env
 
-	var newEnv:any = {};
-	for (var key in env) {
+	let newEnv:any = {};
+	for (let key in env) {
 		newEnv[key] = env[key];
 	}
 
@@ -55,15 +55,15 @@ function generatePatchedEnv(env:any, stdInPipeName:string, stdOutPipeName:string
 
 export function fork(modulePath: string, args: string[], options: IForkOpts, callback:(error:any, cp:cp.ChildProcess)=>void): void {
 
-	var callbackCalled = false;
-	var resolve = (result: cp.ChildProcess) => {
+	let callbackCalled = false;
+	let resolve = (result: cp.ChildProcess) => {
 		if (callbackCalled) {
 			return;
 		}
 		callbackCalled = true;
 		callback(null, result);
 	};
-	var reject = (err:any) => {
+	let reject = (err:any) => {
 		if (callbackCalled) {
 			return;
 		}
@@ -72,15 +72,15 @@ export function fork(modulePath: string, args: string[], options: IForkOpts, cal
 	};
 
 	// Generate two unique pipe names
-	var stdInPipeName = generatePipeName();
-	var stdOutPipeName = generatePipeName();
+	let stdInPipeName = generatePipeName();
+	let stdOutPipeName = generatePipeName();
 
-	var newEnv = generatePatchedEnv(options.env || process.env, stdInPipeName, stdOutPipeName);
+	let newEnv = generatePatchedEnv(options.env || process.env, stdInPipeName, stdOutPipeName);
 
-	var childProcess: cp.ChildProcess;
+	let childProcess: cp.ChildProcess;
 
 	// Begin listening to stdout pipe
-	var server = net.createServer((stream) => {
+	let server = net.createServer((stream) => {
 		// The child process will write exactly one chunk with content `ready` when it has installed a listener to the stdin pipe
 
 		stream.once('data', (chunk:Buffer) => {
@@ -95,14 +95,14 @@ export function fork(modulePath: string, args: string[], options: IForkOpts, cal
 	});
 	server.listen(stdOutPipeName);
 
-	var serverClosed = false;
-	var closeServer = () => {
+	let serverClosed = false;
+	let closeServer = () => {
 		if (serverClosed) {
 			return;
 		}
 		serverClosed = true;
 		server.close();
-	}
+	};
 
 	// Create the process
 	let bootstrapperPath = (uri.parse(require.toUrl('./stdForkStart.js')).fsPath);

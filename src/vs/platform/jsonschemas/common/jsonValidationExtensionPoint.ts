@@ -5,17 +5,17 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import {Registry} from 'vs/platform/platform';
+import URI from 'vs/base/common/uri';
 import JSONContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 
 interface IJSONValidationExtensionPoint {
-	fileMatch: string,
-	url: string
+	fileMatch: string;
+	url: string;
 }
 
 let schemaRegistry = <JSONContributionRegistry.IJSONContributionRegistry>Registry.as(JSONContributionRegistry.Extensions.JSONContribution);
@@ -23,10 +23,10 @@ let schemaRegistry = <JSONContributionRegistry.IJSONContributionRegistry>Registr
 let configurationExtPoint = PluginsRegistry.registerExtensionPoint<IJSONValidationExtensionPoint[]>('jsonValidation', {
 	description: nls.localize('contributes.jsonValidation', 'Contributes json schema configuration.'),
 	type: 'array',
-	default: [ { fileMatch: "{{file.json}}", url: "{{url}}" } ],
+	default: [{ fileMatch: '{{file.json}}', url: '{{url}}' }],
 	items: {
 		type: 'object',
-		default: { fileMatch: "{{file.json}}", url: "{{url}}" },
+		default: { fileMatch: '{{file.json}}', url: '{{url}}' },
 		properties: {
 			fileMatch: {
 				type: 'string',
@@ -47,7 +47,7 @@ export class JSONValidationExtensionPoint {
 	) {
 		configurationExtPoint.setHandler((extensions) => {
 			for (var i = 0; i < extensions.length; i++) {
-				var extensionValue = <IJSONValidationExtensionPoint[]> extensions[i].value;
+				var extensionValue = <IJSONValidationExtensionPoint[]>extensions[i].value;
 				var collector = extensions[i].collector;
 				var extensionPath = extensions[i].description.extensionFolderPath;
 
@@ -60,18 +60,22 @@ export class JSONValidationExtensionPoint {
 						collector.error(nls.localize('invalid.fileMatch', "'configuration.jsonValidation.fileMatch' must be defined"));
 						return;
 					}
-					var uri = extension.url;
+					let uri = extension.url;
 					if (typeof extension.url !== 'string') {
 						collector.error(nls.localize('invalid.url', "'configuration.jsonValidation.url' must be a URL or relative path"));
 						return;
 					}
 					if (strings.startsWith(uri, './')) {
-						uri = paths.normalize(paths.join(extensionPath, uri));
+						try {
+							uri = URI.file(paths.normalize(paths.join(extensionPath, uri))).toString();
+						} catch (e) {
+							collector.error(nls.localize('invalid.url.fileschema', "'configuration.jsonValidation.url' is an invalid relative URL: {0}", e.message));
+						}
 					} else if (!strings.startsWith(uri, 'https:/') && strings.startsWith(uri, 'https:/')) {
 						collector.error(nls.localize('invalid.url.schema', "'configuration.jsonValidation.url' must start with 'http:', 'https:' or './' to reference schemas located in the extension"));
 						return;
 					}
-					var fileMatch = extension.fileMatch;
+					let fileMatch = extension.fileMatch;
 					if (!strings.startsWith(extension.fileMatch, '/')) {
 						fileMatch = '/' + fileMatch;
 					}

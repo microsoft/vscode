@@ -35,10 +35,19 @@
 
 .search-viewlet .query-details .more {
 	position: absolute;
-	top: -0.5em;
 	right: 0;
 	margin-right: 0.5em;
 	cursor: pointer;
+	width: 16px;
+	height: 13px;
+}
+
+.monaco-workbench.vs-dark .search-viewlet .query-details .more {
+	background: url('ellipsis-inverse.svg') top center no-repeat;
+}
+
+.monaco-workbench.vs .search-viewlet .query-details .more {
+	background: url('ellipsis.svg') top center no-repeat;
 }
 
 .search-viewlet .query-details .file-types {
@@ -99,7 +108,7 @@
 
 .search-viewlet .filematch {
 	position: relative;
-	line-height: 24px;
+	line-height: 22px;
 	padding: 0;
 }
 
@@ -113,7 +122,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	position: relative;
-	line-height: 24px;
+	line-height: 22px;
 }
 
 .search-viewlet .linematch.changedOrRemoved {
@@ -156,6 +165,15 @@
 
 .search-viewlet .label {
 	font-style: italic;
+}
+
+.search-viewlet .monaco-count-badge {
+	margin-right: 12px;
+}
+
+.search-viewlet > .results > .monaco-tree .monaco-tree-row:hover .content .monaco-count-badge,
+.search-viewlet > .results > .monaco-tree.focused .monaco-tree-row.focused .content .monaco-count-badge {
+	display: none;
 }
 
 .vs .search-viewlet input.disabled,

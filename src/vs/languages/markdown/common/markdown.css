@@ -20,6 +20,14 @@ a {
 	text-decoration: none;
 }
 
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
 hr {
 	border: 0;
 	height: 2px;

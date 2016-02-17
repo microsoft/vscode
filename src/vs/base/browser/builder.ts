@@ -5,9 +5,9 @@
 'use strict';
 
 import 'vs/css!./builder';
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
-import {IDisposable} from 'vs/base/common/lifecycle';
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import strings = require('vs/base/common/strings');
 import assert = require('vs/base/common/assert');
 import DOM = require('vs/base/browser/dom');
@@ -133,8 +133,8 @@ export class Builder implements IDisposable {
 	private offdom: boolean;
 	private container: HTMLElement;
 	private createdElements: HTMLElement[];
-	private toUnbind: { [type: string]: { (): void; }[]; };
-	private captureToUnbind: { [type: string]: { (): void; }[]; };
+	private toUnbind: { [type: string]: IDisposable[]; };
+	private captureToUnbind: { [type: string]: IDisposable[]; };
 	private browserService: BrowserService.IBrowserService;
 
 	constructor(element?: HTMLElement, offdom?: boolean) {
@@ -146,7 +146,7 @@ export class Builder implements IDisposable {
 		this.createdElements = [];
 
 		this.toUnbind = {};
-		this.captureToUnbind = <any>{};
+		this.captureToUnbind = {};
 		this.browserService = BrowserService.getService();
 	}
 
@@ -185,7 +185,7 @@ export class Builder implements IDisposable {
 		}
 
 		// Wrap Builders into MultiBuilder
-		let builders = [this];
+		let builders:Builder[] = [this];
 		if (obj instanceof MultiBuilder) {
 			for (let i = 0; i < (<MultiBuilder>obj).length; i++) {
 				builders.push((<MultiBuilder>obj).item(i));
@@ -561,9 +561,9 @@ export class Builder implements IDisposable {
 	/**
 	 *  Registers listener on event types on the current element.
 	 */
-	public on(type: string, fn: (e: Event, builder: Builder, unbind: { (): void; }) => void, listenerToUnbindContainer?: { (): void; }[], useCapture?: boolean): Builder;
-	public on(typeArray: string[], fn: (e: Event, builder: Builder, unbind: { (): void; }) => void, listenerToUnbindContainer?: { (): void; }[], useCapture?: boolean): Builder;
-	public on(arg1: any, fn: (e: Event, builder: Builder, unbind: { (): void; }) => void, listenerToUnbindContainer?: { (): void; }[], useCapture?: boolean): Builder {
+	public on(type: string, fn: (e: Event, builder: Builder, unbind: IDisposable) => void, listenerToUnbindContainer?: IDisposable[], useCapture?: boolean): Builder;
+	public on(typeArray: string[], fn: (e: Event, builder: Builder, unbind: IDisposable) => void, listenerToUnbindContainer?: IDisposable[], useCapture?: boolean): Builder;
+	public on(arg1: any, fn: (e: Event, builder: Builder, unbind: IDisposable) => void, listenerToUnbindContainer?: IDisposable[], useCapture?: boolean): Builder {
 
 		// Event Type Array
 		if (types.isArray(arg1)) {
@@ -577,7 +577,7 @@ export class Builder implements IDisposable {
 			let type = arg1;
 
 			// Add Listener
-			let unbind: { (): void; } = DOM.addListener(this.currentElement, type, (e: Event) => {
+			let unbind: IDisposable = DOM.addDisposableListener(this.currentElement, type, (e: Event) => {
 				fn(e, this, unbind); // Pass in Builder as Second Argument
 			}, useCapture || false);
 
@@ -595,7 +595,7 @@ export class Builder implements IDisposable {
 			}
 
 			// Bind to Element
-			let listenerBinding: { (): void; }[] = this.getProperty(LISTENER_BINDING_ID, []);
+			let listenerBinding: IDisposable[] = this.getProperty(LISTENER_BINDING_ID, []);
 			listenerBinding.push(unbind);
 			this.setProperty(LISTENER_BINDING_ID, listenerBinding);
 
@@ -627,15 +627,11 @@ export class Builder implements IDisposable {
 			let type = arg1;
 			if (useCapture) {
 				if (this.captureToUnbind[type]) {
-					while (this.captureToUnbind[type].length) {
-						this.captureToUnbind[type].pop()();
-					}
+					this.captureToUnbind[type] = disposeAll(this.captureToUnbind[type]);
 				}
 			} else {
 				if (this.toUnbind[type]) {
-					while (this.toUnbind[type].length) {
-						this.toUnbind[type].pop()();
-					}
+					this.toUnbind[type] = disposeAll(this.toUnbind[type]);
 				}
 			}
 		}
@@ -647,9 +643,9 @@ export class Builder implements IDisposable {
 	 *  Registers listener on event types on the current element and removes
 	 *  them after first invocation.
 	 */
-	public once(type: string, fn: (e: Event, builder: Builder, unbind: { (): void; }) => void, listenerToUnbindContainer?: { (): void; }[], useCapture?: boolean): Builder;
-	public once(typesArray: string[], fn: (e: Event, builder: Builder, unbind: { (): void; }) => void, listenerToUnbindContainer?: { (): void; }[], useCapture?: boolean): Builder;
-	public once(arg1: any, fn: (e: Event, builder: Builder, unbind: { (): void; }) => void, listenerToUnbindContainer?: { (): void; }[], useCapture?: boolean): Builder {
+	public once(type: string, fn: (e: Event, builder: Builder, unbind: IDisposable) => void, listenerToUnbindContainer?: IDisposable[], useCapture?: boolean): Builder;
+	public once(typesArray: string[], fn: (e: Event, builder: Builder, unbind: IDisposable) => void, listenerToUnbindContainer?: IDisposable[], useCapture?: boolean): Builder;
+	public once(arg1: any, fn: (e: Event, builder: Builder, unbind: IDisposable) => void, listenerToUnbindContainer?: IDisposable[], useCapture?: boolean): Builder {
 
 		// Event Type Array
 		if (types.isArray(arg1)) {
@@ -663,9 +659,9 @@ export class Builder implements IDisposable {
 			let type = arg1;
 
 			// Add Listener
-			let unbind: { (): void; } = DOM.addListener(this.currentElement, type, (e: Event) => {
+			let unbind: IDisposable = DOM.addDisposableListener(this.currentElement, type, (e: Event) => {
 				fn(e, this, unbind); // Pass in Builder as Second Argument
-				unbind();
+				unbind.dispose();
 			}, useCapture || false);
 
 			// Add to Array if passed in
@@ -683,9 +679,9 @@ export class Builder implements IDisposable {
 	 *  parameter "cancelBubble" is set to true, it will also prevent bubbling
 	 *  of the event.
 	 */
-	public preventDefault(type: string, cancelBubble: boolean, listenerToUnbindContainer?: { (): void; }[], useCapture?: boolean): Builder;
-	public preventDefault(typesArray: string[], cancelBubble: boolean, listenerToUnbindContainer?: { (): void; }[], useCapture?: boolean): Builder;
-	public preventDefault(arg1: any, cancelBubble: boolean, listenerToUnbindContainer?: { (): void; }[], useCapture?: boolean): Builder {
+	public preventDefault(type: string, cancelBubble: boolean, listenerToUnbindContainer?: IDisposable[], useCapture?: boolean): Builder;
+	public preventDefault(typesArray: string[], cancelBubble: boolean, listenerToUnbindContainer?: IDisposable[], useCapture?: boolean): Builder;
+	public preventDefault(arg1: any, cancelBubble: boolean, listenerToUnbindContainer?: IDisposable[], useCapture?: boolean): Builder {
 		let fn = function(e: Event) {
 			e.preventDefault();
 
@@ -1310,7 +1306,7 @@ export class Builder implements IDisposable {
 		// Cancel any pending showDelayed() invocation
 		this.cancelVisibilityPromise();
 
-		let promise = Promise.timeout(delay);
+		let promise = TPromise.timeout(delay);
 		this.setProperty(VISIBILITY_BINDING_ID, promise);
 
 		promise.done(() => {
@@ -1364,7 +1360,7 @@ export class Builder implements IDisposable {
 	}
 
 	private cancelVisibilityPromise(): void {
-		let promise: Promise = this.getProperty(VISIBILITY_BINDING_ID);
+		let promise: TPromise<void> = this.getProperty(VISIBILITY_BINDING_ID);
 		if (promise) {
 			promise.cancel();
 			this.removeProperty(VISIBILITY_BINDING_ID);
@@ -1691,10 +1687,10 @@ export class Builder implements IDisposable {
 				if (hasData(<HTMLElement>element)) {
 
 					// Listeners
-					let listeners = data(<HTMLElement>element)[LISTENER_BINDING_ID];
+					let listeners: IDisposable[] = data(<HTMLElement>element)[LISTENER_BINDING_ID];
 					if (types.isArray(listeners)) {
 						while (listeners.length) {
-							listeners.pop()();
+							listeners.pop().dispose();
 						}
 					}
 
@@ -1757,10 +1753,10 @@ export class Builder implements IDisposable {
 			if (hasData(this.currentElement)) {
 
 				// Listeners
-				let listeners = data(this.currentElement)[LISTENER_BINDING_ID];
+				let listeners: IDisposable[] = data(this.currentElement)[LISTENER_BINDING_ID];
 				if (types.isArray(listeners)) {
 					while (listeners.length) {
-						listeners.pop()();
+						listeners.pop().dispose();
 					}
 				}
 
@@ -1773,17 +1769,13 @@ export class Builder implements IDisposable {
 
 		for (type in this.toUnbind) {
 			if (this.toUnbind.hasOwnProperty(type) && types.isArray(this.toUnbind[type])) {
-				while (this.toUnbind[type].length) {
-					this.toUnbind[type].pop()();
-				}
+				this.toUnbind[type] = disposeAll(this.toUnbind[type]);
 			}
 		}
 
 		for (type in this.captureToUnbind) {
 			if (this.captureToUnbind.hasOwnProperty(type) && types.isArray(this.captureToUnbind[type])) {
-				while (this.captureToUnbind[type].length) {
-					this.captureToUnbind[type].pop()();
-				}
+				this.captureToUnbind[type] = disposeAll(this.captureToUnbind[type]);
 			}
 		}
 
@@ -1918,7 +1910,7 @@ export class MultiBuilder extends Builder {
 		// Mixin Builder functions to operate on all builders
 		let $outer = this;
 		let propertyFn = (prop: string) => {
-			(<any>$outer)[prop] = function() {
+			(<any>$outer)[prop] = function(): any {
 				let args = Array.prototype.slice.call(arguments);
 
 				let returnValues: any[];

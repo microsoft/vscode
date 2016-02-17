@@ -12,7 +12,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import { IExtensionsService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 export class ListExtensionsAction extends Action {
 
@@ -76,6 +76,29 @@ export class ListOutdatedExtensionsAction extends Action {
 
 	public run(): Promise {
 		return this.quickOpenService.show('ext update ');
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
+
+export class ListSuggestedExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.listSuggestedExtensions';
+	static LABEL = nls.localize('showExtensionTips', "Show Extension Tips");
+
+	constructor(
+		id: string,
+		label: string,
+		@IExtensionsService private extensionsService: IExtensionsService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label, null, true);
+	}
+
+	public run(): Promise {
+		return this.quickOpenService.show('ext tips ');
 	}
 
 	protected isEnabled(): boolean {

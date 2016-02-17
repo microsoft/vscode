@@ -4,10 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IStringDictionary } from 'vs/base/common/collections';
-
 import * as Paths from 'vs/base/common/paths';
-import * as Platform from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { AbstractSystemVariables } from 'vs/base/common/parsers';
 
@@ -18,13 +15,12 @@ import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common
 
 export class SystemVariables extends AbstractSystemVariables {
 	private _workspaceRoot: string;
-	private _cwd: string;
 	private _execPath: string;
 
 	// Optional workspaceRoot there to be used in tests.
 	constructor(private editorService: IWorkbenchEditorService, contextService: IWorkspaceContextService, workspaceRoot: URI = null) {
 		super();
-		var fsPath = workspaceRoot ? workspaceRoot.fsPath : contextService.getWorkspace().resource.fsPath;
+		let fsPath = workspaceRoot ? workspaceRoot.fsPath : contextService.getWorkspace().resource.fsPath;
 		this._workspaceRoot = Paths.normalize(fsPath, true);
 		this._execPath = contextService ? contextService.getConfiguration().env.execPath : null;
 		Object.keys(process.env).forEach(key => {

@@ -7,27 +7,20 @@
 
 import 'vs/css!./media/feedback';
 import nls = require('vs/nls');
-import types = require('vs/base/common/types');
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {Builder, $} from 'vs/base/browser/builder';
-import errors = require('vs/base/common/errors');
-import DOM = require('vs/base/browser/dom');
-import {Promise} from 'vs/base/common/winjs.base';
 import {Dropdown} from 'vs/base/browser/ui/dropdown/dropdown';
-import {IXHRResponse} from 'vs/base/common/http';
-import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
+import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-
-const STATUS_TIMEOUT = 500;
+import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 
 export interface IFeedback {
 	feedback: string;
-	alias: string;
 	sentiment: number;
 }
 
 export interface IFeedbackService {
-	submitFeedback(feedback: IFeedback): Promise;
+	submitFeedback(feedback: IFeedback): void;
 }
 
 export interface IFeedbackDropdownOptions {
@@ -39,12 +32,12 @@ enum FormEvent {
 	SENDING,
 	SENT,
 	SEND_ERROR
-};
+}
 
 export class FeedbackDropdown extends Dropdown {
+	protected static MAX_FEEDBACK_CHARS: number = 140;
 
 	protected feedback: string;
-	protected alias: string;
 	protected sentiment: number;
 	protected aliasEnabled: boolean;
 	protected isSendingFeedback: boolean;
@@ -54,15 +47,18 @@ export class FeedbackDropdown extends Dropdown {
 
 	protected feedbackForm: HTMLFormElement;
 	protected feedbackDescriptionInput: HTMLTextAreaElement;
-	protected feedbackAliasInput: HTMLInputElement;
 	protected smileyInput: Builder;
 	protected frownyInput: Builder;
 	protected sendButton: Builder;
 
+	protected requestFeatureLink: string;
+	protected reportIssueLink: string;
+
 	constructor(
 		container: HTMLElement,
 		options: IFeedbackDropdownOptions,
-		@ITelemetryService protected telemetryService: ITelemetryService
+		@ITelemetryService protected telemetryService: ITelemetryService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(container, {
 			contextViewProvider: options.contextViewProvider,
@@ -73,23 +69,24 @@ export class FeedbackDropdown extends Dropdown {
 		});
 
 		this.$el.addClass('send-feedback');
-		this.$el.title(nls.localize('sendFeedback', "Send Feedback"));
+		this.$el.title(nls.localize('sendFeedback', "Tweet Feedback"));
 
 		this.feedbackService = options.feedbackService;
 
 		this.feedback = '';
-		this.alias = '';
-		this.aliasEnabled = false;
 		this.sentiment = 1;
 
 		this.feedbackForm = null;
 		this.feedbackDescriptionInput = null;
-		this.feedbackAliasInput = null;
 
 		this.smileyInput = null;
 		this.frownyInput = null;
 
 		this.sendButton = null;
+
+		const env = contextService.getConfiguration().env;
+		this.reportIssueLink = env.sendASmile.reportIssueUrl;
+		this.requestFeatureLink = env.sendASmile.requestFeatureUrl;
 	}
 
 	public renderContents(container: HTMLElement): IDisposable {
@@ -102,16 +99,18 @@ export class FeedbackDropdown extends Dropdown {
 
 		this.feedbackForm = <HTMLFormElement>$form.getHTMLElement();
 
-		$('h2.title').text(nls.localize("label.sendASmile", "Let us know how we're doing")).appendTo($form);
+		$('h2.title').text(nls.localize("label.sendASmile", "Tweet us your feedback")).appendTo($form);
 
-		this.invoke($('div.cancel'), () => {
+		this.invoke($('div.cancel').attr('tabindex', '0'), () => {
 			this.hide();
 		}).appendTo($form);
 
-		$('h3').text(nls.localize("sentiment", "How was your experience?")).appendTo($form);
+		let $content = $('div.content').appendTo($form);
 
-		let $feedbackSentiment = $('div.feedback-sentiment').appendTo($form);
+		let $sentimentContainer = $('div').appendTo($content);
+		$('span').text(nls.localize("sentiment", "How was your experience?")).appendTo($sentimentContainer);
 
+		let $feedbackSentiment = $('div.feedback-sentiment').appendTo($sentimentContainer);
 
 		this.smileyInput = $('div').addClass('sentiment smile').attr({
 			'aria-checked': 'false',
@@ -136,44 +135,49 @@ export class FeedbackDropdown extends Dropdown {
 			this.frownyInput.addClass('checked').attr('aria-checked', 'true');
 		}
 
-		$('h3').text(nls.localize("commentsHeader", "Comments")).appendTo($form);
+		let $contactUs = $('div.contactus').appendTo($content);
+
+		$('span').text(nls.localize("other ways to contact us", "Other ways to contact us")).appendTo($contactUs);
+
+		let $contactUsContainer = $('div.channels').appendTo($contactUs);
+
+		$('div').append($('a').attr('target', '_blank').attr('href', this.reportIssueLink).text(nls.localize("submit a bug", "Submit a bug")).attr('tabindex', '0'))
+			.appendTo($contactUsContainer);
+
+		$('div').append($('a').attr('target', '_blank').attr('href', this.requestFeatureLink).text(nls.localize("request a missing feature", "Request a missing feature")).attr('tabindex', '0'))
+			.appendTo($contactUsContainer);
+
+		let $charCounter = $('span.char-counter').text('(' + FeedbackDropdown.MAX_FEEDBACK_CHARS + ' ' + nls.localize("characters left", "characters left") + ')');
+
+		$('h3').text(nls.localize("tell us why?", "Tell us why?"))
+			.append($charCounter)
+			.appendTo($form);
 
 		this.feedbackDescriptionInput = <HTMLTextAreaElement>$('textarea.feedback-description').attr({
-			rows: 8,
+			rows: 3,
+			maxlength: FeedbackDropdown.MAX_FEEDBACK_CHARS,
 			'aria-label': nls.localize("commentsHeader", "Comments")
 		})
 			.text(this.feedback).attr('required', 'required')
 			.on('keyup', () => {
+				$charCounter.text('(' + (FeedbackDropdown.MAX_FEEDBACK_CHARS - this.feedbackDescriptionInput.value.length) + ' ' + nls.localize("characters left", "characters left") + ')');
 				this.feedbackDescriptionInput.value ? this.sendButton.removeAttribute('disabled') : this.sendButton.attr('disabled', '');
 			})
 			.appendTo($form).domFocus().getHTMLElement();
 
-		let aliasHeaderText = nls.localize('aliasHeader', "Add e-mail address");
-
-		this.feedbackAliasInput = <HTMLInputElement>$('input.feedback-alias')
-			.type('text')
-			.text(aliasHeaderText)
-			.attr('type', 'email')
-			.attr('placeholder', nls.localize('aliasPlaceholder', "Optional e-mail address"))
-			.value(this.alias)
-			.attr('aria-label', aliasHeaderText)
-			.appendTo($form)
-			.getHTMLElement();
-
 		let $buttons = $('div.form-buttons').appendTo($form);
 
-		this.sendButton = this.invoke($('input.send').type('submit').attr('disabled', '').value(nls.localize('send', "Send")).appendTo($buttons), () => {
+		this.sendButton = this.invoke($('input.send').type('submit').attr('disabled', '').value(nls.localize('tweet', "Tweet")).appendTo($buttons), () => {
 			if (this.isSendingFeedback) {
 				return;
 			}
-			this.onSubmit().then(null, function() { });
+			this.onSubmit();
 		});
 
 		return {
 			dispose: () => {
 				this.feedbackForm = null;
 				this.feedbackDescriptionInput = null;
-				this.feedbackAliasInput = null;
 				this.smileyInput = null;
 				this.frownyInput = null;
 			}
@@ -213,10 +217,6 @@ export class FeedbackDropdown extends Dropdown {
 			this.feedback = this.feedbackDescriptionInput.value;
 		}
 
-		if (this.feedbackAliasInput) {
-			this.alias = this.feedbackAliasInput.value;
-		}
-
 		if (this.autoHideTimeout) {
 			clearTimeout(this.autoHideTimeout);
 			this.autoHideTimeout = null;
@@ -234,24 +234,19 @@ export class FeedbackDropdown extends Dropdown {
 		}
 	}
 
-	protected onSubmit(): Promise {
+	protected onSubmit(): void {
 		if ((this.feedbackForm.checkValidity && !this.feedbackForm.checkValidity())) {
-			return Promise.as(null);
+			return;
 		}
 
 		this.changeFormStatus(FormEvent.SENDING);
 
-		return this.feedbackService.submitFeedback({
+		this.feedbackService.submitFeedback({
 			feedback: this.feedbackDescriptionInput.value,
-			alias: this.feedbackAliasInput.value,
 			sentiment: this.sentiment
-		}).then((response: IXHRResponse) => {
-			setTimeout(() => { this.changeFormStatus(FormEvent.SENT); }, STATUS_TIMEOUT);
-			return '';
-		}, (xhr: IXHRResponse) => {
-			setTimeout(() => { this.changeFormStatus(FormEvent.SEND_ERROR); }, STATUS_TIMEOUT);
-			return Promise.wrapError(new errors.ConnectionError(xhr));
 		});
+
+		this.changeFormStatus(FormEvent.SENT);
 	}
 
 
@@ -283,8 +278,9 @@ export class FeedbackDropdown extends Dropdown {
 	}
 
 	protected resetForm(): void {
-		this.feedbackDescriptionInput ? this.feedbackDescriptionInput.value = '' : null;
-		this.feedbackAliasInput ? this.feedbackAliasInput.value = '' : null;
+		if (this.feedbackDescriptionInput) {
+			this.feedbackDescriptionInput.value = '';
+		}
 		this.sentiment = 1;
 		this.aliasEnabled = false;
 	}

@@ -21,7 +21,7 @@ export class JSONIntellisense {
 
 	private schemaService: SchemaService.IJSONSchemaService;
 	private requestService: IRequestService;
-	private contributions: JsonWorker.IJSONWorkerContribution[]
+	private contributions: JsonWorker.IJSONWorkerContribution[];
 
 	constructor(schemaService: SchemaService.IJSONSchemaService, requestService: IRequestService, contributions: JsonWorker.IJSONWorkerContribution[]) {
 		this.schemaService = schemaService;
@@ -173,8 +173,6 @@ export class JSONIntellisense {
 		var matchingSchemas: Parser.IApplicableSchema[] = [];
 		doc.validate(schema.schema, matchingSchemas, node.start);
 
-		var collectPromises: WinJS.TPromise<Modes.ISuggestion[]>[] = [];
-
 		matchingSchemas.forEach((s) => {
 			if (s.node === node && !s.inverted) {
 				var schemaProperties = s.schema.properties;
@@ -266,7 +264,6 @@ export class JSONIntellisense {
 
 	public getValueSuggestions(resource: URI, schema: SchemaService.ResolvedSchema, doc: Parser.JSONDocument, node: Parser.ASTNode, offset: number, collector: JsonWorker.ISuggestionsCollector) : void {
 
-		var collectPromises: WinJS.TPromise<Modes.ISuggestion[]>[] = [];
 		if (!node) {
 			this.addDefaultSuggestion(schema.schema, collector);
 		} else {

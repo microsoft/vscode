@@ -1,60 +1,73 @@
 TypeScript is authored by:
 
 * Adam Freidin
-* Ahmad Farid 
+* Ahmad Farid
 * Anders Hejlsberg
 * Arnav Singh
 * Arthur Ozga
-* Basarat Ali Syed 
+* Basarat Ali Syed
 * Ben Duffield
-* Bill Ticehurst 
-* Bryan Forbes 
-* Caitlin Potter 
+* Bill Ticehurst
+* Brett Mayen
+* Bryan Forbes
+* Caitlin Potter
 * Chris Bubernak
-* Colby Russell 
+* Colby Russell
 * Colin Snover
 * Cyrus Najmabadi
-* Dan Quirk 
+* Dan Quirk
 * Daniel Rosenwasser
-* David Li 
-* Dick van den Brink 
-* Dirk B�umer 
-* Frank Wallis 
+* David Li
+* Denis Nedelyaev
+* Dick van den Brink
+* Dirk Bäumer
+* Eyas Sharaiha
+* Frank Wallis
 * Gabriel Isenberg
-* Gilad Peleg 
-* Guillaume Salles 
+* Gilad Peleg
+* Graeme Wicksted
+* Guillaume Salles
 * Harald Niesche
 * Ingvar Stepanyan
-* Ivo Gabe de Wolff 
-* James Whitney 
+* Ivo Gabe de Wolff
+* James Whitney
 * Jason Freeman
-* Jason Ramsay 
+* Jason Ramsay
 * Jed Mao
-* Johannes Rieken 
+* Johannes Rieken
+* John Vilk
 * Jonathan Bond-Caron
 * Jonathan Park
 * Jonathan Turner
 * Josh Kalderimis
+* Julian Williams
 * Kagami Sascha Rosylight
 * Keith Mashinter
+* Ken Howard
 * Kenji Imamula
-* Lorant Pinter 
+* Lorant Pinter
+* Martin Všetička
 * Masahiro Wakame
 * Max Deepfield
-* Micah Zoltu 
-* Mohamed Hegazy 
+* Micah Zoltu
+* Mohamed Hegazy
+* Nathan Shively-Sanders
 * Oleg Mihailik
-* Oleksandr Chekhovskyi 
-* Paul van Brenk 
-* Pedro Maltez 
+* Oleksandr Chekhovskyi
+* Paul van Brenk
+* Pedro Maltez
 * Philip Bulley
 * piloopin
-* Ron Buckton 
-* Ryan Cavanaugh 
+* @progre
+* Punya Biswal
+* Ron Buckton
+* Ryan Cavanaugh
+* Ryohei Ikegami
+* Sébastien Arod
 * Sheetal Nandi
 * Shengping Zhong
 * Shyyko Serhiy
-* Simon H�rlimann
+* Simon Hürlimann
 * Solal Pirelli
 * Stan Thomas
 * Steve Lucco
@@ -63,8 +76,10 @@ TypeScript is authored by:
 * togru
 * Tomas Grubliauskas
 * TruongSinh Tran-Nguyen
+* Viliv Vane
 * Vladimir Matveev
 * Wesley Wigham
+* York Yao
 * Yui Tanglertsampan
-* Zev Spitz 
+* Zev Spitz
 * Zhengbo Li

@@ -1,0 +1,22 @@
+{
+	"rules": {
+		"no-unused-expression": true,
+		"no-unreachable": true,
+		"no-duplicate-variable": true,
+		"no-duplicate-key": true,
+		"no-unused-variable": true,
+		"curly": true,
+		"class-name": true,
+		"semicolon": true,
+		"no-unnecessary-semicolons": true,
+		"triple-equals": true,
+		"no-duplicate-case": true,
+		"no-unexternalized-strings": [
+			true,
+			{
+				"signatures": ["localize", "nls.localize"],
+				"messageIndex": 1
+			}
+		]
+	}
+}

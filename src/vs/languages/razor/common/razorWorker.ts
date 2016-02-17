@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
 import htmlTags = require('vs/languages/html/common/htmlTags');
 
 export function getRazorTagProvider() : htmlTags.IHTMLTagProvider {

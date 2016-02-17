@@ -1,0 +1,60 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.new-error-list .monaco-list-row {
+	line-height: 22px;
+}
+
+.new-error-list .icon {
+	float: left;
+	display: block;
+	width: 16px;
+	height: 22px;
+	margin-right: 4px;
+	margin-left: 4px;
+}
+
+
+.new-error-list .icon.warning {
+	background: url('status-warning.svg') center center no-repeat;
+}
+
+.new-error-list .icon.error {
+	background: url('status-error.svg') center center no-repeat;
+}
+
+.new-error-list .icon.info:before {
+	background: url('status-info.svg') center center no-repeat;
+}
+
+.vs-dark .new-error-list .icon.warning {
+	background: url('status-warning-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .new-error-list .icon.error {
+	background: url('status-error-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .new-error-list .icon.info:before {
+	background: url('status-info-inverse.svg') center center no-repeat;
+}
+
+.new-error-list .label {
+	display: block;
+	float: left;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	/* icon: 16 + 4 + 4 */
+	/* line: 20 + 4 + 4 */
+	/* col: 20 + 4 + 4 */
+	/* file: 100 + 4 + 4 */
+	max-width: calc(100% - 24px - 200px - 20px)
+}
+
+.new-error-list .location {
+	float: right;
+	margin: 0 4px;
+	width: 200px;
+}

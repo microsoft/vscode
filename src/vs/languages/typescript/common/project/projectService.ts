@@ -5,15 +5,11 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import objects = require('vs/base/common/objects');
-import arrays = require('vs/base/common/arrays')
-import strings = require('vs/base/common/strings');
-import lifecycle = require('vs/base/common/lifecycle');
+import arrays = require('vs/base/common/arrays');
 import typescript = require('vs/languages/typescript/common/typescript');
 import paths = require('vs/base/common/paths');
 import ts = require('vs/languages/typescript/common/lib/typescriptServices');
 import snapshots = require('vs/languages/typescript/common/project/snapshots');
-import network = require('vs/base/common/network');
 import rewriting = require('vs/languages/typescript/common/js/rewriting');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import textEdits = require('vs/languages/typescript/common/js/textEdits');
@@ -149,7 +145,7 @@ export class LanguageServiceHost implements ts.LanguageServiceHost {
 
 	getDefaultLibFileName(options: ts.CompilerOptions): string {
 		if (!options || options.noLib) {
-			return ''
+			return '';
 		} else if (options.target === ts.ScriptTarget.ES6) {
 			return typescript.defaultLibES6.toString();
 		} else {
@@ -200,7 +196,7 @@ class Project implements IProject {
 }
 
 interface MissingFilesManager {
-	getMissingSinceLastTime():string[]
+	getMissingSinceLastTime():string[];
 	getMissingSince(generation: number): { generation: number; fileNames: string[] };
 	addMissing(fileName: string): void;
 	removeMissing(fileName: string): boolean;
@@ -236,7 +232,7 @@ function createMissingFileManager(): MissingFilesManager {
 		return {
 			generation: _generation,
 			fileNames
-		}
+		};
 	}
 
 	var _lastTime = 0;
@@ -251,7 +247,7 @@ function createMissingFileManager(): MissingFilesManager {
 		removeMissing,
 		getMissingSince,
 		getMissingSinceLastTime
-	}
+	};
 }
 
 export class ProjectService {
@@ -544,7 +540,7 @@ class Translator implements rewriting.ITranslator {
 			origin,
 			isInserted,
 			isOverlapping
-		}
+		};
 	}
 }
 

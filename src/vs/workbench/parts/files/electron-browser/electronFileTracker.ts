@@ -6,14 +6,14 @@
 'use strict';
 
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
-import {LocalFileChangeEvent, IWorkingFileModelChangeEvent, EventType as FileEventType, ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent, IWorkingFileModelChangeEvent, EventType as FileEventType, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {IFileService} from 'vs/platform/files/common/files';
 import {OpenResourcesAction} from 'vs/workbench/parts/files/browser/fileActions';
 import plat = require('vs/base/common/platform');
 import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
-import {EventType as WorkbenchEventType} from 'vs/workbench/browser/events';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
+import {EventType as WorkbenchEventType} from 'vs/workbench/common/events';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IResourceInput} from 'vs/platform/editor/common/editor';
@@ -21,8 +21,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 
-import remote = require('remote');
-import ipc = require('ipc');
+import {ipcRenderer as ipc, remote} from 'electron';
 
 export interface IPath {
 	filePath: string;
@@ -78,11 +77,11 @@ export class FileTracker implements IWorkbenchContribution {
 		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_REVERTED, (e: LocalFileChangeEvent) => this.onTextFileReverted(e)));
 
 		// Working Files Model Change
-		this.textFileService.getWorkingFilesModel().onModelChange.add(this.onWorkingFilesModelChange, this);
-		this.toUnbind.push(() => this.textFileService.getWorkingFilesModel().onModelChange.remove(this.onWorkingFilesModelChange, this));
+		const disposable = this.textFileService.getWorkingFilesModel().onModelChange(this.onWorkingFilesModelChange, this);
+		this.toUnbind.push(() => disposable.dispose());
 
 		// Support openFiles event for existing and new files
-		ipc.on('vscode:openFiles', (request: IOpenFileRequest) => {
+		ipc.on('vscode:openFiles', (event, request: IOpenFileRequest) => {
 			let inputs: IResourceInput[] = [];
 			if (request.filesToOpen) {
 				inputs.push(...this.toInputs(request.filesToOpen, false));
@@ -100,7 +99,7 @@ export class FileTracker implements IWorkbenchContribution {
 			}
 		});
 
-		this.lifecycleService.onShutdown.add(this.dispose, this);
+		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
 	private toInputs(paths: IPath[], isNew: boolean): IResourceInput[] {
@@ -160,8 +159,8 @@ export class FileTracker implements IWorkbenchContribution {
 	}
 
 	private onTextFileDirty(e: LocalFileChangeEvent): void {
-		if (!this.contextService.isAutoSaveEnabled() && !this.isDocumentedEdited) {
-			this.updateDocumentEdited(); // no indication needed when auto save is turned off and we didn't show dirty
+		if ((this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) && !this.isDocumentedEdited) {
+			this.updateDocumentEdited(); // no indication needed when auto save is enabled for short delay
 		}
 	}
 
@@ -185,14 +184,16 @@ export class FileTracker implements IWorkbenchContribution {
 
 	private updateDocumentEdited(): void {
 		if (plat.platform === plat.Platform.Mac) {
-			let win = remote.getCurrentWindow();
-			let isDirtyIndicated = win.isDocumentEdited();
-			let hasDirtyFiles = this.textFileService.isDirty();
-			this.isDocumentedEdited = hasDirtyFiles;
+			process.nextTick(() => {
+				let win = remote.getCurrentWindow();
+				let isDirtyIndicated = win.isDocumentEdited();
+				let hasDirtyFiles = this.textFileService.isDirty();
+				this.isDocumentedEdited = hasDirtyFiles;
 
-			if (hasDirtyFiles !== isDirtyIndicated) {
-				win.setDocumentEdited(hasDirtyFiles);
-			}
+				if (hasDirtyFiles !== isDirtyIndicated) {
+					win.setDocumentEdited(hasDirtyFiles);
+				}
+			})
 		}
 	}
 

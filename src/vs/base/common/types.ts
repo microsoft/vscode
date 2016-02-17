@@ -85,7 +85,7 @@ export function isUndefinedOrNull(obj: any): boolean {
 }
 
 
-var hasOwnProperty = Object.prototype.hasOwnProperty;
+const hasOwnProperty = Object.prototype.hasOwnProperty;
 
 /**
  * @returns whether the provided parameter is an empty JavaScript Object or not.
@@ -95,7 +95,7 @@ export function isEmptyObject(obj: any): obj is any {
 		return false;
 	}
 
-	for (var key in obj) {
+	for (let key in obj) {
 		if (hasOwnProperty.call(obj, key)) {
 			return false;
 		}
@@ -123,7 +123,7 @@ export type TypeConstraint = string | Function;
 export function validateConstraints(args: any[], constraints: TypeConstraint[]): void {
 	const len = Math.min(args.length, constraints.length);
 	for (let i = 0; i < len; i++) {
-		validateConstraint(args[i], constraints[i])
+		validateConstraint(args[i], constraints[i]);
 	}
 }
 
@@ -152,7 +152,7 @@ export function validateConstraint(arg: any, constraint: TypeConstraint): void {
  * any additional argument supplied.
  */
 export function create(ctor: Function, ...args: any[]): any {
-	var obj = Object.create(ctor.prototype);
+	let obj = Object.create(ctor.prototype);
 	ctor.apply(obj, args);
 
 	return obj;

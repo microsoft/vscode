@@ -74,7 +74,7 @@ export class ErrorHandler {
 	}
 }
 
-export var errorHandler = new ErrorHandler();
+export let errorHandler = new ErrorHandler();
 
 export function setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) => void): void {
 	errorHandler.setUnexpectedErrorHandler(newUnexpectedErrorHandler);
@@ -95,17 +95,19 @@ export interface IConnectionErrorData {
 }
 
 export function transformErrorForSerialization(error: any): any {
-	if (!(error instanceof Error)) {
-		return error;
+	if (error instanceof Error) {
+		let {name, message} = error;
+		let stack: string = (<any>error).stacktrace || (<any>error).stack;
+		return {
+			$isError: true,
+			name,
+			message,
+			stack
+		};
 	}
-	var data: any = {};
-	if (error.stacktrace) {
-		data.stack = error.stacktrace;
-	} else if (error.stack) {
-		data.stack = error.stack;
-	}
-	data.message = error.toString();
-	return data;
+
+	// return as is
+	return error;
 }
 
 /**
@@ -139,7 +141,7 @@ export class ConnectionError implements Error {
 
 		if (this.responseText) {
 			try {
-				var errorObj = JSON.parse(this.responseText);
+				let errorObj = JSON.parse(this.responseText);
 				this.errorMessage = errorObj.message;
 				this.errorCode = errorObj.code;
 				this.errorObject = errorObj;
@@ -158,8 +160,8 @@ export class ConnectionError implements Error {
 	}
 
 	private connectionErrorDetailsToMessage(error: ConnectionError, verbose: boolean): string {
-		var errorCode = error.errorCode;
-		var errorMessage = error.errorMessage;
+		let errorCode = error.errorCode;
+		let errorMessage = error.errorMessage;
 
 		if (errorCode !== null && errorMessage !== null) {
 			return nls.localize(
@@ -186,7 +188,7 @@ export class ConnectionError implements Error {
 	}
 
 	private connectionErrorToMessage(error: ConnectionError, verbose: boolean): string {
-		var details = this.connectionErrorDetailsToMessage(error, verbose);
+		let details = this.connectionErrorDetailsToMessage(error, verbose);
 
 		// Status Code based Error
 		if (error.status === 401) {
@@ -231,8 +233,8 @@ export class ConnectionError implements Error {
 // Bug: Can not subclass a JS Type. Do it manually (as done in WinJS.Class.derive)
 objects.derive(Error, ConnectionError);
 
-function _xhrToErrorMessage(xhr: IConnectionErrorData, verbose: boolean): string {
-	var ce = new ConnectionError(xhr);
+function xhrToErrorMessage(xhr: IConnectionErrorData, verbose: boolean): string {
+	let ce = new ConnectionError(xhr);
 	if (verbose) {
 		return ce.verboseMessage;
 	} else {
@@ -240,16 +242,26 @@ function _xhrToErrorMessage(xhr: IConnectionErrorData, verbose: boolean): string
 	}
 }
 
-function _exceptionToErrorMessage(exception: any, verbose: boolean): string {
-	if (verbose && exception.message && (exception.stack || exception.stacktrace)) {
-		return nls.localize('stackTrace.format', "{0}: {1}", exception.message, exception.stack || exception.stacktrace);
-	}
-
+function exceptionToErrorMessage(exception: any, verbose: boolean): string {
 	if (exception.message) {
-		return exception.message;
+		if (verbose && (exception.stack || exception.stacktrace)) {
+			return nls.localize('stackTrace.format', "{0}: {1}", detectSystemErrorMessage(exception), exception.stack || exception.stacktrace);
+		}
+
+		return detectSystemErrorMessage(exception);
 	}
 
 	return nls.localize('error.defaultMessage', "An unknown error occurred. Please consult the log for more details.");
+}
+
+function detectSystemErrorMessage(exception: any): string {
+
+	// See https://nodejs.org/api/errors.html#errors_class_system_error
+	if (typeof exception.code === 'string' && typeof exception.errno === 'number' && typeof exception.syscall === 'string') {
+		return nls.localize('nodeExceptionMessage', "A system error occured ({0})", exception.message);
+	}
+
+	return exception.message;
 }
 
 /**
@@ -263,8 +275,8 @@ export function toErrorMessage(error: any = null, verbose: boolean = false): str
 	}
 
 	if (Array.isArray(error)) {
-		var errors: any[] = arrays.coalesce(error);
-		var msg = toErrorMessage(errors[0], verbose);
+		let errors: any[] = arrays.coalesce(error);
+		let msg = toErrorMessage(errors[0], verbose);
 
 		if (errors.length > 1) {
 			return nls.localize('error.moreErrors', "{0} ({1} errors in total)", msg, errors.length);
@@ -278,41 +290,41 @@ export function toErrorMessage(error: any = null, verbose: boolean = false): str
 	}
 
 	if (!types.isUndefinedOrNull(error.status)) {
-		return _xhrToErrorMessage(error, verbose);
+		return xhrToErrorMessage(error, verbose);
 	}
 
 	if (error.detail) {
-		var detail = error.detail;
+		let detail = error.detail;
 
 		if (detail.error) {
 			if (detail.error && !types.isUndefinedOrNull(detail.error.status)) {
-				return _xhrToErrorMessage(detail.error, verbose);
+				return xhrToErrorMessage(detail.error, verbose);
 			}
 
 			if (types.isArray(detail.error)) {
-				for (var i = 0; i < detail.error.length; i++) {
+				for (let i = 0; i < detail.error.length; i++) {
 					if (detail.error[i] && !types.isUndefinedOrNull(detail.error[i].status)) {
-						return _xhrToErrorMessage(detail.error[i], verbose);
+						return xhrToErrorMessage(detail.error[i], verbose);
 					}
 				}
 			}
 
 			else {
-				return _exceptionToErrorMessage(detail.error, verbose);
+				return exceptionToErrorMessage(detail.error, verbose);
 			}
 		}
 
 		if (detail.exception) {
 			if (!types.isUndefinedOrNull(detail.exception.status)) {
-				return _xhrToErrorMessage(detail.exception, verbose);
+				return xhrToErrorMessage(detail.exception, verbose);
 			}
 
-			return _exceptionToErrorMessage(detail.exception, verbose);
+			return exceptionToErrorMessage(detail.exception, verbose);
 		}
 	}
 
 	if (error.stack) {
-		return _exceptionToErrorMessage(error, verbose);
+		return exceptionToErrorMessage(error, verbose);
 	}
 
 	if (error.message) {
@@ -322,26 +334,7 @@ export function toErrorMessage(error: any = null, verbose: boolean = false): str
 	return nls.localize('error.defaultMessage', "An unknown error occurred. Please consult the log for more details.");
 }
 
-/**
- * Looks for an HTTP Status in the provided error parameter.
- */
-export function getHttpStatus(error: any): number {
-	if (error) {
-		if (types.isArray(error)) {
-			for (var i = 0; i < error.length; i++) {
-				if (error[i] && error[i].status) {
-					return error[i].status;
-				}
-			}
-		} else if (error.status) {
-			return error.status;
-		}
-	}
-
-	return -1;
-}
-
-var canceledName = 'Canceled';
+const canceledName = 'Canceled';
 
 /**
  * Checks if the given error is a promise in canceled state
@@ -354,7 +347,7 @@ export function isPromiseCanceledError(error: any): boolean {
  * Returns an error that signals cancellation.
  */
 export function canceled(): Error {
-	var error = new Error(canceledName);
+	let error = new Error(canceledName);
 	error.name = error.message;
 	return error;
 }
@@ -400,7 +393,7 @@ export interface IErrorOptions {
 }
 
 export function create(message: string, options: IErrorOptions = {}): Error {
-	var result = new Error(message);
+	let result = new Error(message);
 
 	if (types.isNumber(options.severity)) {
 		(<any>result).severity = options.severity;

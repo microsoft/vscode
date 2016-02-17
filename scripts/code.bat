@@ -20,5 +20,12 @@ set ELECTRON_ENABLE_LOGGING=1
 set ELECTRON_ENABLE_STACK_DUMPING=1
 
 :: Launch Code
-.\.build\electron\CodeOSS.exe . %*
+.\.build\electron\electron.exe . %*
 popd
+
+:: Unset environment variables after we are done
+set NODE_ENV=
+set VSCODE_DEV=
+set ELECTRON_DEFAULT_ERROR_MODE=
+set ELECTRON_ENABLE_LOGGING=
+set ELECTRON_ENABLE_STACK_DUMPING=

@@ -70,13 +70,13 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		}
 		this.errorsShown = false;
 		let parseResult = FileConfig.parse(fileConfig, this);
-		this.validationStatus = parseResult.validationStatus;;
+		this.validationStatus = parseResult.validationStatus;
 		this.configuration = parseResult.configuration;
 		this.defaultBuildTaskIdentifier = parseResult.defaultBuildTaskIdentifier;
 		this.defaultTestTaskIdentifier = parseResult.defaultTestTaskIdentifier;
 
 		if (!this.validationStatus.isOK()) {
-			this.outputService.showOutput(this.outputChannel, false, true);
+			this.outputService.showOutput(this.outputChannel, true);
 		}
 	}
 
@@ -113,6 +113,19 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 
 	public isActiveSync(): boolean {
 		return !!this.childProcess;
+	}
+
+	public canAutoTerminate(): boolean {
+		if (this.childProcess) {
+			if (this.activeTaskIdentifier) {
+				let task = this.configuration.tasks[this.activeTaskIdentifier];
+				if (task) {
+					return !task.promptOnClose;
+				}
+			}
+			return false;
+		}
+		return true;
 	}
 
 	public terminate(): TPromise<TerminateResponse> {
@@ -270,20 +283,21 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 			let event: TaskEvent = { taskId: task.id, taskName: task.name, type: TaskType.SingleRun };
 			this.emit(TaskSystemEvents.Active, event );
 			let startStopProblemMatcher = new StartStopProblemCollector(this.resolveMatchers(task.problemMatchers), this.markerService, this.modelService);
+			this.activeTaskIdentifier = task.id;
 			let promise = this.childProcess.start().then((success): ITaskSummary => {
-				this.emit(TaskSystemEvents.Inactive, event);
-				startStopProblemMatcher.done();
 				this.childProcessEnded();
+				startStopProblemMatcher.done();
 				startStopProblemMatcher.dispose();
 				this.checkTerminated(task, success);
+				this.emit(TaskSystemEvents.Inactive, event);
 				if (success.cmdCode && success.cmdCode === 1 && startStopProblemMatcher.numberOfMatches === 0 && task.showOutput !== ShowOutput.Never) {
 					this.showOutput();
 				}
 				return taskSummary;
 			}, (error: ErrorData) => {
-				this.emit(TaskSystemEvents.Inactive, event);
 				this.childProcessEnded();
 				startStopProblemMatcher.dispose();
+				this.emit(TaskSystemEvents.Inactive, event);
 				return this.handleError(task, error);
 			}, (progress) => {
 				let line = Strings.removeAnsiEscapeCodes(progress.line);
@@ -380,7 +394,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 	}
 
 	private showOutput(): void {
-		this.outputService.showOutput(this.outputChannel, true, true);
+		this.outputService.showOutput(this.outputChannel, true);
 	}
 
 	private clearOutput(): void {

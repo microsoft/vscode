@@ -6,38 +6,38 @@
 'use strict';
 
 import 'vs/css!./timer';
-import Timer = require('vs/base/common/timer');
-import eventEmitter = require('vs/base/common/eventEmitter');
+import {TimeKeeper, ITimerEvent, getTimeKeeper} from 'vs/base/common/timer';
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import DomUtils = require('vs/base/browser/dom');
 
 interface IUnmatchedStartTimerEvent {
-	event: Timer.ITimerEvent;
+	event: ITimerEvent;
 	domNode: HTMLElement;
 }
 
 export class TimeKeeperRenderer {
 
-	private listenersToRemove:eventEmitter.ListenerUnbind[];
-	private timeKeeper:Timer.TimeKeeper;
-	private outerDomNode:HTMLElement;
-	private domNode:HTMLElement;
-	private renderCnt:number;
-	private lastEventIndex:number;
+	private listenersToRemove: IDisposable[];
+	private timeKeeper: TimeKeeper;
+	private outerDomNode: HTMLElement;
+	private domNode: HTMLElement;
+	private renderCnt: number;
+	private lastEventIndex: number;
 
-	private textFilter:string;
-	private textFilterDomNode:HTMLInputElement;
-	private timeFilter:number;
-	private timeFilterDomNode:HTMLInputElement;
-	private intervalTokenId:number;
+	private textFilter: string;
+	private textFilterDomNode: HTMLInputElement;
+	private timeFilter: number;
+	private timeFilterDomNode: HTMLInputElement;
+	private intervalTokenId: number;
 
-	private renderedEvents:{
-		[key:string]:Timer.ITimerEvent;
+	private renderedEvents: {
+		[key: string]: ITimerEvent;
 	};
 
-	private onHide:()=>void;
+	private onHide: () => void;
 
-	constructor (onHide:()=>void) {
-		this.timeKeeper = Timer.getTimeKeeper();
+	constructor(onHide: () => void) {
+		this.timeKeeper = getTimeKeeper();
 		this.onHide = onHide;
 		this.lastEventIndex = 0;
 		this.renderedEvents = {};
@@ -50,10 +50,7 @@ export class TimeKeeperRenderer {
 	public destroy(): void {
 		document.body.removeChild(this.outerDomNode);
 		window.clearInterval(this.intervalTokenId);
-		this.listenersToRemove.forEach(function (element) {
-			element();
-		});
-		this.listenersToRemove = [];
+		this.listenersToRemove = disposeAll(this.listenersToRemove);
 	}
 
 	private _createDomNode(): HTMLElement {
@@ -61,17 +58,17 @@ export class TimeKeeperRenderer {
 		this.outerDomNode.className = 'benchmarktimerbox';
 
 		// Clear
-		var cancel:HTMLInputElement = <HTMLInputElement>document.createElement('input');
+		let cancel: HTMLInputElement = <HTMLInputElement>document.createElement('input');
 		cancel.type = 'button';
 		cancel.value = 'Clear';
-		this.listenersToRemove.push(DomUtils.addListener(cancel, 'click', () => this._onClear()));
+		this.listenersToRemove.push(DomUtils.addDisposableListener(cancel, 'click', () => this._onClear()));
 		this.outerDomNode.appendChild(cancel);
 
 		// Text filter
 		this.textFilterDomNode = <HTMLInputElement>document.createElement('input');
 		this.textFilterDomNode.type = 'text';
 		this.textFilterDomNode.className = 'textFilter';
-		this.listenersToRemove.push(DomUtils.addListener(this.textFilterDomNode, 'keydown', () => this.onTextFilterChange()));
+		this.listenersToRemove.push(DomUtils.addDisposableListener(this.textFilterDomNode, 'keydown', () => this.onTextFilterChange()));
 		this.textFilter = '';
 		this.outerDomNode.appendChild(document.createTextNode('Filter'));
 		this.outerDomNode.appendChild(this.textFilterDomNode);
@@ -81,25 +78,25 @@ export class TimeKeeperRenderer {
 		this.timeFilterDomNode.type = 'text';
 		this.timeFilterDomNode.value = '0';
 		this.timeFilterDomNode.className = 'timeFilter';
-		this.listenersToRemove.push(DomUtils.addListener(this.timeFilterDomNode, 'keydown', () => this.onTimeFilterChange()));
+		this.listenersToRemove.push(DomUtils.addDisposableListener(this.timeFilterDomNode, 'keydown', () => this.onTimeFilterChange()));
 		this.timeFilter = 0;
 		this.outerDomNode.appendChild(document.createTextNode('Hide time under'));
 		this.outerDomNode.appendChild(this.timeFilterDomNode);
 
-		var hide:HTMLInputElement = <HTMLInputElement>document.createElement('input');
+		let hide: HTMLInputElement = <HTMLInputElement>document.createElement('input');
 		hide.type = 'button';
 		hide.value = 'Close';
-		this.listenersToRemove.push(DomUtils.addListener(hide, 'click', () => {
+		this.listenersToRemove.push(DomUtils.addDisposableListener(hide, 'click', () => {
 			this.onHide();
 		}));
 		this.outerDomNode.appendChild(hide);
 
-		var heading = document.createElement('pre');
+		let heading = document.createElement('pre');
 		heading.appendChild(document.createTextNode(this.renderRow('TOPIC', 'NAME', 'TOOK', 'START', 'END')));
 		this.outerDomNode.appendChild(heading);
 		this.outerDomNode.appendChild(document.createElement('hr'));
 
-		var domNode = document.createElement('div');
+		let domNode = document.createElement('div');
 		domNode.className = 'inner';
 		this.outerDomNode.appendChild(domNode);
 
@@ -120,7 +117,7 @@ export class TimeKeeperRenderer {
 		});
 	}
 
-	private matchesTextFilter(event:Timer.ITimerEvent): boolean {
+	private matchesTextFilter(event: ITimerEvent): boolean {
 		if (!this.textFilter) {
 			return true;
 		}
@@ -133,7 +130,7 @@ export class TimeKeeperRenderer {
 		return false;
 	}
 
-	private matchesTimeFilter(event:Timer.ITimerEvent): boolean {
+	private matchesTimeFilter(event: ITimerEvent): boolean {
 		if (!this.timeFilter) {
 			return true;
 		}
@@ -143,7 +140,7 @@ export class TimeKeeperRenderer {
 		return false;
 	}
 
-	private shouldShow(event:Timer.ITimerEvent): boolean {
+	private shouldShow(event: ITimerEvent): boolean {
 		return this.matchesTextFilter(event) && this.matchesTimeFilter(event);
 	}
 
@@ -151,17 +148,17 @@ export class TimeKeeperRenderer {
 		this.textFilter = this.textFilterDomNode.value;
 		this.timeFilter = parseInt(this.timeFilterDomNode.value, 10);
 
-		var domNodes = Array.prototype.slice.call(this.domNode.children, 0);
-			for (var i = 0; i < domNodes.length; i++) {
-				var eventId = domNodes[i].getAttribute('data-event-id');
-				var event = this.renderedEvents[eventId];
+		let domNodes = Array.prototype.slice.call(this.domNode.children, 0);
+		for (let i = 0; i < domNodes.length; i++) {
+			let eventId = domNodes[i].getAttribute('data-event-id');
+			let event = this.renderedEvents[eventId];
 
-				if (this.shouldShow(event)) {
-					domNodes[i].style.display = 'inherit';
-				} else {
-					domNodes[i].style.display = 'none';
-				}
+			if (this.shouldShow(event)) {
+				domNodes[i].style.display = 'inherit';
+			} else {
+				domNodes[i].style.display = 'none';
 			}
+		}
 	}
 
 	private _onClear(): void {
@@ -171,18 +168,18 @@ export class TimeKeeperRenderer {
 		DomUtils.clearNode(this.domNode);
 	}
 
-	private leftPaddedString(size:number, padChar:string, str:string): string {
-		var spaces = this._repeatStr(padChar, Math.max(0, size - str.length));
+	private leftPaddedString(size: number, padChar: string, str: string): string {
+		let spaces = this._repeatStr(padChar, Math.max(0, size - str.length));
 		return spaces + str;
 	}
 
-	private rightPaddedString(size:number, padChar:string, str:string): string {
-		var spaces = this._repeatStr(padChar, Math.max(0, size - str.length));
+	private rightPaddedString(size: number, padChar: string, str: string): string {
+		let spaces = this._repeatStr(padChar, Math.max(0, size - str.length));
 		return str + spaces;
 	}
 
-	private renderRow(topic:string, name:string, timeTook:string, timeStart:string, timerEnd:string): string {
-		var result = ' ';
+	private renderRow(topic: string, name: string, timeTook: string, timeStart: string, timerEnd: string): string {
+		let result = ' ';
 		result += this.rightPaddedString(10, ' ', topic);
 		result += this.rightPaddedString(30, ' ', name);
 		result += ' ' + this.leftPaddedString(15, ' ', timeTook);
@@ -220,10 +217,10 @@ export class TimeKeeperRenderer {
 		return this._twoPrecision(t) + ' h';
 	}
 
-	private _renderEvent(domNode:HTMLElement, event:Timer.ITimerEvent): void {
-		var start = event.startTime.getTime() - Timer.TimeKeeper.PARSE_TIME.getTime();
+	private _renderEvent(domNode: HTMLElement, event: ITimerEvent): void {
+		let start = event.startTime.getTime() - TimeKeeper.PARSE_TIME.getTime();
 
-		var result = this.renderRow(
+		let result = this.renderRow(
 			event.topic,
 			event.name,
 			this._twoPrecision(event.timeTaken()),
@@ -234,11 +231,11 @@ export class TimeKeeperRenderer {
 		domNode.appendChild(document.createTextNode(result));
 	}
 
-	private _renderStartTimerEvent(event:Timer.ITimerEvent): void {
-		var domNode = document.createElement('pre');
+	private _renderStartTimerEvent(event: ITimerEvent): void {
+		let domNode = document.createElement('pre');
 		this._renderEvent(domNode, event);
 		this.domNode.appendChild(domNode);
-		var idString = event.id.toString();
+		let idString = event.id.toString();
 
 		domNode.setAttribute('data-event-id', idString);
 		domNode.className = 'timer-event-' + (event.id % 2);
@@ -254,10 +251,10 @@ export class TimeKeeperRenderer {
 	}
 
 	private _render(): void {
-		var allEvents = this.timeKeeper.getCollectedEvents(), didSomething = false;;
+		let allEvents = this.timeKeeper.getCollectedEvents(), didSomething = false;
 
-		for (var i = this.lastEventIndex; i < allEvents.length; i++) {
-			var ev = allEvents[i];
+		for (let i = this.lastEventIndex; i < allEvents.length; i++) {
+			let ev = allEvents[i];
 
 			if (!ev.stopTime) {
 				// This event is not yet finished => block
@@ -278,9 +275,9 @@ export class TimeKeeperRenderer {
 		this.lastEventIndex = allEvents.length;
 	}
 
-	private _repeatStr(str:string, cnt:number): string {
-		var r = '';
-		for (var i = 0; i < cnt; i++) {
+	private _repeatStr(str: string, cnt: number): string {
+		let r = '';
+		for (let i = 0; i < cnt; i++) {
 			r += str;
 		}
 		return r;

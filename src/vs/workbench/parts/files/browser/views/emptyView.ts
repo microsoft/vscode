@@ -7,14 +7,14 @@
 import nls = require('vs/nls');
 import env = require('vs/base/common/platform');
 import DOM = require('vs/base/browser/dom');
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {IAction, Action} from 'vs/base/common/actions';
 import {Button} from 'vs/base/browser/ui/button/button';
 import {$} from 'vs/base/browser/builder';
 import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {CollapsibleView} from 'vs/base/browser/ui/splitview/splitview';
 import {Registry} from 'vs/platform/platform';
-import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/browser/actionRegistry';
+import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {StructuredSelection} from 'vs/platform/selection/common/selection';
 
@@ -22,7 +22,8 @@ export class EmptyView extends CollapsibleView {
 
 	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
 		super({
-			minimumSize: 2 * 24
+			minimumSize: 2 * 22,
+			ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section")
 		});
 	}
 
@@ -56,18 +57,18 @@ export class EmptyView extends CollapsibleView {
 	}
 
 	public create(): TPromise<void> {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public refresh(focus: boolean, reveal: boolean, instantProgress?: boolean): TPromise<void> {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
-	public focus(): void {
+	public focusBody(): void {
 		// Ignore
 	}
 
@@ -76,7 +77,7 @@ export class EmptyView extends CollapsibleView {
 	}
 
 	protected reveal(element: any, relativeTop?: number): TPromise<void> {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public getActions(): IAction[] {

@@ -6,77 +6,76 @@
 'use strict';
 
 import 'vs/css!./checkbox';
-import nls = require('vs/nls');
-import Builder = require('vs/base/browser/builder');
-import mouse = require('vs/base/browser/mouseEvent');
-import keyboard = require('vs/base/browser/keyboardEvent');
+
+import DOM = require('vs/base/browser/dom');
 import {KeyCode} from 'vs/base/common/keyCodes';
+import {Widget} from 'vs/base/browser/ui/widget';
+import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
-var $ = Builder.$;
+export interface ICheckboxOpts {
+	actionClassName: string;
+	title: string;
+	isChecked: boolean;
+	onChange: (viaKeyboard: boolean) => void;
+	onKeyDown?: (e: StandardKeyboardEvent) => void;
+}
 
-export class Checkbox {
+export class Checkbox extends Widget {
 
-	private actionClassName: string;
-	private title: string;
-	public isChecked: boolean;
-	private onChange: () => void;
-	private listenersToRemove: { (): void; }[];
+	private _opts: ICheckboxOpts;
 	public domNode: HTMLElement;
 
-	constructor(actionClassName: string, title: string, isChecked: boolean, onChange: () => void) {
-		this.actionClassName = actionClassName;
-		this.title = title;
-		this.isChecked = isChecked;
-		this.onChange = onChange;
+	private _checked: boolean;
 
-		this.listenersToRemove = [];
+	constructor(opts: ICheckboxOpts) {
+		super();
+		this._opts = opts;
+		this._checked = this._opts.isChecked;
 
 		this.domNode = document.createElement('div');
-		this.domNode.title = title;
-		this.render();
+		this.domNode.title = this._opts.title;
+		this.domNode.className = this._className();
+		this.domNode.tabIndex = 0;
+		this.domNode.setAttribute('role', 'checkbox');
+		this.domNode.setAttribute('aria-checked', String(this._checked));
+		this.domNode.setAttribute('aria-label', this._opts.title);
 
-		$(this.domNode).attr({
-			'aria-checked': 'false',
-			'aria-label': this.title,
-			'tabindex': 0,
-			'role': 'checkbox'
+		this.onclick(this.domNode, (ev) => {
+			this.checked = !this._checked;
+			this._opts.onChange(false);
+			ev.preventDefault();
 		});
 
-		$(this.domNode).on('click', (e: MouseEvent) => {
-			var ev = new mouse.StandardMouseEvent(e);
-			this.isChecked = !this.isChecked;
-			this.render();
-			this.onChange();
-			ev.preventDefault();
-		}, this.listenersToRemove);
-
-		$(this.domNode).on('keydown', (browserEvent: KeyboardEvent) => {
-			var keyboardEvent = new keyboard.StandardKeyboardEvent(browserEvent);
+		this.onkeydown(this.domNode, (keyboardEvent) => {
 			if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
-				this.isChecked = !this.isChecked;
-				this.render();
-				this.onChange();
+				this.checked = !this._checked;
+				this._opts.onChange(true);
 				keyboardEvent.preventDefault();
+				return;
 			}
-		}, this.listenersToRemove);
+
+			if (this._opts.onKeyDown) {
+				this._opts.onKeyDown(keyboardEvent);
+			}
+		});
 	}
 
 	public focus(): void {
 		this.domNode.focus();
 	}
 
-	private render(): void {
-		this.domNode.className = this.className();
+	public get checked(): boolean {
+		return this._checked;
 	}
 
-	public setChecked(newIsChecked: boolean): void {
-		this.isChecked = newIsChecked;
-		$(this.domNode).attr('aria-checked', this.isChecked);
-		this.render();
+	public set checked(newIsChecked: boolean) {
+		this._checked = newIsChecked;
+		this.domNode.setAttribute('aria-checked', String(this._checked));
+		this.domNode.className = this._className();
 	}
 
-	private className(): string {
-		return 'custom-checkbox ' + this.actionClassName + ' ' + (this.isChecked ? 'checked' : 'unchecked');
+	private _className(): string {
+		return 'custom-checkbox ' + this._opts.actionClassName + ' ' + (this._checked ? 'checked' : 'unchecked');
 	}
 
 	public width(): number {
@@ -85,16 +84,11 @@ export class Checkbox {
 
 	public enable(): void {
 		this.domNode.tabIndex = 0;
+		this.domNode.setAttribute('aria-disabled', String(false));
 	}
 
 	public disable(): void {
-		this.domNode.tabIndex = -1;
-	}
-
-	public destroy(): void {
-		this.listenersToRemove.forEach((element) => {
-			element();
-		});
-		this.listenersToRemove = [];
+		DOM.removeTabIndexAndUpdateFocus(this.domNode);
+		this.domNode.setAttribute('aria-disabled', String(true));
 	}
 }

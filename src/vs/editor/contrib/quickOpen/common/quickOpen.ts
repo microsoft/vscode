@@ -60,7 +60,7 @@ export function getOutlineEntries(model: IModel): TPromise<IOutline> {
 		return {
 			entries: flatEntries,
 			outlineGroupLabel: groupLabels
-		}
+		};
 	});
 }
 
@@ -86,7 +86,7 @@ function flatten(bucket: IOutlineEntry[], entries: IOutlineEntry[], overrideCont
 
 CommonEditorRegistry.registerLanguageCommand('_executeDocumentSymbolProvider', function(accessor, args) {
 	const {resource} = args;
-	if (!URI.isURI(resource)) {
+	if (!(resource instanceof URI)) {
 		throw illegalArgument('resource');
 	}
 	const model = accessor.get(IModelService).getModel(resource);

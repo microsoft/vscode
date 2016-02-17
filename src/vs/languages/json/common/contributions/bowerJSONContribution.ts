@@ -39,7 +39,7 @@ export class BowerJSONContribution implements JSONWorker.IJSONWorkerContribution
 			var defaultValue = {
 				'name': '{{name}}',
 				'description': '{{description}}',
-				'author': '{{author}}',
+				'authors': [ '{{author}}' ],
 				'version': '{{1.0.0}}',
 				'main': '{{pathToMain}}',
 				'dependencies': {}

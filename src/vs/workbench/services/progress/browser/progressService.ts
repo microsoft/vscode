@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
-import {ScopedService} from 'vs/workbench/browser/services';
+import {EditorEvent, EventType, CompositeEvent} from 'vs/workbench/common/events';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
 
@@ -16,7 +16,53 @@ interface ProgressState {
 	total?: number;
 	worked?: number;
 	done?: boolean;
-	whilePromise?: Promise;
+	whilePromise?: TPromise<any>;
+}
+
+export abstract class ScopedService {
+	private _eventService: IEventService;
+	private scopeId: string;
+
+	constructor(eventService: IEventService, scopeId: string) {
+		this._eventService = eventService;
+		this.scopeId = scopeId;
+
+		this.registerListeners();
+	}
+
+	public get eventService(): IEventService {
+		return this._eventService;
+	}
+
+	public registerListeners(): void {
+		this.eventService.addListener(EventType.EDITOR_CLOSED, (e: EditorEvent) => {
+			if (e.editorId === this.scopeId) {
+				this.onScopeDeactivated();
+			}
+		});
+
+		this.eventService.addListener(EventType.EDITOR_OPENED, (e: EditorEvent) => {
+			if (e.editorId === this.scopeId) {
+				this.onScopeActivated();
+			}
+		});
+
+		this.eventService.addListener(EventType.COMPOSITE_CLOSED, (e: CompositeEvent) => {
+			if (e.compositeId === this.scopeId) {
+				this.onScopeDeactivated();
+			}
+		});
+
+		this.eventService.addListener(EventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
+			if (e.compositeId === this.scopeId) {
+				this.onScopeActivated();
+			}
+		});
+	}
+
+	public abstract onScopeActivated(): void;
+
+	public abstract onScopeDeactivated(): void;
 }
 
 export class WorkbenchProgressService extends ScopedService implements IProgressService {
@@ -163,7 +209,7 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 		};
 	}
 
-	public showWhile(promise: Promise, delay?: number): Promise {
+	public showWhile(promise: TPromise<any>, delay?: number): TPromise<void> {
 		let stack: boolean = !!this.progressState.whilePromise;
 
 		// Reset State
@@ -173,7 +219,7 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 
 		// Otherwise join with existing running promise to ensure progress is accurate
 		else {
-			promise = Promise.join([promise, this.progressState.whilePromise]);
+			promise = TPromise.join([promise, this.progressState.whilePromise]);
 		}
 
 		// Keep Promise in State

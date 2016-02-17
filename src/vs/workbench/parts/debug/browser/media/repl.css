@@ -12,7 +12,7 @@
 }
 
 .monaco-workbench .repl .repl-tree {
-	height: calc(100% - 24px);
+	height: calc(100% - 22px);
 }
 
 .monaco-workbench .repl .surveyor {
@@ -26,9 +26,9 @@
 }
 
 .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row > .content {
-	line-height: 24px;
+	line-height: 18px;
 	word-wrap: break-word;
-	-webkit-user-select: initial;
+	-webkit-user-select: text;
 }
 
 .monaco-workbench .repl .repl-tree .monaco-tree-row .input.expression.mac,
@@ -70,30 +70,22 @@
 	margin-right: 6px;
 }
 
-.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row:nth-child(n+3) > .content.output.grouped {
-	border-top: none; /* do not separate grouped output */
+/* Allign twistie since repl tree is smaller and sometimes has paired elements */
+
+.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row.has-children > .content:before {
+	top: 6px;
 }
 
-.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row:nth-child(n+3) .content.input-output-pair,
-.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row:nth-child(n+3) > .content.output {
-	border-top: 1px solid rgba(231, 231, 231, 0.5);
+.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row.has-children > .content:after {
+	top: 8px;
 }
 
-.monaco-workbench.vs-dark .repl .repl-tree .monaco-tree .monaco-tree-row:nth-child(n+3) .content.input-output-pair,
-.monaco-workbench.vs-dark .repl .repl-tree .monaco-tree .monaco-tree-row:nth-child(n+3) > .content.output {
-	border-top: 1px solid rgba(128, 128, 128, 0.3);
+.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row.has-children > .content.input-output-pair:before {
+	top: 23px;
 }
 
-.monaco-workbench.vs-dark .repl .repl-tree .monaco-tree .monaco-tree-row:nth-child(n+3) > .content.output.grouped {
-	border-top: none; /* do not separate grouped output */
-}
-
-.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row.has-children .content.input-output-pair:before {
-	top: 32px;
-}
-
-.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row.has-children .content.input-output-pair:after {
-	top: 34px;
+.monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-row.has-children > .content.input-output-pair:after {
+	top: 25px;
 }
 
 .monaco-workbench .repl .repl-input-wrapper {
@@ -103,13 +95,12 @@
 	box-sizing: border-box;
 }
 
-.monaco-workbench .repl .repl-input {
+.monaco-workbench .repl .repl-input-wrapper .repl-input {
 	width: 100%;
 	border: 0;
 	padding: 0;
-	outline: none;
+	line-height: 22px;
 	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
-	line-height: 24px;
 }
 
 .monaco-workbench .repl .repl-tree .monaco-tree .monaco-tree-rows > .monaco-tree-row {
@@ -137,7 +128,6 @@
 .monaco-workbench .repl .repl-input-wrapper {
 	border-top: 1px solid rgba(128, 128, 128, 0.35);
 	box-sizing: border-box;
-	height: 24px;
 }
 
 .monaco-workbench .repl .repl-input-wrapper:before {
@@ -151,25 +141,26 @@
 }
 
 .monaco-workbench .repl .repl-input-wrapper.mac {
-	font-size: 11px;
+	font-size: 12px;
 }
 
-.monaco-workbench .repl .repl-input.win {
-	font-size: 13px;
+.monaco-workbench .repl .repl-input-wrapper.win {
+	font-size: 14px;
 }
 
-.monaco-workbench .repl .repl-input.linux {
-	font-size: 13px;
+.monaco-workbench .repl .repl-input-wrapper.linux {
+	font-size: 14px;
 }
 
 .monaco-workbench .repl .repl-input-wrapper.linux:before {
 	content: '\276f';
-	line-height: 24px;
+	font-size: 9px;
+	line-height: 22px;
 }
 
 .monaco-workbench .repl .repl-input-wrapper.mac:before {
 	content: '\276f';
-	line-height: 24px;
+	line-height: 22px;
 }
 
 .monaco-workbench .repl .repl-input {

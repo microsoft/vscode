@@ -5,7 +5,6 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import converter = require('vs/languages/typescript/common/features/converter');
 import ts = require('vs/languages/typescript/common/lib/typescriptServices');
@@ -132,7 +131,7 @@ function functionsAndGlobals(languageService: ts.LanguageService, resource: URI)
 	}
 
 	// add classes
-	let items = languageService.getNavigationBarItems(sourceFile.fileName)
+	let items = languageService.getNavigationBarItems(sourceFile.fileName);
 	for (let item of items) {
 		if (item.kind === ts.ScriptElementKind.classElement) {
 			let entry = _convert(sourceFile, item);

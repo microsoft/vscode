@@ -6,11 +6,11 @@
 'use strict';
 
 import 'vs/css!./overlayWidgets';
-import DomUtils = require('vs/base/browser/dom');
 
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
+import {StyleMutator} from 'vs/base/browser/styleMutator';
 
 interface IWidgetData {
 	widget: EditorBrowser.IOverlayWidget;
@@ -55,7 +55,7 @@ export class ViewOverlayWidgets extends ViewPart {
 		this._editorHeight = layoutInfo.height;
 
 		this._requestModificationFrame(() => {
-			DomUtils.StyleMutator.setWidth(this.domNode, layoutInfo.width);
+			StyleMutator.setWidth(this.domNode, layoutInfo.width);
 		});
 		return true;
 	}
@@ -114,20 +114,20 @@ export class ViewOverlayWidgets extends ViewPart {
 			if (!domNode.hasAttribute(_RESTORE_STYLE_TOP)) {
 				domNode.setAttribute(_RESTORE_STYLE_TOP, domNode.style.top);
 			}
-			DomUtils.StyleMutator.setTop(domNode, 0);
-			DomUtils.StyleMutator.setRight(domNode, (2 * this._verticalScrollbarWidth));
+			StyleMutator.setTop(domNode, 0);
+			StyleMutator.setRight(domNode, (2 * this._verticalScrollbarWidth));
 		} else if (widgetData.preference === EditorBrowser.OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER) {
 			if (!domNode.hasAttribute(_RESTORE_STYLE_TOP)) {
 				domNode.setAttribute(_RESTORE_STYLE_TOP, domNode.style.top);
 			}
 			var widgetHeight = domNode.clientHeight;
-			DomUtils.StyleMutator.setTop(domNode, (this._editorHeight - widgetHeight - 2 * this._horizontalScrollbarHeight));
-			DomUtils.StyleMutator.setRight(domNode, (2 * this._verticalScrollbarWidth));
+			StyleMutator.setTop(domNode, (this._editorHeight - widgetHeight - 2 * this._horizontalScrollbarHeight));
+			StyleMutator.setRight(domNode, (2 * this._verticalScrollbarWidth));
 		} else if (widgetData.preference === EditorBrowser.OverlayWidgetPositionPreference.TOP_CENTER) {
 			if (!domNode.hasAttribute(_RESTORE_STYLE_TOP)) {
 				domNode.setAttribute(_RESTORE_STYLE_TOP, domNode.style.top);
 			}
-			DomUtils.StyleMutator.setTop(domNode, 0);
+			StyleMutator.setTop(domNode, 0);
 			domNode.style.right = '50%';
 		}
 	}

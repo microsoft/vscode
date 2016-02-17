@@ -93,8 +93,7 @@ export class ResourceService extends EventEmitter implements IResourceService {
 		}
 
 		var key = url.toString(),
-			element = this.data[key],
-			i = 1;
+			element = this.data[key];
 
 		// stop listen
 		while(this.unbinds[key].length > 0) { this.unbinds[key].pop()(); }

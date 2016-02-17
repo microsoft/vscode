@@ -38,4 +38,4 @@ script:
   - gulp hygiene
   - gulp electron
   - gulp compile
-  - ./test/run.sh
+  - ./scripts/test.sh

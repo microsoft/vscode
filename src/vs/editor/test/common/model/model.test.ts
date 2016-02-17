@@ -16,8 +16,8 @@ import {EditOperation} from 'vs/editor/common/core/editOperation';
 
 function isNotABracket(model, lineNumber, column) {
 	var match = model.matchBracket(new Position(lineNumber, column));
-	assert.equal(match.isAccurate, true);
-	assert.equal(match.brackets, null);
+	assert.equal(match.isAccurate, true, 'is not matching brackets at ' + lineNumber + ', ' + column);
+	assert.equal(match.brackets, null, 'is not matching brackets at ' + lineNumber + ', ' + column);
 }
 
 function isBracket(model, lineNumber1, column11, column12, lineNumber2, column21, column22) {
@@ -28,7 +28,7 @@ function isBracket(model, lineNumber1, column11, column12, lineNumber2, column21
 			new Range(lineNumber2, column21, lineNumber2, column22)
 		],
 		isAccurate: true
-	});
+	}, 'is matching brackets at ' + lineNumber1 + ', ' + column11);
 }
 
 

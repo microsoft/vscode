@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
 import platform = require('vs/base/common/platform');
 import debug = require('vs/workbench/parts/debug/common/debug');
@@ -19,24 +20,29 @@ export class Adapter {
 	private configurationAttributes: any;
 	public initialConfigurations: any[];
 	public enableBreakpointsFor: { languageIds: string[] };
+	public aiKey: string;
 
 	constructor(rawAdapter: debug.IRawAdapter, systemVariables: SystemVariables, extensionFolderPath: string) {
 		if (rawAdapter.windows) {
 			rawAdapter.win = rawAdapter.windows;
 		}
-		if (platform.isWindows && rawAdapter.win) {
+
+		if (platform.isWindows && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432') && rawAdapter.winx86) {
+			this.runtime = rawAdapter.winx86.runtime;
+			this.runtimeArgs = rawAdapter.winx86.runtimeArgs;
+			this.program = rawAdapter.winx86.program;
+			this.args = rawAdapter.winx86.args;
+		} else if (platform.isWindows && rawAdapter.win) {
 			this.runtime = rawAdapter.win.runtime;
 			this.runtimeArgs = rawAdapter.win.runtimeArgs;
 			this.program = rawAdapter.win.program;
 			this.args = rawAdapter.win.args;
-		}
-		if (platform.isMacintosh && rawAdapter.osx) {
+		} else if (platform.isMacintosh && rawAdapter.osx) {
 			this.runtime = rawAdapter.osx.runtime;
 			this.runtimeArgs = rawAdapter.osx.runtimeArgs;
 			this.program = rawAdapter.osx.program;
 			this.args = rawAdapter.osx.args;
-		}
-		if (platform.isLinux && rawAdapter.linux) {
+		} else if (platform.isLinux && rawAdapter.linux) {
 			this.runtime = rawAdapter.linux.runtime;
 			this.runtimeArgs = rawAdapter.linux.runtimeArgs;
 			this.program = rawAdapter.linux.program;
@@ -62,6 +68,7 @@ export class Adapter {
 		this.initialConfigurations = rawAdapter.initialConfigurations;
 		this._label = rawAdapter.label;
 		this.enableBreakpointsFor = rawAdapter.enableBreakpointsFor;
+		this.aiKey = rawAdapter.aiKey;
 	}
 
 	public get label() {
@@ -69,39 +76,51 @@ export class Adapter {
 	}
 
 	public getSchemaAttributes(): any[] {
-		// Fill in the default configuration attributes shared by all adapters.
+		// fill in the default configuration attributes shared by all adapters.
 		if (this.configurationAttributes) {
 			return Object.keys(this.configurationAttributes).map(request => {
 				const attributes = this.configurationAttributes[request];
 				const defaultRequired = ['name', 'type', 'request'];
-				attributes["required"] = attributes["required"] && attributes["required"].length ? defaultRequired.concat(attributes["required"]) : defaultRequired;
-				attributes['additionalProperties'] = false;
-				attributes['type'] = 'object';
-				if (!attributes['properties']) {
-					attributes['properties'] = { };
+				attributes.required = attributes.required && attributes.required.length ? defaultRequired.concat(attributes.required) : defaultRequired;
+				attributes.additionalProperties = false;
+				attributes.type = 'object';
+				if (!attributes.properties) {
+					attributes.properties = { };
 				}
-				attributes['properties']['type'] = {
+				const properties = attributes.properties;
+				properties.type = {
 					enum: [this.type],
-					description: 'Type of configuration.',
+					description: nls.localize('debugType', "Type of configuration.")
 				};
-				attributes['properties']['name'] = {
+				properties.name = {
 					type: 'string',
-					description: 'Name of configuration; appears in the launch configuration drop down menu.',
+					description: nls.localize('debugName', "Name of configuration; appears in the launch configuration drop down menu."),
 					default: 'Launch'
 				};
-				attributes['properties']['request'] = {
+				properties.request = {
 					enum: [request],
-					description: 'Request type of configuration. Can be "launch" or "attach".',
+					description: nls.localize('debugRequest', "Request type of configuration. Can be \"launch\" or \"attach\"."),
 				};
-				attributes['properties']['preLaunchTask'] = {
+				properties.preLaunchTask = {
 					type: 'string',
-					description: 'Task to run before debug session starts.'
+					description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
 				};
+				this.warnRelativePaths(properties.outDir);
+				this.warnRelativePaths(properties.program);
+				this.warnRelativePaths(properties.cwd);
+				this.warnRelativePaths(properties.runtimeExecutable);
 
 				return attributes;
 			});
 		}
 
 		return null;
+	}
+
+	private warnRelativePaths(attribute: any): void {
+		if (attribute) {
+			attribute.pattern = '^\\${.*}.*|^((\\/|[a-zA-Z]:\\\\)[^\\(\\)<>\\\'\\"\\[\\]]+)';
+			attribute.errorMessage = nls.localize('relativePathsNotConverted', "Relative paths will no longer be automatically converted to absolute ones. Consider using ${workspaceRoot} as a prefix.");
+		}
 	}
 }

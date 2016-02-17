@@ -22,7 +22,7 @@ export namespace TaskServiceEvents {
 }
 
 export interface ITaskService extends IEventEmitter {
-	serviceId: ServiceIdentifier<any>
+	serviceId: ServiceIdentifier<any>;
 	build(): TPromise<ITaskSummary>;
 	rebuild(): TPromise<ITaskSummary>;
 	clean(): TPromise<ITaskSummary>;

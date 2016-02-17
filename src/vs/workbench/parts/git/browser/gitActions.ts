@@ -7,7 +7,7 @@
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
-import { ITree } from 'vs/base/parts/tree/common/tree';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import strings = require('vs/base/common/strings');
 import { isString } from 'vs/base/common/types';
@@ -28,7 +28,9 @@ import Severity from 'vs/base/common/severity';
 import { IGitService, IFileStatus, Status, StatusType, ServiceState,
 	IModel, IBranch, GitErrorCodes, ServiceOperations }
 	from 'vs/workbench/parts/git/common/git';
-import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import paths = require('vs/base/common/paths');
+import URI from 'vs/base/common/uri';
 
 function flatten(context?: any, preferFocus = false): IFileStatus[] {
 	if (!context) {
@@ -166,17 +168,14 @@ export class OpenFileAction extends GitAction {
 			return Promise.wrapError(new Error('Can\'t open file which is has been deleted.'));
 		}
 
-		var path = this.getPath(status);
+		const resource = URI.file(paths.join(this.gitService.getModel().getRepositoryRoot(), this.getPath(status)));
 
-		return this.fileService.resolveFile(this.contextService.toResource(path)).then((stat: IFileStat) => {
-			return this.editorService.openEditor({
+		return this.fileService.resolveFile(resource)
+			.then(stat => this.editorService.openEditor({
 				resource: stat.resource,
 				mime: stat.mime,
-				options: {
-					forceOpen: true
-				}
-			});
-		});
+				options: { forceOpen: true }
+			}));
 	}
 }
 
@@ -224,21 +223,21 @@ export abstract class BaseStageAction extends GitAction {
 		return this.gitService.add(flatten(context)).then((status: IModel) => {
 			var targetEditor = this.findGitWorkingTreeEditor();
 			if (!targetEditor) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var currentGitEditorInput = <inputs.IEditorInputWithStatus>(<any>targetEditor.input);
 			var currentFileStatus = currentGitEditorInput.getFileStatus();
 
 			if (flatContext && flatContext.every((f) => f !== currentFileStatus)) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var path = currentGitEditorInput.getFileStatus().getPath();
 			var fileStatus = status.getStatus().find(path, StatusType.INDEX);
 
 			if (!fileStatus) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var editorControl = <any>targetEditor.getControl();
@@ -327,7 +326,7 @@ export abstract class BaseUndoAction extends GitAction {
 
 	public run(context?: any):Promise {
 		if (!this.messageService.confirm(this.getConfirm(context))) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		var promises: Promise[] = [];
@@ -366,21 +365,21 @@ export abstract class BaseUndoAction extends GitAction {
 
 		return Promise.join(promises).then((statuses: IModel[]) => {
 			if (statuses.length === 0) {
-				return Promise.as(null);
+				return TPromise.as(null);
 			}
 
 			var status = statuses[statuses.length - 1];
 
 			var targetEditor = this.findWorkingTreeDiffEditor();
 			if (!targetEditor) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var currentGitEditorInput = <inputs.GitWorkingTreeDiffEditorInput> targetEditor.input;
 			var currentFileStatus = currentGitEditorInput.getFileStatus();
 
 			if (all && all.every((f) => f !== currentFileStatus)) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var path = currentGitEditorInput.getFileStatus().getPath();
@@ -435,7 +434,7 @@ export abstract class BaseUndoAction extends GitAction {
 				detail: count === 1
 					? nls.localize('confirmUndoAllOne', "There are unstaged changes in {0} file.\n\nThis action is irreversible!", count)
 					: nls.localize('confirmUndoAllMultiple', "There are unstaged changes in {0} files.\n\nThis action is irreversible!", count),
-				primaryButton: nls.localize('cleanChangesLabel', "Clean Changes")
+				primaryButton: nls.localize('cleanChangesLabel', "&&Clean Changes")
 			};
 		}
 
@@ -444,7 +443,7 @@ export abstract class BaseUndoAction extends GitAction {
 		return {
 			message: nls.localize('confirmUndo', "Are you sure you want to clean changes in '{0}'?", label),
 			detail: nls.localize('irreversible', "This action is irreversible!"),
-			primaryButton: nls.localize('cleanChangesLabel', "Clean Changes")
+			primaryButton: nls.localize('cleanChangesLabel', "&&Clean Changes")
 		};
 	}
 
@@ -500,21 +499,21 @@ export abstract class BaseUnstageAction extends GitAction {
 		return this.gitService.revertFiles('HEAD', flatContext).then((status: IModel) => {
 			var targetEditor = this.findGitIndexEditor();
 			if (!targetEditor) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var currentGitEditorInput = <inputs.IEditorInputWithStatus>(<any>targetEditor.input);
 			var currentFileStatus = currentGitEditorInput.getFileStatus();
 
 			if (flatContext && flatContext.every((f) => f !== currentFileStatus)) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var path = currentGitEditorInput.getFileStatus().getPath();
 			var fileStatus = status.getStatus().find(path, StatusType.WORKING_TREE);
 
 			if (!fileStatus) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var editorControl = <any> targetEditor.getControl();
@@ -627,7 +626,7 @@ export class CheckoutAction extends GitAction {
 		if (this.state !== LifecycleState.Alive) {
 			return Promise.wrapError('action disposed');
 		} else if (this.HEAD && this.HEAD.name === this.branch.name) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		var result = this.gitService.checkout(this.branch.name).then(null, (err) => {
@@ -676,7 +675,7 @@ export class BranchAction extends GitAction {
 
 	public run(context?: any):Promise {
 		if (!isString(context)) {
-			return Promise.as(false);
+			return TPromise.as(false);
 		}
 
 		return this.gitService.branch(<string> context, this.checkout);
@@ -708,7 +707,7 @@ export abstract class BaseCommitAction extends GitAction {
 	public run(context?: any):Promise {
 		if (!this.commitState.getCommitMessage()) {
 			this.commitState.onEmptyCommitMessage();
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		return this.gitService.commit(this.commitState.getCommitMessage());
@@ -751,7 +750,7 @@ export class StageAndCommitAction extends BaseCommitAction {
 	public run(context?: any):Promise {
 		if (!this.commitState.getCommitMessage()) {
 			this.commitState.onEmptyCommitMessage();
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		return this.gitService.commit(this.commitState.getCommitMessage(), false, true);
@@ -808,7 +807,7 @@ export class SmartCommitAction extends BaseCommitAction {
 	public run(context?: any):Promise {
 		if (!this.commitState.getCommitMessage()) {
 			this.commitState.onEmptyCommitMessage();
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		var status = this.gitService.getModel().getStatus();
@@ -977,13 +976,13 @@ export class PublishAction extends GitAction {
 
 			const result = this.messageService.confirm({
 				message: nls.localize('confirmPublishMessage', "Are you sure you want to publish '{0}' to '{1}'?", branchName, remoteName),
-				primaryButton: nls.localize('confirmPublishMessageButton', "Publish")
+				primaryButton: nls.localize('confirmPublishMessageButton', "&&Publish")
 			});
 
 			promise = TPromise.as(result ? remoteName : null);
 		} else {
 			promise = this.quickOpenService.pick(remotes.map(r => r.name), {
-				placeHolder: nls.localize('publishPickMessage', "Pick a remote to push the branch '{0}' to:", branchName)
+				placeHolder: nls.localize('publishPickMessage', "Pick a remote to publish the branch '{0}' to:", branchName)
 			});
 		}
 
@@ -1026,7 +1025,7 @@ export abstract class BaseSyncAction extends GitAction {
 
 	public run(context?: any):Promise {
 		if (!this.enabled) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		return this.gitService.sync().then(null, (err) => {
@@ -1122,5 +1121,39 @@ export class UndoLastCommitAction extends GitAction {
 
 	public run():Promise {
 		return this.gitService.reset('HEAD~');
+	}
+}
+
+export class StartGitCheckoutAction extends Action {
+
+	public static ID = 'workbench.action.git.startGitCheckout';
+	public static LABEL = nls.localize('checkout', "Checkout");
+	private quickOpenService: IQuickOpenService;
+
+	constructor(id: string, label: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
+		super(id, label);
+		this.quickOpenService = quickOpenService;
+	}
+
+	public run(event?:any): Promise {
+		this.quickOpenService.show('git checkout ');
+		return TPromise.as(null);
+	}
+}
+
+export class StartGitBranchAction extends Action {
+
+	public static ID = 'workbench.action.git.startGitBranch';
+	public static LABEL = nls.localize('branch2', "Branch");
+	private quickOpenService: IQuickOpenService;
+
+	constructor(id: string, label: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
+		super(id, label);
+		this.quickOpenService = quickOpenService;
+	}
+
+	public run(event?:any): Promise {
+		this.quickOpenService.show('git branch ');
+		return TPromise.as(null);
 	}
 }

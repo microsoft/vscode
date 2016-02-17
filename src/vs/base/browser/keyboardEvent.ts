@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-"use strict";
+'use strict';
 
-import Platform = require('vs/base/common/platform');
-import Browser = require('vs/base/browser/browser');
-import {KeyMod, KeyCode, BinaryKeybindings} from 'vs/base/common/keyCodes';
+import * as Platform from 'vs/base/common/platform';
+import * as Browser from 'vs/base/browser/browser';
+import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
 let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
 (function() {
@@ -84,6 +84,7 @@ let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
 	KEY_CODE_MAP[105] = KeyCode.NUMPAD_9;
 	KEY_CODE_MAP[106] = KeyCode.NUMPAD_MULTIPLY;
 	KEY_CODE_MAP[107] = KeyCode.NUMPAD_ADD;
+	KEY_CODE_MAP[108] = KeyCode.NUMPAD_SEPARATOR;
 	KEY_CODE_MAP[109] = KeyCode.NUMPAD_SUBTRACT;
 	KEY_CODE_MAP[110] = KeyCode.NUMPAD_DECIMAL;
 	KEY_CODE_MAP[111] = KeyCode.NUMPAD_DIVIDE;
@@ -100,6 +101,13 @@ let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
 	KEY_CODE_MAP[121] = KeyCode.F10;
 	KEY_CODE_MAP[122] = KeyCode.F11;
 	KEY_CODE_MAP[123] = KeyCode.F12;
+	KEY_CODE_MAP[124] = KeyCode.F13;
+	KEY_CODE_MAP[125] = KeyCode.F14;
+	KEY_CODE_MAP[126] = KeyCode.F15;
+	KEY_CODE_MAP[127] = KeyCode.F16;
+	KEY_CODE_MAP[128] = KeyCode.F17;
+	KEY_CODE_MAP[129] = KeyCode.F18;
+	KEY_CODE_MAP[130] = KeyCode.F19;
 
 	KEY_CODE_MAP[144] = KeyCode.NumLock;
 	KEY_CODE_MAP[145] = KeyCode.ScrollLock;
@@ -115,6 +123,9 @@ let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
 	KEY_CODE_MAP[220] = KeyCode.US_BACKSLASH;
 	KEY_CODE_MAP[221] = KeyCode.US_CLOSE_SQUARE_BRACKET;
 	KEY_CODE_MAP[222] = KeyCode.US_QUOTE;
+	KEY_CODE_MAP[223] = KeyCode.OEM_8;
+
+	KEY_CODE_MAP[226] = KeyCode.OEM_102;
 
 	if (Browser.isIE11orEarlier) {
 		KEY_CODE_MAP[91] = KeyCode.Meta;
@@ -141,13 +152,21 @@ interface INormalizedKeyCode {
 	key: string;
 }
 
-function extractKeyCode(e:KeyboardEvent): KeyCode {
+export function lookupKeyCode(e:KeyboardEvent): KeyCode {
+	return KEY_CODE_MAP[e.keyCode] || KeyCode.Unknown;
+}
+
+let extractKeyCode = function extractKeyCode(e:KeyboardEvent): KeyCode {
 	if (e.charCode) {
 		// "keypress" events mostly
 		let char = String.fromCharCode(e.charCode).toUpperCase();
 		return KeyCode.fromString(char);
 	}
-	return KEY_CODE_MAP[e.keyCode] || KeyCode.Unknown;
+	return lookupKeyCode(e);
+};
+
+export function setExtractKeyCode(newExtractKeyCode:(e:KeyboardEvent)=>KeyCode): void {
+	extractKeyCode = newExtractKeyCode;
 }
 
 export interface IKeyboardEvent {
@@ -210,7 +229,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 			this.metaKey = e.metaKey;
 			this.keyCode = extractKeyCode(e);
 
-			// console.info(e.type + ": keyCode: " + e.keyCode + ", which: " + e.which + ", charCode: " + e.charCode + ", detail: " + e.detail + " ====> " + this.key + ' -- ' + KeyCode[this.keyCode]);
+			// console.info(e.type + ": keyCode: " + e.keyCode + ", which: " + e.which + ", charCode: " + e.charCode + ", detail: " + e.detail + " ====> " + this.keyCode + ' -- ' + KeyCode[this.keyCode]);
 
 			this.ctrlKey = this.ctrlKey || this.keyCode === KeyCode.Ctrl;
 			this.altKey = this.altKey || this.keyCode === KeyCode.Alt;

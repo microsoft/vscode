@@ -21,7 +21,7 @@ export interface ILabelProvider {
 export interface IWorkspaceProvider {
 	getWorkspace(): {
 		resource: uri;
-	}
+	};
 }
 
 export class PathLabelProvider implements ILabelProvider {
@@ -37,8 +37,8 @@ export class PathLabelProvider implements ILabelProvider {
 }
 
 export function getPathLabel(arg1: uri|string, arg2?: uri|string|IWorkspaceProvider): string {
-	var basepath = arg2 && getPath(arg2);
-	var absolutePath = getPath(arg1);
+	let basepath = arg2 && getPath(arg2);
+	let absolutePath = getPath(arg1);
 
 	if (basepath && paths.isEqualOrParent(absolutePath, basepath)) {
 		return paths.normalize(strings.ltrim(absolutePath.substr(basepath.length), paths.nativeSep), true);
@@ -61,7 +61,7 @@ function getPath(arg1: uri|string|IWorkspaceProvider): string {
 	}
 
 	if (types.isFunction((<IWorkspaceProvider>arg1).getWorkspace)) {
-		var ws = (<IWorkspaceProvider>arg1).getWorkspace();
+		let ws = (<IWorkspaceProvider>arg1).getWorkspace();
 		return ws ? ws.resource.fsPath : void 0;
 	}
 

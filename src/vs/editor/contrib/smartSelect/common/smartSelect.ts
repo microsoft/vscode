@@ -12,9 +12,8 @@ import Modes = require('vs/editor/common/modes');
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
 import TokenSelectionSupport = require('./tokenSelectionSupport');
-import tokenTree = require('./tokenTree');
 import {Range} from 'vs/editor/common/core/range';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation'
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
 // --- selection state machine

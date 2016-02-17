@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
 import {Action} from 'vs/base/common/actions';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/browser/actionRegistry';
+import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 
@@ -22,10 +22,10 @@ export class NavigateForwardAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		this.historyService.forward();
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -38,10 +38,10 @@ export class NavigateBackwardsAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		this.historyService.back();
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 

@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Lifecycle = require('vs/base/common/lifecycle');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {IDimension} from 'vs/editor/common/editorCommon';
+import {Disposable} from 'vs/base/common/lifecycle';
 
-export class ElementSizeObserver implements Lifecycle.IDisposable {
+export class ElementSizeObserver extends Disposable {
 
 	private referenceDomElement:HTMLElement;
 	private measureReferenceDomElementToken:number;
@@ -17,12 +16,18 @@ export class ElementSizeObserver implements Lifecycle.IDisposable {
 	private height:number;
 
 	constructor(referenceDomElement:HTMLElement, changeCallback:()=>void) {
+		super();
 		this.referenceDomElement = referenceDomElement;
 		this.changeCallback = changeCallback;
 		this.measureReferenceDomElementToken = -1;
 		this.width = -1;
 		this.height = -1;
 		this.measureReferenceDomElement(false);
+	}
+
+	public dispose(): void {
+		this.stopObserving();
+		super.dispose();
 	}
 
 	public getWidth(): number {
@@ -33,28 +38,24 @@ export class ElementSizeObserver implements Lifecycle.IDisposable {
 		return this.height;
 	}
 
-	public dispose(): void {
-		this.stopObserving();
-	}
-
 	public startObserving(): void {
 		if (this.measureReferenceDomElementToken === -1) {
-			this.measureReferenceDomElementToken = window.setInterval(() => this.measureReferenceDomElement(true), 100);
+			this.measureReferenceDomElementToken = setInterval(() => this.measureReferenceDomElement(true), 100);
 		}
 	}
 
 	public stopObserving(): void {
 		if (this.measureReferenceDomElementToken !== -1) {
-			window.clearInterval(this.measureReferenceDomElementToken);
+			clearInterval(this.measureReferenceDomElementToken);
 			this.measureReferenceDomElementToken = -1;
 		}
 	}
 
-	public observe(dimension?:EditorCommon.IDimension): void {
+	public observe(dimension?:IDimension): void {
 		this.measureReferenceDomElement(true, dimension);
 	}
 
-	private measureReferenceDomElement(callChangeCallback:boolean, dimension?:EditorCommon.IDimension): void {
+	private measureReferenceDomElement(callChangeCallback:boolean, dimension?:IDimension): void {
 		var observedWidth = 0;
 		var observedHeight = 0;
 		if (dimension) {

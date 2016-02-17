@@ -18,10 +18,10 @@
 	"gradient": {
 		"prefix": "gradient",
 		"body": [
-			"background-image: -moz-linear-gradient(top, ${start-color}, ${end-color});",
 			"background-image: -webkit-gradient(linear, left top, left bottom, from(${start-color}), to(${end-color}));",
 			"background-image: -webkit-linear-gradient(top, ${start-color}, ${end-color});",
-			"background-image: linear-gradient(top, ${start-color}, ${end-color});"
+			"background-image: -moz-linear-gradient(top, ${start-color}, ${end-color});",
+			"background-image: linear-gradient(to bottom, ${start-color}, ${end-color});"
 		],
 		"description": "Set the 'background-image' property to a linear gradient"
 	}

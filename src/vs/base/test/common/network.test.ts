@@ -7,7 +7,6 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { URL, ParsedUrl } from 'vs/base/common/network';
-import { serialize, deserialize } from 'vs/base/common/marshalling';
 
 function assertUrl(raw:string, scheme:string, domain:string, port:string, path:string, queryString:string, fragmentId:string): void {
 	var url = new ParsedUrl(raw);
@@ -218,8 +217,4 @@ suite('Network', () => {
 		assert.equal(url.toUnique(), 'inmemory://model/1');
 	});
 
-	test('Bug 16793:# in folder name => mirror models get out of sync', function () {
-		var uri = URI.parse('file:///C:/model/1#css');
-		assert.equal(deserialize(serialize(uri)).toString(), uri.toString());
-	});
 });

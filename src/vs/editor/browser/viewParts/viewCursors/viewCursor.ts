@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import DomUtils = require('vs/base/browser/dom');
-
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
+import {StyleMutator} from 'vs/base/browser/styleMutator';
 
 export class ViewCursor {
 	private _context:EditorBrowser.IViewContext;
@@ -26,7 +25,7 @@ export class ViewCursor {
 
 		this._domNode = this._createCursorDomNode(isSecondary);
 		this._isVisible = true;
-		DomUtils.StyleMutator.setDisplay(this._domNode, 'none');
+		StyleMutator.setDisplay(this._domNode, 'none');
 		this.updatePosition({
 			lineNumber: 1,
 			column: 1
@@ -39,9 +38,9 @@ export class ViewCursor {
 		if (isSecondary) {
 			domNode.className += ' secondary';
 		}
-		DomUtils.StyleMutator.setHeight(domNode, this._context.configuration.editor.lineHeight);
-		DomUtils.StyleMutator.setTop(domNode, 0);
-		DomUtils.StyleMutator.setLeft(domNode, 0);
+		StyleMutator.setHeight(domNode, this._context.configuration.editor.lineHeight);
+		StyleMutator.setTop(domNode, 0);
+		StyleMutator.setLeft(domNode, 0);
 		domNode.setAttribute('role', 'presentation');
 		domNode.setAttribute('aria-hidden', 'true');
 		return domNode;
@@ -65,14 +64,14 @@ export class ViewCursor {
 
 	public show(): void {
 		if (!this._isVisible) {
-			DomUtils.StyleMutator.setVisibility(this._domNode, 'inherit');
+			StyleMutator.setVisibility(this._domNode, 'inherit');
 			this._isVisible = true;
 		}
 	}
 
 	public hide(): void {
 		if (this._isVisible) {
-			DomUtils.StyleMutator.setVisibility(this._domNode, 'hidden');
+			StyleMutator.setVisibility(this._domNode, 'hidden');
 			this._isVisible = false;
 		}
 	}
@@ -94,7 +93,7 @@ export class ViewCursor {
 
 	public onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
-			DomUtils.StyleMutator.setHeight(this._domNode, this._context.configuration.editor.lineHeight);
+			StyleMutator.setHeight(this._domNode, this._context.configuration.editor.lineHeight);
 		}
 		return true;
 	}
@@ -112,11 +111,11 @@ export class ViewCursor {
 
 	public render(ctx:EditorBrowser.IRestrictedRenderingContext): void {
 		if (this._isInViewport) {
-			DomUtils.StyleMutator.setDisplay(this._domNode, 'block');
-			DomUtils.StyleMutator.setLeft(this._domNode, this._positionLeft);
-			DomUtils.StyleMutator.setTop(this._domNode, this._positionTop + ctx.viewportTop - ctx.bigNumbersDelta);
+			StyleMutator.setDisplay(this._domNode, 'block');
+			StyleMutator.setLeft(this._domNode, this._positionLeft);
+			StyleMutator.setTop(this._domNode, this._positionTop + ctx.viewportTop - ctx.bigNumbersDelta);
 		} else {
-			DomUtils.StyleMutator.setDisplay(this._domNode, 'none');
+			StyleMutator.setDisplay(this._domNode, 'none');
 		}
 	}
 

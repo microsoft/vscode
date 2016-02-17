@@ -12,13 +12,21 @@ export interface IDisposable {
 	dispose(): void;
 }
 
+export function dispose<T extends IDisposable>(disposable: T): T {
+	if (disposable) {
+		disposable.dispose();
+	}
+	return null;
+}
+
 export function disposeAll<T extends IDisposable>(arr: T[]): T[] {
-	for (var i = 0, len = arr.length; i < len; i++) {
-		if(arr[i]) {
-			arr[i].dispose();
+	if (arr) {
+		for (let i = 0, len = arr.length; i < len; i++) {
+			if (arr[i]) {
+				arr[i].dispose();
+			}
 		}
 	}
-
 	return [];
 }
 
@@ -34,24 +42,24 @@ export function combinedDispose2(disposables: IDisposable[]): IDisposable {
 	};
 }
 
-export function fnToDisposable(fn: ()=>void): IDisposable {
+export function fnToDisposable(fn: () => void): IDisposable {
 	return {
 		dispose: () => fn()
 	};
 }
 
-export function toDisposable(...fns: (()=>void)[]): IDisposable {
+export function toDisposable(...fns: (() => void)[]): IDisposable {
 	return combinedDispose2(fns.map(fnToDisposable));
 }
 
-function callAll(arg:any):any {
+function callAll(arg: any): any {
 	if (!arg) {
 		return null;
-	} else if(typeof arg === 'function') {
+	} else if (typeof arg === 'function') {
 		arg();
 		return null;
-	} else if(Array.isArray(arg)) {
-		while(arg.length > 0) {
+	} else if (Array.isArray(arg)) {
+		while (arg.length > 0) {
 			arg.pop()();
 		}
 		return arg;
@@ -68,4 +76,22 @@ export interface CallAll {
 /**
  * Calls all functions that are being passed to it.
  */
-export var cAll: CallAll = callAll;
+export const cAll: CallAll = callAll;
+
+export abstract class Disposable implements IDisposable {
+
+	private _toDispose: IDisposable[];
+
+	constructor() {
+		this._toDispose = [];
+	}
+
+	public dispose(): void {
+		this._toDispose = disposeAll(this._toDispose);
+	}
+
+	protected _register<T extends IDisposable>(t:T): T {
+		this._toDispose.push(t);
+		return t;
+	}
+}

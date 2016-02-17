@@ -7,7 +7,6 @@
 import winjs = require('vs/base/common/winjs.base');
 import nls = require('vs/nls');
 import platform = require('vs/base/common/platform');
-import errors = require('vs/base/common/errors');
 import paths = require('vs/base/common/paths');
 import severity from 'vs/base/common/severity';
 import lifecycle = require('vs/base/common/lifecycle');
@@ -18,11 +17,11 @@ import comparers = require('vs/base/common/comparers');
 import actions = require('vs/base/common/actions');
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
 import countbadge = require('vs/base/browser/ui/countBadge/countBadge');
-import tree = require('vs/base/parts/tree/common/tree');
+import tree = require('vs/base/parts/tree/browser/tree');
 import treednd = require('vs/base/parts/tree/browser/treeDnd');
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import actionsrenderer = require('vs/base/parts/tree/browser/actionsRenderer');
-import git = require('vs/workbench/parts/git/common/git');
+import * as git from 'vs/workbench/parts/git/common/git';
 import gitmodel = require('vs/workbench/parts/git/common/gitModel');
 import gitactions = require('vs/workbench/parts/git/browser/gitActions');
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -32,7 +31,7 @@ import { CommonKeybindings } from 'vs/base/common/keyCodes';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
 
-import IGitService = git.IGitService
+import IGitService = git.IGitService;
 
 function toReadablePath(path: string): string {
 	if (!platform.isWindows) {
@@ -106,18 +105,18 @@ export class DataSource implements tree.IDataSource {
 	public getChildren(tree: tree.ITree, element: any): winjs.Promise {
 		if (element instanceof gitmodel.StatusModel) {
 			var model = <git.IStatusModel> element;
-			return winjs.Promise.as(model.getGroups());
+			return winjs.TPromise.as(model.getGroups());
 
 		} else if (element instanceof gitmodel.StatusGroup) {
 			var statusGroup = <git.IStatusGroup> element;
-			return winjs.Promise.as(statusGroup.all());
+			return winjs.TPromise.as(statusGroup.all());
 		}
 
-		return winjs.Promise.as([]);
+		return winjs.TPromise.as([]);
 	}
 
 	public getParent(tree: tree.ITree, element: any): winjs.Promise {
-		return winjs.Promise.as(null);
+		return winjs.TPromise.as(null);
 	}
 }
 
@@ -141,9 +140,9 @@ export class ActionProvider extends ActionContainer implements actionsrenderer.I
 
 	public getActions(tree: tree.ITree, element: any): winjs.TPromise<actions.IAction[]> {
 		if (element instanceof gitmodel.StatusGroup) {
-			return winjs.Promise.as(this.getActionsForGroupStatusType(element.getType()));
+			return winjs.TPromise.as(this.getActionsForGroupStatusType(element.getType()));
 		} else {
-			return winjs.Promise.as(this.getActionsForFileStatusType(element.getType()));
+			return winjs.TPromise.as(this.getActionsForFileStatusType(element.getType()));
 		}
 	}
 
@@ -232,7 +231,7 @@ export class Renderer implements tree.IRenderer {
 	}
 
 	public getHeight(tree:tree.ITree, element:any): number {
-		return 24;
+		return 22;
 	}
 
 	public getTemplateId(tree: tree.ITree, element: any): string {
@@ -269,7 +268,10 @@ export class Renderer implements tree.IRenderer {
 		data.actionBar = new actionbar.ActionBar(container, { actionRunner: this.actionRunner });
 		data.actionBar.push(this.actionProvider.getActionsForGroupStatusType(statusType), { icon: true, label: false });
 		data.actionBar.addListener2('run', e => e.error && this.onError(e.error));
-		data.count = new countbadge.CountBadge(container);
+
+		const wrapper = dom.append(container, $('.count-badge-wrapper'));
+		data.count = new countbadge.CountBadge(wrapper);
+
 		data.root = dom.append(container, $('.status-group'));
 
 		switch (statusType) {
@@ -351,7 +353,7 @@ export class Renderer implements tree.IRenderer {
 			data.renameFolder.textContent = folder;
 
 			const resource = URI.file(paths.normalize(paths.join(repositoryRoot, renamePath)));
-			isInWorkspace = paths.isEqualOrParent(resource.fsPath, workspaceRoot)
+			isInWorkspace = paths.isEqualOrParent(resource.fsPath, workspaceRoot);
 		}
 
 		if (isInWorkspace) {
@@ -397,7 +399,7 @@ export class Renderer implements tree.IRenderer {
 		}
 	}
 
-	private static statusToTitle(status: git.Status): string {
+	public static statusToTitle(status: git.Status): string {
 		switch (status) {
 			case git.Status.INDEX_MODIFIED:		return nls.localize('title-index-modified', "Modified in index");
 			case git.Status.MODIFIED:			return nls.localize('title-modified', "Modified");
@@ -642,6 +644,30 @@ export class DragAndDrop extends ActionContainer implements tree.IDragAndDrop {
 	}
 }
 
+export class AccessibilityProvider implements tree.IAccessibilityProvider {
+
+	public getAriaLabel(tree: tree.ITree, element: any): string {
+		if (element instanceof gitmodel.FileStatus) {
+			const fileStatus = <gitmodel.FileStatus>element;
+			const status = fileStatus.getStatus();
+			const path = fileStatus.getPath();
+			const lastSlashIndex = path.lastIndexOf('/');
+			const name = lastSlashIndex === -1 ? path : path.substr(lastSlashIndex + 1, path.length);
+			const folder = (lastSlashIndex === -1 ? '' : path.substr(0, lastSlashIndex));
+
+			return nls.localize('fileStatusAriaLabel', "File {0} in folder {1} has status: {2}, Git", name, folder, Renderer.statusToTitle(status));
+		}
+
+		if (element instanceof gitmodel.StatusGroup) {
+			switch ( (<gitmodel.StatusGroup>element).getType()) {
+				case git.StatusType.INDEX: return nls.localize('ariaLabelStagedChanges', "Staged Changes, Git");
+				case git.StatusType.WORKING_TREE: return nls.localize('ariaLabelChanges', "Changes, Git");
+				case git.StatusType.MERGE: return nls.localize('ariaLabelMerge', "Merge, Git");
+			}
+		}
+	}
+}
+
 export class Controller extends treedefaults.DefaultController {
 
 	private contextMenuService:IContextMenuService;
@@ -671,7 +697,7 @@ export class Controller extends treedefaults.DefaultController {
 		if (event.shiftKey) {
 			var focus = tree.getFocus();
 
-			if (!focus || focus instanceof gitmodel.StatusGroup) {
+			if (!(focus instanceof gitmodel.FileStatus) || !(element instanceof gitmodel.FileStatus)) {
 				return;
 			}
 

@@ -10,9 +10,7 @@ import * as Objects from 'vs/base/common/objects';
 import { IStringDictionary } from 'vs/base/common/collections';
 import * as Platform from 'vs/base/common/platform';
 import * as Types from 'vs/base/common/types';
-import * as Strings from 'vs/base/common/strings';
 import * as UUID from 'vs/base/common/uuid';
-import Severity from 'vs/base/common/severity';
 import { Config as ProcessConfig } from 'vs/base/common/processes';
 
 import { ValidationStatus, ValidationState, ILogger } from 'vs/base/common/parsers';
@@ -31,9 +29,9 @@ export class ProblemHandling {
 }
 
 export namespace ShowOutput {
-	let always: string = 'always';
-	let silent: string = 'silent';
-	let never: string = 'never';
+	// let always: string = 'always';
+	// let silent: string = 'silent';
+	// let never: string = 'never';
 }
 
 /**
@@ -56,6 +54,11 @@ export interface TaskDescription {
 	 * Whether the executed command is kept alive and is watching the file system.
 	 */
 	isWatching?:boolean;
+
+	/**
+	 * Whether the task should prompt on close for confirmation if running.
+	 */
+	promptOnClose?: boolean;
 
 	/**
 	 * Whether this task maps to the default build command.
@@ -162,6 +165,11 @@ export interface BaseTaskRunnerConfiguration extends TaskSystem.TaskConfiguratio
 	 * but not both.
 	 */
 	isWatching?: boolean;
+
+	/**
+	 * Whether the task should prompt on close for confirmation if running.
+	 */
+	promptOnClose?: boolean;
 
 	/**
 	 * The configuration of the available tasks. A tasks.json file can either
@@ -432,12 +440,19 @@ class ConfigurationParser {
 			if (!Types.isUndefined(fileConfig.isWatching)) {
 				isWatching = !!fileConfig.isWatching;
 			}
+			let promptOnClose: boolean = true;
+			if (!Types.isUndefined(fileConfig.promptOnClose)) {
+				promptOnClose = !!fileConfig.promptOnClose;
+			} else {
+				promptOnClose = !isWatching;
+			}
 			let task: TaskSystem.TaskDescription = {
 				id: UUID.generateUuid(),
 				name: globals.command,
 				showOutput: globals.showOutput,
 				suppressTaskName: true,
 				isWatching: isWatching,
+				promptOnClose: promptOnClose,
 				echoCommand: globals.echoCommand,
 			};
 			if (hasGlobalMatcher) {
@@ -527,6 +542,12 @@ class ConfigurationParser {
 			task.isWatching = false;
 			if (!Types.isUndefined(externalTask.isWatching)) {
 				task.isWatching = !!externalTask.isWatching;
+			}
+			task.promptOnClose = true;
+			if (!Types.isUndefined(externalTask.promptOnClose)) {
+				task.promptOnClose = !!externalTask.promptOnClose;
+			} else {
+				task.promptOnClose = !task.isWatching;
 			}
 			if (Types.isString(externalTask.showOutput)) {
 				task.showOutput = TaskSystem.ShowOutput.fromString(externalTask.showOutput);
@@ -644,7 +665,6 @@ class ConfigurationParser {
 			let json = <ProblemMatcherConfig.ProblemMatcher>value;
 			return new ProblemMatcherParser(ProblemMatcherRegistry, this.logger, this.validationStatus).parse(json);
 		}
-		return null;
 	}
 }
 

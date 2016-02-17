@@ -47,7 +47,7 @@ export function isDefaultLib(uri: URI|string): boolean {
 	if (typeof uri === 'string') {
 		return uri.indexOf('ts://defaultlib') === 0;
 	} else {
-		return uri.scheme === 'ts' && uri.authority === 'defaultlib'
+		return uri.scheme === 'ts' && uri.authority === 'defaultlib';
 	}
 }
 

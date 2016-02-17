@@ -17,7 +17,7 @@ function testMoveLinesUpCommand(lines: string[], selection: Selection, expectedL
 	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, false), expectedLines, expectedSelection);
 }
 
-suite('Editor Contrib - Copy Lines Command', () => {
+suite('Editor Contrib - Move Lines Command', () => {
 
 	test('move first up / last down disabled', function () {
 		testMoveLinesUpCommand(
@@ -101,6 +101,68 @@ suite('Editor Contrib - Copy Lines Command', () => {
 		);
 	});
 
+	test('issue #1322a: move 2nd line up', function () {
+		testMoveLinesUpCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 12, 2, 12),
+			[
+				'second line',
+				'first',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 12, 1, 12)
+		);
+	});
+
+	test('issue #1322b: move last line up', function () {
+		testMoveLinesUpCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(5, 6, 5, 6),
+			[
+				'first',
+				'second line',
+				'third line',
+				'fifth',
+				'fourth line'
+			],
+			new Selection(4, 6, 4, 6)
+		);
+	});
+
+	test('issue #1322c: move last line selected up', function () {
+		testMoveLinesUpCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(5, 6, 5, 1),
+			[
+				'first',
+				'second line',
+				'third line',
+				'fifth',
+				'fourth line'
+			],
+			new Selection(4, 6, 4, 1)
+		);
+	});
 
 	test('move last line up', function () {
 		testMoveLinesUpCommand(

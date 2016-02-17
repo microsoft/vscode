@@ -49,24 +49,20 @@
 
 /* Git dirty diff editor decorations */
 .monaco-editor .git-dirty-modified-diff-glyph {
-	background-color: rgba(0, 122, 204, 0.6);
+	border-left: 3px solid rgba(0, 122, 204, 0.6);
 	margin-left: 5px;
-	width: 3px !important;
 }
 .monaco-editor.vs-dark .git-dirty-modified-diff-glyph {
-	background-color: rgba(0, 188, 242, 0.6);
+	border-left: 3px solid rgba(0, 188, 242, 0.6);
 	margin-left: 5px;
-	width: 3px !important;
 }
 .monaco-editor .git-dirty-added-diff-glyph {
-	background-color: rgba(45, 136, 62, 0.6);
+	border-left: 3px solid rgba(45, 136, 62, 0.6);
 	margin-left: 5px;
-	width: 3px !important;
 }
 .monaco-editor.vs-dark .git-dirty-added-diff-glyph {
-	background-color: rgba(127, 186, 0, 0.6);
+	border-left: 3px solid  rgba(127, 186, 0, 0.6);
 	margin-left: 5px;
-	width: 3px !important;
 }
 .monaco-editor .git-dirty-deleted-diff-glyph:after {
 	content: '';
@@ -231,13 +227,30 @@
 
 .monaco-shell .git-statusbar-group > a.octicon {
 	line-height: 22px;
-	font-size: 15px;
 	width: 16px;
 	text-align: center;
 }
 
+.monaco-shell .git-statusbar-group .octicon {
+	font-size: 14px;
+}
+
 .monaco-shell .git-statusbar-group > .git-statusbar-sync-item:not(.empty) > span.octicon {
 	margin-right: 6px;
+}
+
+@keyframes spin {
+	from { transform: rotate(0deg); }
+	to { transform: rotate(1080deg); }
+}
+
+.monaco-shell .git-statusbar-group > .git-statusbar-sync-item.syncing > .octicon {
+	animation: 2s ease-in-out infinite spin;
+}
+
+.monaco-shell .git-statusbar-group > .git-statusbar-sync-item.disabled > .ahead-behind,
+.monaco-shell .git-statusbar-group > .git-statusbar-sync-item.busy > .ahead-behind {
+	cursor: default;
 }
 
 .monaco-shell .git-statusbar-group > .git-statusbar-branch-item {
@@ -253,7 +266,8 @@
 	cursor: pointer;
 }
 
-.monaco-shell .git-statusbar-group > .git-statusbar-branch-item.busy {
+.monaco-shell .git-statusbar-group > .busy,
+.monaco-shell .git-statusbar-group > .disabled, {
 	opacity: 0.6;
 	cursor: default;
 }

@@ -5,14 +5,12 @@
 
 'use strict';
 
+import {Action} from 'vs/base/common/actions';
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import env = require('vs/base/common/flags');
 import {MainThreadService as CommonMainThreadService} from 'vs/platform/thread/common/mainThreadService';
 import pluginsIPC = require('vs/platform/plugins/common/ipcRemoteCom');
-import remote = require('vs/base/common/remote');
 import marshalling = require('vs/base/common/marshalling');
-import json = require('vs/base/common/json');
 import strings = require('vs/base/common/strings');
 import objects = require('vs/base/common/objects');
 import uri from 'vs/base/common/uri';
@@ -24,7 +22,7 @@ import {IWindowService} from 'vs/workbench/services/window/electron-browser/wind
 import ports = require('vs/base/node/ports');
 
 import cp = require('child_process');
-import ipc = require('ipc');
+import {ipcRenderer as ipc} from 'electron';
 
 export const PLUGIN_LOG_BROADCAST_CHANNEL = 'vscode:pluginLog';
 export const PLUGIN_ATTACH_BROADCAST_CHANNEL = 'vscode:pluginAttach';
@@ -52,7 +50,7 @@ export class MainThreadService extends CommonMainThreadService {
 		// Message: Window --> Plugin Host
 		this.remoteCom = pluginsIPC.create((msg) => {
 			if (logCommunication) {
-				console.log('%c[Window \u2192 Plugin]%c[len: ' + strings.pad(msg.length, 5, ' ') + ']', 'color: darkgreen', 'color: grey', JSON.parse(msg));
+				console.log('%c[Window \u2192 Plugin]%c[len: ' + strings.pad(msg.length, 5, ' ') + ']', 'color: darkgreen', 'color: grey', msg);
 			}
 
 			this.pluginHostProcessManager.postMessage(msg);
@@ -61,13 +59,13 @@ export class MainThreadService extends CommonMainThreadService {
 		// Message: Plugin Host --> Window
 		this.pluginHostProcessManager.startPluginHostProcess((msg) => {
 			if (logCommunication) {
-				console.log('%c[Plugin \u2192 Window]%c[len: ' + strings.pad(msg.length, 5, ' ') + ']', 'color: darkgreen', 'color: grey', JSON.parse(msg));
+				console.log('%c[Plugin \u2192 Window]%c[len: ' + strings.pad(msg.length, 5, ' ') + ']', 'color: darkgreen', 'color: grey', msg);
 			}
 
-			this.remoteCom.handle(msg)
+			this.remoteCom.handle(msg);
 		});
 
-		this.remoteCom.registerBigHandler(this);
+		this.remoteCom.setManyHandler(this);
 	}
 
 	public dispose(): void {
@@ -117,7 +115,7 @@ class PluginHostProcessManager {
 		// Help in case we fail to start it
 		if (isDev) {
 			this.initializeTimer = setTimeout(() => {
-				const msg = config.env.debugBrkPluginHost ? nls.localize('pluginHostProcess.startupFailDebug', "Plugin host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.") : nls.localize('pluginHostProcess.startupFail', "Plugin host did not start in 10 seconds, that might be a problem.");
+				const msg = config.env.debugBrkPluginHost ? nls.localize('pluginHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.") : nls.localize('pluginHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
 
 				this.messageService.show(Severity.Warning, msg);
 			}, 10000);
@@ -154,7 +152,7 @@ class PluginHostProcessManager {
 							window.clearTimeout(this.initializeTimer);
 						}
 
-						let initPayload = marshalling.serialize({
+						let initPayload = marshalling.stringify({
 							parentPid: process.pid,
 							contextService: {
 								workspace: this.contextService.getWorkspace(),
@@ -176,7 +174,7 @@ class PluginHostProcessManager {
 
 					// Support logging from plugin host
 					else if (msg && (<ILogEntry>msg).type === '__$console') {
-						let logEntry:ILogEntry = msg;
+						let logEntry: ILogEntry = msg;
 
 						let args = [];
 						try {
@@ -233,7 +231,7 @@ class PluginHostProcessManager {
 
 					this.lastPluginHostError = errorMessage;
 
-					this.messageService.show(Severity.Error, nls.localize('pluginHostProcess.error', "Error from the plugin host: {0}", errorMessage));
+					this.messageService.show(Severity.Error, nls.localize('pluginHostProcess.error', "Error from the extension host: {0}", errorMessage));
 				});
 
 				this.pluginHostProcessHandle.on('exit', (code: any, signal: any) => {
@@ -243,7 +241,10 @@ class PluginHostProcessManager {
 
 						// Unexpected termination
 						if (!this.isPluginDevelopmentHost) {
-							this.messageService.show(Severity.Error, nls.localize('pluginHostProcess.crash', "Plugin host terminated unexpectedly. Please restart VSCode to recover."));
+							this.messageService.show(Severity.Error, {
+								message: nls.localize('pluginHostProcess.crash', "Extension host terminated unexpectedly. Please reload the window to recover."),
+								actions: [new Action('reloadWindow', nls.localize('reloadWindow', "Reload Window"), null, true, () => { this.windowService.getWindow().reload(); return TPromise.as(null); })]
+							});
 							console.error('Plugin host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
 						}
 

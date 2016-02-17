@@ -3,10 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-"use strict";
+'use strict';
 
-import nls = require('vs/nls');
-import Platform = require('vs/base/common/platform');
+import * as nls from 'vs/nls';
+import * as defaultPlatform from 'vs/base/common/platform';
+import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+
+export interface ISimplifiedPlatform {
+	isMacintosh: boolean;
+	isWindows: boolean;
+}
 
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
@@ -93,54 +99,80 @@ export enum KeyCode {
 	F10,
 	F11,
 	F12,
+	F13,
+	F14,
+	F15,
+	F16,
+	F17,
+	F18,
+	F19,
 
 	NumLock,
 	ScrollLock,
 
 	/**
+	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the ';:' key
 	 */
 	US_SEMICOLON,
 	/**
+	 * For any country/region, the '+' key
 	 * For the US standard keyboard, the '=+' key
 	 */
 	US_EQUAL,
 	/**
+	 * For any country/region, the ',' key
 	 * For the US standard keyboard, the ',<' key
 	 */
 	US_COMMA,
 	/**
+	 * For any country/region, the '-' key
 	 * For the US standard keyboard, the '-_' key
 	 */
 	US_MINUS,
 	/**
+	 * For any country/region, the '.' key
 	 * For the US standard keyboard, the '.>' key
 	 */
 	US_DOT,
 	/**
+	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the '/?' key
 	 */
 	US_SLASH,
 	/**
+	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the '`~' key
 	 */
 	US_BACKTICK,
 	/**
+	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the '[{' key
 	 */
 	US_OPEN_SQUARE_BRACKET,
 	/**
+	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the '\|' key
 	 */
 	US_BACKSLASH,
 	/**
+	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the ']}' key
 	 */
 	US_CLOSE_SQUARE_BRACKET,
 	/**
+	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the ''"' key
 	 */
 	US_QUOTE,
+	/**
+	 * Used for miscellaneous characters; it can vary by keyboard.
+	 */
+	OEM_8,
+	/**
+	 * Either the angle bracket key or the backslash key on the RT 102-key keyboard.
+	 */
+	OEM_102,
 
 	NUMPAD_0, // VK_NUMPAD0, 0x60, Numeric keypad 0 key
 	NUMPAD_1, // VK_NUMPAD1, 0x61, Numeric keypad 1 key
@@ -155,7 +187,7 @@ export enum KeyCode {
 
 	NUMPAD_MULTIPLY,	// VK_MULTIPLY, 0x6A, Multiply key
 	NUMPAD_ADD,			// VK_ADD, 0x6B, Add key
-	// NUMPAD_SEPARATOR,	// VK_SEPARATOR, 0x6C, Separator key
+	NUMPAD_SEPARATOR,	// VK_SEPARATOR, 0x6C, Separator key
 	NUMPAD_SUBTRACT,	// VK_SUBTRACT, 0x6D, Subtract key
 	NUMPAD_DECIMAL,		// VK_DECIMAL, 0x6E, Decimal key
 	NUMPAD_DIVIDE,		// VK_DIVIDE, 0x6F,
@@ -166,8 +198,58 @@ export enum KeyCode {
 	MAX_VALUE
 }
 
-let TO_STRING_MAP: string[] = [];
-(function() {
+interface IReverseMap {
+	[str:string]:KeyCode;
+}
+
+class Mapping {
+
+	_fromKeyCode: string[];
+	_toKeyCode: IReverseMap;
+
+	constructor(fromKeyCode: string[], toKeyCode: IReverseMap) {
+		this._fromKeyCode = fromKeyCode;
+		this._toKeyCode = toKeyCode;
+	}
+
+	fromKeyCode(keyCode:KeyCode): string {
+		return this._fromKeyCode[keyCode];
+	}
+
+	toKeyCode(str:string): KeyCode {
+		if (this._toKeyCode.hasOwnProperty(str)) {
+			return this._toKeyCode[str];
+		}
+		return KeyCode.Unknown;
+	}
+
+}
+
+function createMapping(fill1:(map:string[])=>void, fill2:(reverseMap:IReverseMap)=>void): Mapping {
+	let MAP: string[] = [];
+	fill1(MAP);
+
+	let REVERSE_MAP: IReverseMap = {};
+	for (let i = 0, len = MAP.length; i < len; i++) {
+		if (!MAP[i]) {
+			continue;
+		}
+		REVERSE_MAP[MAP[i]] = i;
+	}
+	fill2(REVERSE_MAP);
+
+	let FINAL_REVERSE_MAP: IReverseMap = {};
+	for (let entry in REVERSE_MAP) {
+		if (REVERSE_MAP.hasOwnProperty(entry)) {
+			FINAL_REVERSE_MAP[entry] = REVERSE_MAP[entry];
+			FINAL_REVERSE_MAP[entry.toLowerCase()] = REVERSE_MAP[entry];
+		}
+	}
+
+	return new Mapping(MAP, FINAL_REVERSE_MAP);
+}
+
+let STRING = createMapping((TO_STRING_MAP) => {
 	TO_STRING_MAP[KeyCode.Unknown] 		= 'unknown';
 
 	TO_STRING_MAP[KeyCode.Backspace] 	= 'Backspace';
@@ -243,6 +325,14 @@ let TO_STRING_MAP: string[] = [];
 	TO_STRING_MAP[KeyCode.F10] = 'F10';
 	TO_STRING_MAP[KeyCode.F11] = 'F11';
 	TO_STRING_MAP[KeyCode.F12] = 'F12';
+	TO_STRING_MAP[KeyCode.F13] = 'F13';
+	TO_STRING_MAP[KeyCode.F14] = 'F14';
+	TO_STRING_MAP[KeyCode.F15] = 'F15';
+	TO_STRING_MAP[KeyCode.F16] = 'F16';
+	TO_STRING_MAP[KeyCode.F17] = 'F17';
+	TO_STRING_MAP[KeyCode.F18] = 'F18';
+	TO_STRING_MAP[KeyCode.F19] = 'F19';
+
 
 	TO_STRING_MAP[KeyCode.NumLock] 		= 'NumLock';
 	TO_STRING_MAP[KeyCode.ScrollLock] 	= 'ScrollLock';
@@ -258,6 +348,8 @@ let TO_STRING_MAP: string[] = [];
 	TO_STRING_MAP[KeyCode.US_BACKSLASH] 			= '\\';
 	TO_STRING_MAP[KeyCode.US_CLOSE_SQUARE_BRACKET] 	= ']';
 	TO_STRING_MAP[KeyCode.US_QUOTE]					= '\'';
+	TO_STRING_MAP[KeyCode.OEM_8]					= 'OEM_8';
+	TO_STRING_MAP[KeyCode.OEM_102]					= 'OEM_102';
 
 	TO_STRING_MAP[KeyCode.NUMPAD_0] = 'NumPad0';
 	TO_STRING_MAP[KeyCode.NUMPAD_1] = 'NumPad1';
@@ -272,6 +364,7 @@ let TO_STRING_MAP: string[] = [];
 
 	TO_STRING_MAP[KeyCode.NUMPAD_MULTIPLY] = 'NumPad_Multiply';
 	TO_STRING_MAP[KeyCode.NUMPAD_ADD] = 'NumPad_Add';
+	TO_STRING_MAP[KeyCode.NUMPAD_SEPARATOR] = 'NumPad_Separator';
 	TO_STRING_MAP[KeyCode.NUMPAD_SUBTRACT] = 'NumPad_Subtract';
 	TO_STRING_MAP[KeyCode.NUMPAD_DECIMAL] = 'NumPad_Decimal';
 	TO_STRING_MAP[KeyCode.NUMPAD_DIVIDE] = 'NumPad_Divide';
@@ -281,29 +374,41 @@ let TO_STRING_MAP: string[] = [];
 	// 		console.warn('Missing string representation for ' + KeyCode[i]);
 	// 	}
 	// }
-})();
+}, (FROM_STRING_MAP) => {
+	FROM_STRING_MAP['\r'] = KeyCode.Enter;
+});
 
-let FROM_STRING_MAP: {[str:string]:KeyCode;} = {};
-FROM_STRING_MAP['\r'] = KeyCode.Enter;
-(function() {
-	for (let i = 0, len = TO_STRING_MAP.length; i < len; i++) {
-		if (!TO_STRING_MAP[i]) {
-			continue;
-		}
-		FROM_STRING_MAP[TO_STRING_MAP[i]] = i;
-		FROM_STRING_MAP[TO_STRING_MAP[i].toLowerCase()] = i;
+
+let USER_SETTINGS = createMapping((TO_USER_SETTINGS_MAP) => {
+	for (let i = 0, len = STRING._fromKeyCode.length; i < len; i++) {
+		TO_USER_SETTINGS_MAP[i] = STRING._fromKeyCode[i];
 	}
-})();
+	TO_USER_SETTINGS_MAP[KeyCode.LeftArrow] = 'Left';
+	TO_USER_SETTINGS_MAP[KeyCode.UpArrow] = 'Up';
+	TO_USER_SETTINGS_MAP[KeyCode.RightArrow] = 'Right';
+	TO_USER_SETTINGS_MAP[KeyCode.DownArrow] = 'Down';
+}, (FROM_USER_SETTINGS_MAP) => {
+	FROM_USER_SETTINGS_MAP['OEM_1'] = KeyCode.US_SEMICOLON;
+	FROM_USER_SETTINGS_MAP['OEM_PLUS'] = KeyCode.US_EQUAL;
+	FROM_USER_SETTINGS_MAP['OEM_COMMA'] = KeyCode.US_COMMA;
+	FROM_USER_SETTINGS_MAP['OEM_MINUS'] = KeyCode.US_MINUS;
+	FROM_USER_SETTINGS_MAP['OEM_PERIOD'] = KeyCode.US_DOT;
+	FROM_USER_SETTINGS_MAP['OEM_2'] = KeyCode.US_SLASH;
+	FROM_USER_SETTINGS_MAP['OEM_3'] = KeyCode.US_BACKTICK;
+	FROM_USER_SETTINGS_MAP['OEM_4'] = KeyCode.US_OPEN_SQUARE_BRACKET;
+	FROM_USER_SETTINGS_MAP['OEM_5'] = KeyCode.US_BACKSLASH;
+	FROM_USER_SETTINGS_MAP['OEM_6'] = KeyCode.US_CLOSE_SQUARE_BRACKET;
+	FROM_USER_SETTINGS_MAP['OEM_7'] = KeyCode.US_QUOTE;
+	FROM_USER_SETTINGS_MAP['OEM_8'] = KeyCode.OEM_8;
+	FROM_USER_SETTINGS_MAP['OEM_102'] = KeyCode.OEM_102;
+});
 
 export namespace KeyCode {
 	export function toString(key:KeyCode): string {
-		return TO_STRING_MAP[key];
+		return STRING.fromKeyCode(key);
 	}
 	export function fromString(key:string): KeyCode {
-		if (FROM_STRING_MAP.hasOwnProperty(key)) {
-			return FROM_STRING_MAP[key];
-		}
-		return KeyCode.Unknown;
+		return STRING.toKeyCode(key);
 	}
 }
 
@@ -379,6 +484,7 @@ export class CommonKeybindings {
 	public static WINCTRL_ENTER: number = KeyMod.WinCtrl | KeyCode.Enter;
 
 	public static TAB: number = KeyCode.Tab;
+	public static SHIFT_TAB: number = KeyMod.Shift | KeyCode.Tab;
 	public static ESCAPE: number = KeyCode.Escape;
 	public static SPACE: number = KeyCode.Space;
 	public static DELETE: number = KeyCode.Delete;
@@ -415,35 +521,65 @@ export class Keybinding {
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	private static _toUSLabel(value:number): string {
-		return _asString(value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE));
+	private static _toUSLabel(value:number, Platform:ISimplifiedPlatform): string {
+		return _asString(value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	private static _toCustomLabel(value:number, labelProvider:IKeyBindingLabelProvider): string {
-		return _asString(value, labelProvider);
+	private static _toUSHTMLLabel(value:number, Platform:ISimplifiedPlatform): IHTMLContentElement[] {
+		return _asHTML(value, (Platform.isMacintosh ? MacUIKeyLabelProvider.INSTANCE : ClassicUIKeyLabelProvider.INSTANCE), Platform);
+	}
+
+	/**
+	 * Format the binding to a format appropiate for rendering in the UI
+	 */
+	private static _toCustomLabel(value:number, labelProvider:IKeyBindingLabelProvider, Platform:ISimplifiedPlatform): string {
+		return _asString(value, labelProvider, Platform);
+	}
+
+	/**
+	 * Format the binding to a format appropiate for rendering in the UI
+	 */
+	private static _toCustomHTMLLabel(value:number, labelProvider:IKeyBindingLabelProvider, Platform:ISimplifiedPlatform): IHTMLContentElement[] {
+		return _asHTML(value, labelProvider, Platform);
 	}
 
 	/**
 	 * This prints the binding in a format suitable for electron's accelerators.
 	 * See https://github.com/atom/electron/blob/master/docs/api/accelerator.md
 	 */
-	private static _toElectronAccelerator(value:number): string {
+	private static _toElectronAccelerator(value:number, Platform:ISimplifiedPlatform): string {
 		if (BinaryKeybindings.hasChord(value)) {
 			// Electron cannot handle chords
 			return null;
 		}
-		return _asString(value, ElectronAcceleratorLabelProvider.INSTANCE);
+		return _asString(value, ElectronAcceleratorLabelProvider.INSTANCE, Platform);
+	}
+
+	private static _cachedKeybindingRegex: string = null;
+	public static getUserSettingsKeybindingRegex(): string {
+		if (!this._cachedKeybindingRegex) {
+			let numpadKey = 'numpad(0|1|2|3|4|5|6|7|8|9|_multiply|_add|_subtract|_decimal|_divide|_separator)';
+			let oemKey = '`|\\-|=|\\[|\\]|\\\\\\\\|;|\'|,|\\.|\\/|oem_8|oem_102';
+			let specialKey = 'left|up|right|down|pageup|pagedown|end|home|tab|enter|escape|space|backspace|delete|pausebreak|capslock|insert|contextmenu|numlock|scrolllock';
+			let casualKey = '[a-z]|[0-9]|f(1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19)';
+			let key = '((' + [numpadKey, oemKey, specialKey, casualKey].join(')|(') + '))';
+			let mod = '((ctrl|shift|alt|cmd|win|meta)\\+)*';
+			let keybinding = '(' + mod + key + ')';
+
+			this._cachedKeybindingRegex = '"\\s*(' + keybinding + '(\\s+' + keybinding +')?' + ')\\s*"';
+		}
+		return this._cachedKeybindingRegex;
 	}
 
 	/**
 	 * Format the binding to a format appropiate for the user settings file.
 	 */
-	public static toUserSettingsLabel(value:number): string {
-		let result = _asString(value, UserSettingsKeyLabelProvider.INSTANCE);
-		result = result.toLowerCase().replace(/arrow/g, '');
+	public static toUserSettingsLabel(value:number, Platform:ISimplifiedPlatform = defaultPlatform): string {
+		let result = _asString(value, UserSettingsKeyLabelProvider.INSTANCE, Platform);
+		result = result.toLowerCase();
 
 		if (Platform.isMacintosh) {
 			result = result.replace(/meta/g, 'cmd');
@@ -452,6 +588,90 @@ export class Keybinding {
 		}
 
 		return result;
+	}
+
+	public static fromUserSettingsLabel(input: string, Platform: ISimplifiedPlatform = defaultPlatform): number {
+		if (!input) {
+			return null;
+		}
+		input = input.toLowerCase().trim();
+
+		let ctrlCmd = false,
+			shift = false,
+			alt = false,
+			winCtrl = false,
+			key:string = '';
+
+		while (/^(ctrl|shift|alt|meta|win|cmd)(\+|\-)/.test(input)) {
+			if (/^ctrl(\+|\-)/.test(input)) {
+				if (Platform.isMacintosh) {
+					winCtrl = true;
+				} else {
+					ctrlCmd = true;
+				}
+				input = input.substr('ctrl-'.length);
+			}
+			if (/^shift(\+|\-)/.test(input)) {
+				shift = true;
+				input = input.substr('shift-'.length);
+			}
+			if (/^alt(\+|\-)/.test(input)) {
+				alt = true;
+				input = input.substr('alt-'.length);
+			}
+			if (/^meta(\+|\-)/.test(input)) {
+				if (Platform.isMacintosh) {
+					ctrlCmd = true;
+				} else {
+					winCtrl = true;
+				}
+				input = input.substr('meta-'.length);
+			}
+			if (/^win(\+|\-)/.test(input)) {
+				if (Platform.isMacintosh) {
+					ctrlCmd = true;
+				} else {
+					winCtrl = true;
+				}
+				input = input.substr('win-'.length);
+			}
+			if (/^cmd(\+|\-)/.test(input)) {
+				if (Platform.isMacintosh) {
+					ctrlCmd = true;
+				} else {
+					winCtrl = true;
+				}
+				input = input.substr('cmd-'.length);
+			}
+		}
+
+		let chord: number = 0;
+
+		let firstSpaceIdx = input.indexOf(' ');
+		if (firstSpaceIdx > 0) {
+			key = input.substring(0, firstSpaceIdx);
+			chord = Keybinding.fromUserSettingsLabel(input.substring(firstSpaceIdx), Platform);
+		} else {
+			key = input;
+		}
+
+		let keyCode = USER_SETTINGS.toKeyCode(key);
+
+		let result = 0;
+		if (ctrlCmd) {
+			result |= KeyMod.CtrlCmd;
+		}
+		if (shift) {
+			result |= KeyMod.Shift;
+		}
+		if (alt) {
+			result |= KeyMod.Alt;
+		}
+		if (winCtrl) {
+			result |= KeyMod.WinCtrl;
+		}
+		result |= keyCode;
+		return KeyMod.chord(result, chord);
 	}
 
 	public value:number;
@@ -483,30 +703,44 @@ export class Keybinding {
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	public _toUSLabel(): string {
-		return Keybinding._toUSLabel(this.value);
+	public _toUSLabel(Platform:ISimplifiedPlatform = defaultPlatform): string {
+		return Keybinding._toUSLabel(this.value, Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
-	public toCustomLabel(labelProvider:IKeyBindingLabelProvider): string {
-		return Keybinding._toCustomLabel(this.value, labelProvider);
+	public _toUSHTMLLabel(Platform:ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
+		return Keybinding._toUSHTMLLabel(this.value, Platform);
+	}
+
+	/**
+	 * Format the binding to a format appropiate for rendering in the UI
+	 */
+	public toCustomLabel(labelProvider:IKeyBindingLabelProvider, Platform:ISimplifiedPlatform = defaultPlatform): string {
+		return Keybinding._toCustomLabel(this.value, labelProvider, Platform);
+	}
+
+	/**
+	 * Format the binding to a format appropiate for rendering in the UI
+	 */
+	public toCustomHTMLLabel(labelProvider:IKeyBindingLabelProvider, Platform:ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
+		return Keybinding._toCustomHTMLLabel(this.value, labelProvider, Platform);
 	}
 
 	/**
 	 * This prints the binding in a format suitable for electron's accelerators.
 	 * See https://github.com/atom/electron/blob/master/docs/api/accelerator.md
 	 */
-	public toElectronAccelerator(): string {
-		return Keybinding._toElectronAccelerator(this.value);
+	public _toElectronAccelerator(Platform:ISimplifiedPlatform = defaultPlatform): string {
+		return Keybinding._toElectronAccelerator(this.value, Platform);
 	}
 
 	/**
 	 * Format the binding to a format appropiate for the user settings file.
 	 */
-	public toUserSettingsLabel(): string {
-		return Keybinding.toUserSettingsLabel(this.value);
+	public toUserSettingsLabel(Platform:ISimplifiedPlatform = defaultPlatform): string {
+		return Keybinding.toUserSettingsLabel(this.value, Platform);
 	}
 
 }
@@ -524,7 +758,7 @@ export interface IKeyBindingLabelProvider {
 /**
  * Print for Electron
  */
-class ElectronAcceleratorLabelProvider implements IKeyBindingLabelProvider {
+export class ElectronAcceleratorLabelProvider implements IKeyBindingLabelProvider {
 	public static INSTANCE = new ElectronAcceleratorLabelProvider();
 
 	public ctrlKeyLabel = 'Ctrl';
@@ -617,17 +851,23 @@ class UserSettingsKeyLabelProvider implements IKeyBindingLabelProvider {
 	public modifierSeparator = '+';
 
 	public getLabelForKey(keyCode:KeyCode): string {
-		return KeyCode.toString(keyCode);
+		return USER_SETTINGS.fromKeyCode(keyCode);
 	}
 }
 
-function _asString(keybinding:number, labelProvider:IKeyBindingLabelProvider): string {
+function _asString(keybinding:number, labelProvider:IKeyBindingLabelProvider, Platform:ISimplifiedPlatform): string {
 	let result:string[] = [],
 		ctrlCmd = BinaryKeybindings.hasCtrlCmd(keybinding),
 		shift = BinaryKeybindings.hasShift(keybinding),
 		alt = BinaryKeybindings.hasAlt(keybinding),
 		winCtrl = BinaryKeybindings.hasWinCtrl(keybinding),
 		keyCode = BinaryKeybindings.extractKeyCode(keybinding);
+
+	let keyLabel = labelProvider.getLabelForKey(keyCode);
+	if (!keyLabel) {
+		// cannot trigger this key code under this kb layout
+		return '';
+	}
 
 	// translate modifier keys: Ctrl-Shift-Alt-Meta
 	if ((ctrlCmd && !Platform.isMacintosh) || (winCtrl && Platform.isMacintosh)) {
@@ -651,13 +891,87 @@ function _asString(keybinding:number, labelProvider:IKeyBindingLabelProvider): s
 	}
 
 	// the actual key
-	result.push(labelProvider.getLabelForKey(keyCode));
+	result.push(keyLabel);
 
 	var actualResult = result.join(labelProvider.modifierSeparator);
 
 	if (BinaryKeybindings.hasChord(keybinding)) {
-		return actualResult + ' ' + _asString(BinaryKeybindings.extractChordPart(keybinding), labelProvider);
+		return actualResult + ' ' + _asString(BinaryKeybindings.extractChordPart(keybinding), labelProvider, Platform);
 	}
 
 	return actualResult;
+}
+
+function _pushKey(result:IHTMLContentElement[], str:string): void {
+	if (result.length > 0) {
+		result.push({
+			tagName: 'span',
+			text: '+'
+		});
+	}
+	result.push({
+		tagName: 'span',
+		className: 'monaco-kbkey',
+		text: str
+	});
+}
+
+function _asHTML(keybinding:number, labelProvider:IKeyBindingLabelProvider, Platform:ISimplifiedPlatform, isChord:boolean = false): IHTMLContentElement[] {
+	let result:IHTMLContentElement[] = [],
+		ctrlCmd = BinaryKeybindings.hasCtrlCmd(keybinding),
+		shift = BinaryKeybindings.hasShift(keybinding),
+		alt = BinaryKeybindings.hasAlt(keybinding),
+		winCtrl = BinaryKeybindings.hasWinCtrl(keybinding),
+		keyCode = BinaryKeybindings.extractKeyCode(keybinding);
+
+	let keyLabel = labelProvider.getLabelForKey(keyCode);
+	if (!keyLabel) {
+		// cannot trigger this key code under this kb layout
+		return [];
+	}
+
+	// translate modifier keys: Ctrl-Shift-Alt-Meta
+	if ((ctrlCmd && !Platform.isMacintosh) || (winCtrl && Platform.isMacintosh)) {
+		_pushKey(result, labelProvider.ctrlKeyLabel);
+	}
+
+	if (shift) {
+		_pushKey(result, labelProvider.shiftKeyLabel);
+	}
+
+	if (alt) {
+		_pushKey(result, labelProvider.altKeyLabel);
+	}
+
+	if (ctrlCmd && Platform.isMacintosh) {
+		_pushKey(result, labelProvider.cmdKeyLabel);
+	}
+
+	if (winCtrl && !Platform.isMacintosh) {
+		_pushKey(result, labelProvider.windowsKeyLabel);
+	}
+
+	// the actual key
+	_pushKey(result, keyLabel);
+
+	let chordTo: IHTMLContentElement[] = null;
+
+	if (BinaryKeybindings.hasChord(keybinding)) {
+		chordTo = _asHTML(BinaryKeybindings.extractChordPart(keybinding), labelProvider, Platform, true);
+		result.push({
+			tagName: 'span',
+			text: ' '
+		});
+		result = result.concat(chordTo);
+	}
+
+	if (isChord) {
+		return result;
+	}
+
+	return [{
+		tagName: 'span',
+		className: 'monaco-kb',
+		children: result
+	}];
 }

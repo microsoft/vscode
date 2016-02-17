@@ -26,8 +26,6 @@ function createService() {
 suite('Service', () => {
 
 	test('createService', function(done: () => void) {
-		this.timeout(5000);
-
 		const testService = createService();
 		const res = testService.pong('ping');
 
@@ -39,8 +37,6 @@ suite('Service', () => {
 	});
 
 	test('cancellation', function(done: () => void) {
-		this.timeout(5000);
-
 		const testService = createService();
 		const res = testService.cancelMe();
 

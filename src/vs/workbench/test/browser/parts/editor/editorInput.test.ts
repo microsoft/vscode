@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import {EditorInput} from 'vs/workbench/common/editor';
 import {EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {DiffEditorInput} from 'vs/workbench/browser/parts/editor/diffEditorInput';
+import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 
 class MyEditorInput extends EditorInput {
 	getMime() {

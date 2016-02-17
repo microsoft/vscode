@@ -3,7 +3,15 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": {
-		"vscode": "*"
+		"vscode": "0.10.x"
+	},
+	"activationEvents": [
+		"onLanguage:json"
+	],
+	"main": "./out/jsonMain",
+	"scripts": {
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../gulpfile.plugins.js compile-plugin:json ./src/tsconfig.json",
+		"postinstall": "cd server && npm install && npm run compile && cd .."
 	},
 	"contributes": {
 		"languages": [
@@ -22,7 +30,8 @@
 				],
 				"mimetypes": [
 					"application/json"
-				]
+				],
+				"configuration": "./json.configuration.json"
 			}
 		],
 		"grammars": [
@@ -36,7 +45,83 @@
 			{
 				"fileMatch": "*.schema.json",
 				"url": "http://json-schema.org/draft-04/schema#"
+			},
+			{
+				"fileMatch": "package.json",
+				"url": "vscode://schemas/vscode-extensions"
+			},
+			{
+				"fileMatch": "vscode://defaultsettings/keybindings.json",
+				"url": "vscode://schemas/keybindings"
+			},
+			{
+				"fileMatch": "%APP_SETTINGS_HOME%/keybindings.json",
+				"url": "vscode://schemas/keybindings"
+			},
+			{
+				"fileMatch": "vscode://defaultsettings/settings.json",
+				"url": "vscode://schemas/settings"
+			},
+			{
+				"fileMatch": "%APP_SETTINGS_HOME%/settings.json",
+				"url": "vscode://schemas/settings"
+			},
+			{
+				"fileMatch": "/.vscode/settings.json",
+				"url": "vscode://schemas/settings"
+			},
+			{
+				"fileMatch": "/.vscode/launch.json",
+				"url": "vscode://schemas/launch"
+			},
+			{
+				"fileMatch": "/.vscode/tasks.json",
+				"url": "vscode://schemas/tasks"
+			},
+			{
+				"fileMatch": "%APP_SETTINGS_HOME%/snippets/*.json",
+				"url": "vscode://schemas/snippets"
 			}
-		]
+		],
+		"configuration": {
+			"id": "json",
+			"order": 20,
+			"type": "object",
+			"title": "JSON configuration",
+			"properties" : {
+				"json.schemas" : {
+					"type": "array",
+					"description": "Associate schemas to JSON files in the current project",
+					"items": {
+						"type": "object",
+						"default": { "fileMatch": [ "{{/myfile}}" ], "url": "{{schemaURL}}" },
+						"properties": {
+							"url": {
+								"type": "string",
+								"default": "/user.schema.json",
+								"description": "A URL to a schema or a relative path to a schema in the current directory"
+							},
+							"fileMatch": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"default": "MyFile.json",
+									"description": "A file pattern that can contain '*' to match against when resolving JSON files to schemas."
+								},
+								"minItems": 1,
+								"description": "An array of file patterns to match against when resolving JSON files to schemas."
+							},
+							"schema": {
+								"$ref": "http://json-schema.org/draft-04/schema#",
+								"description": "The schema definition for the given URL. The schema only needs to be provided to avoid accesses to the schema URL."
+							}
+						}
+					}
+				}
+			}
+		}
+	},
+	"dependencies": {
+		"vscode-languageclient": "^1.3.1"
 	}
 }

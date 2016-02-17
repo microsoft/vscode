@@ -13,6 +13,7 @@ import {Selection} from 'vs/editor/common/core/selection';
 import {Cursor} from 'vs/editor/common/controller/cursor';
 import * as Modes from 'vs/editor/common/modes';
 import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
 function testShiftCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	TU.testCommand(lines, null, selection, (sel) => new ShiftCommand(sel, {
@@ -32,16 +33,17 @@ function testUnshiftCommand(lines: string[], selection: Selection, expectedLines
 
 class DocBlockCommentMode implements Modes.IMode {
 
-	public onEnterSupport: Modes.IOnEnterSupport;
+	public richEditSupport: Modes.IRichEditSupport;
 
 	constructor() {
-		this.onEnterSupport = new OnEnterSupport(this.getId(), {
+		this.richEditSupport = new RichEditSupport(this.getId(), {
 			brackets: [
-				{ open: '(', close: ')' },
-				{ open: '{', close: '}' },
-				{ open: '[', close: ']' }
+				['(', ')'],
+				['{', '}'],
+				['[', ']']
 			],
-			regExpRules: [
+
+			onEnterRules: [
 				{
 					// e.g. /** | */
 					beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
@@ -55,7 +57,7 @@ class DocBlockCommentMode implements Modes.IMode {
 				},
 				{
 					// e.g.  * ...|
-					beforeText: /^(\t|(\ \ ))*\ \*\ ([^\*]|\*(?!\/))*$/,
+					beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
 					action: { indentAction: Modes.IndentAction.None, appendText: '* ' }
 				},
 				{
@@ -588,6 +590,31 @@ suite('Editor Commands - ShiftCommand', () => {
 				'function hello() {}'
 			],
 			new Selection(1,1,5,20)
+		);
+	});
+
+	test('issue #1609: Wrong indentation of block comments', () => {
+		testShiftCommandInDocBlockCommentMode(
+			[
+				'',
+				'/**',
+				' * test',
+				' *',
+				' * @type {number}',
+				' */',
+				'var foo = 0;'
+			],
+			new Selection(1,1,7,13),
+			[
+				'',
+				'\t/**',
+				'\t * test',
+				'\t *',
+				'\t * @type {number}',
+				'\t */',
+				'\tvar foo = 0;'
+			],
+			new Selection(1,1,7,14)
 		);
 	});
 

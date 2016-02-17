@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import 'vs/languages/javascript/common/javascript.contribution';
 
-import javascriptMode = require('vs/languages/javascript/common/javascript');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import modesUtil = require('vs/editor/test/common/modesUtil');
@@ -19,7 +19,7 @@ suite('TS/JS - syntax highlighting', () => {
 	setup((done) => {
 		modesUtil.load('javascript').then(mode => {
 			tokenizationSupport = mode.tokenizationSupport;
-			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.onEnterSupport);
+			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
 			done();
 		});
 	});

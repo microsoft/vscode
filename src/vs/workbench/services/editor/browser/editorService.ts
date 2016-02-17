@@ -9,25 +9,26 @@ import URI from 'vs/base/common/uri';
 import network = require('vs/base/common/network');
 import {guessMimeTypes} from 'vs/base/common/mime';
 import {Registry} from 'vs/platform/platform';
+import {basename, dirname} from 'vs/base/common/paths';
 import types = require('vs/base/common/types');
 import {IDiffEditor, ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {ICommonCodeEditor, IModel, EditorType, IEditor as ICommonEditor} from 'vs/editor/common/editorCommon';
 import {BaseEditor, IEditorRegistry, Extensions} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, EditorOptions, IFileEditorInput, TextEditorOptions} from 'vs/workbench/common/editor';
-import {UntitledEditorInput} from 'vs/workbench/browser/parts/editor/untitledEditorInput';
-import {DiffEditorInput} from 'vs/workbench/browser/parts/editor/diffEditorInput';
-import {IUntitledEditorService} from 'vs/workbench/services/untitled/browser/untitledEditorService';
-import {IWorkbenchEditorService, EditorArrangement, IFileInput} from 'vs/workbench/services/editor/common/editorService';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {IEditorInput, IEditorModel, IEditorOptions, ITextInput, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
+import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
+import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
+import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
+import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
+import {IWorkbenchEditorService, EditorArrangement} from 'vs/workbench/services/editor/common/editorService';
+import {IEditorInput, IEditorModel, IEditorOptions, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 export interface IEditorPart {
 	setEditors(inputs: EditorInput[], options?: EditorOptions[]): TPromise<BaseEditor[]>;
 	openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
 	openEditor(input?: EditorInput, options?: EditorOptions, position?: Position): TPromise<BaseEditor>;
+	activateEditor(editor: IEditor): void;
 	closeEditors(othersOnly?: boolean): TPromise<void>;
 	getActiveEditor(): BaseEditor;
 	getVisibleEditors(): IEditor[];
@@ -102,7 +103,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 	public setEditors(inputs: IEditorInput[], options?: IEditorOptions[]): TPromise<IEditor[]>;
 	public setEditors(inputs: IResourceInput[]): TPromise<IEditor[]>;
-	public setEditors(inputs: IFileInput[]): TPromise<IEditor[]>;
 	public setEditors(inputs: any[], options?: any[]): TPromise<IEditor[]> {
 		return Promise.join(inputs.map((input) => this.inputToType(input))).then((typedInputs) => {
 			return this.editorPart.setEditors(typedInputs, options || inputs.map(input => {
@@ -119,8 +119,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	public openEditor(input: IEditorInput, options?: IEditorOptions, position?: Position): TPromise<IEditor>;
 	public openEditor(input: IResourceInput, position?: Position): TPromise<IEditor>;
 	public openEditor(input: IResourceInput, sideBySide?: boolean): TPromise<IEditor>;
-	public openEditor(input: IFileInput, position?: Position): TPromise<IEditor>;
-	public openEditor(input: IFileInput, sideBySide?: boolean): TPromise<IEditor>;
 	public openEditor(input: any, arg2?: any, arg3?: any): TPromise<IEditor> {
 
 		// Support for closing an opened editor at a position by passing null as input
@@ -135,7 +133,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Support opening foreign resources (such as a http link that points outside of the workbench)
 		let resourceInput = <IResourceInput>input;
-		if (URI.isURI(resourceInput.resource)) {
+		if (resourceInput.resource instanceof URI) {
 			let schema = resourceInput.resource.scheme;
 			if (schema === network.schemas.http || schema === network.schemas.https) {
 				window.open(resourceInput.resource.toString());
@@ -189,6 +187,15 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return TPromise.as(null);
 	}
 
+	public activateEditor(editor: IEditor): void;
+	public activateEditor(position: Position): void;
+	public activateEditor(arg: any): void {
+		let targetEditor = this.findEditor(arg);
+		if (targetEditor) {
+			this.editorPart.activateEditor(targetEditor);
+		}
+	}
+
 	private findEditor(editor?: IEditor): BaseEditor;
 	private findEditor(position?: Position): BaseEditor;
 	private findEditor(arg?: any): BaseEditor {
@@ -220,7 +227,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 	public resolveEditorModel(input: IEditorInput, refresh?: boolean): TPromise<IEditorModel>;
 	public resolveEditorModel(input: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel>;
-	public resolveEditorModel(input: IFileInput, refresh?: boolean): TPromise<ITextEditorModel>;
 	public resolveEditorModel(input: any, refresh?: boolean): TPromise<IEditorModel> {
 		return this.inputToType(input).then((workbenchInput: IEditorInput) => {
 			if (workbenchInput) {
@@ -246,7 +252,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Base Text Editor Support for inmemory resources
 		let resourceInput = <IResourceInput>input;
-		if (URI.isURI(resourceInput.resource) && resourceInput.resource.scheme === network.schemas.inMemory) {
+		if (resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.schemas.inMemory) {
 
 			// For in-memory resources we only support to resolve the input from the current active editor
 			// because the workbench does not track editor models by in memory URL. This concept is only
@@ -285,13 +291,21 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		}
 
 		// Untitled file support
-		else if (URI.isURI(resourceInput.resource) && (resourceInput.resource.scheme === UntitledEditorInput.SCHEMA)) {
+		else if (resourceInput.resource instanceof URI && (resourceInput.resource.scheme === UntitledEditorInput.SCHEMA)) {
 			return TPromise.as<EditorInput>(this.untitledEditorService.createOrGet(resourceInput.resource));
 		}
 
 		// Base Text Editor Support for file resources
-		else if (this.fileInputDescriptor && URI.isURI(resourceInput.resource) && resourceInput.resource.scheme === network.schemas.file) {
+		else if (this.fileInputDescriptor && resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.schemas.file) {
 			return this.createFileInput(resourceInput.resource, resourceInput.mime);
+		}
+
+		// Treat an URI as ResourceEditorInput
+		else if (resourceInput.resource instanceof URI) {
+			return TPromise.as(this.instantiationService.createInstance(ResourceEditorInput,
+				basename(resourceInput.resource.fsPath),
+				dirname(resourceInput.resource.fsPath),
+				resourceInput.resource));
 		}
 
 		return TPromise.as<EditorInput>(null);
@@ -336,6 +350,11 @@ class EditorPartDelegate implements IEditorPart {
 
 	public getActiveEditor(): BaseEditor {
 		return <BaseEditor>this.editorService.getActiveEditor();
+	}
+
+
+	public activateEditor(editor: IEditor): void {
+		this.editorService.activateEditor(editor);
 	}
 
 	public getActiveEditorInput(): EditorInput {

@@ -21,14 +21,14 @@ import {Sash, ISashEvent, IVerticalSashLayoutProvider} from 'vs/base/browser/ui/
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, IInputStatus, TextEditorOptions} from 'vs/workbench/common/editor';
-import {DiffEditorInput} from 'vs/workbench/browser/parts/editor/diffEditorInput';
+import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {EventType as BaseEventType} from 'vs/base/common/events';
-import {EditorInputEvent, EventType as WorkbenchEventType} from 'vs/workbench/browser/events';
+import {EditorInputEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import DOM = require('vs/base/browser/dom');
 import {IActionItem, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {IWorkbenchEditorService, EditorArrangement} from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {Position, POSITIONS} from 'vs/platform/editor/common/editor';
@@ -71,8 +71,6 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 	private editorActionsToolbar: ToolBar[];
 	private closeEditorAction: Action[];
 
-	private editorInputStateHoverTimeout: number;
-
 	private splitEditorAction: Action;
 
 	private leftSash: Sash;
@@ -88,7 +86,6 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 	private lastActivePosition: Position;
 
 	private visibleEditorFocusTrackers: DOM.IFocusTracker[];
-	private globalFocusTracker: DOM.IFocusTracker;
 	private editorInputStateChangeListener: () => void;
 
 	constructor(
@@ -303,23 +300,6 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 	}
 
 	private trackFocus(editor: BaseEditor, position: Position): void {
-
-		// Global focus tracker to support focus changes into iframes
-		if (!this.globalFocusTracker) {
-			this.globalFocusTracker = DOM.trackFocus(window.document.body);
-			this.globalFocusTracker.addBlurListener(() => {
-				let activeElement = window.document.activeElement;
-				if (activeElement) {
-					for (let i = 0; i < this.visibleEditorContainers.length; i++) {
-						let container = this.visibleEditorContainers[i];
-						if (container && DOM.isAncestor(activeElement, container.getHTMLElement())) {
-							this.onFocusGained(this.visibleEditors[i]);
-							break;
-						}
-					}
-				}
-			});
-		}
 
 		// In case there is a previous tracker on the position, dispose it first
 		if (this.visibleEditorFocusTrackers[position]) {
@@ -1036,7 +1016,8 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 			// Toolbar
 			this.editorActionsToolbar[position] = new ToolBar(div.getHTMLElement(), this.contextMenuService, {
 				actionItemProvider: (action: Action) => this.actionItemProvider(action, position),
-				orientation: ActionsOrientation.HORIZONTAL
+				orientation: ActionsOrientation.HORIZONTAL,
+				ariaLabel: nls.localize('araLabelEditorActions', "Editor actions")
 			});
 
 			// Action Run Handling
@@ -1557,10 +1538,6 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 		this.containers.forEach((container) => {
 			container.destroy();
 		});
-
-		if (this.globalFocusTracker) {
-			this.globalFocusTracker.dispose();
-		}
 
 		if (this.editorInputStateChangeListener) {
 			this.editorInputStateChangeListener();

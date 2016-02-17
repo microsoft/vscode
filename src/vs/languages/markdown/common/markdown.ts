@@ -6,11 +6,9 @@
 
 import WinJS = require('vs/base/common/winjs.base');
 import Monarch = require('vs/editor/common/modes/monarch/monarch');
-import Network = require('vs/base/common/network');
 import URI from 'vs/base/common/uri';
 import Types = require('vs/editor/common/modes/monarch/monarchTypes');
 import Compile = require('vs/editor/common/modes/monarch/monarchCompile');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import MarkdownWorker = require('vs/languages/markdown/common/markdownWorker');
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
@@ -34,6 +32,9 @@ export const language =
 		},
 
 		autoClosingPairs: [],
+
+		blockCommentStart: '<!--',
+		blockCommentEnd: '-->',
 
 		// escape codes
 		control: /[\\`*_\[\]{}()#+\-\.!]/,
@@ -115,8 +116,8 @@ export const language =
 
 				// links
 				[/\{[^}]+\}/, 'string.target'],
-				[/(!?\[)((?:[^\]\\]|@escapes)+)(\]\([^\)]+\))/, ['string.link', '', 'string.link']],
-				[/(!?\[)((?:[^\]\\]|@escapes)+)(\])/, 'string.link'],
+				[/(!?\[)((?:[^\]\\]|@escapes)*)(\]\([^\)]+\))/, ['string.link', '', 'string.link']],
+				[/(!?\[)((?:[^\]\\]|@escapes)*)(\])/, 'string.link'],
 
 				// or html
 				{ include: 'html' },
@@ -219,10 +220,6 @@ export class MarkdownMode extends Monarch.MonarchMode<MarkdownWorker.MarkdownWor
 		super(descriptor, Compile.compile(language), instantiationService, threadService, modeService, modelService);
 
 		this.emitOutputSupport = this;
-	}
-
-	public getCommentsConfiguration(): Modes.ICommentsConfiguration {
-		return { blockCommentStartToken: '<!--', blockCommentEndToken: '-->' };
 	}
 
 	static $getEmitOutput = OneWorkerAttr(MarkdownMode, MarkdownMode.prototype.getEmitOutput);

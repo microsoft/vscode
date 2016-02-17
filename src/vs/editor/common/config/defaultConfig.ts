@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as nls from 'vs/nls';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 export interface IConfiguration {
 	editor:EditorCommon.IEditorOptions;
@@ -16,6 +17,9 @@ class ConfigClass implements IConfiguration {
 
 	constructor() {
 		this.editor = {
+			experimentalScreenReader: false,
+			rulers: [],
+			ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
 			lineNumbers: true,
 			selectOnLineNumbers: true,
 			lineNumbersMinChars: 5,
@@ -34,6 +38,8 @@ class ConfigClass implements IConfiguration {
 			},
 			overviewRulerLanes: 2,
 			cursorBlinking: 'blink',
+			cursorStyle: 'line',
+			fontLigatures: false,
 			hideCursorInOverviewRuler: false,
 			scrollBeyondLastLine: true,
 			automaticLayout: false,
@@ -61,6 +67,7 @@ class ConfigClass implements IConfiguration {
 			selectionHighlight: true,
 			outlineMarkers: false,
 			referenceInfos: true,
+			folding: true,
 			renderWhitespace: false,
 
 			tabSize: 4,

@@ -12,8 +12,7 @@ import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import sassWorker = require('vs/languages/sass/common/sassWorker');
-import supports = require('vs/editor/common/modes/supports');
-import {cssTokenTypes} from 'vs/languages/css/common/css';
+import * as sassTokenTypes from 'vs/languages/sass/common/sassTokenTypes';
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
@@ -21,6 +20,9 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
+import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
+import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
 export var language = <Types.ILanguage>{
 	displayName: 'Sass',
@@ -48,9 +50,9 @@ export var language = <Types.ILanguage>{
 	tokenizer: {
 		root: [
 			{ include: '@selector' },
-			['[@](charset|namespace)', { token: cssTokenTypes.TOKEN_AT_KEYWORD, next: '@declarationbody'}],
-			['[@](function)', { token: cssTokenTypes.TOKEN_AT_KEYWORD, next: '@functiondeclaration'}],
-			['[@](mixin)', { token: cssTokenTypes.TOKEN_AT_KEYWORD, next: '@mixindeclaration'}],
+			['[@](charset|namespace)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@declarationbody'}],
+			['[@](function)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@functiondeclaration'}],
+			['[@](mixin)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@mixindeclaration'}],
 		],
 
 		selector: [
@@ -58,29 +60,29 @@ export var language = <Types.ILanguage>{
 			{ include: '@import' },
 			{ include: '@variabledeclaration' },
 			{ include: '@warndebug' }, // sass: log statements
-			['[@](include)', { token: cssTokenTypes.TOKEN_AT_KEYWORD, next: '@includedeclaration'}], // sass: include statement
-			['[@](keyframes|-webkit-keyframes|-moz-keyframes|-o-keyframes)', { token: cssTokenTypes.TOKEN_AT_KEYWORD, next: '@keyframedeclaration'}],
-			['[@](page|content|font-face|-moz-document)', { token: cssTokenTypes.TOKEN_AT_KEYWORD}], // sass: placeholder for includes
+			['[@](include)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@includedeclaration'}], // sass: include statement
+			['[@](keyframes|-webkit-keyframes|-moz-keyframes|-o-keyframes)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@keyframedeclaration'}],
+			['[@](page|content|font-face|-moz-document)', { token: sassTokenTypes.TOKEN_AT_KEYWORD}], // sass: placeholder for includes
 			['url(\\-prefix)?\\(', { token: 'support.function.name', bracket: '@open', next: '@urldeclaration'}],
 			{ include: '@controlstatement' }, // sass control statements
 			{ include: '@selectorname' },
-			['[&\\*]', cssTokenTypes.TOKEN_SELECTOR_TAG], // selector symbols
+			['[&\\*]', sassTokenTypes.TOKEN_SELECTOR_TAG], // selector symbols
 			['[>\\+,]', 'punctuation'], // selector operators
 			['\\[', { token: 'punctuation.bracket', bracket: '@open', next: '@selectorattribute' }],
 			['{', { token: 'punctuation.curly', bracket: '@open', next: '@selectorbody' }],
 		],
 
 		selectorbody: [
-			['[*_]?@identifier@ws:(?=(\\s|\\d|[^{;}]*[;}]))', cssTokenTypes.TOKEN_PROPERTY, '@rulevalue'], // rule definition: to distinguish from a nested selector check for whitespace, number or a semicolon
+			['[*_]?@identifier@ws:(?=(\\s|\\d|[^{;}]*[;}]))', sassTokenTypes.TOKEN_PROPERTY, '@rulevalue'], // rule definition: to distinguish from a nested selector check for whitespace, number or a semicolon
 			{ include: '@selector'}, // sass: nested selectors
-			['[@](extend)', { token: cssTokenTypes.TOKEN_AT_KEYWORD, next: '@extendbody'}], // sass: extend other selectors
-			['[@](return)', { token: cssTokenTypes.TOKEN_AT_KEYWORD, next: '@declarationbody'}],
+			['[@](extend)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@extendbody'}], // sass: extend other selectors
+			['[@](return)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@declarationbody'}],
 			['}', { token: 'punctuation.curly', bracket: '@close', next: '@pop'}],
 		],
 
 		selectorname: [
 			['#{', { token: 'support.function.interpolation', bracket: '@open', next: '@variableinterpolation' }], // sass: interpolation
-			['(\\.|#(?=[^{])|%|(@identifier)|:)+', cssTokenTypes.TOKEN_SELECTOR], // selector (.foo, div, ...)
+			['(\\.|#(?=[^{])|%|(@identifier)|:)+', sassTokenTypes.TOKEN_SELECTOR], // selector (.foo, div, ...)
 		],
 
 		selectorattribute: [
@@ -112,17 +114,17 @@ export var language = <Types.ILanguage>{
 		],
 
 		nestedproperty: [
-			['[*_]?@identifier@ws:', cssTokenTypes.TOKEN_PROPERTY, '@rulevalue'],
+			['[*_]?@identifier@ws:', sassTokenTypes.TOKEN_PROPERTY, '@rulevalue'],
 			{ include: '@comments' },
 			['}', { token: 'punctuation.curly', bracket: '@close', next: '@pop'}],
 		],
 
 		warndebug: [
-			['[@](warn|debug)', { token: cssTokenTypes.TOKEN_AT_KEYWORD, next: '@declarationbody'}],
+			['[@](warn|debug)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@declarationbody'}],
 		],
 
 		import: [
-			['[@](import)', { token: cssTokenTypes.TOKEN_AT_KEYWORD, next: '@declarationbody'}],
+			['[@](import)', { token: sassTokenTypes.TOKEN_AT_KEYWORD, next: '@declarationbody'}],
 		],
 
 		variabledeclaration: [ // sass variables
@@ -175,7 +177,7 @@ export var language = <Types.ILanguage>{
 		],
 
 		name: [
-			['@identifier', cssTokenTypes.TOKEN_VALUE],
+			['@identifier', sassTokenTypes.TOKEN_VALUE],
 		],
 
 		numbers: [
@@ -201,7 +203,7 @@ export var language = <Types.ILanguage>{
 		],
 
 		parameterdeclaration: [
-			['\\$@identifier@ws:', cssTokenTypes.TOKEN_PROPERTY],
+			['\\$@identifier@ws:', sassTokenTypes.TOKEN_PROPERTY],
 			['\\.\\.\\.', 'keyword.operator'], // var args in declaration
 			[',', 'punctuation'],
 			{ include: '@term' },
@@ -238,7 +240,7 @@ export var language = <Types.ILanguage>{
 		],
 
 		functionbody: [
-			['[@](return)', { token: cssTokenTypes.TOKEN_AT_KEYWORD}],
+			['[@](return)', { token: sassTokenTypes.TOKEN_AT_KEYWORD}],
 			{ include: '@variabledeclaration' },
 			{ include: '@term' },
 			{ include: '@controlstatement' },
@@ -251,7 +253,7 @@ export var language = <Types.ILanguage>{
 		],
 
 		functionarguments: [
-			['\\$@identifier@ws:', cssTokenTypes.TOKEN_PROPERTY],
+			['\\$@identifier@ws:', sassTokenTypes.TOKEN_PROPERTY],
 			['[,]', 'punctuation'],
 			{ include: '@term' },
 			['\\)', { token: 'support.function.name', bracket: '@close', next: '@pop'}],
@@ -299,16 +301,16 @@ export class SASSMode extends Monarch.MonarchMode<sassWorker.SassWorker> impleme
 		this.modeService = modeService;
 
 		this.extraInfoSupport = this;
-		this.referenceSupport = new supports.ReferenceSupport(this, {
-			tokens: [cssTokenTypes.TOKEN_PROPERTY + '.sass', cssTokenTypes.TOKEN_VALUE + '.sass', 'variable.decl.sass', 'variable.ref.sass', 'support.function.name.sass', cssTokenTypes.TOKEN_PROPERTY + '.sass', cssTokenTypes.TOKEN_SELECTOR + '.sass'],
+		this.referenceSupport = new ReferenceSupport(this.getId(), {
+			tokens: [sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_VALUE + '.sass', 'variable.decl.sass', 'variable.ref.sass', 'support.function.name.sass', sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_SELECTOR + '.sass'],
 			findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
 		this.logicalSelectionSupport = this;
-		this.declarationSupport = new supports.DeclarationSupport(this, {
-			tokens: ['variable.decl.sass', 'variable.ref.sass', 'support.function.name.sass', cssTokenTypes.TOKEN_PROPERTY + '.sass', cssTokenTypes.TOKEN_SELECTOR + '.sass'],
+		this.declarationSupport = new DeclarationSupport(this.getId(), {
+			tokens: ['variable.decl.sass', 'variable.ref.sass', 'support.function.name.sass', sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_SELECTOR + '.sass'],
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 		this.outlineSupport = this;
 
-		this.suggestSupport = new supports.SuggestSupport(this, {
+		this.suggestSupport = new SuggestSupport(this.getId(), {
 			triggerCharacters: [],
 			excludeTokens: ['comment.sass', 'string.sass'],
 			suggest: (resource, position) => this.suggest(resource, position)});

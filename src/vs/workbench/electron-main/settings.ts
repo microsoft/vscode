@@ -5,7 +5,7 @@
 
 'use strict';
 
-import app = require('app');
+import {app} from 'electron';
 
 import env = require('vs/workbench/electron-main/env');
 import {UserSettings} from 'vs/workbench/node/userSettings';

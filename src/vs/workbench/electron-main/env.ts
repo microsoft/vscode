@@ -9,13 +9,12 @@ import crypto = require('crypto');
 import fs = require('fs');
 import path = require('path');
 import os = require('os');
-import app = require('app');
+import {app} from 'electron';
 
 import arrays = require('vs/base/common/arrays');
-import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
-import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
+import platform = require('vs/base/common/platform');
 import uri from 'vs/base/common/uri';
 import types = require('vs/base/common/types');
 
@@ -26,42 +25,41 @@ export interface IUpdateInfo {
 export interface IProductConfiguration {
 	nameShort: string;
 	nameLong: string;
-	icons: {
-		application: {
-			png: string;
-		}
-	},
+	applicationName: string;
 	win32AppUserModelId: string;
+	win32MutexName: string;
+	darwinBundleIdentifier: string;
 	dataFolderName: string;
 	downloadUrl: string;
-	updateUrl: string;
+	updateUrl?: string;
+	quality?: string;
 	commit: string;
 	date: string;
 	expiryDate: number;
 	expiryUrl: string;
 	extensionsGallery: {
 		serviceUrl: string;
+		cacheUrl: string;
 		itemUrl: string;
 	};
-	crashReporter: ICrashReporterConfigBrowser;
+	crashReporter: Electron.CrashReporterStartOptions;
 	welcomePage: string;
 	enableTelemetry: boolean;
 	aiConfig: {
 		key: string;
 		asimovKey: string;
-	},
+	};
 	sendASmile: {
-		submitUrl: string,
 		reportIssueUrl: string,
 		requestFeatureUrl: string
-	},
-	documentationUrl: string,
-	releaseNotesUrl: string,
-	twitterUrl: string,
-	requestFeatureUrl: string,
-	reportIssueUrl: string,
-	licenseUrl: string,
-	privacyStatementUrl: string
+	};
+	documentationUrl: string;
+	releaseNotesUrl: string;
+	twitterUrl: string;
+	requestFeatureUrl: string;
+	reportIssueUrl: string;
+	licenseUrl: string;
+	privacyStatementUrl: string;
 }
 
 export const isBuilt = !process.env.VSCODE_DEV;
@@ -76,11 +74,12 @@ try {
 }
 
 export const product: IProductConfiguration = productContents;
-product.nameShort = product.nameShort || 'Code [OSS Build]';
-product.nameLong = product.nameLong || 'Code [OSS Build]';
-product.dataFolderName = product.dataFolderName || (isBuilt ? '.code-oss-build' : '.code-oss-build-dev');
+product.nameShort = product.nameShort + (isBuilt ? '' : ' Dev');
+product.nameLong = product.nameLong + (isBuilt ? '' : ' Dev');
+product.dataFolderName = product.dataFolderName + (isBuilt ? '' : '-dev');
 
-export const updateInfo: IUpdateInfo = product.updateUrl ? { baseUrl: product.updateUrl } : void 0;
+export const updateUrl = product.updateUrl;
+export const quality = product.quality;
 
 export const mainIPCHandle = getMainIPCHandle();
 export const sharedIPCHandle = getSharedIPCHandle();
@@ -144,6 +143,8 @@ export interface ICommandLineArguments {
 	openInSameWindow?: boolean;
 
 	gotoLineMode?: boolean;
+
+	locale?: string;
 }
 
 function parseCli(): ICommandLineArguments {
@@ -204,7 +205,8 @@ function parseCli(): ICommandLineArguments {
 		pluginHomePath: normalizePath(parseString(args, '--extensionHomePath')),
 		pluginDevelopmentPath: normalizePath(parseString(args, '--extensionDevelopmentPath')),
 		pluginTestsPath: normalizePath(parseString(args, '--extensionTestsPath')),
-		disablePlugins: !!opts['disableExtensions'] || !!opts['disable-extensions']
+		disablePlugins: !!opts['disableExtensions'] || !!opts['disable-extensions'],
+		locale: parseString(args, '--locale')
 	};
 }
 
@@ -263,37 +265,61 @@ function parseOpts(argv: string[]): OptionBag {
 }
 
 function parsePathArguments(argv: string[], gotoLineMode?: boolean): string[] {
-	return arrays.distinct(					// no duplicates
-		argv.filter(a => !(/^-/.test(a))) 	// find arguments without leading "-"
-			.map((arg) => {						// resolve to path
-				let pathCandidate = arg;
+	return arrays.coalesce(							// no invalid paths
+		arrays.distinct(							// no duplicates
+			argv.filter(a => !(/^-/.test(a))) 		// arguments without leading "-"
+				.map((arg) => {
+					let pathCandidate = arg;
 
-				let parsedPath: IParsedPath;
-				if (gotoLineMode) {
-					parsedPath = parseLineAndColumnAware(arg);
-					pathCandidate = parsedPath.path;
-				}
+					let parsedPath: IParsedPath;
+					if (gotoLineMode) {
+						parsedPath = parseLineAndColumnAware(arg);
+						pathCandidate = parsedPath.path;
+					}
 
-				let realPath: string;
-				try {
-					realPath = fs.realpathSync(pathCandidate);
-				} catch (error) {
-					// in case of an error, assume the user wants to create this file
-					// if the path is relative, we join it to the cwd
-					realPath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(process.cwd(), pathCandidate));
-				}
+					if (pathCandidate) {
+						pathCandidate = massagePath(pathCandidate);
+					}
 
-				if (gotoLineMode) {
-					parsedPath.path = realPath;
-					return toLineAndColumnPath(parsedPath);
-				}
+					let realPath: string;
+					try {
+						realPath = fs.realpathSync(pathCandidate);
+					} catch (error) {
+						// in case of an error, assume the user wants to create this file
+						// if the path is relative, we join it to the cwd
+						realPath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(process.cwd(), pathCandidate));
+					}
 
-				return realPath;
-			}),
-		(element) => {
-			return element && (platform.isWindows || platform.isMacintosh) ? element.toLowerCase() : element; // only linux is case sensitive on the fs
-		}
+					if (!paths.isValidBasename(path.basename(realPath))) {
+						return null; // do not allow invalid file names
+					}
+
+					if (gotoLineMode) {
+						parsedPath.path = realPath;
+						return toLineAndColumnPath(parsedPath);
+					}
+
+					return realPath;
+				}),
+			(element) => {
+				return element && (platform.isWindows || platform.isMacintosh) ? element.toLowerCase() : element; // only linux is case sensitive on the fs
+			}
+		)
 	);
+}
+
+function massagePath(path: string): string {
+	if (platform.isWindows) {
+		path = strings.rtrim(path, '"'); // https://github.com/Microsoft/vscode/issues/1498
+	}
+
+	// Trim whitespaces
+	path = strings.trim(strings.trim(path, ' '), '\t');
+
+	// Remove trailing dots
+	path = strings.rtrim(path, '.');
+
+	return path;
 }
 
 function normalizePath(p?: string): string {
@@ -330,7 +356,7 @@ function parseString(argv: string[], key: string, defaultValue?: string, fallbac
 
 export function getPlatformIdentifier(): string {
 	if (process.platform === 'linux') {
-		return `linux-${ process.arch }`;
+		return `linux-${process.arch}`;
 	}
 
 	return process.platform;
@@ -364,7 +390,7 @@ export function parseLineAndColumnAware(rawPath: string): IParsedPath {
 		path: path,
 		line: line !== null ? line : void 0,
 		column: column !== null ? column : line !== null ? 1 : void 0 // if we have a line, make sure column is also set
-	}
+	};
 }
 
 export function toLineAndColumnPath(parsedPath: IParsedPath): string {

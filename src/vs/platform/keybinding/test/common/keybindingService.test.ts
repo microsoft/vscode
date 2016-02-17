@@ -4,24 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import {CommonKeybindingResolver} from 'vs/platform/keybinding/common/commonKeybindingResolver';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
-import Platform = require('vs/base/common/platform');
-import {IKeybindingContextRule, IKeybindingItem} from 'vs/platform/keybinding/common/keybindingService';
+import * as assert from 'assert';
+import {KeybindingResolver, IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
+import {KbExpr, KbAndExpression, IKeybindingItem} from 'vs/platform/keybinding/common/keybindingService';
 import {KeyMod, KeyCode, BinaryKeybindings} from 'vs/base/common/keyCodes';
 
 suite('Keybinding Service', () => {
 
 	test('resolve key', function() {
-		var keybinding = KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z;
-		var contextRules = [{
-			key: 'bar',
-			operator: 'equal',
-			operand: 'baz'
-		}]
-		var keybindingItem: IKeybindingItem = {
+		let keybinding = KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z;
+		let contextRules = KbExpr.equals('bar', 'baz');
+		let keybindingItem: IKeybindingItem = {
 			command: 'yes',
 			context: contextRules,
 			keybinding: keybinding,
@@ -29,57 +22,41 @@ suite('Keybinding Service', () => {
 			weight2: 0
 		};
 
-		assert.equal(CommonKeybindingResolver.contextMatchesRules({ bar: 'baz' }, contextRules), true);
-		assert.equal(CommonKeybindingResolver.contextMatchesRules({ bar: 'bz' }, contextRules), false);
+		assert.equal(KeybindingResolver.contextMatchesRules({ bar: 'baz' }, contextRules), true);
+		assert.equal(KeybindingResolver.contextMatchesRules({ bar: 'bz' }, contextRules), false);
 
-		var resolver = new CommonKeybindingResolver([keybindingItem], []);
+		let resolver = new KeybindingResolver([keybindingItem], []);
 		assert.equal(resolver.resolve({ bar: 'baz' }, 0, keybinding).commandId, 'yes');
 		assert.equal(resolver.resolve({ bar: 'bz' }, 0, keybinding), null);
 	});
 
-	function createEqualContextRule(key: string, operand: any): IKeybindingContextRule {
-		return {
-			key: key,
-			operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_EQUAL,
-			operand: operand
-		};
-	}
+	test('normalizeRule', function() {
+		let key1IsTrue = KbExpr.equals('key1', true);
+		let key1IsNotFalse = KbExpr.notEquals('key1', false);
+		let key1IsFalse = KbExpr.equals('key1', false);
+		let key1IsNotTrue = KbExpr.notEquals('key1', true);
 
-	function createNotEqualContextRule(key: string, operand: any): IKeybindingContextRule {
-		return {
-			key: key,
-			operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_NOT_EQUAL,
-			operand: operand
-		};
-	}
-
-	test('normalizeRule', function () {
-		var key1IsTrue = createEqualContextRule('key1', true);
-		var key1IsNotFalse = createNotEqualContextRule('key1', false);
-		var key1IsFalse = createEqualContextRule('key1', false);
-		var key1IsNotTrue = createNotEqualContextRule('key1', true);
-
-		assert.deepEqual(CommonKeybindingResolver.normalizeRule(key1IsTrue), key1IsTrue);
-		assert.deepEqual(CommonKeybindingResolver.normalizeRule(key1IsNotFalse), key1IsTrue);
-		assert.deepEqual(CommonKeybindingResolver.normalizeRule(key1IsFalse), key1IsFalse);
-		assert.deepEqual(CommonKeybindingResolver.normalizeRule(key1IsNotTrue), key1IsFalse);
+		assert.ok(key1IsTrue.normalize().equals(KbExpr.has('key1')));
+		assert.ok(key1IsNotFalse.normalize().equals(KbExpr.has('key1')));
+		assert.ok(key1IsFalse.normalize().equals(KbExpr.not('key1')));
+		assert.ok(key1IsNotTrue.normalize().equals(KbExpr.not('key1')));
 	});
 
-	test('contextIsEntirelyIncluded', function () {
-		var assertIsIncluded = (a: IKeybindingContextRule[], b: IKeybindingContextRule[]) => {
-			assert.equal(CommonKeybindingResolver.contextIsEntirelyIncluded(false, a, b), true);
+	test('contextIsEntirelyIncluded', function() {
+		let assertIsIncluded = (a: KbExpr[], b: KbExpr[]) => {
+			assert.equal(KeybindingResolver.contextIsEntirelyIncluded(false, new KbAndExpression(a), new KbAndExpression(b)), true);
 		};
-		var assertIsNotIncluded = (a: IKeybindingContextRule[], b: IKeybindingContextRule[]) => {
-			assert.equal(CommonKeybindingResolver.contextIsEntirelyIncluded(false, a, b), false);
+		let assertIsNotIncluded = (a: KbExpr[], b: KbExpr[]) => {
+			assert.equal(KeybindingResolver.contextIsEntirelyIncluded(false, new KbAndExpression(a), new KbAndExpression(b)), false);
 		};
-		var key1IsTrue = createEqualContextRule('key1', true);
-		var key1IsNotFalse = createNotEqualContextRule('key1', false);
-		var key1IsFalse = createEqualContextRule('key1', false);
-		var key1IsNotTrue = createNotEqualContextRule('key1', true);
-		var key2IsTrue = createEqualContextRule('key2', true);
-		var key2IsNotFalse = createNotEqualContextRule('key2', false);
-		var key3IsTrue = createEqualContextRule('key3', true);
-		var key4IsTrue = createEqualContextRule('key4', true);
+		let key1IsTrue = KbExpr.equals('key1', true);
+		let key1IsNotFalse = KbExpr.notEquals('key1', false);
+		let key1IsFalse = KbExpr.equals('key1', false);
+		let key1IsNotTrue = KbExpr.notEquals('key1', true);
+		let key2IsTrue = KbExpr.equals('key2', true);
+		let key2IsNotFalse = KbExpr.notEquals('key2', false);
+		let key3IsTrue = KbExpr.equals('key3', true);
+		let key4IsTrue = KbExpr.equals('key4', true);
 
 		assertIsIncluded([key1IsTrue], null);
 		assertIsIncluded([key1IsTrue], []);
@@ -117,21 +94,16 @@ suite('Keybinding Service', () => {
 		assertIsNotIncluded(null, [key2IsTrue]);
 	});
 
-	test('resolve command', function () {
+	test('resolve command', function() {
 
-		var items: IKeybindingItem[] = [
+		let items: IKeybindingItem[] = [
 			// This one will never match because its context is always overwritten by another one
 			{
 				keybinding: KeyCode.KEY_X,
-				context: [{
-					key: 'key1',
-					operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_EQUAL,
-					operand: true
-				}, {
-					key: 'key2',
-					operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_NOT_EQUAL,
-					operand: false
-				}],
+				context: KbExpr.and(
+					KbExpr.equals('key1', true),
+					KbExpr.notEquals('key2', false)
+				),
 				command: 'first',
 				weight1: 1,
 				weight2: 0
@@ -139,11 +111,7 @@ suite('Keybinding Service', () => {
 			// This one always overwrites first
 			{
 				keybinding: KeyCode.KEY_X,
-				context: [{
-					key: 'key2',
-					operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_EQUAL,
-					operand: true
-				}],
+				context: KbExpr.equals('key2', true),
 				command: 'second',
 				weight1: 2,
 				weight2: 0
@@ -151,7 +119,7 @@ suite('Keybinding Service', () => {
 			// This one is a secondary mapping for `second`
 			{
 				keybinding: KeyCode.KEY_Z,
-				context: [],
+				context: null,
 				command: 'second',
 				weight1: 2.5,
 				weight2: 0
@@ -159,11 +127,7 @@ suite('Keybinding Service', () => {
 			// This one sometimes overwrites first
 			{
 				keybinding: KeyCode.KEY_X,
-				context: [{
-					key: 'key3',
-					operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_EQUAL,
-					operand: true
-				}],
+				context: KbExpr.equals('key3', true),
 				command: 'third',
 				weight1: 3,
 				weight2: 0
@@ -171,11 +135,7 @@ suite('Keybinding Service', () => {
 			// This one is always overwritten by another one
 			{
 				keybinding: KeyMod.CtrlCmd | KeyCode.KEY_Y,
-				context: [{
-					key: 'key4',
-					operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_EQUAL,
-					operand: true
-				}],
+				context: KbExpr.equals('key4', true),
 				command: 'fourth',
 				weight1: 4,
 				weight2: 0
@@ -183,7 +143,7 @@ suite('Keybinding Service', () => {
 			// This one overwrites with a chord the previous one
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z),
-				context: [],
+				context: null,
 				command: 'fifth',
 				weight1: 5,
 				weight2: 0
@@ -191,69 +151,69 @@ suite('Keybinding Service', () => {
 			// This one has no keybinding
 			{
 				keybinding: 0,
-				context: [],
+				context: null,
 				command: 'sixth',
 				weight1: 6,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U),
-				context: [],
+				context: null,
 				command: 'seventh',
 				weight1: 6.5,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K),
-				context: [],
+				context: null,
 				command: 'seventh',
 				weight1: 6.5,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U),
-				context: [],
+				context: null,
 				command: 'uncomment lines',
 				weight1: 7,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
-				context: [],
+				context: null,
 				command: 'comment lines',
 				weight1: 8,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_G, KeyMod.CtrlCmd | KeyCode.KEY_C),
-				context: [],
+				context: null,
 				command: 'unreachablechord',
 				weight1: 10,
 				weight2: 0
 			},
 			{
 				keybinding: KeyMod.CtrlCmd | KeyCode.KEY_G,
-				context: [],
+				context: null,
 				command: 'eleven',
 				weight1: 11,
 				weight2: 0
 			}
 		];
 
-		var resolver = new CommonKeybindingResolver(items, [], false);
+		let resolver = new KeybindingResolver(items, [], false);
 
 
 
-		var testKey = (commandId: string, expectedKeys: number[]) => {
+		let testKey = (commandId: string, expectedKeys: number[]) => {
 			// Test lookup
-			var lookupResult = resolver.lookupKeybinding(commandId);
+			let lookupResult = resolver.lookupKeybinding(commandId);
 			assert.equal(lookupResult.length, expectedKeys.length, 'Length mismatch @ commandId ' + commandId + '; GOT: ' + JSON.stringify(lookupResult, null, '\t'));
 			for (let i = 0, len = lookupResult.length; i < len; i++) {
 				assert.equal(lookupResult[i].value, expectedKeys[i]);
 			}
 		};
 
-		var testResolve = (ctx:any, expectedKey:number, commandId:string) => {
+		let testResolve = (ctx: any, expectedKey: number, commandId: string) => {
 
 			if (BinaryKeybindings.hasChord(expectedKey)) {
 				let firstPart = BinaryKeybindings.extractFirstPart(expectedKey);
@@ -274,16 +234,16 @@ suite('Keybinding Service', () => {
 				assert.equal(result.commandId, commandId, 'Finds command ' + commandId);
 				assert.equal(result.enterChord, 0, 'Finds command ' + commandId);
 			}
-		}
+		};
 
 		testKey('first', []);
 
 		testKey('second', [KeyCode.KEY_Z, KeyCode.KEY_X]);
-		testResolve({key2: true}, KeyCode.KEY_X, 'second');
+		testResolve({ key2: true }, KeyCode.KEY_X, 'second');
 		testResolve({}, KeyCode.KEY_Z, 'second');
 
 		testKey('third', [KeyCode.KEY_X]);
-		testResolve({key3:true}, KeyCode.KEY_X, 'third');
+		testResolve({ key3: true }, KeyCode.KEY_X, 'third');
 
 		testKey('fourth', []);
 
@@ -305,7 +265,38 @@ suite('Keybinding Service', () => {
 		testResolve({}, KeyMod.CtrlCmd | KeyCode.KEY_G, 'eleven');
 
 		testKey('sixth', []);
+	});
 
+	test('contextMatchesRules', function() {
+		let context = {
+			'a': true,
+			'b': false,
+			'c': '5'
+		};
+		function testExpression(expr: string, expected: boolean): void {
+			let rules = IOSupport.readKeybindingContexts(expr);
+			assert.equal(KeybindingResolver.contextMatchesRules(context, rules), expected, expr);
+		}
+		function testBatch(expr: string, value: any): void {
+			testExpression(expr, !!value);
+			testExpression(expr + ' == true', !!value);
+			testExpression(expr + ' != true', !value);
+			testExpression(expr + ' == false', !value);
+			testExpression(expr + ' != false', !!value);
+			testExpression(expr + ' == 5', value == <any>'5');
+			testExpression(expr + ' != 5', value != <any>'5');
+			testExpression('!' + expr, !value);
+		}
 
+		testExpression('', true);
+
+		testBatch('a', true);
+		testBatch('b', false);
+		testBatch('c', '5');
+		testBatch('z', undefined);
+
+		testExpression('a && !b', true && !false);
+		testExpression('a && b', true && false);
+		testExpression('a && !b && c == 5', true && !false && '5' == '5');
 	});
 });

@@ -5,9 +5,9 @@
 
 'use strict';
 
-import events = require('vs/base/common/eventEmitter');
 import { connect } from 'vs/base/node/service.net';
 import { TPromise } from 'vs/base/common/winjs.base';
+import * as fs from 'fs';
 
 export interface ICredentials {
 	username: string;
@@ -18,10 +18,6 @@ export class GitAskpassServiceStub {
 	public askpass(id: string, host: string, command: string): TPromise<ICredentials> {
 		throw new Error('not implemented');
 	}
-}
-
-function generateId(): string {
-	return Math.floor(Math.random()*Math.pow(10,10)).toString(16);
 }
 
 function fatal(err: any): void {
@@ -42,7 +38,12 @@ function main(argv: string[]): void {
 		return fatal('Missing git id');
 	}
 
+	if (!process.env['VSCODE_GIT_ASKPASS_PIPE']) {
+		return fatal('Missing pipe');
+	}
+
 	var id = process.env['VSCODE_GIT_REQUEST_ID'];
+	var output = process.env['VSCODE_GIT_ASKPASS_PIPE'];
 	var request = argv[2];
 	var host = argv[4].substring(1, argv[4].length - 2);
 
@@ -52,7 +53,7 @@ function main(argv: string[]): void {
 
 			return service.askpass(id, host, process.env['MONACO_GIT_COMMAND']).then(result => {
 				if (result) {
-					console.log(/^Username$/i.test(request) ? result.username : result.password);
+					fs.writeFileSync(output, (/^Username$/i.test(request) ? result.username : result.password) + '\n');
 				}
 
 				return client;

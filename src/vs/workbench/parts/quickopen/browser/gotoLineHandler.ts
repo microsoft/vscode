@@ -5,24 +5,19 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import env = require('vs/base/common/platform');
 import nls = require('vs/nls');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
-import {IContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/browser/quickOpen';
-import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
-import {Registry} from 'vs/platform/platform';
-import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
+import {IContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
+import {QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import {QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
 import {TextEditorOptions, EditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IEditorViewState, ITextModel, IDiffEditorModel} from 'vs/editor/common/editorCommon';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {Position} from 'vs/platform/editor/common/editor';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 export const GOTO_LINE_PREFIX = ':';
 
@@ -180,6 +175,10 @@ export class GotoLineHandler extends QuickOpenHandler {
 		super();
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('gotoLineHandlerAriaLabel', "Type a line number to navigate to.");
+	}
+
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
 
@@ -229,7 +228,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 						}
 					}
 				}
-			]
+			];
 
 			let decorations = changeAccessor.deltaDecorations(deleteDecorations, newDecorations);
 			let lineHighlightId = decorations[0];

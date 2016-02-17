@@ -6,34 +6,32 @@
 'use strict';
 
 import 'vs/css!./menu';
-import Lifecycle = require('vs/base/common/lifecycle');
-import Builder = require('vs/base/browser/builder');
-import Actions = require('vs/base/common/actions');
-import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
-import EventEmitter = require('vs/base/common/eventEmitter');
-
-var $ = Builder.$;
+import {IDisposable} from 'vs/base/common/lifecycle';
+import {$} from 'vs/base/browser/builder';
+import {IActionRunner, IAction} from 'vs/base/common/actions';
+import {ActionBar, IActionItemProvider, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
+import {EventEmitter} from 'vs/base/common/eventEmitter';
 
 export interface IMenuOptions {
-	context?:any;
-	actionItemProvider?:ActionBar.IActionItemProvider;
-	actionRunner?:Actions.IActionRunner;
+	context?: any;
+	actionItemProvider?: IActionItemProvider;
+	actionRunner?: IActionRunner;
 }
 
-export class Menu extends EventEmitter.EventEmitter {
+export class Menu extends EventEmitter {
 
-	private actionBar: ActionBar.ActionBar;
-	private listener: Lifecycle.IDisposable;
+	private actionBar: ActionBar;
+	private listener: IDisposable;
 
-	constructor (container:HTMLElement, actions:Actions.IAction[], options:IMenuOptions = {}) {
+	constructor(container: HTMLElement, actions: IAction[], options: IMenuOptions = {}) {
 		super();
 
 		$(container).addClass('monaco-menu-container');
 
-		var $menu = $('.monaco-menu').appendTo(container);
+		let $menu = $('.monaco-menu').appendTo(container);
 
-		this.actionBar = new ActionBar.ActionBar($menu, {
-			orientation: ActionBar.ActionsOrientation.VERTICAL,
+		this.actionBar = new ActionBar($menu, {
+			orientation: ActionsOrientation.VERTICAL,
 			actionItemProvider: options.actionItemProvider,
 			context: options.context,
 			actionRunner: options.actionRunner

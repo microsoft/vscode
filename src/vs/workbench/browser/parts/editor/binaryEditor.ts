@@ -7,13 +7,12 @@
 
 import 'vs/css!./media/binaryeditor';
 import nls = require('vs/nls');
-import DOM = require('vs/base/browser/dom');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {ResourceViewer} from 'vs/base/browser/ui/resourceviewer/resourceViewer';
 import {EditorModel, EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {BinaryEditorModel} from 'vs/workbench/browser/parts/editor/binaryEditorModel';
+import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 
@@ -41,7 +40,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		let binaryContainerElement = document.createElement('div');
 		binaryContainerElement.className = 'binary-container monaco-editor-background'; // Inherit the background color from selected theme'
 		this.binaryContainer = $(binaryContainerElement);
-		this.binaryContainer.tabindex(0); // enable focus support
+		this.binaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
 		parent.getHTMLElement().appendChild(this.binaryContainer.getHTMLElement());
 	}
 

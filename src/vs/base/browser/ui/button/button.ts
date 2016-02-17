@@ -6,30 +6,49 @@
 'use strict';
 
 import 'vs/css!./button';
-import EventEmitter = require('vs/base/common/eventEmitter');
+import {EventEmitter} from 'vs/base/common/eventEmitter';
 import DOM = require('vs/base/browser/dom');
-import Builder = require('vs/base/browser/builder');
+import {Builder, $} from 'vs/base/browser/builder';
+import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {CommonKeybindings} from 'vs/base/common/keyCodes';
 
-var $ = Builder.$;
+export class Button extends EventEmitter {
 
-export class Button extends EventEmitter.EventEmitter {
+	private $el: Builder;
 
-	private $el: Builder.Builder;
-
-	constructor(container: Builder.Builder);
+	constructor(container: Builder);
 	constructor(container: HTMLElement);
 	constructor(container: any) {
 		super();
 
-		this.$el = $('a.monaco-button').href('#').appendTo(container);
+		this.$el = $('a.monaco-button').attr({
+			'tabIndex': '0',
+			'role': 'button'
+		}).appendTo(container);
 
-		this.$el.on('click', (e) => {
+		this.$el.on(DOM.EventType.CLICK, (e) => {
 			if (!this.enabled) {
 				DOM.EventHelper.stop(e);
 				return;
 			}
 
-			this.emit('click', e);
+			this.emit(DOM.EventType.CLICK, e);
+		});
+
+		this.$el.on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			let event = new StandardKeyboardEvent(e);
+			let eventHandled = false;
+			if (this.enabled && event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE)) {
+				this.emit(DOM.EventType.CLICK, e);
+				eventHandled = true;
+			} else if (event.equals(CommonKeybindings.ESCAPE)) {
+				this.$el.domBlur();
+				eventHandled = true;
+			}
+
+			if (eventHandled) {
+				DOM.EventHelper.stop(event, true);
+			}
 		});
 	}
 
@@ -44,8 +63,14 @@ export class Button extends EventEmitter.EventEmitter {
 	public set enabled(value: boolean) {
 		if (value) {
 			this.$el.removeClass('disabled');
+			this.$el.attr({
+				'aria-disabled': 'false',
+				'tabIndex': '0'
+			});
 		} else {
 			this.$el.addClass('disabled');
+			this.$el.attr('aria-disabled', String(true));
+			DOM.removeTabIndexAndUpdateFocus(this.$el.getHTMLElement());
 		}
 	}
 

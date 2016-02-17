@@ -67,7 +67,7 @@ export class EditorLayoutProvider {
 			overviewRuler: {
 				top: verticalArrowSize,
 				width: opts.verticalScrollbarWidth,
-				height: (opts.outerHeight - 2 * verticalArrowSize - opts.horizontalScrollbarHeight),
+				height: (opts.outerHeight - 2 * verticalArrowSize),
 				right: 0
 			}
 		};

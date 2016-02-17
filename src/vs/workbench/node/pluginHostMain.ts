@@ -15,28 +15,21 @@ import pfs = require('vs/base/node/pfs');
 
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import json = require('vs/base/common/json');
-import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
-import {IPluginService, IPluginDescription, IMessage} from 'vs/platform/plugins/common/plugins';
+import {IPluginService, IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry, PluginsMessageCollector, IPluginsMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
-import {PluginHostAPIImplementation} from 'vs/workbench/api/browser/pluginHost.api.impl';
-import { create as createIPC, IPluginsIPC } from 'vs/platform/plugins/common/ipcRemoteCom';
-import {PluginHostModelService} from 'vs/workbench/api/common/pluginHostDocuments';
+import {ExtHostAPIImplementation} from 'vs/workbench/api/node/extHost.api.impl';
+import {IPluginsIPC} from 'vs/platform/plugins/common/ipcRemoteCom';
+import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
 import {IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
 import {PluginHostPluginService} from 'vs/platform/plugins/common/nativePluginService';
 import {PluginHostThreadService} from 'vs/platform/thread/common/pluginHostThreadService';
-import marshalling = require('vs/base/common/marshalling');
-import {PluginHostTelemetryService} from 'vs/workbench/api/common/pluginHostTelemetry';
+import {ExtHostTelemetryService} from 'vs/workbench/api/node/extHostTelemetry';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 import {ModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
-import {IThemeExtensionPoint} from 'vs/platform/theme/common/themeExtensionPoint';
-import {ILanguageExtensionPoint} from 'vs/editor/common/modes/languageExtensionPoint';
-import {ITMSyntaxExtensionPoint} from 'vs/editor/node/textMate/TMSyntax';
 import {PluginScanner} from 'vs/workbench/node/extensionPoints';
-import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Client } from 'vs/base/node/service.net';
 import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
@@ -65,15 +58,13 @@ export function exit(code?: number) {
 }
 
 export function createServices(remoteCom: IPluginsIPC, initData: IInitData, sharedProcessClient: Client): IInstantiationService {
-	// the init data is not demarshalled
-	initData = marshalling.deserialize(initData);
 
 	let contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
 	let threadService = new PluginHostThreadService(remoteCom);
 	threadService.setInstantiationService(InstantiationService.create({ threadService: threadService }));
-	let telemetryServiceInstance = new PluginHostTelemetryService(threadService);
-	let requestService = new BaseRequestService(contextService, telemetryServiceInstance);
-	let modelService = threadService.getRemotable(PluginHostModelService);
+	let telemetryService = new ExtHostTelemetryService(threadService);
+	let requestService = new BaseRequestService(contextService, telemetryService);
+	let modelService = threadService.getRemotable(ExtHostModelService);
 
 	let pluginService = new PluginHostPluginService(threadService);
 	let modeService = new ModeServiceImpl(threadService, pluginService);
@@ -84,13 +75,13 @@ export function createServices(remoteCom: IPluginsIPC, initData: IInitData, shar
 		threadService: threadService,
 		modeService: modeService,
 		pluginService: pluginService,
-		telemetryService: PluginHostTelemetryService
+		telemetryService: telemetryService
 	};
 	let instantiationService = InstantiationService.create(_services);
 	threadService.setInstantiationService(instantiationService);
 
 	// Create the monaco API
-	instantiationService.createInstance(PluginHostAPIImplementation);
+	instantiationService.createInstance(ExtHostAPIImplementation);
 
 	// Connect to shared process services
 	instantiationService.addSingleton(IExtensionsService, sharedProcessClient.getService<IExtensionsService>('ExtensionService', ExtensionsService));
@@ -99,7 +90,7 @@ export function createServices(remoteCom: IPluginsIPC, initData: IInitData, shar
 }
 
 interface ITestRunner {
-	run(testsRoot:string, clb: (error:Error, failures?: number) => void): void;
+	run(testsRoot: string, clb: (error: Error, failures?: number) => void): void;
 }
 
 export class PluginHostMain {
@@ -133,13 +124,13 @@ export class PluginHostMain {
 			activatedExtensions.forEach((extensionId) => {
 				this.pluginService.deactivate(extensionId);
 			});
-		} catch(err) {
+		} catch (err) {
 			// TODO: write to log once we have one
 		}
 
 		// Give extensions 1 second to wrap up any async dispose, then exit
 		setTimeout(() => {
-			exit()
+			exit();
 		}, 1000);
 	}
 
@@ -162,10 +153,9 @@ export class PluginHostMain {
 	}
 
 	private static scanPlugins(collector: IPluginsMessageCollector, builtinPluginsPath: string, userInstallPath: string, pluginDevelopmentPath: string, version: string): TPromise<IPluginDescription[]> {
-
-		let builtinPlugins: TPromise<IPluginDescription[]> = PluginScanner.scanPlugins(version, collector, builtinPluginsPath, true);
-		let userPlugins: TPromise<IPluginDescription[]> = (userInstallPath ? PluginScanner.scanPlugins(version, collector, userInstallPath, false) : TPromise.as([]));
-		let developedPlugins: TPromise<IPluginDescription[]> = (pluginDevelopmentPath ? PluginScanner.scanOneOrMultiplePlugins(version, collector, pluginDevelopmentPath, false) : TPromise.as([]));
+		const builtinPlugins = PluginScanner.scanPlugins(version, collector, builtinPluginsPath, true);
+		const userPlugins = !userInstallPath ? TPromise.as([]) : PluginScanner.scanPlugins(version, collector, userInstallPath, false);
+		const developedPlugins = !pluginDevelopmentPath ? TPromise.as([]) : PluginScanner.scanOneOrMultiplePlugins(version, collector, pluginDevelopmentPath, false);
 
 		return TPromise.join([builtinPlugins, userPlugins, developedPlugins]).then((_: IPluginDescription[][]) => {
 			let builtinPlugins = _[0];
@@ -178,14 +168,14 @@ export class PluginHostMain {
 			});
 			userPlugins.forEach((userPlugin) => {
 				if (resultingPluginsMap.hasOwnProperty(userPlugin.id)) {
-					collector.warn('', 'Overwriting extension ' + resultingPluginsMap[userPlugin.id].extensionFolderPath + ' with ' + userPlugin.extensionFolderPath);
+					collector.warn(userPlugin.extensionFolderPath, 'Overwriting extension ' + resultingPluginsMap[userPlugin.id].extensionFolderPath + ' with ' + userPlugin.extensionFolderPath);
 				}
 				resultingPluginsMap[userPlugin.id] = userPlugin;
 			});
 			extensionDevPlugins.forEach(extensionDevPlugin => {
 				collector.info('', 'Loading development extension at ' + extensionDevPlugin.extensionFolderPath);
 				if (resultingPluginsMap.hasOwnProperty(extensionDevPlugin.id)) {
-					collector.warn('', 'Overwriting extension ' + resultingPluginsMap[extensionDevPlugin.id].extensionFolderPath + ' with ' + extensionDevPlugin.extensionFolderPath);
+					collector.warn(extensionDevPlugin.extensionFolderPath, 'Overwriting extension ' + resultingPluginsMap[extensionDevPlugin.id].extensionFolderPath + ' with ' + extensionDevPlugin.extensionFolderPath);
 				}
 				resultingPluginsMap[extensionDevPlugin.id] = extensionDevPlugin;
 			});
@@ -253,8 +243,8 @@ export class PluginHostMain {
 		}
 
 		// Require the test runner via node require from the provided path
-		let testRunner:ITestRunner;
-		let requireError:Error;
+		let testRunner: ITestRunner;
+		let requireError: Error;
 		try {
 			testRunner = <any>require.__$__nodeRequire(env.pluginTestsPath);
 		} catch (error) {

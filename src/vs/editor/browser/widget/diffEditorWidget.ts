@@ -16,11 +16,12 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import Actions = require('vs/base/common/actions');
 import Sash = require('vs/base/browser/ui/sash/sash');
-import ViewLine = require('vs/editor/browser/viewParts/lines/viewLine');
 import ViewLineParts = require('vs/editor/common/viewLayout/viewLineParts');
 import Schedulers = require('vs/base/common/async');
 import {Range} from 'vs/editor/common/core/range';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
+import {StyleMutator} from 'vs/base/browser/styleMutator';
 
 interface IEditorScrollEvent {
 	scrollLeft: number;
@@ -523,7 +524,7 @@ export class DiffEditorWidget extends EventEmitter.EventEmitter implements Edito
 		this.modifiedEditor.revealLinesInCenterIfOutsideViewport(startLineNumber, endLineNumber);
 	}
 
-	public revealRange(range: EditorCommon.IRange, revealVerticalInCenter:boolean = false, revealHorizontal:boolean = false): void {
+	public revealRange(range: EditorCommon.IRange, revealVerticalInCenter:boolean = false, revealHorizontal:boolean = true): void {
 		this.modifiedEditor.revealRange(range, revealVerticalInCenter, revealHorizontal);
 	}
 
@@ -844,11 +845,11 @@ export class DiffEditorWidget extends EventEmitter.EventEmitter implements Edito
 	private _layoutOverviewViewport(): void {
 		var layout = this._computeOverviewViewport();
 		if (!layout) {
-			DomUtils.StyleMutator.setTop(this._overviewViewportDomElement, 0);
-			DomUtils.StyleMutator.setHeight(this._overviewViewportDomElement, 0);
+			StyleMutator.setTop(this._overviewViewportDomElement, 0);
+			StyleMutator.setHeight(this._overviewViewportDomElement, 0);
 		} else {
-			DomUtils.StyleMutator.setTop(this._overviewViewportDomElement, layout.top);
-			DomUtils.StyleMutator.setHeight(this._overviewViewportDomElement, layout.height);
+			StyleMutator.setTop(this._overviewViewportDomElement, layout.top);
+			StyleMutator.setHeight(this._overviewViewportDomElement, layout.height);
 		}
 	}
 
@@ -1344,7 +1345,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 		var sashPosition = Math.floor((sashRatio || 0.5) * contentWidth);
 		var midPoint = Math.floor(0.5 * contentWidth);
 
-		var sashPosition = this._disableSash ? midPoint : sashPosition || midPoint;
+		sashPosition = this._disableSash ? midPoint : sashPosition || midPoint;
 
 		if (contentWidth > DiffEdtorWidgetSideBySide.MINIMUM_EDITOR_WIDTH * 2) {
 			if (sashPosition < DiffEdtorWidgetSideBySide.MINIMUM_EDITOR_WIDTH) {
@@ -1772,7 +1773,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 		parts = ViewLineParts.createLineParts(lineNumber, lineContent, lineTokens, decorations, config.renderWhitespace);
 
-		var r = ViewLine.renderLine({
+		var r = renderLine({
 			lineContent: lineContent,
 			tabSize: indentation.tabSize,
 			stopRenderingLineAfter: config.stopRenderingLineAfter,

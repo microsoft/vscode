@@ -57,12 +57,8 @@
 	width: 20%;
 	color: #646465;
 	font-family: "Segoe WPC", "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
-	line-height: 24px;
+	line-height: 22px;
 	font-size: 13px;
-}
-
-.monaco-editor .reference-zone-widget .tree .monaco-tree {
-	outline: none;
 }
 
 .monaco-editor .reference-zone-widget .tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) {
@@ -90,7 +86,7 @@
 
 .monaco-editor .reference-zone-widget .tree .reference-file {
 	position: relative;
-	line-height: 24px;
+	line-height: 22px;
 	color: #1E1E1E;
 }
 
@@ -110,6 +106,10 @@
 
 .monaco-editor .reference-zone-widget .tree .referenceMatch {
 	background-color: rgba(234, 92, 0, 0.3);
+}
+
+.monaco-editor .reference-zone-widget .monaco-count-badge {
+	margin-right: 12px;
 }
 
 /* dark room */

@@ -4,49 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import errors = require('vs/base/common/errors');
+import * as errors from 'vs/base/common/errors';
 import { Promise, TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
-import platform = require('vs/base/common/platform');
-import {CancellationTokenSource} from 'vs/base/common/cancellation';
+import * as platform from 'vs/base/common/platform';
+import {CancellationToken, CancellationTokenSource} from 'vs/base/common/cancellation';
+import {Disposable} from 'vs/base/common/lifecycle';
 
-export interface PromiseLike<T> {
-	/**
-	 * Attaches callbacks for the resolution and/or rejection of the Promise.
-	 * @param onfulfilled The callback to execute when the Promise is resolved.
-	 * @param onrejected The callback to execute when the Promise is rejected.
-	 * @returns A Promise for the completion of which ever callback is executed.
-	*/
-	then<TResult>(onfulfilled?: (value: T) => TResult | PromiseLike<TResult>, onrejected?: (reason: any) => TResult | PromiseLike<TResult>): PromiseLike<TResult>;
-	then<TResult>(onfulfilled?: (value: T) => TResult | PromiseLike<TResult>, onrejected?: (reason: any) => void): PromiseLike<TResult>;
+function isThenable<T>(obj: any): obj is Thenable<T> {
+	return obj && typeof (<Thenable<any>>obj).then === 'function';
 }
 
-export function wrapAsWinJSPromise<T>(callback: (...args: any[]) => PromiseLike<T>, context: any): (...args: any[]) => TPromise<T> {
-
-	if (!callback) {
-		return;
-	}
-
-	let result = function(...args: any[]) {
-
-		let source = new CancellationTokenSource();
-
-		return new TPromise<T>((c, e) => {
-
-			args.push(source.token);
-			let value = callback.apply(context, args);
-
-			if (value && typeof value['then'] === 'function') {
-				value.then(c, e);
-			} else {
-				c(value);
-			}
-
-		}, function() {
-			source.cancel();
-		});
-	};
-
-	return result;
+export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | Thenable<T>): TPromise<T> {
+	let source = new CancellationTokenSource();
+	return new TPromise<T>((resolve, reject) => {
+		let item = callback(source.token);
+		if (isThenable<T>(item)) {
+			item.then(resolve, reject);
+		} else {
+			resolve(item);
+		}
+	}, () => {
+		source.cancel();
+	});
 }
 
 export interface ITask<T> {
@@ -90,10 +69,10 @@ export class Throttler {
 			this.queuedPromiseFactory = promiseFactory;
 
 			if (!this.queuedPromise) {
-				var onComplete = () => {
+				const onComplete = () => {
 					this.queuedPromise = null;
 
-					var result = this.queue(this.queuedPromiseFactory);
+					const result = this.queue(this.queuedPromiseFactory);
 					this.queuedPromiseFactory = null;
 
 					return result;
@@ -181,7 +160,7 @@ export class Delayer<T> {
 				this.completionPromise = null;
 				this.onSuccess = null;
 
-				var result = this.task();
+				const result = this.task();
 				this.task = null;
 
 				return result;
@@ -259,7 +238,7 @@ export class PeriodThrottledDelayer<T> extends ThrottledDelayer<T> {
 		return super.trigger(() => {
 			return this.periodThrottler.queue(() => {
 				return Promise.join([
-					Promise.timeout(this.minimumPeriod),
+					TPromise.timeout(this.minimumPeriod),
 					promiseFactory()
 				]).then(r => r[1]);
 			});
@@ -297,12 +276,12 @@ export class ShallowCancelThenPromise<T> extends TPromise<T> {
 
 	constructor(outer: TPromise<T>) {
 
-		var completeCallback: ValueCallback,
+		let completeCallback: ValueCallback,
 			errorCallback: ErrorCallback,
 			progressCallback: ProgressCallback;
 
 		super((c, e, p) => {
-			completeCallback = c,
+			completeCallback = c;
 			errorCallback = e;
 			progressCallback = p;
 		}, () => {
@@ -351,9 +330,9 @@ export function always<T>(promise: TPromise<T>, f: Function): TPromise<T> {
  * promise will complete to an array of results from each promise.
  */
 export function sequence<T>(promiseFactory: ITask<TPromise<T>>[]): TPromise<T[]> {
-	var results: T[] = [];
+	const results: T[] = [];
 
-	// Reverse since we start with last element using pop()
+	// reverse since we start with last element using pop()
 	promiseFactory = promiseFactory.reverse();
 
 	function next(): Promise {
@@ -369,7 +348,7 @@ export function sequence<T>(promiseFactory: ITask<TPromise<T>>[]): TPromise<T[]>
 			results.push(result);
 		}
 
-		var n = next();
+		const n = next();
 		if (n) {
 			return n.then(thenHandler);
 		}
@@ -377,7 +356,7 @@ export function sequence<T>(promiseFactory: ITask<TPromise<T>>[]): TPromise<T[]>
 		return TPromise.as(results);
 	}
 
-	return Promise.as(null).then(thenHandler);
+	return TPromise.as(null).then(thenHandler);
 }
 
 export interface IFunction<A, R> {
@@ -385,9 +364,9 @@ export interface IFunction<A, R> {
 }
 
 export function once<A, R>(fn: IFunction<A, R>): IFunction<A, R> {
-	var _this = this;
-	var didCall = false;
-	var result: R;
+	const _this = this;
+	let didCall = false;
+	let result: R;
 
 	return function() {
 		if (didCall) {
@@ -439,10 +418,10 @@ export class Limiter<T> {
 
 	private consume(): void {
 		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
-			var iLimitedTask = this.outstandingPromises.shift();
+			const iLimitedTask = this.outstandingPromises.shift();
 			this.runningPromises++;
 
-			var promise = iLimitedTask.factory();
+			const promise = iLimitedTask.factory();
 			promise.done(iLimitedTask.c, iLimitedTask.e, iLimitedTask.p);
 			promise.done(() => this.consumed(), () => this.consumed());
 		}
@@ -452,6 +431,76 @@ export class Limiter<T> {
 		this.runningPromises--;
 		this.consume();
 	}
+}
+
+export class TimeoutTimer extends Disposable {
+	private _token: platform.TimeoutToken;
+
+	constructor() {
+		super();
+		this._token = -1;
+	}
+
+	public dispose(): void {
+		this.cancel();
+		super.dispose();
+	}
+
+	public cancel(): void {
+		if (this._token !== -1) {
+			platform.clearTimeout(this._token);
+			this._token = -1;
+		}
+	}
+
+	public cancelAndSet(runner: () => void, timeout:number): void {
+		this.cancel();
+		this._token = platform.setTimeout(() => {
+			this._token = -1;
+			runner();
+		}, timeout);
+	}
+
+	public setIfNotSet(runner: () => void, timeout: number): void {
+		if (this._token !== -1) {
+			// timer is already set
+			return;
+		}
+		this._token = platform.setTimeout(() => {
+			this._token = -1;
+			runner();
+		}, timeout);
+	}
+}
+
+export class IntervalTimer extends Disposable {
+	private _token: platform.IntervalToken;
+
+	constructor() {
+		super();
+		this._token = -1;
+	}
+
+	public dispose(): void {
+		this.cancel();
+		super.dispose();
+	}
+
+	public cancel(): void {
+		if (this._token !== -1) {
+			platform.clearInterval(this._token);
+			this._token = -1;
+		}
+	}
+
+	public cancelAndSet(runner: () => void, interval:number): void {
+		this.cancel();
+		this._token = platform.setInterval(() => {
+			runner();
+		}, interval);
+	}
+
+
 }
 
 export class RunOnceScheduler {
@@ -480,7 +529,7 @@ export class RunOnceScheduler {
 	 * Cancel current scheduled runner (if any).
 	 */
 	public cancel(): void {
-		if (this.timeoutToken !== -1) {
+		if (this.isScheduled()) {
 			platform.clearTimeout(this.timeoutToken);
 			this.timeoutToken = -1;
 		}
@@ -506,6 +555,13 @@ export class RunOnceScheduler {
 	public schedule(): void {
 		this.cancel();
 		this.timeoutToken = platform.setTimeout(this.timeoutHandler, this.timeout);
+	}
+
+	/**
+	 * Returns true if scheduled.
+	 */
+	public isScheduled(): boolean {
+		return this.timeoutToken !== -1;
 	}
 
 	private onTimeout() {

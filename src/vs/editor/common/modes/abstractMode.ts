@@ -17,7 +17,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
-import {AsyncDescriptor0, AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
+import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 
 export function createWordRegExp(allowInWords:string = ''): RegExp {
 	return NullMode.createWordRegExp(allowInWords);
@@ -35,15 +35,12 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 
 	// adapters start
 	public autoValidateDelay:number;
-	public occurrencesSupport:Modes.IOccurrencesSupport;
 	public suggestSupport:Modes.ISuggestSupport;
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public diffSupport:Modes.IDiffSupport;
 	public dirtyDiffSupport:Modes.IDirtyDiffSupport;
 	public linkSupport:Modes.ILinkSupport;
 	public configSupport:Modes.IConfigurationSupport;
-	public commentsSupport:Modes.ICommentsSupport;
-	public tokenTypeClassificationSupport:Modes.ITokenTypeClassificationSupport;
 	public codeLensSupport:Modes.ICodeLensSupport;
 
 	// adapters end
@@ -63,15 +60,12 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 		this._options = null;
 
 		this.autoValidateDelay = 500;
-		this.occurrencesSupport = this;
 		this.suggestSupport = this;
 		this.inplaceReplaceSupport = this;
 		this.diffSupport = this;
 		this.dirtyDiffSupport = this;
 		this.linkSupport = this;
 		this.configSupport = this;
-		this.commentsSupport = this;
-		this.tokenTypeClassificationSupport = this;
 
 		this._workerPiecePromise = null;
 		this._simplifiedMode = null;
@@ -194,11 +188,6 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 		return true;
 	}
 
-	static $findOccurrences = OneWorkerAttr(AbstractMode, AbstractMode.prototype.findOccurrences);
-	public findOccurrences(resource:URI, position:EditorCommon.IPosition, strict:boolean = false): TPromise<Modes.IOccurence[]> {
-		return this._worker((w) => w.findOccurrences(resource, position, strict));
-	}
-
 	static $navigateValueSet = OneWorkerAttr(AbstractMode, AbstractMode.prototype.navigateValueSet);
 	public navigateValueSet(resource:URI, position:EditorCommon.IRange, up:boolean):TPromise<Modes.IInplaceReplaceSupportResult> {
 		return this._worker((w) => w.inplaceReplaceSupport.navigateValueSet(resource, position, up));
@@ -235,24 +224,12 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 	}
 
 	// END
-
-	public getWordDefinition():RegExp {
-		return NullMode.DEFAULT_WORD_REGEXP;
-	}
-
-	public getCommentsConfiguration():Modes.ICommentsConfiguration {
-		return null;
-	}
 }
 
 class SimplifiedMode implements Modes.IMode {
 
 	tokenizationSupport: Modes.ITokenizationSupport;
-	electricCharacterSupport: Modes.IElectricCharacterSupport;
-	commentsSupport: Modes.ICommentsSupport;
-	characterPairSupport: Modes.ICharacterPairSupport;
-	tokenTypeClassificationSupport: Modes.ITokenTypeClassificationSupport;
-	onEnterSupport: Modes.IOnEnterSupport;
+	richEditSupport: Modes.IRichEditSupport;
 
 	private _sourceMode: Modes.IMode;
 	private _eventEmitter: EventEmitter;
@@ -266,12 +243,12 @@ class SimplifiedMode implements Modes.IMode {
 
 		if (this._sourceMode.addSupportChangedListener) {
 			this._sourceMode.addSupportChangedListener((e) => {
-				if (e.tokenizationSupport || e.electricCharacterSupport || e.commentsSupport || e.characterPairSupport || e.tokenTypeClassificationSupport || e.onEnterSupport) {
+				if (e.tokenizationSupport || e.richEditSupport) {
 					this._assignSupports();
 					let newEvent = SimplifiedMode._createModeSupportChangedEvent(e);
 					this._eventEmitter.emit('modeSupportChanged', newEvent);
 				}
-			})
+			});
 		}
 	}
 
@@ -285,11 +262,7 @@ class SimplifiedMode implements Modes.IMode {
 
 	private _assignSupports(): void {
 		this.tokenizationSupport = this._sourceMode.tokenizationSupport;
-		this.electricCharacterSupport = this._sourceMode.electricCharacterSupport;
-		this.commentsSupport = this._sourceMode.commentsSupport;
-		this.characterPairSupport = this._sourceMode.characterPairSupport;
-		this.tokenTypeClassificationSupport = this._sourceMode.tokenTypeClassificationSupport;
-		this.onEnterSupport = this._sourceMode.onEnterSupport;
+		this.richEditSupport = this._sourceMode.richEditSupport;
 	}
 
 	private static _createModeSupportChangedEvent(originalModeEvent:EditorCommon.IModeSupportChangedEvent): EditorCommon.IModeSupportChangedEvent {
@@ -313,12 +286,8 @@ class SimplifiedMode implements Modes.IMode {
 			emitOutputSupport:false,
 			linkSupport:false,
 			configSupport:false,
-			electricCharacterSupport: originalModeEvent.electricCharacterSupport,
-			commentsSupport: originalModeEvent.commentsSupport,
-			characterPairSupport: originalModeEvent.characterPairSupport,
-			tokenTypeClassificationSupport: originalModeEvent.tokenTypeClassificationSupport,
 			quickFixSupport:false,
-			onEnterSupport: originalModeEvent.onEnterSupport
+			richEditSupport: originalModeEvent.richEditSupport,
 		};
 		return event;
 	}
@@ -399,7 +368,7 @@ export class FrankensteinMode extends AbstractMode<AbstractModeWorker> {
 }
 
 function _createModeSupportChangedEvent(...changedSupports: string[]): EditorCommon.IModeSupportChangedEvent {
-	var event = {
+	var event:EditorCommon.IModeSupportChangedEvent = {
 		codeLensSupport: false,
 		tokenizationSupport:false,
 		occurrencesSupport:false,
@@ -419,12 +388,8 @@ function _createModeSupportChangedEvent(...changedSupports: string[]): EditorCom
 		emitOutputSupport:false,
 		linkSupport:false,
 		configSupport:false,
-		electricCharacterSupport:false,
-		commentsSupport:false,
-		characterPairSupport:false,
-		tokenTypeClassificationSupport:false,
 		quickFixSupport:false,
-		onEnterSupport: false
+		richEditSupport: false
 	};
 	changedSupports.forEach(support => event[support] = true);
 	return event;

@@ -302,7 +302,7 @@ let findReferencesCommand: ICommandHandler = (accessor, args) => {
 		throw new Error('illegal argument, uri');
 	}
 	if (!position) {
-		throw new Error('illega argument, position')
+		throw new Error('illega argument, position');
 	}
 
 	return accessor.get(IEditorService).openEditor({ resource }).then(editor => {
@@ -317,7 +317,7 @@ let findReferencesCommand: ICommandHandler = (accessor, args) => {
 		let range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		return TPromise.as(controller.processRequest(range, request));
 	});
-}
+};
 
 let showReferencesCommand: ICommandHandler = (accessor, args:[URI, EditorCommon.IPosition, Modes.IReference[]]) => {
 	if (!(args[0] instanceof URI)) {
@@ -333,7 +333,7 @@ let showReferencesCommand: ICommandHandler = (accessor, args:[URI, EditorCommon.
 
 		let controller = FindReferencesController.getController(control);
 		let range = Position.asEmptyRange(args[1]);
-		return TPromise.as(controller.processRequest(Range.lift(range), TPromise.as(args[2])));
+		return TPromise.as(controller.processRequest(Range.lift(range), TPromise.as(args[2]))).then(() => true);
 	});
 };
 
@@ -349,14 +349,14 @@ KeybindingsRegistry.registerCommandDesc({
 	id: 'editor.action.findReferences',
 	handler: findReferencesCommand,
 	weight: CommonEditorRegistry.commandWeight(50),
-	context: [],
+	context: null,
 	primary: undefined
 });
 KeybindingsRegistry.registerCommandDesc({
 	id: 'editor.action.showReferences',
 	handler: showReferencesCommand,
 	weight: CommonEditorRegistry.commandWeight(50),
-	context: [],
+	context: null,
 	primary: undefined,
 	description: {
 		description: 'Show references at a position in a file',

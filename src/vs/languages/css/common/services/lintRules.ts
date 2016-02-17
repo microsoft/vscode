@@ -58,7 +58,7 @@ export function getConfigurationProperties(keyPrefix: string): { [path:string]:c
 		type: 'boolean',
 		default: true,
 		description: nls.localize('enableValidation', 'Enables or disables all validations')
-	}
+	};
 	for (var ruleName in Rules) {
 		var rule = Rules[ruleName];
 		properties[keyPrefix + '.lint.' + rule.id] = rule.getConfiguration();
@@ -67,7 +67,7 @@ export function getConfigurationProperties(keyPrefix: string): { [path:string]:c
 }
 
 export interface IConfigurationSettings {
-	[ruleId:string] : _level.Level
+	[ruleId:string] : _level.Level;
 }
 
 export function sanitize(conf:any): IConfigurationSettings {

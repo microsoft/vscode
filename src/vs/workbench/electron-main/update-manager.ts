@@ -8,9 +8,9 @@ import fs = require('fs');
 import path = require('path');
 import events = require('events');
 
+import electron = require('electron');
 import platform = require('vs/base/common/platform');
 import env = require('vs/workbench/electron-main/env');
-import storage = require('vs/workbench/electron-main/storage');
 import settings = require('vs/workbench/electron-main/settings');
 import {Win32AutoUpdaterImpl} from 'vs/workbench/electron-main/win32/auto-updater.win32';
 import {manager as Lifecycle} from 'vs/workbench/electron-main/lifecycle';
@@ -37,14 +37,12 @@ export interface IUpdate {
 	quitAndUpdate: () => void;
 }
 
-interface IAutoUpdater extends IEventEmitter {
-	setFeedUrl(url: string): void;
+interface IAutoUpdater extends NodeJS.EventEmitter {
+	setFeedURL(url: string): void;
 	checkForUpdates(): void;
 }
 
 export class UpdateManager extends events.EventEmitter {
-
-	private static DEFAULT_UPDATE_CHANNEL = 'stable';
 
 	private _state: State;
 	private explicitState: ExplicitState;
@@ -67,7 +65,7 @@ export class UpdateManager extends events.EventEmitter {
 		if (platform.isWindows) {
 			this.raw = new Win32AutoUpdaterImpl();
 		} else if (platform.isMacintosh) {
-			this.raw = <any>require.__$__nodeRequire('auto-updater'); // https://github.com/atom/electron/issues/3194
+			this.raw = electron.autoUpdater;
 		}
 
 		if (this.raw) {
@@ -78,6 +76,7 @@ export class UpdateManager extends events.EventEmitter {
 	private initRaw(): void {
 		this.raw.on('error', (event: any, message: string) => {
 			this.emit('error', event, message);
+			this.setState(State.Idle);
 		});
 
 		this.raw.on('checking-for-update', () => {
@@ -131,8 +130,8 @@ export class UpdateManager extends events.EventEmitter {
 			return; // already initialized
 		}
 
-		let channel = UpdateManager.getUpdateChannel();
-		let feedUrl = UpdateManager.getUpdateFeedUrl(channel);
+		const channel = UpdateManager.getUpdateChannel();
+		const feedUrl = UpdateManager.getUpdateFeedUrl(channel);
 
 		if (!feedUrl) {
 			return; // updates not available
@@ -141,7 +140,7 @@ export class UpdateManager extends events.EventEmitter {
 		this._channel = channel;
 		this._feedUrl = feedUrl;
 
-		this.raw.setFeedUrl(feedUrl);
+		this.raw.setFeedURL(feedUrl);
 		this.setState(State.Idle);
 
 		// Check for updates on startup after 30 seconds
@@ -184,18 +183,15 @@ export class UpdateManager extends events.EventEmitter {
 	}
 
 	private static getUpdateChannel(): string {
-		let channel = settings.manager.getValue('update.channel');
-		if (!channel) {
-			channel = storage.getItem<string>('updateChannel'); // TODO@Ben this should be removed after a couple of versions
-			if (!channel) {
-				channel = UpdateManager.DEFAULT_UPDATE_CHANNEL;
-			}
-		}
-
-		return channel;
+		const channel = settings.manager.getValue('update.channel') || 'default';
+		return channel === 'none' ? null : env.quality;
 	}
 
 	private static getUpdateFeedUrl(channel: string): string {
+		if (!channel) {
+			return null;
+		}
+
 		if (platform.isLinux) {
 			return null;
 		}
@@ -204,11 +200,11 @@ export class UpdateManager extends events.EventEmitter {
 			return null;
 		}
 
-		if (!env.updateInfo || !env.updateInfo.baseUrl || !env.product.commit) {
+		if (!env.updateUrl || !env.product.commit) {
 			return null;
 		}
 
-		return `${ env.updateInfo.baseUrl }/api/update/${ env.getPlatformIdentifier() }/${ channel }/${ env.product.commit }`;
+		return `${ env.updateUrl }/api/update/${ env.getPlatformIdentifier() }/${ channel }/${ env.product.commit }`;
 	}
 }
 

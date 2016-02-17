@@ -10,7 +10,6 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Mouse = require('vs/base/browser/mouseEvent');
 import DomUtils = require('vs/base/browser/dom');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EventEmitter = require('vs/base/common/eventEmitter');
 import MouseTarget = require('vs/editor/browser/controller/mouseTarget');
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import Lifecycle = require('vs/base/common/lifecycle');
@@ -94,7 +93,7 @@ export class MouseHandler extends ViewEventHandler implements Lifecycle.IDisposa
 	public viewController:EditorBrowser.IViewController;
 	public viewHelper:EditorBrowser.IPointerHandlerHelper;
 	public mouseTargetFactory: MouseTarget.MouseTargetFactory;
-	public listenersToRemove:EventEmitter.ListenerUnbind[];
+	public listenersToRemove:Lifecycle.IDisposable[];
 	private toDispose:Lifecycle.IDisposable[];
 
 	private hideTextAreaTimeout: number;
@@ -145,25 +144,25 @@ export class MouseHandler extends ViewEventHandler implements Lifecycle.IDisposa
 
 		this.lastMouseLeaveTime = -1;
 
-		this.listenersToRemove.push(DomUtils.addListener(this.viewHelper.viewDomNode, 'contextmenu',
+		this.listenersToRemove.push(DomUtils.addDisposableListener(this.viewHelper.viewDomNode, 'contextmenu',
 			(e: MouseEvent) => this._onContextMenu(e)));
 
 		this._mouseMoveEventHandler = new EventGateKeeper<Mouse.StandardMouseEvent>((e) => this._onMouseMove(e), () => !this.viewHelper.isDirty());
 		this.toDispose.push(this._mouseMoveEventHandler);
-		this.listenersToRemove.push(DomUtils.addThrottledListener(this.viewHelper.viewDomNode, 'mousemove',
+		this.listenersToRemove.push(DomUtils.addDisposableThrottledListener(this.viewHelper.viewDomNode, 'mousemove',
 			this._mouseMoveEventHandler.handler,
 			createMouseMoveEventMerger(this.mouseTargetFactory), MouseHandler.MOUSE_MOVE_MINIMUM_TIME));
 
 		this._mouseDownThenMoveEventHandler = new EventGateKeeper<Mouse.StandardMouseEvent>((e) => this._onMouseDownThenMove(e), () => !this.viewHelper.isDirty());
 		this.toDispose.push(this._mouseDownThenMoveEventHandler);
 
-		this.listenersToRemove.push(DomUtils.addListener(this.viewHelper.viewDomNode, 'mouseup',
+		this.listenersToRemove.push(DomUtils.addDisposableListener(this.viewHelper.viewDomNode, 'mouseup',
 			(e: MouseEvent) => this._onMouseUp(e)));
 
-		this.listenersToRemove.push(DomUtils.addNonBubblingMouseOutListener(this.viewHelper.viewDomNode,
+		this.listenersToRemove.push(DomUtils.addDisposableNonBubblingMouseOutListener(this.viewHelper.viewDomNode,
 			(e:MouseEvent) => this._onMouseLeave(e)));
 
-		this.listenersToRemove.push(DomUtils.addListener(this.viewHelper.viewDomNode, 'mousedown',
+		this.listenersToRemove.push(DomUtils.addDisposableListener(this.viewHelper.viewDomNode, 'mousedown',
 			(e: MouseEvent) => this._onMouseDown(e)));
 
 
@@ -172,10 +171,7 @@ export class MouseHandler extends ViewEventHandler implements Lifecycle.IDisposa
 
 	public dispose(): void {
 		this.context.removeEventHandler(this);
-		this.listenersToRemove.forEach((element) => {
-			element();
-		});
-		this.listenersToRemove = [];
+		this.listenersToRemove = Lifecycle.disposeAll(this.listenersToRemove);
 		this.toDispose = Lifecycle.disposeAll(this.toDispose);
 		this._unhook();
 		if (this.hideTextAreaTimeout !== -1) {

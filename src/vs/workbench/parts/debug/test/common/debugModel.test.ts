@@ -6,7 +6,6 @@
 import assert = require('assert');
 import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
-import debug = require('vs/workbench/parts/debug/common/debug');
 import debugmodel = require('vs/workbench/parts/debug/common/debugModel');
 
 suite('Debug - Model', () => {
@@ -153,11 +152,9 @@ suite('Debug - Model', () => {
 		assert.equal(elements[0].value, 'first line');
 		assert.equal(elements[0].counter, 1);
 		assert.equal(elements[0].severity, severity.Error);
-		assert.equal(elements[0].grouped, false);
 		assert.equal(elements[1].value, 'second line');
 		assert.equal(elements[1].counter, 2);
 		assert.equal(elements[1].severity, severity.Warning);
-		assert.equal(elements[1].grouped, false);
 
 		model.appendReplOutput('1', severity.Error);
 		model.appendReplOutput('2', severity.Error);
@@ -184,7 +181,8 @@ suite('Debug - Model', () => {
 		assert.equal(debugmodel.getFullExpressionName(new debugmodel.Expression(null, false), type), null);
 		assert.equal(debugmodel.getFullExpressionName(new debugmodel.Expression('son', false), type), 'son');
 
-		const son = new debugmodel.Variable(new debugmodel.Variable(new debugmodel.Variable(null, 0, 'grandfather', '75'), 0, 'father', '45'), 0, 'son', '20');
+		const scope = new debugmodel.Scope(1, 'myscope', 1, false);
+		const son = new debugmodel.Variable(new debugmodel.Variable(new debugmodel.Variable(scope, 0, 'grandfather', '75'), 0, 'father', '45'), 0, 'son', '20');
 		assert.equal(debugmodel.getFullExpressionName(son, type), 'grandfather.father.son');
 
 		const grandson = new debugmodel.Variable(son, 0, '/weird_name', '1');

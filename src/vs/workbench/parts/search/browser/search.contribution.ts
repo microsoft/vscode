@@ -6,9 +6,8 @@
 'use strict';
 
 import 'vs/css!./media/search.contribution';
-import env = require('vs/base/common/platform');
 import {Registry} from 'vs/platform/platform';
-import {IViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction} from 'vs/workbench/browser/viewlet';
+import {ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction} from 'vs/workbench/browser/viewlet';
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
 import nls = require('vs/nls');
 import {IAction} from 'vs/base/common/actions';
@@ -16,15 +15,15 @@ import {asFileResource} from 'vs/workbench/parts/files/common/files';
 import {SyncActionDescriptor, DeferredAction} from 'vs/platform/actions/common/actions';
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
+import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions} from 'vs/workbench/browser/quickopen';
 import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
@@ -34,15 +33,14 @@ export const VIEWLET_ID = 'workbench.view.search';
 KeybindingsRegistry.registerCommandDesc({
 	id: 'workbench.action.search.toggleQueryDetails',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	context: [{ key: 'searchViewletVisible' }],
+	context: KbExpr.has('searchViewletVisible'),
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_J,
-	handler: ctx => {
-		let viewletService = <IViewletService>ctx['viewletService'];
+	handler: accessor => {
+		let viewletService = accessor.get(IViewletService);
 		viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => (<any>viewlet).toggleFileTypes());
 	}
 });
-
 
 class OpenSearchViewletAction extends ToggleViewletAction {
 	public static ID = VIEWLET_ID;
@@ -54,7 +52,6 @@ class OpenSearchViewletAction extends ToggleViewletAction {
 }
 
 class ExplorerViewerActionContributor extends ActionBarContributor {
-
 	private _instantiationService: IInstantiationService;
 	private _contextService: IWorkspaceContextService;
 
@@ -111,7 +108,7 @@ class ShowAllSymbolsAction extends QuickOpenAction {
 }
 
 // Register Viewlet
-(<IViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).registerViewlet(new ViewletDescriptor(
+(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).registerViewlet(new ViewletDescriptor(
 	'vs/workbench/parts/search/browser/searchViewlet',
 	'SearchViewlet',
 	VIEWLET_ID,
@@ -197,11 +194,6 @@ configurationRegistry.registerConfiguration({
 					}
 				]
 			}
-		},
-		'search.fuzzyFilePicker': {
-			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('enableFuzzy', "Enable or disable fuzzy matching and sorting in the file picker.")
 		}
 	}
 });

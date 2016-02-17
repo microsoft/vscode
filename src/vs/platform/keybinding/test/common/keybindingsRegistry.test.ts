@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 suite('Keybinding Registry', () => {
@@ -17,7 +17,7 @@ suite('Keybinding Registry', () => {
 			primary: undefined,
 			weight: 0,
 			handler: function(accessor, args) {
-				assert.ok(typeof args === 'string')
+				assert.ok(typeof args === 'string');
 			}
 		});
 
@@ -28,7 +28,7 @@ suite('Keybinding Registry', () => {
 			primary: undefined,
 			weight: 0,
 			handler: function(accessor, args) {
-				assert.ok(typeof args === 'string')
+				assert.ok(typeof args === 'string');
 			}
 		});
 

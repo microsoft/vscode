@@ -3,6 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// disable electron's asar support early on because bootstrap.js is used in forked processes
+// where the environment is purely node based. this will instruct electron to not treat files
+// with *.asar ending any special from normal files.
+process.noAsar = true;
+
 // Will be defined if we got forked from another node process
 // In that case we override console.log/warn/error to be able
 // to send loading issues to the main side for logging.
@@ -81,17 +86,18 @@ if (!!process.send && process.env.PIPE_LOGGING === 'true') {
 	}
 
 	console.error = function () { safeSend({ type: '__$console', severity: 'error', arguments: safeStringify(arguments) }); };
-
-	// Let stdout, stderr and stdin be no-op streams. This prevents an issue where we would get an EBADF
-	// error when we are inside a forked process and this process tries to access those channels.
-	var stream = require('stream');
-	var writable = new stream.Writable({
-		write: function (chunk, encoding, next) { /* No OP */ }
-	});
-	process.__defineGetter__('stdout', function() { return writable; });
-	process.__defineGetter__('stderr', function() { return writable; });
-	process.__defineGetter__('stdin', function() { return writable; });
 }
+
+// Let stdout, stderr and stdin be no-op streams. This prevents an issue where we would get an EBADF
+// error when we are inside a forked process and this process tries to access those channels.
+var stream = require('stream');
+var writable = new stream.Writable({
+	write: function (chunk, encoding, next) { /* No OP */ }
+});
+
+process.__defineGetter__('stdout', function() { return writable; });
+process.__defineGetter__('stderr', function() { return writable; });
+process.__defineGetter__('stdin', function() { return writable; });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', function (err) {
@@ -101,31 +107,4 @@ process.on('uncaughtException', function (err) {
 	}
 });
 
-var path = require('path');
-var loader = require('./vs/loader');
-
-// TODO: Duplicated in:
-// * src\bootstrap.js
-// * src\vs\workbench\electron-main\bootstrap.js
-// * src\vs\platform\plugins\common\nativePluginService.ts
-function uriFromPath(_path) {
-	var pathName = path.resolve(_path).replace(/\\/g, '/');
-
-	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
-		pathName = '/' + pathName;
-	}
-
-	return encodeURI('file://' + pathName);
-}
-
-loader.config({
-	baseUrl: uriFromPath(path.join(__dirname)),
-	catchError: true,
-	nodeRequire: require,
-	nodeMain: __filename
-});
-
-var entrypoint = process.env.AMD_ENTRYPOINT;
-if (entrypoint) {
-	loader([entrypoint], function () { }, function (err) { console.error(err); });
-}
+require('./bootstrap-amd').bootstrap(process.env['AMD_ENTRYPOINT']);

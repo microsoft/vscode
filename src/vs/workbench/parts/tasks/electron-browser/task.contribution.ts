@@ -17,19 +17,15 @@ import * as Objects from 'vs/base/common/objects';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
 import * as Dom from 'vs/base/browser/dom';
-import { IDisposable, cAll } from 'vs/base/common/lifecycle';
+import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { EventEmitter, ListenerUnbind } from 'vs/base/common/eventEmitter';
 import * as Builder from 'vs/base/browser/builder';
 import URI from 'vs/base/common/uri';
 import * as Types from 'vs/base/common/types';
-import * as Strings from 'vs/base/common/strings';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { match } from 'vs/base/common/glob';
-import { setTimeout } from 'vs/base/common/platform'
-import { Executable, TerminateResponse, resolveExecutable } from 'vs/base/common/processes';
-import { ISystemVariables, AbstractSystemVariables } from 'vs/base/common/parsers';
-
-import { LineProcess, LineData } from 'vs/base/node/processes';
+import { setTimeout } from 'vs/base/common/platform';
+import { TerminateResponse } from 'vs/base/common/processes';
 
 import { Registry } from 'vs/platform/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -44,7 +40,6 @@ import { IFileService, FileChangesEvent, FileChangeType, EventType as FileEventT
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPluginService } from 'vs/platform/plugins/common/plugins';
 
-import { IModel } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
@@ -53,16 +48,16 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 
-import workbenchActionRegistry = require('vs/workbench/browser/actionRegistry');
+import workbenchActionRegistry = require('vs/workbench/common/actionRegistry');
 import statusbar = require('vs/workbench/browser/parts/statusbar/statusbar');
 import QuickOpen = require('vs/workbench/browser/quickopen');
 
-import { IQuickOpenService } from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 
 import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
-import { ITextFileService, EventType, TextFileChangeEvent } from 'vs/workbench/parts/files/common/files';
+import { ITextFileService, EventType } from 'vs/workbench/parts/files/common/files';
 import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/parts/output/common/output';
 
 import { ITaskSystem, ITaskSummary, ITaskRunResult, TaskError, TaskConfiguration, TaskDescription, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
@@ -214,7 +209,7 @@ class ConfigureTaskRunnerAction extends Action {
 					forceOpen: true
 				}
 			}, sideBySide).then((value) => {
-				this.outputService.showOutput(TaskService.OutputChannel, true, true);
+				this.outputService.showOutput(TaskService.OutputChannel, true);
 				return value;
 			});
 		}, (error) => {
@@ -237,7 +232,7 @@ class CloseMessageAction extends Action {
 		if (this.closeFunction) {
 			this.closeFunction();
 		}
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -295,7 +290,7 @@ class RunTaskAction extends Action {
 
 	public run(event?:any): Promise {
 		this.quickOpenService.show('task ');
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -324,7 +319,7 @@ class StatusBarItem implements statusbar.IStatusbarItem {
 
 	public render(container: HTMLElement): IDisposable {
 
-		let callOnDispose: Function[] = [],
+		let callOnDispose: IDisposable[] = [],
 			element = document.createElement('div'),
 			// icon = document.createElement('a'),
 			progress = document.createElement('div'),
@@ -362,7 +357,7 @@ class StatusBarItem implements statusbar.IStatusbarItem {
 //			this.outputService.showOutput(TaskService.OutputChannel, e.ctrlKey || e.metaKey, true);
 //		}));
 
-		callOnDispose.push(Dom.addListener(label, 'click', (e:MouseEvent) => {
+		callOnDispose.push(Dom.addDisposableListener(label, 'click', (e:MouseEvent) => {
 			this.quickOpenService.show('!');
 		}));
 
@@ -389,7 +384,7 @@ class StatusBarItem implements statusbar.IStatusbarItem {
 			updateLabel(this.markerService.getStatistics());
 		});
 
-		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Active, () => {
+		callOnDispose.push(this.taskService.addListener2(TaskServiceEvents.Active, () => {
 			this.activeCount++;
 			if (this.activeCount === 1) {
 				let index = 1;
@@ -406,7 +401,7 @@ class StatusBarItem implements statusbar.IStatusbarItem {
 			}
 		}));
 
-		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Inactive, (data:TaskServiceEventData) => {
+		callOnDispose.push(this.taskService.addListener2(TaskServiceEvents.Inactive, (data:TaskServiceEventData) => {
 			this.activeCount--;
 			if (this.activeCount === 0) {
 				$(progress).hide();
@@ -415,7 +410,7 @@ class StatusBarItem implements statusbar.IStatusbarItem {
 			}
 		}));
 
-		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Terminated, () => {
+		callOnDispose.push(this.taskService.addListener2(TaskServiceEvents.Terminated, () => {
 			if (this.activeCount !== 0) {
 				$(progress).hide();
 				if (this.intervalToken) {
@@ -429,7 +424,9 @@ class StatusBarItem implements statusbar.IStatusbarItem {
 		container.appendChild(element);
 
 		return {
-			dispose: () => cAll(callOnDispose)
+			dispose: () => {
+				callOnDispose = disposeAll(callOnDispose);
+			}
 		};
 	}
 }
@@ -460,6 +457,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	private _taskSystemPromise: TPromise<ITaskSystem>;
 	private _taskSystem: ITaskSystem;
 	private taskSystemListeners: ListenerUnbind[];
+	private clearTaskSystemPromise: boolean;
 
 	private fileChangesListener: ListenerUnbind;
 
@@ -487,10 +485,15 @@ class TaskService extends EventEmitter implements ITaskService {
 		this.pluginService = pluginService;
 
 		this.taskSystemListeners = [];
+		this.clearTaskSystemPromise = false;
 		this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, () => {
 			this.emit(TaskServiceEvents.ConfigChanged);
-			this._taskSystem = null;
-			this._taskSystemPromise = null;
+			if (this._taskSystem && this._taskSystem.isActiveSync()) {
+				this.clearTaskSystemPromise = true;
+			} else {
+				this._taskSystem = null;
+				this._taskSystemPromise = null;
+			}
 			this.disposeTaskSystemListeners();
 		});
 
@@ -502,7 +505,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		this.taskSystemListeners = [];
 	}
 
-	private disposeFleChangesListener(): void {
+	private disposeFileChangesListener(): void {
 		if (this.fileChangesListener) {
 			this.fileChangesListener();
 			this.fileChangesListener = null;
@@ -525,7 +528,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					}
 					if (isAffected) {
 						this.outputService.append(TaskService.OutputChannel, nls.localize('TaskSystem.invalidTaskJson', 'Error: The content of the tasks.json file has syntax errors. Please correct them before executing a task.\n'));
-						this.outputService.showOutput(TaskService.OutputChannel, true, true);
+						this.outputService.showOutput(TaskService.OutputChannel, true);
 						return TPromise.wrapError({});
 					}
 				}
@@ -599,7 +602,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				result = false;
 				this.outputService.append(TaskService.OutputChannel, line + '\n');
 			});
-			this.outputService.showOutput(TaskService.OutputChannel, true, true);
+			this.outputService.showOutput(TaskService.OutputChannel, true);
 		}
 		return result;
 	}
@@ -659,12 +662,18 @@ class TaskService extends EventEmitter implements ITaskService {
 									// We need to give the child process a change to stop.
 									setTimeout(() => {
 										this.executeTarget(fn);
-									}, 2000)
+									}, 2000);
 								});
 							}
 						});
 					}
-					return runResult.promise;
+					return runResult.promise.then((value) => {
+						if (this.clearTaskSystemPromise) {
+							this._taskSystemPromise = null;
+							this.clearTaskSystemPromise = false;
+						}
+						return value;
+					});
 				}, (err: any) => {
 					this.handleError(err);
 				});
@@ -684,8 +693,12 @@ class TaskService extends EventEmitter implements ITaskService {
 					return taskSystem.terminate();
 				}).then(response => {
 					if (response.success) {
+						if (this.clearTaskSystemPromise) {
+							this._taskSystemPromise = null;
+							this.clearTaskSystemPromise = false;
+						}
 						this.emit(TaskServiceEvents.Terminated, {});
-						this.disposeFleChangesListener();
+						this.disposeFileChangesListener();
 					}
 					return response;
 				});
@@ -699,15 +712,15 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	public beforeShutdown(): boolean | TPromise<boolean> {
 		if (this._taskSystem && this._taskSystem.isActiveSync()) {
-			if (this.messageService.confirm({
+			if (this._taskSystem.canAutoTerminate() || this.messageService.confirm({
 				message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
-				primaryButton: nls.localize('TaskSystem.terminateTask', "Terminate Task")
+				primaryButton: nls.localize('TaskSystem.terminateTask', "&&Terminate Task")
 			})) {
 				return this._taskSystem.terminate().then((response) => {
 					if (response.success) {
 						this.emit(TaskServiceEvents.Terminated, {});
 						this._taskSystem = null;
-						this.disposeFleChangesListener();
+						this.disposeFileChangesListener();
 						this.disposeTaskSystemListeners();
 						return false; // no veto
 					}
@@ -745,7 +758,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.messageService.show(Severity.Error, nls.localize('TaskSystem.unknownError', 'An error has occurred while running a task. See task log for details.'));
 		}
 		if (showOutput) {
-			this.outputService.showOutput(TaskService.OutputChannel, false, true);
+			this.outputService.showOutput(TaskService.OutputChannel, true);
 		}
 	}
 }
@@ -798,7 +811,7 @@ if (Env.enableTasks) {
 	(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(TaskServiceParticipant);
 
 	// tasks.json validation
-	let schemaId = 'local://schemas/tasks';
+	let schemaId = 'vscode://schemas/tasks';
 	let schema : IJSONSchema =
 		{
 			'id': schemaId,
@@ -954,6 +967,11 @@ if (Env.enableTasks) {
 							'enum': ['error', 'warning', 'info'],
 							'description': nls.localize('JsonSchema.problemMatcher.severity', 'The default severity for captures problems. Is used if the pattern doesn\' define a match group for severity.')
 						},
+						'applyTo': {
+							'type': 'string',
+							'enum': ['allDocuments', 'openDocuments', 'closedDocuments'],
+							'description': nls.localize('JsonSchema.problemMatcher.applyTo', 'Controls if a problem reported on a text document is applied only to open, closed or all documents.')
+						},
 						'pattern': {
 							'$ref': '#/definitions/patternType',
 							'description': nls.localize('JsonSchema.problemMatcher.pattern', 'A problem pattern or the name of a predefined problem pattern. Can be omitted if base is specified.')
@@ -1059,6 +1077,11 @@ if (Env.enableTasks) {
 							'type': 'boolean',
 							'description': nls.localize('JsonSchema.watching', 'Whether the executed task is kept alive and is watching the file system.'),
 							'default': true
+						},
+						'promptOnClose': {
+							'type': 'boolean',
+							'description': nls.localize('JsonSchema.promptOnClose', 'Whether the user is prompted when VS Code closes with a running background task.'),
+							'default': false
 						},
 						'echoCommand': {
 							'type': 'boolean',

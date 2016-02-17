@@ -9,7 +9,7 @@ import PHPCompletionItemProvider from './features/completionItemProvider';
 import PHPHoverProvider from './features/hoverProvider';
 import PHPSignatureHelpProvider from './features/signatureHelpProvider';
 import PHPValidationProvider from './features/validationProvider';
-import {ExtensionContext, languages, extensions} from 'vscode';
+import {ExtensionContext, languages} from 'vscode';
 
 export function activate(context: ExtensionContext): any {
 
@@ -23,6 +23,6 @@ export function activate(context: ExtensionContext): any {
 
 	// need to set in the plugin host as well as the completion provider uses it.
 	languages.setLanguageConfiguration('php', {
-		wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
+		wordPattern: /(-?\d*\.\d\w*)|([^\-\`\~\!\@\#\%\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
 	});
 }

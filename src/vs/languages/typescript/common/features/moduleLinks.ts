@@ -12,7 +12,7 @@ import modulePaths = require('vs/languages/typescript/common/modulePaths');
 import converter = require('vs/languages/typescript/common/features/converter');
 
 interface ILinkFinder {
-	(sourceFile: ts.SourceFile, offset: number): { path: string; external: boolean; }
+	(sourceFile: ts.SourceFile, offset: number): { path: string; external: boolean; };
 }
 
 function tripleSlashLinkFinder(sourceFile: ts.SourceFile, offset: number): { path: string; external: boolean; } {

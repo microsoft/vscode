@@ -32,5 +32,5 @@ class SelectBracketAction extends EditorAction {
 // register actions
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SelectBracketAction, SelectBracketAction.ID, nls.localize('smartSelect.jumpBracket', "Go to Bracket"), {
 	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH
 }));

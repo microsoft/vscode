@@ -10,12 +10,9 @@ import paths = require('vs/base/common/paths');
 import Strings = require('vs/base/common/strings');
 import {IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
 import {EverywhereAttr, registerThreadSynchronizableObject} from 'vs/platform/thread/common/threadService';
-import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry, IExtensionPointUser, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
 import Mime = require('vs/base/common/mime');
 import Errors = require('vs/base/common/errors');
-import {AsyncDescriptor1, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
-import {IMode, IModeDescriptor} from 'vs/editor/common/modes';
 import Event, {Emitter} from 'vs/base/common/event';
 
 interface ILanguagePointData {
@@ -24,7 +21,7 @@ interface ILanguagePointData {
 	name2LanguageId: { [name: string]: string; };
 	name2Extensions: { [name: string]: string[]; };
 	id2Name: { [id: string]: string; };
-	compatModes: { [id: string]: AsyncDescriptor1<IModeDescriptor, IMode>; };
+	compatModes: { [id: string]: ICompatModeDescriptor; };
 	lowerName2Id: { [name: string]: string; };
 }
 
@@ -62,6 +59,14 @@ let languagesExtPoint = PluginsRegistry.registerExtensionPoint<ILanguageExtensio
 					type: 'string'
 				}
 			},
+			filenamePatterns: {
+				description: nls.localize('vscode.extension.contributes.languages.filenamePatterns', 'File name glob patterns associated to the language.'),
+				default: ['bar*foo.txt'],
+				type: 'array',
+				item: {
+					type: 'string'
+				}
+			},
 			mimetypes: {
 				description: nls.localize('vscode.extension.contributes.languages.mimetypes', 'Mime types associated to the language.'),
 				type: 'array',
@@ -85,6 +90,7 @@ export interface ILanguageExtensionPoint {
 	id: string;
 	extensions?: string[];
 	filenames?: string[];
+	filenamePatterns?: string[];
 	firstLine?: string;
 	aliases?: string[];
 	mimetypes?: string[];
@@ -158,7 +164,6 @@ export interface ILanguageExtensionPointHandler {
 
 	isRegisteredMode(mimetypeOrModeId: string): boolean;
 	getRegisteredModes(): string[];
-	getRegisteredMimetypes(): string[];
 	getRegisteredLanguageNames(): string[];
 	getLanguageName(modeId: string): string;
 	getExtensions(languageName: string): string[];
@@ -168,7 +173,12 @@ export interface ILanguageExtensionPointHandler {
 	extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIdsOrName: string): string[];
 	getModeIdsFromLanguageName(languageName: string): string[];
 	getModeIdsFromFilenameOrFirstLine(filename: string, firstLine?:string): string[];
-	getCompatMode(modeId: string): AsyncDescriptor1<IModeDescriptor, IMode>;
+	getCompatMode(modeId: string): ICompatModeDescriptor;
+}
+
+export interface ICompatModeDescriptor {
+	moduleId: string;
+	ctorName: string;
 }
 
 class LanguageExtensionPointHandler implements IThreadSynchronizableObject<ILanguagePointData>, ILanguageExtensionPointHandler {
@@ -178,7 +188,7 @@ class LanguageExtensionPointHandler implements IThreadSynchronizableObject<ILang
 	private name2LanguageId: { [name: string]: string; };
 	private name2Extensions: { [name: string]: string[]; };
 	private id2Name: { [id: string]: string; };
-	private compatModes: { [id: string]: AsyncDescriptor1<IModeDescriptor, IMode>; };
+	private compatModes: { [id: string]: ICompatModeDescriptor; };
 	private lowerName2Id: { [name: string]: string; };
 	private id2ConfigurationFiles: { [id:string]: string[]; };
 
@@ -243,7 +253,10 @@ class LanguageExtensionPointHandler implements IThreadSynchronizableObject<ILang
 			mimetypes: def.mimetypes
 		});
 
-		this.compatModes[def.id] = createAsyncDescriptor1<IModeDescriptor, IMode>(def.moduleId, def.ctorName);
+		this.compatModes[def.id] = {
+			moduleId: def.moduleId,
+			ctorName: def.ctorName
+		};
 	}
 
 	public _handleLanguagesExtensionPointUsers(extensions:IExtensionPointUser<ILanguageExtensionPoint[]>[]): void {
@@ -290,13 +303,6 @@ class LanguageExtensionPointHandler implements IThreadSynchronizableObject<ILang
 		}
 	}
 
-	private _setMime2LanguageId(mimeType:string, modeId:string): void {
-		if (this.mime2LanguageId[mimeType] && this.mime2LanguageId[mimeType] !== modeId) {
-			console.warn('Overwriting mime <<' + mimeType + '>> to now point to modeId <<' + modeId + '>>');
-		}
-		this.mime2LanguageId[mimeType] = modeId;
-	}
-
 	public registerLanguage(lang: ILanguageExtensionPoint): void {
 		this._onLanguage(lang);
 	}
@@ -320,15 +326,21 @@ class LanguageExtensionPointHandler implements IThreadSynchronizableObject<ILang
 			this.mime2LanguageId[primaryMime] = lang.id;
 		}
 
-		if (typeof lang.extensions !== 'undefined' && Array.isArray(lang.extensions)) {
-			for (var i = 0; i < lang.extensions.length; i++) {
-				Mime.registerTextMimeByFilename(lang.extensions[i], primaryMime);
+		if (Array.isArray(lang.extensions)) {
+			for (let extension of lang.extensions) {
+				Mime.registerTextMimeByFilename(extension, primaryMime);
 			}
 		}
 
-		if (typeof lang.filenames !== 'undefined' && Array.isArray(lang.filenames)) {
-			for (var i = 0; i < lang.filenames.length; i++) {
-				Mime.registerTextMimeByFilename(lang.filenames[i], primaryMime);
+		if (Array.isArray(lang.filenames)) {
+			for (let filename of lang.filenames) {
+				Mime.registerTextMimeByFilename(filename, primaryMime);
+			}
+		}
+
+		if (Array.isArray(lang.filenamePatterns)) {
+			for (let filenamePattern of lang.filenamePatterns) {
+				Mime.registerTextMimeByFilename(filenamePattern, primaryMime);
 			}
 		}
 
@@ -383,10 +395,6 @@ class LanguageExtensionPointHandler implements IThreadSynchronizableObject<ILang
 
 	public getRegisteredModes(): string[] {
 		return Object.keys(this.knownModeIds);
-	}
-
-	public getRegisteredMimetypes(): string[] {
-		return Object.keys(this.mime2LanguageId);
 	}
 
 	public getRegisteredLanguageNames(): string[]{
@@ -456,7 +464,7 @@ class LanguageExtensionPointHandler implements IThreadSynchronizableObject<ILang
 		return this.extractModeIds(mimeTypes.join(','));
 	}
 
-	public getCompatMode(modeId: string): AsyncDescriptor1<IModeDescriptor, IMode> {
+	public getCompatMode(modeId: string): ICompatModeDescriptor {
 		return this.compatModes[modeId] || null;
 	}
 
