@@ -665,7 +665,6 @@ class ConfigurationParser {
 			let json = <ProblemMatcherConfig.ProblemMatcher>value;
 			return new ProblemMatcherParser(ProblemMatcherRegistry, this.logger, this.validationStatus).parse(json);
 		}
-		return null;
 	}
 }
 

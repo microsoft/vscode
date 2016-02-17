@@ -93,6 +93,6 @@ function attr(target:HTMLElement, attrName:string, attrValue:string): void {
 	target.setAttribute(attrName, attrValue);
 }
 
-if (false) { //TODO@Debt
-	EditorBrowserRegistry.registerEditorContribution(WorkerStatusReporter);
-}
+// if (false) { //TODO@Debt
+// 	EditorBrowserRegistry.registerEditorContribution(WorkerStatusReporter);
+// }

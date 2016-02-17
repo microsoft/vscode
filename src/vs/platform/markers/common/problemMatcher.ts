@@ -115,7 +115,7 @@ export interface NamedProblemMatcher extends ProblemMatcher {
 }
 
 export function isNamedProblemMatcher(value: ProblemMatcher): value is NamedProblemMatcher {
-	return Types.isString((<NamedProblemMatcher>value).name);
+	return Types.isString((<NamedProblemMatcher>value).name) ? true : false;
 }
 
 let valueMap: { [key: string]: string; } = {

@@ -266,8 +266,8 @@ suite('Flow', () => {
 				if (true) {
 					throw new Error("");
 				}
-				assertionCount++;
-				syncGet(null, this);
+				// assertionCount++;
+				// syncGet(null, this);
 			},
 
 			function handleThird(third) {
@@ -332,8 +332,8 @@ suite('Flow', () => {
 				if (true) {
 					throw new Error("");
 				}
-				assertionCount++;
-				asyncGet(null, this);
+				// assertionCount++;
+				// asyncGet(null, this);
 			},
 
 			function handleThird(third) {

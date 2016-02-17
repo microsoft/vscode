@@ -162,7 +162,7 @@ function isRangeWithMessageArr(something: vscode.Range[]|vscode.DecorationOption
 	if (something.length === 0) {
 		return true;
 	}
-	return isRangeWithMessage(something[0]);
+	return isRangeWithMessage(something[0]) ? true : false;
 }
 
 export function fromRangeOrRangeWithMessage(ranges:vscode.Range[]|vscode.DecorationOptions[]): IRangeWithMessage[] {

@@ -107,13 +107,17 @@ export class MockNode extends MockEventTarget implements Node {
 		this.appendChild(this.ownerDocument.createTextNode(value));
 	}
 
-	removeChild(oldChild: Node): Node {
+	public removeChild(oldChild: Node): Node {
 		var i = this._childNodes.indexOf(oldChild);
 		if(i >= 0) {
 			var removed = this._childNodes.splice(i, 1);
 			return removed[0];
 		}
 		return null;
+	}
+
+	public contains(node: Node): boolean {
+		return this._childNodes.indexOf(node) !== -1;
 	}
 
 	appendChild(newChild: Node): Node {
@@ -238,6 +242,14 @@ export class MockElement extends MockNode implements Element {
 		return filter.length ? filter[0].value : '';
 	}
 
+	get innerHTML(): string {
+		throw new Error('Not implemented!');
+	}
+
+	set innerHTML(value: string) {
+		throw new Error('Not implemented!');
+	}
+
 	getElementsByTagNameNS(namespaceURI: string, localName: string): NodeListOf<Element> {
 		throw new Error('Not implemented!');
 	}
@@ -299,6 +311,10 @@ export class MockElement extends MockNode implements Element {
 		this._attributes.push(attr);
 	}
 	removeAttributeNS(namespaceURI: string, localName: string): void {
+		throw new Error('Not implemented!');
+	}
+
+	matches(selector: string): boolean {
 		throw new Error('Not implemented!');
 	}
 
@@ -750,7 +766,6 @@ class AttributeValueParser implements IParserState {
 				else {
 					return this.attribute;
 				}
-				break;
 			default:
 				if(this.quote === false) {
 					return new ErrorState('Expected " character');

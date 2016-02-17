@@ -112,7 +112,6 @@ export class Parser {
 				this.token = this.scanner.scan();
 			}
 		}
-		return false;
 	}
 
 	public createNode(nodeType:nodes.NodeType): nodes.Node {
