@@ -21,7 +21,6 @@ define([
 
 	// Languages
 	'vs/languages/languages.main',
-	'vs/languages/typescript.workbench/common/contribution',
 
 	// Workbench
 	'vs/workbench/browser/actions/toggleSidebarVisibility',

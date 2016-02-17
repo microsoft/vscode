@@ -63,7 +63,6 @@ var vscodeResources = [
 	'out-build/vs/base/worker/workerMain.{js,js.map}',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/editor/css/*.css',
-	'out-build/vs/languages/typescript/common/lib/lib.{d.ts,es6.d.ts}',
 	'out-build/vs/languages/markdown/common/*.css',
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/electron-browser/index.html',
