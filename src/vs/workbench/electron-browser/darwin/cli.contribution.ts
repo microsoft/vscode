@@ -198,7 +198,7 @@ class DarwinCLIHelper implements IWorkbenchContribution {
 				const message = nls.localize('update', "Code needs to change the '{0}' shell command. Would you like to do this now?", installAction.applicationName);
 				const now = new Action('changeNow', nls.localize('changeNow', "Change Now"), '', true, () => installAction.run());
 				const later = new Action('later', nls.localize('later', "Later"), '', true, () => {
-					messageService.show(Severity.Info, nls.localize('laterInfo', "Remember you can always run the '{0}' action from the command palette.", installAction.label));
+					messageService.show(Severity.Info, nls.localize('laterInfo', "Remember you can always run the '{0}' action from the Command Palette.", installAction.label));
 					return null;
 				});
 				const actions = [later, now];
