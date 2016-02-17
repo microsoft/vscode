@@ -12,6 +12,6 @@
 		"out*/**": true,
 		"extensions/**/out/**": true
 	},
-	"tslint.enable": false,
+	"tslint.enable": true,
 	"tslint.rulesDirectory": "node_modules/tslint-microsoft-contrib"
 }

@@ -7,37 +7,36 @@
 
 import vscode = require('vscode');
 
-let statusBarEntry: vscode.StatusBarItem;
+let versionBarEntry: vscode.StatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
 
 export function showHideStatus() {
-	if (!statusBarEntry) {
+	if (!versionBarEntry) {
 		return;
 	}
 	if (!vscode.window.activeTextEditor) {
-		statusBarEntry.hide();
+		versionBarEntry.hide();
 		return;
 	}
 	let doc = vscode.window.activeTextEditor.document;
 	if (vscode.languages.match('javascript', doc) || vscode.languages.match('javascriptreact', doc)
 		|| vscode.languages.match('typescript', doc) || vscode.languages.match('typescriptreact', doc)) {
 
-		statusBarEntry.show();
+		versionBarEntry.show();
 		return;
 	}
-	statusBarEntry.hide();
+	versionBarEntry.hide();
 }
 
 export function disposeStatus() {
-	if (statusBarEntry) {
-		statusBarEntry.dispose();
+	if (versionBarEntry) {
+		versionBarEntry.dispose();
 	}
 }
 
-export function show(message: string, tooltip: string) {
-	statusBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
-	statusBarEntry.text = message;
-	statusBarEntry.tooltip = tooltip;
+export function setInfo(message: string, tooltip: string) {
+	versionBarEntry.text = message;
+	versionBarEntry.tooltip = tooltip;
 	let color = 'white';
-	statusBarEntry.color = color;
-	statusBarEntry.show();
+	versionBarEntry.color = color;
+	versionBarEntry.show();
 }
