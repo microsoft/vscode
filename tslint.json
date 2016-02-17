@@ -8,15 +8,6 @@
 		"curly": true,
 		"class-name": true,
 		"semicolon": true,
-		"no-unnecessary-semicolons": true,
-		"triple-equals": true,
-		"no-duplicate-case": true,
-		"no-unexternalized-strings": [
-			true,
-			{
-				"signatures": ["localize", "nls.localize"],
-				"messageIndex": 1
-			}
-		]
+		"triple-equals": true
 	}
 }
