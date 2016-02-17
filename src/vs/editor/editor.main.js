@@ -9,7 +9,10 @@ define([
 	'vs/editor/contrib/quickOpen/browser/quickOutline.contribution',
 	'vs/editor/contrib/quickOpen/browser/gotoLine.contribution',
 	'vs/editor/contrib/quickOpen/browser/quickCommand.contribution',
-	'vs/languages/languages.main'
+	'vs/languages/languages.main',
+	"vs/languages/javascript/common/javascript.contribution",
+	"vs/languages/typescript/common/typescript.contribution",
+	"vs/languages/json/common/json.contribution"
 ], function() {
 
 });
