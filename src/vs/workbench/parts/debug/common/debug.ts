@@ -83,6 +83,7 @@ export interface IBreakpoint extends IEnablement {
 	condition: string;
 	verified: boolean;
 	idFromAdapter: number;
+	message: string;
 }
 
 export interface IFunctionBreakpoint extends IEnablement {

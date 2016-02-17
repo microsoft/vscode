@@ -283,6 +283,7 @@ export class Breakpoint implements debug.IBreakpoint {
 	public lineNumber: number;
 	public verified: boolean;
 	public idFromAdapter: number;
+	public message: string;
 	private id: string;
 
 	constructor(public source: Source, public desiredLineNumber: number, public enabled: boolean, public condition: string) {
@@ -415,6 +416,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 				bp.lineNumber = bpData.line ? bpData.line : bp.lineNumber;
 				bp.verified = bpData.verified;
 				bp.idFromAdapter = bpData.id;
+				bp.message = bpData.message;
 			}
 		});
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);

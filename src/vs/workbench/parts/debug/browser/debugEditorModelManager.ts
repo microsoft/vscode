@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
+import objects = require('vs/base/common/objects');
 import lifecycle = require('vs/base/common/lifecycle');
 import editorcommon = require('vs/editor/common/editorCommon');
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -270,10 +271,15 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		const modelData = this.modelData[breakpoint.source.uri.toString()];
 		const session = this.debugService.getActiveSession();
 
-		const result = (!breakpoint.enabled || !activated) ? DebugEditorModelManager.BREAKPOINT_DISABLED_DECORATION :
+		let result = (!breakpoint.enabled || !activated) ? DebugEditorModelManager.BREAKPOINT_DISABLED_DECORATION :
 			debugActive && modelData && modelData.dirty ? DebugEditorModelManager.BREAKPOINT_DIRTY_DECORATION :
 			debugActive && !breakpoint.verified ? DebugEditorModelManager.BREAKPOINT_UNVERIFIED_DECORATION :
 			!breakpoint.condition ? DebugEditorModelManager.BREAKPOINT_DECORATION : null;
+
+		if (result && breakpoint.message) {
+			result = objects.clone(result);
+			result.hoverMessage = breakpoint.message;
+		}
 
 		return result ? result :
 			!session || session.capablities.supportsConditionalBreakpoints ? {
