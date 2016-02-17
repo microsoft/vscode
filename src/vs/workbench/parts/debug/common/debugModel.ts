@@ -412,7 +412,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.breakpoints.forEach(bp => {
 			const bpData = data[bp.getId()];
 			if (bpData) {
-				bp.lineNumber = bpData.line;
+				bp.lineNumber = bpData.line ? bpData.line : bp.lineNumber;
 				bp.verified = bpData.verified;
 				bp.idFromAdapter = bpData.id;
 			}
