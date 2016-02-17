@@ -288,7 +288,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				this.ignoreOpenResourcesByOwner[matcher.owner] = (matcher.applyTo === ApplyToKind.closedDocuments);
 			} else {
 				let newValue = value && (matcher.applyTo === ApplyToKind.closedDocuments);
-				if (newValue != value) {
+				if (newValue !== value) {
 					this.ignoreOpenResourcesByOwner[matcher.owner] = newValue;
 				}
 			}

@@ -5,7 +5,6 @@
 'use strict';
 
 import nls = require('vs/nls');
-import env = require('vs/base/common/flags');
 import platform = require('vs/platform/platform');
 import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
 import Options = require('vs/languages/typescript/common/options');

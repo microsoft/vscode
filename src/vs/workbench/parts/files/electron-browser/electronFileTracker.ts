@@ -193,7 +193,7 @@ export class FileTracker implements IWorkbenchContribution {
 				if (hasDirtyFiles !== isDirtyIndicated) {
 					win.setDocumentEdited(hasDirtyFiles);
 				}
-			})
+			});
 		}
 	}
 
