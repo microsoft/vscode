@@ -184,14 +184,16 @@ export class FileTracker implements IWorkbenchContribution {
 
 	private updateDocumentEdited(): void {
 		if (plat.platform === plat.Platform.Mac) {
-			let win = remote.getCurrentWindow();
-			let isDirtyIndicated = win.isDocumentEdited();
-			let hasDirtyFiles = this.textFileService.isDirty();
-			this.isDocumentedEdited = hasDirtyFiles;
+			process.nextTick(() => {
+				let win = remote.getCurrentWindow();
+				let isDirtyIndicated = win.isDocumentEdited();
+				let hasDirtyFiles = this.textFileService.isDirty();
+				this.isDocumentedEdited = hasDirtyFiles;
 
-			if (hasDirtyFiles !== isDirtyIndicated) {
-				win.setDocumentEdited(hasDirtyFiles);
-			}
+				if (hasDirtyFiles !== isDirtyIndicated) {
+					win.setDocumentEdited(hasDirtyFiles);
+				}
+			})
 		}
 	}
 
