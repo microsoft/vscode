@@ -45,7 +45,7 @@ class InstallAction extends Action {
 		super(id, label);
 	}
 
-	private get applicationName(): string {
+	get applicationName(): string {
 		return this.contextService.getConfiguration().env.applicationName;
 	}
 
@@ -59,15 +59,15 @@ class InstallAction extends Action {
 				if (files.length > 0) {
 					const file = files[0];
 					const resource = URI.create('file', null, file);
-					const message = nls.localize('exists', "Please remove the 'code' alias in '{0}' and retry this action.", file);
+					const message = nls.localize('exists', "Please remove the '{0}' alias in '{1}' and retry this action.", this.applicationName, file);
 					const input = { resource, mime: 'text/x-shellscript' };
 					const actions = [
 						new Action('inlineEdit', nls.localize('editFile', "Edit '{0}'", file), '', true, () => {
 							return this.editorService.openEditor(input).then(() => {
-								const message = nls.localize('again', "Once you remove the 'code' alias, you can retry the PATH installation.");
+								const message = nls.localize('again', "Please remove the '{0}' alias from '{1}' before continuing.", this.applicationName, file);
 								const actions = [
 									new Action('cancel', nls.localize('cancel', "Cancel")),
-									new Action('yes', nls.localize('retry', "Retry"), '', true, () => this.run())
+									new Action('continue', nls.localize('continue', "Continue"), '', true, () => this.run())
 								];
 
 								this.messageService.show(Severity.Info, { message, actions });
@@ -100,7 +100,7 @@ class InstallAction extends Action {
 							});
 						}
 					})
-					.then(() => this.messageService.show(Severity.Info, nls.localize('success', 'Shortcut \'{0}\' successfully installed in PATH.', this.applicationName)));
+					.then(() => this.messageService.show(Severity.Info, nls.localize('success', "Shell command '{0}' successfully installed in PATH.", this.applicationName)));
 			});
 	}
 
@@ -113,10 +113,23 @@ class InstallAction extends Action {
 	}
 
 	private createBinFolder(): TPromise<void> {
-		const command = 'osascript -e "do shell script \\"mkdir -p /usr/local/bin && chown \\" & (do shell script (\\"whoami\\")) & \\" /usr/local/bin\\" with administrator privileges"';
+		return new TPromise<void>((c, e) => {
+			const message = nls.localize('warnEscalation', "Code will now prompt for Administrator privileges to install the shell command.");
+			const actions = [
+				new Action('cancel2', nls.localize('cancel2', "Cancel"), '', true, () => { e(new Error(nls.localize('aborted', "Aborted"))); return null; }),
+				new Action('ok', nls.localize('ok', "OK"), '', true, () => {
+					const command = 'osascript -e "do shell script \\"mkdir -p /usr/local/bin && chown \\" & (do shell script (\\"whoami\\")) & \\" /usr/local/bin\\" with administrator privileges"';
 
-		return nfcall(cp.exec, command, {})
-			.then(null, _ => TPromise.wrapError(new Error(nls.localize('cantCreateBinFolder', "Unable to create '/usr/local/bin'."))));
+					nfcall(cp.exec, command, {})
+						.then(null, _ => TPromise.wrapError(new Error(nls.localize('cantCreateBinFolder', "Unable to create '/usr/local/bin'."))))
+						.done(c, e);
+
+					return null;
+				})
+			];
+
+			this.messageService.show(Severity.Info, { message, actions });
+		});
 	}
 
 	public checkLegacy(): TPromise<string[]> {
@@ -168,7 +181,7 @@ class UninstallAction extends Action {
 	run(): TPromise<void> {
 		return pfs.unlink(this.target)
 			.then(null, ignore('ENOENT'))
-			.then(() => this.messageService.show(Severity.Info, nls.localize('success', 'Shortcut \'{0}\' successfully uninstalled from PATH.', this.applicationName)));
+			.then(() => this.messageService.show(Severity.Info, nls.localize('success', "Shell command '{0}' successfully uninstalled from PATH.", this.applicationName)));
 	}
 }
 
@@ -182,11 +195,13 @@ class DarwinCLIHelper implements IWorkbenchContribution {
 
 		installAction.checkLegacy().done(files => {
 			if (files.length > 0) {
-				const message = nls.localize('update', "Code needs to update the command line launcher. Would you like to do this now?");
-				const actions = [
-					new Action('later', nls.localize('now', "Later")),
-					new Action('now', nls.localize('now', "Update Now"), '', true, () => installAction.run())
-				];
+				const message = nls.localize('update', "Code needs to change the '{0}' shell command. Would you like to do this now?", installAction.applicationName);
+				const now = new Action('changeNow', nls.localize('changeNow', "Change Now"), '', true, () => installAction.run());
+				const later = new Action('later', nls.localize('later', "Later"), '', true, () => {
+					messageService.show(Severity.Info, nls.localize('laterInfo', "Remember you can always run the '{0}' action from the command palette.", installAction.label));
+					return null;
+				});
+				const actions = [later, now];
 
 				messageService.show(Severity.Info, { message, actions });
 			}
@@ -199,7 +214,7 @@ class DarwinCLIHelper implements IWorkbenchContribution {
 }
 
 if (isAvailable && process.platform === 'darwin') {
-	const category = nls.localize('commandLine', "Command Line");
+	const category = nls.localize('shellCommand', "Shell Command");
 
 	const workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(InstallAction, InstallAction.ID, InstallAction.LABEL), category);
