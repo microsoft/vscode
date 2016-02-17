@@ -104,7 +104,7 @@ var lintReporter = function (output, file, options) {
 gulp.task('tslint', function () {
 	return gulp.src(all, { base: '.' })
 		.pipe(filter(tslintFilter))
-		.pipe(tslint({ rulesDirectory: 'node_modules/tslint-microsoft-contrib' }))
+		.pipe(tslint({ rulesDirectory: 'build/tslintRules' }))
 		.pipe(tslint.report(lintReporter, {
 			summarizeFailureOutput: false,
 			emitError: false

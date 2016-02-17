@@ -83,7 +83,6 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^3.2.2",
-    "tslint-microsoft-contrib": "^2.0.0",
     "typescript": "^1.8.0",
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",
