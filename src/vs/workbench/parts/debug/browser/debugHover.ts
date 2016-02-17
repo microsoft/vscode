@@ -113,7 +113,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	private getExpression(namesToFind: string[]): TPromise<Expression> {
 		const session = this.debugService.getActiveSession();
 		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
-		if (session.capablities.supportsEvaluateForHovers) {
+		if (session.capabilities.supportsEvaluateForHovers) {
 			return evaluateExpression(session, focusedStackFrame, new Expression(namesToFind.join('.'), true), 'hover');
 		}
 

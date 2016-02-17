@@ -282,7 +282,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		}
 
 		return result ? result :
-			!session || session.capablities.supportsConditionalBreakpoints ? {
+			!session || session.capabilities.supportsConditionalBreakpoints ? {
 				glyphMarginClassName: 'debug-breakpoint-conditional-glyph',
 				hoverMessage: breakpoint.condition,
 				stickiness: editorcommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges

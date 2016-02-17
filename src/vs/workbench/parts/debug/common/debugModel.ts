@@ -389,6 +389,13 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		return this.exceptionBreakpoints;
 	}
 
+	public setExceptionBreakpoints(data: [{ filter: string, label: string }]): void {
+		if (data) {
+			this.exceptionBreakpoints = data.map(d =>
+				new ExceptionBreakpoint(d.filter, d.label, this.exceptionBreakpoints.some(ebp => ebp.filter === d.filter && ebp.enabled)));
+		}
+	}
+
 	public areBreakpointsActivated(): boolean {
 		return this.breakpointsActivated;
 	}
@@ -399,7 +406,8 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	}
 
 	public addBreakpoints(rawData: debug.IRawBreakpoint[]): void {
-		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp => new Breakpoint(new Source(Source.toRawSource(rawBp.uri, this)), rawBp.lineNumber, rawBp.enabled, rawBp.condition)));
+		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp =>
+			new Breakpoint(new Source(Source.toRawSource(rawBp.uri, this)), rawBp.lineNumber, rawBp.enabled, rawBp.condition)));
 		this.breakpointsActivated = true;
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}

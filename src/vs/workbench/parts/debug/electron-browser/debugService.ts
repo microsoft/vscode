@@ -234,7 +234,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.INITIALIZED, (event: DebugProtocol.InitializedEvent) => {
 			aria.alert(nls.localize('programStarted', "Program started."));
 			this.sendAllBreakpoints().then(() => {
-				if (this.session.capablities.supportsConfigurationDoneRequest) {
+				if (this.session.capabilities.supportsConfigurationDoneRequest) {
 					this.session.configurationDone().done(null, errors.onUnexpectedError);
 				}
 			});
@@ -567,6 +567,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			}
 
 			this.setStateAndEmit(debug.State.Initializing);
+			this.model.setExceptionBreakpoints(this.session.capabilities.exceptionBreakpointFilters);
 			return configuration.request === 'attach' ? this.session.attach(configuration) : this.session.launch(configuration);
 		}).then((result: DebugProtocol.Response) => {
 			if (openViewlet) {
