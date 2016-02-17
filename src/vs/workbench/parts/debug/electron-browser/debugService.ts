@@ -40,7 +40,7 @@ import { Repl } from 'vs/workbench/parts/debug/browser/repl';
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/node/debugConfigurationManager';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
-import { ITaskService , TaskEvent, TaskType, TaskServiceEvents} from 'vs/workbench/parts/tasks/common/taskService';
+import { ITaskService , TaskEvent, TaskType, TaskServiceEvents, ITaskSummary} from 'vs/workbench/parts/tasks/common/taskService';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -531,15 +531,17 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 				return TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type {0} is not supported.", configuration.type)));
 			}
 
-			return this.runPreLaunchTask(configuration.preLaunchTask).then(() => {
+			return this.runPreLaunchTask(configuration.preLaunchTask).then((taskSummary: ITaskSummary) => {
 				const errorCount = configuration.preLaunchTask ? this.markerService.getStatistics().errors : 0;
-				if (errorCount === 0) {
+				const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
+				if (errorCount === 0 && !failureExitCode) {
 					return this.doCreateSession(configuration, openViewlet);
 				}
 
 				this.messageService.show(severity.Error, {
 					message: errorCount === 1 ? nls.localize('preLaunchTaskError', "{0} error detected after running preLaunchTask '{1}'.", errorCount, configuration.preLaunchTask) :
-						nls.localize('preLaunchTaskErrors', "{0} errors detected after running preLaunchTask '{1}'.", errorCount, configuration.preLaunchTask),
+						errorCount > 1 ? nls.localize('preLaunchTaskErrors', "{0} errors detected after running preLaunchTask '{1}'.", errorCount, configuration.preLaunchTask) :
+						nls.localize('preLaunchTaskExitCode', "preLaunchTask {0} terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
 					actions: [CloseAction, new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
 						this.messageService.hideAll();
 						return this.doCreateSession(configuration, openViewlet);
@@ -587,7 +589,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		});
 	}
 
-	private runPreLaunchTask(taskName: string): TPromise<void> {
+	private runPreLaunchTask(taskName: string): TPromise<ITaskSummary> {
 		if (!taskName) {
 			return TPromise.as(null);
 		}
@@ -613,6 +615,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			// no task running, execute the preLaunchTask.
 			const taskPromise = this.taskService.run(filteredTasks[0].id).then(result => {
 				this.lastTaskEvent = null;
+				return result;
 			}, err => {
 				this.lastTaskEvent = null;
 			});
@@ -620,7 +623,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			if (filteredTasks[0].isWatching) {
 				return new TPromise((c, e) => {
 					this.taskService.addOneTimeListener(TaskServiceEvents.Inactive, () => {
-						c(true);
+						c(null);
 					});
 				});
 			}
