@@ -40,10 +40,6 @@ export class NullThreadService extends abstractThreadService.AbstractThreadServi
 		return target.apply(obj, params);
 	}
 
-	ensureWorkers(): void {
-		// Nothing to do
-	}
-
 	addStatusListener(listener: IThreadServiceStatusListener): void {
 		// Nothing to do
 	}

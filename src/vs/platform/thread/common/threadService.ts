@@ -87,35 +87,3 @@ export function EverywhereAttr(type: Function, target: Function): void {
 		return findThreadService(this).Everywhere(this, methodName, target, param);
 	};
 }
-
-class SynchronizableObjectsRegistry {
-	private _list: thread.IThreadSynchronizableObject<any>[] = [];
-
-	constructor() {
-		this._list = [];
-	}
-
-	public register(obj: thread.IThreadSynchronizableObject<any>): void {
-		this._list.push(obj);
-	}
-
-	public read(): thread.IThreadSynchronizableObject<any>[] {
-		return this._list;
-	}
-}
-
-export const Extensions = {
-	SynchronizableObjects: 'SynchronizableObjects'
-};
-
-Platform.Registry.add(Extensions.SynchronizableObjects, new SynchronizableObjectsRegistry());
-
-export function registerThreadSynchronizableObject(obj: thread.IThreadSynchronizableObject<any>): void {
-	let registry = <SynchronizableObjectsRegistry>Platform.Registry.as(Extensions.SynchronizableObjects);
-	registry.register(obj);
-}
-
-export function readThreadSynchronizableObjects(): thread.IThreadSynchronizableObject<any>[] {
-	let registry = <SynchronizableObjectsRegistry>Platform.Registry.as(Extensions.SynchronizableObjects);
-	return registry.read();
-}

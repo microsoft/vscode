@@ -12,7 +12,6 @@ import Platform = require('vs/base/common/platform');
 import errors = require('vs/base/common/errors');
 import Timer = require('vs/base/common/timer');
 import remote = require('vs/base/common/remote');
-import {readThreadSynchronizableObjects} from 'vs/platform/thread/common/threadService';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IThreadService, IThreadServiceStatusListener, IThreadSynchronizableObject, ThreadAffinity, IThreadServiceStatus} from 'vs/platform/thread/common/thread';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -64,9 +63,6 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		}, () => {
 			// Not cancelable
 		});
-
-		// Register all statically instantiated synchronizable objects
-		readThreadSynchronizableObjects().forEach((obj) => this.registerInstance(obj));
 
 		// If nobody asks for workers to be created in 5s, the workers are created automatically
 		TPromise.timeout(MainThreadService.MAXIMUM_WORKER_CREATION_DELAY).then(() => this.ensureWorkers());

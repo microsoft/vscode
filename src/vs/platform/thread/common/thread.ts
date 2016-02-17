@@ -23,7 +23,6 @@ export interface IThreadService {
 	// --- BEGIN deprecated methods
 	isInMainThread: boolean;
 
-	ensureWorkers(): void;
 	addStatusListener(listener: IThreadServiceStatusListener): void;
 	removeStatusListener(listener: IThreadServiceStatusListener): void;
 

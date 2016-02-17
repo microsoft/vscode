@@ -5,7 +5,6 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {readThreadSynchronizableObjects} from './threadService';
 import abstractThreadService = require('vs/platform/thread/common/abstractThreadService');
 import remote = require('vs/base/common/remote');
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
@@ -28,9 +27,6 @@ export class WorkerThreadService extends abstractThreadService.AbstractThreadSer
 		this._remoteCom.setManyHandler(this);
 
 		this._publisher = workerPublisher;
-
-		// Register all statically instantiated synchronizable objects
-		readThreadSynchronizableObjects().forEach((obj) => this.registerInstance(obj));
 	}
 
 	private _handleRequest(identifier: string, memberName: string, args: any[]): TPromise<any> {
@@ -94,10 +90,6 @@ export class WorkerThreadService extends abstractThreadService.AbstractThreadSer
 
 	Everywhere(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): TPromise<any> {
 		return target.apply(obj, params);
-	}
-
-	ensureWorkers(): void {
-		// Nothing to do
 	}
 
 	addStatusListener(listener: IThreadServiceStatusListener): void {
