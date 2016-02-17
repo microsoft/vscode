@@ -67,7 +67,7 @@ export class SelectConfigActionItem extends BaseActionItem {
 
 		return this.debugService.loadLaunchConfig().then(config => {
 			if (!config || !config.configurations) {
-				this.select.options.add(this.createOption('<none>'));
+				this.select.add(this.createOption('<none>'));
 				this.select.disabled = true;
 				return;
 			}
@@ -78,7 +78,7 @@ export class SelectConfigActionItem extends BaseActionItem {
 			let found = false;
 			const configurationName = this.debugService.getConfigurationName();
 			for (let i = 0; i < configurations.length; i++) {
-				this.select.options.add(this.createOption(configurations[i].name));
+				this.select.add(this.createOption(configurations[i].name));
 				if (configurationName === configurations[i].name) {
 					this.select.selectedIndex = i;
 					found = true;

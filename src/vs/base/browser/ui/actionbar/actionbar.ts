@@ -775,7 +775,7 @@ export class SelectActionItem extends BaseActionItem {
 		this.select.options.length = 0;
 
 		this.options.forEach((option) => {
-			this.select.options.add(this.createOption(option));
+			this.select.add(this.createOption(option));
 		});
 
 		if (this.selected >= 0) {
