@@ -12,7 +12,8 @@ import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint'
 import Options = require('vs/languages/typescript/common/options');
 let defaults = Options.javaScriptOptions;
 
-if (!env.enableTypeScriptServiceModeForJS) {
+let enable = false;
+if (enable) {
 
 	LanguageExtensions.registerCompatMode({
 		id: 'javascript',
