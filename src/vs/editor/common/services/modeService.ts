@@ -37,7 +37,7 @@ export interface ILanguageExtensionPoint {
 export interface IModeService {
 	serviceId: ServiceIdentifier<any>;
 
-	onDidAddMode: Event<string>;
+	onDidAddModes: Event<string[]>;
 
 	configureMode(modeName: string, options: any): void;
 	configureModeById(modeId: string, options: any): void;

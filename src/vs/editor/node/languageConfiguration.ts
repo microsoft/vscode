@@ -32,8 +32,12 @@ export class LanguageConfigurationFileHandler {
 	) {
 		this._modeService = modeService;
 
-		this._modeService.getRegisteredModes().forEach(modeId => this._handleMode(modeId));
-		this._modeService.onDidAddMode((modeId) => this._handleMode(modeId));
+		this._handleModes(this._modeService.getRegisteredModes());
+		this._modeService.onDidAddModes((modes) => this._handleModes(modes));
+	}
+
+	private _handleModes(modes:string[]): void {
+		modes.forEach(modeId => this._handleMode(modeId));
 	}
 
 	private _handleMode(modeId:string): void {

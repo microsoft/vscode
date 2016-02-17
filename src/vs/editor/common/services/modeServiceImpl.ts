@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IModeService, IModeLookupResult} from 'vs/editor/common/services/modeService';
+import {IModeService, IModeLookupResult, ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import Modes = require('vs/editor/common/modes');
 import {IPluginService} from 'vs/platform/plugins/common/plugins';
 import {FrankensteinMode} from 'vs/editor/common/modes/abstractMode';
-import {LanguageExtensions} from 'vs/editor/common/modes/languageExtensionPoint';
+import {LanguagesRegistry} from 'vs/editor/common/services/languagesRegistry';
 import Errors = require('vs/base/common/errors');
 import MonarchTypes = require('vs/editor/common/modes/monarch/monarchTypes');
 import {Remotable, IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
@@ -18,7 +19,7 @@ import Objects = require('vs/base/common/objects');
 import MonarchDefinition = require('vs/editor/common/modes/monarch/monarchDefinition');
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
-import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
+import {ModesRegistry, ILegacyLanguageDefinition} from 'vs/editor/common/modes/modesRegistry';
 import MonarchCommonTypes = require('vs/editor/common/modes/monarch/monarchCommon');
 import {IDisposable, combinedDispose, empty as EmptyDisposable} from 'vs/base/common/lifecycle';
 import {createAsyncDescriptor0, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
@@ -28,8 +29,117 @@ import {ReferenceSupport, IReferenceContribution} from 'vs/editor/common/modes/s
 import {ParameterHintsSupport, IParameterHintsContribution} from 'vs/editor/common/modes/supports/parameterHintsSupport';
 import {SuggestSupport, ComposableSuggestSupport, ISuggestContribution} from 'vs/editor/common/modes/supports/suggestSupport';
 import Event, {Emitter} from 'vs/base/common/event';
+import {PluginsRegistry, IExtensionPointUser, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
+import paths = require('vs/base/common/paths');
 
 interface IModeConfigurationMap { [modeId: string]: any; }
+
+let languagesExtPoint = PluginsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', {
+	description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
+	type: 'array',
+	default: [{ id: '', aliases: [], extensions: [] }],
+	items: {
+		type: 'object',
+		default: { id: '', extensions: [] },
+		properties: {
+			id: {
+				description: nls.localize('vscode.extension.contributes.languages.id', 'ID of the language.'),
+				type: 'string'
+			},
+			aliases: {
+				description: nls.localize('vscode.extension.contributes.languages.aliases', 'Name aliases for the language.'),
+				type: 'array',
+				items: {
+					type: 'string'
+				}
+			},
+			extensions: {
+				description: nls.localize('vscode.extension.contributes.languages.extensions', 'File extensions associated to the language.'),
+				default: ['.foo'],
+				type: 'array',
+				items: {
+					type: 'string'
+				}
+			},
+			filenames: {
+				description: nls.localize('vscode.extension.contributes.languages.filenames', 'File names associated to the language.'),
+				type: 'array',
+				items: {
+					type: 'string'
+				}
+			},
+			filenamePatterns: {
+				description: nls.localize('vscode.extension.contributes.languages.filenamePatterns', 'File name glob patterns associated to the language.'),
+				default: ['bar*foo.txt'],
+				type: 'array',
+				item: {
+					type: 'string'
+				}
+			},
+			mimetypes: {
+				description: nls.localize('vscode.extension.contributes.languages.mimetypes', 'Mime types associated to the language.'),
+				type: 'array',
+				items: {
+					type: 'string'
+				}
+			},
+			firstLine: {
+				description: nls.localize('vscode.extension.contributes.languages.firstLine', 'A regular expression matching the first line of a file of the language.'),
+				type: 'string'
+			},
+			configuration: {
+				description: nls.localize('vscode.extension.contributes.languages.configuration', 'A relative path to a file containing configuration options for the language.'),
+				type: 'string'
+			}
+		}
+	}
+});
+
+function isUndefinedOrStringArray(value: string[]): boolean {
+	if (typeof value === 'undefined') {
+		return true;
+	}
+	if (!Array.isArray(value)) {
+		return false;
+	}
+	return value.every(item => typeof item === 'string');
+}
+
+function isValidLanguageExtensionPoint(value:ILanguageExtensionPoint, collector:IMessageCollector): boolean {
+	if (!value) {
+		collector.error(nls.localize('invalid.empty', "Empty value for `contributes.{0}`", languagesExtPoint.name));
+		return false;
+	}
+	if (typeof value.id !== 'string') {
+		collector.error(nls.localize('require.id', "property `{0}` is mandatory and must be of type `string`", 'id'));
+		return false;
+	}
+	if (!isUndefinedOrStringArray(value.extensions)) {
+		collector.error(nls.localize('opt.extensions', "property `{0}` can be omitted and must be of type `string[]`", 'extensions'));
+		return false;
+	}
+	if (!isUndefinedOrStringArray(value.filenames)) {
+		collector.error(nls.localize('opt.filenames', "property `{0}` can be omitted and must be of type `string[]`", 'filenames'));
+		return false;
+	}
+	if (typeof value.firstLine !== 'undefined' && typeof value.firstLine !== 'string') {
+		collector.error(nls.localize('opt.firstLine', "property `{0}` can be omitted and must be of type `string`", 'firstLine'));
+		return false;
+	}
+	if (typeof value.configuration !== 'undefined' && typeof value.configuration !== 'string') {
+		collector.error(nls.localize('opt.configuration', "property `{0}` can be omitted and must be of type `string`", 'configuration'));
+		return false;
+	}
+	if (!isUndefinedOrStringArray(value.aliases)) {
+		collector.error(nls.localize('opt.aliases', "property `{0}` can be omitted and must be of type `string[]`", 'aliases'));
+		return false;
+	}
+	if (!isUndefinedOrStringArray(value.mimetypes)) {
+		collector.error(nls.localize('opt.mimetypes', "property `{0}` can be omitted and must be of type `string[]`", 'mimetypes'));
+		return false;
+	}
+	return true;
+}
 
 export class ModeServiceImpl implements IModeService {
 	public serviceId = IModeService;
@@ -41,8 +151,10 @@ export class ModeServiceImpl implements IModeService {
 	private _frankensteinModes: { [modeId: string]: FrankensteinMode; };
 	private _config: IModeConfigurationMap;
 
-	private _onDidAddMode: Emitter<string> = new Emitter<string>();
-	public onDidAddMode: Event<string> = this._onDidAddMode.event;
+	private _registry: LanguagesRegistry;
+
+	private _onDidAddModes: Emitter<string[]> = new Emitter<string[]>();
+	public onDidAddModes: Event<string[]> = this._onDidAddModes.event;
 
 	constructor(threadService:IThreadService, pluginService:IPluginService) {
 		this._threadService = threadService;
@@ -52,7 +164,8 @@ export class ModeServiceImpl implements IModeService {
 		this._frankensteinModes = {};
 		this._config = {};
 
-		LanguageExtensions.onDidAddMode((modeId) => this._onDidAddMode.fire(modeId));
+		this._registry = new LanguagesRegistry();
+		this._registry.onDidAddModes((modes) => this._onDidAddModes.fire(modes));
 	}
 
 	public getConfigurationForMode(modeId:string): any {
@@ -87,7 +200,7 @@ export class ModeServiceImpl implements IModeService {
 		if (!config) {
 			return;
 		}
-		var modes = LanguageExtensions.getRegisteredModes();
+		var modes = this._registry.getRegisteredModes();
 		modes.forEach((modeIdentifier) => {
 			var configuration = config[modeIdentifier];
 			this.configureModeById(modeIdentifier, configuration);
@@ -95,35 +208,35 @@ export class ModeServiceImpl implements IModeService {
 	}
 
 	public isRegisteredMode(mimetypeOrModeId: string): boolean {
-		return LanguageExtensions.isRegisteredMode(mimetypeOrModeId);
+		return this._registry.isRegisteredMode(mimetypeOrModeId);
 	}
 
 	public getRegisteredModes(): string[] {
-		return LanguageExtensions.getRegisteredModes();
+		return this._registry.getRegisteredModes();
 	}
 
 	public getRegisteredLanguageNames(): string[] {
-		return LanguageExtensions.getRegisteredLanguageNames();
+		return this._registry.getRegisteredLanguageNames();
 	}
 
 	public getExtensions(alias: string): string[] {
-		return LanguageExtensions.getExtensions(alias);
+		return this._registry.getExtensions(alias);
 	}
 
 	public getMimeForMode(modeId: string): string {
-		return LanguageExtensions.getMimeForMode(modeId);
+		return this._registry.getMimeForMode(modeId);
 	}
 
 	public getLanguageName(modeId: string): string {
-		return LanguageExtensions.getLanguageName(modeId);
+		return this._registry.getLanguageName(modeId);
 	}
 
 	public getModeIdForLanguageName(alias:string): string {
-		return LanguageExtensions.getModeIdForLanguageNameLowercase(alias);
+		return this._registry.getModeIdForLanguageNameLowercase(alias);
 	}
 
 	public getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string {
-		var modeIds = LanguageExtensions.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
+		var modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
 
 		if (modeIds.length > 0) {
 			return modeIds[0];
@@ -133,14 +246,14 @@ export class ModeServiceImpl implements IModeService {
 	}
 
 	public getConfigurationFiles(modeId: string): string[] {
-		return LanguageExtensions.getConfigurationFiles(modeId);
+		return this._registry.getConfigurationFiles(modeId);
 	}
 
 	// --- instantiation
 
 	public lookup(commaSeparatedMimetypesOrCommaSeparatedIds: string): IModeLookupResult[]{
 		var r: IModeLookupResult[] = [];
-		var modeIds = LanguageExtensions.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
+		var modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
 
 		for (var i = 0; i < modeIds.length; i++) {
 			var modeId = modeIds[i];
@@ -155,7 +268,7 @@ export class ModeServiceImpl implements IModeService {
 	}
 
 	public getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): Modes.IMode {
-		var modeIds = LanguageExtensions.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
+		var modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
 
 		var isPlainText = false;
 		for (var i = 0; i < modeIds.length; i++) {
@@ -176,7 +289,7 @@ export class ModeServiceImpl implements IModeService {
 	}
 
 	public getModeIdByLanguageName(languageName: string): string {
-		var modeIds = LanguageExtensions.getModeIdsFromLanguageName(languageName);
+		var modeIds = this._registry.getModeIdsFromLanguageName(languageName);
 
 		if (modeIds.length > 0) {
 			return modeIds[0];
@@ -186,7 +299,7 @@ export class ModeServiceImpl implements IModeService {
 	}
 
 	public getModeIdByFilenameOrFirstLine(filename: string, firstLine?:string): string {
-		var modeIds = LanguageExtensions.getModeIdsFromFilenameOrFirstLine(filename, firstLine);
+		var modeIds = this._registry.getModeIdsFromFilenameOrFirstLine(filename, firstLine);
 
 		if (modeIds.length > 0) {
 			return modeIds[0];
@@ -243,7 +356,7 @@ export class ModeServiceImpl implements IModeService {
 	protected _createMode(modeId:string): TPromise<Modes.IMode> {
 		let activationEvent = 'onLanguage:' + modeId;
 
-		let compatModeData = LanguageExtensions.getCompatMode(modeId);
+		let compatModeData = this._registry.getCompatMode(modeId);
 
 		if (compatModeData) {
 			return this._pluginService.activateByEvent(activationEvent).then((_) => {
@@ -272,7 +385,7 @@ export class ModeServiceImpl implements IModeService {
 	}
 
 	private _createModeDescriptor(modeId:string): Modes.IModeDescriptor {
-		var workerParticipants = ModesRegistry.getWorkerParticipants(modeId);
+		var workerParticipants = ModesRegistry.getWorkerParticipantsForMode(modeId);
 		return {
 			id: modeId,
 			workerParticipants: workerParticipants.map(p => createAsyncDescriptor0(p.moduleId, p.ctorName))
@@ -375,13 +488,53 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 		super(threadService, pluginService);
 		this._modelService = modelService;
 		this._hasInitialized = false;
+
+		languagesExtPoint.setHandler((extensions:IExtensionPointUser<ILanguageExtensionPoint[]>[]) => {
+			let allValidLanguages: ILanguageExtensionPoint[] = [];
+
+			for (let i = 0, len = extensions.length; i < len; i++) {
+				let extension = extensions[i];
+
+				if (!Array.isArray(extension.value)) {
+					extension.collector.error(nls.localize('invalid', "Invalid `contributes.{0}`. Expected an array.", languagesExtPoint.name));
+					continue;
+				}
+
+				for (let j = 0, lenJ = extension.value.length; j < lenJ; j++) {
+					if (isValidLanguageExtensionPoint(extension.value[j], extension.collector)) {
+						allValidLanguages.push({
+							id: extension.value[j].id,
+							extensions: extension.value[j].extensions,
+							filenames: extension.value[j].filenames,
+							firstLine: extension.value[j].firstLine,
+							aliases: extension.value[j].aliases,
+							mimetypes: extension.value[j].mimetypes,
+							configuration: extension.value[j].configuration ? paths.join(extension.description.extensionFolderPath, extension.value[j].configuration) : extension.value[j].configuration
+						});
+					}
+				}
+			}
+
+			ModesRegistry.registerLanguages(allValidLanguages);
+
+		});
 	}
 
 	private _getModeServiceWorkerHelper(): ModeServiceWorkerHelper {
 		let r = this._threadService.getRemotable(ModeServiceWorkerHelper);
 		if (!this._hasInitialized) {
 			this._hasInitialized = true;
-			r.initialize(ModesRegistry._getAllWorkerParticipants());
+
+			let initData = {
+				compatModes: ModesRegistry.getCompatModes(),
+				languages: ModesRegistry.getLanguages(),
+				workerParticipants: ModesRegistry.getWorkerParticipants()
+			};
+
+			r._initialize(initData);
+
+			ModesRegistry.onDidAddCompatModes((m) => r._acceptCompatModes(m));
+			ModesRegistry.onDidAddLanguages((m) => r._acceptLanguages(m));
 		}
 		return r;
 	}
@@ -416,6 +569,12 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 	}
 }
 
+export interface IWorkerInitData {
+	compatModes: ILegacyLanguageDefinition[];
+	languages: ILanguageExtensionPoint[];
+	workerParticipants: Modes.IWorkerParticipantDescriptor[];
+}
+
 @Remotable.WorkerContext('ModeServiceWorkerHelper', ThreadAffinity.All)
 export class ModeServiceWorkerHelper {
 	private _modeService:IModeService;
@@ -424,8 +583,18 @@ export class ModeServiceWorkerHelper {
 		this._modeService = modeService;
 	}
 
-	public initialize(workerParticipants:Modes.IWorkerParticipantDescriptor[]): void {
-		ModesRegistry._setWorkerParticipants(workerParticipants);
+	public _initialize(initData:IWorkerInitData): void {
+		ModesRegistry.registerCompatModes(initData.compatModes);
+		ModesRegistry.registerLanguages(initData.languages);
+		ModesRegistry.registerWorkerParticipants(initData.workerParticipants);
+	}
+
+	public _acceptCompatModes(modes:ILegacyLanguageDefinition[]): void {
+		ModesRegistry.registerCompatModes(modes);
+	}
+
+	public _acceptLanguages(languages:ILanguageExtensionPoint[]): void {
+		ModesRegistry.registerLanguages(languages);
 	}
 
 	public instantiateMode(modeId:string): void {
