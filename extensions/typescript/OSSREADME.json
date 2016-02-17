@@ -192,7 +192,7 @@
 },
 {
 	"name": "typescript",
-	"version": "1.7.5",
+	"version": "1.8.0",
 	"license": "Apache2",
 	"repositoryURL": "https://github.com/Microsoft/TypeScript",
 	"description": "The contents of the folder lib is from the TypeScript project https://github.com/Microsoft/TypeScript.",
