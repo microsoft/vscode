@@ -18,7 +18,9 @@ export function showHideStatus() {
 		return;
 	}
 	let doc = vscode.window.activeTextEditor.document;
-	if (vscode.languages.match('javascript', doc) || vscode.languages.match('javascriptreact', doc)) {
+	if (vscode.languages.match('javascript', doc) || vscode.languages.match('javascriptreact', doc)
+		|| vscode.languages.match('typescript', doc) || vscode.languages.match('typescriptreact', doc)) {
+
 		statusBarEntry.show();
 		return;
 	}
@@ -31,14 +33,11 @@ export function disposeStatus() {
 	}
 }
 
-export function show(message: string, tooltip: string, error: boolean) {
+export function show(message: string, tooltip: string) {
 	statusBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
 	statusBarEntry.text = message;
 	statusBarEntry.tooltip = tooltip;
 	let color = 'white';
-	if (error) {
-		color = 'orange';
-	}
 	statusBarEntry.color = color;
 	statusBarEntry.show();
 }

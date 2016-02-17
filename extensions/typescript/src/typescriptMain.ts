@@ -29,7 +29,7 @@ import BufferSyncSupport from './features/bufferSyncSupport';
 import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 
-import * as SalsaStatus from './utils/salsaStatus';
+import * as VersionStatus from './utils/versionStatus';
 
 export function activate(context: ExtensionContext): void {
 
@@ -45,7 +45,7 @@ export function activate(context: ExtensionContext): void {
 		clientHost.reloadProjects();
 	}));
 
-	window.onDidChangeActiveTextEditor(SalsaStatus.showHideStatus, null, context.subscriptions);
+	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
 
 	// Register the supports for both TS and TSX so that we can have separate grammars but share the mode
 	client.onReady().then(() => {
