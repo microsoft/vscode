@@ -114,7 +114,7 @@ class InstallAction extends Action {
 
 	private createBinFolder(): TPromise<void> {
 		return new TPromise<void>((c, e) => {
-			const message = nls.localize('warnEscalation', "Code will now prompt for Administrator privileges to install the shell command.");
+			const message = nls.localize('warnEscalation', "Code will now prompt with 'osascript' for Administrator privileges to install the shell command.");
 			const actions = [
 				new Action('cancel2', nls.localize('cancel2', "Cancel"), '', true, () => { e(new Error(nls.localize('aborted', "Aborted"))); return null; }),
 				new Action('ok', nls.localize('ok', "OK"), '', true, () => {
