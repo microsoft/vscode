@@ -171,6 +171,10 @@ export interface TaskRunnerConfiguration extends BaseTaskRunnerConfiguration {
 }
 
 export interface ITaskSummary {
+	/**
+	 * Exit code of the process.
+	 */
+	exitCode?: number;
 }
 
 export interface ITaskRunResult {

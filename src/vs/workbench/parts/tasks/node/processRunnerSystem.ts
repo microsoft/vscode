@@ -252,6 +252,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 				if (success.cmdCode && success.cmdCode === 1 && watchingProblemMatcher.numberOfMatches === 0 && task.showOutput !== ShowOutput.Never) {
 					this.showOutput();
 				}
+				taskSummary.exitCode = success.cmdCode;
 				return taskSummary;
 			}, (error: ErrorData) => {
 				this.childProcessEnded();
@@ -293,6 +294,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 				if (success.cmdCode && success.cmdCode === 1 && startStopProblemMatcher.numberOfMatches === 0 && task.showOutput !== ShowOutput.Never) {
 					this.showOutput();
 				}
+				taskSummary.exitCode = success.cmdCode;
 				return taskSummary;
 			}, (error: ErrorData) => {
 				this.childProcessEnded();

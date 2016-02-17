@@ -200,7 +200,7 @@ export abstract class AbstractProcess<TProgressData> {
 					let result: SuccessData = {
 						terminated: this.terminateRequested
 					};
-					if (this.shell && Platform.isWindows && Types.isNumber(data))  {
+					if (Types.isNumber(data))  {
 						result.cmdCode = <number>data;
 					}
 					cc(result);
