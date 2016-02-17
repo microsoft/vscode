@@ -320,7 +320,7 @@ export class ExceptionBreakpoint implements debug.IExceptionBreakpoint {
 
 	private id: string;
 
-	constructor(public name: string, public enabled: boolean) {
+	constructor(public filter: string, public label: string, public enabled: boolean) {
 		this.id = uuid.generateUuid();
 	}
 

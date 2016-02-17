@@ -371,13 +371,14 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		let result: debug.IExceptionBreakpoint[] = null;
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((exBreakpoint: any) => {
-				return new model.ExceptionBreakpoint(exBreakpoint.name, exBreakpoint.enabled);
+				return new model.ExceptionBreakpoint(exBreakpoint.filter || exBreakpoint.name, exBreakpoint.label, exBreakpoint.enabled);
 			});
 		} catch (e) {
 			result = [];
 		}
 
-		return result.length > 0 ? result : [new model.ExceptionBreakpoint('all', false), new model.ExceptionBreakpoint('uncaught', true)];
+		return result.length > 0 ? result : [new model.ExceptionBreakpoint('all', nls.localize('allExceptions', "All Exceptions"), false),
+			new model.ExceptionBreakpoint('uncaught', nls.localize('uncaughtExceptions', "Uncaught Exceptions"), true)];
 	}
 
 	private loadWatchExpressions(): model.Expression[] {
@@ -863,7 +864,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}
 
 		const enabledExceptionBps = this.model.getExceptionBreakpoints().filter(exb => exb.enabled);
-		return this.session.setExceptionBreakpoints({ filters: enabledExceptionBps.map(exb => exb.name) });
+		return this.session.setExceptionBreakpoints({ filters: enabledExceptionBps.map(exb => exb.filter) });
 	}
 
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {

@@ -878,8 +878,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 	}
 
 	private renderExceptionBreakpoint(exceptionBreakpoint: debug.IExceptionBreakpoint, data: IExceptionBreakpointTemplateData): void {
-		const namePascalCase = exceptionBreakpoint.name.charAt(0).toUpperCase() + exceptionBreakpoint.name.slice(1);
-		data.name.textContent = `${ namePascalCase} exceptions`;
+		data.name.textContent = exceptionBreakpoint.label || `${ exceptionBreakpoint.filter } exceptions`;;
 		data.checkbox.checked = exceptionBreakpoint.enabled;
 	}
 
@@ -929,7 +928,7 @@ export class BreakpointsAccessibilityProvider implements tree.IAccessibilityProv
 			return nls.localize('functionBreakpointAriaLabel', "Funktion breakpoint {0}, breakpoints, debug", (<model.FunctionBreakpoint>element).name);
 		}
 		if (element instanceof model.ExceptionBreakpoint) {
-			return nls.localize('exceptionBreakpointAriaLabel', "Exception breakpoint {0}, breakpoints, debug", (<model.ExceptionBreakpoint>element).name);
+			return nls.localize('exceptionBreakpointAriaLabel', "Exception breakpoint {0}, breakpoints, debug", (<model.ExceptionBreakpoint>element).filter);
 		}
 
 		return null;

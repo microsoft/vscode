@@ -93,7 +93,8 @@ export interface IFunctionBreakpoint extends IEnablement {
 }
 
 export interface IExceptionBreakpoint extends IEnablement {
-	name: string;
+	filter: string;
+	label: string;
 }
 
 // events
