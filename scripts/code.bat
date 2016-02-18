@@ -1,4 +1,6 @@
 @echo off
+setlocal
+
 title VSCode Dev
 
 pushd %~dp0\..
@@ -23,9 +25,4 @@ set ELECTRON_ENABLE_STACK_DUMPING=1
 .\.build\electron\electron.exe . %*
 popd
 
-:: Unset environment variables after we are done
-set NODE_ENV=
-set VSCODE_DEV=
-set ELECTRON_DEFAULT_ERROR_MODE=
-set ELECTRON_ENABLE_LOGGING=
-set ELECTRON_ENABLE_STACK_DUMPING=
+endlocal
