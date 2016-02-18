@@ -363,7 +363,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 
 			onEnterRules: [
 				{
-					beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|'}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+					beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
 					afterText: /^<\/(\w[\w\d]*)\s*>$/i,
 					action: { indentAction: Modes.IndentAction.IndentOutdent }
 				},
