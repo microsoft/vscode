@@ -76,8 +76,10 @@ export class KbEqualsExpression implements KbExpr {
 	}
 
 	public evaluate(context: any): boolean {
+		/* tslint:disable:triple-equals */
 		// Intentional ==
 		return (context[this.key] == this.value);
+		/* tslint:enable:triple-equals */
 	}
 
 	public normalize(): KbExpr {
@@ -111,8 +113,10 @@ export class KbNotEqualsExpression implements KbExpr {
 	}
 
 	public evaluate(context: any): boolean {
+		/* tslint:disable:triple-equals */
 		// Intentional !=
 		return (context[this.key] != this.value);
+		/* tslint:enable:triple-equals */
 	}
 
 	public normalize(): KbExpr {

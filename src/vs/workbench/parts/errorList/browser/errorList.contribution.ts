@@ -6,10 +6,10 @@
 import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+// import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import platform = require('vs/platform/platform');
 // import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+// import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import panel = require('vs/workbench/browser/panel');
 import { ERROR_LIST_PANEL_ID } from 'vs/workbench/parts/errorList/browser/errorListConstants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -50,7 +50,7 @@ class ToggleErrorListAction extends Action {
 
 
 // register toggle output action globally
-let actionRegistry = <IWorkbenchActionRegistry>platform.Registry.as(ActionExtensions.WorkbenchActions);
+// let actionRegistry = <IWorkbenchActionRegistry>platform.Registry.as(ActionExtensions.WorkbenchActions);
 // actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleErrorListAction, ToggleErrorListAction.ID, ToggleErrorListAction.LABEL, {
 // 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A,
 // 	linux: {

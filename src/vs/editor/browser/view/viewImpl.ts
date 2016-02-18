@@ -410,9 +410,11 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 
 	public onLayoutChanged(layoutInfo:EditorCommon.IEditorLayoutInfo): boolean {
 		if (Browser.isChrome) {
+			/* tslint:disable:no-unused-variable */
 			// Access overflowGuardContainer.clientWidth to prevent relayouting bug in Chrome
 			// See Bug 19676: Editor misses a layout event
 			var clientWidth = this.overflowGuardContainer.clientWidth + 'px';
+			/* tslint:enable:no-unused-variable */
 		}
 		StyleMutator.setWidth(this.domNode, layoutInfo.width);
 		StyleMutator.setHeight(this.domNode, layoutInfo.height);

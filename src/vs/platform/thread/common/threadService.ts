@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Platform = require('vs/platform/platform');
 import {TPromise} from 'vs/base/common/winjs.base';
 import thread = require('./thread');
 
