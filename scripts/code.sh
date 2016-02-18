@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
@@ -27,10 +27,10 @@ function code() {
 
 	# Launch Code
 	if [[ "$OSTYPE" == "darwin"* ]]; then
-		./.build/electron/Electron.app/Contents/MacOS/Electron . $*
+		exec ./.build/electron/Electron.app/Contents/MacOS/Electron . "$@"
 	else
-		./.build/electron/electron . $*
+		exec ./.build/electron/electron . "$@"
 	fi
 }
 
-code $*
+code "$@"
