@@ -436,14 +436,6 @@ abstract class FoldingAction extends EditorAction {
 
 }
 
-class UnfoldAction extends FoldingAction {
-	public static ID = 'editor.fold';
-
-	invoke(foldingController: FoldingController, lineNumber: number): void {
-		foldingController.unfold(lineNumber);
-	}
-}
-
 class FoldAction extends FoldingAction {
 	public static ID = 'editor.unfold';
 
@@ -457,6 +449,14 @@ class FoldAllAction extends FoldingAction {
 
 	invoke(foldingController: FoldingController, lineNumber: number): void {
 		foldingController.changeAll(true);
+	}
+}
+
+class UnfoldAction extends FoldingAction {
+	public static ID = 'editor.fold';
+
+	invoke(foldingController: FoldingController, lineNumber: number): void {
+		foldingController.unfold(lineNumber);
 	}
 }
 
