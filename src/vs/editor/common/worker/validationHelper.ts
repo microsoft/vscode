@@ -16,7 +16,7 @@ export interface IValidationHelperFilter {
 }
 
 export interface IValidationHelperCallback {
-	(changed:URI[], notChanged:URI[], isDueToConfigurationChange:boolean): void;
+	(toValidate:URI[]): void;
 }
 
 class ValidationModel implements IDisposable {
@@ -179,7 +179,13 @@ export class ValidationHelper implements IDisposable {
 
 		var isDueToConfigurationChange = this._isDueToConfigurationChange;
 		this._isDueToConfigurationChange = false;
-		this._callback(dirtyModels, cleanModels, isDueToConfigurationChange);
+
+		let toValidate: URI[] = dirtyModels;
+		if (isDueToConfigurationChange) {
+			toValidate = toValidate.concat(cleanModels);
+		}
+
+		this._callback(toValidate);
 	}
 
 	public enable(): void {

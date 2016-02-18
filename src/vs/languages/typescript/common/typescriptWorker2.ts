@@ -172,12 +172,6 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 		return fileNames && fileNames.map(URI.parse);
 	}
 
-	public _getContextForValidationParticipants(resource: URI): any {
-		// var project = this._findProject(resource);
-		// return project.languageService.getSourceFile(resource.toString());
-		return null;
-	}
-
 	public suggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
 		return this.doSuggest(resource, position).then(value => filterSuggestions(value));
 	}
