@@ -275,7 +275,8 @@ export class WorkbenchShell {
 		this.keybindingService.setPluginService(pluginService);
 
 		let modelService = new ModelServiceImpl(this.threadService, markerService);
-		let modeService = new MainThreadModeServiceImpl(this.threadService, pluginService, modelService);
+		let editorWorkerService = new EditorWorkerServiceImpl(modelService);
+		let modeService = new MainThreadModeServiceImpl(this.threadService, pluginService, modelService, editorWorkerService);
 
 		let untitledEditorService = new UntitledEditorService();
 		this.themeService = new ThemeService(pluginService);
@@ -302,7 +303,7 @@ export class WorkbenchShell {
 		result.addSingleton(IMarkerService, markerService);
 		result.addSingleton(IModelService, modelService);
 		result.addSingleton(ICodeEditorService, new CodeEditorServiceImpl());
-		result.addSingleton(IEditorWorkerService, new EditorWorkerServiceImpl(modelService));
+		result.addSingleton(IEditorWorkerService, editorWorkerService);
 		result.addSingleton(IThemeService, this.themeService);
 		result.addSingleton(IActionsService, new ActionsService(pluginService, this.keybindingService));
 

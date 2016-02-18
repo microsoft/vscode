@@ -23,6 +23,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
 import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
 import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
+import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 
 export var language: Types.ILanguage = <Types.ILanguage> {
 	displayName: 'LESS',
@@ -192,9 +193,10 @@ export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> impleme
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThreadService threadService: IThreadService,
 		@IModeService modeService: IModeService,
-		@IModelService modelService: IModelService
+		@IModelService modelService: IModelService,
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(descriptor, Compile.compile(language), instantiationService, threadService, modeService, modelService);
+		super(descriptor, Compile.compile(language), instantiationService, threadService, modeService, modelService, editorWorkerService);
 
 		this.modeService = modeService;
 

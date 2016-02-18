@@ -5,11 +5,13 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
+import {DefaultFilter, StrictPrefix} from 'vs/editor/common/modes/modesFilters';
 import {ISuggestResult, ISuggestSupport, ISuggestion, ILineContext, IMode, ISuggestionFilter} from 'vs/editor/common/modes';
-import {IPosition} from 'vs/editor/common/editorCommon';
+import {IModel, IPosition} from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
 import {handleEvent, isLineToken} from 'vs/editor/common/modes/supports';
+import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
+import {IModelService} from 'vs/editor/common/services/modelService';
 
 export interface ISuggestContribution {
 	triggerCharacters: string[];
@@ -71,21 +73,95 @@ export class SuggestSupport implements ISuggestSupport {
 	}
 }
 
-export interface IComposableSuggestContribution extends ISuggestContribution {
-	composeSuggest(resource:URI, position:IPosition, superSuggestions:ISuggestResult[]): TPromise<ISuggestResult[]>;
-}
+export class TextualSuggestSupport implements ISuggestSupport {
 
-export class ComposableSuggestSupport extends SuggestSupport {
+	private _modeId: string;
+	private _editorWorkerService: IEditorWorkerService;
 
-	constructor(modeId: string, contribution: IComposableSuggestContribution) {
-		super(modeId, contribution);
-
-		this.suggest = (resource, position) => {
-			return (
-				contribution.suggest(resource, position)
-					.then(superSuggestions => contribution.composeSuggest(resource, position, superSuggestions))
-			);
-		};
+	constructor(modeId: string, editorWorkerService: IEditorWorkerService) {
+		this._modeId = modeId;
+		this._editorWorkerService = editorWorkerService;
 	}
 
+	public suggest(resource: URI, position: IPosition, triggerCharacter?: string): TPromise<ISuggestResult[]> {
+		return this._editorWorkerService.textualSuggest(resource, position);
+	}
+
+	public getFilter(): ISuggestionFilter {
+		return StrictPrefix;
+	}
+
+	public getTriggerCharacters(): string[] {
+		return [];
+	}
+
+	public shouldShowEmptySuggestionList(): boolean {
+		return true;
+	}
+
+	public shouldAutotriggerSuggest(context: ILineContext, offset: number, triggeredByCharacter: string): boolean {
+		return handleEvent(context, offset, (nestedMode:IMode, context:ILineContext, offset:number) => {
+			if (this._modeId === nestedMode.getId()) {
+				return true;
+			} else if (nestedMode.suggestSupport) {
+				return nestedMode.suggestSupport.shouldAutotriggerSuggest(context, offset, triggeredByCharacter);
+			} else {
+				return false;
+			}
+		});
+	}
+
+}
+
+export class PredefinedResultSuggestSupport extends SuggestSupport {
+
+	constructor(modeId:string, modelService: IModelService, predefined:ISuggestion[], triggerCharacters: string[], disableAutoTrigger?: boolean) {
+		super(modeId, {
+			triggerCharacters: triggerCharacters,
+			disableAutoTrigger: disableAutoTrigger,
+			excludeTokens: [],
+			suggest: (resource, position) => {
+				let model = modelService.getModel(resource);
+				let result = _addSuggestionsAtPosition(model, position, predefined, null);
+				return TPromise.as(result);
+			}
+		});
+	}
+
+}
+
+export class TextualAndPredefinedResultSuggestSupport extends SuggestSupport {
+
+	constructor(modeId:string, modelService: IModelService, editorWorkerService: IEditorWorkerService, predefined:ISuggestion[], triggerCharacters: string[], disableAutoTrigger?: boolean) {
+		super(modeId, {
+			triggerCharacters: triggerCharacters,
+			disableAutoTrigger: disableAutoTrigger,
+			excludeTokens: [],
+			suggest: (resource, position) => {
+				return editorWorkerService.textualSuggest(resource, position).then((textualSuggestions) => {
+					let model = modelService.getModel(resource);
+					let result = _addSuggestionsAtPosition(model, position, predefined, textualSuggestions);
+					return result;
+				});
+			}
+		});
+	}
+
+}
+
+function _addSuggestionsAtPosition(model: IModel, position:IPosition, predefined:ISuggestion[], superSuggestions:ISuggestResult[]): ISuggestResult[] {
+	if (!predefined || predefined.length === 0) {
+		return superSuggestions;
+	}
+
+	if (!superSuggestions) {
+		superSuggestions = [];
+	}
+
+	superSuggestions.push({
+		currentWord: model.getWordUntilPosition(position).word,
+		suggestions: predefined.slice(0)
+	});
+
+	return superSuggestions;
 }

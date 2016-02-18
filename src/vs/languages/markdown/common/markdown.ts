@@ -20,6 +20,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 
 export const language =
 	<Types.ILanguage>{
@@ -215,9 +216,10 @@ export class MarkdownMode extends Monarch.MonarchMode<MarkdownWorker.MarkdownWor
 		@IThreadService threadService: IThreadService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(descriptor, Compile.compile(language), instantiationService, threadService, modeService, modelService);
+		super(descriptor, Compile.compile(language), instantiationService, threadService, modeService, modelService, editorWorkerService);
 
 		this.emitOutputSupport = this;
 	}

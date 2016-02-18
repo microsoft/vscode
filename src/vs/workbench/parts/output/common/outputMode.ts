@@ -18,6 +18,7 @@ import winjs = require('vs/base/common/winjs.base');
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
 import URI from 'vs/base/common/uri';
 import Modes = require('vs/editor/common/modes');
+import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 
 export const language: types.ILanguage = {
 	displayName: 'Log',
@@ -52,9 +53,10 @@ export class OutputMode extends MonarchMode<OutputWorker> {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThreadService threadService: IThreadService,
 		@IModeService modeService: IModeService,
-		@IModelService modelService: IModelService
+		@IModelService modelService: IModelService,
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(descriptor, compile(language), instantiationService, threadService, modeService, modelService);
+		super(descriptor, compile(language), instantiationService, threadService, modeService, modelService, editorWorkerService);
 
 		this.linkSupport = this;
 	}

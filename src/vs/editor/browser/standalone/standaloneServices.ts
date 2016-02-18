@@ -191,13 +191,14 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 
 	var modelService = services.modelService || new ModelServiceImpl(threadService, markerService);
 
+	var editorWorkerService = services.editorWorkerService || new EditorWorkerServiceImpl(modelService);
+
 	var modeService = services.modeService;
 	if (!modeService) {
-		modeService = new MainThreadModeServiceImpl(threadService, pluginService, modelService);
+		modeService = new MainThreadModeServiceImpl(threadService, pluginService, modelService, editorWorkerService);
 	}
 
 	var codeEditorService = services.codeEditorService || new CodeEditorServiceImpl();
-	var editorWorkerService = services.editorWorkerService || new EditorWorkerServiceImpl(modelService);
 
 	var eventService = services.eventService || new _eventService.EventService();
 

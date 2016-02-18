@@ -14,6 +14,9 @@ import URI from 'vs/base/common/uri';
 import {DiffComputer} from 'vs/editor/common/diff/diffComputer';
 import Modes = require('vs/editor/common/modes');
 import {computeLinks} from 'vs/editor/common/modes/linkComputer';
+import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
+import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
+import {Range} from 'vs/editor/common/core/range';
 
 class MirrorModel extends MirrorModel2 {
 
@@ -27,6 +30,74 @@ class MirrorModel extends MirrorModel2 {
 
 	public getLineContent(lineNumber:number): string {
 		return this._lines[lineNumber - 1];
+	}
+
+	private _getWordAtPosition(position:EditorCommon.IPosition, wordDefinition:RegExp): Range {
+
+		let wordAtText = WordHelper._getWordAtText(
+			position.column,
+			WordHelper.ensureValidWordDefinition(wordDefinition),
+			this._lines[position.lineNumber - 1],
+			0
+		);
+
+		if (wordAtText) {
+			return new Range(position.lineNumber, wordAtText.startColumn, position.lineNumber, wordAtText.endColumn);
+		}
+
+		return null;
+	}
+
+	public getWordUntilPosition(position: EditorCommon.IPosition, wordDefinition:RegExp): EditorCommon.IWordAtPosition {
+		var wordAtPosition = this._getWordAtPosition(position, wordDefinition);
+		if (!wordAtPosition) {
+			return {
+				word: '',
+				startColumn: position.column,
+				endColumn: position.column
+			};
+		}
+		return {
+			word: this._lines[position.lineNumber - 1].substring(wordAtPosition.startColumn - 1, position.column - 1),
+			startColumn: wordAtPosition.startColumn,
+			endColumn: position.column
+		};
+	}
+
+	private _getAllWords(wordDefinition:RegExp): string[] {
+		var result:string[] = [];
+		this._lines.forEach((line) => {
+			this._wordenize(line, wordDefinition).forEach((info) => {
+				result.push(line.substring(info.start, info.end));
+			});
+		});
+		return result;
+	}
+
+	public getAllUniqueWords(wordDefinition:RegExp, skipWordOnce?:string) : string[] {
+		var foundSkipWord = false;
+		var uniqueWords = {};
+		return this._getAllWords(wordDefinition).filter((word) => {
+			if (skipWordOnce && !foundSkipWord && skipWordOnce === word) {
+				foundSkipWord = true;
+				return false;
+			} else if (uniqueWords[word]) {
+				return false;
+			} else {
+				uniqueWords[word] = true;
+				return true;
+			}
+		});
+	}
+
+//	// TODO@Joh, TODO@Alex - remove these and make sure the super-things work
+	private _wordenize(content:string, wordDefinition:RegExp): EditorCommon.IWordRange[] {
+		var result:EditorCommon.IWordRange[] = [];
+		var match:RegExpExecArray;
+		while (match = wordDefinition.exec(content)) {
+			result.push({ start: match.index, end: match.index + match[0].length });
+		}
+		return result;
 	}
 }
 
@@ -105,6 +176,52 @@ export class EditorSimpleWorkerImpl extends EditorSimpleWorker implements IReque
 
 		return TPromise.as(computeLinks(model));
 	}
+
+	// ---- BEGIN suggest --------------------------------------------------------------------------
+
+	public textualSuggest(modelUrl:string, position: EditorCommon.IPosition, wordDef:string, wordDefFlags:string): TPromise<Modes.ISuggestResult[]> {
+		let model = this._models[modelUrl];
+		if (!model) {
+			return null;
+		}
+
+		return TPromise.as(this._suggestFiltered(model, position, new RegExp(wordDef, wordDefFlags)));
+	}
+
+	private _suggestFiltered(model:MirrorModel, position: EditorCommon.IPosition, wordDefRegExp: RegExp): Modes.ISuggestResult[] {
+		let value = this._suggestUnfiltered(model, position, wordDefRegExp);
+		let accept = DefaultFilter;
+
+		// filter suggestions
+		return [{
+			currentWord: value.currentWord,
+			suggestions: value.suggestions.filter((element) => !!accept(value.currentWord, element)),
+			incomplete: value.incomplete
+		}];
+	}
+
+	private _suggestUnfiltered(model:MirrorModel, position:EditorCommon.IPosition, wordDefRegExp: RegExp): Modes.ISuggestResult {
+		let currentWord = model.getWordUntilPosition(position, wordDefRegExp).word;
+		let allWords = model.getAllUniqueWords(wordDefRegExp, currentWord);
+
+		let suggestions = allWords.filter((word) => {
+			return !(/^-?\d*\.?\d/.test(word)); // filter out numbers
+		}).map((word) => {
+			return <Modes.ISuggestion> {
+				type: 'text',
+				label: word,
+				codeSnippet: word,
+				noAutoAccept: true
+			};
+		});
+
+		return {
+			currentWord: currentWord,
+			suggestions: suggestions
+		};
+	}
+
+	// ---- END suggest --------------------------------------------------------------------------
 }
 
 /**

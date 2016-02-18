@@ -27,10 +27,11 @@ import {RichEditSupport, IRichEditConfiguration} from 'vs/editor/common/modes/su
 import {DeclarationSupport, IDeclarationContribution} from 'vs/editor/common/modes/supports/declarationSupport';
 import {ReferenceSupport, IReferenceContribution} from 'vs/editor/common/modes/supports/referenceSupport';
 import {ParameterHintsSupport, IParameterHintsContribution} from 'vs/editor/common/modes/supports/parameterHintsSupport';
-import {SuggestSupport, ComposableSuggestSupport, ISuggestContribution} from 'vs/editor/common/modes/supports/suggestSupport';
+import {SuggestSupport, ISuggestContribution} from 'vs/editor/common/modes/supports/suggestSupport';
 import Event, {Emitter} from 'vs/base/common/event';
 import {PluginsRegistry, IExtensionPointUser, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
 import paths = require('vs/base/common/paths');
+import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 
 interface IModeConfigurationMap { [modeId: string]: any; }
 
@@ -482,11 +483,18 @@ export class ModeServiceImpl implements IModeService {
 
 export class MainThreadModeServiceImpl extends ModeServiceImpl {
 	private _modelService: IModelService;
+	private _editorWorkerService:IEditorWorkerService;
 	private _hasInitialized: boolean;
 
-	constructor(threadService:IThreadService, pluginService:IPluginService, modelService:IModelService) {
+	constructor(
+		threadService:IThreadService,
+		pluginService:IPluginService,
+		modelService:IModelService,
+		editorWorkerService:IEditorWorkerService
+	) {
 		super(threadService, pluginService);
 		this._modelService = modelService;
+		this._editorWorkerService = editorWorkerService;
 		this._hasInitialized = false;
 
 		languagesExtPoint.setHandler((extensions:IExtensionPointUser<ILanguageExtensionPoint[]>[]) => {
@@ -563,7 +571,7 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 			super.doRegisterMonarchDefinition(modeId, lexer),
 
 			this.registerModeSupport(modeId, 'suggestSupport', (mode) => {
-				return new ComposableSuggestSupport(modeId, MonarchDefinition.createSuggestSupport(this._modelService, mode, lexer));
+				return MonarchDefinition.createSuggestSupport(this._modelService, this._editorWorkerService, modeId, lexer);
 			})
 		);
 	}

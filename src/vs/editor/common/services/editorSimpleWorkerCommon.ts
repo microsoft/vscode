@@ -39,4 +39,8 @@ export abstract class EditorSimpleWorker {
 	public computeLinks(modelUrl:string):TPromise<Modes.ILink[]> {
 		throw new Error('Not implemented!');
 	}
+
+	public textualSuggest(modelUrl:string, position: EditorCommon.IPosition, wordDef:string, wordDefFlags:string): TPromise<Modes.ISuggestResult[]> {
+		throw new Error('Not implemented!');
+	}
 }

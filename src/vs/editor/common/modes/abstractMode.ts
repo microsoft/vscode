@@ -5,9 +5,8 @@
 'use strict';
 
 import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {StrictPrefix} from 'vs/editor/common/modes/modesFilters';
 import {NullMode} from 'vs/editor/common/modes/nullMode';
-import {handleEvent} from 'vs/editor/common/modes/supports';
+import {TextualSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import Modes = require('vs/editor/common/modes');
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -18,6 +17,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
+import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 
 export function createWordRegExp(allowInWords:string = ''): RegExp {
 	return NullMode.createWordRegExp(allowInWords);
@@ -145,22 +145,6 @@ export abstract class AbstractMode<W extends AbstractModeWorker> implements Mode
 	static $suggest = OneWorkerAttr(AbstractMode, AbstractMode.prototype.suggest);
 	public suggest(resource:URI, position:EditorCommon.IPosition):TPromise<Modes.ISuggestResult[]> {
 		return this._worker((w) => w.suggest(resource, position));
-	}
-
-	public shouldAutotriggerSuggest(context:Modes.ILineContext, offset:number, triggeredByCharacter:string): boolean {
-		return handleEvent(context, offset, (mode:Modes.IMode, context:Modes.ILineContext, offset:number) => {
-
-			if (!mode.suggestSupport) {
-				// Hit an inner mode without suggest support
-				return false;
-			}
-
-			if (mode instanceof AbstractMode) {
-				return true;
-			}
-
-			return mode.suggestSupport.shouldAutotriggerSuggest(context, offset, triggeredByCharacter);
-		});
 	}
 
 	static $navigateValueSet = OneWorkerAttr(AbstractMode, AbstractMode.prototype.navigateValueSet);
@@ -322,28 +306,12 @@ export class FrankensteinMode extends AbstractMode<AbstractModeWorker> {
 	constructor(
 		descriptor:Modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThreadService threadService: IThreadService
+		@IThreadService threadService: IThreadService,
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
 		super(descriptor, instantiationService, threadService);
 
-		// TODO@Alex-worker
-		this.suggestSupport = {
-			suggest: (resource: URI, position: EditorCommon.IPosition, triggerCharacter?: string): TPromise<Modes.ISuggestResult[]> => {
-				return this.suggest(resource, position);
-			},
-			getFilter: (): Modes.ISuggestionFilter => {
-				return StrictPrefix;
-			},
-			getTriggerCharacters: (): string[] => {
-				return [];
-			},
-			shouldShowEmptySuggestionList: (): boolean => {
-				return true;
-			},
-			shouldAutotriggerSuggest: (context: Modes.ILineContext, offset: number, triggeredByCharacter: string): boolean => {
-				return this.shouldAutotriggerSuggest(context, offset, triggeredByCharacter);
-			}
-		};
+		this.suggestSupport = new TextualSuggestSupport(this.getId(), editorWorkerService);
 	}
 }
 

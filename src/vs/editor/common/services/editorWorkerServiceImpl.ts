@@ -15,6 +15,7 @@ import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
 import {EditorSimpleWorker} from 'vs/editor/common/services/editorSimpleWorkerCommon';
 import {IntervalTimer} from 'vs/base/common/async';
 import Modes = require('vs/editor/common/modes');
+import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -45,6 +46,10 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 
 	public computeLinks(resource:URI):TPromise<Modes.ILink[]> {
 		return this._workerManager.withWorker().then(client => client.computeLinks(resource));
+	}
+
+	public textualSuggest(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.ISuggestResult[]> {
+		return this._workerManager.withWorker().then(client => client.textualSuggest(resource, position));
 	}
 }
 
@@ -156,6 +161,19 @@ class EditorWorkerClient extends Disposable {
 	public computeLinks(resource:URI):TPromise<Modes.ILink[]> {
 		return this._withSyncedResources([resource]).then(_ => {
 			return this._proxy.computeLinks(resource.toString());
+		});
+	}
+
+	public textualSuggest(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.ISuggestResult[]> {
+		return this._withSyncedResources([resource]).then(_ => {
+			let model = this._modelService.getModel(resource);
+			if (!model) {
+				return null;
+			}
+			let wordDefRegExp = WordHelper.massageWordDefinitionOf(model.getMode());
+			let wordDef = wordDefRegExp.source;
+			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
+			return this._proxy.textualSuggest(resource.toString(), position, wordDef, wordDefFlags);
 		});
 	}
 
