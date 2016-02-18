@@ -113,7 +113,7 @@ gulp.task('tslint', function () {
 });
 
 var hygiene = exports.hygiene = function (some) {
-    var errorCount = 0;
+	var errorCount = 0;
 
 	var eol = es.through(function (file) {
 		if (/\r\n?/g.test(file.contents.toString('utf8'))) {
@@ -154,22 +154,21 @@ var hygiene = exports.hygiene = function (some) {
 	});
 
 	var tslint = es.through(function(file) {
-        configuration = _tslint.findConfiguration(null, '.');
-        var options = {
-            formatter: 'json',
-            configuration: configuration,
-            rulesDirectory: 'build/tslintRules',
-        }
-        var contents = file.contents.toString('utf8');
-        var linter = new _tslint(file.relative, contents, options);
-        var result = linter.lint();
-        if (result.failureCount > 0) {
-            console.error(file.relative + ': ' + result.failureCount + ' Lint warning(s)');
-            errorCount += result.failureCount;
-        }
-        this.emit('data', file);
-    });
-
+		configuration = _tslint.findConfiguration(null, '.');
+		var options = {
+			formatter: 'json',
+			configuration: configuration,
+			rulesDirectory: 'build/tslintRules',
+		}
+		var contents = file.contents.toString('utf8');
+		var linter = new _tslint(file.relative, contents, options);
+		var result = linter.lint();
+		if (result.failureCount > 0) {
+			console.error(file.relative + ': ' + result.failureCount + ' Lint warning(s)');
+			errorCount += result.failureCount;
+		}
+		this.emit('data', file);
+	});
 
 	return gulp.src(some || all, { base: '.' })
 		.pipe(filter(function (f) { return !f.stat.isDirectory(); }))
