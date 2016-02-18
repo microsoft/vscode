@@ -470,10 +470,6 @@ class UnfoldAllAction extends FoldingAction {
 
 EditorBrowserRegistry.registerEditorContribution(FoldingController);
 
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(UnfoldAction, UnfoldAction.ID, nls.localize('unfoldAction.label', "Unfold"), {
-	context: ContextKey.EditorFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET
-}));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldAction, FoldAction.ID, nls.localize('foldAction.label', "Fold"), {
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET
@@ -481,6 +477,10 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldAction,
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(UnfoldAllAction, UnfoldAllAction.ID, nls.localize('foldAllAction.label', "Fold All"), {
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET
+}));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(UnfoldAction, UnfoldAction.ID, nls.localize('unfoldAction.label', "Unfold"), {
+	context: ContextKey.EditorFocus,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET
 }));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldAllAction, FoldAllAction.ID, nls.localize('unfoldAllAction.label', "Unfold All"), {
 	context: ContextKey.EditorFocus,
