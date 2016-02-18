@@ -89,6 +89,10 @@ declare module DebugProtocol {
 		The event indicates that debugging of the debuggee has terminated.
 	*/
 	export interface TerminatedEvent extends Event {
+		body?: {
+			/** A debug adapter may set 'restart' to true to request that the front end restarts the session. */
+			restart?: boolean;
+		}
 	}
 
 	/** Event message for "thread" event type.
@@ -149,8 +153,6 @@ declare module DebugProtocol {
 	export interface InitializeRequestArguments {
 		/** The ID of the debugger adapter. Used to select or verify debugger adapter. */
 		adapterID: string;
-		/** The locale to use for all user visible information returned by this debug adapter. If no locale is specified, the default locale of the OS will be used. */
-		locale?: string;
 		/** If true all line numbers are 1-based (default). */
 		linesStartAt1?: boolean;
 		/** If true all column numbers are 1-based (default). */
