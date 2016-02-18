@@ -274,7 +274,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
-
+	public linkSupport:Modes.ILinkSupport;
 	public extraInfoSupport:Modes.IExtraInfoSupport;
 	public occurrencesSupport:Modes.IOccurrencesSupport;
 	public referenceSupport: Modes.IReferenceSupport;
@@ -296,7 +296,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 		this.modeService = modeService;
 
 		this.tokenizationSupport = new TokenizationSupport(this, this, true, true);
-
+		this.linkSupport = this;
 		this.formattingSupport = this;
 		this.extraInfoSupport = this;
 		this.occurrencesSupport = this;
@@ -466,6 +466,11 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 
 	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], htmlWorker.HTMLWorker> {
 		return createAsyncDescriptor2('vs/languages/html/common/htmlWorker', 'HTMLWorker');
+	}
+
+	static $computeLinks = OneWorkerAttr(HTMLMode, HTMLMode.prototype.computeLinks);
+	public computeLinks(resource:URI):winjs.TPromise<Modes.ILink[]> {
+		return this._worker((w) => w.computeLinks(resource));
 	}
 
 	static $formatRange = OneWorkerAttr(HTMLMode, HTMLMode.prototype.formatRange);

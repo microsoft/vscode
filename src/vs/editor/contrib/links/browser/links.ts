@@ -22,6 +22,8 @@ import {IEditorService, IResourceInput} from 'vs/platform/editor/common/editor';
 import {IMessageService} from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import {KeyCode} from 'vs/base/common/keyCodes';
+import {Range} from 'vs/editor/common/core/range';
+import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 
 class LinkOccurence {
 
@@ -89,12 +91,19 @@ class LinkDetector {
 	private lastMouseEvent:EditorBrowser.IMouseEvent;
 	private editorService:IEditorService;
 	private messageService:IMessageService;
+	private editorWorkerService: IEditorWorkerService;
 	private currentOccurences:{ [decorationId:string]:LinkOccurence; };
 
-	constructor(editor:EditorCommon.ICommonCodeEditor, editorService:IEditorService, messageService:IMessageService) {
+	constructor(
+		editor:EditorCommon.ICommonCodeEditor,
+		editorService:IEditorService,
+		messageService:IMessageService,
+		editorWorkerService: IEditorWorkerService
+	) {
 		this.editor = editor;
 		this.editorService = editorService;
 		this.messageService = messageService;
+		this.editorWorkerService = editorWorkerService;
 		this.listenersToRemove = [];
 		this.listenersToRemove.push(editor.addListener('change', (e:EditorCommon.IModelContentChangedEvent) => this.onChange()));
 		this.listenersToRemove.push(editor.addListener(EditorCommon.EventType.ModelChanged, (e:EditorCommon.IModelContentChangedEvent) => this.onModelChanged()));
@@ -146,14 +155,75 @@ class LinkDetector {
 		if (!this.editor.getModel()) {
 			return;
 		}
-		var mode = this.editor.getModel().getMode();
+
+		let modePromise:TPromise<Modes.ILink[]> = TPromise.as(null);
+		let mode = this.editor.getModel().getMode();
 		if (mode.linkSupport) {
-			this.computePromise = mode.linkSupport.computeLinks(this.editor.getModel().getAssociatedResource());
-			this.computePromise.then((links:Modes.ILink[]) => {
-				this.updateDecorations(links);
-				this.computePromise = null;
-			});
+			modePromise = mode.linkSupport.computeLinks(this.editor.getModel().getAssociatedResource());
 		}
+
+		let standardPromise:TPromise<Modes.ILink[]> = this.editorWorkerService.computeLinks(this.editor.getModel().getAssociatedResource());
+
+		this.computePromise = TPromise.join([modePromise, standardPromise]).then((r) => {
+			let a = r[0];
+			let b = r[1];
+			if (!a || a.length === 0) {
+				return b || [];
+			}
+			if (!b || b.length === 0) {
+				return a || [];
+			}
+			return LinkDetector._linksUnion(a, b);
+		});
+
+		this.computePromise.then((links:Modes.ILink[]) => {
+			this.updateDecorations(links);
+			this.computePromise = null;
+		});
+	}
+
+	private static _linksUnion(oldLinks: Modes.ILink[], newLinks: Modes.ILink[]): Modes.ILink[] {
+		// reunite oldLinks with newLinks and remove duplicates
+		var result: Modes.ILink[] = [],
+			oldIndex: number,
+			oldLen: number,
+			newIndex: number,
+			newLen: number,
+			oldLink: Modes.ILink,
+			newLink: Modes.ILink,
+			comparisonResult: number;
+
+		for (oldIndex = 0, newIndex = 0, oldLen = oldLinks.length, newLen = newLinks.length; oldIndex < oldLen && newIndex < newLen;) {
+			oldLink = oldLinks[oldIndex];
+			newLink = newLinks[newIndex];
+
+			if (Range.areIntersectingOrTouching(oldLink.range, newLink.range)) {
+				// Remove the oldLink
+				oldIndex++;
+				continue;
+			}
+
+			comparisonResult = Range.compareRangesUsingStarts(oldLink.range, newLink.range);
+
+			if (comparisonResult < 0) {
+				// oldLink is before
+				result.push(oldLink);
+				oldIndex++;
+			} else {
+				// newLink is before
+				result.push(newLink);
+				newIndex++;
+			}
+		}
+
+		for (; oldIndex < oldLen; oldIndex++) {
+			result.push(oldLinks[oldIndex]);
+		}
+		for (; newIndex < newLen; newIndex++) {
+			result.push(newLinks[newIndex]);
+		}
+
+		return result;
 	}
 
 	private updateDecorations(links:Modes.ILink[]):void {
@@ -309,8 +379,7 @@ class LinkDetector {
 
 	private isEnabled(mouseEvent: EditorBrowser.IMouseEvent, withKey?:Keyboard.StandardKeyboardEvent):boolean {
 		return 	mouseEvent.target.type === EditorCommon.MouseTargetType.CONTENT_TEXT &&
-				(mouseEvent.event[LinkDetector.TRIGGER_MODIFIER] || (withKey && withKey.keyCode === LinkDetector.TRIGGER_KEY_VALUE)) &&
-				!!this.editor.getModel().getMode().linkSupport;
+				(mouseEvent.event[LinkDetector.TRIGGER_MODIFIER] || (withKey && withKey.keyCode === LinkDetector.TRIGGER_KEY_VALUE));
 	}
 
 	private stop():void {
@@ -339,13 +408,16 @@ class OpenLinkAction extends EditorAction {
 
 	private _linkDetector: LinkDetector;
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor,
+	constructor(
+		descriptor:EditorCommon.IEditorActionDescriptorData,
+		editor:EditorCommon.ICommonCodeEditor,
 		@IEditorService editorService:IEditorService,
-		@IMessageService messageService:IMessageService
-		) {
+		@IMessageService messageService:IMessageService,
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService
+	) {
 		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.UpdateOnCursorPositionChange);
 
-		this._linkDetector = new LinkDetector(editor, editorService, messageService);
+		this._linkDetector = new LinkDetector(editor, editorService, messageService, editorWorkerService);
 	}
 
 	public dispose(): void {

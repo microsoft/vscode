@@ -13,7 +13,6 @@ import network = require('vs/base/common/network');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import strings = require('vs/base/common/strings');
-import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
@@ -652,55 +651,8 @@ export class HTMLWorker extends AbstractModeWorker {
 	}
 
 	public computeLinks(resource: URI): winjs.TPromise<Modes.ILink[]> {
-
-		return super.computeLinks(resource).then((oldLinks) => {
-
-			var model = this.resourceService.get(resource);
-
-			var newLinks = this._computeHTMLLinks(model);
-
-			// reunite oldLinks with newLinks and remove duplicates
-			var result: Modes.ILink[] = [],
-				oldIndex: number,
-				oldLen: number,
-				newIndex: number,
-				newLen: number,
-				oldLink: Modes.ILink,
-				newLink: Modes.ILink,
-				comparisonResult: number;
-
-			for (oldIndex = 0, newIndex = 0, oldLen = oldLinks.length, newLen = newLinks.length; oldIndex < oldLen && newIndex < newLen;) {
-				oldLink = oldLinks[oldIndex];
-				newLink = newLinks[newIndex];
-
-				if (Range.areIntersectingOrTouching(oldLink.range, newLink.range)) {
-					// Remove the oldLink
-					oldIndex++;
-					continue;
-				}
-
-				comparisonResult = Range.compareRangesUsingStarts(oldLink.range, newLink.range);
-
-				if (comparisonResult < 0) {
-					// oldLink is before
-					result.push(oldLink);
-					oldIndex++;
-				} else {
-					// newLink is before
-					result.push(newLink);
-					newIndex++;
-				}
-			}
-
-			for (; oldIndex < oldLen; oldIndex++) {
-				result.push(oldLinks[oldIndex]);
-			}
-			for (; newIndex < newLen; newIndex++) {
-				result.push(newLinks[newIndex]);
-			}
-
-			return result;
-		});
+		let model = this.resourceService.get(resource);
+		return winjs.TPromise.as(this._computeHTMLLinks(model));
 	}
 }
 

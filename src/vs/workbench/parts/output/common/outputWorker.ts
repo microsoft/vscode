@@ -38,19 +38,18 @@ export class OutputWorker extends AbstractModeWorker {
 	}
 
 	public computeLinks(resource: URI): TPromise<ILink[]> {
-		return super.computeLinks(resource).then((links) => {
-			if (!this.patterns.length) {
-				return links;
-			}
+		let links: ILink[] = [];
+		if (!this.patterns.length) {
+			return TPromise.as(links);
+		}
 
-			let model = this.resourceService.get(resource);
+		let model = this.resourceService.get(resource);
 
-			for (let i = 1, lineCount = model.getLineCount(); i <= lineCount; i++) {
-				links.push(...OutputWorker.detectLinks(model.getLineContent(i), i, this.patterns, this._contextService));
-			}
+		for (let i = 1, lineCount = model.getLineCount(); i <= lineCount; i++) {
+			links.push(...OutputWorker.detectLinks(model.getLineContent(i), i, this.patterns, this._contextService));
+		}
 
-			return links;
-		});
+		return TPromise.as(links);
 	}
 
 	public static createPatterns(workspace: IWorkspace): RegExp[] {

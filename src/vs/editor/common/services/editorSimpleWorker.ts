@@ -12,6 +12,8 @@ import {EditorSimpleWorker, IRawModelData} from 'vs/editor/common/services/edito
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
 import URI from 'vs/base/common/uri';
 import {DiffComputer} from 'vs/editor/common/diff/diffComputer';
+import Modes = require('vs/editor/common/modes');
+import {computeLinks} from 'vs/editor/common/modes/linkComputer';
 
 class MirrorModel extends MirrorModel2 {
 
@@ -19,6 +21,13 @@ class MirrorModel extends MirrorModel2 {
 		return this._lines.slice(0);
 	}
 
+	public getLineCount(): number {
+		return this._lines.length;
+	}
+
+	public getLineContent(lineNumber:number): string {
+		return this._lines[lineNumber - 1];
+	}
 }
 
 export class EditorSimpleWorkerImpl extends EditorSimpleWorker implements IRequestHandler {
@@ -87,6 +96,15 @@ export class EditorSimpleWorkerImpl extends EditorSimpleWorker implements IReque
 	}
 
 	// ---- END diff --------------------------------------------------------------------------
+
+	public computeLinks(modelUrl:string):TPromise<Modes.ILink[]> {
+		let model = this._models[modelUrl];
+		if (!model) {
+			return null;
+		}
+
+		return TPromise.as(computeLinks(model));
+	}
 }
 
 /**

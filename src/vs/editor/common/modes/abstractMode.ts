@@ -37,7 +37,6 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 	public autoValidateDelay:number;
 	public suggestSupport:Modes.ISuggestSupport;
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
-	public linkSupport:Modes.ILinkSupport;
 	public configSupport:Modes.IConfigurationSupport;
 	public codeLensSupport:Modes.ICodeLensSupport;
 
@@ -60,7 +59,6 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 		this.autoValidateDelay = 500;
 		this.suggestSupport = this;
 		this.inplaceReplaceSupport = this;
-		this.linkSupport = this;
 		this.configSupport = this;
 
 		this._workerPiecePromise = null;
@@ -187,11 +185,6 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 	static $navigateValueSet = OneWorkerAttr(AbstractMode, AbstractMode.prototype.navigateValueSet);
 	public navigateValueSet(resource:URI, position:EditorCommon.IRange, up:boolean):TPromise<Modes.IInplaceReplaceSupportResult> {
 		return this._worker((w) => w.inplaceReplaceSupport.navigateValueSet(resource, position, up));
-	}
-
-	static $computeLinks = OneWorkerAttr(AbstractMode, AbstractMode.prototype.computeLinks);
-	public computeLinks(resource:URI):TPromise<Modes.ILink[]> {
-		return this._worker((w) => w.computeLinks(resource));
 	}
 
 	public configure(options:any): TPromise<boolean> {

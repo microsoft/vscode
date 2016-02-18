@@ -14,6 +14,10 @@ import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {OutputWorker} from 'vs/workbench/parts/output/common/outputWorker';
+import winjs = require('vs/base/common/winjs.base');
+import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
+import URI from 'vs/base/common/uri';
+import Modes = require('vs/editor/common/modes');
 
 export const language: types.ILanguage = {
 	displayName: 'Log',
@@ -41,6 +45,8 @@ export const language: types.ILanguage = {
 
 export class OutputMode extends MonarchMode<OutputWorker> {
 
+	public linkSupport:Modes.ILinkSupport;
+
 	constructor(
 		descriptor:IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -49,9 +55,16 @@ export class OutputMode extends MonarchMode<OutputWorker> {
 		@IModelService modelService: IModelService
 	) {
 		super(descriptor, compile(language), instantiationService, threadService, modeService, modelService);
+
+		this.linkSupport = this;
 	}
 
 	protected _getWorkerDescriptor(): AsyncDescriptor2<IMode, IWorkerParticipant[], OutputWorker> {
 		return createAsyncDescriptor2('vs/workbench/parts/output/common/outputWorker', 'OutputWorker');
+	}
+
+	static $computeLinks = OneWorkerAttr(OutputMode, OutputMode.prototype.computeLinks);
+	public computeLinks(resource:URI):winjs.TPromise<Modes.ILink[]> {
+		return this._worker((w) => w.computeLinks(resource));
 	}
 }

@@ -7,7 +7,6 @@
 import URI from 'vs/base/common/uri';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
-import {computeLinks} from 'vs/editor/common/modes/linkComputer';
 import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
 import {ValidationHelper} from 'vs/editor/common/worker/validationHelper';
 import EditorCommon = require('vs/editor/common/editorCommon');
@@ -174,14 +173,6 @@ export class AbstractModeWorker {
 		return AbstractModeWorker.filter;
 	}
 
-	// ---- link detection ------------------------------------------------------------------
-
-	public computeLinks(resource:URI):TPromise<Modes.ILink[]> {
-		var model = this.resourceService.get(resource),
-			links = computeLinks(model);
-
-		return TPromise.as(links);
-	}
 
 	public configure(options:any): TPromise<boolean> {
 		var p = this._doConfigure(options);

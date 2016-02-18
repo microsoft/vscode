@@ -14,6 +14,7 @@ import {SimpleWorkerClient} from 'vs/base/common/worker/simpleWorker';
 import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
 import {EditorSimpleWorker} from 'vs/editor/common/services/editorSimpleWorkerCommon';
 import {IntervalTimer} from 'vs/base/common/async';
+import Modes = require('vs/editor/common/modes');
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -34,12 +35,16 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 		this._workerManager = new WorkerManager(modelService);
 	}
 
-	computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]> {
+	public computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]> {
 		return this._workerManager.withWorker().then(client => client.computeDiff(original, modified, ignoreTrimWhitespace));
 	}
 
-	computeDirtyDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]> {
+	public computeDirtyDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]> {
 		return this._workerManager.withWorker().then(client => client.computeDirtyDiff(original, modified, ignoreTrimWhitespace));
+	}
+
+	public computeLinks(resource:URI):TPromise<Modes.ILink[]> {
+		return this._workerManager.withWorker().then(client => client.computeLinks(resource));
 	}
 }
 
@@ -145,6 +150,12 @@ class EditorWorkerClient extends Disposable {
 	public computeDirtyDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]> {
 		return this._withSyncedResources([original, modified]).then(_ => {
 			return this._proxy.computeDirtyDiff(original.toString(), modified.toString(), ignoreTrimWhitespace);
+		});
+	}
+
+	public computeLinks(resource:URI):TPromise<Modes.ILink[]> {
+		return this._withSyncedResources([resource]).then(_ => {
+			return this._proxy.computeLinks(resource.toString());
 		});
 	}
 

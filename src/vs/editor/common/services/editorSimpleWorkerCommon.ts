@@ -6,6 +6,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import EditorCommon = require('vs/editor/common/editorCommon');
+import Modes = require('vs/editor/common/modes');
 
 export interface IRawModelData {
 	url:string;
@@ -19,11 +20,11 @@ export abstract class EditorSimpleWorker {
 		throw new Error('Not implemented!');
 	}
 
-	public acceptModelChanged(strURL: string, events: EditorCommon.IModelContentChangedEvent2[]): void {
+	public acceptModelChanged(modelUrl: string, events: EditorCommon.IModelContentChangedEvent2[]): void {
 		throw new Error('Not implemented!');
 	}
 
-	public acceptRemovedModel(strURL: string): void {
+	public acceptRemovedModel(modelUrl: string): void {
 		throw new Error('Not implemented!');
 	}
 
@@ -32,6 +33,10 @@ export abstract class EditorSimpleWorker {
 	}
 
 	public computeDirtyDiff(originalUrl:string, modifiedUrl:string, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]> {
+		throw new Error('Not implemented!');
+	}
+
+	public computeLinks(modelUrl:string):TPromise<Modes.ILink[]> {
 		throw new Error('Not implemented!');
 	}
 }
