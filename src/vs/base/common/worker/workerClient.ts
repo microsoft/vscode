@@ -22,7 +22,7 @@ export interface IWorkerCallback {
 }
 
 export interface IWorkerFactory {
-	create(id:number, callback:IWorkerCallback, onCrashCallback?:()=>void):IWorker;
+	create(moduleId:string, callback:IWorkerCallback, onCrashCallback?:()=>void):IWorker;
 }
 
 interface IActiveRequest {
@@ -35,11 +35,8 @@ interface IActiveRequest {
 
 export class WorkerClient {
 
-	private static LAST_WORKER_ID = 0;
-
 	private _lastMessageId:number;
 	private _promises:{[id:string]:IActiveRequest;};
-	private _workerId:number;
 	private _worker:IWorker;
 
 	private _messagesQueue:protocol.IClientMessage[];
@@ -52,7 +49,7 @@ export class WorkerClient {
 
 	public onModuleLoaded:TPromise<void>;
 
-	constructor(workerFactory:IWorkerFactory, moduleId:string, decodeMessageName:(msg:protocol.IClientMessage)=>string, onCrashCallback:(workerClient:WorkerClient)=>void, workerId:number=++WorkerClient.LAST_WORKER_ID) {
+	constructor(workerFactory:IWorkerFactory, moduleId:string, decodeMessageName:(msg:protocol.IClientMessage)=>string) {
 		this._decodeMessageName = decodeMessageName;
 		this._lastMessageId = 0;
 		this._promises = {};
@@ -61,11 +58,8 @@ export class WorkerClient {
 		this._processQueueTimeout = -1;
 		this._waitingForWorkerReply = false;
 		this._lastTimerEvent = null;
-		this._workerId = workerId;
 
-		this._worker = workerFactory.create(workerId, (msg) => this._onSerializedMessage(msg), () => {
-			onCrashCallback(this);
-		});
+		this._worker = workerFactory.create('vs/base/common/worker/workerServer', (msg) => this._onSerializedMessage(msg));
 
 		let loaderConfiguration:any = null;
 
@@ -93,10 +87,6 @@ export class WorkerClient {
 
 	public getRemoteCom(): remote.IRemoteCom {
 		return this._remoteCom;
-	}
-
-	public get workerId():number {
-		return this._workerId;
 	}
 
 	public getQueueSize(): number {

@@ -134,7 +134,7 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		return major.substring(major.length - 14) + '.' + minor.substr(0, 14);
 	}
 
-	private _doCreateWorker(workerId?: number): Worker.WorkerClient {
+	private _doCreateWorker(): Worker.WorkerClient {
 		let worker = new Worker.WorkerClient(
 			this._workerFactory,
 			this._workerModuleId,
@@ -143,22 +143,7 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 					return this._shortName(msg.payload[0], msg.payload[1]);
 				}
 				return msg.type;
-			},
-			(crashed: Worker.WorkerClient) => {
-				let index = 0;
-				for (; index < this._workerPool.length; index++) {
-					if (crashed === this._workerPool[index]) {
-						break;
-					}
-				}
-				let newWorker = this._doCreateWorker(crashed.workerId);
-				if (crashed === this._workerPool[index]) {
-					this._workerPool[index] = newWorker;
-				} else {
-					this._workerPool.push(newWorker);
-				}
-			},
-			workerId
+			}
 		);
 		worker.getRemoteCom().setManyHandler(this);
 		worker.onModuleLoaded = worker.request('initialize', {

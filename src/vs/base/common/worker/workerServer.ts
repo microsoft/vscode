@@ -160,6 +160,7 @@ export class WorkerServer {
 				this._workerId = msg.payload.id;
 
 				var loaderConfig = msg.payload.loaderConfiguration;
+				// TODO@Alex: share this code with simpleWorker
 				if (loaderConfig) {
 					// Remove 'baseUrl', handling it is beyond scope for now
 					if (typeof loaderConfig.baseUrl !== 'undefined') {

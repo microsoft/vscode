@@ -24,9 +24,10 @@ class WebWorker implements IWorker {
 	private id:number;
 	private worker:any;
 
-	constructor(id:number, label:string, onMessageCallback:IWorkerCallback) {
+	constructor(moduleId:string, id:number, label:string, onMessageCallback:IWorkerCallback) {
 		this.id = id;
 		this.worker = new Worker(getWorkerUrl('workerMain.js', label));
+		this.postMessage(moduleId);
 		this.worker.onmessage = function (ev:any) {
 			onMessageCallback(ev.data);
 		};
@@ -60,13 +61,15 @@ class FrameWorker implements IWorker {
 
 	private _listeners: lifecycle.IDisposable[];
 
-	constructor(id: number, onMessageCallback:IWorkerCallback) {
+	constructor(moduleId:string, id: number, onMessageCallback:IWorkerCallback) {
 		this.id = id;
 		this._listeners = [];
 
 		// Collect all messages sent to the worker until the iframe is loaded
 		this.loaded = false;
 		this.beforeLoadMessages = [];
+
+		this.postMessage(moduleId);
 
 		this.iframe = <HTMLIFrameElement> document.createElement('iframe');
 		this.iframe.id = this.iframeId();
@@ -121,13 +124,14 @@ class FrameWorker implements IWorker {
 }
 
 export class DefaultWorkerFactory implements IWorkerFactory {
-	public create(id:number, onMessageCallback:IWorkerCallback, onCrashCallback:()=>void = null):IWorker {
-		var result:IWorker = null;
-		try {
-			result = new WebWorker(id, 'service' + id, onMessageCallback);
-		} catch (e) {
-			result = new FrameWorker(id, onMessageCallback);
+
+	private static LAST_WORKER_ID = 0;
+
+	public create(moduleId:string, onMessageCallback:IWorkerCallback):IWorker {
+		var workerId = (++DefaultWorkerFactory.LAST_WORKER_ID);
+		if (typeof WebWorker !== 'undefined') {
+			return new WebWorker(moduleId, workerId, 'service' + workerId, onMessageCallback);
 		}
-		return result;
+		return new FrameWorker(moduleId, workerId, onMessageCallback);
 	}
 }

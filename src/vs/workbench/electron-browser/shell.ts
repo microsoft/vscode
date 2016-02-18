@@ -50,6 +50,8 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
+import {EditorWorkerServiceImpl} from 'vs/editor/common/services/editorWorkerServiceImpl';
+import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {MainProcessVSCodeAPIHelper} from 'vs/workbench/api/node/extHost.api.impl';
 import {MainProcessPluginService} from 'vs/platform/plugins/common/nativePluginService';
 import {MainThreadDocuments} from 'vs/workbench/api/node/extHostDocuments';
@@ -300,6 +302,7 @@ export class WorkbenchShell {
 		result.addSingleton(IMarkerService, markerService);
 		result.addSingleton(IModelService, modelService);
 		result.addSingleton(ICodeEditorService, new CodeEditorServiceImpl());
+		result.addSingleton(IEditorWorkerService, new EditorWorkerServiceImpl(modelService));
 		result.addSingleton(IThemeService, this.themeService);
 		result.addSingleton(IActionsService, new ActionsService(pluginService, this.keybindingService));
 

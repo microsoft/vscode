@@ -19,6 +19,8 @@ import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWork
 import _eventService = require('vs/platform/event/common/eventService');
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
+import {EditorWorkerServiceImpl} from 'vs/editor/common/services/editorWorkerServiceImpl';
+import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -67,6 +69,7 @@ export interface IEditorOverrideServices {
 	fileService?:IFileService;
 	modelService?: IModelService;
 	codeEditorService?: ICodeEditorService;
+	editorWorkerService?: IEditorWorkerService;
 }
 
 export interface IStaticServices {
@@ -80,6 +83,7 @@ export interface IStaticServices {
 	telemetryService: ITelemetryService;
 	modelService: IModelService;
 	codeEditorService: ICodeEditorService;
+	editorWorkerService: IEditorWorkerService;
 	eventService: IEventService;
 	instantiationService: IInstantiationService;
 }
@@ -110,6 +114,7 @@ export function ensureStaticPlatformServices(services: IEditorOverrideServices):
 	services.messageService = services.messageService || statics.messageService;
 	services.modelService = services.modelService || statics.modelService;
 	services.codeEditorService = services.codeEditorService || statics.codeEditorService;
+	services.editorWorkerService = services.editorWorkerService || statics.editorWorkerService;
 	services.eventService = services.eventService || statics.eventService;
 	services.markerService = services.markerService || statics.markerService;
 	services.instantiationService = statics.instantiationService;
@@ -192,6 +197,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	}
 
 	var codeEditorService = services.codeEditorService || new CodeEditorServiceImpl();
+	var editorWorkerService = services.editorWorkerService || new EditorWorkerServiceImpl(modelService);
 
 	var eventService = services.eventService || new _eventService.EventService();
 
@@ -206,6 +212,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 		messageService: messageService,
 		modelService: modelService,
 		codeEditorService: codeEditorService,
+		editorWorkerService: editorWorkerService,
 		eventService: eventService,
 		instantiationService: void 0
 	};

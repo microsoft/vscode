@@ -37,6 +37,7 @@ import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
+import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 
 // Set defaults for standalone editor
 DefaultConfig.editor.wrappingIndent = 'none';
@@ -171,7 +172,18 @@ class StandaloneDiffEditor extends DiffEditorWidget.DiffEditorWidget {
 	private _markerService: IMarkerService;
 	private _telemetryService: ITelemetryService;
 
-	constructor(domElement:HTMLElement, options:IDiffEditorConstructionOptions, toDispose: Lifecycle.IDisposable[], @IInstantiationService instantiationService: IInstantiationService, @IKeybindingService keybindingService: IKeybindingService, @IContextViewService contextViewService: IContextViewService, @IEditorService editorService: IEditorService, @IMarkerService markerService: IMarkerService, @ITelemetryService telemetryService: ITelemetryService) {
+	constructor(
+		domElement:HTMLElement,
+		options:IDiffEditorConstructionOptions,
+		toDispose: Lifecycle.IDisposable[],
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextViewService contextViewService: IContextViewService,
+		@IEditorService editorService: IEditorService,
+		@IMarkerService markerService: IMarkerService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService
+	) {
 		if (keybindingService instanceof AbstractKeybindingService) {
 			(<AbstractKeybindingService><any>keybindingService).setInstantiationService(instantiationService);
 		}
@@ -189,7 +201,7 @@ class StandaloneDiffEditor extends DiffEditorWidget.DiffEditorWidget {
 
 		options = options || {};
 
-		super(domElement, options, instantiationService);
+		super(domElement, options, editorWorkerService, instantiationService);
 
 		this._contextViewService.setContainer(this._containerDomElement);
 	}

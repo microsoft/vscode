@@ -22,6 +22,7 @@ import {Range} from 'vs/editor/common/core/range';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
+import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 
 interface IEditorScrollEvent {
 	scrollLeft: number;
@@ -170,8 +171,16 @@ export class DiffEditorWidget extends EventEmitter.EventEmitter implements Edito
 
 	private _updateDecorationsRunner:Schedulers.RunOnceScheduler;
 
-	constructor(domElement:HTMLElement, options:EditorCommon.IDiffEditorOptions, @IInstantiationService instantiationService: IInstantiationService) {
+	private _editorWorkerService: IEditorWorkerService;
+
+	constructor(
+		domElement:HTMLElement,
+		options:EditorCommon.IDiffEditorOptions,
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
 		super();
+		this._editorWorkerService = editorWorkerService;
 
 		this.id = (++DIFF_EDITOR_ID);
 
@@ -716,39 +725,26 @@ export class DiffEditorWidget extends EventEmitter.EventEmitter implements Edito
 		var currentOriginalModel = this.originalEditor.getModel();
 		var currentModifiedModel = this.modifiedEditor.getModel();
 
-		var diffSupport = this.modifiedEditor.getModel().getMode().diffSupport;
-		if(!diffSupport) {
-			// no diffing support
-			this._lineChanges = null;
-			this._updateDecorationsRunner.schedule();
-		} else {
-			try {
-				diffSupport.computeDiff(currentOriginalModel.getAssociatedResource(), currentModifiedModel.getAssociatedResource(), this._ignoreTrimWhitespace).then((result:EditorCommon.ILineChange[]) => {
-					if (currentToken === this._diffComputationToken
-						&& currentOriginalModel === this.originalEditor.getModel()
-						&& currentModifiedModel === this.modifiedEditor.getModel()
-						)
-					{
-						this._lineChanges = result;
-						this._updateDecorationsRunner.schedule();
-						this.emit(EditorCommon.EventType.DiffUpdated, { editor: this, lineChanges: result });
-					}
-				}, (error) => {
-					if (currentToken === this._diffComputationToken
-						&& currentOriginalModel === this.originalEditor.getModel()
-						&& currentModifiedModel === this.modifiedEditor.getModel()
-						)
-					{
-						this._lineChanges = null;
-						this._updateDecorationsRunner.schedule();
-					}
-				});
-			} catch(e) {
-				console.error(e);
+		this._editorWorkerService.computeDiff(currentOriginalModel.getAssociatedResource(), currentModifiedModel.getAssociatedResource(), this._ignoreTrimWhitespace).then((result) => {
+			if (currentToken === this._diffComputationToken
+				&& currentOriginalModel === this.originalEditor.getModel()
+				&& currentModifiedModel === this.modifiedEditor.getModel()
+				)
+			{
+				this._lineChanges = result;
+				this._updateDecorationsRunner.schedule();
+				this.emit(EditorCommon.EventType.DiffUpdated, { editor: this, lineChanges: result });
+			}
+		}, (error) => {
+			if (currentToken === this._diffComputationToken
+				&& currentOriginalModel === this.originalEditor.getModel()
+				&& currentModifiedModel === this.modifiedEditor.getModel()
+				)
+			{
 				this._lineChanges = null;
 				this._updateDecorationsRunner.schedule();
 			}
-		}
+		});
 	}
 
 	private _cleanViewZonesAndDecorations(): void {
