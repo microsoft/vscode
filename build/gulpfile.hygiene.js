@@ -7,8 +7,8 @@ var gulp = require('gulp');
 var filter = require('gulp-filter');
 var es = require('event-stream');
 var path = require('path');
-var tslint = require('gulp-tslint');
-var _tslint = require('tslint');
+var gulptslint = require('gulp-tslint');
+var tslint = require('tslint');
 
 var all = [
 	'*',
@@ -92,26 +92,31 @@ var copyrightHeader = [
 	' *--------------------------------------------------------------------------------------------*/'
 ].join('\n');
 
-/**
- * Reports tslint erros in the format:
- * src/helloWorld.c:5:3: warning: implicit declaration of function ‘prinft’
- */
-var lintReporter = function (output, file, options) {
-	var relativeBase = file.base.substring(file.cwd.length + 1).replace('\\', '/');
-	output.forEach(function (e) {
-		var message = relativeBase + e.name + ':' + (e.startPosition.line + 1) + ':' + (e.startPosition.character + 1) + ': ' + e.failure;
-		console.log('[tslint] ' + message);
-	});
-};
+function failureReporter(failure) {
+	var name = failure.name || failure.fileName;
+	var position = failure.startPosition;
+	var line = position.lineAndCharacter ? position.lineAndCharacter.line : position.line;
+	var character = position.lineAndCharacter ? position.lineAndCharacter.character : position.character;
+
+	console.error(
+		name
+		+ ':' + (line + 1)
+		+ ':' + (character + 1)
+		+ ': ' + failure.failure
+	);
+}
 
 gulp.task('tslint', function () {
+	var options = { summarizeFailureOutput: true };
+
+	function reporter(failures) {
+		failures.forEach(failureReporter);
+	}
+
 	return gulp.src(all, { base: '.' })
 		.pipe(filter(tslintFilter))
-		.pipe(tslint({ rulesDirectory: 'build/tslintRules' }))
-		.pipe(tslint.report(lintReporter, {
-			summarizeFailureOutput: false,
-			emitError: false
-		}));
+		.pipe(gulptslint({ rulesDirectory: 'build/tslintRules' }))
+		.pipe(gulptslint.report(reporter, options));
 });
 
 var hygiene = exports.hygiene = function (some) {
@@ -156,17 +161,17 @@ var hygiene = exports.hygiene = function (some) {
 	});
 
 	var tslint = es.through(function(file) {
-		configuration = _tslint.findConfiguration(null, '.');
+		configuration = tslint.findConfiguration(null, '.');
 		var options = {
 			formatter: 'json',
 			configuration: configuration,
 			rulesDirectory: 'build/tslintRules',
 		}
 		var contents = file.contents.toString('utf8');
-		var linter = new _tslint(file.relative, contents, options);
+		var linter = new tslint(file.relative, contents, options);
 		var result = linter.lint();
 		if (result.failureCount > 0) {
-			console.error(file.relative + ': ' + result.failureCount + ' Lint warning(s)');
+			result.failures.forEach(failureReporter);
 			errorCount += result.failureCount;
 		}
 		this.emit('data', file);
