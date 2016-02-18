@@ -287,7 +287,11 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.DEBUGEE_TERMINATED, (event: DebugProtocol.TerminatedEvent) => {
 			aria.alert(nls.localize('programTerminated', "Program terminated."));
 			if (this.session && this.session.getId() === (<any>event).sessionId) {
-				this.session.disconnect().done(null, errors.onUnexpectedError);
+				if (event.body && typeof event.body.restart == 'boolean' && event.body.restart) {
+					this.restartSession().done(null, errors.onUnexpectedError);
+				} else {
+					this.session.disconnect().done(null, errors.onUnexpectedError);
+				}
 			}
 		}));
 
