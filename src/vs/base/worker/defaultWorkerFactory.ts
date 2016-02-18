@@ -22,7 +22,7 @@ var getWorkerUrl = env.getCrossOriginWorkerScriptUrl || defaultGetWorkerUrl;
 class WebWorker implements IWorker {
 
 	private id:number;
-	private worker:any;
+	private worker:Worker;
 
 	constructor(moduleId:string, id:number, label:string, onMessageCallback:IWorkerCallback) {
 		this.id = id;
@@ -41,8 +41,9 @@ class WebWorker implements IWorker {
 		this.worker.postMessage(msg);
 	}
 
-	public terminate(): void {
+	public dispose(): void {
 		this.worker.terminate();
+		this.worker = null;
 	}
 }
 
@@ -87,6 +88,8 @@ class FrameWorker implements IWorker {
 
 	public dispose(): void {
 		this._listeners = lifecycle.disposeAll(this._listeners);
+		window.removeEventListener('message', this.onMessage);
+		window.frames[this.iframeId()].close();
 	}
 
 	private iframeId(): string {
@@ -115,11 +118,6 @@ class FrameWorker implements IWorker {
 		} else {
 			this.beforeLoadMessages.push(msg);
 		}
-	}
-
-	public terminate(): void {
-		window.removeEventListener('message', this.onMessage);
-		window.frames[this.iframeId()].close();
 	}
 }
 

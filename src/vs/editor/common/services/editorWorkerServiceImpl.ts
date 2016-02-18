@@ -9,10 +9,21 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {Disposable, IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {SimpleWorkerClient} from 'vs/base/common/worker/simpleWorker';
 import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
 import {EditorSimpleWorker} from 'vs/editor/common/services/editorSimpleWorkerCommon';
+import {IntervalTimer} from 'vs/base/common/async';
+
+/**
+ * Stop syncing a model to the worker if it was not needed for 1 min.
+ */
+const STOP_SYNC_MODEL_DELTA_TIME_MS = 60 * 1000;
+
+/**
+ * Stop the worker if it was not needed for 5 min.
+ */
+const STOP_WORKER_DELTA_TIME_MS = 5 * 60 * 1000;
 
 export class EditorWorkerServiceImpl implements IEditorWorkerService {
 	public serviceId = IEditorWorkerService;
@@ -32,17 +43,43 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 	}
 }
 
-class WorkerManager {
+class WorkerManager extends Disposable {
 
 	private _modelService:IModelService;
 	private _editorWorkerClient: EditorWorkerClient;
+	private _lastWorkerUsedTime: number;
 
 	constructor(modelService:IModelService) {
+		super();
 		this._modelService = modelService;
 		this._editorWorkerClient = null;
+
+		let stopWorkerInterval = this._register(new IntervalTimer());
+		stopWorkerInterval.cancelAndSet(() => this._checkStopWorker(), Math.round(STOP_WORKER_DELTA_TIME_MS / 2));
+	}
+
+	public dispose(): void {
+		if (this._editorWorkerClient) {
+			this._editorWorkerClient.dispose();
+			this._editorWorkerClient = null;
+		}
+		super.dispose();
+	}
+
+	private _checkStopWorker(): void {
+		if (!this._editorWorkerClient) {
+			return;
+		}
+
+		let timeSinceLastWorkerUsedTime = (new Date()).getTime() - this._lastWorkerUsedTime;
+		if (timeSinceLastWorkerUsedTime > STOP_WORKER_DELTA_TIME_MS) {
+			this._editorWorkerClient.dispose();
+			this._editorWorkerClient = null;
+		}
 	}
 
 	public withWorker(): TPromise<EditorWorkerClient> {
+		this._lastWorkerUsedTime = (new Date()).getTime();
 		if (!this._editorWorkerClient) {
 			this._editorWorkerClient = new EditorWorkerClient(this._modelService);
 		}
@@ -50,26 +87,31 @@ class WorkerManager {
 	}
 }
 
-class EditorWorkerClient {
+class EditorWorkerClient extends Disposable {
 
 	private _worker: SimpleWorkerClient<EditorSimpleWorker>;
 	private _proxy: EditorSimpleWorker;
 	private _modelService:IModelService;
-	private _syncedModels: {[uri:string]:IDisposable[];};
+	private _syncedModels: {[modelUrl:string]:IDisposable[];};
 
 	constructor(modelService:IModelService) {
+		super();
 		this._modelService = modelService;
 		this._syncedModels = Object.create(null);
-		this._worker = new SimpleWorkerClient<EditorSimpleWorker>(
+		this._worker = this._register(new SimpleWorkerClient<EditorSimpleWorker>(
 			new DefaultWorkerFactory(),
 			'vs/editor/common/services/editorSimpleWorker',
 			EditorSimpleWorker
-		);
+		));
 		this._proxy = this._worker.get();
 	}
 
 	public dispose(): void {
-		console.log('TODO: EditorWorkerClient.dispose');
+		for (let modelUrl in this._syncedModels) {
+			disposeAll(this._syncedModels[modelUrl]);
+		}
+		this._syncedModels = Object.create(null);
+		super.dispose();
 	}
 
 	public computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]> {

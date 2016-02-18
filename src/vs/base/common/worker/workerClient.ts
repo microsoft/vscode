@@ -14,7 +14,7 @@ import marshalling = require('vs/base/common/marshalling');
 export interface IWorker {
 	getId():number;
 	postMessage(message:string):void;
-	terminate():void;
+	dispose():void;
 }
 
 export interface IWorkerCallback {
@@ -137,7 +137,7 @@ export class WorkerClient {
 				}
 			}
 		}
-		this._worker.terminate();
+		this._worker.dispose();
 	}
 
 	private _sendMessage(type:string, payload:any, forceTimestamp:number=(new Date()).getTime()):TPromise<any> {

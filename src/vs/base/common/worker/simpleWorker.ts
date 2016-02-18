@@ -7,6 +7,7 @@
 import {IWorker, IWorkerFactory} from './workerClient';
 import {TPromise, ValueCallback, ErrorCallback} from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
+import {Disposable} from 'vs/base/common/lifecycle';
 
 const INITIALIZE = '$initialize';
 
@@ -153,7 +154,7 @@ class SimpleWorkerProtocol {
 /**
  * Main thread side
  */
-export class SimpleWorkerClient<T> {
+export class SimpleWorkerClient<T> extends Disposable {
 
 	private _worker:IWorker;
 	private _onModuleLoaded:TPromise<void>;
@@ -161,9 +162,10 @@ export class SimpleWorkerClient<T> {
 	private _proxy: T;
 
 	constructor(workerFactory:IWorkerFactory, moduleId:string, ctor:any) {
-		this._worker = workerFactory.create('vs/base/common/worker/simpleWorker', (msg:string) => {
+		super();
+		this._worker = this._register(workerFactory.create('vs/base/common/worker/simpleWorker', (msg:string) => {
 			this._protocol.handleMessage(msg);
-		});
+		}));
 
 		this._protocol = new SimpleWorkerProtocol({
 			sendMessage: (msg:string): void => {
