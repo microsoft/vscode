@@ -11,6 +11,7 @@ import platform = require('vs/base/common/platform');
 import errors = require('vs/base/common/errors');
 import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
+import { AIAdapter } from 'vs/base/node/aiAdapter';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import v8 = require('vs/workbench/parts/debug/node/v8Protocol');
@@ -31,7 +32,8 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		private messageService: IMessageService,
 		private telemetryService: ITelemetryService,
 		private debugServerPort: number,
-		private adapter: Adapter
+		private adapter: Adapter,
+		private telemtryAdapter: AIAdapter
 	) {
 		super();
 		this.capabilities = {};
@@ -59,7 +61,8 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 			const error = errorResponse.body ? errorResponse.body.error : null;
 			const message = error ? debug.formatPII(error.format, false, error.variables) : errorResponse.message;
 			if (error && error.sendTelemetry) {
-				this.telemetryService.publicLog('debugProtocolErrorResponse', { error : message });
+				this.telemetryService.publicLog('debugProtocolErrorResponse', { error: message });
+				this.telemtryAdapter.log('debugProtocolErrorResponse', { error: message });
 			}
 
 			return TPromise.wrapError(new Error(message));

@@ -5,7 +5,6 @@
 
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
-import Objects = require('vs/base/common/objects');
 import mime = require('vs/base/common/mime');
 import ee = require('vs/base/common/eventEmitter');
 import uri from 'vs/base/common/uri';
@@ -72,7 +71,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	private lastTaskEvent: TaskEvent;
 	private toDispose: lifecycle.IDisposable[];
 	private inDebugMode: IKeybindingContextKey<boolean>;
-	private telemetryInfo: any;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -113,12 +111,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.viewModel = new viewmodel.ViewModel();
 
 		this.registerListeners(eventService, lifecycleService);
-
-		this.telemetryInfo = Object.create(null);
-		this.telemetryService.getTelemetryInfo().then(info => {
-			this.telemetryInfo['common.vscodemachineid'] = info.machineId;
-			this.telemetryInfo['common.vscodesessionid'] = info.sessionId;
-		});
 	}
 
 	private registerListeners(eventService: IEventService, lifecycleService: ILifecycleService): void {
@@ -287,7 +279,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.DEBUGEE_TERMINATED, (event: DebugProtocol.TerminatedEvent) => {
 			aria.alert(nls.localize('programTerminated', "Program terminated."));
 			if (this.session && this.session.getId() === (<any>event).sessionId) {
-				if (event.body && typeof event.body.restart == 'boolean' && event.body.restart) {
+				if (event.body && typeof event.body.restart === 'boolean' && event.body.restart) {
 					this.restartSession().done(null, errors.onUnexpectedError);
 				} else {
 					this.session.disconnect().done(null, errors.onUnexpectedError);
@@ -297,14 +289,9 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.OUTPUT, (event: DebugProtocol.OutputEvent) => {
 			if (event.body && event.body.category === 'telemetry') {
-				const key = this.configurationManager.getAdapter().aiKey;
 				// only log telemetry events from debug adapter if the adapter provided the telemetry key
-				if (key) {
-					if (!this.telemetryAdapter) {
-						this.telemetryAdapter = new AIAdapter(key, this.session.getType());
-					}
-					let data = Objects.mixin(event.body.data, this.telemetryInfo);
-					this.telemetryAdapter.log(event.body.output, data);
+				if (this.telemetryAdapter) {
+					this.telemetryAdapter.log(event.body.output, event.body.data);
 				}
 			} else if (event.body && typeof event.body.output === 'string' && event.body.output.length > 0) {
 				this.onOutput(event);
@@ -567,7 +554,15 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private doCreateSession(configuration: debug.IConfig, openViewlet: boolean): TPromise<any> {
-		this.session = new session.RawDebugSession(this.messageService, this.telemetryService, configuration.debugServer, this.configurationManager.getAdapter());
+		const key = this.configurationManager.getAdapter().aiKey;
+		const telemetryInfo = Object.create(null);
+		this.telemetryService.getTelemetryInfo().then(info => {
+			telemetryInfo['common.vscodemachineid'] = info.machineId;
+			telemetryInfo['common.vscodesessionid'] = info.sessionId;
+		}, errors.onUnexpectedError);
+		this.telemetryAdapter = new AIAdapter(key, this.configurationManager.getAdapter().type, null, telemetryInfo);
+		this.session = new session.RawDebugSession(this.messageService, this.telemetryService, configuration.debugServer, this.configurationManager.getAdapter(), this.telemetryAdapter);
+
 		this.registerSessionListeners();
 
 		return this.session.initialize({
