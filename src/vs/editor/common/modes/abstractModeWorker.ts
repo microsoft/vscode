@@ -16,8 +16,6 @@ import {WorkerInplaceReplaceSupport} from 'vs/editor/common/modes/supports/inpla
 
 export class AbstractModeWorker {
 
-	static filter: Modes.ISuggestionFilter = DefaultFilter;
-
 	private _participants:Modes.IWorkerParticipant[] = [];
 
 	public resourceService:IResourceService;
@@ -107,7 +105,7 @@ export class AbstractModeWorker {
 				return;
 			}
 			// filter suggestions
-			var accept = this.getSuggestionFilter(),
+			var accept = DefaultFilter,
 				result: Modes.ISuggestResult[] = [];
 
 			result.push(<Modes.ISuggestResult>{
@@ -125,10 +123,6 @@ export class AbstractModeWorker {
 		});
 	}
 
-	public _getSuggestContext(resource:URI):TPromise<any> {
-		return TPromise.as(undefined);
-	}
-
 	public doSuggest(resource:URI, position:EditorCommon.IPosition):TPromise<Modes.ISuggestResult> {
 
 		var model = this.resourceService.get(resource),
@@ -142,7 +136,7 @@ export class AbstractModeWorker {
 		return TPromise.as(result);
 	}
 
-	public suggestWords(resource:URI, position:EditorCommon.IPosition):Modes.ISuggestion[] {
+	private suggestWords(resource:URI, position:EditorCommon.IPosition):Modes.ISuggestion[] {
 		var modelMirror = this.resourceService.get(resource);
 		var currentWord = modelMirror.getWordUntilPosition(position).word;
 		var allWords = modelMirror.getAllUniqueWords(currentWord);
@@ -157,10 +151,6 @@ export class AbstractModeWorker {
 				noAutoAccept: true
 			};
 		});
-	}
-
-	public getSuggestionFilter():Modes.ISuggestionFilter {
-		return AbstractModeWorker.filter;
 	}
 
 
