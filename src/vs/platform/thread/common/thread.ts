@@ -28,7 +28,6 @@ export interface IThreadService {
 
 	OneWorker(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, param: any[], affinity: ThreadAffinity): TPromise<any>;
 	AllWorkers(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, param: any[]): TPromise<any>;
-	Everywhere(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, param: any[]): any;
 
 	createInstance<T extends IThreadSynchronizableObject<any>>(ctor: instantiation.INewConstructorSignature0<T>): T;
 	createInstance<A1, T extends IThreadSynchronizableObject<any>>(ctor: instantiation.INewConstructorSignature1<A1, T>, a1: A1): T;

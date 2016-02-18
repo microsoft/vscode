@@ -6,7 +6,6 @@
 
 import * as assert from 'assert';
 import {KeyCode, KeyMod, BinaryKeybindings, Keybinding} from 'vs/base/common/keyCodes';
-import * as Strings from 'vs/base/common/strings';
 
 interface ITestKeybinding {
 	ctrlCmd?: boolean;
@@ -105,5 +104,5 @@ suite('keyCodes', () => {
 
 		// chords
 		testIsGood('ctrl+a ctrl+a');
-	})
+	});
 });

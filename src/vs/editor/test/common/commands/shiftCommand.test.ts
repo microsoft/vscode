@@ -10,9 +10,7 @@ import {ShiftCommand} from 'vs/editor/common/commands/shiftCommand';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {withEditorModel} from 'vs/editor/test/common/editorTestUtils';
 import {Selection} from 'vs/editor/common/core/selection';
-import {Cursor} from 'vs/editor/common/controller/cursor';
 import * as Modes from 'vs/editor/common/modes';
-import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
 function testShiftCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
@@ -626,7 +624,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				r += str;
 			}
 			return r;
-		}
+		};
 
 		var testOutdent = (tabSize: number, oneIndent: string, lineText:string, expectedIndents:number) => {
 			var expectedIndent = repeatStr(oneIndent, expectedIndents);
@@ -722,7 +720,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				isUnshift: true,
 				tabSize: tabSize,
 				oneIndent: oneIndent
-			})
+			});
 			var actual = TU.getEditOperation(model, op);
 			assert.deepEqual(actual, expected);
 		});
@@ -734,7 +732,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				isUnshift: false,
 				tabSize: tabSize,
 				oneIndent: oneIndent
-			})
+			});
 			var actual = TU.getEditOperation(model, op);
 			assert.deepEqual(actual, expected);
 		});

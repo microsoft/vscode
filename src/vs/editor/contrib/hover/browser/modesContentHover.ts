@@ -125,6 +125,7 @@ export class ModesContentHoverWidget extends HoverWidget.ContentHoverWidget {
 	private _isChangingDecorations: boolean;
 	private _editorService: IEditorService;
 	private _keybindingService: IKeybindingService;
+	private _shouldFocus: boolean;
 
 	constructor(editor: EditorBrowser.ICodeEditor, editorService: IEditorService, keybindingService: IKeybindingService) {
 		super(ModesContentHoverWidget.ID, editor);
@@ -156,7 +157,7 @@ export class ModesContentHoverWidget extends HoverWidget.ContentHoverWidget {
 		}
 	}
 
-	public startShowingAt(range: EditorCommon.IEditorRange): void {
+	public startShowingAt(range: EditorCommon.IEditorRange, focus: boolean): void {
 		if (this._lastRange) {
 			if (this._lastRange.equalsRange(range)) {
 				// We have to show the widget at the exact same range as before, so no work is needed
@@ -191,6 +192,7 @@ export class ModesContentHoverWidget extends HoverWidget.ContentHoverWidget {
 
 		this._lastRange = range;
 		this._computer.setRange(range);
+		this._shouldFocus = focus;
 		this._hoverOperation.start();
 	}
 
@@ -284,7 +286,7 @@ export class ModesContentHoverWidget extends HoverWidget.ContentHoverWidget {
 		this.showAt({
 			lineNumber: renderRange.startLineNumber,
 			column: renderColumn
-		});
+		}, this._shouldFocus);
 
 		this._isChangingDecorations = true;
 		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, [{

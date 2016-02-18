@@ -28,7 +28,7 @@ suite('TokenSelectionSupport', () => {
 
 	function assertGetRangesToPosition(text:string[], lineNumber:number, column:number, ranges:Range[]): void {
 		let uri = URI.file('test.js');
-		let model = modelService.createModel(text.join('\n'), _mode, uri);
+		modelService.createModel(text.join('\n'), _mode, uri);
 
 		let actual = tokenSelectionSupport.getRangesToPositionSync(uri, {
 			lineNumber: lineNumber,

@@ -6,7 +6,6 @@
 
 import assert = require('assert');
 import LinkComputer = require('vs/editor/common/modes/linkComputer');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 
 class SimpleLinkComputerTarget implements LinkComputer.ILinkComputerTarget {

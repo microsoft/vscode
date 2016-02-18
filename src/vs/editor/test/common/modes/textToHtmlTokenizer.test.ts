@@ -8,7 +8,6 @@ import assert = require('assert');
 import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import modes = require('vs/editor/common/modes');
-import supports = require('vs/editor/common/modes/supports');
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 
 suite('Editor Modes - textToHtmlTokenizer', () => {
@@ -83,7 +82,7 @@ class Mode implements modes.IMode {
 	}
 
 	public getId(): string {
-		return "testMode";
+		return 'testMode';
 	}
 
 	public toSimplifiedMode(): modes.IMode {

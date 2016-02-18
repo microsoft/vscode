@@ -162,8 +162,8 @@ class AccessibilityHelpWidget extends Widget implements EditorBrowser.IOverlayWi
 		}
 
 		const NLS_EXPERIMENTAL_SCREENREADER_OPTS_ON = nls.localize('experimentalScreenReaderOptsOn', "Experimental screen reader support is turned on due to editor.experimentalScreenReader settings key.");
-		const NLS_EXPERIMENTAL_SCREENREADER_SESSION_ON = nls.localize('experimentalScreenReaderSessionOff', "Experimental screen reader support is turned on for this session. Toggle this behaviour by pressing {0}.");
-		const NLS_EXPERIMENTAL_SCREENREADER_SESSION_ON_NO_KB = nls.localize('experimentalScreenReaderSessionOffNoKb', "Experimental screen reader support is turned on for this session. The command {0} is currently not triggerable by a keybinding.");
+		const NLS_EXPERIMENTAL_SCREENREADER_SESSION_ON = nls.localize('experimentalScreenReaderSessionOn', "Experimental screen reader support is turned on for this session. Toggle this behaviour by pressing {0}.");
+		const NLS_EXPERIMENTAL_SCREENREADER_SESSION_ON_NO_KB = nls.localize('experimentalScreenReaderSessionOnNoKb', "Experimental screen reader support is turned on for this session. The command {0} is currently not triggerable by a keybinding.");
 		const NLS_EXPERIMENTAL_SCREENREADER_SESSION_OFF = nls.localize('experimentalScreenReaderSessionOff', "Experimental screen reader support is turned off. Turn it on for this session by pressing {0} or turn it on for all sessions by configuring the editor.experimentalScreenReader setting to true.");
 		const NLS_EXPERIMENTAL_SCREENREADER_SESSION_OFF_NO_KB = nls.localize('experimentalScreenReaderSessionOffNoKb', "Experimental screen reader support is turned off. The command {0} is currently not triggerable by a keybinding. Turn it on for all sessions by configuring the editor.experimentalScreenReader setting to true.");
 

@@ -5,8 +5,6 @@
 'use strict';
 
 import assert = require('assert');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Model = require('vs/editor/common/model/model');
 import TU = require('vs/editor/test/common/commands/commandTestUtils');
 import ModelModes = require('vs/editor/test/common/testModes');
 import LineCommentCommand = require('vs/editor/contrib/comment/common/lineCommentCommand');
@@ -127,7 +125,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 				return {
 					commentStrOffset: offset,
 					ignore: false
-				}
+				};
 			});
 			LineCommentCommand.LineCommentCommand._normalizeInsertionPoint(model, offsets, 1, tabSize);
 			var actual = offsets.map(item => item.commentStrOffset);

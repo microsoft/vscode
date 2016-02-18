@@ -167,7 +167,7 @@ suite('Plugin Version Validator', () => {
 			let reasons: string[] = [];
 			let actual = isValidExtensionVersion(version, desc, reasons);
 
-			assert.equal(actual, expectedResult, "version: " + version + ", desiredVersion: " + desiredVersion + ", desc: " + JSON.stringify(desc) + ", reasons: " + JSON.stringify(reasons));
+			assert.equal(actual, expectedResult, 'version: ' + version + ', desiredVersion: ' + desiredVersion + ', desc: ' + JSON.stringify(desc) + ', reasons: ' + JSON.stringify(reasons));
 		}
 
 		function testIsInvalidExtensionVersion(version: string, desiredVersion: string, isBuiltin: boolean, hasMain: boolean): void {

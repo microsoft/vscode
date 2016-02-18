@@ -73,10 +73,6 @@ export class WorkerThreadService extends abstractThreadService.AbstractThreadSer
 		return target.apply(obj, params);
 	}
 
-	Everywhere(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): TPromise<any> {
-		return target.apply(obj, params);
-	}
-
 	addStatusListener(listener: IThreadServiceStatusListener): void {
 		// Nothing to do
 	}

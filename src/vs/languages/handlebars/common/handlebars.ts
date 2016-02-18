@@ -150,12 +150,12 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 
 			onEnterRules: [
 				{
-					beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join("|")}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+					beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
 					afterText: /^<\/(\w[\w\d]*)\s*>$/i,
 					action: { indentAction: Modes.IndentAction.IndentOutdent }
 				},
 				{
-					beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join("|")}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+					beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
 					action: { indentAction: Modes.IndentAction.Indent }
 				}
 			],

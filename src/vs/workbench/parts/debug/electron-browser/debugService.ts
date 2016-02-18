@@ -40,7 +40,8 @@ import { Repl } from 'vs/workbench/parts/debug/browser/repl';
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/node/debugConfigurationManager';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
-import { ITaskService , TaskEvent, TaskType, TaskServiceEvents, ITaskSummary} from 'vs/workbench/parts/tasks/common/taskService';
+import { ITaskService, TaskEvent, TaskType, TaskServiceEvents, ITaskSummary} from 'vs/workbench/parts/tasks/common/taskService';
+import { TaskError, TaskErrors } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -547,6 +548,15 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 						this.messageService.hideAll();
 						return this.doCreateSession(configuration, openViewlet);
 					})]
+				});
+			}, (err: TaskError) => {
+				if (err.code !== TaskErrors.NotConfigured) {
+					return err;
+				}
+
+				this.messageService.show(err.severity, {
+					message: err.message,
+					actions: [CloseAction, this.taskService.configureAction()]
 				});
 			});
 		});

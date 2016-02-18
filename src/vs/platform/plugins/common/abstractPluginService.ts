@@ -138,7 +138,7 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 				let dep = this.activatedPlugins[depId];
 				if (dep.activationFailed) {
 					// Error condition 2: a dependency has already failed activation
-					this._showMessage(Severity.Error, nls.localize('failedDep', "Extension `{1}` failed to activate. Reason: dependency `{0}` failed to activate.", depId, currentPlugin.id));
+					this._showMessage(Severity.Error, nls.localize('failedDep1', "Extension `{1}` failed to activate. Reason: dependency `{0}` failed to activate.", depId, currentPlugin.id));
 					this.activatedPlugins[currentPlugin.id] = this._createFailedPlugin();
 					return;
 				}
@@ -171,7 +171,7 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 			// More than 10 dependencies deep => most likely a dependency loop
 			for (let i = 0, len = pluginDescriptions.length; i < len; i++) {
 				// Error condition 3: dependency loop
-				this._showMessage(Severity.Error, nls.localize('failedDep', "Extension `{0}` failed to activate. Reason: more than 10 levels of dependencies (most likely a dependency loop).", pluginDescriptions[i].id));
+				this._showMessage(Severity.Error, nls.localize('failedDep2', "Extension `{0}` failed to activate. Reason: more than 10 levels of dependencies (most likely a dependency loop).", pluginDescriptions[i].id));
 				this.activatedPlugins[pluginDescriptions[i].id] = this._createFailedPlugin();
 			}
 			return WinJS.TPromise.as(void 0);

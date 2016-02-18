@@ -32,10 +32,6 @@ export class NullThreadService extends abstractThreadService.AbstractThreadServi
 		return winjs.TPromise.as(null);
 	}
 
-	Everywhere(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): any {
-		return target.apply(obj, params);
-	}
-
 	addStatusListener(listener: IThreadServiceStatusListener): void {
 		// Nothing to do
 	}

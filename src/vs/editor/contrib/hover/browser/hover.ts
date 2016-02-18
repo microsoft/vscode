@@ -6,17 +6,22 @@
 'use strict';
 
 import 'vs/css!./hover';
+import nls = require('vs/nls');
+import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import EventEmitter = require('vs/base/common/eventEmitter');
+import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {Range} from 'vs/editor/common/core/range';
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
+import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
 import Platform = require('vs/base/common/platform');
 import ModesContentHover = require('./modesContentHover');
 import ModesGlyphHover = require('./modesGlyphHover');
 import Keyboard = require('vs/base/browser/keyboardEvent');
 import {IEditorService} from 'vs/platform/editor/common/editor';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {KeyCode} from 'vs/base/common/keyCodes';
+import {IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 
 class ModesHoverController implements EditorCommon.IEditorContribution {
 
@@ -27,6 +32,10 @@ class ModesHoverController implements EditorCommon.IEditorContribution {
 
 	private _contentWidget: ModesContentHover.ModesContentHoverWidget;
 	private _glyphWidget: ModesGlyphHover.ModesGlyphHoverWidget;
+
+	static getModesHoverController(editor: EditorCommon.ICommonCodeEditor): ModesHoverController {
+		return <ModesHoverController>editor.getContribution(ModesHoverController.ID);
+	}
 
 	constructor(editor: EditorBrowser.ICodeEditor,
 		@IEditorService editorService: IEditorService,
@@ -87,7 +96,7 @@ class ModesHoverController implements EditorCommon.IEditorContribution {
 
 		if (this._editor.getConfiguration().hover && targetType === EditorCommon.MouseTargetType.CONTENT_TEXT) {
 			this._glyphWidget.hide();
-			this._contentWidget.startShowingAt(mouseEvent.target.range);
+			this._contentWidget.startShowingAt(mouseEvent.target.range, false);
 		} else if (targetType === EditorCommon.MouseTargetType.GUTTER_GLYPH_MARGIN) {
 			this._contentWidget.hide();
 			this._glyphWidget.startShowingAt(mouseEvent.target.position.lineNumber);
@@ -109,6 +118,10 @@ class ModesHoverController implements EditorCommon.IEditorContribution {
 		this._contentWidget.hide();
 	}
 
+	public showContentHover(range: EditorCommon.IEditorRange, focus: boolean): void {
+		this._contentWidget.startShowingAt(range, focus);
+	}
+
 	public getId(): string {
 		return ModesHoverController.ID;
 	}
@@ -128,4 +141,28 @@ class ModesHoverController implements EditorCommon.IEditorContribution {
 	}
 }
 
+class ShowHoverAction extends EditorAction {
+	static ID = 'editor.action.showHover';
+
+	constructor(descriptor: EditorCommon.IEditorActionDescriptorData, editor: EditorCommon.ICommonCodeEditor, @IEditorService editorService: IEditorService) {
+		super(descriptor, editor, Behaviour.TextFocus);
+	}
+
+	public run(): TPromise<any> {
+		const position = this.editor.getPosition();
+		const word = this.editor.getModel().getWordAtPosition(position);
+		if (word) {
+			const range = new Range(position.lineNumber, position.column, position.lineNumber, word.endColumn);
+			(<ModesHoverController>this.editor.getContribution(ModesHoverController.ID)).showContentHover(range, true);
+		}
+
+		return TPromise.as(null);
+	}
+}
+
 EditorBrowserRegistry.registerEditorContribution(ModesHoverController);
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ShowHoverAction, ShowHoverAction.ID, nls.localize('showHover', "Show Hover"), {
+	context: ContextKey.EditorTextFocus,
+	kbExpr: KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
+	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
+}));

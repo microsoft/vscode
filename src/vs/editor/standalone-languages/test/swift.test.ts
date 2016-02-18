@@ -8,11 +8,6 @@
 import languageDef = require('vs/editor/standalone-languages/swift');
 import T = require('vs/editor/standalone-languages/test/testUtil');
 
-var Bracket = {
-	Open: 1,
-	Close: -1
-};
-
 T.testTokenization('swift', languageDef.language, [
 
 	// Attributes

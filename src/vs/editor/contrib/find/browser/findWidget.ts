@@ -395,7 +395,9 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 					return null;
 				}
 				try {
+					/* tslint:disable:no-unused-expression */
 					new RegExp(value);
+					/* tslint:enable:no-unused-expression */
 					return null;
 				} catch (e) {
 					return { content: e.message };

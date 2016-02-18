@@ -41,8 +41,8 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			assert.deepEqual(line1.getOutputPositionOfInputPosition(0, col), pos(2, col - 13 - 14), 'getOutputPositionOfInputPosition(' + col + ')');
 		}
 
-		var model1:SplitLinesCollection.IModel = createModel('My First LineMy Second LineAnd another one');
-		var line1 = createSplitLine([13, 14, 15], '\t');
+		model1 = createModel('My First LineMy Second LineAnd another one');
+		line1 = createSplitLine([13, 14, 15], '\t');
 
 		assert.equal(line1.getOutputLineCount(), 3);
 		assert.equal(line1.getOutputLineContent(model1, 1, 0), 'My First Line');

@@ -11,7 +11,6 @@ import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Browser = require('vs/base/browser/browser');
 import lifecycle = require('vs/base/common/lifecycle');
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {IThreadService, IThreadServiceStatusListener, IThreadServiceStatus} from 'vs/platform/thread/common/thread';
 
 class WorkerStatusReporter implements EditorCommon.IEditorContribution, IThreadServiceStatusListener {

@@ -6,13 +6,10 @@
 
 import assert = require('assert');
 import {Model} from 'vs/editor/common/model/model';
-import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {Position} from 'vs/editor/common/core/position';
 import {Cursor} from 'vs/editor/common/controller/cursor';
 import EditorCommon = require('vs/editor/common/editorCommon');
-import {IMode} from 'vs/editor/common/modes';
-import {CommonEditorConfiguration, ICSSConfig} from 'vs/editor/common/config/commonEditorConfig';
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {ModelLine, ILineEdit} from 'vs/editor/common/model/modelLine';

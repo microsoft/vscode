@@ -330,6 +330,7 @@ class Renderer extends treeDefaults.LegacyRenderer {
 			var fileReferences = <model.FileReferences> element,
 				fileReferencesContainer = builder.$('.reference-file');
 
+			/* tslint:disable:no-unused-expression */
 			new leftRightWidget.LeftRightWidget(fileReferencesContainer, (left: HTMLElement) => {
 				var resource = fileReferences.resource;
 				new fileLabel.FileLabel(left, resource, this._contextService);
@@ -340,6 +341,7 @@ class Renderer extends treeDefaults.LegacyRenderer {
 				var len = fileReferences.children.length;
 				return new countBadge.CountBadge(right, len, len > 1 ? nls.localize('referencesCount', "{0} references", len) : nls.localize('referenceCount', "{0} reference", len));
 			});
+			/* tslint:enable:no-unused-expression */
 
 			fileReferencesContainer.appendTo(container);
 

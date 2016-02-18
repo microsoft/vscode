@@ -134,7 +134,7 @@ export class InstallAction extends Action {
 		this.messageService.show(
 			Severity.Info,
 			{
-				message: nls.localize('success', "{0} {1} was successfully installed. Restart to enable it.", extension.displayName, extension.version),
+				message: nls.localize('success-installed', "{0} {1} was successfully installed. Restart to enable it.", extension.displayName, extension.version),
 				actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('restartNow', "Restart Now"))]
 			}
 		);
@@ -187,7 +187,7 @@ export class UninstallAction extends Action {
 		this.messageService.show(
 			Severity.Info,
 			{
-				message: nls.localize('success', "{0} was successfully uninstalled. Restart to deactivate it.", extension.displayName),
+				message: nls.localize('success-uninstalled', "{0} was successfully uninstalled. Restart to deactivate it.", extension.displayName),
 				actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('restartNow2', "Restart Now"))]
 			}
 		);

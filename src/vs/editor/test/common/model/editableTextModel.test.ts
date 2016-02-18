@@ -6,14 +6,10 @@
 
 import assert = require('assert');
 import {Range} from 'vs/editor/common/core/range';
-import Position = require('vs/editor/common/core/position');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {EditableTextModel, IValidatedEditOperation} from 'vs/editor/common/model/editableTextModel';
 import {TextModel} from 'vs/editor/common/model/textModel';
-import {LineMarker, TextModelWithMarkers} from 'vs/editor/common/model/textModelWithMarkers';
-import {ILineMarker} from 'vs/editor/common/model/modelLine';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
-import {MirrorModel, IMirrorModelEvents} from 'vs/editor/common/model/mirrorModel';
 import {assertSyncedModels, testApplyEditsWithSyncedModels} from 'vs/editor/test/common/model/editableTextModelTestUtils';
 
 suite('EditorModel - EditableTextModel._getInverseEdits', () => {
@@ -1377,7 +1373,7 @@ suite('EditorModel - EditableTextModel.applyEdits & markers', () => {
 				marker('g', 2, 21, true),
 				marker('h', 3, 24, false)
 			]
-		)
+		);
 	});
 
 	test('first line changes', () => {
@@ -1416,7 +1412,7 @@ suite('EditorModel - EditableTextModel.applyEdits & markers', () => {
 				marker('g', 2, 21, true),
 				marker('h', 3, 24, false)
 			]
-		)
+		);
 	});
 
 	test('inserting lines', () => {
@@ -1458,7 +1454,7 @@ suite('EditorModel - EditableTextModel.applyEdits & markers', () => {
 				marker('g', 4, 21, true),
 				marker('h', 5, 24, false)
 			]
-		)
+		);
 	});
 
 	test('replacing a lot', () => {
@@ -1511,6 +1507,6 @@ suite('EditorModel - EditableTextModel.applyEdits & markers', () => {
 				marker('j', 5, 19, false),
 				marker('k', 5, 19, false),
 			]
-		)
+		);
 	});
 });

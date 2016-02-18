@@ -23,9 +23,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 
 const HOVER_DELAY = 300;
 
-export class DebugEditorContribution implements editorcommon.IEditorContribution {
-
-	static ID = 'editor.contrib.debug';
+export class DebugEditorContribution implements debug.IDebugEditorContribution {
 
 	private toDispose: lifecycle.IDisposable[];
 	private breakpointHintDecoration: string[];
@@ -35,6 +33,10 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 	private hoverRange: editorcommon.IEditorRange;
 	private hoveringOver: string;
 
+	static getDebugEditorContribution(editor: editorcommon.ICommonCodeEditor): DebugEditorContribution {
+		return <DebugEditorContribution>editor.getContribution(debug.EDITOR_CONTRIBUTION_ID);
+	}
+
 	constructor(
 		private editor: editorbrowser.ICodeEditor,
 		@debug.IDebugService private debugService: debug.IDebugService,
@@ -43,9 +45,9 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 		@IInstantiationService private instantiationService:IInstantiationService
 	) {
 		this.breakpointHintDecoration = [];
-		this.toDispose = [];
 		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, this.instantiationService);
-		this.showHoverScheduler = new RunOnceScheduler(() => this.hoverWidget.showAt(this.hoverRange, this.hoveringOver), HOVER_DELAY);
+		this.toDispose = [this.hoverWidget];
+		this.showHoverScheduler = new RunOnceScheduler(() => this.showHover(this.hoverRange, this.hoveringOver, false), HOVER_DELAY);
 		this.hideHoverScheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), HOVER_DELAY);
 		this.registerListeners();
 	}
@@ -121,7 +123,11 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 	}
 
 	public getId(): string {
-		return DebugEditorContribution.ID;
+		return debug.EDITOR_CONTRIBUTION_ID;
+	}
+
+	public showHover(range: editorcommon.IEditorRange, hoveringOver: string, focus: boolean): TPromise<void> {
+		return this.hoverWidget.showAt(range, hoveringOver, focus);
 	}
 
 	private ensureBreakpointHintDecoration(showBreakpointHintAtLineNumber: number): void {
@@ -151,7 +157,7 @@ export class DebugEditorContribution implements editorcommon.IEditorContribution
 	}
 
 	private hideHoverWidget(): void {
-		if (!this.hideHoverScheduler.isScheduled()) {
+		if (!this.hideHoverScheduler.isScheduled() && this.hoverWidget.isVisible) {
 			this.hideHoverScheduler.schedule();
 		}
 		this.showHoverScheduler.cancel();

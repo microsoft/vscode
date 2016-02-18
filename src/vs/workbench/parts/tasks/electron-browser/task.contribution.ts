@@ -60,7 +60,7 @@ import { SystemVariables } from 'vs/workbench/parts/lib/node/systemVariables';
 import { ITextFileService, EventType } from 'vs/workbench/parts/files/common/files';
 import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/parts/output/common/output';
 
-import { ITaskSystem, ITaskSummary, ITaskRunResult, TaskError, TaskConfiguration, TaskDescription, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { ITaskSystem, ITaskSummary, ITaskRunResult, TaskError, TaskErrors, TaskConfiguration, TaskDescription, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { ITaskService, TaskServiceEvents } from 'vs/workbench/parts/tasks/common/taskService';
 
 import { LanguageServiceTaskSystem, LanguageServiceTaskConfiguration }  from 'vs/workbench/parts/tasks/common/languageServiceTaskSystem';
@@ -570,7 +570,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				return configPromise.then((config) => {
 					if (!config) {
 						this._taskSystemPromise = null;
-						throw new TaskError(Severity.Info, nls.localize('TaskSystem.noConfiguration', 'No task runner configured.'), 1);
+						throw new TaskError(Severity.Info, nls.localize('TaskSystem.noConfiguration', 'No task runner configured.'), TaskErrors.NotConfigured);
 					}
 					let result: ITaskSystem = null;
 					if (config.buildSystem === 'service') {
@@ -580,7 +580,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					}
 					if (result === null) {
 						this._taskSystemPromise = null;
-						throw new TaskError(Severity.Info, nls.localize('TaskSystem.noBuildType', "No valid task runner configured. Supported task runners are 'service' and 'program'."));
+						throw new TaskError(Severity.Info, nls.localize('TaskSystem.noBuildType', "No valid task runner configured. Supported task runners are 'service' and 'program'."), TaskErrors.NoValidTaskRunner);
 					}
 					this.taskSystemListeners.push(result.addListener(TaskSystemEvents.Active, (event) => this.emit(TaskServiceEvents.Active, event)));
 					this.taskSystemListeners.push(result.addListener(TaskSystemEvents.Inactive, (event) => this.emit(TaskServiceEvents.Inactive, event)));
@@ -618,6 +618,12 @@ class TaskService extends EventEmitter implements ITaskService {
 		return ProcessRunnerDetector.supports(config.command);
 	}
 
+	public configureAction(): Action {
+		return new ConfigureTaskRunnerAction(ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT,
+			this.configurationService, this.editorService, this.fileService, this.contextService,
+			this.outputService, this.messageService);
+	}
+
 	public build(): TPromise<ITaskSummary> {
 		return this.executeTarget(taskSystem => taskSystem.build());
 	}
@@ -634,11 +640,11 @@ class TaskService extends EventEmitter implements ITaskService {
 		return this.executeTarget(taskSystem => taskSystem.runTest());
 	}
 
-	public run(taskIdentifier:string): TPromise<ITaskSummary> {
+	public run(taskIdentifier: string): TPromise<ITaskSummary> {
 		return this.executeTarget(taskSystem => taskSystem.run(taskIdentifier));
 	}
 
-	private executeTarget(fn:(taskSystem:ITaskSystem) => ITaskRunResult): TPromise<ITaskSummary> {
+	private executeTarget(fn: (taskSystem: ITaskSystem) => ITaskRunResult): TPromise<ITaskSummary> {
 		return this.textFileService.saveAll().then((value) => {
 			return this.taskSystemPromise.
 				then((taskSystem) => {
@@ -646,7 +652,7 @@ class TaskService extends EventEmitter implements ITaskService {
 						if (!active) {
 							return fn(taskSystem);
 						} else {
-							throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is an active running task right now. Terminate it first before executing another task.'), 2);
+							throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is an active running task right now. Terminate it first before executing another task.'), TaskErrors.RunningTask);
 						}
 					});
 				}).
@@ -739,9 +745,11 @@ class TaskService extends EventEmitter implements ITaskService {
 		let showOutput = true;
 		if (err instanceof TaskError) {
 			let buildError = <TaskError>err;
-			if (buildError.code === 1 || buildError.code === 2) {
+			let needsConfig = buildError.code === TaskErrors.NotConfigured || buildError.code === TaskErrors.NoBuildTask || buildError.code === TaskErrors.NoTestTask;
+			let needsTerminate = buildError.code === TaskErrors.RunningTask;
+			if (needsConfig || needsTerminate) {
 				let closeAction = new CloseMessageAction();
-				let action = buildError.code === 1
+				let action = needsConfig
 					? new ConfigureTaskRunnerAction(ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT, this.configurationService, this.editorService, this.fileService, this.contextService, this.outputService, this.messageService)
 					: new TerminateAction(TerminateAction.ID, TerminateAction.TEXT, this, this.telemetryService);
 

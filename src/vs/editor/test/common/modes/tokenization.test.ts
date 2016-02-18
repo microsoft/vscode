@@ -5,13 +5,9 @@
 'use strict';
 
 import assert = require('assert');
-import {TPromise} from 'vs/base/common/winjs.base';
 import modes = require('vs/editor/common/modes');
 import supports = require('vs/editor/common/modes/supports');
-import stream = require('vs/editor/common/modes/lineStream');
-import servicesUtil = require('vs/editor/test/common/servicesTestUtils');
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer';
 import {createLineContext} from 'vs/editor/test/common/modesTestUtils';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IDisposable, empty as EmptyDisposable} from 'vs/base/common/lifecycle';
@@ -43,7 +39,7 @@ export class Mode implements modes.IMode {
 	}
 
 	public getId(): string {
-		return "testMode";
+		return 'testMode';
 	}
 
 	public toSimplifiedMode(): modes.IMode {

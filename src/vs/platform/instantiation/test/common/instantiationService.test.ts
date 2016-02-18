@@ -9,7 +9,7 @@ import assert = require('assert');
 import instantiation = require('vs/platform/instantiation/common/instantiation');
 import instantiationService = require('vs/platform/instantiation/common/instantiationService');
 
-import {SyncDescriptor, createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors'
+import {SyncDescriptor, createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 
 export class Target1 {
 
@@ -19,7 +19,9 @@ export class Target1 {
 
 	validate(): boolean {
 		try {
+			/* tslint:disable:no-unused-expression */
 			this.platformServices.editorService;
+			/* tslint:enable:no-unused-expression */
 			return false;
 		} catch (e) {
 			return e instanceof Error;
@@ -38,7 +40,9 @@ export class Target2 {
 			return false;
 		}
 		try {
+			/* tslint:disable:no-unused-expression */
 			this.platformServices.editorService;
+			/* tslint:enable:no-unused-expression */
 			return false;
 		} catch (e) {
 			return e instanceof Error;

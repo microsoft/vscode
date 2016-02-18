@@ -233,15 +233,6 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		});
 	}
 
-	Everywhere(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): any {
-		this._afterWorkers().then(() => {
-			this._workerPool.forEach((w) => {
-				this._remoteCall(w, obj, methodName, params).done(null, errors.onUnexpectedError);
-			});
-		});
-		return target.apply(obj, params);
-	}
-
 	private _remoteCall(worker: Worker.WorkerClient, obj: IThreadSynchronizableObject<any>, methodName: string, params: any[]): TPromise<any> {
 		let id = obj.getId();
 		if (!id) {

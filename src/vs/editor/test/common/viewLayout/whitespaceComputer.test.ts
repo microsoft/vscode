@@ -72,7 +72,7 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 		assert.equal(whitespaceComputer.getAccumulatedHeightBeforeLineNumber(4), 10);
 
 		// Add a whitespace before the first line of height 50
-		var b = whitespaceComputer.insertWhitespace(0, 0, 50);
+		b = whitespaceComputer.insertWhitespace(0, 0, 50);
 		// whitespaces: b(0, 50), a(2, 10)
 		assert.equal(whitespaceComputer.getCount(), 2);
 		assert.equal(whitespaceComputer.getAfterLineNumberForWhitespaceIndex(0), 0);
@@ -88,7 +88,7 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 		assert.equal(whitespaceComputer.getAccumulatedHeightBeforeLineNumber(4), 60);
 
 		// Add a whitespace after line 4 of height 20
-		var c = whitespaceComputer.insertWhitespace(4, 0, 20);
+		whitespaceComputer.insertWhitespace(4, 0, 20);
 		// whitespaces: b(0, 50), a(2, 10), c(4, 20)
 		assert.equal(whitespaceComputer.getCount(), 3);
 		assert.equal(whitespaceComputer.getAfterLineNumberForWhitespaceIndex(0), 0);
@@ -108,7 +108,7 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 		assert.equal(whitespaceComputer.getAccumulatedHeightBeforeLineNumber(5), 80);
 
 		// Add a whitespace after line 3 of height 30
-		var d = whitespaceComputer.insertWhitespace(3, 0, 30);
+		whitespaceComputer.insertWhitespace(3, 0, 30);
 		// whitespaces: b(0, 50), a(2, 10), d(3, 30), c(4, 20)
 		assert.equal(whitespaceComputer.getCount(), 4);
 		assert.equal(whitespaceComputer.getAfterLineNumberForWhitespaceIndex(0), 0);

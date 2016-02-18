@@ -6,11 +6,9 @@
 'use strict';
 
 import types = require('../types');
-import assert = require('assert');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import monarchCompile = require('vs/editor/common/modes/monarch/monarchCompile');
 import MonarchDefinition = require('vs/editor/common/modes/monarch/monarchDefinition');
-import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
 export enum Bracket {
