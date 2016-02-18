@@ -7,6 +7,7 @@ import nls = require('vs/nls');
 import actions = require('vs/base/common/actions');
 import lifecycle = require('vs/base/common/lifecycle');
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Range } from 'vs/editor/common/core/range';
 import editorCommon = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { EditorAction, Behaviour } from 'vs/editor/common/editorAction';
@@ -557,7 +558,7 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 export class SelectionToWatchExpressionsAction extends EditorAction {
 	static ID = 'editor.debug.action.selectionToWatch';
 
-	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, @IDebugService private debugService: IDebugService, @IViewletService private viewletService: IViewletService) {
+	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @IDebugService private debugService: IDebugService, @IViewletService private viewletService: IViewletService) {
 		super(descriptor, editor, Behaviour.TextFocus);
 	}
 
@@ -581,7 +582,7 @@ export class SelectionToWatchExpressionsAction extends EditorAction {
 export class SelectionToReplAction extends EditorAction {
 	static ID = 'editor.debug.action.selectionToRepl';
 
-	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, @IDebugService private debugService: IDebugService) {
+	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @IDebugService private debugService: IDebugService) {
 		super(descriptor, editor, Behaviour.TextFocus);
 	}
 
@@ -597,6 +598,25 @@ export class SelectionToReplAction extends EditorAction {
 	public shouldShowInContextMenu(): boolean {
 		const selection = this.editor.getSelection();
 		return !!selection && !selection.isEmpty() && this.debugService.getState() === debug.State.Stopped;
+	}
+}
+
+export class ShowDebugHoverAction extends EditorAction {
+	static ID = 'editor.debug.action.showDebugHover';
+
+	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @IDebugService debugService: IDebugService) {
+		super(descriptor, editor, Behaviour.TextFocus);
+	}
+
+	public run(): TPromise<any> {
+		const position = this.editor.getPosition();
+		const word = this.editor.getModel().getWordAtPosition(position);
+		if (!word) {
+			return TPromise.as(null);
+		}
+
+		const range = new Range(position.lineNumber, position.column, position.lineNumber, word.endColumn);
+		return (<debug.IDebugEditorContribution>this.editor.getContribution(debug.EDITOR_CONTRIBUTION_ID)).showHover(range, word.word, true);
 	}
 }
 
