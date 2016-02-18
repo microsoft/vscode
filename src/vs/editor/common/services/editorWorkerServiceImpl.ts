@@ -102,7 +102,7 @@ class EditorWorkerClient {
 		let modelUrl = resource.toString();
 		let model = this._modelService.getModel(resource);
 		if (!model) {
-			throw new Error('Uknown model!');
+			return;
 		}
 		if (model.isTooLargeForHavingARichMode()) {
 			return;

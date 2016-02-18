@@ -231,6 +231,12 @@ class DirtyDiffModelDecorator {
 					return; // disposed
 				}
 
+				if (!contents) {
+					// untracked file
+					this.modelService.destroyModel(this._originalContentsURI);
+					return this.triggerDiff();
+				}
+
 				let rawText = TextModel.toRawText(contents);
 				let originalModel = this.modelService.getModel(this._originalContentsURI);
 
