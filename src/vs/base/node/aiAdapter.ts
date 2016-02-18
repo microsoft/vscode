@@ -5,7 +5,7 @@
 'use strict';
 
 import types = require('vs/base/common/types');
-import {safeStringify} from 'vs/base/common/objects';
+import {safeStringify, mixin} from 'vs/base/common/objects';
 
 import appInsights = require('applicationinsights');
 
@@ -23,7 +23,8 @@ export class AIAdapter implements IAIAdapter {
 		private aiKey: string,
 		private eventPrefix: string,
 		/* for test only */
-		client?: any
+		client?: any,
+		private additionalDataToLog?: any
 	) {
 		// for test
 		if (client) {
@@ -135,6 +136,9 @@ export class AIAdapter implements IAIAdapter {
 	}
 
 	public log(eventName: string, data?: any): void {
+		if (this.additionalDataToLog) {
+			data = mixin(data, this.additionalDataToLog);
+		}
 		var result = this.getData(data);
 
 		if (this.appInsights) {
