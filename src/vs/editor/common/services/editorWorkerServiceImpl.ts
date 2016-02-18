@@ -93,17 +93,22 @@ class EditorWorkerClient extends Disposable {
 	private _proxy: EditorSimpleWorker;
 	private _modelService:IModelService;
 	private _syncedModels: {[modelUrl:string]:IDisposable[];};
+	private _syncedModelsLastUsedTime: {[modelUrl:string]:number;};
 
 	constructor(modelService:IModelService) {
 		super();
 		this._modelService = modelService;
 		this._syncedModels = Object.create(null);
+		this._syncedModelsLastUsedTime = Object.create(null);
 		this._worker = this._register(new SimpleWorkerClient<EditorSimpleWorker>(
 			new DefaultWorkerFactory(),
 			'vs/editor/common/services/editorSimpleWorker',
 			EditorSimpleWorker
 		));
 		this._proxy = this._worker.get();
+
+		let stopModelSyncInterval = this._register(new IntervalTimer());
+		stopModelSyncInterval.cancelAndSet(() => this._checkStopModelSync(), Math.round(STOP_SYNC_MODEL_DELTA_TIME_MS / 2));
 	}
 
 	public dispose(): void {
@@ -111,7 +116,24 @@ class EditorWorkerClient extends Disposable {
 			disposeAll(this._syncedModels[modelUrl]);
 		}
 		this._syncedModels = Object.create(null);
+		this._syncedModelsLastUsedTime = Object.create(null);
 		super.dispose();
+	}
+
+	private _checkStopModelSync(): void {
+		let currentTime = (new Date()).getTime();
+
+		let toRemove:string[] = [];
+		for (let modelUrl in this._syncedModelsLastUsedTime) {
+			let elapsedTime = currentTime - this._syncedModelsLastUsedTime[modelUrl];
+			if (elapsedTime > STOP_SYNC_MODEL_DELTA_TIME_MS) {
+				toRemove.push(modelUrl);
+			}
+		}
+
+		for (let i = 0; i < toRemove.length; i++) {
+			this._stopModelSync(toRemove[i]);
+		}
 	}
 
 	public computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]> {
@@ -134,6 +156,9 @@ class EditorWorkerClient extends Disposable {
 
 			if (!this._syncedModels[resourceStr]) {
 				this._beginModelSync(resource);
+			}
+			if (this._syncedModels[resourceStr]) {
+				this._syncedModelsLastUsedTime[resourceStr] = (new Date()).getTime();
 			}
 		}
 
@@ -186,6 +211,7 @@ class EditorWorkerClient extends Disposable {
 	private _stopModelSync(modelUrl:string): void {
 		let toDispose = this._syncedModels[modelUrl];
 		delete this._syncedModels[modelUrl];
+		delete this._syncedModelsLastUsedTime[modelUrl];
 		disposeAll(toDispose);
 	}
 }
