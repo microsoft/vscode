@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import lifecycle = require('vs/base/common/lifecycle');
+import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import dom = require('vs/base/browser/dom');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {Position} from 'vs/editor/common/core/position';
@@ -17,6 +20,8 @@ export class ContentHoverWidget implements EditorBrowser.IContentWidget {
 	private _containerDomNode: HTMLElement;
 	_domNode: HTMLElement;
 	_showAtPosition: EditorCommon.IEditorPosition;
+	private _stoleFocus: boolean;
+	private _toDispose: lifecycle.IDisposable[];
 
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
@@ -32,6 +37,13 @@ export class ContentHoverWidget implements EditorBrowser.IContentWidget {
 		this._domNode = document.createElement('div');
 		this._domNode.style.display = 'inline-block';
 		this._containerDomNode.appendChild(this._domNode);
+		this._domNode.tabIndex = 0;
+		this._toDispose = [];
+		this._toDispose.push(dom.addStandardDisposableListener(this._domNode, 'keydown', (e: dom.IKeyboardEvent) => {
+			if (e.equals(CommonKeybindings.ESCAPE)) {
+				this.hide();
+			}
+		}));
 
 		this._editor.addContentWidget(this);
 		this._showAtPosition = null;
@@ -45,7 +57,7 @@ export class ContentHoverWidget implements EditorBrowser.IContentWidget {
 		return this._containerDomNode;
 	}
 
-	public showAt(position:EditorCommon.IPosition): void {
+	public showAt(position:EditorCommon.IPosition, focus: boolean): void {
 
 		// Position has changed
 		this._showAtPosition = new Position(position.lineNumber, position.column);
@@ -67,6 +79,10 @@ export class ContentHoverWidget implements EditorBrowser.IContentWidget {
 		// Simply force a synchronous render on the editor
 		// such that the widget does not really render with left = '0px'
 		this._editor.render();
+		this._stoleFocus = focus;
+		if (focus) {
+			this._domNode.focus();
+		}
 	}
 
 	public hide(): void {
@@ -75,6 +91,9 @@ export class ContentHoverWidget implements EditorBrowser.IContentWidget {
 		}
 		this._isVisible = false;
 		this._editor.layoutContentWidget(this);
+		if (this._stoleFocus) {
+			this._editor.focus();
+		}
 	}
 
 	public getPosition():EditorBrowser.IContentWidgetPosition {
@@ -92,6 +111,7 @@ export class ContentHoverWidget implements EditorBrowser.IContentWidget {
 
 	public dispose(): void {
 		this.hide();
+		this._toDispose = lifecycle.disposeAll(this._toDispose);
 	}
 }
 
