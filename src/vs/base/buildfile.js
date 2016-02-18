@@ -17,6 +17,7 @@ function createModuleDescription(name, exclude) {
 
 exports.collectModules= function() {
 	return [
-		createModuleDescription('vs/base/common/worker/workerServer')
+		createModuleDescription('vs/base/common/worker/workerServer'),
+		createModuleDescription('vs/base/common/worker/simpleWorker'),
 	];
 };
