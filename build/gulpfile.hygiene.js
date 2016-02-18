@@ -8,6 +8,7 @@ var filter = require('gulp-filter');
 var es = require('event-stream');
 var path = require('path');
 var tslint = require('gulp-tslint');
+var _tslint = require('tslint');
 
 var all = [
 	'*',
@@ -112,7 +113,7 @@ gulp.task('tslint', function () {
 });
 
 var hygiene = exports.hygiene = function (some) {
-	var errorCount = 0;
+    var errorCount = 0;
 
 	var eol = es.through(function (file) {
 		if (/\r\n?/g.test(file.contents.toString('utf8'))) {
@@ -152,6 +153,24 @@ var hygiene = exports.hygiene = function (some) {
 		this.emit('data', file);
 	});
 
+	var tslint = es.through(function(file) {
+        configuration = _tslint.findConfiguration(null, '.');
+        var options = {
+            formatter: 'json',
+            configuration: configuration,
+            rulesDirectory: 'build/tslintRules',
+        }
+        var contents = file.contents.toString('utf8');
+        var linter = new _tslint(file.relative, contents, options);
+        var result = linter.lint();
+        if (result.failureCount > 0) {
+            console.error(file.relative + ': ' + result.failureCount + ' Lint warning(s)');
+            errorCount += result.failureCount;
+        }
+        this.emit('data', file);
+    });
+
+
 	return gulp.src(some || all, { base: '.' })
 		.pipe(filter(function (f) { return !f.stat.isDirectory(); }))
 		.pipe(filter(eolFilter))
@@ -160,6 +179,8 @@ var hygiene = exports.hygiene = function (some) {
 		.pipe(indentation)
 		.pipe(filter(copyrightFilter))
 		.pipe(copyrights)
+		.pipe(filter(tslintFilter))
+		.pipe(tslint)
 		.pipe(es.through(null, function () {
 			if (errorCount > 0) {
 				this.emit('error', 'Hygiene failed with ' + errorCount + ' errors. Check \'build/gulpfile.hygiene.js\'.');
