@@ -39,9 +39,12 @@ import { IConfigurationService, ConfigurationServiceEventTypes } from 'vs/platfo
 import { IFileService, FileChangesEvent, FileChangeType, EventType as FileEventType } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPluginService } from 'vs/platform/plugins/common/plugins';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
 
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
+
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -148,11 +151,12 @@ class ConfigureTaskRunnerAction extends Action {
 	private contextService: IWorkspaceContextService;
 	private outputService: IOutputService;
 	private messageService: IMessageService;
+	private keybindingService: IKeybindingService
 
 	constructor(id: string, label: string, @IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
-		@IMessageService messageService: IMessageService) {
+		@IMessageService messageService: IMessageService, @IKeybindingService keybindingService: IKeybindingService) {
 
 		super(id, label);
 		this.configurationService = configurationService;
@@ -161,11 +165,13 @@ class ConfigureTaskRunnerAction extends Action {
 		this.contextService = contextService;
 		this.outputService = outputService;
 		this.messageService = messageService;
+		this.keybindingService = keybindingService;
 	}
 
 	public run(event?:any): Promise {
 		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
 		let autoDetectFailed = false;
+		let fileCreated = false;
 		return this.fileService.resolveFile(this.contextService.toResource('.vscode/tasks.json')).then((success) => {
 			return success;
 		}, (err:any) => {
@@ -198,6 +204,7 @@ class ConfigureTaskRunnerAction extends Action {
 					});
 				}
 				return contentPromise.then((content) => {
+					fileCreated = true;
 					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content);
 				});
 			});
@@ -208,9 +215,19 @@ class ConfigureTaskRunnerAction extends Action {
 				options: {
 					forceOpen: true
 				}
-			}, sideBySide).then((value) => {
+			}, sideBySide).then((editor) => {
+				if (fileCreated) {
+					let codeEditor: ICodeEditor = editor.getControl() as ICodeEditor;
+					let position = { lineNumber: 5, column: 4 };
+					codeEditor.revealPosition(position);
+					codeEditor.setPosition(position);
+					// Workaround for: https://github.com/Microsoft/vscode/issues/3121
+					setTimeout(() => {
+						this.keybindingService.executeCommand('editor.action.triggerSuggest');
+					}, 300);
+				}
 				this.outputService.showOutput(TaskService.OutputChannel, true);
-				return value;
+				return editor;
 			});
 		}, (error) => {
 			throw new Error(nls.localize('ConfigureTaskRunnerAction.failed', "Unable to create the 'tasks.json' file inside the '.vscode' folder. Consult the task output for details."));
@@ -453,6 +470,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	private eventService: IEventService;
 	private modelService: IModelService;
 	private pluginService: IPluginService;
+	private keybindingService: IKeybindingService;
 
 	private _taskSystemPromise: TPromise<ITaskSystem>;
 	private _taskSystem: ITaskSystem;
@@ -467,7 +485,8 @@ class TaskService extends EventEmitter implements ITaskService {
 		@IFileService fileService:IFileService, @IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ITelemetryService telemetryService: ITelemetryService, @ITextFileService textFileService:ITextFileService,
 		@ILifecycleService lifecycleService: ILifecycleService, @IEventService eventService: IEventService,
-		@IModelService modelService: IModelService, @IPluginService pluginService: IPluginService) {
+		@IModelService modelService: IModelService, @IPluginService pluginService: IPluginService,
+		@IKeybindingService keybindingService: IKeybindingService) {
 
 		super();
 		this.modeService = modeService;
@@ -483,6 +502,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		this.eventService = eventService;
 		this.modelService = modelService;
 		this.pluginService = pluginService;
+		this.keybindingService = keybindingService;
 
 		this.taskSystemListeners = [];
 		this.clearTaskSystemPromise = false;
@@ -621,7 +641,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	public configureAction(): Action {
 		return new ConfigureTaskRunnerAction(ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT,
 			this.configurationService, this.editorService, this.fileService, this.contextService,
-			this.outputService, this.messageService);
+			this.outputService, this.messageService, this.keybindingService);
 	}
 
 	public build(): TPromise<ITaskSummary> {
@@ -750,7 +770,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (needsConfig || needsTerminate) {
 				let closeAction = new CloseMessageAction();
 				let action = needsConfig
-					? new ConfigureTaskRunnerAction(ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT, this.configurationService, this.editorService, this.fileService, this.contextService, this.outputService, this.messageService)
+					? this.configureAction()
 					: new TerminateAction(TerminateAction.ID, TerminateAction.TEXT, this, this.telemetryService);
 
 				closeAction.closeFunction = this.messageService.show(buildError.severity, { message: buildError.message, actions: [closeAction, action ] });

@@ -184,7 +184,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			return unknown;
 		}
 		let contents = fs.readFileSync(fileName).toString();
-		let desc = null;
+		let desc:any = null;
 		try {
 			desc = JSON.parse(contents);
 		} catch(err) {
