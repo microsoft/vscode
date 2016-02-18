@@ -109,7 +109,7 @@ gulp.task('compile-build', ['clean-build'], compileTask('out-build', true));
 gulp.task('watch-build', ['clean-build'], watchTask('out-build', true));
 
 // Default
-gulp.task('default', ['compile-all']);
+gulp.task('default', ['compile']);
 
 // All
 gulp.task('clean', ['clean-client', 'clean-plugins']);
