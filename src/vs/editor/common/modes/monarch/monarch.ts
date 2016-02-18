@@ -27,6 +27,7 @@ import {ComposableSuggestSupport} from 'vs/editor/common/modes/supports/suggestS
  */
 export class MonarchMode<W extends AbstractModeWorker> extends AbstractMode<W> {
 
+	public suggestSupport:Modes.ISuggestSupport;
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
 

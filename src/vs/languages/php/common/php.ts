@@ -462,6 +462,7 @@ export class PHPMode extends AbstractMode<AbstractModeWorker> implements ITokeni
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
+	public suggestSupport:Modes.ISuggestSupport;
 
 	private modeService:IModeService;
 

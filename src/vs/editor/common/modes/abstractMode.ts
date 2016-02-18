@@ -23,7 +23,7 @@ export function createWordRegExp(allowInWords:string = ''): RegExp {
 	return NullMode.createWordRegExp(allowInWords);
 }
 
-export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
+export abstract class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 
 	_instantiationService:IInstantiationService;
 	_threadService:IThreadService;
@@ -35,11 +35,8 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 
 	// adapters start
 	public autoValidateDelay:number;
-	public suggestSupport:Modes.ISuggestSupport;
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public configSupport:Modes.IConfigurationSupport;
-	public codeLensSupport:Modes.ICodeLensSupport;
-
 	// adapters end
 
 	private _eventEmitter = new EventEmitter();
@@ -57,7 +54,7 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 		this._options = null;
 
 		this.autoValidateDelay = 500;
-		this.suggestSupport = this;
+
 		this.inplaceReplaceSupport = this;
 		this.configSupport = this;
 
@@ -126,10 +123,6 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 		return this._worker((w) => w.enableValidator());
 	}
 
-	public getFilter(): Modes.ISuggestionFilter {
-		return StrictPrefix;
-	}
-
 	public addSupportChangedListener(callback: (e: EditorCommon.IModeSupportChangedEvent) => void) : IDisposable {
 		return this._eventEmitter.addListener2('modeSupportChanged', callback);
 	}
@@ -154,10 +147,6 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 		return this._worker((w) => w.suggest(resource, position));
 	}
 
-	public getTriggerCharacters():string[] {
-		return [];
-	}
-
 	public shouldAutotriggerSuggest(context:Modes.ILineContext, offset:number, triggeredByCharacter:string): boolean {
 		return handleEvent(context, offset, (mode:Modes.IMode, context:Modes.ILineContext, offset:number) => {
 
@@ -167,19 +156,11 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 			}
 
 			if (mode instanceof AbstractMode) {
-				return (<AbstractMode<any>> mode).shouldAutotriggerSuggestImpl(context, offset, triggeredByCharacter);
+				return true;
 			}
 
 			return mode.suggestSupport.shouldAutotriggerSuggest(context, offset, triggeredByCharacter);
 		});
-	}
-
-	public shouldAutotriggerSuggestImpl(context:Modes.ILineContext, offset:number, triggeredByCharacter:string):boolean {
-		return true;
-	}
-
-	public shouldShowEmptySuggestionList():boolean {
-		return true;
 	}
 
 	static $navigateValueSet = OneWorkerAttr(AbstractMode, AbstractMode.prototype.navigateValueSet);
@@ -335,12 +316,34 @@ export var isDigit:(character:string, base:number)=>boolean = (function () {
 })();
 
 export class FrankensteinMode extends AbstractMode<AbstractModeWorker> {
+
+	public suggestSupport:Modes.ISuggestSupport;
+
 	constructor(
 		descriptor:Modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThreadService threadService: IThreadService
 	) {
 		super(descriptor, instantiationService, threadService);
+
+		// TODO@Alex-worker
+		this.suggestSupport = {
+			suggest: (resource: URI, position: EditorCommon.IPosition, triggerCharacter?: string): TPromise<Modes.ISuggestResult[]> => {
+				return this.suggest(resource, position);
+			},
+			getFilter: (): Modes.ISuggestionFilter => {
+				return StrictPrefix;
+			},
+			getTriggerCharacters: (): string[] => {
+				return [];
+			},
+			shouldShowEmptySuggestionList: (): boolean => {
+				return true;
+			},
+			shouldAutotriggerSuggest: (context: Modes.ILineContext, offset: number, triggeredByCharacter: string): boolean => {
+				return this.shouldAutotriggerSuggest(context, offset, triggeredByCharacter);
+			}
+		};
 	}
 }
 

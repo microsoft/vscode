@@ -11,6 +11,10 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
+import URI from 'vs/base/common/uri';
+import EditorCommon = require('vs/editor/common/editorCommon');
+import {StrictPrefix} from 'vs/editor/common/modes/modesFilters';
+import {TPromise} from 'vs/base/common/winjs.base';
 
 class State extends AbstractState {
 
@@ -39,6 +43,7 @@ class State extends AbstractState {
 
 export class Mode extends AbstractMode<AbstractModeWorker> {
 
+	public suggestSupport:Modes.ISuggestSupport;
 	public tokenizationSupport: Modes.ITokenizationSupport;
 
 	constructor(
@@ -50,5 +55,24 @@ export class Mode extends AbstractMode<AbstractModeWorker> {
 		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new State(this)
 		}, false, false);
+
+		// TODO@Alex-worker
+		this.suggestSupport = {
+			suggest: (resource: URI, position: EditorCommon.IPosition, triggerCharacter?: string): TPromise<Modes.ISuggestResult[]> => {
+				return this.suggest(resource, position);
+			},
+			getFilter: (): Modes.ISuggestionFilter => {
+				return StrictPrefix;
+			},
+			getTriggerCharacters: (): string[] => {
+				return [];
+			},
+			shouldShowEmptySuggestionList: (): boolean => {
+				return true;
+			},
+			shouldAutotriggerSuggest: (context: Modes.ILineContext, offset: number, triggeredByCharacter: string): boolean => {
+				return this.shouldAutotriggerSuggest(context, offset, triggeredByCharacter);
+			}
+		};
 	}
 }
