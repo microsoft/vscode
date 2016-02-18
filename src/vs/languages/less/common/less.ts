@@ -234,6 +234,11 @@ export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> impleme
 		return this._worker((w) => w.findReferences(resource, position));
 	}
 
+	static $suggest = OneWorkerAttr(LESSMode, LESSMode.prototype.suggest);
+	public suggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
+		return this._worker((w) => w.suggest(resource, position));
+	}
+
 	static $getRangesToPosition = OneWorkerAttr(LESSMode, LESSMode.prototype.getRangesToPosition);
 	public getRangesToPosition(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
 		return this._worker((w) => w.getRangesToPosition(resource, position));

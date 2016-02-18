@@ -336,6 +336,11 @@ export class SASSMode extends Monarch.MonarchMode<sassWorker.SassWorker> impleme
 		return this._worker((w) => w.findReferences(resource, position));
 	}
 
+	static $suggest = OneWorkerAttr(SASSMode, SASSMode.prototype.suggest);
+	public suggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
+		return this._worker((w) => w.suggest(resource, position));
+	}
+
 	static $getRangesToPosition = OneWorkerAttr(SASSMode, SASSMode.prototype.getRangesToPosition);
 	public getRangesToPosition(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ILogicalSelectionEntry[]> {
 		return this._worker((w) => w.getRangesToPosition(resource, position));

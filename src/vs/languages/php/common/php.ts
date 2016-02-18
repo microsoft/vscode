@@ -16,6 +16,9 @@ import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
+import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
+import EditorCommon = require('vs/editor/common/editorCommon');
+import URI from 'vs/base/common/uri';
 
 var bracketsSource : Modes.IBracketPair[]= [
 	{ tokenType:'delimiter.bracket.php', open: '{', close: '}', isElectric: true },
@@ -510,6 +513,11 @@ export class PHPMode extends AbstractMode<AbstractModeWorker> implements ITokeni
 			triggerCharacters: ['.', ':', '$'],
 			excludeTokens: ['comment'],
 			suggest: (resource, position) => this.suggest(resource, position)});
+	}
+
+	static $suggest = OneWorkerAttr(PHPMode, PHPMode.prototype.suggest);
+	public suggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult[]> {
+		return this._worker((w) => w.suggest(resource, position));
 	}
 
 	public asyncCtor(): WinJS.Promise {

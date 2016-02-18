@@ -142,11 +142,6 @@ export abstract class AbstractMode<W extends AbstractModeWorker> implements Mode
 		};
 	}
 
-	static $suggest = OneWorkerAttr(AbstractMode, AbstractMode.prototype.suggest);
-	public suggest(resource:URI, position:EditorCommon.IPosition):TPromise<Modes.ISuggestResult[]> {
-		return this._worker((w) => w.suggest(resource, position));
-	}
-
 	static $navigateValueSet = OneWorkerAttr(AbstractMode, AbstractMode.prototype.navigateValueSet);
 	public navigateValueSet(resource:URI, position:EditorCommon.IRange, up:boolean):TPromise<Modes.IInplaceReplaceSupportResult> {
 		return this._worker((w) => w.inplaceReplaceSupport.navigateValueSet(resource, position, up));

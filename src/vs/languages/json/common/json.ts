@@ -130,6 +130,11 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 		return this._worker((w) => w.setSchemaContributions(data));
 	}
 
+	static $suggest = OneWorkerAttr(JSONMode, JSONMode.prototype.suggest);
+	public suggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult[]> {
+		return this._worker((w) => w.suggest(resource, position));
+	}
+
 	static $computeInfo = OneWorkerAttr(JSONMode, JSONMode.prototype.computeInfo);
 	public computeInfo(resource:URI, position:EditorCommon.IPosition): WinJS.TPromise<Modes.IComputeExtraInfoResult> {
 		return this._worker((w) => w.computeInfo(resource, position));

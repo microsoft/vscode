@@ -364,6 +364,11 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 		return this._worker((w) => w.findOccurrences(resource, position, strict));
 	}
 
+	static $suggest = OneWorkerAttr(CSSMode, CSSMode.prototype.suggest);
+	public suggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult[]> {
+		return this._worker((w) => w.suggest(resource, position));
+	}
+
 	static $findDeclaration = OneWorkerAttr(CSSMode, CSSMode.prototype.findDeclaration);
 	public findDeclaration(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.IReference> {
 		return this._worker((w) => w.findDeclaration(resource, position));

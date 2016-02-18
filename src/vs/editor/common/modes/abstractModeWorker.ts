@@ -136,22 +136,16 @@ export class AbstractModeWorker {
 
 		var result:Modes.ISuggestResult = {
 			currentWord: currentWord,
-			suggestions: []
+			suggestions: this.suggestWords(resource, position)
 		};
 
-		result.suggestions.push.apply(result.suggestions, this.suggestWords(resource, position, false));
-		result.suggestions.push.apply(result.suggestions, this.suggestSnippets(resource, position));
 		return TPromise.as(result);
 	}
 
-	public suggestWords(resource:URI, position:EditorCommon.IPosition, mustHaveCurrentWord:boolean):Modes.ISuggestion[] {
+	public suggestWords(resource:URI, position:EditorCommon.IPosition):Modes.ISuggestion[] {
 		var modelMirror = this.resourceService.get(resource);
 		var currentWord = modelMirror.getWordUntilPosition(position).word;
 		var allWords = modelMirror.getAllUniqueWords(currentWord);
-
-		if (mustHaveCurrentWord && !currentWord) {
-			return [];
-		}
 
 		return allWords.filter((word) => {
 			return !(/^-?\d*\.?\d/.test(word)); // filter out numbers
@@ -163,10 +157,6 @@ export class AbstractModeWorker {
 				noAutoAccept: true
 			};
 		});
-	}
-
-	public suggestSnippets(resource:URI, position:EditorCommon.IPosition):Modes.ISuggestion[] {
-		return [];
 	}
 
 	public getSuggestionFilter():Modes.ISuggestionFilter {
