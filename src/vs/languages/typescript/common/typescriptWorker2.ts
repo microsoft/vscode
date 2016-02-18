@@ -150,7 +150,16 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 	// ---- Implementation of various IXYZSupports
 
 	protected _createInPlaceReplaceSupport(): Modes.IInplaceReplaceSupport {
-		return new WorkerInplaceReplaceSupport(this.resourceService, this);
+		return new WorkerInplaceReplaceSupport(this.resourceService, {
+			textReplace: (value:string, up:boolean):string => {
+				var valueSets = [
+					['true', 'false'],
+					['string', 'number', 'boolean', 'void', 'any'],
+					['private', 'public']
+				];
+				return ReplaceSupport.valueSetsReplace(valueSets, value, up);
+			}
+		});
 	}
 
 	public doValidate(resource: URI): void {
@@ -249,15 +258,6 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 		var project = this._projectService.getProject(resource);
 		var result = definitions.findDeclaration(project, resource, position);
 		return winjs.TPromise.as(result);
-	}
-
-	public textReplace(value:string, up:boolean):string {
-		var valueSets = [
-			['true', 'false'],
-			['string', 'number', 'boolean', 'void', 'any'],
-			['private', 'public']
-		];
-		return ReplaceSupport.valueSetsReplace(valueSets, value, up);
 	}
 
 	public findReferences(resource: URI, position: EditorCommon.IPosition, includeDeclaration: boolean): winjs.TPromise<Modes.IReference[]> {

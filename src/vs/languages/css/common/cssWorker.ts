@@ -44,7 +44,67 @@ export class CSSWorker extends AbstractModeWorker {
 	}
 
 	protected _createInPlaceReplaceSupport(): Modes.IInplaceReplaceSupport {
-		return new WorkerInplaceReplaceSupport(this.resourceService, this);
+		return new WorkerInplaceReplaceSupport(this.resourceService, {
+			navigateValueSetFallback: (resource:URI, range:EditorCommon.IRange, up:boolean):winjs.TPromise<Modes.IInplaceReplaceSupportResult> => {
+				return this.languageService.join().then(() => {
+
+					let model = this.resourceService.get(resource);
+					let offset = model.getOffsetFromPosition({ lineNumber: range.startLineNumber, column: range.startColumn });
+					let styleSheet = this.languageService.getStylesheet(resource);
+
+					let node = nodes.getNodeAtOffset(styleSheet, offset);
+					if (!node) {
+						return;
+					}
+					let declaration = nodes.getParentDeclaration(node);
+					if (!declaration) {
+						return;
+					}
+
+					let entry: languageFacts.IEntry = languageFacts.getProperties()[declaration.getFullPropertyName()];
+					if (!entry || !entry.values) {
+						return;
+					}
+
+					let values = entry.values.filter(value => languageFacts.isCommonValue(value)).map(v => v.name);
+
+					let isColor = (entry.restrictions.indexOf('color') >= 0);
+					if (isColor) {
+						values = values.concat(Object.getOwnPropertyNames(languageFacts.colors), Object.getOwnPropertyNames(languageFacts.colorKeywords));
+					}
+
+					let text = node.getText();
+					for (let i = 0, len = values.length; i < len; i++) {
+						if (strings.equalsIgnoreCase(values[i], text)) {
+							let nextIdx = i;
+							if(up) {
+								nextIdx = (i + 1) % len;
+							} else {
+								nextIdx =  i - 1;
+								if(nextIdx < 0) {
+									nextIdx = len - 1;
+								}
+							}
+							let result:Modes.IInplaceReplaceSupportResult = {
+								value: values[nextIdx],
+								range: this._range(node, model)
+							};
+							return result;
+						}
+					}
+					// if none matches, take the first one
+					if (values.length > 0) {
+						let result:Modes.IInplaceReplaceSupportResult = {
+							value: values[0],
+							range: this._range(node, model)
+						};
+						return result;
+					}
+
+					return null;
+				});
+			}
+		});
 	}
 
 	public createLanguageService(resourceService:IResourceService, modeId:string): languageService.CSSLanguageService {
@@ -288,66 +348,6 @@ export class CSSWorker extends AbstractModeWorker {
 					range: this._range(occurrence.node, model)
 				};
 			});
-		});
-	}
-
-	public navigateValueSetFallback(resource:URI, range:EditorCommon.IRange, up:boolean):winjs.TPromise<Modes.IInplaceReplaceSupportResult> {
-		return this.languageService.join().then(() => {
-
-			let model = this.resourceService.get(resource);
-			let offset = model.getOffsetFromPosition({ lineNumber: range.startLineNumber, column: range.startColumn });
-			let styleSheet = this.languageService.getStylesheet(resource);
-
-			let node = nodes.getNodeAtOffset(styleSheet, offset);
-			if (!node) {
-				return;
-			}
-			let declaration = nodes.getParentDeclaration(node);
-			if (!declaration) {
-				return;
-			}
-
-			let entry: languageFacts.IEntry = languageFacts.getProperties()[declaration.getFullPropertyName()];
-			if (!entry || !entry.values) {
-				return;
-			}
-
-			let values = entry.values.filter(value => languageFacts.isCommonValue(value)).map(v => v.name);
-
-			let isColor = (entry.restrictions.indexOf('color') >= 0);
-			if (isColor) {
-				values = values.concat(Object.getOwnPropertyNames(languageFacts.colors), Object.getOwnPropertyNames(languageFacts.colorKeywords));
-			}
-
-			let text = node.getText();
-			for (let i = 0, len = values.length; i < len; i++) {
-				if (strings.equalsIgnoreCase(values[i], text)) {
-					let nextIdx = i;
-					if(up) {
-						nextIdx = (i + 1) % len;
-					} else {
-						nextIdx =  i - 1;
-						if(nextIdx < 0) {
-							nextIdx = len - 1;
-						}
-					}
-					let result:Modes.IInplaceReplaceSupportResult = {
-						value: values[nextIdx],
-						range: this._range(node, model)
-					};
-					return result;
-				}
-			}
-			// if none matches, take the first one
-			if (values.length > 0) {
-				let result:Modes.IInplaceReplaceSupportResult = {
-					value: values[0],
-					range: this._range(node, model)
-				};
-				return result;
-			}
-
-			return null;
 		});
 	}
 

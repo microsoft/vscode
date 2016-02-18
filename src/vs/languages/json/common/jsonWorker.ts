@@ -101,7 +101,66 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 	}
 
 	protected _createInPlaceReplaceSupport(): Modes.IInplaceReplaceSupport {
-		return new WorkerInplaceReplaceSupport(this.resourceService, this);
+		return new WorkerInplaceReplaceSupport(this.resourceService, {
+			textReplace: (value: string, up: boolean): string => {
+				return ReplaceSupport.valueSetReplace(['true', 'false'], value, up);
+			},
+			navigateValueSetFallback: (resource:URI, range:EditorCommon.IRange, up:boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> => {
+				var modelMirror = this.resourceService.get(resource);
+				var offset = modelMirror.getOffsetFromPosition({ lineNumber: range.startLineNumber, column: range.startColumn });
+
+				var parser = new Parser.JSONParser();
+				var config = new Parser.JSONDocumentConfig();
+				config.ignoreDanglingComma = true;
+				var doc = parser.parse(modelMirror.getValue(), config);
+				var node = doc.getNodeFromOffsetEndInclusive(offset);
+
+				if (node && (node.type === 'string' || node.type === 'number' || node.type === 'boolean' || node.type === 'null')) {
+					return this.schemaService.getSchemaForResource(resource.toString(), doc).then((schema) => {
+						if (schema) {
+							var proposals : Modes.ISuggestion[] = [];
+							var proposed: any = {};
+							var collector = {
+								add: (suggestion: Modes.ISuggestion) => {
+									if (!proposed[suggestion.label]) {
+										proposed[suggestion.label] = true;
+										proposals.push(suggestion);
+									}
+								},
+								setAsIncomplete: () => { /* ignore */ },
+								error: (message: string) => {
+									errors.onUnexpectedError(message);
+								}
+							};
+
+							this.jsonIntellisense.getValueSuggestions(resource, schema, doc, node.parent, node.start, collector);
+
+							var range = modelMirror.getRangeFromOffsetAndLength(node.start, node.end - node.start);
+							var text = modelMirror.getValueInRange(range);
+							for (var i = 0, len = proposals.length; i < len; i++) {
+								if (Strings.equalsIgnoreCase(proposals[i].label, text)) {
+									var nextIdx = i;
+									if (up) {
+										nextIdx = (i + 1) % len;
+									} else {
+										nextIdx =  i - 1;
+										if (nextIdx < 0) {
+											nextIdx = len - 1;
+										}
+									}
+									return {
+										value: proposals[nextIdx].label,
+										range: range
+									};
+								}
+							}
+							return null;
+						}
+					});
+				}
+				return null;
+			}
+		});
 	}
 
 	/**
@@ -317,68 +376,8 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 		return WinJS.TPromise.as(result);
 	}
 
-	public textReplace(value:string, up:boolean):string {
-		return ReplaceSupport.valueSetReplace(['true', 'false'], value, up);
-	}
-
 	public format(resource: URI, range: EditorCommon.IRange, options: Modes.IFormattingOptions): WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
 		var model = this.resourceService.get(resource);
 		return WinJS.TPromise.as(JSONFormatter.format(model, range, options));
-	}
-
-	public navigateValueSetFallback(resource:URI, range:EditorCommon.IRange, up:boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
-		var modelMirror = this.resourceService.get(resource);
-		var offset = modelMirror.getOffsetFromPosition({ lineNumber: range.startLineNumber, column: range.startColumn });
-
-		var parser = new Parser.JSONParser();
-		var config = new Parser.JSONDocumentConfig();
-		config.ignoreDanglingComma = true;
-		var doc = parser.parse(modelMirror.getValue(), config);
-		var node = doc.getNodeFromOffsetEndInclusive(offset);
-
-		if (node && (node.type === 'string' || node.type === 'number' || node.type === 'boolean' || node.type === 'null')) {
-			return this.schemaService.getSchemaForResource(resource.toString(), doc).then((schema) => {
-				if (schema) {
-					var proposals : Modes.ISuggestion[] = [];
-					var proposed: any = {};
-					var collector = {
-						add: (suggestion: Modes.ISuggestion) => {
-							if (!proposed[suggestion.label]) {
-								proposed[suggestion.label] = true;
-								proposals.push(suggestion);
-							}
-						},
-						setAsIncomplete: () => { /* ignore */ },
-						error: (message: string) => {
-							errors.onUnexpectedError(message);
-						}
-					};
-
-					this.jsonIntellisense.getValueSuggestions(resource, schema, doc, node.parent, node.start, collector);
-
-					var range = modelMirror.getRangeFromOffsetAndLength(node.start, node.end - node.start);
-					var text = modelMirror.getValueInRange(range);
-					for (var i = 0, len = proposals.length; i < len; i++) {
-						if (Strings.equalsIgnoreCase(proposals[i].label, text)) {
-							var nextIdx = i;
-							if (up) {
-								nextIdx = (i + 1) % len;
-							} else {
-								nextIdx =  i - 1;
-								if (nextIdx < 0) {
-									nextIdx = len - 1;
-								}
-							}
-							return {
-								value: proposals[nextIdx].label,
-								range: range
-							};
-						}
-					}
-					return null;
-				}
-			});
-		}
-		return null;
 	}
 }
