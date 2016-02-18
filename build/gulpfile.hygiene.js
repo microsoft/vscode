@@ -160,7 +160,7 @@ var hygiene = exports.hygiene = function (some) {
 		this.emit('data', file);
 	});
 
-	var tslint = es.through(function(file) {
+	var tsl = es.through(function(file) {
 		configuration = tslint.findConfiguration(null, '.');
 		var options = {
 			formatter: 'json',
@@ -186,7 +186,7 @@ var hygiene = exports.hygiene = function (some) {
 		.pipe(filter(copyrightFilter))
 		.pipe(copyrights)
 		.pipe(filter(tslintFilter))
-		.pipe(tslint)
+		.pipe(tsl)
 		.pipe(es.through(null, function () {
 			if (errorCount > 0) {
 				this.emit('error', 'Hygiene failed with ' + errorCount + ' errors. Check \'build/gulpfile.hygiene.js\'.');
