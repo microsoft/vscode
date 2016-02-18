@@ -29,6 +29,7 @@ export class MarkdownWorker extends AbstractModeWorker {
 
 	private cssLinks: string[];
 	private theme: Theme = Theme.DARK;
+	private previewFrontmatter: boolean;
 
 	// Custom Scrollbar CSS (inlined because of pseudo elements that cannot be made theme aware)
 	private static LIGHT_SCROLLBAR_CSS: string = [
@@ -116,6 +117,12 @@ export class MarkdownWorker extends AbstractModeWorker {
 			this.cssLinks = options.styles;
 		}
 
+		if (options && Types.isBoolean(options.previewFrontmatter)) {
+			this.previewFrontmatter = options.previewFrontmatter;
+		} else {
+			this.previewFrontmatter = true;
+		}
+
 		return WinJS.TPromise.as(false);
 	}
 
@@ -166,8 +173,9 @@ export class MarkdownWorker extends AbstractModeWorker {
 
 		return new WinJS.Promise((c, e) => {
 
+			let modelValue = this.previewFrontmatter ? model.getValue() : this.stripFrontmatter(model.getValue());
 			// Render markdown file contents to HTML
-			Marked.marked(model.getValue(), {
+			Marked.marked(modelValue, {
 				gfm: true, // GitHub flavored markdown
 				renderer: renderer,
 				highlight: highlighter
@@ -224,5 +232,9 @@ export class MarkdownWorker extends AbstractModeWorker {
 		}
 
 		return href;
+	}
+
+	private stripFrontmatter(text: string): string {
+		return text.replace(/^(---(.|\n)+?---)/, '');
 	}
 }
