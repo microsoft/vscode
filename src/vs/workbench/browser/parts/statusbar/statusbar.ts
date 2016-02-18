@@ -6,7 +6,9 @@
 
 import {Registry} from 'vs/platform/platform';
 import {IDisposable} from 'vs/base/common/lifecycle';
+/* tslint:disable:no-unused-variable */
 import statusbarService = require('vs/workbench/services/statusbar/common/statusbarService');
+/* tslint:enable:no-unused-variable */
 import {SyncDescriptor0, createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {INewConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
 

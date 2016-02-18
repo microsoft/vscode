@@ -151,7 +151,7 @@ class ConfigureTaskRunnerAction extends Action {
 	private contextService: IWorkspaceContextService;
 	private outputService: IOutputService;
 	private messageService: IMessageService;
-	private keybindingService: IKeybindingService
+	private keybindingService: IKeybindingService;
 
 	constructor(id: string, label: string, @IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
