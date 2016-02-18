@@ -119,10 +119,6 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 		return instance;
 	}
 
-	registerInstance<T extends IThreadSynchronizableObject<any>>(instance: T): void {
-		this._finishInstance(instance);
-	}
-
 	public handle(rpcId: string, methodName: string, args: any[]): any {
 		if (!this._localObjMap[rpcId]) {
 			throw new Error('Unknown actor ' + rpcId);

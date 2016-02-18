@@ -26,7 +26,7 @@ suite('Marker Service', () => {
 
 	test('query', () => {
 
-		let service = new markerService.MarkerService(NULL_THREAD_SERVICE);
+		let service = new markerService.MainProcessMarkerService(NULL_THREAD_SERVICE);
 
 		service.changeAll('far', [{
 			resource: URI.parse('file:///c/test/file.cs'),
@@ -52,7 +52,7 @@ suite('Marker Service', () => {
 
 	test('changeOne override', () => {
 
-		let service = new markerService.MarkerService(NULL_THREAD_SERVICE);
+		let service = new markerService.MainProcessMarkerService(NULL_THREAD_SERVICE);
 		service.changeOne('far', URI.parse('/path/only.cs'), [randomMarkerData()]);
 		assert.equal(service.read().length, 1);
 		assert.equal(service.read({ owner: 'far' }).length, 1);
@@ -70,7 +70,7 @@ suite('Marker Service', () => {
 
 	test('changeOne/All clears', () => {
 
-		let service = new markerService.MarkerService(NULL_THREAD_SERVICE);
+		let service = new markerService.MainProcessMarkerService(NULL_THREAD_SERVICE);
 		service.changeOne('far', URI.parse('/path/only.cs'), [randomMarkerData()]);
 		service.changeOne('boo', URI.parse('/path/only.cs'), [randomMarkerData()]);
 		assert.equal(service.read({ owner: 'far' }).length, 1);
@@ -90,7 +90,7 @@ suite('Marker Service', () => {
 
 	test('changeAll sends event for cleared', () => {
 
-		let service = new markerService.MarkerService(NULL_THREAD_SERVICE);
+		let service = new markerService.MainProcessMarkerService(NULL_THREAD_SERVICE);
 		service.changeAll('far', [{
 			resource: URI.parse('file:///d/path'),
 			marker: randomMarkerData()
@@ -111,7 +111,7 @@ suite('Marker Service', () => {
 	});
 
 	test('changeAll merges', () => {
-		let service = new markerService.MarkerService(NULL_THREAD_SERVICE);
+		let service = new markerService.MainProcessMarkerService(NULL_THREAD_SERVICE);
 
 		service.changeAll('far', [{
 			resource: URI.parse('file:///c/test/file.cs'),

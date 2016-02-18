@@ -39,7 +39,6 @@ export class WorkerClient {
 
 	private _lastMessageId:number;
 	private _promises:{[id:string]:IActiveRequest;};
-	private _messageHandlers:{[type:string]:(payload:any)=>void;};
 	private _workerId:number;
 	private _worker:IWorker;
 
@@ -57,7 +56,6 @@ export class WorkerClient {
 		this._decodeMessageName = decodeMessageName;
 		this._lastMessageId = 0;
 		this._promises = {};
-		this._messageHandlers= {};
 
 		this._messagesQueue = [];
 		this._processQueueTimeout = -1;
@@ -150,14 +148,6 @@ export class WorkerClient {
 			}
 		}
 		this._worker.terminate();
-	}
-
-	public addMessageHandler(message:string, handler:(payload:any)=>void): void {
-		this._messageHandlers[message]= handler;
-	}
-
-	public removeMessageHandler(message:string): void {
-		delete this._messageHandlers[message];
 	}
 
 	private _sendMessage(type:string, payload:any, forceTimestamp:number=(new Date()).getTime()):TPromise<any> {
@@ -357,10 +347,6 @@ export class WorkerClient {
 
 		if (typeof this[msg.type] === 'function') {
 			return this._invokeHandler(this[msg.type], this, msg.payload);
-		}
-
-		if (typeof this._messageHandlers[msg.type] === 'function') {
-			return this._invokeHandler(this._messageHandlers[msg.type], null, msg.payload);
 		}
 
 		this._onError('Received unexpected message from Worker:', msg);

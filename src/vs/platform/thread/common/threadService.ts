@@ -27,13 +27,6 @@ function findThreadService(obj: any): thread.IThreadService {
 	return threadService;
 }
 
-export function MainThreadAttr(type: Function, target: Function): void {
-	let methodName = findMember(type.prototype, target);
-	type.prototype[methodName] = function(...param: any[]) {
-		return findThreadService(this).MainThread(this, methodName, target, param);
-	};
-}
-
 export interface IOneWorkerAnnotation {
 	(type: Function, target: Function, affinity?: thread.ThreadAffinity): void;
 	(type: Function, target: Function, condition: () => TPromise<any>, affinity?: thread.ThreadAffinity): void;

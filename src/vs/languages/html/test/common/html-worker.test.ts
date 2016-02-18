@@ -37,7 +37,7 @@ suite('HTML - worker', () => {
 		var model = mm.createMirrorModelFromString(null, 0, content, mode, url);
 		resourceService.insert(url, model);
 
-		var markerService = new MarkerService.MarkerService(NULL_THREAD_SERVICE);
+		var markerService = new MarkerService.MainProcessMarkerService(NULL_THREAD_SERVICE);
 
 		let services = servicesUtil2.createMockEditorWorkerServices({
 			resourceService: resourceService,

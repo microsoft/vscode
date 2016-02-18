@@ -26,7 +26,6 @@ export interface IThreadService {
 	addStatusListener(listener: IThreadServiceStatusListener): void;
 	removeStatusListener(listener: IThreadServiceStatusListener): void;
 
-	MainThread(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, param: any[]): TPromise<any>;
 	OneWorker(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, param: any[], affinity: ThreadAffinity): TPromise<any>;
 	AllWorkers(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, param: any[]): TPromise<any>;
 	Everywhere(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, param: any[]): any;
@@ -40,8 +39,6 @@ export interface IThreadService {
 	createInstance<A1, T extends IThreadSynchronizableObject<any>>(descriptor: descriptors.AsyncDescriptor1<A1, T>, a1: A1): T;
 	createInstance<A1, A2, T extends IThreadSynchronizableObject<any>>(descriptor: descriptors.AsyncDescriptor2<A1, A2, T>, a1: A1, a2: A2): T;
 	createInstance<A1, A2, A3, T extends IThreadSynchronizableObject<any>>(descriptor: descriptors.AsyncDescriptor3<A1, A2, A3, T>, a1: A1, a2: A2, a3: A3): T;
-
-	registerInstance<T extends IThreadSynchronizableObject<any>>(instance: T): void;
 
 	// --- END deprecated methods
 

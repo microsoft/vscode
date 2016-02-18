@@ -213,17 +213,14 @@ export class WorkerServer {
 		}
 
 		if ((msg.type in this._requestHandler) && (typeof this._requestHandler[msg.type] === 'function')) {
-			//var now = (new Date()).getTime();
+			// var now = (new Date()).getTime();
 			try {
 				this._requestHandler[msg.type].call(this._requestHandler, this, c, e, p, msg.payload);
 			} catch (handlerError) {
 				e(errors.transformErrorForSerialization(handlerError));
 			}
-			//var what = msg.type;
-			//if (msg.type === 'rawRequest') {
-			//	what += '(' + msg.payload.name + ')';
-			//}
-			//console.info(what + ' took ' + ((new Date().getTime())-now));
+			// var what = msg.type;
+			// console.info(what + ' took ' + ((new Date().getTime())-now));
 
 		} else {
 			this._requestHandler.request(this, c, e, p, msg);

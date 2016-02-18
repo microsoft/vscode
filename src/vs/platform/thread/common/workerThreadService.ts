@@ -10,23 +10,16 @@ import remote = require('vs/base/common/remote');
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IThreadService, IThreadServiceStatusListener, IThreadSynchronizableObject, ThreadAffinity} from 'vs/platform/thread/common/thread';
 
-export interface IMainThreadPublisher {
-	(messageName: string, payload: any): TPromise<any>;
-}
-
 export class WorkerThreadService extends abstractThreadService.AbstractThreadService implements IThreadService {
 	public serviceId = IThreadService;
 	private _mainThreadData: abstractThreadService.IThreadServiceData;
-	private _publisher: IMainThreadPublisher;
 	protected _remoteCom: remote.IRemoteCom;
 
-	constructor(mainThreadData: abstractThreadService.IThreadServiceData, remoteCom: remote.IRemoteCom, workerPublisher: IMainThreadPublisher) {
+	constructor(mainThreadData: abstractThreadService.IThreadServiceData, remoteCom: remote.IRemoteCom) {
 		super(false);
 		this._mainThreadData = mainThreadData;
 		this._remoteCom = remoteCom;
 		this._remoteCom.setManyHandler(this);
-
-		this._publisher = workerPublisher;
 	}
 
 	private _handleRequest(identifier: string, memberName: string, args: any[]): TPromise<any> {
@@ -70,14 +63,6 @@ export class WorkerThreadService extends abstractThreadService.AbstractThreadSer
 		}
 
 		return super._finishInstance(instance);
-	}
-
-	MainThread(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): TPromise<any> {
-		return this._publisher('threadService', {
-			identifier: obj.getId(),
-			memberName: methodName,
-			args: params
-		});
 	}
 
 	OneWorker(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[], affinity: ThreadAffinity): TPromise<any> {

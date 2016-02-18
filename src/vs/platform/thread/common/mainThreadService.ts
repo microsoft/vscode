@@ -169,18 +169,6 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 				options: this._contextService.getOptions()
 			}
 		});
-		worker.addMessageHandler('threadService', (msg: any) => {
-			let identifier = msg.identifier;
-			let memberName = msg.memberName;
-			let args = msg.args;
-
-			if (!this._boundObjects.hasOwnProperty(identifier)) {
-				throw new Error('Object ' + identifier + ' was not found on the main thread.');
-			}
-
-			let obj = this._boundObjects[identifier];
-			return TPromise.as(obj[memberName].apply(obj, args));
-		});
 
 		return worker;
 	}
@@ -194,10 +182,6 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 			}
 		});
 		return r;
-	}
-
-	MainThread(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): TPromise<any> {
-		return target.apply(obj, params);
 	}
 
 	private _getWorkerIndex(obj: IThreadSynchronizableObject<any>, affinity: ThreadAffinity): number {

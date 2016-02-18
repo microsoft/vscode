@@ -21,10 +21,6 @@ export class PluginHostThreadService extends abstractThreadService.AbstractThrea
 		this._remoteCom.setManyHandler(this);
 	}
 
-	MainThread(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): TPromise<any> {
-		return target.apply(obj, params);
-	}
-
 	OneWorker(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[], affinity: ThreadAffinity): TPromise<any> {
 		return TPromise.as(null);
 	}

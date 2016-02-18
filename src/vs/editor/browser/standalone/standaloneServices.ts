@@ -181,7 +181,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 
 	var messageService = services.messageService || new SimpleServices.SimpleMessageService();
 	var pluginService = services.pluginService || new SimpleServices.SimplePluginService();
-	var markerService = services.markerService || new MarkerService.MarkerService(threadService);
+	var markerService = services.markerService || new MarkerService.MainProcessMarkerService(threadService);
 	var requestService = services.requestService || new SimpleServices.SimpleEditorRequestService(contextService, telemetryService);
 
 	var modelService = services.modelService || new ModelServiceImpl(threadService, markerService);

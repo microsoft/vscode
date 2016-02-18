@@ -11,7 +11,7 @@ import 'vs/editor/common/modes/abstractModeWorker';
 import 'vs/editor/common/languages.common';
 
 import {WorkerServer} from 'vs/base/common/worker/workerServer';
-import {MarkerService} from 'vs/platform/markers/common/markerService';
+import {SecondaryMarkerService} from 'vs/platform/markers/common/markerService';
 import {WorkerThreadService} from 'vs/platform/thread/common/workerThreadService';
 import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
 import {EventService} from 'vs/platform/event/common/eventService';
@@ -98,15 +98,13 @@ export class EditorWorkerServer {
 
 		var contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
 
-		this.threadService = new WorkerThreadService(initData.threadService, mainThread.getRemoteCom(), (messageName: string, payload: any) => {
-			return mainThread.request(messageName, payload);
-		});
+		this.threadService = new WorkerThreadService(initData.threadService, mainThread.getRemoteCom());
 		this.threadService.setInstantiationService(InstantiationService.create({ threadService: this.threadService }));
 
 		var telemetryServiceInstance = new WorkerTelemetryService(this.threadService);
 
 		var resourceService = new ResourceService();
-		var markerService = new MarkerService(this.threadService);
+		var markerService = new SecondaryMarkerService(this.threadService);
 
 		var modeService = new ModeServiceImpl(this.threadService, pluginService);
 

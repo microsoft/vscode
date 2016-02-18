@@ -43,7 +43,7 @@ import {SearchService} from 'vs/workbench/services/search/node/searchService';
 import {LifecycleService} from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
 import {WorkbenchKeybindingService} from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import {MainThreadService} from 'vs/workbench/services/thread/electron-browser/threadService';
-import {MarkerService} from 'vs/platform/markers/common/markerService';
+import {MainProcessMarkerService} from 'vs/platform/markers/common/markerService';
 import {IActionsService} from 'vs/platform/actions/common/actions';
 import ActionsService from 'vs/platform/actions/common/actionsService';
 import {IModelService} from 'vs/editor/common/services/modelService';
@@ -267,7 +267,7 @@ export class WorkbenchShell {
 		);
 		lifecycleService.onShutdown(() => requestService.dispose());
 
-		let markerService = new MarkerService(this.threadService);
+		let markerService = new MainProcessMarkerService(this.threadService);
 
 		let pluginService = new MainProcessPluginService(this.contextService, this.threadService, this.messageService, this.telemetryService);
 		this.keybindingService.setPluginService(pluginService);

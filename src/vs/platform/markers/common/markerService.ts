@@ -11,8 +11,7 @@ import collections = require('vs/base/common/collections');
 import URI from 'vs/base/common/uri';
 import Event, {Emitter} from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
-import {IThreadService, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
-import {MainThreadAttr} from 'vs/platform/thread/common/threadService';
+import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import {IMarkerService, IMarkerData, IResourceMarker, IMarker, MarkerStatistics} from './markers';
 
 interface Key {
@@ -49,41 +48,22 @@ export interface MarkerData {
 	[k: string]: IMarkerData[];
 }
 
-export class MarkerService implements IMarkerService, IThreadSynchronizableObject<MarkerData> {
+
+export abstract class MarkerService implements IMarkerService {
 	public serviceId = IMarkerService;
 	private _data: { [k: string]: IMarkerData[] };
 	private _stats: MarkerStatistics;
 	private _onMarkerChanged: Emitter<URI[]>;
 
-	constructor(threadService: IThreadService) {
+	constructor() {
 		this._data = Object.create(null);
 		this._stats = this._emptyStats();
 		this._onMarkerChanged = new Emitter<URI[]>();
-		threadService.registerInstance(this);
-	}
-
-	// ---- IThreadSynchronizableObject ------------------------------
-
-	public getId(): string {
-		return '__markerService';
-	}
-
-	public getSerializableState(): MarkerData {
-		return this._data;
-	}
-
-	public setData(data: MarkerData): void {
-		this._data = data;
 	}
 
 	public getStatistics(): MarkerStatistics {
 		return this._stats;
 	}
-
-	// ---- Threading attributes to invoke functions everywhere ------
-
-	static $changeOne = MainThreadAttr(MarkerService, MarkerService.prototype.changeOne);
-	static $changeAll = MainThreadAttr(MarkerService, MarkerService.prototype.changeAll);
 
 	// ---- IMarkerService ------------------------------------------
 
@@ -305,5 +285,41 @@ export class MarkerService implements IMarkerService, IThreadSynchronizableObjec
 		data.startColumn = data.startColumn > 0 ? data.startColumn : 1;
 		data.endLineNumber = data.endLineNumber >= data.startLineNumber ? data.endLineNumber : data.startLineNumber;
 		data.endColumn = data.endColumn > 0 ? data.endColumn : data.startColumn;
+	}
+}
+
+export class SecondaryMarkerService extends MarkerService {
+
+	private _proxy: MainProcessMarkerService;
+
+	constructor(threadService: IThreadService) {
+		super();
+		this._proxy = threadService.getRemotable(MainProcessMarkerService);
+	}
+
+	public changeOne(owner: string, resource: URI, markers: IMarkerData[]): void {
+		this._proxy.changeOne(owner, resource, markers);
+	}
+
+	public changeAll(owner: string, data: IResourceMarker[]): void {
+		this._proxy.changeAll(owner, data);
+	}
+
+}
+
+@Remotable.MainContext('MainProcessMarkerService')
+export class MainProcessMarkerService extends MarkerService {
+
+	constructor(threadService: IThreadService) {
+		super();
+		threadService.registerRemotableInstance(MainProcessMarkerService, this);
+	}
+
+	public changeOne(owner: string, resource: URI, markers: IMarkerData[]): void {
+		super.changeOne(owner, resource, markers);
+	}
+
+	public changeAll(owner: string, data: IResourceMarker[]): void {
+		super.changeAll(owner, data);
 	}
 }

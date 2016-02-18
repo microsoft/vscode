@@ -24,10 +24,6 @@ export class NullThreadService extends abstractThreadService.AbstractThreadServi
 		return super._doCreateInstance(params);
 	}
 
-	MainThread(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): winjs.Promise {
-		return target.apply(obj, params);
-	}
-
 	OneWorker(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[], affinity: ThreadAffinity): winjs.Promise {
 		return winjs.TPromise.as(null);
 	}
