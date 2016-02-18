@@ -165,3 +165,20 @@ function _addSuggestionsAtPosition(model: IModel, position:IPosition, predefined
 
 	return superSuggestions;
 }
+
+export function filterSuggestions(value: ISuggestResult): ISuggestResult[] {
+	if (!value) {
+		return;
+	}
+	// filter suggestions
+	var accept = DefaultFilter,
+		result: ISuggestResult[] = [];
+
+	result.push({
+		currentWord: value.currentWord,
+		suggestions: value.suggestions.filter((element) => !!accept(value.currentWord, element)),
+		incomplete: value.incomplete
+	});
+
+	return result;
+}

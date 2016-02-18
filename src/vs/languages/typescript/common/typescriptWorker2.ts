@@ -32,6 +32,7 @@ import rename = require('vs/languages/typescript/common/features/rename');
 import {IResourceService, ResourceEvents, IResourceAddedEvent, IResourceRemovedEvent} from 'vs/editor/common/services/resourceService';
 import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
 import {WorkerInplaceReplaceSupport, ReplaceSupport} from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
+import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
 
 export class TypeScriptWorker2 extends AbstractModeWorker {
 
@@ -191,7 +192,11 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 		return null;
 	}
 
-	public doSuggest(resource: URI, position: EditorCommon.IPosition): winjs.TPromise<Modes.ISuggestResult> {
+	public suggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
+		return this.doSuggest(resource, position).then(value => filterSuggestions(value));
+	}
+
+	protected doSuggest(resource: URI, position: EditorCommon.IPosition): winjs.TPromise<Modes.ISuggestResult> {
 		var project = this._projectService.getProject(resource);
 		var result = suggestions.computeSuggestions(project.languageService,
 			resource, position, this._options);

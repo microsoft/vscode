@@ -7,7 +7,6 @@
 import URI from 'vs/base/common/uri';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
-import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
 import {ValidationHelper} from 'vs/editor/common/worker/validationHelper';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
@@ -94,65 +93,6 @@ export class AbstractModeWorker {
 	public doValidate(resource:URI): void {
 		return null;
 	}
-
-	// ---- suggestion ---------------------------------------------------------------------------------------
-
-	public suggest(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.ISuggestResult[]> {
-
-		return this.doSuggest(resource, position).then(value => {
-
-			if (!value) {
-				return;
-			}
-			// filter suggestions
-			var accept = DefaultFilter,
-				result: Modes.ISuggestResult[] = [];
-
-			result.push(<Modes.ISuggestResult>{
-				currentWord: value.currentWord,
-				suggestions: value.suggestions.filter((element) => !!accept(value.currentWord, element)),
-				incomplete: value.incomplete
-			});
-			return result;
-
-		}, (error) => {
-			return <Modes.ISuggestResult[]>[{
-				currentWord: '',
-				suggestions: []
-			}];
-		});
-	}
-
-	public doSuggest(resource:URI, position:EditorCommon.IPosition):TPromise<Modes.ISuggestResult> {
-
-		var model = this.resourceService.get(resource),
-			currentWord = model.getWordUntilPosition(position).word;
-
-		var result:Modes.ISuggestResult = {
-			currentWord: currentWord,
-			suggestions: this.suggestWords(resource, position)
-		};
-
-		return TPromise.as(result);
-	}
-
-	private suggestWords(resource:URI, position:EditorCommon.IPosition):Modes.ISuggestion[] {
-		var modelMirror = this.resourceService.get(resource);
-		var currentWord = modelMirror.getWordUntilPosition(position).word;
-		var allWords = modelMirror.getAllUniqueWords(currentWord);
-
-		return allWords.filter((word) => {
-			return !(/^-?\d*\.?\d/.test(word)); // filter out numbers
-		}).map((word) => {
-			return <Modes.ISuggestion> {
-				type: 'text',
-				label: word,
-				codeSnippet: word,
-				noAutoAccept: true
-			};
-		});
-	}
-
 
 	public configure(options:any): TPromise<boolean> {
 		var p = this._doConfigure(options);

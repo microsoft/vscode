@@ -31,6 +31,7 @@ import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {JSONLocation} from './parser/jsonLocation';
 import {WorkerInplaceReplaceSupport, ReplaceSupport} from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
+import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
 
 export interface IOptionsSchema {
 	/**
@@ -246,8 +247,11 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 
 	}
 
+	public suggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult[]> {
+		return this.doSuggest(resource, position).then(value => filterSuggestions(value));
+	}
 
-	public doSuggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult> {
+	private doSuggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult> {
 		var modelMirror = this.resourceService.get(resource);
 
 		return this.jsonIntellisense.doSuggest(resource, modelMirror, position);
