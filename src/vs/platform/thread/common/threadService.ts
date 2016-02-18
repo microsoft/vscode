@@ -73,9 +73,3 @@ export function AllWorkersAttr(type: Function, target: Function): void {
 	};
 }
 
-export function EverywhereAttr(type: Function, target: Function): void {
-	let methodName = findMember(type.prototype, target);
-	type.prototype[methodName] = function(...param: any[]) {
-		return findThreadService(this).Everywhere(this, methodName, target, param);
-	};
-}
