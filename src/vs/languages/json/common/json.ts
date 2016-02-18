@@ -26,6 +26,7 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
 
+	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public extraInfoSupport: Modes.IExtraInfoSupport;
 	public outlineSupport: Modes.IOutlineSupport;
 	public formattingSupport: Modes.IFormattingSupport;
@@ -74,6 +75,7 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 		});
 
 		this.extraInfoSupport = this;
+		this.inplaceReplaceSupport = this;
 
 		// Initialize Outline support
 		this.outlineSupport = this;
@@ -128,6 +130,11 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 	static $_configureWorkerSchemas = AllWorkersAttr(JSONMode, JSONMode.prototype._configureWorkerSchemas);
 	private _configureWorkerSchemas(data:ISchemaContributions): WinJS.TPromise<boolean> {
 		return this._worker((w) => w.setSchemaContributions(data));
+	}
+
+	static $navigateValueSet = OneWorkerAttr(JSONMode, JSONMode.prototype.navigateValueSet);
+	public navigateValueSet(resource:URI, position:EditorCommon.IRange, up:boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
+		return this._worker((w) => w.navigateValueSet(resource, position, up));
 	}
 
 	static $suggest = OneWorkerAttr(JSONMode, JSONMode.prototype.suggest);

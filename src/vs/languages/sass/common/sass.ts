@@ -281,6 +281,7 @@ export var language = <Types.ILanguage>{
 
 export class SASSMode extends Monarch.MonarchMode<sassWorker.SassWorker> implements Modes.IExtraInfoSupport, Modes.IOutlineSupport {
 
+	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public referenceSupport: Modes.IReferenceSupport;
 	public logicalSelectionSupport: Modes.ILogicalSelectionSupport;
 	public extraInfoSupport: Modes.IExtraInfoSupport;
@@ -303,6 +304,7 @@ export class SASSMode extends Monarch.MonarchMode<sassWorker.SassWorker> impleme
 		this.modeService = modeService;
 
 		this.extraInfoSupport = this;
+		this.inplaceReplaceSupport = this;
 		this.referenceSupport = new ReferenceSupport(this.getId(), {
 			tokens: [sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_VALUE + '.sass', 'variable.decl.sass', 'variable.ref.sass', 'support.function.name.sass', sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_SELECTOR + '.sass'],
 			findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
@@ -329,6 +331,11 @@ export class SASSMode extends Monarch.MonarchMode<sassWorker.SassWorker> impleme
 		}).then(() => {
 			return super._worker(runner);
 		});
+	}
+
+	static $navigateValueSet = OneWorkerAttr(SASSMode, SASSMode.prototype.navigateValueSet);
+	public navigateValueSet(resource:URI, position:EditorCommon.IRange, up:boolean):winjs.TPromise<Modes.IInplaceReplaceSupportResult> {
+		return this._worker((w) => w.navigateValueSet(resource, position, up));
 	}
 
 	static $findReferences = OneWorkerAttr(SASSMode, SASSMode.prototype.findReferences);

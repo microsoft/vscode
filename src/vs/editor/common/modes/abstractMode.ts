@@ -10,7 +10,6 @@ import {TextualSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupp
 import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import Modes = require('vs/editor/common/modes');
 import EditorCommon = require('vs/editor/common/editorCommon');
-import URI from 'vs/base/common/uri';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -35,7 +34,6 @@ export abstract class AbstractMode<W extends AbstractModeWorker> implements Mode
 
 	// adapters start
 	public autoValidateDelay:number;
-	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public configSupport:Modes.IConfigurationSupport;
 	// adapters end
 
@@ -55,7 +53,6 @@ export abstract class AbstractMode<W extends AbstractModeWorker> implements Mode
 
 		this.autoValidateDelay = 500;
 
-		this.inplaceReplaceSupport = this;
 		this.configSupport = this;
 
 		this._workerPiecePromise = null;
@@ -140,11 +137,6 @@ export abstract class AbstractMode<W extends AbstractModeWorker> implements Mode
 				}
 			}
 		};
-	}
-
-	static $navigateValueSet = OneWorkerAttr(AbstractMode, AbstractMode.prototype.navigateValueSet);
-	public navigateValueSet(resource:URI, position:EditorCommon.IRange, up:boolean):TPromise<Modes.IInplaceReplaceSupportResult> {
-		return this._worker((w) => w.inplaceReplaceSupport.navigateValueSet(resource, position, up));
 	}
 
 	public configure(options:any): TPromise<boolean> {

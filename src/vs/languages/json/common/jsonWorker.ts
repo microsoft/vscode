@@ -30,7 +30,6 @@ import {ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContribut
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {JSONLocation} from './parser/jsonLocation';
-import {WorkerInplaceReplaceSupport} from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
 
 export interface IOptionsSchema {
@@ -101,64 +100,60 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 		this.jsonIntellisense = new JSONIntellisense.JSONIntellisense(this.schemaService, this.requestService, this.contributions);
 	}
 
-	protected _createInPlaceReplaceSupport(): Modes.IInplaceReplaceSupport {
-		return new WorkerInplaceReplaceSupport(this.resourceService, {
-			navigateValueSetFallback: (resource:URI, range:EditorCommon.IRange, up:boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> => {
-				var modelMirror = this.resourceService.get(resource);
-				var offset = modelMirror.getOffsetFromPosition({ lineNumber: range.startLineNumber, column: range.startColumn });
+	public navigateValueSet(resource:URI, range:EditorCommon.IRange, up:boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
+		var modelMirror = this.resourceService.get(resource);
+		var offset = modelMirror.getOffsetFromPosition({ lineNumber: range.startLineNumber, column: range.startColumn });
 
-				var parser = new Parser.JSONParser();
-				var config = new Parser.JSONDocumentConfig();
-				config.ignoreDanglingComma = true;
-				var doc = parser.parse(modelMirror.getValue(), config);
-				var node = doc.getNodeFromOffsetEndInclusive(offset);
+		var parser = new Parser.JSONParser();
+		var config = new Parser.JSONDocumentConfig();
+		config.ignoreDanglingComma = true;
+		var doc = parser.parse(modelMirror.getValue(), config);
+		var node = doc.getNodeFromOffsetEndInclusive(offset);
 
-				if (node && (node.type === 'string' || node.type === 'number' || node.type === 'boolean' || node.type === 'null')) {
-					return this.schemaService.getSchemaForResource(resource.toString(), doc).then((schema) => {
-						if (schema) {
-							var proposals : Modes.ISuggestion[] = [];
-							var proposed: any = {};
-							var collector = {
-								add: (suggestion: Modes.ISuggestion) => {
-									if (!proposed[suggestion.label]) {
-										proposed[suggestion.label] = true;
-										proposals.push(suggestion);
-									}
-								},
-								setAsIncomplete: () => { /* ignore */ },
-								error: (message: string) => {
-									errors.onUnexpectedError(message);
-								}
-							};
+		if (node && (node.type === 'string' || node.type === 'number' || node.type === 'boolean' || node.type === 'null')) {
+			return this.schemaService.getSchemaForResource(resource.toString(), doc).then((schema) => {
+				if (schema) {
+					var proposals : Modes.ISuggestion[] = [];
+					var proposed: any = {};
+					var collector = {
+						add: (suggestion: Modes.ISuggestion) => {
+							if (!proposed[suggestion.label]) {
+								proposed[suggestion.label] = true;
+								proposals.push(suggestion);
+							}
+						},
+						setAsIncomplete: () => { /* ignore */ },
+						error: (message: string) => {
+							errors.onUnexpectedError(message);
+						}
+					};
 
-							this.jsonIntellisense.getValueSuggestions(resource, schema, doc, node.parent, node.start, collector);
+					this.jsonIntellisense.getValueSuggestions(resource, schema, doc, node.parent, node.start, collector);
 
-							var range = modelMirror.getRangeFromOffsetAndLength(node.start, node.end - node.start);
-							var text = modelMirror.getValueInRange(range);
-							for (var i = 0, len = proposals.length; i < len; i++) {
-								if (Strings.equalsIgnoreCase(proposals[i].label, text)) {
-									var nextIdx = i;
-									if (up) {
-										nextIdx = (i + 1) % len;
-									} else {
-										nextIdx =  i - 1;
-										if (nextIdx < 0) {
-											nextIdx = len - 1;
-										}
-									}
-									return {
-										value: proposals[nextIdx].label,
-										range: range
-									};
+					var range = modelMirror.getRangeFromOffsetAndLength(node.start, node.end - node.start);
+					var text = modelMirror.getValueInRange(range);
+					for (var i = 0, len = proposals.length; i < len; i++) {
+						if (Strings.equalsIgnoreCase(proposals[i].label, text)) {
+							var nextIdx = i;
+							if (up) {
+								nextIdx = (i + 1) % len;
+							} else {
+								nextIdx =  i - 1;
+								if (nextIdx < 0) {
+									nextIdx = len - 1;
 								}
 							}
-							return null;
+							return {
+								value: proposals[nextIdx].label,
+								range: range
+							};
 						}
-					});
+					}
+					return null;
 				}
-				return null;
-			}
-		});
+			});
+		}
+		return null;
 	}
 
 	/**

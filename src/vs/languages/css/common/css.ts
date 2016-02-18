@@ -284,6 +284,7 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
 
+	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public referenceSupport: Modes.IReferenceSupport;
 	public logicalSelectionSupport: Modes.ILogicalSelectionSupport;
 	public extraInfoSupport:Modes.IExtraInfoSupport;
@@ -335,6 +336,7 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 			}
 		});
 
+		this.inplaceReplaceSupport = this;
 		this.occurrencesSupport = this;
 		this.extraInfoSupport = this;
 		this.referenceSupport = new ReferenceSupport(this.getId(), {
@@ -357,6 +359,11 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 
 	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], cssWorker.CSSWorker> {
 		return createAsyncDescriptor2('vs/languages/css/common/cssWorker', 'CSSWorker');
+	}
+
+	static $navigateValueSet = OneWorkerAttr(CSSMode, CSSMode.prototype.navigateValueSet);
+	public navigateValueSet(resource:URI, position:EditorCommon.IRange, up:boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
+		return this._worker((w) => w.navigateValueSet(resource, position, up));
 	}
 
 	static $findOccurrences = OneWorkerAttr(CSSMode, CSSMode.prototype.findOccurrences);

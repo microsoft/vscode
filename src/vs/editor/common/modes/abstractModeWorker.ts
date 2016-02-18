@@ -11,7 +11,6 @@ import {ValidationHelper} from 'vs/editor/common/worker/validationHelper';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import {TPromise} from 'vs/base/common/winjs.base';
-import {WorkerInplaceReplaceSupport} from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 
 export class AbstractModeWorker {
 
@@ -19,8 +18,6 @@ export class AbstractModeWorker {
 
 	public resourceService:IResourceService;
 	public markerService: IMarkerService;
-
-	public inplaceReplaceSupport: Modes.IInplaceReplaceSupport;
 
 	private _mode:Modes.IMode;
 
@@ -40,12 +37,6 @@ export class AbstractModeWorker {
 			(resource) => this._shouldIncludeModelInValidation(resource),
 			500
 		);
-
-		this.inplaceReplaceSupport = this._createInPlaceReplaceSupport();
-	}
-
-	protected _createInPlaceReplaceSupport(): Modes.IInplaceReplaceSupport {
-		return new WorkerInplaceReplaceSupport(this.resourceService);
 	}
 
 	_getMode():Modes.IMode {

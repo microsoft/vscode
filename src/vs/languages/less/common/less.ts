@@ -179,6 +179,7 @@ export var language: Types.ILanguage = <Types.ILanguage> {
 
 export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> implements Modes.IExtraInfoSupport, Modes.IOutlineSupport {
 
+	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public referenceSupport: Modes.IReferenceSupport;
 	public logicalSelectionSupport: Modes.ILogicalSelectionSupport;
 	public extraInfoSupport: Modes.IExtraInfoSupport;
@@ -201,6 +202,7 @@ export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> impleme
 		this.modeService = modeService;
 
 		this.extraInfoSupport = this;
+		this.inplaceReplaceSupport = this;
 		this.referenceSupport = new ReferenceSupport(this.getId(), {
 			tokens: [lessTokenTypes.TOKEN_PROPERTY + '.less', lessTokenTypes.TOKEN_VALUE + '.less', 'variable.less', lessTokenTypes.TOKEN_SELECTOR + '.class.less', lessTokenTypes.TOKEN_SELECTOR + '.id.less', 'selector.less'],
 			findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
@@ -227,6 +229,11 @@ export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> impleme
 		}).then(() => {
 			return super._worker(runner);
 		});
+	}
+
+	static $navigateValueSet = OneWorkerAttr(LESSMode, LESSMode.prototype.navigateValueSet);
+	public navigateValueSet(resource:URI, position:EditorCommon.IRange, up:boolean):winjs.TPromise<Modes.IInplaceReplaceSupportResult> {
+		return this._worker((w) => w.navigateValueSet(resource, position, up));
 	}
 
 	static $findReferences = OneWorkerAttr(LESSMode, LESSMode.prototype.findReferences);

@@ -4,11 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IInplaceReplaceSupport, IInplaceReplaceSupportResult} from 'vs/editor/common/modes';
+import {IInplaceReplaceSupportResult} from 'vs/editor/common/modes';
 import {IRange} from 'vs/editor/common/editorCommon';
-import {IResourceService} from 'vs/editor/common/services/resourceService';
-import URI from 'vs/base/common/uri';
 
 export class BasicInplaceReplace {
 
@@ -99,55 +96,5 @@ export class BasicInplaceReplace {
 			return valueSet[idx];
 		}
 		return null;
-	}
-}
-
-export interface IInplaceReplaceSupportCustomization {
-	navigateValueSetFallback?: (resource: URI, range: IRange, up: boolean) => TPromise<IInplaceReplaceSupportResult>;
-}
-
-export class WorkerInplaceReplaceSupport implements IInplaceReplaceSupport {
-
-	private resourceService: IResourceService;
-	private _customization:IInplaceReplaceSupportCustomization;
-
-	constructor(resourceService: IResourceService, customization: IInplaceReplaceSupportCustomization = null) {
-		this._customization = customization;
-		this.resourceService = resourceService;
-	}
-
-	public navigateValueSet(resource:URI, range:IRange, up:boolean):TPromise<IInplaceReplaceSupportResult> {
-		let result = this.doNavigateValueSet(resource, range, up);
-		if (result && result.value && result.range) {
-			return TPromise.as(result);
-		}
-		if (this._customization && typeof this._customization.navigateValueSetFallback === 'function') {
-			return this._customization.navigateValueSetFallback(resource, range, up);
-		}
-		return TPromise.as(null);
-	}
-
-	private doNavigateValueSet(resource:URI, range:IRange, up:boolean): IInplaceReplaceSupportResult {
-		let model = this.resourceService.get(resource);
-		if (range.startColumn === range.endColumn) {
-			range.endColumn += 1;
-		}
-
-		let selectionText = model.getValueInRange(range);
-
-		let	wordPos = model.getWordAtPosition({ lineNumber: range.startLineNumber, column: range.startColumn });
-		let word: string = null;
-		let wordRange: IRange = null;
-		if (wordPos && wordPos.startColumn !== -1) {
-			word = wordPos.word;
-			wordRange = {
-				startLineNumber: range.startLineNumber,
-				endLineNumber: range.endLineNumber,
-				startColumn: wordPos.startColumn,
-				endColumn: wordPos.endColumn
-			};
-		}
-
-		return BasicInplaceReplace.INSTANCE.navigateValueSet(range, selectionText, wordRange, word, up);
 	}
 }
