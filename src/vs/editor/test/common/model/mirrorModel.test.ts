@@ -67,7 +67,6 @@ function contentChangedLineChanged(lineNumber: number, detail: string): EditorCo
 
 function mirrorModelEvents(contentChanged:EditorCommon.IModelContentChangedEvent[]): MirrorModel.IMirrorModelEvents {
 	return {
-		propertiesChanged: null,
 		contentChanged: contentChanged
 	};
 }

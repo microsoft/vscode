@@ -1757,25 +1757,6 @@ export interface IModel extends IEditableTextModel, ITextModelWithMarkers, IToke
 	destroy(): void;
 
 	/**
-	 * Set a property on the model. This property will be forwarded to the
-	 * mirror model associated with this model. Please make sure that the
-	 * value can be serialized. If a property by the same name exists,
-	 * it will be overwritten.
-	 */
-	setProperty(name:string, value:any): void;
-
-	/**
-	 * Returns a property previously set on the model.
-	 * If the property is not defined, returns null.
-	 */
-	getProperty(name:string): any;
-
-	/**
-	 * Returns all properties set on the model.
-	 */
-	getProperties(): {[name:string]:any;};
-
-	/**
 	 * Gets the resource associated with this editor model.
 	 */
 	getAssociatedResource(): URI;
@@ -1857,7 +1838,6 @@ export interface IMirrorModel extends IEventEmitter, ITokenizedModel {
 	getAllEmbedded(): IMirrorModel[];
 
 	getAssociatedResource(): URI;
-	getProperty(key:string): any;
 
 	getOffsetFromPosition(position:IPosition): number;
 	getPositionFromOffset(offset:number): IPosition;
@@ -1998,17 +1978,6 @@ export interface IModelContentChangedLinesInsertedEvent extends IModelContentCha
 	 * The text that was inserted
 	 */
 	detail: string;
-}
-/**
- * An event describing that model properties have changed.
- */
-export interface IModelPropertiesChangedEvent {
-	/**
-	 * A map with all the properties of the model.
-	 */
-	properties: {
-		[key:string]:any;
-	};
 }
 /**
  * Decoration data associated with a model decorations changed event.
@@ -3288,7 +3257,6 @@ export var EventType = {
 	EditorFocus: 'widgetFocus',
 	EditorBlur: 'widgetBlur',
 
-	ModelPropertiesChanged: 'propertiesChanged',
 	ModelDecorationsChanged: 'decorationsChanged',
 
 	CursorPositionChanged: 'positionChanged',

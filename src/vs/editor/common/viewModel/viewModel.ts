@@ -224,10 +224,6 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 						// That's ok, no work to do
 						break;
 
-					case EditorCommon.EventType.ModelPropertiesChanged:
-						// Ignore
-						break;
-
 					case EditorCommon.EventType.ModelContentChanged2:
 						// Ignore
 						break;

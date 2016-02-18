@@ -28,7 +28,6 @@ export interface IRawModelData {
 	url:URI;
 	versionId:number;
 	value:EditorCommon.IRawText;
-	properties:any;
 	modeId:string;
 }
 
@@ -325,14 +324,13 @@ export class ModelServiceImpl implements IModelService {
 		return {
 			url: model.getAssociatedResource(),
 			versionId: model.getVersionId(),
-			properties: model.getProperties(),
 			value: model.toRawText(),
 			modeId: model.getMode().getId()
 		};
 	}
 
 	private _onModelEvents(modelData:ModelData, events:IEmitterEvent[]): void {
-		let eventsForWorkers: IMirrorModelEvents = { contentChanged: [], propertiesChanged: null };
+		let eventsForWorkers: IMirrorModelEvents = { contentChanged: [] };
 
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
@@ -350,12 +348,6 @@ export class ModelServiceImpl implements IModelService {
 					}
 					break;
 
-				case EditorCommon.EventType.ModelPropertiesChanged:
-					if (modelData.isSyncedToWorkers) {
-						eventsForWorkers.propertiesChanged = <EditorCommon.IModelPropertiesChangedEvent>data;
-					}
-					break;
-
 				case EditorCommon.EventType.ModelModeChanged:
 					let modeChangedEvent = <EditorCommon.IModelModeChangedEvent>data;
 					if (modelData.isSyncedToWorkers) {
@@ -367,7 +359,7 @@ export class ModelServiceImpl implements IModelService {
 			}
 		}
 
-		if (eventsForWorkers.contentChanged.length > 0 || eventsForWorkers.propertiesChanged) {
+		if (eventsForWorkers.contentChanged.length > 0) {
 			// Forward events to all the workers
 			this._workerHelper.$_acceptModelEvents(modelData.getModelId(), eventsForWorkers);
 		}
@@ -390,7 +382,7 @@ export class ModelServiceWorkerHelper {
 
 	public $_acceptNewModel(data:IRawModelData): TPromise<void> {
 		// Create & insert the mirror model eagerly in the resource service
-		let mirrorModel = new MirrorModel(this._resourceService, data.versionId, data.value, null, data.url, data.properties);
+		let mirrorModel = new MirrorModel(this._resourceService, data.versionId, data.value, null, data.url);
 		this._resourceService.insert(mirrorModel.getAssociatedResource(), mirrorModel);
 
 		// Block worker execution until the mode is instantiated

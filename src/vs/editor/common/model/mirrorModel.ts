@@ -17,25 +17,18 @@ import {disposeAll} from 'vs/base/common/lifecycle';
 
 export interface IMirrorModelEvents {
 	contentChanged: EditorCommon.IModelContentChangedEvent[];
-	propertiesChanged: EditorCommon.IModelPropertiesChangedEvent;
 }
 
 export class AbstractMirrorModel extends TextModelWithTokens implements EditorCommon.IMirrorModel {
 
 	_lineStarts:PrefixSumComputer;
 	_associatedResource:URI;
-	_extraProperties:{[key:string]:any;};
 
-	constructor(allowedEventTypes:string[], versionId:number, value:EditorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URI, properties?:{[key:string]:any;}) {
+	constructor(allowedEventTypes:string[], versionId:number, value:EditorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URI) {
 		super(allowedEventTypes.concat([EditorCommon.EventType.ModelDispose]), value, false, mode);
-
-		if(!properties) {
-			properties = {};
-		}
 
 		this._setVersionId(versionId);
 		this._associatedResource = associatedResource;
-		this._extraProperties = properties;
 	}
 
 	public getModeId(): string {
@@ -75,14 +68,6 @@ export class AbstractMirrorModel extends TextModelWithTokens implements EditorCo
 		}
 
 		return this._associatedResource;
-	}
-
-	public getProperty(name:string): any {
-		if (this._isDisposed) {
-			throw new Error('AbstractMirrorModel.getProperty: Model is disposed');
-		}
-
-		return this._extraProperties.hasOwnProperty(name) ? this._extraProperties[name] : null;
 	}
 
 	private _ensurePrefixSum(): void {
@@ -302,8 +287,8 @@ class EmbeddedModeRange {
 	}
 }
 
-export function createMirrorModelFromString(resourceService:IResourceService, versionId:number, value:string, mode:IMode, associatedResource?:URI, properties?:{[key:string]:any;}): MirrorModel {
-	return new MirrorModel(resourceService, versionId, TextModel.toRawText(value), mode, associatedResource, properties);
+export function createMirrorModelFromString(resourceService:IResourceService, versionId:number, value:string, mode:IMode, associatedResource?:URI): MirrorModel {
+	return new MirrorModel(resourceService, versionId, TextModel.toRawText(value), mode, associatedResource);
 }
 
 export class MirrorModel extends AbstractMirrorModel implements EditorCommon.IMirrorModel {
@@ -311,8 +296,8 @@ export class MirrorModel extends AbstractMirrorModel implements EditorCommon.IMi
 	private _resourceService: IResourceService;
 	private _embeddedModels: {[modeId:string]:MirrorModelEmbedded;};
 
-	constructor(resourceService:IResourceService, versionId:number, value:EditorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URI, properties?:{[key:string]:any;}) {
-		super(['changed'], versionId, value, mode, associatedResource, properties);
+	constructor(resourceService:IResourceService, versionId:number, value:EditorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URI) {
+		super(['changed'], versionId, value, mode, associatedResource);
 
 		this._resourceService = resourceService;
 		this._embeddedModels = {};
@@ -448,10 +433,6 @@ export class MirrorModel extends AbstractMirrorModel implements EditorCommon.IMi
 	public onEvents(events:IMirrorModelEvents) : boolean {
 		if (this._isDisposed) {
 			throw new Error('MirrorModel.onEvents: Model is disposed');
-		}
-
-		if (events.propertiesChanged) {
-			this._extraProperties = events.propertiesChanged.properties;
 		}
 
 		let changed = false;

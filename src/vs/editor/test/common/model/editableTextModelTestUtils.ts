@@ -58,7 +58,6 @@ export  function assertSyncedModels(text:string, callback:(model:EditableTextMod
 		}
 		mirrorModel1PrevVersionId = versionId;
 		let mirrorModelEvents:IMirrorModelEvents = {
-			propertiesChanged: null,
 			contentChanged: [e]
 		};
 		mirrorModel1.onEvents(mirrorModelEvents);
