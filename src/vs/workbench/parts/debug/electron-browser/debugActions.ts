@@ -575,7 +575,7 @@ export class SelectionToWatchExpressionsAction extends EditorAction {
 		const selection = this.editor.getSelection();
 		const text = this.editor.getModel().getValueInRange(selection);
 
-		return !!selection && !selection.isEmpty() && this.debugService.getState() !== debug.State.Inactive && text && /\S/.test(text);
+		return !!selection && !selection.isEmpty() && this.debugService.getConfigurationName() && text && /\S/.test(text);
 	}
 }
 
