@@ -37,9 +37,9 @@ export class ContentHoverWidget implements EditorBrowser.IContentWidget {
 		this._domNode = document.createElement('div');
 		this._domNode.style.display = 'inline-block';
 		this._containerDomNode.appendChild(this._domNode);
-		this._domNode.tabIndex = 0;
+		this._containerDomNode.tabIndex = 0;
 		this._toDispose = [];
-		this._toDispose.push(dom.addStandardDisposableListener(this._domNode, 'keydown', (e: dom.IKeyboardEvent) => {
+		this._toDispose.push(dom.addStandardDisposableListener(this._containerDomNode, 'keydown', (e: dom.IKeyboardEvent) => {
 			if (e.equals(CommonKeybindings.ESCAPE)) {
 				this.hide();
 			}
@@ -81,7 +81,7 @@ export class ContentHoverWidget implements EditorBrowser.IContentWidget {
 		this._editor.render();
 		this._stoleFocus = focus;
 		if (focus) {
-			this._domNode.focus();
+			this._containerDomNode.focus();
 		}
 	}
 
