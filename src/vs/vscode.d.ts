@@ -3104,6 +3104,8 @@ declare namespace vscode {
 		/**
 		 * The folder that is open in VS Code. `undefined` when no folder
 		 * has been opened.
+		 * 
+		 * @readonly
 		 */
 		export let rootPath: string;
 
