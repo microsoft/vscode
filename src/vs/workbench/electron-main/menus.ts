@@ -357,7 +357,7 @@ export class VSCodeMenu {
 		let userSettings = this.createMenuItem(nls.localize('miOpenSettings', "&&User Settings"), 'workbench.action.openGlobalSettings');
 		let workspaceSettings = this.createMenuItem(nls.localize('miOpenWorkspaceSettings', "&&Workspace Settings"), 'workbench.action.openWorkspaceSettings');
 		let kebindingSettings = this.createMenuItem(nls.localize('miOpenKeymap', "&&Keyboard Shortcuts"), 'workbench.action.openGlobalKeybindings');
-		let snippetsSettings = this.createMenuItem(nls.localize('miOpenSnippets', "&&User Snippets"), 'workbench.action.openSnippets');
+		let snippetsSettings = this.createMenuItem(nls.localize('miOpenSnippets', "User &&Snippets"), 'workbench.action.openSnippets');
 		let themeSelection = this.createMenuItem(nls.localize('miSelectTheme', "&&Color Theme"), 'workbench.action.selectTheme');
 		let preferencesMenu = new Menu();
 		preferencesMenu.append(userSettings);
