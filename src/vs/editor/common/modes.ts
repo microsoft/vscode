@@ -258,16 +258,6 @@ export interface IMode {
 	inplaceReplaceSupport?:IInplaceReplaceSupport;
 
 	/**
-	 * Optional adapter to support diff'ing two models.
-	 */
-	diffSupport?:IDiffSupport;
-
-	/**
-	 * Optional adapter to support diff'ing a model with its original version.
-	 */
-	dirtyDiffSupport?:IDirtyDiffSupport;
-
-	/**
 	 * Optional adapter to support output for a model (e.g. markdown -> html)
 	 */
 	emitOutputSupport?:IEmitOutputSupport;
@@ -564,22 +554,6 @@ export interface IInplaceReplaceSupportResult {
  */
 export interface IInplaceReplaceSupport {
 	navigateValueSet(resource:URI, range:EditorCommon.IRange, up:boolean):TPromise<IInplaceReplaceSupportResult>;
-}
-
-
-/**
- * Interface used to compute the diff between two models.
- */
-export interface IDiffSupport {
-	computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]>;
-}
-
-
-/**
- * Interface used to compute the diff between a model and its original version.
- */
-export interface IDirtyDiffSupport {
-	computeDirtyDiff(resource:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]>;
 }
 
 /**

@@ -8,9 +8,7 @@ import URI from 'vs/base/common/uri';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {computeLinks} from 'vs/editor/common/modes/linkComputer';
-import {DiffComputer} from 'vs/editor/common/diff/diffComputer';
 import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
-import {TextModel} from 'vs/editor/common/model/textModel';
 import {ValidationHelper} from 'vs/editor/common/worker/validationHelper';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
@@ -175,45 +173,6 @@ export class AbstractModeWorker {
 	public getSuggestionFilter():Modes.ISuggestionFilter {
 		return AbstractModeWorker.filter;
 	}
-
-	// ---- diff --------------------------------------------------------------------------
-
-	public computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]> {
-		var originalModel = this.resourceService.get(original);
-		var modifiedModel = this.resourceService.get(modified);
-		if (originalModel !== null && modifiedModel !== null) {
-			var originalLines = originalModel.getLinesContent();
-			var modifiedLines = modifiedModel.getLinesContent();
-			var diffComputer = new DiffComputer(originalLines, modifiedLines, {
-				shouldPostProcessCharChanges: true,
-				shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
-				shouldConsiderTrimWhitespaceInEmptyCase: true
-			});
-			return TPromise.as(diffComputer.computeDiff());
-		}
-		return TPromise.as(null);
-	}
-
-	// ---- dirty diff --------------------------------------------------------------------
-
-	public computeDirtyDiff(resource:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]> {
-		var model = this.resourceService.get(resource);
-		var original = <string> model.getProperty('original');
-
-		if (original && model !== null) {
-			var splitText = TextModel.toRawText(original);
-			var originalLines = splitText.lines;
-			var modifiedLines = model.getLinesContent();
-			var diffComputer = new DiffComputer(originalLines, modifiedLines, {
-				shouldPostProcessCharChanges: false,
-				shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
-				shouldConsiderTrimWhitespaceInEmptyCase: false
-			});
-			return TPromise.as(diffComputer.computeDiff());
-		}
-		return TPromise.as([]);
-	}
-
 
 	// ---- link detection ------------------------------------------------------------------
 

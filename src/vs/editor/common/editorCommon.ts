@@ -752,8 +752,6 @@ export interface IModeSupportChangedEvent {
 	logicalSelectionSupport:boolean;
 	formattingSupport:boolean;
 	inplaceReplaceSupport:boolean;
-	diffSupport:boolean;
-	dirtyDiffSupport:boolean;
 	emitOutputSupport:boolean;
 	linkSupport:boolean;
 	configSupport:boolean;

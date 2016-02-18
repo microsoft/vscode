@@ -37,8 +37,6 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 	public autoValidateDelay:number;
 	public suggestSupport:Modes.ISuggestSupport;
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
-	public diffSupport:Modes.IDiffSupport;
-	public dirtyDiffSupport:Modes.IDirtyDiffSupport;
 	public linkSupport:Modes.ILinkSupport;
 	public configSupport:Modes.IConfigurationSupport;
 	public codeLensSupport:Modes.ICodeLensSupport;
@@ -62,8 +60,6 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 		this.autoValidateDelay = 500;
 		this.suggestSupport = this;
 		this.inplaceReplaceSupport = this;
-		this.diffSupport = this;
-		this.dirtyDiffSupport = this;
 		this.linkSupport = this;
 		this.configSupport = this;
 
@@ -193,16 +189,6 @@ export class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
 		return this._worker((w) => w.inplaceReplaceSupport.navigateValueSet(resource, position, up));
 	}
 
-	static $computeDiff = OneWorkerAttr(AbstractMode, AbstractMode.prototype.computeDiff);
-	public computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]> {
-		return this._worker((w) => w.computeDiff(original, modified, ignoreTrimWhitespace));
-	}
-
-	static $computeDirtyDiff = OneWorkerAttr(AbstractMode, AbstractMode.prototype.computeDirtyDiff);
-	public computeDirtyDiff(resource:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]> {
-		return this._worker((w) => w.computeDirtyDiff(resource, ignoreTrimWhitespace));
-	}
-
 	static $computeLinks = OneWorkerAttr(AbstractMode, AbstractMode.prototype.computeLinks);
 	public computeLinks(resource:URI):TPromise<Modes.ILink[]> {
 		return this._worker((w) => w.computeLinks(resource));
@@ -266,7 +252,7 @@ class SimplifiedMode implements Modes.IMode {
 	}
 
 	private static _createModeSupportChangedEvent(originalModeEvent:EditorCommon.IModeSupportChangedEvent): EditorCommon.IModeSupportChangedEvent {
-		var event = {
+		var event:EditorCommon.IModeSupportChangedEvent = {
 			codeLensSupport: false,
 			tokenizationSupport: originalModeEvent.tokenizationSupport,
 			occurrencesSupport:false,
@@ -281,8 +267,6 @@ class SimplifiedMode implements Modes.IMode {
 			logicalSelectionSupport:false,
 			formattingSupport:false,
 			inplaceReplaceSupport:false,
-			diffSupport:false,
-			dirtyDiffSupport:false,
 			emitOutputSupport:false,
 			linkSupport:false,
 			configSupport:false,
@@ -383,8 +367,6 @@ function _createModeSupportChangedEvent(...changedSupports: string[]): EditorCom
 		logicalSelectionSupport:false,
 		formattingSupport:false,
 		inplaceReplaceSupport:false,
-		diffSupport:false,
-		dirtyDiffSupport:false,
 		emitOutputSupport:false,
 		linkSupport:false,
 		configSupport:false,
