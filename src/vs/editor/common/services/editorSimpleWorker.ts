@@ -17,6 +17,7 @@ import {computeLinks} from 'vs/editor/common/modes/linkComputer';
 import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 import {Range} from 'vs/editor/common/core/range';
+import {BasicInplaceReplace} from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 
 class MirrorModel extends MirrorModel2 {
 
@@ -32,7 +33,7 @@ class MirrorModel extends MirrorModel2 {
 		return this._lines[lineNumber - 1];
 	}
 
-	private _getWordAtPosition(position:EditorCommon.IPosition, wordDefinition:RegExp): Range {
+	public getWordAtPosition(position:EditorCommon.IPosition, wordDefinition:RegExp): Range {
 
 		let wordAtText = WordHelper._getWordAtText(
 			position.column,
@@ -49,7 +50,7 @@ class MirrorModel extends MirrorModel2 {
 	}
 
 	public getWordUntilPosition(position: EditorCommon.IPosition, wordDefinition:RegExp): EditorCommon.IWordAtPosition {
-		var wordAtPosition = this._getWordAtPosition(position, wordDefinition);
+		var wordAtPosition = this.getWordAtPosition(position, wordDefinition);
 		if (!wordAtPosition) {
 			return {
 				word: '',
@@ -98,6 +99,25 @@ class MirrorModel extends MirrorModel2 {
 			result.push({ start: match.index, end: match.index + match[0].length });
 		}
 		return result;
+	}
+
+	public getValueInRange(range:EditorCommon.IRange): string {
+		if (range.startLineNumber === range.endLineNumber) {
+			return this._lines[range.startLineNumber - 1].substring(range.startColumn - 1, range.endColumn - 1);
+		}
+
+		var lineEnding = this._eol,
+			startLineIndex = range.startLineNumber - 1,
+			endLineIndex = range.endLineNumber - 1,
+			resultLines:string[] = [];
+
+		resultLines.push(this._lines[startLineIndex].substring(range.startColumn - 1));
+		for (var i = startLineIndex + 1; i < endLineIndex; i++) {
+			resultLines.push(this._lines[i]);
+		}
+		resultLines.push(this._lines[endLineIndex].substring(0, range.endColumn - 1));
+
+		return resultLines.join(lineEnding);
 	}
 }
 
@@ -222,6 +242,30 @@ export class EditorSimpleWorkerImpl extends EditorSimpleWorker implements IReque
 	}
 
 	// ---- END suggest --------------------------------------------------------------------------
+
+	public navigateValueSet(modelUrl:string, range:EditorCommon.IRange, up:boolean, wordDef:string, wordDefFlags:string): TPromise<Modes.IInplaceReplaceSupportResult> {
+		let model = this._models[modelUrl];
+		if (!model) {
+			return null;
+		}
+
+		let wordDefRegExp = new RegExp(wordDef, wordDefFlags);
+
+		if (range.startColumn === range.endColumn) {
+			range.endColumn += 1;
+		}
+
+		let selectionText = model.getValueInRange(range);
+
+		let	wordRange = model.getWordAtPosition({ lineNumber: range.startLineNumber, column: range.startColumn }, wordDefRegExp);
+		let word: string = null;
+		if (wordRange !== null) {
+			word = model.getValueInRange(wordRange);
+		}
+
+		let result = BasicInplaceReplace.INSTANCE.navigateValueSet(range, selectionText, wordRange, word, up);
+		return TPromise.as(result);
+	}
 }
 
 /**

@@ -20,4 +20,5 @@ export interface IEditorWorkerService {
 	computeDirtyDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]>;
 	computeLinks(resource:URI):TPromise<Modes.ILink[]>;
 	textualSuggest(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.ISuggestResult[]>;
+	navigateValueSet(resource: URI, range:EditorCommon.IRange, up:boolean): TPromise<Modes.IInplaceReplaceSupportResult>;
 }

@@ -12,8 +12,8 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import InPlaceReplaceCommand = require('./inPlaceReplaceCommand');
 import {Range} from 'vs/editor/common/core/range';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 
 class InPlaceReplace extends EditorAction {
 
@@ -26,18 +26,21 @@ class InPlaceReplace extends EditorAction {
 	private currentRequest:TPromise<Modes.IInplaceReplaceSupportResult>;
 	private decorationRemover:TPromise<void>;
 	private decorationIds:string[];
+	private editorWorkerService:IEditorWorkerService;
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, up:boolean, @INullService ns) {
+	constructor(
+		descriptor:EditorCommon.IEditorActionDescriptorData,
+		editor:EditorCommon.ICommonCodeEditor,
+		up:boolean,
+		@IEditorWorkerService editorWorkerService:IEditorWorkerService
+	) {
 		super(descriptor, editor);
+		this.editorWorkerService = editorWorkerService;
 		this.up = up;
 		this.requestIdPool = 0;
 		this.currentRequest = TPromise.as(<Modes.IInplaceReplaceSupportResult>null);
 		this.decorationRemover = TPromise.as(<void>null);
 		this.decorationIds = [];
-	}
-
-	public isSupported():boolean {
-		return !!this.editor.getModel().getMode().inplaceReplaceSupport && super.isSupported();
 	}
 
 	public run():TPromise<boolean> {
@@ -47,20 +50,28 @@ class InPlaceReplace extends EditorAction {
 
 		var selection = this.editor.getSelection(),
 			model = this.editor.getModel(),
-			support = model.getMode().inplaceReplaceSupport;
+			support = model.getMode().inplaceReplaceSupport,
+			modelURI = model.getAssociatedResource();
 
 		if(selection.startLineNumber !== selection.endLineNumber) {
 			// Can't accept multiline selection
 			return null;
 		}
 
-//		if(selection.isEmpty()) {
-//			// Expand selection if empty
-//			selection.endColumn += 1;
-//		}
 		var state = this.editor.captureState(EditorCommon.CodeEditorStateFlag.Value, EditorCommon.CodeEditorStateFlag.Position);
 
-		this.currentRequest = support.navigateValueSet(model.getAssociatedResource(), selection, this.up);
+		this.currentRequest = this.editorWorkerService.navigateValueSet(modelURI, selection, this.up);
+		this.currentRequest = this.currentRequest.then((basicResult) => {
+			if (basicResult && basicResult.range && basicResult.value) {
+				return basicResult;
+			}
+
+			if (support) {
+				return support.navigateValueSet(modelURI, selection, this.up);
+			}
+
+			return null;
+		});
 
 		return this.currentRequest.then((result:Modes.IInplaceReplaceSupportResult) => {
 
@@ -111,8 +122,12 @@ class InPlaceReplaceUp extends InPlaceReplace {
 
 	public static ID = 'editor.action.inPlaceReplace.up';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, true, ns);
+	constructor(
+		descriptor:EditorCommon.IEditorActionDescriptorData,
+		editor:EditorCommon.ICommonCodeEditor,
+		@IEditorWorkerService editorWorkerService:IEditorWorkerService
+	) {
+		super(descriptor, editor, true, editorWorkerService);
 	}
 }
 
@@ -120,8 +135,12 @@ class InPlaceReplaceDown extends InPlaceReplace {
 
 	public static ID = 'editor.action.inPlaceReplace.down';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, false, ns);
+	constructor(
+		descriptor:EditorCommon.IEditorActionDescriptorData,
+		editor:EditorCommon.ICommonCodeEditor,
+		@IEditorWorkerService editorWorkerService:IEditorWorkerService
+	) {
+		super(descriptor, editor, false, editorWorkerService);
 	}
 }
 

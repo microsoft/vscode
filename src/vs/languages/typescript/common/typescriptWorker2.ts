@@ -31,7 +31,6 @@ import emitting = require('vs/languages/typescript/common/features/emitting');
 import rename = require('vs/languages/typescript/common/features/rename');
 import {IResourceService, ResourceEvents, IResourceAddedEvent, IResourceRemovedEvent} from 'vs/editor/common/services/resourceService';
 import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
-import {WorkerInplaceReplaceSupport, ReplaceSupport} from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
 
 export class TypeScriptWorker2 extends AbstractModeWorker {
@@ -149,19 +148,6 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 	}
 
 	// ---- Implementation of various IXYZSupports
-
-	protected _createInPlaceReplaceSupport(): Modes.IInplaceReplaceSupport {
-		return new WorkerInplaceReplaceSupport(this.resourceService, {
-			textReplace: (value:string, up:boolean):string => {
-				var valueSets = [
-					['true', 'false'],
-					['string', 'number', 'boolean', 'void', 'any'],
-					['private', 'public']
-				];
-				return ReplaceSupport.valueSetsReplace(valueSets, value, up);
-			}
-		});
-	}
 
 	public doValidate(resource: URI): void {
 		var project = this._projectService.getProject(resource);

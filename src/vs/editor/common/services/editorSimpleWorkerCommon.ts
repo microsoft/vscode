@@ -43,4 +43,8 @@ export abstract class EditorSimpleWorker {
 	public textualSuggest(modelUrl:string, position: EditorCommon.IPosition, wordDef:string, wordDefFlags:string): TPromise<Modes.ISuggestResult[]> {
 		throw new Error('Not implemented!');
 	}
+
+	public navigateValueSet(modelUrl:string, range:EditorCommon.IRange, up:boolean, wordDef:string, wordDefFlags:string): TPromise<Modes.IInplaceReplaceSupportResult> {
+		throw new Error('Not implemented!');
+	}
 }

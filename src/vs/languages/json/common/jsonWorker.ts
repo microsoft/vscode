@@ -30,7 +30,7 @@ import {ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContribut
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {JSONLocation} from './parser/jsonLocation';
-import {WorkerInplaceReplaceSupport, ReplaceSupport} from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
+import {WorkerInplaceReplaceSupport} from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
 
 export interface IOptionsSchema {
@@ -103,9 +103,6 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 
 	protected _createInPlaceReplaceSupport(): Modes.IInplaceReplaceSupport {
 		return new WorkerInplaceReplaceSupport(this.resourceService, {
-			textReplace: (value: string, up: boolean): string => {
-				return ReplaceSupport.valueSetReplace(['true', 'false'], value, up);
-			},
 			navigateValueSetFallback: (resource:URI, range:EditorCommon.IRange, up:boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> => {
 				var modelMirror = this.resourceService.get(resource);
 				var offset = modelMirror.getOffsetFromPosition({ lineNumber: range.startLineNumber, column: range.startColumn });

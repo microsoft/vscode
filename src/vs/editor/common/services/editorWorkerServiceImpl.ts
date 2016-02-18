@@ -51,6 +51,11 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 	public textualSuggest(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.ISuggestResult[]> {
 		return this._workerManager.withWorker().then(client => client.textualSuggest(resource, position));
 	}
+
+	public navigateValueSet(resource: URI, range:EditorCommon.IRange, up:boolean): TPromise<Modes.IInplaceReplaceSupportResult> {
+		return this._workerManager.withWorker().then(client => client.navigateValueSet(resource, range, up));
+	}
+
 }
 
 class WorkerManager extends Disposable {
@@ -174,6 +179,19 @@ class EditorWorkerClient extends Disposable {
 			let wordDef = wordDefRegExp.source;
 			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
 			return this._proxy.textualSuggest(resource.toString(), position, wordDef, wordDefFlags);
+		});
+	}
+
+	public navigateValueSet(resource: URI, range:EditorCommon.IRange, up:boolean): TPromise<Modes.IInplaceReplaceSupportResult> {
+		return this._withSyncedResources([resource]).then(_ => {
+			let model = this._modelService.getModel(resource);
+			if (!model) {
+				return null;
+			}
+			let wordDefRegExp = WordHelper.massageWordDefinitionOf(model.getMode());
+			let wordDef = wordDefRegExp.source;
+			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
+			return this._proxy.navigateValueSet(resource.toString(), range, up, wordDef, wordDefFlags);
 		});
 	}
 
