@@ -11,12 +11,23 @@ import { IEventEmitter } from 'vs/base/common/eventEmitter';
 
 import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
 
-export class TaskError {
-	public severity:Severity;
-	public message:string;
-	public code:number;
+export enum TaskErrors {
+	NotConfigured,
+	RunningTask,
+	NoBuildTask,
+	NoTestTask,
+	ConfigValidationError,
+	TaskNotFound,
+	NoValidTaskRunner,
+	UnknownError
+}
 
-	constructor(severity:Severity, message:string, code:number = -1) {
+export class TaskError {
+	public severity: Severity;
+	public message: string;
+	public code: TaskErrors;
+
+	constructor(severity: Severity, message: string, code: TaskErrors) {
 		this.severity = severity;
 		this.message = message;
 		this.code = code;
