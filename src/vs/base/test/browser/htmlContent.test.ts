@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
 
-suite("HtmlContent", () => {
+suite('HtmlContent', () => {
 	test('render text', () => {
 		var result = renderHtml({
 			text:'testing',

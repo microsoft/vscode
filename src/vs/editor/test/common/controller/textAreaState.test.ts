@@ -7,7 +7,7 @@
 import assert = require('assert');
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import {EndOfLinePreference, IEditorRange, IRange, IEditorPosition} from 'vs/editor/common/editorCommon';
+import {EndOfLinePreference, IRange, IEditorPosition} from 'vs/editor/common/editorCommon';
 import {ISimpleModel, TextAreaState, IENarratorTextAreaState} from 'vs/editor/common/controller/textAreaState';
 import {MockTextAreaWrapper} from 'vs/editor/test/common/mocks/mockTextAreaWrapper';
 

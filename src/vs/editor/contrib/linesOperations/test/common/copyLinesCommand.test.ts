@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
 import {testCommand} from 'vs/editor/test/common/commands/commandTestUtils';
 import {CopyLinesCommand} from 'vs/editor/contrib/linesOperations/common/copyLinesCommand';
 import {Selection} from 'vs/editor/common/core/selection';

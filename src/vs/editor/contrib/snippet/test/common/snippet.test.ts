@@ -6,7 +6,6 @@
 
 import assert = require('assert');
 import Snippet = require('vs/editor/contrib/snippet/common/snippet');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import {Range} from 'vs/editor/common/core/range';
 
 suite('Editor Contrib - Snippets', () => {
@@ -14,9 +13,9 @@ suite('Editor Contrib - Snippets', () => {
 	test('bug #17541:[snippets] Support default text in mirrors', () => {
 
 		var external = [
-			"begin{${1:enumerate}}",
-			"\t$0",
-			"end{$1}"
+			'begin{${1:enumerate}}',
+			'\t$0',
+			'end{$1}'
 		].join('\n');
 
 		var internal = Snippet.CodeSnippet.convertExternalSnippet(external, Snippet.ExternalSnippetType.TextMateSnippet);
@@ -47,9 +46,9 @@ suite('Editor Contrib - Snippets', () => {
 	test('bug #17487:[snippets] four backslashes are required to get one backslash in the inserted text', () => {
 
 		var external = [
-			"\\begin{${1:enumerate}}",
-			"\t$0",
-			"\\end{$1}"
+			'\\begin{${1:enumerate}}',
+			'\t$0',
+			'\\end{$1}'
 		].join('\n');
 
 		var internal = Snippet.CodeSnippet.convertExternalSnippet(external, Snippet.ExternalSnippetType.TextMateSnippet);

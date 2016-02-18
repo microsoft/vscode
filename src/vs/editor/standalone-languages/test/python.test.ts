@@ -8,11 +8,6 @@
 import languageDef = require('vs/editor/standalone-languages/python');
 import T = require('vs/editor/standalone-languages/test/testUtil');
 
-var Bracket = {
-	Open: 1,
-	Close: -1
-};
-
 T.testTokenization('python', languageDef.language, [
 	// Keywords
 	[{

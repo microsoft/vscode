@@ -33,10 +33,6 @@ function isBracket(model, lineNumber1, column11, column12, lineNumber2, column21
 
 
 
-function positionEqual(position, lineNumber, column) {
-	assert.deepEqual(position, new Position(lineNumber, column));
-}
-
 function rangeEqual(range, startLineNumber, startColumn, endLineNumber, endColumn) {
 	assert.deepEqual(range, new Range(startLineNumber, startColumn, endLineNumber, endColumn));
 }
@@ -381,7 +377,7 @@ suite('Editor Model - Model Line Separators', () => {
 	});
 
 	test('Bug 13333:Model should line break on lonely CR too', () => {
-		var model = new Model.Model("Hello\rWorld!\r\nAnother line", null);
+		var model = new Model.Model('Hello\rWorld!\r\nAnother line', null);
 		assert.equal(model.getLineCount(), 3);
 		assert.equal(model.getValue(), 'Hello\r\nWorld!\r\nAnother line');
 		model.dispose();

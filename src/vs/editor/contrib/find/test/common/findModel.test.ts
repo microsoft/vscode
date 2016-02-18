@@ -9,7 +9,7 @@ import {FindModelBoundToEditorModel, parseReplaceString} from 'vs/editor/contrib
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {withMockCodeEditor} from 'vs/editor/test/common/mocks/mockCodeEditor';
 import {Cursor} from 'vs/editor/common/controller/cursor';
-import {INewFindReplaceState, FindReplaceStateChangedEvent, FindReplaceState} from 'vs/editor/contrib/find/common/findState';
+import {FindReplaceState} from 'vs/editor/contrib/find/common/findState';
 import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
 

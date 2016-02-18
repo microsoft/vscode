@@ -258,7 +258,7 @@ suite('Editor Model - ModelLine.applyEdits text & tokens', () => {
 			startIndex: 0,
 			type:''
 		}]);
-	})
+	});
 
 	test('updates tokens on insertion 1', () => {
 		testLineEditTokens(

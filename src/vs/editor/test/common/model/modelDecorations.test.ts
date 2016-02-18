@@ -518,7 +518,7 @@ suite('deltaDecorations', () => {
 				decoration('e', 2, 1, 2, 21),
 				decoration('f', 2, 17, 4, 16)
 			]
-		)
+		);
 	});
 
 	test('deltaDecorations 2', () => {
@@ -542,7 +542,7 @@ suite('deltaDecorations', () => {
 				decoration('c', 1, 4, 1, 5),
 				decoration('d', 1, 5, 1, 6)
 			]
-		)
+		);
 	});
 
 	test('deltaDecorations 3', () => {
@@ -561,7 +561,7 @@ suite('deltaDecorations', () => {
 				decoration('e', 1, 5, 1, 6)
 			],
 			[]
-		)
+		);
 	});
 
 	test('model doesn\'t get confused with individual tracked ranges', () => {
@@ -586,7 +586,7 @@ suite('deltaDecorations', () => {
 		assert.deepEqual(model.getDecorationRange(ids[0]), range(1,1,1,12));
 		assert.deepEqual(model.getDecorationRange(ids[1]), range(2,1,2,13));
 
-		var ids = model.deltaDecorations(ids, [
+		ids = model.deltaDecorations(ids, [
 			toModelDeltaDecoration(decoration('a', 1, 1, 1, 12)),
 			toModelDeltaDecoration(decoration('b', 2, 1, 2, 13))
 		]);

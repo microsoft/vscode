@@ -42,10 +42,6 @@ function extractLineChangeRepresentation(change, expectedChange): EditorCommon.I
 	return result;
 }
 
-function lineChangeEqual(change, expectedChange): void {
-	assert.deepEqual(extractLineChangeRepresentation(change, expectedChange), expectedChange);
-}
-
 function assertDiff(originalLines:string[], modifiedLines:string[], expectedChanges:EditorCommon.IChange[], shouldPostProcessCharChanges:boolean = false, shouldIgnoreTrimWhitespace:boolean=false) {
 	var diffComputer = new DiffComputer.DiffComputer(originalLines, modifiedLines, {
 		shouldPostProcessCharChanges: shouldPostProcessCharChanges || false,

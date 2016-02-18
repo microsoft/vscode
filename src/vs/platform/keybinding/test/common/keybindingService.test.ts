@@ -268,6 +268,7 @@ suite('Keybinding Service', () => {
 	});
 
 	test('contextMatchesRules', function() {
+		/* tslint:disable:triple-equals */
 		let context = {
 			'a': true,
 			'b': false,
@@ -298,5 +299,6 @@ suite('Keybinding Service', () => {
 		testExpression('a && !b', true && !false);
 		testExpression('a && b', true && false);
 		testExpression('a && !b && c == 5', true && !false && '5' == '5');
+		/* tslint:enable:triple-equals */
 	});
 });

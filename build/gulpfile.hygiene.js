@@ -78,8 +78,10 @@ var tslintFilter = [
 	'extensions/**/*.ts',
 	'!**/*.d.ts',
 	'!**/typings/**',
-	'!**/*.test.ts',
-	'!src/vs/editor/standalone-languages/test/**'
+	'!src/vs/base/**/*.test.ts',
+	'!src/vs/languages/**/*.test.ts',
+	'!src/vs/workbench/**/*.test.ts',
+	'!extensions/**/*.test.ts',
 ];
 
 var copyrightHeader = [

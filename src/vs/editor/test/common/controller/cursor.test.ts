@@ -14,7 +14,6 @@ import * as Modes from 'vs/editor/common/modes';
 import {Handler, EventType, IPosition, ISelection, EndOfLinePreference} from 'vs/editor/common/editorCommon';
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
-import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
 let H = Handler;

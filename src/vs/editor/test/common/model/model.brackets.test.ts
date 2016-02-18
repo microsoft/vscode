@@ -8,7 +8,6 @@ import assert = require('assert');
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
 import {IFoundBracket} from 'vs/editor/common/editorCommon';
-import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 
 suite('TextModelWithTokens', () => {
@@ -125,7 +124,7 @@ suite('TextModelWithTokens', () => {
 			['{', '}'],
 			['[', ']'],
 			['(', ')']
-		])
+		]);
 	});
 
 });
