@@ -265,13 +265,6 @@ export class Renderer implements tree.IRenderer {
 	private renderStatusGroupTemplate(statusType: git.StatusType, container: HTMLElement): IStatusGroupTemplateData {
 		var data: IStatusGroupTemplateData = Object.create(null);
 
-		data.actionBar = new actionbar.ActionBar(container, { actionRunner: this.actionRunner });
-		data.actionBar.push(this.actionProvider.getActionsForGroupStatusType(statusType), { icon: true, label: false });
-		data.actionBar.addListener2('run', e => e.error && this.onError(e.error));
-
-		const wrapper = dom.append(container, $('.count-badge-wrapper'));
-		data.count = new countbadge.CountBadge(wrapper);
-
 		data.root = dom.append(container, $('.status-group'));
 
 		switch (statusType) {
@@ -280,15 +273,18 @@ export class Renderer implements tree.IRenderer {
 			case git.StatusType.MERGE:			data.root.textContent = nls.localize('mergeChanges', "Merge Changes"); break;
 		}
 
+		const wrapper = dom.append(container, $('.count-badge-wrapper'));
+		data.count = new countbadge.CountBadge(wrapper);
+
+		data.actionBar = new actionbar.ActionBar(container, { actionRunner: this.actionRunner });
+		data.actionBar.push(this.actionProvider.getActionsForGroupStatusType(statusType), { icon: true, label: false });
+		data.actionBar.addListener2('run', e => e.error && this.onError(e.error));
+
 		return data;
 	}
 
 	private renderFileStatusTemplate(statusType: git.StatusType, container: HTMLElement): IFileStatusTemplateData {
 		var data: IFileStatusTemplateData = Object.create(null);
-
-		data.actionBar = new actionbar.ActionBar(container, { actionRunner: this.actionRunner });
-		data.actionBar.push(this.actionProvider.getActionsForFileStatusType(statusType), { icon: true, label: false });
-		data.actionBar.addListener2('run', e => e.error && this.onError(e.error));
 
 		data.root = dom.append(container, $('.file-status'));
 		data.status = dom.append(data.root, $('span.status'));
@@ -301,6 +297,10 @@ export class Renderer implements tree.IRenderer {
 
 		data.renameName = dom.append(rename, $('span.rename-name'));
 		data.renameFolder = dom.append(rename, $('span.rename-folder'));
+
+		data.actionBar = new actionbar.ActionBar(container, { actionRunner: this.actionRunner });
+		data.actionBar.push(this.actionProvider.getActionsForFileStatusType(statusType), { icon: true, label: false });
+		data.actionBar.addListener2('run', e => e.error && this.onError(e.error));
 
 		return data;
 	}
