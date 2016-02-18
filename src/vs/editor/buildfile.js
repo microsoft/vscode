@@ -32,6 +32,6 @@ exports.collectModules= function() {
 			createModuleDescription('vs/editor/common/worker/editorWorkerServer', ['vs/base/common/worker/workerServer']),
 			'vs/base/common/severity'
 		),
-		createModuleDescription('vs/editor/common/services/editorSimpleWorker'),
+		createModuleDescription('vs/editor/common/services/editorSimpleWorker', ['vs/base/common/worker/simpleWorker']),
 	];
 };
