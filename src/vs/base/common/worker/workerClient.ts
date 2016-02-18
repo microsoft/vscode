@@ -80,7 +80,7 @@ export class WorkerClient {
 			loaderConfiguration: loaderConfiguration,
 			MonacoEnvironment: MonacoEnvironment
 		});
-		this.onModuleLoaded.then(null, () => this._onError('Worker failed to load ' + moduleId));
+		this.onModuleLoaded.then(null, (e) => this._onError('Worker failed to load ' + moduleId, e));
 
 		this._remoteCom = new protocol.RemoteCom(this);
 	}

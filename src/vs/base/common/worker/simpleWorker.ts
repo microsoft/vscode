@@ -195,7 +195,7 @@ export class SimpleWorkerClient<T> extends Disposable {
 			moduleId,
 			loaderConfiguration
 		]);
-		this._onModuleLoaded.then(null, () => this._onError('Worker failed to load ' + moduleId));
+		this._onModuleLoaded.then(null, (e) => this._onError('Worker failed to load ' + moduleId, e));
 
 		// Create proxy to loaded code
 		let proxyMethodRequest = (method:string, args:any[]):TPromise<any> => {
@@ -224,8 +224,12 @@ export class SimpleWorkerClient<T> extends Disposable {
 	}
 
 	private _request(method:string, args:any[]): TPromise<any> {
-		return this._onModuleLoaded.then(() => {
-			return this._protocol.sendMessage(method, args);
+		return new TPromise<any>((c, e, p) => {
+			this._onModuleLoaded.then(() => {
+				this._protocol.sendMessage(method, args).then(c, e);
+			}, e);
+		}, () => {
+			// Cancel intentionally not supported
 		});
 	}
 
