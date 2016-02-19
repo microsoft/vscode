@@ -212,6 +212,11 @@ export class ModeServiceImpl implements IModeService {
 		return this._registry.isRegisteredMode(mimetypeOrModeId);
 	}
 
+	public isCompatMode(modeId:string): boolean {
+		let compatModeData = this._registry.getCompatMode(modeId);
+		return (compatModeData ? true : false);
+	}
+
 	public getRegisteredModes(): string[] {
 		return this._registry.getRegisteredModes();
 	}

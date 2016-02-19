@@ -155,6 +155,14 @@ export function createMockModeService(): IModeService {
 
 export function createMockModelService(): IModelService {
 	var threadService = NULL_THREAD_SERVICE;
-	var modelService = new MockModelService(threadService, null);
+	var pluginService = new MockPluginService();
+	var modeService = new MockModeService(threadService, pluginService);
+	var modelService = new MockModelService(threadService, null, modeService);
+	var inst = InstantiationService.create({
+		threadService: threadService,
+		pluginService: pluginService,
+		modeService: modeService
+	});
+	threadService.setInstantiationService(inst);
 	return modelService;
 }

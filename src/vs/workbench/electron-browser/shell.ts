@@ -274,9 +274,9 @@ export class WorkbenchShell {
 		let pluginService = new MainProcessPluginService(this.contextService, this.threadService, this.messageService, this.telemetryService);
 		this.keybindingService.setPluginService(pluginService);
 
-		let modelService = new ModelServiceImpl(this.threadService, markerService);
-		let editorWorkerService = new EditorWorkerServiceImpl(modelService);
 		let modeService = new MainThreadModeServiceImpl(this.threadService, pluginService);
+		let modelService = new ModelServiceImpl(this.threadService, markerService, modeService);
+		let editorWorkerService = new EditorWorkerServiceImpl(modelService);
 
 		let untitledEditorService = new UntitledEditorService();
 		this.themeService = new ThemeService(pluginService);

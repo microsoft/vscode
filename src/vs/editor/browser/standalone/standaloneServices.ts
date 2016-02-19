@@ -153,9 +153,9 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	}
 	services = services || {};
 
-	var contextService = services.contextService;
+	let contextService = services.contextService;
 	if (!contextService) {
-		var workspaceUri = URI.create('inmemory', 'model', '/');
+		let workspaceUri = URI.create('inmemory', 'model', '/');
 		contextService = new BaseWorkspaceContextService({
 			resource: workspaceUri,
 			id: null,
@@ -165,7 +165,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 		}, {});
 	}
 
-	var telemetryService = services.telemetryService;
+	let telemetryService = services.telemetryService;
 
 	if (!telemetryService) {
 		let config = contextService.getConfiguration();
@@ -179,16 +179,16 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 		console.warn('standaloneEditorTelemetryEndpoint is obsolete');
 	}
 
-	var threadService = services.threadService || new mainThreadService.MainThreadService(contextService, 'vs/editor/common/worker/editorWorkerServer');
-	var messageService = services.messageService || new SimpleServices.SimpleMessageService();
-	var pluginService = services.pluginService || new SimpleServices.SimplePluginService();
-	var markerService = services.markerService || new MarkerService.MainProcessMarkerService(threadService);
-	var requestService = services.requestService || new SimpleServices.SimpleEditorRequestService(contextService, telemetryService);
-	var modelService = services.modelService || new ModelServiceImpl(threadService, markerService);
-	var editorWorkerService = services.editorWorkerService || new EditorWorkerServiceImpl(modelService);
-	var modeService = services.modeService || new MainThreadModeServiceImpl(threadService, pluginService);
-	var codeEditorService = services.codeEditorService || new CodeEditorServiceImpl();
-	var eventService = services.eventService || new _eventService.EventService();
+	let threadService = services.threadService || new mainThreadService.MainThreadService(contextService, 'vs/editor/common/worker/editorWorkerServer');
+	let messageService = services.messageService || new SimpleServices.SimpleMessageService();
+	let pluginService = services.pluginService || new SimpleServices.SimplePluginService();
+	let markerService = services.markerService || new MarkerService.MainProcessMarkerService(threadService);
+	let requestService = services.requestService || new SimpleServices.SimpleEditorRequestService(contextService, telemetryService);
+	let modeService = services.modeService || new MainThreadModeServiceImpl(threadService, pluginService);
+	let modelService = services.modelService || new ModelServiceImpl(threadService, markerService, modeService);
+	let editorWorkerService = services.editorWorkerService || new EditorWorkerServiceImpl(modelService);
+	let codeEditorService = services.codeEditorService || new CodeEditorServiceImpl();
+	let eventService = services.eventService || new _eventService.EventService();
 
 	staticServices = {
 		pluginService: pluginService,
@@ -206,7 +206,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 		instantiationService: void 0
 	};
 
-	var instantiationService = InstantiationService.create(staticServices);
+	let instantiationService = InstantiationService.create(staticServices);
 	staticServices.instantiationService = InstantiationService.create(staticServices);
 	if (threadService instanceof mainThreadService.MainThreadService) {
 		threadService.setInstantiationService(instantiationService);

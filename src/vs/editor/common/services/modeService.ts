@@ -48,6 +48,7 @@ export interface IModeService {
 
 	// --- reading
 	isRegisteredMode(mimetypeOrModeId: string): boolean;
+	isCompatMode(modeId: string): boolean;
 	getRegisteredModes(): string[];
 	getRegisteredLanguageNames(): string[];
 	getExtensions(alias: string): string[];
