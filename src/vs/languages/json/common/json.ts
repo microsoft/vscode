@@ -14,13 +14,13 @@ import jsonWorker = require('vs/languages/json/common/jsonWorker');
 import tokenization = require('vs/languages/json/common/features/tokenization');
 import {AbstractMode, createWordRegExp, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
 import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
-import {IThreadService, IThreadSynchronizableObject, ThreadAffinity} from 'vs/platform/thread/common/thread';
+import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {IJSONContributionRegistry, Extensions, ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
-export class JSONMode extends AbstractMode implements Modes.IExtraInfoSupport, Modes.IOutlineSupport, IThreadSynchronizableObject<ISchemaContributions> {
+export class JSONMode extends AbstractMode implements Modes.IExtraInfoSupport, Modes.IOutlineSupport {
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
@@ -120,17 +120,6 @@ export class JSONMode extends AbstractMode implements Modes.IExtraInfoSupport, M
 	private getSchemaConfiguration() : ISchemaContributions {
 		var contributionRegistry = <IJSONContributionRegistry> Platform.Registry.as(Extensions.JSONContribution);
 		return contributionRegistry.getSchemaContributions();
-	}
-
-	public getSerializableState(): ISchemaContributions {
-		return this.getSchemaConfiguration();
-	}
-
-	public setData(data:ISchemaContributions): void {
-		// It is ok to not join the promise. Workers are managed using a special
-		// worker promise and the next call to the worker will wait until this
-		// call went through.
-		this._worker((w) => w.setSchemaContributions(data));
 	}
 
 	public configure(options:any): WinJS.TPromise<void> {
