@@ -267,11 +267,15 @@ function getDebPackageArch(arch) {
 	return { x64: 'amd64', ia32: 'i386' }[arch];
 }
 
+function getEpochTime() {
+	return Math.floor(new Date().getTime() / 1000);
+}
+
 function prepareDebPackage(arch) {
 	var binaryDir = '../VSCode-linux-' + arch;
 	var debArch = getDebPackageArch(arch);
 	var destination = '.build/linux/' + debArch + '/vscode-' + debArch;
-	var packageRevision = '1';
+	var packageRevision = getEpochTime();
 
 	return function () {
 		var shortcut = gulp.src('resources/linux/bin/code.sh')
