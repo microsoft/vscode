@@ -45,8 +45,14 @@
 			"type": "chrome",
 			"request": "attach",
 			"port": 9222,
-			"sourceMaps": true,
-			"outDir": "${workspaceRoot}/out"
+			"sourceMaps": true
+		},
+		{
+			"name": "Launch VSCode",
+			"type": "chrome",
+			"request": "launch",
+			"runtimeExecutable": "${workspaceRoot}/scripts/code.bat",
+			"sourceMaps": true
 		},
 		{
 			"name": "Convert css-schema to browser.js",
