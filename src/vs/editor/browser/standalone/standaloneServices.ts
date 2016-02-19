@@ -179,7 +179,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 		console.warn('standaloneEditorTelemetryEndpoint is obsolete');
 	}
 
-	let threadService = services.threadService || new mainThreadService.MainThreadService(contextService, 'vs/editor/common/worker/editorWorkerServer');
+	let threadService = services.threadService || new mainThreadService.MainThreadService(contextService, 'vs/editor/common/worker/editorWorkerServer', 2);
 	let messageService = services.messageService || new SimpleServices.SimpleMessageService();
 	let pluginService = services.pluginService || new SimpleServices.SimplePluginService();
 	let markerService = services.markerService || new MarkerService.MainProcessMarkerService(threadService);

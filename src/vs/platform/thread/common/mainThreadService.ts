@@ -43,11 +43,13 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 
 	private _workerFactory: Worker.IWorkerFactory;
 	private _workerModuleId: string;
+	private _defaultWorkerCount: number;
 
-	constructor(contextService: IWorkspaceContextService, workerModuleId: string) {
+	constructor(contextService: IWorkspaceContextService, workerModuleId: string, defaultWorkerCount: number) {
 		super(true);
 		this._contextService = contextService;
 		this._workerModuleId = workerModuleId;
+		this._defaultWorkerCount = defaultWorkerCount;
 		this._workerFactory = new DefaultWorkerFactory();
 
 		if (!this.isInMainThread) {
@@ -72,7 +74,7 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		if (this._triggerWorkersCreatedPromise) {
 			// Workers not created yet
 
-			let createCount = Env.workersCount;
+			let createCount = Env.workersCount(this._defaultWorkerCount);
 			if (!Platform.hasWebWorkerSupport()) {
 				// Create at most 1 compatibility worker
 				createCount = Math.min(createCount, 1);
