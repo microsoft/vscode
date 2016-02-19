@@ -194,6 +194,7 @@ export interface IPythonBreakpoint {
     Condition: string;
     PassCountKind: PythonBreakpointPassCountKind;
     PassCount: number;
+    Enabled: boolean;
 }
 export interface IPythonException {
     TypeName: string;
