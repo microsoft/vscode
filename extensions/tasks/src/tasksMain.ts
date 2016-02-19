@@ -72,6 +72,17 @@ function createCompletionItems(): CompletionItem[] {
 	].join('\n');
 	result.push(item);
 
+	item = new CompletionItem('dotnet build');
+	item.kind = CompletionItemKind.Snippet;
+	item.detail = 'Use dotnet build.';
+	item.filterText = 'ts-dotnet build';
+	item.insertText = [
+		'"version": "0.1.0",',
+		'"command": "dotnet build",',
+		'"showOutput": "always"'
+	].join('\n');
+	result.push(item);
+
 	item = new CompletionItem('msbuild');
 	item.kind = CompletionItemKind.Snippet;
 	item.detail = 'Use msbuild to compile your project.';
