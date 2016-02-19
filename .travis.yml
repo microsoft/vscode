@@ -23,6 +23,7 @@ before_install:
   - source ./.nvm/nvm.sh
   - nvm install 0.12
   - nvm use 0.12
+  - npm install -g npm@2
   - npm config set python `which python`
   - npm install -g gulp
   - if [ $TRAVIS_OS_NAME == "linux" ]; then
