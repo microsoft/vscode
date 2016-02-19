@@ -317,7 +317,9 @@ function massagePath(path: string): string {
 	path = strings.trim(strings.trim(path, ' '), '\t');
 
 	// Remove trailing dots
-	path = strings.rtrim(path, '.');
+	if (platform.isWindows) {
+		path = strings.rtrim(path, '.');
+	}
 
 	return path;
 }
