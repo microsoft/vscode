@@ -141,7 +141,7 @@
 .monaco-editor.hc-black .snippet-placeholder		{ background-color: rgba(124, 124, 124, 0.1); }
 .monaco-editor.hc-black .finish-snippet-placeholder	{ outline: #525252 solid 1px; }
 
-/* Scrollbar */
+/* Scrollbar */    /* TODO: many of these are not doing anything, not specific enough.  Clean up */
 .hc-black.monaco-scrollable-element .slider {
 	background: none;
 	border: 20px solid #6FC3DF;
