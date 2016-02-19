@@ -22,7 +22,7 @@ import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerServic
 /**
  * The MonarchMode creates a Monaco language mode given a certain language description
  */
-export class MonarchMode extends AbstractMode {
+export abstract class MonarchMode extends AbstractMode {
 
 	public suggestSupport:Modes.ISuggestSupport;
 	public tokenizationSupport: Modes.ITokenizationSupport;
