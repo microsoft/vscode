@@ -9,7 +9,6 @@ import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';
-import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {TextualSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
@@ -39,7 +38,7 @@ class State extends AbstractState {
 	}
 }
 
-export class Mode extends AbstractMode<AbstractModeWorker> {
+export class Mode extends AbstractMode<void> {
 
 	public suggestSupport:Modes.ISuggestSupport;
 	public tokenizationSupport: Modes.ITokenizationSupport;

@@ -5,7 +5,6 @@
 'use strict';
 
 import WinJS = require('vs/base/common/winjs.base');
-import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import URI from 'vs/base/common/uri';
 import Types = require('vs/base/common/types');
 import Modes = require('vs/editor/common/modes');
@@ -23,7 +22,7 @@ enum Theme {
 	HC_BLACK
 }
 
-export class MarkdownWorker extends AbstractModeWorker {
+export class MarkdownWorker {
 
 	private static DEFAULT_MODE = 'text/plain';
 
@@ -95,15 +94,20 @@ export class MarkdownWorker extends AbstractModeWorker {
 	].join('\n');
 
 	private modeService: IModeService;
+	private resourceService:IResourceService;
+	private markerService: IMarkerService;
+	private _modeId: string;
 
 	constructor(
-		modeId: string, participants: Modes.IWorkerParticipant[],
+		modeId: string,
+		participants: Modes.IWorkerParticipant[],
 		@IResourceService resourceService: IResourceService,
 		@IMarkerService markerService: IMarkerService,
 		@IModeService modeService: IModeService
 	) {
-		super(modeId, participants, resourceService, markerService);
-
+		this._modeId = modeId;
+		this.resourceService = resourceService;
+		this.markerService = markerService;
 		this.modeService = modeService;
 	}
 

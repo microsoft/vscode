@@ -10,7 +10,6 @@
  */
 
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
-import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import {ILexer} from 'vs/editor/common/modes/monarch/monarchCommon';
 import Modes = require('vs/editor/common/modes');
 import MonarchDefinition = require('vs/editor/common/modes/monarch/monarchDefinition');
@@ -25,7 +24,7 @@ import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerServic
 /**
  * The MonarchMode creates a Monaco language mode given a certain language description
  */
-export class MonarchMode<W extends AbstractModeWorker> extends AbstractMode<W> {
+export class MonarchMode<W> extends AbstractMode<W> {
 
 	public suggestSupport:Modes.ISuggestSupport;
 	public tokenizationSupport: Modes.ITokenizationSupport;

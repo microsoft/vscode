@@ -5,8 +5,6 @@
 
 'use strict';
 
-// Require the modes worker since it is used in all workers to avoid rebundleing of the code with all worker
-import 'vs/editor/common/modes/abstractModeWorker';
 // include these in the editor bundle because they are widely used by many languages
 import 'vs/editor/common/languages.common';
 

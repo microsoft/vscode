@@ -8,7 +8,6 @@ import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import HtmlContent = require('vs/base/common/htmlContent');
 import Parser = require('./parser/jsonParser');
 import JSONFormatter = require('vs/languages/json/common/features/jsonFormatter');
@@ -69,7 +68,7 @@ export interface IJSONWorkerContribution {
 	collectDefaultSuggestions(resource: URI, result: ISuggestionsCollector): WinJS.Promise;
 }
 
-export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSupport {
+export class JSONWorker implements Modes.IExtraInfoSupport {
 
 	private schemaService: SchemaService.IJSONSchemaService;
 	private requestService: IRequestService;
@@ -77,17 +76,27 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 	private jsonIntellisense : JSONIntellisense.JSONIntellisense;
 	private contributions: IJSONWorkerContribution[];
 	private _validationHelper: ValidationHelper;
+	private resourceService:IResourceService;
+	private markerService: IMarkerService;
+	private _modeId: string;
 
-	constructor(modeId: string, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
-		@IMarkerService markerService: IMarkerService, @IRequestService requestService: IRequestService,
+	constructor(
+		modeId: string,
+		participants: Modes.IWorkerParticipant[],
+		@IResourceService resourceService: IResourceService,
+		@IMarkerService markerService: IMarkerService,
+		@IRequestService requestService: IRequestService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IInstantiationService instantiationService: IInstantiationService) {
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
 
-		super(modeId, participants, resourceService, markerService);
+		this._modeId = modeId;
+		this.resourceService = resourceService;
+		this.markerService = markerService;
 
 		this._validationHelper = new ValidationHelper(
 			this.resourceService,
-			this._getModeId(),
+			this._modeId,
 			(toValidate) => this.doValidate(toValidate)
 		);
 
@@ -252,7 +261,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 				}
 			});
 
-			this.markerService.changeOne(this._getModeId(), resource, markerData);
+			this.markerService.changeOne(this._modeId, resource, markerData);
 		});
 
 	}

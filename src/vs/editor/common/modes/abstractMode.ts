@@ -7,7 +7,6 @@
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {NullMode} from 'vs/editor/common/modes/nullMode';
 import {TextualSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
-import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import Modes = require('vs/editor/common/modes');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IDisposable} from 'vs/base/common/lifecycle';
@@ -21,7 +20,7 @@ export function createWordRegExp(allowInWords:string = ''): RegExp {
 	return NullMode.createWordRegExp(allowInWords);
 }
 
-export abstract class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
+export abstract class AbstractMode<W> implements Modes.IMode {
 
 	_instantiationService:IInstantiationService;
 	_threadService:IThreadService;
@@ -245,7 +244,7 @@ export var isDigit:(character:string, base:number)=>boolean = (function () {
 	};
 })();
 
-export class FrankensteinMode extends AbstractMode<AbstractModeWorker> {
+export class FrankensteinMode extends AbstractMode<void> {
 
 	public suggestSupport:Modes.ISuggestSupport;
 

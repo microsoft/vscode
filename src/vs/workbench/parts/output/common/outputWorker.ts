@@ -7,7 +7,6 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
-import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import arrays = require('vs/base/common/arrays');
@@ -19,14 +18,23 @@ import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common
 /**
  * A base class of text editor worker that helps with detecting links in the text that point to files in the workspace.
  */
-export class OutputWorker extends AbstractModeWorker {
+export class OutputWorker {
 	private _contextService: IWorkspaceContextService;
 	private patterns: RegExp[];
+	private resourceService:IResourceService;
+	private markerService: IMarkerService;
+	private _modeId: string;
 
-	constructor(modeId: string, participants: IWorkerParticipant[], @IResourceService resourceService: IResourceService,
-		@IMarkerService markerService: IMarkerService, @IWorkspaceContextService contextService:IWorkspaceContextService) {
-		super(modeId, participants, resourceService, markerService);
-
+	constructor(
+		modeId: string,
+		participants: IWorkerParticipant[],
+		@IResourceService resourceService: IResourceService,
+		@IMarkerService markerService: IMarkerService,
+		@IWorkspaceContextService contextService:IWorkspaceContextService
+	) {
+		this._modeId = modeId;
+		this.resourceService = resourceService;
+		this.markerService = markerService;
 		this._contextService = contextService;
 
 		let workspace = this._contextService.getWorkspace();

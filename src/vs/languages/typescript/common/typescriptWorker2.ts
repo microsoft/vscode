@@ -10,7 +10,6 @@ import URI from 'vs/base/common/uri';
 import lifecycle = require('vs/base/common/lifecycle');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import objects = require('vs/base/common/objects');
 import ts = require('vs/languages/typescript/common/lib/typescriptServices');
 import Options = require('vs/languages/typescript/common/options');
@@ -34,7 +33,7 @@ import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
 import {ValidationHelper} from 'vs/editor/common/worker/validationHelper';
 
-export class TypeScriptWorker2 extends AbstractModeWorker {
+export class TypeScriptWorker2 {
 
 	private _modelListener: { [resource: string]: Function } = Object.create(null);
 
@@ -42,15 +41,24 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 	protected _options: Options;
 	protected _disposables: lifecycle.IDisposable[] = [];
 	private _validationHelper: ValidationHelper;
+	private resourceService:IResourceService;
+	protected markerService: IMarkerService;
+	protected _modeId: string;
 
-	constructor(modeId: string, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
-		@IMarkerService markerService: IMarkerService) {
+	constructor(
+		modeId: string,
+		participants: Modes.IWorkerParticipant[],
+		@IResourceService resourceService: IResourceService,
+		@IMarkerService markerService: IMarkerService
+	) {
 
-		super(modeId, participants, resourceService, markerService);
+		this._modeId = modeId;
+		this.resourceService = resourceService;
+		this.markerService = markerService;
 
 		this._validationHelper = new ValidationHelper(
 			this.resourceService,
-			this._getModeId(),
+			this._modeId,
 			(toValidate) => this.doValidate(toValidate)
 		);
 
@@ -76,7 +84,7 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 
 		return (
 			/\.(ts|js)$/.test(element.getAssociatedResource().fsPath) ||
-			element.getMode().getId() === this._getModeId()
+			element.getMode().getId() === this._modeId
 		);
 	}
 
@@ -177,14 +185,14 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 		markers.push.apply(markers, diagnostics.getSyntacticDiagnostics(project.languageService, resource, project.host.getCompilationSettings(),
 			this._options, this.resourceService.get(resource).getMode().getId() === 'javascript'));
 		markers.push.apply(markers, diagnostics.getExtraDiagnostics(project.languageService, resource, this._options));
-		this.markerService.changeOne(`/${this._getModeId() }/syntactic`, resource, markers);
+		this.markerService.changeOne(`/${this._modeId}/syntactic`, resource, markers);
 	}
 
 	public doValidateSemantics(resource: URI): boolean {
 		var project = this._projectService.getProject(resource);
 		var result = diagnostics.getSemanticDiagnostics(project.languageService, resource, this._options);
 		if (result) {
-			this.markerService.changeOne(`/${this._getModeId() }/semantic`, resource, result.markers);
+			this.markerService.changeOne(`/${this._modeId}/semantic`, resource, result.markers);
 			return result.hasMissingFiles;
 		}
 	}

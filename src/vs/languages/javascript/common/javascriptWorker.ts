@@ -72,7 +72,7 @@ export class JavaScriptWorker extends typeScriptWorker.TypeScriptWorker2 {
 					markers.push(marker);
 				}
 			});
-			this.markerService.changeOne(`/${this._getModeId() }/semantic`, resource, markers);
+			this.markerService.changeOne(`/${this._modeId}/semantic`, resource, markers);
 			return result.hasMissingFiles;
 		}
 	}

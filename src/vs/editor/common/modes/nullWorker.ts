@@ -4,11 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
+import {IMarkerService} from 'vs/platform/markers/common/markers';
+import {IResourceService} from 'vs/editor/common/services/resourceService';
+import Modes = require('vs/editor/common/modes');
 
-/// <summary>
-/// This is a special worker that does nothing
-/// </summary>
-export class NullWorker extends AbstractModeWorker {
+export class NullWorker {
 
+	constructor(
+		modeId: string,
+		participants: Modes.IWorkerParticipant[],
+		@IResourceService resourceService: IResourceService,
+		@IMarkerService markerService: IMarkerService
+	) {
+
+		// console.log('null worker created');
+
+	}
 }

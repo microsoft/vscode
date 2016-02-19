@@ -9,7 +9,6 @@ import URI from 'vs/base/common/uri';
 import _severity from 'vs/base/common/severity';
 import strings = require('vs/base/common/strings');
 import winjs = require('vs/base/common/winjs.base');
-import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import languageService = require('vs/languages/css/common/services/cssLanguageService');
 import languageFacts = require('vs/languages/css/common/services/languageFacts');
 import occurrences = require('./services/occurrences');
@@ -28,22 +27,30 @@ import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
 import {ValidationHelper} from 'vs/editor/common/worker/validationHelper';
 
-export class CSSWorker extends AbstractModeWorker {
+export class CSSWorker {
 
 	public languageService: languageService.ILanguageService;
-
+	private resourceService:IResourceService;
+	private markerService: IMarkerService;
+	private _modeId: string;
 	private validationEnabled : boolean;
 	private lintSettings : lintRules.IConfigurationSettings;
 	private _validationHelper: ValidationHelper;
 
-	constructor(modeId: string, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
-		@IMarkerService markerService: IMarkerService) {
+	constructor(
+		modeId: string,
+		participants: Modes.IWorkerParticipant[],
+		@IResourceService resourceService: IResourceService,
+		@IMarkerService markerService: IMarkerService
+	) {
 
-		super(modeId, participants, resourceService, markerService);
+		this._modeId = modeId;
+		this.resourceService = resourceService;
+		this.markerService = markerService;
 
 		this._validationHelper = new ValidationHelper(
 			this.resourceService,
-			this._getModeId(),
+			this._modeId,
 			(toValidate) => this.doValidate(toValidate)
 		);
 
@@ -147,7 +154,7 @@ export class CSSWorker extends AbstractModeWorker {
 
 	private doValidate1(resource: URI):void {
 		if (!this.validationEnabled) {
-			this.markerService.changeOne(this._getModeId(), resource, []);
+			this.markerService.changeOne(this._modeId, resource, []);
 			return;
 		}
 
@@ -164,7 +171,7 @@ export class CSSWorker extends AbstractModeWorker {
 				.filter(entry => entry.getLevel() !== _level.Level.Ignore)
 				.map(entry => this._createMarkerData(modelMirror, entry));
 
-			this.markerService.changeOne(this._getModeId(), resource, markerData);
+			this.markerService.changeOne(this._modeId, resource, markerData);
 		});
 	}
 

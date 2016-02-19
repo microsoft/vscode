@@ -6,7 +6,6 @@
 
 import URI from 'vs/base/common/uri';
 import winjs = require('vs/base/common/winjs.base');
-import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import beautifyHTML = require('vs/languages/lib/common/beautify-html');
 import htmlTags = require('vs/languages/html/common/htmlTags');
 import network = require('vs/base/common/network');
@@ -32,16 +31,25 @@ interface IColorRange {
 	value:string;
 }
 
-export class HTMLWorker extends AbstractModeWorker {
+export class HTMLWorker {
 
 	private _contextService: IWorkspaceContextService;
-
+	private resourceService:IResourceService;
+	private markerService: IMarkerService;
+	private _modeId: string;
 	private _tagProviders: htmlTags.IHTMLTagProvider[];
 
-	constructor(modeId: string, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
-		@IMarkerService markerService: IMarkerService, @IWorkspaceContextService contextService:IWorkspaceContextService) {
+	constructor(
+		modeId: string,
+		participants: Modes.IWorkerParticipant[],
+		@IResourceService resourceService: IResourceService,
+		@IMarkerService markerService: IMarkerService,
+		@IWorkspaceContextService contextService:IWorkspaceContextService
+	) {
 
-		super(modeId, participants, resourceService, markerService);
+		this._modeId = modeId;
+		this.resourceService = resourceService;
+		this.markerService = markerService;
 		this._contextService = contextService;
 
 		this._tagProviders = [];
@@ -95,7 +103,7 @@ export class HTMLWorker extends AbstractModeWorker {
 
 		var modeAtPosition = modelAtPosition.getMode();
 
-		return callback(modeAtPosition.getId() !== this._getModeId(), modelAtPosition);
+		return callback(modeAtPosition.getId() !== this._modeId, modelAtPosition);
 	}
 
 	_delegateToAllModes<T>(resource:URI, callback:(models:EditorCommon.IMirrorModel[]) => T): T {
