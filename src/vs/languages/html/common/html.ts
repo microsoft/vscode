@@ -317,11 +317,8 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 			triggerCharacters: ['.', ':', '<', '"', '=', '/'],
 			excludeTokens: ['comment'],
 			suggest: (resource, position) => this.suggest(resource, position)});
-	}
 
-	public asyncCtor(): winjs.Promise {
 		this.richEditSupport = this._createRichEditSupport();
-		return winjs.TPromise.as(null);
 	}
 
 	protected _createModeWorkerManager(descriptor:Modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<W> {

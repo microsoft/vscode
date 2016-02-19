@@ -26,7 +26,6 @@ import {ModeServiceImpl,ModeServiceWorkerHelper} from 'vs/editor/common/services
 import Severity from 'vs/base/common/severity';
 
 export interface IInitData {
-	threadService:any;
 	contextService: {
 		workspace:any;
 		configuration:any;
@@ -95,7 +94,7 @@ export class EditorWorkerServer {
 
 		var contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
 
-		this.threadService = new WorkerThreadService(initData.threadService, mainThread.getRemoteCom());
+		this.threadService = new WorkerThreadService(mainThread.getRemoteCom());
 		this.threadService.setInstantiationService(InstantiationService.create({ threadService: this.threadService }));
 
 		var telemetryServiceInstance = new WorkerTelemetryService(this.threadService);
