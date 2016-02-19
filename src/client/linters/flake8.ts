@@ -18,7 +18,7 @@ export class Linter extends baseLinter.BaseLinter {
         }
 
         var flake8Path = this.pythonSettings.linting.flake8Path;
-        var cmdLine = `${flake8Path} ${FLAKE8_COMMANDLINE} ${filePath}`;
+        var cmdLine = `${flake8Path} ${FLAKE8_COMMANDLINE} "${filePath}"`;
         return new Promise<baseLinter.ILintMessage[]>((resolve, reject) => {
             this.run(cmdLine, filePath, txtDocumentLines).then(messages=> {
                 //All messages in pep8 are treated as warnings for now

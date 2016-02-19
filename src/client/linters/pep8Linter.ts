@@ -18,7 +18,7 @@ export class Linter extends baseLinter.BaseLinter {
         }
 
         var pep8Path = this.pythonSettings.linting.pep8Path;
-        var cmdLine = `${pep8Path} ${PEP_COMMANDLINE} ${filePath}`;
+        var cmdLine = `${pep8Path} ${PEP_COMMANDLINE} "${filePath}"`;
         return new Promise<baseLinter.ILintMessage[]>(resolve => {
             this.run(cmdLine, filePath, txtDocumentLines).then(messages=> {
                 //All messages in pep8 are treated as warnings for now
