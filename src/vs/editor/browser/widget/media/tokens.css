@@ -172,7 +172,7 @@
 /* -------------------------------- End vs-dark tokens -------------------------------- */
 
 /* -------------------------------- Begin hc-black tokens -------------------------------- */
-.monaco-editor.hc-black .token							{ color: #FFFFFF; mix-blend-mode: difference; }
+.monaco-editor.hc-black .token							{ color: #FFFFFF; }
 .monaco-editor.hc-black .token.whitespace				{ color: #FFFF00 !important; }
 .monaco-editor.hc-black .token.terminal					{ color: #569CD6; }
 .monaco-editor.hc-black .token.terminal.code1			{ font-weight: bold; }
