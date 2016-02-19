@@ -38,9 +38,6 @@ exports.collectModules = function(args) {
 	var common = new EntryPoint(result, 'vs/editor/common/languages.common');
 	var worker = new EntryPoint(result, ['vs/editor/common/languages.common', 'vs/base/common/worker/workerServer', 'vs/editor/common/worker/editorWorkerServer']);
 
-	// ---- nullWorker (shared) -----------------------------
-	worker.define('vs/editor/common/modes/nullWorker');
-
 	// ---- vsxml (shared) -----------------------------
 	common.define('vs/languages/vsxml/common/vsxml');
 
