@@ -46,8 +46,8 @@ export class JavaScriptWorker extends typeScriptWorker.TypeScriptWorker2 {
 		});
 	}
 
-	_doConfigure(options: any): winjs.TPromise<boolean> {
-		return super._doConfigure(options, Options.javaScriptOptions);
+	_doConfigure(options: any): void {
+		super._doConfigure(options, Options.javaScriptOptions);
 	}
 
 	public doValidateSemantics(resource: URI): boolean {

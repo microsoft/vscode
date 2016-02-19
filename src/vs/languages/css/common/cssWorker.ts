@@ -26,6 +26,7 @@ import {IMarker, IMarkerData} from 'vs/platform/markers/common/markers';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
+import {ValidationHelper} from 'vs/editor/common/worker/validationHelper';
 
 export class CSSWorker extends AbstractModeWorker {
 
@@ -33,11 +34,19 @@ export class CSSWorker extends AbstractModeWorker {
 
 	private validationEnabled : boolean;
 	private lintSettings : lintRules.IConfigurationSettings;
+	private _validationHelper: ValidationHelper;
 
 	constructor(mode: Modes.IMode, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
 		@IMarkerService markerService: IMarkerService) {
 
 		super(mode, participants, resourceService, markerService);
+
+		this._validationHelper = new ValidationHelper(
+			this.resourceService,
+			this._getMode().getId(),
+			(toValidate) => this.doValidate(toValidate)
+		);
+
 		this.languageService = this.createLanguageService(resourceService, mode.getId());
 		this.lintSettings = {};
 		this.validationEnabled = true;
@@ -111,10 +120,7 @@ export class CSSWorker extends AbstractModeWorker {
 		return new parser.Parser();
 	}
 
-	/**
-	 * @return true if you want to revalidate your models
-	 */
-	_doConfigure(raw:any):winjs.TPromise<boolean> {
+	_doConfigure(raw:any): void {
 		if (raw) {
 			this.validationEnabled = raw.validate;
 			if (raw.lint) {
@@ -122,12 +128,22 @@ export class CSSWorker extends AbstractModeWorker {
 			} else {
 				this.lintSettings = {};
 			}
-			return winjs.TPromise.as(true);
+			this._validationHelper.triggerDueToConfigurationChange();
 		}
-		return winjs.TPromise.as(false);
 	}
 
-	public doValidate(resource: URI):void {
+	public enableValidator(): winjs.TPromise<void> {
+		this._validationHelper.enable();
+		return winjs.TPromise.as(null);
+	}
+
+	public doValidate(resources: URI[]):void {
+		for (var i = 0; i < resources.length; i++) {
+			this.doValidate1(resources[i]);
+		}
+	}
+
+	private doValidate1(resource: URI):void {
 		if (!this.validationEnabled) {
 			this.markerService.changeOne(this._getMode().getId(), resource, []);
 			return;

@@ -18,7 +18,7 @@ import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
 import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
@@ -218,6 +218,13 @@ export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> impleme
 			suggest: (resource, position) => this.suggest(resource, position)});
 	}
 
+	public creationDone(): void {
+		if (this._threadService.isInMainThread) {
+			// Pick a worker to do validation
+			this._pickAWorkerToValidate();
+		}
+	}
+
 	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], lessWorker.LessWorker> {
 		return createAsyncDescriptor2('vs/languages/less/common/lessWorker', 'LessWorker');
 	}
@@ -234,6 +241,11 @@ export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> impleme
 	static $navigateValueSet = OneWorkerAttr(LESSMode, LESSMode.prototype.navigateValueSet);
 	public navigateValueSet(resource:URI, position:EditorCommon.IRange, up:boolean):winjs.TPromise<Modes.IInplaceReplaceSupportResult> {
 		return this._worker((w) => w.navigateValueSet(resource, position, up));
+	}
+
+	static $_pickAWorkerToValidate = OneWorkerAttr(LESSMode, LESSMode.prototype._pickAWorkerToValidate, ThreadAffinity.Group1);
+	private _pickAWorkerToValidate(): winjs.TPromise<void> {
+		return this._worker((w) => w.enableValidator());
 	}
 
 	static $findReferences = OneWorkerAttr(LESSMode, LESSMode.prototype.findReferences);

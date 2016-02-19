@@ -274,6 +274,13 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 			getSuggestionDetails: (resource, position, suggestion) => this.getSuggestionDetails(resource, position, suggestion)});
 	}
 
+	public creationDone(): void {
+		if (this._threadService.isInMainThread) {
+			// Pick a worker to do validation
+			this._pickAWorkerToValidate();
+		}
+	}
+
 	public dispose(): void {
 		this._disposables = lifecycle.disposeAll(this._disposables);
 	}
@@ -378,7 +385,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	}
 
 	static $_pickAWorkerToValidate = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype._pickAWorkerToValidate, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group3);
-	public _pickAWorkerToValidate(): WinJS.Promise {
+	private _pickAWorkerToValidate(): WinJS.Promise {
 		return this._worker((w) => w.enableValidator());
 	}
 

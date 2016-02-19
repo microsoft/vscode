@@ -13,8 +13,8 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
-import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
+import {IThreadService} from 'vs/platform/thread/common/thread';
+import {AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 
@@ -63,13 +63,6 @@ export abstract class AbstractMode<W extends AbstractModeWorker> implements Mode
 		return this._descriptor.id;
 	}
 
-	public creationDone(): void {
-		if (this._threadService.isInMainThread) {
-			// Pick a worker to do validation
-			this._pickAWorkerToValidate();
-		}
-	}
-
 	public toSimplifiedMode(): Modes.IMode {
 		if (!this._simplifiedMode) {
 			this._simplifiedMode = new SimplifiedMode(this);
@@ -114,11 +107,6 @@ export abstract class AbstractMode<W extends AbstractModeWorker> implements Mode
 	}
 
 	// START mics interface implementations
-
-	static $_pickAWorkerToValidate = OneWorkerAttr(AbstractMode, AbstractMode.prototype._pickAWorkerToValidate, ThreadAffinity.Group1);
-	public _pickAWorkerToValidate(): TPromise<void> {
-		return this._worker((w) => w.enableValidator());
-	}
 
 	public addSupportChangedListener(callback: (e: EditorCommon.IModeSupportChangedEvent) => void) : IDisposable {
 		return this._eventEmitter.addListener2('modeSupportChanged', callback);

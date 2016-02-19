@@ -32,6 +32,7 @@ import rename = require('vs/languages/typescript/common/features/rename');
 import {IResourceService, ResourceEvents, IResourceAddedEvent, IResourceRemovedEvent} from 'vs/editor/common/services/resourceService';
 import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
+import {ValidationHelper} from 'vs/editor/common/worker/validationHelper';
 
 export class TypeScriptWorker2 extends AbstractModeWorker {
 
@@ -40,11 +41,19 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 	protected _projectService: projectService.ProjectService;
 	protected _options: Options;
 	protected _disposables: lifecycle.IDisposable[] = [];
+	private _validationHelper: ValidationHelper;
 
 	constructor(mode: Modes.IMode, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
 		@IMarkerService markerService: IMarkerService) {
 
 		super(mode, participants, resourceService, markerService);
+
+		this._validationHelper = new ValidationHelper(
+			this.resourceService,
+			this._getMode().getId(),
+			(toValidate) => this.doValidate(toValidate)
+		);
+
 		this._projectService = new projectService.ProjectService();
 
 		this._disposables.push(this.resourceService.addListener2_(ResourceEvents.ADDED, this._onResourceAdded.bind(this)));
@@ -132,7 +141,7 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 		return projects;
 	}
 
-	_doConfigure(options: any, defaults:Options = Options.typeScriptOptions): winjs.TPromise<boolean> {
+	_doConfigure(options: any, defaults:Options = Options.typeScriptOptions): void {
 		// very long ago options.validate could be an
 		// array or an object. since this was only used
 		// for selfhosting the migration story is to
@@ -143,13 +152,24 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 		var optionsWithDefaults = Options.withDefaultOptions(options, defaults);
 		if (!objects.equals(optionsWithDefaults, this._options)) {
 			this._options = optionsWithDefaults;
-			return winjs.TPromise.as(true);
+			this._validationHelper.triggerDueToConfigurationChange();
 		}
 	}
 
 	// ---- Implementation of various IXYZSupports
 
-	public doValidate(resource: URI): void {
+	public enableValidator(): winjs.TPromise<void> {
+		this._validationHelper.enable();
+		return winjs.TPromise.as(null);
+	}
+
+	public doValidate(resources: URI[]):void {
+		for (var i = 0; i < resources.length; i++) {
+			this.doValidate1(resources[i]);
+		}
+	}
+
+	private doValidate1(resource: URI):void {
 		var project = this._projectService.getProject(resource);
 		var markers: IMarker[] = [];
 		markers.push.apply(markers, diagnostics.getSyntacticDiagnostics(project.languageService, resource, project.host.getCompilationSettings(),

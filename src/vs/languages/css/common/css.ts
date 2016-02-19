@@ -17,7 +17,7 @@ import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {IMarker} from 'vs/platform/markers/common/markers';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
@@ -357,6 +357,13 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 		this.quickFixSupport = this;
 	}
 
+	public creationDone(): void {
+		if (this._threadService.isInMainThread) {
+			// Pick a worker to do validation
+			this._pickAWorkerToValidate();
+		}
+	}
+
 	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], cssWorker.CSSWorker> {
 		return createAsyncDescriptor2('vs/languages/css/common/cssWorker', 'CSSWorker');
 	}
@@ -364,6 +371,11 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 	static $navigateValueSet = OneWorkerAttr(CSSMode, CSSMode.prototype.navigateValueSet);
 	public navigateValueSet(resource:URI, position:EditorCommon.IRange, up:boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
 		return this._worker((w) => w.navigateValueSet(resource, position, up));
+	}
+
+	static $_pickAWorkerToValidate = OneWorkerAttr(CSSMode, CSSMode.prototype._pickAWorkerToValidate, ThreadAffinity.Group1);
+	private _pickAWorkerToValidate(): WinJS.TPromise<void> {
+		return this._worker((w) => w.enableValidator());
 	}
 
 	static $findOccurrences = OneWorkerAttr(CSSMode, CSSMode.prototype.findOccurrences);

@@ -107,7 +107,7 @@ export class MarkdownWorker extends AbstractModeWorker {
 		this.modeService = modeService;
 	}
 
-	_doConfigure(options: any): WinJS.TPromise<boolean> {
+	_doConfigure(options: any): void {
 		if (options && options.theme) {
 			this.theme = (options.theme === 'vs-dark') ? Theme.DARK : (options.theme === 'vs') ? Theme.LIGHT : Theme.HC_BLACK;
 		}
@@ -115,8 +115,6 @@ export class MarkdownWorker extends AbstractModeWorker {
 		if (options && Types.isArray(options.styles)) {
 			this.cssLinks = options.styles;
 		}
-
-		return WinJS.TPromise.as(false);
 	}
 
 	public getEmitOutput(resource: URI, absoluteWorkersResourcePath: string): WinJS.TPromise<Modes.IEmitOutput> { // TODO@Ben technical debt: worker cannot resolve paths absolute

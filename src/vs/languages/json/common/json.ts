@@ -14,7 +14,7 @@ import jsonWorker = require('vs/languages/json/common/jsonWorker');
 import tokenization = require('vs/languages/json/common/features/tokenization');
 import {AbstractMode, createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
-import {IThreadService, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
+import {IThreadService, IThreadSynchronizableObject, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {IJSONContributionRegistry, Extensions, ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -96,8 +96,10 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 	}
 
 	public creationDone(): void {
-		super.creationDone();
 		if (this._threadService.isInMainThread) {
+			// Pick a worker to do validation
+			this._pickAWorkerToValidate();
+
 			// Configure all workers
 			this._configureWorkerSchemas(this.getSchemaConfiguration());
 			var contributionRegistry = <IJSONContributionRegistry> Platform.Registry.as(Extensions.JSONContribution);
@@ -130,6 +132,11 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 	static $_configureWorkerSchemas = AllWorkersAttr(JSONMode, JSONMode.prototype._configureWorkerSchemas);
 	private _configureWorkerSchemas(data:ISchemaContributions): WinJS.TPromise<boolean> {
 		return this._worker((w) => w.setSchemaContributions(data));
+	}
+
+	static $_pickAWorkerToValidate = OneWorkerAttr(JSONMode, JSONMode.prototype._pickAWorkerToValidate, ThreadAffinity.Group1);
+	private _pickAWorkerToValidate(): WinJS.TPromise<void> {
+		return this._worker((w) => w.enableValidator());
 	}
 
 	static $navigateValueSet = OneWorkerAttr(JSONMode, JSONMode.prototype.navigateValueSet);

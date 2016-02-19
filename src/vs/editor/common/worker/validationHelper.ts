@@ -11,7 +11,7 @@ import {RunOnceScheduler} from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 
-export interface IValidationHelperFilter {
+interface IValidationHelperFilter {
 	(resource:EditorCommon.IMirrorModel): boolean;
 }
 
@@ -83,12 +83,12 @@ export class ValidationHelper implements IDisposable {
 	private _models:{[url:string]:ValidationModel;};
 	private _isDueToConfigurationChange:boolean;
 
-	public constructor(resourceService:IResourceService, callback:IValidationHelperCallback, filter:IValidationHelperFilter, validationDelay:number = 500) {
+	public constructor(resourceService:IResourceService, modeId: string, callback:IValidationHelperCallback) {
 		this._toDispose = [];
 		this._resourceService = resourceService;
 		this._callback = callback;
-		this._filter = filter;
-		this._validationDelay = validationDelay;
+		this._filter = (resource) => (resource.getMode().getId() === modeId);
+		this._validationDelay = 500;
 		this._models = {};
 		this._isDueToConfigurationChange = false;
 

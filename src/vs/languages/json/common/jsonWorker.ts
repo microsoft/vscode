@@ -31,6 +31,7 @@ import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {JSONLocation} from './parser/jsonLocation';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
+import {ValidationHelper} from 'vs/editor/common/worker/validationHelper';
 
 export interface IOptionsSchema {
 	/**
@@ -77,6 +78,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 	private jsonIntellisense : JSONIntellisense.JSONIntellisense;
 	private jsonMode: JSONMode;
 	private contributions: IJSONWorkerContribution[];
+	private _validationHelper: ValidationHelper;
 
 	constructor(mode: Modes.IMode, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
 		@IMarkerService markerService: IMarkerService, @IRequestService requestService: IRequestService,
@@ -84,6 +86,12 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 		@IInstantiationService instantiationService: IInstantiationService) {
 
 		super(mode, participants, resourceService, markerService);
+
+		this._validationHelper = new ValidationHelper(
+			this.resourceService,
+			this._getMode().getId(),
+			(toValidate) => this.doValidate(toValidate)
+		);
 
 		this.jsonMode = <JSONMode>mode;
 		this.requestService = requestService;
@@ -159,7 +167,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 	/**
 	 * @return true if you want to revalidate your models
 	 */
-	_doConfigure(options:IOptions):WinJS.TPromise<boolean> {
+	_doConfigure(options:IOptions): void {
 		if (options && options.schemas) {
 			this.schemaService.clearExternalSchemas();
 			options.schemas.forEach((schema) => {
@@ -181,7 +189,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 				}
 			});
 		}
-		return WinJS.TPromise.as(true);
+		this._validationHelper.triggerDueToConfigurationChange();
 	}
 
 	public setSchemaContributions(contributions:ISchemaContributions): WinJS.TPromise<boolean> {
@@ -189,7 +197,18 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 		return WinJS.TPromise.as(true);
 	}
 
-	public doValidate(resource:URI):void {
+	public enableValidator(): WinJS.TPromise<void> {
+		this._validationHelper.enable();
+		return WinJS.TPromise.as(null);
+	}
+
+	public doValidate(resources: URI[]):void {
+		for (var i = 0; i < resources.length; i++) {
+			this.doValidate1(resources[i]);
+		}
+	}
+
+	private doValidate1(resource: URI):void {
 		var modelMirror = this.resourceService.get(resource);
 		var parser = new Parser.JSONParser();
 		var content = modelMirror.getValue();

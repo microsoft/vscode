@@ -41,7 +41,7 @@ suite('Validation - CSS', () => {
 			markerService: markerService
 		});
 		var worker = new cssWorker.CSSWorker(modesUtil.createMockMode('mock.mode.id'), [], services.resourceService, services.markerService);
-		worker.doValidate(url);
+		worker.doValidate([url]);
 
 		var markers = markerService.read({ resource: url });
 		var marker = markers[0];
@@ -63,7 +63,7 @@ suite('Validation - CSS', () => {
 		});
 
 		var worker = new cssWorker.CSSWorker(modesUtil.createMockMode('mock.mode.id'), [], services.resourceService, services.markerService);
-		worker.doValidate(url);
+		worker.doValidate([url]);
 
 		var markers = markerService.read({ resource: url });
 		return { worker: worker, model: model, markers: markers };

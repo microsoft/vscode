@@ -6,19 +6,15 @@
 
 import assert = require('assert')
 import mm = require('vs/editor/common/model/mirrorModel');
-import html = require('vs/languages/html/common/html');
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
-import Network = require('vs/base/common/network');
 import URI from 'vs/base/common/uri';
 import ResourceService = require('vs/editor/common/services/resourceServiceImpl');
 import MarkerService = require('vs/platform/markers/common/markerService');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import WinJS = require('vs/base/common/winjs.base');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import servicesUtil2 = require('vs/editor/test/common/servicesTestUtils');
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
-import {IMarker} from 'vs/platform/markers/common/markers';
 
 suite('HTML - worker', () => {
 
@@ -31,7 +27,7 @@ suite('HTML - worker', () => {
 		});
 	});
 
-	var mockHtmlWorkerEnv = function (url: URI, content: string): { worker: htmlWorker.HTMLWorker; model: mm.MirrorModel; markers: IMarker[]; } {
+	var mockHtmlWorkerEnv = function (url: URI, content: string): { worker: htmlWorker.HTMLWorker; model: mm.MirrorModel; } {
 		var resourceService = new ResourceService.ResourceService();
 
 		var model = mm.createMirrorModelFromString(null, 0, content, mode, url);
@@ -45,10 +41,8 @@ suite('HTML - worker', () => {
 		});
 
 		var worker = new htmlWorker.HTMLWorker(mode, [], services.resourceService, services.markerService, services.contextService);
-		worker.doValidate(url);
 
-		var markers = markerService.read({ resource: url });
-		return { worker: worker, model: model, markers: markers };
+		return { worker: worker, model: model };
 	};
 
 	var testSuggestionsFor = function(value:string):WinJS.TPromise<Modes.ISuggestResult> {
@@ -68,7 +62,7 @@ suite('HTML - worker', () => {
 			return suggestion.label === label && (!type || suggestion.type === type) && (!codeSnippet || suggestion.codeSnippet === codeSnippet);
 		});
 		if (proposalsFound.length != 1) {
-			assert.fail("Suggestion not found: " + label + ", has " + completion.suggestions.map(s => s.label).join(', '));
+			assert.fail('Suggestion not found: ' + label + ', has ' + completion.suggestions.map(s => s.label).join(', '));
 		}
 	};
 
