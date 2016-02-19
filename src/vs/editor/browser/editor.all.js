@@ -38,7 +38,8 @@ define([
 	'vs/editor/contrib/wordHighlighter/common/wordHighlighter',
 	'vs/editor/contrib/workerStatusReporter/browser/workerStatusReporter',
 	'vs/editor/contrib/defineKeybinding/browser/defineKeybinding',
-	"vs/editor/contrib/folding/browser/folding",
+	'vs/editor/contrib/folding/browser/folding',
+	'vs/editor/contrib/indentation/common/indentation',
 
 	// include these in the editor bundle because they are widely used by many languages
 	'vs/editor/common/languages.common'
