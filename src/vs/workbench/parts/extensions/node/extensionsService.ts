@@ -36,7 +36,7 @@ function parseManifest(raw: string): TPromise<IExtensionManifest> {
 	});
 }
 
-function validate(zipPath: string, extension?: IExtension): TPromise<IExtension> {
+function validate(zipPath: string, extension?: IExtension, version = extension && extension.version): TPromise<IExtension> {
 	return buffer(zipPath, 'extension/package.json')
 		.then(buffer => parseManifest(buffer.toString('utf8')))
 		.then(manifest => {
@@ -49,7 +49,7 @@ function validate(zipPath: string, extension?: IExtension): TPromise<IExtension>
 					return Promise.wrapError(Error(nls.localize('invalidPublisher', "Extension invalid: manifest publisher mismatch.")));
 				}
 
-				if (extension.version !== manifest.version) {
+				if (version !== manifest.version) {
 					return Promise.wrapError(Error(nls.localize('invalidVersion', "Extension invalid: manifest version mismatch.")));
 				}
 			}
@@ -129,15 +129,16 @@ export class ExtensionsService implements IExtensionsService {
 			return TPromise.wrapError(new Error(nls.localize('missingGalleryInformation', "Gallery information is missing")));
 		}
 
-		return this.getLastValidExtensionVersion(extension, extension.galleryInformation.versions).then(version => {
+		return this.getLastValidExtensionVersion(extension, extension.galleryInformation.versions).then(versionInfo => {
+			const version = versionInfo.version;
+			const url = versionInfo.downloadUrl;
 			const zipPath = path.join(tmpdir(), galleryInformation.id);
-			const extensionPath = path.join(this.extensionsPath, getExtensionId(extension, version.version));
+			const extensionPath = path.join(this.extensionsPath, getExtensionId(extension, version));
 			const manifestPath = path.join(extensionPath, 'package.json');
-			const url = version.downloadUrl;
 
 			return this.request(url)
 				.then(opts => download(zipPath, opts))
-				.then(() => validate(zipPath, extension))
+				.then(() => validate(zipPath, extension, version))
 				.then(manifest => { this._onInstallExtension.fire(manifest); return manifest; })
 				.then(manifest => extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true }).then(() => manifest))
 				.then(manifest => {
