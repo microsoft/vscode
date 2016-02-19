@@ -1,0 +1,28 @@
+{
+	"name": "javascript-migration",
+	"displayName": "Helper extension for migrating to Salsa",
+	"description": "Informs users about the JS Salsa upgrade",
+	"version": "0.0.1",
+	"publisher": "vscode",
+	"engines": {
+		"vscode": "*"
+	},
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [
+		"onLanguage:javascript",
+		"onLanguage:javascriptreact"
+	],
+	"main": "./out/extension",
+
+	"scripts": {
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../gulpfile.plugins.js compile-plugin:javascript-migration ./src/tsconfig.json"
+	},
+	"devDependencies": {
+		"typescript": "^1.7.5",
+		"vscode": "^0.11.0"
+	},
+    "dependencies": {
+    }
+}
