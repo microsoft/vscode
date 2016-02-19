@@ -46,10 +46,8 @@
 
 /* Selection */
 .monaco-editor.hc-black .view-overlays.focused .selected-text {
-	mix-blend-mode: difference; /* TODO: this will not work in IE/Edge currently.  Monaco needs something extra. */
-	background: #1aebff;
+	background: white;
 	box-sizing: border-box;
-	z-index: 1;
 	border-radius: 0;
 }
 .monaco-editor.hc-black .view-overlays .selected-text {
