@@ -299,11 +299,6 @@ function buildDebPackage(arch) {
 	], { cwd: '.build/linux'});
 }
 
-function buildDebPackageCatalog(arch) {
-	var debArch = getDebPackageArch(arch);
-	return shell.task([], { cwd: '.build/linux/' + debArch});
-}
-
 gulp.task('clean-vscode-win32', util.rimraf(path.join(path.dirname(root), 'VSCode-win32')));
 gulp.task('clean-vscode-darwin', util.rimraf(path.join(path.dirname(root), 'VSCode-darwin')));
 gulp.task('clean-vscode-linux-ia32', util.rimraf(path.join(path.dirname(root), 'VSCode-linux-ia32')));
@@ -328,8 +323,6 @@ gulp.task('vscode-linux-ia32-prepare-deb', ['clean-vscode-linux-ia32-deb', 'vsco
 gulp.task('vscode-linux-x64-prepare-deb', ['clean-vscode-linux-x64-deb', 'vscode-linux-x64-min'], prepareDebPackage('x64'));
 gulp.task('vscode-linux-ia32-build-deb', ['vscode-linux-ia32-prepare-deb'], buildDebPackage('ia32'));
 gulp.task('vscode-linux-x64-build-deb', ['vscode-linux-x64-prepare-deb'], buildDebPackage('x64'));
-gulp.task('vscode-linux-ia32-build-deb-catalog', ['vscode-linux-ia32-build-deb'], buildDebPackageCatalog('ia32'));
-gulp.task('vscode-linux-x64-build-deb-catalog', ['vscode-linux-x64-build-deb'], buildDebPackageCatalog('x64'));
 
 // Sourcemaps
 
