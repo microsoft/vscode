@@ -162,7 +162,7 @@ export class MarkdownWorker {
 		let highlighter = function(code: string, lang: string, callback?: (error: Error, result: string) => void) {
 
 			// Lookup the mode and use the tokenizer to get the HTML
-			let mimeForLang = this.modeService.getModeIdForLanguageName(lang) || lang || MarkdownWorker.DEFAULT_MODE;
+			let mimeForLang = modeService.getModeIdForLanguageName(lang) || lang || MarkdownWorker.DEFAULT_MODE;
 			modeService.getOrCreateMode(mimeForLang).then((mode) => {
 				callback(null, tokenizeToString(code, mode));
 			});
