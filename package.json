@@ -24,11 +24,12 @@
     "http-proxy-agent": "^0.2.6",
     "https-proxy-agent": "^0.3.5",
     "iconv-lite": "^0.4.13",
+    "native-keymap": "^0.1.2",
     "sax": "^1.1.1",
     "semver": "^4.2.0",
     "vscode-debugprotocol": "^1.5.0",
+    "vscode-extension-telemetry": "^0.0.4",
     "vscode-textmate": "^1.0.11",
-    "native-keymap": "^0.1.2",
     "weak": "^1.0.1",
     "winreg": "0.0.12",
     "yauzl": "^2.3.1"

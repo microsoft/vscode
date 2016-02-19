@@ -26,3 +26,12 @@ declare var Console: {
     prototype: Console;
     new(): Console;
 };
+
+declare var require: {
+	toUrl(path: string): string;
+	(moduleName: string): any;
+	(dependencies: string[], callback: (...args: any[]) => any, errorback?: (err: any) => void): any;
+	config(data: any): any;
+	onError: Function;
+	__$__nodeRequire<T>(moduleName: string): T;
+};
