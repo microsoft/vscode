@@ -81,7 +81,11 @@
 .monaco-shell.hc-black input[type="text"]:focus, .monaco-shell.hc-black textarea:focus,
 .monaco-shell.hc-black input[type="checkbox"]:focus {
 	outline: 2px solid #f38518;
-	outline-offset: -2px;
+	outline-offset: -1px;
+}
+
+.monaco-shell.hc-black .synthetic-focus input {
+	background:transparent; /* Search input focus fix when in high contrast */
 }
 
 .monaco-shell.vs .monaco-tree.focused .monaco-tree-row.focused [tabindex="0"]:focus {
