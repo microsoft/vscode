@@ -30,7 +30,7 @@ export class Linter extends baseLinter.BaseLinter {
         }
 
         var pylintPath = this.pythonSettings.linting.pylintPath;
-        var cmdLine = `${pylintPath} ${PYLINT_COMMANDLINE} ${filePath}`;
+        var cmdLine = `${pylintPath} ${PYLINT_COMMANDLINE} "${filePath}"`;
         return new Promise<baseLinter.ILintMessage[]>((resolve, reject) => {
             this.run(cmdLine, filePath, txtDocumentLines).then(messages=> {
                 messages.forEach(msg=> {
