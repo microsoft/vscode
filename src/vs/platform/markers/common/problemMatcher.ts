@@ -1125,7 +1125,6 @@ registry.add('eslint-compact', {
 registry.add('eslint-stylish', {
 	owner: 'javascript',
 	applyTo: ApplyToKind.allDocuments,
-	fileLocation: FileLocationKind.Relative,
-	filePrefix: '${cwd}',
+	fileLocation: FileLocationKind.Absolute,
 	pattern: defaultPattern('eslint-stylish')
 });
