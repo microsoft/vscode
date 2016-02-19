@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*global process,__dirname, Buffer*/
+/*global process,__dirname,Buffer,require*/
 
 var gulp = require('gulp');
 var fs = require('fs');
@@ -16,7 +16,6 @@ var rename = require('gulp-rename');
 var replace = require('gulp-replace');
 var filter = require('gulp-filter');
 var json = require('gulp-json-editor');
-var insert = require('gulp-insert');
 var remote = require('gulp-remote-src');
 var shell = require("gulp-shell");
 var File = require('vinyl');
@@ -160,12 +159,8 @@ function packageTask(platform, arch, opts) {
 
 	return function () {
 		var out = opts.minified ? 'out-vscode-min' : 'out-vscode';
-		var pluginHostFilter = filter(out + '/vs/workbench/node/pluginHostProcess.js', { restore: true });
 
 		var src = gulp.src(out + '/**', { base: '.' })
-			.pipe(pluginHostFilter)
-			.pipe(insert.append('\n//# sourceMappingURL=pluginHostProcess.js.map'))
-			.pipe(pluginHostFilter.restore)
 			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }))
 			.pipe(util.setExecutableBit(['**/*.sh']));
 
@@ -184,13 +179,9 @@ function packageTask(platform, arch, opts) {
 			'!extensions/json/server/node_modules/mocha/**'
 		], { base: '.' });
 
-		var pluginHostSourceMap = gulp.src(out + '/vs/workbench/node/pluginHostProcess.js.map', { base: '.' })
-			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }));
-
-		var sources = es.merge(
-			es.merge(src, extensions).pipe(filter(['**', '!**/*.js.map'])),
-			pluginHostSourceMap
-		).pipe(util.handleAzureJson({ platform: platform }));
+		var sources = es.merge(src, extensions)
+			.pipe(filter(['**', '!**/*.js.map']))
+			.pipe(util.handleAzureJson({ platform: platform }));
 
 		var version = packageJson.version;
 		var quality = product.quality;
