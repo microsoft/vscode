@@ -294,9 +294,9 @@ function prepareDebPackage(arch) {
 function buildDebPackage(arch) {
 	var debArch = getDebPackageArch(arch);
 	return shell.task([
-		'fakeroot dpkg-deb -b vscode-' + debArch,
-		'dpkg-scanpackages . /dev/null > Packages'
-	], { cwd: '.build/linux/' + debArch});
+		'fakeroot dpkg-deb -b ' + debArch + '/vscode-' + debArch,
+		'dpkg-scanpackages ' + debArch + ' /dev/null > ' + debArch + '/Packages'
+	], { cwd: '.build/linux'});
 }
 
 function buildDebPackageCatalog(arch) {
