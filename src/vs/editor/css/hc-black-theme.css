@@ -191,6 +191,6 @@
 }
 
 /* Tokens colors are defined in tokens.css */
-.monaco-editor.hc-black .token:not(.comment) {
+.monaco-editor.hc-black .token {
 	mix-blend-mode: difference;
 }
