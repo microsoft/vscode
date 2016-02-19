@@ -80,7 +80,7 @@ function createExtension(manifest: IExtensionManifest, galleryInformation?: IGal
 }
 
 function getExtensionId(extension: IExtensionManifest, version = extension.version): string {
-	return `${ extension.publisher }.${ extension.name }-${ extension.version }`;
+	return `${ extension.publisher }.${ extension.name }-${ version }`;
 }
 
 export class ExtensionsService implements IExtensionsService {
