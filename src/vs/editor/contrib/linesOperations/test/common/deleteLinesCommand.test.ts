@@ -12,7 +12,7 @@ function testDeleteLinesCommand(lines: string[], selection: Selection, expectedL
 	testCommand(lines, null, selection, (sel) => DeleteLinesCommand.createFromSelection(sel), expectedLines, expectedSelection);
 }
 
-suite('Editor Contrib - Copy Lines Command', () => {
+suite('Editor Contrib - Delete Lines Command', () => {
 
 	test('empty selection in middle of lines', function () {
 		testDeleteLinesCommand(
