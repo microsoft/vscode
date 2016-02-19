@@ -423,10 +423,12 @@ export function getAPI(): typeof vscode {
 
 export function createCustomMode(language:MonarchTypes.ILanguage): TPromise<Modes.IMode> {
 	startup.initStaticServicesIfNecessary();
-	var modeService = standaloneServices.ensureStaticPlatformServices(null).modeService;
+	let staticPlatformServices = standaloneServices.ensureStaticPlatformServices(null);
+	let modeService = staticPlatformServices.modeService;
+	let editorWorkerService = staticPlatformServices.editorWorkerService;
 
-	var modeId = language.name;
-	var name = language.name;
+	let modeId = language.name;
+	let name = language.name;
 
 	ModesRegistry.registerLanguage({
 		id: modeId,
@@ -434,7 +436,7 @@ export function createCustomMode(language:MonarchTypes.ILanguage): TPromise<Mode
 	});
 
 	PluginsRegistry.registerOneTimeActivationEventListener('onLanguage:' + modeId, () => {
-		modeService.registerMonarchDefinition(modeId, language);
+		modeService.registerMonarchDefinition(editorWorkerService, modeId, language);
 	});
 
 	return modeService.getOrCreateMode(modeId);
@@ -451,8 +453,11 @@ export function registerStandaloneLanguage(language:ILanguageExtensionPoint, def
 			}
 
 			startup.initStaticServicesIfNecessary();
-			var modeService = standaloneServices.ensureStaticPlatformServices(null).modeService;
-			modeService.registerMonarchDefinition(language.id, value.language);
+			let staticPlatformServices = standaloneServices.ensureStaticPlatformServices(null);
+			let modeService = staticPlatformServices.modeService;
+			let editorWorkerService = staticPlatformServices.editorWorkerService;
+
+			modeService.registerMonarchDefinition(editorWorkerService, language.id, value.language);
 		}, (err) => {
 			console.error('Cannot find module ' + defModule, err);
 		});
