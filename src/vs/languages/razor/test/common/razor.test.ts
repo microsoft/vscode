@@ -5,9 +5,7 @@
 'use strict';
 
 import 'vs/languages/razor/common/razor.contribution';
-import razorMode = require('vs/languages/razor/common/razor');
 import modesUtil = require('vs/editor/test/common/modesUtil');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import razorTokenTypes = require('vs/languages/razor/common/razorTokenTypes');
 import {htmlTokenTypes} from 'vs/languages/html/common/html';
