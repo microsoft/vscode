@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IGalleryService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
+import { IGalleryService, IExtension, IGalleryVersion } from 'vs/workbench/parts/extensions/common/extensions';
 import { IXHRResponse } from 'vs/base/common/http';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
@@ -99,22 +99,31 @@ export class GalleryService implements IGalleryService {
 		return cache
 			.then<IGalleryExtension[]>(r => JSON.parse(r.responseText).results[0].extensions || [])
 			.then<IExtension[]>(extensions => {
-				return extensions.map(extension => ({
-					name: extension.extensionName,
-					displayName: extension.displayName || extension.extensionName,
-					publisher: extension.publisher.publisherName,
-					version: extension.versions[0].version,
-					description: extension.shortDescription || '',
-					galleryInformation: {
-						galleryApiUrl: this.extensionsGalleryUrl,
-						id: extension.extensionId,
-						downloadUrl: `${ extension.versions[0].assetUri }/Microsoft.VisualStudio.Services.VSIXPackage?install=true`,
-						publisherId: extension.publisher.publisherId,
-						publisherDisplayName: extension.publisher.displayName,
-						installCount: getInstallCount(extension.statistics),
-						date: extension.versions[0].lastUpdated,
-					}
-				}));
+				return extensions.map(e => {
+					const versions = e.versions.map<IGalleryVersion>(v => ({
+						version: v.version,
+						date: v.lastUpdated,
+						downloadUrl: `${ v.assetUri }/Microsoft.VisualStudio.Services.VSIXPackage?install=true`,
+						manifestUrl: `${ v.assetUri }/Microsoft.VisualStudio.Code.Manifest`
+					}));
+
+					return {
+						name: e.extensionName,
+						displayName: e.displayName || e.extensionName,
+						publisher: e.publisher.publisherName,
+						version: versions[0].version,
+						engines: { vscode: void 0 }, // TODO: ugly
+						description: e.shortDescription || '',
+						galleryInformation: {
+							galleryApiUrl: this.extensionsGalleryUrl,
+							id: e.extensionId,
+							publisherId: e.publisher.publisherId,
+							publisherDisplayName: e.publisher.displayName,
+							installCount: getInstallCount(e.statistics),
+							versions
+						}
+					};
+				});
 			});
 	}
 
