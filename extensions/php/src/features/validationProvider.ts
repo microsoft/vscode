@@ -184,41 +184,49 @@ export default class PHPValidationProvider {
 			} else {
 				args = PHPValidationProvider.BufferArgs;
 			}
-			let childProcess = cp.spawn(executable, args, options);
-			childProcess.on('error', (error: Error) => {
-				if (this.executableNotFound) {
-					resolve();
-					return;
-				}
-				let message: string = null;
-				if ((<any>error).code === 'ENOENT') {
-					message = `Cannot validate the php file. The php program was not found. Use the 'php.validate.executablePath' setting to configure the location of 'php'`;
-				} else {
-					message = error.message ? error.message : `Failed to run php using path: ${executable}. Reason is unknown.`;
-				}
-				vscode.window.showInformationMessage(message);
-				this.executableNotFound = true;
-				resolve();
-			});
-			if (childProcess.pid) {
-				if (this.trigger === RunTrigger.onType) {
-					childProcess.stdin.write(textDocument.getText());
-					childProcess.stdin.end();
-				}
-				childProcess.stdout.on('data', (data: Buffer) => {
-					decoder.write(data).forEach(processLine);
-				});
-				childProcess.stdout.on('end', () => {
-					let line = decoder.end();
-					if (line) {
-						processLine(line);
+			try {
+				let childProcess = cp.spawn(executable, args, options);
+				childProcess.on('error', (error: Error) => {
+					if (this.executableNotFound) {
+						resolve();
+						return;
 					}
-					this.diagnosticCollection.set(textDocument.uri, diagnostics);
+					this.showError(error, executable);
+					this.executableNotFound = true;
 					resolve();
 				});
-			} else {
-				resolve();
+				if (childProcess.pid) {
+					if (this.trigger === RunTrigger.onType) {
+						childProcess.stdin.write(textDocument.getText());
+						childProcess.stdin.end();
+					}
+					childProcess.stdout.on('data', (data: Buffer) => {
+						decoder.write(data).forEach(processLine);
+					});
+					childProcess.stdout.on('end', () => {
+						let line = decoder.end();
+						if (line) {
+							processLine(line);
+						}
+						this.diagnosticCollection.set(textDocument.uri, diagnostics);
+						resolve();
+					});
+				} else {
+					resolve();
+				}
+			} catch (error) {
+				this.showError(error, executable);
 			}
 		});
+	}
+
+	private showError(error: any, executable: string): void {
+		let message: string = null;
+		if (error.code === 'ENOENT') {
+			message = `Cannot validate the php file. The php program was not found. Use the 'php.validate.executablePath' setting to configure the location of 'php'`;
+		} else {
+			message = error.message ? error.message : `Failed to run php using path: ${executable}. Reason is unknown.`;
+		}
+		vscode.window.showInformationMessage(message);
 	}
 }
