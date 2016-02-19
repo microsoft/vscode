@@ -115,7 +115,7 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 		this.formattingSupport = null;
 	}
 
-	protected _createRichEditSupport(embeddedAutoClosingPairs: Modes.IAutoClosingPair[]): Modes.IRichEditSupport {
+	protected _createRichEditSupport(): Modes.IRichEditSupport {
 		return new RichEditSupport(this.getId(), {
 
 			wordPattern: createWordRegExp('#-?%'),
@@ -136,9 +136,13 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 			},
 
 			__characterPairSupport: {
-				autoClosingPairs: embeddedAutoClosingPairs.slice(0).concat([
-					{ open: '{', close: '}'}
-				]),
+				autoClosingPairs: [
+					{ open: '{', close: '}' },
+					{ open: '[', close: ']' },
+					{ open: '(', close: ')' },
+					{ open: '"', close: '"' },
+					{ open: '\'', close: '\'' }
+				],
 				surroundingPairs: [
 					{ open: '<', close: '>' },
 					{ open: '"', close: '"' },

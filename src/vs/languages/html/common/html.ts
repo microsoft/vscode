@@ -320,13 +320,8 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 	}
 
 	public asyncCtor(): winjs.Promise {
-		return winjs.Promise.join([
-			this.modeService.getOrCreateMode('text/javascript'),
-			this.modeService.getOrCreateMode('text/css')
-		]).then((embeddableModes) => {
-			var autoClosingPairs = this._getAutoClosingPairs(embeddableModes);
-			this.richEditSupport = this._createRichEditSupport(autoClosingPairs);
-		});
+		this.richEditSupport = this._createRichEditSupport();
+		return winjs.TPromise.as(null);
 	}
 
 	protected _createModeWorkerManager(descriptor:Modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<W> {
@@ -337,7 +332,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		return this._modeWorkerManager.worker(runner);
 	}
 
-	protected _createRichEditSupport(embeddedAutoClosingPairs: Modes.IAutoClosingPair[]): Modes.IRichEditSupport {
+	protected _createRichEditSupport(): Modes.IRichEditSupport {
 		return new RichEditSupport(this.getId(), {
 
 			wordPattern: createWordRegExp('#-?%'),
@@ -361,7 +356,13 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 			},
 
 			__characterPairSupport: {
-				autoClosingPairs: embeddedAutoClosingPairs.slice(0),
+				autoClosingPairs: [
+					{ open: '{', close: '}' },
+					{ open: '[', close: ']' },
+					{ open: '(', close: ')' },
+					{ open: '"', close: '"' },
+					{ open: '\'', close: '\'' }
+				],
 				surroundingPairs: [
 					{ open: '"', close: '"' },
 					{ open: '\'', close: '\'' }
@@ -380,39 +381,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 				}
 			],
 		});
-	}
-
-	private _getAutoClosingPairs(embeddableModes: Modes.IMode[]): Modes.IAutoClosingPair[]{
-		var map:{[key:string]:string;} = {
-			'"': '"',
-			'\'': '\''
-		};
-
-		embeddableModes.forEach((embeddableMode) => this._collectAutoClosingPairs(map, embeddableMode));
-
-		var result:Modes.IAutoClosingPair[] = [],
-			key: string;
-
-		for (key in map) {
-			result.push({
-				open: key,
-				close: map[key]
-			});
-		}
-
-		return result;
-	}
-
-	private _collectAutoClosingPairs(result:{[key:string]:string;}, mode:Modes.IMode): void {
-		if (!mode || !mode.richEditSupport || !mode.richEditSupport.characterPair) {
-			return;
-		}
-		var acp = mode.richEditSupport.characterPair.getAutoClosingPairs();
-		if (acp !== null) {
-			for(var i = 0; i < acp.length; i++) {
-				result[acp[i].open] = acp[i].close;
-			}
-		}
 	}
 
 	// TokenizationSupport
