@@ -276,7 +276,7 @@ export class WorkbenchShell {
 
 		let modelService = new ModelServiceImpl(this.threadService, markerService);
 		let editorWorkerService = new EditorWorkerServiceImpl(modelService);
-		let modeService = new MainThreadModeServiceImpl(this.threadService, pluginService, modelService);
+		let modeService = new MainThreadModeServiceImpl(this.threadService, pluginService);
 
 		let untitledEditorService = new UntitledEditorService();
 		this.themeService = new ThemeService(pluginService);

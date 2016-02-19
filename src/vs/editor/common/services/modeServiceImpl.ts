@@ -419,7 +419,7 @@ export class ModeServiceImpl implements IModeService {
 		);
 	}
 
-	public registerMonarchDefinition(editorWorkerService:IEditorWorkerService, modeId:string, language:MonarchTypes.ILanguage): IDisposable {
+	public registerMonarchDefinition(modelService: IModelService, editorWorkerService:IEditorWorkerService, modeId:string, language:MonarchTypes.ILanguage): IDisposable {
 		var lexer = compile(Objects.clone(language));
 		return this.doRegisterMonarchDefinition(modeId, lexer);
 	}
@@ -482,16 +482,13 @@ export class ModeServiceImpl implements IModeService {
 }
 
 export class MainThreadModeServiceImpl extends ModeServiceImpl {
-	private _modelService: IModelService;
 	private _hasInitialized: boolean;
 
 	constructor(
 		threadService:IThreadService,
-		pluginService:IPluginService,
-		modelService:IModelService
+		pluginService:IPluginService
 	) {
 		super(threadService, pluginService);
-		this._modelService = modelService;
 		this._hasInitialized = false;
 
 		languagesExtPoint.setHandler((extensions:IExtensionPointUser<ILanguageExtensionPoint[]>[]) => {
@@ -561,14 +558,14 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 		return super.registerModeSupport(modeId, support, callback);
 	}
 
-	public registerMonarchDefinition(editorWorkerService:IEditorWorkerService, modeId:string, language:MonarchTypes.ILanguage): IDisposable {
+	public registerMonarchDefinition(modelService: IModelService, editorWorkerService:IEditorWorkerService, modeId:string, language:MonarchTypes.ILanguage): IDisposable {
 		this._getModeServiceWorkerHelper().registerMonarchDefinition(modeId, language);
 		var lexer = compile(Objects.clone(language));
 		return combinedDispose(
 			super.doRegisterMonarchDefinition(modeId, lexer),
 
 			this.registerModeSupport(modeId, 'suggestSupport', (mode) => {
-				return MonarchDefinition.createSuggestSupport(this._modelService, editorWorkerService, modeId, lexer);
+				return MonarchDefinition.createSuggestSupport(modelService, editorWorkerService, modeId, lexer);
 			})
 		);
 	}
@@ -611,6 +608,6 @@ export class ModeServiceWorkerHelper {
 	}
 
 	public registerMonarchDefinition(modeId:string, language:MonarchTypes.ILanguage): void {
-		this._modeService.registerMonarchDefinition(null, modeId, language);
+		this._modeService.registerMonarchDefinition(null, null, modeId, language);
 	}
 }

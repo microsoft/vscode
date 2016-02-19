@@ -16,6 +16,7 @@ import {IParameterHintsContribution} from 'vs/editor/common/modes/supports/param
 import {ISuggestContribution} from 'vs/editor/common/modes/supports/suggestSupport';
 import Event from 'vs/base/common/event';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
+import {IModelService} from 'vs/editor/common/services/modelService';
 
 export var IModeService = createDecorator<IModeService>('modeService');
 
@@ -78,5 +79,5 @@ export interface IModeService {
 	registerTokenizationSupport(modeId: string, callback: (mode: Modes.IMode) => Modes.ITokenizationSupport): IDisposable;
 	registerRichEditSupport(modeId: string, support: IRichEditConfiguration): IDisposable;
 
-	registerMonarchDefinition(editorWorkerService:IEditorWorkerService, modeId:string, language:MonarchTypes.ILanguage): IDisposable;
+	registerMonarchDefinition(modelService: IModelService, editorWorkerService: IEditorWorkerService, modeId:string, language:MonarchTypes.ILanguage): IDisposable;
 }

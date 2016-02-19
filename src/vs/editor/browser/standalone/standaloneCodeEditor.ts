@@ -425,6 +425,7 @@ export function createCustomMode(language:MonarchTypes.ILanguage): TPromise<Mode
 	startup.initStaticServicesIfNecessary();
 	let staticPlatformServices = standaloneServices.ensureStaticPlatformServices(null);
 	let modeService = staticPlatformServices.modeService;
+	let modelService = staticPlatformServices.modelService;
 	let editorWorkerService = staticPlatformServices.editorWorkerService;
 
 	let modeId = language.name;
@@ -436,7 +437,7 @@ export function createCustomMode(language:MonarchTypes.ILanguage): TPromise<Mode
 	});
 
 	PluginsRegistry.registerOneTimeActivationEventListener('onLanguage:' + modeId, () => {
-		modeService.registerMonarchDefinition(editorWorkerService, modeId, language);
+		modeService.registerMonarchDefinition(modelService, editorWorkerService, modeId, language);
 	});
 
 	return modeService.getOrCreateMode(modeId);
@@ -455,9 +456,10 @@ export function registerStandaloneLanguage(language:ILanguageExtensionPoint, def
 			startup.initStaticServicesIfNecessary();
 			let staticPlatformServices = standaloneServices.ensureStaticPlatformServices(null);
 			let modeService = staticPlatformServices.modeService;
+			let modelService = staticPlatformServices.modelService;
 			let editorWorkerService = staticPlatformServices.editorWorkerService;
 
-			modeService.registerMonarchDefinition(editorWorkerService, language.id, value.language);
+			modeService.registerMonarchDefinition(modelService, editorWorkerService, language.id, value.language);
 		}, (err) => {
 			console.error('Cannot find module ' + defModule, err);
 		});
