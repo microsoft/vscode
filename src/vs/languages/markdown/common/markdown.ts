@@ -206,12 +206,13 @@ export const language =
 		}
 	};
 
-export class MarkdownMode extends Monarch.MonarchMode<MarkdownWorker.MarkdownWorker> implements Modes.IEmitOutputSupport {
+export class MarkdownMode extends Monarch.MonarchMode implements Modes.IEmitOutputSupport {
 
 	public emitOutputSupport: Modes.IEmitOutputSupport;
 	public configSupport:Modes.IConfigurationSupport;
 
 	private _modeWorkerManager: ModeWorkerManager<MarkdownWorker.MarkdownWorker>;
+	private _threadService:IThreadService;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
@@ -222,8 +223,9 @@ export class MarkdownMode extends Monarch.MonarchMode<MarkdownWorker.MarkdownWor
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(descriptor, Compile.compile(language), instantiationService, threadService, modeService, modelService, editorWorkerService);
+		super(descriptor.id, Compile.compile(language), modeService, modelService, editorWorkerService);
 		this._modeWorkerManager = new ModeWorkerManager<MarkdownWorker.MarkdownWorker>(descriptor, 'vs/languages/markdown/common/markdownWorker', 'MarkdownWorker', null, instantiationService);
+		this._threadService = threadService;
 
 		this.emitOutputSupport = this;
 		this.configSupport = this;

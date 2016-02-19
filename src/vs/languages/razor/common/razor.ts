@@ -11,7 +11,6 @@ import {createWordRegExp, ModeWorkerManager} from 'vs/editor/common/modes/abstra
 import razorTokenTypes = require('vs/languages/razor/common/razorTokenTypes');
 import {RAZORWorker} from 'vs/languages/razor/common/razorWorker';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
@@ -58,10 +57,9 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 	constructor(
 		descriptor:Modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThreadService threadService: IThreadService,
 		@IModeService modeService: IModeService
 	) {
-		super(descriptor, instantiationService, threadService, modeService);
+		super(descriptor, instantiationService, modeService);
 
 		this.formattingSupport = null;
 	}

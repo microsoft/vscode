@@ -14,7 +14,6 @@ import { AbstractState } from 'vs/editor/common/modes/abstractState';
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IThreadService } from 'vs/platform/thread/common/thread';
 import * as htmlTokenTypes from 'vs/languages/html/common/htmlTokenTypes';
 import {EMPTY_ELEMENTS} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
@@ -269,7 +268,7 @@ export class State extends AbstractState {
 	}
 }
 
-export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> implements ITokenizationCustomization {
+export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode implements ITokenizationCustomization {
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
@@ -288,10 +287,9 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 	constructor(
 		descriptor:Modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThreadService threadService: IThreadService,
 		@IModeService modeService: IModeService
 	) {
-		super(descriptor, instantiationService, threadService);
+		super(descriptor.id);
 		this._modeWorkerManager = this._createModeWorkerManager(descriptor, instantiationService);
 
 		this.modeService = modeService;

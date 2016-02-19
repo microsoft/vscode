@@ -128,7 +128,7 @@ class SemanticValidator {
 	}
 }
 
-export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extends AbstractMode<W> implements lifecycle.IDisposable {
+export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extends AbstractMode implements lifecycle.IDisposable {
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
@@ -151,6 +151,8 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	private _projectResolver: WinJS.TPromise<typescript.IProjectResolver2>;
 	private _semanticValidator: SemanticValidator;
 	private _modeWorkerManager: ModeWorkerManager<W>;
+	private _threadService:IThreadService;
+	private _instantiationService: IInstantiationService;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
@@ -158,7 +160,9 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 		@IThreadService threadService: IThreadService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(descriptor, instantiationService, threadService);
+		super(descriptor.id);
+		this._threadService = threadService;
+		this._instantiationService = instantiationService;
 		this._telemetryService = telemetryService;
 		this._modeWorkerManager = this._createModeWorkerManager(descriptor, instantiationService);
 

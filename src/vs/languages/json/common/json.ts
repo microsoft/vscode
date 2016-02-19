@@ -20,7 +20,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
-export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Modes.IExtraInfoSupport, Modes.IOutlineSupport, IThreadSynchronizableObject<ISchemaContributions> {
+export class JSONMode extends AbstractMode implements Modes.IExtraInfoSupport, Modes.IOutlineSupport, IThreadSynchronizableObject<ISchemaContributions> {
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
@@ -34,14 +34,16 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 	public outlineGroupLabel : { [name: string]: string; };
 
 	private _modeWorkerManager: ModeWorkerManager<jsonWorker.JSONWorker>;
+	private _threadService:IThreadService;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThreadService threadService: IThreadService
 	) {
-		super(descriptor, instantiationService, threadService);
+		super(descriptor.id);
 		this._modeWorkerManager = new ModeWorkerManager<jsonWorker.JSONWorker>(descriptor, 'vs/languages/json/common/jsonWorker', 'JSONWorker', null, instantiationService);
+		this._threadService = threadService;
 
 		this.tokenizationSupport = tokenization.createTokenizationSupport(this, true);
 

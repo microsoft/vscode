@@ -9,7 +9,6 @@ import htmlMode = require('vs/languages/html/common/html');
 import handlebarsTokenTypes = require('vs/languages/handlebars/common/handlebarsTokenTypes');
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
@@ -109,10 +108,9 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 	constructor(
 		descriptor:Modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThreadService threadService: IThreadService,
 		@IModeService modeService: IModeService
 	) {
-		super(descriptor, instantiationService, threadService, modeService);
+		super(descriptor, instantiationService, modeService);
 
 		this.formattingSupport = null;
 	}

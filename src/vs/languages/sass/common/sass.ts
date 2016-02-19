@@ -278,7 +278,7 @@ export var language = <Types.ILanguage>{
 	}
 };
 
-export class SASSMode extends Monarch.MonarchMode<sassWorker.SassWorker> implements Modes.IExtraInfoSupport, Modes.IOutlineSupport {
+export class SASSMode extends Monarch.MonarchMode implements Modes.IExtraInfoSupport, Modes.IOutlineSupport {
 
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public configSupport:Modes.IConfigurationSupport;
@@ -291,6 +291,7 @@ export class SASSMode extends Monarch.MonarchMode<sassWorker.SassWorker> impleme
 
 	private modeService: IModeService;
 	private _modeWorkerManager: ModeWorkerManager<sassWorker.SassWorker>;
+	private _threadService:IThreadService;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
@@ -300,8 +301,9 @@ export class SASSMode extends Monarch.MonarchMode<sassWorker.SassWorker> impleme
 		@IModelService modelService: IModelService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(descriptor, Compile.compile(language), instantiationService, threadService, modeService, modelService, editorWorkerService);
+		super(descriptor.id, Compile.compile(language), modeService, modelService, editorWorkerService);
 		this._modeWorkerManager = new ModeWorkerManager<sassWorker.SassWorker>(descriptor, 'vs/languages/sass/common/sassWorker', 'SassWorker', 'vs/languages/css/common/cssWorker', instantiationService);
+		this._threadService = threadService;
 
 		this.modeService = modeService;
 

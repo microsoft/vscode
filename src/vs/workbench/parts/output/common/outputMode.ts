@@ -9,7 +9,6 @@ import types = require('vs/editor/common/modes/monarch/monarchTypes');
 import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
 import {IModeDescriptor} from 'vs/editor/common/modes';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {OutputWorker} from 'vs/workbench/parts/output/common/outputWorker';
@@ -44,7 +43,7 @@ export const language: types.ILanguage = {
 	}
 };
 
-export class OutputMode extends MonarchMode<OutputWorker> {
+export class OutputMode extends MonarchMode {
 
 	public linkSupport:Modes.ILinkSupport;
 
@@ -53,12 +52,11 @@ export class OutputMode extends MonarchMode<OutputWorker> {
 	constructor(
 		descriptor:IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThreadService threadService: IThreadService,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(descriptor, compile(language), instantiationService, threadService, modeService, modelService, editorWorkerService);
+		super(descriptor.id, compile(language), modeService, modelService, editorWorkerService);
 		this._modeWorkerManager = new ModeWorkerManager<OutputWorker>(descriptor, 'vs/workbench/parts/output/common/outputWorker', 'OutputWorker', null, instantiationService);
 
 		this.linkSupport = this;

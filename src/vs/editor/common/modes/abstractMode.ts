@@ -12,7 +12,6 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 
@@ -81,28 +80,20 @@ export class ModeWorkerManager<W> {
 	}
 }
 
-export abstract class AbstractMode<W> implements Modes.IMode {
+export abstract class AbstractMode implements Modes.IMode {
 
-	_instantiationService:IInstantiationService;
-	_threadService:IThreadService;
-	private _descriptor:Modes.IModeDescriptor;
-
-	private _eventEmitter = new EventEmitter();
+	private _modeId: string;
+	private _eventEmitter: EventEmitter;
 	private _simplifiedMode: Modes.IMode;
 
-	constructor(
-		descriptor:Modes.IModeDescriptor,
-		instantiationService: IInstantiationService,
-		threadService: IThreadService
-	) {
-		this._instantiationService = instantiationService;
-		this._threadService = threadService;
-		this._descriptor = descriptor;
+	constructor(modeId:string) {
+		this._modeId = modeId;
+		this._eventEmitter = new EventEmitter();
 		this._simplifiedMode = null;
 	}
 
 	public getId(): string {
-		return this._descriptor.id;
+		return this._modeId;
 	}
 
 	public toSimplifiedMode(): Modes.IMode {
@@ -111,8 +102,6 @@ export abstract class AbstractMode<W> implements Modes.IMode {
 		}
 		return this._simplifiedMode;
 	}
-
-	// START mics interface implementations
 
 	public addSupportChangedListener(callback: (e: EditorCommon.IModeSupportChangedEvent) => void) : IDisposable {
 		return this._eventEmitter.addListener2('modeSupportChanged', callback);
@@ -132,8 +121,6 @@ export abstract class AbstractMode<W> implements Modes.IMode {
 			}
 		};
 	}
-
-	// END
 }
 
 class SimplifiedMode implements Modes.IMode {
@@ -265,17 +252,15 @@ export var isDigit:(character:string, base:number)=>boolean = (function () {
 	};
 })();
 
-export class FrankensteinMode extends AbstractMode<void> {
+export class FrankensteinMode extends AbstractMode {
 
 	public suggestSupport:Modes.ISuggestSupport;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThreadService threadService: IThreadService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(descriptor, instantiationService, threadService);
+		super(descriptor.id);
 
 		this.suggestSupport = new TextualSuggestSupport(this.getId(), editorWorkerService);
 	}

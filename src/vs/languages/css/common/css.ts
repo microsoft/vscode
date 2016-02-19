@@ -278,7 +278,7 @@ export class State extends AbstractState {
 	}
 }
 
-export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
+export class CSSMode extends AbstractMode {
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
@@ -294,14 +294,16 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 	public quickFixSupport: Modes.IQuickFixSupport;
 
 	private _modeWorkerManager: ModeWorkerManager<cssWorker.CSSWorker>;
+	private _threadService:IThreadService;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThreadService threadService: IThreadService
 	) {
-		super(descriptor, instantiationService, threadService);
+		super(descriptor.id);
 		this._modeWorkerManager = new ModeWorkerManager<cssWorker.CSSWorker>(descriptor, 'vs/languages/css/common/cssWorker', 'CSSWorker', null, instantiationService);
+		this._threadService = threadService;
 
 		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new State(this, States.Selector, false, null, false, 0)

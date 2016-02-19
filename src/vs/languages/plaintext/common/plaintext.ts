@@ -7,8 +7,6 @@
 import Modes = require('vs/editor/common/modes');
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {TextualSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
@@ -38,18 +36,16 @@ class State extends AbstractState {
 	}
 }
 
-export class Mode extends AbstractMode<void> {
+export class Mode extends AbstractMode {
 
 	public suggestSupport:Modes.ISuggestSupport;
 	public tokenizationSupport: Modes.ITokenizationSupport;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThreadService threadService: IThreadService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(descriptor, instantiationService, threadService);
+		super(descriptor.id);
 		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new State(this)
 		}, false, false);

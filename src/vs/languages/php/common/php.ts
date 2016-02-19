@@ -10,8 +10,6 @@ import Modes = require('vs/editor/common/modes');
 import {AbstractMode, isDigit, createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {TextualSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
@@ -458,7 +456,7 @@ export class PHPEnterHTMLState extends PHPState {
 
 }
 
-export class PHPMode extends AbstractMode<void> implements ITokenizationCustomization {
+export class PHPMode extends AbstractMode implements ITokenizationCustomization {
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
@@ -468,12 +466,10 @@ export class PHPMode extends AbstractMode<void> implements ITokenizationCustomiz
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThreadService threadService: IThreadService,
 		@IModeService modeService: IModeService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(descriptor, instantiationService, threadService);
+		super(descriptor.id);
 		this.modeService = modeService;
 
 		this.tokenizationSupport = new TokenizationSupport(this, this, true, false);

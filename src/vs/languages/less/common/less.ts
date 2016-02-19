@@ -176,7 +176,7 @@ export var language: Types.ILanguage = <Types.ILanguage> {
 	}
 };
 
-export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> implements Modes.IExtraInfoSupport, Modes.IOutlineSupport {
+export class LESSMode extends Monarch.MonarchMode implements Modes.IExtraInfoSupport, Modes.IOutlineSupport {
 
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public configSupport:Modes.IConfigurationSupport;
@@ -189,6 +189,7 @@ export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> impleme
 
 	private modeService: IModeService;
 	private _modeWorkerManager: ModeWorkerManager<lessWorker.LessWorker>;
+	private _threadService:IThreadService;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
@@ -198,8 +199,9 @@ export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> impleme
 		@IModelService modelService: IModelService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(descriptor, Compile.compile(language), instantiationService, threadService, modeService, modelService, editorWorkerService);
+		super(descriptor.id, Compile.compile(language), modeService, modelService, editorWorkerService);
 		this._modeWorkerManager = new ModeWorkerManager<lessWorker.LessWorker>(descriptor, 'vs/languages/less/common/lessWorker', 'LessWorker', 'vs/languages/css/common/cssWorker', instantiationService);
+		this._threadService = threadService;
 
 		this.modeService = modeService;
 
