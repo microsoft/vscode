@@ -67,6 +67,13 @@
 	border-bottom-right-radius: 0;
 }
 
+.monaco-editor.hc-black .selectionHighlight {
+	background: none;
+	border: 1px dotted #DF740C;
+	-moz-box-sizing: border-box;
+	box-sizing: border-box;
+}
+
 /* Squigglies */
 .monaco-editor.hc-black .redsquiggly {
 	background: none;
