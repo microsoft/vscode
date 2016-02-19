@@ -160,7 +160,8 @@ export class ExtensionsService implements IExtensionsService {
 				const codeVersion = this.contextService.getConfiguration().env.version;
 				const desc = {
 					isBuiltin: false,
-					engines: { vscode: manifest.engines.vscode }
+					engines: { vscode: manifest.engines.vscode },
+					main: manifest.main
 				};
 
 				if (!isValidExtensionVersion(codeVersion, desc, [])) {

@@ -16,6 +16,7 @@ export interface IExtensionManifest {
 	engines: { vscode: string };
 	displayName?: string;
 	description?: string;
+	main?: string;
 }
 
 export interface IGalleryVersion {
