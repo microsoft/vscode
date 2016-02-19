@@ -12,9 +12,8 @@ import Modes = require('vs/editor/common/modes');
 import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import cssWorker = require('vs/languages/css/common/cssWorker');
 import cssTokenTypes = require('vs/languages/css/common/cssTokenTypes');
-import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
+import {AbstractMode, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {IMarker} from 'vs/platform/markers/common/markers';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
@@ -283,7 +282,6 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
-
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public configSupport:Modes.IConfigurationSupport;
 	public referenceSupport: Modes.IReferenceSupport;
@@ -295,12 +293,15 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 	public suggestSupport: Modes.ISuggestSupport;
 	public quickFixSupport: Modes.IQuickFixSupport;
 
+	private _modeWorkerManager: ModeWorkerManager<cssWorker.CSSWorker>;
+
 	constructor(
 		descriptor:Modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThreadService threadService: IThreadService
 	) {
 		super(descriptor, instantiationService, threadService);
+		this._modeWorkerManager = new ModeWorkerManager<cssWorker.CSSWorker>(descriptor, 'vs/languages/css/common/cssWorker', 'CSSWorker', null, instantiationService);
 
 		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new State(this, States.Selector, false, null, false, 0)
@@ -366,8 +367,8 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 		}
 	}
 
-	protected _getWorkerDescriptor(): AsyncDescriptor2<string, Modes.IWorkerParticipant[], cssWorker.CSSWorker> {
-		return createAsyncDescriptor2('vs/languages/css/common/cssWorker', 'CSSWorker');
+	private _worker<T>(runner:(worker:cssWorker.CSSWorker)=>WinJS.TPromise<T>): WinJS.TPromise<T> {
+		return this._modeWorkerManager.worker(runner);
 	}
 
 	public configure(options:any): WinJS.TPromise<void> {

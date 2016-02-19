@@ -16,10 +16,10 @@ import quickFixMainActions = require('vs/languages/typescript/common/features/qu
 import typescriptWorker = require('vs/languages/typescript/common/typescriptWorker2');
 import typescript = require('vs/languages/typescript/common/typescript');
 import ts = require('vs/languages/typescript/common/lib/typescriptServices');
-import {AbstractMode, createWordRegExp} from 'vs/editor/common/modes/abstractMode';
+import {AbstractMode, createWordRegExp, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
-import {AsyncDescriptor, AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
+import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IMarker} from 'vs/platform/markers/common/markers';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
@@ -150,6 +150,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	private _disposables: lifecycle.IDisposable[] = [];
 	private _projectResolver: WinJS.TPromise<typescript.IProjectResolver2>;
 	private _semanticValidator: SemanticValidator;
+	private _modeWorkerManager: ModeWorkerManager<W>;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
@@ -159,6 +160,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	) {
 		super(descriptor, instantiationService, threadService);
 		this._telemetryService = telemetryService;
+		this._modeWorkerManager = this._createModeWorkerManager(descriptor, instantiationService);
 
 		if (this._threadService && this._threadService.isInMainThread) {
 
@@ -283,6 +285,16 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 		}
 	}
 
+	protected _createModeWorkerManager(descriptor:Modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<W> {
+		return new ModeWorkerManager<W>(descriptor, 'vs/languages/typescript/common/typescriptWorker2', 'TypeScriptWorker2', null, instantiationService);
+	}
+
+	protected _worker<T>(runner:(worker:W)=>WinJS.TPromise<T>): WinJS.TPromise<T>;
+	protected _worker<T>(runner:(worker:W)=>T): WinJS.TPromise<T>;
+	protected _worker<T>(runner:(worker:W)=>any): WinJS.TPromise<T> {
+		return this._modeWorkerManager.worker(runner);
+	}
+
 	public dispose(): void {
 		this._disposables = lifecycle.disposeAll(this._disposables);
 	}
@@ -394,10 +406,6 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	}
 
 	// ---- worker talk
-
-	protected _getWorkerDescriptor(): AsyncDescriptor2<string, Modes.IWorkerParticipant[], typescriptWorker.TypeScriptWorker2> {
-		return createAsyncDescriptor2('vs/languages/typescript/common/typescriptWorker2', 'TypeScriptWorker2');
-	}
 
 	static $_pickAWorkerToValidate = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype._pickAWorkerToValidate, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group3);
 	private _pickAWorkerToValidate(): WinJS.Promise {

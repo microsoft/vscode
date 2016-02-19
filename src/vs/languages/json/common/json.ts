@@ -12,10 +12,9 @@ import Platform = require('vs/platform/platform');
 import nls = require('vs/nls');
 import jsonWorker = require('vs/languages/json/common/jsonWorker');
 import tokenization = require('vs/languages/json/common/features/tokenization');
-import {AbstractMode, createWordRegExp} from 'vs/editor/common/modes/abstractMode';
+import {AbstractMode, createWordRegExp, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
 import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import {IThreadService, IThreadSynchronizableObject, ThreadAffinity} from 'vs/platform/thread/common/thread';
-import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {IJSONContributionRegistry, Extensions, ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
@@ -25,16 +24,16 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
-
 	public configSupport:Modes.IConfigurationSupport;
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public extraInfoSupport: Modes.IExtraInfoSupport;
 	public outlineSupport: Modes.IOutlineSupport;
 	public formattingSupport: Modes.IFormattingSupport;
-
 	public suggestSupport: Modes.ISuggestSupport;
 
 	public outlineGroupLabel : { [name: string]: string; };
+
+	private _modeWorkerManager: ModeWorkerManager<jsonWorker.JSONWorker>;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
@@ -42,6 +41,7 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 		@IThreadService threadService: IThreadService
 	) {
 		super(descriptor, instantiationService, threadService);
+		this._modeWorkerManager = new ModeWorkerManager<jsonWorker.JSONWorker>(descriptor, 'vs/languages/json/common/jsonWorker', 'JSONWorker', null, instantiationService);
 
 		this.tokenizationSupport = tokenization.createTokenizationSupport(this, true);
 
@@ -111,6 +111,10 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 		}
 	}
 
+	private _worker<T>(runner:(worker:jsonWorker.JSONWorker)=>WinJS.TPromise<T>): WinJS.TPromise<T> {
+		return this._modeWorkerManager.worker(runner);
+	}
+
 	private getSchemaConfiguration() : ISchemaContributions {
 		var contributionRegistry = <IJSONContributionRegistry> Platform.Registry.as(Extensions.JSONContribution);
 		return contributionRegistry.getSchemaContributions();
@@ -125,10 +129,6 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 		// worker promise and the next call to the worker will wait until this
 		// call went through.
 		this._worker((w) => w.setSchemaContributions(data));
-	}
-
-	protected _getWorkerDescriptor(): AsyncDescriptor2<string, Modes.IWorkerParticipant[], jsonWorker.JSONWorker> {
-		return createAsyncDescriptor2('vs/languages/json/common/jsonWorker', 'JSONWorker');
 	}
 
 	public configure(options:any): WinJS.TPromise<void> {

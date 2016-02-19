@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
 import tokenization = require('vs/languages/typescript/common/features/tokenization');
 import javascriptWorker = require('vs/languages/javascript/common/javascriptWorker');
 import typescriptMode = require('vs/languages/typescript/common/typescriptMode');
@@ -12,8 +11,8 @@ import typescript = require('vs/languages/typescript/common/typescript');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import extensions = require('vs/languages/javascript/common/javascript.extensions');
-import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
-import {AsyncDescriptor, AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
+import {createWordRegExp, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
+import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -120,17 +119,8 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 			getSuggestionDetails: (resource, position, suggestion) => this.getSuggestionDetails(resource, position, suggestion)});
 	}
 
-	public asyncCtor(): winjs.Promise {
-		if (!this._threadService.isInMainThread) {
-			return new winjs.Promise((c, e, p) => {
-				// TODO@Alex: workaround for missing `bundles` config, before instantiating the javascriptWorker, we ensure the typescriptWorker has been loaded
-				(<any>require)(['vs/languages/typescript/common/typescriptWorker2'], (worker:any) => {
-					c(this);
-				});
-			});
-		} else {
-			return winjs.TPromise.as(this);
-		}
+	protected _createModeWorkerManager(descriptor:Modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<javascriptWorker.JavaScriptWorker> {
+		return new ModeWorkerManager<javascriptWorker.JavaScriptWorker>(descriptor, 'vs/languages/javascript/common/javascriptWorker', 'JavaScriptWorker', 'vs/languages/typescript/common/typescriptWorker2', instantiationService);
 	}
 
 	// ---- specialize by override
@@ -141,10 +131,6 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 
 	_shouldBeValidated(model: EditorCommon.IModel): boolean {
 		return model.getMode() === this || /\.(d\.ts|js)$/.test(model.getAssociatedResource().fsPath);
-	}
-
-	protected _getWorkerDescriptor(): AsyncDescriptor2<string, Modes.IWorkerParticipant[], javascriptWorker.JavaScriptWorker> {
-		return createAsyncDescriptor2('vs/languages/javascript/common/javascriptWorker', 'JavaScriptWorker');
 	}
 
 	public get filter() {

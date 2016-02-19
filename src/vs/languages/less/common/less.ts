@@ -13,9 +13,8 @@ import Types = require('vs/editor/common/modes/monarch/monarchTypes');
 import Compile = require('vs/editor/common/modes/monarch/monarchCompile');
 import lessWorker = require('vs/languages/less/common/lessWorker');
 import * as lessTokenTypes from 'vs/languages/less/common/lessTokenTypes';
-import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
+import {ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
 import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
-import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
@@ -189,6 +188,7 @@ export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> impleme
 	public suggestSupport: Modes.ISuggestSupport;
 
 	private modeService: IModeService;
+	private _modeWorkerManager: ModeWorkerManager<lessWorker.LessWorker>;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
@@ -199,6 +199,7 @@ export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> impleme
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
 		super(descriptor, Compile.compile(language), instantiationService, threadService, modeService, modelService, editorWorkerService);
+		this._modeWorkerManager = new ModeWorkerManager<lessWorker.LessWorker>(descriptor, 'vs/languages/less/common/lessWorker', 'LessWorker', 'vs/languages/css/common/cssWorker', instantiationService);
 
 		this.modeService = modeService;
 
@@ -227,17 +228,8 @@ export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> impleme
 		}
 	}
 
-	protected _getWorkerDescriptor(): AsyncDescriptor2<string, Modes.IWorkerParticipant[], lessWorker.LessWorker> {
-		return createAsyncDescriptor2('vs/languages/less/common/lessWorker', 'LessWorker');
-	}
-
-	_worker<T>(runner:(worker:lessWorker.LessWorker)=>winjs.TPromise<T>): winjs.TPromise<T> {
-		// TODO@Alex: workaround for missing `bundles` config, before instantiating the lessWorker, we ensure the cssWorker has been loaded
-		return this.modeService.getOrCreateMode('css').then((cssMode) => {
-			return (<AbstractMode<any>>cssMode)._worker((worker) => winjs.TPromise.as(true));
-		}).then(() => {
-			return super._worker(runner);
-		});
+	private _worker<T>(runner:(worker:lessWorker.LessWorker)=>winjs.TPromise<T>): winjs.TPromise<T> {
+		return this._modeWorkerManager.worker(runner);
 	}
 
 	public configure(options:any): winjs.TPromise<void> {

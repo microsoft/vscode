@@ -5,12 +5,11 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import { AsyncDescriptor2, createAsyncDescriptor2 } from 'vs/platform/instantiation/common/descriptors';
 import winjs = require('vs/base/common/winjs.base');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
-import { AbstractMode, createWordRegExp } from 'vs/editor/common/modes/abstractMode';
+import { AbstractMode, createWordRegExp, ModeWorkerManager } from 'vs/editor/common/modes/abstractMode';
 import { AbstractState } from 'vs/editor/common/modes/abstractState';
 import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
 import {IModeService} from 'vs/editor/common/services/modeService';
@@ -284,6 +283,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 	public suggestSupport: Modes.ISuggestSupport;
 
 	private modeService:IModeService;
+	private _modeWorkerManager: ModeWorkerManager<W>;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
@@ -292,6 +292,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 		@IModeService modeService: IModeService
 	) {
 		super(descriptor, instantiationService, threadService);
+		this._modeWorkerManager = this._createModeWorkerManager(descriptor, instantiationService);
 
 		this.modeService = modeService;
 
@@ -328,6 +329,14 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 			var autoClosingPairs = this._getAutoClosingPairs(embeddableModes);
 			this.richEditSupport = this._createRichEditSupport(autoClosingPairs);
 		});
+	}
+
+	protected _createModeWorkerManager(descriptor:Modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<W> {
+		return new ModeWorkerManager<W>(descriptor, 'vs/languages/html/common/htmlWorker', 'HTMLWorker', null, instantiationService);
+	}
+
+	private _worker<T>(runner:(worker:W)=>winjs.TPromise<T>): winjs.TPromise<T> {
+		return this._modeWorkerManager.worker(runner);
 	}
 
 	protected _createRichEditSupport(embeddedAutoClosingPairs: Modes.IAutoClosingPair[]): Modes.IRichEditSupport {
@@ -462,10 +471,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 			};
 		}
 		return null;
-	}
-
-	protected _getWorkerDescriptor(): AsyncDescriptor2<string, Modes.IWorkerParticipant[], htmlWorker.HTMLWorker> {
-		return createAsyncDescriptor2('vs/languages/html/common/htmlWorker', 'HTMLWorker');
 	}
 
 	static $computeLinks = OneWorkerAttr(HTMLMode, HTMLMode.prototype.computeLinks);

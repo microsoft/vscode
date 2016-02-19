@@ -20,53 +20,52 @@ export function createWordRegExp(allowInWords:string = ''): RegExp {
 	return NullMode.createWordRegExp(allowInWords);
 }
 
-export abstract class AbstractMode<W> implements Modes.IMode {
+export class ModeWorkerManager<W> {
 
-	_instantiationService:IInstantiationService;
-	_threadService:IThreadService;
-	private _descriptor:Modes.IModeDescriptor;
-
+	private _descriptor: Modes.IModeDescriptor;
+	private _workerDescriptor: AsyncDescriptor2<string, Modes.IWorkerParticipant[], W>;
+	private _superWorkerModuleId: string;
+	private _instantiationService: IInstantiationService;
 	private _workerPiecePromise:TPromise<W>;
-
-	private _eventEmitter = new EventEmitter();
-	private _simplifiedMode: Modes.IMode;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
-		instantiationService: IInstantiationService,
-		threadService: IThreadService
+		workerModuleId:string,
+		workerClassName:string,
+		superWorkerModuleId:string,
+		instantiationService: IInstantiationService
 	) {
-		this._instantiationService = instantiationService;
-		this._threadService = threadService;
 		this._descriptor = descriptor;
-
+		this._workerDescriptor = createAsyncDescriptor2(workerModuleId, workerClassName);
+		this._superWorkerModuleId = superWorkerModuleId;
+		this._instantiationService = instantiationService;
 		this._workerPiecePromise = null;
-		this._simplifiedMode = null;
 	}
 
-	public getId(): string {
-		return this._descriptor.id;
-	}
-
-	public toSimplifiedMode(): Modes.IMode {
-		if (!this._simplifiedMode) {
-			this._simplifiedMode = new SimplifiedMode(this);
-		}
-		return this._simplifiedMode;
+	public worker<T>(runner:(worker:W)=>TPromise<T>): TPromise<T>
+	public worker<T>(runner:(worker:W)=>T): TPromise<T> {
+		return this._getOrCreateWorker().then(runner);
 	}
 
 	private _getOrCreateWorker(): TPromise<W> {
 		if (!this._workerPiecePromise) {
-			var workerDescriptor: AsyncDescriptor2<string, Modes.IWorkerParticipant[], W> = this._getWorkerDescriptor();
-			// First, load the code of the worker (without instantiating it)
-			this._workerPiecePromise = AbstractMode._loadModule(workerDescriptor.moduleName).then(() => {
+			// TODO@Alex: workaround for missing `bundles` config
+
+			// First, load the code of the worker super class
+			let superWorkerCodePromise = (this._superWorkerModuleId ? ModeWorkerManager._loadModule(this._superWorkerModuleId) : TPromise.as(null));
+
+			this._workerPiecePromise = superWorkerCodePromise.then(() => {
+				// Second, load the code of the worker (without instantiating it)
+				return ModeWorkerManager._loadModule(this._workerDescriptor.moduleName);
+			}).then(() => {
 				// Then, load & instantiate all the participants
 				var participants = this._descriptor.workerParticipants;
 				return TPromise.join<Modes.IWorkerParticipant>(participants.map((participant) => {
 					return this._instantiationService.createInstance(participant);
 				}));
 			}).then((participants:Modes.IWorkerParticipant[]) => {
-				return this._instantiationService.createInstance<string, Modes.IWorkerParticipant[], W>(workerDescriptor, this.getId(), participants);
+				// Finally, create the mode worker instance
+				return this._instantiationService.createInstance<string, Modes.IWorkerParticipant[], W>(this._workerDescriptor, this._descriptor.id, participants);
 			});
 		}
 
@@ -80,15 +79,37 @@ export abstract class AbstractMode<W> implements Modes.IMode {
 			// Cannot cancel loading code
 		});
 	}
+}
 
-	protected _getWorkerDescriptor(): AsyncDescriptor2<string, Modes.IWorkerParticipant[], W> {
-		return createAsyncDescriptor2('vs/editor/common/modes/nullWorker', 'NullWorker');
+export abstract class AbstractMode<W> implements Modes.IMode {
+
+	_instantiationService:IInstantiationService;
+	_threadService:IThreadService;
+	private _descriptor:Modes.IModeDescriptor;
+
+	private _eventEmitter = new EventEmitter();
+	private _simplifiedMode: Modes.IMode;
+
+	constructor(
+		descriptor:Modes.IModeDescriptor,
+		instantiationService: IInstantiationService,
+		threadService: IThreadService
+	) {
+		this._instantiationService = instantiationService;
+		this._threadService = threadService;
+		this._descriptor = descriptor;
+		this._simplifiedMode = null;
 	}
 
-	_worker<T>(runner:(worker:W)=>TPromise<T>): TPromise<T>;
-	_worker<T>(runner:(worker:W)=>T): TPromise<T>;
-	_worker<T>(runner:(worker:W)=>any): TPromise<T> {
-		return this._getOrCreateWorker().then(runner);
+	public getId(): string {
+		return this._descriptor.id;
+	}
+
+	public toSimplifiedMode(): Modes.IMode {
+		if (!this._simplifiedMode) {
+			this._simplifiedMode = new SimplifiedMode(this);
+		}
+		return this._simplifiedMode;
 	}
 
 	// START mics interface implementations

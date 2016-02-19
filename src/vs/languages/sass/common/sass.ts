@@ -13,9 +13,8 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import sassWorker = require('vs/languages/sass/common/sassWorker');
 import * as sassTokenTypes from 'vs/languages/sass/common/sassTokenTypes';
-import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
+import {ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
 import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
-import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
@@ -291,6 +290,7 @@ export class SASSMode extends Monarch.MonarchMode<sassWorker.SassWorker> impleme
 	public suggestSupport: Modes.ISuggestSupport;
 
 	private modeService: IModeService;
+	private _modeWorkerManager: ModeWorkerManager<sassWorker.SassWorker>;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
@@ -301,6 +301,7 @@ export class SASSMode extends Monarch.MonarchMode<sassWorker.SassWorker> impleme
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
 		super(descriptor, Compile.compile(language), instantiationService, threadService, modeService, modelService, editorWorkerService);
+		this._modeWorkerManager = new ModeWorkerManager<sassWorker.SassWorker>(descriptor, 'vs/languages/sass/common/sassWorker', 'SassWorker', 'vs/languages/css/common/cssWorker', instantiationService);
 
 		this.modeService = modeService;
 
@@ -329,17 +330,8 @@ export class SASSMode extends Monarch.MonarchMode<sassWorker.SassWorker> impleme
 		}
 	}
 
-	protected _getWorkerDescriptor(): AsyncDescriptor2<string, Modes.IWorkerParticipant[], sassWorker.SassWorker> {
-		return createAsyncDescriptor2('vs/languages/sass/common/sassWorker', 'SassWorker');
-	}
-
-	_worker<T>(runner:(worker:sassWorker.SassWorker)=>winjs.TPromise<T>): winjs.TPromise<T> {
-		// TODO@Alex: workaround for missing `bundles` config, before instantiating the sassWorker, we ensure the cssWorker has been loaded
-		return this.modeService.getOrCreateMode('css').then((cssMode) => {
-			return (<AbstractMode<any>>cssMode)._worker((worker) => winjs.TPromise.as(true));
-		}).then(() => {
-			return super._worker(runner);
-		});
+	private _worker<T>(runner:(worker:sassWorker.SassWorker)=>winjs.TPromise<T>): winjs.TPromise<T> {
+		return this._modeWorkerManager.worker(runner);
 	}
 
 	public configure(options:any): winjs.TPromise<void> {

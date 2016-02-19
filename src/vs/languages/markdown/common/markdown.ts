@@ -12,7 +12,6 @@ import Compile = require('vs/editor/common/modes/monarch/monarchCompile');
 import Modes = require('vs/editor/common/modes');
 import MarkdownWorker = require('vs/languages/markdown/common/markdownWorker');
 import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
-import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {htmlTokenTypes} from 'vs/languages/html/common/html';
 import markdownTokenTypes = require('vs/languages/markdown/common/markdownTokenTypes');
 import {IModeService} from 'vs/editor/common/services/modeService';
@@ -21,6 +20,7 @@ import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
+import {ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
 
 export const language =
 	<Types.ILanguage>{
@@ -211,6 +211,8 @@ export class MarkdownMode extends Monarch.MonarchMode<MarkdownWorker.MarkdownWor
 	public emitOutputSupport: Modes.IEmitOutputSupport;
 	public configSupport:Modes.IConfigurationSupport;
 
+	private _modeWorkerManager: ModeWorkerManager<MarkdownWorker.MarkdownWorker>;
+
 	constructor(
 		descriptor:Modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -221,9 +223,14 @@ export class MarkdownMode extends Monarch.MonarchMode<MarkdownWorker.MarkdownWor
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
 		super(descriptor, Compile.compile(language), instantiationService, threadService, modeService, modelService, editorWorkerService);
+		this._modeWorkerManager = new ModeWorkerManager<MarkdownWorker.MarkdownWorker>(descriptor, 'vs/languages/markdown/common/markdownWorker', 'MarkdownWorker', null, instantiationService);
 
 		this.emitOutputSupport = this;
 		this.configSupport = this;
+	}
+
+	private _worker<T>(runner:(worker:MarkdownWorker.MarkdownWorker)=>WinJS.TPromise<T>): WinJS.TPromise<T> {
+		return this._modeWorkerManager.worker(runner);
 	}
 
 	public configure(options:any): WinJS.TPromise<void> {
@@ -242,9 +249,5 @@ export class MarkdownMode extends Monarch.MonarchMode<MarkdownWorker.MarkdownWor
 	static $getEmitOutput = OneWorkerAttr(MarkdownMode, MarkdownMode.prototype.getEmitOutput);
 	public getEmitOutput(resource: URI, absoluteWorkerResourcesPath?: string): WinJS.TPromise<Modes.IEmitOutput> { // TODO@Ben technical debt: worker cannot resolve paths absolute
 		return this._worker((w) => w.getEmitOutput(resource, absoluteWorkerResourcesPath));
-	}
-
-	protected _getWorkerDescriptor(): AsyncDescriptor2<string, Modes.IWorkerParticipant[], MarkdownWorker.MarkdownWorker> {
-		return createAsyncDescriptor2('vs/languages/markdown/common/markdownWorker', 'MarkdownWorker');
 	}
 }

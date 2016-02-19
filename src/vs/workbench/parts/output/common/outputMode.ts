@@ -7,8 +7,7 @@
 import {MonarchMode} from 'vs/editor/common/modes/monarch/monarch';
 import types = require('vs/editor/common/modes/monarch/monarchTypes');
 import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
-import {IModeDescriptor, IWorkerParticipant} from 'vs/editor/common/modes';
-import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
+import {IModeDescriptor} from 'vs/editor/common/modes';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModelService} from 'vs/editor/common/services/modelService';
@@ -19,6 +18,7 @@ import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
 import URI from 'vs/base/common/uri';
 import Modes = require('vs/editor/common/modes');
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
+import {ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
 
 export const language: types.ILanguage = {
 	displayName: 'Log',
@@ -48,6 +48,8 @@ export class OutputMode extends MonarchMode<OutputWorker> {
 
 	public linkSupport:Modes.ILinkSupport;
 
+	private _modeWorkerManager: ModeWorkerManager<OutputWorker>;
+
 	constructor(
 		descriptor:IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -57,12 +59,13 @@ export class OutputMode extends MonarchMode<OutputWorker> {
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
 		super(descriptor, compile(language), instantiationService, threadService, modeService, modelService, editorWorkerService);
+		this._modeWorkerManager = new ModeWorkerManager<OutputWorker>(descriptor, 'vs/workbench/parts/output/common/outputWorker', 'OutputWorker', null, instantiationService);
 
 		this.linkSupport = this;
 	}
 
-	protected _getWorkerDescriptor(): AsyncDescriptor2<string, IWorkerParticipant[], OutputWorker> {
-		return createAsyncDescriptor2('vs/workbench/parts/output/common/outputWorker', 'OutputWorker');
+	private _worker<T>(runner:(worker:OutputWorker)=>winjs.TPromise<T>): winjs.TPromise<T> {
+		return this._modeWorkerManager.worker(runner);
 	}
 
 	static $computeLinks = OneWorkerAttr(OutputMode, OutputMode.prototype.computeLinks);
