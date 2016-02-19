@@ -10,6 +10,9 @@
 	"engines": {
 		"vscode": "*"
 	},
+	"dependencies": {
+    "vscode-extension-telemetry": "^0.0.4"
+	},
 	"scripts": {
 		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../gulpfile.plugins.js compile-plugin:typescript ./src/tsconfig.json"
 	},

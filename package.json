@@ -13,7 +13,7 @@
   "scripts": {
     "test": "node node_modules/mocha/bin/_mocha",
     "preinstall": "node build/npm/preinstall.js",
-    "postinstall": "npm --prefix extensions/vscode-api-tests/ install extensions/vscode-api-tests/ && npm --prefix extensions/json/ install extensions/json/"
+    "postinstall": "npm --prefix extensions/vscode-api-tests/ install extensions/vscode-api-tests/ && npm --prefix extensions/json/ install extensions/json/ && npm --prefix extensions/typescript/ install extensions/typescript/"
   },
   "dependencies": {
     "applicationinsights": "0.15.6",
@@ -28,7 +28,6 @@
     "sax": "^1.1.1",
     "semver": "^4.2.0",
     "vscode-debugprotocol": "^1.5.0",
-    "vscode-extension-telemetry": "^0.0.4",
     "vscode-textmate": "^1.0.11",
     "weak": "^1.0.1",
     "winreg": "0.0.12",
