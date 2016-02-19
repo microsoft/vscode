@@ -26,6 +26,7 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
 
+	public configSupport:Modes.IConfigurationSupport;
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public extraInfoSupport: Modes.IExtraInfoSupport;
 	public outlineSupport: Modes.IOutlineSupport;
@@ -76,6 +77,7 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 
 		this.extraInfoSupport = this;
 		this.inplaceReplaceSupport = this;
+		this.configSupport = this;
 
 		// Initialize Outline support
 		this.outlineSupport = this;
@@ -127,6 +129,19 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 
 	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], jsonWorker.JSONWorker> {
 		return createAsyncDescriptor2('vs/languages/json/common/jsonWorker', 'JSONWorker');
+	}
+
+	public configure(options:any): WinJS.TPromise<void> {
+		if (this._threadService.isInMainThread) {
+			return this._configureWorkers(options);
+		} else {
+			return this._worker((w) => w._doConfigure(options));
+		}
+	}
+
+	static $_configureWorkers = AllWorkersAttr(JSONMode, JSONMode.prototype._configureWorkers);
+	private _configureWorkers(options:any): WinJS.TPromise<void> {
+		return this._worker((w) => w._doConfigure(options));
 	}
 
 	static $_configureWorkerSchemas = AllWorkersAttr(JSONMode, JSONMode.prototype._configureWorkerSchemas);

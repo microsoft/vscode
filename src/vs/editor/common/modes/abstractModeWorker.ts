@@ -7,11 +7,8 @@
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import Modes = require('vs/editor/common/modes');
-import {TPromise} from 'vs/base/common/winjs.base';
 
 export abstract class AbstractModeWorker {
-
-	private _participants:Modes.IWorkerParticipant[] = [];
 
 	public resourceService:IResourceService;
 	public markerService: IMarkerService;
@@ -26,7 +23,6 @@ export abstract class AbstractModeWorker {
 	) {
 
 		this._mode = mode;
-		this._participants = participants;
 		this.resourceService = resourceService;
 		this.markerService = markerService;
 	}
@@ -35,12 +31,5 @@ export abstract class AbstractModeWorker {
 		return this._mode;
 	}
 
-	public configure(options:any): TPromise<boolean> {
-		this._doConfigure(options);
-		return TPromise.as(true);
-	}
-
-	_doConfigure(options:any): void {
-	}
 }
 

@@ -120,7 +120,7 @@ export class CSSWorker extends AbstractModeWorker {
 		return new parser.Parser();
 	}
 
-	_doConfigure(raw:any): void {
+	_doConfigure(raw:any): winjs.TPromise<void> {
 		if (raw) {
 			this.validationEnabled = raw.validate;
 			if (raw.lint) {
@@ -130,6 +130,8 @@ export class CSSWorker extends AbstractModeWorker {
 			}
 			this._validationHelper.triggerDueToConfigurationChange();
 		}
+
+		return winjs.TPromise.as(void 0);
 	}
 
 	public enableValidator(): winjs.TPromise<void> {

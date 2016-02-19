@@ -14,7 +14,7 @@ import Modes = require('vs/editor/common/modes');
 import sassWorker = require('vs/languages/sass/common/sassWorker');
 import * as sassTokenTypes from 'vs/languages/sass/common/sassTokenTypes';
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
-import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
+import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -282,6 +282,7 @@ export var language = <Types.ILanguage>{
 export class SASSMode extends Monarch.MonarchMode<sassWorker.SassWorker> implements Modes.IExtraInfoSupport, Modes.IOutlineSupport {
 
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
+	public configSupport:Modes.IConfigurationSupport;
 	public referenceSupport: Modes.IReferenceSupport;
 	public logicalSelectionSupport: Modes.ILogicalSelectionSupport;
 	public extraInfoSupport: Modes.IExtraInfoSupport;
@@ -305,6 +306,7 @@ export class SASSMode extends Monarch.MonarchMode<sassWorker.SassWorker> impleme
 
 		this.extraInfoSupport = this;
 		this.inplaceReplaceSupport = this;
+		this.configSupport = this;
 		this.referenceSupport = new ReferenceSupport(this.getId(), {
 			tokens: [sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_VALUE + '.sass', 'variable.decl.sass', 'variable.ref.sass', 'support.function.name.sass', sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_SELECTOR + '.sass'],
 			findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
@@ -338,6 +340,19 @@ export class SASSMode extends Monarch.MonarchMode<sassWorker.SassWorker> impleme
 		}).then(() => {
 			return super._worker(runner);
 		});
+	}
+
+	public configure(options:any): winjs.TPromise<void> {
+		if (this._threadService.isInMainThread) {
+			return this._configureWorkers(options);
+		} else {
+			return this._worker((w) => w._doConfigure(options));
+		}
+	}
+
+	static $_configureWorkers = AllWorkersAttr(SASSMode, SASSMode.prototype._configureWorkers);
+	private _configureWorkers(options:any): winjs.TPromise<void> {
+		return this._worker((w) => w._doConfigure(options));
 	}
 
 	static $navigateValueSet = OneWorkerAttr(SASSMode, SASSMode.prototype.navigateValueSet);

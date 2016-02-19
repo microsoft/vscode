@@ -132,6 +132,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
+	public configSupport:Modes.IConfigurationSupport;
 	public referenceSupport: Modes.IReferenceSupport;
 	public extraInfoSupport:Modes.IExtraInfoSupport;
 	public occurrencesSupport:Modes.IOccurrencesSupport;
@@ -185,6 +186,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 			});
 		}
 
+		this.configSupport = this;
 		this.extraInfoSupport = this;
 		this.occurrencesSupport = this;
 		this.formattingSupport = this;
@@ -370,12 +372,25 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 		}
 	}
 
-	public configure(options: any): WinJS.TPromise<boolean> {
-		var ret = super.configure(options);
+	public superConfigure(options:any): WinJS.TPromise<void> {
+		if (this._threadService.isInMainThread) {
+			return this._configureWorkers(options);
+		} else {
+			return this._worker((w) => w._doConfigure(options));
+		}
+	}
+
+	public configure(options: any): WinJS.TPromise<void> {
+		var ret = this.superConfigure(options);
 		if (this._semanticValidator) {
 			ret.then(validate => validate && this._semanticValidator.validateOpen());
 		}
 		return ret;
+	}
+
+	static $_configureWorkers = AllWorkersAttr(TypeScriptMode, TypeScriptMode.prototype._configureWorkers);
+	private _configureWorkers(options:any): WinJS.TPromise<void> {
+		return this._worker((w) => w._doConfigure(options));
 	}
 
 	// ---- worker talk

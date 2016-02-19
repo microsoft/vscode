@@ -167,7 +167,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 	/**
 	 * @return true if you want to revalidate your models
 	 */
-	_doConfigure(options:IOptions): void {
+	_doConfigure(options:IOptions): WinJS.TPromise<void> {
 		if (options && options.schemas) {
 			this.schemaService.clearExternalSchemas();
 			options.schemas.forEach((schema) => {
@@ -190,6 +190,8 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 			});
 		}
 		this._validationHelper.triggerDueToConfigurationChange();
+
+		return WinJS.TPromise.as(void 0);
 	}
 
 	public setSchemaContributions(contributions:ISchemaContributions): WinJS.TPromise<boolean> {

@@ -11,7 +11,7 @@ import Types = require('vs/editor/common/modes/monarch/monarchTypes');
 import Compile = require('vs/editor/common/modes/monarch/monarchCompile');
 import Modes = require('vs/editor/common/modes');
 import MarkdownWorker = require('vs/languages/markdown/common/markdownWorker');
-import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
+import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {htmlTokenTypes} from 'vs/languages/html/common/html';
 import markdownTokenTypes = require('vs/languages/markdown/common/markdownTokenTypes');
@@ -209,6 +209,7 @@ export const language =
 export class MarkdownMode extends Monarch.MonarchMode<MarkdownWorker.MarkdownWorker> implements Modes.IEmitOutputSupport {
 
 	public emitOutputSupport: Modes.IEmitOutputSupport;
+	public configSupport:Modes.IConfigurationSupport;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
@@ -222,6 +223,20 @@ export class MarkdownMode extends Monarch.MonarchMode<MarkdownWorker.MarkdownWor
 		super(descriptor, Compile.compile(language), instantiationService, threadService, modeService, modelService, editorWorkerService);
 
 		this.emitOutputSupport = this;
+		this.configSupport = this;
+	}
+
+	public configure(options:any): WinJS.TPromise<void> {
+		if (this._threadService.isInMainThread) {
+			return this._configureWorkers(options);
+		} else {
+			return this._worker((w) => w._doConfigure(options));
+		}
+	}
+
+	static $_configureWorkers = AllWorkersAttr(MarkdownMode, MarkdownMode.prototype._configureWorkers);
+	private _configureWorkers(options:any): WinJS.TPromise<void> {
+		return this._worker((w) => w._doConfigure(options));
 	}
 
 	static $getEmitOutput = OneWorkerAttr(MarkdownMode, MarkdownMode.prototype.getEmitOutput);

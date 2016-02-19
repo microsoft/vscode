@@ -14,7 +14,7 @@ import Compile = require('vs/editor/common/modes/monarch/monarchCompile');
 import lessWorker = require('vs/languages/less/common/lessWorker');
 import * as lessTokenTypes from 'vs/languages/less/common/lessTokenTypes';
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
-import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
+import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -180,6 +180,7 @@ export var language: Types.ILanguage = <Types.ILanguage> {
 export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> implements Modes.IExtraInfoSupport, Modes.IOutlineSupport {
 
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
+	public configSupport:Modes.IConfigurationSupport;
 	public referenceSupport: Modes.IReferenceSupport;
 	public logicalSelectionSupport: Modes.ILogicalSelectionSupport;
 	public extraInfoSupport: Modes.IExtraInfoSupport;
@@ -203,6 +204,7 @@ export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> impleme
 
 		this.extraInfoSupport = this;
 		this.inplaceReplaceSupport = this;
+		this.configSupport = this;
 		this.referenceSupport = new ReferenceSupport(this.getId(), {
 			tokens: [lessTokenTypes.TOKEN_PROPERTY + '.less', lessTokenTypes.TOKEN_VALUE + '.less', 'variable.less', lessTokenTypes.TOKEN_SELECTOR + '.class.less', lessTokenTypes.TOKEN_SELECTOR + '.id.less', 'selector.less'],
 			findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
@@ -236,6 +238,19 @@ export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> impleme
 		}).then(() => {
 			return super._worker(runner);
 		});
+	}
+
+	public configure(options:any): winjs.TPromise<void> {
+		if (this._threadService.isInMainThread) {
+			return this._configureWorkers(options);
+		} else {
+			return this._worker((w) => w._doConfigure(options));
+		}
+	}
+
+	static $_configureWorkers = AllWorkersAttr(LESSMode, LESSMode.prototype._configureWorkers);
+	private _configureWorkers(options:any): winjs.TPromise<void> {
+		return this._worker((w) => w._doConfigure(options));
 	}
 
 	static $navigateValueSet = OneWorkerAttr(LESSMode, LESSMode.prototype.navigateValueSet);

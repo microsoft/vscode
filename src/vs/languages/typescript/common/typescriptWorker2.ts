@@ -141,7 +141,7 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 		return projects;
 	}
 
-	_doConfigure(options: any, defaults:Options = Options.typeScriptOptions): void {
+	_doConfigure(options: any, defaults:Options = Options.typeScriptOptions): winjs.TPromise<void> {
 		// very long ago options.validate could be an
 		// array or an object. since this was only used
 		// for selfhosting the migration story is to
@@ -154,6 +154,8 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 			this._options = optionsWithDefaults;
 			this._validationHelper.triggerDueToConfigurationChange();
 		}
+
+		return winjs.TPromise.as(void 0);
 	}
 
 	// ---- Implementation of various IXYZSupports

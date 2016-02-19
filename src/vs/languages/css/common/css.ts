@@ -9,7 +9,7 @@ import objects = require('vs/base/common/objects');
 import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
+import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import cssWorker = require('vs/languages/css/common/cssWorker');
 import cssTokenTypes = require('vs/languages/css/common/cssTokenTypes');
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
@@ -285,6 +285,7 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 	public richEditSupport: Modes.IRichEditSupport;
 
 	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
+	public configSupport:Modes.IConfigurationSupport;
 	public referenceSupport: Modes.IReferenceSupport;
 	public logicalSelectionSupport: Modes.ILogicalSelectionSupport;
 	public extraInfoSupport:Modes.IExtraInfoSupport;
@@ -337,6 +338,7 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 		});
 
 		this.inplaceReplaceSupport = this;
+		this.configSupport = this;
 		this.occurrencesSupport = this;
 		this.extraInfoSupport = this;
 		this.referenceSupport = new ReferenceSupport(this.getId(), {
@@ -366,6 +368,19 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 
 	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], cssWorker.CSSWorker> {
 		return createAsyncDescriptor2('vs/languages/css/common/cssWorker', 'CSSWorker');
+	}
+
+	public configure(options:any): WinJS.TPromise<void> {
+		if (this._threadService.isInMainThread) {
+			return this._configureWorkers(options);
+		} else {
+			return this._worker((w) => w._doConfigure(options));
+		}
+	}
+
+	static $_configureWorkers = AllWorkersAttr(CSSMode, CSSMode.prototype._configureWorkers);
+	private _configureWorkers(options:any): WinJS.TPromise<void> {
+		return this._worker((w) => w._doConfigure(options));
 	}
 
 	static $navigateValueSet = OneWorkerAttr(CSSMode, CSSMode.prototype.navigateValueSet);

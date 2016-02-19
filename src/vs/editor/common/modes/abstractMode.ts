@@ -14,7 +14,6 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';
-import {AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 
@@ -30,13 +29,6 @@ export abstract class AbstractMode<W extends AbstractModeWorker> implements Mode
 
 	private _workerPiecePromise:TPromise<W>;
 
-	_options:any;
-
-	// adapters start
-	public autoValidateDelay:number;
-	public configSupport:Modes.IConfigurationSupport;
-	// adapters end
-
 	private _eventEmitter = new EventEmitter();
 	private _simplifiedMode: Modes.IMode;
 
@@ -48,12 +40,6 @@ export abstract class AbstractMode<W extends AbstractModeWorker> implements Mode
 		this._instantiationService = instantiationService;
 		this._threadService = threadService;
 		this._descriptor = descriptor;
-
-		this._options = null;
-
-		this.autoValidateDelay = 500;
-
-		this.configSupport = this;
 
 		this._workerPiecePromise = null;
 		this._simplifiedMode = null;
@@ -125,21 +111,6 @@ export abstract class AbstractMode<W extends AbstractModeWorker> implements Mode
 				}
 			}
 		};
-	}
-
-	public configure(options:any): TPromise<boolean> {
-		this._options = options;
-
-		if (this._threadService.isInMainThread) {
-			return this._configureWorkers(options);
-		} else {
-			return this._worker((w) => w.configure(options));
-		}
-	}
-
-	static $_configureWorkers = AllWorkersAttr(AbstractMode, AbstractMode.prototype._configureWorkers);
-	private _configureWorkers(options:any): TPromise<boolean> {
-		return this._worker((w) => w.configure(options));
 	}
 
 	// END

@@ -592,7 +592,7 @@ export interface ILinkSupport {
  * Interface used to define a configurable editor mode.
  */
 export interface IConfigurationSupport {
-	configure(options:any):TPromise<boolean>;
+	configure(options:any):TPromise<void>;
 }
 
 export interface IResourceEdit {
