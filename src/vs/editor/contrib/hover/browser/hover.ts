@@ -21,6 +21,7 @@ import ModesGlyphHover = require('./modesGlyphHover');
 import Keyboard = require('vs/base/browser/keyboardEvent');
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
+import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 
 class ModesHoverController implements EditorCommon.IEditorContribution {
@@ -144,7 +145,7 @@ class ModesHoverController implements EditorCommon.IEditorContribution {
 class ShowHoverAction extends EditorAction {
 	static ID = 'editor.action.showHover';
 
-	constructor(descriptor: EditorCommon.IEditorActionDescriptorData, editor: EditorCommon.ICommonCodeEditor, @IEditorService editorService: IEditorService) {
+	constructor(descriptor: EditorCommon.IEditorActionDescriptorData, editor: EditorCommon.ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor, Behaviour.TextFocus);
 	}
 

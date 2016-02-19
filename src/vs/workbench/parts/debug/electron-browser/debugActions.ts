@@ -12,13 +12,14 @@ import editorCommon = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { EditorAction, Behaviour } from 'vs/editor/common/editorAction';
 import { IEventService } from 'vs/platform/event/common/event';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
+import { INullService } from 'vs/platform/instantiation/common/instantiation';
 import { EventType, CompositeEvent } from 'vs/workbench/common/events';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
 
 import {clipboard} from 'electron';
 import IDebugService = debug.IDebugService;
@@ -604,7 +605,7 @@ export class SelectionToReplAction extends EditorAction {
 export class ShowDebugHoverAction extends EditorAction {
 	static ID = 'editor.debug.action.showDebugHover';
 
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @IDebugService debugService: IDebugService) {
+	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor, Behaviour.TextFocus);
 	}
 
