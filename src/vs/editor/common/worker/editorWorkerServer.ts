@@ -19,7 +19,6 @@ import {ResourceService} from 'vs/editor/common/services/resourceServiceImpl';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 import {ModelServiceWorkerHelper} from 'vs/editor/common/services/modelServiceImpl';
 import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
-import {PromiseSource} from 'vs/base/common/async';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
 import {AbstractPluginService, ActivatedPlugin} from 'vs/platform/plugins/common/abstractPluginService';
@@ -106,8 +105,6 @@ export class EditorWorkerServer {
 
 		var modeService = new ModeServiceImpl(this.threadService, pluginService);
 
-		var modesRegistryPromise = new PromiseSource();
-
 		var requestService = new BaseRequestService(contextService, telemetryServiceInstance);
 
 		var _services : any = {
@@ -122,22 +119,14 @@ export class EditorWorkerServer {
 			requestService: requestService
 		};
 
-		var servicePromise = TPromise.as(null);
+		var instantiationService = InstantiationService.create(_services);
+		this.threadService.setInstantiationService(instantiationService);
 
-		servicePromise.then((_) => {
+		// Instantiate thread actors
+		this.threadService.getRemotable(ModeServiceWorkerHelper);
+		this.threadService.getRemotable(ModelServiceWorkerHelper);
 
-			var instantiationService = InstantiationService.create(_services);
-			this.threadService.setInstantiationService(instantiationService);
-
-			// Instantiate thread actors
-			this.threadService.getRemotable(ModeServiceWorkerHelper);
-			this.threadService.getRemotable(ModelServiceWorkerHelper);
-
-			// Set to modes registry (ensure the synchronized object is constructed)
-			modesRegistryPromise.complete();
-
-			complete(undefined);
-		});
+		complete(undefined);
 	}
 
 	public request(mainThread:WorkerServer, complete:ICallback, error:ICallback, progress:ICallback, data:any):void {
