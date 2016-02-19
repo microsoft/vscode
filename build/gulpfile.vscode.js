@@ -18,8 +18,6 @@ var filter = require('gulp-filter');
 var json = require('gulp-json-editor');
 var remote = require('gulp-remote-src');
 var shell = require("gulp-shell");
-var File = require('vinyl');
-var rimraf = require('rimraf');
 var _ = require('underscore');
 var packageJson = require('../package.json');
 var util = require('./lib/util');
@@ -38,10 +36,6 @@ var baseModules = [
 ];
 
 // Build
-
-var builtInExtensions = {
-	'ms-vscode.omnisharp': '0.3.2',
-};
 
 var vscodeEntryPoints = _.flatten([
 	buildfile.entrypoint('vs/workbench/workbench.main'),
@@ -209,19 +203,13 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true))
 			.pipe(util.cleanNodeModule('weak', ['binding.gyp', 'build/**', 'src/**'], true));
 
-		var extraExtensions = util.downloadExtensions(builtInExtensions)
-			.pipe(rename(function (p) {
-				p.dirname = path.posix.join('extensions', p.dirname);
-			}));
-
 		var all = es.merge(
 			api,
 			packageJsonStream,
 			mixinProduct(),
 			license,
 			sources,
-			deps,
-			extraExtensions
+			deps
 		);
 
 		if (platform === 'win32') {
