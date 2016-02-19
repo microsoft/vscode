@@ -321,6 +321,13 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 		this.richEditSupport = this._createRichEditSupport();
 	}
 
+	public asyncCtor(): winjs.Promise {
+		return winjs.Promise.join([
+			this.modeService.getOrCreateMode('text/css'),
+			this.modeService.getOrCreateMode('text/javascript'),
+		]);
+	}
+
 	protected _createModeWorkerManager(descriptor:Modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<W> {
 		return new ModeWorkerManager<W>(descriptor, 'vs/languages/html/common/htmlWorker', 'HTMLWorker', null, instantiationService);
 	}
