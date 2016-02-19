@@ -110,7 +110,7 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 		});
 	}
 
-	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], RAZORWorker> {
+	protected _getWorkerDescriptor(): AsyncDescriptor2<string, Modes.IWorkerParticipant[], RAZORWorker> {
 		return createAsyncDescriptor2('vs/languages/razor/common/razorWorker', 'RAZORWorker');
 	}
 

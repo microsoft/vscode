@@ -7,7 +7,7 @@
 import {MonarchMode} from 'vs/editor/common/modes/monarch/monarch';
 import types = require('vs/editor/common/modes/monarch/monarchTypes');
 import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
-import {IModeDescriptor, IMode, IWorkerParticipant} from 'vs/editor/common/modes';
+import {IModeDescriptor, IWorkerParticipant} from 'vs/editor/common/modes';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IThreadService} from 'vs/platform/thread/common/thread';
@@ -61,7 +61,7 @@ export class OutputMode extends MonarchMode<OutputWorker> {
 		this.linkSupport = this;
 	}
 
-	protected _getWorkerDescriptor(): AsyncDescriptor2<IMode, IWorkerParticipant[], OutputWorker> {
+	protected _getWorkerDescriptor(): AsyncDescriptor2<string, IWorkerParticipant[], OutputWorker> {
 		return createAsyncDescriptor2('vs/workbench/parts/output/common/outputWorker', 'OutputWorker');
 	}
 

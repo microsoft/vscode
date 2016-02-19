@@ -464,7 +464,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode<W> i
 		return null;
 	}
 
-	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], htmlWorker.HTMLWorker> {
+	protected _getWorkerDescriptor(): AsyncDescriptor2<string, Modes.IWorkerParticipant[], htmlWorker.HTMLWorker> {
 		return createAsyncDescriptor2('vs/languages/html/common/htmlWorker', 'HTMLWorker');
 	}
 

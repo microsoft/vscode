@@ -244,7 +244,7 @@ export class MarkdownMode extends Monarch.MonarchMode<MarkdownWorker.MarkdownWor
 		return this._worker((w) => w.getEmitOutput(resource, absoluteWorkerResourcesPath));
 	}
 
-	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], MarkdownWorker.MarkdownWorker> {
+	protected _getWorkerDescriptor(): AsyncDescriptor2<string, Modes.IWorkerParticipant[], MarkdownWorker.MarkdownWorker> {
 		return createAsyncDescriptor2('vs/languages/markdown/common/markdownWorker', 'MarkdownWorker');
 	}
 }

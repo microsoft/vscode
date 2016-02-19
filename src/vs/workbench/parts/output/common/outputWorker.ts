@@ -12,7 +12,7 @@ import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import arrays = require('vs/base/common/arrays');
 import paths = require('vs/base/common/paths');
-import {ILink, IMode, IWorkerParticipant} from 'vs/editor/common/modes';
+import {ILink, IWorkerParticipant} from 'vs/editor/common/modes';
 import {Range} from 'vs/editor/common/core/range';
 import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
 
@@ -23,9 +23,9 @@ export class OutputWorker extends AbstractModeWorker {
 	private _contextService: IWorkspaceContextService;
 	private patterns: RegExp[];
 
-	constructor(mode: IMode, participants: IWorkerParticipant[], @IResourceService resourceService: IResourceService,
+	constructor(modeId: string, participants: IWorkerParticipant[], @IResourceService resourceService: IResourceService,
 		@IMarkerService markerService: IMarkerService, @IWorkspaceContextService contextService:IWorkspaceContextService) {
-		super(mode, participants, resourceService, markerService);
+		super(modeId, participants, resourceService, markerService);
 
 		this._contextService = contextService;
 

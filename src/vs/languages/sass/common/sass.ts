@@ -329,7 +329,7 @@ export class SASSMode extends Monarch.MonarchMode<sassWorker.SassWorker> impleme
 		}
 	}
 
-	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], sassWorker.SassWorker> {
+	protected _getWorkerDescriptor(): AsyncDescriptor2<string, Modes.IWorkerParticipant[], sassWorker.SassWorker> {
 		return createAsyncDescriptor2('vs/languages/sass/common/sassWorker', 'SassWorker');
 	}
 

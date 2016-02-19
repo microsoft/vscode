@@ -143,7 +143,7 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 		return model.getMode() === this || /\.(d\.ts|js)$/.test(model.getAssociatedResource().fsPath);
 	}
 
-	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], javascriptWorker.JavaScriptWorker> {
+	protected _getWorkerDescriptor(): AsyncDescriptor2<string, Modes.IWorkerParticipant[], javascriptWorker.JavaScriptWorker> {
 		return createAsyncDescriptor2('vs/languages/javascript/common/javascriptWorker', 'JavaScriptWorker');
 	}
 

@@ -127,7 +127,7 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 		this._worker((w) => w.setSchemaContributions(data));
 	}
 
-	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], jsonWorker.JSONWorker> {
+	protected _getWorkerDescriptor(): AsyncDescriptor2<string, Modes.IWorkerParticipant[], jsonWorker.JSONWorker> {
 		return createAsyncDescriptor2('vs/languages/json/common/jsonWorker', 'JSONWorker');
 	}
 

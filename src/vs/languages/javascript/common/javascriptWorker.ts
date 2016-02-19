@@ -30,10 +30,10 @@ export class JavaScriptWorker extends typeScriptWorker.TypeScriptWorker2 {
 
 	private _fancyRewriters: rewriter.ISyntaxRewriter[];
 
-	constructor(mode: Modes.IMode, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
+	constructor(modeId: string, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
 		@IMarkerService markerService: IMarkerService) {
 
-		super(mode, participants, resourceService, markerService);
+		super(modeId, participants, resourceService, markerService);
 
 		// since we colorize the shebang we should also always handle it
 		this._projectService.defaultRewriter = [new ShebangRewriter()];
@@ -72,7 +72,7 @@ export class JavaScriptWorker extends typeScriptWorker.TypeScriptWorker2 {
 					markers.push(marker);
 				}
 			});
-			this.markerService.changeOne(`/${this._getMode().getId() }/semantic`, resource, markers);
+			this.markerService.changeOne(`/${this._getModeId() }/semantic`, resource, markers);
 			return result.hasMissingFiles;
 		}
 	}

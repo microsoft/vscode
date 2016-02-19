@@ -227,7 +227,7 @@ export class LESSMode extends Monarch.MonarchMode<lessWorker.LessWorker> impleme
 		}
 	}
 
-	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], lessWorker.LessWorker> {
+	protected _getWorkerDescriptor(): AsyncDescriptor2<string, Modes.IWorkerParticipant[], lessWorker.LessWorker> {
 		return createAsyncDescriptor2('vs/languages/less/common/lessWorker', 'LessWorker');
 	}
 

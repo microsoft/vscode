@@ -43,14 +43,14 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 	protected _disposables: lifecycle.IDisposable[] = [];
 	private _validationHelper: ValidationHelper;
 
-	constructor(mode: Modes.IMode, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
+	constructor(modeId: string, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
 		@IMarkerService markerService: IMarkerService) {
 
-		super(mode, participants, resourceService, markerService);
+		super(modeId, participants, resourceService, markerService);
 
 		this._validationHelper = new ValidationHelper(
 			this.resourceService,
-			this._getMode().getId(),
+			this._getModeId(),
 			(toValidate) => this.doValidate(toValidate)
 		);
 
@@ -76,7 +76,7 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 
 		return (
 			/\.(ts|js)$/.test(element.getAssociatedResource().fsPath) ||
-			element.getMode() === this._getMode()
+			element.getMode().getId() === this._getModeId()
 		);
 	}
 
@@ -177,14 +177,14 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 		markers.push.apply(markers, diagnostics.getSyntacticDiagnostics(project.languageService, resource, project.host.getCompilationSettings(),
 			this._options, this.resourceService.get(resource).getMode().getId() === 'javascript'));
 		markers.push.apply(markers, diagnostics.getExtraDiagnostics(project.languageService, resource, this._options));
-		this.markerService.changeOne(`/${this._getMode().getId() }/syntactic`, resource, markers);
+		this.markerService.changeOne(`/${this._getModeId() }/syntactic`, resource, markers);
 	}
 
 	public doValidateSemantics(resource: URI): boolean {
 		var project = this._projectService.getProject(resource);
 		var result = diagnostics.getSemanticDiagnostics(project.languageService, resource, this._options);
 		if (result) {
-			this.markerService.changeOne(`/${this._getMode().getId() }/semantic`, resource, result.markers);
+			this.markerService.changeOne(`/${this._getModeId() }/semantic`, resource, result.markers);
 			return result.hasMissingFiles;
 		}
 	}

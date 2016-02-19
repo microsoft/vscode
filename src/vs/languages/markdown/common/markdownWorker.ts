@@ -97,12 +97,12 @@ export class MarkdownWorker extends AbstractModeWorker {
 	private modeService: IModeService;
 
 	constructor(
-		mode: Modes.IMode, participants: Modes.IWorkerParticipant[],
+		modeId: string, participants: Modes.IWorkerParticipant[],
 		@IResourceService resourceService: IResourceService,
 		@IMarkerService markerService: IMarkerService,
 		@IModeService modeService: IModeService
 	) {
-		super(mode, participants, resourceService, markerService);
+		super(modeId, participants, resourceService, markerService);
 
 		this.modeService = modeService;
 	}

@@ -38,10 +38,10 @@ export class HTMLWorker extends AbstractModeWorker {
 
 	private _tagProviders: htmlTags.IHTMLTagProvider[];
 
-	constructor(mode: Modes.IMode, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
+	constructor(modeId: string, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
 		@IMarkerService markerService: IMarkerService, @IWorkspaceContextService contextService:IWorkspaceContextService) {
 
-		super(mode, participants, resourceService, markerService);
+		super(modeId, participants, resourceService, markerService);
 		this._contextService = contextService;
 
 		this._tagProviders = [];
@@ -95,7 +95,7 @@ export class HTMLWorker extends AbstractModeWorker {
 
 		var modeAtPosition = modelAtPosition.getMode();
 
-		return callback(modeAtPosition.getId() !== this._getMode().getId(), modelAtPosition);
+		return callback(modeAtPosition.getId() !== this._getModeId(), modelAtPosition);
 	}
 
 	_delegateToAllModes<T>(resource:URI, callback:(models:EditorCommon.IMirrorModel[]) => T): T {

@@ -17,7 +17,6 @@ import JSONSchema = require('vs/base/common/jsonSchema');
 import JSONIntellisense = require('./jsonIntellisense');
 import WinJS = require('vs/base/common/winjs.base');
 import Strings = require('vs/base/common/strings');
-import {JSONMode} from './json';
 import ProjectJSONContribution = require('./contributions/projectJSONContribution');
 import PackageJSONContribution = require('./contributions/packageJSONContribution');
 import BowerJSONContribution = require('./contributions/bowerJSONContribution');
@@ -76,24 +75,22 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 	private requestService: IRequestService;
 	private contextService: IWorkspaceContextService;
 	private jsonIntellisense : JSONIntellisense.JSONIntellisense;
-	private jsonMode: JSONMode;
 	private contributions: IJSONWorkerContribution[];
 	private _validationHelper: ValidationHelper;
 
-	constructor(mode: Modes.IMode, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
+	constructor(modeId: string, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
 		@IMarkerService markerService: IMarkerService, @IRequestService requestService: IRequestService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService) {
 
-		super(mode, participants, resourceService, markerService);
+		super(modeId, participants, resourceService, markerService);
 
 		this._validationHelper = new ValidationHelper(
 			this.resourceService,
-			this._getMode().getId(),
+			this._getModeId(),
 			(toValidate) => this.doValidate(toValidate)
 		);
 
-		this.jsonMode = <JSONMode>mode;
 		this.requestService = requestService;
 		this.contextService = contextService;
 		this.schemaService = instantiationService.createInstance(SchemaService.JSONSchemaService);
@@ -255,7 +252,7 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 				}
 			});
 
-			this.markerService.changeOne(this._getMode().getId(), resource, markerData);
+			this.markerService.changeOne(this._getModeId(), resource, markerData);
 		});
 
 	}

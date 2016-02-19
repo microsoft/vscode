@@ -13,22 +13,22 @@ export abstract class AbstractModeWorker {
 	public resourceService:IResourceService;
 	public markerService: IMarkerService;
 
-	private _mode:Modes.IMode;
+	private _modeId: string;
 
 	constructor(
-		mode: Modes.IMode,
+		modeId: string,
 		participants: Modes.IWorkerParticipant[],
 		@IResourceService resourceService: IResourceService,
 		@IMarkerService markerService: IMarkerService
 	) {
 
-		this._mode = mode;
+		this._modeId = modeId;
 		this.resourceService = resourceService;
 		this.markerService = markerService;
 	}
 
-	_getMode():Modes.IMode {
-		return this._mode;
+	_getModeId(): string {
+		return this._modeId;
 	}
 
 }

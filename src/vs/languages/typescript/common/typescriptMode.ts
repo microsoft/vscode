@@ -395,7 +395,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 
 	// ---- worker talk
 
-	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], typescriptWorker.TypeScriptWorker2> {
+	protected _getWorkerDescriptor(): AsyncDescriptor2<string, Modes.IWorkerParticipant[], typescriptWorker.TypeScriptWorker2> {
 		return createAsyncDescriptor2('vs/languages/typescript/common/typescriptWorker2', 'TypeScriptWorker2');
 	}
 

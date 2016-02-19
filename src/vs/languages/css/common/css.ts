@@ -366,7 +366,7 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 		}
 	}
 
-	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], cssWorker.CSSWorker> {
+	protected _getWorkerDescriptor(): AsyncDescriptor2<string, Modes.IWorkerParticipant[], cssWorker.CSSWorker> {
 		return createAsyncDescriptor2('vs/languages/css/common/cssWorker', 'CSSWorker');
 	}
 

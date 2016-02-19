@@ -36,18 +36,18 @@ export class CSSWorker extends AbstractModeWorker {
 	private lintSettings : lintRules.IConfigurationSettings;
 	private _validationHelper: ValidationHelper;
 
-	constructor(mode: Modes.IMode, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
+	constructor(modeId: string, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
 		@IMarkerService markerService: IMarkerService) {
 
-		super(mode, participants, resourceService, markerService);
+		super(modeId, participants, resourceService, markerService);
 
 		this._validationHelper = new ValidationHelper(
 			this.resourceService,
-			this._getMode().getId(),
+			this._getModeId(),
 			(toValidate) => this.doValidate(toValidate)
 		);
 
-		this.languageService = this.createLanguageService(resourceService, mode.getId());
+		this.languageService = this.createLanguageService(resourceService, modeId);
 		this.lintSettings = {};
 		this.validationEnabled = true;
 	}
@@ -147,7 +147,7 @@ export class CSSWorker extends AbstractModeWorker {
 
 	private doValidate1(resource: URI):void {
 		if (!this.validationEnabled) {
-			this.markerService.changeOne(this._getMode().getId(), resource, []);
+			this.markerService.changeOne(this._getModeId(), resource, []);
 			return;
 		}
 
@@ -164,7 +164,7 @@ export class CSSWorker extends AbstractModeWorker {
 				.filter(entry => entry.getLevel() !== _level.Level.Ignore)
 				.map(entry => this._createMarkerData(modelMirror, entry));
 
-			this.markerService.changeOne(this._getMode().getId(), resource, markerData);
+			this.markerService.changeOne(this._getModeId(), resource, markerData);
 		});
 	}
 

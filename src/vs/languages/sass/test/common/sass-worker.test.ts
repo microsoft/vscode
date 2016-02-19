@@ -26,7 +26,7 @@ suite('SASS - Worker', () => {
 			resourceService: resourceService,
 		});
 
-		var worker = new sassWorker.SassWorker(modesUtil.createMockMode('mock.mode.id'), [], services.resourceService, services.markerService);
+		var worker = new sassWorker.SassWorker('mock.mode.id', [], services.resourceService, services.markerService);
 		return { worker: worker, model: model };
 	};
 

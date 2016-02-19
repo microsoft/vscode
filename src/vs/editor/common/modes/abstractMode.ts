@@ -58,7 +58,7 @@ export abstract class AbstractMode<W extends AbstractModeWorker> implements Mode
 
 	private _getOrCreateWorker(): TPromise<W> {
 		if (!this._workerPiecePromise) {
-			var workerDescriptor: AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], W> = this._getWorkerDescriptor();
+			var workerDescriptor: AsyncDescriptor2<string, Modes.IWorkerParticipant[], W> = this._getWorkerDescriptor();
 			// First, load the code of the worker (without instantiating it)
 			this._workerPiecePromise = AbstractMode._loadModule(workerDescriptor.moduleName).then(() => {
 				// Then, load & instantiate all the participants
@@ -67,7 +67,7 @@ export abstract class AbstractMode<W extends AbstractModeWorker> implements Mode
 					return this._instantiationService.createInstance(participant);
 				}));
 			}).then((participants:Modes.IWorkerParticipant[]) => {
-				return this._instantiationService.createInstance<Modes.IMode, Modes.IWorkerParticipant[], W>(workerDescriptor, this, participants);
+				return this._instantiationService.createInstance<string, Modes.IWorkerParticipant[], W>(workerDescriptor, this.getId(), participants);
 			});
 		}
 
@@ -82,7 +82,7 @@ export abstract class AbstractMode<W extends AbstractModeWorker> implements Mode
 		});
 	}
 
-	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], W> {
+	protected _getWorkerDescriptor(): AsyncDescriptor2<string, Modes.IWorkerParticipant[], W> {
 		return createAsyncDescriptor2('vs/editor/common/modes/nullWorker', 'NullWorker');
 	}
 
