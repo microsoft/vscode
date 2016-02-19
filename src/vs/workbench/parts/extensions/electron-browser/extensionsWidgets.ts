@@ -68,16 +68,14 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 								const extension = installed.filter(ext => ext.path === m.source).pop();
 								const actions = [CloseAction];
 								const name = (extension && extension.name) || m.source;
+								const message = `${ name }: ${ m.message }`;
 
 								if (extension) {
 									const actionLabel = nls.localize('uninstall', "Uninstall");
 									actions.push(new Action('extensions.uninstall2', actionLabel, null, true, () => this.instantiationService.createInstance(UninstallAction).run(extension)));
 								}
 
-								this.messageService.show(m.type, {
-									message: `${ name }: ${ m.message }`,
-									actions
-								});
+								this.messageService.show(m.type, { message, actions });
 							}
 						});
 					});
