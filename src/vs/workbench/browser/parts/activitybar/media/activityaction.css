@@ -48,7 +48,7 @@
 
 .monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .badge:active:before,
 .monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
-	border-left-color: #DF740C;
+	border-left-color: #f38518;
 }
 
 .monaco-workbench > .activitybar.left > .content .monaco-action-bar .badge:active:before,
@@ -153,7 +153,7 @@
 }
 
 .monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-item .action-label.active:before {
-	border: 1px solid #DF740C;
+	border: 1px solid #f38518;
 }
 
 .monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar.global .action-item .action-label.active:before {

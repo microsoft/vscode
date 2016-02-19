@@ -34,7 +34,7 @@
 }
 .monaco-editor.hc-black.focused .current-line {
 	background: none;
-	border: 2px solid #DF740C;
+	border: 2px solid #f38518;
 	box-sizing: border-box;
 	opacity: .5;
 }
@@ -69,7 +69,7 @@
 
 .monaco-editor.hc-black .selectionHighlight {
 	background: none;
-	border: 1px dotted #DF740C;
+	border: 1px dotted #f38518;
 	-moz-box-sizing: border-box;
 	box-sizing: border-box;
 }
