@@ -6,24 +6,44 @@
 import getmac = require('getmac');
 import crypto = require('crypto');
 
-import {MainTelemetryService, TelemetryServiceConfig} from 'vs/platform/telemetry/browser/mainTelemetryService';
-import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
+import * as nls from 'vs/nls';
+import * as errors from 'vs/base/common/errors';
+import * as uuid from 'vs/base/common/uuid';
+import {MainTelemetryService} from 'vs/platform/telemetry/browser/mainTelemetryService';
+import {ITelemetryService, ITelemetryInfo, ITelemetryServiceConfig} from 'vs/platform/telemetry/common/telemetry';
 import {IStorageService} from 'vs/platform/storage/common/storage';
-import errors = require('vs/base/common/errors');
-import uuid = require('vs/base/common/uuid');
+import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
+import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
+import {Registry} from 'vs/platform/platform';
+
+
+const TELEMETRY_SECTION_ID = 'telemetry';
 
 class StorageKeys {
 	public static MachineId: string = 'telemetry.machineId';
 	public static InstanceId: string = 'telemetry.instanceId';
 }
 
+interface ITelemetryEvent {
+	eventName: string;
+	data?: any;
+}
+
 export class ElectronTelemetryService extends MainTelemetryService implements ITelemetryService {
 
-	private _setupIds: Promise<ITelemetryInfo>;
+	private static MAX_BUFFER_SIZE = 100;
 
-	constructor( @IStorageService private storageService: IStorageService, config?: TelemetryServiceConfig) {
+	private _setupIds: Promise<ITelemetryInfo>;
+	private _buffer: ITelemetryEvent[];
+	private _optInStatusLoaded: boolean;
+
+	constructor(@IConfigurationService private configurationService: IConfigurationService, @IStorageService private storageService: IStorageService, config?: ITelemetryServiceConfig) {
 		super(config);
 
+		this._buffer = [];
+		this._optInStatusLoaded = false;
+
+		this.loadOptinSettings();
 		this._setupIds = this.setupIds();
 	}
 
@@ -32,6 +52,40 @@ export class ElectronTelemetryService extends MainTelemetryService implements IT
 	 */
 	public getTelemetryInfo(): Promise<ITelemetryInfo> {
 		return this._setupIds;
+	}
+	/**
+	 * override the base publicLog to prevent reporting any events before the optIn status is read from configuration
+	 */
+	public publicLog(eventName:string, data?: any): void {
+		if (this._optInStatusLoaded) {
+			super.publicLog(eventName, data);
+		} else {
+			// in case loading configuration is delayed, make sure the buffer does not grow beyond MAX_BUFFER_SIZE
+			if (this._buffer.length > ElectronTelemetryService.MAX_BUFFER_SIZE) {
+				this._buffer = [];
+			}
+			this._buffer.push({eventName: eventName, data: data});
+		}
+	}
+
+	private flushBuffer(): void {
+		let event: ITelemetryEvent = null;
+		while(event = this._buffer.pop()) {
+			super.publicLog(event.eventName, event.data);
+		}
+	}
+
+	private loadOptinSettings(): void {
+		this.configurationService.loadConfiguration(TELEMETRY_SECTION_ID).done(config => {
+			this.config.userOptIn = config ? config.enableTelemetry : this.config.userOptIn;
+			this._optInStatusLoaded = true;
+			this.publicLog('optInStatus', {optIn: this.config.userOptIn});
+			this.flushBuffer();
+		});
+
+		this.toUnbind.push(this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
+			this.config.userOptIn = e.config && e.config[TELEMETRY_SECTION_ID] ? e.config[TELEMETRY_SECTION_ID].enableTelemetry : this.config.userOptIn;
+		}));
 	}
 
 	private setupIds(): Promise<ITelemetryInfo> {
@@ -90,3 +144,18 @@ export class ElectronTelemetryService extends MainTelemetryService implements IT
 		}
 	}
 }
+
+const configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
+configurationRegistry.registerConfiguration({
+	'id': TELEMETRY_SECTION_ID,
+	'order': 20,
+	'type': 'object',
+	'title': nls.localize('telemetryConfigurationTitle', "Telemetry configuration"),
+	'properties': {
+		'telemetry.enableTelemetry': {
+			'type': 'boolean',
+			'description': nls.localize('telemetry.enableTelemetry', "Enable usage data and errors to be sent to Microsoft."),
+			'default': true
+		}
+	}
+});
