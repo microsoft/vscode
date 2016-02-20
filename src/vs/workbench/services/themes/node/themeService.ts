@@ -13,7 +13,7 @@ import {IThemeExtensionPoint} from 'vs/platform/theme/common/themeExtensionPoint
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {ExtensionsRegistry, IExtensionMessageCollector} from 'vs/platform/extensions/common/extensionsRegistry';
 import {IThemeService, IThemeData, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
-
+import {CssThemeService} from 'vs/workbench/services/themes/node/cssThemeService';
 import plist = require('vs/base/node/plist');
 import pfs = require('vs/base/node/pfs');
 
@@ -24,7 +24,7 @@ let defaultBaseTheme = Themes.getBaseThemeId(DEFAULT_THEME_ID);
 const defaultThemeExtensionId = 'vscode-theme-defaults';
 const oldDefaultThemeExtensionId = 'vscode-theme-colorful-defaults';
 
-function validateThemeId(theme: string) : string {
+function validateThemeId(theme: string): string {
 	// migrations
 	switch (theme) {
 		case 'vs': return `vs ${defaultThemeExtensionId}-themes-light_vs-json`;
@@ -54,6 +54,10 @@ let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPo
 			},
 			path: {
 				description: nls.localize('vscode.extension.contributes.themes.path', 'Path of the tmTheme file. The path is relative to the extension folder and is typically \'./themes/themeFile.tmTheme\'.'),
+				type: 'string'
+			},
+			icon: {
+				description: nls.localize('vscode.extension.contributes.themes.icon', 'Path of the icon theme file. The path is relative to the extension folder and is typically \'./themes/themeFile.css\'.'),
 				type: 'string'
 			}
 		}
@@ -87,7 +91,8 @@ export class ThemeService implements IThemeService {
 
 	private knownThemes: IThemeData[];
 
-	constructor(private extensionService: IExtensionService) {
+	constructor(private extensionService: IExtensionService,
+		private cssThemeService: CssThemeService) {
 		this.knownThemes = [];
 
 		themesExtPoint.setHandler((extensions) => {
@@ -108,13 +113,12 @@ export class ThemeService implements IThemeService {
 		});
 	}
 
-	public applyThemeCSS(themeId: string): TPromise<boolean> {
-		return this.loadTheme(themeId).then(theme => {
-			if (theme) {
-				return applyTheme(theme);
-			}
-			return null;
-		});
+	public generateTheme(theme: IThemeData): TPromise<boolean> {
+		if (Paths.extname(theme.path) === '.css') {
+			return this.applyCssTheme(theme);
+		} else {
+			return applyTheme(theme);
+		}
 	}
 
 	public getThemes(): TPromise<IThemeData[]> {
@@ -133,7 +137,7 @@ export class ThemeService implements IThemeService {
 			return;
 		}
 		themes.forEach(theme => {
-			if (!theme.path || (typeof theme.path !== 'string')) {
+			if ((!theme.path || typeof theme.path !== 'string') && (!theme.icon || typeof theme.icon !== 'string')) {
 				collector.error(nls.localize(
 					'reqpath',
 					"Expected string in `contributes.{0}.path`. Provided value: {1}",
@@ -142,23 +146,68 @@ export class ThemeService implements IThemeService {
 				));
 				return;
 			}
-			let normalizedAbsolutePath = Paths.normalize(Paths.join(extensionFolderPath, theme.path));
 
-			if (normalizedAbsolutePath.indexOf(extensionFolderPath) !== 0) {
-				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
+			// check and add if we have a color theme
+			if (theme.path) {
+				// check the color path is valid
+				let normalizedAbsolutePath = Paths.normalize(Paths.join(extensionFolderPath, theme.path));
+				if (normalizedAbsolutePath.indexOf(extensionFolderPath) !== 0) {
+					collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
+				}
+
+				// use either the color file path as the unique theme selector
+				let themeSelector = toCssSelector(extensionId + '-' + Paths.normalize(theme.path));
+				this.knownThemes.push({
+					id: `${theme.uiTheme || defaultBaseTheme} ${themeSelector}`,
+					label: theme.label || Paths.basename(theme.path),
+					description: theme.description,
+					path: normalizedAbsolutePath,
+					type: Themes.ComponentType.COLOR
+				});
 			}
 
-			let themeSelector = toCssSelector(extensionId + '-' + Paths.normalize(theme.path));
-			this.knownThemes.push({
-				id: `${theme.uiTheme || defaultBaseTheme} ${themeSelector}`,
-				label: theme.label || Paths.basename(theme.path),
-				description: theme.description,
-				path: normalizedAbsolutePath
-			});
+			// check and add if we have an icon theme
+			if (theme.icon) {
+				// check the icon path is valid
+				let normalizedIconPath = Paths.normalize(Paths.join(extensionFolderPath, theme.icon));
+				if (normalizedIconPath.indexOf(extensionFolderPath) !== 0) {
+					collector.warn(nls.localize('invalid.icon.path.1', "Expected `contributes.{0}.icon` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, normalizedIconPath, extensionFolderPath));
+				}
+
+				// use either the icon file path as the unique theme selector
+				let themeSelector = toCssSelector(extensionId + '-' + Paths.normalize(theme.icon));
+				this.knownThemes.push({
+					id: `${theme.uiTheme || defaultBaseTheme} ${themeSelector}`,
+					label: theme.label || Paths.basename(theme.icon),
+					description: theme.description,
+					path: normalizedIconPath,
+					type: Themes.ComponentType.ICON
+				});
+			}
+		});
+	}
+
+	private applyCssTheme(theme: IThemeData): TPromise<boolean> {
+		if (theme.styleSheetContent) {
+			// TODO: should we return after _applyRules here?
+			// otherwise why do this step if its going to be replaced below anyway?
+			_applyRules(`${theme.type}Theme`, theme.styleSheetContent);
+		}
+		return pfs.readFile(theme.path).then(content => {
+			let styleSheetContent = this.cssThemeService.parseSource(
+				Paths.dirname(theme.path),
+				theme.id,
+				theme.type,
+				content.toString()
+			);
+			theme.styleSheetContent = styleSheetContent;
+			_applyRules(`${theme.type}Theme`, styleSheetContent);
+			return true;
+		}, error => {
+			return TPromise.wrapError(nls.localize('error.cannotloadtheme', "Unable to load {0}", theme.path));
 		});
 	}
 }
-
 
 function toCssSelector(str: string) {
 	return str.replace(/[^_\-a-zA-Z0-9]/g, '-');
@@ -166,23 +215,25 @@ function toCssSelector(str: string) {
 
 function applyTheme(theme: IThemeData): TPromise<boolean> {
 	if (theme.styleSheetContent) {
-		_applyRules(theme.styleSheetContent);
+		// TODO: should we return after _applyRules here?
+		// otherwise why do this step if its going to be replaced below anyway?
+		_applyRules(`${theme.type}Theme`, theme.styleSheetContent);
 	}
 	return _loadThemeDocument(theme.path).then(themeDocument => {
 		let styleSheetContent = _processThemeObject(theme.id, themeDocument);
 		theme.styleSheetContent = styleSheetContent;
-		_applyRules(styleSheetContent);
+		_applyRules(`${theme.type}Theme`, styleSheetContent);
 		return true;
 	}, error => {
 		return TPromise.wrapError(nls.localize('error.cannotloadtheme', "Unable to load {0}", theme.path));
 	});
 }
 
-function _loadThemeDocument(themePath: string) : TPromise<ThemeDocument> {
+function _loadThemeDocument(themePath: string): TPromise<ThemeDocument> {
 	return pfs.readFile(themePath).then(content => {
 		if (Paths.extname(themePath) === '.json') {
 			let errors: string[] = [];
-			let contentValue = <ThemeDocument> Json.parse(content.toString(), errors);
+			let contentValue = <ThemeDocument>Json.parse(content.toString(), errors);
 			if (errors.length > 0) {
 				return TPromise.wrapError(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.join(', '))));
 			}
@@ -206,8 +257,8 @@ function _loadThemeDocument(themePath: string) : TPromise<ThemeDocument> {
 function _processThemeObject(themeId: string, themeDocument: ThemeDocument): string {
 	let cssRules: string[] = [];
 
-	let themeSettings : ThemeSetting[] = themeDocument.settings;
-	let editorSettings : ThemeSettingStyle = {
+	let themeSettings: ThemeSetting[] = themeDocument.settings;
+	let editorSettings: ThemeSettingStyle = {
 		background: void 0,
 		foreground: void 0,
 		caret: void 0,
@@ -219,14 +270,14 @@ function _processThemeObject(themeId: string, themeDocument: ThemeDocument): str
 	let themeSelector = `${Themes.getBaseThemeId(themeId)}.${Themes.getSyntaxThemeId(themeId)}`;
 
 	if (Array.isArray(themeSettings)) {
-		themeSettings.forEach((s : ThemeSetting, index, arr) => {
+		themeSettings.forEach((s: ThemeSetting, index, arr) => {
 			if (index === 0 && !s.scope) {
 				editorSettings = s.settings;
 			} else {
 				let scope: string | string[] = s.scope;
 				let settings = s.settings;
 				if (scope && settings) {
-					let rules = Array.isArray(scope) ? <string[]> scope : scope.split(',');
+					let rules = Array.isArray(scope) ? <string[]>scope : scope.split(',');
 					let statements = _settingsToStatements(settings);
 					rules.forEach(rule => {
 						rule = rule.trim().replace(/ /g, '.'); // until we have scope hierarchy in the editor dom: replace spaces with .
@@ -306,9 +357,7 @@ function _settingsToStatements(settings: ThemeSettingStyle): string {
 	return statements.join(' ');
 }
 
-let className = 'contributedColorTheme';
-
-function _applyRules(styleSheetContent: string) {
+function _applyRules(className: string, styleSheetContent: string) {
 	let themeStyles = document.head.getElementsByClassName(className);
 	if (themeStyles.length === 0) {
 		let elStyle = document.createElement('style');

@@ -6,9 +6,9 @@
 
 // Preferences
 export const Preferences = {
-
 	// Global
-	THEME: 'workbench.theme'
+	THEME: 'workbench.theme.color',
+	ICONTHEME: 'workbench.theme.icon'
 };
 
 // Container Identifiers

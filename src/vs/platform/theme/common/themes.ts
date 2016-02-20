@@ -12,11 +12,45 @@ export enum BaseTheme {
 	HIGH_CONTRAST
 }
 
+export const ComponentType =  {
+	COLOR: 'color',
+	ICON: 'icon'
+};
+
 export function getBaseThemes(includeHighContrast: boolean): BaseTheme[] {
 	if (includeHighContrast) {
 		return [BaseTheme.VS, BaseTheme.VS_DARK, BaseTheme.HIGH_CONTRAST];
 	}
 	return [BaseTheme.VS, BaseTheme.VS_DARK];
+}
+
+export function hasBaseTheme(themeId: string): boolean {
+	let themeIdParts = themeId.split(' ');
+	let notFound = getBaseThemes(true).every(baseThemeId => {
+		return themeIdParts.indexOf(toId(baseThemeId)) === -1;
+	});
+	return notFound === false;
+}
+
+export function isBaseThemeOnly(themeId: string): boolean {
+	let themeIdParts = themeId.split(' ');
+	if (themeIdParts.length > 1) {
+		return false;
+	}
+	let baseThemes = getBaseThemes(true).map(i => toId(i));
+	return baseThemes.indexOf(themeId) > -1;
+}
+
+export function stripBaseTheme(themeId: string, separator: string = ' '): string {
+	let themeIdParts = themeId.split(separator);
+	let baseThemes = getBaseThemes(true).map(i => toId(i));
+	let newParts = [];
+	themeIdParts.forEach(themePart => {
+		if (baseThemes.indexOf(themePart) === -1) {
+			newParts.push(themePart);
+		}
+	});
+	return newParts.join(separator);
 }
 
 export function toId(theme: BaseTheme): string {

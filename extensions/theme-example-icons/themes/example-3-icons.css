@@ -1,0 +1,19 @@
+/* explorer icons */
+.explorer-viewlet .folder-icon {
+	padding-left: 22px;
+	background: url(example-3-icons/folder.png) 1px 4px no-repeat;
+}
+
+.explorer-viewlet .expanded .folder-icon {
+	background: url(example-3-icons/folder_open.png) 1px 4px no-repeat;
+}
+
+.explorer-viewlet .file-icon {
+	padding-left: 22px;
+	background: url(example-3-icons/light-file.png) 1px 4px no-repeat;
+}
+
+.explorer-viewlet .working-files-item {
+	padding-left: 22px;
+	background: url(example-3-icons/light-file.png) 1px 4px no-repeat;
+}

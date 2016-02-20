@@ -10,4 +10,5 @@ export interface IThemeExtensionPoint {
 	description?: string;
 	uiTheme?: string;
 	path: string;
+	icon: string;
 }

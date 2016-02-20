@@ -1,0 +1,33 @@
+{
+	"name": "theme-example-icons",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": {
+		"vscode": "*"
+	},
+	"contributes": {
+		"themes": [
+			{
+				"label": "Example 1 icons",
+				"uiTheme": "vs",
+				"icon": "./themes/example-1-icons.css"
+			},
+			{
+				"label": "Example 2 icons",
+				"uiTheme": "vs-dark",
+				"path": "./themes/example-2-colors.css",
+				"icon": "./themes/example-2-icons.css"
+			},
+			{
+				"label": "Example 3 icons",
+				"uiTheme": "vs",
+				"icon": "./themes/example-3-icons.css"
+			},
+			{
+				"label": "Example 4 icons",
+				"uiTheme": "vs-dark",
+				"icon": "./themes/example-4-icons.css"
+			}
+		]
+	}
+}

@@ -114,8 +114,8 @@ export class ElectronIntegration {
 		});
 
 		// Theme changes
-		ipc.on('vscode:changeTheme', (event, theme: string) => {
-			this.storageService.store('workbench.theme', theme, StorageScope.GLOBAL);
+		ipc.on('vscode:changeTheme', (event, {themeId, themeComponent}) => {
+			this.storageService.store('workbench.theme.' + themeComponent, themeId, StorageScope.GLOBAL);
 		});
 
 		// Message support

@@ -1,0 +1,33 @@
+/* explorer icons */
+.explorer-viewlet .folder-icon {
+	padding-left: 22px;
+	background: url(example-1-icons/folder.png) 1px 4px no-repeat;
+}
+
+.explorer-viewlet .expanded .folder-icon {
+	background: url(example-1-icons/folder_open.png) 1px 4px no-repeat;
+}
+
+.explorer-viewlet .file-icon {
+	padding-left: 22px;
+	background: url(example-1-icons/txt.png) 1px 4px no-repeat;
+}
+
+.explorer-viewlet .file-icon[data-file$=".json"] {
+	background: url(example-1-icons/settings.png) 1px 4px no-repeat;
+}
+
+.explorer-viewlet .file-icon[data-file="package.json"] {
+	background: url(example-1-icons/npm.png) 1px 4px no-repeat;
+}
+
+/* resource directory colours */
+.explorer-viewlet [data-directory*=".vscode"],
+.explorer-viewlet [data-directory*="node_modules"] {
+	color: slategray;
+}
+
+.explorer-viewlet [data-directory="test"],
+.explorer-viewlet [data-directory*="test/"] {
+	color: rgba(210,210,105,1);
+}

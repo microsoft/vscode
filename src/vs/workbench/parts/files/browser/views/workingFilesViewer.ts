@@ -100,7 +100,7 @@ export class WorkingFilesRenderer extends ActionsRenderer {
 	public renderContents(tree: ITree, element: any, container: HTMLElement): IElementCallback {
 		let entry = <WorkingFileEntry>element;
 		let $el = $(container).clearChildren();
-		let item = $('.working-files-item').appendTo($el);
+		let item = this.applyElementStats($('.working-files-item'), entry).appendTo($el);
 
 		let label = $('.working-files-item-label').appendTo(item);
 		new FileLabel(label.getHTMLElement(), entry.resource, this.contextService);
@@ -112,6 +112,26 @@ export class WorkingFilesRenderer extends ActionsRenderer {
 		}
 
 		return null;
+	}
+
+	private applyElementStats(element: any, entry: WorkingFileEntry): any {
+		let fsPath = this.contextService.toWorkspaceRelativePath(entry.resource);
+		if (fsPath === null) {
+			fsPath = entry.resource.fsPath;
+		}
+
+		let fileName = paths.basename(fsPath);
+		if (fsPath === fileName) {
+			fsPath = '';
+		} else {
+			fsPath = paths.dirname(fsPath);
+		}
+
+		element.addClass('file-icon')
+			.attr('data-directory', fsPath)
+			.attr('data-file', fileName);
+
+		return element;
 	}
 }
 
