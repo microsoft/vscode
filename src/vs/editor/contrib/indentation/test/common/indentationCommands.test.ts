@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import EditorCommon = require('vs/editor/common/editorCommon');
 import {Selection} from 'vs/editor/common/core/selection';
 import {IndentationToSpacesCommand, IndentationToTabsCommand} from 'vs/editor/contrib/indentation/common/indentationCommands';
 import {testCommand} from 'vs/editor/test/common/commands/commandTestUtils';
