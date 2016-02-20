@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
@@ -118,6 +118,72 @@ export class WordHelper {
 		return r;
 	}
 
+	public static getSubWords(textSource:ITextSource, lineNumber:number): EditorCommon.IWordRangeSubWords[] {
+		if (!textSource._lineIsTokenized(lineNumber)) {
+			return WordHelper._getSubWordsInText(textSource.getLineContent(lineNumber), WordHelper.massageWordDefinitionOf(textSource.getMode()));
+		}
+
+		var r: EditorCommon.IWordRangeSubWords[] = [],
+			txt = textSource.getLineContent(lineNumber);
+
+		if (txt.length > 0) {
+
+			var modeTransitions = textSource._getLineModeTransitions(lineNumber),
+				i:number,
+				len:number,
+				k:number,
+				lenK:number,
+				currentModeStartIndex: number,
+				currentModeEndIndex: number,
+				currentWordDefinition:RegExp,
+				currentModeText: string,
+				words: RegExpMatchArray,
+				startWord: number,
+				endWord: number,
+				word: string;
+
+			// Go through all the modes
+			for (i = 0, currentModeStartIndex = 0, len = modeTransitions.length; i < len; i++) {
+				currentWordDefinition = WordHelper.massageWordDefinitionOf(modeTransitions[i].mode);
+				currentModeStartIndex = modeTransitions[i].startIndex;
+				currentModeEndIndex = (i + 1 < len ? modeTransitions[i + 1].startIndex : txt.length);
+				currentModeText = txt.substring(currentModeStartIndex, currentModeEndIndex);
+				words = currentModeText.match(currentWordDefinition);
+
+				if (!words) {
+					continue;
+				}
+
+				endWord = 0;
+				for (k = 0, lenK = words.length; k < lenK; k++) {
+					word = words[k];
+					if (word.length > 0) {
+						startWord = currentModeText.indexOf(word, endWord);
+						endWord = startWord + word.length;
+
+						//Check SubWords
+						var subWordPos:number[] = [];
+						for(var i = 0; i < word.length - 1; i++)
+						{
+							if(word.charAt(i) >= 'A' && word.charAt(i) <= 'Z')
+							{
+								subWordPos.push(currentModeStartIndex + startWord + i + 1);
+							}
+						}
+
+						r.push({
+							start: currentModeStartIndex + startWord,
+							end: currentModeStartIndex + endWord,
+							subWords: subWordPos
+						});
+					}
+				}
+			}
+		}
+
+		return r;
+	}
+
 	static _getWordsInText(text:string, wordDefinition:RegExp): EditorCommon.IWordRange[] {
 		var words = text.match(wordDefinition) || [],
 			k:number,
@@ -140,6 +206,46 @@ export class WordHelper {
 				r.push({
 					start: startColumn,
 					end: endColumn
+				});
+			}
+		}
+
+		return r;
+	}
+
+	static _getSubWordsInText(text:string, wordDefinition:RegExp): EditorCommon.IWordRangeSubWords[] {
+		var words = text.match(wordDefinition) || [],
+			k:number,
+			startWord:number,
+			endWord:number,
+			startColumn:number,
+			endColumn:number,
+			word:string,
+			r: EditorCommon.IWordRangeSubWords[] = [];
+
+		for (k = 0; k < words.length; k++) {
+			word = words[k].trim();
+			if (word.length > 0) {
+				startWord = text.indexOf(word, endWord);
+				endWord = startWord + word.length;
+				//Check SubWords
+				var subWordPos:number[];
+				for(var i = 0; i < word.length - 1; i++)
+				{
+					if(word.charAt(i) >= 'A' && word.charAt(i) <= 'Z')
+					{
+						subWordPos.push(startWord + i + 1);
+					}
+
+				}
+
+				startColumn = startWord;
+				endColumn = endWord;
+
+				r.push({
+					start: startColumn,
+					end: endColumn,
+					subWords: subWordPos
 				});
 			}
 		}

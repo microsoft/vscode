@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
@@ -445,6 +445,9 @@ export class OneCursor {
 	public findWord(position:EditorCommon.IEditorPosition, preference:string, skipSyntaxTokens?:boolean): EditorCommon.IWordRange {
 		return this.helper.findWord(position, preference, skipSyntaxTokens);
 	}
+	public findSubWord(position:EditorCommon.IEditorPosition, preference:string, skipSyntaxTokens?:boolean): EditorCommon.IWordRangeSubWords {
+		return this.helper.findSubWord(position, preference, skipSyntaxTokens);
+	}
 	public getLeftOfPosition(lineNumber:number, column:number): EditorCommon.IPosition {
 		return this.helper.getLeftOfPosition(this.model, lineNumber, column);
 	}
@@ -587,6 +590,63 @@ export class OneCursorOp {
 		return true;
 	}
 
+	public static moveSubWordLeft(cursor:OneCursor, inSelectionMode: boolean, ctx: IOneCursorOperationContext): boolean {
+		let position = cursor.getPosition();
+		var lineNumber = position.lineNumber;
+		var column = position.column;
+
+		var wentUp = false;
+		if (column === 1) {
+			if (lineNumber > 1) {
+				wentUp = true;
+				lineNumber = lineNumber - 1;
+				column = cursor.model.getLineMaxColumn(lineNumber);
+			}
+		}
+
+		var word = cursor.findSubWord(new Position(lineNumber, column), 'left', true);
+
+		//Get the first position to the left to move the cursor to
+
+		var newPosition = column - 1;
+		var positionFound = false;
+
+		while(!positionFound && word)
+		{
+			for(var i = word.subWords.length; i > 0; --i)
+			{
+				if(newPosition == word.subWords[i-1])
+				{
+					positionFound = true;
+					break;
+				}
+			}
+
+			if(newPosition == word.start)
+			{
+				positionFound = true;
+				break;
+			}
+
+			if(newPosition <= 0)
+			{
+				positionFound = true;
+				break;
+			}
+			newPosition--;
+		}
+
+		if (word) {
+			column = newPosition + 1;
+		} else {
+			column = 1;
+		}
+
+		ctx.cursorPositionChangeReason = 'explicit';
+		cursor.moveModelPosition(inSelectionMode, lineNumber, column, 0, true);
+		return true;
+	}
+
 	public static moveRight(cursor:OneCursor, inSelectionMode: boolean, ctx: IOneCursorOperationContext): boolean {
 		var viewLineNumber:number,
 			viewColumn:number;
@@ -627,6 +687,64 @@ export class OneCursorOp {
 
 		if (word) {
 			column = word.end + 1;
+		} else {
+			column = cursor.model.getLineMaxColumn(lineNumber);
+		}
+
+		ctx.cursorPositionChangeReason = 'explicit';
+		cursor.moveModelPosition(inSelectionMode, lineNumber, column, 0, true);
+		return true;
+	}
+
+	public static moveSubWordRight(cursor:OneCursor, inSelectionMode: boolean, ctx: IOneCursorOperationContext): boolean {
+		let position = cursor.getPosition();
+		var lineNumber = position.lineNumber;
+		var column = position.column;
+
+		var wentDown = false;
+		if (column === cursor.model.getLineMaxColumn(lineNumber)) {
+			if (lineNumber < cursor.model.getLineCount()) {
+				wentDown = true;
+				lineNumber = lineNumber + 1;
+				column = 1;
+			}
+		}
+
+		var word = cursor.findSubWord(new Position(lineNumber, column), 'right', true);
+
+		//Get the first position to the right to move the cursor to
+
+		var newPosition = column + 1;
+		var positionFound = false;
+
+		while(!positionFound && word)
+		{
+			for(var i = 0; i < word.subWords.length; ++i)
+			{
+				if(newPosition == word.subWords[i])
+				{
+					positionFound = true;
+					break;
+				}
+			}
+
+			if(newPosition == word.end)
+			{
+				positionFound = true;
+				newPosition+=2;
+				break;
+			}
+
+			if(newPosition >= cursor.model.getLineMaxColumn(lineNumber))
+			{
+				positionFound = true;
+				break;
+			}
+			newPosition++;
+		}
+
+		if (word) {
+			column = newPosition - 1;
 		} else {
 			column = cursor.model.getLineMaxColumn(lineNumber);
 		}
@@ -1467,6 +1585,67 @@ export class OneCursorOp {
 		return this.deleteLeft(cursor, ctx);
 	}
 
+	public static deleteSubWordLeft(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean{
+		if (this._autoClosingPairDelete(cursor, ctx)) {
+			// This was a case for an auto-closing pair delete
+			return true;
+		}
+
+		var selection = cursor.getSelection();
+
+		if (selection.isEmpty()) {
+			let position = cursor.getPosition();
+
+			var lineNumber = position.lineNumber;
+			var column = position.column;
+
+			if (lineNumber === 1 && column === 1) {
+				// Ignore deleting at beginning of file
+				return true;
+			}
+
+			// extend selection to the left until start of word
+			var isSubWord = false;
+			var newPosition = column - 1;
+
+			var word = cursor.findSubWord(position, 'left', true);
+			if (word) {
+				for(var i = column; i > word.start; --i){
+					for(var j = word.subWords.length; j > 0; --j){
+						if(newPosition == word.subWords[j-1]){
+							isSubWord = true;
+							break;
+						}
+					}
+					if(isSubWord){
+						break;
+					}
+					--newPosition;
+				}
+
+				if(isSubWord){
+					column = newPosition;
+				}
+				else if (word.end + 1 < column) {
+					column = word.end + 1;
+				} else {
+					column = word.start + 1;
+				}
+			} else {
+				column = 1;
+			}
+
+			var deleteSelection = new Range(lineNumber, column, lineNumber, position.column);
+			if (!deleteSelection.isEmpty()) {
+				ctx.executeCommand = new ReplaceCommand(deleteSelection, '');
+				return true;
+			}
+		}
+
+		return this.deleteLeft(cursor, ctx);
+
+	}
+
 	public static deleteRight(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
 
 		var deleteSelection: EditorCommon.IEditorRange = cursor.getSelection();
@@ -1531,6 +1710,65 @@ export class OneCursorOp {
 		}
 		// fall back to normal deleteRight behavior
 		return this.deleteRight(cursor, ctx);
+	}
+
+	public static deleteSubWordRight(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean{
+
+		var selection = cursor.getSelection();
+
+		if (selection.isEmpty()) {
+			let position = cursor.getPosition();
+
+			var lineNumber = position.lineNumber;
+			var column = position.column;
+
+			var lineCount = cursor.model.getLineCount();
+			var maxColumn = cursor.model.getLineMaxColumn(lineNumber);
+			if (lineNumber === lineCount && column === maxColumn) {
+				// Ignore deleting at end of file
+				return true;
+			}
+
+			// extend selection to the left until start of word
+			var isSubWord = false;
+			var newPosition = column + 1;
+
+			var word = cursor.findSubWord(position, 'right', true);
+			if (word) {
+				for(var i = column; i < word.end; ++i){
+					for(var j = 0; j < word.subWords.length; ++j) {
+						if(newPosition == word.subWords[j]) {
+								isSubWord = true;
+								break;
+						}
+					}
+					if(isSubWord){
+						break;
+					}
+					++newPosition;
+				}
+
+				if(isSubWord){
+					column = newPosition;
+				}
+				else if (word.start + 1 > column) {
+					column = word.start + 1;
+				} else {
+					column = word.end + 1;
+				}
+			} else {
+				column = maxColumn;
+			}
+
+			var deleteSelection = new Range(lineNumber, column, lineNumber, position.column);
+			if (!deleteSelection.isEmpty()) {
+				ctx.executeCommand = new ReplaceCommand(deleteSelection, '');
+				return true;
+			}
+		}
+
+		return this.deleteRight(cursor, ctx);
+
 	}
 
 	public static deleteAllLeft(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
@@ -1694,6 +1932,50 @@ class CursorHelper {
 
 	public findWord(position:EditorCommon.IEditorPosition, preference:string, skipSyntaxTokens:boolean=false): EditorCommon.IWordRange {
 		var words = this.model.getWords(position.lineNumber);
+		var searchIndex:number, i:number, len:number;
+
+		if (skipSyntaxTokens) {
+			searchIndex = position.column - 1;
+			if (preference === 'left') {
+				for (i = words.length - 1; i >= 0; i--) {
+					if (words[i].start >= searchIndex) {
+						continue;
+					}
+					return words[i];
+				}
+			} else {
+				for (i = 0, len = words.length; i < len; i++) {
+					if (words[i].end <= searchIndex) {
+						continue;
+					}
+					return words[i];
+				}
+			}
+		} else {
+			searchIndex = position.column;
+			if (preference === 'left') {
+				if (searchIndex !== 1) {
+					searchIndex = searchIndex - 0.1;
+				}
+			} else {
+				if (searchIndex !== this.model.getLineMaxColumn(position.lineNumber)) {
+					searchIndex = searchIndex + 0.1;
+				}
+			}
+			searchIndex = searchIndex - 1;
+
+			for (i = 0, len = words.length; i < len; i++) {
+				if (words[i].start <= searchIndex && searchIndex <= words[i].end) {
+					return words[i];
+				}
+			}
+		}
+
+		return null;
+	}
+
+	public findSubWord(position:EditorCommon.IEditorPosition, preference:string, skipSyntaxTokens:boolean=false): EditorCommon.IWordRangeSubWords {
+		var words = this.model.getSubWords(position.lineNumber);
 		var searchIndex:number, i:number, len:number;
 
 		if (skipSyntaxTokens) {

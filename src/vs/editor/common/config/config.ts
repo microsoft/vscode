@@ -1,7 +1,8 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+ 
 'use strict';
 
 import {KeybindingsRegistry,ICommandDescriptor} from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -260,6 +261,14 @@ registerWordCommand(H.CursorWordRight, false, KeyCode.RightArrow);
 registerWordCommand(H.CursorWordRightSelect, true, KeyCode.RightArrow);
 registerWordCommand(H.DeleteWordLeft, false, KeyCode.Backspace);
 registerWordCommand(H.DeleteWordRight, false, KeyCode.Delete);
+registerWordCommand(H.DeleteSubWordLeft,false, KeyCode.F7);
+registerWordCommand(H.DeleteSubWordRight,false, KeyCode.F6);
+
+registerWordCommand(H.CursorSubWordLeft, false, KeyCode.F5);
+registerWordCommand(H.CursorSubWordRight, false, KeyCode.DownArrow);
+registerWordCommand(H.CursorSubWordLeftSelect, true, KeyCode.F8);
+registerWordCommand(H.CursorSubWordRightSelect, true, KeyCode.F9);
+
 
 registerCoreCommand(H.CancelSelection, {
 	primary: KeyCode.Escape

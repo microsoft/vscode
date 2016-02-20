@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
@@ -961,6 +961,23 @@ export interface IWordRange {
 	end:number;
 }
 
+export interface IWordRangeSubWords
+{
+
+	/**
+	 * The column where the word starts.
+	 */
+	start:number;
+	/**
+	 * The column where the word ends.
+	 */
+	end:number;
+	/**
+	 * The subwords between the start and end of a word
+	 */
+	subWords:number[];
+}
+
 export interface ITokenInfo {
 	token: Modes.IToken;
 	lineNumber: number;
@@ -1478,6 +1495,8 @@ export interface ITokenizedModel extends ITextModel {
 	 * @return All the words on the line.
 	 */
 	getWords(lineNumber:number): IWordRange[];
+
+	getSubWords(lineNumber:number): IWordRangeSubWords[];
 
 	/**
 	 * Returns an iterator that can be used to read
@@ -3294,12 +3313,16 @@ export var Handler = {
 	CursorLeft:					'cursorLeft',
 	CursorLeftSelect:			'cursorLeftSelect',
 	CursorWordLeft:				'cursorWordLeft',
+	CursorSubWordLeft:			'cursorSubWordLeft',
 	CursorWordLeftSelect:		'cursorWordLeftSelect',
+	CursorSubWordLeftSelect:	'cursorSubWordLeftSelect',
 
 	CursorRight:				'cursorRight',
 	CursorRightSelect:			'cursorRightSelect',
 	CursorWordRight:			'cursorWordRight',
+	CursorSubWordRight:			'cursorSubWordRight',
 	CursorWordRightSelect:		'cursorWordRightSelect',
+	CursorSubWordRightSelect:	'cursorSubWordRightSelect',
 
 	CursorUp:					'cursorUp',
 	CursorUpSelect:				'cursorUpSelect',
@@ -3346,6 +3369,8 @@ export var Handler = {
 	DeleteRight:				'deleteRight',
 	DeleteWordLeft:				'deleteWordLeft',
 	DeleteWordRight:			'deleteWordRight',
+	DeleteSubWordLeft:			'deleteSubWordLeft',
+	DeleteSubWordRight:			'deleteSubWordRight',
 	DeleteAllLeft:				'deleteAllLeft',
 	DeleteAllRight:				'deleteAllRight',
 
