@@ -50,7 +50,7 @@ class ModesHoverController implements EditorCommon.IEditorContribution {
 			this._toUnhook.push(this._editor.addListener(EditorCommon.EventType.MouseDown, (e: EditorBrowser.IMouseEvent) => this._onEditorMouseDown(e)));
 			this._toUnhook.push(this._editor.addListener(EditorCommon.EventType.MouseMove, (e: EditorBrowser.IMouseEvent) => this._onEditorMouseMove(e)));
 			this._toUnhook.push(this._editor.addListener(EditorCommon.EventType.MouseLeave, (e: EditorBrowser.IMouseEvent) => this._hideWidgets()));
-			this._toUnhook.push(this._editor.addListener(EditorCommon.EventType.KeyDown, (e:Keyboard.StandardKeyboardEvent) => this._onKeyDown(e)));
+			this._toUnhook.push(this._editor.addListener(EditorCommon.EventType.KeyDown, (e:Keyboard.IKeyboardEvent) => this._onKeyDown(e)));
 			this._toUnhook.push(this._editor.addListener(EditorCommon.EventType.ModelChanged, () => this._hideWidgets()));
 			this._toUnhook.push(this._editor.addListener(EditorCommon.EventType.ModelDecorationsChanged, () => this._onModelDecorationsChanged()));
 			this._toUnhook.push(this._editor.addListener('scroll', () => this._hideWidgets()));
@@ -106,7 +106,7 @@ class ModesHoverController implements EditorCommon.IEditorContribution {
 		}
 	}
 
-	private _onKeyDown(e: Keyboard.StandardKeyboardEvent): void {
+	private _onKeyDown(e: Keyboard.IKeyboardEvent): void {
 		var stopKey = Platform.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;
 		if (e.keyCode !== stopKey) {
 			// Do not hide hover when Ctrl/Meta is pressed

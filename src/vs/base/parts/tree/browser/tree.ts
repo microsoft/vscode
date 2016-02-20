@@ -453,9 +453,9 @@ export class MouseContextMenuEvent extends ContextMenuEvent {
 
 export class KeyboardContextMenuEvent extends ContextMenuEvent {
 
-	private originalEvent: Keyboard.StandardKeyboardEvent;
+	private originalEvent: Keyboard.IKeyboardEvent;
 
-	constructor(posx: number, posy: number, originalEvent: Keyboard.StandardKeyboardEvent) {
+	constructor(posx: number, posy: number, originalEvent: Keyboard.IKeyboardEvent) {
 		super(posx, posy, originalEvent.target);
 		this.originalEvent = originalEvent;
 	}
@@ -489,12 +489,12 @@ export interface IController {
 	/**
 	 * Called when a key is pressed down while selecting elements.
 	 */
-	onKeyDown(tree: ITree, event: Keyboard.StandardKeyboardEvent): boolean;
+	onKeyDown(tree: ITree, event: Keyboard.IKeyboardEvent): boolean;
 
 	/**
 	 * Called when a key is released while selecting elements.
 	 */
-	onKeyUp(tree: ITree, event: Keyboard.StandardKeyboardEvent): boolean;
+	onKeyUp(tree: ITree, event: Keyboard.IKeyboardEvent): boolean;
 
 	/**
 	 * Called when a mouse button is pressed down on an element.

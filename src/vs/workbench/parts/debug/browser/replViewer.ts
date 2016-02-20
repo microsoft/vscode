@@ -503,7 +503,7 @@ export class ReplExpressionsController extends debugviewer.BaseDebugController {
 		return true;
 	}
 
-	protected onDown(tree: tree.ITree, event: keyboard.StandardKeyboardEvent): boolean {
+	protected onDown(tree: tree.ITree, event: keyboard.IKeyboardEvent): boolean {
 		if (tree.getFocus()) {
 			return super.onDown(tree, event);
 		}

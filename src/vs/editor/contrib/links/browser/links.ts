@@ -115,8 +115,8 @@ class LinkDetector {
 		}));
 		this.listenersToRemove.push(this.editor.addListener(EditorCommon.EventType.MouseUp, (e:EditorBrowser.IMouseEvent) => this.onEditorMouseUp(e)));
 		this.listenersToRemove.push(this.editor.addListener(EditorCommon.EventType.MouseMove, (e:EditorBrowser.IMouseEvent) => this.onEditorMouseMove(e)));
-		this.listenersToRemove.push(this.editor.addListener(EditorCommon.EventType.KeyDown, (e:Keyboard.StandardKeyboardEvent) => this.onEditorKeyDown(e)));
-		this.listenersToRemove.push(this.editor.addListener(EditorCommon.EventType.KeyUp, (e:Keyboard.StandardKeyboardEvent) => this.onEditorKeyUp(e)));
+		this.listenersToRemove.push(this.editor.addListener(EditorCommon.EventType.KeyDown, (e:Keyboard.IKeyboardEvent) => this.onEditorKeyDown(e)));
+		this.listenersToRemove.push(this.editor.addListener(EditorCommon.EventType.KeyUp, (e:Keyboard.IKeyboardEvent) => this.onEditorKeyUp(e)));
 		this.timeoutPromise = null;
 		this.computePromise = null;
 		this.currentOccurences = {};
@@ -255,19 +255,19 @@ class LinkDetector {
 		});
 	}
 
-	private onEditorKeyDown(e:Keyboard.StandardKeyboardEvent):void {
+	private onEditorKeyDown(e:Keyboard.IKeyboardEvent):void {
 		if (e.keyCode === LinkDetector.TRIGGER_KEY_VALUE && this.lastMouseEvent) {
 			this.onEditorMouseMove(this.lastMouseEvent, e);
 		}
 	}
 
-	private onEditorKeyUp(e:Keyboard.StandardKeyboardEvent):void {
+	private onEditorKeyUp(e:Keyboard.IKeyboardEvent):void {
 		if (e.keyCode === LinkDetector.TRIGGER_KEY_VALUE) {
 			this.cleanUpActiveLinkDecoration();
 		}
 	}
 
-	private onEditorMouseMove(mouseEvent: EditorBrowser.IMouseEvent, withKey?:Keyboard.StandardKeyboardEvent):void {
+	private onEditorMouseMove(mouseEvent: EditorBrowser.IMouseEvent, withKey?:Keyboard.IKeyboardEvent):void {
 		this.lastMouseEvent = mouseEvent;
 
 		if (this.isEnabled(mouseEvent, withKey)) {
@@ -377,7 +377,7 @@ class LinkDetector {
 		return null;
 	}
 
-	private isEnabled(mouseEvent: EditorBrowser.IMouseEvent, withKey?:Keyboard.StandardKeyboardEvent):boolean {
+	private isEnabled(mouseEvent: EditorBrowser.IMouseEvent, withKey?:Keyboard.IKeyboardEvent):boolean {
 		return 	mouseEvent.target.type === EditorCommon.MouseTargetType.CONTENT_TEXT &&
 				(mouseEvent.event[LinkDetector.TRIGGER_MODIFIER] || (withKey && withKey.keyCode === LinkDetector.TRIGGER_KEY_VALUE));
 	}

@@ -246,11 +246,11 @@ class Controller extends treeDefaults.DefaultController {
 		return true;
 	}
 
-	public onEscape(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	public onEscape(tree:tree.ITree, event:keyboard.IKeyboardEvent):boolean {
 		return false;
 	}
 
-	public onEnter(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	public onEnter(tree:tree.ITree, event:keyboard.IKeyboardEvent):boolean {
 		var element = tree.getFocus();
 		if (element instanceof model.FileReferences) {
 			return this.expandCollapse(tree, element);
@@ -265,43 +265,43 @@ class Controller extends treeDefaults.DefaultController {
 		return result;
 	}
 
-	public onUp(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	public onUp(tree:tree.ITree, event:keyboard.IKeyboardEvent):boolean {
 		super.onUp(tree, event);
 		this.fakeFocus(tree, event);
 		return true;
 	}
 
-	public onPageUp(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	public onPageUp(tree:tree.ITree, event:keyboard.IKeyboardEvent):boolean {
 		super.onPageUp(tree, event);
 		this.fakeFocus(tree, event);
 		return true;
 	}
 
-	public onLeft(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	public onLeft(tree:tree.ITree, event:keyboard.IKeyboardEvent):boolean {
 		super.onLeft(tree, event);
 		this.fakeFocus(tree, event);
 		return true;
 	}
 
-	public onDown(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	public onDown(tree:tree.ITree, event:keyboard.IKeyboardEvent):boolean {
 		super.onDown(tree, event);
 		this.fakeFocus(tree, event);
 		return true;
 	}
 
-	public onPageDown(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	public onPageDown(tree:tree.ITree, event:keyboard.IKeyboardEvent):boolean {
 		super.onPageDown(tree, event);
 		this.fakeFocus(tree, event);
 		return true;
 	}
 
-	public onRight(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	public onRight(tree:tree.ITree, event:keyboard.IKeyboardEvent):boolean {
 		super.onRight(tree, event);
 		this.fakeFocus(tree, event);
 		return true;
 	}
 
-	private fakeFocus(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):void {
+	private fakeFocus(tree:tree.ITree, event:keyboard.IKeyboardEvent):void {
 		// focus next item
 		var focus = tree.getFocus();
 		tree.setSelection([focus]);

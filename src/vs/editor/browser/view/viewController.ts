@@ -5,12 +5,11 @@
 'use strict';
 
 import EventEmitter = require('vs/base/common/eventEmitter');
-import DomUtils = require('vs/base/browser/dom');
-
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import Configuration = require('vs/editor/browser/config/configuration');
 import Position = require('vs/editor/common/core/position');
 import EditorCommon = require('vs/editor/common/editorCommon');
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 export class ViewController implements EditorBrowser.IViewController {
 
@@ -170,11 +169,11 @@ export class ViewController implements EditorBrowser.IViewController {
 		}
 	}
 
-	public emitKeyDown(e:DomUtils.IKeyboardEvent): void {
+	public emitKeyDown(e:IKeyboardEvent): void {
 		this.outgoingEventBus.emit(EditorCommon.EventType.KeyDown, e);
 	}
 
-	public emitKeyUp(e:DomUtils.IKeyboardEvent): void {
+	public emitKeyUp(e:IKeyboardEvent): void {
 		this.outgoingEventBus.emit(EditorCommon.EventType.KeyUp, e);
 	}
 

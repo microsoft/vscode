@@ -117,7 +117,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseDown, (e: editorbrowser.IMouseEvent) => this.onEditorMouseDown(e)));
 		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseMove, (e: editorbrowser.IMouseEvent) => this.onEditorMouseMove(e)));
 		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseLeave, (e: editorbrowser.IMouseEvent) => this.hoverWidget.hide()));
-		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.KeyDown, (e: keyboard.StandardKeyboardEvent) => this.onKeyDown(e)));
+		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.KeyDown, (e: keyboard.IKeyboardEvent) => this.onKeyDown(e)));
 		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.ModelChanged, () => this.hideHoverWidget()));
 		this.toDispose.push(this.editor.addListener2('scroll', () => this.hideHoverWidget));
 	}
@@ -198,7 +198,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 		}
 	}
 
-	private onKeyDown(e: keyboard.StandardKeyboardEvent): void {
+	private onKeyDown(e: keyboard.IKeyboardEvent): void {
 		const stopKey = env.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;
 		if (e.keyCode !== stopKey) {
 			// do not hide hover when Ctrl/Meta is pressed

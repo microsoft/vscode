@@ -11,11 +11,12 @@ import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 // import {WorkerClient} from 'vs/base/common/worker/workerClient';
 // import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
 import {marked} from 'vs/base/common/marked/marked';
+import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 
 export type RenderableContent = string | IHTMLContentElement | IHTMLContentElement[];
 
 export interface RenderOptions {
-	actionCallback?: (content: string, event?: DOM.IMouseEvent) => void;
+	actionCallback?: (content: string, event?: IMouseEvent) => void;
 	codeBlockRenderer?: (modeId: string, value: string) => string;
 }
 
@@ -228,7 +229,7 @@ interface IFormatParseTree {
 	children?: IFormatParseTree[];
 }
 
-function renderFormattedText(element: Node, treeNode: IFormatParseTree, actionCallback?: (content: string, event?: DOM.IMouseEvent) => void) {
+function renderFormattedText(element: Node, treeNode: IFormatParseTree, actionCallback?: (content: string, event?: IMouseEvent) => void) {
 	var child: Node;
 
 	if (treeNode.type === FormatType.Text) {

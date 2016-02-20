@@ -11,6 +11,7 @@ import EditorBrowser = require('vs/editor/browser/editorBrowser');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {Position} from 'vs/editor/common/core/position';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 export class ContentHoverWidget implements EditorBrowser.IContentWidget {
 
@@ -39,7 +40,7 @@ export class ContentHoverWidget implements EditorBrowser.IContentWidget {
 		this._containerDomNode.appendChild(this._domNode);
 		this._containerDomNode.tabIndex = 0;
 		this._toDispose = [];
-		this._toDispose.push(dom.addStandardDisposableListener(this._containerDomNode, 'keydown', (e: dom.IKeyboardEvent) => {
+		this._toDispose.push(dom.addStandardDisposableListener(this._containerDomNode, 'keydown', (e: IKeyboardEvent) => {
 			if (e.equals(CommonKeybindings.ESCAPE)) {
 				this.hide();
 			}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import DomUtils = require('vs/base/browser/dom');
 import Browser = require('vs/base/browser/browser');
 import EditorBrowser = require('vs/editor/browser/editorBrowser');
@@ -16,6 +16,7 @@ import {TextAreaHandler} from 'vs/editor/common/controller/textAreaHandler';
 import {ITextAreaWrapper, IClipboardEvent, IKeyboardEventWrapper, TextAreaStrategy} from 'vs/editor/common/controller/textAreaState';
 import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 class ClipboardEventWrapper implements IClipboardEvent {
 
@@ -68,9 +69,9 @@ class ClipboardEventWrapper implements IClipboardEvent {
 
 class KeyboardEventWrapper implements IKeyboardEventWrapper {
 
-	public _actual: DomUtils.IKeyboardEvent;
+	public _actual: IKeyboardEvent;
 
-	constructor(actual:DomUtils.IKeyboardEvent) {
+	constructor(actual:IKeyboardEvent) {
 		this._actual = actual;
 	}
 
@@ -209,8 +210,8 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 		this.textAreaHandler = new TextAreaHandler(Browser, this._getStrategy(), this.textArea, this.context.model);
 
 		this._toDispose = [];
-		this._toDispose.push(this.textAreaHandler.onKeyDown((e) => this.viewController.emitKeyDown(<DomUtils.IKeyboardEvent>e._actual)));
-		this._toDispose.push(this.textAreaHandler.onKeyUp((e) => this.viewController.emitKeyUp(<DomUtils.IKeyboardEvent>e._actual)));
+		this._toDispose.push(this.textAreaHandler.onKeyDown((e) => this.viewController.emitKeyDown(<IKeyboardEvent>e._actual)));
+		this._toDispose.push(this.textAreaHandler.onKeyUp((e) => this.viewController.emitKeyUp(<IKeyboardEvent>e._actual)));
 		this._toDispose.push(this.textAreaHandler.onPaste((e) => this.viewController.paste('keyboard', e.text, e.pasteOnNewLine)));
 		this._toDispose.push(this.textAreaHandler.onCut((e) => this.viewController.cut('keyboard')));
 		this._toDispose.push(this.textAreaHandler.onType((e) => {

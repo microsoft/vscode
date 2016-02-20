@@ -17,7 +17,7 @@ import mime = require('vs/base/common/mime');
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {StandardMouseEvent, DragMouseEvent} from 'vs/base/browser/mouseEvent';
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import actions = require('vs/base/common/actions');
 import {ActionsRenderer} from 'vs/base/parts/tree/browser/actionsRenderer';
@@ -402,7 +402,7 @@ export class WorkingFilesController extends DefaultController {
 		return true;
 	}
 
-	private onEnterDown(tree: ITree, event: StandardKeyboardEvent): boolean {
+	private onEnterDown(tree: ITree, event: IKeyboardEvent): boolean {
 		let payload = { origin: 'keyboard' };
 
 		let element = tree.getFocus();
@@ -414,7 +414,7 @@ export class WorkingFilesController extends DefaultController {
 		return true;
 	}
 
-	private onModifierEnterUp(tree: ITree, event: StandardKeyboardEvent): boolean {
+	private onModifierEnterUp(tree: ITree, event: IKeyboardEvent): boolean {
 		let element = tree.getFocus();
 		if (element) {
 			this.openEditor(<WorkingFileEntry>element, false, true);

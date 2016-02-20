@@ -21,6 +21,7 @@ import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {FindReplaceStateChangedEvent, FindReplaceState} from 'vs/editor/contrib/find/common/findState';
 import {Widget} from 'vs/base/browser/ui/widget';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 export interface IFindController {
 	replace(): void;
@@ -309,7 +310,7 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		this._replaceInputBox.focus();
 	}
 
-	private _onFindInputKeyDown(e:DomUtils.IKeyboardEvent): void {
+	private _onFindInputKeyDown(e:IKeyboardEvent): void {
 
 		switch (e.asKeybinding()) {
 			case CommonKeybindings.ENTER:
@@ -338,7 +339,7 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		}
 	}
 
-	private _onReplaceInputKeyDown(e:DomUtils.IKeyboardEvent): void {
+	private _onReplaceInputKeyDown(e:IKeyboardEvent): void {
 
 		switch (e.asKeybinding()) {
 			case CommonKeybindings.ENTER:
@@ -654,7 +655,7 @@ interface ISimpleButtonOpts {
 	label: string;
 	className: string;
 	onTrigger: ()=>void;
-	onKeyDown: (e:DomUtils.IKeyboardEvent)=>void;
+	onKeyDown: (e:IKeyboardEvent)=>void;
 }
 
 class SimpleButton extends Widget {

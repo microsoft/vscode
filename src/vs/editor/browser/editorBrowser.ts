@@ -7,10 +7,9 @@
 import EditorCommon = require('vs/editor/common/editorCommon');
 import EventEmitter = require('vs/base/common/eventEmitter');
 import Lifecycle = require('vs/base/common/lifecycle');
-import DomUtils = require('vs/base/browser/dom');
 import Mouse = require('vs/base/browser/mouseEvent');
-
 import Instantiation = require('vs/platform/instantiation/common/instantiation');
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 export interface IDynamicViewOverlay extends Lifecycle.IDisposable {
 	shouldCallRender2(ctx:IRenderingContext): boolean;
@@ -129,8 +128,8 @@ export interface IViewController {
 	lastCursorLineSelectDrag(source:string, lineNumber:number, column:number): void;
 	selectAll(source:string): void;
 
-	emitKeyDown(e:DomUtils.IKeyboardEvent): void;
-	emitKeyUp(e:DomUtils.IKeyboardEvent): void;
+	emitKeyDown(e:IKeyboardEvent): void;
+	emitKeyUp(e:IKeyboardEvent): void;
 	emitContextMenu(e:IMouseEvent): void;
 	emitMouseMove(e:IMouseEvent): void;
 	emitMouseLeave(e:IMouseEvent): void;

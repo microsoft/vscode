@@ -11,7 +11,6 @@ import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import * as DOM from 'vs/base/browser/dom';
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IKeybindingService, IKeybindingScopeLocation, ICommandHandler, IKeybindingItem, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -19,6 +18,7 @@ import {IMessageService} from 'vs/platform/message/common/message';
 import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
 import {Keybinding, KeyCode} from 'vs/base/common/keyCodes';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {StandardKeyboardEvent, IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 let KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
@@ -213,7 +213,7 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 		return KeybindingsRegistry.getCommands()[commandId];
 	}
 
-	private _dispatch(e: DOM.IKeyboardEvent): void {
+	private _dispatch(e: IKeyboardEvent): void {
 		let isModifierKey = (e.keyCode === KeyCode.Ctrl || e.keyCode === KeyCode.Shift || e.keyCode === KeyCode.Alt || e.keyCode === KeyCode.Meta);
 		if (isModifierKey) {
 			return;

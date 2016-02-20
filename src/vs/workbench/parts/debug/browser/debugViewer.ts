@@ -14,7 +14,6 @@ import strings = require('vs/base/common/strings');
 import { isMacintosh } from 'vs/base/common/platform';
 import dom = require('vs/base/browser/dom');
 import mouse = require('vs/base/browser/mouseEvent');
-import keyboard = require('vs/base/browser/keyboardEvent');
 import labels = require('vs/base/common/labels');
 import actions = require('vs/base/common/actions');
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
@@ -31,6 +30,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.emmet;
 const booleanRegex = /^true|false$/i;
@@ -116,7 +116,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 		}
 	});
 
-	toDispose.push(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: dom.IKeyboardEvent) => {
+	toDispose.push(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
 		const isEscape = e.equals(CommonKeybindings.ESCAPE);
 		const isEnter = e.equals(CommonKeybindings.ENTER);
 		if (isEscape || isEnter) {
@@ -180,7 +180,7 @@ export class BaseDebugController extends treedefaults.DefaultController {
 		return false;
 	}
 
-	protected onDelete(tree: tree.ITree, event: keyboard.StandardKeyboardEvent): boolean {
+	protected onDelete(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		return false;
 	}
 }
@@ -687,7 +687,7 @@ export class WatchExpressionsController extends BaseDebugController {
 		return false;
 	}
 
-	protected onDelete(tree: tree.ITree, event: keyboard.StandardKeyboardEvent): boolean {
+	protected onDelete(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		const element = tree.getFocus();
 		if (element instanceof model.Expression) {
 			const we = <model.Expression> element;
@@ -951,11 +951,11 @@ export class BreakpointsController extends BaseDebugController {
 		return super.onLeftClick(tree, element, event);
 	}
 
-	protected onUp(tree:tree.ITree, event:keyboard.StandardKeyboardEvent): boolean {
+	protected onUp(tree:tree.ITree, event:IKeyboardEvent): boolean {
 		return this.doNotFocusExceptionBreakpoint(tree, super.onUp(tree, event));
 	}
 
-	protected onPageUp(tree:tree.ITree, event:keyboard.StandardKeyboardEvent): boolean {
+	protected onPageUp(tree:tree.ITree, event:IKeyboardEvent): boolean {
 		return this.doNotFocusExceptionBreakpoint(tree, super.onPageUp(tree, event));
 	}
 
@@ -970,7 +970,7 @@ export class BreakpointsController extends BaseDebugController {
 		return upSucceeded;
 	}
 
-	protected onDelete(tree: tree.ITree, event: keyboard.StandardKeyboardEvent): boolean {
+	protected onDelete(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		const element = tree.getFocus();
 		if (element instanceof model.Breakpoint) {
 			const bp = <model.Breakpoint> element;

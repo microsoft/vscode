@@ -262,21 +262,21 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.MouseDown, (e: EditorBrowser.IMouseEvent) => this.onEditorMouseDown(e)));
 		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.MouseUp, (e: EditorBrowser.IMouseEvent) => this.onEditorMouseUp(e)));
 		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.MouseMove, (e: EditorBrowser.IMouseEvent) => this.onEditorMouseMove(e)));
-		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.KeyDown, (e: Keyboard.StandardKeyboardEvent) => this.onEditorKeyDown(e)));
-		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.KeyUp, (e: Keyboard.StandardKeyboardEvent) => this.onEditorKeyUp(e)));
+		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.KeyDown, (e: Keyboard.IKeyboardEvent) => this.onEditorKeyDown(e)));
+		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.KeyUp, (e: Keyboard.IKeyboardEvent) => this.onEditorKeyUp(e)));
 
 		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.ModelChanged, (e: EditorCommon.IModelContentChangedEvent) => this.resetHandler()));
 		this.toUnhook.push(this.editor.addListener('change', (e: EditorCommon.IModelContentChangedEvent) => this.resetHandler()));
 		this.toUnhook.push(this.editor.addListener('scroll', () => this.resetHandler()));
 	}
 
-	private onEditorMouseMove(mouseEvent: EditorBrowser.IMouseEvent, withKey?: Keyboard.StandardKeyboardEvent): void {
+	private onEditorMouseMove(mouseEvent: EditorBrowser.IMouseEvent, withKey?: Keyboard.IKeyboardEvent): void {
 		this.lastMouseMoveEvent = mouseEvent;
 
 		this.startFindDefinition(mouseEvent, withKey);
 	}
 
-	private startFindDefinition(mouseEvent: EditorBrowser.IMouseEvent, withKey?: Keyboard.StandardKeyboardEvent): void {
+	private startFindDefinition(mouseEvent: EditorBrowser.IMouseEvent, withKey?: Keyboard.IKeyboardEvent): void {
 		if (!this.isEnabled(mouseEvent, withKey)) {
 			this.currentWordUnderMouse = null;
 			this.removeDecorations();
@@ -417,7 +417,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 		}
 	}
 
-	private onEditorKeyDown(e: Keyboard.StandardKeyboardEvent): void {
+	private onEditorKeyDown(e: Keyboard.IKeyboardEvent): void {
 		if (
 			this.lastMouseMoveEvent && (
 				e.keyCode === GotoDefinitionWithMouseEditorContribution.TRIGGER_KEY_VALUE || // User just pressed Ctrl/Cmd (normal goto definition)
@@ -454,14 +454,14 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 		}
 	}
 
-	private onEditorKeyUp(e: Keyboard.StandardKeyboardEvent): void {
+	private onEditorKeyUp(e: Keyboard.IKeyboardEvent): void {
 		if (e.keyCode === GotoDefinitionWithMouseEditorContribution.TRIGGER_KEY_VALUE) {
 			this.removeDecorations();
 			this.currentWordUnderMouse = null;
 		}
 	}
 
-	private isEnabled(mouseEvent: EditorBrowser.IMouseEvent, withKey?: Keyboard.StandardKeyboardEvent): boolean {
+	private isEnabled(mouseEvent: EditorBrowser.IMouseEvent, withKey?: Keyboard.IKeyboardEvent): boolean {
 		return this.hasRequiredServices &&
 			this.editor.getModel() &&
 			(Browser.isIE11orEarlier || mouseEvent.event.detail <= 1) && // IE does not support event.detail properly

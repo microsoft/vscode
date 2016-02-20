@@ -7,7 +7,7 @@
 
 import {Disposable} from 'vs/base/common/lifecycle';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {StandardKeyboardEvent, IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import * as DomUtils from 'vs/base/browser/dom';
 
 export abstract class Widget extends Disposable {
@@ -28,11 +28,11 @@ export abstract class Widget extends Disposable {
 		this._register(DomUtils.addDisposableNonBubblingMouseOutListener(domNode, (e:MouseEvent) => listener(new StandardMouseEvent(e))));
 	}
 
-	protected onkeydown(domNode:HTMLElement, listener:(e:StandardKeyboardEvent)=>void): void {
+	protected onkeydown(domNode:HTMLElement, listener:(e:IKeyboardEvent)=>void): void {
 		this._register(DomUtils.addDisposableListener(domNode, DomUtils.EventType.KEY_DOWN, (e:KeyboardEvent) => listener(new StandardKeyboardEvent(e))));
 	}
 
-	protected onkeyup(domNode:HTMLElement, listener:(e:StandardKeyboardEvent)=>void): void {
+	protected onkeyup(domNode:HTMLElement, listener:(e:IKeyboardEvent)=>void): void {
 		this._register(DomUtils.addDisposableListener(domNode, DomUtils.EventType.KEY_UP, (e:KeyboardEvent) => listener(new StandardKeyboardEvent(e))));
 	}
 

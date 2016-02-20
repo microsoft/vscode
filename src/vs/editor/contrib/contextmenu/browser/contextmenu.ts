@@ -20,6 +20,7 @@ import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode, Keybinding} from 'vs/base/common/keyCodes';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 interface IPosition {
 	x:number;
@@ -49,7 +50,7 @@ class ContextMenuController implements EditorCommon.IEditorContribution {
 		this._contextMenuIsBeingShownCount = 0;
 
 		this._toDispose.push(this._editor.addListener2(EditorCommon.EventType.ContextMenu, (e:EditorBrowser.IMouseEvent)=>this._onContextMenu(e)));
-		this._toDispose.push(this._editor.addListener2(EditorCommon.EventType.KeyDown, (e:DOM.IKeyboardEvent)=> {
+		this._toDispose.push(this._editor.addListener2(EditorCommon.EventType.KeyDown, (e:IKeyboardEvent)=> {
 			if (e.keyCode === KeyCode.ContextMenu) {
 				// Chrome is funny like that
 				e.preventDefault();

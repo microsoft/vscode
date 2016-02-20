@@ -20,7 +20,7 @@ import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 import dom = require('vs/base/browser/dom');
 import {IAction, Action, IActionRunner} from 'vs/base/common/actions';
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {StandardKeyboardEvent, IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import timer = require('vs/base/common/timer');
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {FileLabel} from 'vs/base/browser/ui/filelabel/fileLabel';
@@ -730,7 +730,7 @@ export class SearchViewlet extends Viewlet {
 			builder = div;
 		});
 
-		let onStandardKeyUp = (keyboardEvent: StandardKeyboardEvent) => {
+		let onStandardKeyUp = (keyboardEvent: IKeyboardEvent) => {
 			if (keyboardEvent.keyCode === KeyCode.Enter) {
 				this.onQueryChanged(true);
 			} else if (keyboardEvent.keyCode === KeyCode.Escape) {
@@ -772,7 +772,7 @@ export class SearchViewlet extends Viewlet {
 			};
 			this.findInput = new FindInput(div.getHTMLElement(), this.contextViewService, options);
 			this.findInput.onKeyUp(onStandardKeyUp);
-			this.findInput.onKeyDown((keyboardEvent: StandardKeyboardEvent) => {
+			this.findInput.onKeyDown((keyboardEvent: IKeyboardEvent) => {
 				if (keyboardEvent.keyCode === KeyCode.DownArrow) {
 					dom.EventHelper.stop(keyboardEvent);
 					if (this.showsFileTypes()) {
@@ -1038,7 +1038,7 @@ export class SearchViewlet extends Viewlet {
 		}
 	}
 
-	private selectTreeIfNotSelected(keyboardEvent: StandardKeyboardEvent): void {
+	private selectTreeIfNotSelected(keyboardEvent: IKeyboardEvent): void {
 		if (this.tree.getInput()) {
 			this.tree.DOMFocus();
 			let selection = this.tree.getSelection();
