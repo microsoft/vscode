@@ -186,7 +186,7 @@ export class FeedbackDropdown extends Dropdown {
 
 	private getCharCountText(charCount: number): string {
 		let remaining = FeedbackDropdown.MAX_FEEDBACK_CHARS - charCount;
-		let text = (remaining == 1)
+		let text = (remaining === 1)
 			? nls.localize("character left", "character left")
 			: nls.localize("characters left", "characters left");
 
