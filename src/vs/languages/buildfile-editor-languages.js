@@ -39,7 +39,7 @@ exports.collectModules = function(args) {
 	var worker = new EntryPoint(result, ['vs/editor/common/languages.common', 'vs/base/common/worker/workerServer', 'vs/editor/common/worker/editorWorkerServer']);
 
 	// ---- javascript ----------------------------
-	common.define('vs/languages/javascript/common/javascript', ['vs/languages/typescript/common/lib/typescriptServices', 'vs/languages/vsxml/common/vsxml'])
+	common.define('vs/languages/javascript/common/javascript', ['vs/languages/typescript/common/lib/typescriptServices'])
 		.combine(worker)
 			.define('vs/languages/javascript/common/javascriptWorker', ['vs/languages/typescript/common/typescriptWorker2']);
 
@@ -52,7 +52,7 @@ exports.collectModules = function(args) {
 
 	// ---- typescript -----------------------------------
 	common.define('vs/languages/typescript/common/lib/typescriptServices');
-	var particpantExcludes = common.define('vs/languages/typescript/common/typescriptMode', ['vs/languages/typescript/common/lib/typescriptServices', 'vs/languages/vsxml/common/vsxml'])
+	var particpantExcludes = common.define('vs/languages/typescript/common/typescriptMode', ['vs/languages/typescript/common/lib/typescriptServices'])
 		.combine(worker)
 			.define('vs/languages/typescript/common/typescriptWorker2');
 
