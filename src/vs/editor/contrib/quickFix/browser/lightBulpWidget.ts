@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import {IPosition} from 'vs/editor/common/editorCommon';
 import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition} from 'vs/editor/browser/editorBrowser';
 
-class LightBulpWidget implements IContentWidget, IDisposable {
+export class LightBulpWidget implements IContentWidget, IDisposable {
 
 	private editor: ICodeEditor;
 	private position: IPosition;
@@ -70,4 +70,3 @@ class LightBulpWidget implements IContentWidget, IDisposable {
 	}
 }
 
-export = LightBulpWidget;

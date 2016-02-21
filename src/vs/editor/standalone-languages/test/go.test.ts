@@ -5,15 +5,15 @@
 
 'use strict';
 
-import languageDef = require('vs/editor/standalone-languages/go');
-import T = require('vs/editor/standalone-languages/test/testUtil');
+import {language} from 'vs/editor/standalone-languages/go';
+import {testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
 var Bracket = {
 	Open: 1,
 	Close: -1
 };
 
-T.testTokenization('go', languageDef.language, [
+testTokenization('go', language, [
 	// Tests
 	[{
 	line: '/* Block comment. */',

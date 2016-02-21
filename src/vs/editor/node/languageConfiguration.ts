@@ -5,11 +5,11 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {IModeService} from 'vs/editor/common/services/modeService';
+import {parse} from 'vs/base/common/json';
+import {readFile} from 'vs/base/node/pfs';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
-import pfs = require('vs/base/node/pfs');
-import json = require('vs/base/common/json');
 import {IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
+import {IModeService} from 'vs/editor/common/services/modeService';
 
 type CharacterPair = [string, string];
 
@@ -51,9 +51,9 @@ export class LanguageConfigurationFileHandler {
 	}
 
 	private _handleConfigFile(modeId:string, configFilePath:string): void {
-		pfs.readFile(configFilePath).then((fileContents) => {
+		readFile(configFilePath).then((fileContents) => {
 			var errors = [];
-			var configuration = <ILanguageConfiguration>json.parse(fileContents.toString(), errors);
+			var configuration = <ILanguageConfiguration>parse(fileContents.toString(), errors);
 			if (errors.length) {
 				console.error(nls.localize('parseErrors', "Errors parsing {0}: {1}", configFilePath, errors.join('\n')));
 			}

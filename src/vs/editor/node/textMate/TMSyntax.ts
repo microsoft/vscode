@@ -5,17 +5,15 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-
-import paths = require('vs/base/common/paths');
-import errors = require('vs/base/common/errors');
-
-import * as Modes from 'vs/editor/common/modes';
-import supports = require('vs/editor/common/modes/supports');
-import collections = require('vs/base/common/collections');
-import textMate = require('vscode-textmate');
-import TMState = require('vs/editor/common/modes/TMState');
+import * as collections from 'vs/base/common/collections';
+import {onUnexpectedError} from 'vs/base/common/errors';
+import * as paths from 'vs/base/common/paths';
+import {IMessageCollector, PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
+import {Bracket, ILineTokens, IMode, IToken, ITokenizationSupport} from 'vs/editor/common/modes';
+import {TMState} from 'vs/editor/common/modes/TMState';
+import {Token} from 'vs/editor/common/modes/supports';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
+import {IGrammar, ITMToken, Registry} from 'vscode-textmate';
 
 export interface ITMSyntaxExtensionPoint {
 	language: string;
@@ -48,7 +46,7 @@ let grammarsExtPoint = PluginsRegistry.registerExtensionPoint<ITMSyntaxExtension
 });
 
 export class MainProcessTextMateSyntax {
-	private _grammarRegistry: textMate.Registry;
+	private _grammarRegistry: Registry;
 	private _modeService: IModeService;
 	private _scopeNameToFilePath: { [scopeName:string]: string; };
 
@@ -56,7 +54,7 @@ export class MainProcessTextMateSyntax {
 		@IModeService modeService: IModeService
 	) {
 		this._modeService = modeService;
-		this._grammarRegistry = new textMate.Registry({
+		this._grammarRegistry = new Registry({
 			getFilePath: (scopeName:string) => {
 				return this._scopeNameToFilePath[scopeName];
 			}
@@ -105,44 +103,44 @@ export class MainProcessTextMateSyntax {
 	public registerDefinition(modeId: string, scopeName: string): void {
 		this._grammarRegistry.loadGrammar(scopeName, (err, grammar) => {
 			if (err) {
-				errors.onUnexpectedError(err);
+				onUnexpectedError(err);
 				return;
 			}
 
-			this._modeService.registerTokenizationSupport(modeId, (mode: Modes.IMode) => {
+			this._modeService.registerTokenizationSupport(modeId, (mode: IMode) => {
 				return createTokenizationSupport(mode, grammar);
 			});
 		});
 	}
 }
 
-function createTokenizationSupport(mode: Modes.IMode, grammar: textMate.IGrammar): Modes.ITokenizationSupport {
+function createTokenizationSupport(mode: IMode, grammar: IGrammar): ITokenizationSupport {
 	var tokenizer = new Tokenizer(mode.getId(), grammar);
 	return {
 		shouldGenerateEmbeddedModels: false,
-		getInitialState: () => new TMState.TMState(mode, null, null),
-		tokenize: (line, state, offsetDelta?, stopAtOffset?) => tokenizer.tokenize(line, <TMState.TMState> state, offsetDelta, stopAtOffset)
+		getInitialState: () => new TMState(mode, null, null),
+		tokenize: (line, state, offsetDelta?, stopAtOffset?) => tokenizer.tokenize(line, <TMState> state, offsetDelta, stopAtOffset)
 	};
 }
 
 
 
 class Tokenizer {
-	private _grammar: textMate.IGrammar;
+	private _grammar: IGrammar;
 	private _modeId: string;
 
-	constructor(modeId:string, grammar: textMate.IGrammar) {
+	constructor(modeId:string, grammar: IGrammar) {
 		this._modeId = modeId;
 		this._grammar = grammar;
 	}
 
-	public tokenize(line: string, state: TMState.TMState, offsetDelta: number = 0, stopAtOffset?: number): Modes.ILineTokens {
+	public tokenize(line: string, state: TMState, offsetDelta: number = 0, stopAtOffset?: number): ILineTokens {
 		if (line.length >= 20000) {
 			return {
-				tokens: <Modes.IToken[]>[{
+				tokens: <IToken[]>[{
 					startIndex: offsetDelta,
 					type: '',
-					bracket: Modes.Bracket.None
+					bracket: Bracket.None
 				}],
 				actualStopOffset: offsetDelta,
 				endState: state,
@@ -155,7 +153,7 @@ class Tokenizer {
 
 		// Create the result early and fill in the tokens later
 		let ret = {
-			tokens: <Modes.IToken[]>[],
+			tokens: <IToken[]>[],
 			actualStopOffset: offsetDelta + line.length,
 			endState: freshState,
 			modeTransitions: [{ startIndex: offsetDelta, mode: freshState.getMode() }],
@@ -170,7 +168,7 @@ class Tokenizer {
 
 			if (t.isOpaqueToken) {
 				// Should not do any smartness to detect brackets on this token
-				ret.tokens.push(new supports.Token(tokenStartIndex + offsetDelta, t.tokenType));
+				ret.tokens.push(new Token(tokenStartIndex + offsetDelta, t.tokenType));
 				continue;
 			}
 
@@ -206,19 +204,19 @@ class Tokenizer {
 				if (isBracket) {
 					if (tokenStartIndex < i) {
 						// push a token before character `i`
-						ret.tokens.push(new supports.Token(tokenStartIndex + offsetDelta, t.tokenType));
+						ret.tokens.push(new Token(tokenStartIndex + offsetDelta, t.tokenType));
 						tokenStartIndex = i;
 					}
 
 					// push character `i` as a token
-					ret.tokens.push(new supports.Token(tokenStartIndex + offsetDelta, isBracket + '.' + t.modeToken));
+					ret.tokens.push(new Token(tokenStartIndex + offsetDelta, isBracket + '.' + t.modeToken));
 					tokenStartIndex = i + 1;
 				}
 			}
 
 			if (tokenStartIndex < tokenEndIndex) {
 				// push the remaining text as a token
-				ret.tokens.push(new supports.Token(tokenStartIndex + offsetDelta, t.tokenType));
+				ret.tokens.push(new Token(tokenStartIndex + offsetDelta, t.tokenType));
 			}
 		}
 
@@ -226,7 +224,7 @@ class Tokenizer {
 	}
 }
 
-function decodeTextMateToken(modeId:string, entry: textMate.IToken) {
+function decodeTextMateToken(modeId:string, entry: ITMToken) {
 	let tokenTypeArray: string[] = [];
 	for (let level = 1 /* deliberately skip scope 0*/; level < entry.scopes.length; ++level) {
 		tokenTypeArray = tokenTypeArray.concat(entry.scopes[level].split('.'));
@@ -289,9 +287,9 @@ var _openSquare = '['.charCodeAt(0);
 var _closeSquare = ']'.charCodeAt(0);
 
 var characterToBracket = collections.createNumberDictionary<number>();
-characterToBracket['('.charCodeAt(0)] = Modes.Bracket.Open;
-characterToBracket[')'.charCodeAt(0)] = Modes.Bracket.Close;
-characterToBracket['{'.charCodeAt(0)] = Modes.Bracket.Open;
-characterToBracket['}'.charCodeAt(0)] = Modes.Bracket.Close;
-characterToBracket['['.charCodeAt(0)] = Modes.Bracket.Open;
-characterToBracket[']'.charCodeAt(0)] = Modes.Bracket.Close;
+characterToBracket['('.charCodeAt(0)] = Bracket.Open;
+characterToBracket[')'.charCodeAt(0)] = Bracket.Close;
+characterToBracket['{'.charCodeAt(0)] = Bracket.Open;
+characterToBracket['}'.charCodeAt(0)] = Bracket.Close;
+characterToBracket['['.charCodeAt(0)] = Bracket.Open;
+characterToBracket[']'.charCodeAt(0)] = Bracket.Close;

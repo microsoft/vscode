@@ -5,15 +5,15 @@
 
 'use strict';
 
-import languageDef = require('vs/editor/standalone-languages/xml');
-import T = require('vs/editor/standalone-languages/test/testUtil');
+import {testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
+import {language} from 'vs/editor/standalone-languages/xml';
 
 var Bracket = {
 	Open: 1,
 	Close: -1
 };
 
-T.testTokenization('xml', languageDef.language, [
+testTokenization('xml', language, [
 	// Complete Start Tag with Whitespace
 	[{
 	line: '<person>',

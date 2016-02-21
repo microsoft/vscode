@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 
 suite('Editor Config - CommonEditorConfig', () => {

@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/languages/plaintext/common/plaintext.contribution';
 import 'vs/languages/html/common/html.contribution';
-
-import assert = require('assert');
+import 'vs/languages/plaintext/common/plaintext.contribution';
+import * as assert from 'assert';
 import {createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
 
 suite('Editor Modes - Modes Registry', () => {

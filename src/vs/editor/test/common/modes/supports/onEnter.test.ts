@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import {IBracketPair, OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
+import * as assert from 'assert';
 import {IndentAction} from 'vs/editor/common/modes';
+import {IBracketPair, OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 
 suite('OnEnter', () => {
 

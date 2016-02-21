@@ -5,15 +5,15 @@
 
 'use strict';
 
-import languageDef = require('vs/editor/standalone-languages/ruby');
-import T = require('vs/editor/standalone-languages/test/testUtil');
+import {language} from 'vs/editor/standalone-languages/ruby';
+import {testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
 var Bracket = {
 	Open: 1,
 	Close: -1
 };
 
-T.testTokenization('ruby', languageDef.language, [
+testTokenization('ruby', language, [
 	// Keywords
 	[{
 	line: 'class Klass def init() end',

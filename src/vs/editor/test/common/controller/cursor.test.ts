@@ -5,16 +5,16 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Model} from 'vs/editor/common/model/model';
 import {Cursor} from 'vs/editor/common/controller/cursor';
+import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import {BracketMode} from 'vs/editor/test/common/testModes';
-import * as Modes from 'vs/editor/common/modes';
-import {Handler, EventType, IPosition, ISelection, EndOfLinePreference} from 'vs/editor/common/editorCommon';
-import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
-import {EditOperation} from 'vs/editor/common/core/editOperation';
+import {EndOfLinePreference, EventType, Handler, IPosition, ISelection} from 'vs/editor/common/editorCommon';
+import {Model} from 'vs/editor/common/model/model';
+import {IMode, IRichEditSupport, IndentAction} from 'vs/editor/common/modes';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
+import {BracketMode} from 'vs/editor/test/common/testModes';
 
 let H = Handler;
 
@@ -761,13 +761,13 @@ class TestMode {
 		return 'testing';
 	}
 
-	public toSimplifiedMode(): Modes.IMode {
+	public toSimplifiedMode(): IMode {
 		return this;
 	}
 }
 
 class SurroundingMode extends TestMode {
-	public richEditSupport: Modes.IRichEditSupport;
+	public richEditSupport: IRichEditSupport;
 
 	constructor() {
 		super();
@@ -780,9 +780,9 @@ class SurroundingMode extends TestMode {
 }
 
 class OnEnterMode extends TestMode {
-	public richEditSupport: Modes.IRichEditSupport;
+	public richEditSupport: IRichEditSupport;
 
-	constructor(indentAction: Modes.IndentAction) {
+	constructor(indentAction: IndentAction) {
 		super();
 		this.richEditSupport = {
 			onEnter: {
@@ -886,7 +886,7 @@ suite('Editor Controller - Regression tests', () => {
 				'\t}',
 				'}'
 			],
-			mode: new OnEnterMode(Modes.IndentAction.Indent),
+			mode: new OnEnterMode(IndentAction.Indent),
 			config: { insertSpaces: false, tabSize: 4 }
 		}, (model, cursor) => {
 			moveTo(cursor, 4, 1, false);
@@ -922,7 +922,7 @@ suite('Editor Controller - Regression tests', () => {
 			text: [
 				'     function baz() {'
 			],
-			mode: new OnEnterMode(Modes.IndentAction.IndentOutdent),
+			mode: new OnEnterMode(IndentAction.IndentOutdent),
 			config: { insertSpaces: true, tabSize: 4 }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 6, false);
@@ -1152,7 +1152,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			text: [
 				'\thello'
 			],
-			mode: new OnEnterMode(Modes.IndentAction.Indent),
+			mode: new OnEnterMode(IndentAction.Indent),
 			config: { insertSpaces: true, tabSize: 4 }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 7, false);
@@ -1168,7 +1168,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			text: [
 				'\thello'
 			],
-			mode: new OnEnterMode(Modes.IndentAction.None),
+			mode: new OnEnterMode(IndentAction.None),
 			config: { insertSpaces: true, tabSize: 4 }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 7, false);
@@ -1184,7 +1184,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			text: [
 				'\thell()'
 			],
-			mode: new OnEnterMode(Modes.IndentAction.IndentOutdent),
+			mode: new OnEnterMode(IndentAction.IndentOutdent),
 			config: { insertSpaces: true, tabSize: 4 }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 7, false);
@@ -1286,7 +1286,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 
 interface ICursorOpts {
 	text: string[];
-	mode?: Modes.IMode;
+	mode?: IMode;
 	config?: any;
 }
 
