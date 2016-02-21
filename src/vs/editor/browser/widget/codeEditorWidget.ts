@@ -8,11 +8,14 @@ import 'vs/css!./media/editor';
 import 'vs/css!./media/tokens';
 import 'vs/css!./media/default-theme';
 
+import {clipboard} from 'electron';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
+import {EditOperation} from 'vs/editor/common/core/editOperation';
 import * as Browser from 'vs/base/browser/browser';
 import {colorizeLine} from 'vs/editor/browser/standalone/colorizer';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
+import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import {Configuration} from 'vs/editor/browser/config/configuration';
 import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
@@ -64,6 +67,13 @@ export class CodeEditorWidget extends CommonCodeEditor implements EditorBrowser.
 			if (this.forcedWidgetFocusCount === 0) {
 				this._editorFocusContextKey.reset();
 				this.emit(EditorCommon.EventType.EditorBlur, {});
+			}
+		});
+		this.on(DOM.EventType.MOUSE_UP, (e: {event: StandardMouseEvent, target: EditorBrowser.IMouseTarget}) => {
+			DOM.EventHelper.stop(e.event, false);
+			if (e.event.middleButton && process.platform === 'linux') {
+				this.focus();
+				this.executeEdits('editor.browser.linuxInsertSelection', [EditOperation.insert(this.getPosition(), clipboard.readText('selection'))]);
 			}
 		});
 
