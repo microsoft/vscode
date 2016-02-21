@@ -19,7 +19,7 @@ import ServiceIdentifier = instantiation.ServiceIdentifier;
 /**
  * Creates a new instance of an instantiation service.
  */
-export function create(services: any = Object.create(null)): IInstantiationService {
+export function createInstantiationService(services: any = Object.create(null)): IInstantiationService {
 	let result = new InstantiationService(services, new AccessLock());
 	return result;
 }

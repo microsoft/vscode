@@ -530,9 +530,9 @@ export class HTMLWorker {
 
 		if (/^\s*\/\//i.test(tokenContent)) {
 			// Absolute link (that does not name the protocol)
-			let pickedScheme = network.schemas.http;
-			if (modelAbsoluteUri.scheme === network.schemas.https) {
-				pickedScheme = network.schemas.https;
+			let pickedScheme = network.Schemas.http;
+			if (modelAbsoluteUri.scheme === network.Schemas.https) {
+				pickedScheme = network.Schemas.https;
 			}
 			return pickedScheme + ':' + tokenContent.replace(/^\s*/g, '');
 		}

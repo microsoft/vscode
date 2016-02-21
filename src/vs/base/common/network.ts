@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-export namespace schemas {
+export namespace Schemas {
 
 	/**
 	 * A schema that is used for models that exist in memory

@@ -12,7 +12,7 @@ import paths = require('vs/base/common/paths');
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {create} from 'vs/platform/instantiation/common/instantiationService';
+import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {EventType, LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
 import {TestFileService, TestLifecycleService, TestPartService, TestEditorService, TestConfigurationService, TestUntitledEditorService, TestStorageService, TestTelemetryService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/browser/servicesTestUtils';
@@ -37,7 +37,7 @@ suite('Files - TextFileEditorModel', () => {
 		eventService = new TestEventService();
 		messageService = new TestMessageService();
 
-		baseInstantiationService = create({
+		baseInstantiationService = createInstantiationService({
 			eventService: eventService,
 			messageService: messageService,
 			fileService: TestFileService,

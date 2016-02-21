@@ -95,7 +95,7 @@ export class EditorWorkerServer {
 		var contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
 
 		this.threadService = new WorkerThreadService(mainThread.getRemoteCom());
-		this.threadService.setInstantiationService(InstantiationService.create({ threadService: this.threadService }));
+		this.threadService.setInstantiationService(InstantiationService.createInstantiationService({ threadService: this.threadService }));
 
 		var telemetryServiceInstance = new WorkerTelemetryService(this.threadService);
 
@@ -118,7 +118,7 @@ export class EditorWorkerServer {
 			requestService: requestService
 		};
 
-		var instantiationService = InstantiationService.create(_services);
+		var instantiationService = InstantiationService.createInstantiationService(_services);
 		this.threadService.setInstantiationService(instantiationService);
 
 		// Instantiate thread actors

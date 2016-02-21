@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as EditorCommon from 'vs/editor/common/editorCommon';
-import * as DomUtils from 'vs/base/browser/dom';
-import * as Browser from 'vs/base/browser/browser';
-import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
-import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import {IDisposable, Disposable, disposeAll} from 'vs/base/common/lifecycle';
-import {Range} from 'vs/editor/common/core/range';
 import Event, {Emitter} from 'vs/base/common/event';
-import {TextAreaHandler} from 'vs/editor/common/controller/textAreaHandler';
-import {ITextAreaWrapper, IClipboardEvent, IKeyboardEventWrapper, TextAreaStrategy} from 'vs/editor/common/controller/textAreaState';
-import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
-import {StyleMutator} from 'vs/base/browser/styleMutator';
+import {Disposable, IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import * as browser from 'vs/base/browser/browser';
+import * as dom from 'vs/base/browser/dom';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {StyleMutator} from 'vs/base/browser/styleMutator';
+import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
+import {TextAreaHandler} from 'vs/editor/common/controller/textAreaHandler';
+import {IClipboardEvent, IKeyboardEventWrapper, ITextAreaWrapper, TextAreaStrategy} from 'vs/editor/common/controller/textAreaState';
+import {Range} from 'vs/editor/common/core/range';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
+import {IKeyboardHandlerHelper, IViewContext, IViewController} from 'vs/editor/browser/editorBrowser';
 
 class ClipboardEventWrapper implements IClipboardEvent {
 
@@ -126,15 +126,15 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 		super();
 		this._textArea = textArea;
 
-		this._register(DomUtils.addStandardDisposableListener(this._textArea, 'keydown', (e) => this._onKeyDown.fire(new KeyboardEventWrapper(e))));
-		this._register(DomUtils.addStandardDisposableListener(this._textArea, 'keyup', (e) => this._onKeyUp.fire(new KeyboardEventWrapper(e))));
-		this._register(DomUtils.addStandardDisposableListener(this._textArea, 'keypress', (e) => this._onKeyPress.fire(new KeyboardEventWrapper(e))));
-		this._register(DomUtils.addDisposableListener(this._textArea, 'compositionstart', (e) => this._onCompositionStart.fire()));
-		this._register(DomUtils.addDisposableListener(this._textArea, 'compositionend', (e) => this._onCompositionEnd.fire()));
-		this._register(DomUtils.addDisposableListener(this._textArea, 'input', (e) => this._onInput.fire()));
-		this._register(DomUtils.addDisposableListener(this._textArea, 'cut', (e:ClipboardEvent) => this._onCut.fire(new ClipboardEventWrapper(e))));
-		this._register(DomUtils.addDisposableListener(this._textArea, 'copy', (e:ClipboardEvent) => this._onCopy.fire(new ClipboardEventWrapper(e))));
-		this._register(DomUtils.addDisposableListener(this._textArea, 'paste', (e:ClipboardEvent) => this._onPaste.fire(new ClipboardEventWrapper(e))));
+		this._register(dom.addStandardDisposableListener(this._textArea, 'keydown', (e) => this._onKeyDown.fire(new KeyboardEventWrapper(e))));
+		this._register(dom.addStandardDisposableListener(this._textArea, 'keyup', (e) => this._onKeyUp.fire(new KeyboardEventWrapper(e))));
+		this._register(dom.addStandardDisposableListener(this._textArea, 'keypress', (e) => this._onKeyPress.fire(new KeyboardEventWrapper(e))));
+		this._register(dom.addDisposableListener(this._textArea, 'compositionstart', (e) => this._onCompositionStart.fire()));
+		this._register(dom.addDisposableListener(this._textArea, 'compositionend', (e) => this._onCompositionEnd.fire()));
+		this._register(dom.addDisposableListener(this._textArea, 'input', (e) => this._onInput.fire()));
+		this._register(dom.addDisposableListener(this._textArea, 'cut', (e:ClipboardEvent) => this._onCut.fire(new ClipboardEventWrapper(e))));
+		this._register(dom.addDisposableListener(this._textArea, 'copy', (e:ClipboardEvent) => this._onCopy.fire(new ClipboardEventWrapper(e))));
+		this._register(dom.addDisposableListener(this._textArea, 'paste', (e:ClipboardEvent) => this._onPaste.fire(new ClipboardEventWrapper(e))));
 	}
 
 	public get actual(): HTMLTextAreaElement {
@@ -162,10 +162,10 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 	public setSelectionRange(selectionStart:number, selectionEnd:number): void {
 		// console.log('setSelectionRange: ' + selectionStart + ', ' + selectionEnd);
 		try {
-			let scrollState = DomUtils.saveParentsScrollTop(this._textArea);
+			let scrollState = dom.saveParentsScrollTop(this._textArea);
 			this._textArea.focus();
 			this._textArea.setSelectionRange(selectionStart, selectionEnd);
-			DomUtils.restoreParentsScrollTop(this._textArea, scrollState);
+			dom.restoreParentsScrollTop(this._textArea, scrollState);
 		} catch(e) {
 			// Sometimes IE throws when setting selection (e.g. textarea is off-DOM)
 			console.log('an error has been thrown!');
@@ -174,7 +174,7 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
 	public isInOverwriteMode(): boolean {
 		// In IE, pressing Insert will bring the typing into overwrite mode
-		if (Browser.isIE11orEarlier && document.queryCommandValue('OverWrite')) {
+		if (browser.isIE11orEarlier && document.queryCommandValue('OverWrite')) {
 			return true;
 		}
 		return false;
@@ -184,9 +184,9 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
 export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 
-	private context:EditorBrowser.IViewContext;
-	private viewController:EditorBrowser.IViewController;
-	private viewHelper:EditorBrowser.IKeyboardHandlerHelper;
+	private context:IViewContext;
+	private viewController:IViewController;
+	private viewHelper:IKeyboardHandlerHelper;
 	private textArea:TextAreaWrapper;
 	private textAreaHandler:TextAreaHandler;
 	private _toDispose:IDisposable[];
@@ -195,7 +195,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 	private contentWidth:number;
 	private scrollLeft:number;
 
-	constructor(context:EditorBrowser.IViewContext, viewController:EditorBrowser.IViewController, viewHelper:EditorBrowser.IKeyboardHandlerHelper) {
+	constructor(context:IViewContext, viewController:IViewController, viewHelper:IKeyboardHandlerHelper) {
 		super();
 
 		this.context = context;
@@ -207,7 +207,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		this.contentWidth = 0;
 		this.scrollLeft = 0;
 
-		this.textAreaHandler = new TextAreaHandler(Browser, this._getStrategy(), this.textArea, this.context.model);
+		this.textAreaHandler = new TextAreaHandler(browser, this._getStrategy(), this.textArea, this.context.model);
 
 		this._toDispose = [];
 		this._toDispose.push(this.textAreaHandler.onKeyDown((e) => this.viewController.emitKeyDown(<IKeyboardEvent>e._actual)));
@@ -225,12 +225,12 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 			let lineNumber = e.showAtLineNumber;
 			let column = e.showAtColumn;
 
-			let revealPositionEvent:EditorCommon.IViewRevealRangeEvent = {
+			let revealPositionEvent:editorCommon.IViewRevealRangeEvent = {
 				range: new Range(lineNumber, column, lineNumber, column),
-				verticalType: EditorCommon.VerticalRevealType.Simple,
+				verticalType: editorCommon.VerticalRevealType.Simple,
 				revealHorizontal: true
 			};
-			this.context.privateViewEventBus.emit(EditorCommon.ViewEventNames.RevealRangeEvent, revealPositionEvent);
+			this.context.privateViewEventBus.emit(editorCommon.ViewEventNames.RevealRangeEvent, revealPositionEvent);
 
 			// Find range pixel position
 			let visibleRange = this.viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
@@ -240,20 +240,20 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 				StyleMutator.setLeft(this.textArea.actual, this.contentLeft + visibleRange.left - this.scrollLeft);
 			}
 
-			if (Browser.isIE11orEarlier) {
+			if (browser.isIE11orEarlier) {
 				StyleMutator.setWidth(this.textArea.actual, this.contentWidth);
 			}
 
 			// Show the textarea
 			StyleMutator.setHeight(this.textArea.actual, this.context.configuration.editor.lineHeight);
-			DomUtils.addClass(this.viewHelper.viewDomNode, 'ime-input');
+			dom.addClass(this.viewHelper.viewDomNode, 'ime-input');
 		}));
 		this._toDispose.push(this.textAreaHandler.onCompositionEnd((e) => {
 			this.textArea.actual.style.height = '';
 			this.textArea.actual.style.width = '';
 			StyleMutator.setLeft(this.textArea.actual, 0);
 			StyleMutator.setTop(this.textArea.actual, 0);
-			DomUtils.removeClass(this.viewHelper.viewDomNode, 'ime-input');
+			dom.removeClass(this.viewHelper.viewDomNode, 'ime-input');
 		}));
 		this._toDispose.push(GlobalScreenReaderNVDA.onChange((value) => {
 			this.textAreaHandler.setStrategy(this._getStrategy());
@@ -284,7 +284,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		this.textAreaHandler.writePlaceholderAndSelectTextAreaSync();
 	}
 
-	public onConfigurationChanged(e: EditorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
 		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
 		StyleMutator.setFontSize(this.textArea.actual, this.context.configuration.editor.fontSize);
 		StyleMutator.setLineHeight(this.textArea.actual, this.context.configuration.editor.lineHeight);
@@ -294,7 +294,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		return false;
 	}
 
-	public onScrollChanged(e:EditorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
 		this.scrollLeft = e.scrollLeft;
 		return false;
 	}
@@ -304,17 +304,17 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		return false;
 	}
 
-	public onCursorSelectionChanged(e:EditorCommon.IViewCursorSelectionChangedEvent): boolean {
+	public onCursorSelectionChanged(e:editorCommon.IViewCursorSelectionChangedEvent): boolean {
 		this.textAreaHandler.setCursorSelections(e.selection, e.secondarySelections);
 		return false;
 	}
 
-	public onCursorPositionChanged(e:EditorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e:editorCommon.IViewCursorPositionChangedEvent): boolean {
 		this.textAreaHandler.setCursorPosition(e.position);
 		return false;
 	}
 
-	public onLayoutChanged(layoutInfo:EditorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
 		this.contentLeft = layoutInfo.contentLeft;
 		this.contentWidth = layoutInfo.contentWidth;
 		return false;

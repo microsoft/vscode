@@ -185,7 +185,7 @@ suite('Instantiation Service', () => {
 	let service: instantiation.IInstantiationService;
 
 	setup(() => {
-		service = instantiationService.create({
+		service = instantiationService.createInstantiationService({
 			editorService: 'boo',
 		});
 	});
@@ -273,7 +273,7 @@ suite('Instantiation Service', () => {
 	});
 
 	test('@Param - simple clase', function() {
-		let service = instantiationService.create(Object.create(null));
+		let service = instantiationService.createInstantiationService(Object.create(null));
 		service.addSingleton(IService1, new Service1());
 		service.addSingleton(IService2, new Service2());
 		service.addSingleton(IService3, new Service3());
@@ -282,7 +282,7 @@ suite('Instantiation Service', () => {
 	});
 
 	test('@Param - fixed args', function() {
-		let service = instantiationService.create(Object.create(null));
+		let service = instantiationService.createInstantiationService(Object.create(null));
 		service.addSingleton(IService1, new Service1());
 		service.addSingleton(IService2, new Service2());
 		service.addSingleton(IService3, new Service3());
@@ -291,7 +291,7 @@ suite('Instantiation Service', () => {
 	});
 
 	test('@Param - optional', function() {
-		let service = instantiationService.create(Object.create(null));
+		let service = instantiationService.createInstantiationService(Object.create(null));
 		service.addSingleton(IService1, new Service1());
 		// service.addSingleton(IService2, new Service2());
 
@@ -318,7 +318,7 @@ suite('Instantiation Service', () => {
 	// });
 
 	test('SyncDesc - no dependencies', function() {
-		let service = instantiationService.create(Object.create(null));
+		let service = instantiationService.createInstantiationService(Object.create(null));
 		service.addSingleton(IService1, new SyncDescriptor<IService1>(Service1));
 
 		let service1 = service.getInstance(IService1);
@@ -330,7 +330,7 @@ suite('Instantiation Service', () => {
 	});
 
 	test('SyncDesc - service with service dependency', function() {
-		let service = instantiationService.create(Object.create(null));
+		let service = instantiationService.createInstantiationService(Object.create(null));
 		service.addSingleton(IService1, new SyncDescriptor<IService1>(Service1));
 		service.addSingleton(IDependentService, new SyncDescriptor<IDependentService>(DependentService));
 
@@ -340,7 +340,7 @@ suite('Instantiation Service', () => {
 	});
 
 	test('SyncDesc - target depends on service future', function() {
-		let service = instantiationService.create(Object.create(null));
+		let service = instantiationService.createInstantiationService(Object.create(null));
 		service.addSingleton(IService1, new SyncDescriptor<IService1>(Service1));
 		service.addSingleton(IDependentService, new SyncDescriptor<IDependentService>(DependentService));
 
@@ -352,7 +352,7 @@ suite('Instantiation Service', () => {
 	});
 
 	test('SyncDesc - explode on loop', function() {
-		let service = instantiationService.create(Object.create(null));
+		let service = instantiationService.createInstantiationService(Object.create(null));
 		service.addSingleton(IService1, new SyncDescriptor<IService1>(ServiceLoop1));
 		service.addSingleton(IService2, new SyncDescriptor<IService2>(ServiceLoop2));
 
@@ -361,7 +361,7 @@ suite('Instantiation Service', () => {
 	});
 
 	test('Invoke - get services', function() {
-		let service = instantiationService.create(Object.create(null));
+		let service = instantiationService.createInstantiationService(Object.create(null));
 		service.addSingleton(IService1, new Service1());
 		service.addSingleton(IService2, new Service2());
 
@@ -376,7 +376,7 @@ suite('Instantiation Service', () => {
 	});
 
 	test('Invoke - keeping accessor NOT allowed', function() {
-		let service = instantiationService.create(Object.create(null));
+		let service = instantiationService.createInstantiationService(Object.create(null));
 		service.addSingleton(IService1, new Service1());
 		service.addSingleton(IService2, new Service2());
 
@@ -395,7 +395,7 @@ suite('Instantiation Service', () => {
 	});
 
 	test('Invoke - throw error', function() {
-		let service = instantiationService.create(Object.create(null));
+		let service = instantiationService.createInstantiationService(Object.create(null));
 		service.addSingleton(IService1, new Service1());
 		service.addSingleton(IService2, new Service2());
 

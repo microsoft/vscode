@@ -180,7 +180,7 @@ suite('TelemetryService', () => {
 		let telemetryService = new MainTelemetryService.MainTelemetryService();
 
 
-		let instantiationService = InstantiationService.create({});
+		let instantiationService = InstantiationService.createInstantiationService({});
 		telemetryService.setInstantiationService(instantiationService);
 		assert.equal(telemetryService.getAppendersCount(), 1);
 		let testAppender1 = <TestTelemetryAppender>telemetryService.getAppenders()[0];

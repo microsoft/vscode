@@ -20,7 +20,7 @@ suite("Workbench - StringEditorInput", () => {
 
 	test("StringEditorInput", function(done) {
 		let editorService = new TestEditorService(function() { });
-		let inst = InstantiationService.create({
+		let inst = InstantiationService.createInstantiationService({
 			modeService: createMockModeService(),
 			modelService: createMockModelService()
 		});
@@ -71,7 +71,7 @@ suite("Workbench - StringEditorInput", () => {
 	});
 
 	test("StringEditorInput - setValue, clearValue, append", function() {
-		let inst = InstantiationService.create({
+		let inst = InstantiationService.createInstantiationService({
 			modeService: createMockModeService(),
 			modelService: createMockModelService()
 		});
@@ -90,7 +90,7 @@ suite("Workbench - StringEditorInput", () => {
 	});
 
 	test("Input.matches() - StringEditorInput", function() {
-		let inst = InstantiationService.create({});
+		let inst = InstantiationService.createInstantiationService({});
 
 		let promise = TPromise.as("value");
 
@@ -113,7 +113,7 @@ suite("Workbench - StringEditorInput", () => {
 	test("ResourceEditorInput", function(done) {
 		let modelService = createMockModelService();
 		let modeService = createMockModeService();
-		let inst = InstantiationService.create({
+		let inst = InstantiationService.createInstantiationService({
 			modeService: modeService,
 			modelService: modelService
 		});

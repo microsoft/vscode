@@ -157,7 +157,7 @@ export abstract class MarkerService implements IMarkerService {
 
 	private _isStatRelevant(resource: URI): boolean {
 		//TODO@Dirk this is a hack
-		return resource.scheme !== network.schemas.inMemory;
+		return resource.scheme !== network.Schemas.inMemory;
 	}
 
 	private _forEach(owner: string, resource: URI, regexp: RegExp, take: number, callback: (entry: { key: string; value: IMarkerData[]; }, remove: Function) => any): void {

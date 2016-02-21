@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import {join} from 'vs/base/common/paths';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
-import {create} from 'vs/platform/instantiation/common/instantiationService';
+import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {MainTelemetryService} from 'vs/platform/telemetry/browser/mainTelemetryService';
 import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
@@ -18,10 +18,6 @@ import {createMockModelService, createMockModeService} from 'vs/editor/test/comm
 
 function toResource(path) {
 	return URI.file(join('C:\\', path));
-}
-
-function createInstantiationService(services) {
-	return create(services);
 }
 
 suite('Files - FileEditorInput', () => {

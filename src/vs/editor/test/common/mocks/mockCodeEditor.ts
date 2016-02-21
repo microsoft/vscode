@@ -60,7 +60,7 @@ export function withMockCodeEditor(text:string[], options:EditorCommon.ICodeEdit
 	let keybindingService = new MockKeybindingService();
 	let telemetryService = new MockTelemetryService();
 
-	let instantiationService = InstantiationService.create({
+	let instantiationService = InstantiationService.createInstantiationService({
 		codeEditorService: codeEditorService,
 		keybindingService: keybindingService,
 		telemetryService: telemetryService

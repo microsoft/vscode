@@ -10,7 +10,7 @@ import 'vs/css!./media/default-theme';
 
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import * as Browser from 'vs/base/browser/browser';
-import {colorizeLine} from 'vs/editor/browser/standalone/colorizer';
+import {Colorizer} from 'vs/editor/browser/standalone/colorizer';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
 import {IEventEmitter} from 'vs/base/common/eventEmitter';
@@ -102,7 +102,7 @@ export class CodeEditorWidget extends CommonCodeEditor implements EditorBrowser.
 		var tokens = model.getLineTokens(lineNumber, false);
 		var inflatedTokens = EditorCommon.LineTokensBinaryEncoding.inflateArr(tokens.getBinaryEncodedTokensMap(), tokens.getBinaryEncodedTokens());
 		var indent = this._configuration.getIndentationOptions();
-		return colorizeLine(content, inflatedTokens, indent.tabSize);
+		return Colorizer.colorizeLine(content, inflatedTokens, indent.tabSize);
 	}
 	public getView(): EditorBrowser.IView {
 		return this._view;

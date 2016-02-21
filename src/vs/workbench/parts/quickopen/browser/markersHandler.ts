@@ -53,7 +53,7 @@ class MarkerEntry extends QuickOpenEntryItem {
 
 	public update(query: string): void {
 
-		if (this._marker.resource.scheme === network.schemas.inMemory) {
+		if (this._marker.resource.scheme === network.Schemas.inMemory) {
 			// ignore inmemory-models
 			this.setHidden(true);
 			return;

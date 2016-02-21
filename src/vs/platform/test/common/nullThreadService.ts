@@ -15,7 +15,7 @@ export class NullThreadService extends abstractThreadService.AbstractThreadServi
 
 	constructor() {
 		super(true);
-		this.setInstantiationService(instantiationService.create({
+		this.setInstantiationService(instantiationService.createInstantiationService({
 			threadService: this
 		}));
 	}
