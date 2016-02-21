@@ -162,6 +162,9 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 	}
 
 	public applyEdits(rawOperations:EditorCommon.IIdentifiedSingleEditOperation[]): EditorCommon.IIdentifiedSingleEditOperation[] {
+		if (rawOperations.length === 0) {
+			return [];
+		}
 
 		let operations:IValidatedEditOperation[] = [];
 		for (let i = 0; i < rawOperations.length; i++) {
