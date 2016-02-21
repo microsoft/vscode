@@ -94,3 +94,10 @@ export class EditorModesRegistry {
 
 export var ModesRegistry = new EditorModesRegistry();
 Registry.add(Extensions.ModesRegistry, ModesRegistry);
+
+ModesRegistry.registerLanguage({
+	id: 'plaintext',
+	extensions: ['.txt', '.gitignore'],
+	aliases: ['Plain Text', 'text'],
+	mimetypes: ['text/plain']
+});

@@ -76,9 +76,6 @@ exports.collectModules = function(args) {
 	// ---- php -----------------------------------
 	common.define('vs/languages/php/common/php');
 
-	// ---- plaintext ----------------------------------
-	common.define('vs/languages/plaintext/common/plaintext');
-
 	// ---- razor -----------------------------------
 	common.define('vs/languages/razor/common/razor', ['vs/languages/html/common/html', 'vs/languages/vsxml/common/vsxml'])
 		.combine(worker)
