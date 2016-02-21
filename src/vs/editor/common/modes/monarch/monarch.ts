@@ -11,7 +11,7 @@
 
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
 import {ILexer} from 'vs/editor/common/modes/monarch/monarchCommon';
-import Modes = require('vs/editor/common/modes');
+import * as Modes from 'vs/editor/common/modes';
 import MonarchDefinition = require('vs/editor/common/modes/monarch/monarchDefinition');
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {IModeService} from 'vs/editor/common/services/modeService';

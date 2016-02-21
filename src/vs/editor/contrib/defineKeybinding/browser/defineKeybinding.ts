@@ -6,11 +6,11 @@
 'use strict';
 
 import 'vs/css!./defineKeybinding';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import DomUtils = require('vs/base/browser/dom');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';

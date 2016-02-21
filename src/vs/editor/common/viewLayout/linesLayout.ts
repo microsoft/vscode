@@ -5,7 +5,7 @@
 'use strict';
 
 import {VerticalObjects} from 'vs/editor/common/viewLayout/verticalObjects';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 /**
  * Layouting of objects that take vertical space (by having a height) and push down other objects.

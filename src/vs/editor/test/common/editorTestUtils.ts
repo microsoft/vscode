@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import Model = require('vs/editor/common/model/model');
 
 export function pos(lineNumber:number, column:number): EditorCommon.IPosition {

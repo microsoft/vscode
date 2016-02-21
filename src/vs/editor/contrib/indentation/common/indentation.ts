@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {EditorAction} from 'vs/editor/common/editorAction';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IndentationToTabsCommand, IndentationToSpacesCommand} from 'vs/editor/contrib/indentation/common/indentationCommands';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 

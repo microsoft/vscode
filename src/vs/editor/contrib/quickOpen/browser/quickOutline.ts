@@ -7,13 +7,13 @@
 'use strict';
 
 import 'vs/css!./quickOutline';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import Arrays = require('vs/base/common/arrays');
 import {TPromise} from 'vs/base/common/winjs.base';
 import Errors = require('vs/base/common/errors');
 import Strings = require('vs/base/common/strings');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import Filters = require('vs/base/common/filters');
 import QuickOpenModel = require('vs/base/parts/quickopen/browser/quickOpenModel');
 import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');

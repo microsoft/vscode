@@ -9,7 +9,7 @@ import {Model} from 'vs/editor/common/model/model';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {Cursor} from 'vs/editor/common/controller/cursor';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 

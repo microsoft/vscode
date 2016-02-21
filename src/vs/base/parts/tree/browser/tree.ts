@@ -435,9 +435,9 @@ export /* abstract */ class ContextMenuEvent {
 
 export class MouseContextMenuEvent extends ContextMenuEvent {
 
-	private originalEvent: Mouse.StandardMouseEvent;
+	private originalEvent: Mouse.IMouseEvent;
 
-	constructor(originalEvent: Mouse.StandardMouseEvent) {
+	constructor(originalEvent: Mouse.IMouseEvent) {
 		super(originalEvent.posx, originalEvent.posy, originalEvent.target);
 		this.originalEvent = originalEvent;
 	}
@@ -474,7 +474,7 @@ export interface IController {
 	/**
 	 * Called when an element is clicked.
 	 */
-	onClick(tree: ITree, element: any, event: Mouse.StandardMouseEvent): boolean;
+	onClick(tree: ITree, element: any, event: Mouse.IMouseEvent): boolean;
 
 	/**
 	 * Called when an element is requested for a context menu.
@@ -499,12 +499,12 @@ export interface IController {
 	/**
 	 * Called when a mouse button is pressed down on an element.
 	 */
-	onMouseDown?(tree: ITree, element: any, event: Mouse.StandardMouseEvent): boolean;
+	onMouseDown?(tree: ITree, element: any, event: Mouse.IMouseEvent): boolean;
 
 	/**
 	 * Called when a mouse button goes up on an element.
 	 */
-	onMouseUp?(tree: ITree, element: any, event: Mouse.StandardMouseEvent): boolean;
+	onMouseUp?(tree: ITree, element: any, event: Mouse.IMouseEvent): boolean;
 }
 
 export enum DragOverEffect {

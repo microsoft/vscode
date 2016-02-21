@@ -9,7 +9,7 @@ import Strings = require('vs/base/common/strings');
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {ModelLine} from 'vs/editor/common/model/modelLine';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import Platform = require('vs/base/common/platform');
 
 var __space = ' '.charCodeAt(0);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
@@ -13,7 +13,7 @@ import {ReplaceCommand} from 'vs/editor/common/commands/replaceCommand';
 import {OneCursor, OneCursorOp, IViewModelHelper, IOneCursorOperationContext, IPostOperationRunnable} from 'vs/editor/common/controller/oneCursor';
 import {DispatcherEvent} from 'vs/editor/common/controller/handlerDispatcher';
 import {CursorCollection, ICursorCollectionState} from 'vs/editor/common/controller/cursorCollection';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import Errors = require('vs/base/common/errors');
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 

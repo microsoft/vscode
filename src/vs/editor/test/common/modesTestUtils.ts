@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Modes = require('vs/editor/common/modes');
+import * as Modes from 'vs/editor/common/modes';
 import {Arrays} from 'vs/editor/common/core/arrays';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 

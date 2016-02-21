@@ -7,7 +7,7 @@
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {IScrollable} from 'vs/base/common/scrollable';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 export class EditorScrollable extends EventEmitter implements IScrollable {
 

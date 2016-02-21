@@ -8,8 +8,8 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import lifecycle = require('vs/base/common/lifecycle');
 import async = require('vs/base/common/async');
 import events = require('vs/base/common/eventEmitter');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import {ParameterHintsRegistry, getParameterHints} from '../common/parameterHints';
 
 function equalsArr<T>(a: T[], b:T[], equalsFn:(a:T,b:T)=>boolean): boolean {

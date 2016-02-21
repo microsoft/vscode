@@ -14,7 +14,7 @@ import {IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
 import {Widget} from 'vs/base/browser/ui/widget';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
+import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 
 export interface IFindInputOptions {
@@ -317,7 +317,7 @@ export class FindInput extends Widget {
 }
 
 interface IMatchCountOpts {
-	onClick: (e:StandardMouseEvent) => void;
+	onClick: (e:IMouseEvent) => void;
 }
 
 class MatchCount extends Widget {

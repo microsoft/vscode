@@ -33,7 +33,7 @@ import {DesktopDragAndDropData, ExternalElementsDragAndDropData} from 'vs/base/p
 import {ClickBehavior, DefaultController} from 'vs/base/parts/tree/browser/treeDefaults';
 import {ActionsRenderer} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
-import {DragMouseEvent, StandardMouseEvent} from 'vs/base/browser/mouseEvent';
+import {DragMouseEvent, IMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
@@ -390,7 +390,7 @@ export class FileController extends DefaultController {
 		this.state = state;
 	}
 
-	/* protected */ public onLeftClick(tree: ITree, stat: FileStat, event: StandardMouseEvent, origin: string = 'mouse'): boolean {
+	/* protected */ public onLeftClick(tree: ITree, stat: FileStat, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		let payload = { origin: origin };
 		let isDoubleClick = (origin === 'mouse' && event.detail === 2);
 

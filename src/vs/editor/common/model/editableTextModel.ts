@@ -10,7 +10,7 @@ import {EditStack} from 'vs/editor/common/model/editStack';
 import {ModelLine, ILineEdit, ILineMarker} from 'vs/editor/common/model/modelLine';
 import {TextModelWithDecorations, DeferredEventsBuilder} from 'vs/editor/common/model/textModelWithDecorations';
 import {IMode} from 'vs/editor/common/modes';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 export interface IDeltaSingleEditOperation {
 	original: IValidatedEditOperation;

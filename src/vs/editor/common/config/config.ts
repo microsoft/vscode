@@ -9,7 +9,7 @@ import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybindingServ
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
 export function findFocusedEditor(commandId: string, accessor: ServicesAccessor, args: any, complain: boolean): EditorCommon.ICommonCodeEditor {

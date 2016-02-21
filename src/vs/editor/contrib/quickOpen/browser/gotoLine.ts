@@ -6,9 +6,9 @@
 'use strict';
 
 import 'vs/css!./gotoLine';
-import nls = require('vs/nls');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as nls from 'vs/nls';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import QuickOpenModel = require('vs/base/parts/quickopen/browser/quickOpenModel');
 import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import EditorQuickOpen = require('./editorQuickOpen');

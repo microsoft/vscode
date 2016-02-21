@@ -7,7 +7,7 @@
 import Strings = require('vs/base/common/strings');
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {CursorMoveHelper} from 'vs/editor/common/controller/cursorMoveHelper';
 import {getRawEnterActionAtPosition} from 'vs/editor/common/modes/supports/onEnter';
 

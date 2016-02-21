@@ -6,8 +6,8 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import Schedulers = require('vs/base/common/async');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IRenderLineOutput, renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
 

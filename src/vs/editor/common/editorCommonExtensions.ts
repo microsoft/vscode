@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {Position} from 'vs/editor/common/core/position';

@@ -6,7 +6,7 @@
 
 import assert = require('assert');
 import {Range} from 'vs/editor/common/core/range';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {EditableTextModel, IValidatedEditOperation} from 'vs/editor/common/model/editableTextModel';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';

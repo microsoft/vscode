@@ -5,7 +5,7 @@
 'use strict';
 
 import EventEmitter = require('vs/base/common/eventEmitter');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 export class ViewEventHandler {
 

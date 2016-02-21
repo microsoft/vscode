@@ -140,7 +140,7 @@ export class DefaultController implements _.IController {
 		this.upKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_ENTER, this.onEnter.bind(this));
 	}
 
-	public onMouseDown(tree:_.ITree, element: any, event:mouse.StandardMouseEvent, origin: string = 'mouse'):boolean {
+	public onMouseDown(tree:_.ITree, element: any, event:mouse.IMouseEvent, origin: string = 'mouse'):boolean {
 		if (this.options.clickBehavior === ClickBehavior.ON_MOUSE_DOWN && event.leftButton) {
 			if (event.target) {
 				if (event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
@@ -159,7 +159,7 @@ export class DefaultController implements _.IController {
 		return false;
 	}
 
-	public onClick(tree:_.ITree, element: any, event:mouse.StandardMouseEvent):boolean {
+	public onClick(tree:_.ITree, element: any, event:mouse.IMouseEvent):boolean {
 		var isMac = platform.isMacintosh;
 
 		// A Ctrl click on the Mac is a context menu event
@@ -191,7 +191,7 @@ export class DefaultController implements _.IController {
 			tree.clearFocus(payload);
 			tree.clearSelection(payload);
 		} else {
-			var isMouseDown = eventish && (<mouse.StandardMouseEvent>eventish).browserEvent && (<mouse.StandardMouseEvent>eventish).browserEvent.type === 'mousedown';
+			var isMouseDown = eventish && (<mouse.IMouseEvent>eventish).browserEvent && (<mouse.IMouseEvent>eventish).browserEvent.type === 'mousedown';
 			if (!isMouseDown) {
 				eventish.preventDefault(); // we cannot preventDefault onMouseDown because this would break DND otherwise
 			}

@@ -9,7 +9,7 @@ import modes = require('vs/editor/common/modes');
 import supports = require('vs/editor/common/modes/supports');
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {createLineContext} from 'vs/editor/test/common/modesTestUtils';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IDisposable, empty as EmptyDisposable} from 'vs/base/common/lifecycle';
 import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 

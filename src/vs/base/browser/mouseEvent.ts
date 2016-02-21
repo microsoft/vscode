@@ -21,6 +21,7 @@ export interface IMouseEvent {
 	shiftKey:boolean;
 	altKey:boolean;
 	metaKey:boolean;
+	timestamp:number;
 
 	preventDefault(): void;
 	stopPropagation(): void;

@@ -5,7 +5,7 @@
 'use strict';
 
 import {Range} from 'vs/editor/common/core/range';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 export class Selection extends Range implements EditorCommon.IEditorSelection {
 	public selectionStartLineNumber: number;

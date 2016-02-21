@@ -9,7 +9,7 @@ import Model = require('vs/editor/common/model/model');
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import ModelModes = require('vs/editor/test/common/testModes');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
 
 // --------- utils

@@ -11,7 +11,7 @@
 
 import MonarchTypes = require('vs/editor/common/modes/monarch/monarchTypes');
 import MonarchCommonTypes = require('vs/editor/common/modes/monarch/monarchCommon');
-import Modes = require('vs/editor/common/modes');
+import * as Modes from 'vs/editor/common/modes';
 import Objects = require('vs/base/common/objects');
 
 /*

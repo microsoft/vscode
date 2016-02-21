@@ -13,7 +13,7 @@ import {SurroundSelectionCommand} from 'vs/editor/common/commands/surroundSelect
 import {Selection} from 'vs/editor/common/core/selection';
 import {IndentAction,IElectricAction} from 'vs/editor/common/modes';
 import {CursorMoveHelper, ICursorMoveHelperModel, IMoveResult} from 'vs/editor/common/controller/cursorMoveHelper';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import Errors = require('vs/base/common/errors');
 import {getEnterActionAtPosition} from 'vs/editor/common/modes/supports/onEnter';
 

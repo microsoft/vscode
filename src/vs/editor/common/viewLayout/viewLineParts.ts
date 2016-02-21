@@ -6,7 +6,7 @@
 
 import Strings = require('vs/base/common/strings');
 import {Arrays} from 'vs/editor/common/core/arrays';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 export interface ILineParts {
 

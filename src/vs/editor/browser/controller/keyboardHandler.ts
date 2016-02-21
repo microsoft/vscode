@@ -5,11 +5,11 @@
 'use strict';
 
 import * as EditorCommon from 'vs/editor/common/editorCommon';
-import DomUtils = require('vs/base/browser/dom');
-import Browser = require('vs/base/browser/browser');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
+import * as DomUtils from 'vs/base/browser/dom';
+import * as Browser from 'vs/base/browser/browser';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import * as Lifecycle from 'vs/base/common/lifecycle';
+import {IDisposable, Disposable, disposeAll} from 'vs/base/common/lifecycle';
 import {Range} from 'vs/editor/common/core/range';
 import Event, {Emitter} from 'vs/base/common/event';
 import {TextAreaHandler} from 'vs/editor/common/controller/textAreaHandler';
@@ -91,7 +91,7 @@ class KeyboardEventWrapper implements IKeyboardEventWrapper {
 	}
 }
 
-class TextAreaWrapper extends Lifecycle.Disposable implements ITextAreaWrapper {
+class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
 	private _textArea: HTMLTextAreaElement;
 
@@ -182,14 +182,14 @@ class TextAreaWrapper extends Lifecycle.Disposable implements ITextAreaWrapper {
 }
 
 
-export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisposable {
+export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 
 	private context:EditorBrowser.IViewContext;
 	private viewController:EditorBrowser.IViewController;
 	private viewHelper:EditorBrowser.IKeyboardHandlerHelper;
 	private textArea:TextAreaWrapper;
 	private textAreaHandler:TextAreaHandler;
-	private _toDispose:Lifecycle.IDisposable[];
+	private _toDispose:IDisposable[];
 
 	private contentLeft:number;
 	private contentWidth:number;
@@ -267,7 +267,7 @@ export class KeyboardHandler extends ViewEventHandler implements Lifecycle.IDisp
 		this.context.removeEventHandler(this);
 		this.textAreaHandler.dispose();
 		this.textArea.dispose();
-		this._toDispose = Lifecycle.disposeAll(this._toDispose);
+		this._toDispose = disposeAll(this._toDispose);
 	}
 
 	private _getStrategy(): TextAreaStrategy {

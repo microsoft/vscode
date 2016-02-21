@@ -5,7 +5,7 @@
 'use strict';
 
 import {IEventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
-import Modes = require('vs/editor/common/modes');
+import * as Modes from 'vs/editor/common/modes';
 import TokensBinaryEncoding = require('vs/editor/common/model/tokensBinaryEncoding');
 import {IInstantiationService, INewConstructorSignature1, INewConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {IAction} from 'vs/base/common/actions';

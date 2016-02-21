@@ -12,7 +12,7 @@ import {ViewModelDecorations} from 'vs/editor/common/viewModel/viewModelDecorati
 import {ViewModelCursors} from 'vs/editor/common/viewModel/viewModelCursors';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {Position} from 'vs/editor/common/core/position';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 export interface ILinesCollection {
 	setTabSize(newTabSize:number, emit:(evenType:string, payload:any)=>void): boolean;

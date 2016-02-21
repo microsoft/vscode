@@ -6,7 +6,7 @@
 
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {TPromise} from 'vs/base/common/winjs.base';
-import Modes = require('vs/editor/common/modes');
+import * as Modes from 'vs/editor/common/modes';
 import MonarchTypes = require('vs/editor/common/modes/monarch/monarchTypes');
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';

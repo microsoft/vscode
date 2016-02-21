@@ -12,7 +12,7 @@
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {LineStream} from 'vs/editor/common/modes/lineStream';
 import MonarchCommonTypes = require('vs/editor/common/modes/monarch/monarchCommon');
-import Modes = require('vs/editor/common/modes');
+import * as Modes from 'vs/editor/common/modes';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {TokenizationSupport, IEnteringNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 

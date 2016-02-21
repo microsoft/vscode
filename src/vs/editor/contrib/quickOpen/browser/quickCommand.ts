@@ -5,9 +5,9 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import Errors = require('vs/base/common/errors');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import QuickOpenModel = require('vs/base/parts/quickopen/browser/quickOpenModel');
 import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Strings = require('vs/base/common/strings');

@@ -7,7 +7,7 @@
 import assert = require('assert');
 import TU = require('vs/editor/test/common/commands/commandTestUtils');
 import {ShiftCommand} from 'vs/editor/common/commands/shiftCommand';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {withEditorModel} from 'vs/editor/test/common/editorTestUtils';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as Modes from 'vs/editor/common/modes';

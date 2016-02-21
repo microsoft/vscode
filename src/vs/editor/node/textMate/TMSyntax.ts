@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 
 import paths = require('vs/base/common/paths');
 import errors = require('vs/base/common/errors');
 
-import Modes = require('vs/editor/common/modes');
+import * as Modes from 'vs/editor/common/modes';
 import supports = require('vs/editor/common/modes/supports');
 import collections = require('vs/base/common/collections');
 import textMate = require('vscode-textmate');

@@ -7,14 +7,14 @@
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {Disposable, IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {SimpleWorkerClient} from 'vs/base/common/worker/simpleWorker';
 import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
 import {EditorSimpleWorker} from 'vs/editor/common/services/editorSimpleWorkerCommon';
 import {IntervalTimer} from 'vs/base/common/async';
-import Modes = require('vs/editor/common/modes');
+import * as Modes from 'vs/editor/common/modes';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 
 /**

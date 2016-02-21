@@ -40,8 +40,8 @@ import {Rulers} from 'vs/editor/browser/viewParts/rulers/rulers';
 
 import Browser = require('vs/base/browser/browser');
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import {Range} from 'vs/editor/common/core/range';
 import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 

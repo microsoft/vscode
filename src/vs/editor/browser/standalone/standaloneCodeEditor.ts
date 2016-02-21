@@ -8,9 +8,9 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import CodeEditorWidget = require('vs/editor/browser/widget/codeEditorWidget');
 import SimpleServices = require('vs/editor/browser/standalone/simpleServices');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import standaloneServices = require('vs/editor/browser/standalone/standaloneServices');
 import URI from 'vs/base/common/uri';
 import Lifecycle = require('vs/base/common/lifecycle');

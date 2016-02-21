@@ -6,7 +6,7 @@
 
 import Events = require('vs/base/common/eventEmitter');
 import Assert = require('vs/base/common/assert');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import Objects = require('vs/base/common/objects');
 import {Range} from 'vs/editor/common/core/range';
 

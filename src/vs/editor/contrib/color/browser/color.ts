@@ -12,7 +12,7 @@ import schedulers = require('vs/base/common/async');
 import dom = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 

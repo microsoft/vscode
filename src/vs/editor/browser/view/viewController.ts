@@ -5,10 +5,10 @@
 'use strict';
 
 import EventEmitter = require('vs/base/common/eventEmitter');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import Configuration = require('vs/editor/browser/config/configuration');
 import Position = require('vs/editor/common/core/position');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 export class ViewController implements EditorBrowser.IViewController {

@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./gotoError';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import lifecycle = require('vs/base/common/lifecycle');
 import strings = require('vs/base/common/strings');
 import Errors = require('vs/base/common/errors');
@@ -18,9 +18,9 @@ import ZoneWidget = require('vs/editor/contrib/zoneWidget/browser/zoneWidget');
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import HtmlContentRenderer = require('vs/base/browser/htmlContentRenderer');
 import {Emitter} from 'vs/base/common/event';
 import {Position} from 'vs/editor/common/core/position';

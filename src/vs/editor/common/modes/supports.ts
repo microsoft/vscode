@@ -5,7 +5,7 @@
 'use strict';
 
 import Strings = require('vs/base/common/strings');
-import Modes = require('vs/editor/common/modes');
+import * as Modes from 'vs/editor/common/modes';
 import {Arrays} from 'vs/editor/common/core/arrays';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 

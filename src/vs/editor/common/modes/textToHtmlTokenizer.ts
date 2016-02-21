@@ -6,7 +6,7 @@
 
 import Strings = require('vs/base/common/strings');
 import {NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
-import Modes = require('vs/editor/common/modes');
+import * as Modes from 'vs/editor/common/modes';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 
 export function tokenizeToHtmlContent(text: string, mode: Modes.IMode): IHTMLContentElement {

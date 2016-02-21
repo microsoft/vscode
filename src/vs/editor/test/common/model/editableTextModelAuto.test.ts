@@ -6,7 +6,7 @@
 
 import {Range} from 'vs/editor/common/core/range';
 import Position = require('vs/editor/common/core/position');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {testApplyEditsWithSyncedModels} from 'vs/editor/test/common/model/editableTextModelTestUtils';
 
 const GENERATE_TESTS = false;

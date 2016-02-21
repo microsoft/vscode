@@ -5,14 +5,14 @@
 
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IRequestHandler} from 'vs/base/common/worker/simpleWorker';
 import {EditorSimpleWorker, IRawModelData} from 'vs/editor/common/services/editorSimpleWorkerCommon';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
 import URI from 'vs/base/common/uri';
 import {DiffComputer} from 'vs/editor/common/diff/diffComputer';
-import Modes = require('vs/editor/common/modes');
+import * as Modes from 'vs/editor/common/modes';
 import {computeLinks} from 'vs/editor/common/modes/linkComputer';
 import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';

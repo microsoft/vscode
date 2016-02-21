@@ -7,7 +7,7 @@
 import assert = require('assert');
 import CharacterHardWrappingLineMapper = require('vs/editor/common/viewModel/characterHardWrappingLineMapper');
 import SplitLinesCollection = require('vs/editor/common/viewModel/splitLinesCollection');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 function safeGetOutputLineCount(mapper:SplitLinesCollection.ILineMapping): number {
 	if (!mapper) {

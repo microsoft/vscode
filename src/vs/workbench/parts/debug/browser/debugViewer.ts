@@ -661,7 +661,7 @@ export class WatchExpressionsController extends BaseDebugController {
 		}
 	}
 
-	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.StandardMouseEvent): boolean {
+	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
 		// double click on primitive value: open input box to be able to select and copy value.
 		if (element instanceof model.Expression && event.detail === 2) {
 			const expression = <debug.IExpression> element;
@@ -938,7 +938,7 @@ export class BreakpointsAccessibilityProvider implements tree.IAccessibilityProv
 
 export class BreakpointsController extends BaseDebugController {
 
-	protected onLeftClick(tree:tree.ITree, element: any, event: mouse.StandardMouseEvent): boolean {
+	protected onLeftClick(tree:tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
 		if (element instanceof model.ExceptionBreakpoint) {
 			return false;
 		}

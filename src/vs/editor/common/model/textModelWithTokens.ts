@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 
 import Timer = require('vs/base/common/timer');
 import {NullMode, NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
@@ -13,8 +13,8 @@ import {TokenIterator} from 'vs/editor/common/model/tokenIterator';
 import {ModelLine} from 'vs/editor/common/model/modelLine';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
-import Modes = require('vs/editor/common/modes');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as Modes from 'vs/editor/common/modes';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {Arrays} from 'vs/editor/common/core/arrays';
 import Errors = require('vs/base/common/errors');

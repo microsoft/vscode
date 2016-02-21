@@ -10,7 +10,7 @@ import {IMode} from 'vs/editor/common/modes';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
 import {ModelLine} from 'vs/editor/common/model/modelLine';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import URI from 'vs/base/common/uri';
 import {disposeAll} from 'vs/base/common/lifecycle';

@@ -6,7 +6,7 @@
 
 import {ISequence, IDiffChange, LcsDiff} from 'vs/base/common/diff/diff';
 import Strings = require('vs/base/common/strings');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 var MAXIMUM_RUN_TIME = 5000; // 5 seconds
 var MINIMUM_MATCHING_CHARACTER_LENGTH = 3;

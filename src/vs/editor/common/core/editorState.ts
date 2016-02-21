@@ -5,7 +5,7 @@
 'use strict';
 
 import Strings = require('vs/base/common/strings');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 export class EditorState implements EditorCommon.ICodeEditorState {
 

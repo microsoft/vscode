@@ -11,7 +11,7 @@
 
 import MonarchCommonTypes = require('vs/editor/common/modes/monarch/monarchCommon');
 import {IModelService} from 'vs/editor/common/services/modelService';
-import Modes = require('vs/editor/common/modes');
+import * as Modes from 'vs/editor/common/modes';
 import {CharacterPair, IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TextualAndPredefinedResultSuggestSupport, PredefinedResultSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';

@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IModeService, IModeLookupResult, ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import Modes = require('vs/editor/common/modes');
+import * as Modes from 'vs/editor/common/modes';
 import {IPluginService} from 'vs/platform/plugins/common/plugins';
 import {FrankensteinMode} from 'vs/editor/common/modes/abstractMode';
 import {LanguagesRegistry} from 'vs/editor/common/services/languagesRegistry';

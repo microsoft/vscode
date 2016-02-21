@@ -8,7 +8,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IMode} from 'vs/editor/common/modes';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {EditableTextModel} from 'vs/editor/common/model/editableTextModel';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
 
 // The hierarchy is:

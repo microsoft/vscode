@@ -10,8 +10,8 @@ import DomUtils = require('vs/base/browser/dom');
 import Lifecycle = require('vs/base/common/lifecycle');
 
 import {EditorScrollable} from 'vs/editor/common/viewLayout/editorScrollable';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 function addPropertyIfPresent(src:any, dst:any, prop:string): void {
 	if (src.hasOwnProperty(prop)) {

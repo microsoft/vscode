@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./quickFix';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
 import Errors = require('vs/base/common/errors');
 import dom = require('vs/base/browser/dom');
@@ -15,8 +15,8 @@ import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
 import TreeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import QuickFixModel = require('./quickFixModel');
 import Mouse = require('vs/base/browser/mouseEvent');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import EventEmitter = require('vs/base/common/eventEmitter');
 import Timer = require('vs/base/common/timer');
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -106,7 +106,7 @@ class DataSource implements Tree.IDataSource {
 
 class Controller extends TreeDefaults.DefaultController {
 
-	/* protected */ public onLeftClick(tree:Tree.ITree, element:any, event:Mouse.StandardMouseEvent):boolean {
+	/* protected */ public onLeftClick(tree:Tree.ITree, element:any, event:Mouse.IMouseEvent):boolean {
 		event.preventDefault();
 		event.stopPropagation();
 

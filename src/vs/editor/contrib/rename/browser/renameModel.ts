@@ -6,11 +6,11 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import arrays = require('vs/base/common/arrays');
 import collections = require('vs/base/common/collections');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {IEditorService} from 'vs/platform/editor/common/editor';

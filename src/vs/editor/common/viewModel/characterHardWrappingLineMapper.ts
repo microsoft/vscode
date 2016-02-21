@@ -7,7 +7,7 @@
 import Strings = require('vs/base/common/strings');
 import {ILineMapperFactory, ILineMapping, IOutputPosition} from 'vs/editor/common/viewModel/splitLinesCollection';
 import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 var throwawayIndexOfResult = {
 	index: -1,

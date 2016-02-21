@@ -6,7 +6,7 @@
 
 import {Range} from 'vs/editor/common/core/range';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import Strings = require('vs/base/common/strings');
 
 export class TrimTrailingWhitespaceCommand implements EditorCommon.ICommand {

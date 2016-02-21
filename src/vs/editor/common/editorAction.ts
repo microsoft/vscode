@@ -6,8 +6,8 @@
 
 import {Action} from 'vs/base/common/actions';
 import {TPromise} from 'vs/base/common/winjs.base';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import Strings = require('vs/base/common/strings');
 import editorActionEnablement = require('vs/editor/common/editorActionEnablement');
 import {INullService} from 'vs/platform/instantiation/common/instantiation';

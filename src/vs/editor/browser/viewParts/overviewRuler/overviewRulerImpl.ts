@@ -7,8 +7,8 @@
 import Browser = require('vs/base/browser/browser');
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 interface IColorZone {
 	from: number;

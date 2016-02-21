@@ -7,8 +7,8 @@
 import lifecycle = require('vs/base/common/lifecycle');
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 import dom = require('vs/base/browser/dom');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Position} from 'vs/editor/common/core/position';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert = require('assert');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import MirrorModel = require('vs/editor/common/model/mirrorModel');
 import modesUtil = require('vs/editor/test/common/modesTestUtils');
 

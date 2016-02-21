@@ -6,11 +6,11 @@
 
 import 'vs/css!vs/base/browser/ui/progressbar/progressbar';
 import URI from 'vs/base/common/uri';
-import nls = require('vs/nls');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as nls from 'vs/nls';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import {TPromise} from 'vs/base/common/winjs.base';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import HoverOperation = require('./hoverOperation');
 import HoverWidget = require('./hoverWidgets');
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';

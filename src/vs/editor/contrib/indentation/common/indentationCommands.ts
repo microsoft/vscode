@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {Range} from 'vs/editor/common/core/range';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 function getIndentationEditOperations(model: EditorCommon.ITokenizedModel, builder: EditorCommon.IEditOperationBuilder, tabSize: number, tabsToSpaces: boolean): void {
 	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {

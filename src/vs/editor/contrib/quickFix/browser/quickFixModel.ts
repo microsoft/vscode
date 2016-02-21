@@ -7,10 +7,10 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import events = require('vs/base/common/eventEmitter');
 import timer = require('vs/base/common/timer');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import lifecycle = require('vs/base/common/lifecycle');
 import URI from 'vs/base/common/uri';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import arrays = require('vs/base/common/arrays');
 import schedulers = require('vs/base/common/async');
 import errors = require('vs/base/common/errors');

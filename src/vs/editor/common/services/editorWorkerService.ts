@@ -7,8 +7,8 @@
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 
 export var ID_EDITOR_WORKER_SERVICE = 'workerService';
 export var IEditorWorkerService = createDecorator<IEditorWorkerService>(ID_EDITOR_WORKER_SERVICE);

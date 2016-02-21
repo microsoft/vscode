@@ -9,8 +9,8 @@ import Schedulers = require('vs/base/common/async');
 
 import {createLine, ViewLine} from 'vs/editor/browser/viewParts/lines/viewLine';
 import {IVisibleLineData, ViewLayer} from 'vs/editor/browser/view/viewLayer';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 

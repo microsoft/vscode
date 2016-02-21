@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Modes = require('vs/editor/common/modes');
+import * as Modes from 'vs/editor/common/modes';
 import {Registry} from 'vs/platform/platform';
 import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
 import Event, {Emitter} from 'vs/base/common/event';

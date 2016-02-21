@@ -7,8 +7,8 @@
 
 import 'vs/css!./selections';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 type HorizontalRange = EditorCommon.HorizontalRange;
 type LineVisibleRanges = EditorCommon.LineVisibleRanges;

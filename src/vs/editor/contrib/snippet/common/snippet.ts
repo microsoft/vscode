@@ -7,7 +7,7 @@
 
 import Collections = require('vs/base/common/collections');
 import Strings = require('vs/base/common/strings');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import EventEmitter = require('vs/base/common/eventEmitter');
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {Range} from 'vs/editor/common/core/range';

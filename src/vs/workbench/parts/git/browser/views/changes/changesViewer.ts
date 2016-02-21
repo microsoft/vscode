@@ -685,7 +685,7 @@ export class Controller extends treedefaults.DefaultController {
 		this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_PAGE_DOWN, this.onPageDown.bind(this));
 	}
 
-	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.StandardMouseEvent): boolean {
+	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
 		// Status group should never get selected nor expanded/collapsed
 		if (element instanceof gitmodel.StatusGroup) {
 			event.preventDefault();

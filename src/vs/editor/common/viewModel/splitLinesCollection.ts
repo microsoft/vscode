@@ -9,7 +9,7 @@ import {Range} from 'vs/editor/common/core/range';
 import {PrefixSumComputer, IPrefixSumIndexOfResult} from 'vs/editor/common/viewModel/prefixSumComputer';
 import {FilteredLineTokens, IdentityFilteredLineTokens} from 'vs/editor/common/viewModel/filteredLineTokens';
 import {ILinesCollection} from 'vs/editor/common/viewModel/viewModel';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 export interface IOutputPosition {
 	outputLineIndex: number;

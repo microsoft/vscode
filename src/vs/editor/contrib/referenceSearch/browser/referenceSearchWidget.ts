@@ -5,7 +5,7 @@
 'use strict';
 
 import 'vs/css!./referenceSearchWidget';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import collections = require('vs/base/common/collections');
 import lifecycle = require('vs/base/common/lifecycle');
@@ -24,8 +24,8 @@ import treeWidget = require('vs/base/parts/tree/browser/treeImpl');
 import treeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
 import leftRightWidget = require('vs/base/browser/ui/leftRightWidget/leftRightWidget');
 import countBadge = require('vs/base/browser/ui/countBadge/countBadge');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import embeddedCodeEditorWidget = require('vs/editor/browser/widget/embeddedCodeEditorWidget');
 import codeEditorModel = require('vs/editor/common/model/model');
@@ -206,7 +206,7 @@ class Controller extends treeDefaults.DefaultController {
 		OPEN_TO_SIDE: 'events/custom/opentoside'
 	};
 
-	public onMouseDown(tree:tree.ITree, element:any, event:mouse.StandardMouseEvent):boolean {
+	public onMouseDown(tree:tree.ITree, element:any, event:mouse.IMouseEvent):boolean {
 		if (event.leftButton) {
 			if (element instanceof model.FileReferences) {
 				event.preventDefault();
@@ -228,7 +228,7 @@ class Controller extends treeDefaults.DefaultController {
 		return false;
 	}
 
-	public onClick(tree:tree.ITree, element:any, event:mouse.StandardMouseEvent):boolean {
+	public onClick(tree:tree.ITree, element:any, event:mouse.IMouseEvent):boolean {
 		if (event.leftButton) {
 			return false; // Already handled by onMouseDown
 		}

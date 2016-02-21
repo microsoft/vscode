@@ -16,7 +16,7 @@ import errors = require('vs/base/common/errors');
 import mime = require('vs/base/common/mime');
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import {StandardMouseEvent, DragMouseEvent} from 'vs/base/browser/mouseEvent';
+import {IMouseEvent, DragMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import actions = require('vs/base/common/actions');
@@ -341,7 +341,7 @@ export class WorkingFilesController extends DefaultController {
 		}
 	}
 
-	/* protected */ public onClick(tree: ITree, element: any, event: StandardMouseEvent): boolean {
+	/* protected */ public onClick(tree: ITree, element: any, event: IMouseEvent): boolean {
 
 		// Close working file on middle mouse click
 		if (element instanceof WorkingFileEntry && event.browserEvent && event.browserEvent.button === 1 /* Middle Button */) {
@@ -356,7 +356,7 @@ export class WorkingFilesController extends DefaultController {
 		return super.onClick(tree, element, event);
 	}
 
-	/* protected */ public onLeftClick(tree: ITree, element: any, event: StandardMouseEvent, origin: string = 'mouse'): boolean {
+	/* protected */ public onLeftClick(tree: ITree, element: any, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		let payload = { origin: origin };
 		let isDoubleClick = (origin === 'mouse' && event.detail === 2);
 

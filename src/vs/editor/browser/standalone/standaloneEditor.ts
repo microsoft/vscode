@@ -9,8 +9,8 @@ import './standaloneSchemas';
 
 import Colorizer = require('vs/editor/browser/standalone/colorizer');
 import standaloneCodeEditor = require('vs/editor/browser/standalone/standaloneCodeEditor');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import {ILanguageDef} from 'vs/editor/standalone-languages/types';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 

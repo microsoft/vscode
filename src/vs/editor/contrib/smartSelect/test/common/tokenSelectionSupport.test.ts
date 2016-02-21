@@ -6,7 +6,7 @@
 
 import 'vs/languages/javascript/common/javascript.contribution';
 import assert = require('assert');
-import Modes = require('vs/editor/common/modes');
+import * as Modes from 'vs/editor/common/modes';
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import {createMockModelService} from 'vs/editor/test/common/servicesTestUtils';
 import URI from 'vs/base/common/uri';

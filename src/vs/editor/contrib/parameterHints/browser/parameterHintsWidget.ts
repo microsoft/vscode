@@ -10,9 +10,9 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import lifecycle = require('vs/base/common/lifecycle');
 import Builder = require('vs/base/browser/builder');
 import Model = require('./parameterHintsModel');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
 import EventEmitter = require('vs/base/common/eventEmitter');
 
 var $ = Builder.$;

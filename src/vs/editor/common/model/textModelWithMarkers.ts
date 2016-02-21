@@ -9,7 +9,7 @@ import {IMode} from 'vs/editor/common/modes';
 import {Position} from 'vs/editor/common/core/position';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
 import {ModelLine, ILineMarker} from 'vs/editor/common/model/modelLine';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IdGenerator} from 'vs/editor/common/core/idGenerator';
 
 export interface IMarkerIdToMarkerMap {

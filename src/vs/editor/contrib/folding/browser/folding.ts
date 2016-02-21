@@ -7,7 +7,7 @@
 'use strict';
 
 import {RunOnceScheduler} from 'vs/base/common/async';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {IMouseEvent, ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
@@ -18,7 +18,7 @@ import {IFoldingRange, toString as rangeToString} from 'vs/editor/contrib/foldin
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {EditorAction} from 'vs/editor/common/editorAction';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 
 let log = function(msg: string) {
 	//console.log(msg);
