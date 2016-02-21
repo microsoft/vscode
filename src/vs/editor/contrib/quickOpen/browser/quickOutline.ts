@@ -18,7 +18,7 @@ import Filters = require('vs/base/common/filters');
 import QuickOpenModel = require('vs/base/parts/quickopen/browser/quickOpenModel');
 import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import EditorQuickOpen = require('./editorQuickOpen');
-import {Behaviour} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 
 let SCOPE_PREFIX = ':';

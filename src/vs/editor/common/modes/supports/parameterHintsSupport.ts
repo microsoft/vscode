@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IParameterHints, IParameterHintsSupport, ILineContext, IMode} from 'vs/editor/common/modes';
-import {IPosition} from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IPosition} from 'vs/editor/common/editorCommon';
+import {ILineContext, IMode, IParameterHints, IParameterHintsSupport} from 'vs/editor/common/modes';
 import {handleEvent, isLineToken} from 'vs/editor/common/modes/supports';
 
 export interface IParameterHintsContribution {

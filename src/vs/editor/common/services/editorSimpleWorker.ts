@@ -5,19 +5,19 @@
 
 'use strict';
 
-import * as EditorCommon from 'vs/editor/common/editorCommon';
+import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IRequestHandler} from 'vs/base/common/worker/simpleWorker';
-import {EditorSimpleWorker, IRawModelData} from 'vs/editor/common/services/editorSimpleWorkerCommon';
-import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
-import URI from 'vs/base/common/uri';
+import {Range} from 'vs/editor/common/core/range';
 import {DiffComputer} from 'vs/editor/common/diff/diffComputer';
-import * as Modes from 'vs/editor/common/modes';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
+import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
+import {IInplaceReplaceSupportResult, ILink, ISuggestResult, ISuggestion} from 'vs/editor/common/modes';
 import {computeLinks} from 'vs/editor/common/modes/linkComputer';
 import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
-import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
-import {Range} from 'vs/editor/common/core/range';
 import {BasicInplaceReplace} from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
+import {EditorSimpleWorker, IRawModelData} from 'vs/editor/common/services/editorSimpleWorkerCommon';
 
 class MirrorModel extends MirrorModel2 {
 
@@ -33,7 +33,7 @@ class MirrorModel extends MirrorModel2 {
 		return this._lines[lineNumber - 1];
 	}
 
-	public getWordAtPosition(position:EditorCommon.IPosition, wordDefinition:RegExp): Range {
+	public getWordAtPosition(position:editorCommon.IPosition, wordDefinition:RegExp): Range {
 
 		let wordAtText = WordHelper._getWordAtText(
 			position.column,
@@ -49,7 +49,7 @@ class MirrorModel extends MirrorModel2 {
 		return null;
 	}
 
-	public getWordUntilPosition(position: EditorCommon.IPosition, wordDefinition:RegExp): EditorCommon.IWordAtPosition {
+	public getWordUntilPosition(position: editorCommon.IPosition, wordDefinition:RegExp): editorCommon.IWordAtPosition {
 		var wordAtPosition = this.getWordAtPosition(position, wordDefinition);
 		if (!wordAtPosition) {
 			return {
@@ -92,8 +92,8 @@ class MirrorModel extends MirrorModel2 {
 	}
 
 //	// TODO@Joh, TODO@Alex - remove these and make sure the super-things work
-	private _wordenize(content:string, wordDefinition:RegExp): EditorCommon.IWordRange[] {
-		var result:EditorCommon.IWordRange[] = [];
+	private _wordenize(content:string, wordDefinition:RegExp): editorCommon.IWordRange[] {
+		var result:editorCommon.IWordRange[] = [];
 		var match:RegExpExecArray;
 		while (match = wordDefinition.exec(content)) {
 			result.push({ start: match.index, end: match.index + match[0].length });
@@ -101,7 +101,7 @@ class MirrorModel extends MirrorModel2 {
 		return result;
 	}
 
-	public getValueInRange(range:EditorCommon.IRange): string {
+	public getValueInRange(range:editorCommon.IRange): string {
 		if (range.startLineNumber === range.endLineNumber) {
 			return this._lines[range.startLineNumber - 1].substring(range.startColumn - 1, range.endColumn - 1);
 		}
@@ -135,7 +135,7 @@ export class EditorSimpleWorkerImpl extends EditorSimpleWorker implements IReque
 		this._models[data.url] = new MirrorModel(URI.parse(data.url), data.value.lines, data.value.EOL, data.versionId);
 	}
 
-	public acceptModelChanged(strURL: string, events: EditorCommon.IModelContentChangedEvent2[]): void {
+	public acceptModelChanged(strURL: string, events: editorCommon.IModelContentChangedEvent2[]): void {
 		if (!this._models[strURL]) {
 			return;
 		}
@@ -152,7 +152,7 @@ export class EditorSimpleWorkerImpl extends EditorSimpleWorker implements IReque
 
 	// ---- BEGIN diff --------------------------------------------------------------------------
 
-	public computeDiff(originalUrl:string, modifiedUrl:string, ignoreTrimWhitespace:boolean): TPromise<EditorCommon.ILineChange[]> {
+	public computeDiff(originalUrl:string, modifiedUrl:string, ignoreTrimWhitespace:boolean): TPromise<editorCommon.ILineChange[]> {
 		let original = this._models[originalUrl];
 		let modified = this._models[modifiedUrl];
 		if (!original || !modified) {
@@ -169,7 +169,7 @@ export class EditorSimpleWorkerImpl extends EditorSimpleWorker implements IReque
 		return TPromise.as(diffComputer.computeDiff());
 	}
 
-	public computeDirtyDiff(originalUrl:string, modifiedUrl:string, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]> {
+	public computeDirtyDiff(originalUrl:string, modifiedUrl:string, ignoreTrimWhitespace:boolean):TPromise<editorCommon.IChange[]> {
 		let original = this._models[originalUrl];
 		let modified = this._models[modifiedUrl];
 		if (!original || !modified) {
@@ -188,7 +188,7 @@ export class EditorSimpleWorkerImpl extends EditorSimpleWorker implements IReque
 
 	// ---- END diff --------------------------------------------------------------------------
 
-	public computeLinks(modelUrl:string):TPromise<Modes.ILink[]> {
+	public computeLinks(modelUrl:string):TPromise<ILink[]> {
 		let model = this._models[modelUrl];
 		if (!model) {
 			return null;
@@ -199,7 +199,7 @@ export class EditorSimpleWorkerImpl extends EditorSimpleWorker implements IReque
 
 	// ---- BEGIN suggest --------------------------------------------------------------------------
 
-	public textualSuggest(modelUrl:string, position: EditorCommon.IPosition, wordDef:string, wordDefFlags:string): TPromise<Modes.ISuggestResult[]> {
+	public textualSuggest(modelUrl:string, position: editorCommon.IPosition, wordDef:string, wordDefFlags:string): TPromise<ISuggestResult[]> {
 		let model = this._models[modelUrl];
 		if (!model) {
 			return null;
@@ -208,7 +208,7 @@ export class EditorSimpleWorkerImpl extends EditorSimpleWorker implements IReque
 		return TPromise.as(this._suggestFiltered(model, position, new RegExp(wordDef, wordDefFlags)));
 	}
 
-	private _suggestFiltered(model:MirrorModel, position: EditorCommon.IPosition, wordDefRegExp: RegExp): Modes.ISuggestResult[] {
+	private _suggestFiltered(model:MirrorModel, position: editorCommon.IPosition, wordDefRegExp: RegExp): ISuggestResult[] {
 		let value = this._suggestUnfiltered(model, position, wordDefRegExp);
 		let accept = DefaultFilter;
 
@@ -220,14 +220,14 @@ export class EditorSimpleWorkerImpl extends EditorSimpleWorker implements IReque
 		}];
 	}
 
-	private _suggestUnfiltered(model:MirrorModel, position:EditorCommon.IPosition, wordDefRegExp: RegExp): Modes.ISuggestResult {
+	private _suggestUnfiltered(model:MirrorModel, position:editorCommon.IPosition, wordDefRegExp: RegExp): ISuggestResult {
 		let currentWord = model.getWordUntilPosition(position, wordDefRegExp).word;
 		let allWords = model.getAllUniqueWords(wordDefRegExp, currentWord);
 
 		let suggestions = allWords.filter((word) => {
 			return !(/^-?\d*\.?\d/.test(word)); // filter out numbers
 		}).map((word) => {
-			return <Modes.ISuggestion> {
+			return <ISuggestion> {
 				type: 'text',
 				label: word,
 				codeSnippet: word,
@@ -243,7 +243,7 @@ export class EditorSimpleWorkerImpl extends EditorSimpleWorker implements IReque
 
 	// ---- END suggest --------------------------------------------------------------------------
 
-	public navigateValueSet(modelUrl:string, range:EditorCommon.IRange, up:boolean, wordDef:string, wordDefFlags:string): TPromise<Modes.IInplaceReplaceSupportResult> {
+	public navigateValueSet(modelUrl:string, range:editorCommon.IRange, up:boolean, wordDef:string, wordDefFlags:string): TPromise<IInplaceReplaceSupportResult> {
 		let model = this._models[modelUrl];
 		if (!model) {
 			return null;

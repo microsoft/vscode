@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as Browser from 'vs/base/browser/browser';
-import {IVisibleLineData} from 'vs/editor/browser/view/viewLayer';
-import {ILineParts, createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
-import {ClassNames, IViewContext} from 'vs/editor/browser/editorBrowser';
-import {IModelDecoration, IConfigurationChangedEvent, HorizontalRange} from 'vs/editor/common/editorCommon';
-import {renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
+import * as browser from 'vs/base/browser/browser';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
+import {HorizontalRange, IConfigurationChangedEvent, IModelDecoration} from 'vs/editor/common/editorCommon';
+import {ILineParts, createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
+import {renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
+import {ClassNames, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {IVisibleLineData} from 'vs/editor/browser/view/viewLayer';
 
 export class ViewLine implements IVisibleLineData {
 
@@ -504,7 +504,7 @@ export let createLine: (context: IViewContext) => ViewLine = (function() {
 		// IE11 doesn't need the screen.logicalXDPI / screen.deviceXDPI ratio multiplication
 		// for TextRange.getClientRects() anymore
 		return createIELine;
-	} else if (Browser.isWebKit) {
+	} else if (browser.isWebKit) {
 		return createWebKitLine;
 	}
 	return createNormalLine;

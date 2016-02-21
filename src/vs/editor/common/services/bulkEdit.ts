@@ -5,18 +5,18 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import URI from 'vs/base/common/uri';
 import {merge} from 'vs/base/common/arrays';
 import {IStringDictionary, forEach, values} from 'vs/base/common/collections';
+import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IEditorService} from 'vs/platform/editor/common/editor';
-import {IRange, ISelection, IEditorSelection, IModel, IIdentifiedSingleEditOperation} from 'vs/editor/common/editorCommon';
-import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import {IEventService} from 'vs/platform/event/common/event';
+import {EventType as FileEventType, FileChangesEvent, IFileChange} from 'vs/platform/files/common/files';
+import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
-import {IFileChange, EventType as FileEventType, FileChangesEvent} from 'vs/platform/files/common/files';
-import {EditOperation} from 'vs/editor/common/core/editOperation';
+import {IEditorSelection, IIdentifiedSingleEditOperation, IModel, IRange, ISelection} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 
 export interface IResourceEdit {
 	resource: URI;

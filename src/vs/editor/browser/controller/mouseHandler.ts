@@ -206,7 +206,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 	private _onContextMenu(rawEvent: MouseEvent): void {
 		var e = new StandardMouseEvent(rawEvent);
 		var t = this._createMouseTarget(e, true);
-		var mouseEvent: editorBrowser.IMouseEvent = {
+		var mouseEvent: editorBrowser.IEditorMouseEvent = {
 			event: e,
 			target: t
 		};
@@ -225,7 +225,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 		}
 
 		var t = this._createMouseTarget(e, true);
-		var mouseEvent: editorBrowser.IMouseEvent = {
+		var mouseEvent: editorBrowser.IEditorMouseEvent = {
 			event: e,
 			target: t
 		};
@@ -234,7 +234,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 
 	private _onMouseLeave(rawEvent: MouseEvent): void {
 		this.lastMouseLeaveTime = (new Date()).getTime();
-		var mouseEvent: editorBrowser.IMouseEvent = {
+		var mouseEvent: editorBrowser.IEditorMouseEvent = {
 			event: new StandardMouseEvent(rawEvent),
 			target: null
 		};
@@ -245,7 +245,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 		var e = new StandardMouseEvent(rawEvent);
 		var t = this._createMouseTarget(e, true);
 
-		var mouseEvent: editorBrowser.IMouseEvent = {
+		var mouseEvent: editorBrowser.IEditorMouseEvent = {
 			event: e,
 			target: t
 		};
@@ -295,7 +295,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 			}
 		}
 
-		var mouseEvent: editorBrowser.IMouseEvent = {
+		var mouseEvent: editorBrowser.IEditorMouseEvent = {
 			event: e,
 			target: t
 		};

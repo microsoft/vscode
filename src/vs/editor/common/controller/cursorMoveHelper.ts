@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as EditorCommon from 'vs/editor/common/editorCommon';
+import {IInternalIndentationOptions, IPosition} from 'vs/editor/common/editorCommon';
 
 export interface IMoveResult {
 	lineNumber:number;
@@ -22,7 +22,7 @@ export interface ICursorMoveHelperModel {
 }
 
 export interface IConfiguration {
-	getIndentationOptions(): EditorCommon.IInternalIndentationOptions;
+	getIndentationOptions(): IInternalIndentationOptions;
 }
 
 function isHighSurrogate(model, lineNumber, column) {
@@ -43,7 +43,7 @@ export class CursorMoveHelper {
 		this.configuration = configuration;
 	}
 
-	public getLeftOfPosition(model:ICursorMoveHelperModel, lineNumber:number, column:number): EditorCommon.IPosition {
+	public getLeftOfPosition(model:ICursorMoveHelperModel, lineNumber:number, column:number): IPosition {
 
 		if (column > model.getLineMinColumn(lineNumber)) {
 			column = column - (isLowSurrogate(model, lineNumber, column - 1) ? 2 : 1);
@@ -58,7 +58,7 @@ export class CursorMoveHelper {
 		};
 	}
 
-	public getRightOfPosition(model:ICursorMoveHelperModel, lineNumber:number, column:number): EditorCommon.IPosition {
+	public getRightOfPosition(model:ICursorMoveHelperModel, lineNumber:number, column:number): IPosition {
 
 		if (column < model.getLineMaxColumn(lineNumber)) {
 			column = column + (isHighSurrogate(model, lineNumber, column) ? 2 : 1);

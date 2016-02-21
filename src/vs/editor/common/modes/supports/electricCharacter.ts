@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as Modes from 'vs/editor/common/modes';
-import {handleEvent, ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
-import Strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 import {Range} from 'vs/editor/common/core/range';
 import {IRichEditBracket} from 'vs/editor/common/editorCommon';
+import * as modes from 'vs/editor/common/modes';
+import {handleEvent, ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
 
 /**
  * Definition of documentation comments (e.g. Javadoc/JSdoc)
@@ -21,13 +21,13 @@ export interface IDocComment {
 }
 
 export interface IBracketElectricCharacterContribution {
-	brackets: Modes.IBracketPair[];
+	brackets: modes.IBracketPair[];
 	docComment?: IDocComment;
 	caseInsensitive?: boolean;
 	embeddedElectricCharacters?: string[];
 }
 
-export class BracketElectricCharacterSupport implements Modes.IRichEditElectricCharacter {
+export class BracketElectricCharacterSupport implements modes.IRichEditElectricCharacter {
 
 	private _modeId: string;
 	private contribution: IBracketElectricCharacterContribution;
@@ -46,8 +46,8 @@ export class BracketElectricCharacterSupport implements Modes.IRichEditElectricC
 		return this.brackets.getElectricCharacters();
 	}
 
-	public onElectricCharacter(context:Modes.ILineContext, offset:number): Modes.IElectricAction {
-		return handleEvent(context, offset, (nestedMode:Modes.IMode, context:Modes.ILineContext, offset:number) => {
+	public onElectricCharacter(context:modes.ILineContext, offset:number): modes.IElectricAction {
+		return handleEvent(context, offset, (nestedMode:modes.IMode, context:modes.ILineContext, offset:number) => {
 			if (this._modeId === nestedMode.getId()) {
 				return this.brackets.onElectricCharacter(context, offset);
 			} else if (nestedMode.richEditSupport && nestedMode.richEditSupport.electricCharacter) {
@@ -58,7 +58,7 @@ export class BracketElectricCharacterSupport implements Modes.IRichEditElectricC
 		});
 	}
 
-	public getRichEditBrackets(): Modes.IRichEditBrackets {
+	public getRichEditBrackets(): modes.IRichEditBrackets {
 		return this.brackets.getRichEditBrackets();
 	}
 }
@@ -79,7 +79,7 @@ export class Brackets {
 	private _textIsOpenBracket: {[text:string]:boolean;};
 	private _docComment: IDocComment;
 
-	constructor(modeId: string, brackets: Modes.IBracketPair[], docComment: IDocComment = null, caseInsensitive: boolean = false) {
+	constructor(modeId: string, brackets: modes.IBracketPair[], docComment: IDocComment = null, caseInsensitive: boolean = false) {
 		this._modeId = modeId;
 		this._brackets = brackets.map((b) => {
 			return {
@@ -107,7 +107,7 @@ export class Brackets {
 		this._docComment = docComment ? docComment : null;
 	}
 
-	public getRichEditBrackets(): Modes.IRichEditBrackets {
+	public getRichEditBrackets(): modes.IRichEditBrackets {
 		if (this._brackets.length === 0) {
 			return null;
 		}
@@ -143,7 +143,7 @@ export class Brackets {
 		return result;
 	}
 
-	public onElectricCharacter(context: Modes.ILineContext, offset: number): Modes.IElectricAction {
+	public onElectricCharacter(context: modes.ILineContext, offset: number): modes.IElectricAction {
 		if (context.getTokenCount() === 0) {
 			return null;
 		}
@@ -162,7 +162,7 @@ export class Brackets {
 		return true;
 	}
 
-	private _onElectricCharacterStandardBrackets(context: Modes.ILineContext, offset: number): Modes.IElectricAction {
+	private _onElectricCharacterStandardBrackets(context: modes.ILineContext, offset: number): modes.IElectricAction {
 
 		if (this._brackets.length === 0) {
 			return null;
@@ -175,7 +175,7 @@ export class Brackets {
 		let tokenStart = context.getTokenStartIndex(tokenIndex);
 		let tokenEnd = offset + 1;
 
-		var firstNonWhitespaceIndex = Strings.firstNonWhitespaceIndex(context.getLineContent());
+		var firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(context.getLineContent());
 		if (firstNonWhitespaceIndex !== -1 && firstNonWhitespaceIndex < tokenStart) {
 			return null;
 		}
@@ -196,7 +196,7 @@ export class Brackets {
 		return null;
 	}
 
-	private _onElectricCharacterDocComment(context: Modes.ILineContext, offset: number): Modes.IElectricAction {
+	private _onElectricCharacterDocComment(context: modes.ILineContext, offset: number): modes.IElectricAction {
 		// We only auto-close, so do nothing if there is no closing part.
 		if (!this._docComment || !this._docComment.close) {
 			return null;
@@ -279,8 +279,8 @@ var getReversedRegexForBrackets = once<ISimpleInternalBracket[],RegExp>(
 );
 
 function createOrRegex(pieces:string[]): RegExp {
-	let regexStr = `(${pieces.map(Strings.escapeRegExpCharacters).join(')|(')})`;
-	return Strings.createRegExp(regexStr, true, false, false, false);
+	let regexStr = `(${pieces.map(strings.escapeRegExpCharacters).join(')|(')})`;
+	return strings.createRegExp(regexStr, true, false, false, false);
 }
 
 function toReversedString(str:string): string {

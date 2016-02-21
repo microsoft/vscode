@@ -9,7 +9,8 @@ import DOM = require('vs/base/browser/dom');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import Actions = require('vs/base/common/actions');
@@ -49,7 +50,7 @@ class ContextMenuController implements EditorCommon.IEditorContribution {
 
 		this._contextMenuIsBeingShownCount = 0;
 
-		this._toDispose.push(this._editor.addListener2(EditorCommon.EventType.ContextMenu, (e:EditorBrowser.IMouseEvent)=>this._onContextMenu(e)));
+		this._toDispose.push(this._editor.addListener2(EditorCommon.EventType.ContextMenu, (e:EditorBrowser.IEditorMouseEvent)=>this._onContextMenu(e)));
 		this._toDispose.push(this._editor.addListener2(EditorCommon.EventType.KeyDown, (e:IKeyboardEvent)=> {
 			if (e.keyCode === KeyCode.ContextMenu) {
 				// Chrome is funny like that
@@ -60,7 +61,7 @@ class ContextMenuController implements EditorCommon.IEditorContribution {
 		}));
 	}
 
-	private _onContextMenu(e:EditorBrowser.IMouseEvent): void {
+	private _onContextMenu(e:EditorBrowser.IEditorMouseEvent): void {
 		if (!this._editor.getConfiguration().contextmenu) {
 			this._editor.focus();
 			// Ensure the cursor is at the position of the mouse click

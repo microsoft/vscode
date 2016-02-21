@@ -8,7 +8,7 @@
 
 import {RunOnceScheduler} from 'vs/base/common/async';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
-import {IMouseEvent, ICodeEditor} from 'vs/editor/browser/editorBrowser';
+import {IEditorMouseEvent, ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
@@ -300,7 +300,7 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 		return TPromise.as(ranges);
 	}
 
-	private _onEditorMouseDown(e: IMouseEvent): void {
+	private _onEditorMouseDown(e: IEditorMouseEvent): void {
 		if (this.decorations.length === 0) {
 			return;
 		}

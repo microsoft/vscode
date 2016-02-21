@@ -13,7 +13,8 @@ import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Strings = require('vs/base/common/strings');
 import Actions = require('vs/base/common/actions');
 import Filters = require('vs/base/common/filters');
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import EditorQuickOpen = require('./editorQuickOpen');
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 

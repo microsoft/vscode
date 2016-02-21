@@ -5,15 +5,15 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
+import {IEditorOptions} from 'vs/editor/common/editorCommon';
 
 export interface IConfiguration {
-	editor:EditorCommon.IEditorOptions;
+	editor:IEditorOptions;
 }
 
 class ConfigClass implements IConfiguration {
 
-	public editor: EditorCommon.IEditorOptions;
+	public editor: IEditorOptions;
 
 	constructor() {
 		this.editor = {

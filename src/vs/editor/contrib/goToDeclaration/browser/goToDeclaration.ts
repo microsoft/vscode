@@ -19,7 +19,8 @@ import {coalesce} from 'vs/base/common/arrays';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import * as Modes from 'vs/editor/common/modes';
@@ -243,7 +244,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 	private decorations: string[];
 	private currentWordUnderMouse: EditorCommon.IWordAtPosition;
 	private throttler: Async.Throttler;
-	private lastMouseMoveEvent: EditorBrowser.IMouseEvent;
+	private lastMouseMoveEvent: EditorBrowser.IEditorMouseEvent;
 	private hasTriggerKeyOnMouseDown: boolean;
 
 	constructor(
@@ -259,9 +260,9 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 		this.editor = editor;
 		this.throttler = new Async.Throttler();
 
-		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.MouseDown, (e: EditorBrowser.IMouseEvent) => this.onEditorMouseDown(e)));
-		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.MouseUp, (e: EditorBrowser.IMouseEvent) => this.onEditorMouseUp(e)));
-		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.MouseMove, (e: EditorBrowser.IMouseEvent) => this.onEditorMouseMove(e)));
+		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.MouseDown, (e: EditorBrowser.IEditorMouseEvent) => this.onEditorMouseDown(e)));
+		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.MouseUp, (e: EditorBrowser.IEditorMouseEvent) => this.onEditorMouseUp(e)));
+		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.MouseMove, (e: EditorBrowser.IEditorMouseEvent) => this.onEditorMouseMove(e)));
 		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.KeyDown, (e: Keyboard.IKeyboardEvent) => this.onEditorKeyDown(e)));
 		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.KeyUp, (e: Keyboard.IKeyboardEvent) => this.onEditorKeyUp(e)));
 
@@ -270,13 +271,13 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 		this.toUnhook.push(this.editor.addListener('scroll', () => this.resetHandler()));
 	}
 
-	private onEditorMouseMove(mouseEvent: EditorBrowser.IMouseEvent, withKey?: Keyboard.IKeyboardEvent): void {
+	private onEditorMouseMove(mouseEvent: EditorBrowser.IEditorMouseEvent, withKey?: Keyboard.IKeyboardEvent): void {
 		this.lastMouseMoveEvent = mouseEvent;
 
 		this.startFindDefinition(mouseEvent, withKey);
 	}
 
-	private startFindDefinition(mouseEvent: EditorBrowser.IMouseEvent, withKey?: Keyboard.IKeyboardEvent): void {
+	private startFindDefinition(mouseEvent: EditorBrowser.IEditorMouseEvent, withKey?: Keyboard.IKeyboardEvent): void {
 		if (!this.isEnabled(mouseEvent, withKey)) {
 			this.currentWordUnderMouse = null;
 			this.removeDecorations();
@@ -435,7 +436,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 		this.removeDecorations();
 	}
 
-	private onEditorMouseDown(mouseEvent: EditorBrowser.IMouseEvent): void {
+	private onEditorMouseDown(mouseEvent: EditorBrowser.IEditorMouseEvent): void {
 		// We need to record if we had the trigger key on mouse down because someone might select something in the editor
 		// holding the mouse down and then while mouse is down start to press Ctrl/Cmd to start a copy operation and then
 		// release the mouse button without wanting to do the navigation.
@@ -443,7 +444,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 		this.hasTriggerKeyOnMouseDown = !!mouseEvent.event[GotoDefinitionWithMouseEditorContribution.TRIGGER_MODIFIER];
 	}
 
-	private onEditorMouseUp(mouseEvent: EditorBrowser.IMouseEvent): void {
+	private onEditorMouseUp(mouseEvent: EditorBrowser.IEditorMouseEvent): void {
 		if (this.isEnabled(mouseEvent) && this.hasTriggerKeyOnMouseDown) {
 			this.gotoDefinition(mouseEvent.target, mouseEvent.event.altKey).done(() => {
 				this.removeDecorations();
@@ -461,7 +462,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 		}
 	}
 
-	private isEnabled(mouseEvent: EditorBrowser.IMouseEvent, withKey?: Keyboard.IKeyboardEvent): boolean {
+	private isEnabled(mouseEvent: EditorBrowser.IEditorMouseEvent, withKey?: Keyboard.IKeyboardEvent): boolean {
 		return this.hasRequiredServices &&
 			this.editor.getModel() &&
 			(Browser.isIE11orEarlier || mouseEvent.event.detail <= 1) && // IE does not support event.detail properly

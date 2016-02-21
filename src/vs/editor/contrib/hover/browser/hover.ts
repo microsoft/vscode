@@ -14,7 +14,8 @@ import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/edito
 import {Range} from 'vs/editor/common/core/range';
 import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import Platform = require('vs/base/common/platform');
 import ModesContentHover = require('./modesContentHover');
 import ModesGlyphHover = require('./modesGlyphHover');
@@ -47,9 +48,9 @@ class ModesHoverController implements EditorCommon.IEditorContribution {
 		this._toUnhook = [];
 
 		if (editor.getConfiguration().hover) {
-			this._toUnhook.push(this._editor.addListener(EditorCommon.EventType.MouseDown, (e: EditorBrowser.IMouseEvent) => this._onEditorMouseDown(e)));
-			this._toUnhook.push(this._editor.addListener(EditorCommon.EventType.MouseMove, (e: EditorBrowser.IMouseEvent) => this._onEditorMouseMove(e)));
-			this._toUnhook.push(this._editor.addListener(EditorCommon.EventType.MouseLeave, (e: EditorBrowser.IMouseEvent) => this._hideWidgets()));
+			this._toUnhook.push(this._editor.addListener(EditorCommon.EventType.MouseDown, (e: EditorBrowser.IEditorMouseEvent) => this._onEditorMouseDown(e)));
+			this._toUnhook.push(this._editor.addListener(EditorCommon.EventType.MouseMove, (e: EditorBrowser.IEditorMouseEvent) => this._onEditorMouseMove(e)));
+			this._toUnhook.push(this._editor.addListener(EditorCommon.EventType.MouseLeave, (e: EditorBrowser.IEditorMouseEvent) => this._hideWidgets()));
 			this._toUnhook.push(this._editor.addListener(EditorCommon.EventType.KeyDown, (e:Keyboard.IKeyboardEvent) => this._onKeyDown(e)));
 			this._toUnhook.push(this._editor.addListener(EditorCommon.EventType.ModelChanged, () => this._hideWidgets()));
 			this._toUnhook.push(this._editor.addListener(EditorCommon.EventType.ModelDecorationsChanged, () => this._onModelDecorationsChanged()));
@@ -65,7 +66,7 @@ class ModesHoverController implements EditorCommon.IEditorContribution {
 		this._glyphWidget.onModelDecorationsChanged();
 	}
 
-	private _onEditorMouseDown(mouseEvent: EditorBrowser.IMouseEvent): void {
+	private _onEditorMouseDown(mouseEvent: EditorBrowser.IEditorMouseEvent): void {
 		var targetType = mouseEvent.target.type;
 
 		if (targetType === EditorCommon.MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail ===  ModesContentHover.ModesContentHoverWidget.ID) {
@@ -81,7 +82,7 @@ class ModesHoverController implements EditorCommon.IEditorContribution {
 		this._hideWidgets();
 	}
 
-	private _onEditorMouseMove(mouseEvent: EditorBrowser.IMouseEvent): void {
+	private _onEditorMouseMove(mouseEvent: EditorBrowser.IEditorMouseEvent): void {
 		var targetType = mouseEvent.target.type;
 		var stopKey = Platform.isMacintosh ? 'metaKey' : 'ctrlKey';
 

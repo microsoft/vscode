@@ -9,20 +9,20 @@
  * using regular expressions.
  */
 
-import MonarchCommonTypes = require('vs/editor/common/modes/monarch/monarchCommon');
-import {IModelService} from 'vs/editor/common/services/modelService';
-import * as Modes from 'vs/editor/common/modes';
+import {IBracketPair, ISuggestSupport} from 'vs/editor/common/modes';
+import {ILexer} from 'vs/editor/common/modes/monarch/monarchCommon';
 import {CharacterPair, IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
-import {TextualAndPredefinedResultSuggestSupport, PredefinedResultSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
+import {PredefinedResultSuggestSupport, TextualAndPredefinedResultSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
+import {IModelService} from 'vs/editor/common/services/modelService';
 
-export function createRichEditSupport(lexer: MonarchCommonTypes.ILexer): IRichEditConfiguration {
+export function createRichEditSupport(lexer: ILexer): IRichEditConfiguration {
 
-	function toBracket(input:Modes.IBracketPair): CharacterPair {
+	function toBracket(input:IBracketPair): CharacterPair {
 		return [input.open, input.close];
 	}
 
-	function toBrackets(input:Modes.IBracketPair[]): CharacterPair[] {
+	function toBrackets(input:IBracketPair[]): CharacterPair[] {
 		return input.map(toBracket);
 	}
 
@@ -50,7 +50,7 @@ export function createRichEditSupport(lexer: MonarchCommonTypes.ILexer): IRichEd
 	};
 }
 
-export function createSuggestSupport(modelService: IModelService, editorWorkerService: IEditorWorkerService, modeId:string, lexer:MonarchCommonTypes.ILexer): Modes.ISuggestSupport {
+export function createSuggestSupport(modelService: IModelService, editorWorkerService: IEditorWorkerService, modeId:string, lexer:ILexer): ISuggestSupport {
 	if (lexer.suggestSupport.textualCompletions) {
 		return new TextualAndPredefinedResultSuggestSupport(
 			modeId,

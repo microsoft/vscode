@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IInplaceReplaceSupportResult} from 'vs/editor/common/modes';
 import {IRange} from 'vs/editor/common/editorCommon';
+import {IInplaceReplaceSupportResult} from 'vs/editor/common/modes';
 
 export class BasicInplaceReplace {
 

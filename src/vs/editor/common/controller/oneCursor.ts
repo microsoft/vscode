@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Strings = require('vs/base/common/strings');
+import {onUnexpectedError} from 'vs/base/common/errors';
+import * as strings from 'vs/base/common/strings';
+import {ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition} from 'vs/editor/common/commands/replaceCommand';
+import {ShiftCommand} from 'vs/editor/common/commands/shiftCommand';
+import {SurroundSelectionCommand} from 'vs/editor/common/commands/surroundSelectionCommand';
+import {CursorMoveHelper, ICursorMoveHelperModel, IMoveResult} from 'vs/editor/common/controller/cursorMoveHelper';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import {ShiftCommand} from 'vs/editor/common/commands/shiftCommand';
-import {ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition} from 'vs/editor/common/commands/replaceCommand';
-import {SurroundSelectionCommand} from 'vs/editor/common/commands/surroundSelectionCommand';
 import {Selection} from 'vs/editor/common/core/selection';
-import {IndentAction,IElectricAction} from 'vs/editor/common/modes';
-import {CursorMoveHelper, ICursorMoveHelperModel, IMoveResult} from 'vs/editor/common/controller/cursorMoveHelper';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
-import Errors = require('vs/base/common/errors');
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {IElectricAction, IndentAction} from 'vs/editor/common/modes';
 import {getEnterActionAtPosition} from 'vs/editor/common/modes/supports/onEnter';
 
 export interface IPostOperationRunnable {
@@ -28,7 +28,7 @@ export interface IOneCursorOperationContext {
 	shouldRevealHorizontal: boolean;
 	shouldPushStackElementBefore: boolean;
 	shouldPushStackElementAfter: boolean;
-	executeCommand: EditorCommon.ICommand;
+	executeCommand: editorCommon.ICommand;
 	postOperationRunnable: IPostOperationRunnable;
 	requestScrollDeltaLines: number;
 }
@@ -56,20 +56,20 @@ export interface IViewModelHelper {
 
 	viewModel:ICursorMoveHelperModel;
 
-	convertModelPositionToViewPosition(lineNumber:number, column:number): EditorCommon.IEditorPosition;
-	convertModelRangeToViewRange(modelRange:EditorCommon.IEditorRange): EditorCommon.IEditorRange;
+	convertModelPositionToViewPosition(lineNumber:number, column:number): editorCommon.IEditorPosition;
+	convertModelRangeToViewRange(modelRange:editorCommon.IEditorRange): editorCommon.IEditorRange;
 
-	convertViewToModelPosition(lineNumber:number, column:number): EditorCommon.IEditorPosition;
+	convertViewToModelPosition(lineNumber:number, column:number): editorCommon.IEditorPosition;
 
-	validateViewPosition(viewLineNumber:number, viewColumn:number, modelPosition:EditorCommon.IEditorPosition): EditorCommon.IEditorPosition;
-	validateViewRange(viewStartLineNumber:number, viewStartColumn:number, viewEndLineNumber:number, viewEndColumn:number, modelRange:EditorCommon.IEditorRange): EditorCommon.IEditorRange;
+	validateViewPosition(viewLineNumber:number, viewColumn:number, modelPosition:editorCommon.IEditorPosition): editorCommon.IEditorPosition;
+	validateViewRange(viewStartLineNumber:number, viewStartColumn:number, viewEndLineNumber:number, viewEndColumn:number, modelRange:editorCommon.IEditorRange): editorCommon.IEditorRange;
 }
 
 export interface IOneCursorState {
-	selectionStart: EditorCommon.IEditorRange;
-	viewSelectionStart: EditorCommon.IEditorRange;
-	position: EditorCommon.IEditorPosition;
-	viewPosition: EditorCommon.IEditorPosition;
+	selectionStart: editorCommon.IEditorRange;
+	viewSelectionStart: editorCommon.IEditorRange;
+	position: editorCommon.IEditorPosition;
+	viewPosition: editorCommon.IEditorPosition;
 	leftoverVisibleColumns: number;
 	selectionStartLeftoverVisibleColumns: number;
 }
@@ -78,33 +78,33 @@ export class OneCursor {
 
 	// --- contextual state
 	private editorId: number;
-	public model: EditorCommon.IModel;
-	public configuration: EditorCommon.IConfiguration;
+	public model: editorCommon.IModel;
+	public configuration: editorCommon.IConfiguration;
 	public modeConfiguration: IModeConfiguration;
 	private helper: CursorHelper;
 	private viewModelHelper:IViewModelHelper;
 
 	// --- selection can start as a range (think double click and drag)
-	private selectionStart: EditorCommon.IEditorRange;
-	private viewSelectionStart: EditorCommon.IEditorRange;
+	private selectionStart: editorCommon.IEditorRange;
+	private viewSelectionStart: editorCommon.IEditorRange;
 	private selectionStartLeftoverVisibleColumns: number;
 
 	// --- position
-	private position: EditorCommon.IEditorPosition;
-	private viewPosition: EditorCommon.IEditorPosition;
+	private position: editorCommon.IEditorPosition;
+	private viewPosition: editorCommon.IEditorPosition;
 	private leftoverVisibleColumns: number;
 
 	// --- bracket match decorations
 	private bracketDecorations: string[];
 
 	// --- computed properties
-	private _cachedSelection: EditorCommon.IEditorSelection;
-	private _cachedViewSelection: EditorCommon.IEditorSelection;
+	private _cachedSelection: editorCommon.IEditorSelection;
+	private _cachedViewSelection: editorCommon.IEditorSelection;
 	private _selStartMarker: string;
 	private _selEndMarker: string;
-	private _selDirection: EditorCommon.SelectionDirection;
+	private _selDirection: editorCommon.SelectionDirection;
 
-	constructor(editorId: number, model: EditorCommon.IModel, configuration: EditorCommon.IConfiguration, modeConfiguration: IModeConfiguration, viewModelHelper:IViewModelHelper) {
+	constructor(editorId: number, model: editorCommon.IModel, configuration: editorCommon.IConfiguration, modeConfiguration: IModeConfiguration, viewModelHelper:IViewModelHelper) {
 		this.editorId = editorId;
 		this.model = model;
 		this.configuration = configuration;
@@ -122,9 +122,9 @@ export class OneCursor {
 	}
 
 	private _set(
-		selectionStart: EditorCommon.IEditorRange, selectionStartLeftoverVisibleColumns: number,
-		position: EditorCommon.IEditorPosition, leftoverVisibleColumns:number,
-		viewSelectionStart: EditorCommon.IEditorRange, viewPosition: EditorCommon.IEditorPosition
+		selectionStart: editorCommon.IEditorRange, selectionStartLeftoverVisibleColumns: number,
+		position: editorCommon.IEditorPosition, leftoverVisibleColumns:number,
+		viewSelectionStart: editorCommon.IEditorRange, viewPosition: editorCommon.IEditorPosition
 	): void {
 		this.selectionStart = selectionStart;
 		this.selectionStartLeftoverVisibleColumns = selectionStartLeftoverVisibleColumns;
@@ -166,7 +166,7 @@ export class OneCursor {
 
 	public restoreState(state:IOneCursorState): void {
 		let position = this.model.validatePosition(state.position);
-		let selectionStart: EditorCommon.IEditorRange;
+		let selectionStart: editorCommon.IEditorRange;
 		if (state.selectionStart) {
 			selectionStart = this.model.validateRange(state.selectionStart);
 		} else {
@@ -174,7 +174,7 @@ export class OneCursor {
 		}
 
 		let viewPosition = this.viewModelHelper.validateViewPosition(state.viewPosition.lineNumber, state.viewPosition.column, position);
-		let viewSelectionStart: EditorCommon.IEditorRange;
+		let viewSelectionStart: editorCommon.IEditorRange;
 		if (state.viewSelectionStart) {
 			viewSelectionStart = this.viewModelHelper.validateViewRange(state.viewSelectionStart.startLineNumber, state.viewSelectionStart.startColumn, state.viewSelectionStart.endLineNumber, state.viewSelectionStart.endColumn, selectionStart);
 		} else {
@@ -209,16 +209,16 @@ export class OneCursor {
 	}
 
 	public adjustBracketDecorations(): void {
-		let bracketMatch: EditorCommon.IMatchBracketResult = null;
+		let bracketMatch: editorCommon.IMatchBracketResult = null;
 		let selection = this.getSelection();
 		if (selection.isEmpty()) {
 			bracketMatch = this.model.matchBracket(this.position, /*inaccurateResultAcceptable*/true);
 		}
 
-		let newDecorations: EditorCommon.IModelDeltaDecoration[] = [];
+		let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
 		if (bracketMatch && bracketMatch.brackets) {
-			let options: EditorCommon.IModelDecorationOptions = {
-				stickiness: EditorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			let options: editorCommon.IModelDecorationOptions = {
+				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				className: 'bracket-match'
 			};
 			newDecorations.push({ range: bracketMatch.brackets[0], options: options });
@@ -228,7 +228,7 @@ export class OneCursor {
 		this.bracketDecorations = this.model.deltaDecorations(this.bracketDecorations, newDecorations, this.editorId);
 	}
 
-	private static computeSelection(selectionStart:EditorCommon.IEditorRange, position:EditorCommon.IEditorPosition): Selection {
+	private static computeSelection(selectionStart:editorCommon.IEditorRange, position:editorCommon.IEditorPosition): Selection {
 		let startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number;
 		if (selectionStart.isEmpty()) {
 			startLineNumber = selectionStart.startLineNumber;
@@ -256,7 +256,7 @@ export class OneCursor {
 		);
 	}
 
-	public setSelection(desiredSelection: EditorCommon.ISelection): void {
+	public setSelection(desiredSelection: editorCommon.ISelection): void {
 		let position = this.model.validatePosition({
 			lineNumber: desiredSelection.positionLineNumber,
 			column: desiredSelection.positionColumn
@@ -279,7 +279,7 @@ export class OneCursor {
 
 	// -------------------- START modifications
 
-	public setSelectionStart(rng:EditorCommon.IEditorRange, viewRng:EditorCommon.IEditorRange): void {
+	public setSelectionStart(rng:editorCommon.IEditorRange, viewRng:editorCommon.IEditorRange): void {
 		this._set(
 			rng, this.selectionStartLeftoverVisibleColumns,
 			this.position, this.leftoverVisibleColumns,
@@ -356,7 +356,7 @@ export class OneCursor {
 		let start = this.model._getMarker(this._selStartMarker);
 		let end = this.model._getMarker(this._selEndMarker);
 
-		if (this._selDirection === EditorCommon.SelectionDirection.LTR) {
+		if (this._selDirection === editorCommon.SelectionDirection.LTR) {
 			return new Selection(start.lineNumber, start.column, end.lineNumber, end.column);
 		}
 
@@ -391,23 +391,23 @@ export class OneCursor {
 
 	// -------------------- START reading API
 
-	public getSelectionStart(): EditorCommon.IEditorRange {
+	public getSelectionStart(): editorCommon.IEditorRange {
 		return this.selectionStart;
 	}
-	public getPosition(): EditorCommon.IEditorPosition {
+	public getPosition(): editorCommon.IEditorPosition {
 		return this.position;
 	}
-	public getSelection(): EditorCommon.IEditorSelection {
+	public getSelection(): editorCommon.IEditorSelection {
 		return this._cachedSelection;
 	}
 
-	public getViewPosition(): EditorCommon.IEditorPosition {
+	public getViewPosition(): editorCommon.IEditorPosition {
 		return this.viewPosition;
 	}
-	public getViewSelection(): EditorCommon.IEditorSelection {
+	public getViewSelection(): editorCommon.IEditorSelection {
 		return this._cachedViewSelection;
 	}
-	public getValidViewPosition(): EditorCommon.IEditorPosition {
+	public getValidViewPosition(): editorCommon.IEditorPosition {
 		return this.viewModelHelper.validateViewPosition(this.viewPosition.lineNumber, this.viewPosition.column, this.position);
 	}
 
@@ -428,27 +428,27 @@ export class OneCursor {
 	}
 
 	// -- utils
-	public validatePosition(position:EditorCommon.IPosition): EditorCommon.IEditorPosition {
+	public validatePosition(position:editorCommon.IPosition): editorCommon.IEditorPosition {
 		return this.model.validatePosition(position);
 	}
-	public validateViewPosition(viewLineNumber:number, viewColumn:number, modelPosition:EditorCommon.IEditorPosition): EditorCommon.IEditorPosition {
+	public validateViewPosition(viewLineNumber:number, viewColumn:number, modelPosition:editorCommon.IEditorPosition): editorCommon.IEditorPosition {
 		return this.viewModelHelper.validateViewPosition(viewLineNumber, viewColumn, modelPosition);
 	}
-	public convertViewToModelPosition(lineNumber:number, column:number): EditorCommon.IPosition {
+	public convertViewToModelPosition(lineNumber:number, column:number): editorCommon.IPosition {
 		return this.viewModelHelper.convertViewToModelPosition(lineNumber, column);
 	}
-	public convertModelPositionToViewPosition(lineNumber:number, column:number): EditorCommon.IPosition {
+	public convertModelPositionToViewPosition(lineNumber:number, column:number): editorCommon.IPosition {
 		return this.viewModelHelper.convertModelPositionToViewPosition(lineNumber, column);
 	}
 
 	// -- model
-	public findWord(position:EditorCommon.IEditorPosition, preference:string, skipSyntaxTokens?:boolean): EditorCommon.IWordRange {
+	public findWord(position:editorCommon.IEditorPosition, preference:string, skipSyntaxTokens?:boolean): editorCommon.IWordRange {
 		return this.helper.findWord(position, preference, skipSyntaxTokens);
 	}
-	public getLeftOfPosition(lineNumber:number, column:number): EditorCommon.IPosition {
+	public getLeftOfPosition(lineNumber:number, column:number): editorCommon.IPosition {
 		return this.helper.getLeftOfPosition(this.model, lineNumber, column);
 	}
-	public getRightOfPosition(lineNumber:number, column:number): EditorCommon.IPosition {
+	public getRightOfPosition(lineNumber:number, column:number): editorCommon.IPosition {
 		return this.helper.getRightOfPosition(this.model, lineNumber, column);
 	}
 	public getPositionUp(lineNumber:number, column:number, leftoverVisibleColumns:number, count:number): IMoveResult {
@@ -468,10 +468,10 @@ export class OneCursor {
 	public getViewLineMaxColumn(lineNumber:number): number {
 		return this.viewModelHelper.viewModel.getLineMaxColumn(lineNumber);
 	}
-	public getLeftOfViewPosition(lineNumber:number, column:number): EditorCommon.IPosition {
+	public getLeftOfViewPosition(lineNumber:number, column:number): editorCommon.IPosition {
 		return this.helper.getLeftOfPosition(this.viewModelHelper.viewModel, lineNumber, column);
 	}
-	public getRightOfViewPosition(lineNumber:number, column:number): EditorCommon.IPosition {
+	public getRightOfViewPosition(lineNumber:number, column:number): editorCommon.IPosition {
 		return this.helper.getRightOfPosition(this.viewModelHelper.viewModel, lineNumber, column);
 	}
 	public getViewPositionUp(lineNumber:number, column:number, leftoverVisibleColumns:number, count:number): IMoveResult {
@@ -517,10 +517,10 @@ export class OneCursorOp {
 		return false;
 	}
 
-	public static moveTo(cursor:OneCursor, inSelectionMode: boolean, position: EditorCommon.IPosition, viewPosition:EditorCommon.IPosition, eventSource: string, ctx: IOneCursorOperationContext): boolean {
+	public static moveTo(cursor:OneCursor, inSelectionMode: boolean, position: editorCommon.IPosition, viewPosition:editorCommon.IPosition, eventSource: string, ctx: IOneCursorOperationContext): boolean {
 
 		var validatedPosition = cursor.model.validatePosition(position);
-		var validatedViewPosition: EditorCommon.IPosition;
+		var validatedViewPosition: editorCommon.IPosition;
 		if (viewPosition) {
 			validatedViewPosition = cursor.validateViewPosition(viewPosition.lineNumber, viewPosition.column, validatedPosition);
 		} else {
@@ -820,11 +820,11 @@ export class OneCursorOp {
 		return true;
 	}
 
-	public static line(cursor:OneCursor, inSelectionMode: boolean, position:EditorCommon.IPosition, viewPosition:EditorCommon.IPosition, ctx: IOneCursorOperationContext): boolean {
+	public static line(cursor:OneCursor, inSelectionMode: boolean, position:editorCommon.IPosition, viewPosition:editorCommon.IPosition, ctx: IOneCursorOperationContext): boolean {
 		// TODO@Alex -> select in editable range
 
 		var validatedPosition = cursor.validatePosition(position);
-		var validatedViewPosition: EditorCommon.IPosition;
+		var validatedViewPosition: editorCommon.IPosition;
 		if (viewPosition) {
 			validatedViewPosition = cursor.validateViewPosition(viewPosition.lineNumber, viewPosition.column, validatedPosition);
 		} else {
@@ -855,7 +855,7 @@ export class OneCursorOp {
 		return true;
 	}
 
-	public static word(cursor:OneCursor, inSelectionMode: boolean, position: EditorCommon.IPosition, preference: string, ctx: IOneCursorOperationContext): boolean {
+	public static word(cursor:OneCursor, inSelectionMode: boolean, position: editorCommon.IPosition, preference: string, ctx: IOneCursorOperationContext): boolean {
 		// TODO@Alex -> select in editable range
 
 		var validatedPosition = cursor.validatePosition(position);
@@ -954,7 +954,7 @@ export class OneCursorOp {
 		return this._enter(cursor, true, ctx);
 	}
 
-	private static _enter(cursor:OneCursor, keepPosition: boolean, ctx: IOneCursorOperationContext, position?: EditorCommon.IEditorPosition, range?: EditorCommon.IEditorRange): boolean {
+	private static _enter(cursor:OneCursor, keepPosition: boolean, ctx: IOneCursorOperationContext, position?: editorCommon.IEditorPosition, range?: editorCommon.IEditorRange): boolean {
 		if (typeof position === 'undefined') {
 			position = cursor.getPosition();
 		}
@@ -1065,7 +1065,7 @@ export class OneCursorOp {
 		try {
 			shouldAutoClosePair = richEditSupport.characterPair.shouldAutoClosePair(ch, lineContext, position.column - 1);
 		} catch(e) {
-			Errors.onUnexpectedError(e);
+			onUnexpectedError(e);
 		}
 
 		if (!shouldAutoClosePair) {
@@ -1151,7 +1151,7 @@ export class OneCursorOp {
 			try {
 				electricAction = richEditSupport.electricCharacter.onElectricCharacter(lineContext, position.column - 2);
 			} catch(e) {
-				Errors.onUnexpectedError(e);
+				onUnexpectedError(e);
 			}
 		}
 
@@ -1166,7 +1166,7 @@ export class OneCursorOp {
 				if (match) {
 					var matchLineNumber = match.startLineNumber;
 					var matchLine = cursor.model.getLineContent(matchLineNumber);
-					var matchLineIndentation = Strings.getLeadingWhitespace(matchLine);
+					var matchLineIndentation = strings.getLeadingWhitespace(matchLine);
 					var newIndentation = cursor.configuration.normalizeIndentation(matchLineIndentation);
 
 					var lineFirstNonBlankColumn = cursor.model.getLineFirstNonWhitespaceColumn(position.lineNumber) || position.column;
@@ -1192,7 +1192,7 @@ export class OneCursorOp {
 		}
 	}
 
-	public static actualType(cursor:OneCursor, text: string, keepPosition: boolean, ctx: IOneCursorOperationContext, range?: EditorCommon.IEditorRange): boolean {
+	public static actualType(cursor:OneCursor, text: string, keepPosition: boolean, ctx: IOneCursorOperationContext, range?: editorCommon.IEditorRange): boolean {
 		if (typeof range === 'undefined') {
 			range = cursor.getSelection();
 		}
@@ -1231,7 +1231,7 @@ export class OneCursorOp {
 
 	public static replacePreviousChar(cursor:OneCursor, txt: string, replaceCharCnt:number, ctx: IOneCursorOperationContext): boolean {
 		let pos = cursor.getPosition();
-		let range: EditorCommon.IEditorRange;
+		let range: editorCommon.IEditorRange;
 		let startColumn = Math.max(1, pos.column - replaceCharCnt);
 		range = new Range(pos.lineNumber, startColumn, pos.lineNumber, pos.column);
 		ctx.executeCommand = new ReplaceCommand(range, txt);
@@ -1243,7 +1243,7 @@ export class OneCursorOp {
 
 		for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {
 			var lineText = cursor.model.getLineContent(lastLineNumber);
-			var nonWhitespaceIdx = Strings.lastNonWhitespaceIndex(lineText);
+			var nonWhitespaceIdx = strings.lastNonWhitespaceIndex(lineText);
 			if (nonWhitespaceIdx >= 0) {
 				break;
 			}
@@ -1400,7 +1400,7 @@ export class OneCursorOp {
 			return true;
 		}
 
-		var deleteSelection: EditorCommon.IEditorRange = cursor.getSelection();
+		var deleteSelection: editorCommon.IEditorRange = cursor.getSelection();
 
 		if (deleteSelection.isEmpty()) {
 			var position = cursor.getPosition();
@@ -1469,7 +1469,7 @@ export class OneCursorOp {
 
 	public static deleteRight(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
 
-		var deleteSelection: EditorCommon.IEditorRange = cursor.getSelection();
+		var deleteSelection: editorCommon.IEditorRange = cursor.getSelection();
 
 		if (deleteSelection.isEmpty()) {
 			let position = cursor.getPosition();
@@ -1644,21 +1644,21 @@ export class OneCursorOp {
 }
 
 class CursorHelper {
-	private model:EditorCommon.IModel;
-	private configuration:EditorCommon.IConfiguration;
+	private model:editorCommon.IModel;
+	private configuration:editorCommon.IConfiguration;
 	private moveHelper:CursorMoveHelper;
 
-	constructor (model:EditorCommon.IModel, configuration:EditorCommon.IConfiguration) {
+	constructor (model:editorCommon.IModel, configuration:editorCommon.IConfiguration) {
 		this.model = model;
 		this.configuration = configuration;
 		this.moveHelper = new CursorMoveHelper(this.configuration);
 	}
 
-	public getLeftOfPosition(model:ICursorMoveHelperModel, lineNumber:number, column:number): EditorCommon.IPosition {
+	public getLeftOfPosition(model:ICursorMoveHelperModel, lineNumber:number, column:number): editorCommon.IPosition {
 		return this.moveHelper.getLeftOfPosition(model, lineNumber, column);
 	}
 
-	public getRightOfPosition(model:ICursorMoveHelperModel, lineNumber:number, column:number): EditorCommon.IPosition {
+	public getRightOfPosition(model:ICursorMoveHelperModel, lineNumber:number, column:number): editorCommon.IPosition {
 		return this.moveHelper.getRightOfPosition(model, lineNumber, column);
 	}
 
@@ -1692,7 +1692,7 @@ class CursorHelper {
 		return CursorMoveHelper.prevTabColumn(column, this.configuration.getIndentationOptions().tabSize);
 	}
 
-	public findWord(position:EditorCommon.IEditorPosition, preference:string, skipSyntaxTokens:boolean=false): EditorCommon.IWordRange {
+	public findWord(position:editorCommon.IEditorPosition, preference:string, skipSyntaxTokens:boolean=false): editorCommon.IWordRange {
 		var words = this.model.getWords(position.lineNumber);
 		var searchIndex:number, i:number, len:number;
 
@@ -1742,7 +1742,7 @@ class Utils {
 	/**
 	 * Range contains position (including edges)?
 	 */
-	static rangeContainsPosition(range:EditorCommon.IRange, position:EditorCommon.IPosition): boolean {
+	static rangeContainsPosition(range:editorCommon.IRange, position:editorCommon.IPosition): boolean {
 		if (position.lineNumber < range.startLineNumber || position.lineNumber > range.endLineNumber) {
 			return false;
 		}
@@ -1759,7 +1759,7 @@ class Utils {
 	 * Tests if position is contained inside range.
 	 * If position is either the starting or ending of a range, false is returned.
 	 */
-	static isPositionInsideRange(position:EditorCommon.IPosition, range:EditorCommon.IRange): boolean {
+	static isPositionInsideRange(position:editorCommon.IPosition, range:editorCommon.IRange): boolean {
 		if (position.lineNumber < range.startLineNumber) {
 			return false;
 		}
@@ -1775,7 +1775,7 @@ class Utils {
 		return true;
 	}
 
-	static isPositionAtRangeEdges(position:EditorCommon.IPosition, range:EditorCommon.IRange): boolean {
+	static isPositionAtRangeEdges(position:editorCommon.IPosition, range:editorCommon.IRange): boolean {
 		if (position.lineNumber === range.startLineNumber && position.column === range.startColumn) {
 			return true;
 		}

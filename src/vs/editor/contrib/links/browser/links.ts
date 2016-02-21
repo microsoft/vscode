@@ -13,7 +13,8 @@ import Errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import Keyboard = require('vs/base/browser/keyboardEvent');
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import EventEmitter = require('vs/base/common/eventEmitter');
 import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
@@ -88,7 +89,7 @@ class LinkDetector {
 	private timeoutPromise:TPromise<void>;
 	private computePromise:TPromise<Modes.ILink[]>;
 	private activeLinkDecorationId:string;
-	private lastMouseEvent:EditorBrowser.IMouseEvent;
+	private lastMouseEvent:EditorBrowser.IEditorMouseEvent;
 	private editorService:IEditorService;
 	private messageService:IMessageService;
 	private editorWorkerService: IEditorWorkerService;
@@ -113,8 +114,8 @@ class LinkDetector {
 				this.onModelModeChanged();
 			}
 		}));
-		this.listenersToRemove.push(this.editor.addListener(EditorCommon.EventType.MouseUp, (e:EditorBrowser.IMouseEvent) => this.onEditorMouseUp(e)));
-		this.listenersToRemove.push(this.editor.addListener(EditorCommon.EventType.MouseMove, (e:EditorBrowser.IMouseEvent) => this.onEditorMouseMove(e)));
+		this.listenersToRemove.push(this.editor.addListener(EditorCommon.EventType.MouseUp, (e:EditorBrowser.IEditorMouseEvent) => this.onEditorMouseUp(e)));
+		this.listenersToRemove.push(this.editor.addListener(EditorCommon.EventType.MouseMove, (e:EditorBrowser.IEditorMouseEvent) => this.onEditorMouseMove(e)));
 		this.listenersToRemove.push(this.editor.addListener(EditorCommon.EventType.KeyDown, (e:Keyboard.IKeyboardEvent) => this.onEditorKeyDown(e)));
 		this.listenersToRemove.push(this.editor.addListener(EditorCommon.EventType.KeyUp, (e:Keyboard.IKeyboardEvent) => this.onEditorKeyUp(e)));
 		this.timeoutPromise = null;
@@ -267,7 +268,7 @@ class LinkDetector {
 		}
 	}
 
-	private onEditorMouseMove(mouseEvent: EditorBrowser.IMouseEvent, withKey?:Keyboard.IKeyboardEvent):void {
+	private onEditorMouseMove(mouseEvent: EditorBrowser.IEditorMouseEvent, withKey?:Keyboard.IKeyboardEvent):void {
 		this.lastMouseEvent = mouseEvent;
 
 		if (this.isEnabled(mouseEvent, withKey)) {
@@ -297,7 +298,7 @@ class LinkDetector {
 		}
 	}
 
-	private onEditorMouseUp(mouseEvent: EditorBrowser.IMouseEvent):void {
+	private onEditorMouseUp(mouseEvent: EditorBrowser.IEditorMouseEvent):void {
 		if (!this.isEnabled(mouseEvent)) {
 			return;
 		}
@@ -377,7 +378,7 @@ class LinkDetector {
 		return null;
 	}
 
-	private isEnabled(mouseEvent: EditorBrowser.IMouseEvent, withKey?:Keyboard.IKeyboardEvent):boolean {
+	private isEnabled(mouseEvent: EditorBrowser.IEditorMouseEvent, withKey?:Keyboard.IKeyboardEvent):boolean {
 		return 	mouseEvent.target.type === EditorCommon.MouseTargetType.CONTENT_TEXT &&
 				(mouseEvent.event[LinkDetector.TRIGGER_MODIFIER] || (withKey && withKey.keyCode === LinkDetector.TRIGGER_KEY_VALUE));
 	}

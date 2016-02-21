@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as Modes from 'vs/editor/common/modes';
+import {Bracket, IAutoClosingPairConditional, IBracketPair, ISuggestion} from 'vs/editor/common/modes';
 
 /*
  * This module exports common types and functionality shared between
@@ -39,16 +39,16 @@ export interface ILexer extends ILexerMin {
 		textualCompletions: boolean;
 		disableAutoTrigger: boolean;
 		triggerCharacters: string[];
-		snippets: Modes.ISuggestion[];
+		snippets: ISuggestion[];
 	};
 
 	tokenizer: IRule[][];
 	brackets: IBracket[];
 	wordDefinition: RegExp;
-	autoClosingPairs: Modes.IAutoClosingPairConditional[];
+	autoClosingPairs: IAutoClosingPairConditional[];
 
-	standardBrackets: Modes.IBracketPair[];
-	// enhancedBrackets: Modes.IRegexBracketPair[];
+	standardBrackets: IBracketPair[];
+	// enhancedBrackets: IRegexBracketPair[];
 	outdentTriggers: string;
 }
 
@@ -88,7 +88,7 @@ export interface IAction {
 	tokenSubst?: boolean;
 	next?: string;
 	nextEmbedded?: string;
-	bracket?: Modes.Bracket;
+	bracket?: Bracket;
 	log?: string;
 	switchTo?: string;
 	goBack?: number;

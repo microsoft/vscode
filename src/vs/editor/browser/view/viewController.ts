@@ -9,7 +9,7 @@ import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {Position} from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Configuration} from 'vs/editor/browser/config/configuration';
-import {IMouseEvent, IViewController} from 'vs/editor/browser/editorBrowser';
+import {IEditorMouseEvent, IViewController} from 'vs/editor/browser/editorBrowser';
 
 export class ViewController implements IViewController {
 
@@ -158,7 +158,7 @@ export class ViewController implements IViewController {
 		return this.viewModel.convertViewRangeToModelRange(viewRange);
 	}
 
-	private convertViewToModelMouseEvent(e:IMouseEvent): void {
+	private convertViewToModelMouseEvent(e:IEditorMouseEvent): void {
 		if (e.target) {
 			if (e.target.position) {
 				e.target.position = this.convertViewToModelPosition(e.target.position.lineNumber, e.target.position.column);
@@ -177,27 +177,27 @@ export class ViewController implements IViewController {
 		this.outgoingEventBus.emit(editorCommon.EventType.KeyUp, e);
 	}
 
-	public emitContextMenu(e:IMouseEvent): void {
+	public emitContextMenu(e:IEditorMouseEvent): void {
 		this.convertViewToModelMouseEvent(e);
 		this.outgoingEventBus.emit(editorCommon.EventType.ContextMenu, e);
 	}
 
-	public emitMouseMove(e:IMouseEvent): void {
+	public emitMouseMove(e:IEditorMouseEvent): void {
 		this.convertViewToModelMouseEvent(e);
 		this.outgoingEventBus.emit(editorCommon.EventType.MouseMove, e);
 	}
 
-	public emitMouseLeave(e:IMouseEvent): void {
+	public emitMouseLeave(e:IEditorMouseEvent): void {
 		this.convertViewToModelMouseEvent(e);
 		this.outgoingEventBus.emit(editorCommon.EventType.MouseLeave, e);
 	}
 
-	public emitMouseUp(e:IMouseEvent): void {
+	public emitMouseUp(e:IEditorMouseEvent): void {
 		this.convertViewToModelMouseEvent(e);
 		this.outgoingEventBus.emit(editorCommon.EventType.MouseUp, e);
 	}
 
-	public emitMouseDown(e:IMouseEvent): void {
+	public emitMouseDown(e:IEditorMouseEvent): void {
 		this.convertViewToModelMouseEvent(e);
 		this.outgoingEventBus.emit(editorCommon.EventType.MouseDown, e);
 	}

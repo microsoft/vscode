@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as Modes from 'vs/editor/common/modes';
-import {OnEnterSupport, IOnEnterSupportOptions, IIndentationRules, IOnEnterRegExpRules} from 'vs/editor/common/modes/supports/onEnter';
-import {CharacterPairSupport} from 'vs/editor/common/modes/supports/characterPair';
-import {BracketElectricCharacterSupport, IBracketElectricCharacterContribution} from 'vs/editor/common/modes/supports/electricCharacter';
-import {ICharacterPairContribution} from 'vs/editor/common/modes/supports/characterPair';
+import {ICommentsConfiguration, IRichEditBrackets, IRichEditCharacterPair, IRichEditOnEnter, IRichEditSupport} from 'vs/editor/common/modes';
 import {NullMode} from 'vs/editor/common/modes/nullMode';
+import {CharacterPairSupport} from 'vs/editor/common/modes/supports/characterPair';
+import {ICharacterPairContribution} from 'vs/editor/common/modes/supports/characterPair';
+import {BracketElectricCharacterSupport, IBracketElectricCharacterContribution} from 'vs/editor/common/modes/supports/electricCharacter';
+import {IIndentationRules, IOnEnterRegExpRules, IOnEnterSupportOptions, OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 
 export type CharacterPair = [string, string];
 
@@ -28,14 +28,14 @@ export interface IRichEditConfiguration {
 	__characterPairSupport?: ICharacterPairContribution;
 }
 
-export class RichEditSupport implements Modes.IRichEditSupport {
+export class RichEditSupport implements IRichEditSupport {
 
 	public electricCharacter: BracketElectricCharacterSupport;
-	public comments: Modes.ICommentsConfiguration;
-	public characterPair: Modes.IRichEditCharacterPair;
+	public comments: ICommentsConfiguration;
+	public characterPair: IRichEditCharacterPair;
 	public wordDefinition: RegExp;
-	public onEnter: Modes.IRichEditOnEnter;
-	public brackets: Modes.IRichEditBrackets;
+	public onEnter: IRichEditOnEnter;
+	public brackets: IRichEditBrackets;
 
 	constructor(modeId:string, conf:IRichEditConfiguration) {
 

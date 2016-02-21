@@ -7,7 +7,8 @@
 import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import {FindModelBoundToEditorModel, FIND_IDS} from 'vs/editor/contrib/find/common/findModel';
 import {Disposable} from 'vs/base/common/lifecycle';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
