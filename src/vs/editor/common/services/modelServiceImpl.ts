@@ -374,6 +374,11 @@ export class ModelServiceImpl implements IModelService {
 				let wasSyncedToWorkers = modelData.isSyncedToWorkers;
 				let shouldSyncToWorkers = this._shouldSyncModelToWorkers(modelData.model);
 
+				this._onModelModeChanged.fire({
+					model: modelData.model,
+					oldModeId: (<EditorCommon.IModelModeChangedEvent>e.getData()).oldMode.getId()
+				});
+
 				if (wasSyncedToWorkers) {
 					if (shouldSyncToWorkers) {
 						// true -> true
