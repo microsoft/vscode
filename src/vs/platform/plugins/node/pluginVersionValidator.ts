@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {isValidPluginDescription as baseIsValidPluginDescription} from 'vs/platform/plugins/common/pluginsRegistry';
 import * as semver from 'semver';

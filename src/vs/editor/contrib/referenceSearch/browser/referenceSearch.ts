@@ -30,7 +30,7 @@ import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {Events, IPeekViewService, getOuterEditor} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {ReferenceRegistry, findReferences} from '../common/referenceSearch';
-import {EventType, Model} from './referenceSearchModel';
+import {EventType, ReferencesModel} from './referenceSearchModel';
 import {ReferenceWidget} from './referenceSearchWidget';
 
 export class FindReferencesController implements editorCommon.IEditorContribution {
@@ -41,7 +41,7 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 	private widget:ReferenceWidget;
 	private requestIdPool: number;
 	private callOnClear:Function[];
-	private model:Model;
+	private model:ReferencesModel;
 	private modelRevealing:boolean;
 
 	private editorService: IEditorService;
@@ -162,7 +162,7 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 			}
 
 			// create result model
-			this.model = new Model(references, this.editorService);
+			this.model = new ReferencesModel(references, this.editorService);
 			this.model.currentReference = this.model.findReference(editorModel.getAssociatedResource(), range.getStartPosition());
 
 			var unbind = this.model.addListener(EventType.CurrentReferenceChanged, () => {

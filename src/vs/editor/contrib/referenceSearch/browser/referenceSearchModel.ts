@@ -99,7 +99,7 @@ export class FileReferences {
 	private _preview: FilePreview;
 	private _resolved: boolean;
 
-	constructor(private _parent: Model, private _resource: URI, private _editorService: IEditorService) {
+	constructor(private _parent: ReferencesModel, private _resource: URI, private _editorService: IEditorService) {
 		this._children = [];
 	}
 
@@ -107,7 +107,7 @@ export class FileReferences {
 		return this._resource.toString();
 	}
 
-	public get parent(): Model {
+	public get parent(): ReferencesModel {
 		return this._parent;
 	}
 
@@ -145,7 +145,7 @@ export class FileReferences {
 	}
 }
 
-export class Model extends EventEmitter {
+export class ReferencesModel extends EventEmitter {
 
 	private _references: FileReferences[];
 	private _currentReference: OneReference;
@@ -161,7 +161,7 @@ export class Model extends EventEmitter {
 
 		references.forEach(reference => {
 
-			let hash = Model._hash(reference);
+			let hash = ReferencesModel._hash(reference);
 			if (!seen[hash]) {
 				seen[hash] = true;
 
@@ -174,7 +174,7 @@ export class Model extends EventEmitter {
 		});
 
 		this._references = collections.values(referencesByFile);
-		this._references.sort(Model._compare);
+		this._references.sort(ReferencesModel._compare);
 	}
 
 	public get children(): FileReferences[] {

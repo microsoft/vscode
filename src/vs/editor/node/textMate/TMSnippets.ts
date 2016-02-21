@@ -5,17 +5,16 @@
 'use strict';
 
 import * as nls from 'vs/nls';
+import {parse} from 'vs/base/common/json';
+import * as paths from 'vs/base/common/paths';
 import {TPromise} from 'vs/base/common/winjs.base';
-import * as Modes from 'vs/editor/common/modes';
-import snippets = require('vs/editor/contrib/snippet/common/snippet');
-import json = require('vs/base/common/json');
-import paths = require('vs/base/common/paths');
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
+import {readFile} from 'vs/base/node/pfs';
+import {IMessageCollector, PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
+import {ISuggestion} from 'vs/editor/common/modes';
 import {SnippetsRegistry} from 'vs/editor/common/modes/supports';
-
-import pfs = require('vs/base/node/pfs');
+import {IModeService} from 'vs/editor/common/services/modeService';
+import {IModelService} from 'vs/editor/common/services/modelService';
+import {CodeSnippet, ExternalSnippetType} from 'vs/editor/contrib/snippet/common/snippet';
 
 export interface ITMSnippetsExtensionPoint {
 	language: string;
@@ -23,10 +22,10 @@ export interface ITMSnippetsExtensionPoint {
 }
 
 export function snippetUpdated(modeId: string, filePath: string): TPromise<void> {
-	return pfs.readFile(filePath).then((fileContents) => {
+	return readFile(filePath).then((fileContents) => {
 		var errors: string[] = [];
-		var snippets = json.parse(fileContents.toString(), errors);
-		var adaptedSnippets = TMSnippetsAdaptor.adapt(snippets);
+		var snippetsObj = parse(fileContents.toString(), errors);
+		var adaptedSnippets = TMSnippetsAdaptor.adapt(snippetsObj);
 		SnippetsRegistry.registerSnippets(modeId, filePath, adaptedSnippets);
 	});
 }
@@ -40,11 +39,11 @@ let snippetsExtensionPoint = PluginsRegistry.registerExtensionPoint<ITMSnippetsE
 		default: { language: '{{id}}', path: './snippets/{{id}}.json.'},
 		properties: {
 			language: {
-				description: nls.localize('vscode.extension.contributes.snippets.language', 'Language id for which this snippet is contributed to.'),
+				description: nls.localize('vscode.extension.contributes.snippets-language', 'Language id for which this snippet is contributed to.'),
 				type: 'string'
 			},
 			path: {
-				description: nls.localize('vscode.extension.contributes.snippets.path', 'Path of the snippets file. The path is relative to the extension folder and typically starts with \'./snippets/\'.'),
+				description: nls.localize('vscode.extension.contributes.snippets-path', 'Path of the snippets file. The path is relative to the extension folder and typically starts with \'./snippets/\'.'),
 				type: 'string'
 			}
 		}
@@ -95,10 +94,10 @@ export class MainProcessTextMateSnippet {
 	}
 
 	public registerDefinition(modeId: string, filePath: string): void {
-		pfs.readFile(filePath).then((fileContents) => {
+		readFile(filePath).then((fileContents) => {
 			var errors: string[] = [];
-			var snippets = json.parse(fileContents.toString(), errors);
-			var adaptedSnippets = TMSnippetsAdaptor.adapt(snippets);
+			var snippetsObj = parse(fileContents.toString(), errors);
+			var adaptedSnippets = TMSnippetsAdaptor.adapt(snippetsObj);
 			SnippetsRegistry.registerDefaultSnippets(modeId, adaptedSnippets);
 		});
 	}
@@ -106,9 +105,9 @@ export class MainProcessTextMateSnippet {
 
 class TMSnippetsAdaptor {
 
-	public static adapt(snippets: any): Modes.ISuggestion[]{
-		var topLevelProperties = Object.keys(snippets),
-			result: Modes.ISuggestion[] = [];
+	public static adapt(snippetsObj: any): ISuggestion[]{
+		var topLevelProperties = Object.keys(snippetsObj),
+			result: ISuggestion[] = [];
 
 		var processSnippet = (snippet: any, description: string) => {
 			var prefix = snippet['prefix'];
@@ -133,7 +132,7 @@ class TMSnippetsAdaptor {
 		};
 
 		topLevelProperties.forEach(topLevelProperty => {
-			var scopeOrTemplate = snippets[topLevelProperty];
+			var scopeOrTemplate = snippetsObj[topLevelProperty];
 			if (scopeOrTemplate['body'] && scopeOrTemplate['prefix']) {
 				processSnippet(scopeOrTemplate, topLevelProperty);
 			} else {
@@ -147,6 +146,6 @@ class TMSnippetsAdaptor {
 	}
 
 	private static convertSnippet(textMateSnippet: string): string {
-		return snippets.CodeSnippet.convertExternalSnippet(textMateSnippet, snippets.ExternalSnippetType.TextMateSnippet);
+		return CodeSnippet.convertExternalSnippet(textMateSnippet, ExternalSnippetType.TextMateSnippet);
 	}
 }

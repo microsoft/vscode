@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IWorker, IWorkerFactory} from './workerClient';
-import {TPromise, ValueCallback, ErrorCallback} from 'vs/base/common/winjs.base';
 import {transformErrorForSerialization} from 'vs/base/common/errors';
 import {Disposable} from 'vs/base/common/lifecycle';
+import {ErrorCallback, TPromise, ValueCallback} from 'vs/base/common/winjs.base';
+import {IWorker, IWorkerFactory} from './workerClient';
 
 const INITIALIZE = '$initialize';
 

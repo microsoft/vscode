@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import dom = require('vs/base/browser/dom');
-import lifecycle = require('vs/base/common/lifecycle');
-import env = require('vs/base/common/flags');
+import * as flags from 'vs/base/common/flags';
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {IWorker, IWorkerCallback, IWorkerFactory} from 'vs/base/common/worker/workerClient';
+import * as dom from 'vs/base/browser/dom';
 
 function defaultGetWorkerUrl(workerId:string, label:string): string {
 	return require.toUrl('./' + workerId + '?' + encodeURIComponent(label));
 }
-var getWorkerUrl = env.getCrossOriginWorkerScriptUrl || defaultGetWorkerUrl;
+var getWorkerUrl = flags.getCrossOriginWorkerScriptUrl || defaultGetWorkerUrl;
 
 
 /**
@@ -60,7 +60,7 @@ class FrameWorker implements IWorker {
 	private loaded: boolean;
 	private beforeLoadMessages: any[];
 
-	private _listeners: lifecycle.IDisposable[];
+	private _listeners: IDisposable[];
 
 	constructor(moduleId:string, id: number, onMessageCallback:IWorkerCallback) {
 		this.id = id;
@@ -87,7 +87,7 @@ class FrameWorker implements IWorker {
 	}
 
 	public dispose(): void {
-		this._listeners = lifecycle.disposeAll(this._listeners);
+		this._listeners = disposeAll(this._listeners);
 		window.removeEventListener('message', this.onMessage);
 		window.frames[this.iframeId()].close();
 	}

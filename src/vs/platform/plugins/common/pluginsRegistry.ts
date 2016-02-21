@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IPluginDescription, IPointListener, IActivationEventListener, IMessage} from 'vs/platform/plugins/common/plugins';
-import {Registry} from 'vs/platform/platform';
-import Errors = require('vs/base/common/errors');
-import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import * as nls from 'vs/nls';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
-import nls = require('vs/nls');
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import Severity from 'vs/base/common/severity';
+import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import {Registry} from 'vs/platform/platform';
+import {IActivationEventListener, IMessage, IPluginDescription, IPointListener} from 'vs/platform/plugins/common/plugins';
 
 export interface IMessageCollector {
 	error(message: any): void;
@@ -201,7 +201,7 @@ interface IPluginDescriptionMap {
 	[pluginId: string]: IPluginDescription;
 }
 const hasOwnProperty = Object.hasOwnProperty;
-let schemaRegistry = <JSONContributionRegistry.IJSONContributionRegistry>Registry.as(JSONContributionRegistry.Extensions.JSONContribution);
+let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
 
 export interface IExtensionPointUser<T> {
 	description: IPluginDescription;
@@ -429,7 +429,7 @@ class PluginsRegistryImpl implements IPluginsRegistry {
 		try {
 			handler.listener(desc);
 		} catch (e) {
-			Errors.onUnexpectedError(e);
+			onUnexpectedError(e);
 		}
 	}
 
@@ -503,7 +503,7 @@ class PluginsRegistryImpl implements IPluginsRegistry {
 				try {
 					listener();
 				} catch (e) {
-					Errors.onUnexpectedError(e);
+					onUnexpectedError(e);
 				}
 			}
 		}
@@ -523,11 +523,11 @@ function _isStringArray(arr: string[]): boolean {
 	return true;
 }
 
-const Extensions = {
+const PRExtensions = {
 	PluginsRegistry: 'PluginsRegistry'
 };
-Registry.add(Extensions.PluginsRegistry, new PluginsRegistryImpl());
-export const PluginsRegistry: IPluginsRegistry = Registry.as(Extensions.PluginsRegistry);
+Registry.add(PRExtensions.PluginsRegistry, new PluginsRegistryImpl());
+export const PluginsRegistry: IPluginsRegistry = Registry.as(PRExtensions.PluginsRegistry);
 
 schemaRegistry.registerSchema(schemaId, schema);
 schemaRegistry.addSchemaFileAssociation('/package.json', schemaId);

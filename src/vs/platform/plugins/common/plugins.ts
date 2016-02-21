@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {TPromise} from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export interface IPluginDescription {
 	id: string;

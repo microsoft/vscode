@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {TypeConstraint} from 'vs/base/common/types';
-import {createDecorator, ServiceIdentifier, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {Keybinding} from 'vs/base/common/keyCodes';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {Keybinding} from 'vs/base/common/keyCodes';
+import {TypeConstraint} from 'vs/base/common/types';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {ServiceIdentifier, ServicesAccessor, createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export interface IUserFriendlyKeybinding {
 	key: string;
