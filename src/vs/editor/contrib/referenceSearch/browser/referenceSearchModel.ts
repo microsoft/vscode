@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import collections = require('vs/base/common/collections');
-import strings = require('vs/base/common/strings');
-import uuid = require('vs/base/common/uuid');
-import eventsEmitter = require('vs/base/common/eventEmitter');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IRange, IPosition, IModel} from 'vs/editor/common/editorCommon';
-import {IReference} from 'vs/editor/common/modes';
-import {dirname, basename} from 'vs/base/common/paths';
-import {Range} from 'vs/editor/common/core/range';
-import {IEditorService} from 'vs/platform/editor/common/editor';
+import * as collections from 'vs/base/common/collections';
+import {EventEmitter} from 'vs/base/common/eventEmitter';
+import {basename, dirname} from 'vs/base/common/paths';
+import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
+import {generateUuid} from 'vs/base/common/uuid';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IEditorService} from 'vs/platform/editor/common/editor';
+import {Range} from 'vs/editor/common/core/range';
+import {IModel, IPosition, IRange} from 'vs/editor/common/editorCommon';
+import {IReference} from 'vs/editor/common/modes';
 
 export namespace EventType {
 	export var OnReferenceRangeChanged = 'refrence.rangeChanged';
@@ -27,7 +27,7 @@ export class OneReference {
 	private _range: IRange;
 
 	constructor(private _parent: FileReferences, reference: IReference) {
-		this._id = uuid.generateUuid();
+		this._id = generateUuid();
 		this._range = reference.range;
 	}
 
@@ -145,7 +145,7 @@ export class FileReferences {
 	}
 }
 
-export class Model extends eventsEmitter.EventEmitter {
+export class Model extends EventEmitter {
 
 	private _references: FileReferences[];
 	private _currentReference: OneReference;

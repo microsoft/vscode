@@ -30,7 +30,7 @@ import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import embeddedCodeEditorWidget = require('vs/editor/browser/widget/embeddedCodeEditorWidget');
 import codeEditorModel = require('vs/editor/common/model/model');
 import peekViewWidget = require('vs/editor/contrib/zoneWidget/browser/peekViewWidget');
-import model = require('./referenceSearchModel');
+import referenceSearchModel = require('./referenceSearchModel');
 import {Range} from 'vs/editor/common/core/range';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -44,13 +44,13 @@ class DecorationsManager implements lifecycle.IDisposable {
 		className: 'reference-decoration'
 	};
 
-	private _decorationSet = collections.createStringDictionary<model.OneReference>();
-	private _decorationIgnoreSet = collections.createStringDictionary<model.OneReference>();
+	private _decorationSet = collections.createStringDictionary<referenceSearchModel.OneReference>();
+	private _decorationIgnoreSet = collections.createStringDictionary<referenceSearchModel.OneReference>();
 
 	private callOnDispose:Function[] = [];
 	private callOnModelChange:Function[] = [];
 
-	constructor(private editor:EditorBrowser.ICodeEditor, private model:model.Model) {
+	constructor(private editor:EditorBrowser.ICodeEditor, private model:referenceSearchModel.Model) {
 		this.callOnDispose.push(this.editor.addListener(EditorCommon.EventType.ModelChanged, () => this.onModelChanged()));
 		this.onModelChanged();
 	}
@@ -79,7 +79,7 @@ class DecorationsManager implements lifecycle.IDisposable {
 		}
 	}
 
-	private addDecorations(reference:model.FileReferences):void {
+	private addDecorations(reference:referenceSearchModel.FileReferences):void {
 		this.callOnModelChange.push(this.editor.getModel().addListener(EditorCommon.EventType.ModelDecorationsChanged, (event) => this.onDecorationChanged(event)));
 
 		this.editor.getModel().changeDecorations((accessor) => {
@@ -164,24 +164,24 @@ class DecorationsManager implements lifecycle.IDisposable {
 class DataSource implements tree.IDataSource {
 
 	public getId(tree:tree.ITree, element:any):string {
-		if(element instanceof model.Model) {
+		if(element instanceof referenceSearchModel.Model) {
 			return 'root';
-		} else if(element instanceof model.FileReferences) {
-			return (<model.FileReferences> element).id;
-		} else if(element instanceof model.OneReference) {
-			return (<model.OneReference> element).id;
+		} else if(element instanceof referenceSearchModel.FileReferences) {
+			return (<referenceSearchModel.FileReferences> element).id;
+		} else if(element instanceof referenceSearchModel.OneReference) {
+			return (<referenceSearchModel.OneReference> element).id;
 		}
 	}
 
 	public hasChildren(tree:tree.ITree, element:any):boolean {
-		return element instanceof model.FileReferences || element instanceof model.Model;
+		return element instanceof referenceSearchModel.FileReferences || element instanceof referenceSearchModel.Model;
 	}
 
 	public getChildren(tree:tree.ITree, element:any):TPromise<any[]> {
-		if(element instanceof model.Model) {
-			return TPromise.as((<model.Model> element).children);
-		} else if(element instanceof model.FileReferences) {
-			return (<model.FileReferences> element).resolve().then(val => val.children);
+		if(element instanceof referenceSearchModel.Model) {
+			return TPromise.as((<referenceSearchModel.Model> element).children);
+		} else if(element instanceof referenceSearchModel.FileReferences) {
+			return (<referenceSearchModel.FileReferences> element).resolve().then(val => val.children);
 		} else {
 			return TPromise.as([]);
 		}
@@ -189,10 +189,10 @@ class DataSource implements tree.IDataSource {
 
 	public getParent(tree:tree.ITree, element:any):TPromise<any> {
 		var result:any = null;
-		if(element instanceof model.FileReferences) {
-			result = (<model.FileReferences> element).parent;
-		} else if (element instanceof model.OneReference) {
-			result = (<model.OneReference> element).parent;
+		if(element instanceof referenceSearchModel.FileReferences) {
+			result = (<referenceSearchModel.FileReferences> element).parent;
+		} else if (element instanceof referenceSearchModel.OneReference) {
+			result = (<referenceSearchModel.OneReference> element).parent;
 		}
 		return TPromise.as(result);
 	}
@@ -208,7 +208,7 @@ class Controller extends treeDefaults.DefaultController {
 
 	public onMouseDown(tree:tree.ITree, element:any, event:mouse.IMouseEvent):boolean {
 		if (event.leftButton) {
-			if (element instanceof model.FileReferences) {
+			if (element instanceof referenceSearchModel.FileReferences) {
 				event.preventDefault();
 				event.stopPropagation();
 				return this.expandCollapse(tree, element);
@@ -252,7 +252,7 @@ class Controller extends treeDefaults.DefaultController {
 
 	public onEnter(tree:tree.ITree, event:keyboard.IKeyboardEvent):boolean {
 		var element = tree.getFocus();
-		if (element instanceof model.FileReferences) {
+		if (element instanceof referenceSearchModel.FileReferences) {
 			return this.expandCollapse(tree, element);
 		}
 
@@ -326,8 +326,8 @@ class Renderer extends treeDefaults.LegacyRenderer {
 
 		dom.clearNode(container);
 
-		if(element instanceof model.FileReferences) {
-			var fileReferences = <model.FileReferences> element,
+		if(element instanceof referenceSearchModel.FileReferences) {
+			var fileReferences = <referenceSearchModel.FileReferences> element,
 				fileReferencesContainer = builder.$('.reference-file');
 
 			/* tslint:disable:no-unused-expression */
@@ -345,9 +345,9 @@ class Renderer extends treeDefaults.LegacyRenderer {
 
 			fileReferencesContainer.appendTo(container);
 
-		} else if(element instanceof model.OneReference) {
+		} else if(element instanceof referenceSearchModel.OneReference) {
 
-			var oneReference = <model.OneReference> element,
+			var oneReference = <referenceSearchModel.OneReference> element,
 				oneReferenceContainer = builder.$('.reference'),
 				preview = oneReference.parent.preview.preview(oneReference.range);
 
@@ -380,7 +380,7 @@ export class ReferenceWidget extends peekViewWidget.PeekViewWidget {
 	private instantiationService:IInstantiationService;
 
 	private decorationsManager:DecorationsManager;
-	private model:model.Model;
+	private model:referenceSearchModel.Model;
 	private callOnModel:lifecycle.IDisposable[];
 
 	private tree:treeWidget.Tree;
@@ -492,7 +492,7 @@ export class ReferenceWidget extends peekViewWidget.PeekViewWidget {
 		this.preview.layout();
 	}
 
-	public setModel(newModel: model.Model): void {
+	public setModel(newModel: referenceSearchModel.Model): void {
 		// clean up
 		this.callOnModel = lifecycle.disposeAll(this.callOnModel);
 		this.model = newModel;
@@ -514,26 +514,26 @@ export class ReferenceWidget extends peekViewWidget.PeekViewWidget {
 		this.callOnModel.push(this.decorationsManager);
 
 		// listen on model changes
-		this.callOnModel.push(this.model.addListener2(model.EventType.OnReferenceRangeChanged, (reference:model.OneReference) => {
+		this.callOnModel.push(this.model.addListener2(referenceSearchModel.EventType.OnReferenceRangeChanged, (reference:referenceSearchModel.OneReference) => {
 			this.tree.refresh(reference);
 		}));
 
 		// listen on selection and focus
 		this.callOnModel.push(this.tree.addListener2(Controller.Events.FOCUSED, (element) => {
-			if (element instanceof model.OneReference) {
+			if (element instanceof referenceSearchModel.OneReference) {
 				this.showReferencePreview(element);
 			}
 		}));
 		this.callOnModel.push(this.tree.addListener2(Controller.Events.SELECTED, (element:any) => {
-			if (element instanceof model.OneReference) {
+			if (element instanceof referenceSearchModel.OneReference) {
 				this.showReferencePreview(element);
 				this.model.currentReference = element;
 			}
 		}));
 		this.callOnModel.push(this.tree.addListener2(Controller.Events.OPEN_TO_SIDE, (element:any) => {
-			if (element instanceof model.OneReference) {
+			if (element instanceof referenceSearchModel.OneReference) {
 				this.editorService.openEditor({
-					resource: (<model.OneReference> element).resource,
+					resource: (<referenceSearchModel.OneReference> element).resource,
 					options: {
 						selection: element.range
 					}
@@ -568,10 +568,10 @@ export class ReferenceWidget extends peekViewWidget.PeekViewWidget {
 
 	private getFocusedReference(): URI {
 		var element = this.tree.getFocus();
-		if(element instanceof model.OneReference) {
-			return (<model.OneReference> element).resource;
-		} else if(element instanceof model.FileReferences) {
-			var referenceFile = (<model.FileReferences> element);
+		if(element instanceof referenceSearchModel.OneReference) {
+			return (<referenceSearchModel.OneReference> element).resource;
+		} else if(element instanceof referenceSearchModel.FileReferences) {
+			var referenceFile = (<referenceSearchModel.FileReferences> element);
 			if(referenceFile.children.length > 0) {
 				return referenceFile.children[0].resource;
 			}
@@ -583,7 +583,7 @@ export class ReferenceWidget extends peekViewWidget.PeekViewWidget {
 		this.tree.DOMFocus();
 	}
 
-	private showReferencePreview(reference:model.OneReference):void {
+	private showReferencePreview(reference:referenceSearchModel.OneReference):void {
 
 		// show in editor
 		this.editorService.resolveEditorModel({ resource: reference.resource }).done((model) => {

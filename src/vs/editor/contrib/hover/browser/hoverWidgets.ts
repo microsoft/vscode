@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import lifecycle = require('vs/base/common/lifecycle');
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
-import dom = require('vs/base/browser/dom');
-import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
-import {Position} from 'vs/editor/common/core/position';
-import {StyleMutator} from 'vs/base/browser/styleMutator';
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import * as dom from 'vs/base/browser/dom';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {StyleMutator} from 'vs/base/browser/styleMutator';
+import {Position} from 'vs/editor/common/core/position';
+import {IEditorPosition, IPosition} from 'vs/editor/common/editorCommon';
+import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 
-export class ContentHoverWidget implements EditorBrowser.IContentWidget {
+export class ContentHoverWidget implements editorBrowser.IContentWidget {
 
 	private _id: string;
-	_editor: EditorBrowser.ICodeEditor;
+	_editor: editorBrowser.ICodeEditor;
 	_isVisible: boolean;
 	private _containerDomNode: HTMLElement;
 	_domNode: HTMLElement;
-	_showAtPosition: EditorCommon.IEditorPosition;
+	_showAtPosition: IEditorPosition;
 	private _stoleFocus: boolean;
-	private _toDispose: lifecycle.IDisposable[];
+	private _toDispose: IDisposable[];
 
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
 
-	constructor(id: string, editor: EditorBrowser.ICodeEditor) {
+	constructor(id: string, editor: editorBrowser.ICodeEditor) {
 		this._id = id;
 		this._editor = editor;
 		this._isVisible = false;
@@ -58,7 +58,7 @@ export class ContentHoverWidget implements EditorBrowser.IContentWidget {
 		return this._containerDomNode;
 	}
 
-	public showAt(position:EditorCommon.IPosition, focus: boolean): void {
+	public showAt(position:IPosition, focus: boolean): void {
 
 		// Position has changed
 		this._showAtPosition = new Position(position.lineNumber, position.column);
@@ -97,13 +97,13 @@ export class ContentHoverWidget implements EditorBrowser.IContentWidget {
 		}
 	}
 
-	public getPosition():EditorBrowser.IContentWidgetPosition {
+	public getPosition():editorBrowser.IContentWidgetPosition {
 		if (this._isVisible) {
 			return {
 				position: this._showAtPosition,
 				preference: [
-					EditorBrowser.ContentWidgetPositionPreference.ABOVE,
-					EditorBrowser.ContentWidgetPositionPreference.BELOW
+					editorBrowser.ContentWidgetPositionPreference.ABOVE,
+					editorBrowser.ContentWidgetPositionPreference.BELOW
 				]
 			};
 		}
@@ -112,19 +112,19 @@ export class ContentHoverWidget implements EditorBrowser.IContentWidget {
 
 	public dispose(): void {
 		this.hide();
-		this._toDispose = lifecycle.disposeAll(this._toDispose);
+		this._toDispose = disposeAll(this._toDispose);
 	}
 }
 
-export class GlyphHoverWidget implements EditorBrowser.IOverlayWidget {
+export class GlyphHoverWidget implements editorBrowser.IOverlayWidget {
 
 	private _id: string;
-	_editor: EditorBrowser.ICodeEditor;
+	_editor: editorBrowser.ICodeEditor;
 	_isVisible: boolean;
 	_domNode: HTMLElement;
 	_showAtLineNumber: number;
 
-	constructor(id: string, editor: EditorBrowser.ICodeEditor) {
+	constructor(id: string, editor: editorBrowser.ICodeEditor) {
 
 		this._id = id;
 		this._editor = editor;
@@ -172,7 +172,7 @@ export class GlyphHoverWidget implements EditorBrowser.IOverlayWidget {
 		this._domNode.style.display = 'none';
 	}
 
-	public getPosition():EditorBrowser.IOverlayWidgetPosition {
+	public getPosition():editorBrowser.IOverlayWidgetPosition {
 		return null;
 	}
 

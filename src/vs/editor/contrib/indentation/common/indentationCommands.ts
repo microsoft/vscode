@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {Range} from 'vs/editor/common/core/range';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
+import {ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorSelection, ITokenizedModel} from 'vs/editor/common/editorCommon';
 
-function getIndentationEditOperations(model: EditorCommon.ITokenizedModel, builder: EditorCommon.IEditOperationBuilder, tabSize: number, tabsToSpaces: boolean): void {
+function getIndentationEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder, tabSize: number, tabsToSpaces: boolean): void {
 	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
 		// Model is empty
 		return;
@@ -28,34 +28,34 @@ function getIndentationEditOperations(model: EditorCommon.ITokenizedModel, build
 	}
 }
 
-export class IndentationToSpacesCommand implements EditorCommon.ICommand {
+export class IndentationToSpacesCommand implements ICommand {
 
 	private selectionId: string;
 
-	constructor(private selection: EditorCommon.IEditorSelection, private tabSize: number) { }
+	constructor(private selection: IEditorSelection, private tabSize: number) { }
 
-	public getEditOperations(model: EditorCommon.ITokenizedModel, builder: EditorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
 		this.selectionId = builder.trackSelection(this.selection);
 		getIndentationEditOperations(model, builder, this.tabSize, true);
 	}
 
-	public computeCursorState(model: EditorCommon.ITokenizedModel, helper: EditorCommon.ICursorStateComputerData): EditorCommon.IEditorSelection {
+	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): IEditorSelection {
 		return helper.getTrackedSelection(this.selectionId);
 	}
 }
 
-export class IndentationToTabsCommand implements EditorCommon.ICommand {
+export class IndentationToTabsCommand implements ICommand {
 
 	private selectionId: string;
 
-	constructor(private selection: EditorCommon.IEditorSelection, private tabSize: number) { }
+	constructor(private selection: IEditorSelection, private tabSize: number) { }
 
-	public getEditOperations(model: EditorCommon.ITokenizedModel, builder: EditorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
 		this.selectionId = builder.trackSelection(this.selection);
 		getIndentationEditOperations(model, builder, this.tabSize, false);
 	}
 
-	public computeCursorState(model: EditorCommon.ITokenizedModel, helper: EditorCommon.ICursorStateComputerData): EditorCommon.IEditorSelection {
+	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): IEditorSelection {
 		return helper.getTrackedSelection(this.selectionId);
 	}
 }

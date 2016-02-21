@@ -100,7 +100,7 @@ export class EditorAccessor implements emmet.Editor {
 
 		let snippet = snippets.CodeSnippet.convertExternalSnippet(value, snippets.ExternalSnippetType.EmmetSnippet);
 		let codeSnippet = new snippets.CodeSnippet(snippet);
-		snippets.get(this.editor).run(codeSnippet, deletePreviousChars, 0);
+		snippets.getSnippetController(this.editor).run(codeSnippet, deletePreviousChars, 0);
 	}
 
 	public getContent(): string {

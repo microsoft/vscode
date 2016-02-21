@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, { Emitter } from 'vs/base/common/event';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {startsWith} from 'vs/base/common/strings';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
-import { ISuggestSupport, ISuggestion } from 'vs/editor/common/modes';
-import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
-import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
-import { SuggestRegistry, ISuggestResult2, suggest } from '../common/suggest';
-import { CompletionModel } from './completionModel';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {EventType, ICommonCodeEditor, ICursorSelectionChangedEvent, IPosition} from 'vs/editor/common/editorCommon';
+import {ISuggestSupport, ISuggestion} from 'vs/editor/common/modes';
+import {CodeSnippet} from 'vs/editor/contrib/snippet/common/snippet';
+import {ISuggestResult2, SuggestRegistry, suggest} from '../common/suggest';
+import {CompletionModel} from './completionModel';
 
 export interface ICancelEvent {
 	retrigger: boolean;
@@ -51,7 +51,7 @@ class Context {
 	public wordBefore: string;
 	public wordAfter: string;
 
-	constructor(editor: EditorCommon.ICommonCodeEditor, private auto: boolean) {
+	constructor(editor: ICommonCodeEditor, private auto: boolean) {
 		const model = editor.getModel();
 		const position = editor.getPosition();
 		const lineContent = model.getLineContent(position.lineNumber);
@@ -187,7 +187,7 @@ export class SuggestModel implements IDisposable {
 	private _onDidAccept: Emitter<IAcceptEvent> = new Emitter();
 	public get onDidAccept(): Event<IAcceptEvent> { return this._onDidAccept.event; }
 
-	constructor(private editor: EditorCommon.ICommonCodeEditor) {
+	constructor(private editor: ICommonCodeEditor) {
 		this.state = State.Idle;
 		this.triggerAutoSuggestPromise = null;
 		this.requestPromise = null;
@@ -197,9 +197,9 @@ export class SuggestModel implements IDisposable {
 		this.context = null;
 
 		this.toDispose = [];
-		this.toDispose.push(this.editor.addListener2(EditorCommon.EventType.ConfigurationChanged, () => this.onEditorConfigurationChange()));
-		this.toDispose.push(this.editor.addListener2(EditorCommon.EventType.CursorSelectionChanged, e => this.onCursorChange(e)));
-		this.toDispose.push(this.editor.addListener2(EditorCommon.EventType.ModelChanged, () => this.cancel()));
+		this.toDispose.push(this.editor.addListener2(EventType.ConfigurationChanged, () => this.onEditorConfigurationChange()));
+		this.toDispose.push(this.editor.addListener2(EventType.CursorSelectionChanged, e => this.onCursorChange(e)));
+		this.toDispose.push(this.editor.addListener2(EventType.ModelChanged, () => this.cancel()));
 		this.onEditorConfigurationChange();
 	}
 
@@ -229,7 +229,7 @@ export class SuggestModel implements IDisposable {
 		return actuallyCanceled;
 	}
 
-	public getRequestPosition(): EditorCommon.IPosition {
+	public getRequestPosition(): IPosition {
 		if (!this.context) {
 			return null;
 		}
@@ -244,7 +244,7 @@ export class SuggestModel implements IDisposable {
 		return this.state === State.Auto;
 	}
 
-	private onCursorChange(e: EditorCommon.ICursorSelectionChangedEvent): void {
+	private onCursorChange(e: ICursorSelectionChangedEvent): void {
 		if (!e.selection.isEmpty()) {
 			this.cancel();
 			return;

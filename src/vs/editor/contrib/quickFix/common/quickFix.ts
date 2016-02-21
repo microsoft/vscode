@@ -5,15 +5,15 @@
 
 'use strict';
 
+import {illegalArgument, onUnexpectedError} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import {IModel, IRange} from 'vs/editor/common/editorCommon';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
-import {IQuickFixSupport, IQuickFix} from 'vs/editor/common/modes';
-import {IModelService} from 'vs/editor/common/services/modelService';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {IQuickFix, IQuickFixSupport} from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import {IModelService} from 'vs/editor/common/services/modelService';
 
 export const QuickFixRegistry = new LanguageFeatureRegistry<IQuickFixSupport>('quickFixSupport');
 

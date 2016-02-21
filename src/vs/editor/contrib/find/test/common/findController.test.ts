@@ -4,19 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import * as EditorCommon from 'vs/editor/common/editorCommon';
-import {withMockCodeEditor} from 'vs/editor/test/common/mocks/mockCodeEditor';
-import {Range} from 'vs/editor/common/core/range';
-import {Position} from 'vs/editor/common/core/position';
-import {
-	CommonFindController,
-	IFindStartOptions,
-	FindStartFocusAction,
-	StartFindAction,
-	NextMatchFindAction
-} from 'vs/editor/contrib/find/common/findController';
+import * as assert from 'assert';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
+import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
+import {IRange} from 'vs/editor/common/editorCommon';
+import {CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, StartFindAction} from 'vs/editor/contrib/find/common/findController';
+import {withMockCodeEditor} from 'vs/editor/test/common/mocks/mockCodeEditor';
 
 class TestFindController extends CommonFindController {
 
@@ -33,7 +27,7 @@ class TestFindController extends CommonFindController {
 
 suite('FindController', () => {
 
-	function fromRange(rng:EditorCommon.IRange): number[] {
+	function fromRange(rng:IRange): number[] {
 		return [rng.startLineNumber, rng.startColumn, rng.endLineNumber, rng.endColumn];
 	}
 

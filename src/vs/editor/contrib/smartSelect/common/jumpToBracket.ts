@@ -5,25 +5,25 @@
 'use strict';
 
 import * as nls from 'vs/nls';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {Handler, ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 
 class SelectBracketAction extends EditorAction {
 
 	static ID = 'editor.action.jumpToBracket';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor, Behaviour.TextFocus);
 	}
 
 	public run():TPromise<boolean> {
 
-		this.editor.trigger(this.id, EditorCommon.Handler.JumpToBracket, {});
+		this.editor.trigger(this.id, Handler.JumpToBracket, {});
 
 		return TPromise.as(true);
 	}
