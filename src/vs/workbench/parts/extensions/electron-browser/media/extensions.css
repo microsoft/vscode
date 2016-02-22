@@ -78,7 +78,7 @@
 	height: 12px;
 	font-size: smaller;
 	border: 1px solid rgba(132, 132, 132, 0.5);
-	border-radius: 2px;
+	/*border-radius: 2px;*/
 	padding: 1px;
 	vertical-align: text-bottom;
 	text-transform: uppercase;
