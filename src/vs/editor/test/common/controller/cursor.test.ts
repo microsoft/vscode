@@ -1069,6 +1069,25 @@ suite('Editor Controller - Regression tests', () => {
 			assert.equal(cursor.getSelections().length, 1);
 		});
 	});
+
+	test('issue #2205: Multi-cursor pastes in reverse order', () => {
+		usingCursor({
+			text: [
+				'abc',
+				'def'
+			],
+			mode: null,
+			config: null
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 1, false);
+			cursorCommand(cursor, H.AddCursorUp);
+			assert.equal(cursor.getSelections().length, 2);
+
+			cursorCommand(cursor, H.Paste, { text: '1\n2' });
+			assert.equal(model.getLineContent(1), '1abc');
+			assert.equal(model.getLineContent(2), '2def');
+		});
+	});
 });
 
 suite('Editor Controller - Cursor Configuration', () => {

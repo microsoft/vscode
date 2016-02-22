@@ -1014,15 +1014,30 @@ export class Cursor extends EventEmitter {
 		}
 	}
 
+	private _invokeForAllSorted(ctx: IMultipleCursorOperationContext, callable: (cursorIndex: number, cursor: OneCursor, ctx: IOneCursorOperationContext) => boolean, pushStackElementBefore: boolean = true, pushStackElementAfter: boolean = true): boolean {
+		return this._doInvokeForAll(ctx, true, callable, pushStackElementBefore, pushStackElementAfter);
+	}
+
 	private _invokeForAll(ctx: IMultipleCursorOperationContext, callable: (cursorIndex: number, cursor: OneCursor, ctx: IOneCursorOperationContext) => boolean, pushStackElementBefore: boolean = true, pushStackElementAfter: boolean = true): boolean {
-		var result = false;
-		var cursors = this.cursors.getAll();
-		var context:IOneCursorOperationContext;
+		return this._doInvokeForAll(ctx, false, callable, pushStackElementBefore, pushStackElementAfter);
+	}
+
+	private _doInvokeForAll(ctx: IMultipleCursorOperationContext, sorted: boolean, callable: (cursorIndex: number, cursor: OneCursor, ctx: IOneCursorOperationContext) => boolean, pushStackElementBefore: boolean = true, pushStackElementAfter: boolean = true): boolean {
+		let result = false;
+		let cursors = this.cursors.getAll();
+
+		if (sorted) {
+			cursors = cursors.sort((a, b) => {
+				return Range.compareRangesUsingStarts(a.getSelection(), b.getSelection());
+			});
+		}
+
+		let context:IOneCursorOperationContext;
 
 		ctx.shouldPushStackElementBefore = pushStackElementBefore;
 		ctx.shouldPushStackElementAfter = pushStackElementAfter;
 
-		for (var i = 0; i < cursors.length; i++) {
+		for (let i = 0; i < cursors.length; i++) {
 			context = {
 				cursorPositionChangeReason: '',
 				shouldReveal: true,
@@ -1322,7 +1337,7 @@ export class Cursor extends EventEmitter {
 		var distributedPaste = this._distributePasteToCursors(ctx);
 
 		if (distributedPaste) {
-			return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.paste(oneCursor, distributedPaste[cursorIndex], false, oneCtx));
+			return this._invokeForAllSorted(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.paste(oneCursor, distributedPaste[cursorIndex], false, oneCtx));
 		} else {
 			return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.paste(oneCursor, ctx.eventData.text, ctx.eventData.pasteOnNewLine, oneCtx));
 		}
