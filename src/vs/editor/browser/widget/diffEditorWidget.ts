@@ -643,13 +643,13 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 				top: 0,
 				width: DiffEditorWidget.ONE_OVERVIEW_WIDTH,
 				right: freeSpace + DiffEditorWidget.ONE_OVERVIEW_WIDTH,
-				height: this._height - layoutInfo.horizontalScrollbarHeight
+				height: this._height
 			});
 			this._modifiedOverviewRuler.setLayout({
 				top: 0,
 				right: 0,
 				width: DiffEditorWidget.ONE_OVERVIEW_WIDTH,
-				height: this._height - layoutInfo.horizontalScrollbarHeight
+				height: this._height
 			});
 		}
 	}
@@ -858,7 +858,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		var scrollTop = this.modifiedEditor.getScrollTop();
 		var scrollHeight = this.modifiedEditor.getScrollHeight();
 
-		var computedAvailableSize = Math.max(0, layoutInfo.contentHeight - layoutInfo.horizontalScrollbarHeight);
+		var computedAvailableSize = Math.max(0, layoutInfo.contentHeight);
 		var computedRepresentableSize = Math.max(0, computedAvailableSize - 2 * 0);
 		var computedRatio = scrollHeight > 0 ? (computedRepresentableSize / scrollHeight) : 0;
 
