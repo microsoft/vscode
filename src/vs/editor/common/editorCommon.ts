@@ -3079,6 +3079,11 @@ export interface ICommonCodeEditor extends IEditor {
 	getIndentationOptions(): IInternalIndentationOptions;
 
 	/**
+	 * Sets the indentation options of the editor.
+	 */
+	setIndentationOptions(IInternalIndentationOptions): void;
+
+	/**
 	 * Normalize whitespace using the editor's whitespace specific settings
 	 */
 	normalizeIndentation(str: string): string;

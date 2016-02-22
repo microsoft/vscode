@@ -213,6 +213,10 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		};
 	}
 
+	public setIndentationOptions(indentationOptions: editorCommon.IInternalIndentationOptions): void {
+		this._configuration.setIndentationOptions(indentationOptions);
+	}
+
 	public normalizeIndentation(str:string): string {
 		return this._configuration.normalizeIndentation(str);
 	}
