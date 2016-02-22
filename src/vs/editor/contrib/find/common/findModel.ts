@@ -340,6 +340,7 @@ export class FindModelBoundToEditorModel {
 		let ranges = this._findMatches(findScope, Number.MAX_VALUE);
 
 		this._decorations.set([], findScope);
+		this._state.changeMatchInfo(0, 0);
 
 		let replaceStrings:string[] = [];
 		for (let i = 0, len = ranges.length; i < len; i++) {
