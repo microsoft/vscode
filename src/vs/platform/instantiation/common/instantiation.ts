@@ -26,44 +26,6 @@ export namespace _util {
 
 // ----------------------- interfaces -----------------------
 
-export interface ServiceContext {
-	// intentionally empty: The idea is that services dependencies must be declared
-}
-
-export interface IConstructorSignature0<T> {
-	new (context: ServiceContext): T;
-}
-
-export interface IConstructorSignature1<A1, T> {
-	new (context: ServiceContext, first: A1): T;
-}
-
-export interface IConstructorSignature2<A1, A2, T> {
-	new (context: ServiceContext, first: A1, second: A2): T;
-}
-export interface IConstructorSignature3<A1, A2, A3, T> {
-	new (context: ServiceContext, first: A1, second: A2, third: A3): T;
-}
-
-export interface IConstructorSignature4<A1, A2, A3, A4, T> {
-	new (context: ServiceContext, first: A1, second: A2, third: A3, forth: A4): T;
-}
-
-export interface IConstructorSignature5<A1, A2, A3, A4, A5, T> {
-	new (context: ServiceContext, first: A1, second: A2, third: A3, forth: A4, fifth: A5): T;
-}
-
-export interface IConstructorSignature6<A1, A2, A3, A4, A5, A6, T> {
-	new (context: ServiceContext, first: A1, second: A2, third: A3, forth: A4, fifth: A5, sixth: A6): T;
-}
-
-export interface IConstructorSignature7<A1, A2, A3, A4, A5, A6, A7, T> {
-	new (context: ServiceContext, first: A1, second: A2, third: A3, forth: A4, fifth: A5, sixth: A6, seventh: A7): T;
-}
-
-export interface IConstructorSignature8<A1, A2, A3, A4, A5, A6, A7, A8, T> {
-	new (context: ServiceContext, first: A1, second: A2, third: A3, forth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8): T;
-}
 
 export interface INewConstructorSignature0<T> {
 	new (...services: { serviceId: ServiceIdentifier<any>; }[]): T;
@@ -155,60 +117,7 @@ export interface IInstantiationService {
 	 */
 	getInstance<T>(id: ServiceIdentifier<T>): T;
 
-	/**
-	 * Synchronously creates an instance that is defined by
-	 * the constructor signature.
-	 */
-	createInstance<T>(ctor: IConstructorSignature0<T>): T;
-
-	/**
-	 * Synchronously creates an instance that is defined by
-	 * the constructor signature.
-	 */
-	createInstance<A1, T>(ctor: IConstructorSignature1<A1, T>, first: A1): T;
-
-	/**
-	 * Synchronously creates an instance that is defined by
-	 * the constructor signature.
-	 */
-	createInstance<A1, A2, T>(ctor: IConstructorSignature2<A1, A2, T>, first: A1, second: A2): T;
-
-	/**
-	 * Synchronously creates an instance that is defined by
-	 * the constructor signature.
-	 */
-	createInstance<A1, A2, A3, T>(ctor: IConstructorSignature3<A1, A2, A3, T>, first: A1, second: A2, third: A3): T;
-
-	/**
-	 * Synchronously creates an instance that is defined by
-	 * the constructor signature.
-	 */
-	createInstance<A1, A2, A3, A4, T>(ctor: IConstructorSignature4<A1, A2, A3, A4, T>, first: A1, second: A2, third: A3, fourth: A4): T;
-
-	/**
-	 * Synchronously creates an instance that is defined by
-	 * the constructor signature.
-	 */
-	createInstance<A1, A2, A3, A4, A5, T>(ctor: IConstructorSignature5<A1, A2, A3, A4, A5, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5): T;
-
-	/**
-	 * Synchronously creates an instance that is defined by
-	 * the constructor signature.
-	 */
-	createInstance<A1, A2, A3, A4, A5, A6, T>(ctor: IConstructorSignature6<A1, A2, A3, A4, A5, A6, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6): T;
-
-	/**
-	 * Synchronously creates an instance that is defined by
-	 * the constructor signature.
-	 */
-	createInstance<A1, A2, A3, A4, A5, A6, A7, T>(ctor: IConstructorSignature7<A1, A2, A3, A4, A5, A6, A7, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7): T;
-
-	/**
-	 * Synchronously creates an instance that is defined by
-	 * the constructor signature.
-	 */
-	createInstance<A1, A2, A3, A4, A5, A6, A7, A8, T>(ctor: IConstructorSignature8<A1, A2, A3, A4, A5, A6, A7, A8, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8): T;
-
+	
 	/**
 	 * Synchronously creates an instance that is denoted by
 	 * the descriptor

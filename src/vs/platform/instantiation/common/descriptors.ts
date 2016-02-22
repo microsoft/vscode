@@ -69,10 +69,6 @@ export class SyncDescriptor<T> extends AbstractDescriptor<T> implements objects.
 }
 
 export interface CreateSyncFunc {
-	<T>(ctor: instantiation.IConstructorSignature0<T>): SyncDescriptor0<T>;
-	<A1, T>(ctor: instantiation.IConstructorSignature1<A1, T>): SyncDescriptor1<A1, T>;
-	<A1, T>(ctor: instantiation.IConstructorSignature1<A1, T>, a1: A1): SyncDescriptor0<T>;
-
 
 	<T>(ctor: instantiation.INewConstructorSignature0<T>): SyncDescriptor0<T>;
 

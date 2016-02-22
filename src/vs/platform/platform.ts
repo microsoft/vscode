@@ -6,7 +6,7 @@
 
 import Types = require('vs/base/common/types');
 import Assert = require('vs/base/common/assert');
-import {IInstantiationService, IConstructorSignature0, INewConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, INewConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
 
 export interface IRegistry {
 
@@ -62,7 +62,7 @@ export var Registry = <IRegistry>new RegistryImpl();
  * A base class for registries that leverage the instantiation service to create instances.
  */
 export class BaseRegistry<T> {
-	private toBeInstantiated: IConstructorSignature0<T>[] = [];
+	private toBeInstantiated: INewConstructorSignature0<T>[] = [];
 	private instances: T[] = [];
 	private instantiationService: IInstantiationService;
 
@@ -75,12 +75,12 @@ export class BaseRegistry<T> {
 		}
 	}
 
-	private instantiate(ctor: IConstructorSignature0<T> | INewConstructorSignature0<T>): void {
+	private instantiate(ctor: INewConstructorSignature0<T>): void {
 		let instance = this.instantiationService.createInstance(ctor);
 		this.instances.push(instance);
 	}
 
-	_register(ctor: IConstructorSignature0<T> | INewConstructorSignature0<T>): void {
+	_register(ctor: INewConstructorSignature0<T>): void {
 		if (this.instantiationService) {
 			this.instantiate(ctor);
 		} else {

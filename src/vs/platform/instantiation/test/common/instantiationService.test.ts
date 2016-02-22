@@ -11,65 +11,6 @@ import instantiationService = require('vs/platform/instantiation/common/instanti
 
 import {SyncDescriptor, createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 
-export class Target1 {
-
-	constructor(private platformServices) {
-		assert.ok(!!platformServices.editorService);
-	}
-
-	validate(): boolean {
-		try {
-			/* tslint:disable:no-unused-expression */
-			this.platformServices.editorService;
-			/* tslint:enable:no-unused-expression */
-			return false;
-		} catch (e) {
-			return e instanceof Error;
-		}
-	}
-}
-
-export class Target2 {
-
-	constructor(private platformServices, private far: boolean) {
-		assert.ok(!!platformServices.editorService);
-	}
-
-	validate(): boolean {
-		if (!this.far) {
-			return false;
-		}
-		try {
-			/* tslint:disable:no-unused-expression */
-			this.platformServices.editorService;
-			/* tslint:enable:no-unused-expression */
-			return false;
-		} catch (e) {
-			return e instanceof Error;
-		}
-	}
-}
-
-class Target3 {
-	constructor(private platformServices) {
-		assert.ok(!!platformServices.editorService);
-		assert.equal(platformServices['far'], 1234);
-	}
-}
-
-class Target4 {
-	constructor(private platformServices) {
-		assert.equal(platformServices.editorService, 1234);
-	}
-}
-
-export class EvilTarget1 {
-
-	constructor(private platformServices) {
-		platformServices.editorService = null;
-	}
-}
-
 let IService1 = instantiation.createDecorator<IService1>('service1');
 
 interface IService1 {
@@ -184,93 +125,8 @@ class ServiceLoop2 implements IService2 {
 suite('Instantiation Service', () => {
 	let service: instantiation.IInstantiationService;
 
-	setup(() => {
-		service = instantiationService.createInstantiationService({
-			editorService: 'boo',
-		});
-	});
 
-	test('sync create, platformServices only', function() {
-		let instance = service.createInstance(Target1);
-		assert.ok(instance.validate());
-	});
 
-	test('sync create, platformServices & argument', function() {
-		let instance = service.createInstance(Target2, true);
-		assert.ok(instance.validate());
-	});
-
-	test('sync create, access service defined by child instantiation service', function() {
-		let instance = service.createChild({ editorService: 'wee' }).createInstance(Target2, true);
-		assert.ok(instance.validate());
-	});
-
-	test('sync create, access service defined in a child instantiation service', function() {
-		let instance = service.createChild({ someOtherService: 'hey' }).createInstance(Target2, true);
-		assert.ok(instance.validate());
-	});
-
-	test('sync create, platformServices & static argument', function() {
-		let descriptor = createSyncDescriptor(Target2, true);
-		let instance = service.createInstance(descriptor);
-		assert.ok(instance.validate());
-	});
-
-	test('sync create, register NEW service', function() {
-		service.registerService('far', 1234);
-		service.createInstance(Target3);
-
-		let child = service.createChild({});
-		child.createInstance(Target3);
-	});
-
-	test('sync create, override service', () => {
-		assert.throws(() => service.registerService('editorService', 1234));
-	});
-
-	// test('async create, platformServices only', (done) => {
-	// 	let descriptor = new services.AsyncDescriptor<Target1>('vs/platform/instantiation/tests/instantiationService.test', 'Target1');
-	// 	service.createInstance(descriptor, true).then((instance) => {
-	// 		assert.ok(instance.validate());
-	// 		done();
-	// 	}, (e) => {
-	// 		assert.ok(false, e);
-	// 	});
-	// });
-
-	// test('async create, platformServices only & argument', (done) => {
-	// 	let descriptor = new services.AsyncDescriptor<Target2>('vs/platform/instantiation/tests/instantiationService.test', 'Target1');
-	// 	service.createInstance(descriptor, true).then((instance) => {
-	// 		assert.ok(instance.validate());
-	// 		done();
-	// 	}, (e) => {
-	// 		assert.ok(false, e);
-	// 	});
-	// });
-
-	// test('async create, platformServices only & static argument', (done) => {
-	// 	let descriptor = new services.AsyncDescriptor<Target2>('vs/platform/instantiation/tests/instantiationService.test', 'Target1', true);
-	// 	service.createInstance(descriptor).then((instance) => {
-	// 		assert.ok(instance.validate());
-	// 		done();
-	// 	}, (e) => {
-	// 		assert.ok(false, e);
-	// 	});
-	// });
-
-	// test('async create, illegal ctor name', (done) => {
-	// 	let descriptor = new services.AsyncDescriptor<Target2>('vs/platform/instantiation/tests/instantiationService.test', 'TaRget1', true);
-	// 	service.createInstance(descriptor).then((instance) => {
-	// 		assert.ok(false);
-	// 		done();
-	// 	}, (e) => {
-	// 		assert.ok(e instanceof Error);
-	// 	});
-	// });
-
-	test('safe on create - don\'t allow service change', function() {
-		assert.throws(() => service.createInstance(EvilTarget1));
-	});
 
 	test('@Param - simple clase', function() {
 		let service = instantiationService.createInstantiationService(Object.create(null));

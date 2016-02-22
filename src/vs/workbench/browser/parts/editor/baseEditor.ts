@@ -14,7 +14,7 @@ import {Registry} from 'vs/platform/platform';
 import {Panel} from 'vs/workbench/browser/panel';
 import {EditorInput, IFileEditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {IEditor, Position, POSITIONS} from 'vs/platform/editor/common/editor';
-import {IInstantiationService, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, INewConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
 import {SyncDescriptor, AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 
@@ -225,7 +225,7 @@ export interface IEditorRegistry {
 	 * @param editorInputId the identifier of the editor input
 	 * @param factory the editor input factory for serialization/deserialization
 	 */
-	registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void;
+	registerEditorInputFactory(editorInputId: string, ctor: INewConstructorSignature0<IEditorInputFactory>): void;
 
 	/**
 	 * Returns the editor input factory for the given editor input.
@@ -258,7 +258,7 @@ class EditorRegistry implements IEditorRegistry {
 	private editors: EditorDescriptor[];
 	private instantiationService: IInstantiationService;
 	private defaultFileInputDescriptor: AsyncDescriptor<IFileEditorInput>;
-	private editorInputFactoryConstructors: { [editorInputId: string]: IConstructorSignature0<IEditorInputFactory> } = Object.create(null);
+	private editorInputFactoryConstructors: { [editorInputId: string]: INewConstructorSignature0<IEditorInputFactory> } = Object.create(null);
 	private editorInputFactoryInstances: { [editorInputId: string]: IEditorInputFactory } = Object.create(null);
 
 	constructor() {
@@ -276,7 +276,7 @@ class EditorRegistry implements IEditorRegistry {
 		this.editorInputFactoryConstructors = {};
 	}
 
-	private createEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {
+	private createEditorInputFactory(editorInputId: string, ctor: INewConstructorSignature0<IEditorInputFactory>): void {
 		let instance = this.instantiationService.createInstance(ctor);
 		this.editorInputFactoryInstances[editorInputId] = instance;
 	}
@@ -388,7 +388,7 @@ class EditorRegistry implements IEditorRegistry {
 		return this.defaultFileInputDescriptor;
 	}
 
-	public registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {
+	public registerEditorInputFactory(editorInputId: string, ctor: INewConstructorSignature0<IEditorInputFactory>): void {
 		if (!this.instantiationService) {
 			this.editorInputFactoryConstructors[editorInputId] = ctor;
 		} else {
