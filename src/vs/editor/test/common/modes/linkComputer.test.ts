@@ -131,6 +131,10 @@ suite('Editor Modes - Link Computer', () => {
 			'                             http://go.microsoft.com/fwlink/?LinkID=513275&clcid=0x409'
 		);
 		assertLink(
+			'// Click here to learn more. http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx',
+			'                             http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx'
+		);
+		assertLink(
 			'// https://github.com/projectkudu/kudu/blob/master/Kudu.Core/Scripts/selectNodeVersion.js',
 			'   https://github.com/projectkudu/kudu/blob/master/Kudu.Core/Scripts/selectNodeVersion.js'
 		);
@@ -141,6 +145,10 @@ suite('Editor Modes - Link Computer', () => {
 		assertLink(
 			'For instructions, see http://go.microsoft.com/fwlink/?LinkId=166007.</value>',
 			'                      http://go.microsoft.com/fwlink/?LinkId=166007         '
+		);
+		assertLink(
+			'For instructions, see http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx.</value>',
+			'                      http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx         '
 		);
 
 		// foo bar (see http://www.w3schools.com/tags/att_iframe_sandbox.asp)
