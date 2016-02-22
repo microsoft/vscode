@@ -351,10 +351,6 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 			],
 
 			__electricCharacterSupport: {
-				brackets: [
-					{ tokenType: 'bla', open: '<!--', close: '-->', isElectric: true },
-					{ tokenType: 'bla', open: '<', close: '>', isElectric: true }
-				],
 				caseInsensitive: true,
 				embeddedElectricCharacters: ['*', '}', ']', ')']
 			},

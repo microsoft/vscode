@@ -9,22 +9,14 @@
  * using regular expressions.
  */
 
-import {IBracketPair, ISuggestSupport} from 'vs/editor/common/modes';
+import {ISuggestSupport} from 'vs/editor/common/modes';
 import {ILexer} from 'vs/editor/common/modes/monarch/monarchCommon';
-import {CharacterPair, IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
+import {IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
 import {PredefinedResultSuggestSupport, TextualAndPredefinedResultSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 
 export function createRichEditSupport(lexer: ILexer): IRichEditConfiguration {
-
-	function toBracket(input:IBracketPair): CharacterPair {
-		return [input.open, input.close];
-	}
-
-	function toBrackets(input:IBracketPair[]): CharacterPair[] {
-		return input.map(toBracket);
-	}
 
 	return {
 
@@ -35,10 +27,9 @@ export function createRichEditSupport(lexer: ILexer): IRichEditConfiguration {
 			blockComment: [lexer.blockCommentStart, lexer.blockCommentEnd]
 		},
 
-		brackets: toBrackets(lexer.standardBrackets),
+		brackets: lexer.standardBrackets,
 
 		__electricCharacterSupport: {
-			brackets: lexer.standardBrackets,
 			// regexBrackets: lexer.enhancedBrackets,
 			caseInsensitive: lexer.ignoreCase,
 			embeddedElectricCharacters: lexer.outdentTriggers.split('')

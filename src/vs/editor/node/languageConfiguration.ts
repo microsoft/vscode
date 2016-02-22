@@ -82,15 +82,6 @@ export class LanguageConfigurationFileHandler {
 			};
 		}
 
-		// TMSyntax hard-codes these and tokenizes them as brackets
-		richEditConfig.__electricCharacterSupport = {
-			brackets: [
-				{ tokenType:'delimiter.curly.' + modeId, open: '{', close: '}', isElectric: true },
-				{ tokenType:'delimiter.square.' + modeId, open: '[', close: ']', isElectric: true },
-				{ tokenType:'delimiter.paren.' + modeId, open: '(', close: ')', isElectric: true }
-			]
-		};
-
 		this._modeService.registerRichEditSupport(modeId, richEditConfig);
 	}
 }

@@ -21,9 +21,9 @@ var whitespace = '\t ';
 var brackets = (function() {
 
 	let bracketsSource = [
-		{ tokenType:'punctuation.bracket.cs', open: '{', close: '}', isElectric: true },
-		{ tokenType:'punctuation.array.cs', open: '[', close: ']', isElectric: true },
-		{ tokenType:'punctuation.parenthesis.cs', open: '(', close: ')', isElectric: true }
+		{ tokenType:'punctuation.bracket.cs', open: '{', close: '}' },
+		{ tokenType:'punctuation.array.cs', open: '[', close: ']' },
+		{ tokenType:'punctuation.parenthesis.cs', open: '(', close: ')' }
 	];
 
 	let MAP: {

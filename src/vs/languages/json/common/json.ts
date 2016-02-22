@@ -61,13 +61,6 @@ export class JSONMode extends AbstractMode implements Modes.IExtraInfoSupport, M
 				['[', ']']
 			],
 
-			__electricCharacterSupport: {
-				brackets: [
-					{ tokenType:'delimiter.bracket.json', open: '{', close: '}', isElectric: true },
-					{ tokenType:'delimiter.array.json', open: '[', close: ']', isElectric: true }
-				]
-			},
-
 			__characterPairSupport: {
 				autoClosingPairs: [
 					{ open: '{', close: '}', notIn: ['string'] },

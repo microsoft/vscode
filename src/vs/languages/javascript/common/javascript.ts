@@ -93,11 +93,6 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 			],
 
 			__electricCharacterSupport: {
-				brackets: [
-					{ tokenType: 'delimiter.bracket.js', open: '{', close: '}', isElectric: true },
-					{ tokenType: 'delimiter.array.js', open: '[', close: ']', isElectric: true },
-					{ tokenType: 'delimiter.parenthesis.js', open: '(', close: ')', isElectric: true }
-				],
 				docComment: { scope: 'comment.doc', open: '/**', lineStart: ' * ', close: ' */' }
 			},
 

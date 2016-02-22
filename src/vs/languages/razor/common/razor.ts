@@ -84,7 +84,6 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 			],
 
 			__electricCharacterSupport: {
-				brackets: [],
 				caseInsensitive: true,
 				embeddedElectricCharacters: ['*', '}', ']', ')']
 			},

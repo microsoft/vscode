@@ -10,8 +10,7 @@ import {CharacterPairSupport} from 'vs/editor/common/modes/supports/characterPai
 import {ICharacterPairContribution} from 'vs/editor/common/modes/supports/characterPair';
 import {BracketElectricCharacterSupport, IBracketElectricCharacterContribution} from 'vs/editor/common/modes/supports/electricCharacter';
 import {IIndentationRules, IOnEnterRegExpRules, IOnEnterSupportOptions, OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
-
-export type CharacterPair = [string, string];
+import {CharacterPair, RichEditBrackets} from 'vs/editor/common/modes/supports/richEditBrackets';
 
 export interface CommentRule {
 	lineComment?: string;
@@ -48,6 +47,10 @@ export class RichEditSupport implements IRichEditSupport {
 
 		this._conf = RichEditSupport._mergeConf(prev, rawConf);
 
+		if (this._conf.brackets) {
+			this.brackets = new RichEditBrackets(modeId, this._conf.brackets);
+		}
+
 		this._handleOnEnter(modeId, this._conf);
 
 		this._handleComments(modeId, this._conf);
@@ -56,9 +59,8 @@ export class RichEditSupport implements IRichEditSupport {
 			this.characterPair = new CharacterPairSupport(modeId, this._conf.__characterPairSupport);
 		}
 
-		if (this._conf.__electricCharacterSupport) {
-			this.electricCharacter = new BracketElectricCharacterSupport(modeId, this._conf.__electricCharacterSupport);
-			this.brackets = this.electricCharacter.getRichEditBrackets();
+		if (this._conf.__electricCharacterSupport || this._conf.brackets) {
+			this.electricCharacter = new BracketElectricCharacterSupport(modeId, this.brackets, this._conf.__electricCharacterSupport);
 		}
 
 		this.wordDefinition = this._conf.wordPattern || NullMode.DEFAULT_WORD_REGEXP;

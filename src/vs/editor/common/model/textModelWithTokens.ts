@@ -22,7 +22,7 @@ import {TokenIterator} from 'vs/editor/common/model/tokenIterator';
 import {ILineContext, ILineTokens, IMode, IModeTransition, IState} from 'vs/editor/common/modes';
 import {NullMode, NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
 import {ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
-import {BracketsUtils} from 'vs/editor/common/modes/supports/electricCharacter';
+import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
 
 export class TokensInflatorMap implements editorCommon.ITokensInflatorMap {
 

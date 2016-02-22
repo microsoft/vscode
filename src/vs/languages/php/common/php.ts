@@ -15,13 +15,14 @@ import {TokenizationSupport, ILeavingNestedModeData, ITokenizationCustomization}
 import {TextualSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 
-var bracketsSource : Modes.IBracketPair[]= [
-	{ tokenType:'delimiter.bracket.php', open: '{', close: '}', isElectric: true },
-	{ tokenType:'delimiter.array.php', open: '[', close: ']', isElectric: true },
-	{ tokenType:'delimiter.parenthesis.php', open: '(', close: ')', isElectric: true }
-];
 
 var brackets = (function() {
+
+	let bracketsSource = [
+		{ tokenType:'delimiter.bracket.php', open: '{', close: '}' },
+		{ tokenType:'delimiter.array.php', open: '[', close: ']' },
+		{ tokenType:'delimiter.parenthesis.php', open: '(', close: ')' }
+	];
 
 	let MAP: {
 		[text:string]:{
@@ -487,10 +488,6 @@ export class PHPMode extends AbstractMode implements ITokenizationCustomization 
 				['[', ']'],
 				['(', ')']
 			],
-
-			__electricCharacterSupport: {
-				brackets: bracketsSource
-			},
 
 			__characterPairSupport: {
 				autoClosingPairs: [

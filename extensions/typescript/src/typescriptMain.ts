@@ -113,11 +113,6 @@ function registerSupports(modeID: string, host: TypeScriptServiceClientHost, cli
 		],
 
 		__electricCharacterSupport: {
-			brackets: [
-				{ tokenType: 'delimiter.curly.' + modeID, open: '{', close: '}', isElectric: true },
-				{ tokenType: 'delimiter.square.' + modeID, open: '[', close: ']', isElectric: true },
-				{ tokenType: 'delimiter.paren.' + modeID, open: '(', close: ')', isElectric: true }
-			],
 			docComment: { scope: 'comment.documentation', open: '/**', lineStart: ' * ', close: ' */' }
 		},
 

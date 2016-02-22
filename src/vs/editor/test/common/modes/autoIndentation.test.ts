@@ -10,7 +10,7 @@ import {createLineContextFromTokenText} from 'vs/editor/test/common/modesTestUti
 
 suite('Editor Modes - Auto Indentation', () => {
 	test('Doc comments', () => {
-		var brackets = new Brackets('test', [],
+		var brackets = new Brackets('test', null,
 			{ scope: 'doc', open: '/**', lineStart: ' * ', close: ' */' });
 
 		assert.equal(brackets.onElectricCharacter(createLineContextFromTokenText([

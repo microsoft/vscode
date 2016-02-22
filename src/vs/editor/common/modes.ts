@@ -649,16 +649,6 @@ export interface ITaskSupport {
 	clean?():TPromise<void>;
 }
 
-/**
- * Standard brackets used for auto indentation
- */
-export interface IBracketPair {
-	tokenType:string;
-	open:string;
-	close:string;
-	isElectric:boolean;
-}
-
 export interface IAutoClosingPairConditional extends IAutoClosingPair {
 	notIn?: string[];
 }

@@ -10,9 +10,10 @@
  */
 
 import * as objects from 'vs/base/common/objects';
-import {Bracket, IAutoClosingPairConditional, IBracketPair} from 'vs/editor/common/modes';
+import {Bracket, IAutoClosingPairConditional} from 'vs/editor/common/modes';
 import * as monarchCommon from 'vs/editor/common/modes/monarch/monarchCommon';
 import {ILanguage, ILanguageBracket} from 'vs/editor/common/modes/monarch/monarchTypes';
+import {CharacterPair} from 'vs/editor/common/modes/supports/richEditBrackets';
 
 /*
  * Type helpers
@@ -687,14 +688,9 @@ export function compile(json: ILanguage): monarchCommon.ILexer {
 	// }
 	// lexer.enhancedBrackets = enhancedBrackets;
 
-	var standardBrackets: IBracketPair[] = [];
+	var standardBrackets: CharacterPair[] = [];
 	for (var i = 0; i < brackets.length; ++i) {
-		standardBrackets.push({
-			tokenType: brackets[i].token,
-			open: brackets[i].open,
-			close:brackets[i].close,
-			isElectric: true
-		});
+		standardBrackets.push([brackets[i].open, brackets[i].close]);
 	}
 	lexer.standardBrackets = standardBrackets;
 

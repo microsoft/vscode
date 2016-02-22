@@ -9,7 +9,7 @@ import {Range} from 'vs/editor/common/core/range';
 import {ILineTokens, IModel, IPosition, IRange, IRichEditBracket} from 'vs/editor/common/editorCommon';
 import {Bracket, IModeTransition, IRichEditBrackets} from 'vs/editor/common/modes';
 import {ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
-import {BracketsUtils} from 'vs/editor/common/modes/supports/electricCharacter';
+import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
 
 export class Node {
 

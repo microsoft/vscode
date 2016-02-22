@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Bracket, IAutoClosingPairConditional, IBracketPair, ISuggestion} from 'vs/editor/common/modes';
+import {Bracket, IAutoClosingPairConditional, ISuggestion} from 'vs/editor/common/modes';
+import {CharacterPair} from 'vs/editor/common/modes/supports/richEditBrackets';
 
 /*
  * This module exports common types and functionality shared between
@@ -47,7 +48,7 @@ export interface ILexer extends ILexerMin {
 	wordDefinition: RegExp;
 	autoClosingPairs: IAutoClosingPairConditional[];
 
-	standardBrackets: IBracketPair[];
+	standardBrackets: CharacterPair[];
 	// enhancedBrackets: IRegexBracketPair[];
 	outdentTriggers: string;
 }

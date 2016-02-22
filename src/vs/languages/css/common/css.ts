@@ -323,12 +323,6 @@ export class CSSMode extends AbstractMode {
 				['(', ')']
 			],
 
-			__electricCharacterSupport: {
-				brackets: [
-					{ tokenType: 'punctuation.bracket.css', open: '{', close: '}', isElectric: true }
-				]
-			},
-
 			__characterPairSupport: {
 				autoClosingPairs: [
 					{ open: '{', close: '}' },

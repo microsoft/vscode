@@ -2247,12 +2247,6 @@ declare namespace vscode {
 		 * @deprecated Will be replaced by a better API soon.
 		 */
 		__electricCharacterSupport?: {
-			brackets: {
-				tokenType: string;
-				open: string;
-				close: string;
-				isElectric: boolean;
-			}[];
 			docComment?: {
 				scope: string;
 				open: string;
