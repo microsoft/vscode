@@ -345,12 +345,30 @@ export class SplitLinesCollection implements ILinesCollection {
 	}
 
 	public setHiddenAreas(_ranges:editorCommon.IRange[], emit:(evenType:string, payload:any)=>void): void {
-		let ranges = this._reduceRanges(_ranges);
+
+		let newRanges = this._reduceRanges(_ranges);
+
+		// BEGIN TODO@Martin: Please stop calling this method on each model change!
+		let oldRanges = this.hiddenAreasIds.map((areaId) => this.model.getDecorationRange(areaId)).sort(Range.compareRangesUsingStarts);
+
+		if (newRanges.length === oldRanges.length) {
+			let hasDifference = false;
+			for (let i = 0; i < newRanges.length; i++) {
+				if (!newRanges[i].equalsRange(oldRanges[i])) {
+					hasDifference = true;
+					break;
+				}
+			}
+			if (!hasDifference) {
+				return;
+			}
+		}
+		// END TODO@Martin: Please stop calling this method on each model change!
 
 		var newDecorations:editorCommon.IModelDeltaDecoration[] = [];
-		for (var i = 0; i < ranges.length; i++) {
+		for (var i = 0; i < newRanges.length; i++) {
 			newDecorations.push({
-				range: ranges[i],
+				range: newRanges[i],
 				options: {
 				}
 			});
@@ -358,7 +376,7 @@ export class SplitLinesCollection implements ILinesCollection {
 
 		this.hiddenAreasIds = this.model.deltaDecorations(this.hiddenAreasIds, newDecorations);
 
-		var hiddenAreas = ranges;
+		var hiddenAreas = newRanges;
 		var hiddenAreaStart = 1, hiddenAreaEnd = 0;
 		var hiddenAreaIdx = -1;
 		var nextLineNumberToUpdateHiddenArea = (hiddenAreaIdx + 1 < hiddenAreas.length) ? hiddenAreaEnd + 1 : this.lines.length + 2;
