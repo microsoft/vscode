@@ -73,13 +73,17 @@ export class CursorMoveHelper {
 		};
 	}
 
-	public getPositionUp(model:ICursorMoveHelperModel, lineNumber:number, column:number, leftoverVisibleColumns:number, count:number): IMoveResult {
+	public getPositionUp(model:ICursorMoveHelperModel, lineNumber:number, column:number, leftoverVisibleColumns:number, count:number, allowMoveOnFirstLine:boolean): IMoveResult {
 		var currentVisibleColumn = this.visibleColumnFromColumn(model, lineNumber, column) + leftoverVisibleColumns;
 
 		lineNumber = lineNumber - count;
 		if (lineNumber < 1) {
 			lineNumber = 1;
-			column = model.getLineMinColumn(lineNumber);
+			if (allowMoveOnFirstLine) {
+				column = model.getLineMinColumn(lineNumber);
+			} else {
+				column = Math.min(model.getLineMaxColumn(lineNumber), column);
+			}
 		} else {
 			column = this.columnFromVisibleColumn(model, lineNumber, currentVisibleColumn);
 		}
@@ -93,14 +97,18 @@ export class CursorMoveHelper {
 		};
 	}
 
-	public getPositionDown(model:ICursorMoveHelperModel, lineNumber:number, column:number, leftoverVisibleColumns:number, count:number): IMoveResult {
+	public getPositionDown(model:ICursorMoveHelperModel, lineNumber:number, column:number, leftoverVisibleColumns:number, count:number, allowMoveOnLastLine:boolean): IMoveResult {
 		var currentVisibleColumn = this.visibleColumnFromColumn(model, lineNumber, column) + leftoverVisibleColumns;
 
 		lineNumber = lineNumber + count;
 		var lineCount = model.getLineCount();
 		if (lineNumber > lineCount) {
 			lineNumber = lineCount;
-			column = model.getLineMaxColumn(lineNumber);
+			if (allowMoveOnLastLine) {
+				column = model.getLineMaxColumn(lineNumber);
+			} else {
+				column = Math.min(model.getLineMaxColumn(lineNumber), column);
+			}
 		} else {
 			column = this.columnFromVisibleColumn(model, lineNumber, currentVisibleColumn);
 		}

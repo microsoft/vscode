@@ -1056,6 +1056,19 @@ suite('Editor Controller - Regression tests', () => {
 			assert.equal(model.getLineContent(1), 'function baz(;');
 		});
 	});
+
+	test('issue #1336: Insert cursor below on last line adds a cursor to the end of the current line', () => {
+		usingCursor({
+			text: [
+				'abc'
+			],
+			mode: null,
+			config: null
+		}, (model, cursor) => {
+			cursorCommand(cursor, H.AddCursorDown);
+			assert.equal(cursor.getSelections().length, 1);
+		});
+	});
 });
 
 suite('Editor Controller - Cursor Configuration', () => {

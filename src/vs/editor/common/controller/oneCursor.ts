@@ -451,11 +451,11 @@ export class OneCursor {
 	public getRightOfPosition(lineNumber:number, column:number): editorCommon.IPosition {
 		return this.helper.getRightOfPosition(this.model, lineNumber, column);
 	}
-	public getPositionUp(lineNumber:number, column:number, leftoverVisibleColumns:number, count:number): IMoveResult {
-		return this.helper.getPositionUp(this.model, lineNumber, column, leftoverVisibleColumns, count);
+	public getPositionUp(lineNumber:number, column:number, leftoverVisibleColumns:number, count:number, allowMoveOnFirstLine:boolean): IMoveResult {
+		return this.helper.getPositionUp(this.model, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnFirstLine);
 	}
-	public getPositionDown(lineNumber:number, column:number, leftoverVisibleColumns:number, count:number): IMoveResult {
-		return this.helper.getPositionDown(this.model, lineNumber, column, leftoverVisibleColumns, count);
+	public getPositionDown(lineNumber:number, column:number, leftoverVisibleColumns:number, count:number, allowMoveOnLastLine:boolean): IMoveResult {
+		return this.helper.getPositionDown(this.model, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnLastLine);
 	}
 	public getColumnAtBeginningOfLine(lineNumber:number, column:number): number {
 		return this.helper.getColumnAtBeginningOfLine(this.model, lineNumber, column);
@@ -474,11 +474,11 @@ export class OneCursor {
 	public getRightOfViewPosition(lineNumber:number, column:number): editorCommon.IPosition {
 		return this.helper.getRightOfPosition(this.viewModelHelper.viewModel, lineNumber, column);
 	}
-	public getViewPositionUp(lineNumber:number, column:number, leftoverVisibleColumns:number, count:number): IMoveResult {
-		return this.helper.getPositionUp(this.viewModelHelper.viewModel, lineNumber, column, leftoverVisibleColumns, count);
+	public getViewPositionUp(lineNumber:number, column:number, leftoverVisibleColumns:number, count:number, allowMoveOnFirstLine:boolean): IMoveResult {
+		return this.helper.getPositionUp(this.viewModelHelper.viewModel, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnFirstLine);
 	}
-	public getViewPositionDown(lineNumber:number, column:number, leftoverVisibleColumns:number, count:number): IMoveResult {
-		return this.helper.getPositionDown(this.viewModelHelper.viewModel, lineNumber, column, leftoverVisibleColumns, count);
+	public getViewPositionDown(lineNumber:number, column:number, leftoverVisibleColumns:number, count:number, allowMoveOnLastLine:boolean): IMoveResult {
+		return this.helper.getPositionDown(this.viewModelHelper.viewModel, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnLastLine);
 	}
 	public getColumnAtBeginningOfViewLine(lineNumber:number, column:number): number {
 		return this.helper.getColumnAtBeginningOfLine(this.viewModelHelper.viewModel, lineNumber, column);
@@ -654,7 +654,7 @@ export class OneCursorOp {
 			viewColumn = validatedViewPosition.column;
 		}
 
-		var r = cursor.getViewPositionDown(viewLineNumber, viewColumn, cursor.getLeftoverVisibleColumns(), linesCount);
+		var r = cursor.getViewPositionDown(viewLineNumber, viewColumn, cursor.getLeftoverVisibleColumns(), linesCount, true);
 		ctx.cursorPositionChangeReason = 'explicit';
 		cursor.moveViewPosition(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns, true);
 		return true;
@@ -664,11 +664,11 @@ export class OneCursorOp {
 
 		var selection = cursor.getViewSelection();
 
-		var selectionStart = cursor.getViewPositionDown(selection.selectionStartLineNumber, selection.selectionStartColumn, cursor.getSelectionStartLeftoverVisibleColumns(), 1);
+		var selectionStart = cursor.getViewPositionDown(selection.selectionStartLineNumber, selection.selectionStartColumn, cursor.getSelectionStartLeftoverVisibleColumns(), 1, false);
 		ctx.cursorPositionChangeReason = 'explicit';
 		cursor.moveViewPosition(false, selectionStart.lineNumber, selectionStart.column, cursor.getLeftoverVisibleColumns(), true);
 
-		var position = cursor.getViewPositionDown(selection.positionLineNumber, selection.positionColumn, cursor.getLeftoverVisibleColumns(), 1);
+		var position = cursor.getViewPositionDown(selection.positionLineNumber, selection.positionColumn, cursor.getLeftoverVisibleColumns(), 1, false);
 		ctx.cursorPositionChangeReason = 'explicit';
 		cursor.moveViewPosition(true, position.lineNumber, position.column, position.leftoverVisibleColumns, true);
 
@@ -695,7 +695,7 @@ export class OneCursorOp {
 			viewColumn = validatedViewPosition.column;
 		}
 
-		var r = cursor.getViewPositionUp(viewLineNumber, viewColumn, cursor.getLeftoverVisibleColumns(), linesCount);
+		var r = cursor.getViewPositionUp(viewLineNumber, viewColumn, cursor.getLeftoverVisibleColumns(), linesCount, true);
 		ctx.cursorPositionChangeReason = 'explicit';
 		cursor.moveViewPosition(inSelectionMode, r.lineNumber, r.column, r.leftoverVisibleColumns, true);
 
@@ -706,11 +706,11 @@ export class OneCursorOp {
 
 		var selection = cursor.getViewSelection();
 
-		var selectionStart = cursor.getViewPositionUp(selection.selectionStartLineNumber, selection.selectionStartColumn, cursor.getSelectionStartLeftoverVisibleColumns(), 1);
+		var selectionStart = cursor.getViewPositionUp(selection.selectionStartLineNumber, selection.selectionStartColumn, cursor.getSelectionStartLeftoverVisibleColumns(), 1, false);
 		ctx.cursorPositionChangeReason = 'explicit';
 		cursor.moveViewPosition(false, selectionStart.lineNumber, selectionStart.column, cursor.getLeftoverVisibleColumns(), true);
 
-		var position = cursor.getViewPositionUp(selection.positionLineNumber, selection.positionColumn, cursor.getLeftoverVisibleColumns(), 1);
+		var position = cursor.getViewPositionUp(selection.positionLineNumber, selection.positionColumn, cursor.getLeftoverVisibleColumns(), 1, false);
 		ctx.cursorPositionChangeReason = 'explicit';
 		cursor.moveViewPosition(true, position.lineNumber, position.column, position.leftoverVisibleColumns, true);
 
@@ -756,7 +756,7 @@ export class OneCursorOp {
 			viewEndColumn = viewEndMaxColumn;
 		} else {
 			// Expand selection with one more line down
-			let moveResult = cursor.getViewPositionDown(viewEndLineNumber, viewEndColumn, 0, 1);
+			let moveResult = cursor.getViewPositionDown(viewEndLineNumber, viewEndColumn, 0, 1, true);
 			viewEndLineNumber = moveResult.lineNumber;
 			viewEndColumn = cursor.getViewLineMaxColumn(viewEndLineNumber);
 		}
@@ -1662,12 +1662,12 @@ class CursorHelper {
 		return this.moveHelper.getRightOfPosition(model, lineNumber, column);
 	}
 
-	public getPositionUp(model:ICursorMoveHelperModel, lineNumber:number, column:number, leftoverVisibleColumns:number, count:number): IMoveResult {
-		return this.moveHelper.getPositionUp(model, lineNumber, column, leftoverVisibleColumns, count);
+	public getPositionUp(model:ICursorMoveHelperModel, lineNumber:number, column:number, leftoverVisibleColumns:number, count:number, allowMoveOnFirstLine:boolean): IMoveResult {
+		return this.moveHelper.getPositionUp(model, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnFirstLine);
 	}
 
-	public getPositionDown(model:ICursorMoveHelperModel, lineNumber:number, column:number, leftoverVisibleColumns:number, count:number): IMoveResult {
-		return this.moveHelper.getPositionDown(model, lineNumber, column, leftoverVisibleColumns, count);
+	public getPositionDown(model:ICursorMoveHelperModel, lineNumber:number, column:number, leftoverVisibleColumns:number, count:number, allowMoveOnLastLine:boolean): IMoveResult {
+		return this.moveHelper.getPositionDown(model, lineNumber, column, leftoverVisibleColumns, count, allowMoveOnLastLine);
 	}
 
 	public getColumnAtBeginningOfLine(model:ICursorMoveHelperModel, lineNumber:number, column:number): number {
