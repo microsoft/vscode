@@ -649,6 +649,8 @@ export interface ITaskSupport {
 	clean?():TPromise<void>;
 }
 
+export type CharacterPair = [string, string];
+
 export interface IAutoClosingPairConditional extends IAutoClosingPair {
 	notIn?: string[];
 }

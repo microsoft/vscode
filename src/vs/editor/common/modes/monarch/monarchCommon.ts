@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Bracket, IAutoClosingPairConditional, ISuggestion} from 'vs/editor/common/modes';
-import {CharacterPair} from 'vs/editor/common/modes/supports/richEditBrackets';
+import {CharacterPair, Bracket, IAutoClosingPairConditional, ISuggestion} from 'vs/editor/common/modes';
 
 /*
  * This module exports common types and functionality shared between

@@ -10,10 +10,9 @@
  */
 
 import * as objects from 'vs/base/common/objects';
-import {Bracket, IAutoClosingPairConditional} from 'vs/editor/common/modes';
+import {Bracket, IAutoClosingPairConditional, CharacterPair} from 'vs/editor/common/modes';
 import * as monarchCommon from 'vs/editor/common/modes/monarch/monarchCommon';
 import {ILanguage, ILanguageBracket} from 'vs/editor/common/modes/monarch/monarchTypes';
-import {CharacterPair} from 'vs/editor/common/modes/supports/richEditBrackets';
 
 /*
  * Type helpers

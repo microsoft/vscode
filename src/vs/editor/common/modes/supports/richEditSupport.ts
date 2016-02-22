@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ICommentsConfiguration, IRichEditBrackets, IRichEditCharacterPair, IRichEditOnEnter, IRichEditSupport} from 'vs/editor/common/modes';
+import {ICommentsConfiguration, IRichEditBrackets, IRichEditCharacterPair, IRichEditOnEnter, IRichEditSupport, CharacterPair} from 'vs/editor/common/modes';
 import {NullMode} from 'vs/editor/common/modes/nullMode';
 import {CharacterPairSupport} from 'vs/editor/common/modes/supports/characterPair';
 import {ICharacterPairContribution} from 'vs/editor/common/modes/supports/characterPair';
 import {BracketElectricCharacterSupport, IBracketElectricCharacterContribution} from 'vs/editor/common/modes/supports/electricCharacter';
 import {IIndentationRules, IOnEnterRegExpRules, IOnEnterSupportOptions, OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
-import {CharacterPair, RichEditBrackets} from 'vs/editor/common/modes/supports/richEditBrackets';
+import {RichEditBrackets} from 'vs/editor/common/modes/supports/richEditBrackets';
 
 export interface CommentRule {
 	lineComment?: string;
@@ -82,22 +82,18 @@ export class RichEditSupport implements IRichEditSupport {
 		// on enter
 		let onEnter: IOnEnterSupportOptions = {};
 		let empty = true;
-		let {brackets, indentationRules, onEnterRules} = conf;
 
-		if (brackets) {
+		if (conf.brackets) {
 			empty = false;
-			onEnter.brackets = brackets.map(pair => {
-				let [open, close] = pair;
-				return { open, close };
-			});
+			onEnter.brackets = conf.brackets;
 		}
-		if (indentationRules) {
+		if (conf.indentationRules) {
 			empty = false;
-			onEnter.indentationRules = indentationRules;
+			onEnter.indentationRules = conf.indentationRules;
 		}
-		if (onEnterRules) {
+		if (conf.onEnterRules) {
 			empty = false;
-			onEnter.regExpRules = <any>onEnterRules;
+			onEnter.regExpRules = conf.onEnterRules;
 		}
 
 		if (!empty) {

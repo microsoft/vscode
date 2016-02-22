@@ -9,8 +9,6 @@ import {Range} from 'vs/editor/common/core/range';
 import {IRichEditBracket} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 
-export type CharacterPair = [string, string];
-
 interface ISimpleInternalBracket {
 	open: string;
 	close: string;
@@ -25,7 +23,7 @@ export class RichEditBrackets implements modes.IRichEditBrackets {
 	public textIsBracket: {[text:string]:IRichEditBracket;};
 	public textIsOpenBracket: {[text:string]:boolean;};
 
-	constructor(modeId: string, brackets: CharacterPair[]) {
+	constructor(modeId: string, brackets: modes.CharacterPair[]) {
 		this.brackets = brackets.map((b) => {
 			return {
 				modeId: modeId,
