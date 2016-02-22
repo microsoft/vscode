@@ -442,8 +442,14 @@ export class OneCursor {
 	}
 
 	// -- model
+	public getLineContent(lineNumber:number): string {
+		return this.model.getLineContent(lineNumber);
+	}
 	public findWord(position:editorCommon.IEditorPosition, preference:string, skipSyntaxTokens?:boolean): editorCommon.IWordRange {
 		return this.helper.findWord(position, preference, skipSyntaxTokens);
+	}
+	public findPreviousWordOnLine(position:editorCommon.IEditorPosition): editorCommon.IWordRange {
+		return this.helper.findPreviousWordOnLine(position);
 	}
 	public getLeftOfPosition(lineNumber:number, column:number): editorCommon.IPosition {
 		return this.helper.getLeftOfPosition(this.model, lineNumber, column);
@@ -1437,38 +1443,61 @@ export class OneCursorOp {
 		return true;
 	}
 
+	private static _findLastNonWhitespaceChar(str:string, startIndex:number): number {
+		for (let chIndex = startIndex; chIndex >= 0; chIndex--) {
+			let ch = str.charAt(chIndex);
+			if (ch !== ' ' && ch !== '\t') {
+				return chIndex;
+			}
+		}
+		return -1;
+	}
+
+	private static deleteWordLeftWhitespace(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
+		let position = cursor.getPosition();
+		let lineContent = cursor.getLineContent(position.lineNumber);
+		let startIndex = position.column - 2;
+		let firstNonWhitespace = this._findLastNonWhitespaceChar(lineContent, startIndex);
+		if (firstNonWhitespace + 1 < startIndex) {
+			// bingo
+			ctx.executeCommand = new ReplaceCommand(new Range(position.lineNumber, firstNonWhitespace + 2, position.lineNumber, position.column), '');
+			return true;
+		}
+		return false;
+	}
+
 	public static deleteWordLeft(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
 		if (this._autoClosingPairDelete(cursor, ctx)) {
 			// This was a case for an auto-closing pair delete
 			return true;
 		}
 
-		var selection = cursor.getSelection();
+		let selection = cursor.getSelection();
 
 		if (selection.isEmpty()) {
 			let position = cursor.getPosition();
 
-			var lineNumber = position.lineNumber;
-			var column = position.column;
+			let lineNumber = position.lineNumber;
+			let column = position.column;
 
 			if (lineNumber === 1 && column === 1) {
 				// Ignore deleting at beginning of file
 				return true;
 			}
 
-			// extend selection to the left until start of word
-			var word = cursor.findWord(position, 'left', true);
-			if (word) {
-				if (word.end + 1 < column) {
-					column = word.end + 1;
-				} else {
-					column = word.start + 1;
-				}
+			if (this.deleteWordLeftWhitespace(cursor, ctx)) {
+				return true;
+			}
+
+			let prevWordOnLine = cursor.findPreviousWordOnLine(position);
+
+			if (prevWordOnLine) {
+				column = prevWordOnLine.start + 1;
 			} else {
 				column = 1;
 			}
 
-			var deleteSelection = new Range(lineNumber, column, lineNumber, position.column);
+			let deleteSelection = new Range(lineNumber, column, lineNumber, position.column);
 			if (!deleteSelection.isEmpty()) {
 				ctx.executeCommand = new ReplaceCommand(deleteSelection, '');
 				return true;
@@ -1746,7 +1775,106 @@ class CursorHelper {
 
 		return null;
 	}
+
+	public findPreviousWordOnLine(_position:editorCommon.IEditorPosition): editorCommon.IWordRange {
+		let position = this.model.validatePosition(_position);
+		let wordSeparators = getMapForWordSeparators(this.configuration.editor.wordSeparators);
+		let lineContent = this.model.getLineContent(position.lineNumber);
+		let wordType = W_NONE;
+		for (let chIndex = position.column - 2; chIndex >= 0; chIndex--) {
+			let chCode = lineContent.charCodeAt(chIndex);
+			let chClass:CharacterClass = (wordSeparators[chCode] || CharacterClass.Regular);
+
+			if (chClass === CH_REGULAR) {
+				if (wordType === W_SEPARATOR) {
+					return { start: chIndex + 1, end: this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1) };
+				}
+				wordType = W_REGULAR;
+			} else if (chClass === CH_WORD_SEPARATOR) {
+				if (wordType === W_REGULAR) {
+					return { start: chIndex + 1, end: this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1) };
+				}
+				wordType = W_SEPARATOR;
+			} else if (chClass === CH_WHITESPACE) {
+				if (wordType !== W_NONE) {
+					return { start: chIndex + 1, end: this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1) };
+				}
+			}
+		}
+	}
+
+	private _findEndOfWord(lineContent:string, wordSeparators:CharacterClass[], wordType:WordType, startIndex:number): number {
+		let len = lineContent.length;
+		for (let chIndex = startIndex; chIndex < len; chIndex++) {
+			let chCode = lineContent.charCodeAt(chIndex);
+			let chClass:CharacterClass = (wordSeparators[chCode] || CharacterClass.Regular);
+
+			if (chClass === CH_WHITESPACE) {
+				return chIndex;
+			}
+			if (wordType === W_REGULAR && chClass === CH_WORD_SEPARATOR) {
+				return chIndex;
+			}
+			if (wordType === W_SEPARATOR && chClass === CH_REGULAR) {
+				return chIndex;
+			}
+		}
+		return len;
+	}
 }
+
+enum WordType {
+	None = 0,
+	Regular = 1,
+	Separator = 2
+};
+
+enum CharacterClass {
+	Regular = 0,
+	Whitespace = 1,
+	WordSeparator = 2
+};
+
+const CH_REGULAR = CharacterClass.Regular;
+const CH_WHITESPACE = CharacterClass.Whitespace;
+const CH_WORD_SEPARATOR = CharacterClass.WordSeparator;
+
+const W_NONE = WordType.None;
+const W_REGULAR = WordType.Regular;
+const W_SEPARATOR = WordType.Separator;
+
+function once<T, R>(keyFn:(input:T)=>string, computeFn:(input:T)=>R):(input:T)=>R {
+	let cache: {[key:string]:R;} = {};
+	return (input:T):R => {
+		let key = keyFn(input);
+		if (!cache.hasOwnProperty(key)) {
+			cache[key] = computeFn(input);
+		}
+		return cache[key];
+	};
+}
+
+var getMapForWordSeparators = once<string,CharacterClass[]>(
+	(input) => input,
+	(input) => {
+
+		let r:CharacterClass[] = [];
+
+		// Make array fast for ASCII text
+		for (let chCode = 0; chCode < 256; chCode++) {
+			r[chCode] = CharacterClass.Regular;
+		}
+
+		for (let i = 0, len = input.length; i < len; i++) {
+			r[input.charCodeAt(i)] = CharacterClass.WordSeparator;
+		}
+
+		r[' '.charCodeAt(0)] = CharacterClass.Whitespace;
+		r['\t'.charCodeAt(0)] = CharacterClass.Whitespace;
+
+		return r;
+	}
+);
 
 class Utils {
 

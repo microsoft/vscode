@@ -590,8 +590,8 @@ suite('Editor Controller - Cursor', () => {
 	test('delete word left for caret at end of whitespace', () => {
 		moveTo(thisCursor, 3, 11);
 		deleteWordLeft(thisCursor);
-		assert.equal(thisModel.getLineContent(3), '    ThirdLine💩');
-		cursorEqual(thisCursor, 3, 10);
+		assert.equal(thisModel.getLineContent(3), '    Line💩');
+		cursorEqual(thisCursor, 3, 5);
 	});
 
 	test('delete word left for caret just behind a word', () => {
@@ -1088,6 +1088,55 @@ suite('Editor Controller - Regression tests', () => {
 			assert.equal(model.getLineContent(2), '2def');
 		});
 	});
+
+	test('issue #832: deleteWordLeft', () => {
+		usingCursor({
+			text: [
+				'   /* Just some text a+= 3 +5 */  '
+			],
+			mode: null,
+			config: null
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 37, false);
+
+			deleteWordLeft(cursor);
+			assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +5 */');
+
+			deleteWordLeft(cursor);
+			assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +5 ');
+
+			deleteWordLeft(cursor);
+			assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +');
+
+			deleteWordLeft(cursor);
+			assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 ');
+
+			deleteWordLeft(cursor);
+			assert.equal(model.getLineContent(1), '   /* Just some text a+= ');
+
+			deleteWordLeft(cursor);
+			assert.equal(model.getLineContent(1), '   /* Just some text a');
+
+			deleteWordLeft(cursor);
+			assert.equal(model.getLineContent(1), '   /* Just some text ');
+
+			deleteWordLeft(cursor);
+			assert.equal(model.getLineContent(1), '   /* Just some ');
+
+			deleteWordLeft(cursor);
+			assert.equal(model.getLineContent(1), '   /* Just ');
+
+			deleteWordLeft(cursor);
+			assert.equal(model.getLineContent(1), '   /* ');
+
+			deleteWordLeft(cursor);
+			assert.equal(model.getLineContent(1), '   ');
+
+			deleteWordLeft(cursor);
+			assert.equal(model.getLineContent(1), '');
+		});
+	});
+
 });
 
 suite('Editor Controller - Cursor Configuration', () => {
