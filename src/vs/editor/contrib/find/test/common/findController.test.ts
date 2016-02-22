@@ -88,4 +88,29 @@ suite('FindController', () => {
 			nextMatchFindAction.dispose();
 		});
 	});
+
+	test('issue #3090: F3 does not loop with two matches on a single line', () => {
+		withMockCodeEditor([
+			'import nls = require(\'vs/nls\');'
+		], {}, (editor, cursor) => {
+
+			// The cursor is at the very top, of the file, at the first ABC
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let nextMatchFindAction = new NextMatchFindAction({id:'',label:''}, editor, null);
+
+			editor.setPosition({
+				lineNumber: 1,
+				column: 9
+			});
+
+			nextMatchFindAction.run();
+			assert.deepEqual(fromRange(editor.getSelection()), [1, 26, 1, 29]);
+
+			nextMatchFindAction.run();
+			assert.deepEqual(fromRange(editor.getSelection()), [1, 8, 1, 11]);
+
+			findController.dispose();
+			nextMatchFindAction.dispose();
+		});
+	});
 });

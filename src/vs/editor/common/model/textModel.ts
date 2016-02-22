@@ -880,7 +880,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			return r;
 		}
 
-		for (var i = 1; i < lineCount; i++) {
+		for (var i = 1; i <= lineCount; i++) {
 			var lineIndex = (startLineNumber + i - 1) % lineCount;
 			text = this._lines[lineIndex].text;
 			r = this._findMatchInLine(regex, text, lineIndex + 1, 0);
@@ -915,7 +915,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			return r;
 		}
 
-		for (var i = 1; i < lineCount; i++) {
+		for (var i = 1; i <= lineCount; i++) {
 			var lineIndex = (lineCount + startLineNumber - i - 1) % lineCount;
 			text = this._lines[lineIndex].text;
 			r = this._findLastMatchInLine(regex, text, lineIndex + 1);
