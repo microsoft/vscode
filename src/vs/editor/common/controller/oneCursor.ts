@@ -841,43 +841,52 @@ export class OneCursorOp {
 		// TODO@Alex -> select in editable range
 
 		let validatedPosition = cursor.validatePosition(position);
-		let validatedViewPosition: editorCommon.IPosition;
-		if (viewPosition) {
-			validatedViewPosition = cursor.validateViewPosition(viewPosition.lineNumber, viewPosition.column, validatedPosition);
-		} else {
-			validatedViewPosition = cursor.convertModelPositionToViewPosition(validatedPosition.lineNumber, validatedPosition.column);
-		}
-
-		let nextLineViewPosition: editorCommon.IPosition;
-		if (validatedViewPosition.lineNumber === cursor.getViewLineCount()) {
-			nextLineViewPosition = {
-				lineNumber: validatedViewPosition.lineNumber,
-				column: cursor.getViewLineMaxColumn(validatedViewPosition.lineNumber)
-			};
-		} else {
-			nextLineViewPosition = {
-				lineNumber: validatedViewPosition.lineNumber + 1,
-				column: 1
-			};
-		}
-
-		let viewLineNumber:number, viewColumn:number;
-		if (!inSelectionMode || !cursor.hasSelection()) {
-			let viewSelectionStartRange = new Range(validatedViewPosition.lineNumber, 1, nextLineViewPosition.lineNumber, nextLineViewPosition.column);
-			let r1 = cursor.convertViewToModelPosition(viewSelectionStartRange.startLineNumber, viewSelectionStartRange.startColumn);
-			let r2 = cursor.convertViewToModelPosition(viewSelectionStartRange.endLineNumber, viewSelectionStartRange.endColumn);
-			cursor.setSelectionStart(new Range(r1.lineNumber, r1.column, r2.lineNumber, r2.column), viewSelectionStartRange);
-			viewLineNumber = viewSelectionStartRange.endLineNumber;
-			viewColumn = viewSelectionStartRange.endColumn;
-		} else {
-			viewLineNumber = validatedViewPosition.lineNumber;
-			viewColumn = 1;
-		}
-
 		ctx.cursorPositionChangeReason = 'explicit';
 		ctx.shouldRevealHorizontal = false;
-		cursor.moveViewPosition(cursor.hasSelection(), viewLineNumber, viewColumn, 0, false);
-		return true;
+
+		if (!inSelectionMode || !cursor.hasSelection()) {
+			let nextLinePosition: editorCommon.IPosition;
+			if (validatedPosition.lineNumber === cursor.model.getLineCount()) {
+				nextLinePosition = {
+					lineNumber: validatedPosition.lineNumber,
+					column: cursor.model.getLineMaxColumn(validatedPosition.lineNumber)
+				};
+			} else {
+				nextLinePosition = {
+					lineNumber: validatedPosition.lineNumber + 1,
+					column: 1
+				};
+			}
+			let selectionStartRange = new Range(validatedPosition.lineNumber, 1, nextLinePosition.lineNumber, nextLinePosition.column);
+			let r1 = cursor.convertModelPositionToViewPosition(validatedPosition.lineNumber, 1);
+			let r2 = cursor.convertModelPositionToViewPosition(nextLinePosition.lineNumber, nextLinePosition.column);
+			cursor.setSelectionStart(selectionStartRange, new Range(r1.lineNumber, r1.column, r2.lineNumber, r2.column));
+			cursor.moveModelPosition(cursor.hasSelection(), selectionStartRange.endLineNumber, selectionStartRange.endColumn, 0, false);
+			return true;
+		} else {
+			if (validatedPosition.lineNumber !== cursor.getSelectionStart().getStartPosition().lineNumber) {
+				let validatedViewPosition: editorCommon.IPosition;
+				if (viewPosition) {
+					validatedViewPosition = cursor.validateViewPosition(viewPosition.lineNumber, viewPosition.column, validatedPosition);
+				} else {
+					validatedViewPosition = cursor.convertModelPositionToViewPosition(validatedPosition.lineNumber, validatedPosition.column);
+				}
+				let column = validatedViewPosition.column;
+				if (validatedViewPosition.lineNumber !== cursor.getViewLineCount() || validatedViewPosition.column !== cursor.getViewLineMaxColumn(validatedViewPosition.lineNumber)) {
+					column = 1;
+				}
+				cursor.moveViewPosition(cursor.hasSelection(), validatedViewPosition.lineNumber, column, 0, false);
+			} else {
+				let column = validatedPosition.column;
+				if (validatedPosition.lineNumber !== cursor.model.getLineCount() || validatedPosition.column !== cursor.model.getLineMaxColumn(validatedPosition.lineNumber)) {
+					column = 1;
+				}
+				cursor.moveModelPosition(cursor.hasSelection(), validatedPosition.lineNumber, column, 0, false);
+			}
+
+			return true;
+		}
+
 	}
 
 	public static word(cursor:OneCursor, inSelectionMode: boolean, position: editorCommon.IPosition, preference: string, ctx: IOneCursorOperationContext): boolean {
