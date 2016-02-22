@@ -21,8 +21,7 @@ import model = require('vs/workbench/parts/debug/common/debugModel');
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
-
-import {clipboard} from 'electron';
+import { clipboard } from 'electron';
 import IDebugService = debug.IDebugService;
 
 export class AbstractDebugAction extends actions.Action {
@@ -522,7 +521,7 @@ export class RunToCursorAction extends EditorAction {
 	}
 
 	public getGroupId(): string {
-		return '1_debug/1_continue';
+		return '5_debug/1_run_to_cursor';
 	}
 
 	public shouldShowInContextMenu(): boolean {
@@ -570,7 +569,7 @@ export class SelectionToWatchExpressionsAction extends EditorAction {
 	}
 
 	public getGroupId(): string {
-		return '1_debug/3_selection_to_watch';
+		return '5_debug/3_selection_to_watch';
 	}
 
 	public shouldShowInContextMenu(): boolean {
@@ -594,7 +593,7 @@ export class SelectionToReplAction extends EditorAction {
 	}
 
 	public getGroupId(): string {
-		return '1_debug/2_selection_to_repl';
+		return '5_debug/2_selection_to_repl';
 	}
 
 	public shouldShowInContextMenu(): boolean {
