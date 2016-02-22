@@ -124,7 +124,7 @@ export class FindModelBoundToEditorModel {
 		let findMatches = this._findMatches(findScope, MATCHES_LIMIT);
 		this._decorations.set(findMatches, findScope);
 
-		this._state.change({ matchesCount: findMatches.length }, false);
+		this._state.changeMatchInfo(this._decorations.getCurrentMatchesPosition(this._editor.getSelection()), this._decorations.getCount());
 
 		if (moveCursor) {
 			this._moveToNextMatch(this._decorations.getStartPosition());
@@ -205,7 +205,7 @@ export class FindModelBoundToEditorModel {
 		}
 
 		let matchesPosition = this._decorations.setCurrentFindMatch(prevMatch);
-		this._state.change({ matchesPosition: matchesPosition }, false);
+		this._state.changeMatchInfo(matchesPosition, this._decorations.getCount());
 		this._editor.setSelection(prevMatch);
 		this._editor.revealRangeInCenterIfOutsideViewport(prevMatch);
 	}
@@ -273,7 +273,7 @@ export class FindModelBoundToEditorModel {
 		}
 
 		let matchesPosition = this._decorations.setCurrentFindMatch(nextMatch);
-		this._state.change({ matchesPosition: matchesPosition }, false);
+		this._state.changeMatchInfo(matchesPosition, this._decorations.getCount());
 		this._editor.setSelection(nextMatch);
 		this._editor.revealRangeInCenterIfOutsideViewport(nextMatch);
 	}
