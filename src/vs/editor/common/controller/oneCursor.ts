@@ -465,6 +465,9 @@ export class OneCursor {
 	}
 
 	// -- view
+	public getViewLineCount(): number {
+		return this.viewModelHelper.viewModel.getLineCount();
+	}
 	public getViewLineMaxColumn(lineNumber:number): number {
 		return this.viewModelHelper.viewModel.getLineMaxColumn(lineNumber);
 	}
@@ -823,30 +826,38 @@ export class OneCursorOp {
 	public static line(cursor:OneCursor, inSelectionMode: boolean, position:editorCommon.IPosition, viewPosition:editorCommon.IPosition, ctx: IOneCursorOperationContext): boolean {
 		// TODO@Alex -> select in editable range
 
-		var validatedPosition = cursor.validatePosition(position);
-		var validatedViewPosition: editorCommon.IPosition;
+		let validatedPosition = cursor.validatePosition(position);
+		let validatedViewPosition: editorCommon.IPosition;
 		if (viewPosition) {
 			validatedViewPosition = cursor.validateViewPosition(viewPosition.lineNumber, viewPosition.column, validatedPosition);
 		} else {
 			validatedViewPosition = cursor.convertModelPositionToViewPosition(validatedPosition.lineNumber, validatedPosition.column);
 		}
 
-		var viewLineNumber:number, viewColumn:number;
+		let nextLineViewPosition: editorCommon.IPosition;
+		if (validatedViewPosition.lineNumber === cursor.getViewLineCount()) {
+			nextLineViewPosition = {
+				lineNumber: validatedViewPosition.lineNumber,
+				column: cursor.getViewLineMaxColumn(validatedViewPosition.lineNumber)
+			};
+		} else {
+			nextLineViewPosition = {
+				lineNumber: validatedViewPosition.lineNumber + 1,
+				column: 1
+			};
+		}
 
+		let viewLineNumber:number, viewColumn:number;
 		if (!inSelectionMode || !cursor.hasSelection()) {
-			var viewSelectionStartRange = new Range(validatedViewPosition.lineNumber, 1, validatedViewPosition.lineNumber, cursor.getViewLineMaxColumn(validatedViewPosition.lineNumber));
-			var r1 = cursor.convertViewToModelPosition(viewSelectionStartRange.startLineNumber, viewSelectionStartRange.startColumn);
-			var r2 = cursor.convertViewToModelPosition(viewSelectionStartRange.endLineNumber, viewSelectionStartRange.endColumn);
+			let viewSelectionStartRange = new Range(validatedViewPosition.lineNumber, 1, nextLineViewPosition.lineNumber, nextLineViewPosition.column);
+			let r1 = cursor.convertViewToModelPosition(viewSelectionStartRange.startLineNumber, viewSelectionStartRange.startColumn);
+			let r2 = cursor.convertViewToModelPosition(viewSelectionStartRange.endLineNumber, viewSelectionStartRange.endColumn);
 			cursor.setSelectionStart(new Range(r1.lineNumber, r1.column, r2.lineNumber, r2.column), viewSelectionStartRange);
 			viewLineNumber = viewSelectionStartRange.endLineNumber;
 			viewColumn = viewSelectionStartRange.endColumn;
 		} else {
 			viewLineNumber = validatedViewPosition.lineNumber;
-			if (validatedPosition.isBeforeOrEqual(cursor.getSelectionStart().getStartPosition())) {
-				viewColumn = 1;
-			} else {
-				viewColumn = cursor.getViewLineMaxColumn(viewLineNumber);
-			}
+			viewColumn = 1;
 		}
 
 		ctx.cursorPositionChangeReason = 'explicit';
