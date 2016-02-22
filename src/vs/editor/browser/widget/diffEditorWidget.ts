@@ -778,6 +778,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		clonedOptions.scrollbar.vertical = 'visible';
 		clonedOptions.overviewRulerLanes = 1;
 		clonedOptions.theme = this._theme + ' original-in-monaco-diff-editor';
+		clonedOptions.folding = false;
 		return clonedOptions;
 	}
 
@@ -790,6 +791,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		clonedOptions.scrollbar.vertical = 'visible';
 		clonedOptions.scrollbar.verticalHasArrows = false;
 		clonedOptions.theme = this._theme + ' modified-in-monaco-diff-editor';
+		clonedOptions.folding = false;
 		return clonedOptions;
 	}
 
