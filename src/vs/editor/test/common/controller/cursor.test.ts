@@ -1098,45 +1098,45 @@ suite('Editor Controller - Regression tests', () => {
 			config: null
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 37, false);
-
-			deleteWordLeft(cursor);
-			assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +5 */');
-
-			deleteWordLeft(cursor);
-			assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +5 ');
-
-			deleteWordLeft(cursor);
-			assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +');
-
-			deleteWordLeft(cursor);
-			assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 ');
-
-			deleteWordLeft(cursor);
-			assert.equal(model.getLineContent(1), '   /* Just some text a+= ');
-
-			deleteWordLeft(cursor);
-			assert.equal(model.getLineContent(1), '   /* Just some text a');
-
-			deleteWordLeft(cursor);
-			assert.equal(model.getLineContent(1), '   /* Just some text ');
-
-			deleteWordLeft(cursor);
-			assert.equal(model.getLineContent(1), '   /* Just some ');
-
-			deleteWordLeft(cursor);
-			assert.equal(model.getLineContent(1), '   /* Just ');
-
-			deleteWordLeft(cursor);
-			assert.equal(model.getLineContent(1), '   /* ');
-
-			deleteWordLeft(cursor);
-			assert.equal(model.getLineContent(1), '   ');
-
-			deleteWordLeft(cursor);
-			assert.equal(model.getLineContent(1), '');
+			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +5 */', '001');
+			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +5 ', '002');
+			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +', '003');
+			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 ', '004');
+			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a+= ', '005');
+			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a', '006');
+			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text ', '007');
+			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some ', '008');
+			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just ', '009');
+			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   /* ', '010');
+			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   ', '011');
+			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '', '012');
 		});
 	});
 
+	test('issue #832: deleteWordRight', () => {
+		usingCursor({
+			text: [
+				'   /* Just some text a+= 3 +5-3 */  '
+			],
+			mode: null,
+			config: null
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 1, false);
+			deleteWordRight(cursor); assert.equal(model.getLineContent(1), '/* Just some text a+= 3 +5-3 */  ', '001');
+			deleteWordRight(cursor); assert.equal(model.getLineContent(1), ' Just some text a+= 3 +5-3 */  ', '002');
+			deleteWordRight(cursor); assert.equal(model.getLineContent(1), ' some text a+= 3 +5-3 */  ', '003');
+			deleteWordRight(cursor); assert.equal(model.getLineContent(1), ' text a+= 3 +5-3 */  ', '004');
+			deleteWordRight(cursor); assert.equal(model.getLineContent(1), ' a+= 3 +5-3 */  ', '005');
+			deleteWordRight(cursor); assert.equal(model.getLineContent(1), '+= 3 +5-3 */  ', '006');
+			deleteWordRight(cursor); assert.equal(model.getLineContent(1), ' 3 +5-3 */  ', '007');
+			deleteWordRight(cursor); assert.equal(model.getLineContent(1), ' +5-3 */  ', '008');
+			deleteWordRight(cursor); assert.equal(model.getLineContent(1), '5-3 */  ', '009');
+			deleteWordRight(cursor); assert.equal(model.getLineContent(1), '-3 */  ', '010');
+			deleteWordRight(cursor); assert.equal(model.getLineContent(1), '3 */  ', '011');
+			deleteWordRight(cursor); assert.equal(model.getLineContent(1), ' */  ', '012');
+			deleteWordRight(cursor); assert.equal(model.getLineContent(1), '  ', '013');
+		});
+	});
 });
 
 suite('Editor Controller - Cursor Configuration', () => {

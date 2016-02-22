@@ -451,6 +451,9 @@ export class OneCursor {
 	public findPreviousWordOnLine(position:editorCommon.IEditorPosition): editorCommon.IWordRange {
 		return this.helper.findPreviousWordOnLine(position);
 	}
+	public findNextWordOnLine(position:editorCommon.IEditorPosition): editorCommon.IWordRange {
+		return this.helper.findNextWordOnLine(position);
+	}
 	public getLeftOfPosition(lineNumber:number, column:number): editorCommon.IPosition {
 		return this.helper.getLeftOfPosition(this.model, lineNumber, column);
 	}
@@ -1457,10 +1460,10 @@ export class OneCursorOp {
 		let position = cursor.getPosition();
 		let lineContent = cursor.getLineContent(position.lineNumber);
 		let startIndex = position.column - 2;
-		let firstNonWhitespace = this._findLastNonWhitespaceChar(lineContent, startIndex);
-		if (firstNonWhitespace + 1 < startIndex) {
+		let lastNonWhitespace = this._findLastNonWhitespaceChar(lineContent, startIndex);
+		if (lastNonWhitespace + 1 < startIndex) {
 			// bingo
-			ctx.executeCommand = new ReplaceCommand(new Range(position.lineNumber, firstNonWhitespace + 2, position.lineNumber, position.column), '');
+			ctx.executeCommand = new ReplaceCommand(new Range(position.lineNumber, lastNonWhitespace + 2, position.lineNumber, position.column), '');
 			return true;
 		}
 		return false;
@@ -1535,6 +1538,30 @@ export class OneCursorOp {
 		return true;
 	}
 
+	private static _findFirstNonWhitespaceChar(str:string, startIndex:number): number {
+		let len = str.length;
+		for (let chIndex = startIndex; chIndex < len; chIndex++) {
+			let ch = str.charAt(chIndex);
+			if (ch !== ' ' && ch !== '\t') {
+				return chIndex;
+			}
+		}
+		return len;
+	}
+
+	private static deleteWordRightWhitespace(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
+		let position = cursor.getPosition();
+		let lineContent = cursor.getLineContent(position.lineNumber);
+		let startIndex = position.column - 1;
+		let firstNonWhitespace = this._findFirstNonWhitespaceChar(lineContent, startIndex);
+		if (startIndex + 1 < firstNonWhitespace) {
+			// bingo
+			ctx.executeCommand = new ReplaceCommand(new Range(position.lineNumber, position.column, position.lineNumber, firstNonWhitespace + 1), '');
+			return true;
+		}
+		return false;
+	}
+
 	public static deleteWordRight(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
 
 		var selection = cursor.getSelection();
@@ -1552,15 +1579,16 @@ export class OneCursorOp {
 				return true;
 			}
 
-			var word = cursor.findWord(new Position(lineNumber, column), 'right', true);
-			if (word) {
-				if (word.start + 1 > column) {
-					column = word.start + 1;
-				} else {
-					column = word.end + 1;
-				}
+			if (this.deleteWordRightWhitespace(cursor, ctx)) {
+				return true;
+			}
+
+			let nextWordOnLine = cursor.findNextWordOnLine(position);
+
+			if (nextWordOnLine) {
+				column = nextWordOnLine.end + 1;
 			} else {
-				column = maxColumn;
+				column = 1;
 			}
 
 			var deleteSelection = new Range(lineNumber, column, lineNumber, position.column);
@@ -1801,6 +1829,7 @@ class CursorHelper {
 				}
 			}
 		}
+		return null;
 	}
 
 	private _findEndOfWord(lineContent:string, wordSeparators:CharacterClass[], wordType:WordType, startIndex:number): number {
@@ -1820,6 +1849,53 @@ class CursorHelper {
 			}
 		}
 		return len;
+	}
+
+	public findNextWordOnLine(_position:editorCommon.IEditorPosition): editorCommon.IWordRange {
+		let position = this.model.validatePosition(_position);
+		let wordSeparators = getMapForWordSeparators(this.configuration.editor.wordSeparators);
+		let lineContent = this.model.getLineContent(position.lineNumber);
+		let wordType = W_NONE;
+
+		for (let chIndex = position.column - 1, len = lineContent.length; chIndex < len; chIndex++) {
+			let chCode = lineContent.charCodeAt(chIndex);
+			let chClass:CharacterClass = (wordSeparators[chCode] || CharacterClass.Regular);
+
+			if (chClass === CH_REGULAR) {
+				if (wordType === W_SEPARATOR) {
+					return { start: this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), end: chIndex };
+				}
+				wordType = W_REGULAR;
+			} else if (chClass === CH_WORD_SEPARATOR) {
+				if (wordType === W_REGULAR) {
+					return { start: this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), end: chIndex };
+				}
+				wordType = W_SEPARATOR;
+			} else if (chClass === CH_WHITESPACE) {
+				if (wordType !== W_NONE) {
+					return { start: this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), end: chIndex };
+				}
+			}
+		}
+		return null;
+	}
+
+	private _findStartOfWord(lineContent:string, wordSeparators:CharacterClass[], wordType:WordType, startIndex:number): number {
+		for (let chIndex = startIndex; chIndex >= 0; chIndex--) {
+			let chCode = lineContent.charCodeAt(chIndex);
+			let chClass:CharacterClass = (wordSeparators[chCode] || CharacterClass.Regular);
+
+			if (chClass === CH_WHITESPACE) {
+				return chIndex;
+			}
+			if (wordType === W_REGULAR && chClass === CH_WORD_SEPARATOR) {
+				return chIndex;
+			}
+			if (wordType === W_SEPARATOR && chClass === CH_REGULAR) {
+				return chIndex;
+			}
+		}
+		return -1;
 	}
 }
 
