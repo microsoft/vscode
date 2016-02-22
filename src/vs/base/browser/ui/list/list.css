@@ -45,14 +45,14 @@
 /* Hover */
 .monaco-list-row:hover { background-color: #F0F0F0; }
 .vs-dark .monaco-list-row:hover { background-color: rgba(255, 255, 255, 0.08); }
-.hc-black .monaco-list-row:hover { border: 1px dashed #DF740C; }
+.hc-black .monaco-list-row:hover { border: 1px dashed #f38518; }
 
 /* Selection */
 .monaco-list-row.selected { background-color: #4FA7FF; color: white; }
 .vs-dark .monaco-list-row.selected { background-color: #0E639C; color: white; }
-.hc-black .monaco-list-row.selected { border: 1px solid #DF740C; }
+.hc-black .monaco-list-row.selected { border: 1px solid #f38518; }
 
 /* Focus */
 .monaco-list-row.focused { background-color: #DCEBFC; }
 .vs-dark .monaco-list-row.focused { background-color: #073655; }
-.hc-black .monaco-list-row.focused { border: 1px dotted #DF740C; }
+.hc-black .monaco-list-row.focused { border: 1px dotted #f38518; }

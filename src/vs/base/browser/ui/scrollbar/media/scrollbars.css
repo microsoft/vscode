@@ -90,13 +90,13 @@
 .hc-black .monaco-scrollable-element > .scrollbar > .slider {
 	background: none;
 	border: 20px solid #6FC3DF;
-	opacity: .3;
+	opacity: .4;
 }
 
 .hc-black .monaco-scrollable-element > .scrollbar > .slider:hover {
-	opacity: .35;
+	opacity: .85;
 }
 
 .hc-black .monaco-scrollable-element > .scrollbar > .slider.active {
-	opacity: .4;
+	opacity: .9;
 }
