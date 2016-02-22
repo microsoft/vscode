@@ -1165,6 +1165,36 @@ suite('Editor Controller - Regression tests', () => {
 			moveWordLeft(cursor); assert.equal(cursor.getPosition().column, '   '.length + 1, '015');
 		});
 	});
+
+	test('issue #832: moveWordLeft', () => {
+		usingCursor({
+			text: [
+				'   /* Just some   more   text a+= 3 +5-3 + 7 */  '
+			],
+			mode: null,
+			config: null
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 1, false);
+
+			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /*'.length + 1, '001');
+			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just'.length + 1, '003');
+			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some'.length + 1, '004');
+			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more'.length + 1, '005');
+			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text'.length + 1, '006');
+			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a'.length + 1, '007');
+			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+='.length + 1, '008');
+			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3'.length + 1, '009');
+			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +'.length + 1, '010');
+			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5'.length + 1, '011');
+			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-'.length + 1, '012');
+			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3'.length + 1, '013');
+			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 +'.length + 1, '014');
+			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + 7'.length + 1, '015');
+			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + 7 */'.length + 1, '016');
+			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + 7 */  '.length + 1, '016');
+
+		});
+	});
 });
 
 suite('Editor Controller - Cursor Configuration', () => {

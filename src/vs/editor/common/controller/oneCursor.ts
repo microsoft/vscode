@@ -636,10 +636,10 @@ export class OneCursorOp {
 			}
 		}
 
-		var word = cursor.findWord(new Position(lineNumber, column), 'right', true);
+		let nextWordOnLine = cursor.findNextWordOnLine(new Position(lineNumber, column));
 
-		if (word) {
-			column = word.end + 1;
+		if (nextWordOnLine) {
+			column = nextWordOnLine.end + 1;
 		} else {
 			column = cursor.model.getLineMaxColumn(lineNumber);
 		}
