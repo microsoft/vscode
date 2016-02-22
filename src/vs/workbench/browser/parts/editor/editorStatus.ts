@@ -79,6 +79,7 @@ interface IEditorSelectionStatus {
 }
 
 interface IStateChange {
+	indentation: boolean;
 	selectionStatus: boolean;
 	mode: boolean;
 	encoding: boolean;
@@ -91,6 +92,7 @@ interface StateDelta {
 	mode?: string;
 	encoding?: string;
 	EOL?: string;
+	indentation?: string;
 	tabFocusMode?: boolean;
 }
 
@@ -106,6 +108,9 @@ class State {
 
 	private _EOL: string;
 	public get EOL(): string { return this._EOL; }
+
+	private _indentation: string;
+	public get indentation(): string { return this._indentation; }
 
 	private _tabFocusMode: boolean;
 	public get tabFocusMode(): boolean { return this._tabFocusMode; }
@@ -124,7 +129,8 @@ class State {
 			mode: false,
 			encoding: false,
 			EOL: false,
-			tabFocusMode: false
+			tabFocusMode: false,
+			indentation: false
 		};
 		let somethingChanged = false;
 
@@ -133,6 +139,13 @@ class State {
 				this._selectionStatus = update.selectionStatus;
 				somethingChanged = true;
 				e.selectionStatus = true;
+			}
+		}
+		if (typeof update.indentation !== 'undefined') {
+			if (this._indentation !== update.indentation) {
+				this._indentation = update.indentation;
+				somethingChanged = true;
+				e.indentation = true;
 			}
 		}
 		if (typeof update.mode !== 'undefined') {
@@ -191,6 +204,7 @@ export class EditorStatus implements IStatusbarItem {
 	private state: State;
 	private element: HTMLElement;
 	private tabFocusModeElement: HTMLElement;
+	private indentationElement: HTMLElement;
 	private selectionElement: HTMLElement;
 	private encodingElement: HTMLElement;
 	private eolElement: HTMLElement;
@@ -216,6 +230,11 @@ export class EditorStatus implements IStatusbarItem {
 		this.tabFocusModeElement.onclick = () => this.onTabFocusModeClick();
 		this.tabFocusModeElement.textContent = nlsTabFocusMode;
 		hide(this.tabFocusModeElement);
+
+		this.indentationElement = append(this.element, $('a.editor-status-indentation'));
+		this.indentationElement.title = nls.localize('indentation', "Indentation");
+		this.indentationElement.onclick = () => this.onIndentationClick();
+		hide(this.indentationElement);
 
 		this.selectionElement = append(this.element, $('a.editor-status-selection'));
 		this.selectionElement.title = nls.localize('gotoLine', "Go to Line");
@@ -243,7 +262,8 @@ export class EditorStatus implements IStatusbarItem {
 			this.eventService.addListener2(EventType.TEXT_EDITOR_SELECTION_CHANGED, (e: TextEditorSelectionEvent) => this.onSelectionChange(e.editor)),
 			this.eventService.addListener2(EventType.TEXT_EDITOR_MODE_CHANGED, (e: EditorEvent) => this.onModeChange(e.editor)),
 			this.eventService.addListener2(EventType.TEXT_EDITOR_CONTENT_CHANGED, (e: EditorEvent) => this.onEOLChange(e.editor)),
-			this.eventService.addListener2(EventType.TEXT_EDITOR_CONFIGURATION_CHANGED, (e: EditorEvent) => this.onTabFocusModeChange(e.editor))
+			this.eventService.addListener2(EventType.TEXT_EDITOR_CONFIGURATION_CHANGED, (e: EditorEvent) => this.onTabFocusModeChange(e.editor)),
+			this.eventService.addListener2(EventType.TEXT_EDITOR_CONFIGURATION_CHANGED, (e: EditorEvent) => this.onIndentationChange(e.editor))
 		);
 
 		return combinedDispose(...this.toDispose);
@@ -261,6 +281,15 @@ export class EditorStatus implements IStatusbarItem {
 				show(this.tabFocusModeElement);
 			} else {
 				hide(this.tabFocusModeElement);
+			}
+		}
+
+		if (changed.indentation) {
+			if (this.state.indentation) {
+				this.indentationElement.textContent = this.state.indentation;
+				show(this.indentationElement);
+			} else {
+				hide(this.indentationElement);
 			}
 		}
 
@@ -328,6 +357,12 @@ export class EditorStatus implements IStatusbarItem {
 		action.dispose();
 	}
 
+	private onIndentationClick(): void {
+		const action = this.instantiationService.createInstance(ChangeIndentationAction, ChangeIndentationAction.ID, ChangeIndentationAction.LABEL);
+		action.run().done(null, errors.onUnexpectedError);
+		action.dispose();
+	}
+
 	private onSelectionClick(): void {
 		this.quickOpenService.show(':'); // "Go to line"
 	}
@@ -359,6 +394,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.onEOLChange(e);
 		this.onEncodingChange(e);
 		this.onTabFocusModeChange(e);
+		this.onIndentationChange(e);
 	}
 
 	private onModeChange(e: IBaseEditor): void {
@@ -384,6 +420,16 @@ export class EditorStatus implements IStatusbarItem {
 		}
 
 		this.updateState(info);
+	}
+
+	private onIndentationChange(e: IBaseEditor): void {
+		let update: StateDelta = { indentation: null };
+		if (e instanceof BaseTextEditor) {
+			const options = (<ICommonCodeEditor>e.getControl()).getIndentationOptions();
+			update.indentation = options.insertSpaces ? nls.localize('spacesSize', "Spaces: {0}", options.tabSize) :
+				nls.localize('tabSize', "Tab Size: {0}", options.tabSize);
+		}
+		this.updateState(update);
 	}
 
 	private onSelectionChange(e: IBaseEditor): void {
@@ -601,6 +647,33 @@ export class ChangeModeAction extends Action {
 
 export interface IChangeEOLEntry extends IPickOpenEntry {
 	eol: EndOfLineSequence;
+}
+
+export class ChangeIndentationAction extends Action {
+
+	public static ID = 'workbench.action.editor.changeIndentation';
+	public static LABEL = nls.localize('changeIndentation', "Change Indentation");
+
+	constructor(
+		actionId: string,
+		actionLabel: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(actionId, actionLabel);
+	}
+
+	public run(): TPromise<any> {
+		const activeEditor = this.editorService.getActiveEditor();
+		if (!(activeEditor instanceof BaseTextEditor)) {
+			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
+		}
+		if (!isWritableCodeEditor(<BaseTextEditor>activeEditor)) {
+			return this.quickOpenService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
+		}
+
+		return this.quickOpenService.show('>indentation');
+	}
 }
 
 export class ChangeEOLAction extends Action {

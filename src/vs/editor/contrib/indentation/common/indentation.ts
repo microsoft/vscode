@@ -11,7 +11,7 @@ import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/e
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {IndentationToSpacesCommand, IndentationToTabsCommand} from 'vs/editor/contrib/indentation/common/indentationCommands';
 
-class IndentationToSpacesAction extends EditorAction {
+export class IndentationToSpacesAction extends EditorAction {
 	static ID = 'editor.action.indentationToSpaces';
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @INullService ns) {
@@ -22,12 +22,12 @@ class IndentationToSpacesAction extends EditorAction {
 
 		const command = new IndentationToSpacesCommand(this.editor.getSelection(), this.editor.getIndentationOptions().tabSize);
 		this.editor.executeCommands(this.id, [command]);
-
+		
 		return TPromise.as(true);
 	}
 }
 
-class IndentationToTabsAction extends EditorAction {
+export class IndentationToTabsAction extends EditorAction {
 	static ID = 'editor.action.indentationToTabs';
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @INullService ns) {
