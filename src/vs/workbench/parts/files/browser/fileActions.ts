@@ -43,7 +43,7 @@ import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IResourceInput, Position, IEditor} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService, INewConstructorSignature2, INullService} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, IConstructorSignature2, INullService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction} from 'vs/platform/message/common/message';
 import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -546,7 +546,7 @@ export abstract class BaseGlobalNewAction extends Action {
 		});
 	}
 
-	protected abstract getAction(): INewConstructorSignature2<ITree, IFileStat, Action>;
+	protected abstract getAction(): IConstructorSignature2<ITree, IFileStat, Action>;
 
 	public dispose(): void {
 		super.dispose();
@@ -589,7 +589,7 @@ export class GlobalNewFolderAction extends BaseGlobalNewAction {
 	public static ID = 'workbench.action.files.newFolder';
 	public static LABEL = nls.localize('newFolder', "New Folder");
 
-	protected getAction(): INewConstructorSignature2<ITree, IFileStat, Action> {
+	protected getAction(): IConstructorSignature2<ITree, IFileStat, Action> {
 		return NewFolderAction;
 	}
 }

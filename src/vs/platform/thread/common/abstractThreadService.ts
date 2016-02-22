@@ -130,7 +130,7 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 		return result;
 	}
 
-	getRemotable<T>(ctor: instantiation.INewConstructorSignature0<T>): T {
+	getRemotable<T>(ctor: instantiation.IConstructorSignature0<T>): T {
 		let id = Remotable.getId(ctor);
 		if (!id) {
 			throw new Error('Unknown Remotable: <<' + id + '>>');

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IInstantiationService, INewConstructorSignature1} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, IConstructorSignature1} from 'vs/platform/instantiation/common/instantiation';
 import {Registry} from 'vs/platform/platform';
 import {IEditorContribution} from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IEditorContributionDescriptor, ISimpleEditorContributionCtor} from 'vs/editor/browser/editorBrowser';
@@ -28,7 +28,7 @@ class SimpleEditorContributionDescriptor implements IEditorContributionDescripto
 
 	public createInstance(instantiationService:IInstantiationService, editor:ICodeEditor): IEditorContribution {
 		// cast added to help the compiler, can remove once IConstructorSignature1 has been removed
-		return instantiationService.createInstance(<INewConstructorSignature1<ICodeEditor, IEditorContribution>> this._ctor, editor);
+		return instantiationService.createInstance(<IConstructorSignature1<ICodeEditor, IEditorContribution>> this._ctor, editor);
 	}
 }
 

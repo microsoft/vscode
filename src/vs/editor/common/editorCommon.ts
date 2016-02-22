@@ -12,7 +12,7 @@ import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IInstantiationService, INewConstructorSignature1, INewConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
 import {ILineContext, IMode, IModeTransition, IToken} from 'vs/editor/common/modes';
 
@@ -2748,9 +2748,9 @@ export interface IEditorActionDescriptorData {
 	label:string;
 }
 
-export type IEditorActionContributionCtor = INewConstructorSignature2<IEditorActionDescriptorData, ICommonCodeEditor, IEditorContribution>;
+export type IEditorActionContributionCtor = IConstructorSignature2<IEditorActionDescriptorData, ICommonCodeEditor, IEditorContribution>;
 
-export type ICommonEditorContributionCtor = INewConstructorSignature1<ICommonCodeEditor, IEditorContribution>;
+export type ICommonEditorContributionCtor = IConstructorSignature1<ICommonCodeEditor, IEditorContribution>;
 
 /**
  * An editor contribution descriptor that will be used to construct editor contributions
