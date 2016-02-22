@@ -74,6 +74,10 @@ export interface IOneCursorState {
 	selectionStartLeftoverVisibleColumns: number;
 }
 
+export interface IFindWordResult extends editorCommon.IWordRange {
+	wordType: WordType;
+}
+
 export class OneCursor {
 
 	// --- contextual state
@@ -445,13 +449,13 @@ export class OneCursor {
 	public getLineContent(lineNumber:number): string {
 		return this.model.getLineContent(lineNumber);
 	}
-	public findWord(position:editorCommon.IEditorPosition, preference:string, skipSyntaxTokens?:boolean): editorCommon.IWordRange {
-		return this.helper.findWord(position, preference, skipSyntaxTokens);
-	}
-	public findPreviousWordOnLine(position:editorCommon.IEditorPosition): editorCommon.IWordRange {
+	// public findWord(position:editorCommon.IEditorPosition, preference:string, skipSyntaxTokens?:boolean): editorCommon.IWordRange {
+	// 	return this.helper.findWord(position, preference, skipSyntaxTokens);
+	// }
+	public findPreviousWordOnLine(position:editorCommon.IEditorPosition): IFindWordResult {
 		return this.helper.findPreviousWordOnLine(position);
 	}
-	public findNextWordOnLine(position:editorCommon.IEditorPosition): editorCommon.IWordRange {
+	public findNextWordOnLine(position:editorCommon.IEditorPosition): IFindWordResult {
 		return this.helper.findNextWordOnLine(position);
 	}
 	public getLeftOfPosition(lineNumber:number, column:number): editorCommon.IPosition {
@@ -879,47 +883,73 @@ export class OneCursorOp {
 	public static word(cursor:OneCursor, inSelectionMode: boolean, position: editorCommon.IPosition, preference: string, ctx: IOneCursorOperationContext): boolean {
 		// TODO@Alex -> select in editable range
 
-		var validatedPosition = cursor.validatePosition(position);
-		var word = cursor.findWord(validatedPosition, preference);
+		let validatedPosition = cursor.validatePosition(position);
+		let prevWord = cursor.findPreviousWordOnLine(validatedPosition);
+		let isInPrevWord = (prevWord && prevWord.wordType === WordType.Regular && prevWord.start < validatedPosition.column - 1 && validatedPosition.column - 1 <= prevWord.end);
+		let nextWord = cursor.findNextWordOnLine(validatedPosition);
+		let isInNextWord = (nextWord && nextWord.wordType === WordType.Regular && nextWord.start < validatedPosition.column - 1 && validatedPosition.column - 1 <= nextWord.end);
 
-		var wordStartColumn:number, wordEndColumn:number;
-		var lineNumber:number, column:number;
-
+		let lineNumber: number;
+		let column: number;
 		if (!inSelectionMode || !cursor.hasSelection()) {
-			if (word) {
-				wordStartColumn = word.start + 1;
-				wordEndColumn = word.end + 1;
+
+			let startColumn: number;
+			let endColumn: number;
+
+			if (isInPrevWord) {
+				startColumn = prevWord.start + 1;
+				endColumn = prevWord.end + 1;
+			} else if (isInNextWord) {
+				startColumn = nextWord.start + 1;
+				endColumn = nextWord.end + 1;
 			} else {
-				var maxColumn = cursor.model.getLineMaxColumn(validatedPosition.lineNumber);
-				if (validatedPosition.column === maxColumn || preference === 'left') {
-					wordStartColumn = validatedPosition.column - 1;
-					wordEndColumn = validatedPosition.column;
+				if (prevWord) {
+					startColumn = prevWord.end + 1;
 				} else {
-					wordStartColumn = validatedPosition.column;
-					wordEndColumn = validatedPosition.column + 1;
+					startColumn = 1;
 				}
-				if (wordStartColumn <= 1) {
-					wordStartColumn = 1;
-				}
-				if (wordEndColumn >= maxColumn) {
-					wordEndColumn = maxColumn;
+				if (nextWord) {
+					endColumn = nextWord.start + 1;
+				} else {
+					endColumn = cursor.model.getLineMaxColumn(validatedPosition.lineNumber);
 				}
 			}
 
-			var selectionStartRange = new Range(validatedPosition.lineNumber, wordStartColumn, validatedPosition.lineNumber, wordEndColumn);
-			var r1 = cursor.convertModelPositionToViewPosition(validatedPosition.lineNumber, wordStartColumn);
-			var r2 = cursor.convertModelPositionToViewPosition(validatedPosition.lineNumber, wordEndColumn);
+			let selectionStartRange = new Range(validatedPosition.lineNumber, startColumn, validatedPosition.lineNumber, endColumn);
+			let r1 = cursor.convertModelPositionToViewPosition(validatedPosition.lineNumber, startColumn);
+			let r2 = cursor.convertModelPositionToViewPosition(validatedPosition.lineNumber, endColumn);
 			cursor.setSelectionStart(selectionStartRange, new Range(r1.lineNumber, r1.column, r2.lineNumber, r2.column));
 			lineNumber = selectionStartRange.endLineNumber;
 			column = selectionStartRange.endColumn;
 		} else {
-			wordStartColumn = word ? word.start + 1 : validatedPosition.column;
-			wordEndColumn = word ? word.end + 1 : validatedPosition.column;
+
+			let startColumn: number;
+			let endColumn: number;
+
+			if (isInPrevWord) {
+				startColumn = prevWord.start + 1;
+				endColumn = prevWord.end + 1;
+			} else if (isInNextWord) {
+				startColumn = nextWord.start + 1;
+				endColumn = nextWord.end + 1;
+			} else {
+				startColumn = validatedPosition.column;
+				endColumn = validatedPosition.column;
+			}
+
 			lineNumber = validatedPosition.lineNumber;
 			if (validatedPosition.isBeforeOrEqual(cursor.getSelectionStart().getStartPosition())) {
-				column = wordStartColumn;
+				column = startColumn;
+				let possiblePosition = new Position(lineNumber, column);
+				if (cursor.getSelectionStart().containsPosition(possiblePosition)) {
+					column = cursor.getSelectionStart().endColumn;
+				}
 			} else {
-				column = wordEndColumn;
+				column = endColumn;
+				let possiblePosition = new Position(lineNumber, column);
+				if (cursor.getSelectionStart().containsPosition(possiblePosition)) {
+					column = cursor.getSelectionStart().startColumn;
+				}
 			}
 		}
 
@@ -1761,51 +1791,56 @@ class CursorHelper {
 		return CursorMoveHelper.prevTabColumn(column, this.configuration.getIndentationOptions().tabSize);
 	}
 
-	public findWord(position:editorCommon.IEditorPosition, preference:string, skipSyntaxTokens:boolean=false): editorCommon.IWordRange {
-		var words = this.model.getWords(position.lineNumber);
-		var searchIndex:number, i:number, len:number;
+	// public findWord(position:editorCommon.IEditorPosition, preference:string, skipSyntaxTokens:boolean=false): editorCommon.IWordRange {
+	// 	var words = this.model.getWords(position.lineNumber);
+	// 	var searchIndex:number, i:number, len:number;
 
-		if (skipSyntaxTokens) {
-			searchIndex = position.column - 1;
-			if (preference === 'left') {
-				for (i = words.length - 1; i >= 0; i--) {
-					if (words[i].start >= searchIndex) {
-						continue;
-					}
-					return words[i];
-				}
-			} else {
-				for (i = 0, len = words.length; i < len; i++) {
-					if (words[i].end <= searchIndex) {
-						continue;
-					}
-					return words[i];
-				}
-			}
-		} else {
-			searchIndex = position.column;
-			if (preference === 'left') {
-				if (searchIndex !== 1) {
-					searchIndex = searchIndex - 0.1;
-				}
-			} else {
-				if (searchIndex !== this.model.getLineMaxColumn(position.lineNumber)) {
-					searchIndex = searchIndex + 0.1;
-				}
-			}
-			searchIndex = searchIndex - 1;
+	// 	if (skipSyntaxTokens) {
+	// 		searchIndex = position.column - 1;
+	// 		if (preference === 'left') {
+	// 			for (i = words.length - 1; i >= 0; i--) {
+	// 				if (words[i].start >= searchIndex) {
+	// 					continue;
+	// 				}
+	// 				return words[i];
+	// 			}
+	// 		} else {
+	// 			for (i = 0, len = words.length; i < len; i++) {
+	// 				if (words[i].end <= searchIndex) {
+	// 					continue;
+	// 				}
+	// 				return words[i];
+	// 			}
+	// 		}
+	// 	} else {
+	// 		searchIndex = position.column;
+	// 		if (preference === 'left') {
+	// 			if (searchIndex !== 1) {
+	// 				searchIndex = searchIndex - 0.1;
+	// 			}
+	// 		} else {
+	// 			if (searchIndex !== this.model.getLineMaxColumn(position.lineNumber)) {
+	// 				searchIndex = searchIndex + 0.1;
+	// 			}
+	// 		}
+	// 		searchIndex = searchIndex - 1;
 
-			for (i = 0, len = words.length; i < len; i++) {
-				if (words[i].start <= searchIndex && searchIndex <= words[i].end) {
-					return words[i];
-				}
-			}
-		}
+	// 		for (i = 0, len = words.length; i < len; i++) {
+	// 			if (words[i].start <= searchIndex && searchIndex <= words[i].end) {
+	// 				return words[i];
+	// 			}
+	// 		}
+	// 	}
 
-		return null;
+	// 	return null;
+	// }
+
+	private _createWord(lineContent: string, wordType:WordType, start: number, end: number): IFindWordResult {
+		// console.log('WORD ==> ' + start + ' => ' + end + ':::: <<<' + lineContent.substring(start, end) + '>>>');
+		return { start: start, end: end, wordType: wordType };
 	}
 
-	public findPreviousWordOnLine(_position:editorCommon.IEditorPosition): editorCommon.IWordRange {
+	public findPreviousWordOnLine(_position:editorCommon.IEditorPosition): IFindWordResult {
 		let position = this.model.validatePosition(_position);
 		let wordSeparators = getMapForWordSeparators(this.configuration.editor.wordSeparators);
 		let lineContent = this.model.getLineContent(position.lineNumber);
@@ -1816,20 +1851,25 @@ class CursorHelper {
 
 			if (chClass === CH_REGULAR) {
 				if (wordType === W_SEPARATOR) {
-					return { start: chIndex + 1, end: this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1) };
+					return this._createWord(lineContent, wordType, chIndex + 1, this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1));
 				}
 				wordType = W_REGULAR;
 			} else if (chClass === CH_WORD_SEPARATOR) {
 				if (wordType === W_REGULAR) {
-					return { start: chIndex + 1, end: this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1) };
+					return this._createWord(lineContent, wordType, chIndex + 1, this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1));
 				}
 				wordType = W_SEPARATOR;
 			} else if (chClass === CH_WHITESPACE) {
 				if (wordType !== W_NONE) {
-					return { start: chIndex + 1, end: this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1) };
+					return this._createWord(lineContent, wordType, chIndex + 1, this._findEndOfWord(lineContent, wordSeparators, wordType, chIndex + 1));
 				}
 			}
 		}
+
+		if (wordType !== W_NONE) {
+			return this._createWord(lineContent, wordType, 0, this._findEndOfWord(lineContent, wordSeparators, wordType, 0));
+		}
+
 		return null;
 	}
 
@@ -1852,32 +1892,38 @@ class CursorHelper {
 		return len;
 	}
 
-	public findNextWordOnLine(_position:editorCommon.IEditorPosition): editorCommon.IWordRange {
+	public findNextWordOnLine(_position:editorCommon.IEditorPosition): IFindWordResult {
 		let position = this.model.validatePosition(_position);
 		let wordSeparators = getMapForWordSeparators(this.configuration.editor.wordSeparators);
 		let lineContent = this.model.getLineContent(position.lineNumber);
 		let wordType = W_NONE;
+		let len = lineContent.length;
 
-		for (let chIndex = position.column - 1, len = lineContent.length; chIndex < len; chIndex++) {
+		for (let chIndex = position.column - 1; chIndex < len; chIndex++) {
 			let chCode = lineContent.charCodeAt(chIndex);
 			let chClass:CharacterClass = (wordSeparators[chCode] || CharacterClass.Regular);
 
 			if (chClass === CH_REGULAR) {
 				if (wordType === W_SEPARATOR) {
-					return { start: this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), end: chIndex };
+					return this._createWord(lineContent, wordType, this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), chIndex);
 				}
 				wordType = W_REGULAR;
 			} else if (chClass === CH_WORD_SEPARATOR) {
 				if (wordType === W_REGULAR) {
-					return { start: this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), end: chIndex };
+					return this._createWord(lineContent, wordType, this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), chIndex);
 				}
 				wordType = W_SEPARATOR;
 			} else if (chClass === CH_WHITESPACE) {
 				if (wordType !== W_NONE) {
-					return { start: this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), end: chIndex };
+					return this._createWord(lineContent, wordType, this._findStartOfWord(lineContent, wordSeparators, wordType, chIndex - 1), chIndex);
 				}
 			}
 		}
+
+		if (wordType !== W_NONE) {
+			return this._createWord(lineContent, wordType, this._findStartOfWord(lineContent, wordSeparators, wordType, len - 1), len);
+		}
+
 		return null;
 	}
 
@@ -1887,20 +1933,20 @@ class CursorHelper {
 			let chClass:CharacterClass = (wordSeparators[chCode] || CharacterClass.Regular);
 
 			if (chClass === CH_WHITESPACE) {
-				return chIndex;
+				return chIndex + 1;
 			}
 			if (wordType === W_REGULAR && chClass === CH_WORD_SEPARATOR) {
-				return chIndex;
+				return chIndex + 1;
 			}
 			if (wordType === W_SEPARATOR && chClass === CH_REGULAR) {
-				return chIndex;
+				return chIndex + 1;
 			}
 		}
-		return -1;
+		return 0;
 	}
 }
 
-enum WordType {
+export enum WordType {
 	None = 0,
 	Regular = 1,
 	Separator = 2

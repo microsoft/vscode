@@ -1195,6 +1195,83 @@ suite('Editor Controller - Regression tests', () => {
 
 		});
 	});
+
+	test('issue #832: word right', () => {
+
+		usingCursor({
+			text: [
+				'   /* Just some   more   text a+= 3 +5-3 + 7 */  '
+			],
+			mode: null,
+			config: null
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 1, false);
+
+			function assertWordRight(col, expectedCol) {
+				cursorCommand(cursor, col === 1 ? H.WordSelect : H.WordSelectDrag, {
+					position: {
+						lineNumber: 1,
+						column: col
+					},
+					preference: 'right'
+				});
+
+				assert.equal(cursor.getSelection().startColumn, 1, 'TEST FOR ' + col);
+				assert.equal(cursor.getSelection().endColumn, expectedCol, 'TEST FOR ' + col);
+			}
+
+			assertWordRight( 1, '   '.length + 1);
+			assertWordRight( 2, '   '.length + 1);
+			assertWordRight( 3, '   '.length + 1);
+			assertWordRight( 4, '   '.length + 1);
+			assertWordRight( 5, '   /'.length + 1);
+			assertWordRight( 6, '   /*'.length + 1);
+			assertWordRight( 7, '   /* '.length + 1);
+			assertWordRight( 8, '   /* Just'.length + 1);
+			assertWordRight( 9, '   /* Just'.length + 1);
+			assertWordRight(10, '   /* Just'.length + 1);
+			assertWordRight(11, '   /* Just'.length + 1);
+			assertWordRight(12, '   /* Just '.length + 1);
+			assertWordRight(13, '   /* Just some'.length + 1);
+			assertWordRight(14, '   /* Just some'.length + 1);
+			assertWordRight(15, '   /* Just some'.length + 1);
+			assertWordRight(16, '   /* Just some'.length + 1);
+			assertWordRight(17, '   /* Just some '.length + 1);
+			assertWordRight(18, '   /* Just some  '.length + 1);
+			assertWordRight(19, '   /* Just some   '.length + 1);
+			assertWordRight(20, '   /* Just some   more'.length + 1);
+			assertWordRight(21, '   /* Just some   more'.length + 1);
+			assertWordRight(22, '   /* Just some   more'.length + 1);
+			assertWordRight(23, '   /* Just some   more'.length + 1);
+			assertWordRight(24, '   /* Just some   more '.length + 1);
+			assertWordRight(25, '   /* Just some   more  '.length + 1);
+			assertWordRight(26, '   /* Just some   more   '.length + 1);
+			assertWordRight(27, '   /* Just some   more   text'.length + 1);
+			assertWordRight(28, '   /* Just some   more   text'.length + 1);
+			assertWordRight(29, '   /* Just some   more   text'.length + 1);
+			assertWordRight(30, '   /* Just some   more   text'.length + 1);
+			assertWordRight(31, '   /* Just some   more   text '.length + 1);
+			assertWordRight(32, '   /* Just some   more   text a'.length + 1);
+			assertWordRight(33, '   /* Just some   more   text a+'.length + 1);
+			assertWordRight(34, '   /* Just some   more   text a+='.length + 1);
+			assertWordRight(35, '   /* Just some   more   text a+= '.length + 1);
+			assertWordRight(36, '   /* Just some   more   text a+= 3'.length + 1);
+			assertWordRight(37, '   /* Just some   more   text a+= 3 '.length + 1);
+			assertWordRight(38, '   /* Just some   more   text a+= 3 +'.length + 1);
+			assertWordRight(39, '   /* Just some   more   text a+= 3 +5'.length + 1);
+			assertWordRight(40, '   /* Just some   more   text a+= 3 +5-'.length + 1);
+			assertWordRight(41, '   /* Just some   more   text a+= 3 +5-3'.length + 1);
+			assertWordRight(42, '   /* Just some   more   text a+= 3 +5-3 '.length + 1);
+			assertWordRight(43, '   /* Just some   more   text a+= 3 +5-3 +'.length + 1);
+			assertWordRight(44, '   /* Just some   more   text a+= 3 +5-3 + '.length + 1);
+			assertWordRight(45, '   /* Just some   more   text a+= 3 +5-3 + 7'.length + 1);
+			assertWordRight(46, '   /* Just some   more   text a+= 3 +5-3 + 7 '.length + 1);
+			assertWordRight(47, '   /* Just some   more   text a+= 3 +5-3 + 7 *'.length + 1);
+			assertWordRight(48, '   /* Just some   more   text a+= 3 +5-3 + 7 */'.length + 1);
+			assertWordRight(49, '   /* Just some   more   text a+= 3 +5-3 + 7 */ '.length + 1);
+			assertWordRight(50, '   /* Just some   more   text a+= 3 +5-3 + 7 */  '.length + 1);
+		});
+	});
 });
 
 suite('Editor Controller - Cursor Configuration', () => {
