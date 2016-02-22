@@ -225,6 +225,7 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 
 	public layout(dimension?:editorCommon.IDimension): void {
 		this._configuration.observeReferenceElement(dimension);
+		this.render();
 	}
 
 	public focus(): void {
