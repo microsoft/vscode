@@ -93,8 +93,12 @@ export class MainProcessTextMateSyntax {
 
 		let modeId = syntax.language;
 		if (modeId) {
-			PluginsRegistry.registerOneTimeActivationEventListener('onLanguage:' + modeId, () => {
+			let disposable = this._modeService.onDidCreateMode((mode) => {
+				if (mode.getId() !== modeId) {
+					return;
+				}
 				this.registerDefinition(modeId, syntax.scopeName);
+				disposable.dispose();
 			});
 		}
 	}

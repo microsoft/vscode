@@ -149,7 +149,6 @@ export class ModeServiceImpl implements IModeService {
 	private _pluginService: IPluginService;
 	private _activationPromises: { [modeId: string]: TPromise<modes.IMode>; };
 	private _instantiatedModes: { [modeId: string]: modes.IMode; };
-	private _frankensteinModes: { [modeId: string]: FrankensteinMode; };
 	private _config: IModeConfigurationMap;
 
 	private _registry: LanguagesRegistry;
@@ -157,12 +156,14 @@ export class ModeServiceImpl implements IModeService {
 	private _onDidAddModes: Emitter<string[]> = new Emitter<string[]>();
 	public onDidAddModes: Event<string[]> = this._onDidAddModes.event;
 
+	private _onDidCreateMode: Emitter<modes.IMode> = new Emitter<modes.IMode>();
+	public onDidCreateMode: Event<modes.IMode> = this._onDidCreateMode.event;
+
 	constructor(threadService:IThreadService, pluginService:IPluginService) {
 		this._threadService = threadService;
 		this._pluginService = pluginService;
 		this._activationPromises = {};
 		this._instantiatedModes = {};
-		this._frankensteinModes = {};
 		this._config = {};
 
 		this._registry = new LanguagesRegistry();
@@ -353,6 +354,11 @@ export class ModeServiceImpl implements IModeService {
 		this._createMode(modeId).then((mode) => {
 			this._instantiatedModes[modeId] = mode;
 			delete this._activationPromises[modeId];
+
+			this._onDidCreateMode.fire(mode);
+
+			this._pluginService.activateByEvent(`onLanguage:${modeId}`).done(null, onUnexpectedError);
+
 			return this._instantiatedModes[modeId];
 		}).then(c, e);
 
@@ -360,34 +366,16 @@ export class ModeServiceImpl implements IModeService {
 	}
 
 	protected _createMode(modeId:string): TPromise<modes.IMode> {
-		let activationEvent = 'onLanguage:' + modeId;
+		let modeDescriptor = this._createModeDescriptor(modeId);
 
 		let compatModeData = this._registry.getCompatMode(modeId);
-
 		if (compatModeData) {
-			return this._pluginService.activateByEvent(activationEvent).then((_) => {
-				var modeDescriptor = this._createModeDescriptor(modeId);
-				let compatModeAsyncDescriptor = createAsyncDescriptor1<modes.IModeDescriptor, modes.IMode>(compatModeData.moduleId, compatModeData.ctorName);
-				return this._threadService.createInstance(compatModeAsyncDescriptor, modeDescriptor);
-			}).then((compatMode) => {
-				if (compatMode.configSupport) {
-					compatMode.configSupport.configure(this.getConfigurationForMode(modeId));
-				}
-				return compatMode;
-			});
-		} else {
-			let frankensteinMode = this._getOrCreateFrankensteinMode(modeId);
-			this._pluginService.activateByEvent(activationEvent).done(null, onUnexpectedError);
-			return TPromise.as(frankensteinMode);
+			// This is a compatibility mode
+			let compatModeAsyncDescriptor = createAsyncDescriptor1<modes.IModeDescriptor, modes.IMode>(compatModeData.moduleId, compatModeData.ctorName);
+			return this._threadService.createInstance(compatModeAsyncDescriptor, modeDescriptor);
 		}
-	}
 
-	private _getOrCreateFrankensteinMode(modeId:string): FrankensteinMode {
-		if (!this._frankensteinModes.hasOwnProperty(modeId)) {
-			var modeDescriptor = this._createModeDescriptor(modeId);
-			this._frankensteinModes[modeId] = this._threadService.createInstance(FrankensteinMode, modeDescriptor);
-		}
-		return this._frankensteinModes[modeId];
+		return TPromise.as<modes.IMode>(this._threadService.createInstance(FrankensteinMode, modeDescriptor));
 	}
 
 	private _createModeDescriptor(modeId:string): modes.IModeDescriptor {

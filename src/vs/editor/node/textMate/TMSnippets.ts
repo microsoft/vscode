@@ -87,9 +87,12 @@ export class MainProcessTextMateSnippet {
 		}
 
 		let modeId = snippet.language;
-
-		PluginsRegistry.registerOneTimeActivationEventListener('onLanguage:' + modeId, () => {
+		let disposable = this._modeService.onDidCreateMode((mode) => {
+			if (mode.getId() !== modeId) {
+				return;
+			}
 			this.registerDefinition(modeId, normalizedAbsolutePath);
+			disposable.dispose();
 		});
 	}
 

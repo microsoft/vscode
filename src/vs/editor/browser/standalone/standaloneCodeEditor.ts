@@ -430,8 +430,12 @@ export function createCustomMode(language:ILanguage): TPromise<IMode> {
 		aliases: [name]
 	});
 
-	PluginsRegistry.registerOneTimeActivationEventListener('onLanguage:' + modeId, () => {
+	let disposable = modeService.onDidCreateMode((mode) => {
+		if (mode.getId() !== modeId) {
+			return;
+		}
 		modeService.registerMonarchDefinition(modelService, editorWorkerService, modeId, language);
+		disposable.dispose();
 	});
 
 	return modeService.getOrCreateMode(modeId);

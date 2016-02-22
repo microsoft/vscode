@@ -9,7 +9,7 @@ import remote = require('vs/base/common/remote');
 import {ThreadAffinity, Remotable, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
 import {THREAD_SERVICE_PROPERTY_NAME} from 'vs/platform/thread/common/threadService';
 import instantiation = require('vs/platform/instantiation/common/instantiation');
-import {SyncDescriptor0, createSyncDescriptor, AsyncDescriptor0, AsyncDescriptor1, AsyncDescriptor2, AsyncDescriptor3} from 'vs/platform/instantiation/common/descriptors';
+import {SyncDescriptor0, createSyncDescriptor, AsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
 
 export abstract class AbstractThreadService implements remote.IManyHandler {
 
@@ -34,16 +34,8 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 		this._instantiationService = service;
 	}
 
-	createInstance<T extends IThreadSynchronizableObject>(ctor: instantiation.IConstructorSignature0<T>): T;
 	createInstance<A1, T extends IThreadSynchronizableObject>(ctor: instantiation.IConstructorSignature1<A1, T>, a1: A1): T;
-	createInstance<A1, A2, T extends IThreadSynchronizableObject>(ctor: instantiation.IConstructorSignature2<A1, A2, T>, a1: A1, a2: A2): T;
-	createInstance<A1, A2, A3, T extends IThreadSynchronizableObject>(ctor: instantiation.IConstructorSignature3<A1, A2, A3, T>, a1: A1, a2: A2, a3: A3): T;
-
-	createInstance<T extends IThreadSynchronizableObject>(descriptor: AsyncDescriptor0<T>): T;
-	createInstance<A1, T extends IThreadSynchronizableObject>(descriptor: AsyncDescriptor1<A1, T>, a1: A1): T;
-	createInstance<A1, A2, T extends IThreadSynchronizableObject>(descriptor: AsyncDescriptor2<A1, A2, T>, a1: A1, a2: A2): T;
-	createInstance<A1, A2, A3, T extends IThreadSynchronizableObject>(descriptor: AsyncDescriptor3<A1, A2, A3, T>, a1: A1, a2: A2, a3: A3): T;
-
+	createInstance<A1, T extends IThreadSynchronizableObject>(descriptor: AsyncDescriptor1<A1, T>, a1: A1): TPromise<T>;
 	createInstance(...params: any[]): any {
 		return this._doCreateInstance(params);
 	}

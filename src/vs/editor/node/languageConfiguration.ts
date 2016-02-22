@@ -7,7 +7,6 @@
 import * as nls from 'vs/nls';
 import {parse} from 'vs/base/common/json';
 import {readFile} from 'vs/base/node/pfs';
-import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import {IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
 import {IModeService} from 'vs/editor/common/services/modeService';
 
@@ -41,12 +40,15 @@ export class LanguageConfigurationFileHandler {
 	}
 
 	private _handleMode(modeId:string): void {
-		let activationEvent = 'onLanguage:' + modeId;
+		let disposable = this._modeService.onDidCreateMode((mode) => {
+			if (mode.getId() !== modeId) {
+				return;
+			}
 
-		PluginsRegistry.registerOneTimeActivationEventListener(activationEvent, () => {
 			let configurationFiles = this._modeService.getConfigurationFiles(modeId);
-
 			configurationFiles.forEach((configFilePath) => this._handleConfigFile(modeId, configFilePath));
+
+			disposable.dispose();
 		});
 	}
 

@@ -40,6 +40,7 @@ export interface IModeService {
 	serviceId: ServiceIdentifier<any>;
 
 	onDidAddModes: Event<string[]>;
+	onDidCreateMode: Event<modes.IMode>;
 
 	configureMode(modeName: string, options: any): void;
 	configureModeById(modeId: string, options: any): void;
