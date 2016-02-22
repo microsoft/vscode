@@ -75,7 +75,17 @@ export function activate(context: ExtensionContext) {
 	context.subscriptions.push(disposable);
 
 	languages.setLanguageConfiguration('json', {
-		wordPattern: /(-?\d*\.\d\w*)|([^\[\{\]\}\:\"\,\s]+)/g
+		wordPattern: /(-?\d*\.\d\w*)|([^\[\{\]\}\:\"\,\s]+)/g,
+		__characterPairSupport: {
+			autoClosingPairs: [
+				{ open: '{', close: '}' },
+				{ open: '[', close: ']' },
+				{ open: '(', close: ')' },
+				{ open: '"', close: '"', notIn: ['string'] },
+				{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+				{ open: '`', close: '`', notIn: ['string', 'comment'] }
+			]
+		}
 	});
 }
 
