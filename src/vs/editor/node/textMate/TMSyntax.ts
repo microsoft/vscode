@@ -5,7 +5,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import * as collections from 'vs/base/common/collections';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
 import {IMessageCollector, PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
@@ -159,64 +158,16 @@ class Tokenizer {
 			modeTransitions: [{ startIndex: offsetDelta, mode: freshState.getMode() }],
 		};
 
+		let lastTokenType:string = null;
 		for (let tokenIndex = 0, len = textMateResult.tokens.length; tokenIndex < len; tokenIndex++) {
 			let token = textMateResult.tokens[tokenIndex];
 			let tokenStartIndex = token.startIndex;
-			let tokenEndIndex = (tokenIndex + 1 < len ? textMateResult.tokens[tokenIndex + 1].startIndex : line.length);
-
 			let t = decodeTextMateToken(this._modeId, token);
 
-			if (t.isOpaqueToken) {
-				// Should not do any smartness to detect brackets on this token
+			// do not push a new token if the type is exactly the same (also helps with ligatures)
+			if (t.tokenType !== lastTokenType) {
 				ret.tokens.push(new Token(tokenStartIndex + offsetDelta, t.tokenType));
-				continue;
-			}
-
-			let i: number,
-				charCode: number,
-				isBracket: string;
-
-			for (i = tokenStartIndex; i < tokenEndIndex; i++) {
-				charCode = line.charCodeAt(i);
-				isBracket = null;
-
-				switch (charCode) {
-					case _openParen: // (
-						isBracket = 'delimiter.paren';
-						break;
-					case _closeParen: // )
-						isBracket = 'delimiter.paren';
-						break;
-					case _openCurly: // {
-						isBracket = 'delimiter.curly';
-						break;
-					case _closeCurly: // }
-						isBracket = 'delimiter.curly';
-						break;
-					case _openSquare: // [
-						isBracket = 'delimiter.square';
-						break;
-					case _closeSquare: // ]
-						isBracket = 'delimiter.square';
-						break;
-				}
-
-				if (isBracket) {
-					if (tokenStartIndex < i) {
-						// push a token before character `i`
-						ret.tokens.push(new Token(tokenStartIndex + offsetDelta, t.tokenType));
-						tokenStartIndex = i;
-					}
-
-					// push character `i` as a token
-					ret.tokens.push(new Token(tokenStartIndex + offsetDelta, isBracket + '.' + t.modeToken));
-					tokenStartIndex = i + 1;
-				}
-			}
-
-			if (tokenStartIndex < tokenEndIndex) {
-				// push the remaining text as a token
-				ret.tokens.push(new Token(tokenStartIndex + offsetDelta, t.tokenType));
+				lastTokenType = t.tokenType;
 			}
 		}
 
@@ -237,10 +188,9 @@ function decodeTextMateToken(modeId:string, entry: ITMToken) {
 		}
 	}
 	let tokenTypes: string[] = [];
-	let isOpaqueToken = dedupTokens(tokenTypeArray, modeToken, tokenTypes);
+	dedupTokens(tokenTypeArray, modeToken, tokenTypes);
 
 	return {
-		isOpaqueToken: isOpaqueToken,
 		tokenType: tokenTypes.join('.'),
 		modeToken: modeId
 	};
@@ -250,13 +200,12 @@ function decodeTextMateToken(modeId:string, entry: ITMToken) {
  * Remove duplicate entries, collect result in `result`, place `modeToken` at the end
  * and detect if this is a comment => return true if it looks like a comment
  */
-function dedupTokens(tokenTypeArray:string[], modeToken:string, result:string[]): boolean {
+function dedupTokens(tokenTypeArray:string[], modeToken:string, result:string[]): void {
 
 	tokenTypeArray.sort();
 
 	var prev:string = null,
-		curr:string = null,
-		isOpaqueToken = false;
+		curr:string = null;
 
 	for (var i = 0, len = tokenTypeArray.length; i < len; i++) {
 		prev = curr;
@@ -267,29 +216,7 @@ function dedupTokens(tokenTypeArray:string[], modeToken:string, result:string[])
 		}
 
 		result.push(curr);
-
-		if (!isOpaqueToken && (curr === 'comment' || curr === 'string' || curr === 'regexp')) {
-			isOpaqueToken = true;
-		}
 	}
 
 	result.push(modeToken);
-
-	return isOpaqueToken;
 }
-
-
-var _openParen = '('.charCodeAt(0);
-var _closeParen = ')'.charCodeAt(0);
-var _openCurly = '{'.charCodeAt(0);
-var _closeCurly = '}'.charCodeAt(0);
-var _openSquare = '['.charCodeAt(0);
-var _closeSquare = ']'.charCodeAt(0);
-
-var characterToBracket = collections.createNumberDictionary<number>();
-characterToBracket['('.charCodeAt(0)] = Bracket.Open;
-characterToBracket[')'.charCodeAt(0)] = Bracket.Close;
-characterToBracket['{'.charCodeAt(0)] = Bracket.Open;
-characterToBracket['}'.charCodeAt(0)] = Bracket.Close;
-characterToBracket['['.charCodeAt(0)] = Bracket.Open;
-characterToBracket[']'.charCodeAt(0)] = Bracket.Close;
