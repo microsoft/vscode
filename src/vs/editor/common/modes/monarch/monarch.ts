@@ -39,7 +39,7 @@ export abstract class MonarchMode extends AbstractMode {
 
 		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), createRichEditSupport(lexer));
+		this.richEditSupport = new RichEditSupport(this.getId(), null, createRichEditSupport(lexer));
 
 		this.suggestSupport = createSuggestSupport(modelService, editorWorkerService, this.getId(), lexer);
 	}

@@ -434,7 +434,7 @@ export class ModeServiceImpl implements IModeService {
 	}
 
 	public registerRichEditSupport(modeId: string, support: IRichEditConfiguration): IDisposable {
-		return this.registerModeSupport(modeId, 'richEditSupport', (mode) => new RichEditSupport(modeId, support));
+		return this.registerModeSupport(modeId, 'richEditSupport', (mode) => new RichEditSupport(modeId, mode.richEditSupport, support));
 	}
 
 	public registerDeclarativeDeclarationSupport(modeId: string, contribution: IDeclarationContribution): IDisposable {

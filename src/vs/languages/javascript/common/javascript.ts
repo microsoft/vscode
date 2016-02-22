@@ -54,7 +54,7 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 			excludeTokens: ['string.js', 'string.escape.js'],
 			getParameterHints: (resource, position) => this.getParameterHints(resource, position)});
 
-		this.richEditSupport = new RichEditSupport(this.getId(), {
+		this.richEditSupport = new RichEditSupport(this.getId(), null, {
 			wordPattern: createWordRegExp('$'),
 
 			comments: {

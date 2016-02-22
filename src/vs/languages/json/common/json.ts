@@ -47,7 +47,7 @@ export class JSONMode extends AbstractMode implements Modes.IExtraInfoSupport, M
 
 		this.tokenizationSupport = tokenization.createTokenizationSupport(this, true);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), {
+		this.richEditSupport = new RichEditSupport(this.getId(), null, {
 
 			wordPattern: createWordRegExp('.-'),
 

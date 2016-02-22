@@ -16,7 +16,7 @@ class SimpleTokenTypeClassificationMode implements modes.IMode {
 
 	constructor(id:string, wordRegExp:RegExp) {
 		this._id = id;
-		this.richEditSupport = new RichEditSupport(this._id, {
+		this.richEditSupport = new RichEditSupport(this._id, null, {
 			wordPattern: wordRegExp
 		});
 	}

@@ -34,7 +34,7 @@ class DocBlockCommentMode implements IMode {
 	public richEditSupport: IRichEditSupport;
 
 	constructor() {
-		this.richEditSupport = new RichEditSupport(this.getId(), {
+		this.richEditSupport = new RichEditSupport(this.getId(), null, {
 			brackets: [
 				['(', ')'],
 				['{', '}'],

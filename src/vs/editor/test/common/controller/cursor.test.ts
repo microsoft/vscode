@@ -771,7 +771,7 @@ class SurroundingMode extends TestMode {
 
 	constructor() {
 		super();
-		this.richEditSupport = new RichEditSupport(this.getId(), {
+		this.richEditSupport = new RichEditSupport(this.getId(), null, {
 			__characterPairSupport: {
 				autoClosingPairs: [{ open: '(', close: ')' }]
 			}

@@ -46,7 +46,7 @@ export function testOnEnter(name:string, language: ILanguage, callback:(assertOn
 	suite(language.displayName || name, () => {
 		test('onEnter', () => {
 			var lexer = compile(language);
-			var richEditSupport = new RichEditSupport('test', createRichEditSupport(lexer));
+			var richEditSupport = new RichEditSupport('test', null, createRichEditSupport(lexer));
 			callback(createOnEnterAsserter('test', richEditSupport));
 		});
 	});

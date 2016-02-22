@@ -30,6 +30,8 @@ export interface IRichEditConfiguration {
 
 export class RichEditSupport implements IRichEditSupport {
 
+	private _conf: IRichEditConfiguration;
+
 	public electricCharacter: BracketElectricCharacterSupport;
 	public comments: ICommentsConfiguration;
 	public characterPair: IRichEditCharacterPair;
@@ -37,22 +39,41 @@ export class RichEditSupport implements IRichEditSupport {
 	public onEnter: IRichEditOnEnter;
 	public brackets: IRichEditBrackets;
 
-	constructor(modeId:string, conf:IRichEditConfiguration) {
+	constructor(modeId:string, previous:IRichEditSupport, rawConf:IRichEditConfiguration) {
 
-		this._handleOnEnter(modeId, conf);
-
-		this._handleComments(modeId, conf);
-
-		if (conf.__characterPairSupport) {
-			this.characterPair = new CharacterPairSupport(modeId, conf.__characterPairSupport);
+		let prev:IRichEditConfiguration = null;
+		if (previous instanceof RichEditSupport) {
+			prev = previous._conf;
 		}
 
-		if (conf.__electricCharacterSupport) {
-			this.electricCharacter = new BracketElectricCharacterSupport(modeId, conf.__electricCharacterSupport);
+		this._conf = RichEditSupport._mergeConf(prev, rawConf);
+
+		this._handleOnEnter(modeId, this._conf);
+
+		this._handleComments(modeId, this._conf);
+
+		if (this._conf.__characterPairSupport) {
+			this.characterPair = new CharacterPairSupport(modeId, this._conf.__characterPairSupport);
+		}
+
+		if (this._conf.__electricCharacterSupport) {
+			this.electricCharacter = new BracketElectricCharacterSupport(modeId, this._conf.__electricCharacterSupport);
 			this.brackets = this.electricCharacter.getRichEditBrackets();
 		}
 
-		this.wordDefinition = conf.wordPattern || NullMode.DEFAULT_WORD_REGEXP;
+		this.wordDefinition = this._conf.wordPattern || NullMode.DEFAULT_WORD_REGEXP;
+	}
+
+	private static _mergeConf(prev:IRichEditConfiguration, current:IRichEditConfiguration): IRichEditConfiguration {
+		return {
+			comments: (prev ? current.comments || prev.comments : current.comments),
+			brackets: (prev ? current.brackets || prev.brackets : current.brackets),
+			wordPattern: (prev ? current.wordPattern || prev.wordPattern : current.wordPattern),
+			indentationRules: (prev ? current.indentationRules || prev.indentationRules : current.indentationRules),
+			onEnterRules: (prev ? current.onEnterRules || prev.onEnterRules : current.onEnterRules),
+			__electricCharacterSupport: (prev ? current.__electricCharacterSupport || prev.__electricCharacterSupport : current.__electricCharacterSupport),
+			__characterPairSupport: (prev ? current.__characterPairSupport || prev.__characterPairSupport : current.__characterPairSupport),
+		};
 	}
 
 	private _handleOnEnter(modeId:string, conf:IRichEditConfiguration): void {

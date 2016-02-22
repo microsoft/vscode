@@ -203,7 +203,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 		this.renameSupport = this;
 		this.tokenizationSupport = tokenization.createTokenizationSupport(this, tokenization.Language.TypeScript);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), {
+		this.richEditSupport = new RichEditSupport(this.getId(), null, {
 			wordPattern: createWordRegExp('$'),
 
 			comments: {

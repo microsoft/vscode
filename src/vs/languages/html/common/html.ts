@@ -337,7 +337,7 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 	}
 
 	protected _createRichEditSupport(): Modes.IRichEditSupport {
-		return new RichEditSupport(this.getId(), {
+		return new RichEditSupport(this.getId(), null, {
 
 			wordPattern: createWordRegExp('#-?%'),
 

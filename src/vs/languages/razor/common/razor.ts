@@ -69,7 +69,7 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 	}
 
 	protected _createRichEditSupport(): Modes.IRichEditSupport {
-		return new RichEditSupport(this.getId(), {
+		return new RichEditSupport(this.getId(), null, {
 
 			wordPattern: createWordRegExp('#?%'),
 

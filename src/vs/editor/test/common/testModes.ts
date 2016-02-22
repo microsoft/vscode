@@ -230,7 +230,7 @@ export class BracketMode extends TestingMode {
 		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new BracketState(this)
 		}, false, false);
-		this.richEditSupport = new RichEditSupport(this.getId(), {
+		this.richEditSupport = new RichEditSupport(this.getId(), null, {
 			__electricCharacterSupport: {
 				brackets: [
 					{ tokenType: 'asd', open: '{', close: '}', isElectric: true },

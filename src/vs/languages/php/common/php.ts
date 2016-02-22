@@ -474,7 +474,7 @@ export class PHPMode extends AbstractMode implements ITokenizationCustomization 
 
 		this.tokenizationSupport = new TokenizationSupport(this, this, true, false);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), {
+		this.richEditSupport = new RichEditSupport(this.getId(), null, {
 			wordPattern: createWordRegExp('$_'),
 
 			comments: {
