@@ -10,9 +10,9 @@ import Scanner = require('vs/languages/css/common/parser/cssScanner');
 
 suite('CSS - Scanner', () => {
 
-	function assertSingleToken(scan: Scanner.Scanner, source: string, len: number, offset: number, text: string, type: Scanner.TokenType, ignoreWhitespace?:boolean):void {
+	function assertSingleToken(scan: Scanner.Scanner, source: string, len: number, offset: number, text: string, type: Scanner.TokenType):void {
 		scan.setSource(source);
-		var token = scan.scan(ignoreWhitespace);
+		var token = scan.scan();
 		assert.equal(token.len, len);
 		assert.equal(token.offset, offset);
 		assert.equal(token.text, text);
@@ -22,7 +22,17 @@ suite('CSS - Scanner', () => {
 	test('Test Whitespace', function() {
 		var scanner = new Scanner.Scanner();
 		assertSingleToken(scanner, ' @', 1, 1, '@', Scanner.TokenType.Delim);
-		assertSingleToken(scanner, ' @', 1, 0, ' ', Scanner.TokenType.Whitespace, false);
+		assertSingleToken(scanner, ' /* comment*/ \n/*comment*/@', 1, 26, '@', Scanner.TokenType.Delim);
+
+		scanner = new Scanner.Scanner();
+		scanner.ignoreWhitespace = false;
+		assertSingleToken(scanner, ' @', 1, 0, ' ', Scanner.TokenType.Whitespace);
+		assertSingleToken(scanner, '/*comment*/ @', 1, 11, ' ', Scanner.TokenType.Whitespace);
+
+		scanner = new Scanner.Scanner();
+		scanner.ignoreComment = false;
+		assertSingleToken(scanner, ' /*comment*/@', 11, 1, '/*comment*/', Scanner.TokenType.Comment);
+		assertSingleToken(scanner, '/*comment*/ @', 11, 0, '/*comment*/', Scanner.TokenType.Comment);
 	});
 
 	test('Test Token Ident', function() {
