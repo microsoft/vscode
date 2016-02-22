@@ -311,7 +311,7 @@ export class CallstackAccessibilityProvider implements tree.IAccessibilityProvid
 			return nls.localize('threadAriaLabel', "Thread {0}, callstack, debug", (<model.Thread>element).name);
 		}
 		if (element instanceof model.StackFrame) {
-			return nls.localize('stackFrameAriaLabel', "Stack Frame {0} on line {1} in {2}, callstack, debug", (<model.StackFrame>element).name, (<model.StackFrame>element).lineNumber, getSourceName((<model.StackFrame>element).source, this.contextService));
+			return nls.localize('stackFrameAriaLabel', "Stack Frame {0} line {1} {2}, callstack, debug", (<model.StackFrame>element).name, (<model.StackFrame>element).lineNumber, getSourceName((<model.StackFrame>element).source, this.contextService));
 		}
 
 		return null;
@@ -460,7 +460,7 @@ export class VariablesAccessibilityProvider implements tree.IAccessibilityProvid
 			return nls.localize('variableScopeAriaLabel', "Scope {0}, variables, debug", (<model.Scope>element).name);
 		}
 		if (element instanceof model.Variable) {
-			return nls.localize('variableAriaLabel', "Variable {0} has value {1}, variables, debug", (<model.Variable>element).name, (<model.Variable>element).value);
+			return nls.localize('variableAriaLabel', "{0} value {1}, variables, debug", (<model.Variable>element).name, (<model.Variable>element).value);
 		}
 
 		return null;
@@ -639,10 +639,10 @@ export class WatchExpressionsAccessibilityProvider implements tree.IAccessibilit
 
 	public getAriaLabel(tree: tree.ITree, element: any): string {
 		if (element instanceof model.Expression) {
-			return nls.localize('watchExpressionAriaLabel', "Expression {0} has value {1}, watch, debug", (<model.Expression>element).name, (<model.Expression>element).value);
+			return nls.localize('watchExpressionAriaLabel', "{0} value {1}, watch, debug", (<model.Expression>element).name, (<model.Expression>element).value);
 		}
 		if (element instanceof model.Variable) {
-			return nls.localize('watchVariableAriaLabel', "Variable {0} has value {1}, watch, debug", (<model.Variable>element).name, (<model.Variable>element).value);
+			return nls.localize('watchVariableAriaLabel', "{0} value {1}, watch, debug", (<model.Variable>element).name, (<model.Variable>element).value);
 		}
 
 		return null;
@@ -923,7 +923,7 @@ export class BreakpointsAccessibilityProvider implements tree.IAccessibilityProv
 
 	public getAriaLabel(tree: tree.ITree, element: any): string {
 		if (element instanceof model.Breakpoint) {
-			return nls.localize('breakpointAriaLabel', "Breakpoint on line {0} in {1}, breakpoints, debug", (<model.Breakpoint>element).lineNumber, getSourceName((<model.Breakpoint>element).source, this.contextService));
+			return nls.localize('breakpointAriaLabel', "Breakpoint line {0} {1}, breakpoints, debug", (<model.Breakpoint>element).lineNumber, getSourceName((<model.Breakpoint>element).source, this.contextService));
 		}
 		if (element instanceof model.FunctionBreakpoint) {
 			return nls.localize('functionBreakpointAriaLabel', "Funktion breakpoint {0}, breakpoints, debug", (<model.FunctionBreakpoint>element).name);
