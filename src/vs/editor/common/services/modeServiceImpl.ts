@@ -386,15 +386,32 @@ export class ModeServiceImpl implements IModeService {
 		};
 	}
 
+	private _registerModeSupport<T>(mode:modes.IMode, support: string, callback: (mode: modes.IMode) => T): IDisposable {
+		if (mode.registerSupport) {
+			return mode.registerSupport(support, callback);
+		} else {
+			console.warn('Cannot register support ' + support + ' on mode ' + mode.getId() + ' because it does not support it.');
+			return EmptyDisposable;
+		}
+	}
+
 	protected registerModeSupport<T>(modeId: string, support: string, callback: (mode: modes.IMode) => T): IDisposable {
-		var promise = this._getOrCreateMode(modeId).then(mode => {
-			if (mode.registerSupport) {
-				return mode.registerSupport(support, callback);
-			} else {
-				console.warn('Cannot register support ' + support + ' on mode ' + modeId + ' because it is not a Frankenstein mode');
-				return EmptyDisposable;
+		if (this._instantiatedModes.hasOwnProperty(modeId)) {
+			return this._registerModeSupport(this._instantiatedModes[modeId], support, callback);
+		}
+
+		let cc: (disposable:IDisposable)=>void;
+		let promise = new TPromise<IDisposable>((c, e) => { cc = c; });
+
+		let disposable = this.onDidCreateMode((mode) => {
+			if (mode.getId() !== modeId) {
+				return;
 			}
+
+			cc(this._registerModeSupport(mode, support, callback));
+			disposable.dispose();
 		});
+
 		return {
 			dispose: () => {
 				promise.done(disposable => disposable.dispose(), null);
@@ -543,12 +560,6 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 		// Instantiate mode also in worker
 		this._getModeServiceWorkerHelper().instantiateMode(modeId);
 		return super._createMode(modeId);
-	}
-
-	protected registerModeSupport<T>(modeId: string, support: string, callback: (mode: modes.IMode) => T): IDisposable {
-		// Since there is a code path that leads to Frankenstein mode instantiation, instantiate mode also in worker
-		this._getModeServiceWorkerHelper().instantiateMode(modeId);
-		return super.registerModeSupport(modeId, support, callback);
 	}
 
 	public registerMonarchDefinition(modelService: IModelService, editorWorkerService:IEditorWorkerService, modeId:string, language:ILanguage): IDisposable {
