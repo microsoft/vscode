@@ -424,12 +424,23 @@ export class EditorStatus implements IStatusbarItem {
 	}
 
 	private onIndentationChange(e: IBaseEditor): void {
-		let update: StateDelta = { indentation: null };
-		if (e instanceof BaseTextEditor) {
-			const options = (<ICommonCodeEditor>e.getControl()).getIndentationOptions();
-			update.indentation = options.insertSpaces ? nls.localize('spacesSize', "Spaces: {0}", options.tabSize) :
-				nls.localize('tabSize', "Tab Size: {0}", options.tabSize);
+		if (e && !this.isActiveEditor(e)) {
+			return;
 		}
+
+		const update: StateDelta = { indentation: null };
+		if (e instanceof BaseTextEditor) {
+			let editorWidget = e.getControl();
+			if (editorWidget) {
+				if (editorWidget.getEditorType() === EditorType.IDiffEditor) {
+					editorWidget = (<IDiffEditor>editorWidget).getModifiedEditor();
+				}
+				const options = (<ICommonCodeEditor>editorWidget).getIndentationOptions();
+				update.indentation = options.insertSpaces ? nls.localize('spacesSize', "Spaces: {0}", options.tabSize) :
+					nls.localize('tabSize', "Tab Size: {0}", options.tabSize);
+			}
+		}
+
 		this.updateState(update);
 	}
 
