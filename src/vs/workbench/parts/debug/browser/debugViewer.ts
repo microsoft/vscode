@@ -939,35 +939,12 @@ export class BreakpointsAccessibilityProvider implements tree.IAccessibilityProv
 export class BreakpointsController extends BaseDebugController {
 
 	protected onLeftClick(tree:tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
-		if (element instanceof model.ExceptionBreakpoint) {
-			return false;
-		}
-
 		if (element instanceof model.FunctionBreakpoint && event.detail === 2) {
 			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
 			return true;
 		}
 
 		return super.onLeftClick(tree, element, event);
-	}
-
-	protected onUp(tree:tree.ITree, event:IKeyboardEvent): boolean {
-		return this.doNotFocusExceptionBreakpoint(tree, super.onUp(tree, event));
-	}
-
-	protected onPageUp(tree:tree.ITree, event:IKeyboardEvent): boolean {
-		return this.doNotFocusExceptionBreakpoint(tree, super.onPageUp(tree, event));
-	}
-
-	private doNotFocusExceptionBreakpoint(tree: tree.ITree, upSucceeded: boolean) : boolean {
-		if (upSucceeded) {
-			const focus = tree.getFocus();
-			if (focus instanceof model.ExceptionBreakpoint) {
-				tree.focusNth(2);
-			}
-		}
-
-		return upSucceeded;
 	}
 
 	protected onDelete(tree: tree.ITree, event: IKeyboardEvent): boolean {
