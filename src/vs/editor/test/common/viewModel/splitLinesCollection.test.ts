@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import SplitLinesCollection = require('vs/editor/common/viewModel/splitLinesCollection');
-import CharacterHardWrappingLineMapper = require('vs/editor/common/viewModel/characterHardWrappingLineMapper');
-import PrefixSumComputer = require('vs/editor/common/viewModel/prefixSumComputer');
-import Position = require('vs/editor/common/core/position');
+import * as assert from 'assert';
+import {Position} from 'vs/editor/common/core/position';
+import {CharacterHardWrappingLineMapping} from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
+import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
+import {ILineMapping, IModel, SplitLine} from 'vs/editor/common/viewModel/splitLinesCollection';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
@@ -79,19 +79,19 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 });
 
 
-function pos(lineNumber: number, column: number): Position.Position {
-	return new Position.Position(lineNumber, column);
+function pos(lineNumber: number, column: number): Position {
+	return new Position(lineNumber, column);
 }
 
-function createSplitLine(splitLengths:number[], wrappedLinesPrefix:string, isVisible: boolean = true): SplitLinesCollection.SplitLine {
-	return new SplitLinesCollection.SplitLine(createLineMapping(splitLengths, wrappedLinesPrefix), isVisible);
+function createSplitLine(splitLengths:number[], wrappedLinesPrefix:string, isVisible: boolean = true): SplitLine {
+	return new SplitLine(createLineMapping(splitLengths, wrappedLinesPrefix), isVisible);
 }
 
-function createLineMapping(breakingLengths:number[], wrappedLinesPrefix:string): SplitLinesCollection.ILineMapping {
-	return new CharacterHardWrappingLineMapper.CharacterHardWrappingLineMapping(new PrefixSumComputer.PrefixSumComputer(breakingLengths), wrappedLinesPrefix);
+function createLineMapping(breakingLengths:number[], wrappedLinesPrefix:string): ILineMapping {
+	return new CharacterHardWrappingLineMapping(new PrefixSumComputer(breakingLengths), wrappedLinesPrefix);
 }
 
-function createModel(text:string): SplitLinesCollection.IModel {
+function createModel(text:string): IModel {
 	return {
 		getLineTokens: (lineNumber:number, inaccurateTokensAcceptable?:boolean) => {
 			return null;

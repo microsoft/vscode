@@ -203,7 +203,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 		this.renameSupport = this;
 		this.tokenizationSupport = tokenization.createTokenizationSupport(this, tokenization.Language.TypeScript);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), {
+		this.richEditSupport = new RichEditSupport(this.getId(), null, {
 			wordPattern: createWordRegExp('$'),
 
 			comments: {
@@ -242,11 +242,6 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 			],
 
 			__electricCharacterSupport: {
-				brackets: [
-					{ tokenType:'delimiter.bracket.ts', open: '{', close: '}', isElectric: true },
-					{ tokenType:'delimiter.array.ts', open: '[', close: ']', isElectric: true },
-					{ tokenType:'delimiter.parenthesis.ts', open: '(', close: ')', isElectric: true }
-				],
 				docComment: {scope:'comment.doc', open:'/**', lineStart:' * ', close:' */'}
 			},
 

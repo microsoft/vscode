@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as editorCommon from 'vs/editor/common/editorCommon';
 
-var getStartIndex = EditorCommon.LineTokensBinaryEncoding.getStartIndex;
-var inflate = EditorCommon.LineTokensBinaryEncoding.inflate;
+var getStartIndex = editorCommon.LineTokensBinaryEncoding.getStartIndex;
+var inflate = editorCommon.LineTokensBinaryEncoding.inflate;
 
-export class TokenIterator implements EditorCommon.ITokenIterator {
+export class TokenIterator implements editorCommon.ITokenIterator {
 
-	private _model:EditorCommon.ITokenizedModel;
+	private _model:editorCommon.ITokenizedModel;
 	private _currentLineNumber:number;
 	private _currentTokenIndex:number;
-	private _currentLineTokens:EditorCommon.ILineTokens;
+	private _currentLineTokens:editorCommon.ILineTokens;
 	private _currentTokens:number[];
-	private _map:EditorCommon.ITokensInflatorMap;
-	private _next:EditorCommon.ITokenInfo;
-	private _prev:EditorCommon.ITokenInfo;
+	private _map:editorCommon.ITokensInflatorMap;
+	private _next:editorCommon.ITokenInfo;
+	private _prev:editorCommon.ITokenInfo;
 
-	constructor(model:EditorCommon.ITokenizedModel, position:EditorCommon.IPosition) {
+	constructor(model:editorCommon.ITokenizedModel, position:editorCommon.IPosition) {
 		this._model = model;
 		this._currentLineNumber = position.lineNumber;
 		this._currentTokenIndex = 0;
@@ -99,7 +99,7 @@ export class TokenIterator implements EditorCommon.ITokenIterator {
 		}
 	}
 
-	private _current(): EditorCommon.ITokenInfo {
+	private _current(): editorCommon.ITokenInfo {
 		return {
 			token: inflate(this._map, this._currentTokens[this._currentTokenIndex]),
 			lineNumber: this._currentLineNumber,
@@ -112,7 +112,7 @@ export class TokenIterator implements EditorCommon.ITokenIterator {
 		return this._next !== null;
 	}
 
-	public next(): EditorCommon.ITokenInfo {
+	public next(): editorCommon.ITokenInfo {
 		var result = this._next;
 		this._advanceNext();
 		return result;
@@ -122,7 +122,7 @@ export class TokenIterator implements EditorCommon.ITokenIterator {
 		return this._prev !== null;
 	}
 
-	public prev(): EditorCommon.ITokenInfo {
+	public prev(): editorCommon.ITokenInfo {
 		var result = this._prev;
 		this._advancePrev();
 		return result;

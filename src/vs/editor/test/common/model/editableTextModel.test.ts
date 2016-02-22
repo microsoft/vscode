@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import {Range} from 'vs/editor/common/core/range';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {EndOfLinePreference, EndOfLineSequence, EventType, IIdentifiedSingleEditOperation, IModelContentChangedEvent2} from 'vs/editor/common/editorCommon';
 import {EditableTextModel, IValidatedEditOperation} from 'vs/editor/common/model/editableTextModel';
-import {TextModel} from 'vs/editor/common/model/textModel';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
+import {TextModel} from 'vs/editor/common/model/textModel';
 import {assertSyncedModels, testApplyEditsWithSyncedModels} from 'vs/editor/test/common/model/editableTextModelTestUtils';
 
 suite('EditorModel - EditableTextModel._getInverseEdits', () => {
@@ -274,7 +274,7 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 
 	function testSimpleApplyEdits(original:string[], edits:IValidatedEditOperation[], expected:IValidatedEditOperation): void {
 		let model = new EditableTextModel([], TextModel.toRawText(original.join('\n')), null);
-		model.setEOL(EditorCommon.EndOfLineSequence.LF);
+		model.setEOL(EndOfLineSequence.LF);
 
 		let actual = model._toSingleEditOperation(edits);
 		assert.deepEqual(actual, expected);
@@ -514,7 +514,7 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 
 suite('EditorModel - EditableTextModel.applyEdits', () => {
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text:string[]): EditorCommon.IIdentifiedSingleEditOperation {
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text:string[]): IIdentifiedSingleEditOperation {
 		return {
 			identifier: null,
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
@@ -1211,7 +1211,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		}, (model) => {
 			var isFirstTime = true;
-			model.addListener(EditorCommon.EventType.ModelContentChanged2, (e:EditorCommon.IModelContentChangedEvent2) => {
+			model.addListener(EventType.ModelContentChanged2, (e:IModelContentChangedEvent2) => {
 				if (!isFirstTime) {
 					return;
 				}
@@ -1234,7 +1234,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		let mirrorModel2 = new MirrorModel2(null, model.toRawText().lines, model.toRawText().EOL, model.getVersionId());
 		let mirrorModel2PrevVersionId = model.getVersionId();
 
-		model.addListener(EditorCommon.EventType.ModelContentChanged2, (e:EditorCommon.IModelContentChangedEvent2) => {
+		model.addListener(EventType.ModelContentChanged2, (e:IModelContentChangedEvent2) => {
 			let versionId = e.versionId;
 			if (versionId < mirrorModel2PrevVersionId) {
 				console.warn('Model version id did not advance between edits (2)');
@@ -1249,7 +1249,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			assert.equal(mirrorModel2.version, model.getVersionId(), 'mirror model 2 version OK');
 		};
 
-		model.setEOL(EditorCommon.EndOfLineSequence.CRLF);
+		model.setEOL(EndOfLineSequence.CRLF);
 		assertMirrorModels();
 
 		model.dispose();
@@ -1266,7 +1266,7 @@ interface ILightWeightMarker {
 
 suite('EditorModel - EditableTextModel.applyEdits & markers', () => {
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text:string[]): EditorCommon.IIdentifiedSingleEditOperation {
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text:string[]): IIdentifiedSingleEditOperation {
 		return {
 			identifier: null,
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
@@ -1292,7 +1292,7 @@ suite('EditorModel - EditableTextModel.applyEdits & markers', () => {
 		return result;
 	}
 
-	function testApplyEditsAndMarkers(text:string[], markers:ILightWeightMarker[], edits:EditorCommon.IIdentifiedSingleEditOperation[], changedMarkers:string[], expectedText:string[], expectedMarkers:ILightWeightMarker[]): void {
+	function testApplyEditsAndMarkers(text:string[], markers:ILightWeightMarker[], edits:IIdentifiedSingleEditOperation[], changedMarkers:string[], expectedText:string[], expectedMarkers:ILightWeightMarker[]): void {
 		var textStr = text.join('\n');
 		var expectedTextStr = expectedText.join('\n');
 		var markersMap = toMarkersMap(markers);
@@ -1300,7 +1300,7 @@ suite('EditorModel - EditableTextModel.applyEdits & markers', () => {
 		var markerId2ModelMarkerId = Object.create(null);
 
 		var model = new EditableTextModel([], TextModel.toRawText(textStr), null);
-		model.setEOL(EditorCommon.EndOfLineSequence.LF);
+		model.setEOL(EndOfLineSequence.LF);
 
 		// Add markers
 		markers.forEach((m) => {
@@ -1313,7 +1313,7 @@ suite('EditorModel - EditableTextModel.applyEdits & markers', () => {
 		model._assertLineNumbersOK();
 
 		// Assert edits produced expected result
-		assert.deepEqual(model.getValue(EditorCommon.EndOfLinePreference.LF), expectedTextStr);
+		assert.deepEqual(model.getValue(EndOfLinePreference.LF), expectedTextStr);
 
 		let actualChangedMarkers: string[] = [];
 		for (let i = 0, len = expectedMarkers.length; i < len; i++) {

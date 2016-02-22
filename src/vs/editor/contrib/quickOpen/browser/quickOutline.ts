@@ -7,31 +7,31 @@
 'use strict';
 
 import 'vs/css!./quickOutline';
-import nls = require('vs/nls');
-import Arrays = require('vs/base/common/arrays');
+import * as nls from 'vs/nls';
+import * as arrays from 'vs/base/common/arrays';
+import {onUnexpectedError} from 'vs/base/common/errors';
+import {matchesFuzzy} from 'vs/base/common/filters';
+import * as strings from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
-import Errors = require('vs/base/common/errors');
-import Strings = require('vs/base/common/strings');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import Filters = require('vs/base/common/filters');
-import QuickOpenModel = require('vs/base/parts/quickopen/browser/quickOpenModel');
-import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
-import EditorQuickOpen = require('./editorQuickOpen');
-import {Behaviour} from 'vs/editor/common/editorAction';
+import {IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
+import {ICommonCodeEditor, IEditorActionDescriptorData, IRange} from 'vs/editor/common/editorCommon';
+import {IOutlineEntry} from 'vs/editor/common/modes';
+import {BaseEditorQuickOpenAction, IDecorator} from './editorQuickOpen';
 
 let SCOPE_PREFIX = ':';
 
-class SymbolEntry extends QuickOpenModel.QuickOpenEntryGroup {
+class SymbolEntry extends QuickOpenEntryGroup {
 	private name: string;
 	private type: string;
 	private description: string;
-	private range: EditorCommon.IRange;
-	private editor: EditorCommon.ICommonCodeEditor;
-	private decorator: EditorQuickOpen.IDecorator;
+	private range: IRange;
+	private editor: ICommonCodeEditor;
+	private decorator: IDecorator;
 
-	constructor(name: string, type: string, description: string, range: EditorCommon.IRange, highlights: QuickOpenModel.IHighlight[], editor: EditorCommon.ICommonCodeEditor, decorator: EditorQuickOpen.IDecorator) {
+	constructor(name: string, type: string, description: string, range: IRange, highlights: IHighlight[], editor: ICommonCodeEditor, decorator: IDecorator) {
 		super();
 
 		this.name = name;
@@ -63,19 +63,19 @@ class SymbolEntry extends QuickOpenModel.QuickOpenEntryGroup {
 		return this.type;
 	}
 
-	public getRange(): EditorCommon.IRange {
+	public getRange(): IRange {
 		return this.range;
 	}
 
-	public run(mode: QuickOpen.Mode, context: QuickOpenModel.IContext): boolean {
-		if (mode === QuickOpen.Mode.OPEN) {
+	public run(mode: Mode, context: IContext): boolean {
+		if (mode === Mode.OPEN) {
 			return this.runOpen(context);
 		}
 
 		return this.runPreview();
 	}
 
-	private runOpen(context: QuickOpenModel.IContext): boolean {
+	private runOpen(context: IContext): boolean {
 
 		// Apply selection and focus
 		let range = this.toSelection();
@@ -98,7 +98,7 @@ class SymbolEntry extends QuickOpenModel.QuickOpenEntryGroup {
 		return false;
 	}
 
-	private toSelection(): EditorCommon.IRange {
+	private toSelection(): IRange {
 		return {
 			startLineNumber: this.range.startLineNumber,
 			startColumn: this.range.startColumn || 1,
@@ -111,18 +111,18 @@ class SymbolEntry extends QuickOpenModel.QuickOpenEntryGroup {
 interface OutlineNode {
 	label: string;
 	type: string;
-	range: EditorCommon.IRange;
+	range: IRange;
 	children?: OutlineNode[];
 	parentScope?: string[];
 }
 
-export class QuickOutlineAction extends EditorQuickOpen.BaseEditorQuickOpenAction {
+export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 
 	public static ID = 'editor.action.quickOutline';
 
-	private cachedResult: Modes.IOutlineEntry[];
+	private cachedResult: IOutlineEntry[];
 
-	constructor(descriptor: EditorCommon.IEditorActionDescriptorData, editor: EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor, nls.localize('QuickOutlineAction.label', "Go to Symbol..."), Behaviour.WidgetFocus | Behaviour.ShowInContextMenu);
 	}
 
@@ -148,7 +148,7 @@ export class QuickOutlineAction extends EditorQuickOpen.BaseEditorQuickOpenActio
 
 		// Resolve outline
 		let promise = outlineSupport.getOutline(model.getAssociatedResource());
-		return promise.then((result: Modes.IOutlineEntry[]) => {
+		return promise.then((result: IOutlineEntry[]) => {
 			if (Array.isArray(result) && result.length > 0) {
 
 				// Cache result
@@ -159,16 +159,16 @@ export class QuickOutlineAction extends EditorQuickOpen.BaseEditorQuickOpenActio
 
 			return TPromise.as(true);
 		}, (err) => {
-			Errors.onUnexpectedError(err);
+			onUnexpectedError(err);
 			return false;
 		});
 	}
 
-	_getModel(value: string): QuickOpenModel.QuickOpenModel {
-		return new QuickOpenModel.QuickOpenModel(this.toQuickOpenEntries(this.cachedResult, value));
+	_getModel(value: string): QuickOpenModel {
+		return new QuickOpenModel(this.toQuickOpenEntries(this.cachedResult, value));
 	}
 
-	_getAutoFocus(searchValue: string): QuickOpen.IAutoFocus {
+	_getAutoFocus(searchValue: string): IAutoFocus {
 
 		// Remove any type pattern (:) from search value as needed
 		if (searchValue.indexOf(SCOPE_PREFIX) === 0) {
@@ -202,16 +202,16 @@ export class QuickOutlineAction extends EditorQuickOpen.BaseEditorQuickOpenActio
 
 		for (let i = 0; i < flattened.length; i++) {
 			let element = flattened[i];
-			let label = Strings.trim(element.label);
+			let label = strings.trim(element.label);
 
 			// Check for meatch
-			let highlights = Filters.matchesFuzzy(normalizedSearchValue, label);
+			let highlights = matchesFuzzy(normalizedSearchValue, label);
 			if (highlights) {
 
 				// Show parent scope as description
 				let description: string = null;
 				if (element.parentScope) {
-					description = Arrays.tail(element.parentScope);
+					description = arrays.tail(element.parentScope);
 				}
 
 				// Add
@@ -315,7 +315,7 @@ export class QuickOutlineAction extends EditorQuickOpen.BaseEditorQuickOpenActio
 		let elementBName = elementB.getLabel().toLowerCase();
 
 		// Compare by name
-		let r = Strings.localeCompare(elementAName, elementBName);
+		let r = strings.localeCompare(elementAName, elementBName);
 		if (r !== 0) {
 			return r;
 		}
@@ -334,7 +334,7 @@ export class QuickOutlineAction extends EditorQuickOpen.BaseEditorQuickOpenActio
 		// Sort by type first if scoped search
 		let elementAType = elementA.getType();
 		let elementBType = elementB.getType();
-		let r = Strings.localeCompare(elementAType, elementBType);
+		let r = strings.localeCompare(elementAType, elementBType);
 		if (r !== 0) {
 			return r;
 		}
@@ -345,7 +345,7 @@ export class QuickOutlineAction extends EditorQuickOpen.BaseEditorQuickOpenActio
 			let elementBName = elementB.getLabel().toLowerCase();
 
 			// Compare by name
-			let r = Strings.localeCompare(elementAName, elementBName);
+			let r = strings.localeCompare(elementAName, elementBName);
 			if (r !== 0) {
 				return r;
 			}

@@ -6,41 +6,42 @@
 'use strict';
 
 import 'vs/css!./goToDeclaration';
-import nls = require('vs/nls');
-import Severity from 'vs/base/common/severity';
-import * as Platform from 'vs/base/common/platform';
-import * as Browser from 'vs/base/browser/browser';
-import Async = require('vs/base/common/async');
-import URI from 'vs/base/common/uri';
-import Keyboard = require('vs/base/browser/keyboardEvent');
-import Strings = require('vs/base/common/strings');
-import Errors = require('vs/base/common/errors');
+import * as nls from 'vs/nls';
 import {coalesce} from 'vs/base/common/arrays';
+import {Throttler} from 'vs/base/common/async';
+import {onUnexpectedError} from 'vs/base/common/errors';
+import {ListenerUnbind} from 'vs/base/common/eventEmitter';
+import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import * as platform from 'vs/base/common/platform';
+import Severity from 'vs/base/common/severity';
+import * as strings from 'vs/base/common/strings';
+import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import HtmlContent = require('vs/base/common/htmlContent');
-import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer';
-import {Range} from 'vs/editor/common/core/range';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import {IRequestService} from 'vs/platform/request/common/request';
-import {IMessageService} from 'vs/platform/message/common/message';
+import * as browser from 'vs/base/browser/browser';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IEditorService} from 'vs/platform/editor/common/editor';
-import {FindReferencesController} from 'vs/editor/contrib/referenceSearch/browser/referenceSearch';
+import {IMessageService} from 'vs/platform/message/common/message';
+import {IRequestService} from 'vs/platform/request/common/request';
+import {Range} from 'vs/editor/common/core/range';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {IReference} from 'vs/editor/common/modes';
+import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer';
+import {ICodeEditor, IEditorMouseEvent, IMouseTarget} from 'vs/editor/browser/editorBrowser';
+import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {DeclarationRegistry, getDeclarationsAtPosition} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
+import {FindReferencesController} from 'vs/editor/contrib/referenceSearch/browser/referenceSearch';
 
 const DEFAULT_BEHAVIOR = Behaviour.WidgetFocus | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange;
 
 export abstract class GoToTypeAction extends EditorAction {
 
 	constructor(
-		descriptor: EditorCommon.IEditorActionDescriptorData,
-		editor: EditorCommon.ICommonCodeEditor,
+		descriptor: editorCommon.IEditorActionDescriptorData,
+		editor: editorCommon.ICommonCodeEditor,
 		private _messageService: IMessageService,
 		private _editorService: IEditorService,
 		condition = DEFAULT_BEHAVIOR
@@ -92,7 +93,7 @@ export abstract class GoToTypeAction extends EditorAction {
 		return false;
 	}
 
-	protected abstract _resolve(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.IReference[]>;
+	protected abstract _resolve(resource: URI, position: editorCommon.IPosition): TPromise<IReference[]>;
 
 	protected _showSingleReferenceInPeek() {
 		return false;
@@ -104,8 +105,8 @@ export class GoToTypeDeclarationActions extends GoToTypeAction {
 	public static ID = 'editor.action.goToTypeDeclaration';
 
 	constructor(
-		descriptor: EditorCommon.IEditorActionDescriptorData,
-		editor: EditorCommon.ICommonCodeEditor,
+		descriptor: editorCommon.IEditorActionDescriptorData,
+		editor: editorCommon.ICommonCodeEditor,
 		@IMessageService messageService: IMessageService,
 		@IEditorService editorService: IEditorService
 	) {
@@ -134,7 +135,7 @@ export class GoToTypeDeclarationActions extends GoToTypeAction {
 		);
 	}
 
-	protected _resolve(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.IReference[]> {
+	protected _resolve(resource: URI, position: editorCommon.IPosition): TPromise<IReference[]> {
 		let typeDeclarationSupport = this.editor.getModel().getMode().typeDeclarationSupport;
 		if (typeDeclarationSupport) {
 			return typeDeclarationSupport.findTypeDeclaration(<any>resource, position).then(value => [value]);
@@ -147,8 +148,8 @@ export class GoToDeclarationAction extends GoToTypeAction {
 	public static ID = 'editor.action.goToDeclaration';
 
 	constructor(
-		descriptor: EditorCommon.IEditorActionDescriptorData,
-		editor: EditorCommon.ICommonCodeEditor,
+		descriptor: editorCommon.IEditorActionDescriptorData,
+		editor: editorCommon.ICommonCodeEditor,
 		@IMessageService messageService: IMessageService,
 		@IEditorService editorService: IEditorService
 	) {
@@ -182,7 +183,7 @@ export class GoToDeclarationAction extends GoToTypeAction {
 		return DEFAULT_BEHAVIOR;
 	}
 
-	protected _resolve(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.IReference[]> {
+	protected _resolve(resource: URI, position: editorCommon.IPosition): TPromise<IReference[]> {
 		return getDeclarationsAtPosition(this.editor.getModel(), this.editor.getPosition());
 	}
 }
@@ -192,8 +193,8 @@ export class OpenDeclarationToTheSideAction extends GoToDeclarationAction {
 	public static ID = 'editor.action.openDeclarationToTheSide';
 
 	constructor(
-		descriptor: EditorCommon.IEditorActionDescriptorData,
-		editor: EditorCommon.ICommonCodeEditor,
+		descriptor: editorCommon.IEditorActionDescriptorData,
+		editor: editorCommon.ICommonCodeEditor,
 		@IMessageService messageService: IMessageService,
 		@IEditorService editorService: IEditorService
 	) {
@@ -214,8 +215,8 @@ export class PreviewDeclarationAction extends GoToDeclarationAction {
 	public static ID = 'editor.action.previewDeclaration';
 
 	constructor(
-		descriptor: EditorCommon.IEditorActionDescriptorData,
-		editor: EditorCommon.ICommonCodeEditor,
+		descriptor: editorCommon.IEditorActionDescriptorData,
+		editor: editorCommon.ICommonCodeEditor,
 		@IMessageService messageService: IMessageService,
 		@IEditorService editorService: IEditorService
 	) {
@@ -229,25 +230,25 @@ export class PreviewDeclarationAction extends GoToDeclarationAction {
 
 // --- Editor Contribution to goto definition using the mouse and a modifier key
 
-class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorContribution {
+class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
 
 	static ID = 'editor.contrib.gotodefinitionwithmouse';
-	static TRIGGER_MODIFIER = Platform.isMacintosh ? 'metaKey' : 'ctrlKey';
+	static TRIGGER_MODIFIER = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
 	static TRIGGER_SIDEBYSIDE_KEY_VALUE = KeyCode.Alt;
-	static TRIGGER_KEY_VALUE = Platform.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;
+	static TRIGGER_KEY_VALUE = platform.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;
 	static MAX_SOURCE_PREVIEW_LINES = 7;
 
-	private editor: EditorBrowser.ICodeEditor;
-	private toUnhook: EventEmitter.ListenerUnbind[];
+	private editor: ICodeEditor;
+	private toUnhook: ListenerUnbind[];
 	private hasRequiredServices: boolean;
 	private decorations: string[];
-	private currentWordUnderMouse: EditorCommon.IWordAtPosition;
-	private throttler: Async.Throttler;
-	private lastMouseMoveEvent: EditorBrowser.IMouseEvent;
+	private currentWordUnderMouse: editorCommon.IWordAtPosition;
+	private throttler: Throttler;
+	private lastMouseMoveEvent: IEditorMouseEvent;
 	private hasTriggerKeyOnMouseDown: boolean;
 
 	constructor(
-		editor: EditorBrowser.ICodeEditor,
+		editor: ICodeEditor,
 		@IRequestService private requestService: IRequestService,
 		@IMessageService private messageService: IMessageService,
 		@IEditorService private editorService: IEditorService
@@ -257,26 +258,26 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 		this.toUnhook = [];
 		this.decorations = [];
 		this.editor = editor;
-		this.throttler = new Async.Throttler();
+		this.throttler = new Throttler();
 
-		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.MouseDown, (e: EditorBrowser.IMouseEvent) => this.onEditorMouseDown(e)));
-		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.MouseUp, (e: EditorBrowser.IMouseEvent) => this.onEditorMouseUp(e)));
-		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.MouseMove, (e: EditorBrowser.IMouseEvent) => this.onEditorMouseMove(e)));
-		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.KeyDown, (e: Keyboard.StandardKeyboardEvent) => this.onEditorKeyDown(e)));
-		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.KeyUp, (e: Keyboard.StandardKeyboardEvent) => this.onEditorKeyUp(e)));
+		this.toUnhook.push(this.editor.addListener(editorCommon.EventType.MouseDown, (e: IEditorMouseEvent) => this.onEditorMouseDown(e)));
+		this.toUnhook.push(this.editor.addListener(editorCommon.EventType.MouseUp, (e: IEditorMouseEvent) => this.onEditorMouseUp(e)));
+		this.toUnhook.push(this.editor.addListener(editorCommon.EventType.MouseMove, (e: IEditorMouseEvent) => this.onEditorMouseMove(e)));
+		this.toUnhook.push(this.editor.addListener(editorCommon.EventType.KeyDown, (e: IKeyboardEvent) => this.onEditorKeyDown(e)));
+		this.toUnhook.push(this.editor.addListener(editorCommon.EventType.KeyUp, (e: IKeyboardEvent) => this.onEditorKeyUp(e)));
 
-		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.ModelChanged, (e: EditorCommon.IModelContentChangedEvent) => this.resetHandler()));
-		this.toUnhook.push(this.editor.addListener('change', (e: EditorCommon.IModelContentChangedEvent) => this.resetHandler()));
+		this.toUnhook.push(this.editor.addListener(editorCommon.EventType.ModelChanged, (e: editorCommon.IModelContentChangedEvent) => this.resetHandler()));
+		this.toUnhook.push(this.editor.addListener('change', (e: editorCommon.IModelContentChangedEvent) => this.resetHandler()));
 		this.toUnhook.push(this.editor.addListener('scroll', () => this.resetHandler()));
 	}
 
-	private onEditorMouseMove(mouseEvent: EditorBrowser.IMouseEvent, withKey?: Keyboard.StandardKeyboardEvent): void {
+	private onEditorMouseMove(mouseEvent: IEditorMouseEvent, withKey?: IKeyboardEvent): void {
 		this.lastMouseMoveEvent = mouseEvent;
 
 		this.startFindDefinition(mouseEvent, withKey);
 	}
 
-	private startFindDefinition(mouseEvent: EditorBrowser.IMouseEvent, withKey?: Keyboard.StandardKeyboardEvent): void {
+	private startFindDefinition(mouseEvent: IEditorMouseEvent, withKey?: IKeyboardEvent): void {
 		if (!this.isEnabled(mouseEvent, withKey)) {
 			this.currentWordUnderMouse = null;
 			this.removeDecorations();
@@ -300,7 +301,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 		this.currentWordUnderMouse = word;
 
 		// Find definition and decorate word if found
-		let state = this.editor.captureState(EditorCommon.CodeEditorStateFlag.Position, EditorCommon.CodeEditorStateFlag.Value, EditorCommon.CodeEditorStateFlag.Selection, EditorCommon.CodeEditorStateFlag.Scroll);
+		let state = this.editor.captureState(editorCommon.CodeEditorStateFlag.Position, editorCommon.CodeEditorStateFlag.Value, editorCommon.CodeEditorStateFlag.Selection, editorCommon.CodeEditorStateFlag.Scroll);
 		this.throttler.queue(() => {
 			return state.validate(this.editor)
 				? this.findDefinition(mouseEvent.target)
@@ -331,9 +332,9 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 
 						let from = Math.max(1, result.range.startLineNumber),
 							to: number,
-							editorModel: EditorCommon.IModel;
+							editorModel: editorCommon.IModel;
 
-						editorModel = <EditorCommon.IModel>model.textEditorModel;
+						editorModel = <editorCommon.IModel>model.textEditorModel;
 
 						// if we have a range, take that into consideration for the "to" position, otherwise fallback to MAX_SOURCE_PREVIEW_LINES
 						if (result.range.startLineNumber !== result.range.endLineNumber || result.range.startColumn !== result.range.endColumn) {
@@ -365,7 +366,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 							min = Math.min(min, match[0].length);
 						}
 
-						source = source.replace(new RegExp(`^([ \\t]{${min}})`, 'gm'), Strings.empty);
+						source = source.replace(new RegExp(`^([ \\t]{${min}})`, 'gm'), strings.empty);
 
 						if (result.range.endLineNumber - result.range.startLineNumber > GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES) {
 							source += '\n\u2026';
@@ -380,16 +381,16 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 					}, source, true);
 				});
 			}
-		}).done(undefined, Errors.onUnexpectedError);
+		}).done(undefined, onUnexpectedError);
 	}
 
-	private addDecoration(range: EditorCommon.IRange, text: string, isCode: boolean): void {
+	private addDecoration(range: editorCommon.IRange, text: string, isCode: boolean): void {
 		let model = this.editor.getModel();
 		if (!model) {
 			return;
 		}
 
-		let htmlMessage: HtmlContent.IHTMLContentElement = {
+		let htmlMessage: IHTMLContentElement = {
 			tagName: 'div',
 			className: 'goto-definition-link-hover',
 			style: `tab-size: ${this.editor.getIndentationOptions().tabSize}`
@@ -417,7 +418,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 		}
 	}
 
-	private onEditorKeyDown(e: Keyboard.StandardKeyboardEvent): void {
+	private onEditorKeyDown(e: IKeyboardEvent): void {
 		if (
 			this.lastMouseMoveEvent && (
 				e.keyCode === GotoDefinitionWithMouseEditorContribution.TRIGGER_KEY_VALUE || // User just pressed Ctrl/Cmd (normal goto definition)
@@ -435,7 +436,7 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 		this.removeDecorations();
 	}
 
-	private onEditorMouseDown(mouseEvent: EditorBrowser.IMouseEvent): void {
+	private onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
 		// We need to record if we had the trigger key on mouse down because someone might select something in the editor
 		// holding the mouse down and then while mouse is down start to press Ctrl/Cmd to start a copy operation and then
 		// release the mouse button without wanting to do the navigation.
@@ -443,34 +444,34 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 		this.hasTriggerKeyOnMouseDown = !!mouseEvent.event[GotoDefinitionWithMouseEditorContribution.TRIGGER_MODIFIER];
 	}
 
-	private onEditorMouseUp(mouseEvent: EditorBrowser.IMouseEvent): void {
+	private onEditorMouseUp(mouseEvent: IEditorMouseEvent): void {
 		if (this.isEnabled(mouseEvent) && this.hasTriggerKeyOnMouseDown) {
 			this.gotoDefinition(mouseEvent.target, mouseEvent.event.altKey).done(() => {
 				this.removeDecorations();
 			}, (error: Error) => {
 				this.removeDecorations();
-				Errors.onUnexpectedError(error);
+				onUnexpectedError(error);
 			});
 		}
 	}
 
-	private onEditorKeyUp(e: Keyboard.StandardKeyboardEvent): void {
+	private onEditorKeyUp(e: IKeyboardEvent): void {
 		if (e.keyCode === GotoDefinitionWithMouseEditorContribution.TRIGGER_KEY_VALUE) {
 			this.removeDecorations();
 			this.currentWordUnderMouse = null;
 		}
 	}
 
-	private isEnabled(mouseEvent: EditorBrowser.IMouseEvent, withKey?: Keyboard.StandardKeyboardEvent): boolean {
+	private isEnabled(mouseEvent: IEditorMouseEvent, withKey?: IKeyboardEvent): boolean {
 		return this.hasRequiredServices &&
 			this.editor.getModel() &&
-			(Browser.isIE11orEarlier || mouseEvent.event.detail <= 1) && // IE does not support event.detail properly
-			mouseEvent.target.type === EditorCommon.MouseTargetType.CONTENT_TEXT &&
+			(browser.isIE11orEarlier || mouseEvent.event.detail <= 1) && // IE does not support event.detail properly
+			mouseEvent.target.type === editorCommon.MouseTargetType.CONTENT_TEXT &&
 			(mouseEvent.event[GotoDefinitionWithMouseEditorContribution.TRIGGER_MODIFIER] || (withKey && withKey.keyCode === GotoDefinitionWithMouseEditorContribution.TRIGGER_KEY_VALUE)) &&
 			DeclarationRegistry.has(this.editor.getModel());
 	}
 
-	private findDefinition(target: EditorBrowser.IMouseTarget): TPromise<Modes.IReference[]> {
+	private findDefinition(target: IMouseTarget): TPromise<IReference[]> {
 		let model = this.editor.getModel();
 		if (!model) {
 			return TPromise.as(null);
@@ -479,10 +480,10 @@ class GotoDefinitionWithMouseEditorContribution implements EditorCommon.IEditorC
 		return getDeclarationsAtPosition(this.editor.getModel(), target.position);
 	}
 
-	private gotoDefinition(target: EditorBrowser.IMouseTarget, sideBySide: boolean): TPromise<any> {
-		let state = this.editor.captureState(EditorCommon.CodeEditorStateFlag.Position, EditorCommon.CodeEditorStateFlag.Value, EditorCommon.CodeEditorStateFlag.Selection, EditorCommon.CodeEditorStateFlag.Scroll);
+	private gotoDefinition(target: IMouseTarget, sideBySide: boolean): TPromise<any> {
+		let state = this.editor.captureState(editorCommon.CodeEditorStateFlag.Position, editorCommon.CodeEditorStateFlag.Value, editorCommon.CodeEditorStateFlag.Selection, editorCommon.CodeEditorStateFlag.Scroll);
 
-		return this.findDefinition(target).then((results: Modes.IReference[]) => {
+		return this.findDefinition(target).then((results: IReference[]) => {
 			if (!results || !results.length || !state.validate(this.editor)) {
 				return;
 			}
@@ -539,7 +540,7 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(PreviewDecl
 }));
 
 let goToDeclarationKb: number;
-if (Platform.isWeb) {
+if (platform.isWeb) {
 	goToDeclarationKb = KeyMod.CtrlCmd | KeyCode.F12;
 } else {
 	goToDeclarationKb = KeyCode.F12;

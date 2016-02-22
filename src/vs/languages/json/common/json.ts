@@ -47,7 +47,7 @@ export class JSONMode extends AbstractMode implements Modes.IExtraInfoSupport, M
 
 		this.tokenizationSupport = tokenization.createTokenizationSupport(this, true);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), {
+		this.richEditSupport = new RichEditSupport(this.getId(), null, {
 
 			wordPattern: createWordRegExp('.-'),
 
@@ -60,13 +60,6 @@ export class JSONMode extends AbstractMode implements Modes.IExtraInfoSupport, M
 				['{', '}'],
 				['[', ']']
 			],
-
-			__electricCharacterSupport: {
-				brackets: [
-					{ tokenType:'delimiter.bracket.json', open: '{', close: '}', isElectric: true },
-					{ tokenType:'delimiter.array.json', open: '[', close: ']', isElectric: true }
-				]
-			},
 
 			__characterPairSupport: {
 				autoClosingPairs: [

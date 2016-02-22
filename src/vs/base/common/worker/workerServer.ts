@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {setUnexpectedErrorHandler, transformErrorForSerialization} from 'vs/base/common/errors';
+import {parse, stringify} from 'vs/base/common/marshalling';
+import {IRemoteCom} from 'vs/base/common/remote';
 import {TPromise} from 'vs/base/common/winjs.base';
-import protocol = require('vs/base/common/worker/workerProtocol');
-import errors = require('vs/base/common/errors');
-import remote = require('vs/base/common/remote');
-import marshalling = require('vs/base/common/marshalling');
+import * as workerProtocol from 'vs/base/common/worker/workerProtocol';
 
 interface IReplyCallbacks {
 	c: (value:any)=>void;
@@ -23,7 +23,7 @@ export class WorkerServer {
 	private _requestHandler:any;
 	private _lastReq: number;
 	private _awaitedReplies: { [req:string]: IReplyCallbacks; };
-	private _remoteCom: protocol.RemoteCom;
+	private _remoteCom: workerProtocol.RemoteCom;
 
 	constructor(postSerializedMessage:(msg:string)=>void) {
 		this._postSerializedMessage = postSerializedMessage;
@@ -33,33 +33,33 @@ export class WorkerServer {
 		this._awaitedReplies = {};
 		this._bindConsole();
 
-		this._remoteCom = new protocol.RemoteCom(this);
+		this._remoteCom = new workerProtocol.RemoteCom(this);
 	}
 
-	public getRemoteCom(): remote.IRemoteCom {
+	public getRemoteCom(): IRemoteCom {
 		return this._remoteCom;
 	}
 
 	private _bindConsole(): void {
 		(<any> self).console = {
-			log: this._sendPrintMessage.bind(this, protocol.PrintType.LOG),
-			debug: this._sendPrintMessage.bind(this, protocol.PrintType.DEBUG),
-			info: this._sendPrintMessage.bind(this, protocol.PrintType.INFO),
-			warn: this._sendPrintMessage.bind(this, protocol.PrintType.WARN),
-			error: this._sendPrintMessage.bind(this, protocol.PrintType.ERROR)
+			log: this._sendPrintMessage.bind(this, workerProtocol.PrintType.LOG),
+			debug: this._sendPrintMessage.bind(this, workerProtocol.PrintType.DEBUG),
+			info: this._sendPrintMessage.bind(this, workerProtocol.PrintType.INFO),
+			warn: this._sendPrintMessage.bind(this, workerProtocol.PrintType.WARN),
+			error: this._sendPrintMessage.bind(this, workerProtocol.PrintType.ERROR)
 		};
-		errors.setUnexpectedErrorHandler((e) => {
+		setUnexpectedErrorHandler((e) => {
 			self.console.error(e);
 		});
 	}
 
 	private _sendPrintMessage(level:string, ...objects:any[]): void {
-		var transformedObjects = objects.map((obj) => (obj instanceof Error) ? errors.transformErrorForSerialization(obj) : obj);
-		var msg:protocol.IServerPrintMessage = {
+		var transformedObjects = objects.map((obj) => (obj instanceof Error) ? transformErrorForSerialization(obj) : obj);
+		var msg:workerProtocol.IServerPrintMessage = {
 			monacoWorker: true,
 			from: this._workerId,
 			req: '0',
-			type: protocol.MessageType.PRINT,
+			type: workerProtocol.MessageType.PRINT,
 			level: level,
 			payload: (transformedObjects.length === 1 ? transformedObjects[0] : transformedObjects)
 		};
@@ -67,14 +67,14 @@ export class WorkerServer {
 	}
 
 	private _sendReply(msgId:number, action:string, payload:any): void {
-		var msg:protocol.IServerReplyMessage = {
+		var msg:workerProtocol.IServerReplyMessage = {
 			monacoWorker: true,
 			from: this._workerId,
 			req: '0',
 			id: msgId,
-			type: protocol.MessageType.REPLY,
+			type: workerProtocol.MessageType.REPLY,
 			action: action,
-			payload: (payload instanceof Error) ? errors.transformErrorForSerialization(payload) : payload
+			payload: (payload instanceof Error) ? transformErrorForSerialization(payload) : payload
 		};
 		this._postMessage(msg);
 	}
@@ -86,7 +86,7 @@ export class WorkerServer {
 
 		var req = String(++this._lastReq);
 
-		var msg:protocol.IServerMessage = {
+		var msg:workerProtocol.IServerMessage = {
 			monacoWorker: true,
 			from: this._workerId,
 			req: req,
@@ -120,19 +120,19 @@ export class WorkerServer {
 	}
 
 	public onmessage(msg:string): void {
-		this._onmessage(marshalling.parse(msg));
+		this._onmessage(parse(msg));
 	}
 
-	private _postMessage(msg:protocol.IServerMessage): void {
-		this._postSerializedMessage(marshalling.stringify(msg));
+	private _postMessage(msg:workerProtocol.IServerMessage): void {
+		this._postSerializedMessage(stringify(msg));
 	}
 
-	private _onmessage(msg:protocol.IClientMessage): void {
+	private _onmessage(msg:workerProtocol.IClientMessage): void {
 
-		if (msg.type === protocol.MessageType.REPLY) {
+		if (msg.type === workerProtocol.MessageType.REPLY) {
 			// this message is a reply to a request we've made to the main thread previously
 
-			var typedMsg = <protocol.IClientReplyMessage>msg;
+			var typedMsg = <workerProtocol.IClientReplyMessage>msg;
 
 			if (!typedMsg.seq || !this._awaitedReplies.hasOwnProperty(typedMsg.seq)) {
 				console.error('Worker received unexpected reply from main thread', msg);
@@ -151,12 +151,12 @@ export class WorkerServer {
 			return;
 		}
 
-		var c = this._sendReply.bind(this, msg.id, protocol.ReplyType.COMPLETE);
-		var e = this._sendReply.bind(this, msg.id, protocol.ReplyType.ERROR);
-		var p = this._sendReply.bind(this, msg.id, protocol.ReplyType.PROGRESS);
+		var c = this._sendReply.bind(this, msg.id, workerProtocol.ReplyType.COMPLETE);
+		var e = this._sendReply.bind(this, msg.id, workerProtocol.ReplyType.ERROR);
+		var p = this._sendReply.bind(this, msg.id, workerProtocol.ReplyType.PROGRESS);
 
 		switch(msg.type) {
-			case protocol.MessageType.INITIALIZE:
+			case workerProtocol.MessageType.INITIALIZE:
 				this._workerId = msg.payload.id;
 
 				var loaderConfig = msg.payload.loaderConfiguration;
@@ -201,7 +201,7 @@ export class WorkerServer {
 		}
 	}
 
-	private _handleMessage(msg:protocol.IClientMessage, c:(value:any)=>void, e:(err:any)=>void, p:(progress:any)=>void): void {
+	private _handleMessage(msg:workerProtocol.IClientMessage, c:(value:any)=>void, e:(err:any)=>void, p:(progress:any)=>void): void {
 
 		if (msg.type === '_proxyObj') {
 			this._remoteCom.handleMessage(msg.payload).then(c, e, p);
@@ -218,7 +218,7 @@ export class WorkerServer {
 			try {
 				this._requestHandler[msg.type].call(this._requestHandler, this, c, e, p, msg.payload);
 			} catch (handlerError) {
-				e(errors.transformErrorForSerialization(handlerError));
+				e(transformErrorForSerialization(handlerError));
 			}
 			// var what = msg.type;
 			// console.info(what + ' took ' + ((new Date().getTime())-now));

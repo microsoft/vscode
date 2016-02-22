@@ -24,19 +24,12 @@ export interface IThreadService {
 	OneWorker(obj: IThreadSynchronizableObject, methodName: string, target: Function, param: any[], affinity: ThreadAffinity): TPromise<any>;
 	AllWorkers(obj: IThreadSynchronizableObject, methodName: string, target: Function, param: any[]): TPromise<any>;
 
-	createInstance<T extends IThreadSynchronizableObject>(ctor: instantiation.INewConstructorSignature0<T>): T;
-	createInstance<A1, T extends IThreadSynchronizableObject>(ctor: instantiation.INewConstructorSignature1<A1, T>, a1: A1): T;
-	createInstance<A1, A2, T extends IThreadSynchronizableObject>(ctor: instantiation.INewConstructorSignature2<A1, A2, T>, a1: A1, a2: A2): T;
-	createInstance<A1, A2, A3, T extends IThreadSynchronizableObject>(ctor: instantiation.INewConstructorSignature3<A1, A2, A3, T>, a1: A1, a2: A2, a3: A3): T;
-
-	createInstance<T extends IThreadSynchronizableObject>(descriptor: descriptors.AsyncDescriptor0<T>): T;
-	createInstance<A1, T extends IThreadSynchronizableObject>(descriptor: descriptors.AsyncDescriptor1<A1, T>, a1: A1): T;
-	createInstance<A1, A2, T extends IThreadSynchronizableObject>(descriptor: descriptors.AsyncDescriptor2<A1, A2, T>, a1: A1, a2: A2): T;
-	createInstance<A1, A2, A3, T extends IThreadSynchronizableObject>(descriptor: descriptors.AsyncDescriptor3<A1, A2, A3, T>, a1: A1, a2: A2, a3: A3): T;
+	createInstance<A1, T extends IThreadSynchronizableObject>(ctor: instantiation.IConstructorSignature1<A1, T>, a1: A1): T;
+	createInstance<A1, T extends IThreadSynchronizableObject>(descriptor: descriptors.AsyncDescriptor1<A1, T>, a1: A1): TPromise<T>;
 
 	// --- END deprecated methods
 
-	getRemotable<T>(ctor: instantiation.INewConstructorSignature0<T>): T;
+	getRemotable<T>(ctor: instantiation.IConstructorSignature0<T>): T;
 
 	registerRemotableInstance(ctor: any, instance: any): void;
 }

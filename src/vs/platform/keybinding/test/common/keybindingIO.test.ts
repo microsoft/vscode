@@ -5,8 +5,8 @@
 'use strict';
 
 import * as assert from 'assert';
+import {ISimplifiedPlatform, KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
-import {KeyMod, KeyCode, ISimplifiedPlatform} from 'vs/base/common/keyCodes';
 
 suite('Keybinding IO', () => {
 

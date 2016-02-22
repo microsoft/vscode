@@ -12,7 +12,6 @@ import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import platform = require('vs/platform/platform');
-import commonPlatform = require('vs/base/common/platform');
 import workbenchActionRegistry = require('vs/workbench/common/actionRegistry');
 import Themes = require('vs/platform/theme/common/themes');
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
@@ -44,7 +43,7 @@ class SelectThemeAction extends actions.Action {
 			let currentTheme = this.storageService.get(Constants.Preferences.THEME, StorageScope.GLOBAL, DEFAULT_THEME_ID);
 
 			let picks: IPickOpenEntry[] = [];
-			Themes.getBaseThemes(commonPlatform.isWindows).forEach(baseTheme => {
+			Themes.getBaseThemes(true).forEach(baseTheme => {
 				picks.push({ label: Themes.toLabel(baseTheme), id: Themes.toId(baseTheme) });
 			});
 

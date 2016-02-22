@@ -5,9 +5,9 @@
 'use strict';
 
 import * as assert from 'assert';
-import {KeybindingResolver, IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
-import {KbExpr, KbAndExpression, IKeybindingItem} from 'vs/platform/keybinding/common/keybindingService';
-import {KeyMod, KeyCode, BinaryKeybindings} from 'vs/base/common/keyCodes';
+import {BinaryKeybindings, KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {IOSupport, KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
+import {IKeybindingItem, KbAndExpression, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 
 suite('Keybinding Service', () => {
 

@@ -5,9 +5,9 @@
 
 'use strict';
 
+import {binarySearch} from 'vs/base/common/arrays';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import {binarySearch} from 'vs/base/common/arrays';
 import {IModel} from 'vs/editor/common/editorCommon';
 import {LanguageSelector, score} from 'vs/editor/common/modes/languageSelector';
 

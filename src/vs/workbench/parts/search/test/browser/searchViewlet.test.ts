@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import uri from 'vs/base/common/uri';
 import {Match, FileMatch, SearchResult} from 'vs/workbench/parts/search/common/searchModel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {create} from 'vs/platform/instantiation/common/instantiationService';
+import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {SearchSorter, SearchDataSource} from 'vs/workbench/parts/search/browser/searchViewlet';
 import {TestContextService} from 'vs/workbench/test/browser/servicesTestUtils';
 
@@ -16,7 +16,7 @@ suite('Search - Viewlet', () => {
 	let instantiation: IInstantiationService;
 
 	setup(() => {
-		instantiation = create({
+		instantiation = createInstantiationService({
 			modelService: {
 				getModel: () => null
 			},

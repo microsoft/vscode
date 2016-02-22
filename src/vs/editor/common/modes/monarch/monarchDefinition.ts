@@ -9,22 +9,14 @@
  * using regular expressions.
  */
 
-import MonarchCommonTypes = require('vs/editor/common/modes/monarch/monarchCommon');
-import {IModelService} from 'vs/editor/common/services/modelService';
-import Modes = require('vs/editor/common/modes');
-import {CharacterPair, IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
-import {TextualAndPredefinedResultSuggestSupport, PredefinedResultSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
+import {ISuggestSupport} from 'vs/editor/common/modes';
+import {ILexer} from 'vs/editor/common/modes/monarch/monarchCommon';
+import {IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
+import {PredefinedResultSuggestSupport, TextualAndPredefinedResultSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
+import {IModelService} from 'vs/editor/common/services/modelService';
 
-export function createRichEditSupport(lexer: MonarchCommonTypes.ILexer): IRichEditConfiguration {
-
-	function toBracket(input:Modes.IBracketPair): CharacterPair {
-		return [input.open, input.close];
-	}
-
-	function toBrackets(input:Modes.IBracketPair[]): CharacterPair[] {
-		return input.map(toBracket);
-	}
+export function createRichEditSupport(lexer: ILexer): IRichEditConfiguration {
 
 	return {
 
@@ -35,10 +27,9 @@ export function createRichEditSupport(lexer: MonarchCommonTypes.ILexer): IRichEd
 			blockComment: [lexer.blockCommentStart, lexer.blockCommentEnd]
 		},
 
-		brackets: toBrackets(lexer.standardBrackets),
+		brackets: lexer.standardBrackets,
 
 		__electricCharacterSupport: {
-			brackets: lexer.standardBrackets,
 			// regexBrackets: lexer.enhancedBrackets,
 			caseInsensitive: lexer.ignoreCase,
 			embeddedElectricCharacters: lexer.outdentTriggers.split('')
@@ -50,7 +41,7 @@ export function createRichEditSupport(lexer: MonarchCommonTypes.ILexer): IRichEd
 	};
 }
 
-export function createSuggestSupport(modelService: IModelService, editorWorkerService: IEditorWorkerService, modeId:string, lexer:MonarchCommonTypes.ILexer): Modes.ISuggestSupport {
+export function createSuggestSupport(modelService: IModelService, editorWorkerService: IEditorWorkerService, modeId:string, lexer:ILexer): ISuggestSupport {
 	if (lexer.suggestSupport.textualCompletions) {
 		return new TextualAndPredefinedResultSuggestSupport(
 			modeId,

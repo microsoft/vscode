@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
+import {ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorSelection, ITokenizedModel} from 'vs/editor/common/editorCommon';
 
-export class MoveLinesCommand implements EditorCommon.ICommand {
+export class MoveLinesCommand implements ICommand {
 
-	private _selection: EditorCommon.IEditorSelection;
+	private _selection: IEditorSelection;
 	private _isMovingDown: boolean;
 
 	private _selectionId: string;
 	private _moveEndPositionDown: boolean;
 
-	constructor(selection: EditorCommon.IEditorSelection, isMovingDown: boolean) {
+	constructor(selection: IEditorSelection, isMovingDown: boolean) {
 		this._selection = selection;
 		this._isMovingDown = isMovingDown;
 	}
 
-	public getEditOperations(model:EditorCommon.ITokenizedModel, builder:EditorCommon.IEditOperationBuilder):void {
+	public getEditOperations(model:ITokenizedModel, builder:IEditOperationBuilder):void {
 
 		var modelLineCount = model.getLineCount();
 
@@ -88,7 +88,7 @@ export class MoveLinesCommand implements EditorCommon.ICommand {
 		this._selectionId = builder.trackSelection(s);
 	}
 
-	public computeCursorState(model:EditorCommon.ITokenizedModel, helper: EditorCommon.ICursorStateComputerData):EditorCommon.IEditorSelection {
+	public computeCursorState(model:ITokenizedModel, helper: ICursorStateComputerData):IEditorSelection {
 		var result = helper.getTrackedSelection(this._selectionId);
 
 		if (this._moveEndPositionDown) {

@@ -6,21 +6,20 @@
 'use strict';
 
 import 'vs/css!./rulers';
-
-import {ViewPart} from 'vs/editor/browser/view/viewPart';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import {StyleMutator} from 'vs/base/browser/styleMutator';
+import {IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
+import {ILayoutProvider, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {ViewPart} from 'vs/editor/browser/view/viewPart';
 
 export class Rulers extends ViewPart {
 
 	public domNode: HTMLElement;
-	private _layoutProvider:EditorBrowser.ILayoutProvider;
+	private _layoutProvider:ILayoutProvider;
 	private _rulers: number[];
 	private _height: number;
 	private _typicalHalfwidthCharacterWidth: number;
 
-	constructor(context:EditorBrowser.IViewContext, layoutProvider:EditorBrowser.ILayoutProvider) {
+	constructor(context:IViewContext, layoutProvider:ILayoutProvider) {
 		super(context);
 		this._layoutProvider = layoutProvider;
 		this.domNode = document.createElement('div');
@@ -36,7 +35,7 @@ export class Rulers extends ViewPart {
 
 	// --- begin event handlers
 
-	public onConfigurationChanged(e: EditorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: IConfigurationChangedEvent): boolean {
 		if (e.rulers || e.layoutInfo || e.typicalHalfwidthCharacterWidth) {
 			this._rulers = this._context.configuration.editor.rulers;
 			this._height = this._context.configuration.editor.layoutInfo.contentHeight;
@@ -48,7 +47,7 @@ export class Rulers extends ViewPart {
 
 	// --- end event handlers
 
-	_render(ctx: EditorBrowser.IRenderingContext): void {
+	_render(ctx: IRenderingContext): void {
 		this._requestModificationFrame(() => {
 			let existingRulersLength = this.domNode.children.length;
 			let max = Math.max(existingRulersLength, this._rulers.length);

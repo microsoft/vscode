@@ -316,9 +316,6 @@ function massagePath(path: string): string {
 	// Trim whitespaces
 	path = strings.trim(strings.trim(path, ' '), '\t');
 
-	// Remove trailing dots
-	path = strings.rtrim(path, '.');
-
 	return path;
 }
 

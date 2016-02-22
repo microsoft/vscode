@@ -5,16 +5,16 @@
 
 'use strict';
 
-import assert = require('assert');
-import languageDef = require('vs/editor/standalone-languages/powershell');
-import T = require('vs/editor/standalone-languages/test/testUtil');
+import * as assert from 'assert';
+import {language} from 'vs/editor/standalone-languages/powershell';
+import {testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
 var Bracket = {
 	Open: 1,
 	Close: -1
 };
 
-T.testTokenization('powershell', languageDef.language, [
+testTokenization('powershell', language, [
 	// Comments - single line
 	[{
 	line: '#',
@@ -744,7 +744,7 @@ T.testTokenization('powershell', languageDef.language, [
 
 suite('powershell', () => {
 	test('word definition', () => {
-		var wordDefinition = languageDef.language.wordDefinition;
+		var wordDefinition = language.wordDefinition;
 		assert.deepEqual('a b cde'.match(wordDefinition), ['a', 'b', 'cde']);
 		assert.deepEqual('if ($parameterSet["class"] -eq "blank")'.match(wordDefinition), ['if', '$parameterSet', 'class', '-eq', 'blank']);
 

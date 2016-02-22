@@ -5,27 +5,27 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import * as Lifecycle from 'vs/base/common/lifecycle';
-import * as Snippet from 'vs/editor/contrib/snippet/common/snippet';
-import { SuggestWidget } from './suggestWidget';
-import { SuggestModel } from './suggestModel';
-import * as Errors from 'vs/base/common/errors';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
-import { CommonEditorRegistry, ContextKey, EditorActionDescriptor } from 'vs/editor/common/editorCommonExtensions';
-import { EditorAction } from 'vs/editor/common/editorAction';
-import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
-import * as Modes from 'vs/editor/common/modes';
-import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
-import { SuggestRegistry, ACCEPT_SELECTED_SUGGESTION_CMD, CONTEXT_SUGGEST_WIDGET_VISIBLE } from 'vs/editor/contrib/suggest/common/suggest';
-import { IInstantiationService, INullService } from 'vs/platform/instantiation/common/instantiation';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import {onUnexpectedError} from 'vs/base/common/errors';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {IDisposable, cAll, disposeAll} from 'vs/base/common/lifecycle';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IInstantiationService, INullService} from 'vs/platform/instantiation/common/instantiation';
+import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {EventType, ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ISuggestSupport} from 'vs/editor/common/modes';
+import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
+import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {getSnippetController} from 'vs/editor/contrib/snippet/common/snippet';
+import {ACCEPT_SELECTED_SUGGESTION_CMD, CONTEXT_SUGGEST_WIDGET_VISIBLE, SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
+import {SuggestModel} from './suggestModel';
+import {SuggestWidget} from './suggestWidget';
 
-export class SuggestController implements EditorCommon.IEditorContribution {
+export class SuggestController implements IEditorContribution {
 	static ID: string = 'editor.contrib.suggestController';
 
-	static getSuggestController(editor: EditorCommon.ICommonCodeEditor): SuggestController {
+	static getSuggestController(editor: ICommonCodeEditor): SuggestController {
 		return <SuggestController>editor.getContribution(SuggestController.ID);
 	}
 
@@ -33,10 +33,10 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 	private widget: SuggestWidget;
 	private triggerCharacterListeners: Function[];
 	private suggestWidgetVisible: IKeybindingContextKey<boolean>;
-	private toDispose: Lifecycle.IDisposable[];
+	private toDispose: IDisposable[];
 
 	constructor(
-		private editor: EditorBrowser.ICodeEditor,
+		private editor: ICodeEditor,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
@@ -48,17 +48,17 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 
 		this.toDispose = [];
 		this.toDispose.push(this.widget.onDidVisibilityChange(visible => visible ? this.suggestWidgetVisible.set(true) : this.suggestWidgetVisible.reset()));
-		this.toDispose.push(editor.addListener2(EditorCommon.EventType.ConfigurationChanged, () => this.update()));
-		this.toDispose.push(editor.addListener2(EditorCommon.EventType.ModelChanged, () => this.update()));
-		this.toDispose.push(editor.addListener2(EditorCommon.EventType.ModelModeChanged, () => this.update()));
-		this.toDispose.push(editor.addListener2(EditorCommon.EventType.ModelModeSupportChanged, (e: EditorCommon.IModeSupportChangedEvent) => {
+		this.toDispose.push(editor.addListener2(EventType.ConfigurationChanged, () => this.update()));
+		this.toDispose.push(editor.addListener2(EventType.ModelChanged, () => this.update()));
+		this.toDispose.push(editor.addListener2(EventType.ModelModeChanged, () => this.update()));
+		this.toDispose.push(editor.addListener2(EventType.ModelModeSupportChanged, (e: IModeSupportChangedEvent) => {
 			if (e.suggestSupport) {
 				this.update();
 			}
 		}));
 		this.toDispose.push(SuggestRegistry.onDidChange(this.update, this));
 
-		this.toDispose.push(this.model.onDidAccept(e => Snippet.get(this.editor).run(e.snippet, e.overwriteBefore, e.overwriteAfter)));
+		this.toDispose.push(this.model.onDidAccept(e => getSnippetController(this.editor).run(e.snippet, e.overwriteBefore, e.overwriteAfter)));
 
 		this.update();
 	}
@@ -68,8 +68,8 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 	}
 
 	public dispose(): void {
-		this.toDispose = Lifecycle.disposeAll(this.toDispose);
-		this.triggerCharacterListeners = Lifecycle.cAll(this.triggerCharacterListeners);
+		this.toDispose = disposeAll(this.toDispose);
+		this.triggerCharacterListeners = cAll(this.triggerCharacterListeners);
 
 		if (this.widget) {
 			this.widget.dispose();
@@ -83,7 +83,7 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 
 	private update(): void {
 
-		this.triggerCharacterListeners = Lifecycle.cAll(this.triggerCharacterListeners);
+		this.triggerCharacterListeners = cAll(this.triggerCharacterListeners);
 
 		if (this.editor.getConfiguration().readOnly
 			|| !this.editor.getModel()
@@ -97,11 +97,11 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 			return;
 		}
 
-		let triggerCharacters: { [ch: string]: Modes.ISuggestSupport[][] } = Object.create(null);
+		let triggerCharacters: { [ch: string]: ISuggestSupport[][] } = Object.create(null);
 
 		groups.forEach(group => {
 
-			let groupTriggerCharacters: { [ch: string]: Modes.ISuggestSupport[] } = Object.create(null);
+			let groupTriggerCharacters: { [ch: string]: ISuggestSupport[] } = Object.create(null);
 
 			group.forEach(support => {
 				let localTriggerCharacters = support.getTriggerCharacters();
@@ -131,7 +131,7 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 		});
 	}
 
-	private triggerCharacterHandler(character: string, groups: Modes.ISuggestSupport[][]): void {
+	private triggerCharacterHandler(character: string, groups: ISuggestSupport[][]): void {
 		const position = this.editor.getPosition();
 		const lineContext = this.editor.getModel().getLineContext(position.lineNumber);
 
@@ -140,11 +140,11 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 		});
 
 		if (groups.length > 0) {
-			this.triggerSuggest(character, groups).done(null, Errors.onUnexpectedError);
+			this.triggerSuggest(character, groups).done(null, onUnexpectedError);
 		}
 	}
 
-	public triggerSuggest(triggerCharacter?: string, groups?: Modes.ISuggestSupport[][]): TPromise<boolean> {
+	public triggerSuggest(triggerCharacter?: string, groups?: ISuggestSupport[][]): TPromise<boolean> {
 		this.model.trigger(false, triggerCharacter, false, groups);
 		this.editor.focus();
 
@@ -198,7 +198,7 @@ export class TriggerSuggestAction extends EditorAction {
 
 	static ID: string = 'editor.action.triggerSuggest';
 
-	constructor(descriptor: EditorCommon.IEditorActionDescriptorData, editor: EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor);
 	}
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {IEditorWhitespace} from 'vs/editor/common/editorCommon';
 
 /**
  * Represent whitespaces in between lines and provide fast CRUD management methods.
@@ -401,8 +401,8 @@ export class WhitespaceComputer {
 		return this.heights[index];
 	}
 
-	public getWhitespaces(deviceLineHeight:number): EditorCommon.IEditorWhitespace[] {
-		var result: EditorCommon.IEditorWhitespace[] = [];
+	public getWhitespaces(deviceLineHeight:number): IEditorWhitespace[] {
+		var result: IEditorWhitespace[] = [];
 		for (var i = 0; i < this.heights.length; i++) {
 			result.push({
 				id: this.ids[i],

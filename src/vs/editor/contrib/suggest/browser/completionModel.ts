@@ -5,14 +5,14 @@
 
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import { assign } from 'vs/base/common/objects';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
-import { ISuggestSupport, ISuggestResult, ISuggestion, ISuggestionFilter } from 'vs/editor/common/modes';
-import { DefaultFilter, IMatch } from 'vs/editor/common/modes/modesFilters';
-import { ISuggestResult2 } from '../common/suggest';
+import {isFalsyOrEmpty} from 'vs/base/common/arrays';
+import {assign} from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IPosition} from 'vs/editor/common/editorCommon';
+import {ISuggestResult, ISuggestSupport, ISuggestion, ISuggestionFilter} from 'vs/editor/common/modes';
+import {DefaultFilter, IMatch} from 'vs/editor/common/modes/modesFilters';
+import {ISuggestResult2} from '../common/suggest';
 
 function completionGroupCompare(one: CompletionGroup, other: CompletionGroup): number {
 	return one.index - other.index;
@@ -53,7 +53,7 @@ export class CompletionItem {
 		this.container = container;
 	}
 
-	resolveDetails(resource: URI, position: EditorCommon.IPosition): TPromise<ISuggestion> {
+	resolveDetails(resource: URI, position: IPosition): TPromise<ISuggestion> {
 		if (!this.support || typeof this.support.getSuggestionDetails !== 'function') {
 			return TPromise.as(this.suggestion);
 		}

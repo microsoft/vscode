@@ -116,7 +116,7 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 	}
 
 	protected _createRichEditSupport(): Modes.IRichEditSupport {
-		return new RichEditSupport(this.getId(), {
+		return new RichEditSupport(this.getId(), null, {
 
 			wordPattern: createWordRegExp('#-?%'),
 
@@ -130,7 +130,6 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 			],
 
 			__electricCharacterSupport: {
-				brackets: [],
 				caseInsensitive: true,
 				embeddedElectricCharacters: ['*', '}', ']', ')']
 			},

@@ -7,42 +7,43 @@
 
 import 'vs/css!./accessibility';
 import * as nls from 'vs/nls';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {Disposable} from 'vs/base/common/lifecycle';
-import {Widget} from 'vs/base/browser/ui/widget';
+import * as strings from 'vs/base/common/strings';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {clearNode} from 'vs/base/browser/dom';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
-import {ToggleTabFocusModeAction} from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
-import * as Strings from 'vs/base/common/strings';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
-import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
+import {Widget} from 'vs/base/browser/ui/widget';
+import {INullService} from 'vs/platform/instantiation/common/instantiation';
+import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
+import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {GlobalScreenReaderNVDA} from 'vs/editor/common/config/commonEditorConfig';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
+import {EventType, ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, SHOW_ACCESSIBILITY_HELP_ACTION_ID} from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition} from 'vs/editor/browser/editorBrowser';
+import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {ToggleTabFocusModeAction} from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 
 const NLS_SHOW_ACCESSIBILITY_HELP_ACTION_LABEL = nls.localize('ShowAccessibilityHelpAction',"Show Accessibility Help");
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = 'accessibilityHelpWidgetVisible';
 const TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID = 'toggleExperimentalScreenReaderSupport';
 
-class AccessibilityHelpController extends Disposable implements EditorCommon.IEditorContribution {
+class AccessibilityHelpController extends Disposable implements IEditorContribution {
 
 	static ID = 'editor.contrib.accessibilityHelpController';
 
-	static get(editor:EditorCommon.ICommonCodeEditor): AccessibilityHelpController {
+	static get(editor:ICommonCodeEditor): AccessibilityHelpController {
 		return <AccessibilityHelpController>editor.getContribution(AccessibilityHelpController.ID);
 	}
 
-	private _editor: EditorBrowser.ICodeEditor;
+	private _editor: ICodeEditor;
 	private _widget: AccessibilityHelpWidget;
 
-	constructor(editor:EditorBrowser.ICodeEditor, @IKeybindingService keybindingService: IKeybindingService, @INullService ns) {
+	constructor(editor:ICodeEditor, @IKeybindingService keybindingService: IKeybindingService, @INullService ns) {
 		super();
 
 		this._editor = editor;
@@ -62,19 +63,19 @@ class AccessibilityHelpController extends Disposable implements EditorCommon.IEd
 	}
 }
 
-class AccessibilityHelpWidget extends Widget implements EditorBrowser.IOverlayWidget {
+class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 	private static ID = 'editor.contrib.accessibilityHelpWidget';
 	private static WIDTH = 500;
 	private static HEIGHT = 300;
 
-	private _editor: EditorBrowser.ICodeEditor;
+	private _editor: ICodeEditor;
 	private _keybindingService: IKeybindingService;
 	private _domNode: HTMLElement;
 	private _isVisible: boolean;
 	private _isVisibleKey: IKeybindingContextKey<boolean>;
 
-	constructor(editor:EditorBrowser.ICodeEditor, keybindingService: IKeybindingService) {
+	constructor(editor:ICodeEditor, keybindingService: IKeybindingService) {
 		super();
 
 		this._editor = editor;
@@ -91,7 +92,7 @@ class AccessibilityHelpWidget extends Widget implements EditorBrowser.IOverlayWi
 		this._domNode.setAttribute('aria-hidden', 'true');
 		this._isVisible = false;
 
-		this._register(this._editor.addListener2(EditorCommon.EventType.EditorLayout, () => {
+		this._register(this._editor.addListener2(EventType.EditorLayout, () => {
 			if (this._isVisible) {
 				this._layout();
 			}
@@ -116,7 +117,7 @@ class AccessibilityHelpWidget extends Widget implements EditorBrowser.IOverlayWi
 		return this._domNode;
 	}
 
-	public getPosition(): EditorBrowser.IOverlayWidgetPosition {
+	public getPosition(): IOverlayWidgetPosition {
 		return {
 			preference: null
 		};
@@ -139,9 +140,9 @@ class AccessibilityHelpWidget extends Widget implements EditorBrowser.IOverlayWi
 	private _descriptionForCommand(commandId:string, msg:string, noKbMsg:string): string {
 		let keybindings = this._keybindingService.lookupKeybindings(commandId);
 		if (keybindings.length > 0) {
-			return Strings.format(msg, this._keybindingService.getLabelFor(keybindings[0]));
+			return strings.format(msg, this._keybindingService.getLabelFor(keybindings[0]));
 		}
-		return Strings.format(noKbMsg, commandId);
+		return strings.format(noKbMsg, commandId);
 	}
 
 	private _buildContent() {
@@ -211,7 +212,7 @@ class AccessibilityHelpWidget extends Widget implements EditorBrowser.IOverlayWi
 
 class ShowAccessibilityHelpAction extends EditorAction {
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor, Behaviour.WidgetFocus);
 	}
 
@@ -223,7 +224,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 }
 
 EditorBrowserRegistry.registerEditorContribution(AccessibilityHelpController);
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ShowAccessibilityHelpAction, EditorCommon.SHOW_ACCESSIBILITY_HELP_ACTION_ID, NLS_SHOW_ACCESSIBILITY_HELP_ACTION_LABEL, {
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ShowAccessibilityHelpAction, SHOW_ACCESSIBILITY_HELP_ACTION_ID, NLS_SHOW_ACCESSIBILITY_HELP_ACTION_LABEL, {
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.Alt | KeyCode.F1
 }));

@@ -6,21 +6,21 @@
 'use strict';
 
 import 'vs/css!./findWidget';
-
 import * as nls from 'vs/nls';
-import * as Errors from 'vs/base/common/errors';
-import * as DomUtils from 'vs/base/browser/dom';
-import * as Strings from 'vs/base/common/strings';
-import {IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
-import {InputBox, IMessage as InputBoxMessage} from 'vs/base/browser/ui/inputbox/inputBox';
-import {FindInput} from 'vs/base/browser/ui/findinput/findInput';
-import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
-import {MATCHES_LIMIT, FIND_IDS} from 'vs/editor/contrib/find/common/findModel';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {FindReplaceStateChangedEvent, FindReplaceState} from 'vs/editor/contrib/find/common/findState';
+import * as strings from 'vs/base/common/strings';
+import * as dom from 'vs/base/browser/dom';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
+import {FindInput} from 'vs/base/browser/ui/findinput/findInput';
+import {IMessage as InputBoxMessage, InputBox} from 'vs/base/browser/ui/inputbox/inputBox';
 import {Widget} from 'vs/base/browser/ui/widget';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {EventType, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
+import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
+import {FIND_IDS, MATCHES_LIMIT} from 'vs/editor/contrib/find/common/findModel';
+import {FindReplaceState, FindReplaceStateChangedEvent} from 'vs/editor/contrib/find/common/findState';
 
 export interface IFindController {
 	replace(): void;
@@ -42,14 +42,14 @@ const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "O
 const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
 const NLS_NO_RESULTS = nls.localize('label.noResults', "No results");
 
-export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
+export class FindWidget extends Widget implements IOverlayWidget {
 
 	private static ID = 'editor.contrib.findWidget';
 	private static PART_WIDTH = 275;
 	private static FIND_INPUT_AREA_WIDTH = FindWidget.PART_WIDTH - 54;
 	private static REPLACE_INPUT_AREA_WIDTH = FindWidget.FIND_INPUT_AREA_WIDTH;
 
-	private _codeEditor: EditorBrowser.ICodeEditor;
+	private _codeEditor: ICodeEditor;
 	private _state: FindReplaceState;
 	private _controller: IFindController;
 	private _contextViewProvider: IContextViewProvider;
@@ -71,10 +71,10 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 	private _isVisible: boolean;
 	private _isReplaceVisible: boolean;
 
-	private focusTracker: DomUtils.IFocusTracker;
+	private focusTracker: dom.IFocusTracker;
 
 	constructor(
-		codeEditor: EditorBrowser.ICodeEditor,
+		codeEditor: ICodeEditor,
 		controller: IFindController,
 		state: FindReplaceState,
 		contextViewProvider: IContextViewProvider,
@@ -95,10 +95,10 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		this._buildDomNode();
 		this._updateButtons();
 
-		this.focusTracker = this._register(DomUtils.trackFocus(this._findInput.inputBox.inputElement));
+		this.focusTracker = this._register(dom.trackFocus(this._findInput.inputBox.inputElement));
 		this.focusTracker.addFocusListener(() => this._reseedFindScope());
 
-		this._register(this._codeEditor.addListener2(EditorCommon.EventType.ConfigurationChanged, (e:EditorCommon.IConfigurationChangedEvent) => {
+		this._register(this._codeEditor.addListener2(EventType.ConfigurationChanged, (e:IConfigurationChangedEvent) => {
 			if (e.readOnly) {
 				if (this._codeEditor.getConfiguration().readOnly) {
 					// Hide replace part if editor becomes read only
@@ -107,7 +107,7 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 				this._updateButtons();
 			}
 		}));
-		this._register(this._codeEditor.addListener2(EditorCommon.EventType.CursorSelectionChanged, () => {
+		this._register(this._codeEditor.addListener2(EventType.CursorSelectionChanged, () => {
 			if (this._isVisible) {
 				this._updateToggleSelectionFindButton();
 			}
@@ -134,10 +134,10 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		return this._domNode;
 	}
 
-	public getPosition(): EditorBrowser.IOverlayWidgetPosition {
+	public getPosition(): IOverlayWidgetPosition {
 		if (this._isVisible) {
 			return {
-				preference: EditorBrowser.OverlayWidgetPositionPreference.TOP_RIGHT_CORNER
+				preference: OverlayWidgetPositionPreference.TOP_RIGHT_CORNER
 			};
 		}
 		return null;
@@ -192,7 +192,7 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		}
 		if (e.searchString || e.matchesCount || e.matchesPosition) {
 			let showRedOutline = (this._state.searchString.length > 0 && this._state.matchesCount === 0);
-			DomUtils.toggleClass(this._domNode, 'no-results', showRedOutline);
+			dom.toggleClass(this._domNode, 'no-results', showRedOutline);
 
 			this._updateMatchesCount();
 		}
@@ -220,7 +220,7 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 			if (matchesPosition === '0') {
 				matchesPosition = '?';
 			}
-			label = Strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
+			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
 		} else {
 			label = NLS_NO_RESULTS;
 		}
@@ -253,7 +253,7 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 		this._replaceAllBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 
-		DomUtils.toggleClass(this._domNode, 'replaceToggled', this._isReplaceVisible);
+		dom.toggleClass(this._domNode, 'replaceToggled', this._isReplaceVisible);
 		this._toggleReplaceBtn.toggleClass('collapse', !this._isReplaceVisible);
 		this._toggleReplaceBtn.toggleClass('expand', this._isReplaceVisible);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
@@ -269,11 +269,11 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 			this._updateButtons();
 
 			setTimeout(() => {
-				DomUtils.addClass(this._domNode, 'visible');
+				dom.addClass(this._domNode, 'visible');
 				if (!animate) {
-					DomUtils.addClass(this._domNode, 'noanimation');
+					dom.addClass(this._domNode, 'noanimation');
 					setTimeout(() => {
-						DomUtils.removeClass(this._domNode, 'noanimation');
+						dom.removeClass(this._domNode, 'noanimation');
 					}, 200);
 				}
 			}, 0);
@@ -287,7 +287,7 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 
 			this._updateButtons();
 
-			DomUtils.removeClass(this._domNode, 'visible');
+			dom.removeClass(this._domNode, 'visible');
 			if (focusTheEditor) {
 				this._codeEditor.focus();
 			}
@@ -309,16 +309,16 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		this._replaceInputBox.focus();
 	}
 
-	private _onFindInputKeyDown(e:DomUtils.IKeyboardEvent): void {
+	private _onFindInputKeyDown(e:IKeyboardEvent): void {
 
 		switch (e.asKeybinding()) {
 			case CommonKeybindings.ENTER:
-				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, Errors.onUnexpectedError);
+				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, onUnexpectedError);
 				e.preventDefault();
 				return;
 
 			case CommonKeybindings.SHIFT_ENTER:
-				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, Errors.onUnexpectedError);
+				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, onUnexpectedError);
 				e.preventDefault();
 				return;
 
@@ -338,7 +338,7 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 		}
 	}
 
-	private _onReplaceInputKeyDown(e:DomUtils.IKeyboardEvent): void {
+	private _onReplaceInputKeyDown(e:IKeyboardEvent): void {
 
 		switch (e.asKeybinding()) {
 			case CommonKeybindings.ENTER:
@@ -433,7 +433,7 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.PreviousMatchFindAction),
 			className: 'previous',
 			onTrigger: () => {
-				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, Errors.onUnexpectedError);
+				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, onUnexpectedError);
 			},
 			onKeyDown: (e) => {}
 		}));
@@ -443,7 +443,7 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 			label: NLS_NEXT_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.NextMatchFindAction),
 			className: 'next',
 			onTrigger: () => {
-				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, Errors.onUnexpectedError);
+				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, onUnexpectedError);
 			},
 			onKeyDown: (e) => {}
 		}));
@@ -504,8 +504,8 @@ export class FindWidget extends Widget implements EditorBrowser.IOverlayWidget {
 			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER
 		}));
 
-		this._register(DomUtils.addStandardDisposableListener(this._replaceInputBox.inputElement, 'keydown', (e) => this._onReplaceInputKeyDown(e)));
-		this._register(DomUtils.addStandardDisposableListener(this._replaceInputBox.inputElement, 'input', (e) => {
+		this._register(dom.addStandardDisposableListener(this._replaceInputBox.inputElement, 'keydown', (e) => this._onReplaceInputKeyDown(e)));
+		this._register(dom.addStandardDisposableListener(this._replaceInputBox.inputElement, 'input', (e) => {
 			this._state.change({ replaceString: this._replaceInputBox.value }, false);
 		}));
 
@@ -654,7 +654,7 @@ interface ISimpleButtonOpts {
 	label: string;
 	className: string;
 	onTrigger: ()=>void;
-	onKeyDown: (e:DomUtils.IKeyboardEvent)=>void;
+	onKeyDown: (e:IKeyboardEvent)=>void;
 }
 
 class SimpleButton extends Widget {
@@ -700,7 +700,7 @@ class SimpleButton extends Widget {
 	}
 
 	public setEnabled(enabled:boolean): void {
-		DomUtils.toggleClass(this._domNode, 'disabled', !enabled);
+		dom.toggleClass(this._domNode, 'disabled', !enabled);
 		this._domNode.setAttribute('aria-disabled', String(!enabled));
 		this._domNode.tabIndex = enabled ? 0 : -1;
 	}
@@ -710,6 +710,6 @@ class SimpleButton extends Widget {
 	}
 
 	public toggleClass(className:string, shouldHaveIt:boolean): void {
-		DomUtils.toggleClass(this._domNode, className, shouldHaveIt);
+		dom.toggleClass(this._domNode, className, shouldHaveIt);
 	}
 }

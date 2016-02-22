@@ -6,28 +6,29 @@
 'use strict';
 
 import 'vs/css!./links';
-import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
-import Platform = require('vs/base/common/platform');
-import Errors = require('vs/base/common/errors');
+import * as nls from 'vs/nls';
+import {onUnexpectedError} from 'vs/base/common/errors';
+import {ListenerUnbind} from 'vs/base/common/eventEmitter';
+import {KeyCode} from 'vs/base/common/keyCodes';
+import * as platform from 'vs/base/common/platform';
+import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
-import Keyboard = require('vs/base/browser/keyboardEvent');
-import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import EventEmitter = require('vs/base/common/eventEmitter');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IEditorService, IResourceInput} from 'vs/platform/editor/common/editor';
 import {IMessageService} from 'vs/platform/message/common/message';
-import Severity from 'vs/base/common/severity';
-import {KeyCode} from 'vs/base/common/keyCodes';
 import {Range} from 'vs/editor/common/core/range';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ILink} from 'vs/editor/common/modes';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
+import {IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 
 class LinkOccurence {
 
-	public static decoration(link:Modes.ILink): EditorCommon.IModelDeltaDecoration {
+	public static decoration(link:ILink): editorCommon.IModelDeltaDecoration {
 		return {
 			range: {
 				startLineNumber: link.range.startLineNumber,
@@ -39,7 +40,7 @@ class LinkOccurence {
 		};
 	}
 
-	private static _getOptions(link:Modes.ILink, isActive:boolean):EditorCommon.IModelDecorationOptions {
+	private static _getOptions(link:ILink, isActive:boolean):editorCommon.IModelDecorationOptions {
 		var result = '';
 		if (link.extraInlineClassName) {
 			result = link.extraInlineClassName + ' ';
@@ -52,50 +53,50 @@ class LinkOccurence {
 		}
 
 		return {
-			stickiness: EditorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			inlineClassName: result,
 			hoverMessage: LinkDetector.HOVER_MESSAGE_GENERAL
 		};
 	}
 
 	public decorationId:string;
-	public link:Modes.ILink;
+	public link:ILink;
 
-	constructor(link:Modes.ILink, decorationId:string/*, changeAccessor:EditorCommon.IModelDecorationsChangeAccessor*/) {
+	constructor(link:ILink, decorationId:string/*, changeAccessor:editorCommon.IModelDecorationsChangeAccessor*/) {
 		this.link = link;
 		this.decorationId = decorationId;
 	}
 
-	public activate(changeAccessor: EditorCommon.IModelDecorationsChangeAccessor):void {
+	public activate(changeAccessor: editorCommon.IModelDecorationsChangeAccessor):void {
 		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurence._getOptions(this.link, true));
 	}
 
-	public deactivate(changeAccessor: EditorCommon.IModelDecorationsChangeAccessor):void {
+	public deactivate(changeAccessor: editorCommon.IModelDecorationsChangeAccessor):void {
 		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurence._getOptions(this.link, false));
 	}
 }
 
 class LinkDetector {
 	static RECOMPUTE_TIME = 1000; // ms
-	static TRIGGER_KEY_VALUE = Platform.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;
-	static TRIGGER_MODIFIER = Platform.isMacintosh ? 'metaKey' : 'ctrlKey';
-	static HOVER_MESSAGE_GENERAL = Platform.isMacintosh ? nls.localize('links.navigate.mac', "Cmd + click to follow link") : nls.localize('links.navigate', "Ctrl + click to follow link");
+	static TRIGGER_KEY_VALUE = platform.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;
+	static TRIGGER_MODIFIER = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
+	static HOVER_MESSAGE_GENERAL = platform.isMacintosh ? nls.localize('links.navigate.mac', "Cmd + click to follow link") : nls.localize('links.navigate', "Ctrl + click to follow link");
 	static CLASS_NAME = 'detected-link';
 	static CLASS_NAME_ACTIVE = 'detected-link-active';
 
-	private editor:EditorCommon.ICommonCodeEditor;
-	private listenersToRemove:EventEmitter.ListenerUnbind[];
+	private editor:editorCommon.ICommonCodeEditor;
+	private listenersToRemove:ListenerUnbind[];
 	private timeoutPromise:TPromise<void>;
-	private computePromise:TPromise<Modes.ILink[]>;
+	private computePromise:TPromise<ILink[]>;
 	private activeLinkDecorationId:string;
-	private lastMouseEvent:EditorBrowser.IMouseEvent;
+	private lastMouseEvent:IEditorMouseEvent;
 	private editorService:IEditorService;
 	private messageService:IMessageService;
 	private editorWorkerService: IEditorWorkerService;
 	private currentOccurences:{ [decorationId:string]:LinkOccurence; };
 
 	constructor(
-		editor:EditorCommon.ICommonCodeEditor,
+		editor:editorCommon.ICommonCodeEditor,
 		editorService:IEditorService,
 		messageService:IMessageService,
 		editorWorkerService: IEditorWorkerService
@@ -105,18 +106,18 @@ class LinkDetector {
 		this.messageService = messageService;
 		this.editorWorkerService = editorWorkerService;
 		this.listenersToRemove = [];
-		this.listenersToRemove.push(editor.addListener('change', (e:EditorCommon.IModelContentChangedEvent) => this.onChange()));
-		this.listenersToRemove.push(editor.addListener(EditorCommon.EventType.ModelChanged, (e:EditorCommon.IModelContentChangedEvent) => this.onModelChanged()));
-		this.listenersToRemove.push(editor.addListener(EditorCommon.EventType.ModelModeChanged, (e:EditorCommon.IModelModeChangedEvent) => this.onModelModeChanged()));
-		this.listenersToRemove.push(editor.addListener(EditorCommon.EventType.ModelModeSupportChanged, (e: EditorCommon.IModeSupportChangedEvent) => {
+		this.listenersToRemove.push(editor.addListener('change', (e:editorCommon.IModelContentChangedEvent) => this.onChange()));
+		this.listenersToRemove.push(editor.addListener(editorCommon.EventType.ModelChanged, (e:editorCommon.IModelContentChangedEvent) => this.onModelChanged()));
+		this.listenersToRemove.push(editor.addListener(editorCommon.EventType.ModelModeChanged, (e:editorCommon.IModelModeChangedEvent) => this.onModelModeChanged()));
+		this.listenersToRemove.push(editor.addListener(editorCommon.EventType.ModelModeSupportChanged, (e: editorCommon.IModeSupportChangedEvent) => {
 			if (e.linkSupport) {
 				this.onModelModeChanged();
 			}
 		}));
-		this.listenersToRemove.push(this.editor.addListener(EditorCommon.EventType.MouseUp, (e:EditorBrowser.IMouseEvent) => this.onEditorMouseUp(e)));
-		this.listenersToRemove.push(this.editor.addListener(EditorCommon.EventType.MouseMove, (e:EditorBrowser.IMouseEvent) => this.onEditorMouseMove(e)));
-		this.listenersToRemove.push(this.editor.addListener(EditorCommon.EventType.KeyDown, (e:Keyboard.StandardKeyboardEvent) => this.onEditorKeyDown(e)));
-		this.listenersToRemove.push(this.editor.addListener(EditorCommon.EventType.KeyUp, (e:Keyboard.StandardKeyboardEvent) => this.onEditorKeyUp(e)));
+		this.listenersToRemove.push(this.editor.addListener(editorCommon.EventType.MouseUp, (e:IEditorMouseEvent) => this.onEditorMouseUp(e)));
+		this.listenersToRemove.push(this.editor.addListener(editorCommon.EventType.MouseMove, (e:IEditorMouseEvent) => this.onEditorMouseMove(e)));
+		this.listenersToRemove.push(this.editor.addListener(editorCommon.EventType.KeyDown, (e:IKeyboardEvent) => this.onEditorKeyDown(e)));
+		this.listenersToRemove.push(this.editor.addListener(editorCommon.EventType.KeyUp, (e:IKeyboardEvent) => this.onEditorKeyUp(e)));
 		this.timeoutPromise = null;
 		this.computePromise = null;
 		this.currentOccurences = {};
@@ -156,13 +157,13 @@ class LinkDetector {
 			return;
 		}
 
-		let modePromise:TPromise<Modes.ILink[]> = TPromise.as(null);
+		let modePromise:TPromise<ILink[]> = TPromise.as(null);
 		let mode = this.editor.getModel().getMode();
 		if (mode.linkSupport) {
 			modePromise = mode.linkSupport.computeLinks(this.editor.getModel().getAssociatedResource());
 		}
 
-		let standardPromise:TPromise<Modes.ILink[]> = this.editorWorkerService.computeLinks(this.editor.getModel().getAssociatedResource());
+		let standardPromise:TPromise<ILink[]> = this.editorWorkerService.computeLinks(this.editor.getModel().getAssociatedResource());
 
 		this.computePromise = TPromise.join([modePromise, standardPromise]).then((r) => {
 			let a = r[0];
@@ -176,21 +177,21 @@ class LinkDetector {
 			return LinkDetector._linksUnion(a, b);
 		});
 
-		this.computePromise.then((links:Modes.ILink[]) => {
+		this.computePromise.then((links:ILink[]) => {
 			this.updateDecorations(links);
 			this.computePromise = null;
 		});
 	}
 
-	private static _linksUnion(oldLinks: Modes.ILink[], newLinks: Modes.ILink[]): Modes.ILink[] {
+	private static _linksUnion(oldLinks: ILink[], newLinks: ILink[]): ILink[] {
 		// reunite oldLinks with newLinks and remove duplicates
-		var result: Modes.ILink[] = [],
+		var result: ILink[] = [],
 			oldIndex: number,
 			oldLen: number,
 			newIndex: number,
 			newLen: number,
-			oldLink: Modes.ILink,
-			newLink: Modes.ILink,
+			oldLink: ILink,
+			newLink: ILink,
 			comparisonResult: number;
 
 		for (oldIndex = 0, newIndex = 0, oldLen = oldLinks.length, newLen = newLinks.length; oldIndex < oldLen && newIndex < newLen;) {
@@ -226,8 +227,8 @@ class LinkDetector {
 		return result;
 	}
 
-	private updateDecorations(links:Modes.ILink[]):void {
-		this.editor.changeDecorations((changeAccessor:EditorCommon.IModelDecorationsChangeAccessor) => {
+	private updateDecorations(links:ILink[]):void {
+		this.editor.changeDecorations((changeAccessor:editorCommon.IModelDecorationsChangeAccessor) => {
 			var oldDecorations:string[] = [];
 			for (var decorationId in this.currentOccurences) {
 				if (this.currentOccurences.hasOwnProperty(decorationId)) {
@@ -236,7 +237,7 @@ class LinkDetector {
 				}
 			}
 
-			var newDecorations:EditorCommon.IModelDeltaDecoration[] = [];
+			var newDecorations:editorCommon.IModelDeltaDecoration[] = [];
 			if (links) {
 				// Not sure why this is sometimes null
 				for (var i = 0; i < links.length; i++) {
@@ -255,19 +256,19 @@ class LinkDetector {
 		});
 	}
 
-	private onEditorKeyDown(e:Keyboard.StandardKeyboardEvent):void {
+	private onEditorKeyDown(e:IKeyboardEvent):void {
 		if (e.keyCode === LinkDetector.TRIGGER_KEY_VALUE && this.lastMouseEvent) {
 			this.onEditorMouseMove(this.lastMouseEvent, e);
 		}
 	}
 
-	private onEditorKeyUp(e:Keyboard.StandardKeyboardEvent):void {
+	private onEditorKeyUp(e:IKeyboardEvent):void {
 		if (e.keyCode === LinkDetector.TRIGGER_KEY_VALUE) {
 			this.cleanUpActiveLinkDecoration();
 		}
 	}
 
-	private onEditorMouseMove(mouseEvent: EditorBrowser.IMouseEvent, withKey?:Keyboard.StandardKeyboardEvent):void {
+	private onEditorMouseMove(mouseEvent: IEditorMouseEvent, withKey?:IKeyboardEvent):void {
 		this.lastMouseEvent = mouseEvent;
 
 		if (this.isEnabled(mouseEvent, withKey)) {
@@ -297,7 +298,7 @@ class LinkDetector {
 		}
 	}
 
-	private onEditorMouseUp(mouseEvent: EditorBrowser.IMouseEvent):void {
+	private onEditorMouseUp(mouseEvent: IEditorMouseEvent):void {
 		if (!this.isEnabled(mouseEvent)) {
 			return;
 		}
@@ -355,10 +356,10 @@ class LinkDetector {
 			};
 		}
 
-		this.editorService.openEditor(input, openToSide).done(null, Errors.onUnexpectedError);
+		this.editorService.openEditor(input, openToSide).done(null, onUnexpectedError);
 	}
 
-	public getLinkOccurence(position: EditorCommon.IPosition): LinkOccurence {
+	public getLinkOccurence(position: editorCommon.IPosition): LinkOccurence {
 		var decorations = this.editor.getModel().getDecorationsInRange({
 			startLineNumber: position.lineNumber,
 			startColumn: position.column,
@@ -377,8 +378,8 @@ class LinkDetector {
 		return null;
 	}
 
-	private isEnabled(mouseEvent: EditorBrowser.IMouseEvent, withKey?:Keyboard.StandardKeyboardEvent):boolean {
-		return 	mouseEvent.target.type === EditorCommon.MouseTargetType.CONTENT_TEXT &&
+	private isEnabled(mouseEvent: IEditorMouseEvent, withKey?:IKeyboardEvent):boolean {
+		return 	mouseEvent.target.type === editorCommon.MouseTargetType.CONTENT_TEXT &&
 				(mouseEvent.event[LinkDetector.TRIGGER_MODIFIER] || (withKey && withKey.keyCode === LinkDetector.TRIGGER_KEY_VALUE));
 	}
 
@@ -409,8 +410,8 @@ class OpenLinkAction extends EditorAction {
 	private _linkDetector: LinkDetector;
 
 	constructor(
-		descriptor:EditorCommon.IEditorActionDescriptorData,
-		editor:EditorCommon.ICommonCodeEditor,
+		descriptor:editorCommon.IEditorActionDescriptorData,
+		editor:editorCommon.ICommonCodeEditor,
 		@IEditorService editorService:IEditorService,
 		@IMessageService messageService:IMessageService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService

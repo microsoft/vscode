@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
+import {ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorSelection, ITokenizedModel} from 'vs/editor/common/editorCommon';
 
 
-export class DeleteLinesCommand implements EditorCommon.ICommand {
+export class DeleteLinesCommand implements ICommand {
 
-	public static createFromSelection(selection:EditorCommon.IEditorSelection): DeleteLinesCommand {
+	public static createFromSelection(selection:IEditorSelection): DeleteLinesCommand {
 		var endLineNumber = selection.endLineNumber;
 		if (selection.startLineNumber < selection.endLineNumber && selection.endColumn === 1) {
 			endLineNumber -= 1;
@@ -29,7 +29,7 @@ export class DeleteLinesCommand implements EditorCommon.ICommand {
 		this.restoreCursorToColumn = restoreCursorToColumn;
 	}
 
-	public getEditOperations(model:EditorCommon.ITokenizedModel, builder:EditorCommon.IEditOperationBuilder):void {
+	public getEditOperations(model:ITokenizedModel, builder:IEditOperationBuilder):void {
 		if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
 			// Model is empty
 			return;
@@ -51,7 +51,7 @@ export class DeleteLinesCommand implements EditorCommon.ICommand {
 		builder.addEditOperation(new Range(startLineNumber, startColumn, endLineNumber, endColumn), null);
 	}
 
-	public computeCursorState(model:EditorCommon.ITokenizedModel, helper: EditorCommon.ICursorStateComputerData):EditorCommon.IEditorSelection {
+	public computeCursorState(model:ITokenizedModel, helper: ICursorStateComputerData):IEditorSelection {
 		var inverseEditOperations = helper.getInverseEditOperations();
 		var srcRange = inverseEditOperations[0].range;
 		return Selection.createSelection(

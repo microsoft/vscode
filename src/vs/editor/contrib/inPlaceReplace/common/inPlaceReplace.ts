@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction} from 'vs/editor/common/editorAction';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import InPlaceReplaceCommand = require('./inPlaceReplaceCommand');
 import {Range} from 'vs/editor/common/core/range';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {CodeEditorStateFlag, ICommonCodeEditor, IEditorActionDescriptorData, IModelDecorationsChangeAccessor} from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {IInplaceReplaceSupportResult} from 'vs/editor/common/modes';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
+import {InPlaceReplaceCommand} from './inPlaceReplaceCommand';
 
 class InPlaceReplace extends EditorAction {
 
@@ -23,14 +23,14 @@ class InPlaceReplace extends EditorAction {
 
 	private up:boolean;
 	private requestIdPool:number;
-	private currentRequest:TPromise<Modes.IInplaceReplaceSupportResult>;
+	private currentRequest:TPromise<IInplaceReplaceSupportResult>;
 	private decorationRemover:TPromise<void>;
 	private decorationIds:string[];
 	private editorWorkerService:IEditorWorkerService;
 
 	constructor(
-		descriptor:EditorCommon.IEditorActionDescriptorData,
-		editor:EditorCommon.ICommonCodeEditor,
+		descriptor:IEditorActionDescriptorData,
+		editor:ICommonCodeEditor,
 		up:boolean,
 		@IEditorWorkerService editorWorkerService:IEditorWorkerService
 	) {
@@ -38,7 +38,7 @@ class InPlaceReplace extends EditorAction {
 		this.editorWorkerService = editorWorkerService;
 		this.up = up;
 		this.requestIdPool = 0;
-		this.currentRequest = TPromise.as(<Modes.IInplaceReplaceSupportResult>null);
+		this.currentRequest = TPromise.as(<IInplaceReplaceSupportResult>null);
 		this.decorationRemover = TPromise.as(<void>null);
 		this.decorationIds = [];
 	}
@@ -58,7 +58,7 @@ class InPlaceReplace extends EditorAction {
 			return null;
 		}
 
-		var state = this.editor.captureState(EditorCommon.CodeEditorStateFlag.Value, EditorCommon.CodeEditorStateFlag.Position);
+		var state = this.editor.captureState(CodeEditorStateFlag.Value, CodeEditorStateFlag.Position);
 
 		this.currentRequest = this.editorWorkerService.navigateValueSet(modelURI, selection, this.up);
 		this.currentRequest = this.currentRequest.then((basicResult) => {
@@ -73,7 +73,7 @@ class InPlaceReplace extends EditorAction {
 			return null;
 		});
 
-		return this.currentRequest.then((result:Modes.IInplaceReplaceSupportResult) => {
+		return this.currentRequest.then((result:IInplaceReplaceSupportResult) => {
 
 			if(!result || !result.range || !result.value) {
 				// No proper result
@@ -95,7 +95,7 @@ class InPlaceReplace extends EditorAction {
 			selection.endColumn += diff > 1 ? (diff - 1) : 0;
 
 			// Insert new text
-			var command = new InPlaceReplaceCommand.InPlaceReplaceCommand(editRange, selection, result.value);
+			var command = new InPlaceReplaceCommand(editRange, selection, result.value);
 			this.editor.executeCommand(this.id, command);
 
 			// add decoration
@@ -108,7 +108,7 @@ class InPlaceReplace extends EditorAction {
 			this.decorationRemover.cancel();
 			this.decorationRemover = TPromise.timeout(350);
 			this.decorationRemover.then(() => {
-				this.editor.changeDecorations((accessor:EditorCommon.IModelDecorationsChangeAccessor) => {
+				this.editor.changeDecorations((accessor:IModelDecorationsChangeAccessor) => {
 					this.decorationIds = accessor.deltaDecorations(this.decorationIds, []);
 				});
 			});
@@ -123,8 +123,8 @@ class InPlaceReplaceUp extends InPlaceReplace {
 	public static ID = 'editor.action.inPlaceReplace.up';
 
 	constructor(
-		descriptor:EditorCommon.IEditorActionDescriptorData,
-		editor:EditorCommon.ICommonCodeEditor,
+		descriptor:IEditorActionDescriptorData,
+		editor:ICommonCodeEditor,
 		@IEditorWorkerService editorWorkerService:IEditorWorkerService
 	) {
 		super(descriptor, editor, true, editorWorkerService);
@@ -136,8 +136,8 @@ class InPlaceReplaceDown extends InPlaceReplace {
 	public static ID = 'editor.action.inPlaceReplace.down';
 
 	constructor(
-		descriptor:EditorCommon.IEditorActionDescriptorData,
-		editor:EditorCommon.ICommonCodeEditor,
+		descriptor:IEditorActionDescriptorData,
+		editor:ICommonCodeEditor,
 		@IEditorWorkerService editorWorkerService:IEditorWorkerService
 	) {
 		super(descriptor, editor, false, editorWorkerService);

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as DomUtils from 'vs/base/browser/dom';
-import {Disposable, IDisposable} from 'vs/base/common/lifecycle';
-import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {getService} from 'vs/base/browser/browserService';
 import {TimeoutTimer} from 'vs/base/common/async';
+import {EventEmitter} from 'vs/base/common/eventEmitter';
+import {Disposable, IDisposable} from 'vs/base/common/lifecycle';
+import {getService} from 'vs/base/browser/browserService';
+import * as dom from 'vs/base/browser/dom';
 
 export enum UserStatus {
 	Idle,
@@ -34,8 +34,8 @@ export class IdleMonitor extends Disposable {
 		this._idleTime = idleTime;
 
 		this._eventEmitter = this._register(new EventEmitter());
-		this._register(DomUtils.addDisposableListener(getService().document, 'mousemove', () => this._onUserActive()));
-		this._register(DomUtils.addDisposableListener(getService().document, 'keydown', () => this._onUserActive()));
+		this._register(dom.addDisposableListener(getService().document, 'mousemove', () => this._onUserActive()));
+		this._register(dom.addDisposableListener(getService().document, 'keydown', () => this._onUserActive()));
 		this._onUserActive();
 	}
 

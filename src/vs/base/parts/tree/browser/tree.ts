@@ -435,9 +435,9 @@ export /* abstract */ class ContextMenuEvent {
 
 export class MouseContextMenuEvent extends ContextMenuEvent {
 
-	private originalEvent: Mouse.StandardMouseEvent;
+	private originalEvent: Mouse.IMouseEvent;
 
-	constructor(originalEvent: Mouse.StandardMouseEvent) {
+	constructor(originalEvent: Mouse.IMouseEvent) {
 		super(originalEvent.posx, originalEvent.posy, originalEvent.target);
 		this.originalEvent = originalEvent;
 	}
@@ -453,9 +453,9 @@ export class MouseContextMenuEvent extends ContextMenuEvent {
 
 export class KeyboardContextMenuEvent extends ContextMenuEvent {
 
-	private originalEvent: Keyboard.StandardKeyboardEvent;
+	private originalEvent: Keyboard.IKeyboardEvent;
 
-	constructor(posx: number, posy: number, originalEvent: Keyboard.StandardKeyboardEvent) {
+	constructor(posx: number, posy: number, originalEvent: Keyboard.IKeyboardEvent) {
 		super(posx, posy, originalEvent.target);
 		this.originalEvent = originalEvent;
 	}
@@ -474,7 +474,7 @@ export interface IController {
 	/**
 	 * Called when an element is clicked.
 	 */
-	onClick(tree: ITree, element: any, event: Mouse.StandardMouseEvent): boolean;
+	onClick(tree: ITree, element: any, event: Mouse.IMouseEvent): boolean;
 
 	/**
 	 * Called when an element is requested for a context menu.
@@ -489,22 +489,22 @@ export interface IController {
 	/**
 	 * Called when a key is pressed down while selecting elements.
 	 */
-	onKeyDown(tree: ITree, event: Keyboard.StandardKeyboardEvent): boolean;
+	onKeyDown(tree: ITree, event: Keyboard.IKeyboardEvent): boolean;
 
 	/**
 	 * Called when a key is released while selecting elements.
 	 */
-	onKeyUp(tree: ITree, event: Keyboard.StandardKeyboardEvent): boolean;
+	onKeyUp(tree: ITree, event: Keyboard.IKeyboardEvent): boolean;
 
 	/**
 	 * Called when a mouse button is pressed down on an element.
 	 */
-	onMouseDown?(tree: ITree, element: any, event: Mouse.StandardMouseEvent): boolean;
+	onMouseDown?(tree: ITree, element: any, event: Mouse.IMouseEvent): boolean;
 
 	/**
 	 * Called when a mouse button goes up on an element.
 	 */
-	onMouseUp?(tree: ITree, element: any, event: Mouse.StandardMouseEvent): boolean;
+	onMouseUp?(tree: ITree, element: any, event: Mouse.IMouseEvent): boolean;
 }
 
 export enum DragOverEffect {

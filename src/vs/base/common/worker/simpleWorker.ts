@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IWorker, IWorkerFactory} from './workerClient';
-import {TPromise, ValueCallback, ErrorCallback} from 'vs/base/common/winjs.base';
-import errors = require('vs/base/common/errors');
+import {transformErrorForSerialization} from 'vs/base/common/errors';
 import {Disposable} from 'vs/base/common/lifecycle';
+import {ErrorCallback, TPromise, ValueCallback} from 'vs/base/common/winjs.base';
+import {IWorker, IWorkerFactory} from './workerClient';
 
 const INITIALIZE = '$initialize';
 
@@ -139,7 +139,7 @@ class SimpleWorkerProtocol {
 				vsWorker: this._workerId,
 				seq: req,
 				res: undefined,
-				err: errors.transformErrorForSerialization(e)
+				err: transformErrorForSerialization(e)
 			});
 		});
 	}

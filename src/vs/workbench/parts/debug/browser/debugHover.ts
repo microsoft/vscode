@@ -18,6 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {evaluateExpression, Expression} from 'vs/workbench/parts/debug/common/debugModel';
 import viewer = require('vs/workbench/parts/debug/browser/debugViewer');
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.emmet;
 const debugTreeOptions = {
@@ -60,7 +61,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 			this.layoutTree();
 		}));
 
-		this.toDispose.push(dom.addStandardDisposableListener(this.domNode, 'keydown', (e: dom.IKeyboardEvent) => {
+		this.toDispose.push(dom.addStandardDisposableListener(this.domNode, 'keydown', (e: IKeyboardEvent) => {
 			if (e.equals(CommonKeybindings.ESCAPE)) {
 				this.hide();
 			}

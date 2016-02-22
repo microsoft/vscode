@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import {IPluginDescription, IPluginService, IMessage, IActivationEventListener, IPluginStatus } from 'vs/platform/plugins/common/plugins';
-import WinJS = require('vs/base/common/winjs.base');
+import * as nls from 'vs/nls';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import Severity from 'vs/base/common/severity';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IActivationEventListener, IMessage, IPluginDescription, IPluginService, IPluginStatus} from 'vs/platform/plugins/common/plugins';
+import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 
 const hasOwnProperty = Object.hasOwnProperty;
 
@@ -39,7 +39,7 @@ export interface IActivatedPluginMap<T extends ActivatedPlugin> {
 }
 
 interface IActivatingPluginMap {
-	[pluginId: string]: WinJS.TPromise<void>;
+	[pluginId: string]: TPromise<void>;
 }
 
 export abstract class AbstractPluginService<T extends ActivatedPlugin> implements IPluginService {
@@ -47,15 +47,15 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 
 	private activatingPlugins: IActivatingPluginMap;
 	protected activatedPlugins: IActivatedPluginMap<T>;
-	private _onReady: WinJS.TPromise<boolean>;
+	private _onReady: TPromise<boolean>;
 	private _onReadyC: (v: boolean) => void;
 
 	constructor(isReadyByDefault: boolean) {
 		if (isReadyByDefault) {
-			this._onReady = WinJS.TPromise.as(true);
+			this._onReady = TPromise.as(true);
 			this._onReadyC = (v: boolean) => { /*No-op*/ };
 		} else {
-			this._onReady = new WinJS.TPromise<boolean>((c, e, p) => {
+			this._onReady = new TPromise<boolean>((c, e, p) => {
 				this._onReadyC = c;
 			}, () => {
 				console.warn('You should really not try to cancel this ready promise!');
@@ -83,7 +83,7 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 		PluginsRegistry.registerOneTimeActivationEventListener(activationEvent, listener);
 	}
 
-	public onReady(): WinJS.TPromise<boolean> {
+	public onReady(): TPromise<boolean> {
 		return this._onReady;
 	}
 
@@ -96,7 +96,7 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 		return hasOwnProperty.call(this.activatedPlugins, pluginId);
 	}
 
-	public activateByEvent(activationEvent: string): WinJS.TPromise<void> {
+	public activateByEvent(activationEvent: string): TPromise<void> {
 		return this._onReady.then(() => {
 			PluginsRegistry.triggerActivationEventListeners(activationEvent);
 			let activatePlugins = PluginsRegistry.getPluginDescriptionsForActivationEvent(activationEvent);
@@ -104,7 +104,7 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 		});
 	}
 
-	public activateAndGet(pluginId: string): WinJS.TPromise<void> {
+	public activateAndGet(pluginId: string): TPromise<void> {
 		return this._onReady.then(() => {
 			let desc = PluginsRegistry.getPluginDescription(pluginId);
 			if (!desc) {
@@ -156,15 +156,15 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 		}
 	}
 
-	private _activatePlugins(pluginDescriptions: IPluginDescription[], recursionLevel: number): WinJS.TPromise<void> {
+	private _activatePlugins(pluginDescriptions: IPluginDescription[], recursionLevel: number): TPromise<void> {
 		// console.log(recursionLevel, '_activatePlugins: ', pluginDescriptions.map(p => p.id));
 		if (pluginDescriptions.length === 0) {
-			return WinJS.TPromise.as(void 0);
+			return TPromise.as(void 0);
 		}
 
 		pluginDescriptions = pluginDescriptions.filter((p) => !hasOwnProperty.call(this.activatedPlugins, p.id));
 		if (pluginDescriptions.length === 0) {
-			return WinJS.TPromise.as(void 0);
+			return TPromise.as(void 0);
 		}
 
 		if (recursionLevel > 10) {
@@ -174,7 +174,7 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 				this._showMessage(Severity.Error, nls.localize('failedDep2', "Extension `{0}` failed to activate. Reason: more than 10 levels of dependencies (most likely a dependency loop).", pluginDescriptions[i].id));
 				this.activatedPlugins[pluginDescriptions[i].id] = this._createFailedPlugin();
 			}
-			return WinJS.TPromise.as(void 0);
+			return TPromise.as(void 0);
 		}
 
 		let greenMap: { [id: string]: IPluginDescription; } = Object.create(null),
@@ -198,7 +198,7 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 
 		if (red.length === 0) {
 			// Finally reached only leafs!
-			return WinJS.TPromise.join(green.map((p) => this._activatePlugin(p))).then(_ => void 0);
+			return TPromise.join(green.map((p) => this._activatePlugin(p))).then(_ => void 0);
 		}
 
 		return this._activatePlugins(green, recursionLevel + 1).then(_ => {
@@ -206,9 +206,9 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 		});
 	}
 
-	protected _activatePlugin(pluginDescription: IPluginDescription): WinJS.TPromise<void> {
+	protected _activatePlugin(pluginDescription: IPluginDescription): TPromise<void> {
 		if (hasOwnProperty.call(this.activatedPlugins, pluginDescription.id)) {
-			return WinJS.TPromise.as(void 0);
+			return TPromise.as(void 0);
 		}
 
 		if (hasOwnProperty.call(this.activatingPlugins, pluginDescription.id)) {
@@ -231,11 +231,11 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 
 	protected abstract _createFailedPlugin(): T;
 
-	protected abstract _actualActivatePlugin(pluginDescription: IPluginDescription): WinJS.TPromise<T>;
+	protected abstract _actualActivatePlugin(pluginDescription: IPluginDescription): TPromise<T>;
 }
 
-export function loadAMDModule<T>(moduleId: string): WinJS.TPromise<T> {
-	return new WinJS.TPromise<T>((c, e, p) => {
+export function loadAMDModule<T>(moduleId: string): TPromise<T> {
+	return new TPromise<T>((c, e, p) => {
 		require([moduleId], (r: T) => {
 			c(r);
 		}, e);

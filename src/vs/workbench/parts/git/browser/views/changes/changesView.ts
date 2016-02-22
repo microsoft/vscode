@@ -15,7 +15,7 @@ import Errors = require('vs/base/common/errors');
 import * as paths from 'vs/base/common/paths';
 import WinJS = require('vs/base/common/winjs.base');
 import Builder = require('vs/base/browser/builder');
-import Keyboard = require('vs/base/browser/keyboardEvent');
+import {StandardKeyboardEvent, IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import Actions = require('vs/base/common/actions');
 import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
 import Tree = require('vs/base/parts/tree/browser/tree');
@@ -41,7 +41,6 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ISelection, StructuredSelection} from 'vs/platform/selection/common/selection';
 import {IEventService} from 'vs/platform/event/common/event';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
-import {IKeyboardEvent} from 'vs/base/browser/dom';
 
 import IGitService = git.IGitService;
 
@@ -143,7 +142,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		this.commitInputBox.onDidHeightChange((value) => this.emit('heightchange', value));
 
 		$(this.commitInputBox.inputElement).on('keydown', (e:KeyboardEvent) => {
-			var keyboardEvent = new Keyboard.StandardKeyboardEvent(e);
+			var keyboardEvent = new StandardKeyboardEvent(e);
 
 			if (keyboardEvent.equals(CommonKeybindings.CTRLCMD_ENTER) || keyboardEvent.equals(CommonKeybindings.CTRLCMD_S)) {
 				if (this.smartCommitAction.enabled) {

@@ -9,12 +9,12 @@
  * using regular expressions.
  */
 
+import * as modes from 'vs/editor/common/modes';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {LineStream} from 'vs/editor/common/modes/lineStream';
-import MonarchCommonTypes = require('vs/editor/common/modes/monarch/monarchCommon');
-import Modes = require('vs/editor/common/modes');
+import * as monarchCommon from 'vs/editor/common/modes/monarch/monarchCommon';
+import {IEnteringNestedModeData, TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {TokenizationSupport, IEnteringNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
 
 /**
  * The MonarchLexer class implements a monaco lexer that highlights source code.
@@ -28,18 +28,18 @@ export class MonarchLexer extends AbstractState {
 	private modeService:IModeService;
 
 	private id: number;
-	private lexer: MonarchCommonTypes.ILexer;
+	private lexer: monarchCommon.ILexer;
 	private stack: string[];
 
 	public embeddedMode: string;
 	public embeddedEntered: boolean;
 
-	private groupActions: MonarchCommonTypes.IAction[];
+	private groupActions: monarchCommon.IAction[];
 	private groupMatches: string[];
 	private groupMatched: string[];
-	private groupRule: MonarchCommonTypes.IRule;
+	private groupRule: monarchCommon.IRule;
 
-	constructor(mode: Modes.IMode, modeService:IModeService, lexer: MonarchCommonTypes.ILexer, stack?: string[], embeddedMode?: string) {
+	constructor(mode: modes.IMode, modeService:IModeService, lexer: monarchCommon.ILexer, stack?: string[], embeddedMode?: string) {
 		super(mode);
 		this.id = MonarchLexer.ID++; // for debugging, assigns unique id to each instance
 		this.modeService = modeService;
@@ -64,7 +64,7 @@ export class MonarchLexer extends AbstractState {
 		return new MonarchLexer(this.getMode(), this.modeService, this.lexer, this.stack.slice(0), this.embeddedMode);
 	}
 
-	public equals(other: Modes.IState): boolean {
+	public equals(other: modes.IState): boolean {
 		if (!super.equals(other)) {
 			return false;
 		}
@@ -94,7 +94,7 @@ export class MonarchLexer extends AbstractState {
 	 * TODO: there are many optimizations possible here for the common cases
 	 * but for now I concentrated on functionality and correctness.
 	 */
-	public tokenize(stream: Modes.IStream, noConsumeIsOk?: boolean): Modes.ITokenizationResult {
+	public tokenize(stream: modes.IStream, noConsumeIsOk?: boolean): modes.ITokenizationResult {
 		var stackLen0 = this.stack.length;  // these are saved to check progress
 		var groupLen0 = 0;
 		var state: string = this.stack[0];  // the current state
@@ -102,9 +102,9 @@ export class MonarchLexer extends AbstractState {
 
 		var matches: string[] = null;
 		var matched: string = null;
-		var action: MonarchCommonTypes.IAction = null;
+		var action: monarchCommon.IAction = null;
 		var next: string = null;
-		var rule: MonarchCommonTypes.IRule = null;
+		var rule: monarchCommon.IRule = null;
 
 		// check if we need to process group matches first
 		if (this.groupActions) {
@@ -136,11 +136,11 @@ export class MonarchLexer extends AbstractState {
 			// get the rules for this state
 			var rules = this.lexer.tokenizer[state];
 			if (!rules) {
-				rules = MonarchCommonTypes.findRules(this.lexer, state); // do parent matching
+				rules = monarchCommon.findRules(this.lexer, state); // do parent matching
 			}
 
 			if (!rules) {
-				MonarchCommonTypes.throwError(this.lexer, 'tokenizer state is not defined: ' + state);
+				monarchCommon.throwError(this.lexer, 'tokenizer state is not defined: ' + state);
 			}
 			else {
 				// try each rule until we match
@@ -200,22 +200,22 @@ export class MonarchLexer extends AbstractState {
 
 			// do $n replacements?
 			if (action.tokenSubst) {
-				result = MonarchCommonTypes.substituteMatches(this.lexer, result, matched, matches, state);
+				result = monarchCommon.substituteMatches(this.lexer, result, matched, matches, state);
 			}
 
 			// enter embedded mode?
 			if (action.nextEmbedded) {
 				if (action.nextEmbedded === '@pop') {
 					if (!this.embeddedMode) {
-						MonarchCommonTypes.throwError(this.lexer, 'cannot pop embedded mode if not inside one');
+						monarchCommon.throwError(this.lexer, 'cannot pop embedded mode if not inside one');
 					}
 					this.embeddedMode = null;
 				}
 				else if (this.embeddedMode) {
-					MonarchCommonTypes.throwError(this.lexer, 'cannot enter embedded mode from within an embedded mode');
+					monarchCommon.throwError(this.lexer, 'cannot enter embedded mode from within an embedded mode');
 				}
 				else {
-					this.embeddedMode = MonarchCommonTypes.substituteMatches(this.lexer, action.nextEmbedded, matched, matches, state);
+					this.embeddedMode = monarchCommon.substituteMatches(this.lexer, action.nextEmbedded, matched, matches, state);
 
 					// substitute language alias to known modes to support syntax highlighting
 					var embeddedMode = this.modeService.getModeIdForLanguageName(this.embeddedMode);
@@ -232,12 +232,12 @@ export class MonarchLexer extends AbstractState {
 				stream.goBack(action.goBack);
 			}
 			if (action.switchTo && typeof action.switchTo === 'string') {
-				var nextState = MonarchCommonTypes.substituteMatches(this.lexer, action.switchTo, matched, matches, state);  // switch state without a push...
+				var nextState = monarchCommon.substituteMatches(this.lexer, action.switchTo, matched, matches, state);  // switch state without a push...
 				if (nextState[0] === '@') {
 					nextState = nextState.substr(1); // peel off starting '@'
 				}
-				if (!MonarchCommonTypes.findRules(this.lexer, nextState)) {
-					MonarchCommonTypes.throwError(this.lexer, 'trying to switch to a state \'' + nextState + '\' that is undefined in rule: ' + rule.name);
+				if (!monarchCommon.findRules(this.lexer, nextState)) {
+					monarchCommon.throwError(this.lexer, 'trying to switch to a state \'' + nextState + '\' that is undefined in rule: ' + rule.name);
 				}
 				else {
 					this.stack[0] = nextState;
@@ -251,7 +251,7 @@ export class MonarchLexer extends AbstractState {
 			else if (action.next) {
 				if (action.next === '@push') {
 					if (this.stack.length >= this.lexer.maxStack) {
-						MonarchCommonTypes.throwError(this.lexer, 'maximum tokenizer stack size reached: [' +
+						monarchCommon.throwError(this.lexer, 'maximum tokenizer stack size reached: [' +
 							this.stack[0] + ',' + this.stack[1] + ',...,' +
 							this.stack[this.stack.length - 2] + ',' + this.stack[this.stack.length - 1] + ']');
 					}
@@ -261,7 +261,7 @@ export class MonarchLexer extends AbstractState {
 				}
 				else if (action.next === '@pop') {
 					if (this.stack.length <= 1) {
-						MonarchCommonTypes.throwError(this.lexer, 'trying to pop an empty stack in rule: ' + rule.name);
+						monarchCommon.throwError(this.lexer, 'trying to pop an empty stack in rule: ' + rule.name);
 					}
 					else {
 						this.stack.shift();
@@ -273,13 +273,13 @@ export class MonarchLexer extends AbstractState {
 					}
 				}
 				else {
-					var nextState = MonarchCommonTypes.substituteMatches(this.lexer, action.next, matched, matches, state);
+					var nextState = monarchCommon.substituteMatches(this.lexer, action.next, matched, matches, state);
 					if (nextState[0] === '@') {
 						nextState = nextState.substr(1); // peel off starting '@'
 					}
 
-					if (!MonarchCommonTypes.findRules(this.lexer, nextState)) {
-						MonarchCommonTypes.throwError(this.lexer, 'trying to set a next state \'' + nextState + '\' that is undefined in rule: ' + rule.name);
+					if (!monarchCommon.findRules(this.lexer, nextState)) {
+						monarchCommon.throwError(this.lexer, 'trying to set a next state \'' + nextState + '\' that is undefined in rule: ' + rule.name);
 					}
 					else {
 						this.stack.unshift(nextState);
@@ -288,30 +288,30 @@ export class MonarchLexer extends AbstractState {
 			}
 
 			if (action.log && typeof (action.log) === 'string') {
-				MonarchCommonTypes.log(this.lexer, this.lexer.displayName + ': ' + MonarchCommonTypes.substituteMatches(this.lexer, action.log, matched, matches, state));
+				monarchCommon.log(this.lexer, this.lexer.displayName + ': ' + monarchCommon.substituteMatches(this.lexer, action.log, matched, matches, state));
 			}
 		}
 
 		// check result
 		if (result === null) {
-			MonarchCommonTypes.throwError(this.lexer, 'lexer rule has no well-defined action in rule: ' + rule.name);
+			monarchCommon.throwError(this.lexer, 'lexer rule has no well-defined action in rule: ' + rule.name);
 			result = this.lexer.defaultToken;
 		}
 
 		// is the result a group match?
 		if (Array.isArray(result)) {
 			if (this.groupActions && this.groupActions.length > 0) {
-				MonarchCommonTypes.throwError(this.lexer, 'groups cannot be nested: ' + rule.name);
+				monarchCommon.throwError(this.lexer, 'groups cannot be nested: ' + rule.name);
 			}
 			if (matches.length !== result.length + 1) {
-				MonarchCommonTypes.throwError(this.lexer, 'matched number of groups does not match the number of actions in rule: ' + rule.name);
+				monarchCommon.throwError(this.lexer, 'matched number of groups does not match the number of actions in rule: ' + rule.name);
 			}
 			var totalLen = 0;
 			for (var i = 1; i < matches.length; i++) {
 				totalLen += matches[i].length;
 			}
 			if (totalLen !== matched.length) {
-				MonarchCommonTypes.throwError(this.lexer, 'with groups, all characters should be matched in consecutive groups in rule: ' + rule.name);
+				monarchCommon.throwError(this.lexer, 'with groups, all characters should be matched in consecutive groups in rule: ' + rule.name);
 			}
 			this.groupMatches = matches;
 			this.groupMatched = matches.slice(1);
@@ -339,7 +339,7 @@ export class MonarchLexer extends AbstractState {
 					}
 				}
 				else {
-					MonarchCommonTypes.throwError(this.lexer, 'no progress in tokenizer in rule: ' + rule.name);
+					monarchCommon.throwError(this.lexer, 'no progress in tokenizer in rule: ' + rule.name);
 					stream.advanceToEOS(); // must make progress or editor loops
 					// result='';
 				}
@@ -351,14 +351,14 @@ export class MonarchLexer extends AbstractState {
 				var rest = result.substr('@brackets'.length);
 				var bracket = findBracket(this.lexer, matched);
 				if (!bracket) {
-					MonarchCommonTypes.throwError(this.lexer, '@brackets token returned but no bracket defined as: ' + matched);
-					bracket = { token: '', bracketType: Modes.Bracket.None };
+					monarchCommon.throwError(this.lexer, '@brackets token returned but no bracket defined as: ' + matched);
+					bracket = { token: '', bracketType: modes.Bracket.None };
 				}
-				return { type: MonarchCommonTypes.sanitize(bracket.token + rest), bracket: bracket.bracketType };
+				return { type: monarchCommon.sanitize(bracket.token + rest), bracket: bracket.bracketType };
 			}
 			else {
 				var token = (result === '' ? '' : result + this.lexer.tokenPostfix);
-				return { type: MonarchCommonTypes.sanitize(token), bracket: action.bracket };
+				return { type: monarchCommon.sanitize(token), bracket: action.bracket };
 			}
 		}
 	}
@@ -367,39 +367,39 @@ export class MonarchLexer extends AbstractState {
 /**
  * Searches for a bracket in the 'brackets' attribute that matches the input.
  */
-function findBracket(lexer: MonarchCommonTypes.ILexer, matched: string) {
+function findBracket(lexer: monarchCommon.ILexer, matched: string) {
 	if (!matched) {
 		return null;
 	}
-	matched = MonarchCommonTypes.fixCase(lexer, matched);
+	matched = monarchCommon.fixCase(lexer, matched);
 
 	var brackets = lexer.brackets;
 	for (var i = 0; i < brackets.length; i++) {
 		var bracket = brackets[i];
 		if (bracket.open === matched) {
-			return { token: bracket.token, bracketType: Modes.Bracket.Open };
+			return { token: bracket.token, bracketType: modes.Bracket.Open };
 		}
 		else if (bracket.close === matched) {
-			return { token: bracket.token, bracketType: Modes.Bracket.Close };
+			return { token: bracket.token, bracketType: modes.Bracket.Close };
 		}
 	}
 	return null;
 }
 
-export function createTokenizationSupport(modeService:IModeService, mode:Modes.IMode, lexer: MonarchCommonTypes.ILexer): Modes.ITokenizationSupport {
+export function createTokenizationSupport(modeService:IModeService, mode:modes.IMode, lexer: monarchCommon.ILexer): modes.ITokenizationSupport {
 	return new TokenizationSupport(mode, {
-		getInitialState: (): Modes.IState => {
+		getInitialState: (): modes.IState => {
 			return new MonarchLexer(mode, modeService, lexer);
 		},
 
-		enterNestedMode: (state: Modes.IState): boolean => {
+		enterNestedMode: (state: modes.IState): boolean => {
 			if (state instanceof MonarchLexer) {
 				return state.embeddedEntered;
 			}
 			return false;
 		},
 
-		getNestedMode: (rawState: Modes.IState): IEnteringNestedModeData => {
+		getNestedMode: (rawState: modes.IState): IEnteringNestedModeData => {
 			var mime = (<MonarchLexer>rawState).embeddedMode;
 
 			if (!modeService.isRegisteredMode(mime)) {
@@ -426,7 +426,7 @@ export function createTokenizationSupport(modeService:IModeService, mode:Modes.I
 			};
 		},
 
-		getLeavingNestedModeData: (line: string, state: Modes.IState) => {
+		getLeavingNestedModeData: (line: string, state: modes.IState) => {
 			// state = state.clone();
 			var mstate = <MonarchLexer>state.clone();
 			var stream = new LineStream(line);

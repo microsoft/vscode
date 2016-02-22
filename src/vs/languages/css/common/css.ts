@@ -309,7 +309,7 @@ export class CSSMode extends AbstractMode {
 			getInitialState: () => new State(this, States.Selector, false, null, false, 0)
 		}, false, false);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), {
+		this.richEditSupport = new RichEditSupport(this.getId(), null, {
 			// TODO@Martin: This definition does not work with umlauts for example
 			wordPattern: /(#?-?\d*\.\d\w*%?)|((::|[@#.!:])?[\w-?]+%?)|::|[@#.!:]/g,
 
@@ -322,12 +322,6 @@ export class CSSMode extends AbstractMode {
 				['[', ']'],
 				['(', ')']
 			],
-
-			__electricCharacterSupport: {
-				brackets: [
-					{ tokenType: 'punctuation.bracket.css', open: '{', close: '}', isElectric: true }
-				]
-			},
 
 			__characterPairSupport: {
 				autoClosingPairs: [

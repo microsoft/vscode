@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Registry} from 'vs/platform/platform';
+import {BinaryKeybindings, KeyCode} from 'vs/base/common/keyCodes';
+import * as platform from 'vs/base/common/platform';
 import {TypeConstraint, validateConstraints} from 'vs/base/common/types';
 import {ICommandHandler, ICommandHandlerDescription, ICommandsMap, IKeybindingItem, IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
-import {KeyCode, BinaryKeybindings} from 'vs/base/common/keyCodes';
-import Platform = require('vs/base/common/platform');
+import {Registry} from 'vs/platform/platform';
 
 export interface ICommandRule extends IKeybindings {
 	id: string;
@@ -68,11 +68,11 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	 * Take current platform into account and reduce to primary & secondary.
 	 */
 	private static bindToCurrentPlatform(kb: IKeybindings): { primary?: number; secondary?: number[]; } {
-		if (Platform.isWindows) {
+		if (platform.isWindows) {
 			if (kb && kb.win) {
 				return kb.win;
 			}
-		} else if (Platform.isMacintosh) {
+		} else if (platform.isMacintosh) {
 			if (kb && kb.mac) {
 				return kb.mac;
 			}
@@ -132,7 +132,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	}
 
 	private registerDefaultKeybinding(keybinding: number, commandId: string, weight1: number, weight2: number, context: KbExpr): void {
-		if (Platform.isWindows) {
+		if (platform.isWindows) {
 			if (BinaryKeybindings.hasCtrlCmd(keybinding) && !BinaryKeybindings.hasShift(keybinding) && BinaryKeybindings.hasAlt(keybinding) && !BinaryKeybindings.hasWinCtrl(keybinding)) {
 				if (/^[A-Z0-9\[\]\|\;\'\,\.\/\`]$/.test(KeyCode.toString(BinaryKeybindings.extractKeyCode(keybinding)))) {
 					console.warn('Ctrl+Alt+ keybindings should not be used by default under Windows. Offender: ', keybinding, ' for ', commandId);

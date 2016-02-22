@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as Env from 'vs/base/common/platform';
-import * as Browser from 'vs/base/browser/browser';
-import * as DomUtils from 'vs/base/browser/dom';
-import {IEditorStyling, IGuessedIndentation, IDimension} from 'vs/editor/common/editorCommon';
-import {ElementSizeObserver} from 'vs/editor/browser/config/elementSizeObserver';
-import {CommonEditorConfiguration, ICSSConfig} from 'vs/editor/common/config/commonEditorConfig';
 import Event, {Emitter} from 'vs/base/common/event';
 import {Disposable} from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
+import * as browser from 'vs/base/browser/browser';
+import * as dom from 'vs/base/browser/dom';
+import {CommonEditorConfiguration, ICSSConfig} from 'vs/editor/common/config/commonEditorConfig';
+import {IDimension, IEditorStyling, IGuessedIndentation} from 'vs/editor/common/editorCommon';
+import {ElementSizeObserver} from 'vs/editor/browser/config/elementSizeObserver';
 
 class CSSBasedConfigurationCache {
 
@@ -192,7 +192,7 @@ class CSSBasedConfiguration extends Disposable {
 		// Read various properties
 		let usualCharsWidths = this._readFromTestElements();
 		let firstTestElement = document.getElementById(this._testElementId(0));
-		let computedStyle = DomUtils.getComputedStyle(firstTestElement);
+		let computedStyle = dom.getComputedStyle(firstTestElement);
 		let result_font = this._getFontFromComputedStyle(computedStyle);
 		let result_fontSize = computedStyle ? parseInt(computedStyle.fontSize, 10) : 0;
 
@@ -302,15 +302,15 @@ export class Configuration extends CommonEditorConfiguration {
 
 	protected _getEditorClassName(theme:string, fontLigatures:boolean): string {
 		let extra = '';
-		if (Browser.isIE11orEarlier) {
+		if (browser.isIE11orEarlier) {
 			extra += 'ie ';
-		} else if (Browser.isFirefox) {
+		} else if (browser.isFirefox) {
 			extra += 'ff ';
 		}
-		if (Browser.isIE9) {
+		if (browser.isIE9) {
 			extra += 'ie9 ';
 		}
-		if (Env.isMacintosh) {
+		if (platform.isMacintosh) {
 			extra += 'mac ';
 		}
 		if (fontLigatures) {

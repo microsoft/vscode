@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import autoIndentation = require('vs/editor/common/modes/supports/electricCharacter');
-import modesUtil = require('vs/editor/test/common/modesTestUtils');
+import * as assert from 'assert';
+import {Brackets} from 'vs/editor/common/modes/supports/electricCharacter';
+import {createLineContextFromTokenText} from 'vs/editor/test/common/modesTestUtils';
 
 suite('Editor Modes - Auto Indentation', () => {
 	test('Doc comments', () => {
-		var brackets = new autoIndentation.Brackets('test', [],
+		var brackets = new Brackets('test', null,
 			{ scope: 'doc', open: '/**', lineStart: ' * ', close: ' */' });
 
-		assert.equal(brackets.onElectricCharacter(modesUtil.createLineContextFromTokenText([
+		assert.equal(brackets.onElectricCharacter(createLineContextFromTokenText([
 			{ text: '/**', type: 'doc' },
 		]), 2).appendText, ' */');
-		assert.equal(brackets.onElectricCharacter(modesUtil.createLineContextFromTokenText([
+		assert.equal(brackets.onElectricCharacter(createLineContextFromTokenText([
 			{ text: '/**', type: 'doc' },
 			{ text: ' ', type: 'doc' },
 			{ text: '*/', type: 'doc' },

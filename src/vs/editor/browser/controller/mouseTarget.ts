@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Mouse = require('vs/base/browser/mouseEvent');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import {Range as EditorRange} from 'vs/editor/common/core/range';
+import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 import {Position} from 'vs/editor/common/core/position';
+import {Range as EditorRange} from 'vs/editor/common/core/range';
+import {IEditorLayoutInfo, IEditorPosition, IEditorRange, IPosition, MouseTargetType} from 'vs/editor/common/editorCommon';
+import {ClassNames, IMouseTarget, IPointerHandlerHelper, IViewContext, IViewZoneData} from 'vs/editor/browser/editorBrowser';
 
 interface IHitTestResult {
-	position: EditorCommon.IPosition;
+	position: IPosition;
 	hitTarget: Element;
 }
 
@@ -22,15 +22,15 @@ export interface IDomNodePosition {
 	height: number;
 }
 
-class MouseTarget implements EditorBrowser.IMouseTarget {
+class MouseTarget implements IMouseTarget {
 
 	public element: Element;
-	public type: EditorCommon.MouseTargetType;
-	public position: EditorCommon.IEditorPosition;
-	public range: EditorCommon.IEditorRange;
+	public type: MouseTargetType;
+	public position: IEditorPosition;
+	public range: IEditorRange;
 	public detail: any;
 
-	constructor(element: Element, type: EditorCommon.MouseTargetType, position:EditorCommon.IEditorPosition = null, range: EditorCommon.IEditorRange = null, detail: any = null) {
+	constructor(element: Element, type: MouseTargetType, position:IEditorPosition = null, range: IEditorRange = null, detail: any = null) {
 		this.element = element;
 		this.type = type;
 		this.position = position;
@@ -42,40 +42,40 @@ class MouseTarget implements EditorBrowser.IMouseTarget {
 	}
 
 	private _typeToString(): string {
-		if (this.type === EditorCommon.MouseTargetType.TEXTAREA) {
+		if (this.type === MouseTargetType.TEXTAREA) {
 			return 'TEXTAREA';
 		}
-		if (this.type === EditorCommon.MouseTargetType.GUTTER_GLYPH_MARGIN) {
+		if (this.type === MouseTargetType.GUTTER_GLYPH_MARGIN) {
 			return 'GUTTER_GLYPH_MARGIN';
 		}
-		if (this.type === EditorCommon.MouseTargetType.GUTTER_LINE_NUMBERS) {
+		if (this.type === MouseTargetType.GUTTER_LINE_NUMBERS) {
 			return 'GUTTER_LINE_NUMBERS';
 		}
-		if (this.type === EditorCommon.MouseTargetType.GUTTER_LINE_DECORATIONS) {
+		if (this.type === MouseTargetType.GUTTER_LINE_DECORATIONS) {
 			return 'GUTTER_LINE_DECORATIONS';
 		}
-		if (this.type === EditorCommon.MouseTargetType.GUTTER_VIEW_ZONE) {
+		if (this.type === MouseTargetType.GUTTER_VIEW_ZONE) {
 			return 'GUTTER_VIEW_ZONE';
 		}
-		if (this.type === EditorCommon.MouseTargetType.CONTENT_TEXT) {
+		if (this.type === MouseTargetType.CONTENT_TEXT) {
 			return 'CONTENT_TEXT';
 		}
-		if (this.type === EditorCommon.MouseTargetType.CONTENT_EMPTY) {
+		if (this.type === MouseTargetType.CONTENT_EMPTY) {
 			return 'CONTENT_EMPTY';
 		}
-		if (this.type === EditorCommon.MouseTargetType.CONTENT_VIEW_ZONE) {
+		if (this.type === MouseTargetType.CONTENT_VIEW_ZONE) {
 			return 'CONTENT_VIEW_ZONE';
 		}
-		if (this.type === EditorCommon.MouseTargetType.CONTENT_WIDGET) {
+		if (this.type === MouseTargetType.CONTENT_WIDGET) {
 			return 'CONTENT_WIDGET';
 		}
-		if (this.type === EditorCommon.MouseTargetType.OVERVIEW_RULER) {
+		if (this.type === MouseTargetType.OVERVIEW_RULER) {
 			return 'OVERVIEW_RULER';
 		}
-		if (this.type === EditorCommon.MouseTargetType.SCROLLBAR) {
+		if (this.type === MouseTargetType.SCROLLBAR) {
 			return 'SCROLLBAR';
 		}
-		if (this.type === EditorCommon.MouseTargetType.OVERLAY_WIDGET) {
+		if (this.type === MouseTargetType.OVERLAY_WIDGET) {
 			return 'OVERLAY_WIDGET';
 		}
 		return 'UNKNOWN';
@@ -101,7 +101,7 @@ var REGEX = (function() {
 		return '[^/]+';
 	}
 
-	var ANCHOR = '^' + EditorBrowser.ClassNames.OVERFLOW_GUARD + '\\/';
+	var ANCHOR = '^' + ClassNames.OVERFLOW_GUARD + '\\/';
 
 	function createRegExp(...pieces:string[]): RegExp {
 		var forceEndMatch = false;
@@ -113,26 +113,26 @@ var REGEX = (function() {
 	}
 
 	return {
-		IS_TEXTAREA_COVER: createRegExp(nodeWithClass(EditorBrowser.ClassNames.TEXTAREA_COVER), '$'),
-		IS_TEXTAREA: createRegExp(EditorBrowser.ClassNames.TEXTAREA, '$'),
-		IS_VIEW_LINES: createRegExp(anyNode(), anyNode(), EditorBrowser.ClassNames.VIEW_LINES, '$'),
-		IS_CURSORS_LAYER: createRegExp(anyNode(), anyNode(), nodeWithClass(EditorBrowser.ClassNames.VIEW_CURSORS_LAYER), '$'),
-		IS_CHILD_OF_VIEW_LINES: createRegExp(anyNode(), anyNode(), EditorBrowser.ClassNames.VIEW_LINES),
-		IS_CHILD_OF_SCROLLABLE_ELEMENT: createRegExp(nodeWithClass(EditorBrowser.ClassNames.SCROLLABLE_ELEMENT)),
-		IS_CHILD_OF_CONTENT_WIDGETS: createRegExp(anyNode(), anyNode(), EditorBrowser.ClassNames.CONTENT_WIDGETS),
-		IS_CHILD_OF_OVERFLOWING_CONTENT_WIDGETS: new RegExp('^' + EditorBrowser.ClassNames.OVERFLOWING_CONTENT_WIDGETS + '\\/'),
-		IS_CHILD_OF_OVERLAY_WIDGETS: createRegExp(EditorBrowser.ClassNames.OVERLAY_WIDGETS),
-		IS_CHILD_OF_VIEW_OVERLAYS: createRegExp(EditorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS),
-		IS_CHILD_OF_VIEW_ZONES: createRegExp(anyNode(), anyNode(), EditorBrowser.ClassNames.VIEW_ZONES),
+		IS_TEXTAREA_COVER: createRegExp(nodeWithClass(ClassNames.TEXTAREA_COVER), '$'),
+		IS_TEXTAREA: createRegExp(ClassNames.TEXTAREA, '$'),
+		IS_VIEW_LINES: createRegExp(anyNode(), anyNode(), ClassNames.VIEW_LINES, '$'),
+		IS_CURSORS_LAYER: createRegExp(anyNode(), anyNode(), nodeWithClass(ClassNames.VIEW_CURSORS_LAYER), '$'),
+		IS_CHILD_OF_VIEW_LINES: createRegExp(anyNode(), anyNode(), ClassNames.VIEW_LINES),
+		IS_CHILD_OF_SCROLLABLE_ELEMENT: createRegExp(nodeWithClass(ClassNames.SCROLLABLE_ELEMENT)),
+		IS_CHILD_OF_CONTENT_WIDGETS: createRegExp(anyNode(), anyNode(), ClassNames.CONTENT_WIDGETS),
+		IS_CHILD_OF_OVERFLOWING_CONTENT_WIDGETS: new RegExp('^' + ClassNames.OVERFLOWING_CONTENT_WIDGETS + '\\/'),
+		IS_CHILD_OF_OVERLAY_WIDGETS: createRegExp(ClassNames.OVERLAY_WIDGETS),
+		IS_CHILD_OF_VIEW_OVERLAYS: createRegExp(ClassNames.MARGIN_VIEW_OVERLAYS),
+		IS_CHILD_OF_VIEW_ZONES: createRegExp(anyNode(), anyNode(), ClassNames.VIEW_ZONES),
 	};
 })();
 
 export class MouseTargetFactory {
 
-	private context: EditorBrowser.IViewContext;
-	private viewHelper: EditorBrowser.IPointerHandlerHelper;
+	private context: IViewContext;
+	private viewHelper: IPointerHandlerHelper;
 
-	constructor(context:EditorBrowser.IViewContext, viewHelper:EditorBrowser.IPointerHandlerHelper) {
+	constructor(context:IViewContext, viewHelper:IPointerHandlerHelper) {
 		this.context = context;
 		this.viewHelper = viewHelper;
 	}
@@ -157,7 +157,7 @@ export class MouseTargetFactory {
 		return path.join('/');
 	}
 
-	public mouseTargetIsWidget(e:Mouse.StandardMouseEvent): boolean {
+	public mouseTargetIsWidget(e:IMouseEvent): boolean {
 		var t:Element = e.target;
 		var path = this.getClassNamePathTo(t, this.viewHelper.viewDomNode);
 
@@ -174,7 +174,7 @@ export class MouseTargetFactory {
 		return false;
 	}
 
-	public createMouseTarget(layoutInfo:EditorCommon.IEditorLayoutInfo, editorContent:IDomNodePosition, e:Mouse.StandardMouseEvent, testEventTarget:boolean): EditorBrowser.IMouseTarget {
+	public createMouseTarget(layoutInfo:IEditorLayoutInfo, editorContent:IDomNodePosition, e:IMouseEvent, testEventTarget:boolean): IMouseTarget {
 		try {
 			var r = this._unsafeCreateMouseTarget(layoutInfo, editorContent, e, testEventTarget);
 			return r;
@@ -183,7 +183,7 @@ export class MouseTargetFactory {
 		}
 	}
 
-	private _unsafeCreateMouseTarget(layoutInfo:EditorCommon.IEditorLayoutInfo, editorContent:IDomNodePosition, e:Mouse.StandardMouseEvent, testEventTarget:boolean): EditorBrowser.IMouseTarget {
+	private _unsafeCreateMouseTarget(layoutInfo:IEditorLayoutInfo, editorContent:IDomNodePosition, e:IMouseEvent, testEventTarget:boolean): IMouseTarget {
 		var mouseVerticalOffset = Math.max(0, this.viewHelper.getScrollTop() + (e.posy - editorContent.top));
 		var mouseContentHorizontalOffset = this.viewHelper.getScrollLeft() + (e.posx - editorContent.left) - layoutInfo.contentLeft;
 
@@ -220,7 +220,7 @@ export class MouseTargetFactory {
 
 		// Is it the textarea?
 		if (REGEX.IS_TEXTAREA.test(path)) {
-			return new MouseTarget(t, EditorCommon.MouseTargetType.TEXTAREA);
+			return new MouseTarget(t, MouseTargetType.TEXTAREA);
 		}
 
 		// Is it a view zone?
@@ -228,7 +228,7 @@ export class MouseTargetFactory {
 			// Check if it is at a view zone
 			var viewZoneData = this._getZoneAtCoord(mouseVerticalOffset);
 			if (viewZoneData) {
-				return new MouseTarget(t, EditorCommon.MouseTargetType.CONTENT_VIEW_ZONE, viewZoneData.position, null, viewZoneData);
+				return new MouseTarget(t, MouseTargetType.CONTENT_VIEW_ZONE, viewZoneData.position, null, viewZoneData);
 			}
 			return this.createMouseTargetFromUnknownTarget(t);
 		}
@@ -246,7 +246,7 @@ export class MouseTargetFactory {
 			// Check if it is at a view zone
 			var viewZoneData = this._getZoneAtCoord(mouseVerticalOffset);
 			if (viewZoneData) {
-				return new MouseTarget(t, EditorCommon.MouseTargetType.CONTENT_VIEW_ZONE, viewZoneData.position, null, viewZoneData);
+				return new MouseTarget(t, MouseTargetType.CONTENT_VIEW_ZONE, viewZoneData.position, null, viewZoneData);
 			}
 
 			// Check if it hits a position
@@ -272,7 +272,7 @@ export class MouseTargetFactory {
 
 		// Is it the cursors layer?
 		if (REGEX.IS_CURSORS_LAYER.test(path)) {
-			return new MouseTarget(t, EditorCommon.MouseTargetType.UNKNOWN);
+			return new MouseTarget(t, MouseTargetType.UNKNOWN);
 		}
 
 		// Is it a child of the scrollable element?
@@ -335,7 +335,7 @@ export class MouseTargetFactory {
 	/**
 	 * Most probably WebKit browsers
 	 */
-	private _doHitTestWithCaretRangeFromPoint(editorContent:IDomNodePosition, e: Mouse.StandardMouseEvent, mouseVerticalOffset: number): IHitTestResult {
+	private _doHitTestWithCaretRangeFromPoint(editorContent:IDomNodePosition, e: IMouseEvent, mouseVerticalOffset: number): IHitTestResult {
 
 		// In Chrome, especially on Linux it is possible to click between lines,
 		// so try to adjust the `hity` below so that it lands in the center of a line
@@ -362,7 +362,7 @@ export class MouseTargetFactory {
 	}
 
 	private _actualDoHitTestWithCaretRangeFromPoint(hitx:number, hity:number): IHitTestResult {
-		var resultPosition: EditorCommon.IPosition = null;
+		var resultPosition: IPosition = null;
 		var resultHitTarget: Element = null;
 
 		var range:Range = (<any>document).caretRangeFromPoint(hitx, hity);
@@ -375,9 +375,9 @@ export class MouseTargetFactory {
 		var parent2ClassName = parent2 && parent2.nodeType === parent2.ELEMENT_NODE ? (<HTMLElement>parent2).className : '';
 		var parent3ClassName = parent3 && parent3.nodeType === parent3.ELEMENT_NODE ? (<HTMLElement>parent3).className : '';
 
-		if (parent3ClassName === EditorBrowser.ClassNames.VIEW_LINE) {
+		if (parent3ClassName === ClassNames.VIEW_LINE) {
 			resultPosition = this.viewHelper.getPositionFromDOMInfo(<HTMLElement>range.startContainer.parentNode, range.startOffset);
-		} else if (parent2ClassName === EditorBrowser.ClassNames.VIEW_LINE) {
+		} else if (parent2ClassName === ClassNames.VIEW_LINE) {
 			resultPosition = this.viewHelper.getPositionFromDOMInfo(<HTMLElement>range.startContainer, range.startOffset);
 		} else {
 			// Looks like we've hit something foreign
@@ -396,8 +396,8 @@ export class MouseTargetFactory {
 	/**
 	 * Most probably Gecko
 	 */
-	private _doHitTestWithCaretPositionFromPoint(e: Mouse.StandardMouseEvent): IHitTestResult {
-		var resultPosition: EditorCommon.IPosition = null;
+	private _doHitTestWithCaretPositionFromPoint(e: IMouseEvent): IHitTestResult {
+		var resultPosition: IPosition = null;
 		var resultHitTarget: Element = null;
 
 		var hitx = e.posx - document.body.scrollLeft - document.documentElement.scrollLeft;
@@ -420,8 +420,8 @@ export class MouseTargetFactory {
 	/**
 	 * Most probably IE
 	 */
-	private _doHitTestWithMoveToPoint(e: Mouse.StandardMouseEvent): IHitTestResult {
-		var resultPosition: EditorCommon.IPosition = null;
+	private _doHitTestWithMoveToPoint(e: IMouseEvent): IHitTestResult {
+		var resultPosition: IPosition = null;
 		var resultHitTarget: Element = null;
 
 		var textRange:TextRange = (<any>document.body).createTextRange();
@@ -445,7 +445,7 @@ export class MouseTargetFactory {
 
 		var parent2ClassName = parent2 && parent2.nodeType === parent2.ELEMENT_NODE ? (<HTMLElement>parent2).className : '';
 
-		if (parent2ClassName === EditorBrowser.ClassNames.VIEW_LINE) {
+		if (parent2ClassName === ClassNames.VIEW_LINE) {
 			var rangeToContainEntireSpan = textRange.duplicate();
 			rangeToContainEntireSpan.moveToElementText(parentElement);
 			rangeToContainEntireSpan.setEndPoint('EndToStart', textRange);
@@ -469,7 +469,7 @@ export class MouseTargetFactory {
 		};
 	}
 
-	private _doHitTest(editorContent:IDomNodePosition, e:Mouse.StandardMouseEvent, mouseVerticalOffset: number): IHitTestResult {
+	private _doHitTest(editorContent:IDomNodePosition, e:IMouseEvent, mouseVerticalOffset: number): IHitTestResult {
 		// State of the art (18.10.2012):
 		// The spec says browsers should support document.caretPositionFromPoint, but nobody implemented it (http://dev.w3.org/csswg/cssom-view/)
 		// Gecko:
@@ -502,16 +502,16 @@ export class MouseTargetFactory {
 		};
 	}
 
-	private _getZoneAtCoord(mouseVerticalOffset: number): EditorBrowser.IViewZoneData {
+	private _getZoneAtCoord(mouseVerticalOffset: number): IViewZoneData {
 		// The target is either a view zone or the empty space after the last view-line
 		var viewZoneWhitespace = this.viewHelper.getWhitespaceAtVerticalOffset(mouseVerticalOffset);
 
 		if (viewZoneWhitespace) {
 			var viewZoneMiddle = viewZoneWhitespace.verticalOffset + viewZoneWhitespace.height / 2,
 				lineCount = this.context.model.getLineCount(),
-				positionBefore: EditorCommon.IEditorPosition = null,
-				position: EditorCommon.IEditorPosition,
-				positionAfter: EditorCommon.IEditorPosition = null;
+				positionBefore: IEditorPosition = null,
+				position: IEditorPosition,
+				positionAfter: IEditorPosition = null;
 
 			if (viewZoneWhitespace.afterLineNumber !== lineCount) {
 				// There are more lines after this view zone
@@ -543,7 +543,7 @@ export class MouseTargetFactory {
 		return null;
 	}
 
-	private _getFullLineRangeAtCoord(mouseVerticalOffset: number): { range: EditorCommon.IEditorRange; isAfterLines: boolean; } {
+	private _getFullLineRangeAtCoord(mouseVerticalOffset: number): { range: IEditorRange; isAfterLines: boolean; } {
 		if (this.viewHelper.isAfterLines(mouseVerticalOffset)) {
 			// Below the last line
 			var lineNumber = this.context.model.getLineCount();
@@ -563,14 +563,14 @@ export class MouseTargetFactory {
 	}
 
 	private createMouseTargetFromViewCursor(target:Element, lineNumber: number, column: number): MouseTarget {
-		return new MouseTarget(target, EditorCommon.MouseTargetType.CONTENT_TEXT, new Position(lineNumber, column));
+		return new MouseTarget(target, MouseTargetType.CONTENT_TEXT, new Position(lineNumber, column));
 	}
 
 	private createMouseTargetFromViewLines(target:Element, mouseVerticalOffset: number): MouseTarget {
 		// This most likely indicates it happened after the last view-line
 		var lineCount = this.context.model.getLineCount();
 		var maxLineColumn = this.context.model.getLineMaxColumn(lineCount);
-		return new MouseTarget(target, EditorCommon.MouseTargetType.CONTENT_EMPTY, new Position(lineCount, maxLineColumn));
+		return new MouseTarget(target, MouseTargetType.CONTENT_EMPTY, new Position(lineCount, maxLineColumn));
 	}
 
 	private createMouseTargetFromHitTestPosition(target:Element, lineNumber: number, column: number, mouseHorizontalOffset: number): MouseTarget {
@@ -579,19 +579,19 @@ export class MouseTargetFactory {
 		var lineWidth = this.viewHelper.getLineWidth(lineNumber);
 
 		if (mouseHorizontalOffset > lineWidth) {
-			return new MouseTarget(target, EditorCommon.MouseTargetType.CONTENT_EMPTY, pos);
+			return new MouseTarget(target, MouseTargetType.CONTENT_EMPTY, pos);
 		}
 
 		var visibleRange = this.viewHelper.visibleRangeForPosition2(lineNumber, column);
 
 		if (!visibleRange) {
-			return new MouseTarget(target, EditorCommon.MouseTargetType.UNKNOWN, pos);
+			return new MouseTarget(target, MouseTargetType.UNKNOWN, pos);
 		}
 
 		var columnHorizontalOffset = visibleRange.left;
 
 		if (mouseHorizontalOffset === columnHorizontalOffset) {
-			return new MouseTarget(target, EditorCommon.MouseTargetType.CONTENT_TEXT, pos);
+			return new MouseTarget(target, MouseTargetType.CONTENT_TEXT, pos);
 		}
 
 		var mouseIsBetween: boolean;
@@ -602,7 +602,7 @@ export class MouseTargetFactory {
 			mouseIsBetween = mouseIsBetween || (columnHorizontalOffset < mouseHorizontalOffset && mouseHorizontalOffset < prevColumnHorizontalOffset); // RTL case
 			if (mouseIsBetween) {
 				var rng = new EditorRange(lineNumber, column, lineNumber, column - 1);
-				return new MouseTarget(target, EditorCommon.MouseTargetType.CONTENT_TEXT, pos, rng);
+				return new MouseTarget(target, MouseTargetType.CONTENT_TEXT, pos, rng);
 			}
 		}
 
@@ -616,21 +616,21 @@ export class MouseTargetFactory {
 				mouseIsBetween = mouseIsBetween || (nextColumnHorizontalOffset < mouseHorizontalOffset && mouseHorizontalOffset < columnHorizontalOffset); // RTL case
 				if (mouseIsBetween) {
 					var rng = new EditorRange(lineNumber, column, lineNumber, column + 1);
-					return new MouseTarget(target, EditorCommon.MouseTargetType.CONTENT_TEXT, pos, rng);
+					return new MouseTarget(target, MouseTargetType.CONTENT_TEXT, pos, rng);
 				}
 			}
 		}
 
-		return new MouseTarget(target, EditorCommon.MouseTargetType.CONTENT_TEXT, pos);
+		return new MouseTarget(target, MouseTargetType.CONTENT_TEXT, pos);
 	}
 
 	private createMouseTargetFromContentWidgetsChild(target: Element): MouseTarget {
 		var widgetId = this._findAttribute(target, 'widgetId', this.viewHelper.viewDomNode);
 
 		if (widgetId) {
-			return new MouseTarget(target, EditorCommon.MouseTargetType.CONTENT_WIDGET, null, null, widgetId);
+			return new MouseTarget(target, MouseTargetType.CONTENT_WIDGET, null, null, widgetId);
 		} else {
-			return new MouseTarget(target, EditorCommon.MouseTargetType.UNKNOWN);
+			return new MouseTarget(target, MouseTargetType.UNKNOWN);
 		}
 	}
 
@@ -638,46 +638,46 @@ export class MouseTargetFactory {
 		var widgetId = this._findAttribute(target, 'widgetId', this.viewHelper.viewDomNode);
 
 		if (widgetId) {
-			return new MouseTarget(target, EditorCommon.MouseTargetType.OVERLAY_WIDGET, null, null, widgetId);
+			return new MouseTarget(target, MouseTargetType.OVERLAY_WIDGET, null, null, widgetId);
 		} else {
-			return new MouseTarget(target, EditorCommon.MouseTargetType.UNKNOWN);
+			return new MouseTarget(target, MouseTargetType.UNKNOWN);
 		}
 	}
 
 	private createMouseTargetFromLinesDecorationsChild(target: Element, mouseVerticalOffset: number): MouseTarget {
 		var viewZoneData = this._getZoneAtCoord(mouseVerticalOffset);
 		if (viewZoneData) {
-			return new MouseTarget(target, EditorCommon.MouseTargetType.GUTTER_VIEW_ZONE, viewZoneData.position, null, viewZoneData);
+			return new MouseTarget(target, MouseTargetType.GUTTER_VIEW_ZONE, viewZoneData.position, null, viewZoneData);
 		}
 
 		var res = this._getFullLineRangeAtCoord(mouseVerticalOffset);
-		return new MouseTarget(target, EditorCommon.MouseTargetType.GUTTER_LINE_DECORATIONS, new Position(res.range.startLineNumber, res.range.startColumn), res.range, res.isAfterLines);
+		return new MouseTarget(target, MouseTargetType.GUTTER_LINE_DECORATIONS, new Position(res.range.startLineNumber, res.range.startColumn), res.range, res.isAfterLines);
 	}
 
 	private createMouseTargetFromLineNumbers(target: Element, mouseVerticalOffset: number): MouseTarget {
 		var viewZoneData = this._getZoneAtCoord(mouseVerticalOffset);
 		if (viewZoneData) {
-			return new MouseTarget(target, EditorCommon.MouseTargetType.GUTTER_VIEW_ZONE, viewZoneData.position, null, viewZoneData);
+			return new MouseTarget(target, MouseTargetType.GUTTER_VIEW_ZONE, viewZoneData.position, null, viewZoneData);
 		}
 
 		var res = this._getFullLineRangeAtCoord(mouseVerticalOffset);
-		return new MouseTarget(target, EditorCommon.MouseTargetType.GUTTER_LINE_NUMBERS, new Position(res.range.startLineNumber, res.range.startColumn), res.range, res.isAfterLines);
+		return new MouseTarget(target, MouseTargetType.GUTTER_LINE_NUMBERS, new Position(res.range.startLineNumber, res.range.startColumn), res.range, res.isAfterLines);
 	}
 
 	private createMouseTargetFromGlyphMargin(target: Element, mouseVerticalOffset: number): MouseTarget {
 		var viewZoneData = this._getZoneAtCoord(mouseVerticalOffset);
 		if (viewZoneData) {
-			return new MouseTarget(target, EditorCommon.MouseTargetType.GUTTER_VIEW_ZONE, viewZoneData.position, null, viewZoneData);
+			return new MouseTarget(target, MouseTargetType.GUTTER_VIEW_ZONE, viewZoneData.position, null, viewZoneData);
 		}
 
 		var res = this._getFullLineRangeAtCoord(mouseVerticalOffset);
-		return new MouseTarget(target, EditorCommon.MouseTargetType.GUTTER_GLYPH_MARGIN, new Position(res.range.startLineNumber, res.range.startColumn), res.range, res.isAfterLines);
+		return new MouseTarget(target, MouseTargetType.GUTTER_GLYPH_MARGIN, new Position(res.range.startLineNumber, res.range.startColumn), res.range, res.isAfterLines);
 	}
 
 	private createMouseTargetFromScrollbar(target: Element, mouseVerticalOffset: number): MouseTarget {
 		var possibleLineNumber = this.viewHelper.getLineNumberAtVerticalOffset(mouseVerticalOffset);
 		var maxColumn = this.context.model.getLineMaxColumn(possibleLineNumber);
-		return new MouseTarget(target, EditorCommon.MouseTargetType.SCROLLBAR, new Position(possibleLineNumber, maxColumn));
+		return new MouseTarget(target, MouseTargetType.SCROLLBAR, new Position(possibleLineNumber, maxColumn));
 	}
 
 	private createMouseTargetFromUnknownTarget(target: Element): MouseTarget {
@@ -688,9 +688,9 @@ export class MouseTargetFactory {
 		}
 
 		if (widgetId) {
-			return new MouseTarget(target, EditorCommon.MouseTargetType.OVERLAY_WIDGET, null, null, widgetId);
+			return new MouseTarget(target, MouseTargetType.OVERLAY_WIDGET, null, null, widgetId);
 		} else {
-			return new MouseTarget(target, EditorCommon.MouseTargetType.UNKNOWN);
+			return new MouseTarget(target, MouseTargetType.UNKNOWN);
 		}
 	}
 }

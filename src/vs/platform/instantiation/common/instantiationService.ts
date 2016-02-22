@@ -19,7 +19,7 @@ import ServiceIdentifier = instantiation.ServiceIdentifier;
 /**
  * Creates a new instance of an instantiation service.
  */
-export function create(services: any = Object.create(null)): IInstantiationService {
+export function createInstantiationService(services: any = Object.create(null)): IInstantiationService {
 	let result = new InstantiationService(services, new AccessLock());
 	return result;
 }
@@ -162,7 +162,7 @@ class ServicesMap {
 
 	public createInstance<T>(descriptor: descriptors.SyncDescriptor<T>, args: any[]): T {
 		let allArguments: any[] = [];
-		let serviceInjections = instantiation._util.getServiceDependencies(descriptor.ctor);
+		let serviceInjections = instantiation._util.getServiceDependencies(descriptor.ctor) ;
 		if (Array.isArray(serviceInjections)) {
 			let fixedArguments = descriptor.staticArguments().concat(args);
 			let expectedFirstServiceIndex = fixedArguments.length;
@@ -207,7 +207,10 @@ class ServicesMap {
 			allArguments = [descriptor.ctor, this /*this === ctx*/];
 			allArguments.push.apply(allArguments, descriptor.staticArguments());
 			allArguments.push.apply(allArguments, args);
-			// console.warn('using OLD INJECTION STYLE for ' + descriptor.ctor.name);
+
+			if (allArguments.length > 1) {
+				console.warn('using OLD INJECTION STYLE for ' + descriptor.ctor.name);
+			}
 		}
 
 		return this._lock.runUnlocked(() => {
@@ -265,16 +268,6 @@ class InstantiationService implements IInstantiationService {
 	createInstance<A1, A2, A3, A4, A5, A6, T>(ctor: instantiation.IConstructorSignature6<A1, A2, A3, A4, A5, A6, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6): T;
 	createInstance<A1, A2, A3, A4, A5, A6, A7, T>(ctor: instantiation.IConstructorSignature7<A1, A2, A3, A4, A5, A6, A7, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7): T;
 	createInstance<A1, A2, A3, A4, A5, A6, A7, A8, T>(ctor: instantiation.IConstructorSignature8<A1, A2, A3, A4, A5, A6, A7, A8, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8): T;
-
-	createInstance<T>(ctor: instantiation.INewConstructorSignature0<T>, ...rest: any[]): T;
-	createInstance<A1, T>(ctor: instantiation.INewConstructorSignature1<A1, T>, ...rest: any[]): T;
-	createInstance<A1, A2, T>(ctor: instantiation.INewConstructorSignature2<A1, A2, T>, ...rest: any[]): T;
-	createInstance<A1, A2, A3, T>(ctor: instantiation.INewConstructorSignature3<A1, A2, A3, T>, ...rest: any[]): T;
-	createInstance<A1, A2, A3, A4, T>(ctor: instantiation.INewConstructorSignature4<A1, A2, A3, A4, T>, first: A1, second: A2, third: A3, fourth: A4): T;
-	createInstance<A1, A2, A3, A4, A5, T>(ctor: instantiation.INewConstructorSignature5<A1, A2, A3, A4, A5, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5): T;
-	createInstance<A1, A2, A3, A4, A5, A6, T>(ctor: instantiation.INewConstructorSignature6<A1, A2, A3, A4, A5, A6, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6): T;
-	createInstance<A1, A2, A3, A4, A5, A6, A7, T>(ctor: instantiation.INewConstructorSignature7<A1, A2, A3, A4, A5, A6, A7, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7): T;
-	createInstance<A1, A2, A3, A4, A5, A6, A7, A8, T>(ctor: instantiation.INewConstructorSignature8<A1, A2, A3, A4, A5, A6, A7, A8, T>, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8): T;
 
 	createInstance<T>(descriptor: descriptors.SyncDescriptor0<T>): T;
 	createInstance<A1, T>(descriptor: descriptors.SyncDescriptor1<A1, T>, a1: A1): T;

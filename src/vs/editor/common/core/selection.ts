@@ -5,9 +5,9 @@
 'use strict';
 
 import {Range} from 'vs/editor/common/core/range';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {IEditorSelection, ISelection, SelectionDirection} from 'vs/editor/common/editorCommon';
 
-export class Selection extends Range implements EditorCommon.IEditorSelection {
+export class Selection extends Range implements IEditorSelection {
 	public selectionStartLineNumber: number;
 	public selectionStartColumn: number;
 	public positionLineNumber: number;
@@ -21,7 +21,7 @@ export class Selection extends Range implements EditorCommon.IEditorSelection {
 		super(selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn);
 	}
 
-	public clone(): EditorCommon.IEditorSelection {
+	public clone(): IEditorSelection {
 		return new Selection(this.selectionStartLineNumber, this.selectionStartColumn, this.positionLineNumber, this.positionColumn);
 	}
 
@@ -29,28 +29,28 @@ export class Selection extends Range implements EditorCommon.IEditorSelection {
 		return '[' + this.selectionStartLineNumber + ',' + this.selectionStartColumn + ' -> ' + this.positionLineNumber + ',' + this.positionColumn + ']';
 	}
 
-	public equalsSelection(other: EditorCommon.ISelection): boolean {
+	public equalsSelection(other: ISelection): boolean {
 		return (
 			Selection.selectionsEqual(this, other)
 		);
 	}
 
-	public getDirection(): EditorCommon.SelectionDirection {
+	public getDirection(): SelectionDirection {
 		if (this.selectionStartLineNumber === this.startLineNumber && this.selectionStartColumn === this.startColumn) {
-			return EditorCommon.SelectionDirection.LTR;
+			return SelectionDirection.LTR;
 		}
-		return EditorCommon.SelectionDirection.RTL;
+		return SelectionDirection.RTL;
 	}
 
-	public setEndPosition(endLineNumber: number, endColumn: number): EditorCommon.IEditorSelection {
-		if (this.getDirection() === EditorCommon.SelectionDirection.LTR) {
+	public setEndPosition(endLineNumber: number, endColumn: number): IEditorSelection {
+		if (this.getDirection() === SelectionDirection.LTR) {
 			return new Selection(this.startLineNumber, this.startColumn, endLineNumber, endColumn);
 		}
 		return new Selection(endLineNumber, endColumn, this.startLineNumber, this.startColumn);
 	}
 
-	public setStartPosition(startLineNumber: number, startColumn: number): EditorCommon.IEditorSelection {
-		if (this.getDirection() === EditorCommon.SelectionDirection.LTR) {
+	public setStartPosition(startLineNumber: number, startColumn: number): IEditorSelection {
+		if (this.getDirection() === SelectionDirection.LTR) {
 			return new Selection(startLineNumber, startColumn, this.endLineNumber, this.endColumn);
 		}
 		return new Selection(this.endLineNumber, this.endColumn, startLineNumber, startColumn);
@@ -58,15 +58,15 @@ export class Selection extends Range implements EditorCommon.IEditorSelection {
 
 	// ----
 
-	public static createSelection(selectionStartLineNumber: number, selectionStartColumn: number, positionLineNumber: number, positionColumn: number): EditorCommon.IEditorSelection {
+	public static createSelection(selectionStartLineNumber: number, selectionStartColumn: number, positionLineNumber: number, positionColumn: number): IEditorSelection {
 		return new Selection(selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn);
 	}
 
-	public static liftSelection(sel:EditorCommon.ISelection): EditorCommon.IEditorSelection {
+	public static liftSelection(sel:ISelection): IEditorSelection {
 		return new Selection(sel.selectionStartLineNumber, sel.selectionStartColumn, sel.positionLineNumber, sel.positionColumn);
 	}
 
-	public static selectionsEqual(a:EditorCommon.ISelection, b:EditorCommon.ISelection): boolean {
+	public static selectionsEqual(a:ISelection, b:ISelection): boolean {
 		return (
 			a.selectionStartLineNumber === b.selectionStartLineNumber &&
 			a.selectionStartColumn === b.selectionStartColumn &&
@@ -75,7 +75,7 @@ export class Selection extends Range implements EditorCommon.IEditorSelection {
 		);
 	}
 
-	public static selectionsArrEqual(a:EditorCommon.ISelection[], b:EditorCommon.ISelection[]): boolean {
+	public static selectionsArrEqual(a:ISelection[], b:ISelection[]): boolean {
 		if (a && !b || !a && b) {
 			return false;
 		}
@@ -103,9 +103,9 @@ export class Selection extends Range implements EditorCommon.IEditorSelection {
 		);
 	}
 
-	public static createWithDirection(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, direction:EditorCommon.SelectionDirection): EditorCommon.IEditorSelection {
+	public static createWithDirection(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, direction:SelectionDirection): IEditorSelection {
 
-		if (direction === EditorCommon.SelectionDirection.LTR) {
+		if (direction === SelectionDirection.LTR) {
 			return new Selection(startLineNumber, startColumn, endLineNumber, endColumn);
 		}
 

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDimension} from 'vs/editor/common/editorCommon';
 import {Disposable} from 'vs/base/common/lifecycle';
+import {IDimension} from 'vs/editor/common/editorCommon';
 
 export class ElementSizeObserver extends Disposable {
 

@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import Position = require('vs/editor/common/core/position');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {IIdentifiedSingleEditOperation} from 'vs/editor/common/editorCommon';
 import {testApplyEditsWithSyncedModels} from 'vs/editor/test/common/model/editableTextModelTestUtils';
 
 const GENERATE_TESTS = false;
 
 suite('EditorModel Auto Tests', () => {
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text:string[]): EditorCommon.IIdentifiedSingleEditOperation {
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text:string[]): IIdentifiedSingleEditOperation {
 		return {
 			identifier: null,
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
@@ -164,7 +164,7 @@ class TestModel {
 
 	public initialContent: string;
 	public resultingContent: string;
-	public edits: EditorCommon.IIdentifiedSingleEditOperation[];
+	public edits: IIdentifiedSingleEditOperation[];
 
 	constructor() {
 		this.initialContent = generateFile(false);
@@ -174,14 +174,14 @@ class TestModel {
 		let lineNumber = 1;
 		let column = 1;
 
-		let editStartPosition: Position.Position = null;
+		let editStartPosition: Position = null;
 		this.edits = [];
 		for (let offset = 0, len = this.initialContent.length; currentEditIdx < edits.length && offset <= len; offset++) {
 			let ch = this.initialContent.charAt(offset);
 
 			if (!editStartPosition) {
 				if (offset === edits[currentEditIdx].offset) {
-					editStartPosition = new Position.Position(lineNumber, column);
+					editStartPosition = new Position(lineNumber, column);
 				}
 			}
 

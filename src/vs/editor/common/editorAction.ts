@@ -5,32 +5,30 @@
 'use strict';
 
 import {Action} from 'vs/base/common/actions';
+import * as strings from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import Strings = require('vs/base/common/strings');
-import editorActionEnablement = require('vs/editor/common/editorActionEnablement');
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
-
-export import Behaviour = editorActionEnablement.Behaviour;
+import {Behaviour, IEnablementState, createActionEnablement} from 'vs/editor/common/editorActionEnablement';
+import {IActionDescriptor, IActionEnablement, ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution} from 'vs/editor/common/editorCommon';
+import {ILineContext} from 'vs/editor/common/modes';
 
 var defaultBehaviour = Behaviour.TextFocus | Behaviour.Writeable | Behaviour.UpdateOnModelChange;
 
-export class EditorAction extends Action implements EditorCommon.IEditorContribution {
+export class EditorAction extends Action implements IEditorContribution {
 
-	public editor:EditorCommon.ICommonCodeEditor;
+	public editor:ICommonCodeEditor;
 
 	private _shouldShowInContextMenu:boolean;
 	private _supportsReadonly:boolean;
-	private _descriptor:EditorCommon.IEditorActionDescriptorData;
-	private _enablementState:editorActionEnablement.IEnablementState;
+	private _descriptor:IEditorActionDescriptorData;
+	private _enablementState:IEnablementState;
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, condition:Behaviour = defaultBehaviour) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, condition:Behaviour = defaultBehaviour) {
 		super(descriptor.id);
 		this.editor = editor;
 		this._descriptor = descriptor;
 		this.label = descriptor.label || '';
-		this._enablementState = editorActionEnablement.createActionEnablement(editor, condition, this);
+		this._enablementState = createActionEnablement(editor, condition, this);
 
 		this._shouldShowInContextMenu = !!(condition & Behaviour.ShowInContextMenu);
 
@@ -57,7 +55,7 @@ export class EditorAction extends Action implements EditorCommon.IEditorContribu
 		return this._shouldShowInContextMenu;
 	}
 
-	public getDescriptor(): EditorCommon.IEditorActionDescriptorData {
+	public getDescriptor(): IEditorActionDescriptorData {
 		return this._descriptor;
 	}
 
@@ -111,7 +109,7 @@ export class EditorAction extends Action implements EditorCommon.IEditorContribu
 export class HandlerEditorAction extends EditorAction {
 	private _handlerId: string;
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, handlerId: string) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, handlerId: string) {
 		super(descriptor, editor);
 		this._handlerId = handlerId;
 	}
@@ -124,7 +122,7 @@ export class HandlerEditorAction extends EditorAction {
 
 export class DynamicEditorAction extends EditorAction {
 
-	private static _transformBehaviour(behaviour:EditorCommon.IActionEnablement, contextMenuGroupId: string): Behaviour {
+	private static _transformBehaviour(behaviour:IActionEnablement, contextMenuGroupId: string): Behaviour {
 		var r = 0;
 		if (contextMenuGroupId) {
 			r |= Behaviour.ShowInContextMenu;
@@ -149,12 +147,12 @@ export class DynamicEditorAction extends EditorAction {
 	}
 
 	private _contextMenuGroupId: string;
-	private _run: (editor:EditorCommon.ICommonCodeEditor)=>void;
+	private _run: (editor:ICommonCodeEditor)=>void;
 	private _tokensAtPosition:string[];
 	private _wordAtPosition:boolean;
 
-	constructor(descriptor:EditorCommon.IActionDescriptor, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		var enablement: EditorCommon.IActionEnablement = descriptor.enablement || {};
+	constructor(descriptor:IActionDescriptor, editor:ICommonCodeEditor, @INullService ns) {
+		var enablement: IActionEnablement = descriptor.enablement || {};
 		super({
 			id: descriptor.id,
 			label: descriptor.label
@@ -205,7 +203,7 @@ export class DynamicEditorAction extends EditorAction {
 	}
 }
 
-function isToken(context:Modes.ILineContext, offset:number, types:string[]): boolean {
+function isToken(context:ILineContext, offset:number, types:string[]): boolean {
 
 	if (context.getLineContent().length <= offset) {
 		return false;
@@ -220,7 +218,7 @@ function isToken(context:Modes.ILineContext, offset:number, types:string[]): boo
 				return true;
 			}
 		} else {
-			if (Strings.startsWith(type, types[i])) {
+			if (strings.startsWith(type, types[i])) {
 				return true;
 			}
 		}

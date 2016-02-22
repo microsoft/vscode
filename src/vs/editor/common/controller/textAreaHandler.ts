@@ -4,17 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEditorRange, IEditorPosition, EndOfLinePreference} from 'vs/editor/common/editorCommon';
 import {RunOnceScheduler} from 'vs/base/common/async';
-import {Disposable} from 'vs/base/common/lifecycle';
-import {Range} from 'vs/editor/common/core/range';
-import {Position} from 'vs/editor/common/core/position';
-import {CommonKeybindings} from 'vs/base/common/keyCodes';
-import {
-	IKeyboardEventWrapper, ITextAreaWrapper, IClipboardEvent, ISimpleModel,
-	TextAreaState, createTextAreaState, ITypeData, TextAreaStrategy
-} from 'vs/editor/common/controller/textAreaState';
 import Event, {Emitter} from 'vs/base/common/event';
+import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import {Disposable} from 'vs/base/common/lifecycle';
+import {IClipboardEvent, IKeyboardEventWrapper, ISimpleModel, ITextAreaWrapper, ITypeData, TextAreaState, TextAreaStrategy, createTextAreaState} from 'vs/editor/common/controller/textAreaState';
+import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
+import {EndOfLinePreference, IEditorPosition, IEditorRange} from 'vs/editor/common/editorCommon';
 
 enum ReadFromTextArea {
 	Type,

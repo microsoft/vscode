@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Strings = require('vs/base/common/strings');
-import Mime = require('vs/base/common/mime');
-import Errors = require('vs/base/common/errors');
+import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
+import * as mime from 'vs/base/common/mime';
+import * as strings from 'vs/base/common/strings';
+import {ILegacyLanguageDefinition, ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
-import {ModesRegistry, ILegacyLanguageDefinition} from 'vs/editor/common/modes/modesRegistry';
 
 var hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -103,19 +103,19 @@ export class LanguagesRegistry {
 
 		if (Array.isArray(lang.extensions)) {
 			for (let extension of lang.extensions) {
-				Mime.registerTextMimeByFilename(extension, primaryMime);
+				mime.registerTextMimeByFilename(extension, primaryMime);
 			}
 		}
 
 		if (Array.isArray(lang.filenames)) {
 			for (let filename of lang.filenames) {
-				Mime.registerTextMimeByFilename(filename, primaryMime);
+				mime.registerTextMimeByFilename(filename, primaryMime);
 			}
 		}
 
 		if (Array.isArray(lang.filenamePatterns)) {
 			for (let filenamePattern of lang.filenamePatterns) {
-				Mime.registerTextMimeByFilename(filenamePattern, primaryMime);
+				mime.registerTextMimeByFilename(filenamePattern, primaryMime);
 			}
 		}
 
@@ -126,12 +126,12 @@ export class LanguagesRegistry {
 			}
 			try {
 				var firstLineRegex = new RegExp(firstLineRegexStr);
-				if (!Strings.regExpLeadsToEndlessLoop(firstLineRegex)) {
-					Mime.registerTextMimeByFirstLine(firstLineRegex, primaryMime);
+				if (!strings.regExpLeadsToEndlessLoop(firstLineRegex)) {
+					mime.registerTextMimeByFirstLine(firstLineRegex, primaryMime);
 				}
 			} catch (err) {
 				// Most likely, the regex was bad
-				Errors.onUnexpectedError(err);
+				onUnexpectedError(err);
 			}
 		}
 
@@ -187,11 +187,11 @@ export class LanguagesRegistry {
 	}
 
 	public getMimeForMode(theModeId: string): string {
-		for (var mime in this.mime2LanguageId) {
-			if (this.mime2LanguageId.hasOwnProperty(mime)) {
-				var modeId = this.mime2LanguageId[mime];
+		for (var _mime in this.mime2LanguageId) {
+			if (this.mime2LanguageId.hasOwnProperty(_mime)) {
+				var modeId = this.mime2LanguageId[_mime];
 				if (modeId === theModeId) {
-					return mime;
+					return _mime;
 				}
 			}
 		}
@@ -233,7 +233,7 @@ export class LanguagesRegistry {
 		if (!filename && !firstLine) {
 			return [];
 		}
-		var mimeTypes = Mime.guessMimeTypes(filename, firstLine);
+		var mimeTypes = mime.guessMimeTypes(filename, firstLine);
 		return this.extractModeIds(mimeTypes.join(','));
 	}
 

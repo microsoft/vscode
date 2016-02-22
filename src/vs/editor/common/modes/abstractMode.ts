@@ -5,14 +5,14 @@
 'use strict';
 
 import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {NullMode} from 'vs/editor/common/modes/nullMode';
-import {TextualSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
-import Modes = require('vs/editor/common/modes');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
+import * as modes from 'vs/editor/common/modes';
+import {NullMode} from 'vs/editor/common/modes/nullMode';
+import {TextualSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 
 export function createWordRegExp(allowInWords:string = ''): RegExp {
@@ -21,14 +21,14 @@ export function createWordRegExp(allowInWords:string = ''): RegExp {
 
 export class ModeWorkerManager<W> {
 
-	private _descriptor: Modes.IModeDescriptor;
-	private _workerDescriptor: AsyncDescriptor2<string, Modes.IWorkerParticipant[], W>;
+	private _descriptor: modes.IModeDescriptor;
+	private _workerDescriptor: AsyncDescriptor2<string, modes.IWorkerParticipant[], W>;
 	private _superWorkerModuleId: string;
 	private _instantiationService: IInstantiationService;
 	private _workerPiecePromise:TPromise<W>;
 
 	constructor(
-		descriptor:Modes.IModeDescriptor,
+		descriptor:modes.IModeDescriptor,
 		workerModuleId:string,
 		workerClassName:string,
 		superWorkerModuleId:string,
@@ -59,12 +59,12 @@ export class ModeWorkerManager<W> {
 			}).then(() => {
 				// Then, load & instantiate all the participants
 				var participants = this._descriptor.workerParticipants;
-				return TPromise.join<Modes.IWorkerParticipant>(participants.map((participant) => {
+				return TPromise.join<modes.IWorkerParticipant>(participants.map((participant) => {
 					return this._instantiationService.createInstance(participant);
 				}));
-			}).then((participants:Modes.IWorkerParticipant[]) => {
+			}).then((participants:modes.IWorkerParticipant[]) => {
 				// Finally, create the mode worker instance
-				return this._instantiationService.createInstance<string, Modes.IWorkerParticipant[], W>(this._workerDescriptor, this._descriptor.id, participants);
+				return this._instantiationService.createInstance<string, modes.IWorkerParticipant[], W>(this._workerDescriptor, this._descriptor.id, participants);
 			});
 		}
 
@@ -80,11 +80,11 @@ export class ModeWorkerManager<W> {
 	}
 }
 
-export abstract class AbstractMode implements Modes.IMode {
+export abstract class AbstractMode implements modes.IMode {
 
 	private _modeId: string;
 	private _eventEmitter: EventEmitter;
-	private _simplifiedMode: Modes.IMode;
+	private _simplifiedMode: modes.IMode;
 
 	constructor(modeId:string) {
 		this._modeId = modeId;
@@ -96,18 +96,18 @@ export abstract class AbstractMode implements Modes.IMode {
 		return this._modeId;
 	}
 
-	public toSimplifiedMode(): Modes.IMode {
+	public toSimplifiedMode(): modes.IMode {
 		if (!this._simplifiedMode) {
 			this._simplifiedMode = new SimplifiedMode(this);
 		}
 		return this._simplifiedMode;
 	}
 
-	public addSupportChangedListener(callback: (e: EditorCommon.IModeSupportChangedEvent) => void) : IDisposable {
+	public addSupportChangedListener(callback: (e: IModeSupportChangedEvent) => void) : IDisposable {
 		return this._eventEmitter.addListener2('modeSupportChanged', callback);
 	}
 
-	public registerSupport<T>(support:string, callback:(mode:Modes.IMode) => T) : IDisposable {
+	public registerSupport<T>(support:string, callback:(mode:modes.IMode) => T) : IDisposable {
 		var supportImpl = callback(this);
 		this[support] = supportImpl;
 		this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent(support));
@@ -123,16 +123,16 @@ export abstract class AbstractMode implements Modes.IMode {
 	}
 }
 
-class SimplifiedMode implements Modes.IMode {
+class SimplifiedMode implements modes.IMode {
 
-	tokenizationSupport: Modes.ITokenizationSupport;
-	richEditSupport: Modes.IRichEditSupport;
+	tokenizationSupport: modes.ITokenizationSupport;
+	richEditSupport: modes.IRichEditSupport;
 
-	private _sourceMode: Modes.IMode;
+	private _sourceMode: modes.IMode;
 	private _eventEmitter: EventEmitter;
 	private _id: string;
 
-	constructor(sourceMode: Modes.IMode) {
+	constructor(sourceMode: modes.IMode) {
 		this._sourceMode = sourceMode;
 		this._eventEmitter = new EventEmitter();
 		this._id = 'vs.editor.modes.simplifiedMode:' + sourceMode.getId();
@@ -153,7 +153,7 @@ class SimplifiedMode implements Modes.IMode {
 		return this._id;
 	}
 
-	public toSimplifiedMode(): Modes.IMode {
+	public toSimplifiedMode(): modes.IMode {
 		return this;
 	}
 
@@ -162,8 +162,8 @@ class SimplifiedMode implements Modes.IMode {
 		this.richEditSupport = this._sourceMode.richEditSupport;
 	}
 
-	private static _createModeSupportChangedEvent(originalModeEvent:EditorCommon.IModeSupportChangedEvent): EditorCommon.IModeSupportChangedEvent {
-		var event:EditorCommon.IModeSupportChangedEvent = {
+	private static _createModeSupportChangedEvent(originalModeEvent:IModeSupportChangedEvent): IModeSupportChangedEvent {
+		var event:IModeSupportChangedEvent = {
 			codeLensSupport: false,
 			tokenizationSupport: originalModeEvent.tokenizationSupport,
 			occurrencesSupport:false,
@@ -254,10 +254,10 @@ export var isDigit:(character:string, base:number)=>boolean = (function () {
 
 export class FrankensteinMode extends AbstractMode {
 
-	public suggestSupport:Modes.ISuggestSupport;
+	public suggestSupport:modes.ISuggestSupport;
 
 	constructor(
-		descriptor:Modes.IModeDescriptor,
+		descriptor:modes.IModeDescriptor,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
 		super(descriptor.id);
@@ -266,8 +266,8 @@ export class FrankensteinMode extends AbstractMode {
 	}
 }
 
-function _createModeSupportChangedEvent(...changedSupports: string[]): EditorCommon.IModeSupportChangedEvent {
-	var event:EditorCommon.IModeSupportChangedEvent = {
+function _createModeSupportChangedEvent(...changedSupports: string[]): IModeSupportChangedEvent {
+	var event:IModeSupportChangedEvent = {
 		codeLensSupport: false,
 		tokenizationSupport:false,
 		occurrencesSupport:false,

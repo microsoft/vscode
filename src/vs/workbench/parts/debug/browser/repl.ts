@@ -25,6 +25,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { CommonKeybindings } from 'vs/base/common/keyCodes';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.emmet;
 
@@ -101,7 +102,7 @@ export class Repl extends Panel {
 		this.replInput = <HTMLInputElement>dom.append(replInputContainer, $('input.repl-input'));
 		this.replInput.type = 'text';
 
-		this.toDispose.push(dom.addStandardDisposableListener(this.replInput, 'keydown', (e: dom.IKeyboardEvent) => {
+		this.toDispose.push(dom.addStandardDisposableListener(this.replInput, 'keydown', (e: IKeyboardEvent) => {
 			let trimmedValue = this.replInput.value.trim();
 
 			if (e.equals(CommonKeybindings.ENTER) && trimmedValue) {

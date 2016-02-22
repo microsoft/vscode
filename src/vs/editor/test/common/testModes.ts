@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import modes = require('vs/editor/common/modes');
+import * as modes from 'vs/editor/common/modes';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
@@ -230,14 +230,12 @@ export class BracketMode extends TestingMode {
 		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new BracketState(this)
 		}, false, false);
-		this.richEditSupport = new RichEditSupport(this.getId(), {
-			__electricCharacterSupport: {
-				brackets: [
-					{ tokenType: 'asd', open: '{', close: '}', isElectric: true },
-					{ tokenType: 'qwe', open: '[', close: ']', isElectric: true },
-					{ tokenType: 'zxc', open: '(', close: ')', isElectric: true }
-				]
-			}
+		this.richEditSupport = new RichEditSupport(this.getId(), null, {
+			brackets: [
+				['{', '}'],
+				['[', ']'],
+				['(', ')'],
+			]
 		});
 	}
 }

@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import {Range} from 'vs/editor/common/core/range';
-import TU = require('vs/editor/test/common/commands/commandTestUtils');
-import {EditOperationsCommand} from 'vs/editor/contrib/format/common/formatCommand';
 import {Selection} from 'vs/editor/common/core/selection';
+import {ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {EditOperationsCommand} from 'vs/editor/contrib/format/common/formatCommand';
+import {testCommand} from 'vs/editor/test/common/commands/commandTestUtils';
 
-function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text:string[]): EditorCommon.ISingleEditOperation {
+function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text:string[]): ISingleEditOperation {
 	return {
 		range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 		text: text.join('\n'),
@@ -21,7 +21,7 @@ function editOp(startLineNumber: number, startColumn: number, endLineNumber: num
 }
 
 suite('FormatCommand.trimEdit', () => {
-	function testTrimEdit(lines: string[], edit:EditorCommon.ISingleEditOperation, expected:EditorCommon.ISingleEditOperation): void {
+	function testTrimEdit(lines: string[], edit:ISingleEditOperation, expected:ISingleEditOperation): void {
 		let model = new Model(lines.join('\n'), null);
 		let actual = EditOperationsCommand.trimEdit(edit, model);
 		assert.deepEqual(actual, expected);
@@ -209,8 +209,8 @@ suite('FormatCommand.trimEdit', () => {
 });
 
 suite('FormatCommand', () => {
-	function testFormatCommand(lines: string[], selection: Selection, edits:EditorCommon.ISingleEditOperation[], expectedLines: string[], expectedSelection: Selection): void {
-		TU.testCommand(lines, null, selection, (sel) => new EditOperationsCommand(edits, sel), expectedLines, expectedSelection);
+	function testFormatCommand(lines: string[], selection: Selection, edits:ISingleEditOperation[], expectedLines: string[], expectedSelection: Selection): void {
+		testCommand(lines, null, selection, (sel) => new EditOperationsCommand(edits, sel), expectedLines, expectedSelection);
 	}
 
 	test('no-op', () => {

@@ -37,8 +37,8 @@ export class Disposable {
 }
 
 export interface EditorOptions {
-	tabSize: number;
-	insertSpaces: boolean;
+	tabSize: number | string;
+	insertSpaces: boolean | string;
 }
 
 export class Position {

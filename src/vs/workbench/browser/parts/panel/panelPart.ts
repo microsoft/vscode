@@ -25,6 +25,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -63,7 +64,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	public create(parent: Builder): void {
 		super.create(parent);
 
-		dom.addStandardDisposableListener(this.getContainer().getHTMLElement(), 'keyup', (e: dom.IKeyboardEvent) => {
+		dom.addStandardDisposableListener(this.getContainer().getHTMLElement(), 'keyup', (e: IKeyboardEvent) => {
 			if (e.equals(CommonKeybindings.ESCAPE)) {
 				this.partService.setPanelHidden(true);
 				e.preventDefault();

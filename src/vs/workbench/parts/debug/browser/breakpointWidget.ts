@@ -19,6 +19,7 @@ import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
 import debug = require('vs/workbench/parts/debug/common/debug');
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.emmet;
 const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = 'breakpointWidgetVisible';
@@ -88,7 +89,7 @@ export class BreakpointWidget extends ZoneWidget {
 			}
 		});
 
-		this.toDispose.push(dom.addStandardDisposableListener(this.inputBox.inputElement, 'keydown', (e: dom.IKeyboardEvent) => {
+		this.toDispose.push(dom.addStandardDisposableListener(this.inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
 			const isEscape = e.equals(CommonKeybindings.ESCAPE);
 			const isEnter = e.equals(CommonKeybindings.ENTER);
 			if (isEscape || isEnter) {

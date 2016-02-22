@@ -91,6 +91,21 @@ function extensionEntryCompare(one: IExtensionEntry, other: IExtensionEntry): nu
 	return one.extension.displayName.localeCompare(other.extension.displayName);
 }
 
+class OpenLicenseAction extends Action {
+
+	constructor(
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
+	) {
+		super('extensions.open-license', nls.localize('license', "License"), '', true);
+	}
+
+	public run(extension: IExtension): TPromise<any> {
+		const url = `${ this.contextService.getConfiguration().env.extensionsGallery.itemUrl }/${ extension.publisher }.${ extension.name }/license`;
+		shell.openExternal(url);
+		return TPromise.as(null);
+	}
+}
+
 class OpenInGalleryAction extends Action {
 
 	constructor(
@@ -99,7 +114,7 @@ class OpenInGalleryAction extends Action {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
-		super('extensions.open-in-gallery', 'Readme', '', true);
+		super('extensions.open-in-gallery', nls.localize('readme', "Readme"), '', true);
 	}
 
 	public run(extension: IExtension): TPromise<any> {
@@ -216,6 +231,7 @@ class Renderer implements IRenderer<IExtensionEntry> {
 			data.actionbar.clear();
 
 			if (entry.extension.galleryInformation) {
+				data.actionbar.push(this.instantiationService.createInstance(OpenLicenseAction), { label: true, icon: false });
 				data.actionbar.push(this.instantiationService.createInstance(OpenInGalleryAction, entry.state !== ExtensionState.Installed), { label: true, icon: false });
 			}
 

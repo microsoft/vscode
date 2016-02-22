@@ -11,12 +11,12 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import {ExtHostModelService, ExtHostDocumentData} from 'vs/workbench/api/node/extHostDocuments';
 import {Selection, Range, Position, EditorOptions} from './extHostTypes';
-import {ISingleEditOperation, ISelection, IRange, IInternalIndentationOptions, IEditor, EditorType, ICommonCodeEditor, ICommonDiffEditor, IDecorationRenderOptions, IRangeWithMessage} from 'vs/editor/common/editorCommon';
+import {ISingleEditOperation, ISelection, IRange, IEditor, EditorType, ICommonCodeEditor, ICommonDiffEditor, IDecorationRenderOptions, IRangeWithMessage} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {MainThreadEditorsTracker, TextEditorRevealType, MainThreadTextEditor, ITextEditorConfiguration} from 'vs/workbench/api/node/mainThreadEditors';
+import {MainThreadEditorsTracker, TextEditorRevealType, MainThreadTextEditor, ITextEditorConfigurationUpdate, ITextEditorConfiguration} from 'vs/workbench/api/node/mainThreadEditors';
 import * as TypeConverters from './extHostTypeConverters';
 import {TextDocument, TextEditorSelectionChangeEvent, TextEditorOptionsChangeEvent, TextEditorOptions, TextEditorViewColumnChangeEvent, ViewColumn} from 'vscode';
 import {EventType} from 'vs/workbench/common/events';
@@ -697,7 +697,7 @@ export class MainThreadEditors {
 		this._textEditorsMap[id].revealRange(range, revealType);
 	}
 
-	_trySetOptions(id: string, options: IInternalIndentationOptions): TPromise<any> {
+	_trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<any> {
 		if (!this._textEditorsMap[id]) {
 			return TPromise.wrapError('TextEditor disposed');
 		}

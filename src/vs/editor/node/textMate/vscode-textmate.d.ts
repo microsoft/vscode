@@ -56,14 +56,14 @@ export interface IGrammar {
 }
 
 export interface ITokenizeLineResult {
-	tokens: IToken[];
+	tokens: ITMToken[];
 	/**
 	 * The `prevState` to be passed on to the next line tokenization.
 	 */
 	ruleStack: StackElement[];
 }
 
-export interface IToken {
+export interface ITMToken {
 	startIndex: number;
 	endIndex: number;
 	scopes: string[];

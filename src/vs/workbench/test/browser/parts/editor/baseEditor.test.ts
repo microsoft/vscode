@@ -193,7 +193,7 @@ suite("Workbench BaseEditor", () => {
 		EditorRegistry.registerEditor(d2, new SyncDescriptor(StringEditorInput));
 		EditorRegistry.registerEditor(d1, new SyncDescriptor(MyStringInput));
 
-		let inst = InstantiationService.create({});
+		let inst = InstantiationService.createInstantiationService({});
 
 		inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyStringInput, 'fake', '', '', mime.MIME_TEXT, false)), 'id').then(function(editor) {
 			assert.strictEqual(editor.getId(), "myEditor");
@@ -214,7 +214,7 @@ suite("Workbench BaseEditor", () => {
 
 		EditorRegistry.registerEditor(d1, new SyncDescriptor(StringEditorInput));
 
-		let inst = InstantiationService.create({});
+		let inst = InstantiationService.createInstantiationService({});
 
 		inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyStringInput, 'fake', '', '', mime.MIME_TEXT, false)), 'id').then(function(editor) {
 			assert.strictEqual("myOtherEditor", editor.getId());
@@ -224,7 +224,7 @@ suite("Workbench BaseEditor", () => {
 	});
 
 	test("Editor Input Action - triggers isEnabled properly", function() {
-		let inst = InstantiationService.create({});
+		let inst = InstantiationService.createInstantiationService({});
 
 		let action = new MyAction("id", "label");
 		action.input = inst.createInstance(StringEditorInput, 'input', '', '', mime.MIME_TEXT, false);
@@ -232,7 +232,7 @@ suite("Workbench BaseEditor", () => {
 	});
 
 	test("Editor Input Action Contributor", function() {
-		let inst = InstantiationService.create({});
+		let inst = InstantiationService.createInstantiationService({});
 
 		let contributor = new MyEditorInputActionContributor();
 
@@ -268,7 +268,7 @@ suite("Workbench BaseEditor", () => {
 	});
 
 	test("Editor Input Factory", function() {
-		EditorRegistry.setInstantiationService(InstantiationService.create({}));
+		EditorRegistry.setInstantiationService(InstantiationService.createInstantiationService({}));
 		EditorRegistry.registerEditorInputFactory("myInputId", MyInputFactory);
 
 		let factory = EditorRegistry.getEditorInputFactory("myInputId");

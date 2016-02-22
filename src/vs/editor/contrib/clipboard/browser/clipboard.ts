@@ -6,38 +6,39 @@
 'use strict';
 
 import 'vs/css!./clipboard';
-import nls = require('vs/nls');
-import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import Lifecycle = require('vs/base/common/lifecycle');
+import * as nls from 'vs/nls';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {cAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import Browser = require('vs/base/browser/browser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import config = require('vs/editor/common/config/config');
-import {IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
+import * as browser from 'vs/base/browser/browser';
+import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
+import {findFocusedEditor} from 'vs/editor/common/config/config';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 
 class ClipboardWritingAction extends EditorAction {
 
 	private toUnhook:Function[];
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, condition:Behaviour, @INullService ns) {
+	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, condition:Behaviour, @INullService ns) {
 		super(descriptor, editor, condition);
 		this.toUnhook = [];
-		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.CursorSelectionChanged, (e:EditorCommon.ICursorSelectionChangedEvent) => {
+		this.toUnhook.push(this.editor.addListener(editorCommon.EventType.CursorSelectionChanged, (e:editorCommon.ICursorSelectionChangedEvent) => {
 			this.resetEnablementState();
 		}));
 	}
 
 	public dispose(): void {
-		this.toUnhook = Lifecycle.cAll(this.toUnhook);
+		this.toUnhook = cAll(this.toUnhook);
 		super.dispose();
 	}
 
 	public getEnablementState(): boolean {
-		if (Browser.enableEmptySelectionClipboard) {
+		if (browser.enableEmptySelectionClipboard) {
 			return true;
 		} else {
 			return !this.editor.getSelection().isEmpty();
@@ -45,7 +46,7 @@ class ClipboardWritingAction extends EditorAction {
 	}
 }
 
-function editorCursorIsInEditableRange(editor:EditorCommon.ICommonCodeEditor): boolean {
+function editorCursorIsInEditableRange(editor:editorCommon.ICommonCodeEditor): boolean {
 	var model = editor.getModel();
 	if (!model) {
 		return false;
@@ -61,7 +62,7 @@ function editorCursorIsInEditableRange(editor:EditorCommon.ICommonCodeEditor): b
 
 class ExecCommandCutAction extends ClipboardWritingAction {
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor, Behaviour.Writeable | Behaviour.WidgetFocus | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange, ns);
 	}
 
@@ -82,7 +83,7 @@ class ExecCommandCutAction extends ClipboardWritingAction {
 
 class ExecCommandCopyAction extends ClipboardWritingAction {
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.ShowInContextMenu, ns);
 	}
 
@@ -99,7 +100,7 @@ class ExecCommandCopyAction extends ClipboardWritingAction {
 
 class ExecCommandPasteAction extends EditorAction {
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor, Behaviour.Writeable | Behaviour.WidgetFocus | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange);
 	}
 
@@ -119,13 +120,13 @@ class ExecCommandPasteAction extends EditorAction {
 }
 
 interface IClipboardCommand extends IKeybindings {
-	ctor: EditorCommon.IEditorActionContributionCtor;
+	ctor: editorCommon.IEditorActionContributionCtor;
 	id: string;
 	label: string;
 	execCommand: string;
 }
 function registerClipboardAction(desc:IClipboardCommand) {
-	if (!Browser.supportsExecCommand(desc.execCommand)) {
+	if (!browser.supportsExecCommand(desc.execCommand)) {
 		return;
 	}
 
@@ -167,8 +168,8 @@ registerClipboardAction({
 
 function execCommandToHandler(actionId: string, browserCommand: string, accessor: ServicesAccessor, args: any): void {
 	// If editor text focus
-	if (args.context[EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS]) {
-		var focusedEditor = config.findFocusedEditor(actionId, accessor, args, false);
+	if (args.context[editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS]) {
+		var focusedEditor = findFocusedEditor(actionId, accessor, args, false);
 		if (focusedEditor) {
 			focusedEditor.trigger('keyboard', actionId, args);
 			return;

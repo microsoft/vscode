@@ -10,17 +10,18 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import editorCommon = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
-import { EditorAction, Behaviour } from 'vs/editor/common/editorAction';
+import { EditorAction } from 'vs/editor/common/editorAction';
+import { Behaviour } from 'vs/editor/common/editorActionEnablement';
 import { IEventService } from 'vs/platform/event/common/event';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
+import { INullService } from 'vs/platform/instantiation/common/instantiation';
 import { EventType, CompositeEvent } from 'vs/workbench/common/events';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
-
-import {clipboard} from 'electron';
+import { clipboard } from 'electron';
 import IDebugService = debug.IDebugService;
 
 export class AbstractDebugAction extends actions.Action {
@@ -520,7 +521,7 @@ export class RunToCursorAction extends EditorAction {
 	}
 
 	public getGroupId(): string {
-		return '1_debug/1_continue';
+		return '5_debug/1_run_to_cursor';
 	}
 
 	public shouldShowInContextMenu(): boolean {
@@ -568,7 +569,7 @@ export class SelectionToWatchExpressionsAction extends EditorAction {
 	}
 
 	public getGroupId(): string {
-		return '1_debug/3_selection_to_watch';
+		return '5_debug/3_selection_to_watch';
 	}
 
 	public shouldShowInContextMenu(): boolean {
@@ -592,7 +593,7 @@ export class SelectionToReplAction extends EditorAction {
 	}
 
 	public getGroupId(): string {
-		return '1_debug/2_selection_to_repl';
+		return '5_debug/2_selection_to_repl';
 	}
 
 	public shouldShowInContextMenu(): boolean {
@@ -604,7 +605,7 @@ export class SelectionToReplAction extends EditorAction {
 export class ShowDebugHoverAction extends EditorAction {
 	static ID = 'editor.debug.action.showDebugHover';
 
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @IDebugService debugService: IDebugService) {
+	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor, Behaviour.TextFocus);
 	}
 

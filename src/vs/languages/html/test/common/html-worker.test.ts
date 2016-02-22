@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert')
+import 'vs/languages/html/common/html.contribution';
+import assert = require('assert');
 import mm = require('vs/editor/common/model/mirrorModel');
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import URI from 'vs/base/common/uri';
@@ -61,7 +62,7 @@ suite('HTML - worker', () => {
 		var proposalsFound = completion.suggestions.filter(function(suggestion: Modes.ISuggestion) {
 			return suggestion.label === label && (!type || suggestion.type === type) && (!codeSnippet || suggestion.codeSnippet === codeSnippet);
 		});
-		if (proposalsFound.length != 1) {
+		if (proposalsFound.length !== 1) {
 			assert.fail('Suggestion not found: ' + label + ', has ' + completion.suggestions.map(s => s.label).join(', '));
 		}
 	};
@@ -364,6 +365,7 @@ suite('HTML - worker', () => {
 		testLinkCreation('file:///C:/Alex/src/path/to/file.txt', null, 'file:///C:\\Alex\\src\\path\\to\\file.txt', 'file:///C:\\Alex\\src\\path\\to\\file.txt');
 		testLinkCreation('file:///C:/Alex/src/path/to/file.txt', 'file:///C:/Alex/src/', 'http://www.microsoft.com/', 'http://www.microsoft.com/');
 		testLinkCreation('file:///C:/Alex/src/path/to/file.txt', 'file:///C:/Alex/src/', 'https://www.microsoft.com/', 'https://www.microsoft.com/');
+		testLinkCreation('file:///C:/Alex/src/path/to/file.txt', 'file:///C:/Alex/src/', 'https://www.microsoft.com/?q=1#h', 'https://www.microsoft.com/?q=1#h');
 		testLinkCreation('file:///C:/Alex/src/path/to/file.txt', 'file:///C:/Alex/src/', '  //www.microsoft.com/', 'http://www.microsoft.com/');
 		testLinkCreation('file:///C:/Alex/src/path/to/file.txt', 'file:///C:/Alex/src/', 'a.js', 'file:///C:/Alex/src/path/to/a.js');
 		testLinkCreation('file:///C:/Alex/src/path/to/file.txt', 'file:///C:/Alex/src/', '/a.js', 'file:///C:/Alex/src/a.js');
@@ -373,7 +375,7 @@ suite('HTML - worker', () => {
 		testLinkCreation('https://www.test.com/path/to/file.txt', 'https://www.test.com', '//www.microsoft.com/', 'https://www.microsoft.com/');
 
 		// invalid uris don't throw
-		testLinkCreation('https://www.test.com/path/to/file.txt', 'https://www.test.com', '%', null);
+		testLinkCreation('https://www.test.com/path/to/file.txt', 'https://www.test.com', '%', 'https://www.test.com/path/to/%25');
 
 		// Bug #18314: Ctrl + Click does not open existing file if folder's name starts with 'c' character
 		testLinkCreation('file:///c:/Alex/working_dir/18314-link-detection/test.html', 'file:///c:/Alex/working_dir/18314-link-detection/', '/class/class.js', 'file:///c:/Alex/working_dir/18314-link-detection/class/class.js');

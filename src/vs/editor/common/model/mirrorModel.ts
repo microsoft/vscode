@@ -4,28 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {disposeAll} from 'vs/base/common/lifecycle';
+import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {PrefixSumComputer, IPrefixSumIndexOfResult} from 'vs/editor/common/viewModel/prefixSumComputer';
-import {IMode} from 'vs/editor/common/modes';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {ModelLine} from 'vs/editor/common/model/modelLine';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
-import {ModelLine} from 'vs/editor/common/model/modelLine';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {IMode} from 'vs/editor/common/modes';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
-import URI from 'vs/base/common/uri';
-import {disposeAll} from 'vs/base/common/lifecycle';
+import {IPrefixSumIndexOfResult, PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
 
 export interface IMirrorModelEvents {
-	contentChanged: EditorCommon.IModelContentChangedEvent[];
+	contentChanged: editorCommon.IModelContentChangedEvent[];
 }
 
-export class AbstractMirrorModel extends TextModelWithTokens implements EditorCommon.IMirrorModel {
+export class AbstractMirrorModel extends TextModelWithTokens implements editorCommon.IMirrorModel {
 
 	_lineStarts:PrefixSumComputer;
 	_associatedResource:URI;
 
-	constructor(allowedEventTypes:string[], versionId:number, value:EditorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URI) {
-		super(allowedEventTypes.concat([EditorCommon.EventType.ModelDispose]), value, false, mode);
+	constructor(allowedEventTypes:string[], versionId:number, value:editorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URI) {
+		super(allowedEventTypes.concat([editorCommon.EventType.ModelDispose]), value, false, mode);
 
 		this._setVersionId(versionId);
 		this._associatedResource = associatedResource;
@@ -39,15 +39,15 @@ export class AbstractMirrorModel extends TextModelWithTokens implements EditorCo
 		return this.getMode().getId();
 	}
 
-	public getEmbeddedAtPosition(position:EditorCommon.IPosition):EditorCommon.IMirrorModel {
+	public getEmbeddedAtPosition(position:editorCommon.IPosition):editorCommon.IMirrorModel {
 		return null;
 	}
 
-	public getAllEmbedded():EditorCommon.IMirrorModel[] {
+	public getAllEmbedded():editorCommon.IMirrorModel[] {
 		return [];
 	}
 
-	public _constructLines(rawText:EditorCommon.IRawText):void {
+	public _constructLines(rawText:editorCommon.IRawText):void {
 		super._constructLines(rawText);
 		// Force EOL to be \n
 		this._EOL = '\n';
@@ -58,7 +58,7 @@ export class AbstractMirrorModel extends TextModelWithTokens implements EditorCo
 	}
 
 	public dispose(): void {
-		this.emit(EditorCommon.EventType.ModelDispose);
+		this.emit(editorCommon.EventType.ModelDispose);
 		super.dispose();
 	}
 
@@ -81,7 +81,7 @@ export class AbstractMirrorModel extends TextModelWithTokens implements EditorCo
 		}
 	}
 
-	public getRangeFromOffsetAndLength(offset:number, length:number):EditorCommon.IRange {
+	public getRangeFromOffsetAndLength(offset:number, length:number):editorCommon.IRange {
 		if (this._isDisposed) {
 			throw new Error('AbstractMirrorModel.getRangeFromOffsetAndLength: Model is disposed');
 		}
@@ -96,7 +96,7 @@ export class AbstractMirrorModel extends TextModelWithTokens implements EditorCo
 		};
 	}
 
-	public getOffsetAndLengthFromRange(range:EditorCommon.IRange):{offset:number; length:number;} {
+	public getOffsetAndLengthFromRange(range:editorCommon.IRange):{offset:number; length:number;} {
 		if (this._isDisposed) {
 			throw new Error('AbstractMirrorModel.getOffsetAndLengthFromRange: Model is disposed');
 		}
@@ -109,7 +109,7 @@ export class AbstractMirrorModel extends TextModelWithTokens implements EditorCo
 		};
 	}
 
-	public getPositionFromOffset(offset:number):EditorCommon.IPosition {
+	public getPositionFromOffset(offset:number):editorCommon.IPosition {
 		if (this._isDisposed) {
 			throw new Error('AbstractMirrorModel.getPositionFromOffset: Model is disposed');
 		}
@@ -126,7 +126,7 @@ export class AbstractMirrorModel extends TextModelWithTokens implements EditorCo
 		};
 	}
 
-	public getOffsetFromPosition(position:EditorCommon.IPosition): number {
+	public getOffsetFromPosition(position:editorCommon.IPosition): number {
 		if (this._isDisposed) {
 			throw new Error('AbstractMirrorModel.getOffsetFromPosition: Model is disposed');
 		}
@@ -145,7 +145,7 @@ export class AbstractMirrorModel extends TextModelWithTokens implements EditorCo
 		return this._lineStarts.getAccumulatedValue(lineIndex - 1);
 	}
 
-	public getAllWordsWithRange(): EditorCommon.IRangeWithText[] {
+	public getAllWordsWithRange(): editorCommon.IRangeWithText[] {
 		if (this._isDisposed) {
 			throw new Error('AbstractMirrorModel.getAllWordsWithRange: Model is disposed');
 		}
@@ -154,10 +154,10 @@ export class AbstractMirrorModel extends TextModelWithTokens implements EditorCo
 			return [];
 		}
 
-		var result:EditorCommon.IRangeWithText[] = [],
+		var result:editorCommon.IRangeWithText[] = [],
 			i:number;
 
-		var toTextRange = function (info: EditorCommon.IWordRange) {
+		var toTextRange = function (info: editorCommon.IWordRange) {
 			var s = line.text.substring(info.start, info.end);
 			var r = { startLineNumber: i + 1, startColumn: info.start + 1, endLineNumber: i + 1, endColumn: info.end + 1 };
 			result.push({ text: s, range: r});
@@ -206,8 +206,8 @@ export class AbstractMirrorModel extends TextModelWithTokens implements EditorCo
 	}
 
 //	// TODO@Joh, TODO@Alex - remove these and make sure the super-things work
-	private wordenize(content:string): EditorCommon.IWordRange[] {
-		var result:EditorCommon.IWordRange[] = [];
+	private wordenize(content:string): editorCommon.IWordRange[] {
+		var result:editorCommon.IWordRange[] = [];
 		var match:RegExpExecArray;
 		var wordsRegexp = this._getWordDefinition();
 		while (match = wordsRegexp.exec(content)) {
@@ -217,16 +217,16 @@ export class AbstractMirrorModel extends TextModelWithTokens implements EditorCo
 	}
 }
 
-export class MirrorModelEmbedded extends AbstractMirrorModel implements EditorCommon.IMirrorModel {
+export class MirrorModelEmbedded extends AbstractMirrorModel implements editorCommon.IMirrorModel {
 
 	private _actualModel:MirrorModel;
 
-	constructor(actualModel:MirrorModel, includeRanges:EditorCommon.IRange[], mode:IMode, url:URI) {
+	constructor(actualModel:MirrorModel, includeRanges:editorCommon.IRange[], mode:IMode, url:URI) {
 		super(['changed'], actualModel.getVersionId(), MirrorModelEmbedded._getMirrorValueWithinRanges(actualModel, includeRanges), mode, url);
 		this._actualModel = actualModel;
 	}
 
-	private static _getMirrorValueWithinRanges(actualModel:MirrorModel, includeRanges:EditorCommon.IRange[]): EditorCommon.IRawText {
+	private static _getMirrorValueWithinRanges(actualModel:MirrorModel, includeRanges:editorCommon.IRange[]): editorCommon.IRawText {
 
 		var	resultingText = '',
 			prevLineAdded = 1,
@@ -262,7 +262,7 @@ export class MirrorModelEmbedded extends AbstractMirrorModel implements EditorCo
 		return TextModel.toRawText(resultingText);
 	}
 
-	public setIncludedRanges(newIncludedRanges:EditorCommon.IRange[]): void {
+	public setIncludedRanges(newIncludedRanges:editorCommon.IRange[]): void {
 		var prevVersionId = this.getVersionId();
 
 		// Force recreating of line starts (when used)
@@ -279,7 +279,7 @@ export class MirrorModelEmbedded extends AbstractMirrorModel implements EditorCo
 
 class EmbeddedModeRange {
 	public mode: IMode;
-	public ranges: EditorCommon.IRange[];
+	public ranges: editorCommon.IRange[];
 
 	public constructor(mode: IMode) {
 		this.mode = mode;
@@ -291,12 +291,12 @@ export function createMirrorModelFromString(resourceService:IResourceService, ve
 	return new MirrorModel(resourceService, versionId, TextModel.toRawText(value), mode, associatedResource);
 }
 
-export class MirrorModel extends AbstractMirrorModel implements EditorCommon.IMirrorModel {
+export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMirrorModel {
 
 	private _resourceService: IResourceService;
 	private _embeddedModels: {[modeId:string]:MirrorModelEmbedded;};
 
-	constructor(resourceService:IResourceService, versionId:number, value:EditorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URI) {
+	constructor(resourceService:IResourceService, versionId:number, value:editorCommon.IRawText, mode:IMode|TPromise<IMode>, associatedResource?:URI) {
 		super(['changed'], versionId, value, mode, associatedResource);
 
 		this._resourceService = resourceService;
@@ -304,7 +304,7 @@ export class MirrorModel extends AbstractMirrorModel implements EditorCommon.IMi
 		this._updateEmbeddedModels();
 	}
 
-	public getEmbeddedAtPosition(position:EditorCommon.IPosition):EditorCommon.IMirrorModel {
+	public getEmbeddedAtPosition(position:editorCommon.IPosition):editorCommon.IMirrorModel {
 		if (this._isDisposed) {
 			throw new Error('MirrorModel.getEmbeddedAtPosition: Model is disposed');
 		}
@@ -316,7 +316,7 @@ export class MirrorModel extends AbstractMirrorModel implements EditorCommon.IMi
 		return null;
 	}
 
-	public getAllEmbedded():EditorCommon.IMirrorModel[] {
+	public getAllEmbedded():editorCommon.IMirrorModel[] {
 		if (this._isDisposed) {
 			throw new Error('MirrorModel.getAllEmbedded: Model is disposed');
 		}
@@ -339,7 +339,7 @@ export class MirrorModel extends AbstractMirrorModel implements EditorCommon.IMi
 		this._updateEmbeddedModels();
 	}
 
-	private static _getModesRanges(model: EditorCommon.IMirrorModel): {[modeId:string]:EmbeddedModeRange} {
+	private static _getModesRanges(model: editorCommon.IMirrorModel): {[modeId:string]:EmbeddedModeRange} {
 		var encounteredModesRanges:{[modeId:string]:EmbeddedModeRange} = {};
 
 		var getOrCreateEmbeddedModeRange = (modeId:string, mode:IMode) => {
@@ -444,23 +444,23 @@ export class MirrorModel extends AbstractMirrorModel implements EditorCommon.IMi
 
 			this._setVersionId(contentChangedEvent.versionId);
 			switch (contentChangedEvent.changeType) {
-				case EditorCommon.EventType.ModelContentChangedFlush:
-					this._onLinesFlushed(<EditorCommon.IModelContentChangedFlushEvent>contentChangedEvent);
+				case editorCommon.EventType.ModelContentChangedFlush:
+					this._onLinesFlushed(<editorCommon.IModelContentChangedFlushEvent>contentChangedEvent);
 					changed = true;
 					break;
 
-				case EditorCommon.EventType.ModelContentChangedLinesDeleted:
-					this._onLinesDeleted(<EditorCommon.IModelContentChangedLinesDeletedEvent>contentChangedEvent);
+				case editorCommon.EventType.ModelContentChangedLinesDeleted:
+					this._onLinesDeleted(<editorCommon.IModelContentChangedLinesDeletedEvent>contentChangedEvent);
 					changed = true;
 					break;
 
-				case EditorCommon.EventType.ModelContentChangedLinesInserted:
-					this._onLinesInserted(<EditorCommon.IModelContentChangedLinesInsertedEvent>contentChangedEvent);
+				case editorCommon.EventType.ModelContentChangedLinesInserted:
+					this._onLinesInserted(<editorCommon.IModelContentChangedLinesInsertedEvent>contentChangedEvent);
 					changed = true;
 					break;
 
-				case EditorCommon.EventType.ModelContentChangedLineChanged:
-					this._onLineChanged(<EditorCommon.IModelContentChangedLineChangedEvent>contentChangedEvent);
+				case editorCommon.EventType.ModelContentChangedLineChanged:
+					this._onLineChanged(<editorCommon.IModelContentChangedLineChangedEvent>contentChangedEvent);
 					changed = true;
 					break;
 			}
@@ -474,13 +474,13 @@ export class MirrorModel extends AbstractMirrorModel implements EditorCommon.IMi
 		return shouldFlushMarkers;
 	}
 
-	private _onLinesFlushed(e:EditorCommon.IModelContentChangedFlushEvent): void {
+	private _onLinesFlushed(e:editorCommon.IModelContentChangedFlushEvent): void {
 		// Flush my lines
 		this._constructLines(e.detail);
 		this._resetTokenizationState();
 	}
 
-	private _onLineChanged(e:EditorCommon.IModelContentChangedLineChangedEvent) : void {
+	private _onLineChanged(e:editorCommon.IModelContentChangedLineChangedEvent) : void {
 		this._lines[e.lineNumber - 1].applyEdits({}, [{
 			startColumn: 1,
 			endColumn: Number.MAX_VALUE,
@@ -491,7 +491,7 @@ export class MirrorModel extends AbstractMirrorModel implements EditorCommon.IMi
 		this._invalidateLine(e.lineNumber - 1);
 	}
 
-	private _onLinesDeleted(e:EditorCommon.IModelContentChangedLinesDeletedEvent) : void {
+	private _onLinesDeleted(e:editorCommon.IModelContentChangedLinesDeletedEvent) : void {
 		var fromLineIndex = e.fromLineNumber - 1,
 			toLineIndex = e.toLineNumber - 1;
 
@@ -511,7 +511,7 @@ export class MirrorModel extends AbstractMirrorModel implements EditorCommon.IMi
 		}
 	}
 
-	private _onLinesInserted(e:EditorCommon.IModelContentChangedLinesInsertedEvent) : void {
+	private _onLinesInserted(e:editorCommon.IModelContentChangedLinesInsertedEvent) : void {
 		var lineIndex:number,
 			i:number,
 			splitLines = e.detail.split('\n');

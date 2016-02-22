@@ -7,23 +7,22 @@
 
 // include these in the editor bundle because they are widely used by many languages
 import 'vs/editor/common/languages.common';
-
-import {WorkerServer} from 'vs/base/common/worker/workerServer';
-import {SecondaryMarkerService} from 'vs/platform/markers/common/markerService';
-import {WorkerThreadService} from 'vs/platform/thread/common/workerThreadService';
-import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
-import {EventService} from 'vs/platform/event/common/eventService';
-import {WorkerTelemetryService} from 'vs/platform/telemetry/common/workerTelemetryService';
+import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ResourceService} from 'vs/editor/common/services/resourceServiceImpl';
-import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
-import {ModelServiceWorkerHelper} from 'vs/editor/common/services/modelServiceImpl';
+import {WorkerServer} from 'vs/base/common/worker/workerServer';
+import {EventService} from 'vs/platform/event/common/eventService';
+import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {SecondaryMarkerService} from 'vs/platform/markers/common/markerService';
+import {AbstractPluginService, ActivatedPlugin} from 'vs/platform/plugins/common/abstractPluginService';
 import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
+import {WorkerTelemetryService} from 'vs/platform/telemetry/common/workerTelemetryService';
+import {WorkerThreadService} from 'vs/platform/thread/common/workerThreadService';
+import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 import {IWorkspace} from 'vs/platform/workspace/common/workspace';
-import {AbstractPluginService, ActivatedPlugin} from 'vs/platform/plugins/common/abstractPluginService';
-import {ModeServiceImpl,ModeServiceWorkerHelper} from 'vs/editor/common/services/modeServiceImpl';
-import Severity from 'vs/base/common/severity';
+import {ModeServiceImpl, ModeServiceWorkerHelper} from 'vs/editor/common/services/modeServiceImpl';
+import {ModelServiceWorkerHelper} from 'vs/editor/common/services/modelServiceImpl';
+import {ResourceService} from 'vs/editor/common/services/resourceServiceImpl';
 
 export interface IInitData {
 	contextService: {
@@ -95,7 +94,7 @@ export class EditorWorkerServer {
 		var contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
 
 		this.threadService = new WorkerThreadService(mainThread.getRemoteCom());
-		this.threadService.setInstantiationService(InstantiationService.create({ threadService: this.threadService }));
+		this.threadService.setInstantiationService(createInstantiationService({ threadService: this.threadService }));
 
 		var telemetryServiceInstance = new WorkerTelemetryService(this.threadService);
 
@@ -118,7 +117,7 @@ export class EditorWorkerServer {
 			requestService: requestService
 		};
 
-		var instantiationService = InstantiationService.create(_services);
+		var instantiationService = createInstantiationService(_services);
 		this.threadService.setInstantiationService(instantiationService);
 
 		// Instantiate thread actors

@@ -7,7 +7,7 @@
 import * as Browser from 'vs/base/browser/browser';
 import * as Platform from 'vs/base/common/platform';
 import * as DomUtils from 'vs/base/browser/dom';
-import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
+import {IMouseEvent, StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IMouseWheelEvent, IParent, Visibility, IScrollbar} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {Disposable} from 'vs/base/common/lifecycle';
 import {GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger} from 'vs/base/browser/globalMouseMoveMonitor';
@@ -215,7 +215,7 @@ class ScrollbarArrow extends Widget {
 		this._mousedownScheduleRepeatTimer = this._register(new TimeoutTimer());
 	}
 
-	private _arrowMouseDown(e: StandardMouseEvent): void {
+	private _arrowMouseDown(e: IMouseEvent): void {
 		let repeater = () => {
 			this._parent.onMouseWheel(this._mouseWheelEventFactory());
 		};
@@ -446,7 +446,7 @@ export abstract class AbstractScrollbar extends Widget implements IScrollbar {
 
 	// ----------------- DOM events
 
-	private _domNodeMouseDown(e: StandardMouseEvent): void {
+	private _domNodeMouseDown(e: IMouseEvent): void {
 		if (e.target !== this.domNode) {
 			return;
 		}
@@ -468,14 +468,14 @@ export abstract class AbstractScrollbar extends Widget implements IScrollbar {
 		}
 	}
 
-	private _onMouseDown(e: StandardMouseEvent): void {
+	private _onMouseDown(e: IMouseEvent): void {
 		let domNodePosition = DomUtils.getDomNodePosition(this.domNode);
 		let desiredSliderPosition = this._mouseDownRelativePosition(e, domNodePosition) - this._scrollbarState.getArrowSize() - this._scrollbarState.getSliderSize() / 2;
 		this.setDesiredScrollPosition(this._scrollbarState.convertSliderPositionToScrollPosition(desiredSliderPosition));
 		this._sliderMouseDown(e);
 	}
 
-	private _sliderMouseDown(e: StandardMouseEvent): void {
+	private _sliderMouseDown(e: IMouseEvent): void {
 		if (e.leftButton) {
 			let initialMouseOrthogonalPosition = this._sliderOrthogonalMousePosition(e);
 			let initialScrollPosition = this._getScrollPosition();
@@ -523,7 +523,7 @@ export abstract class AbstractScrollbar extends Widget implements IScrollbar {
 
 	protected abstract _renderDomNode(largeSize: number, smallSize: number): void;
 	protected abstract _updateSlider(sliderSize: number, sliderPosition: number): void;
-	protected abstract _mouseDownRelativePosition(e: StandardMouseEvent, domNodePosition: DomUtils.IDomNodePosition): number;
+	protected abstract _mouseDownRelativePosition(e: IMouseEvent, domNodePosition: DomUtils.IDomNodePosition): number;
 	protected abstract _sliderMousePosition(e: IMouseMoveEventData): number;
 	protected abstract _sliderOrthogonalMousePosition(e: IMouseMoveEventData): number;
 	protected abstract _getScrollPosition(): number;

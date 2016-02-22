@@ -5,20 +5,19 @@
 'use strict';
 
 import 'vs/css!./keybindings';
-
 import * as nls from 'vs/nls';
+import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {KeyCode, Keybinding} from 'vs/base/common/keyCodes';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import * as DOM from 'vs/base/browser/dom';
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {IKeybindingService, IKeybindingScopeLocation, ICommandHandler, IKeybindingItem, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
+import * as dom from 'vs/base/browser/dom';
+import {IKeyboardEvent, StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService} from 'vs/platform/message/common/message';
 import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
-import {Keybinding, KeyCode} from 'vs/base/common/keyCodes';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {ICommandHandler, IKeybindingContextKey, IKeybindingItem, IKeybindingScopeLocation, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {IMessageService} from 'vs/platform/message/common/message';
 
 let KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
@@ -149,7 +148,7 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 		this._domNode = domNode;
 		this._contexts = Object.create(null);
 		this._contexts[String(this._myContextId)] = new KeybindingContext(this._myContextId, null);
-		this._toDispose = DOM.addDisposableListener(this._domNode, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		this._toDispose = dom.addDisposableListener(this._domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let keyEvent = new StandardKeyboardEvent(e);
 			this._dispatch(keyEvent);
 		});
@@ -213,7 +212,7 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 		return KeybindingsRegistry.getCommands()[commandId];
 	}
 
-	private _dispatch(e: DOM.IKeyboardEvent): void {
+	private _dispatch(e: IKeyboardEvent): void {
 		let isModifierKey = (e.keyCode === KeyCode.Ctrl || e.keyCode === KeyCode.Shift || e.keyCode === KeyCode.Alt || e.keyCode === KeyCode.Meta);
 		if (isModifierKey) {
 			return;

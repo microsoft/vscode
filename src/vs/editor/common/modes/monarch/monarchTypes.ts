@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Modes = require('vs/editor/common/modes');
+import {ISuggestion} from 'vs/editor/common/modes';
 
 /*
  * Interface types for Monarch language definitions
@@ -78,13 +78,13 @@ export interface ILanguage {
 	// /**
 	//  * Advanced auto completion, auto indenting, and bracket matching
 	//  */
-	// enhancedBrackets?: Modes.IRegexBracketPair[];
+	// enhancedBrackets?: IRegexBracketPair[];
 
 	suggestSupport?: {
 		textualCompletions?: boolean;
 		disableAutoTrigger?: boolean;
 		triggerCharacters?: string[];
-		snippets?: Modes.ISuggestion[];
+		snippets?: ISuggestion[];
 	};
 }
 

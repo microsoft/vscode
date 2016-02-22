@@ -6,27 +6,27 @@
 'use strict';
 
 import 'vs/css!./gotoLine';
-import nls = require('vs/nls');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import QuickOpenModel = require('vs/base/parts/quickopen/browser/quickOpenModel');
-import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
-import EditorQuickOpen = require('./editorQuickOpen');
+import * as nls from 'vs/nls';
+import {IContext, QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
+import {BaseEditorQuickOpenAction, IDecorator} from './editorQuickOpen';
 
 interface ParseResult {
-	position: EditorCommon.IPosition;
+	position: editorCommon.IPosition;
 	isValid: boolean;
 	label: string;
 }
 
-export class GotoLineEntry extends QuickOpenModel.QuickOpenEntry {
+export class GotoLineEntry extends QuickOpenEntry {
 
 	private _parseResult: ParseResult;
-	private decorator: EditorQuickOpen.IDecorator;
-	private editor: EditorCommon.IEditor;
+	private decorator: IDecorator;
+	private editor: editorCommon.IEditor;
 
-	constructor(line: string, editor: EditorCommon.IEditor, decorator: EditorQuickOpen.IDecorator) {
+	constructor(line: string, editor: editorCommon.IEditor, decorator: IDecorator) {
 		super();
 
 		this.editor = editor;
@@ -38,7 +38,7 @@ export class GotoLineEntry extends QuickOpenModel.QuickOpenEntry {
 	private _parseInput(line: string): ParseResult {
 
 		let numbers = line.split(',').map(part => parseInt(part, 10)).filter(part => !isNaN(part)),
-			position: EditorCommon.IPosition;
+			position: editorCommon.IPosition;
 
 		if (numbers.length === 0) {
 			position = { lineNumber: -1, column: -1 };
@@ -48,16 +48,16 @@ export class GotoLineEntry extends QuickOpenModel.QuickOpenEntry {
 			position = { lineNumber: numbers[0], column: numbers[1] };
 		}
 
-		let editorType = (<EditorBrowser.ICodeEditor>this.editor).getEditorType(),
-			model: EditorCommon.IModel;
+		let editorType = (<ICodeEditor>this.editor).getEditorType(),
+			model: editorCommon.IModel;
 
 		switch (editorType) {
-			case EditorCommon.EditorType.IDiffEditor:
-				model = (<EditorBrowser.IDiffEditor>this.editor).getModel().modified;
+			case editorCommon.EditorType.IDiffEditor:
+				model = (<IDiffEditor>this.editor).getModel().modified;
 				break;
 
-			case EditorCommon.EditorType.ICodeEditor:
-				model = (<EditorBrowser.ICodeEditor>this.editor).getModel();
+			case editorCommon.EditorType.ICodeEditor:
+				model = (<ICodeEditor>this.editor).getModel();
 				break;
 
 			default:
@@ -94,8 +94,8 @@ export class GotoLineEntry extends QuickOpenModel.QuickOpenEntry {
 		return nls.localize('gotoLineAriaLabel', "Go to line {0}", this._parseResult.label);
 	}
 
-	public run(mode: QuickOpen.Mode, context: QuickOpenModel.IContext): boolean {
-		if (mode === QuickOpen.Mode.OPEN) {
+	public run(mode: Mode, context: IContext): boolean {
+		if (mode === Mode.OPEN) {
 			return this.runOpen();
 		}
 
@@ -111,8 +111,8 @@ export class GotoLineEntry extends QuickOpenModel.QuickOpenEntry {
 
 		// Apply selection and focus
 		let range = this.toSelection();
-		(<EditorBrowser.ICodeEditor>this.editor).setSelection(range);
-		(<EditorBrowser.ICodeEditor>this.editor).revealRangeInCenter(range);
+		(<ICodeEditor>this.editor).setSelection(range);
+		(<ICodeEditor>this.editor).revealRangeInCenter(range);
 		this.editor.focus();
 
 		return true;
@@ -136,7 +136,7 @@ export class GotoLineEntry extends QuickOpenModel.QuickOpenEntry {
 		return false;
 	}
 
-	private toSelection(): EditorCommon.IRange {
+	private toSelection(): editorCommon.IRange {
 		return {
 			startLineNumber: this._parseResult.position.lineNumber,
 			startColumn: this._parseResult.position.column,
@@ -146,19 +146,19 @@ export class GotoLineEntry extends QuickOpenModel.QuickOpenEntry {
 	}
 }
 
-export class GotoLineAction extends EditorQuickOpen.BaseEditorQuickOpenAction {
+export class GotoLineAction extends BaseEditorQuickOpenAction {
 
 	public static ID = 'editor.action.gotoLine';
 
-	constructor(descriptor: EditorCommon.IEditorActionDescriptorData, editor: EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor, nls.localize('GotoLineAction.label', "Go to Line..."));
 	}
 
-	_getModel(value: string): QuickOpenModel.QuickOpenModel {
-		return new QuickOpenModel.QuickOpenModel([new GotoLineEntry(value, this.editor, this)]);
+	_getModel(value: string): QuickOpenModel {
+		return new QuickOpenModel([new GotoLineEntry(value, this.editor, this)]);
 	}
 
-	_getAutoFocus(searchValue: string): QuickOpen.IAutoFocus {
+	_getAutoFocus(searchValue: string): IAutoFocus {
 		return {
 			autoFocusFirstEntry: searchValue.length > 0
 		};

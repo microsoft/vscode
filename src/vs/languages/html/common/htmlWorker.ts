@@ -20,6 +20,7 @@ import {getScanner, IHTMLScanner} from 'vs/languages/html/common/htmlScanner';
 import {isTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE} from 'vs/languages/html/common/htmlTokenTypes';
 import {isEmptyElement} from 'vs/languages/html/common/htmlEmptyTagsShared';
 import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
+import paths = require('vs/base/common/paths');
 
 enum LinkDetectionState {
 	LOOKING_FOR_HREF_OR_SRC = 1,
@@ -516,10 +517,7 @@ export class HTMLWorker {
 	}
 
 	public static _getWorkspaceUrl(modelAbsoluteUri: URI, rootAbsoluteUri: URI, tokenContent: string): string {
-		var modelAbsoluteUrl = network.URL.fromUri(modelAbsoluteUri);
-		var rootAbsoluteUrl = network.URL.fromUri(rootAbsoluteUri);
 		tokenContent = HTMLWorker._stripQuotes(tokenContent);
-
 
 		if (/^\s*javascript\:/i.test(tokenContent) || /^\s*\#/i.test(tokenContent)) {
 			return null;
@@ -532,27 +530,29 @@ export class HTMLWorker {
 
 		if (/^\s*\/\//i.test(tokenContent)) {
 			// Absolute link (that does not name the protocol)
-			var modelScheme = modelAbsoluteUrl.getScheme();
-			var pickedScheme = 'http';
-			if (modelScheme === network.schemas.https) {
-				pickedScheme = network.schemas.https;
+			let pickedScheme = network.Schemas.http;
+			if (modelAbsoluteUri.scheme === network.Schemas.https) {
+				pickedScheme = network.Schemas.https;
 			}
 			return pickedScheme + ':' + tokenContent.replace(/^\s*/g, '');
 		}
 
-		try {
-			var potentialResult = modelAbsoluteUrl.combine(tokenContent).toString();
-		} catch (err) {
-			// invalid URL
-			return null;
+		let modelPath = paths.dirname(modelAbsoluteUri.path);
+		let alternativeResultPath: string = null;
+		if (tokenContent.length > 0 && tokenContent.charAt(0) === '/') {
+			alternativeResultPath = tokenContent;
+		} else {
+			alternativeResultPath = paths.join(modelPath, tokenContent);
+			alternativeResultPath = alternativeResultPath.replace(/^(\/\.\.)+/, '');
 		}
+		let potentialResult = modelAbsoluteUri.withPath(alternativeResultPath).toString();
 
-		if (rootAbsoluteUrl && modelAbsoluteUrl.startsWith(rootAbsoluteUrl)) {
+		let rootAbsoluteUrlStr = (rootAbsoluteUri ? rootAbsoluteUri.toString() : null);
+		if (rootAbsoluteUrlStr && strings.startsWith(modelAbsoluteUri.toString(), rootAbsoluteUrlStr)) {
 			// The `rootAbsoluteUrl` is set and matches our current model
 			// We need to ensure that this `potentialResult` does not escape `rootAbsoluteUrl`
 
-			var rootAbsoluteUrlStr = rootAbsoluteUrl.toString();
-			var commonPrefixLength = strings.commonPrefixLength(rootAbsoluteUrlStr, potentialResult);
+			let commonPrefixLength = strings.commonPrefixLength(rootAbsoluteUrlStr, potentialResult);
 			if (strings.endsWith(rootAbsoluteUrlStr, '/')) {
 				commonPrefixLength = potentialResult.lastIndexOf('/', commonPrefixLength) + 1;
 			}
@@ -562,7 +562,7 @@ export class HTMLWorker {
 		return potentialResult;
 	}
 
-	private createLink(modelAbsoluteUrl: URI, rootAbsoluteUrl: network.URL, tokenContent: string, lineNumber: number, startColumn: number, endColumn: number): Modes.ILink {
+	private createLink(modelAbsoluteUrl: URI, rootAbsoluteUrl: URI, tokenContent: string, lineNumber: number, startColumn: number, endColumn: number): Modes.ILink {
 		var workspaceUrl = HTMLWorker._getWorkspaceUrl(modelAbsoluteUrl, rootAbsoluteUrl, tokenContent);
 		if (!workspaceUrl) {
 			return null;
@@ -596,15 +596,15 @@ export class HTMLWorker {
 			tokenContent: string,
 			link: Modes.ILink;
 
-		let rootAbsoluteUrl: network.URL = null;
+		let rootAbsoluteUrl: URI = null;
 		let workspace = this._contextService.getWorkspace();
 		if (workspace) {
 			// The workspace can be null in the no folder opened case
 			let strRootAbsoluteUrl = String(workspace.resource);
 			if (strRootAbsoluteUrl.charAt(strRootAbsoluteUrl.length - 1) === '/') {
-				rootAbsoluteUrl = new network.URL(strRootAbsoluteUrl);
+				rootAbsoluteUrl = URI.parse(strRootAbsoluteUrl);
 			} else {
-				rootAbsoluteUrl = new network.URL(strRootAbsoluteUrl + '/');
+				rootAbsoluteUrl = URI.parse(strRootAbsoluteUrl + '/');
 			}
 		}
 

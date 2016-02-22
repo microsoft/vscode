@@ -4,13 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import {
-isValidVersionStr, isValidVersion,
-parseVersion, IParsedVersion,
-normalizeVersion, INormalizedVersion,
-IReducedExtensionDescription, isValidExtensionVersion
-} from 'vs/platform/plugins/node/pluginVersionValidator';
+import * as assert from 'assert';
+import {INormalizedVersion, IParsedVersion, IReducedExtensionDescription, isValidExtensionVersion, isValidVersion, isValidVersionStr, normalizeVersion, parseVersion} from 'vs/platform/plugins/node/pluginVersionValidator';
 
 suite('Plugin Version Validator', () => {
 
