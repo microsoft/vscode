@@ -82,6 +82,24 @@ suite('Editor Contrib - Indentation to Spaces', () => {
 			new Selection(1, 5, 1, 5)
 		);
 	});
+
+	test('empty lines', function() {
+		testIndentationToSpacesCommand(
+			[
+				'\t\t\t',
+				'\t',
+				'\t\t'
+			],
+			new Selection(1, 4, 1, 4),
+			2,
+			[
+				'      ',
+				'  ',
+				'    '
+			],
+			new Selection(1, 4, 1, 4)
+		);
+	});
 });
 
 suite('Editor Contrib - Indentation to Tabs', () => {

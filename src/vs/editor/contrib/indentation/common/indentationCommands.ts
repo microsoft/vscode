@@ -19,10 +19,14 @@ function getIndentationEditOperations(model: ITokenizedModel, builder: IEditOper
 
 	const content = model.getLinesContent();
 	for (let i = 0; i < content.length; i++) {
-		const nonWhitespaceColumn = model.getLineFirstNonWhitespaceColumn(i + 1);
-		const text = (tabsToSpaces ? content[i].substr(0, nonWhitespaceColumn).replace(/\t/ig, spaces) :
-			content[i].substr(0, nonWhitespaceColumn).replace(new RegExp(spaces, 'gi'), '\t')) +
-			content[i].substr(nonWhitespaceColumn);
+		let lastIndentationColumn = model.getLineFirstNonWhitespaceColumn(i + 1);
+		if (lastIndentationColumn === 0) {
+			lastIndentationColumn = model.getLineMaxColumn(i + 1);
+		}
+
+		const text = (tabsToSpaces ? content[i].substr(0, lastIndentationColumn).replace(/\t/ig, spaces) :
+			content[i].substr(0, lastIndentationColumn).replace(new RegExp(spaces, 'gi'), '\t')) +
+			content[i].substr(lastIndentationColumn);
 
 		builder.addEditOperation(new Range(i + 1, 1, i + 1, model.getLineMaxColumn(i + 1)), text);
 	}
