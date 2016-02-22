@@ -11,6 +11,8 @@ export interface IConfiguration {
 	editor:IEditorOptions;
 }
 
+export const USUAL_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?';
+
 class ConfigClass implements IConfiguration {
 
 	public editor: IEditorOptions;
@@ -19,6 +21,7 @@ class ConfigClass implements IConfiguration {
 		this.editor = {
 			experimentalScreenReader: false,
 			rulers: [],
+			wordSeparators: USUAL_WORD_SEPARATORS,
 			ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
 			lineNumbers: true,
 			selectOnLineNumbers: true,

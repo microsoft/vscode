@@ -66,6 +66,7 @@ function cloneInternalEditorOptions(opts: editorCommon.IInternalEditorOptions): 
 	return {
 		experimentalScreenReader: opts.experimentalScreenReader,
 		rulers: opts.rulers.slice(0),
+		wordSeparators: opts.wordSeparators,
 		ariaLabel: opts.ariaLabel,
 		lineNumbers: opts.lineNumbers,
 		selectOnLineNumbers: opts.selectOnLineNumbers,
@@ -279,6 +280,7 @@ class InternalEditorOptionsHelper {
 			cursorBlinking: opts.cursorBlinking,
 			experimentalScreenReader: toBoolean(opts.experimentalScreenReader),
 			rulers: toSortedIntegerArray(opts.rulers),
+			wordSeparators: String(opts.wordSeparators),
 			ariaLabel: String(opts.ariaLabel),
 			cursorStyle: opts.cursorStyle,
 			fontLigatures: toBoolean(opts.fontLigatures),
@@ -360,6 +362,7 @@ class InternalEditorOptionsHelper {
 		return {
 			experimentalScreenReader:		(prevOpts.experimentalScreenReader !== newOpts.experimentalScreenReader),
 			rulers:							(!this._numberArraysEqual(prevOpts.rulers, newOpts.rulers)),
+			wordSeparators:					(prevOpts.wordSeparators !== newOpts.wordSeparators),
 			ariaLabel:						(prevOpts.ariaLabel !== newOpts.ariaLabel),
 
 			lineNumbers:					(prevOpts.lineNumbers !== newOpts.lineNumbers),
@@ -875,6 +878,11 @@ configurationRegistry.registerConfiguration({
 			},
 			'default': DefaultConfig.editor.rulers,
 			'description': nls.localize('rulers', "Columns at which to show vertical rulers")
+		},
+		'editor.wordSeparators' : {
+			'type': 'string',
+			'default': DefaultConfig.editor.wordSeparators,
+			'description': nls.localize('wordSeparators', "Characters that will be used as word separators when doing word related navigations or operations")
 		},
 		'editor.tabSize' : {
 			'oneOf': [

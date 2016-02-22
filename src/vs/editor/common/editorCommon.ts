@@ -280,6 +280,11 @@ export interface IEditorOptions {
 	 */
 	rulers?: number[];
 	/**
+	 * A string containing the word separators used when doing word navigation.
+	 * Defaults to `~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?
+	 */
+	wordSeparators?: string;
+	/**
 	 * Control the rendering of line numbers.
 	 * If it is a function, it will be invoked when rendering a line number and the return value will be rendered.
 	 * Otherwise, if it is a truey, line numbers will be rendered normally (equivalent of using an identity function).
@@ -591,6 +596,7 @@ export interface IEditorWrappingInfo {
 export interface IInternalEditorOptions {
 	experimentalScreenReader: boolean;
 	rulers: number[];
+	wordSeparators: string;
 	ariaLabel: string;
 
 	// ---- Options that are transparent - get no massaging
@@ -679,6 +685,7 @@ export interface IInternalEditorOptions {
 export interface IConfigurationChangedEvent {
 	experimentalScreenReader: boolean;
 	rulers: boolean;
+	wordSeparators: boolean;
 	ariaLabel: boolean;
 
 	// ---- Options that are transparent - get no massaging

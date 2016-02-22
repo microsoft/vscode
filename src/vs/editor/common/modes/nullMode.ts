@@ -5,6 +5,7 @@
 'use strict';
 
 import * as modes from 'vs/editor/common/modes';
+import {USUAL_WORD_SEPARATORS} from 'vs/editor/common/config/defaultConfig';
 
 export class NullState implements modes.IState {
 
@@ -63,7 +64,7 @@ export class NullMode implements modes.IMode {
 	 * /(-?\d*\.\d\w*)|([^\`\~\!\@\#\$\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
 	 */
 	public static createWordRegExp(allowInWords:string = ''): RegExp {
-		var usualSeparators = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?';
+		var usualSeparators = USUAL_WORD_SEPARATORS;
 		var source = '(-?\\d*\\.\\d\\w*)|([^';
 		for (var i = 0; i < usualSeparators.length; i++) {
 			if (allowInWords.indexOf(usualSeparators[i]) >= 0) {
