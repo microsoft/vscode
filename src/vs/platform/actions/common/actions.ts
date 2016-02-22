@@ -31,7 +31,7 @@ export class SyncActionDescriptor {
 	private _keybindingContext: KbExpr;
 	private _keybindingWeight: number;
 
-	constructor(ctor: Instantiation.INewConstructorSignature2<string, string, Actions.Action>,
+	constructor(ctor: Instantiation.IConstructorSignature2<string, string, Actions.Action>,
 		id: string, label: string, keybindings?: IKeybindings, keybindingContext?: KbExpr, keybindingWeight?: number
 	) {
 		this._id = id;

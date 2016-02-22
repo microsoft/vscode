@@ -34,10 +34,10 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 		this._instantiationService = service;
 	}
 
-	createInstance<T extends IThreadSynchronizableObject>(ctor: instantiation.INewConstructorSignature0<T>): T;
-	createInstance<A1, T extends IThreadSynchronizableObject>(ctor: instantiation.INewConstructorSignature1<A1, T>, a1: A1): T;
-	createInstance<A1, A2, T extends IThreadSynchronizableObject>(ctor: instantiation.INewConstructorSignature2<A1, A2, T>, a1: A1, a2: A2): T;
-	createInstance<A1, A2, A3, T extends IThreadSynchronizableObject>(ctor: instantiation.INewConstructorSignature3<A1, A2, A3, T>, a1: A1, a2: A2, a3: A3): T;
+	createInstance<T extends IThreadSynchronizableObject>(ctor: instantiation.IConstructorSignature0<T>): T;
+	createInstance<A1, T extends IThreadSynchronizableObject>(ctor: instantiation.IConstructorSignature1<A1, T>, a1: A1): T;
+	createInstance<A1, A2, T extends IThreadSynchronizableObject>(ctor: instantiation.IConstructorSignature2<A1, A2, T>, a1: A1, a2: A2): T;
+	createInstance<A1, A2, A3, T extends IThreadSynchronizableObject>(ctor: instantiation.IConstructorSignature3<A1, A2, A3, T>, a1: A1, a2: A2, a3: A3): T;
 
 	createInstance<T extends IThreadSynchronizableObject>(descriptor: AsyncDescriptor0<T>): T;
 	createInstance<A1, T extends IThreadSynchronizableObject>(descriptor: AsyncDescriptor1<A1, T>, a1: A1): T;
@@ -130,7 +130,7 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 		return result;
 	}
 
-	getRemotable<T>(ctor: instantiation.INewConstructorSignature0<T>): T {
+	getRemotable<T>(ctor: instantiation.IConstructorSignature0<T>): T {
 		let id = Remotable.getId(ctor);
 		if (!id) {
 			throw new Error('Unknown Remotable: <<' + id + '>>');

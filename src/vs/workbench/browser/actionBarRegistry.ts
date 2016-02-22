@@ -12,7 +12,7 @@ import {Action, IAction} from 'vs/base/common/actions';
 import {BaseActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {ITree} from 'vs/base/parts/tree/browser/tree';
-import {IInstantiationService, INewConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * The action bar contributor allows to add actions to an actionbar in a given context.
@@ -270,7 +270,7 @@ export interface IActionBarRegistry {
 	 * Registers an Actionbar contributor. It will be called to contribute actions to all the action bars
 	 * that are used in the Monaco Workbench in the given scope.
 	 */
-	registerActionBarContributor(scope: string, ctor: INewConstructorSignature0<ActionBarContributor>): void;
+	registerActionBarContributor(scope: string, ctor: IConstructorSignature0<ActionBarContributor>): void;
 
 	/**
 	 * Returns an array of registered action bar contributors known to the workbench for the given scope.
@@ -281,7 +281,7 @@ export interface IActionBarRegistry {
 }
 
 class ActionBarRegistry implements IActionBarRegistry {
-	private actionBarContributorConstructors: { scope: string; ctor: INewConstructorSignature0<ActionBarContributor>; }[] = [];
+	private actionBarContributorConstructors: { scope: string; ctor: IConstructorSignature0<ActionBarContributor>; }[] = [];
 	private actionBarContributorInstances: { [scope: string]: ActionBarContributor[] } = {};
 	private instantiationService: IInstantiationService;
 
@@ -294,7 +294,7 @@ class ActionBarRegistry implements IActionBarRegistry {
 		}
 	}
 
-	private createActionBarContributor(scope: string, ctor: INewConstructorSignature0<ActionBarContributor>): void {
+	private createActionBarContributor(scope: string, ctor: IConstructorSignature0<ActionBarContributor>): void {
 		let instance = this.instantiationService.createInstance(ctor);
 		let target = <ActionBarContributor[]> collections.lookupOrInsert(this.actionBarContributorInstances, scope, []);
 		target.push(instance);
@@ -347,7 +347,7 @@ class ActionBarRegistry implements IActionBarRegistry {
 		return null;
 	}
 
-	public registerActionBarContributor(scope: string, ctor: INewConstructorSignature0<ActionBarContributor>): void {
+	public registerActionBarContributor(scope: string, ctor: IConstructorSignature0<ActionBarContributor>): void {
 		if (!this.instantiationService) {
 			this.actionBarContributorConstructors.push({
 				scope: scope,

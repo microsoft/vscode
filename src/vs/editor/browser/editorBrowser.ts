@@ -8,7 +8,7 @@ import {IEmitterEvent, IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IMouseEvent} from 'vs/base/browser/mouseEvent';
-import {IInstantiationService, INewConstructorSignature1} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, IConstructorSignature1} from 'vs/platform/instantiation/common/instantiation';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 
 export interface IDynamicViewOverlay extends IDisposable {
@@ -475,7 +475,7 @@ export interface IEditorMouseEvent {
 	target: IMouseTarget;
 }
 
-export type ISimpleEditorContributionCtor = INewConstructorSignature1<ICodeEditor, editorCommon.IEditorContribution>;
+export type ISimpleEditorContributionCtor = IConstructorSignature1<ICodeEditor, editorCommon.IEditorContribution>;
 
 /**
  * An editor contribution descriptor that will be used to construct editor contributions
