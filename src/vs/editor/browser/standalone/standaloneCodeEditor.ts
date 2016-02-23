@@ -40,6 +40,7 @@ import {DiffEditorWidget} from 'vs/editor/browser/widget/diffEditorWidget';
 
 // Set defaults for standalone editor
 DefaultConfig.editor.wrappingIndent = 'none';
+DefaultConfig.editor.folding = false;
 
 export interface IEditorConstructionOptions extends ICodeEditorWidgetCreationOptions {
 	value?: string;

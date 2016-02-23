@@ -68,6 +68,8 @@ export class TypeScriptWorker2 {
 		this._disposables.push(this.resourceService.addListener2_(ResourceEvents.REMOVED, this._onResourceRemoved.bind(this)));
 		this.resourceService.all()
 			.forEach(element => this._onResourceAdded({ url: element.getAssociatedResource(), addedElement: element }));
+
+		this._doConfigure(null);
 	}
 
 	public dispose(): void {
