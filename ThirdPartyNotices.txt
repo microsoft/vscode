@@ -50,7 +50,7 @@ This project incorporates components from the projects listed below. The origina
 42.	textmate/xml.tmbundle (https://github.com/textmate/xml.tmbundle)
 43.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
 44.	typescript version 1.5 (https://github.com/Microsoft/TypeScript)
-45.	typescript version 1.7.5 (https://github.com/Microsoft/TypeScript)
+45.	typescript version 1.8.2 (https://github.com/Microsoft/TypeScript)
 46.	typescript-sublime-plugin version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
 47.	unity-shader-files version 0.1.0 (https://github.com/nashella/unity-shader-files)
 48.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
