@@ -89,34 +89,8 @@ class Trait implements IDisposable {
 		return this.indexes;
 	}
 
-	add(index: number): void {
-		if (this.contains(index)) {
-			return;
-		}
-
-		this.indexes.push(index);
-		this._onChange.fire({ indexes: this.indexes });
-	}
-
-	remove(index: number): void {
-		this.indexes = this.indexes.filter(i => i === index);
-		this._onChange.fire({ indexes: this.indexes });
-	}
-
 	contains(index: number): boolean {
 		return this.indexes.some(i => i === index);
-	}
-
-	next(n: number): void {
-		let index = this.indexes.length ? this.indexes[0] : 0;
-		index = Math.min(index + n, this.indexes.length);
-		this.set(index);
-	}
-
-	previous(n: number): void {
-		let index = this.indexes.length ? this.indexes[0] : this.indexes.length - 1;
-		index = Math.max(index - n, 0);
-		this.set(index);
 	}
 
 	wrapRenderer<T, D>(renderer: IRenderer<T, D>): IRenderer<T, ITraitTemplateData<D>> {
