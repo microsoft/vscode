@@ -33,8 +33,7 @@ import {DesktopDragAndDropData, ExternalElementsDragAndDropData} from 'vs/base/p
 import {ClickBehavior, DefaultController} from 'vs/base/parts/tree/browser/treeDefaults';
 import {ActionsRenderer} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
-import {DragMouseEvent, StandardMouseEvent} from 'vs/base/browser/mouseEvent';
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {DragMouseEvent, IMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
@@ -46,6 +45,7 @@ import {IMessageService, IConfirmation, Severity} from 'vs/platform/message/comm
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Keybinding, CommonKeybindings} from 'vs/base/common/keyCodes';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 export class FileDataSource implements IDataSource {
 	private workspace: IWorkspace;
@@ -312,7 +312,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 
 		var toDispose = [
 			inputBox,
-			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: DOM.IKeyboardEvent) => {
+			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 				if (e.equals(CommonKeybindings.ENTER)) {
 					if (inputBox.validate()) {
 						done(true);
@@ -390,7 +390,7 @@ export class FileController extends DefaultController {
 		this.state = state;
 	}
 
-	/* protected */ public onLeftClick(tree: ITree, stat: FileStat, event: StandardMouseEvent, origin: string = 'mouse'): boolean {
+	/* protected */ public onLeftClick(tree: ITree, stat: FileStat, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		let payload = { origin: origin };
 		let isDoubleClick = (origin === 'mouse' && event.detail === 2);
 
@@ -495,7 +495,7 @@ export class FileController extends DefaultController {
 		return true;
 	}
 
-	private onEnterDown(tree: ITree, event: StandardKeyboardEvent): boolean {
+	private onEnterDown(tree: ITree, event: IKeyboardEvent): boolean {
 		if (tree.getHighlight()) {
 			return false;
 		}
@@ -522,7 +522,7 @@ export class FileController extends DefaultController {
 		return true;
 	}
 
-	private onEnterUp(tree: ITree, event: StandardKeyboardEvent): boolean {
+	private onEnterUp(tree: ITree, event: IKeyboardEvent): boolean {
 		if (!this.didCatchEnterDown || tree.getHighlight()) {
 			return false;
 		}
@@ -537,7 +537,7 @@ export class FileController extends DefaultController {
 		return true;
 	}
 
-	private onModifierEnterUp(tree: ITree, event: StandardKeyboardEvent): boolean {
+	private onModifierEnterUp(tree: ITree, event: IKeyboardEvent): boolean {
 		if (tree.getHighlight()) {
 			return false;
 		}
@@ -552,7 +552,7 @@ export class FileController extends DefaultController {
 		return true;
 	}
 
-	private onCopy(tree: ITree, event: StandardKeyboardEvent): boolean {
+	private onCopy(tree: ITree, event: IKeyboardEvent): boolean {
 		let stat: FileStat = tree.getFocus();
 		if (stat) {
 			this.runAction(tree, stat, 'workbench.files.action.copyFile').done();
@@ -563,7 +563,7 @@ export class FileController extends DefaultController {
 		return false;
 	}
 
-	private onPaste(tree: ITree, event: StandardKeyboardEvent): boolean {
+	private onPaste(tree: ITree, event: IKeyboardEvent): boolean {
 		let stat: FileStat = tree.getFocus() || tree.getInput() /* root */;
 		if (stat) {
 			let pasteAction = this.instantiationService.createInstance(PasteFileAction, tree, stat);
@@ -591,7 +591,7 @@ export class FileController extends DefaultController {
 		}
 	}
 
-	private onF2(tree: ITree, event: StandardKeyboardEvent): boolean {
+	private onF2(tree: ITree, event: IKeyboardEvent): boolean {
 		let stat: FileStat = tree.getFocus();
 
 		if (stat) {
@@ -603,7 +603,7 @@ export class FileController extends DefaultController {
 		return false;
 	}
 
-	private onDelete(tree: ITree, event: StandardKeyboardEvent): boolean {
+	private onDelete(tree: ITree, event: IKeyboardEvent): boolean {
 		let useTrash = !event.shiftKey;
 		let stat: FileStat = tree.getFocus();
 		if (stat) {

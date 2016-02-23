@@ -4,35 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Strings = require('vs/base/common/strings');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as strings from 'vs/base/common/strings';
+import {CodeEditorStateFlag, ICodeEditorState, ICommonCodeEditor, IEditorPosition, IEditorRange} from 'vs/editor/common/editorCommon';
 
-export class EditorState implements EditorCommon.ICodeEditorState {
+export class EditorState implements ICodeEditorState {
 
-	private flags:EditorCommon.CodeEditorStateFlag[];
+	private flags:CodeEditorStateFlag[];
 
-	private position:EditorCommon.IEditorPosition;
-	private selection:EditorCommon.IEditorRange;
+	private position:IEditorPosition;
+	private selection:IEditorRange;
 	private modelVersionId:string;
 	private scrollLeft:number;
 	private scrollTop:number;
 
-	constructor(editor:EditorCommon.ICommonCodeEditor, flags:EditorCommon.CodeEditorStateFlag[]) {
+	constructor(editor:ICommonCodeEditor, flags:CodeEditorStateFlag[]) {
 		this.flags = flags;
 
 		flags.forEach((flag) => {
 			switch(flag) {
-				case EditorCommon.CodeEditorStateFlag.Value:
+				case CodeEditorStateFlag.Value:
 					var model = editor.getModel();
-					this.modelVersionId = model ? Strings.format('{0}#{1}', model.getAssociatedResource().toString(), model.getVersionId()) : null;
+					this.modelVersionId = model ? strings.format('{0}#{1}', model.getAssociatedResource().toString(), model.getVersionId()) : null;
 					break;
-				case EditorCommon.CodeEditorStateFlag.Position:
+				case CodeEditorStateFlag.Position:
 					this.position = editor.getPosition();
 					break;
-				case EditorCommon.CodeEditorStateFlag.Selection:
+				case CodeEditorStateFlag.Selection:
 					this.selection = editor.getSelection();
 					break;
-				case EditorCommon.CodeEditorStateFlag.Scroll:
+				case CodeEditorStateFlag.Scroll:
 					this.scrollLeft = editor.getScrollLeft();
 					this.scrollTop = editor.getScrollTop();
 					break;
@@ -62,7 +62,7 @@ export class EditorState implements EditorCommon.ICodeEditorState {
 		return true;
 	}
 
-	public validate(editor:EditorCommon.ICommonCodeEditor):boolean {
+	public validate(editor:ICommonCodeEditor):boolean {
 		return this._equals(new EditorState(editor, this.flags));
 	}
 }

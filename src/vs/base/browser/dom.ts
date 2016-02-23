@@ -4,18 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as mouseEvent from 'vs/base/browser/mouseEvent';
-import * as keyboardEvent from 'vs/base/browser/keyboardEvent';
-import {isChrome, isWebKit} from 'vs/base/browser/browser';
-import types = require('vs/base/common/types');
+import {TimeoutTimer} from 'vs/base/common/async';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {Disposable, IDisposable} from 'vs/base/common/lifecycle';
-import {onUnexpectedError} from 'vs/base/common/errors';
-import browserService = require('vs/base/browser/browserService');
-import {TimeoutTimer} from 'vs/base/common/async';
-
-export type IKeyboardEvent = keyboardEvent.IKeyboardEvent;
-export type IMouseEvent = mouseEvent.IMouseEvent;
+import {isObject} from 'vs/base/common/types';
+import {isChrome, isWebKit} from 'vs/base/browser/browser';
+import {getService} from 'vs/base/browser/browserService';
+import {IKeyboardEvent, StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {IMouseEvent, StandardMouseEvent} from 'vs/base/browser/mouseEvent';
 
 export function clearNode(node: HTMLElement) {
 	while (node.firstChild) {
@@ -37,7 +34,7 @@ export function safeStringifyDOMAware(obj: any): string {
 			return '[Element]';
 		}
 
-		if (types.isObject(value) || Array.isArray(value)) {
+		if (isObject(value) || Array.isArray(value)) {
 			if (seen.indexOf(value) !== -1) {
 				return '[Circular]';
 			} else {
@@ -243,12 +240,12 @@ export interface IAddStandardDisposableListenerSignature {
 }
 function _wrapAsStandardMouseEvent(handler: (e: IMouseEvent) => void): (e: MouseEvent) => void {
 	return function(e: MouseEvent) {
-		return handler(new mouseEvent.StandardMouseEvent(e));
+		return handler(new StandardMouseEvent(e));
 	};
 }
 function _wrapAsStandardKeyboardEvent(handler: (e: IKeyboardEvent) => void): (e: KeyboardEvent) => void {
 	return function(e: KeyboardEvent) {
-		return handler(new keyboardEvent.StandardKeyboardEvent(e));
+		return handler(new StandardKeyboardEvent(e));
 	};
 }
 export let addStandardDisposableListener: IAddStandardDisposableListenerSignature = function addStandardDisposableListener(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
@@ -779,7 +776,7 @@ export function removeCSSRulesWithPrefix(ruleName: string, style = sharedStyle):
 }
 
 export function isHTMLElement(o: any): o is HTMLElement {
-	return browserService.getService().isHTMLElement(o);
+	return getService().isHTMLElement(o);
 }
 
 export const EventType = {

@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ISuggestionFilter, ISuggestion} from 'vs/editor/common/modes';
-import * as Filters from 'vs/base/common/filters';
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
+import * as filters from 'vs/base/common/filters';
+import {ISuggestion, ISuggestionFilter} from 'vs/editor/common/modes';
 
-export type IMatch = Filters.IMatch;
+export type IMatch = filters.IMatch;
 
-function wrapBaseFilter(filter: Filters.IFilter): ISuggestionFilter {
-	return (word: string, suggestion: ISuggestion): Filters.IMatch[] => {
+function wrapBaseFilter(filter: filters.IFilter): ISuggestionFilter {
+	return (word: string, suggestion: ISuggestion): filters.IMatch[] => {
 		const result = filter(word, suggestion.filterText || suggestion.label);
 		return isFalsyOrEmpty(result) ? undefined : result;
 	};
 }
 
-export var StrictPrefix: ISuggestionFilter = wrapBaseFilter(Filters.matchesStrictPrefix);
-export var Prefix: ISuggestionFilter = wrapBaseFilter(Filters.matchesPrefix);
-export var CamelCase: ISuggestionFilter = wrapBaseFilter(Filters.matchesCamelCase);
-export var ContiguousSubString: ISuggestionFilter = wrapBaseFilter(Filters.matchesContiguousSubString);
+export var StrictPrefix: ISuggestionFilter = wrapBaseFilter(filters.matchesStrictPrefix);
+export var Prefix: ISuggestionFilter = wrapBaseFilter(filters.matchesPrefix);
+export var CamelCase: ISuggestionFilter = wrapBaseFilter(filters.matchesCamelCase);
+export var ContiguousSubString: ISuggestionFilter = wrapBaseFilter(filters.matchesContiguousSubString);
 
 // Combined Filters
 

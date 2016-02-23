@@ -13,8 +13,8 @@ import {Checkbox} from 'vs/base/browser/ui/checkbox/checkbox';
 import {IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
 import {Widget} from 'vs/base/browser/ui/widget';
 import Event, {Emitter} from 'vs/base/common/event';
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 
 export interface IFindInputOptions {
@@ -59,17 +59,17 @@ export class FindInput extends Widget {
 	private _onDidOptionChange = this._register(new Emitter<boolean>());
 	public onDidOptionChange: Event<boolean /* via keyboard */> = this._onDidOptionChange.event;
 
-	private _onKeyDown = this._register(new Emitter<StandardKeyboardEvent>());
-	public onKeyDown: Event<StandardKeyboardEvent> = this._onKeyDown.event;
+	private _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
+	public onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
 
 	private _onInput = this._register(new Emitter<void>());
 	public onInput: Event<void> = this._onInput.event;
 
-	private _onKeyUp = this._register(new Emitter<StandardKeyboardEvent>());
-	public onKeyUp: Event<StandardKeyboardEvent> = this._onKeyUp.event;
+	private _onKeyUp = this._register(new Emitter<IKeyboardEvent>());
+	public onKeyUp: Event<IKeyboardEvent> = this._onKeyUp.event;
 
-	private _onCaseSensitiveKeyDown = this._register(new Emitter<StandardKeyboardEvent>());
-	public onCaseSensitiveKeyDown: Event<StandardKeyboardEvent> = this._onCaseSensitiveKeyDown.event;
+	private _onCaseSensitiveKeyDown = this._register(new Emitter<IKeyboardEvent>());
+	public onCaseSensitiveKeyDown: Event<IKeyboardEvent> = this._onCaseSensitiveKeyDown.event;
 
 	constructor(parent:HTMLElement, contextViewProvider: IContextViewProvider, options?:IFindInputOptions) {
 		super();
@@ -257,7 +257,7 @@ export class FindInput extends Widget {
 
 		// Arrow-Key support to navigate between options
 		let indexes = [this.caseSensitive.domNode, this.wholeWords.domNode, this.regex.domNode];
-		this.onkeydown(this.domNode, (event: StandardKeyboardEvent) => {
+		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
 			if (event.equals(CommonKeybindings.LEFT_ARROW) || event.equals(CommonKeybindings.RIGHT_ARROW) || event.equals(CommonKeybindings.ESCAPE)) {
 				let index = indexes.indexOf(<HTMLElement>document.activeElement);
 				if (index >= 0) {
@@ -317,7 +317,7 @@ export class FindInput extends Widget {
 }
 
 interface IMatchCountOpts {
-	onClick: (e:StandardMouseEvent) => void;
+	onClick: (e:IMouseEvent) => void;
 }
 
 class MatchCount extends Widget {

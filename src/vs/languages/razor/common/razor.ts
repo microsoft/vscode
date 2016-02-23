@@ -7,12 +7,10 @@
 import Modes = require('vs/editor/common/modes');
 import htmlMode = require('vs/languages/html/common/html');
 import csharpTokenization = require('vs/languages/razor/common/csharpTokenization');
-import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
-import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
+import {createWordRegExp, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
 import razorTokenTypes = require('vs/languages/razor/common/razorTokenTypes');
 import {RAZORWorker} from 'vs/languages/razor/common/razorWorker';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
@@ -59,16 +57,19 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 	constructor(
 		descriptor:Modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThreadService threadService: IThreadService,
 		@IModeService modeService: IModeService
 	) {
-		super(descriptor, instantiationService, threadService, modeService);
+		super(descriptor, instantiationService, modeService);
 
 		this.formattingSupport = null;
 	}
 
-	protected _createRichEditSupport(embeddedAutoClosingPairs: Modes.IAutoClosingPair[]): Modes.IRichEditSupport {
-		return new RichEditSupport(this.getId(), {
+	protected _createModeWorkerManager(descriptor:Modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<RAZORWorker> {
+		return new ModeWorkerManager<RAZORWorker>(descriptor, 'vs/languages/razor/common/razorWorker', 'RAZORWorker', 'vs/languages/html/common/htmlWorker', instantiationService);
+	}
+
+	protected _createRichEditSupport(): Modes.IRichEditSupport {
+		return new RichEditSupport(this.getId(), null, {
 
 			wordPattern: createWordRegExp('#?%'),
 
@@ -83,13 +84,18 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 			],
 
 			__electricCharacterSupport: {
-				brackets: [],
 				caseInsensitive: true,
 				embeddedElectricCharacters: ['*', '}', ']', ')']
 			},
 
 			__characterPairSupport: {
-				autoClosingPairs: embeddedAutoClosingPairs.slice(0),
+				autoClosingPairs: [
+					{ open: '{', close: '}' },
+					{ open: '[', close: ']' },
+					{ open: '(', close: ')' },
+					{ open: '"', close: '"' },
+					{ open: '\'', close: '\'' }
+				],
 				surroundingPairs: [
 					{ open: '"', close: '"' },
 					{ open: '\'', close: '\'' }
@@ -108,10 +114,6 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 				}
 			],
 		});
-	}
-
-	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], RAZORWorker> {
-		return createAsyncDescriptor2('vs/languages/razor/common/razorWorker', 'RAZORWorker');
 	}
 
 	public getInitialState(): Modes.IState {

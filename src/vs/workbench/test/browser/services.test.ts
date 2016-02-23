@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
-import {create} from 'vs/platform/instantiation/common/instantiationService';
+import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, EditorOptions, TextEditorOptions} from 'vs/workbench/common/editor';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
@@ -256,7 +256,7 @@ suite('Workbench UI Services', () => {
 			lifecycleService: new TestLifecycleService(),
 			fileService: TestFileService
 		};
-		let inst = create(services);
+		let inst = createInstantiationService(services);
 
 		let textFileService = inst.createInstance(<any>TextFileService);
 		inst.registerService('textFileService', textFileService);
@@ -359,7 +359,7 @@ suite('Workbench UI Services', () => {
 			configurationService: new TestConfigurationService()
 		};
 
-		let inst = create(services);
+		let inst = createInstantiationService(services);
 		let textFileService = inst.createInstance(<any>TextFileService);
 		inst.registerService('textFileService', textFileService);
 		services['instantiationService'] = inst;

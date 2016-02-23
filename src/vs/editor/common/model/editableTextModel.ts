@@ -6,11 +6,11 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import {EditStack} from 'vs/editor/common/model/editStack';
-import {ModelLine, ILineEdit, ILineMarker} from 'vs/editor/common/model/modelLine';
-import {TextModelWithDecorations, DeferredEventsBuilder} from 'vs/editor/common/model/textModelWithDecorations';
+import {ILineEdit, ILineMarker, ModelLine} from 'vs/editor/common/model/modelLine';
+import {DeferredEventsBuilder, TextModelWithDecorations} from 'vs/editor/common/model/textModelWithDecorations';
 import {IMode} from 'vs/editor/common/modes';
-import EditorCommon = require('vs/editor/common/editorCommon');
 
 export interface IDeltaSingleEditOperation {
 	original: IValidatedEditOperation;
@@ -21,8 +21,8 @@ export interface IDeltaSingleEditOperation {
 }
 
 export interface IValidatedEditOperation {
-	identifier: EditorCommon.ISingleEditOperationIdentifier;
-	range: EditorCommon.IEditorRange;
+	identifier: editorCommon.ISingleEditOperationIdentifier;
+	range: editorCommon.IEditorRange;
 	rangeLength: number;
 	lines: string[];
 	forceMoveMarkers: boolean;
@@ -32,7 +32,7 @@ interface IIdentifiedLineEdit extends ILineEdit{
 	lineNumber: number;
 }
 
-export class EditableTextModel extends TextModelWithDecorations implements EditorCommon.IEditableTextModel {
+export class EditableTextModel extends TextModelWithDecorations implements editorCommon.IEditableTextModel {
 
 	private _commandManager:EditStack;
 
@@ -44,9 +44,9 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 	private _hasEditableRange:boolean;
 	private _editableRangeId:string;
 
-	constructor(allowedEventTypes:string[], rawText:EditorCommon.IRawText, modeOrPromise:IMode|TPromise<IMode>) {
-		allowedEventTypes.push(EditorCommon.EventType.ModelContentChanged);
-		allowedEventTypes.push(EditorCommon.EventType.ModelContentChanged2);
+	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText, modeOrPromise:IMode|TPromise<IMode>) {
+		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged);
+		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged2);
 		super(allowedEventTypes, rawText, modeOrPromise);
 
 		this._commandManager = new EditStack(this);
@@ -63,7 +63,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		super.dispose();
 	}
 
-	_resetValue(e:EditorCommon.IModelContentChangedFlushEvent, newValue:string): void {
+	_resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:string): void {
 		super._resetValue(e, newValue);
 
 		// Destroy my edit history and settings
@@ -80,7 +80,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		this._commandManager.pushStackElement();
 	}
 
-	public pushEditOperations(beforeCursorState:EditorCommon.IEditorSelection[], editOperations:EditorCommon.IIdentifiedSingleEditOperation[], cursorStateComputer:EditorCommon.ICursorStateComputer): EditorCommon.IEditorSelection[] {
+	public pushEditOperations(beforeCursorState:editorCommon.IEditorSelection[], editOperations:editorCommon.IIdentifiedSingleEditOperation[], cursorStateComputer:editorCommon.ICursorStateComputer): editorCommon.IEditorSelection[] {
 		if (this._isDisposed) {
 			throw new Error('EditableTextModel.pushEditOperations: Model is disposed');
 		}
@@ -161,7 +161,10 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		};
 	}
 
-	public applyEdits(rawOperations:EditorCommon.IIdentifiedSingleEditOperation[]): EditorCommon.IIdentifiedSingleEditOperation[] {
+	public applyEdits(rawOperations:editorCommon.IIdentifiedSingleEditOperation[]): editorCommon.IIdentifiedSingleEditOperation[] {
+		if (rawOperations.length === 0) {
+			return [];
+		}
 
 		let operations:IValidatedEditOperation[] = [];
 		for (let i = 0; i < rawOperations.length; i++) {
@@ -205,7 +208,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		// Delta encode operations
 		let deltaOperations = EditableTextModel._toDeltaOperations(operations);
 		let reverseRanges = EditableTextModel._getInverseEditRanges(deltaOperations);
-		let reverseOperations: EditorCommon.IIdentifiedSingleEditOperation[] = [];
+		let reverseOperations: editorCommon.IIdentifiedSingleEditOperation[] = [];
 		for (let i = 0; i < operations.length; i++) {
 			reverseOperations[i] = {
 				identifier: operations[i].identifier,
@@ -238,17 +241,17 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 	/**
 	 * Assumes `operations` are validated and sorted ascending
 	 */
-	public static _getInverseEditRanges(operations:IDeltaSingleEditOperation[]): EditorCommon.IEditorRange[] {
+	public static _getInverseEditRanges(operations:IDeltaSingleEditOperation[]): editorCommon.IEditorRange[] {
 		let lineNumber = 0,
 			column = 0,
-			result:EditorCommon.IEditorRange[] = [];
+			result:editorCommon.IEditorRange[] = [];
 
 		for (let i = 0, len = operations.length; i < len; i++) {
 			let op = operations[i];
 
 			let startLineNumber = op.deltaStartLineNumber + lineNumber;
 			let startColumn = op.deltaStartColumn + (op.deltaStartLineNumber === 0 ? column : 0);
-			let resultRange: EditorCommon.IEditorRange;
+			let resultRange: editorCommon.IEditorRange;
 
 			if (op.original.lines && op.original.lines.length > 0) {
 				// There is something to insert
@@ -279,8 +282,8 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		operations = operations.sort((a, b) => -Range.compareRangesUsingEnds(a.range, b.range));
 
 		this._withDeferredEvents((deferredEventsBuilder:DeferredEventsBuilder) => {
-			let contentChangedEvents: EditorCommon.IModelContentChangedEvent[] = [];
-			let contentChanged2Events: EditorCommon.IModelContentChangedEvent2[] = [];
+			let contentChangedEvents: editorCommon.IModelContentChangedEvent[] = [];
+			let contentChanged2Events: editorCommon.IModelContentChangedEvent2[] = [];
 			let lineEditsQueue: IIdentifiedLineEdit[] = [];
 
 			let queueLineEdit = (lineEdit:IIdentifiedLineEdit) => {
@@ -473,10 +476,10 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 				}
 
 				for (let i = 0, len = contentChangedEvents.length; i < len; i++) {
-					this.emit(EditorCommon.EventType.ModelContentChanged, contentChangedEvents[i]);
+					this.emit(editorCommon.EventType.ModelContentChanged, contentChangedEvents[i]);
 				}
 				for (let i = 0, len = contentChanged2Events.length; i < len; i++) {
-					this.emit(EditorCommon.EventType.ModelContentChanged2, contentChanged2Events[i]);
+					this.emit(editorCommon.EventType.ModelContentChanged2, contentChanged2Events[i]);
 				}
 			}
 
@@ -519,7 +522,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		return result;
 	}
 
-	public undo(): EditorCommon.IEditorSelection[] {
+	public undo(): editorCommon.IEditorSelection[] {
 		if (this._isDisposed) {
 			throw new Error('EditableTextModel.undo: Model is disposed');
 		}
@@ -539,7 +542,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		});
 	}
 
-	public redo(): EditorCommon.IEditorSelection[] {
+	public redo(): editorCommon.IEditorSelection[] {
 		if (this._isDisposed) {
 			throw new Error('EditableTextModel.redo: Model is disposed');
 		}
@@ -559,7 +562,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		});
 	}
 
-	public setEditableRange(range:EditorCommon.IRange): void {
+	public setEditableRange(range:editorCommon.IRange): void {
 		if (this._isDisposed) {
 			throw new Error('EditableTextModel.setEditableRange: Model is disposed');
 		}
@@ -573,7 +576,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 
 		if (range) {
 			this._hasEditableRange = true;
-			this._editableRangeId = this.addTrackedRange(range, EditorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
+			this._editableRangeId = this.addTrackedRange(range, editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 		}
 	}
 
@@ -585,7 +588,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		return this._hasEditableRange;
 	}
 
-	public getEditableRange(): EditorCommon.IEditorRange {
+	public getEditableRange(): editorCommon.IEditorRange {
 		if (this._isDisposed) {
 			throw new Error('EditableTextModel.getEditableRange: Model is disposed');
 		}
@@ -597,9 +600,9 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		}
 	}
 
-	private _createLineChangedEvent(lineNumber: number): EditorCommon.IModelContentChangedLineChangedEvent {
+	private _createLineChangedEvent(lineNumber: number): editorCommon.IModelContentChangedLineChangedEvent {
 		return {
-			changeType: EditorCommon.EventType.ModelContentChangedLineChanged,
+			changeType: editorCommon.EventType.ModelContentChangedLineChanged,
 			lineNumber: lineNumber,
 			detail: this._lines[lineNumber - 1].text,
 			versionId: -1,
@@ -608,9 +611,9 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		};
 	}
 
-	private _createLinesDeletedEvent(fromLineNumber: number, toLineNumber: number): EditorCommon.IModelContentChangedLinesDeletedEvent {
+	private _createLinesDeletedEvent(fromLineNumber: number, toLineNumber: number): editorCommon.IModelContentChangedLinesDeletedEvent {
 		return {
-			changeType: EditorCommon.EventType.ModelContentChangedLinesDeleted,
+			changeType: editorCommon.EventType.ModelContentChangedLinesDeleted,
 			fromLineNumber: fromLineNumber,
 			toLineNumber: toLineNumber,
 			versionId: -1,
@@ -619,9 +622,9 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		};
 	}
 
-	private _createLinesInsertedEvent(fromLineNumber: number, toLineNumber: number, newLinesContent: string): EditorCommon.IModelContentChangedLinesInsertedEvent {
+	private _createLinesInsertedEvent(fromLineNumber: number, toLineNumber: number, newLinesContent: string): editorCommon.IModelContentChangedLinesInsertedEvent {
 		return {
-			changeType: EditorCommon.EventType.ModelContentChangedLinesInserted,
+			changeType: editorCommon.EventType.ModelContentChangedLinesInserted,
 			fromLineNumber: fromLineNumber,
 			toLineNumber: toLineNumber,
 			detail: newLinesContent,

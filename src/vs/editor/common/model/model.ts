@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IMode} from 'vs/editor/common/modes';
-import {TextModel} from 'vs/editor/common/model/textModel';
-import {EditableTextModel} from 'vs/editor/common/model/editableTextModel';
-import EditorCommon = require('vs/editor/common/editorCommon');
 import URI from 'vs/base/common/uri';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {EventType, IModel} from 'vs/editor/common/editorCommon';
+import {EditableTextModel} from 'vs/editor/common/model/editableTextModel';
+import {TextModel} from 'vs/editor/common/model/textModel';
+import {IMode} from 'vs/editor/common/modes';
 
 // The hierarchy is:
 // Model -> EditableTextModel -> TextModelWithDecorations -> TextModelWithTrackedRanges -> TextModelWithMarkers -> TextModelWithTokens -> TextModel
@@ -29,7 +29,7 @@ var aliveModels:{[modelId:string]:boolean;} = {};
 // 	LAST_CNT = cnt;
 // }, 100);
 
-export class Model extends EditableTextModel implements EditorCommon.IModel {
+export class Model extends EditableTextModel implements IModel {
 
 	public id:string;
 
@@ -51,7 +51,7 @@ export class Model extends EditableTextModel implements EditorCommon.IModel {
 	 */
 	constructor(rawText:string, modeOrPromise:IMode|TPromise<IMode>, associatedResource:URI=null) {
 		super([
-			EditorCommon.EventType.ModelDispose
+			EventType.ModelDispose
 		], TextModel.toRawText(rawText), modeOrPromise);
 
 		// Generate a new unique model id
@@ -86,7 +86,7 @@ export class Model extends EditableTextModel implements EditorCommon.IModel {
 	public dispose(): void {
 		this._isDisposing = true;
 		delete aliveModels[String(this._associatedResource)];
-		this.emit(EditorCommon.EventType.ModelDispose);
+		this.emit(EventType.ModelDispose);
 		super.dispose();
 		this._isDisposing = false;
 		// console.log('ALIVE MODELS: ' + Object.keys(aliveModels).join('\n'));

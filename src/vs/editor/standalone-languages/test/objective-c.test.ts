@@ -5,10 +5,10 @@
 
 'use strict';
 
-import languageDef = require('vs/editor/standalone-languages/objective-c');
-import T = require('vs/editor/standalone-languages/test/testUtil');
+import {language} from 'vs/editor/standalone-languages/objective-c';
+import {testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
-T.testTokenization('objective-c', languageDef.language, [
+testTokenization('objective-c', language, [
 	// Keywords
 	[{
 	line: '-(id) initWithParams:(id<anObject>) aHandler withDeviceStateManager:(id<anotherObject>) deviceStateManager',

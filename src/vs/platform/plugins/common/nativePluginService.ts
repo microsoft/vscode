@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IPluginDescription, IMessage, IPluginStatus} from 'vs/platform/plugins/common/plugins';
-import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
-import WinJS = require('vs/base/common/winjs.base');
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {ActivatedPlugin, AbstractPluginService, IPluginContext, IPluginMemento, loadAMDModule} from 'vs/platform/plugins/common/abstractPluginService';
-import Severity from 'vs/base/common/severity';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {PluginHostStorage} from 'vs/platform/storage/common/remotable.storage';
-import * as paths from 'vs/base/common/paths';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable} from 'vs/base/common/lifecycle';
+import * as paths from 'vs/base/common/paths';
+import Severity from 'vs/base/common/severity';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IMessageService} from 'vs/platform/message/common/message';
+import {AbstractPluginService, ActivatedPlugin, IPluginContext, IPluginMemento, loadAMDModule} from 'vs/platform/plugins/common/abstractPluginService';
+import {IMessage, IPluginDescription, IPluginStatus} from 'vs/platform/plugins/common/plugins';
+import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
+import {PluginHostStorage} from 'vs/platform/storage/common/remotable.storage';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IThreadService, Remotable} from 'vs/platform/thread/common/thread';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 const hasOwnProperty = Object.hasOwnProperty;
 
@@ -26,7 +26,7 @@ class PluginMemento implements IPluginMemento {
 	private _shared: boolean;
 	private _storage: PluginHostStorage;
 
-	private _init: WinJS.TPromise<PluginMemento>;
+	private _init: TPromise<PluginMemento>;
 	private _value: { [n: string]: any; };
 
 	constructor(id: string, global: boolean, storage: PluginHostStorage) {
@@ -40,7 +40,7 @@ class PluginMemento implements IPluginMemento {
 		});
 	}
 
-	get whenReady(): WinJS.TPromise<PluginMemento> {
+	get whenReady(): TPromise<PluginMemento> {
 		return this._init;
 	}
 
@@ -206,7 +206,7 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 
 	// -- overwriting AbstractPluginService
 
-	protected _actualActivatePlugin(pluginDescription: IPluginDescription): WinJS.TPromise<ActivatedPlugin> {
+	protected _actualActivatePlugin(pluginDescription: IPluginDescription): TPromise<ActivatedPlugin> {
 		let event = this.getTelemetryActivationEvent(pluginDescription);
 		this._telemetryService.publicLog('activatePlugin', event);
 		// redirect plugin activation to the plugin host
@@ -233,7 +233,7 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 }
 
 export interface IPluginModule {
-	activate(ctx: IPluginContext): WinJS.TPromise<IPluginExports>;
+	activate(ctx: IPluginContext): TPromise<IPluginExports>;
 	deactivate(): void;
 }
 
@@ -338,7 +338,7 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 		this._proxy.$onPluginHostReady(PluginsRegistry.getAllPluginDescriptions(), messages);
 	}
 
-	protected _loadPluginModule(pluginDescription: IPluginDescription): WinJS.TPromise<IPluginModule> {
+	protected _loadPluginModule(pluginDescription: IPluginDescription): TPromise<IPluginModule> {
 		if (pluginDescription.isAMD) {
 			return loadAMDModule(uriFromPath(pluginDescription.main));
 		}
@@ -346,12 +346,12 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 		return loadCommonJSModule(pluginDescription.main);
 	}
 
-	protected _loadPluginContext(pluginDescription: IPluginDescription): WinJS.TPromise<IPluginContext> {
+	protected _loadPluginContext(pluginDescription: IPluginDescription): TPromise<IPluginContext> {
 
 		let globalState = new PluginMemento(pluginDescription.id, true, this._storage);
 		let workspaceState = new PluginMemento(pluginDescription.id, false, this._storage);
 
-		return WinJS.TPromise.join([globalState.whenReady, workspaceState.whenReady]).then(() => {
+		return TPromise.join([globalState.whenReady, workspaceState.whenReady]).then(() => {
 			return Object.freeze(<IPluginContext>{
 				globalState,
 				workspaceState,
@@ -362,7 +362,7 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 		});
 	}
 
-	protected _actualActivatePlugin(pluginDescription: IPluginDescription): WinJS.TPromise<ActivatedPlugin> {
+	protected _actualActivatePlugin(pluginDescription: IPluginDescription): TPromise<ActivatedPlugin> {
 
 		return this._superActualActivatePlugin(pluginDescription).then((activatedPlugin) => {
 			this._proxy.$onPluginActivatedInPluginHost(pluginDescription.id);
@@ -373,11 +373,11 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 		});
 	}
 
-	private _superActualActivatePlugin(pluginDescription: IPluginDescription): WinJS.TPromise<ExtHostPlugin> {
+	private _superActualActivatePlugin(pluginDescription: IPluginDescription): TPromise<ExtHostPlugin> {
 
 		if (!pluginDescription.main) {
 			// Treat the plugin as being empty => NOT AN ERROR CASE
-			return WinJS.TPromise.as(new EmptyPlugin());
+			return TPromise.as(new EmptyPlugin());
 		}
 		return this._loadPluginModule(pluginDescription).then((pluginModule) => {
 			return this._loadPluginContext(pluginDescription).then(context => {
@@ -386,7 +386,7 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 		});
 	}
 
-	private static _callActivate(pluginModule: IPluginModule, context: IPluginContext): WinJS.TPromise<ExtHostPlugin> {
+	private static _callActivate(pluginModule: IPluginModule, context: IPluginContext): TPromise<ExtHostPlugin> {
 		// Make sure the plugin's surface is not undefined
 		pluginModule = pluginModule || {
 			activate: undefined,
@@ -399,35 +399,35 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 		});
 	}
 
-	private static _callActivateOptional(pluginModule: IPluginModule, context: IPluginContext): WinJS.TPromise<IPluginExports> {
+	private static _callActivateOptional(pluginModule: IPluginModule, context: IPluginContext): TPromise<IPluginExports> {
 		if (typeof pluginModule.activate === 'function') {
 			try {
-				return WinJS.TPromise.as(pluginModule.activate.apply(global, [context]));
+				return TPromise.as(pluginModule.activate.apply(global, [context]));
 			} catch (err) {
-				return WinJS.TPromise.wrapError(err);
+				return TPromise.wrapError(err);
 			}
 		} else {
 			// No activate found => the module is the plugin's exports
-			return WinJS.TPromise.as<IPluginExports>(pluginModule);
+			return TPromise.as<IPluginExports>(pluginModule);
 		}
 	}
 
 	// -- called by main thread
 
-	public $activatePluginInPluginHost(pluginDescription: IPluginDescription): WinJS.TPromise<void> {
+	public $activatePluginInPluginHost(pluginDescription: IPluginDescription): TPromise<void> {
 		return this._activatePlugin(pluginDescription);
 	}
 
 }
 
-function loadCommonJSModule<T>(modulePath: string): WinJS.TPromise<T> {
+function loadCommonJSModule<T>(modulePath: string): TPromise<T> {
 	let r: T = null;
 	try {
 		r = require.__$__nodeRequire<T>(modulePath);
 	} catch (e) {
-		return WinJS.TPromise.wrapError(e);
+		return TPromise.wrapError(e);
 	}
-	return WinJS.TPromise.as(r);
+	return TPromise.as(r);
 }
 
 

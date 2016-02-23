@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import {AbstractGettingStarted} from 'vs/workbench/parts/gettingStarted/common/abstractGettingStarted';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {create} from 'vs/platform/instantiation/common/instantiationService';
+import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {TPromise} from 'vs/base/common/winjs.base';
 
 class TestGettingStarted extends AbstractGettingStarted {
@@ -27,7 +27,7 @@ suite('Workbench - GettingStarted', () => {
 	let appName: string = null;
 
 	suiteSetup(() => {
-		instantiation = create({
+		instantiation = createInstantiationService({
 			contextService: {
 				getConfiguration: () => {
 					return {

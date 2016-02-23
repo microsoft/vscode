@@ -9,43 +9,38 @@
  * using regular expressions.
  */
 
+import {IRichEditSupport, ISuggestSupport, ITokenizationSupport} from 'vs/editor/common/modes';
 import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
-import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import {ILexer} from 'vs/editor/common/modes/monarch/monarchCommon';
-import Modes = require('vs/editor/common/modes');
-import MonarchDefinition = require('vs/editor/common/modes/monarch/monarchDefinition');
+import {createRichEditSupport, createSuggestSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IThreadService} from 'vs/platform/thread/common/thread';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IModelService} from 'vs/editor/common/services/modelService';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
+import {IModeService} from 'vs/editor/common/services/modeService';
+import {IModelService} from 'vs/editor/common/services/modelService';
 
 /**
  * The MonarchMode creates a Monaco language mode given a certain language description
  */
-export class MonarchMode<W extends AbstractModeWorker> extends AbstractMode<W> {
+export abstract class MonarchMode extends AbstractMode {
 
-	public suggestSupport:Modes.ISuggestSupport;
-	public tokenizationSupport: Modes.ITokenizationSupport;
-	public richEditSupport: Modes.IRichEditSupport;
+	public suggestSupport:ISuggestSupport;
+	public tokenizationSupport: ITokenizationSupport;
+	public richEditSupport: IRichEditSupport;
 
 	constructor(
-		descriptor:Modes.IModeDescriptor,
+		modeId:string,
 		lexer: ILexer,
-		instantiationService: IInstantiationService,
-		threadService: IThreadService,
 		modeService: IModeService,
 		modelService: IModelService,
 		editorWorkerService: IEditorWorkerService
 	) {
-		super(descriptor, instantiationService, threadService);
+		super(modeId);
 
 		this.tokenizationSupport = createTokenizationSupport(modeService, this, lexer);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), MonarchDefinition.createRichEditSupport(lexer));
+		this.richEditSupport = new RichEditSupport(this.getId(), null, createRichEditSupport(lexer));
 
-		this.suggestSupport = MonarchDefinition.createSuggestSupport(modelService, editorWorkerService, this.getId(), lexer);
+		this.suggestSupport = createSuggestSupport(modelService, editorWorkerService, this.getId(), lexer);
 	}
 }

@@ -5,10 +5,7 @@
 'use strict';
 
 import 'vs/languages/handlebars/common/handlebars.contribution';
-import assert = require('assert');
-import handlebarsMode = require('vs/languages/handlebars/common/handlebars');
-import htmlMode = require('vs/languages/html/common/html');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import 'vs/languages/javascript/common/javascript.contribution';
 import Modes = require('vs/editor/common/modes');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import {htmlTokenTypes} from 'vs/languages/html/common/html';
@@ -19,7 +16,7 @@ suite('Handlebars', () => {
 
 	var tokenizationSupport: Modes.ITokenizationSupport;
 	setup((done) => {
-		modesUtil.load('handlebars'/*, ['javascript']*/).then(mode => {
+		modesUtil.load('handlebars', ['javascript']).then(mode => {
 			tokenizationSupport = mode.tokenizationSupport;
 			done();
 		});
@@ -92,7 +89,7 @@ suite('Handlebars', () => {
 				{ startIndex:19, type: htmlTokenTypes.getTag('h1') },
 				{ startIndex:21, type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Close }
 			]}
-		])
+		]);
 	});
 
 	test('Blocks', () => {
@@ -156,7 +153,7 @@ suite('Handlebars', () => {
 			]}, {
 			line: '{{/if}}',
 			tokens: null}
-		])
+		]);
 	});
 
 	test('Div end', () => {

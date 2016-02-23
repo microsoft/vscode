@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as assert from 'assert';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import {EditableTextModel} from 'vs/editor/common/model/editableTextModel';
-import {TextModel} from 'vs/editor/common/model/textModel';
+import {IMirrorModelEvents, MirrorModel} from 'vs/editor/common/model/mirrorModel';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
-import {MirrorModel, IMirrorModelEvents} from 'vs/editor/common/model/mirrorModel';
+import {TextModel} from 'vs/editor/common/model/textModel';
 
-export function testApplyEditsWithSyncedModels(original:string[], edits:EditorCommon.IIdentifiedSingleEditOperation[], expected:string[]): void {
+export function testApplyEditsWithSyncedModels(original:string[], edits:editorCommon.IIdentifiedSingleEditOperation[], expected:string[]): void {
 	var originalStr = original.join('\n');
 	var expectedStr = expected.join('\n');
 
@@ -20,7 +20,7 @@ export function testApplyEditsWithSyncedModels(original:string[], edits:EditorCo
 		var inverseEdits = model.applyEdits(edits);
 
 		// Assert edits produced expected result
-		assert.deepEqual(model.getValue(EditorCommon.EndOfLinePreference.LF), expectedStr);
+		assert.deepEqual(model.getValue(editorCommon.EndOfLinePreference.LF), expectedStr);
 
 		assertMirrorModels();
 
@@ -28,7 +28,7 @@ export function testApplyEditsWithSyncedModels(original:string[], edits:EditorCo
 		var inverseInverseEdits = model.applyEdits(inverseEdits);
 
 		// Assert the inverse edits brought back model to original state
-		assert.deepEqual(model.getValue(EditorCommon.EndOfLinePreference.LF), originalStr);
+		assert.deepEqual(model.getValue(editorCommon.EndOfLinePreference.LF), originalStr);
 
 		// Assert the inverse of the inverse edits are the original edits
 		assert.deepEqual(inverseInverseEdits, edits);
@@ -39,7 +39,7 @@ export function testApplyEditsWithSyncedModels(original:string[], edits:EditorCo
 
 export  function assertSyncedModels(text:string, callback:(model:EditableTextModel, assertMirrorModels:()=>void)=>void, setup:(model:EditableTextModel)=>void = null): void {
 	var model = new EditableTextModel([], TextModel.toRawText(text), null);
-	model.setEOL(EditorCommon.EndOfLineSequence.LF);
+	model.setEOL(editorCommon.EndOfLineSequence.LF);
 
 	if (setup) {
 		setup(model);
@@ -51,7 +51,7 @@ export  function assertSyncedModels(text:string, callback:(model:EditableTextMod
 	var mirrorModel2 = new MirrorModel2(null, model.toRawText().lines, model.toRawText().EOL, model.getVersionId());
 	var mirrorModel2PrevVersionId = model.getVersionId();
 
-	model.addListener(EditorCommon.EventType.ModelContentChanged, (e:EditorCommon.IModelContentChangedEvent) => {
+	model.addListener(editorCommon.EventType.ModelContentChanged, (e:editorCommon.IModelContentChangedEvent) => {
 		let versionId = e.versionId;
 		if (versionId < mirrorModel1PrevVersionId) {
 			console.warn('Model version id did not advance between edits (1)');
@@ -63,7 +63,7 @@ export  function assertSyncedModels(text:string, callback:(model:EditableTextMod
 		mirrorModel1.onEvents(mirrorModelEvents);
 	});
 
-	model.addListener(EditorCommon.EventType.ModelContentChanged2, (e:EditorCommon.IModelContentChangedEvent2) => {
+	model.addListener(editorCommon.EventType.ModelContentChanged2, (e:editorCommon.IModelContentChangedEvent2) => {
 		let versionId = e.versionId;
 		if (versionId < mirrorModel2PrevVersionId) {
 			console.warn('Model version id did not advance between edits (2)');

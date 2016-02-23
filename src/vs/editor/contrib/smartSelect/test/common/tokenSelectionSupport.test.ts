@@ -5,22 +5,22 @@
 'use strict';
 
 import 'vs/languages/javascript/common/javascript.contribution';
-import assert = require('assert');
-import Modes = require('vs/editor/common/modes');
-import modesUtil = require('vs/editor/test/common/modesUtil');
-import {createMockModelService} from 'vs/editor/test/common/servicesTestUtils';
+import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import TokenSelectionSupport = require('vs/editor/contrib/smartSelect/common/tokenSelectionSupport');
 import {Range} from 'vs/editor/common/core/range';
+import {IMode} from 'vs/editor/common/modes';
+import {TokenSelectionSupport} from 'vs/editor/contrib/smartSelect/common/tokenSelectionSupport';
+import {load} from 'vs/editor/test/common/modesUtil';
+import {createMockModelService} from 'vs/editor/test/common/servicesTestUtils';
 
 suite('TokenSelectionSupport', () => {
 
 	let modelService = createMockModelService();
 	let tokenSelectionSupport = new TokenSelectionSupport(modelService);
-	let _mode: Modes.IMode;
+	let _mode: IMode;
 
 	suiteSetup((done) => {
-		modesUtil.load('javascript').then(mode => {
+		load('javascript').then(mode => {
 			_mode = mode;
 			done();
 		});

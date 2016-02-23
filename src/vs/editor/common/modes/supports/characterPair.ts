@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {IAutoClosingPair, IAutoClosingPairConditional, ILineContext, IMode, IRichEditCharacterPair} from 'vs/editor/common/modes';
 import {handleEvent} from 'vs/editor/common/modes/supports';
-import * as Modes from 'vs/editor/common/modes';
 
 export interface ICharacterPairContribution {
-	autoClosingPairs: Modes.IAutoClosingPairConditional[];
-	surroundingPairs?: Modes.IAutoClosingPair[];
+	autoClosingPairs: IAutoClosingPairConditional[];
+	surroundingPairs?: IAutoClosingPair[];
 }
 
-export class CharacterPairSupport implements Modes.IRichEditCharacterPair {
+export class CharacterPairSupport implements IRichEditCharacterPair {
 
 	private _modeId: string;
-	private _autoClosingPairs: Modes.IAutoClosingPairConditional[];
-	private _surroundingPairs: Modes.IAutoClosingPair[];
+	private _autoClosingPairs: IAutoClosingPairConditional[];
+	private _surroundingPairs: IAutoClosingPair[];
 
 	constructor(modeId: string, contribution: ICharacterPairContribution) {
 		this._modeId = modeId;
@@ -24,12 +24,12 @@ export class CharacterPairSupport implements Modes.IRichEditCharacterPair {
 		this._surroundingPairs = Array.isArray(contribution.surroundingPairs) ? contribution.surroundingPairs : contribution.autoClosingPairs;
 	}
 
-	public getAutoClosingPairs(): Modes.IAutoClosingPair[] {
+	public getAutoClosingPairs(): IAutoClosingPair[] {
 		return this._autoClosingPairs;
 	}
 
-	public shouldAutoClosePair(character:string, context:Modes.ILineContext, offset:number): boolean {
-		return handleEvent(context, offset, (nestedMode:Modes.IMode, context:Modes.ILineContext, offset:number) => {
+	public shouldAutoClosePair(character:string, context:ILineContext, offset:number): boolean {
+		return handleEvent(context, offset, (nestedMode:IMode, context:ILineContext, offset:number) => {
 			if (this._modeId === nestedMode.getId()) {
 
 				// Always complete on empty line
@@ -62,7 +62,7 @@ export class CharacterPairSupport implements Modes.IRichEditCharacterPair {
 		});
 	}
 
-	public getSurroundingPairs(): Modes.IAutoClosingPair[]{
+	public getSurroundingPairs(): IAutoClosingPair[]{
 		return this._surroundingPairs;
 	}
 }

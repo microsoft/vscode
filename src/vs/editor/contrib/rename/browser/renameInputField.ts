@@ -6,17 +6,17 @@
 'use strict';
 
 import 'vs/css!./rename';
+import {canceled} from 'vs/base/common/errors';
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
-import * as errors from 'vs/base/common/errors';
-import * as lifecycle from 'vs/base/common/lifecycle';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
-import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
 import {Range} from 'vs/editor/common/core/range';
+import {EventType, IPosition, IRange} from 'vs/editor/common/editorCommon';
+import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition} from 'vs/editor/browser/editorBrowser';
 
-export default class RenameInputField implements EditorBrowser.IContentWidget, lifecycle.IDisposable {
+export default class RenameInputField implements IContentWidget, IDisposable {
 
-	private _editor: EditorBrowser.ICodeEditor;
-	private _position: EditorCommon.IPosition;
+	private _editor: ICodeEditor;
+	private _position: IPosition;
 	private _domNode: HTMLElement;
 	private _inputField: HTMLInputElement;
 	private _visible: boolean;
@@ -24,7 +24,7 @@ export default class RenameInputField implements EditorBrowser.IContentWidget, l
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow: boolean = true;
 
-	constructor(editor: EditorBrowser.ICodeEditor) {
+	constructor(editor: ICodeEditor) {
 		this._editor = editor;
 		this._editor.addContentWidget(this);
 	}
@@ -50,9 +50,9 @@ export default class RenameInputField implements EditorBrowser.IContentWidget, l
 		return this._domNode;
 	}
 
-	public getPosition(): EditorBrowser.IContentWidgetPosition {
+	public getPosition(): IContentWidgetPosition {
 		return this._visible
-			? { position: this._position, preference: [EditorBrowser.ContentWidgetPositionPreference.BELOW, EditorBrowser.ContentWidgetPositionPreference.ABOVE] }
+			? { position: this._position, preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE] }
 			: null;
 	}
 
@@ -71,7 +71,7 @@ export default class RenameInputField implements EditorBrowser.IContentWidget, l
 		}
 	}
 
-	public getInput(where: EditorCommon.IRange, value: string, selectionStart: number, selectionEnd: number): TPromise<string> {
+	public getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number): TPromise<string> {
 
 		this._position = { lineNumber: where.startLineNumber, column: where.startColumn };
 		this._inputField.value = value;
@@ -79,11 +79,11 @@ export default class RenameInputField implements EditorBrowser.IContentWidget, l
 		this._inputField.setAttribute('selectionEnd', selectionEnd.toString());
 		this._inputField.size = Math.max((where.endColumn - where.startColumn) * 1.1, 20);
 
-		let disposeOnDone: lifecycle.IDisposable[] = [],
+		let disposeOnDone: IDisposable[] = [],
 			always: Function;
 
 		always = () => {
-			lifecycle.disposeAll(disposeOnDone);
+			disposeAll(disposeOnDone);
 			this._hide();
 		};
 
@@ -92,7 +92,7 @@ export default class RenameInputField implements EditorBrowser.IContentWidget, l
 			this._currentCancelInput = () => {
 				this._currentAcceptInput = null;
 				this._currentCancelInput = null;
-				e(errors.canceled());
+				e(canceled());
 				return true;
 			};
 
@@ -114,8 +114,8 @@ export default class RenameInputField implements EditorBrowser.IContentWidget, l
 				}
 			};
 
-			disposeOnDone.push(this._editor.addListener2(EditorCommon.EventType.CursorSelectionChanged, onCursorChanged));
-			disposeOnDone.push(this._editor.addListener2(EditorCommon.EventType.EditorBlur, this._currentCancelInput));
+			disposeOnDone.push(this._editor.addListener2(EventType.CursorSelectionChanged, onCursorChanged));
+			disposeOnDone.push(this._editor.addListener2(EventType.EditorBlur, this._currentCancelInput));
 
 			this._show();
 

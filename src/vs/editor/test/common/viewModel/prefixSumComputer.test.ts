@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import PrefixSumComputer = require('vs/editor/common/viewModel/prefixSumComputer');
+import * as assert from 'assert';
+import {IPrefixSumIndexOfResult, PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
 
 suite('Editor ViewModel - PrefixSumComputer', () => {
 
 	test('PrefixSumComputer', () => {
-		var indexOfResult:PrefixSumComputer.IPrefixSumIndexOfResult = {
+		var indexOfResult:IPrefixSumIndexOfResult = {
 			index: 0,
 			remainder: 0
 		};
 
-		var psc = new PrefixSumComputer.PrefixSumComputer([1, 1, 2, 1, 3]);
+		var psc = new PrefixSumComputer([1, 1, 2, 1, 3]);
 		assert.equal(psc.getTotalValue(), 8);
 		assert.equal(psc.getAccumulatedValue(-1), 0);
 		assert.equal(psc.getAccumulatedValue(0), 1);

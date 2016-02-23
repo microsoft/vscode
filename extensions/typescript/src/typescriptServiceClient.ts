@@ -18,6 +18,8 @@ import { ITypescriptServiceClient, ITypescriptServiceClientHost }  from './types
 
 import * as VersionStatus from './utils/versionStatus';
 
+import TelemetryReporter from 'vscode-extension-telemetry';
+
 interface CallbackItem {
 	c: (value: any) => void;
 	e: (err: any) => void;
@@ -32,6 +34,12 @@ interface RequestItem {
 	request: Proto.Request;
 	promise: Promise<any>;
 	callbacks: CallbackItem;
+}
+
+interface IPackageInfo {
+	name: string;
+	version: string;
+	aiKey: string;
 }
 
 export default class TypeScriptServiceClient implements ITypescriptServiceClient {
@@ -55,6 +63,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private requestQueue: RequestItem[];
 	private pendingResponses: number;
 	private callbacks: CallbackMap;
+
+	private _packageInfo: IPackageInfo;
+	private telemetryReporter: TelemetryReporter;
 
 	constructor(host: ITypescriptServiceClientHost) {
 		this.host = host;
@@ -83,6 +94,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				this.startService();
 			}
 		});
+		if (this.packageInfo && this.packageInfo.aiKey) {
+			this.telemetryReporter = new TelemetryReporter(this.packageInfo.name, this.packageInfo.version, this.packageInfo.aiKey);
+		}
 		this.startService();
 	}
 
@@ -92,6 +106,32 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	public get trace(): boolean {
 		return TypeScriptServiceClient.Trace;
+	}
+
+	private get packageInfo(): IPackageInfo {
+
+		if (this._packageInfo !== undefined) {
+			return this._packageInfo;
+		}
+		let packagePath = path.join(__dirname, './../package.json');
+		let extensionPackage = require(packagePath);
+		if (extensionPackage) {
+			this._packageInfo = {
+				name: extensionPackage.name,
+				version: extensionPackage.version,
+				aiKey: extensionPackage.aiKey
+			};
+		} else {
+			this._packageInfo = null;
+		}
+
+		return this._packageInfo;
+	}
+
+	private logTelemetry(eventName: string, properties?: {[prop: string]: string}) {
+		if (this.telemetryReporter) {
+			this.telemetryReporter.sendTelemetryEvent(eventName, properties);
+		}
 	}
 
 	private service(): Promise<cp.ChildProcess> {
@@ -141,6 +181,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					if (err) {
 						this.lastError = err;
 						window.showErrorMessage(`TypeScript language server couldn\'t be started. Error message is: ${err.message}`);
+						this.logTelemetry('error', {message: err.message});
 						return;
 					}
 					this.lastStart = Date.now();
@@ -212,6 +253,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				} else if (diff < 2 * 1000 /* 2 seconds */) {
 					startService = false;
 					window.showErrorMessage('The Typesrript language service died 5 times right after it got started. The service will not be restarted. Please open a bug report.');
+					this.logTelemetry('serviceExited');
 				}
 			}
 			if (startService) {

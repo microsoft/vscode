@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ISequence, IDiffChange, LcsDiff} from 'vs/base/common/diff/diff';
-import Strings = require('vs/base/common/strings');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {IDiffChange, ISequence, LcsDiff} from 'vs/base/common/diff/diff';
+import * as strings from 'vs/base/common/strings';
+import {ICharChange, ILineChange} from 'vs/editor/common/editorCommon';
 
 var MAXIMUM_RUN_TIME = 5000; // 5 seconds
 var MINIMUM_MATCHING_CHARACTER_LENGTH = 3;
@@ -118,7 +118,7 @@ class LineMarkerSequence extends MarkerSequence {
 	}
 
 	private _getFirstNonBlankColumn(txt:string, defaultValue:number): number {
-		var r = Strings.firstNonWhitespaceIndex(txt);
+		var r = strings.firstNonWhitespaceIndex(txt);
 		if (r === -1) {
 			return defaultValue;
 		}
@@ -126,7 +126,7 @@ class LineMarkerSequence extends MarkerSequence {
 	}
 
 	private _getLastNonBlankColumn(txt:string, defaultValue:number): number {
-		var r = Strings.lastNonWhitespaceIndex(txt);
+		var r = strings.lastNonWhitespaceIndex(txt);
 		if (r === -1) {
 			return defaultValue;
 		}
@@ -155,7 +155,7 @@ class LineMarkerSequence extends MarkerSequence {
 	}
 }
 
-class CharChange implements EditorCommon.ICharChange {
+class CharChange implements ICharChange {
 
 	public originalStartLineNumber:number;
 	public originalStartColumn:number;
@@ -224,7 +224,7 @@ function postProcessCharChanges(rawChanges:IDiffChange[]): IDiffChange[] {
 	return result;
 }
 
-class LineChange implements EditorCommon.ILineChange {
+class LineChange implements ILineChange {
 	public originalStartLineNumber:number;
 	public originalEndLineNumber:number;
 	public modifiedStartLineNumber:number;
@@ -297,12 +297,12 @@ export class DiffComputer {
 		}
 	}
 
-	public computeDiff():EditorCommon.ILineChange[] {
+	public computeDiff():ILineChange[] {
 		this.computationStartTime = (new Date()).getTime();
 
 		var rawChanges = computeDiff(this.original, this.modified, this._continueProcessingPredicate.bind(this));
 
-		var lineChanges: EditorCommon.ILineChange[] = [];
+		var lineChanges: ILineChange[] = [];
 		for (var i = 0, length = rawChanges.length; i < length; i++) {
 			lineChanges.push(new LineChange(rawChanges[i], this.original, this.modified, this._continueProcessingPredicate.bind(this), this.shouldPostProcessCharChanges));
 		}

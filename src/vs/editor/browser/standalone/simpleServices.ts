@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import Errors = require('vs/base/common/errors');
-import Network = require('vs/base/common/network');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {toErrorMessage} from 'vs/base/common/errors';
+import {EventEmitter} from 'vs/base/common/eventEmitter';
+import {IDisposable} from 'vs/base/common/lifecycle';
+import {Schemas} from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
-import Lifecycle = require('vs/base/common/lifecycle');
-import KeybindingService = require('vs/platform/keybinding/browser/keybindingServiceImpl');
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, ITextEditorModel, Position} from 'vs/platform/editor/common/editor';
+import {KeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
+import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
+import {ICommandHandler, ICommandsMap, IKeybindingItem} from 'vs/platform/keybinding/common/keybindingService';
+import {IConfirmation, IMessageService} from 'vs/platform/message/common/message';
+import {AbstractPluginService, ActivatedPlugin} from 'vs/platform/plugins/common/abstractPluginService';
+import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
-import {IEditorInput, IEditorService, IEditorOptions, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
-import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IKeybindingItem, ICommandHandler, ICommandsMap} from 'vs/platform/keybinding/common/keybindingService';
-import {AbstractPluginService, ActivatedPlugin} from 'vs/platform/plugins/common/abstractPluginService';
-import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
-import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 
 export class SimpleEditor implements IEditor {
 
@@ -29,38 +29,38 @@ export class SimpleEditor implements IEditor {
 	public options:IEditorOptions;
 	public position:Position;
 
-	public _widget:EditorCommon.IEditor;
+	public _widget:editorCommon.IEditor;
 
-	constructor(editor:EditorCommon.IEditor) {
+	constructor(editor:editorCommon.IEditor) {
 		this._widget = editor;
 	}
 
 	public getId():string { return 'editor'; }
-	public getControl():EditorCommon.IEditor { return this._widget; }
-	public getSelection():EditorCommon.IEditorSelection { return this._widget.getSelection(); }
+	public getControl():editorCommon.IEditor { return this._widget; }
+	public getSelection():editorCommon.IEditorSelection { return this._widget.getSelection(); }
 	public focus():void { this._widget.focus(); }
 
-	public withTypedEditor<T>(codeEditorCallback:(editor:EditorBrowser.ICodeEditor)=>T, diffEditorCallback:(editor:EditorBrowser.IDiffEditor)=>T): T {
-		if (this._widget.getEditorType() === EditorCommon.EditorType.ICodeEditor) {
+	public withTypedEditor<T>(codeEditorCallback:(editor:ICodeEditor)=>T, diffEditorCallback:(editor:IDiffEditor)=>T): T {
+		if (this._widget.getEditorType() === editorCommon.EditorType.ICodeEditor) {
 			// Single Editor
-			return codeEditorCallback(<EditorBrowser.ICodeEditor>this._widget);
+			return codeEditorCallback(<ICodeEditor>this._widget);
 		} else {
 			// Diff Editor
-			return diffEditorCallback(<EditorBrowser.IDiffEditor>this._widget);
+			return diffEditorCallback(<IDiffEditor>this._widget);
 		}
 	}
 }
 
-export class SimpleModel extends EventEmitter.EventEmitter implements ITextEditorModel  {
+export class SimpleModel extends EventEmitter implements ITextEditorModel  {
 
-	private model:EditorCommon.IModel;
+	private model:editorCommon.IModel;
 
-	constructor(model:EditorCommon.IModel) {
+	constructor(model:editorCommon.IModel) {
 		super();
 		this.model = model;
 	}
 
-	public get textEditorModel():EditorCommon.IModel {
+	public get textEditorModel():editorCommon.IModel {
 		return this.model;
 	}
 }
@@ -79,7 +79,7 @@ export class SimpleEditorService implements IEditorService {
 		this.openEditorDelegate = null;
 	}
 
-	public setEditor(editor:EditorCommon.IEditor): void {
+	public setEditor(editor:editorCommon.IEditor): void {
 		this.editor = new SimpleEditor(editor);
 	}
 
@@ -97,7 +97,7 @@ export class SimpleEditorService implements IEditorService {
 		));
 	}
 
-	private doOpenEditor(editor:EditorCommon.ICommonCodeEditor, data:IResourceInput): IEditor {
+	private doOpenEditor(editor:editorCommon.ICommonCodeEditor, data:IResourceInput): IEditor {
 		var model = this.findModel(editor, data);
 		if (!model) {
 			if (data.resource) {
@@ -106,7 +106,7 @@ export class SimpleEditorService implements IEditorService {
 					return null;
 				} else {
 					var schema = data.resource.scheme;
-					if (schema === Network.schemas.http || schema === Network.schemas.https) {
+					if (schema === Schemas.http || schema === Schemas.https) {
 						// This is a fully qualified http or https URL
 						window.open(data.resource.toString());
 						return this.editor;
@@ -117,7 +117,7 @@ export class SimpleEditorService implements IEditorService {
 		}
 
 
-		var selection = <EditorCommon.IRange>data.options.selection;
+		var selection = <editorCommon.IRange>data.options.selection;
 		if (selection) {
 			if (typeof selection.endLineNumber === 'number' && typeof selection.endColumn === 'number') {
 				editor.setSelection(selection);
@@ -135,7 +135,7 @@ export class SimpleEditorService implements IEditorService {
 		return this.editor;
 	}
 
-	private findModel(editor:EditorCommon.ICommonCodeEditor, data:IResourceInput): EditorCommon.IModel {
+	private findModel(editor:editorCommon.ICommonCodeEditor, data:IResourceInput): editorCommon.IModel {
 		var model = editor.getModel();
 		if(model.getAssociatedResource().toString() !== data.resource.toString()) {
 			return null;
@@ -145,7 +145,7 @@ export class SimpleEditorService implements IEditorService {
 	}
 
 	public resolveEditorModel(typedData: IResourceInput, refresh?: boolean): TPromise<ITextEditorModel> {
-		var model: EditorCommon.IModel;
+		var model: editorCommon.IModel;
 
 		model = this.editor.withTypedEditor(
 			(editor) => this.findModel(editor, typedData),
@@ -169,7 +169,7 @@ export class SimpleMessageService implements IMessageService {
 
 		switch(sev) {
 			case Severity.Error:
-				console.error(Errors.toErrorMessage(message, true));
+				console.error(toErrorMessage(message, true));
 				break;
 			case Severity.Warning:
 				console.warn(message);
@@ -195,7 +195,7 @@ export class SimpleMessageService implements IMessageService {
 		return window.confirm(messageText);
 	}
 
-	public setStatusMessage(message: string, autoDisposeAfter:number = -1): Lifecycle.IDisposable {
+	public setStatusMessage(message: string, autoDisposeAfter:number = -1): IDisposable {
 		return {
 			dispose: () => { /* Nothing to do here */ }
 		};
@@ -209,7 +209,7 @@ export class SimpleEditorRequestService extends BaseRequestService {
 	}
 }
 
-export class StandaloneKeybindingService extends KeybindingService.KeybindingService {
+export class StandaloneKeybindingService extends KeybindingService {
 	private static LAST_GENERATED_ID = 0;
 
 	private _dynamicKeybindings: IKeybindingItem[];

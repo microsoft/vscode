@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*global process,__dirname, Buffer*/
+/*global process,__dirname,Buffer,require*/
 
 var gulp = require('gulp');
 var fs = require('fs');
@@ -16,11 +16,8 @@ var rename = require('gulp-rename');
 var replace = require('gulp-replace');
 var filter = require('gulp-filter');
 var json = require('gulp-json-editor');
-var insert = require('gulp-insert');
 var remote = require('gulp-remote-src');
 var shell = require("gulp-shell");
-var File = require('vinyl');
-var rimraf = require('rimraf');
 var _ = require('underscore');
 var packageJson = require('../package.json');
 var util = require('./lib/util');
@@ -39,10 +36,6 @@ var baseModules = [
 ];
 
 // Build
-
-var builtInExtensions = {
-	'ms-vscode.omnisharp': '0.3.2',
-};
 
 var vscodeEntryPoints = _.flatten([
 	buildfile.entrypoint('vs/workbench/workbench.main'),
@@ -160,12 +153,8 @@ function packageTask(platform, arch, opts) {
 
 	return function () {
 		var out = opts.minified ? 'out-vscode-min' : 'out-vscode';
-		var pluginHostFilter = filter(out + '/vs/workbench/node/pluginHostProcess.js', { restore: true });
 
 		var src = gulp.src(out + '/**', { base: '.' })
-			.pipe(pluginHostFilter)
-			.pipe(insert.append('\n//# sourceMappingURL=pluginHostProcess.js.map'))
-			.pipe(pluginHostFilter.restore)
 			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }))
 			.pipe(util.setExecutableBit(['**/*.sh']));
 
@@ -184,13 +173,9 @@ function packageTask(platform, arch, opts) {
 			'!extensions/json/server/node_modules/mocha/**'
 		], { base: '.' });
 
-		var pluginHostSourceMap = gulp.src(out + '/vs/workbench/node/pluginHostProcess.js.map', { base: '.' })
-			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }));
-
-		var sources = es.merge(
-			es.merge(src, extensions).pipe(filter(['**', '!**/*.js.map'])),
-			pluginHostSourceMap
-		).pipe(util.handleAzureJson({ platform: platform }));
+		var sources = es.merge(src, extensions)
+			.pipe(filter(['**', '!**/*.js.map']))
+			.pipe(util.handleAzureJson({ platform: platform }));
 
 		var version = packageJson.version;
 		var quality = product.quality;
@@ -218,19 +203,13 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('native-keymap', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], true))
 			.pipe(util.cleanNodeModule('weak', ['binding.gyp', 'build/**', 'src/**'], true));
 
-		var extraExtensions = util.downloadExtensions(builtInExtensions)
-			.pipe(rename(function (p) {
-				p.dirname = path.posix.join('extensions', p.dirname);
-			}));
-
 		var all = es.merge(
 			api,
 			packageJsonStream,
 			mixinProduct(),
 			license,
 			sources,
-			deps,
-			extraExtensions
+			deps
 		);
 
 		if (platform === 'win32') {
@@ -267,11 +246,15 @@ function getDebPackageArch(arch) {
 	return { x64: 'amd64', ia32: 'i386' }[arch];
 }
 
+function getEpochTime() {
+	return Math.floor(new Date().getTime() / 1000);
+}
+
 function prepareDebPackage(arch) {
 	var binaryDir = '../VSCode-linux-' + arch;
 	var debArch = getDebPackageArch(arch);
-	var destination = '.build/linux/vscode-' + debArch;
-	var packageRevision = '1';
+	var destination = '.build/linux/' + debArch + '/vscode-' + debArch;
+	var packageRevision = getEpochTime();
 
 	return function () {
 		var shortcut = gulp.src('resources/linux/bin/code.sh')
@@ -309,7 +292,16 @@ function prepareDebPackage(arch) {
 }
 
 function buildDebPackage(arch) {
-	return shell.task(['fakeroot dpkg-deb -b .build/linux/vscode-' + getDebPackageArch(arch)]);
+	var debArch = getDebPackageArch(arch);
+	return shell.task([
+		'fakeroot dpkg-deb -b vscode-' + debArch,
+		'dpkg-scanpackages . /dev/null > Packages'
+	], { cwd: '.build/linux/' + debArch});
+}
+
+function buildDebPackageCatalog(arch) {
+	var debArch = getDebPackageArch(arch);
+	return shell.task([], { cwd: '.build/linux/' + debArch});
 }
 
 gulp.task('clean-vscode-win32', util.rimraf(path.join(path.dirname(root), 'VSCode-win32')));
@@ -317,8 +309,8 @@ gulp.task('clean-vscode-darwin', util.rimraf(path.join(path.dirname(root), 'VSCo
 gulp.task('clean-vscode-linux-ia32', util.rimraf(path.join(path.dirname(root), 'VSCode-linux-ia32')));
 gulp.task('clean-vscode-linux-x64', util.rimraf(path.join(path.dirname(root), 'VSCode-linux-x64')));
 gulp.task('clean-vscode-linux-arm', util.rimraf(path.join(path.dirname(root), 'VSCode-linux-arm')));
-gulp.task('clean-vscode-linux-ia32-deb', util.rimraf('.build/linux/vscode-i386*'));
-gulp.task('clean-vscode-linux-x64-deb', util.rimraf('.build/linux/vscode-amd64*'));
+gulp.task('clean-vscode-linux-ia32-deb', util.rimraf('.build/linux/i386'));
+gulp.task('clean-vscode-linux-x64-deb', util.rimraf('.build/linux/amd64'));
 
 gulp.task('vscode-win32', ['optimize-vscode', 'clean-vscode-win32'], packageTask('win32'));
 gulp.task('vscode-darwin', ['optimize-vscode', 'clean-vscode-darwin'], packageTask('darwin'));
@@ -336,7 +328,8 @@ gulp.task('vscode-linux-ia32-prepare-deb', ['clean-vscode-linux-ia32-deb', 'vsco
 gulp.task('vscode-linux-x64-prepare-deb', ['clean-vscode-linux-x64-deb', 'vscode-linux-x64-min'], prepareDebPackage('x64'));
 gulp.task('vscode-linux-ia32-build-deb', ['vscode-linux-ia32-prepare-deb'], buildDebPackage('ia32'));
 gulp.task('vscode-linux-x64-build-deb', ['vscode-linux-x64-prepare-deb'], buildDebPackage('x64'));
-gulp.task('vscode-linux-packages', ['vscode-linux-ia32-build-deb', 'vscode-linux-x64-build-deb']);
+gulp.task('vscode-linux-ia32-build-deb-catalog', ['vscode-linux-ia32-build-deb'], buildDebPackageCatalog('ia32'));
+gulp.task('vscode-linux-x64-build-deb-catalog', ['vscode-linux-x64-build-deb'], buildDebPackageCatalog('x64'));
 
 // Sourcemaps
 

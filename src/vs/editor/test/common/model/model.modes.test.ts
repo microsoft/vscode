@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
+import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import Model = require('vs/editor/common/model/model');
-import ModelModes = require('vs/editor/test/common/testModes');
-import {EditOperation} from 'vs/editor/common/core/editOperation';
+import {Model} from 'vs/editor/common/model/model';
+import {ModelMode1, ModelMode2, NMode} from 'vs/editor/test/common/testModes';
 
 // --------- utils
 
@@ -32,7 +32,7 @@ function stateEqual(state, content) {
 	assert.equal(state.prevLineContent, content);
 }
 
-function statesEqual(model:Model.Model, states:string[]) {
+function statesEqual(model:Model, states:string[]) {
 	var i, len = states.length - 1;
 	for (i = 0; i < len; i++) {
 		stateEqual(model._lines[i].getState(), states[i]);
@@ -50,18 +50,18 @@ var LINE5 = '5';
 
 suite('Editor Model - Model Modes 1', () => {
 
-	var thisHighlighter: ModelModes.ModelMode1;
-	var thisModel: Model.Model;
+	var thisHighlighter: ModelMode1;
+	var thisModel: Model;
 
 	setup(() => {
-		thisHighlighter = new ModelModes.ModelMode1();
+		thisHighlighter = new ModelMode1();
 		var text =
 			LINE1 + '\r\n' +
 			LINE2 + '\n' +
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = new Model.Model(text, thisHighlighter);
+		thisModel = new Model(text, thisHighlighter);
 	});
 
 	teardown(() => {
@@ -168,18 +168,18 @@ suite('Editor Model - Model Modes 1', () => {
 
 suite('Editor Model - Model Modes 2', () => {
 
-	var thisHighlighter: ModelModes.ModelMode1;
-	var thisModel: Model.Model;
+	var thisHighlighter: ModelMode1;
+	var thisModel: Model;
 
 	setup(() => {
-		thisHighlighter = new ModelModes.ModelMode2();
+		thisHighlighter = new ModelMode2();
 		var text =
 			'Line1' + '\r\n' +
 			'Line2' + '\n' +
 			'Line3' + '\n' +
 			'Line4' + '\r\n' +
 			'Line5';
-		thisModel = new Model.Model(text, thisHighlighter);
+		thisModel = new Model(text, thisHighlighter);
 	});
 
 	teardown(() => {
@@ -251,15 +251,15 @@ suite('Editor Model - Model Modes 2', () => {
 
 suite('Editor Model - Token Iterator', () => {
 
-	var thisModel: Model.Model;
+	var thisModel: Model;
 
 	setup(() => {
-		var nmode = new ModelModes.NMode(3);
+		var nmode = new NMode(3);
 		var text =
 			'foobarfoobar' + '\r\n' +
 			'foobarfoobar' + '\r\n' +
 			'foobarfoobar' + '\r\n';
-		thisModel = new Model.Model(text, nmode);
+		thisModel = new Model(text, nmode);
 	});
 
 	teardown(() => {

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IReference, IReferenceSupport, ILineContext, IMode} from 'vs/editor/common/modes';
-import {IPosition} from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IPosition} from 'vs/editor/common/editorCommon';
+import {ILineContext, IMode, IReference, IReferenceSupport} from 'vs/editor/common/modes';
 import {handleEvent, isLineToken} from 'vs/editor/common/modes/supports';
 
 export interface IReferenceContribution {

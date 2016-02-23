@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import Range = require('vs/editor/common/core/range');
-import Model = require('vs/editor/common/model/model');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as assert from 'assert';
+import {Range} from 'vs/editor/common/core/range';
+import {IIdentifiedSingleEditOperation} from 'vs/editor/common/editorCommon';
+import {Model} from 'vs/editor/common/model/model';
 
 suite('Editor Model - Model Edit Operation', () => {
 	var LINE1 = 'My First Line';
@@ -16,7 +16,7 @@ suite('Editor Model - Model Edit Operation', () => {
 	var LINE4 = '';
 	var LINE5 = '1';
 
-	var model: Model.Model;
+	var model: Model;
 
 	setup(() => {
 		var text =
@@ -25,7 +25,7 @@ suite('Editor Model - Model Edit Operation', () => {
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		model = new Model.Model(text, null);
+		model = new Model(text, null);
 	});
 
 	teardown(() => {
@@ -33,8 +33,8 @@ suite('Editor Model - Model Edit Operation', () => {
 		model = null;
 	});
 
-	function createSingleEditOp(text:string, positionLineNumber:number, positionColumn:number, selectionLineNumber:number = positionLineNumber, selectionColumn:number = positionColumn):EditorCommon.IIdentifiedSingleEditOperation {
-		var range = new Range.Range(
+	function createSingleEditOp(text:string, positionLineNumber:number, positionColumn:number, selectionLineNumber:number = positionLineNumber, selectionColumn:number = positionColumn):IIdentifiedSingleEditOperation {
+		var range = new Range(
 			selectionLineNumber,
 			selectionColumn,
 			positionLineNumber,
@@ -52,7 +52,7 @@ suite('Editor Model - Model Edit Operation', () => {
 		};
 	}
 
-	function assertSingleEditOp(singleEditOp:EditorCommon.IIdentifiedSingleEditOperation, editedLines:string[]) {
+	function assertSingleEditOp(singleEditOp:IIdentifiedSingleEditOperation, editedLines:string[]) {
 		var editOp = [singleEditOp];
 
 		var inverseEditOp = model.applyEdits(editOp);

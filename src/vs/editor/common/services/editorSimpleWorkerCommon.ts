@@ -5,13 +5,13 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {IInplaceReplaceSupportResult, ILink, ISuggestResult} from 'vs/editor/common/modes';
 
 export interface IRawModelData {
 	url:string;
 	versionId:number;
-	value:EditorCommon.IRawText;
+	value:editorCommon.IRawText;
 }
 
 export abstract class EditorSimpleWorker {
@@ -20,7 +20,7 @@ export abstract class EditorSimpleWorker {
 		throw new Error('Not implemented!');
 	}
 
-	public acceptModelChanged(modelUrl: string, events: EditorCommon.IModelContentChangedEvent2[]): void {
+	public acceptModelChanged(modelUrl: string, events: editorCommon.IModelContentChangedEvent2[]): void {
 		throw new Error('Not implemented!');
 	}
 
@@ -28,19 +28,23 @@ export abstract class EditorSimpleWorker {
 		throw new Error('Not implemented!');
 	}
 
-	public computeDiff(originalUrl:string, modifiedUrl:string, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]> {
+	public computeDiff(originalUrl:string, modifiedUrl:string, ignoreTrimWhitespace:boolean):TPromise<editorCommon.ILineChange[]> {
 		throw new Error('Not implemented!');
 	}
 
-	public computeDirtyDiff(originalUrl:string, modifiedUrl:string, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]> {
+	public computeDirtyDiff(originalUrl:string, modifiedUrl:string, ignoreTrimWhitespace:boolean):TPromise<editorCommon.IChange[]> {
 		throw new Error('Not implemented!');
 	}
 
-	public computeLinks(modelUrl:string):TPromise<Modes.ILink[]> {
+	public computeLinks(modelUrl:string):TPromise<ILink[]> {
 		throw new Error('Not implemented!');
 	}
 
-	public textualSuggest(modelUrl:string, position: EditorCommon.IPosition, wordDef:string, wordDefFlags:string): TPromise<Modes.ISuggestResult[]> {
+	public textualSuggest(modelUrl:string, position: editorCommon.IPosition, wordDef:string, wordDefFlags:string): TPromise<ISuggestResult[]> {
+		throw new Error('Not implemented!');
+	}
+
+	public navigateValueSet(modelUrl:string, range:editorCommon.IRange, up:boolean, wordDef:string, wordDefFlags:string): TPromise<IInplaceReplaceSupportResult> {
 		throw new Error('Not implemented!');
 	}
 }

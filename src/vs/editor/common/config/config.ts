@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {KeybindingsRegistry,ICommandDescriptor} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
-import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IEditorService} from 'vs/platform/editor/common/editor';
+import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
+import {IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
+import {ICommandDescriptor, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
-export function findFocusedEditor(commandId: string, accessor: ServicesAccessor, args: any, complain: boolean): EditorCommon.ICommonCodeEditor {
+export function findFocusedEditor(commandId: string, accessor: ServicesAccessor, args: any, complain: boolean): editorCommon.ICommonCodeEditor {
 	var codeEditorService = accessor.get(ICodeEditorService);
 	var editorId = args.context.editorId;
 	if (!editorId) {
@@ -31,22 +31,22 @@ export function findFocusedEditor(commandId: string, accessor: ServicesAccessor,
 	return editor;
 }
 
-export function withCodeEditorFromCommandHandler(commandId: string, accessor: ServicesAccessor, args: any, callback: (editor:EditorCommon.ICommonCodeEditor) => void): void {
+export function withCodeEditorFromCommandHandler(commandId: string, accessor: ServicesAccessor, args: any, callback: (editor:editorCommon.ICommonCodeEditor) => void): void {
 	var editor = findFocusedEditor(commandId, accessor, args, true);
 	if (editor) {
 		callback(editor);
 	}
 }
 
-export function getActiveEditor(accessor: ServicesAccessor): EditorCommon.ICommonCodeEditor {
+export function getActiveEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
 	var editorService = accessor.get(IEditorService);
 	var activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
 	if (activeEditor) {
-		var editor = <EditorCommon.IEditor>activeEditor.getControl();
+		var editor = <editorCommon.IEditor>activeEditor.getControl();
 
 		// Substitute for (editor instanceof ICodeEditor)
 		if (editor && typeof editor.getEditorType === 'function') {
-			var codeEditor = <EditorCommon.ICommonCodeEditor>editor;
+			var codeEditor = <editorCommon.ICommonCodeEditor>editor;
 			return codeEditor;
 		}
 	}
@@ -65,7 +65,7 @@ function registerCoreCommand(handlerId: string, kb: IKeybindings, weight: number
 		id: handlerId,
 		handler: triggerEditorHandler.bind(null, handlerId),
 		weight: weight,
-		context: (context ? context : KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS)),
+		context: (context ? context : KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS)),
 		primary: kb.primary,
 		secondary: kb.secondary,
 		win: kb.win,
@@ -93,7 +93,7 @@ function getWordNavigationKB(shift:boolean, key:KeyCode): number {
 	}
 }
 
-var H = EditorCommon.Handler;
+var H = editorCommon.Handler;
 
 // https://support.apple.com/en-gb/HT201236
 // [ADDED] Control-H					Delete the character to the left of the insertion point. Or use Delete.
@@ -123,7 +123,7 @@ var H = EditorCommon.Handler;
 // [ADDED] Control-O					Insert a new line after the insertion point.
 //Control-T								Swap the character behind the insertion point with the character in front of the insertion point.
 // Unconfirmed????
-//	Config.addKeyBinding(EditorCommon.Handler.CursorPageDown,		KeyMod.WinCtrl | KeyCode.KEY_V);
+//	Config.addKeyBinding(editorCommon.Handler.CursorPageDown,		KeyMod.WinCtrl | KeyCode.KEY_V);
 
 // OS X built in commands
 // Control+y => yank
@@ -220,14 +220,14 @@ registerCoreCommand(H.ScrollPageDown, {
 registerCoreCommand(H.Tab, {
 	primary: KeyCode.Tab
 }, KeybindingsRegistry.WEIGHT.editorCore(), KbExpr.and(
-	KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
-	KbExpr.not(EditorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS)
+	KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
+	KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS)
 ));
 registerCoreCommand(H.Outdent, {
 	primary: KeyMod.Shift | KeyCode.Tab
 }, KeybindingsRegistry.WEIGHT.editorCore(), KbExpr.and(
-	KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
-	KbExpr.not(EditorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS)
+	KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
+	KbExpr.not(editorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS)
 ));
 
 registerCoreCommand(H.DeleteLeft, {
@@ -264,14 +264,14 @@ registerWordCommand(H.DeleteWordRight, false, KeyCode.Delete);
 registerCoreCommand(H.CancelSelection, {
 	primary: KeyCode.Escape
 }, KeybindingsRegistry.WEIGHT.editorCore(), KbExpr.and(
-	KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
-	KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION)
+	KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
+	KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION)
 ));
 registerCoreCommand(H.RemoveSecondaryCursors, {
 	primary: KeyCode.Escape
 }, KeybindingsRegistry.WEIGHT.editorCore(1), KbExpr.and(
-	KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
-	KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS)
+	KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
+	KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS)
 ));
 
 registerCoreCommand(H.CursorTop, {
@@ -310,10 +310,10 @@ registerCoreCommand(H.Redo, {
 
 
 function selectAll(accessor: ServicesAccessor, args: any): void {
-	var HANDLER = EditorCommon.Handler.SelectAll;
+	var HANDLER = editorCommon.Handler.SelectAll;
 
 	// If editor text focus
-	if (args.context[EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS]) {
+	if (args.context[editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS]) {
 		var focusedEditor = findFocusedEditor(HANDLER, accessor, args, false);
 		if (focusedEditor) {
 			focusedEditor.trigger('keyboard', HANDLER, args);

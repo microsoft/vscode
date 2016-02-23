@@ -43,7 +43,7 @@ registerSingleton(IGalleryService, GalleryService);
 	properties: {
 		'extensions.showTips': {
 			type: 'boolean',
-			default: false,
+			default: true,
 			description: nls.localize('extConfig', "Suggest extensions based on changed and open files."),
 		}
 	}

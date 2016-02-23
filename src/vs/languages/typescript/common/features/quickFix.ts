@@ -199,7 +199,7 @@ function computeAddTypeDefinitionProposals(languageService: ts.LanguageService, 
 		offset = converter.getOffset(sourceFile, { lineNumber: range.endLineNumber, column: range.endColumn }),
 		token = ts.findTokenOnLeftOfPosition(sourceFile, offset);
 
-	if (!token || token.getWidth() === 0 || (network.schemas.inMemory === resource.scheme)) {
+	if (!token || token.getWidth() === 0 || (network.Schemas.inMemory === resource.scheme)) {
 		return;
 	}
 

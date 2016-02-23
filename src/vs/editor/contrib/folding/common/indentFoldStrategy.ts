@@ -5,10 +5,10 @@
 
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {IModel} from 'vs/editor/common/editorCommon';
 import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingRange';
 
-export function computeRanges(model: EditorCommon.IModel, tabSize: number, minimumRangeSize: number = 1): IFoldingRange[] {
+export function computeRanges(model: IModel, tabSize: number, minimumRangeSize: number = 1): IFoldingRange[] {
 
 	let result: IFoldingRange[] = [];
 

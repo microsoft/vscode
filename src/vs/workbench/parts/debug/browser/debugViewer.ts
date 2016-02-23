@@ -14,7 +14,6 @@ import strings = require('vs/base/common/strings');
 import { isMacintosh } from 'vs/base/common/platform';
 import dom = require('vs/base/browser/dom');
 import mouse = require('vs/base/browser/mouseEvent');
-import keyboard = require('vs/base/browser/keyboardEvent');
 import labels = require('vs/base/common/labels');
 import actions = require('vs/base/common/actions');
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
@@ -31,6 +30,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.emmet;
 const booleanRegex = /^true|false$/i;
@@ -116,7 +116,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 		}
 	});
 
-	toDispose.push(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: dom.IKeyboardEvent) => {
+	toDispose.push(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
 		const isEscape = e.equals(CommonKeybindings.ESCAPE);
 		const isEnter = e.equals(CommonKeybindings.ENTER);
 		if (isEscape || isEnter) {
@@ -180,7 +180,7 @@ export class BaseDebugController extends treedefaults.DefaultController {
 		return false;
 	}
 
-	protected onDelete(tree: tree.ITree, event: keyboard.StandardKeyboardEvent): boolean {
+	protected onDelete(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		return false;
 	}
 }
@@ -311,7 +311,7 @@ export class CallstackAccessibilityProvider implements tree.IAccessibilityProvid
 			return nls.localize('threadAriaLabel', "Thread {0}, callstack, debug", (<model.Thread>element).name);
 		}
 		if (element instanceof model.StackFrame) {
-			return nls.localize('stackFrameAriaLabel', "Stack Frame {0} on line {1} in {2}, callstack, debug", (<model.StackFrame>element).name, (<model.StackFrame>element).lineNumber, getSourceName((<model.StackFrame>element).source, this.contextService));
+			return nls.localize('stackFrameAriaLabel', "Stack Frame {0} line {1} {2}, callstack, debug", (<model.StackFrame>element).name, (<model.StackFrame>element).lineNumber, getSourceName((<model.StackFrame>element).source, this.contextService));
 		}
 
 		return null;
@@ -460,7 +460,7 @@ export class VariablesAccessibilityProvider implements tree.IAccessibilityProvid
 			return nls.localize('variableScopeAriaLabel', "Scope {0}, variables, debug", (<model.Scope>element).name);
 		}
 		if (element instanceof model.Variable) {
-			return nls.localize('variableAriaLabel', "Variable {0} has value {1}, variables, debug", (<model.Variable>element).name, (<model.Variable>element).value);
+			return nls.localize('variableAriaLabel', "{0} value {1}, variables, debug", (<model.Variable>element).name, (<model.Variable>element).value);
 		}
 
 		return null;
@@ -639,10 +639,10 @@ export class WatchExpressionsAccessibilityProvider implements tree.IAccessibilit
 
 	public getAriaLabel(tree: tree.ITree, element: any): string {
 		if (element instanceof model.Expression) {
-			return nls.localize('watchExpressionAriaLabel', "Expression {0} has value {1}, watch, debug", (<model.Expression>element).name, (<model.Expression>element).value);
+			return nls.localize('watchExpressionAriaLabel', "{0} value {1}, watch, debug", (<model.Expression>element).name, (<model.Expression>element).value);
 		}
 		if (element instanceof model.Variable) {
-			return nls.localize('watchVariableAriaLabel', "Variable {0} has value {1}, watch, debug", (<model.Variable>element).name, (<model.Variable>element).value);
+			return nls.localize('watchVariableAriaLabel', "{0} value {1}, watch, debug", (<model.Variable>element).name, (<model.Variable>element).value);
 		}
 
 		return null;
@@ -661,7 +661,7 @@ export class WatchExpressionsController extends BaseDebugController {
 		}
 	}
 
-	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.StandardMouseEvent): boolean {
+	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
 		// double click on primitive value: open input box to be able to select and copy value.
 		if (element instanceof model.Expression && event.detail === 2) {
 			const expression = <debug.IExpression> element;
@@ -687,7 +687,7 @@ export class WatchExpressionsController extends BaseDebugController {
 		return false;
 	}
 
-	protected onDelete(tree: tree.ITree, event: keyboard.StandardKeyboardEvent): boolean {
+	protected onDelete(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		const element = tree.getFocus();
 		if (element instanceof model.Expression) {
 			const we = <model.Expression> element;
@@ -923,7 +923,7 @@ export class BreakpointsAccessibilityProvider implements tree.IAccessibilityProv
 
 	public getAriaLabel(tree: tree.ITree, element: any): string {
 		if (element instanceof model.Breakpoint) {
-			return nls.localize('breakpointAriaLabel', "Breakpoint on line {0} in {1}, breakpoints, debug", (<model.Breakpoint>element).lineNumber, getSourceName((<model.Breakpoint>element).source, this.contextService));
+			return nls.localize('breakpointAriaLabel', "Breakpoint line {0} {1}, breakpoints, debug", (<model.Breakpoint>element).lineNumber, getSourceName((<model.Breakpoint>element).source, this.contextService));
 		}
 		if (element instanceof model.FunctionBreakpoint) {
 			return nls.localize('functionBreakpointAriaLabel', "Funktion breakpoint {0}, breakpoints, debug", (<model.FunctionBreakpoint>element).name);
@@ -938,11 +938,7 @@ export class BreakpointsAccessibilityProvider implements tree.IAccessibilityProv
 
 export class BreakpointsController extends BaseDebugController {
 
-	protected onLeftClick(tree:tree.ITree, element: any, event: mouse.StandardMouseEvent): boolean {
-		if (element instanceof model.ExceptionBreakpoint) {
-			return false;
-		}
-
+	protected onLeftClick(tree:tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
 		if (element instanceof model.FunctionBreakpoint && event.detail === 2) {
 			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
 			return true;
@@ -951,26 +947,7 @@ export class BreakpointsController extends BaseDebugController {
 		return super.onLeftClick(tree, element, event);
 	}
 
-	protected onUp(tree:tree.ITree, event:keyboard.StandardKeyboardEvent): boolean {
-		return this.doNotFocusExceptionBreakpoint(tree, super.onUp(tree, event));
-	}
-
-	protected onPageUp(tree:tree.ITree, event:keyboard.StandardKeyboardEvent): boolean {
-		return this.doNotFocusExceptionBreakpoint(tree, super.onPageUp(tree, event));
-	}
-
-	private doNotFocusExceptionBreakpoint(tree: tree.ITree, upSucceeded: boolean) : boolean {
-		if (upSucceeded) {
-			const focus = tree.getFocus();
-			if (focus instanceof model.ExceptionBreakpoint) {
-				tree.focusNth(2);
-			}
-		}
-
-		return upSucceeded;
-	}
-
-	protected onDelete(tree: tree.ITree, event: keyboard.StandardKeyboardEvent): boolean {
+	protected onDelete(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		const element = tree.getFocus();
 		if (element instanceof model.Breakpoint) {
 			const bp = <model.Breakpoint> element;

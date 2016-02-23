@@ -8,7 +8,7 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import objects = require('vs/base/common/objects');
 import uri from 'vs/base/common/uri';
-import { schemas } from 'vs/base/common/network';
+import { Schemas } from 'vs/base/common/network';
 import paths = require('vs/base/common/paths');
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import editor = require('vs/editor/common/editorCommon');
@@ -323,7 +323,7 @@ export class ConfigurationManager {
 	}
 
 	public canSetBreakpointsIn(model: editor.IModel): boolean {
-		if (model.getAssociatedResource().scheme === schemas.inMemory) {
+		if (model.getAssociatedResource().scheme === Schemas.inMemory) {
 			return false;
 		}
 

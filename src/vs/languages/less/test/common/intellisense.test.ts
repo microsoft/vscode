@@ -29,7 +29,7 @@ suite('LESS - Intellisense', () => {
 			resourceService: resourceService,
 		});
 
-		var worker = new lessWorker.LessWorker(modesUtil.createMockMode('mock.mode.id'), [], services.resourceService, services.markerService);
+		var worker = new lessWorker.LessWorker('mock.mode.id', [], services.resourceService, services.markerService);
 		var position: EditorCommon.IPosition;
 		if (stringBefore === null) {
 			position = { column: 1, lineNumber: 1 };

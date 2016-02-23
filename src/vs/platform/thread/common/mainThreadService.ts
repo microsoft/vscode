@@ -43,11 +43,13 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 
 	private _workerFactory: Worker.IWorkerFactory;
 	private _workerModuleId: string;
+	private _defaultWorkerCount: number;
 
-	constructor(contextService: IWorkspaceContextService, workerModuleId: string) {
+	constructor(contextService: IWorkspaceContextService, workerModuleId: string, defaultWorkerCount: number) {
 		super(true);
 		this._contextService = contextService;
 		this._workerModuleId = workerModuleId;
+		this._defaultWorkerCount = defaultWorkerCount;
 		this._workerFactory = new DefaultWorkerFactory();
 
 		if (!this.isInMainThread) {
@@ -72,7 +74,7 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		if (this._triggerWorkersCreatedPromise) {
 			// Workers not created yet
 
-			let createCount = Env.workersCount;
+			let createCount = Env.workersCount(this._defaultWorkerCount);
 			if (!Platform.hasWebWorkerSupport()) {
 				// Create at most 1 compatibility worker
 				createCount = Math.min(createCount, 1);
@@ -147,7 +149,6 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		);
 		worker.getRemoteCom().setManyHandler(this);
 		worker.onModuleLoaded = worker.request('initialize', {
-			threadService: this._getRegisteredObjectsData(),
 			contextService: {
 				workspace: this._contextService.getWorkspace(),
 				configuration: this._contextService.getConfiguration(),
@@ -158,18 +159,7 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		return worker;
 	}
 
-	private _getRegisteredObjectsData(): any {
-		let r: any = {};
-		Object.keys(this._boundObjects).forEach((identifier) => {
-			let obj = this._boundObjects[identifier];
-			if (obj.getSerializableState) {
-				r[identifier] = obj.getSerializableState();
-			}
-		});
-		return r;
-	}
-
-	private _getWorkerIndex(obj: IThreadSynchronizableObject<any>, affinity: ThreadAffinity): number {
+	private _getWorkerIndex(obj: IThreadSynchronizableObject, affinity: ThreadAffinity): number {
 		if (affinity === ThreadAffinity.None) {
 			let winners: number[] = [0],
 				winnersQueueSize = this._workerPool[0].getQueueSize();
@@ -198,7 +188,7 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		return (scramble + affinity) % this._workerPool.length;
 	}
 
-	OneWorker(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[], affinity: ThreadAffinity): TPromise<any> {
+	OneWorker(obj: IThreadSynchronizableObject, methodName: string, target: Function, params: any[], affinity: ThreadAffinity): TPromise<any> {
 		return this._afterWorkers().then(() => {
 			if (this._workerPool.length === 0) {
 				throw new Error('Cannot fulfill request...');
@@ -210,7 +200,7 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		});
 	}
 
-	AllWorkers(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): TPromise<any> {
+	AllWorkers(obj: IThreadSynchronizableObject, methodName: string, target: Function, params: any[]): TPromise<any> {
 		return this._afterWorkers().then(() => {
 			return TPromise.join(this._workerPool.map((w) => {
 				return this._remoteCall(w, obj, methodName, params);
@@ -218,7 +208,7 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		});
 	}
 
-	private _remoteCall(worker: Worker.WorkerClient, obj: IThreadSynchronizableObject<any>, methodName: string, params: any[]): TPromise<any> {
+	private _remoteCall(worker: Worker.WorkerClient, obj: IThreadSynchronizableObject, methodName: string, params: any[]): TPromise<any> {
 		let id = obj.getId();
 		if (!id) {
 			throw new Error('Synchronizable Objects must have an identifier');

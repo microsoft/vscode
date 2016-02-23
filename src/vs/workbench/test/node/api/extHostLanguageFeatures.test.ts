@@ -14,7 +14,7 @@ import {Range as CodeEditorRange} from 'vs/editor/common/core/range';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Model as EditorModel} from 'vs/editor/common/model/model';
 import {TestThreadService} from './testThreadService'
-import {create as createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {createInstantiationService as createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {MainProcessMarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IThreadService} from 'vs/platform/thread/common/thread';

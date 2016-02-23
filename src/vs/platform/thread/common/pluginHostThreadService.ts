@@ -21,11 +21,11 @@ export class PluginHostThreadService extends abstractThreadService.AbstractThrea
 		this._remoteCom.setManyHandler(this);
 	}
 
-	OneWorker(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[], affinity: ThreadAffinity): TPromise<any> {
+	OneWorker(obj: IThreadSynchronizableObject, methodName: string, target: Function, params: any[], affinity: ThreadAffinity): TPromise<any> {
 		return TPromise.as(null);
 	}
 
-	AllWorkers(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): TPromise<any> {
+	AllWorkers(obj: IThreadSynchronizableObject, methodName: string, target: Function, params: any[]): TPromise<any> {
 		return TPromise.as(null);
 	}
 

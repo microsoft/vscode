@@ -9,7 +9,6 @@ import URI from 'vs/base/common/uri';
 import _severity from 'vs/base/common/severity';
 import strings = require('vs/base/common/strings');
 import winjs = require('vs/base/common/winjs.base');
-import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import languageService = require('vs/languages/css/common/services/cssLanguageService');
 import languageFacts = require('vs/languages/css/common/services/languageFacts');
 import occurrences = require('./services/occurrences');
@@ -25,85 +24,98 @@ import lintRules = require('vs/languages/css/common/services/lintRules');
 import {IMarker, IMarkerData} from 'vs/platform/markers/common/markers';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
-import {WorkerInplaceReplaceSupport} from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
+import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
+import {ValidationHelper} from 'vs/editor/common/worker/validationHelper';
 
-export class CSSWorker extends AbstractModeWorker {
+export class CSSWorker {
 
 	public languageService: languageService.ILanguageService;
-
+	private resourceService:IResourceService;
+	private markerService: IMarkerService;
+	private _modeId: string;
 	private validationEnabled : boolean;
 	private lintSettings : lintRules.IConfigurationSettings;
+	private _validationHelper: ValidationHelper;
 
-	constructor(mode: Modes.IMode, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
-		@IMarkerService markerService: IMarkerService) {
+	constructor(
+		modeId: string,
+		participants: Modes.IWorkerParticipant[],
+		@IResourceService resourceService: IResourceService,
+		@IMarkerService markerService: IMarkerService
+	) {
 
-		super(mode, participants, resourceService, markerService);
-		this.languageService = this.createLanguageService(resourceService, mode.getId());
+		this._modeId = modeId;
+		this.resourceService = resourceService;
+		this.markerService = markerService;
+
+		this._validationHelper = new ValidationHelper(
+			this.resourceService,
+			this._modeId,
+			(toValidate) => this.doValidate(toValidate)
+		);
+
+		this.languageService = this.createLanguageService(resourceService, modeId);
 		this.lintSettings = {};
 		this.validationEnabled = true;
 	}
 
-	protected _createInPlaceReplaceSupport(): Modes.IInplaceReplaceSupport {
-		return new WorkerInplaceReplaceSupport(this.resourceService, {
-			navigateValueSetFallback: (resource:URI, range:EditorCommon.IRange, up:boolean):winjs.TPromise<Modes.IInplaceReplaceSupportResult> => {
-				return this.languageService.join().then(() => {
+	public navigateValueSet(resource:URI, range:EditorCommon.IRange, up:boolean):winjs.TPromise<Modes.IInplaceReplaceSupportResult> {
+		return this.languageService.join().then(() => {
 
-					let model = this.resourceService.get(resource);
-					let offset = model.getOffsetFromPosition({ lineNumber: range.startLineNumber, column: range.startColumn });
-					let styleSheet = this.languageService.getStylesheet(resource);
+			let model = this.resourceService.get(resource);
+			let offset = model.getOffsetFromPosition({ lineNumber: range.startLineNumber, column: range.startColumn });
+			let styleSheet = this.languageService.getStylesheet(resource);
 
-					let node = nodes.getNodeAtOffset(styleSheet, offset);
-					if (!node) {
-						return;
-					}
-					let declaration = nodes.getParentDeclaration(node);
-					if (!declaration) {
-						return;
-					}
+			let node = nodes.getNodeAtOffset(styleSheet, offset);
+			if (!node) {
+				return;
+			}
+			let declaration = nodes.getParentDeclaration(node);
+			if (!declaration) {
+				return;
+			}
 
-					let entry: languageFacts.IEntry = languageFacts.getProperties()[declaration.getFullPropertyName()];
-					if (!entry || !entry.values) {
-						return;
-					}
+			let entry: languageFacts.IEntry = languageFacts.getProperties()[declaration.getFullPropertyName()];
+			if (!entry || !entry.values) {
+				return;
+			}
 
-					let values = entry.values.filter(value => languageFacts.isCommonValue(value)).map(v => v.name);
+			let values = entry.values.filter(value => languageFacts.isCommonValue(value)).map(v => v.name);
 
-					let isColor = (entry.restrictions.indexOf('color') >= 0);
-					if (isColor) {
-						values = values.concat(Object.getOwnPropertyNames(languageFacts.colors), Object.getOwnPropertyNames(languageFacts.colorKeywords));
-					}
+			let isColor = (entry.restrictions.indexOf('color') >= 0);
+			if (isColor) {
+				values = values.concat(Object.getOwnPropertyNames(languageFacts.colors), Object.getOwnPropertyNames(languageFacts.colorKeywords));
+			}
 
-					let text = node.getText();
-					for (let i = 0, len = values.length; i < len; i++) {
-						if (strings.equalsIgnoreCase(values[i], text)) {
-							let nextIdx = i;
-							if(up) {
-								nextIdx = (i + 1) % len;
-							} else {
-								nextIdx =  i - 1;
-								if(nextIdx < 0) {
-									nextIdx = len - 1;
-								}
-							}
-							let result:Modes.IInplaceReplaceSupportResult = {
-								value: values[nextIdx],
-								range: this._range(node, model)
-							};
-							return result;
+			let text = node.getText();
+			for (let i = 0, len = values.length; i < len; i++) {
+				if (strings.equalsIgnoreCase(values[i], text)) {
+					let nextIdx = i;
+					if(up) {
+						nextIdx = (i + 1) % len;
+					} else {
+						nextIdx =  i - 1;
+						if(nextIdx < 0) {
+							nextIdx = len - 1;
 						}
 					}
-					// if none matches, take the first one
-					if (values.length > 0) {
-						let result:Modes.IInplaceReplaceSupportResult = {
-							value: values[0],
-							range: this._range(node, model)
-						};
-						return result;
-					}
-
-					return null;
-				});
+					let result:Modes.IInplaceReplaceSupportResult = {
+						value: values[nextIdx],
+						range: this._range(node, model)
+					};
+					return result;
+				}
 			}
+			// if none matches, take the first one
+			if (values.length > 0) {
+				let result:Modes.IInplaceReplaceSupportResult = {
+					value: values[0],
+					range: this._range(node, model)
+				};
+				return result;
+			}
+
+			return null;
 		});
 	}
 
@@ -115,10 +127,7 @@ export class CSSWorker extends AbstractModeWorker {
 		return new parser.Parser();
 	}
 
-	/**
-	 * @return true if you want to revalidate your models
-	 */
-	_doConfigure(raw:any):winjs.TPromise<boolean> {
+	_doConfigure(raw:any): winjs.TPromise<void> {
 		if (raw) {
 			this.validationEnabled = raw.validate;
 			if (raw.lint) {
@@ -126,14 +135,26 @@ export class CSSWorker extends AbstractModeWorker {
 			} else {
 				this.lintSettings = {};
 			}
-			return winjs.TPromise.as(true);
+			this._validationHelper.triggerDueToConfigurationChange();
 		}
-		return winjs.TPromise.as(false);
+
+		return winjs.TPromise.as(void 0);
 	}
 
-	public doValidate(resource: URI):void {
+	public enableValidator(): winjs.TPromise<void> {
+		this._validationHelper.enable();
+		return winjs.TPromise.as(null);
+	}
+
+	public doValidate(resources: URI[]):void {
+		for (var i = 0; i < resources.length; i++) {
+			this.doValidate1(resources[i]);
+		}
+	}
+
+	private doValidate1(resource: URI):void {
 		if (!this.validationEnabled) {
-			this.markerService.changeOne(this._getMode().getId(), resource, []);
+			this.markerService.changeOne(this._modeId, resource, []);
 			return;
 		}
 
@@ -150,7 +171,7 @@ export class CSSWorker extends AbstractModeWorker {
 				.filter(entry => entry.getLevel() !== _level.Level.Ignore)
 				.map(entry => this._createMarkerData(modelMirror, entry));
 
-			this.markerService.changeOne(this._getMode().getId(), resource, markerData);
+			this.markerService.changeOne(this._modeId, resource, markerData);
 		});
 	}
 
@@ -175,7 +196,11 @@ export class CSSWorker extends AbstractModeWorker {
 		return new cssIntellisense.CSSIntellisense();
 	}
 
-	public doSuggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult> {
+	public suggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
+		return this.doSuggest(resource, position).then(value => filterSuggestions(value));
+	}
+
+	private doSuggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult> {
 
 		return this.languageService.join().then(() => {
 

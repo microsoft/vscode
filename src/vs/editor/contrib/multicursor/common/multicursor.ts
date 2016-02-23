@@ -4,34 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import * as nls from 'vs/nls';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorAction, HandlerEditorAction} from 'vs/editor/common/editorAction';
-import EditorCommon = require('vs/editor/common/editorCommon');
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {EditorAction, HandlerEditorAction} from 'vs/editor/common/editorAction';
+import {Handler, ICommonCodeEditor, IEditorActionDescriptorData, ISelection} from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 
 class InsertCursorAbove extends HandlerEditorAction {
 	static ID = 'editor.action.insertCursorAbove';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, EditorCommon.Handler.AddCursorUp);
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
+		super(descriptor, editor, Handler.AddCursorUp);
 	}
 }
 
 class InsertCursorBelow extends HandlerEditorAction {
 	static ID = 'editor.action.insertCursorBelow';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, EditorCommon.Handler.AddCursorDown);
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
+		super(descriptor, editor, Handler.AddCursorDown);
 	}
 }
 
 class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 	static ID = 'editor.action.insertCursorAtEndOfEachLineSelected';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor);
 	}
 
@@ -39,7 +39,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 		let selection = this.editor.getSelection();
 		if(!selection.isEmpty()) {
 			let model = this.editor.getModel();
-			let newSelections = new Array<EditorCommon.ISelection>();
+			let newSelections = new Array<ISelection>();
 			let selectionStart = selection.getStartPosition();
 			let selectionEnd = selection.getEndPosition();
 			for (var i = selectionStart.lineNumber; i <= selectionEnd.lineNumber; i++) {

@@ -5,34 +5,34 @@
 'use strict';
 
 import 'vs/css!vs/base/browser/ui/progressbar/progressbar';
+import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import nls = require('vs/nls');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
 import {TPromise} from 'vs/base/common/winjs.base';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import HoverOperation = require('./hoverOperation');
-import HoverWidget = require('./hoverWidgets');
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
-import {tokenizeToString} from 'vs/editor/common/modes/textToHtmlTokenizer';
-import {Range} from 'vs/editor/common/core/range';
-import {ExtraInfoRegistry, getExtraInfoAtPosition} from '../common/hover';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {Range} from 'vs/editor/common/core/range';
+import {IEditorRange, IRange} from 'vs/editor/common/editorCommon';
+import {IComputeExtraInfoResult, IMode} from 'vs/editor/common/modes';
+import {tokenizeToString} from 'vs/editor/common/modes/textToHtmlTokenizer';
+import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
+import {ExtraInfoRegistry, getExtraInfoAtPosition} from '../common/hover';
+import {HoverOperation, IHoverComputer} from './hoverOperation';
+import {ContentHoverWidget} from './hoverWidgets';
 
-class ModesContentComputer implements HoverOperation.IHoverComputer<Modes.IComputeExtraInfoResult[]> {
+class ModesContentComputer implements IHoverComputer<IComputeExtraInfoResult[]> {
 
-	private _editor: EditorBrowser.ICodeEditor;
-	private _result: Modes.IComputeExtraInfoResult[];
-	private _range: EditorCommon.IEditorRange;
+	private _editor: ICodeEditor;
+	private _result: IComputeExtraInfoResult[];
+	private _range: IEditorRange;
 
-	constructor(editor: EditorBrowser.ICodeEditor) {
+	constructor(editor: ICodeEditor) {
 		this._editor = editor;
 		this._range = null;
 	}
 
-	public setRange(range: EditorCommon.IEditorRange): void {
+	public setRange(range: IEditorRange): void {
 		this._range = range;
 		this._result = [];
 	}
@@ -41,7 +41,7 @@ class ModesContentComputer implements HoverOperation.IHoverComputer<Modes.ICompu
 		this._result = [];
 	}
 
-	public computeAsync(): TPromise<Modes.IComputeExtraInfoResult[]> {
+	public computeAsync(): TPromise<IComputeExtraInfoResult[]> {
 
 		let model = this._editor.getModel();
 		if (!ExtraInfoRegistry.has(model)) {
@@ -54,8 +54,8 @@ class ModesContentComputer implements HoverOperation.IHoverComputer<Modes.ICompu
 		});
 	}
 
-	public computeSync(): Modes.IComputeExtraInfoResult[] {
-		var result:Modes.IComputeExtraInfoResult[] = [];
+	public computeSync(): IComputeExtraInfoResult[] {
+		var result:IComputeExtraInfoResult[] = [];
 		var lineNumber = this._range.startLineNumber;
 
 		if (lineNumber > this._editor.getModel().getLineCount()) {
@@ -70,7 +70,7 @@ class ModesContentComputer implements HoverOperation.IHoverComputer<Modes.ICompu
 			var endColumn = (d.range.endLineNumber === lineNumber) ? d.range.endColumn : maxColumn;
 
 			if (startColumn <= this._range.startColumn && this._range.endColumn <= endColumn && (d.options.hoverMessage || (d.options.htmlMessage && d.options.htmlMessage.length > 0))) {
-				var obj:Modes.IComputeExtraInfoResult = {
+				var obj:IComputeExtraInfoResult = {
 					value: d.options.hoverMessage,
 					range: new Range(this._range.startLineNumber, startColumn, this._range.startLineNumber, endColumn)
 				};
@@ -83,7 +83,7 @@ class ModesContentComputer implements HoverOperation.IHoverComputer<Modes.ICompu
 		return result;
 	}
 
-	public onResult(result: Modes.IComputeExtraInfoResult[], isFromSynchronousComputation: boolean): void {
+	public onResult(result: IComputeExtraInfoResult[], isFromSynchronousComputation: boolean): void {
 		// Always put synchronous messages before asynchronous ones
 		if (isFromSynchronousComputation) {
 			this._result = result.concat(this._result);
@@ -92,15 +92,15 @@ class ModesContentComputer implements HoverOperation.IHoverComputer<Modes.ICompu
 		}
 	}
 
-	public getResult(): Modes.IComputeExtraInfoResult[] {
+	public getResult(): IComputeExtraInfoResult[] {
 		return this._result.slice(0);
 	}
 
-	public getResultWithLoadingMessage(): Modes.IComputeExtraInfoResult[] {
+	public getResultWithLoadingMessage(): IComputeExtraInfoResult[] {
 		return this._result.slice(0).concat([this._getLoadingMessage()]);
 	}
 
-	private _getLoadingMessage(): Modes.IComputeExtraInfoResult {
+	private _getLoadingMessage(): IComputeExtraInfoResult {
 		return {
 			range: this._range,
 			htmlContent: [{
@@ -114,20 +114,20 @@ class ModesContentComputer implements HoverOperation.IHoverComputer<Modes.ICompu
 	}
 }
 
-export class ModesContentHoverWidget extends HoverWidget.ContentHoverWidget {
+export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	static ID = 'editor.contrib.modesContentHoverWidget';
-	private _messages: Modes.IComputeExtraInfoResult[];
-	private _lastRange: EditorCommon.IEditorRange;
+	private _messages: IComputeExtraInfoResult[];
+	private _lastRange: IEditorRange;
 	private _computer: ModesContentComputer;
-	private _hoverOperation: HoverOperation.HoverOperation<Modes.IComputeExtraInfoResult[]>;
+	private _hoverOperation: HoverOperation<IComputeExtraInfoResult[]>;
 	private _highlightDecorations:string[];
 	private _isChangingDecorations: boolean;
 	private _editorService: IEditorService;
 	private _keybindingService: IKeybindingService;
 	private _shouldFocus: boolean;
 
-	constructor(editor: EditorBrowser.ICodeEditor, editorService: IEditorService, keybindingService: IKeybindingService) {
+	constructor(editor: ICodeEditor, editorService: IEditorService, keybindingService: IKeybindingService) {
 		super(ModesContentHoverWidget.ID, editor);
 
 		this._computer = new ModesContentComputer(this._editor);
@@ -136,9 +136,9 @@ export class ModesContentHoverWidget extends HoverWidget.ContentHoverWidget {
 		this._editorService = editorService;
 		this._keybindingService = keybindingService;
 
-		this._hoverOperation = new HoverOperation.HoverOperation(
+		this._hoverOperation = new HoverOperation(
 			this._computer,
-			(result:Modes.IComputeExtraInfoResult[]) => this._withResult(result, true),
+			(result:IComputeExtraInfoResult[]) => this._withResult(result, true),
 			null,
 			(result:any) => this._withResult(result, false)
 		);
@@ -157,7 +157,7 @@ export class ModesContentHoverWidget extends HoverWidget.ContentHoverWidget {
 		}
 	}
 
-	public startShowingAt(range: EditorCommon.IEditorRange, focus: boolean): void {
+	public startShowingAt(range: IEditorRange, focus: boolean): void {
 		if (this._lastRange) {
 			if (this._lastRange.equalsRange(range)) {
 				// We have to show the widget at the exact same range as before, so no work is needed
@@ -174,7 +174,7 @@ export class ModesContentHoverWidget extends HoverWidget.ContentHoverWidget {
 			if (this._showAtPosition.lineNumber !== range.startLineNumber) {
 				this.hide();
 			} else {
-				var filteredMessages: Modes.IComputeExtraInfoResult[] = [];
+				var filteredMessages: IComputeExtraInfoResult[] = [];
 				for (var i = 0, len = this._messages.length; i < len; i++) {
 					var msg = this._messages[i];
 					var rng = msg.range;
@@ -205,7 +205,7 @@ export class ModesContentHoverWidget extends HoverWidget.ContentHoverWidget {
 		this._isChangingDecorations = false;
 	}
 
-	public _withResult(result: Modes.IComputeExtraInfoResult[], complete:boolean): void {
+	public _withResult(result: IComputeExtraInfoResult[], complete:boolean): void {
 		this._messages = result;
 
 		if (this._lastRange && this._messages.length > 0) {
@@ -216,7 +216,7 @@ export class ModesContentHoverWidget extends HoverWidget.ContentHoverWidget {
 	}
 
 	// TODO@Alex: pull this out into a common utility class
-	private _renderMessages(renderRange: EditorCommon.IRange, messages: Modes.IComputeExtraInfoResult[]): void {
+	private _renderMessages(renderRange: IRange, messages: IComputeExtraInfoResult[]): void {
 
 		// update column from which to show
 		var renderColumn = Number.MAX_VALUE,
@@ -263,7 +263,7 @@ export class ModesContentHoverWidget extends HoverWidget.ContentHoverWidget {
 							}
 						},
 						codeBlockRenderer: (modeId, value) => {
-							let mode: Modes.IMode;
+							let mode: IMode;
 							let model = this._editor.getModel();
 							if (!model.isDisposed()) {
 								mode = model.getMode();

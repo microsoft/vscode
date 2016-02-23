@@ -4,17 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {TPromise} from 'vs/base/common/winjs.base';
-import Modes = require('vs/editor/common/modes');
-import MonarchTypes = require('vs/editor/common/modes/monarch/monarchTypes');
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
-import {IDeclarationContribution} from 'vs/editor/common/modes/supports/declarationSupport';
-import {IReferenceContribution} from 'vs/editor/common/modes/supports/referenceSupport';
-import {IParameterHintsContribution} from 'vs/editor/common/modes/supports/parameterHintsSupport';
-import {ISuggestContribution} from 'vs/editor/common/modes/supports/suggestSupport';
 import Event from 'vs/base/common/event';
+import {IDisposable} from 'vs/base/common/lifecycle';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import * as modes from 'vs/editor/common/modes';
+import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
+import {IDeclarationContribution} from 'vs/editor/common/modes/supports/declarationSupport';
+import {IParameterHintsContribution} from 'vs/editor/common/modes/supports/parameterHintsSupport';
+import {IReferenceContribution} from 'vs/editor/common/modes/supports/referenceSupport';
+import {IRichEditConfiguration} from 'vs/editor/common/modes/supports/richEditSupport';
+import {ISuggestContribution} from 'vs/editor/common/modes/supports/suggestSupport';
+import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
+import {IModelService} from 'vs/editor/common/services/modelService';
 
 export var IModeService = createDecorator<IModeService>('modeService');
 
@@ -38,6 +40,7 @@ export interface IModeService {
 	serviceId: ServiceIdentifier<any>;
 
 	onDidAddModes: Event<string[]>;
+	onDidCreateMode: Event<modes.IMode>;
 
 	configureMode(modeName: string, options: any): void;
 	configureModeById(modeId: string, options: any): void;
@@ -46,6 +49,7 @@ export interface IModeService {
 
 	// --- reading
 	isRegisteredMode(mimetypeOrModeId: string): boolean;
+	isCompatMode(modeId: string): boolean;
 	getRegisteredModes(): string[];
 	getRegisteredLanguageNames(): string[];
 	getExtensions(alias: string): string[];
@@ -57,25 +61,25 @@ export interface IModeService {
 
 	// --- instantiation
 	lookup(commaSeparatedMimetypesOrCommaSeparatedIds: string): IModeLookupResult[];
-	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): Modes.IMode;
-	getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<Modes.IMode>;
-	getOrCreateModeByLanguageName(languageName: string): TPromise<Modes.IMode>;
-	getOrCreateModeByFilenameOrFirstLine(filename: string, firstLine?:string): TPromise<Modes.IMode>;
+	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): modes.IMode;
+	getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<modes.IMode>;
+	getOrCreateModeByLanguageName(languageName: string): TPromise<modes.IMode>;
+	getOrCreateModeByFilenameOrFirstLine(filename: string, firstLine?:string): TPromise<modes.IMode>;
 
-	registerCodeLensSupport(modeId: string, support: Modes.ICodeLensSupport): IDisposable;
+	registerCodeLensSupport(modeId: string, support: modes.ICodeLensSupport): IDisposable;
 	registerDeclarativeDeclarationSupport(modeId: string, contribution: IDeclarationContribution): IDisposable;
-	registerExtraInfoSupport(modeId: string, support: Modes.IExtraInfoSupport): IDisposable;
-	registerFormattingSupport(modeId: string, support: Modes.IFormattingSupport): IDisposable;
-	registerInplaceReplaceSupport(modeId: string, support: Modes.IInplaceReplaceSupport): IDisposable;
-	registerOccurrencesSupport(modeId: string, support: Modes.IOccurrencesSupport): IDisposable;
-	registerOutlineSupport(modeId: string, support: Modes.IOutlineSupport): IDisposable;
+	registerExtraInfoSupport(modeId: string, support: modes.IExtraInfoSupport): IDisposable;
+	registerFormattingSupport(modeId: string, support: modes.IFormattingSupport): IDisposable;
+	registerInplaceReplaceSupport(modeId: string, support: modes.IInplaceReplaceSupport): IDisposable;
+	registerOccurrencesSupport(modeId: string, support: modes.IOccurrencesSupport): IDisposable;
+	registerOutlineSupport(modeId: string, support: modes.IOutlineSupport): IDisposable;
 	registerDeclarativeParameterHintsSupport(modeId: string, support: IParameterHintsContribution): IDisposable;
-	registerQuickFixSupport(modeId: string, support: Modes.IQuickFixSupport): IDisposable;
+	registerQuickFixSupport(modeId: string, support: modes.IQuickFixSupport): IDisposable;
 	registerDeclarativeReferenceSupport(modeId: string, contribution: IReferenceContribution): IDisposable;
-	registerRenameSupport(modeId: string, support: Modes.IRenameSupport): IDisposable;
+	registerRenameSupport(modeId: string, support: modes.IRenameSupport): IDisposable;
 	registerDeclarativeSuggestSupport(modeId: string, declaration: ISuggestContribution): IDisposable;
-	registerTokenizationSupport(modeId: string, callback: (mode: Modes.IMode) => Modes.ITokenizationSupport): IDisposable;
+	registerTokenizationSupport(modeId: string, callback: (mode: modes.IMode) => modes.ITokenizationSupport): IDisposable;
 	registerRichEditSupport(modeId: string, support: IRichEditConfiguration): IDisposable;
 
-	registerMonarchDefinition(modeId:string, language:MonarchTypes.ILanguage): IDisposable;
+	registerMonarchDefinition(modelService: IModelService, editorWorkerService: IEditorWorkerService, modeId:string, language:ILanguage): IDisposable;
 }

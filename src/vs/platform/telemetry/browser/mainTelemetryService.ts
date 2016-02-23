@@ -5,28 +5,12 @@
 
 'use strict';
 
-import Platform = require('vs/base/common/platform');
-import Objects = require('vs/base/common/objects');
-import uuid = require('vs/base/common/uuid');
+import * as Platform from 'vs/base/common/platform';
+import * as uuid from 'vs/base/common/uuid';
 import {AbstractTelemetryService} from 'vs/platform/telemetry/common/abstractTelemetryService';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryService, ITelemetryServiceConfig} from 'vs/platform/telemetry/common/telemetry';
 import {IdleMonitor, UserStatus} from 'vs/base/browser/idleMonitor';
 
-export interface TelemetryServiceConfig {
-	enableTelemetry?: boolean;
-
-	enableHardIdle?: boolean;
-	enableSoftIdle?: boolean;
-	sessionID?: string;
-	commitHash?: string;
-	version?: string;
-}
-
-const DefaultTelemetryServiceConfig: TelemetryServiceConfig = {
-	enableTelemetry: true,
-	enableHardIdle: true,
-	enableSoftIdle: true
-};
 
 export class MainTelemetryService extends AbstractTelemetryService implements ITelemetryService {
 	// how long of inactivity before a user is considered 'inactive' - 2 minutes
@@ -34,17 +18,15 @@ export class MainTelemetryService extends AbstractTelemetryService implements IT
 	public static IDLE_START_EVENT_NAME = 'UserIdleStart';
 	public static IDLE_STOP_EVENT_NAME = 'UserIdleStop';
 
-	protected config: TelemetryServiceConfig;
-
 	private hardIdleMonitor: IdleMonitor;
 	private softIdleMonitor: IdleMonitor;
 	private eventCount: number;
 	private userIdHash: string;
 	private startTime: Date;
+	private optInFriendly: string[];
 
-	constructor(config?: TelemetryServiceConfig) {
-		this.config = Objects.withDefaults(config, DefaultTelemetryServiceConfig);
-		super();
+	constructor(config?: ITelemetryServiceConfig) {
+		super(config);
 
 		this.sessionId = this.config.sessionID || (uuid.generateUuid() + Date.now());
 
@@ -59,6 +41,9 @@ export class MainTelemetryService extends AbstractTelemetryService implements IT
 
 		this.eventCount = 0;
 		this.startTime = new Date();
+
+		//holds a cache of predefined events that can be sent regardress of user optin status
+		this.optInFriendly = ['optInStatus'];
 	}
 
 	private onUserIdle(): void {
@@ -86,8 +71,13 @@ export class MainTelemetryService extends AbstractTelemetryService implements IT
 			return;
 		}
 
-		// don't send telemetry when not enabled
+		// don't send telemetry when channel is not enabled
 		if (!this.config.enableTelemetry) {
+			return;
+		}
+
+		// don't send events when the user is optout unless the event is flaged as optin friendly
+		if(!this.config.userOptIn && this.optInFriendly.indexOf(eventName) === -1) {
 			return;
 		}
 

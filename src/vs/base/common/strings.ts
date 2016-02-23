@@ -277,36 +277,6 @@ export function normalizeNFC(str: string, cache?: { [str: string]: string }): st
 	return res;
 }
 
-export function isCamelCasePattern(pattern: string): boolean {
-	return (/^\w[\w.]*$/).test(pattern);
-}
-
-export function isFalsyOrWhitespace(s: string): boolean {
-	return !s || !s.trim();
-}
-
-export function anchorPattern(value: string, start: boolean, end: boolean): string {
-	if (start) {
-		value = '^' + value;
-	}
-
-	if (end) {
-		value = value + '$';
-	}
-
-	return value;
-}
-
-export function assertRegExp(pattern: string, modifiers: string): void {
-	if (regExpLeadsToEndlessLoop(new RegExp(pattern, modifiers))) {
-		throw new Error('Regular expression /' + pattern + '/g results in infinitive matches');
-	}
-}
-
-export function colorize(code: number, value: string): string {
-	return '\x1b[' + code + 'm' + value + '\x1b[0m';
-}
-
 /**
  * Returns first index of the string that is not whitespace.
  * If string is empty or contains only whitespaces, returns -1

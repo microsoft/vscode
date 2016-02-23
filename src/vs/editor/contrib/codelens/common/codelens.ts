@@ -5,14 +5,14 @@
 
 'use strict';
 
-import {onUnexpectedError, illegalArgument, isPromiseCanceledError} from 'vs/base/common/errors';
+import {illegalArgument, isPromiseCanceledError, onUnexpectedError} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import {IModelService} from 'vs/editor/common/services/modelService';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IModel} from 'vs/editor/common/editorCommon';
-import {ICodeLensSupport, ICodeLensSymbol} from 'vs/editor/common/modes';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ICodeLensSupport, ICodeLensSymbol} from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import {IModelService} from 'vs/editor/common/services/modelService';
 
 export const CodeLensRegistry = new LanguageFeatureRegistry<ICodeLensSupport>('codeLensSupport');
 

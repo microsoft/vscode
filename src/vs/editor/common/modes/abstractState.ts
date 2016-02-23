@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Modes = require('vs/editor/common/modes');
+import {IMode, IState, IStream, ITokenizationResult} from 'vs/editor/common/modes';
 
-export class AbstractState implements Modes.IState {
+export class AbstractState implements IState {
 
-	private mode:Modes.IMode;
-	private stateData:Modes.IState;
+	private mode:IMode;
+	private stateData:IState;
 
-	constructor(mode:Modes.IMode, stateData:Modes.IState = null) {
+	constructor(mode:IMode, stateData:IState = null) {
 		this.mode = mode;
 		this.stateData = stateData;
 	}
 
-	public getMode():Modes.IMode {
+	public getMode():IMode {
 		return this.mode;
 	}
 
-	public clone():Modes.IState {
+	public clone():IState {
 		var result:AbstractState = this.makeClone();
 		result.initializeFrom(this);
 		return result;
@@ -34,15 +34,15 @@ export class AbstractState implements Modes.IState {
 		this.stateData = other.stateData !== null ? other.stateData.clone() : null;
 	}
 
-	public getStateData(): Modes.IState {
+	public getStateData(): IState {
 		return this.stateData;
 	}
 
-	public setStateData(state:Modes.IState):void {
+	public setStateData(state:IState):void {
 		this.stateData = state;
 	}
 
-	public equals(other:Modes.IState):boolean {
+	public equals(other:IState):boolean {
 		if (other === null || this.mode !== other.getMode()) {
 			return false;
 		}
@@ -52,11 +52,11 @@ export class AbstractState implements Modes.IState {
 		return false;
 	}
 
-	public tokenize(stream:Modes.IStream):Modes.ITokenizationResult {
+	public tokenize(stream:IStream):ITokenizationResult {
 		throw new Error('Abstract Method');
 	}
 
-	public static safeEquals(a: Modes.IState, b: Modes.IState): boolean {
+	public static safeEquals(a: IState, b: IState): boolean {
 		if (a === null && b === null) {
 			return true;
 		}
@@ -66,7 +66,7 @@ export class AbstractState implements Modes.IState {
 		return a.equals(b);
 	}
 
-	public static safeClone(state: Modes.IState): Modes.IState {
+	public static safeClone(state: IState): IState {
 		if (state) {
 			return state.clone();
 		}

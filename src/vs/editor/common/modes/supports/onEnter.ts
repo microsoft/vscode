@@ -4,17 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {handleEvent} from 'vs/editor/common/modes/supports';
-import {IEnterAction, IndentAction, IRichEditOnEnter, ILineContext, IMode} from 'vs/editor/common/modes';
-import {ITokenizedModel, ITextModel, IPosition} from 'vs/editor/common/editorCommon';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import Strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 import {Position} from 'vs/editor/common/core/position';
-
-export interface IBracketPair {
-	open: string;
-	close: string;
-}
+import {IPosition, ITextModel, ITokenizedModel} from 'vs/editor/common/editorCommon';
+import {IEnterAction, ILineContext, IMode, IRichEditOnEnter, IndentAction, CharacterPair} from 'vs/editor/common/modes';
+import {handleEvent} from 'vs/editor/common/modes/supports';
 
 export interface IIndentationRules {
 	decreaseIndentPattern: RegExp;
@@ -30,12 +25,14 @@ export interface IOnEnterRegExpRules {
 }
 
 export interface IOnEnterSupportOptions {
-	brackets?: IBracketPair[];
+	brackets?: CharacterPair[];
 	indentationRules?: IIndentationRules;
 	regExpRules?: IOnEnterRegExpRules[];
 }
 
-interface IProcessedBracketPair extends IBracketPair {
+interface IProcessedBracketPair {
+	open: string;
+	close: string;
 	openRegExp: RegExp;
 	closeRegExp: RegExp;
 }
@@ -54,18 +51,18 @@ export class OnEnterSupport implements IRichEditOnEnter {
 	constructor(modeId: string, opts?:IOnEnterSupportOptions) {
 		opts = opts || {};
 		opts.brackets = opts.brackets || [
-			{ open: '(', close: ')' },
-			{ open: '{', close: '}' },
-			{ open: '[', close: ']' }
+			['(', ')'],
+			['{', '}'],
+			['[', ']']
 		];
 
 		this._modeId = modeId;
 		this._brackets = opts.brackets.map((bracket) => {
 			return {
-				open: bracket.open,
-				openRegExp: OnEnterSupport._createOpenBracketRegExp(bracket.open),
-				close: bracket.close,
-				closeRegExp: OnEnterSupport._createCloseBracketRegExp(bracket.close),
+				open: bracket[0],
+				openRegExp: OnEnterSupport._createOpenBracketRegExp(bracket[0]),
+				close: bracket[1],
+				closeRegExp: OnEnterSupport._createCloseBracketRegExp(bracket[1]),
 			};
 		});
 		this._regExpRules = opts.regExpRules || [];
@@ -154,7 +151,7 @@ export class OnEnterSupport implements IRichEditOnEnter {
 	}
 
 	private static _createOpenBracketRegExp(bracket:string): RegExp {
-		var str = Strings.escapeRegExpCharacters(bracket);
+		var str = strings.escapeRegExpCharacters(bracket);
 		if (!/\B/.test(str.charAt(0))) {
 			str = '\\b' + str;
 		}
@@ -163,7 +160,7 @@ export class OnEnterSupport implements IRichEditOnEnter {
 	}
 
 	private static _createCloseBracketRegExp(bracket:string): RegExp {
-		var str = Strings.escapeRegExpCharacters(bracket);
+		var str = strings.escapeRegExpCharacters(bracket);
 		if (!/\B/.test(str.charAt(str.length - 1))) {
 			str = str + '\\b';
 		}
@@ -198,7 +195,7 @@ export function getRawEnterActionAtPosition(model:ITokenizedModel, lineNumber:nu
 
 export function getEnterActionAtPosition(model:ITokenizedModel, lineNumber:number, column:number): { enterAction: IEnterAction; indentation: string; } {
 	let lineText = model.getLineContent(lineNumber);
-	let indentation = Strings.getLeadingWhitespace(lineText);
+	let indentation = strings.getLeadingWhitespace(lineText);
 	if (indentation.length > column - 1) {
 		indentation = indentation.substring(0, column - 1);
 	}

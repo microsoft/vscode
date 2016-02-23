@@ -9,10 +9,8 @@ import 'vs/languages/javascript/common/javascript.contribution';
 import assert = require('assert');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import htmlMode = require('vs/languages/html/common/html');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import {Model} from 'vs/editor/common/model/model';
-import Supports = require('vs/editor/common/modes/supports');
 import {getTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE, COMMENT, DELIM_COMMENT, DELIM_DOCTYPE, DOCTYPE} from 'vs/languages/html/common/htmlTokenTypes';
 import {getRawEnterActionAtPosition} from 'vs/editor/common/modes/supports/onEnter';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
@@ -25,7 +23,7 @@ suite('Colorizing - HTML', () => {
 	var _mode: Modes.IMode;
 
 	suiteSetup((done) => {
-		modesUtil.load('html').then(mode => {
+		modesUtil.load('html', ['javascript']).then(mode => {
 			tokenizationSupport = mode.tokenizationSupport;
 			_mode = mode;
 			done();
@@ -480,7 +478,7 @@ suite('Colorizing - HTML', () => {
 				{ startIndex:11, type: ATTRIB_VALUE },
 				{ startIndex:16, type: DELIM_START, bracket: Modes.Bracket.Close }
 			]}
-		])
+		]);
 	});
 
 	test('Tag with Name-Only-Attribute #1', () => {

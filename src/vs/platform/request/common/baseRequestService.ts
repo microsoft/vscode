@@ -105,35 +105,4 @@ export class BaseRequestService implements IRequestService {
 			timer.stop();
 		}));
 	}
-
-	public makeChunkedRequest(options: http.IXHROptions): winjs.TPromise<{ request: http.IXHRResponse; chunks: http.IDataChunk[]; }> {
-		let from = 0,
-			c: winjs.ValueCallback, e: winjs.ErrorCallback, p: winjs.ProgressCallback,
-			canceled = false;
-
-		return new winjs.TPromise<{ request: XMLHttpRequest; chunks: http.IDataChunk[]; }>((_c, _e, _p) => {
-			c = _c; e = _e; p = _p;
-			this.makeRequest(options).done((request) => {
-				let ret = {
-					request: request,
-					chunks: <http.IDataChunk[]>[]
-				};
-				from = http.parseChunkedData(request, ret.chunks, from);
-				c(ret);
-			},
-				(err) => {
-					e(err);
-				},
-				(request: XMLHttpRequest) => {
-					// This might fail in IE10 for b i g request. Leave it enabled
-					// for now to see if and when it fails
-					// if(request.readyState === 3) {
-					//	from = http.parseChunkedData(request, ret.chunks, from);
-					// }
-				}
-			);
-		}, () => {
-			canceled = true;
-		});
-	}
 }

@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import {StyleMutator} from 'vs/base/browser/styleMutator';
+import {IConfigurationChangedEvent, IPosition} from 'vs/editor/common/editorCommon';
+import {IRenderingContext, IRestrictedRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
 
 export class ViewCursor {
-	private _context:EditorBrowser.IViewContext;
-	private _position: EditorCommon.IPosition;
+	private _context:IViewContext;
+	private _position: IPosition;
 	private _domNode:HTMLElement;
 	private _positionTop:number;
 	private _positionLeft:number;
@@ -18,7 +18,7 @@ export class ViewCursor {
 	private _isVisible:boolean;
 	private _isInViewport:boolean;
 
-	constructor(context:EditorBrowser.IViewContext, isSecondary:boolean) {
+	constructor(context:IViewContext, isSecondary:boolean) {
 		this._context = context;
 
 		this._isInEditableRange = true;
@@ -58,7 +58,7 @@ export class ViewCursor {
 		return this._positionTop;
 	}
 
-	public getPosition(): EditorCommon.IPosition {
+	public getPosition(): IPosition {
 		return this._position;
 	}
 
@@ -85,20 +85,20 @@ export class ViewCursor {
 		return true;
 	}
 
-	public onCursorPositionChanged(position: EditorCommon.IPosition, isInEditableRange: boolean): boolean {
+	public onCursorPositionChanged(position: IPosition, isInEditableRange: boolean): boolean {
 		this.updatePosition(position);
 		this._isInEditableRange = isInEditableRange;
 		return true;
 	}
 
-	public onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e:IConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			StyleMutator.setHeight(this._domNode, this._context.configuration.editor.lineHeight);
 		}
 		return true;
 	}
 
-	public prepareRender(ctx:EditorBrowser.IRenderingContext): void {
+	public prepareRender(ctx:IRenderingContext): void {
 		var visibleRange = ctx.visibleRangeForPosition(this._position);
 		if (visibleRange) {
 			this._positionTop = visibleRange.top;
@@ -109,7 +109,7 @@ export class ViewCursor {
 		}
 	}
 
-	public render(ctx:EditorBrowser.IRestrictedRenderingContext): void {
+	public render(ctx:IRestrictedRenderingContext): void {
 		if (this._isInViewport) {
 			StyleMutator.setDisplay(this._domNode, 'block');
 			StyleMutator.setLeft(this._domNode, this._positionLeft);
@@ -119,7 +119,7 @@ export class ViewCursor {
 		}
 	}
 
-	private updatePosition(newPosition:EditorCommon.IPosition): void {
+	private updatePosition(newPosition:IPosition): void {
 		this._position = newPosition;
 		this._domNode.setAttribute('lineNumber', this._position.lineNumber.toString());
 		this._domNode.setAttribute('column', this._position.column.toString());

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {NullMode} from 'vs/editor/common/modes/nullMode';
-import Modes = require('vs/editor/common/modes');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import {Arrays} from 'vs/editor/common/core/arrays';
+import {ILineTokens, IPosition, IWordAtPosition, IWordRange} from 'vs/editor/common/editorCommon';
+import {IMode, IModeTransition} from 'vs/editor/common/modes';
+import {NullMode} from 'vs/editor/common/modes/nullMode';
 
 export interface ITextSource {
 
@@ -17,13 +17,13 @@ export interface ITextSource {
 
 	getLineCount(): number;
 
-	getMode(): Modes.IMode;
+	getMode(): IMode;
 
-	getModeAtPosition(lineNumber:number, column:number): Modes.IMode;
+	getModeAtPosition(lineNumber:number, column:number): IMode;
 
-	_getLineModeTransitions(lineNumber:number): Modes.IModeTransition[];
+	_getLineModeTransitions(lineNumber:number): IModeTransition[];
 
-	getLineTokens(lineNumber:number, inaccurateTokensAcceptable:boolean): EditorCommon.ILineTokens;
+	getLineTokens(lineNumber:number, inaccurateTokensAcceptable:boolean): ILineTokens;
 }
 
 export interface INonWordTokenMap {
@@ -32,7 +32,7 @@ export interface INonWordTokenMap {
 
 export class WordHelper {
 
-	private static _safeGetWordDefinition(mode:Modes.IMode): RegExp {
+	private static _safeGetWordDefinition(mode:IMode): RegExp {
 		return (mode.richEditSupport ? mode.richEditSupport.wordDefinition : null);
 	}
 
@@ -59,16 +59,16 @@ export class WordHelper {
 		return result;
 	}
 
-	public static massageWordDefinitionOf(mode:Modes.IMode): RegExp {
+	public static massageWordDefinitionOf(mode:IMode): RegExp {
 		return WordHelper.ensureValidWordDefinition(WordHelper._safeGetWordDefinition(mode));
 	}
 
-	public static getWords(textSource:ITextSource, lineNumber:number): EditorCommon.IWordRange[] {
+	public static getWords(textSource:ITextSource, lineNumber:number): IWordRange[] {
 		if (!textSource._lineIsTokenized(lineNumber)) {
 			return WordHelper._getWordsInText(textSource.getLineContent(lineNumber), WordHelper.massageWordDefinitionOf(textSource.getMode()));
 		}
 
-		var r: EditorCommon.IWordRange[] = [],
+		var r: IWordRange[] = [],
 			txt = textSource.getLineContent(lineNumber);
 
 		if (txt.length > 0) {
@@ -118,7 +118,7 @@ export class WordHelper {
 		return r;
 	}
 
-	static _getWordsInText(text:string, wordDefinition:RegExp): EditorCommon.IWordRange[] {
+	static _getWordsInText(text:string, wordDefinition:RegExp): IWordRange[] {
 		var words = text.match(wordDefinition) || [],
 			k:number,
 			startWord:number,
@@ -126,7 +126,7 @@ export class WordHelper {
 			startColumn:number,
 			endColumn:number,
 			word:string,
-			r: EditorCommon.IWordRange[] = [];
+			r: IWordRange[] = [];
 
 		for (k = 0; k < words.length; k++) {
 			word = words[k].trim();
@@ -147,7 +147,7 @@ export class WordHelper {
 		return r;
 	}
 
-	private static _getWordAtColumn(txt:string, column:number, modeIndex: number, modeTransitions:Modes.IModeTransition[]): EditorCommon.IWordAtPosition {
+	private static _getWordAtColumn(txt:string, column:number, modeIndex: number, modeTransitions:IModeTransition[]): IWordAtPosition {
 		var modeStartIndex = modeTransitions[modeIndex].startIndex,
 			modeEndIndex = (modeIndex + 1 < modeTransitions.length ? modeTransitions[modeIndex + 1].startIndex : txt.length),
 			mode = modeTransitions[modeIndex].mode;
@@ -158,13 +158,13 @@ export class WordHelper {
 		);
 	}
 
-	public static getWordAtPosition(textSource:ITextSource, position:EditorCommon.IPosition): EditorCommon.IWordAtPosition {
+	public static getWordAtPosition(textSource:ITextSource, position:IPosition): IWordAtPosition {
 
 		if (!textSource._lineIsTokenized(position.lineNumber)) {
 			return WordHelper._getWordAtText(position.column, WordHelper.massageWordDefinitionOf(textSource.getMode()), textSource.getLineContent(position.lineNumber), 0);
 		}
 
-		var result: EditorCommon.IWordAtPosition = null;
+		var result: IWordAtPosition = null;
 		var txt = textSource.getLineContent(position.lineNumber),
 			modeTransitions = textSource._getLineModeTransitions(position.lineNumber),
 			columnIndex = position.column - 1,
@@ -180,7 +180,7 @@ export class WordHelper {
 		return result;
 	}
 
-	static _getWordAtText(column:number, wordDefinition:RegExp, text:string, textOffset:number): EditorCommon.IWordAtPosition {
+	static _getWordAtText(column:number, wordDefinition:RegExp, text:string, textOffset:number): IWordAtPosition {
 
 		// console.log('_getWordAtText: ', column, text, textOffset);
 

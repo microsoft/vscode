@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {IChange, ILineChange, IPosition, IRange} from 'vs/editor/common/editorCommon';
+import {IInplaceReplaceSupportResult, ILink, ISuggestResult} from 'vs/editor/common/modes';
 
 export var ID_EDITOR_WORKER_SERVICE = 'workerService';
 export var IEditorWorkerService = createDecorator<IEditorWorkerService>(ID_EDITOR_WORKER_SERVICE);
@@ -16,8 +16,9 @@ export var IEditorWorkerService = createDecorator<IEditorWorkerService>(ID_EDITO
 export interface IEditorWorkerService {
 	serviceId: ServiceIdentifier<any>;
 
-	computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]>;
-	computeDirtyDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]>;
-	computeLinks(resource:URI):TPromise<Modes.ILink[]>;
-	textualSuggest(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.ISuggestResult[]>;
+	computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<ILineChange[]>;
+	computeDirtyDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<IChange[]>;
+	computeLinks(resource:URI):TPromise<ILink[]>;
+	textualSuggest(resource: URI, position: IPosition): TPromise<ISuggestResult[]>;
+	navigateValueSet(resource: URI, range:IRange, up:boolean): TPromise<IInplaceReplaceSupportResult>;
 }

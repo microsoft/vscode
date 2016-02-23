@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
+import {IntervalTimer} from 'vs/base/common/async';
+import {Disposable, IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {Disposable, IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {SimpleWorkerClient} from 'vs/base/common/worker/simpleWorker';
 import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
-import {EditorSimpleWorker} from 'vs/editor/common/services/editorSimpleWorkerCommon';
-import {IntervalTimer} from 'vs/base/common/async';
-import Modes = require('vs/editor/common/modes');
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
+import {IInplaceReplaceSupportResult, ILink, ISuggestResult} from 'vs/editor/common/modes';
+import {EditorSimpleWorker} from 'vs/editor/common/services/editorSimpleWorkerCommon';
+import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
+import {IModelService} from 'vs/editor/common/services/modelService';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -36,21 +36,26 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 		this._workerManager = new WorkerManager(modelService);
 	}
 
-	public computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]> {
+	public computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<editorCommon.ILineChange[]> {
 		return this._workerManager.withWorker().then(client => client.computeDiff(original, modified, ignoreTrimWhitespace));
 	}
 
-	public computeDirtyDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]> {
+	public computeDirtyDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<editorCommon.IChange[]> {
 		return this._workerManager.withWorker().then(client => client.computeDirtyDiff(original, modified, ignoreTrimWhitespace));
 	}
 
-	public computeLinks(resource:URI):TPromise<Modes.ILink[]> {
+	public computeLinks(resource:URI):TPromise<ILink[]> {
 		return this._workerManager.withWorker().then(client => client.computeLinks(resource));
 	}
 
-	public textualSuggest(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.ISuggestResult[]> {
+	public textualSuggest(resource: URI, position: editorCommon.IPosition): TPromise<ISuggestResult[]> {
 		return this._workerManager.withWorker().then(client => client.textualSuggest(resource, position));
 	}
+
+	public navigateValueSet(resource: URI, range:editorCommon.IRange, up:boolean): TPromise<IInplaceReplaceSupportResult> {
+		return this._workerManager.withWorker().then(client => client.navigateValueSet(resource, range, up));
+	}
+
 }
 
 class WorkerManager extends Disposable {
@@ -146,25 +151,25 @@ class EditorWorkerClient extends Disposable {
 		}
 	}
 
-	public computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]> {
+	public computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<editorCommon.ILineChange[]> {
 		return this._withSyncedResources([original, modified]).then(_ => {
 			return this._proxy.computeDiff(original.toString(), modified.toString(), ignoreTrimWhitespace);
 		});
 	}
 
-	public computeDirtyDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]> {
+	public computeDirtyDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<editorCommon.IChange[]> {
 		return this._withSyncedResources([original, modified]).then(_ => {
 			return this._proxy.computeDirtyDiff(original.toString(), modified.toString(), ignoreTrimWhitespace);
 		});
 	}
 
-	public computeLinks(resource:URI):TPromise<Modes.ILink[]> {
+	public computeLinks(resource:URI):TPromise<ILink[]> {
 		return this._withSyncedResources([resource]).then(_ => {
 			return this._proxy.computeLinks(resource.toString());
 		});
 	}
 
-	public textualSuggest(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.ISuggestResult[]> {
+	public textualSuggest(resource: URI, position: editorCommon.IPosition): TPromise<ISuggestResult[]> {
 		return this._withSyncedResources([resource]).then(_ => {
 			let model = this._modelService.getModel(resource);
 			if (!model) {
@@ -174,6 +179,19 @@ class EditorWorkerClient extends Disposable {
 			let wordDef = wordDefRegExp.source;
 			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
 			return this._proxy.textualSuggest(resource.toString(), position, wordDef, wordDefFlags);
+		});
+	}
+
+	public navigateValueSet(resource: URI, range:editorCommon.IRange, up:boolean): TPromise<IInplaceReplaceSupportResult> {
+		return this._withSyncedResources([resource]).then(_ => {
+			let model = this._modelService.getModel(resource);
+			if (!model) {
+				return null;
+			}
+			let wordDefRegExp = WordHelper.massageWordDefinitionOf(model.getMode());
+			let wordDef = wordDefRegExp.source;
+			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
+			return this._proxy.navigateValueSet(resource.toString(), range, up, wordDef, wordDefFlags);
 		});
 	}
 
@@ -212,14 +230,14 @@ class EditorWorkerClient extends Disposable {
 
 		let toDispose:IDisposable[] = [];
 		toDispose.push(model.addBulkListener2((events) => {
-			let changedEvents: EditorCommon.IModelContentChangedEvent2[] = [];
+			let changedEvents: editorCommon.IModelContentChangedEvent2[] = [];
 			for (let i = 0, len = events.length; i < len; i++) {
 				let e = events[i];
 				switch (e.getType()) {
-					case EditorCommon.EventType.ModelContentChanged2:
-						changedEvents.push(<EditorCommon.IModelContentChangedEvent2>e.getData());
+					case editorCommon.EventType.ModelContentChanged2:
+						changedEvents.push(<editorCommon.IModelContentChangedEvent2>e.getData());
 						break;
-					case EditorCommon.EventType.ModelDispose:
+					case editorCommon.EventType.ModelDispose:
 						this._stopModelSync(modelUrl);
 						return;
 				}

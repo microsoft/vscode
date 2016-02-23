@@ -8,7 +8,6 @@ import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import HtmlContent = require('vs/base/common/htmlContent');
 import Parser = require('./parser/jsonParser');
 import JSONFormatter = require('vs/languages/json/common/features/jsonFormatter');
@@ -17,7 +16,6 @@ import JSONSchema = require('vs/base/common/jsonSchema');
 import JSONIntellisense = require('./jsonIntellisense');
 import WinJS = require('vs/base/common/winjs.base');
 import Strings = require('vs/base/common/strings');
-import {JSONMode} from './json';
 import ProjectJSONContribution = require('./contributions/projectJSONContribution');
 import PackageJSONContribution = require('./contributions/packageJSONContribution');
 import BowerJSONContribution = require('./contributions/bowerJSONContribution');
@@ -30,7 +28,8 @@ import {ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContribut
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {JSONLocation} from './parser/jsonLocation';
-import {WorkerInplaceReplaceSupport, ReplaceSupport} from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
+import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
+import {ValidationHelper} from 'vs/editor/common/worker/validationHelper';
 
 export interface IOptionsSchema {
 	/**
@@ -69,23 +68,38 @@ export interface IJSONWorkerContribution {
 	collectDefaultSuggestions(resource: URI, result: ISuggestionsCollector): WinJS.Promise;
 }
 
-export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSupport {
+export class JSONWorker implements Modes.IExtraInfoSupport {
 
 	private schemaService: SchemaService.IJSONSchemaService;
 	private requestService: IRequestService;
 	private contextService: IWorkspaceContextService;
 	private jsonIntellisense : JSONIntellisense.JSONIntellisense;
-	private jsonMode: JSONMode;
 	private contributions: IJSONWorkerContribution[];
+	private _validationHelper: ValidationHelper;
+	private resourceService:IResourceService;
+	private markerService: IMarkerService;
+	private _modeId: string;
 
-	constructor(mode: Modes.IMode, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
-		@IMarkerService markerService: IMarkerService, @IRequestService requestService: IRequestService,
+	constructor(
+		modeId: string,
+		participants: Modes.IWorkerParticipant[],
+		@IResourceService resourceService: IResourceService,
+		@IMarkerService markerService: IMarkerService,
+		@IRequestService requestService: IRequestService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IInstantiationService instantiationService: IInstantiationService) {
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
 
-		super(mode, participants, resourceService, markerService);
+		this._modeId = modeId;
+		this.resourceService = resourceService;
+		this.markerService = markerService;
 
-		this.jsonMode = <JSONMode>mode;
+		this._validationHelper = new ValidationHelper(
+			this.resourceService,
+			this._modeId,
+			(toValidate) => this.doValidate(toValidate)
+		);
+
 		this.requestService = requestService;
 		this.contextService = contextService;
 		this.schemaService = instantiationService.createInstance(SchemaService.JSONSchemaService);
@@ -100,73 +114,66 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 		this.jsonIntellisense = new JSONIntellisense.JSONIntellisense(this.schemaService, this.requestService, this.contributions);
 	}
 
-	protected _createInPlaceReplaceSupport(): Modes.IInplaceReplaceSupport {
-		return new WorkerInplaceReplaceSupport(this.resourceService, {
-			textReplace: (value: string, up: boolean): string => {
-				return ReplaceSupport.valueSetReplace(['true', 'false'], value, up);
-			},
-			navigateValueSetFallback: (resource:URI, range:EditorCommon.IRange, up:boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> => {
-				var modelMirror = this.resourceService.get(resource);
-				var offset = modelMirror.getOffsetFromPosition({ lineNumber: range.startLineNumber, column: range.startColumn });
+	public navigateValueSet(resource:URI, range:EditorCommon.IRange, up:boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
+		var modelMirror = this.resourceService.get(resource);
+		var offset = modelMirror.getOffsetFromPosition({ lineNumber: range.startLineNumber, column: range.startColumn });
 
-				var parser = new Parser.JSONParser();
-				var config = new Parser.JSONDocumentConfig();
-				config.ignoreDanglingComma = true;
-				var doc = parser.parse(modelMirror.getValue(), config);
-				var node = doc.getNodeFromOffsetEndInclusive(offset);
+		var parser = new Parser.JSONParser();
+		var config = new Parser.JSONDocumentConfig();
+		config.ignoreDanglingComma = true;
+		var doc = parser.parse(modelMirror.getValue(), config);
+		var node = doc.getNodeFromOffsetEndInclusive(offset);
 
-				if (node && (node.type === 'string' || node.type === 'number' || node.type === 'boolean' || node.type === 'null')) {
-					return this.schemaService.getSchemaForResource(resource.toString(), doc).then((schema) => {
-						if (schema) {
-							var proposals : Modes.ISuggestion[] = [];
-							var proposed: any = {};
-							var collector = {
-								add: (suggestion: Modes.ISuggestion) => {
-									if (!proposed[suggestion.label]) {
-										proposed[suggestion.label] = true;
-										proposals.push(suggestion);
-									}
-								},
-								setAsIncomplete: () => { /* ignore */ },
-								error: (message: string) => {
-									errors.onUnexpectedError(message);
-								}
-							};
+		if (node && (node.type === 'string' || node.type === 'number' || node.type === 'boolean' || node.type === 'null')) {
+			return this.schemaService.getSchemaForResource(resource.toString(), doc).then((schema) => {
+				if (schema) {
+					var proposals : Modes.ISuggestion[] = [];
+					var proposed: any = {};
+					var collector = {
+						add: (suggestion: Modes.ISuggestion) => {
+							if (!proposed[suggestion.label]) {
+								proposed[suggestion.label] = true;
+								proposals.push(suggestion);
+							}
+						},
+						setAsIncomplete: () => { /* ignore */ },
+						error: (message: string) => {
+							errors.onUnexpectedError(message);
+						}
+					};
 
-							this.jsonIntellisense.getValueSuggestions(resource, schema, doc, node.parent, node.start, collector);
+					this.jsonIntellisense.getValueSuggestions(resource, schema, doc, node.parent, node.start, collector);
 
-							var range = modelMirror.getRangeFromOffsetAndLength(node.start, node.end - node.start);
-							var text = modelMirror.getValueInRange(range);
-							for (var i = 0, len = proposals.length; i < len; i++) {
-								if (Strings.equalsIgnoreCase(proposals[i].label, text)) {
-									var nextIdx = i;
-									if (up) {
-										nextIdx = (i + 1) % len;
-									} else {
-										nextIdx =  i - 1;
-										if (nextIdx < 0) {
-											nextIdx = len - 1;
-										}
-									}
-									return {
-										value: proposals[nextIdx].label,
-										range: range
-									};
+					var range = modelMirror.getRangeFromOffsetAndLength(node.start, node.end - node.start);
+					var text = modelMirror.getValueInRange(range);
+					for (var i = 0, len = proposals.length; i < len; i++) {
+						if (Strings.equalsIgnoreCase(proposals[i].label, text)) {
+							var nextIdx = i;
+							if (up) {
+								nextIdx = (i + 1) % len;
+							} else {
+								nextIdx =  i - 1;
+								if (nextIdx < 0) {
+									nextIdx = len - 1;
 								}
 							}
-							return null;
+							return {
+								value: proposals[nextIdx].label,
+								range: range
+							};
 						}
-					});
+					}
+					return null;
 				}
-				return null;
-			}
-		});
+			});
+		}
+		return null;
 	}
 
 	/**
 	 * @return true if you want to revalidate your models
 	 */
-	_doConfigure(options:IOptions):WinJS.TPromise<boolean> {
+	_doConfigure(options:IOptions): WinJS.TPromise<void> {
 		if (options && options.schemas) {
 			this.schemaService.clearExternalSchemas();
 			options.schemas.forEach((schema) => {
@@ -188,7 +195,9 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 				}
 			});
 		}
-		return WinJS.TPromise.as(true);
+		this._validationHelper.triggerDueToConfigurationChange();
+
+		return WinJS.TPromise.as(void 0);
 	}
 
 	public setSchemaContributions(contributions:ISchemaContributions): WinJS.TPromise<boolean> {
@@ -196,7 +205,18 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 		return WinJS.TPromise.as(true);
 	}
 
-	public doValidate(resource:URI):void {
+	public enableValidator(): WinJS.TPromise<void> {
+		this._validationHelper.enable();
+		return WinJS.TPromise.as(null);
+	}
+
+	public doValidate(resources: URI[]):void {
+		for (var i = 0; i < resources.length; i++) {
+			this.doValidate1(resources[i]);
+		}
+	}
+
+	private doValidate1(resource: URI):void {
 		var modelMirror = this.resourceService.get(resource);
 		var parser = new Parser.JSONParser();
 		var content = modelMirror.getValue();
@@ -241,13 +261,16 @@ export class JSONWorker extends AbstractModeWorker implements Modes.IExtraInfoSu
 				}
 			});
 
-			this.markerService.changeOne(this._getMode().getId(), resource, markerData);
+			this.markerService.changeOne(this._modeId, resource, markerData);
 		});
 
 	}
 
+	public suggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult[]> {
+		return this.doSuggest(resource, position).then(value => filterSuggestions(value));
+	}
 
-	public doSuggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult> {
+	private doSuggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult> {
 		var modelMirror = this.resourceService.get(resource);
 
 		return this.jsonIntellisense.doSuggest(resource, modelMirror, position);

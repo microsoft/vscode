@@ -6,9 +6,9 @@
 'use strict';
 
 import {Position} from 'vs/editor/common/core/position';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {IEditorPosition, IEditorRange, IPosition, IRange} from 'vs/editor/common/editorCommon';
 
-export class Range implements EditorCommon.IEditorRange {
+export class Range implements IEditorRange {
 
 	public startLineNumber:number;
 	public startColumn:number;
@@ -33,31 +33,31 @@ export class Range implements EditorCommon.IEditorRange {
 		return Range.isEmpty(this);
 	}
 
-	public containsPosition(position:EditorCommon.IPosition): boolean {
+	public containsPosition(position:IPosition): boolean {
 		return Range.containsPosition(this, position);
 	}
 
-	public containsRange(range:EditorCommon.IRange): boolean {
+	public containsRange(range:IRange): boolean {
 		return Range.containsRange(this, range);
 	}
 
-	public plusRange(range:EditorCommon.IRange): Range {
+	public plusRange(range:IRange): Range {
 		return Range.plusRange(this, range);
 	}
 
-	public intersectRanges(range:EditorCommon.IRange): Range {
+	public intersectRanges(range:IRange): Range {
 		return Range.intersectRanges(this, range);
 	}
 
-	public equalsRange(other:EditorCommon.IRange): boolean {
+	public equalsRange(other:IRange): boolean {
 		return Range.equalsRange(this, other);
 	}
 
-	public getEndPosition(): EditorCommon.IEditorPosition {
+	public getEndPosition(): IEditorPosition {
 		return new Position(this.endLineNumber, this.endColumn);
 	}
 
-	public getStartPosition(): EditorCommon.IEditorPosition {
+	public getStartPosition(): IEditorPosition {
 		return new Position(this.startLineNumber, this.startColumn);
 	}
 
@@ -69,11 +69,11 @@ export class Range implements EditorCommon.IEditorRange {
 		return '[' + this.startLineNumber + ',' + this.startColumn + ' -> ' + this.endLineNumber + ',' + this.endColumn + ']';
 	}
 
-	public setEndPosition(endLineNumber: number, endColumn: number): EditorCommon.IEditorRange {
+	public setEndPosition(endLineNumber: number, endColumn: number): IEditorRange {
 		return new Range(this.startLineNumber, this.startColumn, endLineNumber, endColumn);
 	}
 
-	public setStartPosition(startLineNumber: number, startColumn: number): EditorCommon.IEditorRange {
+	public setStartPosition(startLineNumber: number, startColumn: number): IEditorRange {
 		return new Range(startLineNumber, startColumn, this.endLineNumber, this.endColumn);
 	}
 
@@ -83,14 +83,14 @@ export class Range implements EditorCommon.IEditorRange {
 
 	// ---
 
-	public static lift(range:EditorCommon.IRange): EditorCommon.IEditorRange {
+	public static lift(range:IRange): IEditorRange {
 		if (!range) {
 			return null;
 		}
 		return new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 	}
 
-	public static isIRange(obj: any): obj is EditorCommon.IRange {
+	public static isIRange(obj: any): obj is IRange {
 		return (
 			obj
 			&& (typeof obj.startLineNumber === 'number')
@@ -100,11 +100,11 @@ export class Range implements EditorCommon.IEditorRange {
 		);
 	}
 
-	public static isEmpty(range:EditorCommon.IRange): boolean {
+	public static isEmpty(range:IRange): boolean {
 		return (range.startLineNumber === range.endLineNumber && range.startColumn === range.endColumn);
 	}
 
-	public static containsPosition(range:EditorCommon.IRange, position:EditorCommon.IPosition): boolean {
+	public static containsPosition(range:IRange, position:IPosition): boolean {
 		if (position.lineNumber < range.startLineNumber || position.lineNumber > range.endLineNumber) {
 			return false;
 		}
@@ -117,7 +117,7 @@ export class Range implements EditorCommon.IEditorRange {
 		return true;
 	}
 
-	public static containsRange(range:EditorCommon.IRange, otherRange:EditorCommon.IRange): boolean {
+	public static containsRange(range:IRange, otherRange:IRange): boolean {
 		if (otherRange.startLineNumber < range.startLineNumber || otherRange.endLineNumber < range.startLineNumber) {
 			return false;
 		}
@@ -133,7 +133,7 @@ export class Range implements EditorCommon.IEditorRange {
 		return true;
 	}
 
-	public static areIntersectingOrTouching(a:EditorCommon.IRange, b:EditorCommon.IRange): boolean {
+	public static areIntersectingOrTouching(a:IRange, b:IRange): boolean {
 		// Check if `a` is before `b`
 		if (a.endLineNumber < b.startLineNumber || (a.endLineNumber === b.startLineNumber && a.endColumn < b.startColumn)) {
 			return false;
@@ -148,7 +148,7 @@ export class Range implements EditorCommon.IEditorRange {
 		return true;
 	}
 
-	public static intersectRanges(a:EditorCommon.IRange, b:EditorCommon.IRange): Range {
+	public static intersectRanges(a:IRange, b:IRange): Range {
 		var resultStartLineNumber = a.startLineNumber,
 			resultStartColumn = a.startColumn,
 			resultEndLineNumber = a.endLineNumber,
@@ -182,7 +182,7 @@ export class Range implements EditorCommon.IEditorRange {
 		return new Range(resultStartLineNumber, resultStartColumn, resultEndLineNumber, resultEndColumn);
 	}
 
-	public static plusRange(a:EditorCommon.IRange, b:EditorCommon.IRange): Range {
+	public static plusRange(a:IRange, b:IRange): Range {
 		var startLineNumber:number, startColumn:number, endLineNumber:number, endColumn:number;
 		if (b.startLineNumber < a.startLineNumber) {
 			startLineNumber = b.startLineNumber;
@@ -209,7 +209,7 @@ export class Range implements EditorCommon.IEditorRange {
 		return new Range(startLineNumber, startColumn, endLineNumber, endColumn);
 	}
 
-	public static equalsRange(a:EditorCommon.IRange, b:EditorCommon.IRange): boolean {
+	public static equalsRange(a:IRange, b:IRange): boolean {
 		return (
 			!!a &&
 			!!b &&
@@ -224,7 +224,7 @@ export class Range implements EditorCommon.IEditorRange {
 	 * A function that compares ranges, useful for sorting ranges
 	 * It will first compare ranges on the startPosition and then on the endPosition
 	 */
-	public static compareRangesUsingStarts(a:EditorCommon.IRange, b:EditorCommon.IRange): number {
+	public static compareRangesUsingStarts(a:IRange, b:IRange): number {
 		if (a.startLineNumber === b.startLineNumber) {
 			if (a.startColumn === b.startColumn) {
 				if (a.endLineNumber === b.endLineNumber) {
@@ -241,7 +241,7 @@ export class Range implements EditorCommon.IEditorRange {
 	 * A function that compares ranges, useful for sorting ranges
 	 * It will first compare ranges on the endPosition and then on the startPosition
 	 */
-	public static compareRangesUsingEnds(a:EditorCommon.IRange, b:EditorCommon.IRange): number {
+	public static compareRangesUsingEnds(a:IRange, b:IRange): number {
 		if (a.endLineNumber === b.endLineNumber) {
 			if (a.endColumn === b.endColumn) {
 				if (a.startLineNumber === b.startLineNumber) {
@@ -254,15 +254,15 @@ export class Range implements EditorCommon.IEditorRange {
 		return a.endLineNumber - b.endLineNumber;
 	}
 
-	public static spansMultipleLines(range:EditorCommon.IRange):boolean {
+	public static spansMultipleLines(range:IRange):boolean {
 		return range.endLineNumber > range.startLineNumber;
 	}
 
-	public static hashCode(range:EditorCommon.IRange):number {
+	public static hashCode(range:IRange):number {
 		return (range.startLineNumber * 17) + (range.startColumn * 23) + (range.endLineNumber * 29) + (range.endColumn * 37);
 	}
 
-	public static collapseToStart(range:EditorCommon.IRange):EditorCommon.IRange  {
+	public static collapseToStart(range:IRange):IRange  {
 		return {
 			startLineNumber: range.startLineNumber,
 			startColumn: range.startColumn,

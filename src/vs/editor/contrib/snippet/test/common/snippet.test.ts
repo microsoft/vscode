@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import Snippet = require('vs/editor/contrib/snippet/common/snippet');
+import * as assert from 'assert';
 import {Range} from 'vs/editor/common/core/range';
+import {CodeSnippet, ExternalSnippetType} from 'vs/editor/contrib/snippet/common/snippet';
 
 suite('Editor Contrib - Snippets', () => {
 
@@ -18,7 +18,7 @@ suite('Editor Contrib - Snippets', () => {
 			'end{$1}'
 		].join('\n');
 
-		var internal = Snippet.CodeSnippet.convertExternalSnippet(external, Snippet.ExternalSnippetType.TextMateSnippet);
+		var internal = CodeSnippet.convertExternalSnippet(external, ExternalSnippetType.TextMateSnippet);
 
 		assert.equal(internal, [
 			'begin\\{{{1:enumerate}}\\}',
@@ -26,7 +26,7 @@ suite('Editor Contrib - Snippets', () => {
 			'end\\{{{1:}}\\}'
 		].join('\n'));
 
-		var snippet = new Snippet.CodeSnippet(internal);
+		var snippet = new CodeSnippet(internal);
 
 		assert.deepEqual(snippet.lines, [
 			'begin{enumerate}',
@@ -51,7 +51,7 @@ suite('Editor Contrib - Snippets', () => {
 			'\\end{$1}'
 		].join('\n');
 
-		var internal = Snippet.CodeSnippet.convertExternalSnippet(external, Snippet.ExternalSnippetType.TextMateSnippet);
+		var internal = CodeSnippet.convertExternalSnippet(external, ExternalSnippetType.TextMateSnippet);
 
 		assert.equal(internal, [
 			'\\begin\\{{{1:enumerate}}\\}',
@@ -59,7 +59,7 @@ suite('Editor Contrib - Snippets', () => {
 			'\\end\\{{{1:}}\\}'
 		].join('\n'));
 
-		var snippet = new Snippet.CodeSnippet(internal);
+		var snippet = new CodeSnippet(internal);
 
 		assert.deepEqual(snippet.lines, [
 			'\\begin{enumerate}',

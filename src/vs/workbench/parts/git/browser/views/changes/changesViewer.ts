@@ -685,7 +685,7 @@ export class Controller extends treedefaults.DefaultController {
 		this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_PAGE_DOWN, this.onPageDown.bind(this));
 	}
 
-	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.StandardMouseEvent): boolean {
+	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
 		// Status group should never get selected nor expanded/collapsed
 		if (element instanceof gitmodel.StatusGroup) {
 			event.preventDefault();
@@ -733,7 +733,7 @@ export class Controller extends treedefaults.DefaultController {
 		return super.onLeftClick(tree, element, event);
 	}
 
-	protected onEnter(tree: tree.ITree, event: keyboard.StandardKeyboardEvent): boolean {
+	protected onEnter(tree: tree.ITree, event: keyboard.IKeyboardEvent): boolean {
 		var element = tree.getFocus();
 
 		// Status group should never get selected nor expanded/collapsed
@@ -747,7 +747,7 @@ export class Controller extends treedefaults.DefaultController {
 		return super.onEnter(tree, event);
 	}
 
-	protected onSpace(tree: tree.ITree, event: keyboard.StandardKeyboardEvent):boolean {
+	protected onSpace(tree: tree.ITree, event: keyboard.IKeyboardEvent):boolean {
 		var focus = tree.getFocus();
 
 		if (!focus) {
@@ -801,15 +801,15 @@ export class Controller extends treedefaults.DefaultController {
 		return false;
 	}
 
-	protected onLeft(tree: tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	protected onLeft(tree: tree.ITree, event:keyboard.IKeyboardEvent):boolean {
 		return true;
 	}
 
-	protected onRight(tree: tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	protected onRight(tree: tree.ITree, event:keyboard.IKeyboardEvent):boolean {
 		return true;
 	}
 
-	protected onUp(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	protected onUp(tree:tree.ITree, event:keyboard.IKeyboardEvent):boolean {
 		var oldFocus = tree.getFocus();
 		var base = super.onUp(tree, event);
 
@@ -820,7 +820,7 @@ export class Controller extends treedefaults.DefaultController {
 		return this.shiftSelect(tree, oldFocus, event);
 	}
 
-	protected onPageUp(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	protected onPageUp(tree:tree.ITree, event:keyboard.IKeyboardEvent):boolean {
 		var oldFocus = tree.getFocus();
 		var base = super.onPageUp(tree, event);
 
@@ -831,7 +831,7 @@ export class Controller extends treedefaults.DefaultController {
 		return this.shiftSelect(tree, oldFocus, event);
 	}
 
-	protected onDown(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	protected onDown(tree:tree.ITree, event:keyboard.IKeyboardEvent):boolean {
 		var oldFocus = tree.getFocus();
 		var base = super.onDown(tree, event);
 
@@ -842,7 +842,7 @@ export class Controller extends treedefaults.DefaultController {
 		return this.shiftSelect(tree, oldFocus, event);
 	}
 
-	protected onPageDown(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	protected onPageDown(tree:tree.ITree, event:keyboard.IKeyboardEvent):boolean {
 		var oldFocus = tree.getFocus();
 		var base = super.onPageDown(tree, event);
 
@@ -865,7 +865,7 @@ export class Controller extends treedefaults.DefaultController {
 		});
 	}
 
-	private shiftSelect(tree: tree.ITree, oldFocus: any, event:keyboard.StandardKeyboardEvent): boolean {
+	private shiftSelect(tree: tree.ITree, oldFocus: any, event:keyboard.IKeyboardEvent): boolean {
 		var payload = { origin: 'keyboard', originalEvent: event };
 		var focus = tree.getFocus();
 

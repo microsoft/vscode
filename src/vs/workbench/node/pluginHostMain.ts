@@ -61,7 +61,7 @@ export function createServices(remoteCom: IPluginsIPC, initData: IInitData, shar
 
 	let contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
 	let threadService = new PluginHostThreadService(remoteCom);
-	threadService.setInstantiationService(InstantiationService.create({ threadService: threadService }));
+	threadService.setInstantiationService(InstantiationService.createInstantiationService({ threadService: threadService }));
 	let telemetryService = new ExtHostTelemetryService(threadService);
 	let requestService = new BaseRequestService(contextService, telemetryService);
 	let modelService = threadService.getRemotable(ExtHostModelService);
@@ -77,7 +77,7 @@ export function createServices(remoteCom: IPluginsIPC, initData: IInitData, shar
 		pluginService: pluginService,
 		telemetryService: telemetryService
 	};
-	let instantiationService = InstantiationService.create(_services);
+	let instantiationService = InstantiationService.createInstantiationService(_services);
 	threadService.setInstantiationService(instantiationService);
 
 	// Create the monaco API

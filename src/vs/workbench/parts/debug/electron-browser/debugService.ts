@@ -235,7 +235,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.STOPPED, (event: DebugProtocol.StoppedEvent) => {
 			this.setStateAndEmit(debug.State.Stopped);
-			aria.alert(nls.localize('programStopped', "Program stopped, reason {0}.", event.body.reason));
 			const threadId = event.body.threadId;
 
 			this.getThreadData(threadId).then(() => {
@@ -245,6 +244,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 					this.windowService.getWindow().focus();
 					const callStack = this.model.getThreads()[threadId].callStack;
 					if (callStack.length > 0) {
+						aria.alert(nls.localize('programStopped', "Program stopped, reason {0}, {1} {2}", event.body.reason, callStack[0].source.name, callStack[0].lineNumber));
 						this.setFocusedStackFrameAndEvaluate(callStack[0]);
 						this.openOrRevealEditor(callStack[0].source, callStack[0].lineNumber, false, false).done(null, errors.onUnexpectedError);
 					} else {
@@ -507,10 +507,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	public createSession(openViewlet = !this.partService.isSideBarHidden()): TPromise<any> {
-		this.textFileService.saveAll().done(null, errors.onUnexpectedError);
 		this.clearReplExpressions();
 
-		return this.pluginService.onReady().then(() => this.configurationManager.setConfiguration(this.configurationManager.getConfigurationName())).then(() => {
+		return this.textFileService.saveAll().then(() => this.pluginService.onReady()).then(() => this.configurationManager.setConfiguration(this.configurationManager.getConfigurationName())).then(() => {
+
 			const configuration = this.configurationManager.getConfiguration();
 			if (!configuration) {
 				return this.configurationManager.openConfigFile(false).then(openend => {

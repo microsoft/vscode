@@ -10,20 +10,19 @@ import Modes = require('vs/editor/common/modes');
 import {AbstractMode, isDigit, createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IThreadService} from 'vs/platform/thread/common/thread';
-import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
-import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
+import {TextualSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
+import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 
-var bracketsSource : Modes.IBracketPair[]= [
-	{ tokenType:'delimiter.bracket.php', open: '{', close: '}', isElectric: true },
-	{ tokenType:'delimiter.array.php', open: '[', close: ']', isElectric: true },
-	{ tokenType:'delimiter.parenthesis.php', open: '(', close: ')', isElectric: true }
-];
 
 var brackets = (function() {
+
+	let bracketsSource = [
+		{ tokenType:'delimiter.bracket.php', open: '{', close: '}' },
+		{ tokenType:'delimiter.array.php', open: '[', close: ']' },
+		{ tokenType:'delimiter.parenthesis.php', open: '(', close: ')' }
+	];
 
 	let MAP: {
 		[text:string]:{
@@ -458,7 +457,7 @@ export class PHPEnterHTMLState extends PHPState {
 
 }
 
-export class PHPMode extends AbstractMode<AbstractModeWorker> implements ITokenizationCustomization {
+export class PHPMode extends AbstractMode implements ITokenizationCustomization {
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
@@ -468,16 +467,15 @@ export class PHPMode extends AbstractMode<AbstractModeWorker> implements ITokeni
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThreadService threadService: IThreadService,
-		@IModeService modeService: IModeService
+		@IModeService modeService: IModeService,
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(descriptor, instantiationService, threadService);
+		super(descriptor.id);
 		this.modeService = modeService;
 
 		this.tokenizationSupport = new TokenizationSupport(this, this, true, false);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), {
+		this.richEditSupport = new RichEditSupport(this.getId(), null, {
 			wordPattern: createWordRegExp('$_'),
 
 			comments: {
@@ -491,10 +489,6 @@ export class PHPMode extends AbstractMode<AbstractModeWorker> implements ITokeni
 				['(', ')']
 			],
 
-			__electricCharacterSupport: {
-				brackets: bracketsSource
-			},
-
 			__characterPairSupport: {
 				autoClosingPairs: [
 					{ open: '{', close: '}', notIn: ['string.php'] },
@@ -506,10 +500,7 @@ export class PHPMode extends AbstractMode<AbstractModeWorker> implements ITokeni
 			}
 		});
 
-		this.suggestSupport = new SuggestSupport(this.getId(), {
-			triggerCharacters: ['.', ':', '$'],
-			excludeTokens: ['comment'],
-			suggest: (resource, position) => this.suggest(resource, position)});
+		this.suggestSupport = new TextualSuggestSupport(this.getId(), editorWorkerService);
 	}
 
 	public asyncCtor(): WinJS.Promise {

@@ -6,33 +6,10 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import remote = require('vs/base/common/remote');
-import {ThreadAffinity, Remotable, IThreadSynchronizableObject, IDynamicProxy} from 'vs/platform/thread/common/thread';
+import {ThreadAffinity, Remotable, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
 import {THREAD_SERVICE_PROPERTY_NAME} from 'vs/platform/thread/common/threadService';
 import instantiation = require('vs/platform/instantiation/common/instantiation');
-import {SyncDescriptor0, createSyncDescriptor, AsyncDescriptor0, AsyncDescriptor1, AsyncDescriptor2, AsyncDescriptor3} from 'vs/platform/instantiation/common/descriptors';
-
-export interface IThreadServiceData {
-	[id: string]: any;
-}
-
-class DynamicProxy<T> implements IDynamicProxy<T> {
-
-	private _proxyDefinition: T;
-	private _disposeDelegate: () => void;
-
-	constructor(proxyDefinition: T, disposeDelegate: () => void) {
-		this._proxyDefinition = proxyDefinition;
-		this._disposeDelegate = disposeDelegate;
-	}
-
-	public dispose(): void {
-		return this._disposeDelegate();
-	}
-
-	public getProxyDefinition(): T {
-		return this._proxyDefinition;
-	}
-}
+import {SyncDescriptor0, createSyncDescriptor, AsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
 
 export abstract class AbstractThreadService implements remote.IManyHandler {
 
@@ -40,8 +17,8 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 
 	protected _instantiationService: instantiation.IInstantiationService;
 
-	protected _boundObjects: { [id: string]: IThreadSynchronizableObject<any>; };
-	protected _pendingObjects: TPromise<IThreadSynchronizableObject<any>>[];
+	protected _boundObjects: { [id: string]: IThreadSynchronizableObject; };
+	protected _pendingObjects: TPromise<IThreadSynchronizableObject>[];
 	private _localObjMap: { [id: string]: any; };
 	private _proxyObjMap: { [id: string]: any; };
 
@@ -57,16 +34,8 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 		this._instantiationService = service;
 	}
 
-	createInstance<T extends IThreadSynchronizableObject<any>>(ctor: instantiation.IConstructorSignature0<T>): T;
-	createInstance<A1, T extends IThreadSynchronizableObject<any>>(ctor: instantiation.IConstructorSignature1<A1, T>, a1: A1): T;
-	createInstance<A1, A2, T extends IThreadSynchronizableObject<any>>(ctor: instantiation.IConstructorSignature2<A1, A2, T>, a1: A1, a2: A2): T;
-	createInstance<A1, A2, A3, T extends IThreadSynchronizableObject<any>>(ctor: instantiation.IConstructorSignature3<A1, A2, A3, T>, a1: A1, a2: A2, a3: A3): T;
-
-	createInstance<T extends IThreadSynchronizableObject<any>>(descriptor: AsyncDescriptor0<T>): T;
-	createInstance<A1, T extends IThreadSynchronizableObject<any>>(descriptor: AsyncDescriptor1<A1, T>, a1: A1): T;
-	createInstance<A1, A2, T extends IThreadSynchronizableObject<any>>(descriptor: AsyncDescriptor2<A1, A2, T>, a1: A1, a2: A2): T;
-	createInstance<A1, A2, A3, T extends IThreadSynchronizableObject<any>>(descriptor: AsyncDescriptor3<A1, A2, A3, T>, a1: A1, a2: A2, a3: A3): T;
-
+	createInstance<A1, T extends IThreadSynchronizableObject>(ctor: instantiation.IConstructorSignature1<A1, T>, a1: A1): T;
+	createInstance<A1, T extends IThreadSynchronizableObject>(descriptor: AsyncDescriptor1<A1, T>, a1: A1): TPromise<T>;
 	createInstance(...params: any[]): any {
 		return this._doCreateInstance(params);
 	}
@@ -76,8 +45,8 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 
 		if (TPromise.is(instanceOrPromise)) {
 
-			let objInstantiated: TPromise<IThreadSynchronizableObject<any>>;
-			objInstantiated = instanceOrPromise.then((instance: IThreadSynchronizableObject<any>): any => {
+			let objInstantiated: TPromise<IThreadSynchronizableObject>;
+			objInstantiated = instanceOrPromise.then((instance: IThreadSynchronizableObject): any => {
 				if (instance.asyncCtor) {
 					let initPromise = instance.asyncCtor();
 					if (TPromise.is(initPromise)) {
@@ -90,7 +59,7 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 			});
 
 			this._pendingObjects.push(objInstantiated);
-			return objInstantiated.then((instance: IThreadSynchronizableObject<any>) => {
+			return objInstantiated.then((instance: IThreadSynchronizableObject) => {
 				let r = this._finishInstance(instance);
 
 				for (let i = 0; i < this._pendingObjects.length; i++) {
@@ -105,10 +74,10 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 
 		}
 
-		return this._finishInstance(<IThreadSynchronizableObject<any>>instanceOrPromise);
+		return this._finishInstance(<IThreadSynchronizableObject>instanceOrPromise);
 	}
 
-	_finishInstance(instance: IThreadSynchronizableObject<any>): IThreadSynchronizableObject<any> {
+	private _finishInstance(instance: IThreadSynchronizableObject): IThreadSynchronizableObject {
 		instance[THREAD_SERVICE_PROPERTY_NAME] = this;
 		this._boundObjects[instance.getId()] = instance;
 
@@ -153,7 +122,7 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 		return result;
 	}
 
-	getRemotable<T>(ctor: instantiation.INewConstructorSignature0<T>): T {
+	getRemotable<T>(ctor: instantiation.IConstructorSignature0<T>): T {
 		let id = Remotable.getId(ctor);
 		if (!id) {
 			throw new Error('Unknown Remotable: <<' + id + '>>');

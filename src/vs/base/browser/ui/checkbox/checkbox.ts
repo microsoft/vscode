@@ -10,14 +10,14 @@ import 'vs/css!./checkbox';
 import DOM = require('vs/base/browser/dom');
 import {KeyCode} from 'vs/base/common/keyCodes';
 import {Widget} from 'vs/base/browser/ui/widget';
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 export interface ICheckboxOpts {
 	actionClassName: string;
 	title: string;
 	isChecked: boolean;
 	onChange: (viaKeyboard: boolean) => void;
-	onKeyDown?: (e: StandardKeyboardEvent) => void;
+	onKeyDown?: (e: IKeyboardEvent) => void;
 }
 
 export class Checkbox extends Widget {

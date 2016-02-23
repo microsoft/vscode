@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import VerticalObjects = require('vs/editor/common/viewLayout/verticalObjects');
+import * as assert from 'assert';
+import {VerticalObjects} from 'vs/editor/common/viewLayout/verticalObjects';
 
 suite('Editor ViewLayout - VerticalObjects', () => {
 
 	test('VerticalObjects 1', () => {
 
-		var verticalObjects = new VerticalObjects.VerticalObjects();
+		var verticalObjects = new VerticalObjects();
 
 		// Start off with 10 lines
 		verticalObjects.replaceLines(10);
@@ -122,7 +122,7 @@ suite('Editor ViewLayout - VerticalObjects', () => {
 
 	test('VerticalObjects 2', () => {
 
-		var verticalObjects = new VerticalObjects.VerticalObjects();
+		var verticalObjects = new VerticalObjects();
 
 		// Start off with 10 lines and one whitespace after line 2, of height 5
 		verticalObjects.replaceLines(10);
@@ -221,7 +221,7 @@ suite('Editor ViewLayout - VerticalObjects', () => {
 	});
 
 	test('VerticalObjects getLineNumberAtOrAfterVerticalOffset', () => {
-		var verticalObjects = new VerticalObjects.VerticalObjects();
+		var verticalObjects = new VerticalObjects();
 		verticalObjects.replaceLines(10);
 		verticalObjects.insertWhitespace(6, 0, 10);
 
@@ -271,7 +271,7 @@ suite('Editor ViewLayout - VerticalObjects', () => {
 	});
 
 	test('VerticalObjects getCenteredLineInViewport', () => {
-		var verticalObjects = new VerticalObjects.VerticalObjects();
+		var verticalObjects = new VerticalObjects();
 		verticalObjects.replaceLines(10);
 		verticalObjects.insertWhitespace(6, 0, 10);
 
@@ -355,7 +355,7 @@ suite('Editor ViewLayout - VerticalObjects', () => {
 	});
 
 	test('VerticalObjects getLinesViewportData 1', () => {
-		var verticalObjects = new VerticalObjects.VerticalObjects();
+		var verticalObjects = new VerticalObjects();
 		verticalObjects.replaceLines(10);
 		verticalObjects.insertWhitespace(6, 0, 100);
 
@@ -476,7 +476,7 @@ suite('Editor ViewLayout - VerticalObjects', () => {
 
 
 	test('VerticalObjects getLinesViewportData 2 & getWhitespaceViewportData', () => {
-		var verticalObjects = new VerticalObjects.VerticalObjects();
+		var verticalObjects = new VerticalObjects();
 		verticalObjects.replaceLines(10);
 		var a = verticalObjects.insertWhitespace(6, 0, 100);
 		var b = verticalObjects.insertWhitespace(7, 0, 50);
@@ -544,7 +544,7 @@ suite('Editor ViewLayout - VerticalObjects', () => {
 	});
 
 	test('VerticalObjects getWhitespaceAtVerticalOffset', () => {
-		var verticalObjects = new VerticalObjects.VerticalObjects();
+		var verticalObjects = new VerticalObjects();
 		verticalObjects.replaceLines(10);
 		var a = verticalObjects.insertWhitespace(6, 0, 100);
 		var b = verticalObjects.insertWhitespace(7, 0, 50);

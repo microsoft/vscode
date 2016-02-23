@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Strings = require('vs/base/common/strings');
-import Modes = require('vs/editor/common/modes');
+import * as strings from 'vs/base/common/strings';
 import {Arrays} from 'vs/editor/common/core/arrays';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
+import {IModel, IPosition} from 'vs/editor/common/editorCommon';
+import * as modes from 'vs/editor/common/modes';
 
-export class Token implements Modes.IToken {
+export class Token implements modes.IToken {
 	public startIndex:number;
 	public type:string;
 
@@ -23,7 +23,7 @@ export class Token implements Modes.IToken {
 	}
 }
 
-export function handleEvent<T>(context:Modes.ILineContext, offset:number, runner:(mode:Modes.IMode, newContext:Modes.ILineContext, offset:number)=>T):T {
+export function handleEvent<T>(context:modes.ILineContext, offset:number, runner:(mode:modes.IMode, newContext:modes.ILineContext, offset:number)=>T):T {
 	var modeTransitions = context.modeTransitions;
 	if (modeTransitions.length === 1) {
 		return runner(modeTransitions[0].mode, context, offset);
@@ -56,7 +56,7 @@ export function handleEvent<T>(context:Modes.ILineContext, offset:number, runner
  * anywhereInToken is set to true in which case matches
  * happen on a substring at any position.
  */
-export function isLineToken(context:Modes.ILineContext, offset:number, types:string[], anywhereInToken:boolean = false):boolean {
+export function isLineToken(context:modes.ILineContext, offset:number, types:string[], anywhereInToken:boolean = false):boolean {
 
 	if (!Array.isArray(types) || types.length === 0) {
 		return false;
@@ -76,7 +76,7 @@ export function isLineToken(context:Modes.ILineContext, offset:number, types:str
 			}
 		}
 		else {
-			if (Strings.endsWith(type, types[i])) {
+			if (strings.endsWith(type, types[i])) {
 				return true;
 			}
 		}
@@ -85,17 +85,17 @@ export function isLineToken(context:Modes.ILineContext, offset:number, types:str
 	return false;
 }
 
-export class FilteredLineContext implements Modes.ILineContext {
+export class FilteredLineContext implements modes.ILineContext {
 
-	public modeTransitions: Modes.IModeTransition[];
+	public modeTransitions: modes.IModeTransition[];
 
-	private _actual:Modes.ILineContext;
+	private _actual:modes.ILineContext;
 	private _firstTokenInModeIndex:number;
 	private _nextTokenAfterMode:number;
 	private _firstTokenCharacterOffset:number;
 	private _nextCharacterAfterModeIndex:number;
 
-	constructor(actual:Modes.ILineContext, mode:Modes.IMode,
+	constructor(actual:modes.ILineContext, mode:modes.IMode,
 			firstTokenInModeIndex:number, nextTokenAfterMode:number,
 			firstTokenCharacterOffset:number, nextCharacterAfterModeIndex:number) {
 
@@ -149,14 +149,14 @@ export function ignoreBracketsInToken(tokenType:string): boolean {
 //       and turn this into a real registry
 export class SnippetsRegistry {
 
-	private static _defaultSnippets: { [modeId: string]: Modes.ISuggestion[] } = Object.create(null);
-	private static _snippets: { [modeId: string]: { [path: string]: Modes.ISuggestion[] } } = Object.create(null);
+	private static _defaultSnippets: { [modeId: string]: modes.ISuggestion[] } = Object.create(null);
+	private static _snippets: { [modeId: string]: { [path: string]: modes.ISuggestion[] } } = Object.create(null);
 
-	public static registerDefaultSnippets(modeId: string, snippets: Modes.ISuggestion[]): void {
+	public static registerDefaultSnippets(modeId: string, snippets: modes.ISuggestion[]): void {
 		this._defaultSnippets[modeId] = (this._defaultSnippets[modeId] || []).concat(snippets);
 	}
 
-	public static registerSnippets(modeId: string, path: string, snippets: Modes.ISuggestion[]): void {
+	public static registerSnippets(modeId: string, path: string, snippets: modes.ISuggestion[]): void {
 		let snippetsByMode = this._snippets[modeId];
 		if (!snippetsByMode) {
 			this._snippets[modeId] = snippetsByMode = {};
@@ -164,10 +164,10 @@ export class SnippetsRegistry {
 		snippetsByMode[path] = snippets;
 	}
 
-	public static getSnippets(model: EditorCommon.IModel, position: EditorCommon.IPosition): Modes.ISuggestResult {
+	public static getSnippets(model: IModel, position: IPosition): modes.ISuggestResult {
 		let word = model.getWordAtPosition(position);
 		let currentPrefix = word ? word.word.substring(0, position.column - word.startColumn) : '';
-		let result : Modes.ISuggestResult = {
+		let result : modes.ISuggestResult = {
 			currentWord: currentPrefix,
 			suggestions: []
 		};
@@ -185,13 +185,13 @@ export class SnippetsRegistry {
 			}
 		} else {
 			let lowerCasePrefix = currentPrefix.toLowerCase();
-			filter = (p: Modes.ISuggestion) => {
-				return Strings.startsWith(p.label.toLowerCase(), lowerCasePrefix);
+			filter = (p: modes.ISuggestion) => {
+				return strings.startsWith(p.label.toLowerCase(), lowerCasePrefix);
 			};
 		}
 
 		let modeId = model.getMode().getId();
-		let snippets : Modes.ISuggestion[]= [];
+		let snippets : modes.ISuggestion[]= [];
 		let snipppetsByMode = this._snippets[modeId];
 		if (snipppetsByMode) {
 			for (let s in snipppetsByMode) {

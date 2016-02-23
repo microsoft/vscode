@@ -5,7 +5,6 @@
 'use strict';
 
 import WinJS = require('vs/base/common/winjs.base');
-import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import URI from 'vs/base/common/uri';
 import Types = require('vs/base/common/types');
 import Modes = require('vs/editor/common/modes');
@@ -23,7 +22,7 @@ enum Theme {
 	HC_BLACK
 }
 
-export class MarkdownWorker extends AbstractModeWorker {
+export class MarkdownWorker {
 
 	private static DEFAULT_MODE = 'text/plain';
 
@@ -95,19 +94,24 @@ export class MarkdownWorker extends AbstractModeWorker {
 	].join('\n');
 
 	private modeService: IModeService;
+	private resourceService:IResourceService;
+	private markerService: IMarkerService;
+	private _modeId: string;
 
 	constructor(
-		mode: Modes.IMode, participants: Modes.IWorkerParticipant[],
+		modeId: string,
+		participants: Modes.IWorkerParticipant[],
 		@IResourceService resourceService: IResourceService,
 		@IMarkerService markerService: IMarkerService,
 		@IModeService modeService: IModeService
 	) {
-		super(mode, participants, resourceService, markerService);
-
+		this._modeId = modeId;
+		this.resourceService = resourceService;
+		this.markerService = markerService;
 		this.modeService = modeService;
 	}
 
-	_doConfigure(options: any): WinJS.TPromise<boolean> {
+	_doConfigure(options: any): WinJS.TPromise<void> {
 		if (options && options.theme) {
 			this.theme = (options.theme === 'vs-dark') ? Theme.DARK : (options.theme === 'vs') ? Theme.LIGHT : Theme.HC_BLACK;
 		}
@@ -116,7 +120,7 @@ export class MarkdownWorker extends AbstractModeWorker {
 			this.cssLinks = options.styles;
 		}
 
-		return WinJS.TPromise.as(false);
+		return WinJS.TPromise.as(void 0);
 	}
 
 	public getEmitOutput(resource: URI, absoluteWorkersResourcePath: string): WinJS.TPromise<Modes.IEmitOutput> { // TODO@Ben technical debt: worker cannot resolve paths absolute
@@ -158,7 +162,7 @@ export class MarkdownWorker extends AbstractModeWorker {
 		let highlighter = function(code: string, lang: string, callback?: (error: Error, result: string) => void) {
 
 			// Lookup the mode and use the tokenizer to get the HTML
-			let mimeForLang = this.modeService.getModeIdForLanguageName(lang) || lang || MarkdownWorker.DEFAULT_MODE;
+			let mimeForLang = modeService.getModeIdForLanguageName(lang) || lang || MarkdownWorker.DEFAULT_MODE;
 			modeService.getOrCreateMode(mimeForLang).then((mode) => {
 				callback(null, tokenizeToString(code, mode));
 			});

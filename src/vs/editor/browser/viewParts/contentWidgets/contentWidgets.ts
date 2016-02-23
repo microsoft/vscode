@@ -6,18 +6,17 @@
 'use strict';
 
 import 'vs/css!./contentWidgets';
-
-import * as DomUtils from 'vs/base/browser/dom';
-import {ViewPart} from 'vs/editor/browser/view/viewPart';
-import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as dom from 'vs/base/browser/dom';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {ClassNames, ContentWidgetPositionPreference, IContentWidget, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {ViewPart} from 'vs/editor/browser/view/viewPart';
 
 interface IWidgetData {
 	allowEditorOverflow: boolean;
-	widget: EditorBrowser.IContentWidget;
-	position: EditorCommon.IPosition;
-	preference: EditorBrowser.ContentWidgetPositionPreference[];
+	widget: IContentWidget;
+	position: editorCommon.IPosition;
+	preference: ContentWidgetPositionPreference[];
 	isVisible: boolean;
 }
 
@@ -52,7 +51,7 @@ export class ViewContentWidgets extends ViewPart {
 	public overflowingContentWidgetsDomNode:HTMLElement;
 	private _viewDomNode: HTMLElement;
 
-	constructor(context:EditorBrowser.IViewContext, viewDomNode:HTMLElement) {
+	constructor(context:IViewContext, viewDomNode:HTMLElement) {
 		super(context);
 		this._viewDomNode = viewDomNode;
 
@@ -61,10 +60,10 @@ export class ViewContentWidgets extends ViewPart {
 		this._contentLeft = 0;
 
 		this.domNode = document.createElement('div');
-		this.domNode.className = EditorBrowser.ClassNames.CONTENT_WIDGETS;
+		this.domNode.className = ClassNames.CONTENT_WIDGETS;
 
 		this.overflowingContentWidgetsDomNode = document.createElement('div');
-		this.overflowingContentWidgetsDomNode.className = EditorBrowser.ClassNames.OVERFLOWING_CONTENT_WIDGETS;
+		this.overflowingContentWidgetsDomNode.className = ClassNames.OVERFLOWING_CONTENT_WIDGETS;
 	}
 
 	public dispose(): void {
@@ -78,32 +77,32 @@ export class ViewContentWidgets extends ViewPart {
 	public onModelFlushed(): boolean {
 		return true;
 	}
-	public onModelDecorationsChanged(e:EditorCommon.IViewDecorationsChangedEvent): boolean {
+	public onModelDecorationsChanged(e:editorCommon.IViewDecorationsChangedEvent): boolean {
 		// true for inline decorations that can end up relayouting text
 		return e.inlineDecorationsChanged;
 	}
-	public onModelLinesDeleted(e:EditorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e:editorCommon.IViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onModelLineChanged(e:EditorCommon.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e:editorCommon.IViewLineChangedEvent): boolean {
 		return true;
 	}
-	public onModelLinesInserted(e:EditorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e:editorCommon.IViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onCursorPositionChanged(e:EditorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e:editorCommon.IViewCursorPositionChangedEvent): boolean {
 		return false;
 	}
-	public onCursorSelectionChanged(e:EditorCommon.IViewCursorSelectionChangedEvent): boolean {
+	public onCursorSelectionChanged(e:editorCommon.IViewCursorSelectionChangedEvent): boolean {
 		return false;
 	}
-	public onCursorRevealRange(e:EditorCommon.IViewRevealRangeEvent): boolean {
+	public onCursorRevealRange(e:editorCommon.IViewRevealRangeEvent): boolean {
 		return false;
 	}
-	public onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
 		return true;
 	}
-	public onLayoutChanged(layoutInfo:EditorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentLeft = layoutInfo.contentLeft;
 
@@ -120,7 +119,7 @@ export class ViewContentWidgets extends ViewPart {
 
 		return true;
 	}
-	public onScrollChanged(e:EditorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
 		return true;
 	}
 	public onZonesChanged(): boolean {
@@ -135,7 +134,7 @@ export class ViewContentWidgets extends ViewPart {
 
 	// ---- end view event handlers
 
-	public addWidget(widget: EditorBrowser.IContentWidget): void {
+	public addWidget(widget: IContentWidget): void {
 		let widgetData: IWidgetData = {
 			allowEditorOverflow: widget.allowEditorOverflow || false,
 			widget: widget,
@@ -160,14 +159,14 @@ export class ViewContentWidgets extends ViewPart {
 		this.shouldRender = true;
 	}
 
-	public setWidgetPosition(widget: EditorBrowser.IContentWidget, position: EditorCommon.IPosition, preference:EditorBrowser.ContentWidgetPositionPreference[]): void {
+	public setWidgetPosition(widget: IContentWidget, position: editorCommon.IPosition, preference:ContentWidgetPositionPreference[]): void {
 		let widgetData = this._widgets[widget.getId()];
 		widgetData.position = position;
 		widgetData.preference = preference;
 		this.shouldRender = true;
 	}
 
-	public removeWidget(widget: EditorBrowser.IContentWidget): void {
+	public removeWidget(widget: IContentWidget): void {
 		let widgetId = widget.getId();
 		if (this._widgets.hasOwnProperty(widgetId)) {
 			let widgetData = this._widgets[widgetId];
@@ -181,7 +180,7 @@ export class ViewContentWidgets extends ViewPart {
 		}
 	}
 
-	private _layoutBoxInViewport(position:EditorCommon.IEditorPosition, domNode:HTMLElement, ctx:EditorBrowser.IRenderingContext): IBoxLayoutResult {
+	private _layoutBoxInViewport(position:editorCommon.IEditorPosition, domNode:HTMLElement, ctx:IRenderingContext): IBoxLayoutResult {
 
 		let visibleRange = ctx.visibleRangeForPosition(position);
 
@@ -225,7 +224,7 @@ export class ViewContentWidgets extends ViewPart {
 		};
 	}
 
-	private _layoutBoxInPage(position: EditorCommon.IEditorPosition, domNode: HTMLElement, ctx: EditorBrowser.IRenderingContext): IBoxLayoutResult {
+	private _layoutBoxInPage(position: editorCommon.IEditorPosition, domNode: HTMLElement, ctx: IRenderingContext): IBoxLayoutResult {
 		let visibleRange = ctx.visibleRangeForPosition(position);
 
 		if (!visibleRange) {
@@ -245,7 +244,7 @@ export class ViewContentWidgets extends ViewPart {
 			belowTop = visibleRange.top + this._context.configuration.editor.lineHeight,
 			left = left0 + this._contentLeft;
 
-		let domNodePosition = DomUtils.getDomNodePosition(this._viewDomNode);
+		let domNodePosition = dom.getDomNodePosition(this._viewDomNode);
 		let absoluteAboveTop = domNodePosition.top + aboveTop - document.body.scrollTop - document.documentElement.scrollTop,
 			absoluteBelowTop = domNodePosition.top + belowTop - document.body.scrollTop - document.documentElement.scrollTop,
 			absoluteLeft = domNodePosition.left + left - document.body.scrollLeft - document.documentElement.scrollLeft;
@@ -279,7 +278,7 @@ export class ViewContentWidgets extends ViewPart {
 		};
 	}
 
-	private _prepareRenderWidgetAtExactPosition(position:EditorCommon.IEditorPosition, ctx:EditorBrowser.IRenderingContext): IMyWidgetRenderData {
+	private _prepareRenderWidgetAtExactPosition(position:editorCommon.IEditorPosition, ctx:IRenderingContext): IMyWidgetRenderData {
 		let visibleRange = ctx.visibleRangeForPosition(position);
 
 		if (!visibleRange) {
@@ -292,7 +291,7 @@ export class ViewContentWidgets extends ViewPart {
 		};
 	}
 
-	private _prepareRenderWidget(widgetData:IWidgetData, ctx:EditorBrowser.IRenderingContext): IMyWidgetRenderData {
+	private _prepareRenderWidget(widgetData:IWidgetData, ctx:IRenderingContext): IMyWidgetRenderData {
 		if (!widgetData.position || !widgetData.preference) {
 			return null;
 		}
@@ -300,7 +299,7 @@ export class ViewContentWidgets extends ViewPart {
 		// Do not trust that widgets have a valid position
 		let validModelPosition = this._context.model.validateModelPosition(widgetData.position),
 			position = this._context.model.convertModelPositionToViewPosition(validModelPosition.lineNumber, validModelPosition.column),
-			pref:EditorBrowser.ContentWidgetPositionPreference,
+			pref:ContentWidgetPositionPreference,
 			pass:number,
 			i:number;
 
@@ -322,7 +321,7 @@ export class ViewContentWidgets extends ViewPart {
 		for (pass = 1; pass <= 2; pass++) {
 			for (i = 0; i < widgetData.preference.length; i++) {
 				pref = widgetData.preference[i];
-				if (pref === EditorBrowser.ContentWidgetPositionPreference.ABOVE) {
+				if (pref === ContentWidgetPositionPreference.ABOVE) {
 					fetchPlacement();
 					if (!placement) {
 						// Widget outside of viewport
@@ -334,7 +333,7 @@ export class ViewContentWidgets extends ViewPart {
 							left: placement.left
 						};
 					}
-				} else if (pref === EditorBrowser.ContentWidgetPositionPreference.BELOW) {
+				} else if (pref === ContentWidgetPositionPreference.BELOW) {
 					fetchPlacement();
 					if (!placement) {
 						// Widget outside of viewport
@@ -353,7 +352,7 @@ export class ViewContentWidgets extends ViewPart {
 		}
 	}
 
-	_render(ctx:EditorBrowser.IRenderingContext): void {
+	_render(ctx:IRenderingContext): void {
 		let data:IMyRenderData = {},
 			renderData: IMyWidgetRenderData,
 			widgetId: string;

@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import CharacterHardWrappingLineMapper = require('vs/editor/common/viewModel/characterHardWrappingLineMapper');
-import SplitLinesCollection = require('vs/editor/common/viewModel/splitLinesCollection');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as assert from 'assert';
+import {WrappingIndent} from 'vs/editor/common/editorCommon';
+import {CharacterHardWrappingLineMapperFactory} from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
+import {ILineMapperFactory, ILineMapping, IOutputPosition} from 'vs/editor/common/viewModel/splitLinesCollection';
 
-function safeGetOutputLineCount(mapper:SplitLinesCollection.ILineMapping): number {
+function safeGetOutputLineCount(mapper:ILineMapping): number {
 	if (!mapper) {
 		return 1;
 	}
 	return mapper.getOutputLineCount();
 }
 
-function safeGetOutputPositionOfInputOffset(mapper:SplitLinesCollection.ILineMapping, inputOffset:number, result:SplitLinesCollection.IOutputPosition): void {
+function safeGetOutputPositionOfInputOffset(mapper:ILineMapping, inputOffset:number, result:IOutputPosition): void {
 	if (!mapper) {
 		result.outputLineIndex = 0;
 		result.outputOffset = inputOffset;
@@ -25,14 +25,14 @@ function safeGetOutputPositionOfInputOffset(mapper:SplitLinesCollection.ILineMap
 	mapper.getOutputPositionOfInputOffset(inputOffset, result);
 }
 
-function safeGetInputOffsetOfOutputPosition(mapper:SplitLinesCollection.ILineMapping, outputLineIndex:number, outputOffset:number): number {
+function safeGetInputOffsetOfOutputPosition(mapper:ILineMapping, outputLineIndex:number, outputOffset:number): number {
 	if (!mapper) {
 		return outputOffset;
 	}
 	return mapper.getInputOffsetOfOutputPosition(outputLineIndex, outputOffset);
 }
 
-function assertMappingIdentity(mapper:SplitLinesCollection.ILineMapping, offset:number, expectedLineIndex:number) {
+function assertMappingIdentity(mapper:ILineMapping, offset:number, expectedLineIndex:number) {
 
 	var result = {
 		outputLineIndex: -1,
@@ -48,7 +48,7 @@ function assertMappingIdentity(mapper:SplitLinesCollection.ILineMapping, offset:
 	assert.equal(actualOffset, offset);
 }
 
-function assertLineMapping(factory:SplitLinesCollection.ILineMapperFactory, tabSize:number, breakAfter:number, annotatedText:string) {
+function assertLineMapping(factory:ILineMapperFactory, tabSize:number, breakAfter:number, annotatedText:string) {
 
 	var rawText = '';
 	var currentLineIndex = 0;
@@ -62,7 +62,7 @@ function assertLineMapping(factory:SplitLinesCollection.ILineMapperFactory, tabS
 		}
 	}
 
-	var mapper = factory.createLineMapping(rawText, tabSize, breakAfter, 1, EditorCommon.WrappingIndent.None);
+	var mapper = factory.createLineMapping(rawText, tabSize, breakAfter, 1, WrappingIndent.None);
 
 	assert.equal(safeGetOutputLineCount(mapper), (lineIndices.length > 0 ? lineIndices[lineIndices.length - 1] + 1 : 1));
 	for (var i = 0, len = rawText.length; i < len; i++) {
@@ -73,7 +73,7 @@ function assertLineMapping(factory:SplitLinesCollection.ILineMapperFactory, tabS
 suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 	test('CharacterHardWrappingLineMapper', () => {
 
-		var factory = new CharacterHardWrappingLineMapper.CharacterHardWrappingLineMapperFactory('(', ')', '.');
+		var factory = new CharacterHardWrappingLineMapperFactory('(', ')', '.');
 
 		// Empty string
 		assertLineMapping(factory, 4, 5, '');

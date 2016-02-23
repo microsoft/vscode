@@ -5,15 +5,15 @@
 
 'use strict';
 
-import languageDef = require('vs/editor/standalone-languages/sql');
-import T = require('vs/editor/standalone-languages/test/testUtil');
+import {language} from 'vs/editor/standalone-languages/sql';
+import {testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
 var Bracket = {
 	Open: 1,
 	Close: -1
 };
 
-T.testTokenization('sql', languageDef.language, [
+testTokenization('sql', language, [
 	// Comments
 	[{
 	line: '-- a comment',

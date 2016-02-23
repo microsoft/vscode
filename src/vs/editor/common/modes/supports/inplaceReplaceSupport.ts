@@ -4,118 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IInplaceReplaceSupport, IInplaceReplaceSupportResult} from 'vs/editor/common/modes';
-import {ITokenizedModel, IRange} from 'vs/editor/common/editorCommon';
-import {IResourceService} from 'vs/editor/common/services/resourceService';
-import URI from 'vs/base/common/uri';
+import {IRange} from 'vs/editor/common/editorCommon';
+import {IInplaceReplaceSupportResult} from 'vs/editor/common/modes';
 
-export interface IReplaceSupportHelper {
-	valueSetReplace(valueSet: string[], value: string, up: boolean): string;
-	valueSetsReplace(valueSets: string[][], value: string, up: boolean): string;
-}
-class ReplaceSupportHelperImpl implements IReplaceSupportHelper {
+export class BasicInplaceReplace {
 
-	public valueSetsReplace(valueSets:string[][], value:string, up:boolean):string {
-		var result:string = null;
-		for (let i = 0, len = valueSets.length; result === null && i < len; i++) {
-			result = this.valueSetReplace(valueSets[i], value, up);
-		}
-		return result;
-	}
+	public static INSTANCE = new BasicInplaceReplace();
 
-	public valueSetReplace(valueSet:string[], value:string, up:boolean):string {
-		var idx = valueSet.indexOf(value);
-		if(idx >= 0) {
-			idx += up ? +1 : -1;
-			if(idx < 0) {
-				idx = valueSet.length - 1;
-			} else {
-				idx %= valueSet.length;
+	public navigateValueSet(range1:IRange, text1:string, range2:IRange, text2:string, up:boolean): IInplaceReplaceSupportResult {
+
+		if (range1 && text1) {
+			let result = this.doNavigateValueSet(text1, up);
+			if (result) {
+				return {
+					range: range1,
+					value: result
+				};
 			}
-			return valueSet[idx];
 		}
+
+		if (range2 && text2) {
+			let result = this.doNavigateValueSet(text2, up);
+			if (result) {
+				return {
+					range: range2,
+					value: result
+				};
+			}
+		}
+
 		return null;
 	}
 
-}
-
-export var ReplaceSupport: IReplaceSupportHelper = new ReplaceSupportHelperImpl();
-
-function isFunction(something) {
-	return typeof something === 'function';
-}
-
-export interface IInplaceReplaceSupportCustomization {
-	textReplace?: (value: string, up: boolean) => string;
-	navigateValueSetFallback?: (resource: URI, range: IRange, up: boolean) => TPromise<IInplaceReplaceSupportResult>;
-}
-
-export class AbstractInplaceReplaceSupport implements IInplaceReplaceSupport {
-
-	private defaults: {
-		textReplace: boolean;
-		navigateValueSetFallback: boolean;
-	};
-	private customization:IInplaceReplaceSupportCustomization;
-
-	constructor(customization: IInplaceReplaceSupportCustomization = null) {
-		this.defaults = {
-			textReplace: !customization || !isFunction(customization.textReplace),
-			navigateValueSetFallback: !customization || !isFunction(customization.navigateValueSetFallback)
-		};
-		this.customization = customization;
-	}
-
-	public navigateValueSet(resource:URI, range:IRange, up:boolean):TPromise<IInplaceReplaceSupportResult> {
-		var result = this.doNavigateValueSet(resource, range, up, true);
-		if (result && result.value && result.range) {
-			return TPromise.as(result);
+	private doNavigateValueSet(text:string, up:boolean): string {
+		let numberResult = this.numberReplace(text, up);
+		if (numberResult !== null) {
+			return numberResult;
 		}
-		if (this.defaults.navigateValueSetFallback) {
-			return TPromise.as(null);
-		}
-		return this.customization.navigateValueSetFallback(resource, range, up);
-	}
-
-	private doNavigateValueSet(resource:URI, range:IRange, up:boolean, selection:boolean):IInplaceReplaceSupportResult {
-
-		var model = this.getModel(resource),
-			result:IInplaceReplaceSupportResult = { range:null, value: null },
-			text:string;
-
-		if(selection) {
-			// Replace selection
-			if(range.startColumn === range.endColumn) {
-				range.endColumn += 1;
-			}
-			text = model.getValueInRange(range);
-			result.range = range;
-		} else {
-			// Replace word
-			var position = { lineNumber: range.startLineNumber, column: range.startColumn };
-			var	wordPos = model.getWordAtPosition(position);
-
-			if(!wordPos || wordPos.startColumn === -1) {
-				return null;
-			}
-			text = wordPos.word;
-			result.range = { startLineNumber : range.startLineNumber, endLineNumber: range.endLineNumber, startColumn: wordPos.startColumn, endColumn: wordPos.endColumn };
-		}
-
-		// Try to replace numbers or text
-		var numberResult = this.numberReplace(text, up);
-		if(numberResult !== null) {
-			result.value = numberResult;
-		} else {
-			var textResult = this.textReplace(text, up);
-			if(textResult !== null) {
-				result.value = textResult;
-			} else if(selection) {
-				return this.doNavigateValueSet(resource, range, up, false);
-			}
-		}
-		return result;
+		return this.textReplace(text, up);
 	}
 
 	private numberReplace(value:string, up:boolean):string {
@@ -147,28 +73,28 @@ export class AbstractInplaceReplaceSupport implements IInplaceReplaceSupport {
 	];
 
 	private textReplace(value:string, up:boolean):string {
-		if (this.defaults.textReplace) {
-			return ReplaceSupport.valueSetsReplace(this._defaultValueSet, value, up);
+		return this.valueSetsReplace(this._defaultValueSet, value, up);
+	}
+
+	private valueSetsReplace(valueSets:string[][], value:string, up:boolean):string {
+		var result:string = null;
+		for (let i = 0, len = valueSets.length; result === null && i < len; i++) {
+			result = this.valueSetReplace(valueSets[i], value, up);
 		}
-		return this.customization.textReplace(value, up)
-			|| ReplaceSupport.valueSetsReplace(this._defaultValueSet, value, up);
+		return result;
 	}
 
-	protected getModel(resource:URI): ITokenizedModel {
-		throw new Error('Not implemented');
-	}
-}
-
-export class WorkerInplaceReplaceSupport extends AbstractInplaceReplaceSupport {
-
-	private resourceService: IResourceService;
-
-	constructor(resourceService: IResourceService, customization: IInplaceReplaceSupportCustomization = null) {
-		super(customization);
-		this.resourceService = resourceService;
-	}
-
-	protected getModel(resource:URI): ITokenizedModel {
-		return this.resourceService.get(resource);
+	private valueSetReplace(valueSet:string[], value:string, up:boolean):string {
+		var idx = valueSet.indexOf(value);
+		if(idx >= 0) {
+			idx += up ? +1 : -1;
+			if(idx < 0) {
+				idx = valueSet.length - 1;
+			} else {
+				idx %= valueSet.length;
+			}
+			return valueSet[idx];
+		}
+		return null;
 	}
 }

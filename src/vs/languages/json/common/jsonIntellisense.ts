@@ -126,7 +126,7 @@ export class JSONIntellisense {
 			}
 
 			// proposals for values
-			if (node && (node.type === 'string' || node.type === 'number' || node.type === 'boolean' || node.type === 'null')) {
+			if (node && (node.type === 'string' || node.type === 'number' || node.type === 'integer' || node.type === 'boolean' || node.type === 'null')) {
 				var nodeRange = modelMirror.getRangeFromOffsetAndLength(node.start, node.end - node.start);
 				overwriteBefore = position.column - nodeRange.startColumn;
 				overwriteAfter = nodeRange.endColumn - position.column;
@@ -362,6 +362,7 @@ export class JSONIntellisense {
 			case 'string':
 				return '"{{' + snippet.substr(1, snippet.length - 2) + '}}"';
 			case 'number':
+			case 'integer':
 			case 'boolean':
 				return '{{' + snippet + '}}';
 		}
@@ -425,6 +426,7 @@ export class JSONIntellisense {
 					result += '[\n\t{{}}\n]';
 					break;
 				case 'number':
+				case 'integer':
 					result += '{{0}}';
 					break;
 				case 'null':

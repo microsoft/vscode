@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Modes = require('vs/editor/common/modes');
-import {Registry} from 'vs/platform/platform';
-import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
 import Event, {Emitter} from 'vs/base/common/event';
+import {Registry} from 'vs/platform/platform';
+import {IWorkerParticipantDescriptor} from 'vs/editor/common/modes';
+import {ILanguageExtensionPoint} from 'vs/editor/common/services/modeService';
 
 export interface ILegacyLanguageDefinition {
 	id: string;
@@ -27,7 +27,7 @@ export var Extensions = {
 
 export class EditorModesRegistry {
 
-	private _workerParticipants: Modes.IWorkerParticipantDescriptor[];
+	private _workerParticipants: IWorkerParticipantDescriptor[];
 	private _compatModes: ILegacyLanguageDefinition[];
 	private _languages: ILanguageExtensionPoint[];
 
@@ -45,7 +45,7 @@ export class EditorModesRegistry {
 
 	// --- worker participants
 
-	public registerWorkerParticipants(participants:Modes.IWorkerParticipantDescriptor[]): void {
+	public registerWorkerParticipants(participants:IWorkerParticipantDescriptor[]): void {
 		this._workerParticipants = participants;
 	}
 	public registerWorkerParticipant(modeId:string, moduleId:string, ctorName?:string):void {
@@ -55,10 +55,10 @@ export class EditorModesRegistry {
 			ctorName: ctorName
 		});
 	}
-	public getWorkerParticipantsForMode(modeId:string):Modes.IWorkerParticipantDescriptor[] {
+	public getWorkerParticipantsForMode(modeId:string):IWorkerParticipantDescriptor[] {
 		return this._workerParticipants.filter(p => p.modeId === modeId);
 	}
-	public getWorkerParticipants(): Modes.IWorkerParticipantDescriptor[] {
+	public getWorkerParticipants(): IWorkerParticipantDescriptor[] {
 		return this._workerParticipants;
 	}
 
@@ -94,3 +94,10 @@ export class EditorModesRegistry {
 
 export var ModesRegistry = new EditorModesRegistry();
 Registry.add(Extensions.ModesRegistry, ModesRegistry);
+
+ModesRegistry.registerLanguage({
+	id: 'plaintext',
+	extensions: ['.txt', '.gitignore'],
+	aliases: ['Plain Text', 'text'],
+	mimetypes: ['text/plain']
+});

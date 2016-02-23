@@ -4,18 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {
-	IThemeDecorationRenderOptions,
-	IDecorationRenderOptions,
-	IModelDecorationOptions,
-	IModelDecorationOverviewRulerOptions,
-	OverviewRulerLane
-} from 'vs/editor/common/editorCommon';
-import {AbstractCodeEditorService} from 'vs/editor/common/services/abstractCodeEditorService';
-import dom = require('vs/base/browser/dom');
-import objects = require('vs/base/common/objects');
-import strings = require('vs/base/common/strings');
+import * as objects from 'vs/base/common/objects';
+import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
+import * as dom from 'vs/base/browser/dom';
+import {IDecorationRenderOptions, IModelDecorationOptions, IModelDecorationOverviewRulerOptions, IThemeDecorationRenderOptions, OverviewRulerLane} from 'vs/editor/common/editorCommon';
+import {AbstractCodeEditorService} from 'vs/editor/common/services/abstractCodeEditorService';
 
 export class CodeEditorServiceImpl extends AbstractCodeEditorService {
 

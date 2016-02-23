@@ -5,93 +5,66 @@
 'use strict';
 
 import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {NullMode} from 'vs/editor/common/modes/nullMode';
-import {TextualSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
-import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
-import Modes = require('vs/editor/common/modes');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import URI from 'vs/base/common/uri';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
-import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
+import * as modes from 'vs/editor/common/modes';
+import {NullMode} from 'vs/editor/common/modes/nullMode';
+import {TextualSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 
 export function createWordRegExp(allowInWords:string = ''): RegExp {
 	return NullMode.createWordRegExp(allowInWords);
 }
 
-export abstract class AbstractMode<W extends AbstractModeWorker> implements Modes.IMode {
+export class ModeWorkerManager<W> {
 
-	_instantiationService:IInstantiationService;
-	_threadService:IThreadService;
-	private _descriptor:Modes.IModeDescriptor;
-
+	private _descriptor: modes.IModeDescriptor;
+	private _workerDescriptor: AsyncDescriptor2<string, modes.IWorkerParticipant[], W>;
+	private _superWorkerModuleId: string;
+	private _instantiationService: IInstantiationService;
 	private _workerPiecePromise:TPromise<W>;
 
-	_options:any;
-
-	// adapters start
-	public autoValidateDelay:number;
-	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
-	public configSupport:Modes.IConfigurationSupport;
-	// adapters end
-
-	private _eventEmitter = new EventEmitter();
-	private _simplifiedMode: Modes.IMode;
-
 	constructor(
-		descriptor:Modes.IModeDescriptor,
-		instantiationService: IInstantiationService,
-		threadService: IThreadService
+		descriptor:modes.IModeDescriptor,
+		workerModuleId:string,
+		workerClassName:string,
+		superWorkerModuleId:string,
+		instantiationService: IInstantiationService
 	) {
-		this._instantiationService = instantiationService;
-		this._threadService = threadService;
 		this._descriptor = descriptor;
-
-		this._options = null;
-
-		this.autoValidateDelay = 500;
-
-		this.inplaceReplaceSupport = this;
-		this.configSupport = this;
-
+		this._workerDescriptor = createAsyncDescriptor2(workerModuleId, workerClassName);
+		this._superWorkerModuleId = superWorkerModuleId;
+		this._instantiationService = instantiationService;
 		this._workerPiecePromise = null;
-		this._simplifiedMode = null;
 	}
 
-	public getId(): string {
-		return this._descriptor.id;
-	}
-
-	public creationDone(): void {
-		if (this._threadService.isInMainThread) {
-			// Pick a worker to do validation
-			this._pickAWorkerToValidate();
-		}
-	}
-
-	public toSimplifiedMode(): Modes.IMode {
-		if (!this._simplifiedMode) {
-			this._simplifiedMode = new SimplifiedMode(this);
-		}
-		return this._simplifiedMode;
+	public worker<T>(runner:(worker:W)=>TPromise<T>): TPromise<T>
+	public worker<T>(runner:(worker:W)=>T): TPromise<T> {
+		return this._getOrCreateWorker().then(runner);
 	}
 
 	private _getOrCreateWorker(): TPromise<W> {
 		if (!this._workerPiecePromise) {
-			var workerDescriptor: AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], W> = this._getWorkerDescriptor();
-			// First, load the code of the worker (without instantiating it)
-			this._workerPiecePromise = AbstractMode._loadModule(workerDescriptor.moduleName).then(() => {
+			// TODO@Alex: workaround for missing `bundles` config
+
+			// First, load the code of the worker super class
+			let superWorkerCodePromise = (this._superWorkerModuleId ? ModeWorkerManager._loadModule(this._superWorkerModuleId) : TPromise.as(null));
+
+			this._workerPiecePromise = superWorkerCodePromise.then(() => {
+				// Second, load the code of the worker (without instantiating it)
+				return ModeWorkerManager._loadModule(this._workerDescriptor.moduleName);
+			}).then(() => {
 				// Then, load & instantiate all the participants
 				var participants = this._descriptor.workerParticipants;
-				return TPromise.join<Modes.IWorkerParticipant>(participants.map((participant) => {
+				return TPromise.join<modes.IWorkerParticipant>(participants.map((participant) => {
 					return this._instantiationService.createInstance(participant);
 				}));
-			}).then((participants:Modes.IWorkerParticipant[]) => {
-				return this._instantiationService.createInstance<Modes.IMode, Modes.IWorkerParticipant[], W>(workerDescriptor, this, participants);
+			}).then((participants:modes.IWorkerParticipant[]) => {
+				// Finally, create the mode worker instance
+				return this._instantiationService.createInstance<string, modes.IWorkerParticipant[], W>(this._workerDescriptor, this._descriptor.id, participants);
 			});
 		}
 
@@ -105,29 +78,36 @@ export abstract class AbstractMode<W extends AbstractModeWorker> implements Mode
 			// Cannot cancel loading code
 		});
 	}
+}
 
-	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], W> {
-		return createAsyncDescriptor2('vs/editor/common/modes/nullWorker', 'NullWorker');
+export abstract class AbstractMode implements modes.IMode {
+
+	private _modeId: string;
+	private _eventEmitter: EventEmitter;
+	private _simplifiedMode: modes.IMode;
+
+	constructor(modeId:string) {
+		this._modeId = modeId;
+		this._eventEmitter = new EventEmitter();
+		this._simplifiedMode = null;
 	}
 
-	_worker<T>(runner:(worker:W)=>TPromise<T>): TPromise<T>;
-	_worker<T>(runner:(worker:W)=>T): TPromise<T>;
-	_worker<T>(runner:(worker:W)=>any): TPromise<T> {
-		return this._getOrCreateWorker().then(runner);
+	public getId(): string {
+		return this._modeId;
 	}
 
-	// START mics interface implementations
-
-	static $_pickAWorkerToValidate = OneWorkerAttr(AbstractMode, AbstractMode.prototype._pickAWorkerToValidate, ThreadAffinity.Group1);
-	public _pickAWorkerToValidate(): TPromise<void> {
-		return this._worker((w) => w.enableValidator());
+	public toSimplifiedMode(): modes.IMode {
+		if (!this._simplifiedMode) {
+			this._simplifiedMode = new SimplifiedMode(this);
+		}
+		return this._simplifiedMode;
 	}
 
-	public addSupportChangedListener(callback: (e: EditorCommon.IModeSupportChangedEvent) => void) : IDisposable {
+	public addSupportChangedListener(callback: (e: IModeSupportChangedEvent) => void) : IDisposable {
 		return this._eventEmitter.addListener2('modeSupportChanged', callback);
 	}
 
-	public registerSupport<T>(support:string, callback:(mode:Modes.IMode) => T) : IDisposable {
+	public registerSupport<T>(support:string, callback:(mode:modes.IMode) => T) : IDisposable {
 		var supportImpl = callback(this);
 		this[support] = supportImpl;
 		this._eventEmitter.emit('modeSupportChanged', _createModeSupportChangedEvent(support));
@@ -141,45 +121,18 @@ export abstract class AbstractMode<W extends AbstractModeWorker> implements Mode
 			}
 		};
 	}
-
-	static $suggest = OneWorkerAttr(AbstractMode, AbstractMode.prototype.suggest);
-	public suggest(resource:URI, position:EditorCommon.IPosition):TPromise<Modes.ISuggestResult[]> {
-		return this._worker((w) => w.suggest(resource, position));
-	}
-
-	static $navigateValueSet = OneWorkerAttr(AbstractMode, AbstractMode.prototype.navigateValueSet);
-	public navigateValueSet(resource:URI, position:EditorCommon.IRange, up:boolean):TPromise<Modes.IInplaceReplaceSupportResult> {
-		return this._worker((w) => w.inplaceReplaceSupport.navigateValueSet(resource, position, up));
-	}
-
-	public configure(options:any): TPromise<boolean> {
-		this._options = options;
-
-		if (this._threadService.isInMainThread) {
-			return this._configureWorkers(options);
-		} else {
-			return this._worker((w) => w.configure(options));
-		}
-	}
-
-	static $_configureWorkers = AllWorkersAttr(AbstractMode, AbstractMode.prototype._configureWorkers);
-	private _configureWorkers(options:any): TPromise<boolean> {
-		return this._worker((w) => w.configure(options));
-	}
-
-	// END
 }
 
-class SimplifiedMode implements Modes.IMode {
+class SimplifiedMode implements modes.IMode {
 
-	tokenizationSupport: Modes.ITokenizationSupport;
-	richEditSupport: Modes.IRichEditSupport;
+	tokenizationSupport: modes.ITokenizationSupport;
+	richEditSupport: modes.IRichEditSupport;
 
-	private _sourceMode: Modes.IMode;
+	private _sourceMode: modes.IMode;
 	private _eventEmitter: EventEmitter;
 	private _id: string;
 
-	constructor(sourceMode: Modes.IMode) {
+	constructor(sourceMode: modes.IMode) {
 		this._sourceMode = sourceMode;
 		this._eventEmitter = new EventEmitter();
 		this._id = 'vs.editor.modes.simplifiedMode:' + sourceMode.getId();
@@ -200,7 +153,7 @@ class SimplifiedMode implements Modes.IMode {
 		return this._id;
 	}
 
-	public toSimplifiedMode(): Modes.IMode {
+	public toSimplifiedMode(): modes.IMode {
 		return this;
 	}
 
@@ -209,8 +162,8 @@ class SimplifiedMode implements Modes.IMode {
 		this.richEditSupport = this._sourceMode.richEditSupport;
 	}
 
-	private static _createModeSupportChangedEvent(originalModeEvent:EditorCommon.IModeSupportChangedEvent): EditorCommon.IModeSupportChangedEvent {
-		var event:EditorCommon.IModeSupportChangedEvent = {
+	private static _createModeSupportChangedEvent(originalModeEvent:IModeSupportChangedEvent): IModeSupportChangedEvent {
+		var event:IModeSupportChangedEvent = {
 			codeLensSupport: false,
 			tokenizationSupport: originalModeEvent.tokenizationSupport,
 			occurrencesSupport:false,
@@ -299,24 +252,22 @@ export var isDigit:(character:string, base:number)=>boolean = (function () {
 	};
 })();
 
-export class FrankensteinMode extends AbstractMode<AbstractModeWorker> {
+export class FrankensteinMode extends AbstractMode {
 
-	public suggestSupport:Modes.ISuggestSupport;
+	public suggestSupport:modes.ISuggestSupport;
 
 	constructor(
-		descriptor:Modes.IModeDescriptor,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThreadService threadService: IThreadService,
+		descriptor:modes.IModeDescriptor,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(descriptor, instantiationService, threadService);
+		super(descriptor.id);
 
 		this.suggestSupport = new TextualSuggestSupport(this.getId(), editorWorkerService);
 	}
 }
 
-function _createModeSupportChangedEvent(...changedSupports: string[]): EditorCommon.IModeSupportChangedEvent {
-	var event:EditorCommon.IModeSupportChangedEvent = {
+function _createModeSupportChangedEvent(...changedSupports: string[]): IModeSupportChangedEvent {
+	var event:IModeSupportChangedEvent = {
 		codeLensSupport: false,
 		tokenizationSupport:false,
 		occurrencesSupport:false,

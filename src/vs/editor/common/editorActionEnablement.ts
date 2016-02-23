@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {EventType, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 
 export enum Behaviour {
 	TextFocus = 1 << 0,
@@ -22,7 +22,7 @@ export interface IEditorAction {
 	getEnablementState(): boolean;
 }
 
-export function createActionEnablement(editor: EditorCommon.ICommonCodeEditor, condition:Behaviour, action:IEditorAction): IEnablementState {
+export function createActionEnablement(editor: ICommonCodeEditor, condition:Behaviour, action:IEditorAction): IEnablementState {
 	return new CompositeEnablementState([new InternalEnablementState(condition, editor), new DescentEnablementState(condition, editor, action)]);
 }
 
@@ -106,7 +106,7 @@ class InternalEnablementState extends CachingEnablementState {
 
 	private _callOnDispose:IDisposable[];
 
-	constructor(private _behaviour:Behaviour, private editor:EditorCommon.ICommonCodeEditor) {
+	constructor(private _behaviour:Behaviour, private editor:ICommonCodeEditor) {
 		super();
 
 		this.hasTextFocus = false;
@@ -115,15 +115,15 @@ class InternalEnablementState extends CachingEnablementState {
 
 		this._callOnDispose = [];
 		if (this._behaviour & Behaviour.TextFocus) {
-			this._callOnDispose.push(this.editor.addListener2(EditorCommon.EventType.EditorTextFocus, () => this._updateTextFocus(true)));
-			this._callOnDispose.push(this.editor.addListener2(EditorCommon.EventType.EditorTextBlur, () => this._updateTextFocus(false)));
+			this._callOnDispose.push(this.editor.addListener2(EventType.EditorTextFocus, () => this._updateTextFocus(true)));
+			this._callOnDispose.push(this.editor.addListener2(EventType.EditorTextBlur, () => this._updateTextFocus(false)));
 		}
 		if (this._behaviour & Behaviour.WidgetFocus) {
-			this._callOnDispose.push(this.editor.addListener2(EditorCommon.EventType.EditorFocus, () => this._updateWidgetFocus(true)));
-			this._callOnDispose.push(this.editor.addListener2(EditorCommon.EventType.EditorBlur, () => this._updateWidgetFocus(false)));
+			this._callOnDispose.push(this.editor.addListener2(EventType.EditorFocus, () => this._updateWidgetFocus(true)));
+			this._callOnDispose.push(this.editor.addListener2(EventType.EditorBlur, () => this._updateWidgetFocus(false)));
 		}
 		if (this._behaviour & Behaviour.Writeable) {
-			this._callOnDispose.push(this.editor.addListener2(EditorCommon.EventType.ConfigurationChanged, (e) => this._update()));
+			this._callOnDispose.push(this.editor.addListener2(EventType.ConfigurationChanged, (e) => this._update()));
 		}
 	}
 
@@ -170,16 +170,16 @@ class DescentEnablementState extends CachingEnablementState {
 
 	private _callOnDispose:Function[] = [];
 
-	constructor(behaviour:Behaviour, private editor:EditorCommon.ICommonCodeEditor, private _action:IEditorAction) {
+	constructor(behaviour:Behaviour, private editor:ICommonCodeEditor, private _action:IEditorAction) {
 		super();
 
 		if (behaviour & Behaviour.UpdateOnModelChange) {
-			this._callOnDispose.push(this.editor.addListener(EditorCommon.EventType.ModelChanged, () => this.reset()));
-			this._callOnDispose.push(this.editor.addListener(EditorCommon.EventType.ModelModeChanged, () => this.reset()));
-			this._callOnDispose.push(this.editor.addListener(EditorCommon.EventType.ModelModeSupportChanged, () => this.reset()));
+			this._callOnDispose.push(this.editor.addListener(EventType.ModelChanged, () => this.reset()));
+			this._callOnDispose.push(this.editor.addListener(EventType.ModelModeChanged, () => this.reset()));
+			this._callOnDispose.push(this.editor.addListener(EventType.ModelModeSupportChanged, () => this.reset()));
 		}
 		if (behaviour & Behaviour.UpdateOnCursorPositionChange) {
-			this._callOnDispose.push(this.editor.addListener(EditorCommon.EventType.CursorPositionChanged, () => this.reset()));
+			this._callOnDispose.push(this.editor.addListener(EventType.CursorPositionChanged, () => this.reset()));
 		}
 	}
 

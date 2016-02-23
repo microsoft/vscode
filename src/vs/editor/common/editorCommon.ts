@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
-import Modes = require('vs/editor/common/modes');
-import TokensBinaryEncoding = require('vs/editor/common/model/tokensBinaryEncoding');
-import {IInstantiationService, INewConstructorSignature1, INewConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {IAction} from 'vs/base/common/actions';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {TPromise} from 'vs/base/common/winjs.base';
+import {IEventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
+import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {IDisposable} from 'vs/base/common/lifecycle';
+import URI from 'vs/base/common/uri';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
+import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
+import {ILineContext, IMode, IModeTransition, IToken} from 'vs/editor/common/modes';
 
 export type KeyCode = KeyCode;
 export type KeyMod = KeyMod;
@@ -279,6 +279,11 @@ export interface IEditorOptions {
 	 * Defaults to empty array.
 	 */
 	rulers?: number[];
+	/**
+	 * A string containing the word separators used when doing word navigation.
+	 * Defaults to `~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?
+	 */
+	wordSeparators?: string;
 	/**
 	 * Control the rendering of line numbers.
 	 * If it is a function, it will be invoked when rendering a line number and the return value will be rendered.
@@ -591,6 +596,7 @@ export interface IEditorWrappingInfo {
 export interface IInternalEditorOptions {
 	experimentalScreenReader: boolean;
 	rulers: number[];
+	wordSeparators: string;
 	ariaLabel: string;
 
 	// ---- Options that are transparent - get no massaging
@@ -679,6 +685,7 @@ export interface IInternalEditorOptions {
 export interface IConfigurationChangedEvent {
 	experimentalScreenReader: boolean;
 	rulers: boolean;
+	wordSeparators: boolean;
 	ariaLabel: boolean;
 
 	// ---- Options that are transparent - get no massaging
@@ -962,7 +969,7 @@ export interface IWordRange {
 }
 
 export interface ITokenInfo {
-	token: Modes.IToken;
+	token: IToken;
 	lineNumber: number;
 	startColumn: number;
 	endColumn: number;
@@ -1175,13 +1182,13 @@ export interface ILineTokensBinaryEncoding {
 	START_INDEX_OFFSET: number;
 	TYPE_OFFSET: number;
 
-	deflateArr(map:ITokensInflatorMap, tokens:Modes.IToken[]): number[];
-	inflate(map:ITokensInflatorMap, binaryEncodedToken:number): Modes.IToken;
+	deflateArr(map:ITokensInflatorMap, tokens:IToken[]): number[];
+	inflate(map:ITokensInflatorMap, binaryEncodedToken:number): IToken;
 	getStartIndex(binaryEncodedToken:number): number;
 	getType(map:ITokensInflatorMap, binaryEncodedToken:number): string;
-	inflateArr(map:ITokensInflatorMap, binaryEncodedTokens:number[]): Modes.IToken[];
+	inflateArr(map:ITokensInflatorMap, binaryEncodedTokens:number[]): IToken[];
 	findIndexOfOffset(binaryEncodedTokens:number[], offset:number): number;
-	sliceAndInflate(map:ITokensInflatorMap, binaryEncodedTokens:number[], startOffset:number, endOffset:number, deltaStartIndex:number): Modes.IToken[];
+	sliceAndInflate(map:ITokensInflatorMap, binaryEncodedTokens:number[], startOffset:number, endOffset:number, deltaStartIndex:number): IToken[];
 }
 export var LineTokensBinaryEncoding:ILineTokensBinaryEncoding = TokensBinaryEncoding;
 
@@ -1417,9 +1424,9 @@ export interface ITokenizedModel extends ITextModel {
 	/**
 	 * Tokenize if necessary and get the tokenization result for the line `lineNumber`, as returned by the language mode.
 	 */
-	getLineContext(lineNumber:number): Modes.ILineContext;
+	getLineContext(lineNumber:number): ILineContext;
 
-	/*package*/_getLineModeTransitions(lineNumber:number): Modes.IModeTransition[];
+	/*package*/_getLineModeTransitions(lineNumber:number): IModeTransition[];
 
 	/**
 	 * Replace the entire text buffer value contained in this model.
@@ -1430,30 +1437,30 @@ export interface ITokenizedModel extends ITextModel {
 	 * unbinds the mirror model from the previous mode to the new
 	 * one if the mode has changed.
 	 */
-	setValue(newValue:string, newMode?:Modes.IMode): void;
+	setValue(newValue:string, newMode?:IMode): void;
 
 	/**
 	 * Get the current language mode associated with the model.
 	 */
-	getMode(): Modes.IMode;
+	getMode(): IMode;
 
 	/**
 	 * Set the current language mode associated with the model.
 	 */
-	setMode(newMode:Modes.IMode): void;
-	setMode(newModePromise:TPromise<Modes.IMode>): void;
+	setMode(newMode:IMode): void;
+	setMode(newModePromise:TPromise<IMode>): void;
 	/**
 	 * A mode can be currently pending loading if a promise is used when constructing a model or calling setMode().
 	 *
 	 * If there is no currently pending loading mode, then the result promise will complete immediately.
 	 * Otherwise, the result will complete once the currently pending loading mode is loaded.
 	 */
-	whenModeIsReady(): TPromise<Modes.IMode>;
+	whenModeIsReady(): TPromise<IMode>;
 
 	/**
 	 * Returns the true (inner-most) language mode at a given position.
 	 */
-	getModeAtPosition(lineNumber:number, column:number): Modes.IMode;
+	getModeAtPosition(lineNumber:number, column:number): IMode;
 
 	/**
 	 * Get the word under or besides `position`.
@@ -1813,8 +1820,8 @@ export interface IModel extends IEditableTextModel, ITextModelWithMarkers, IToke
 	 * unbinds the mirror model from the previous mode to the new
 	 * one if the mode has changed.
 	 */
-	setValue(newValue:string, newMode?:Modes.IMode): void;
-	setValue(newValue:string, newModePromise:TPromise<Modes.IMode>): void;
+	setValue(newValue:string, newMode?:IMode): void;
+	setValue(newValue:string, newModePromise:TPromise<IMode>): void;
 
 	onBeforeAttached(): void;
 
@@ -1856,11 +1863,11 @@ export interface IModelModeChangedEvent {
 	/**
 	 * Previous mode
 	 */
-	oldMode:Modes.IMode;
+	oldMode:IMode;
 	/**
 	 * New mode
 	 */
-	newMode:Modes.IMode;
+	newMode:IMode;
 }
 
 /**
@@ -2748,9 +2755,9 @@ export interface IEditorActionDescriptorData {
 	label:string;
 }
 
-export type IEditorActionContributionCtor = INewConstructorSignature2<IEditorActionDescriptorData, ICommonCodeEditor, IEditorContribution>;
+export type IEditorActionContributionCtor = IConstructorSignature2<IEditorActionDescriptorData, ICommonCodeEditor, IEditorContribution>;
 
-export type ICommonEditorContributionCtor = INewConstructorSignature1<ICommonCodeEditor, IEditorContribution>;
+export type ICommonEditorContributionCtor = IConstructorSignature1<ICommonCodeEditor, IEditorContribution>;
 
 /**
  * An editor contribution descriptor that will be used to construct editor contributions
@@ -3070,6 +3077,11 @@ export interface ICommonCodeEditor extends IEditor {
 	 * Otherwise, they are equal to `tabSize` and `insertSpaces`.
 	 */
 	getIndentationOptions(): IInternalIndentationOptions;
+
+	/**
+	 * Sets the indentation options of the editor.
+	 */
+	setIndentationOptions(IInternalIndentationOptions): void;
 
 	/**
 	 * Normalize whitespace using the editor's whitespace specific settings

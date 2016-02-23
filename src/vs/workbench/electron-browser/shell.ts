@@ -79,7 +79,7 @@ import {WorkspaceContextService} from 'vs/workbench/services/workspace/common/co
 import {IStorageService, StorageScope, StorageEvent, StorageEventType} from 'vs/platform/storage/common/storage';
 import {MainThreadStorage} from 'vs/platform/storage/common/remotable.storage';
 import {IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import {create as createInstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import {createInstantiationService as createInstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IFileService} from 'vs/platform/files/common/files';
@@ -234,19 +234,19 @@ export class WorkbenchShell {
 		let disableWorkspaceStorage = this.configuration.env.pluginTestsPath || (!this.workspace && !this.configuration.env.pluginDevelopmentPath); // without workspace or in any plugin test, we use inMemory storage unless we develop a plugin where we want to preserve state
 		this.storageService = new Storage(this.contextService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 
+		let configService = new ConfigurationService(
+			this.contextService,
+			eventService
+		);
+
 		// no telemetry in a window for plugin development!
 		let enableTelemetry = this.configuration.env.isBuilt && !this.configuration.env.pluginDevelopmentPath ? !!this.configuration.env.enableTelemetry : false;
-		this.telemetryService = new ElectronTelemetryService(this.storageService, { enableTelemetry: enableTelemetry, version: this.configuration.env.version, commitHash: this.configuration.env.commitHash });
+		this.telemetryService = new ElectronTelemetryService(configService, this.storageService, { enableTelemetry: enableTelemetry, version: this.configuration.env.version, commitHash: this.configuration.env.commitHash });
 
 		this.keybindingService = new WorkbenchKeybindingService(this.contextService, eventService, this.telemetryService, <any>window);
 
 		this.messageService = new MessageService(this.contextService, this.windowService, this.telemetryService, this.keybindingService);
 		this.keybindingService.setMessageService(this.messageService);
-
-		let configService = new ConfigurationService(
-			this.contextService,
-			eventService
-		);
 
 		let fileService = new FileService(
 			configService,
@@ -274,9 +274,9 @@ export class WorkbenchShell {
 		let pluginService = new MainProcessPluginService(this.contextService, this.threadService, this.messageService, this.telemetryService);
 		this.keybindingService.setPluginService(pluginService);
 
-		let modelService = new ModelServiceImpl(this.threadService, markerService);
+		let modeService = new MainThreadModeServiceImpl(this.threadService, pluginService);
+		let modelService = new ModelServiceImpl(this.threadService, markerService, modeService);
 		let editorWorkerService = new EditorWorkerServiceImpl(modelService);
-		let modeService = new MainThreadModeServiceImpl(this.threadService, pluginService, modelService, editorWorkerService);
 
 		let untitledEditorService = new UntitledEditorService();
 		this.themeService = new ThemeService(pluginService);

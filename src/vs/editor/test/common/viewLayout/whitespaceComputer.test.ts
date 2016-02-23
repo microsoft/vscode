@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import WhitespaceComputer = require('vs/editor/common/viewLayout/whitespaceComputer');
+import * as assert from 'assert';
+import {WhitespaceComputer} from 'vs/editor/common/viewLayout/whitespaceComputer';
 
 suite('Editor ViewLayout - WhitespaceComputer', () => {
 
 	test('WhitespaceComputer', () => {
 
-		var whitespaceComputer = new WhitespaceComputer.WhitespaceComputer();
+		var whitespaceComputer = new WhitespaceComputer();
 
 		// Insert a whitespace after line number 2, of height 10
 		var a = whitespaceComputer.insertWhitespace(2, 0, 10);
@@ -257,127 +257,127 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 
 		arr = [];
 		ordinals = makeArray(arr.length, 0);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 0, ordinals, 0), 0);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 1, ordinals, 0), 0);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 2, ordinals, 0), 0);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 0, ordinals, 0), 0);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 1, ordinals, 0), 0);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 2, ordinals, 0), 0);
 
 		arr = [1];
 		ordinals = makeArray(arr.length, 0);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 0, ordinals, 0), 0);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 1, ordinals, 0), 1);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 2, ordinals, 0), 1);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 0, ordinals, 0), 0);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 1, ordinals, 0), 1);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 2, ordinals, 0), 1);
 
 		arr = [1, 3];
 		ordinals = makeArray(arr.length, 0);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 0, ordinals, 0), 0);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 1, ordinals, 0), 1);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 2, ordinals, 0), 1);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 3, ordinals, 0), 2);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 4, ordinals, 0), 2);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 0, ordinals, 0), 0);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 1, ordinals, 0), 1);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 2, ordinals, 0), 1);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 3, ordinals, 0), 2);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 4, ordinals, 0), 2);
 
 		arr = [1, 3, 5];
 		ordinals = makeArray(arr.length, 0);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 0, ordinals, 0), 0);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 1, ordinals, 0), 1);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 2, ordinals, 0), 1);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 3, ordinals, 0), 2);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 4, ordinals, 0), 2);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 5, ordinals, 0), 3);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 6, ordinals, 0), 3);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 0, ordinals, 0), 0);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 1, ordinals, 0), 1);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 2, ordinals, 0), 1);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 3, ordinals, 0), 2);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 4, ordinals, 0), 2);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 5, ordinals, 0), 3);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 6, ordinals, 0), 3);
 
 		arr = [1, 3, 5];
 		ordinals = makeArray(arr.length, 3);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 0, ordinals, 0), 0);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 1, ordinals, 0), 0);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 2, ordinals, 0), 1);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 3, ordinals, 0), 1);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 4, ordinals, 0), 2);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 5, ordinals, 0), 2);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 6, ordinals, 0), 3);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 0, ordinals, 0), 0);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 1, ordinals, 0), 0);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 2, ordinals, 0), 1);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 3, ordinals, 0), 1);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 4, ordinals, 0), 2);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 5, ordinals, 0), 2);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 6, ordinals, 0), 3);
 
 		arr = [1, 3, 5, 7];
 		ordinals = makeArray(arr.length, 0);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 0, ordinals, 0), 0);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 1, ordinals, 0), 1);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 2, ordinals, 0), 1);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 3, ordinals, 0), 2);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 4, ordinals, 0), 2);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 5, ordinals, 0), 3);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 6, ordinals, 0), 3);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 7, ordinals, 0), 4);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 8, ordinals, 0), 4);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 0, ordinals, 0), 0);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 1, ordinals, 0), 1);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 2, ordinals, 0), 1);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 3, ordinals, 0), 2);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 4, ordinals, 0), 2);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 5, ordinals, 0), 3);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 6, ordinals, 0), 3);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 7, ordinals, 0), 4);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 8, ordinals, 0), 4);
 
 		arr = [1, 3, 5, 7, 9];
 		ordinals = makeArray(arr.length, 0);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 0, ordinals, 0), 0);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 1, ordinals, 0), 1);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 2, ordinals, 0), 1);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 3, ordinals, 0), 2);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 4, ordinals, 0), 2);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 5, ordinals, 0), 3);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 6, ordinals, 0), 3);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 7, ordinals, 0), 4);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 8, ordinals, 0), 4);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 9, ordinals, 0), 5);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 10, ordinals, 0), 5);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 0, ordinals, 0), 0);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 1, ordinals, 0), 1);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 2, ordinals, 0), 1);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 3, ordinals, 0), 2);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 4, ordinals, 0), 2);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 5, ordinals, 0), 3);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 6, ordinals, 0), 3);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 7, ordinals, 0), 4);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 8, ordinals, 0), 4);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 9, ordinals, 0), 5);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 10, ordinals, 0), 5);
 
 		arr = [1, 3, 5, 7, 9, 11];
 		ordinals = makeArray(arr.length, 0);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 0, ordinals, 0), 0);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 1, ordinals, 0), 1);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 2, ordinals, 0), 1);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 3, ordinals, 0), 2);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 4, ordinals, 0), 2);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 5, ordinals, 0), 3);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 6, ordinals, 0), 3);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 7, ordinals, 0), 4);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 8, ordinals, 0), 4);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 9, ordinals, 0), 5);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 10, ordinals, 0), 5);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 11, ordinals, 0), 6);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 12, ordinals, 0), 6);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 0, ordinals, 0), 0);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 1, ordinals, 0), 1);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 2, ordinals, 0), 1);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 3, ordinals, 0), 2);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 4, ordinals, 0), 2);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 5, ordinals, 0), 3);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 6, ordinals, 0), 3);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 7, ordinals, 0), 4);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 8, ordinals, 0), 4);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 9, ordinals, 0), 5);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 10, ordinals, 0), 5);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 11, ordinals, 0), 6);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 12, ordinals, 0), 6);
 
 		arr = [1, 3, 5, 7, 9, 11, 13];
 		ordinals = makeArray(arr.length, 0);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 0, ordinals, 0), 0);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 1, ordinals, 0), 1);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 2, ordinals, 0), 1);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 3, ordinals, 0), 2);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 4, ordinals, 0), 2);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 5, ordinals, 0), 3);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 6, ordinals, 0), 3);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 7, ordinals, 0), 4);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 8, ordinals, 0), 4);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 9, ordinals, 0), 5);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 10, ordinals, 0), 5);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 11, ordinals, 0), 6);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 12, ordinals, 0), 6);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 13, ordinals, 0), 7);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 14, ordinals, 0), 7);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 0, ordinals, 0), 0);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 1, ordinals, 0), 1);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 2, ordinals, 0), 1);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 3, ordinals, 0), 2);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 4, ordinals, 0), 2);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 5, ordinals, 0), 3);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 6, ordinals, 0), 3);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 7, ordinals, 0), 4);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 8, ordinals, 0), 4);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 9, ordinals, 0), 5);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 10, ordinals, 0), 5);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 11, ordinals, 0), 6);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 12, ordinals, 0), 6);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 13, ordinals, 0), 7);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 14, ordinals, 0), 7);
 
 		arr = [1, 3, 5, 7, 9, 11, 13, 15];
 		ordinals = makeArray(arr.length, 0);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 0, ordinals, 0), 0);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 1, ordinals, 0), 1);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 2, ordinals, 0), 1);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 3, ordinals, 0), 2);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 4, ordinals, 0), 2);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 5, ordinals, 0), 3);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 6, ordinals, 0), 3);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 7, ordinals, 0), 4);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 8, ordinals, 0), 4);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 9, ordinals, 0), 5);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 10, ordinals, 0), 5);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 11, ordinals, 0), 6);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 12, ordinals, 0), 6);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 13, ordinals, 0), 7);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 14, ordinals, 0), 7);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 15, ordinals, 0), 8);
-		assert.equal(WhitespaceComputer.WhitespaceComputer.findInsertionIndex(arr, 16, ordinals, 0), 8);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 0, ordinals, 0), 0);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 1, ordinals, 0), 1);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 2, ordinals, 0), 1);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 3, ordinals, 0), 2);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 4, ordinals, 0), 2);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 5, ordinals, 0), 3);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 6, ordinals, 0), 3);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 7, ordinals, 0), 4);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 8, ordinals, 0), 4);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 9, ordinals, 0), 5);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 10, ordinals, 0), 5);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 11, ordinals, 0), 6);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 12, ordinals, 0), 6);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 13, ordinals, 0), 7);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 14, ordinals, 0), 7);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 15, ordinals, 0), 8);
+		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 16, ordinals, 0), 8);
 	});
 
 	test('WhitespaceComputer changeAfterLineNumberForWhitespace & getFirstWhitespaceIndexAfterLineNumber', () => {
-		var whitespaceComputer = new WhitespaceComputer.WhitespaceComputer();
+		var whitespaceComputer = new WhitespaceComputer();
 
 		var a = whitespaceComputer.insertWhitespace(0, 0, 1);
 		var b = whitespaceComputer.insertWhitespace(7, 0, 1);
@@ -502,7 +502,7 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 
 
 	test('WhitespaceComputer Bug', () => {
-		var whitespaceComputer = new WhitespaceComputer.WhitespaceComputer();
+		var whitespaceComputer = new WhitespaceComputer();
 
 		var a = whitespaceComputer.insertWhitespace(0, 0, 1);
 		var b = whitespaceComputer.insertWhitespace(7, 0, 1);

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as Platform from 'vs/base/common/platform';
-import * as Browser from 'vs/base/browser/browser';
+import * as platform from 'vs/base/common/platform';
+import * as browser from 'vs/base/browser/browser';
 import {IframeUtils} from 'vs/base/browser/iframe';
 
 export interface IMouseEvent {
@@ -21,6 +21,7 @@ export interface IMouseEvent {
 	shiftKey:boolean;
 	altKey:boolean;
 	metaKey:boolean;
+	timestamp:number;
 
 	preventDefault(): void;
 	stopPropagation(): void;
@@ -82,7 +83,7 @@ export class StandardMouseEvent implements IMouseEvent {
 		};
 
 		let test1 = readPageCoords, test2 = readClientCoords;
-		if (Browser.isIE10) {
+		if (browser.isIE10) {
 			// The if A elseif B logic here is inversed in IE10 due to an IE10 issue
 			test1 = readClientCoords;
 			test2 = readPageCoords;
@@ -183,7 +184,7 @@ export class StandardMouseWheelEvent {
 
 			// horizontal delta scroll
 			if (typeof e1.wheelDeltaX !== 'undefined') {
-				if (Browser.isSafari && Platform.isWindows) {
+				if (browser.isSafari && platform.isWindows) {
 					this.deltaX = - (e1.wheelDeltaX / 120);
 				} else {
 					this.deltaX = e1.wheelDeltaX / 120;

@@ -6,19 +6,19 @@
 
 'use strict';
 
+import * as nls from 'vs/nls';
 import {RunOnceScheduler} from 'vs/base/common/async';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {IMouseEvent, ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {TPromise} from 'vs/base/common/winjs.base';
-import foldStrategy = require('vs/editor/contrib/folding/common/indentFoldStrategy');
-import {IFoldingRange, toString as rangeToString} from 'vs/editor/contrib/folding/common/foldingRange';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {EditorAction} from 'vs/editor/common/editorAction';
-import nls = require('vs/nls');
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
+import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {IFoldingRange, toString as rangeToString} from 'vs/editor/contrib/folding/common/foldingRange';
+import {computeRanges} from 'vs/editor/contrib/folding/common/indentFoldStrategy';
 
 let log = function(msg: string) {
 	//console.log(msg);
@@ -31,7 +31,7 @@ class CollapsibleRegion {
 
 	private _lastRange: IFoldingRange;
 
-	public constructor(range:IFoldingRange, model:EditorCommon.IModel, changeAccessor:EditorCommon.IModelDecorationsChangeAccessor) {
+	public constructor(range:IFoldingRange, model:editorCommon.IModel, changeAccessor:editorCommon.IModelDecorationsChangeAccessor) {
 		this.decorationIds = [];
 		this.update(range, model, changeAccessor);
 	}
@@ -40,46 +40,46 @@ class CollapsibleRegion {
 		return this._isCollapsed;
 	}
 
-	public setCollapsed(isCollaped: boolean, changeAccessor:EditorCommon.IModelDecorationsChangeAccessor): void {
+	public setCollapsed(isCollaped: boolean, changeAccessor:editorCommon.IModelDecorationsChangeAccessor): void {
 		this._isCollapsed = isCollaped;
 		if (this.decorationIds.length > 0) {
 			changeAccessor.changeDecorationOptions(this.decorationIds[0], this.getVisualDecorationOptions());
 		}
 	}
 
-	public getDecorationRange(model:EditorCommon.IModel): EditorCommon.IEditorRange {
+	public getDecorationRange(model:editorCommon.IModel): editorCommon.IEditorRange {
 		if (this.decorationIds.length > 0) {
 			return model.getDecorationRange(this.decorationIds[1]);
 		}
 		return null;
 	}
 
-	private getVisualDecorationOptions(): EditorCommon.IModelDecorationOptions {
+	private getVisualDecorationOptions(): editorCommon.IModelDecorationOptions {
 		if (this._isCollapsed) {
 			return {
-				stickiness: EditorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				inlineClassName: 'inline-folded',
 				linesDecorationsClassName: 'folding collapsed'
 			};
 		} else {
 			return {
-				stickiness: EditorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				linesDecorationsClassName: 'folding'
 			};
 		}
 	}
 
-	private getRangeDecorationOptions(): EditorCommon.IModelDecorationOptions {
+	private getRangeDecorationOptions(): editorCommon.IModelDecorationOptions {
 		return {
-			stickiness: EditorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore
+			stickiness: editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore
 		};
 	}
 
-	public update(newRange:IFoldingRange, model:EditorCommon.IModel, changeAccessor:EditorCommon.IModelDecorationsChangeAccessor): void {
+	public update(newRange:IFoldingRange, model:editorCommon.IModel, changeAccessor:editorCommon.IModelDecorationsChangeAccessor): void {
 		this._lastRange = newRange;
 		this._isCollapsed = !!newRange.isCollapsed;
 
-		let newDecorations : EditorCommon.IModelDeltaDecoration[] = [];
+		let newDecorations : editorCommon.IModelDeltaDecoration[] = [];
 
 		let maxColumn = model.getLineMaxColumn(newRange.startLineNumber);
 		let visualRng = {
@@ -102,7 +102,7 @@ class CollapsibleRegion {
 	}
 
 
-	public dispose(changeAccessor:EditorCommon.IModelDecorationsChangeAccessor): void {
+	public dispose(changeAccessor:editorCommon.IModelDecorationsChangeAccessor): void {
 		this._lastRange = null;
 		this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []);
 	}
@@ -119,11 +119,11 @@ class CollapsibleRegion {
 	}
 }
 
-export class FoldingController implements EditorCommon.IEditorContribution {
+export class FoldingController implements editorCommon.IEditorContribution {
 
 	static ID = 'editor.contrib.folding';
 
-	static getFoldingController(editor:EditorCommon.ICommonCodeEditor): FoldingController {
+	static getFoldingController(editor:editorCommon.ICommonCodeEditor): FoldingController {
 		return <FoldingController>editor.getContribution(FoldingController.ID);
 	}
 
@@ -144,9 +144,9 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 		this.decorations = [];
 		this.computeToken = 0;
 
-		this.globalToDispose.push(this.editor.addListener2(EditorCommon.EventType.ModelChanged, () => this.onModelChanged()));
-		this.globalToDispose.push(this.editor.addListener2(EditorCommon.EventType.ModelModeChanged, () => this.onModelChanged()));
-		this.globalToDispose.push(this.editor.addListener2(EditorCommon.EventType.ConfigurationChanged, (e: EditorCommon.IConfigurationChangedEvent) => {
+		this.globalToDispose.push(this.editor.addListener2(editorCommon.EventType.ModelChanged, () => this.onModelChanged()));
+		this.globalToDispose.push(this.editor.addListener2(editorCommon.EventType.ModelModeChanged, () => this.onModelChanged()));
+		this.globalToDispose.push(this.editor.addListener2(editorCommon.EventType.ConfigurationChanged, (e: editorCommon.IConfigurationChangedEvent) => {
 			if (e.folding) {
 				this.onModelChanged();
 			}
@@ -284,7 +284,7 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 				this.decorations = [];
 			});
 		}});
-		this.localToDispose.push(this.editor.addListener2(EditorCommon.EventType.MouseDown, (e) => this._onEditorMouseDown(e)));
+		this.localToDispose.push(this.editor.addListener2(editorCommon.EventType.MouseDown, (e) => this._onEditorMouseDown(e)));
 
 		this.updateScheduler.schedule();
 	}
@@ -296,11 +296,11 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 			return TPromise.as([]);
 		}
 
-		let ranges = foldStrategy.computeRanges(model, tabSize);
+		let ranges = computeRanges(model, tabSize);
 		return TPromise.as(ranges);
 	}
 
-	private _onEditorMouseDown(e: IMouseEvent): void {
+	private _onEditorMouseDown(e: IEditorMouseEvent): void {
 		if (this.decorations.length === 0) {
 			return;
 		}
@@ -316,10 +316,10 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 
 		let toggleClicked = false;
 		switch (e.target.type) {
-			case EditorCommon.MouseTargetType.GUTTER_LINE_DECORATIONS:
+			case editorCommon.MouseTargetType.GUTTER_LINE_DECORATIONS:
 				toggleClicked = true;
 				break;
-			case EditorCommon.MouseTargetType.CONTENT_TEXT:
+			case editorCommon.MouseTargetType.CONTENT_TEXT:
 				if (range.isEmpty && range.startColumn === model.getLineMaxColumn(range.startLineNumber)) {
 					break;
 				}
@@ -352,7 +352,7 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 
 	private updateHiddenAreas(): void {
 		let model = this.editor.getModel();
-		let hiddenAreas: EditorCommon.IRange[] = [];
+		let hiddenAreas: editorCommon.IRange[] = [];
 		this.decorations.filter(dec => dec.isCollapsed).forEach(dec => {
 			let decRange = dec.getDecorationRange(model);
 			hiddenAreas.push({
@@ -419,7 +419,7 @@ export class FoldingController implements EditorCommon.IEditorContribution {
 }
 
 abstract class FoldingAction extends EditorAction {
-	constructor(descriptor: EditorCommon.IEditorActionDescriptorData, editor: EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor);
 	}
 
@@ -437,7 +437,7 @@ abstract class FoldingAction extends EditorAction {
 }
 
 class UnfoldAction extends FoldingAction {
-	public static ID = 'editor.fold';
+	public static ID = 'editor.unfold';
 
 	invoke(foldingController: FoldingController, lineNumber: number): void {
 		foldingController.unfold(lineNumber);
@@ -445,7 +445,7 @@ class UnfoldAction extends FoldingAction {
 }
 
 class FoldAction extends FoldingAction {
-	public static ID = 'editor.unfold';
+	public static ID = 'editor.fold';
 
 	invoke(foldingController: FoldingController, lineNumber: number): void {
 		foldingController.fold(lineNumber);
@@ -478,11 +478,11 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldAction,
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET
 }));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(UnfoldAllAction, UnfoldAllAction.ID, nls.localize('foldAllAction.label', "Fold All"), {
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldAllAction, UnfoldAllAction.ID, nls.localize('foldAllAction.label', "Fold All"), {
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET
 }));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldAllAction, FoldAllAction.ID, nls.localize('unfoldAllAction.label', "Unfold All"), {
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(UnfoldAllAction, FoldAllAction.ID, nls.localize('unfoldAllAction.label', "Unfold All"), {
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET
 }));

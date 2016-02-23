@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
+import {ILineTokens, IModel, IPosition, IRange, IRichEditBracket} from 'vs/editor/common/editorCommon';
+import {Bracket, IModeTransition, IRichEditBrackets} from 'vs/editor/common/modes';
 import {ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
-import {BracketsUtils} from 'vs/editor/common/modes/supports/electricCharacter';
+import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
 
 export class Node {
 
-	start: EditorCommon.IPosition;
+	start: IPosition;
 
-	end: EditorCommon.IPosition;
+	end: IPosition;
 
-	get range(): EditorCommon.IRange {
+	get range(): IRange {
 		return {
 			startLineNumber: this.start.lineNumber,
 			startColumn: this.start.column,
@@ -33,13 +33,13 @@ export class NodeList extends Node {
 
 	children: Node[];
 
-	get start(): EditorCommon.IPosition {
+	get start(): IPosition {
 		return this.hasChildren
 			? this.children[0].start
 			: this.parent.start;
 	}
 
-	get end(): EditorCommon.IPosition {
+	get end(): IPosition {
 		return this.hasChildren
 			? this.children[this.children.length - 1].end
 			: this.parent.end;
@@ -74,11 +74,11 @@ export class Block extends Node {
 	close: Node;
 	elements: NodeList;
 
-	get start(): EditorCommon.IPosition {
+	get start(): IPosition {
 		return this.open.start;
 	}
 
-	get end(): EditorCommon.IPosition {
+	get end(): IPosition {
 		return this.close.end;
 	}
 
@@ -90,8 +90,8 @@ export class Block extends Node {
 }
 
 interface Token {
-	range: EditorCommon.IRange;
-	bracket: Modes.Bracket;
+	range: IRange;
+	bracket: Bracket;
 	type: string;
 	__debugContent?: string;
 }
@@ -105,19 +105,19 @@ function newNode(token: Token): Node {
 
 class TokenScanner {
 
-	private _model: EditorCommon.IModel;
+	private _model: IModel;
 	private _versionId: number;
 	private _currentLineNumber: number;
 	private _currentTokenIndex: number;
 	private _currentTokenStart: number;
-	private _currentLineTokens: EditorCommon.ILineTokens;
-	private _currentLineModeTransitions: Modes.IModeTransition[];
+	private _currentLineTokens: ILineTokens;
+	private _currentLineModeTransitions: IModeTransition[];
 	private _currentModeIndex: number;
 	private _nextModeStart: number;
-	private _currentModeBrackets: Modes.IRichEditBrackets;
+	private _currentModeBrackets: IRichEditBrackets;
 	private _currentLineText: string;
 
-	constructor(model: EditorCommon.IModel) {
+	constructor(model: IModel) {
 		this._model = model;
 		this._versionId = model.getVersionId();
 		this._currentLineNumber = 1;
@@ -170,7 +170,7 @@ class TokenScanner {
 			nextBracket = null;
 		}
 
-		let bracketData: EditorCommon.IRichEditBracket = null;
+		let bracketData: IRichEditBracket = null;
 		let bracketIsOpen: boolean = false;
 		if (nextBracket) {
 			let bracketText = this._currentLineText.substring(nextBracket.startColumn - 1, nextBracket.endColumn - 1);
@@ -181,7 +181,7 @@ class TokenScanner {
 		if (!bracketData) {
 			let token: Token = {
 				type: tokenType,
-				bracket: Modes.Bracket.None,
+				bracket: Bracket.None,
 				range: {
 					startLineNumber: this._currentLineNumber,
 					startColumn: 1 + this._currentTokenStart,
@@ -199,7 +199,7 @@ class TokenScanner {
 		let type = `${bracketData.modeId};${bracketData.open};${bracketData.close}`;
 		let token: Token = {
 			type: type,
-			bracket: bracketIsOpen ? Modes.Bracket.Open : Modes.Bracket.Close,
+			bracket: bracketIsOpen ? Bracket.Open : Bracket.Close,
 			range: {
 				startLineNumber: this._currentLineNumber,
 				startColumn: 1 + this._currentTokenStart,
@@ -226,7 +226,7 @@ class TokenTreeBuilder {
 	private _stack: Token[] = [];
 	private _currentToken: Token;
 
-	constructor(model: EditorCommon.IModel) {
+	constructor(model: IModel) {
 		this._scanner = new TokenScanner(model);
 	}
 
@@ -289,7 +289,7 @@ class TokenTreeBuilder {
 	}
 
 	private _token(): Node {
-		if (!this._accept(token => token.bracket === Modes.Bracket.None)) {
+		if (!this._accept(token => token.bracket === Bracket.None)) {
 			return null;
 		}
 		return newNode(this._currentToken);
@@ -302,7 +302,7 @@ class TokenTreeBuilder {
 
 		accepted = this._accept(token => {
 			bracketType = token.type;
-			return token.bracket === Modes.Bracket.Open;
+			return token.bracket === Bracket.Open;
 		});
 		if (!accepted) {
 			return null;
@@ -314,7 +314,7 @@ class TokenTreeBuilder {
 			// inside brackets
 		}
 
-		if (!this._accept(token => token.bracket === Modes.Bracket.Close && token.type === bracketType)) {
+		if (!this._accept(token => token.bracket === Bracket.Close && token.type === bracketType)) {
 			// missing closing bracket -> return just a node list
 			var nodelist = new NodeList();
 			nodelist.append(bracket.open);
@@ -340,12 +340,12 @@ class TokenTreeBuilder {
  *	line = { block | "token" }
  *	block = "open_bracket" { line } "close_bracket"
  */
-export function build(model: EditorCommon.IModel): Node {
+export function build(model: IModel): Node {
 	var node = new TokenTreeBuilder(model).build();
 	return node;
 }
 
-export function find(node: Node, position: EditorCommon.IPosition): Node {
+export function find(node: Node, position: IPosition): Node {
 
 	if (!Range.containsPosition(node.range, position)) {
 		return null;

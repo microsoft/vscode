@@ -15,7 +15,7 @@ import objects = require('vs/base/common/objects');
 import errors = require('vs/base/common/errors');
 import Modes = require('vs/editor/common/modes');
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import vsxmlTokenTypes = require('vs/languages/vsxml/common/vsxmlTokenTypes');
+import vsxmlTokenTypes = require('vs/languages/razor/common/vsxmlTokenTypes');
 
 var separators = '<>"=/';
 var whitespace = '\t ';

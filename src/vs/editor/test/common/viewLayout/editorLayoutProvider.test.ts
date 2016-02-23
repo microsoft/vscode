@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import EditorLayoutProvider = require('vs/editor/common/viewLayout/editorLayoutProvider');
+import * as assert from 'assert';
 import {IEditorLayoutInfo} from 'vs/editor/common/editorCommon';
+import {EditorLayoutProvider, IEditorLayoutProviderOpts} from 'vs/editor/common/viewLayout/editorLayoutProvider';
 
 suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
-	function doTest(input:EditorLayoutProvider.IEditorLayoutProviderOpts, expected:IEditorLayoutInfo): void {
-		let actual = EditorLayoutProvider.EditorLayoutProvider.compute(input);
+	function doTest(input:IEditorLayoutProviderOpts, expected:IEditorLayoutInfo): void {
+		let actual = EditorLayoutProvider.compute(input);
 		assert.deepEqual(actual, expected);
 	}
 

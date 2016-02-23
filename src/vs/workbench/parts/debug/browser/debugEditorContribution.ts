@@ -73,7 +73,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseDown, (e: editorbrowser.IMouseEvent) => {
+		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseDown, (e: editorbrowser.IEditorMouseEvent) => {
 			if (e.target.type !== editorcommon.MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail) {
 				return;
 			}
@@ -98,7 +98,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 			}
 		}));
 
-		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseMove, (e: editorbrowser.IMouseEvent) => {
+		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseMove, (e: editorbrowser.IEditorMouseEvent) => {
 			var showBreakpointHintAtLineNumber = -1;
 			if (e.target.type === editorcommon.MouseTargetType.GUTTER_GLYPH_MARGIN && this.debugService.canSetBreakpointsIn(this.editor.getModel())) {
 				if (!e.target.detail) {
@@ -108,16 +108,16 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 			}
 			this.ensureBreakpointHintDecoration(showBreakpointHintAtLineNumber);
 		}));
-		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseLeave, (e: editorbrowser.IMouseEvent) => {
+		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseLeave, (e: editorbrowser.IEditorMouseEvent) => {
 			this.ensureBreakpointHintDecoration(-1);
 		}));
 		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => this.onDebugStateUpdate()));
 
 		// hover listeners & hover widget
-		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseDown, (e: editorbrowser.IMouseEvent) => this.onEditorMouseDown(e)));
-		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseMove, (e: editorbrowser.IMouseEvent) => this.onEditorMouseMove(e)));
-		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseLeave, (e: editorbrowser.IMouseEvent) => this.hoverWidget.hide()));
-		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.KeyDown, (e: keyboard.StandardKeyboardEvent) => this.onKeyDown(e)));
+		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseDown, (e: editorbrowser.IEditorMouseEvent) => this.onEditorMouseDown(e)));
+		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseMove, (e: editorbrowser.IEditorMouseEvent) => this.onEditorMouseMove(e)));
+		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.MouseLeave, (e: editorbrowser.IEditorMouseEvent) => this.hoverWidget.hide()));
+		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.KeyDown, (e: keyboard.IKeyboardEvent) => this.onKeyDown(e)));
 		this.toDispose.push(this.editor.addListener2(editorcommon.EventType.ModelChanged, () => this.hideHoverWidget()));
 		this.toDispose.push(this.editor.addListener2('scroll', () => this.hideHoverWidget));
 	}
@@ -166,7 +166,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 
 	// hover business
 
-	private onEditorMouseDown(mouseEvent: editorbrowser.IMouseEvent): void {
+	private onEditorMouseDown(mouseEvent: editorbrowser.IEditorMouseEvent): void {
 		if (mouseEvent.target.type === editorcommon.MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === DebugHoverWidget.ID) {
 			return;
 		}
@@ -174,7 +174,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 		this.hideHoverWidget();
 	}
 
-	private onEditorMouseMove(mouseEvent: editorbrowser.IMouseEvent): void {
+	private onEditorMouseMove(mouseEvent: editorbrowser.IEditorMouseEvent): void {
 		if (this.debugService.getState() !== debug.State.Stopped) {
 			return;
 		}
@@ -198,7 +198,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 		}
 	}
 
-	private onKeyDown(e: keyboard.StandardKeyboardEvent): void {
+	private onKeyDown(e: keyboard.IKeyboardEvent): void {
 		const stopKey = env.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;
 		if (e.keyCode !== stopKey) {
 			// do not hide hover when Ctrl/Meta is pressed

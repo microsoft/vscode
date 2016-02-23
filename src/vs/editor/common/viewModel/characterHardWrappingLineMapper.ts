@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Strings = require('vs/base/common/strings');
-import {ILineMapperFactory, ILineMapping, IOutputPosition} from 'vs/editor/common/viewModel/splitLinesCollection';
+import * as strings from 'vs/base/common/strings';
+import {WrappingIndent} from 'vs/editor/common/editorCommon';
 import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {ILineMapperFactory, ILineMapping, IOutputPosition} from 'vs/editor/common/viewModel/splitLinesCollection';
 
 var throwawayIndexOfResult = {
 	index: -1,
@@ -63,7 +63,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 		return currentVisibleColumn + columnSize;
 	}
 
-	public createLineMapping(lineText: string, tabSize: number, breakingColumn: number, columnsForFullWidthChar:number, hardWrappingIndent:EditorCommon.WrappingIndent): ILineMapping {
+	public createLineMapping(lineText: string, tabSize: number, breakingColumn: number, columnsForFullWidthChar:number, hardWrappingIndent:WrappingIndent): ILineMapping {
 		if (breakingColumn === -1) {
 			return null;
 		}
@@ -72,14 +72,14 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			wrappedTextIndent = '',
 			TAB_CHAR_CODE = '\t'.charCodeAt(0);
 
-		if (hardWrappingIndent !== EditorCommon.WrappingIndent.None) {
-			var firstNonWhitespaceIndex = Strings.firstNonWhitespaceIndex(lineText);
+		if (hardWrappingIndent !== WrappingIndent.None) {
+			var firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineText);
 			if (firstNonWhitespaceIndex !== -1) {
 				wrappedTextIndent = lineText.substring(0, firstNonWhitespaceIndex);
 				for (var i = 0; i < firstNonWhitespaceIndex; i++) {
 					wrappedTextIndentVisibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(wrappedTextIndentVisibleColumn, tabSize, lineText.charCodeAt(i) === TAB_CHAR_CODE, 1);
 				}
-				if (hardWrappingIndent === EditorCommon.WrappingIndent.Indent) {
+				if (hardWrappingIndent === WrappingIndent.Indent) {
 					wrappedTextIndent += '\t';
 					wrappedTextIndentVisibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(wrappedTextIndentVisibleColumn, tabSize, true, 1);
 				}
@@ -127,7 +127,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			}
 
 			var charColumnSize = 1;
-			if (Strings.isFullWidthCharacter(charCode)) {
+			if (strings.isFullWidthCharacter(charCode)) {
 				charColumnSize = columnsForFullWidthChar;
 			}
 

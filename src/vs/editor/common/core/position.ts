@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {IEditorPosition, IPosition, IRange} from 'vs/editor/common/editorCommon';
 
-export class Position implements EditorCommon.IEditorPosition {
+export class Position implements IEditorPosition {
 
 	public lineNumber: number;
 	public column: number;
@@ -16,11 +16,11 @@ export class Position implements EditorCommon.IEditorPosition {
 		this.column = column;
 	}
 
-	public equals(other:EditorCommon.IPosition): boolean {
+	public equals(other:IPosition): boolean {
 		return (!!other && this.lineNumber === other.lineNumber && this.column === other.column);
 	}
 
-	public isBefore(other:EditorCommon.IPosition): boolean {
+	public isBefore(other:IPosition): boolean {
 		if (this.lineNumber < other.lineNumber) {
 			return true;
 		}
@@ -30,7 +30,7 @@ export class Position implements EditorCommon.IEditorPosition {
 		return this.column < other.column;
 	}
 
-	public isBeforeOrEqual(other:EditorCommon.IPosition): boolean {
+	public isBeforeOrEqual(other:IPosition): boolean {
 		if (this.lineNumber < other.lineNumber) {
 			return true;
 		}
@@ -50,11 +50,11 @@ export class Position implements EditorCommon.IEditorPosition {
 
 	// ---
 
-	public static lift(pos:EditorCommon.IPosition): EditorCommon.IEditorPosition {
+	public static lift(pos:IPosition): IEditorPosition {
 		return new Position(pos.lineNumber, pos.column);
 	}
 
-	public static isIPosition(obj: any): obj is EditorCommon.IPosition {
+	public static isIPosition(obj: any): obj is IPosition {
 		return (
 			obj
 			&& (typeof obj.lineNumber === 'number')
@@ -62,7 +62,7 @@ export class Position implements EditorCommon.IEditorPosition {
 		);
 	}
 
-	public static asEmptyRange(position:EditorCommon.IPosition):EditorCommon.IRange {
+	public static asEmptyRange(position:IPosition):IRange {
 		return {
 			startLineNumber: position.lineNumber,
 			startColumn: position.column,
@@ -71,14 +71,14 @@ export class Position implements EditorCommon.IEditorPosition {
 		};
 	}
 
-	public static startPosition(range:EditorCommon.IRange):EditorCommon.IPosition {
+	public static startPosition(range:IRange):IPosition {
 		return {
 			lineNumber: range.startLineNumber,
 			column: range.startColumn
 		};
 	}
 
-	public static endPosition(range:EditorCommon.IRange):EditorCommon.IPosition {
+	public static endPosition(range:IRange):IPosition {
 		return {
 			lineNumber: range.endLineNumber,
 			column: range.endColumn

@@ -38,12 +38,6 @@ exports.collectModules = function(args) {
 	var common = new EntryPoint(result, 'vs/editor/common/languages.common');
 	var worker = new EntryPoint(result, ['vs/editor/common/languages.common', 'vs/base/common/worker/workerServer', 'vs/editor/common/worker/editorWorkerServer']);
 
-	// ---- nullWorker (shared) -----------------------------
-	worker.define('vs/editor/common/modes/nullWorker');
-
-	// ---- vsxml (shared) -----------------------------
-	common.define('vs/languages/vsxml/common/vsxml');
-
 	// ---- beautify-html (shared btw html and xml) -----------------------------
 	worker.define('vs/languages/lib/common/beautify-html');
 
@@ -79,11 +73,8 @@ exports.collectModules = function(args) {
 	// ---- php -----------------------------------
 	common.define('vs/languages/php/common/php');
 
-	// ---- plaintext ----------------------------------
-	common.define('vs/languages/plaintext/common/plaintext');
-
 	// ---- razor -----------------------------------
-	common.define('vs/languages/razor/common/razor', ['vs/languages/html/common/html', 'vs/languages/vsxml/common/vsxml'])
+	common.define('vs/languages/razor/common/razor', ['vs/languages/html/common/html'])
 		.combine(worker)
 			.define('vs/languages/razor/common/razorWorker', ['vs/languages/html/common/htmlWorker', 'vs/languages/lib/common/beautify-html'] );
 

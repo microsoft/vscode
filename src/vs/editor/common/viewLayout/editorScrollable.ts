@@ -7,7 +7,7 @@
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {IScrollable} from 'vs/base/common/scrollable';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {IScrollEvent} from 'vs/editor/common/editorCommon';
 
 export class EditorScrollable extends EventEmitter implements IScrollable {
 
@@ -170,7 +170,7 @@ export class EditorScrollable extends EventEmitter implements IScrollable {
 
 	static _SCROLL_EVENT = 'scroll';
 	private _emitScrollEvent(vertical:boolean, horizontal:boolean): void {
-		var e:EditorCommon.IScrollEvent = {
+		var e:IScrollEvent = {
 			vertical: vertical,
 			horizontal: horizontal,
 			scrollTop: this.scrollTop,
@@ -178,7 +178,7 @@ export class EditorScrollable extends EventEmitter implements IScrollable {
 		};
 		this.emit(EditorScrollable._SCROLL_EVENT, e);
 	}
-	public addScrollListener(listener: (e:EditorCommon.IScrollEvent) => void): IDisposable {
+	public addScrollListener(listener: (e:IScrollEvent) => void): IDisposable {
 		return this.addListener2(EditorScrollable._SCROLL_EVENT, listener);
 	}
 

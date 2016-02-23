@@ -41,7 +41,7 @@ suite('Platform actions', () => {
 			eventService: {}
 		};
 
-		let instantiationService = InstantiationService.create(services);
+		let instantiationService = InstantiationService.createInstantiationService(services);
 
 		let action = new DeferredAction(
 			instantiationService,

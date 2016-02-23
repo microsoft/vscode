@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {DefaultFilter, StrictPrefix} from 'vs/editor/common/modes/modesFilters';
-import {ISuggestResult, ISuggestSupport, ISuggestion, ILineContext, IMode, ISuggestionFilter} from 'vs/editor/common/modes';
-import {IModel, IPosition} from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IModel, IPosition} from 'vs/editor/common/editorCommon';
+import {ILineContext, IMode, ISuggestResult, ISuggestSupport, ISuggestion, ISuggestionFilter} from 'vs/editor/common/modes';
+import {DefaultFilter, StrictPrefix} from 'vs/editor/common/modes/modesFilters';
 import {handleEvent, isLineToken} from 'vs/editor/common/modes/supports';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {IModelService} from 'vs/editor/common/services/modelService';
@@ -164,4 +164,21 @@ function _addSuggestionsAtPosition(model: IModel, position:IPosition, predefined
 	});
 
 	return superSuggestions;
+}
+
+export function filterSuggestions(value: ISuggestResult): ISuggestResult[] {
+	if (!value) {
+		return;
+	}
+	// filter suggestions
+	var accept = DefaultFilter,
+		result: ISuggestResult[] = [];
+
+	result.push({
+		currentWord: value.currentWord,
+		suggestions: value.suggestions.filter((element) => !!accept(value.currentWord, element)),
+		incomplete: value.incomplete
+	});
+
+	return result;
 }

@@ -10,7 +10,6 @@ import URI from 'vs/base/common/uri';
 import lifecycle = require('vs/base/common/lifecycle');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import objects = require('vs/base/common/objects');
 import ts = require('vs/languages/typescript/common/lib/typescriptServices');
 import Options = require('vs/languages/typescript/common/options');
@@ -31,20 +30,38 @@ import emitting = require('vs/languages/typescript/common/features/emitting');
 import rename = require('vs/languages/typescript/common/features/rename');
 import {IResourceService, ResourceEvents, IResourceAddedEvent, IResourceRemovedEvent} from 'vs/editor/common/services/resourceService';
 import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
-import {WorkerInplaceReplaceSupport, ReplaceSupport} from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
+import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
+import {ValidationHelper} from 'vs/editor/common/worker/validationHelper';
 
-export class TypeScriptWorker2 extends AbstractModeWorker {
+export class TypeScriptWorker2 {
 
 	private _modelListener: { [resource: string]: Function } = Object.create(null);
 
 	protected _projectService: projectService.ProjectService;
 	protected _options: Options;
 	protected _disposables: lifecycle.IDisposable[] = [];
+	private _validationHelper: ValidationHelper;
+	private resourceService:IResourceService;
+	protected markerService: IMarkerService;
+	protected _modeId: string;
 
-	constructor(mode: Modes.IMode, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
-		@IMarkerService markerService: IMarkerService) {
+	constructor(
+		modeId: string,
+		participants: Modes.IWorkerParticipant[],
+		@IResourceService resourceService: IResourceService,
+		@IMarkerService markerService: IMarkerService
+	) {
 
-		super(mode, participants, resourceService, markerService);
+		this._modeId = modeId;
+		this.resourceService = resourceService;
+		this.markerService = markerService;
+
+		this._validationHelper = new ValidationHelper(
+			this.resourceService,
+			this._modeId,
+			(toValidate) => this.doValidate(toValidate)
+		);
+
 		this._projectService = new projectService.ProjectService();
 
 		this._disposables.push(this.resourceService.addListener2_(ResourceEvents.ADDED, this._onResourceAdded.bind(this)));
@@ -67,7 +84,7 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 
 		return (
 			/\.(ts|js)$/.test(element.getAssociatedResource().fsPath) ||
-			element.getMode() === this._getMode()
+			element.getMode().getId() === this._modeId
 		);
 	}
 
@@ -132,7 +149,7 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 		return projects;
 	}
 
-	_doConfigure(options: any, defaults:Options = Options.typeScriptOptions): winjs.TPromise<boolean> {
+	_doConfigure(options: any, defaults:Options = Options.typeScriptOptions): winjs.TPromise<void> {
 		// very long ago options.validate could be an
 		// array or an object. since this was only used
 		// for selfhosting the migration story is to
@@ -143,39 +160,39 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 		var optionsWithDefaults = Options.withDefaultOptions(options, defaults);
 		if (!objects.equals(optionsWithDefaults, this._options)) {
 			this._options = optionsWithDefaults;
-			return winjs.TPromise.as(true);
+			this._validationHelper.triggerDueToConfigurationChange();
 		}
+
+		return winjs.TPromise.as(void 0);
 	}
 
 	// ---- Implementation of various IXYZSupports
 
-	protected _createInPlaceReplaceSupport(): Modes.IInplaceReplaceSupport {
-		return new WorkerInplaceReplaceSupport(this.resourceService, {
-			textReplace: (value:string, up:boolean):string => {
-				var valueSets = [
-					['true', 'false'],
-					['string', 'number', 'boolean', 'void', 'any'],
-					['private', 'public']
-				];
-				return ReplaceSupport.valueSetsReplace(valueSets, value, up);
-			}
-		});
+	public enableValidator(): winjs.TPromise<void> {
+		this._validationHelper.enable();
+		return winjs.TPromise.as(null);
 	}
 
-	public doValidate(resource: URI): void {
+	public doValidate(resources: URI[]):void {
+		for (var i = 0; i < resources.length; i++) {
+			this.doValidate1(resources[i]);
+		}
+	}
+
+	private doValidate1(resource: URI):void {
 		var project = this._projectService.getProject(resource);
 		var markers: IMarker[] = [];
 		markers.push.apply(markers, diagnostics.getSyntacticDiagnostics(project.languageService, resource, project.host.getCompilationSettings(),
 			this._options, this.resourceService.get(resource).getMode().getId() === 'javascript'));
 		markers.push.apply(markers, diagnostics.getExtraDiagnostics(project.languageService, resource, this._options));
-		this.markerService.changeOne(`/${this._getMode().getId() }/syntactic`, resource, markers);
+		this.markerService.changeOne(`/${this._modeId}/syntactic`, resource, markers);
 	}
 
 	public doValidateSemantics(resource: URI): boolean {
 		var project = this._projectService.getProject(resource);
 		var result = diagnostics.getSemanticDiagnostics(project.languageService, resource, this._options);
 		if (result) {
-			this.markerService.changeOne(`/${this._getMode().getId() }/semantic`, resource, result.markers);
+			this.markerService.changeOne(`/${this._modeId}/semantic`, resource, result.markers);
 			return result.hasMissingFiles;
 		}
 	}
@@ -185,22 +202,16 @@ export class TypeScriptWorker2 extends AbstractModeWorker {
 		return fileNames && fileNames.map(URI.parse);
 	}
 
-	public _getContextForValidationParticipants(resource: URI): any {
-		// var project = this._findProject(resource);
-		// return project.languageService.getSourceFile(resource.toString());
-		return null;
+	public suggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
+		return this.doSuggest(resource, position).then(value => filterSuggestions(value));
 	}
 
-	public doSuggest(resource: URI, position: EditorCommon.IPosition): winjs.TPromise<Modes.ISuggestResult> {
+	protected doSuggest(resource: URI, position: EditorCommon.IPosition): winjs.TPromise<Modes.ISuggestResult> {
 		var project = this._projectService.getProject(resource);
 		var result = suggestions.computeSuggestions(project.languageService,
 			resource, position, this._options);
 
 		return winjs.TPromise.as(result);
-	}
-
-	public _getSuggestContext(resource: URI): winjs.TPromise<projectService.ProjectService> {
-		return winjs.TPromise.as(this._projectService);
 	}
 
 	public getSuggestionDetails(resource: URI, position: EditorCommon.IPosition, suggestion: Modes.ISuggestion): winjs.TPromise<Modes.ISuggestion> {

@@ -7,15 +7,10 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import descriptors = require('vs/platform/instantiation/common/descriptors');
 import instantiation = require('vs/platform/instantiation/common/instantiation');
-import {IDisposable} from 'vs/base/common/lifecycle';
 
 // --- thread service (web workers)
 
 export const IThreadService = instantiation.createDecorator<IThreadService>('threadService');
-
-export interface IDynamicProxy<T> extends IDisposable {
-	getProxyDefinition(): T;
-}
 
 export interface IThreadService {
 	serviceId: instantiation.ServiceIdentifier<any>;
@@ -26,22 +21,15 @@ export interface IThreadService {
 	addStatusListener(listener: IThreadServiceStatusListener): void;
 	removeStatusListener(listener: IThreadServiceStatusListener): void;
 
-	OneWorker(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, param: any[], affinity: ThreadAffinity): TPromise<any>;
-	AllWorkers(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, param: any[]): TPromise<any>;
+	OneWorker(obj: IThreadSynchronizableObject, methodName: string, target: Function, param: any[], affinity: ThreadAffinity): TPromise<any>;
+	AllWorkers(obj: IThreadSynchronizableObject, methodName: string, target: Function, param: any[]): TPromise<any>;
 
-	createInstance<T extends IThreadSynchronizableObject<any>>(ctor: instantiation.INewConstructorSignature0<T>): T;
-	createInstance<A1, T extends IThreadSynchronizableObject<any>>(ctor: instantiation.INewConstructorSignature1<A1, T>, a1: A1): T;
-	createInstance<A1, A2, T extends IThreadSynchronizableObject<any>>(ctor: instantiation.INewConstructorSignature2<A1, A2, T>, a1: A1, a2: A2): T;
-	createInstance<A1, A2, A3, T extends IThreadSynchronizableObject<any>>(ctor: instantiation.INewConstructorSignature3<A1, A2, A3, T>, a1: A1, a2: A2, a3: A3): T;
-
-	createInstance<T extends IThreadSynchronizableObject<any>>(descriptor: descriptors.AsyncDescriptor0<T>): T;
-	createInstance<A1, T extends IThreadSynchronizableObject<any>>(descriptor: descriptors.AsyncDescriptor1<A1, T>, a1: A1): T;
-	createInstance<A1, A2, T extends IThreadSynchronizableObject<any>>(descriptor: descriptors.AsyncDescriptor2<A1, A2, T>, a1: A1, a2: A2): T;
-	createInstance<A1, A2, A3, T extends IThreadSynchronizableObject<any>>(descriptor: descriptors.AsyncDescriptor3<A1, A2, A3, T>, a1: A1, a2: A2, a3: A3): T;
+	createInstance<A1, T extends IThreadSynchronizableObject>(ctor: instantiation.IConstructorSignature1<A1, T>, a1: A1): T;
+	createInstance<A1, T extends IThreadSynchronizableObject>(descriptor: descriptors.AsyncDescriptor1<A1, T>, a1: A1): TPromise<T>;
 
 	// --- END deprecated methods
 
-	getRemotable<T>(ctor: instantiation.INewConstructorSignature0<T>): T;
+	getRemotable<T>(ctor: instantiation.IConstructorSignature0<T>): T;
 
 	registerRemotableInstance(ctor: any, instance: any): void;
 }
@@ -105,16 +93,12 @@ export class Remotable {
 	}
 }
 
-export interface IThreadSynchronizableObject<S> {
+export interface IThreadSynchronizableObject {
 	getId(): string;
 
 	creationDone?: () => void;
 
 	asyncCtor?: () => TPromise<void>;
-
-	getSerializableState?: () => S;
-
-	setData?: (data: S) => void;
 }
 
 export enum ThreadAffinity {

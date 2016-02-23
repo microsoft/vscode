@@ -12,12 +12,10 @@ import {IThreadService, IThreadServiceStatusListener, IThreadSynchronizableObjec
 
 export class WorkerThreadService extends abstractThreadService.AbstractThreadService implements IThreadService {
 	public serviceId = IThreadService;
-	private _mainThreadData: abstractThreadService.IThreadServiceData;
 	protected _remoteCom: remote.IRemoteCom;
 
-	constructor(mainThreadData: abstractThreadService.IThreadServiceData, remoteCom: remote.IRemoteCom) {
+	constructor(remoteCom: remote.IRemoteCom) {
 		super(false);
-		this._mainThreadData = mainThreadData;
 		this._remoteCom = remoteCom;
 		this._remoteCom.setManyHandler(this);
 	}
@@ -50,26 +48,11 @@ export class WorkerThreadService extends abstractThreadService.AbstractThreadSer
 		}
 	}
 
-	_finishInstance(instance: IThreadSynchronizableObject<any>): IThreadSynchronizableObject<any> {
-		let id = instance.getId();
-
-		if (this._mainThreadData.hasOwnProperty(id)) {
-			let dataValue = this._mainThreadData[id];
-			delete this._mainThreadData[id];
-			if (!instance.setData) {
-				console.log('BROKEN INSTANCE!!! ' + id);
-			}
-			instance.setData(dataValue);
-		}
-
-		return super._finishInstance(instance);
-	}
-
-	OneWorker(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[], affinity: ThreadAffinity): TPromise<any> {
+	OneWorker(obj: IThreadSynchronizableObject, methodName: string, target: Function, params: any[], affinity: ThreadAffinity): TPromise<any> {
 		return target.apply(obj, params);
 	}
 
-	AllWorkers(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): TPromise<any> {
+	AllWorkers(obj: IThreadSynchronizableObject, methodName: string, target: Function, params: any[]): TPromise<any> {
 		return target.apply(obj, params);
 	}
 

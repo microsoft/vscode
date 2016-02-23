@@ -16,6 +16,8 @@ import Platform = require('vs/platform/platform');
 import * as sinon from 'sinon';
 import {createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 
+const optInStatusEventName: string = 'optInStatus';
+
 class TestTelemetryAppender implements TelemetryService.ITelemetryAppender {
 
 	public events: any[];
@@ -178,7 +180,7 @@ suite('TelemetryService', () => {
 		let telemetryService = new MainTelemetryService.MainTelemetryService();
 
 
-		let instantiationService = InstantiationService.create({});
+		let instantiationService = InstantiationService.createInstantiationService({});
 		telemetryService.setInstantiationService(instantiationService);
 		assert.equal(telemetryService.getAppendersCount(), 1);
 		let testAppender1 = <TestTelemetryAppender>telemetryService.getAppenders()[0];
@@ -743,6 +745,54 @@ suite('TelemetryService', () => {
 		let testSessionId = 'test session id';
 		let service = new MainTelemetryService.MainTelemetryService({ sessionID: testSessionId });
 		assert.equal(service.getSessionId(), testSessionId);
+		service.dispose();
+	}));
+
+	test('Telemetry Service respects user opt-in settings', sinon.test(function() {
+		let service = new MainTelemetryService.MainTelemetryService({userOptIn: false, enableTelemetry: true});
+		let testAppender = new TestTelemetryAppender();
+		service.addTelemetryAppender(testAppender);
+
+		service.publicLog('testEvent');
+		assert.equal(testAppender.getEventsCount(), 0);
+
+		service.dispose();
+	}));
+
+	test('Telemetry Service dont send events when enableTelemetry is off even if user is optin', sinon.test(function() {
+		let service = new MainTelemetryService.MainTelemetryService({userOptIn: true, enableTelemetry: false});
+		let testAppender = new TestTelemetryAppender();
+		service.addTelemetryAppender(testAppender);
+
+		service.publicLog('testEvent');
+		assert.equal(testAppender.getEventsCount(), 0);
+
+		service.dispose();
+	}));
+
+	test('Telemetry Service sends events when enableTelemetry is on even user optin is on', sinon.test(function() {
+		let service = new MainTelemetryService.MainTelemetryService({userOptIn: true, enableTelemetry: true});
+		let testAppender = new TestTelemetryAppender();
+		service.addTelemetryAppender(testAppender);
+
+		service.publicLog('testEvent');
+		assert.equal(testAppender.getEventsCount(), 1);
+
+		service.dispose();
+	}));
+
+	test('Telemetry Service allows optin friendly events', sinon.test(function() {
+		let service = new MainTelemetryService.MainTelemetryService({userOptIn: false, enableTelemetry: true});
+		let testAppender = new TestTelemetryAppender();
+		service.addTelemetryAppender(testAppender);
+
+		service.publicLog('testEvent');
+		assert.equal(testAppender.getEventsCount(), 0);
+
+		service.publicLog(optInStatusEventName, {userOptIn: false});
+		assert.equal(testAppender.getEventsCount(), 1);
+		assert.equal(testAppender.events[0].eventName, optInStatusEventName);
+		assert.equal(testAppender.events[0].data.userOptIn, false);
 		service.dispose();
 	}));
 });

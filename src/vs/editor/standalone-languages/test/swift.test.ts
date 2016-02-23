@@ -5,10 +5,10 @@
 
 'use strict';
 
-import languageDef = require('vs/editor/standalone-languages/swift');
-import T = require('vs/editor/standalone-languages/test/testUtil');
+import {language} from 'vs/editor/standalone-languages/swift';
+import {testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
-T.testTokenization('swift', languageDef.language, [
+testTokenization('swift', language, [
 
 	// Attributes
 	[{
