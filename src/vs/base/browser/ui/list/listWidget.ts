@@ -158,17 +158,11 @@ export class List<T> implements IDisposable {
 	private controller: Controller<T>;
 
 	get onFocusChange(): Event<IFocusChangeEvent<T>> {
-		return mapEvent(this.focus.onChange, e => ({
-			elements: e.indexes.map(i => this.view.element(i)),
-			indexes: e.indexes
-		}));
+		return mapEvent(this.focus.onChange, e => this.toListEvent(e));
 	}
 
 	get onSelectionChange(): Event<ISelectionChangeEvent<T>> {
-		return mapEvent(this.selection.onChange, e => ({
-			elements: e.indexes.map(i => this.view.element(i)),
-			indexes: e.indexes
-		}));
+		return mapEvent(this.selection.onChange, e => this.toListEvent(e));
 	}
 
 	constructor(
@@ -320,6 +314,10 @@ export class List<T> implements IDisposable {
 				this.view.setScrollTop(viewItemBottom - this.view.renderHeight);
 			}
 		}
+	}
+
+	private toListEvent<T>({ indexes }: ITraitChangeEvent) {
+		return { indexes, elements: indexes.map(i => this.view.element(i)) };
 	}
 
 	dispose(): void {
