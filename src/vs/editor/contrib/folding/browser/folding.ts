@@ -145,7 +145,6 @@ export class FoldingController implements editorCommon.IEditorContribution {
 		this.computeToken = 0;
 
 		this.globalToDispose.push(this.editor.addListener2(editorCommon.EventType.ModelChanged, () => this.onModelChanged()));
-		this.globalToDispose.push(this.editor.addListener2(editorCommon.EventType.ModelModeChanged, () => this.onModelChanged()));
 		this.globalToDispose.push(this.editor.addListener2(editorCommon.EventType.ConfigurationChanged, (e: editorCommon.IConfigurationChangedEvent) => {
 			if (e.folding) {
 				this.onModelChanged();
