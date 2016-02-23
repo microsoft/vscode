@@ -39,7 +39,7 @@ var tsOptions = {
 	sourceRoot: util.toFileUri(rootDir)
 };
 
-function createCompile(build) {
+function createCompile(build, emitError) {
 	var opts = _.clone(tsOptions);
 	opts.inlineSources = !!build;
 
@@ -67,14 +67,14 @@ function createCompile(build) {
 				sourceRoot: tsOptions.sourceRoot
 			}))
 			.pipe(tsFilter.restore)
-			.pipe(quiet ? es.through() : reporter());
+			.pipe(quiet ? es.through() : reporter.end(emitError));
 
 		return es.duplex(input, output);
 	};
 }
 
 function compileTask(out, build) {
-	var compile = createCompile(build);
+	var compile = createCompile(build, true);
 
 	return function () {
 		var src = gulp.src('src/**', { base: 'src' });
