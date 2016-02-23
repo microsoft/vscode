@@ -44,7 +44,7 @@ export class IndentationToTabsAction extends EditorAction {
 	}
 }
 
-abstract class Indent extends EditorAction {
+export abstract class Indent extends EditorAction {
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, private insertSpaces: boolean, private quickOpenService: IQuickOpenService) {
 		super(descriptor, editor);
