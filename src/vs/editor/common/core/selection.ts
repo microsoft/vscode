@@ -14,11 +14,11 @@ export class Selection extends Range implements IEditorSelection {
 	public positionColumn: number;
 
 	constructor(selectionStartLineNumber: number, selectionStartColumn: number, positionLineNumber: number, positionColumn: number) {
+		super(selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn);
 		this.selectionStartLineNumber = selectionStartLineNumber;
 		this.selectionStartColumn = selectionStartColumn;
 		this.positionLineNumber = positionLineNumber;
 		this.positionColumn = positionColumn;
-		super(selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn);
 	}
 
 	public clone(): IEditorSelection {

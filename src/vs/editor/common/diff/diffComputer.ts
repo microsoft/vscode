@@ -95,8 +95,8 @@ class LineMarkerSequence extends MarkerSequence {
 			endColumn = lines[i].length + 1;
 
 			if (shouldIgnoreTrimWhitespace) {
-				startColumn = this._getFirstNonBlankColumn(lines[i], 1);
-				endColumn = this._getLastNonBlankColumn(lines[i], 1);
+				startColumn = LineMarkerSequence._getFirstNonBlankColumn(lines[i], 1);
+				endColumn = LineMarkerSequence._getLastNonBlankColumn(lines[i], 1);
 			}
 
 			startMarkers.push({
@@ -117,7 +117,7 @@ class LineMarkerSequence extends MarkerSequence {
 		super(buffer, startMarkers, endMarkers);
 	}
 
-	private _getFirstNonBlankColumn(txt:string, defaultValue:number): number {
+	private static _getFirstNonBlankColumn(txt:string, defaultValue:number): number {
 		var r = strings.firstNonWhitespaceIndex(txt);
 		if (r === -1) {
 			return defaultValue;
@@ -125,7 +125,7 @@ class LineMarkerSequence extends MarkerSequence {
 		return r + 1;
 	}
 
-	private _getLastNonBlankColumn(txt:string, defaultValue:number): number {
+	private static _getLastNonBlankColumn(txt:string, defaultValue:number): number {
 		var r = strings.lastNonWhitespaceIndex(txt);
 		if (r === -1) {
 			return defaultValue;

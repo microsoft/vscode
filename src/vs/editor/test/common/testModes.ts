@@ -277,8 +277,8 @@ export class NMode extends TestingMode {
 	public tokenizationSupport: modes.ITokenizationSupport;
 
 	constructor(n:number) {
-		this.n = n;
 		super();
+		this.n = n;
 		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new NState(this, this.n)
 		}, false, false);

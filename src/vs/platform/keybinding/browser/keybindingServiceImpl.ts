@@ -138,7 +138,8 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 
 	protected _domNode: HTMLElement;
 	private _toDispose: IDisposable;
-	private _resolver: KeybindingResolver;
+	private _cachedResolver: KeybindingResolver;
+	private _firstTimeComputingResolver: boolean;
 	private _currentChord: number;
 	private _currentChordStatusMessage: IDisposable;
 
@@ -148,14 +149,23 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 		this._domNode = domNode;
 		this._contexts = Object.create(null);
 		this._contexts[String(this._myContextId)] = new KeybindingContext(this._myContextId, null);
+		this._cachedResolver = null;
+		this._firstTimeComputingResolver = true;
+		this._currentChord = 0;
+		this._currentChordStatusMessage = null;
+
 		this._toDispose = dom.addDisposableListener(this._domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let keyEvent = new StandardKeyboardEvent(e);
 			this._dispatch(keyEvent);
 		});
+	}
 
-		this._createOrUpdateResolver(true);
-		this._currentChord = 0;
-		this._currentChordStatusMessage = null;
+	private _getResolver(): KeybindingResolver {
+		if (!this._cachedResolver) {
+			this._cachedResolver = new KeybindingResolver(KeybindingsRegistry.getDefaultKeybindings(), this._getExtraKeybindings(this._firstTimeComputingResolver));
+			this._firstTimeComputingResolver = false;
+		}
+		return this._cachedResolver;
 	}
 
 	public dispose(): void {
@@ -176,11 +186,7 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 	}
 
 	protected updateResolver(): void {
-		this._createOrUpdateResolver(false);
-	}
-
-	private _createOrUpdateResolver(isFirstTime: boolean): void {
-		this._resolver = new KeybindingResolver(KeybindingsRegistry.getDefaultKeybindings(), this._getExtraKeybindings(isFirstTime));
+		this._cachedResolver = null;
 	}
 
 	protected _getExtraKeybindings(isFirstTime: boolean): IKeybindingItem[] {
@@ -188,7 +194,7 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 	}
 
 	public getDefaultKeybindings(): string {
-		return this._resolver.getDefaultKeybindings() + '\n\n' + this._getAllCommandsAsComment();
+		return this._getResolver().getDefaultKeybindings() + '\n\n' + this._getAllCommandsAsComment();
 	}
 
 	public customKeybindingsCount(): number {
@@ -196,11 +202,11 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 	}
 
 	public lookupKeybindings(commandId: string): Keybinding[] {
-		return this._resolver.lookupKeybinding(commandId);
+		return this._getResolver().lookupKeybinding(commandId);
 	}
 
 	private _getAllCommandsAsComment(): string {
-		let boundCommands = this._resolver.getDefaultBoundCommands();
+		let boundCommands = this._getResolver().getDefaultBoundCommands();
 		let unboundCommands = Object.keys(KeybindingsRegistry.getCommands()).filter(commandId => commandId[0] !== '_' && !boundCommands[commandId]);
 		unboundCommands.sort();
 		let pretty = unboundCommands.join('\n// - ');
@@ -223,7 +229,7 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 		let contextValue = context.getValue();
 		//		console.log(JSON.stringify(contextValue, null, '\t'));
 
-		let resolveResult = this._resolver.resolve(contextValue, this._currentChord, e.asKeybinding());
+		let resolveResult = this._getResolver().resolve(contextValue, this._currentChord, e.asKeybinding());
 
 		if (resolveResult && resolveResult.enterChord) {
 			e.preventDefault();

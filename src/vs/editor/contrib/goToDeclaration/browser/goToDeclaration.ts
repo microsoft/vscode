@@ -143,17 +143,16 @@ export class GoToTypeDeclarationActions extends GoToTypeAction {
 	}
 }
 
-export class GoToDeclarationAction extends GoToTypeAction {
-
-	public static ID = 'editor.action.goToDeclaration';
+export abstract class BaseGoToDeclarationAction extends GoToTypeAction {
 
 	constructor(
 		descriptor: editorCommon.IEditorActionDescriptorData,
 		editor: editorCommon.ICommonCodeEditor,
-		@IMessageService messageService: IMessageService,
-		@IEditorService editorService: IEditorService
+		messageService: IMessageService,
+		editorService: IEditorService,
+		condition: Behaviour
 	) {
-		super(descriptor, editor, messageService, editorService, this.behaviour);
+		super(descriptor, editor, messageService, editorService, condition);
 	}
 
 	public getGroupId(): string {
@@ -179,16 +178,27 @@ export class GoToDeclarationAction extends GoToTypeAction {
 		});
 	}
 
-	protected get behaviour(): Behaviour {
-		return DEFAULT_BEHAVIOR;
-	}
 
 	protected _resolve(resource: URI, position: editorCommon.IPosition): TPromise<IReference[]> {
 		return getDeclarationsAtPosition(this.editor.getModel(), this.editor.getPosition());
 	}
 }
 
-export class OpenDeclarationToTheSideAction extends GoToDeclarationAction {
+export class GoToDeclarationAction extends BaseGoToDeclarationAction {
+
+	public static ID = 'editor.action.goToDeclaration';
+
+	constructor(
+		descriptor: editorCommon.IEditorActionDescriptorData,
+		editor: editorCommon.ICommonCodeEditor,
+		@IMessageService messageService: IMessageService,
+		@IEditorService editorService: IEditorService
+	) {
+		super(descriptor, editor, messageService, editorService, DEFAULT_BEHAVIOR);
+	}
+}
+
+export class OpenDeclarationToTheSideAction extends BaseGoToDeclarationAction {
 
 	public static ID = 'editor.action.openDeclarationToTheSide';
 
@@ -198,11 +208,7 @@ export class OpenDeclarationToTheSideAction extends GoToDeclarationAction {
 		@IMessageService messageService: IMessageService,
 		@IEditorService editorService: IEditorService
 	) {
-		super(descriptor, editor, messageService, editorService);
-	}
-
-	protected get behaviour(): Behaviour {
-		return Behaviour.WidgetFocus | Behaviour.UpdateOnCursorPositionChange;
+		super(descriptor, editor, messageService, editorService, Behaviour.WidgetFocus | Behaviour.UpdateOnCursorPositionChange);
 	}
 
 	protected get openToTheSide(): boolean {
@@ -210,7 +216,7 @@ export class OpenDeclarationToTheSideAction extends GoToDeclarationAction {
 	}
 }
 
-export class PreviewDeclarationAction extends GoToDeclarationAction {
+export class PreviewDeclarationAction extends BaseGoToDeclarationAction {
 
 	public static ID = 'editor.action.previewDeclaration';
 
@@ -220,7 +226,7 @@ export class PreviewDeclarationAction extends GoToDeclarationAction {
 		@IMessageService messageService: IMessageService,
 		@IEditorService editorService: IEditorService
 	) {
-		super(descriptor, editor, messageService, editorService);
+		super(descriptor, editor, messageService, editorService, DEFAULT_BEHAVIOR);
 	}
 
 	protected _showSingleReferenceInPeek() {
