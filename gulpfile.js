@@ -43,7 +43,17 @@ function createCompile(build, emitError) {
 	var opts = _.clone(tsOptions);
 	opts.inlineSources = !!build;
 
-	var ts = tsb.create(opts, null, null, quiet ? null : function (err) { reporter(err.toString()); });
+	var ts = tsb.create(opts, null, null, quiet ? null : function (err) {
+		var str = err.toString();
+
+		// TODO: remove SOON
+		if (/'super' must be called before accessing 'this' in the constructor of a derived class/.test(str)) {
+			console.log(str);
+			return;
+		}
+
+		reporter(str);
+	});
 
 	return function (token) {
 		var utf8Filter = filter('**/test/**/*utf8*', { restore: true });
