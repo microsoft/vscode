@@ -208,7 +208,7 @@ class ServicesMap {
 			allArguments.push.apply(allArguments, descriptor.staticArguments());
 			allArguments.push.apply(allArguments, args);
 
-			if (allArguments.length > 1) {
+			if (allArguments.length > 2) {
 				console.warn('using OLD INJECTION STYLE for ' + descriptor.ctor.name);
 			}
 		}
