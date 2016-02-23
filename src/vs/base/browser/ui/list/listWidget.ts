@@ -7,7 +7,7 @@ import 'vs/css!./list';
 import { IDisposable, dispose, disposeAll } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import * as DOM from 'vs/base/browser/dom';
-import Event, { Emitter, mapEvent } from 'vs/base/common/event';
+import Event, { Emitter, mapEvent, EventDelayer } from 'vs/base/common/event';
 import { IDelegate, IRenderer, IListMouseEvent, IFocusChangeEvent, ISelectionChangeEvent } from './list';
 import { ListView } from './listView';
 
@@ -128,15 +128,16 @@ export class List<T> implements IDisposable {
 
 	private focus: Trait;
 	private selection: Trait;
+	private eventDelayer: EventDelayer;
 	private view: ListView<T>;
 	private controller: Controller<T>;
 
 	get onFocusChange(): Event<IFocusChangeEvent<T>> {
-		return mapEvent(this.focus.onChange, e => this.toListEvent(e));
+		return this.eventDelayer.delay(mapEvent(this.focus.onChange, e => this.toListEvent(e)));
 	}
 
 	get onSelectionChange(): Event<ISelectionChangeEvent<T>> {
-		return mapEvent(this.selection.onChange, e => this.toListEvent(e));
+		return this.eventDelayer.delay(mapEvent(this.selection.onChange, e => this.toListEvent(e)));
 	}
 
 	constructor(
@@ -146,6 +147,7 @@ export class List<T> implements IDisposable {
 	) {
 		this.focus = new Trait('focused');
 		this.selection = new Trait('selected');
+		this.eventDelayer = new EventDelayer();
 
 		renderers = renderers.map(r => {
 			r = this.focus.wrapRenderer(r);
@@ -158,9 +160,11 @@ export class List<T> implements IDisposable {
 	}
 
 	splice(start: number, deleteCount: number, ...elements: T[]): void {
-		this.focus.splice(start, deleteCount, elements.length);
-		this.selection.splice(start, deleteCount, elements.length);
-		this.view.splice(start, deleteCount, ...elements);
+		this.eventDelayer.wrap(() => {
+			this.focus.splice(start, deleteCount, elements.length);
+			this.selection.splice(start, deleteCount, elements.length);
+			this.view.splice(start, deleteCount, ...elements);
+		});
 	}
 
 	get length(): number {
@@ -176,8 +180,10 @@ export class List<T> implements IDisposable {
 	}
 
 	setSelection(...indexes: number[]): void {
-		indexes = indexes.concat(this.selection.set(...indexes));
-		indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
+		this.eventDelayer.wrap(() => {
+			indexes = indexes.concat(this.selection.set(...indexes));
+			indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
+		});
 	}
 
 	selectNext(n = 1, loop = false): void {
@@ -198,8 +204,10 @@ export class List<T> implements IDisposable {
 	}
 
 	setFocus(...indexes: number[]): void {
-		indexes = indexes.concat(this.focus.set(...indexes));
-		indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
+		this.eventDelayer.wrap(() => {
+			indexes = indexes.concat(this.focus.set(...indexes));
+			indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
+		});
 	}
 
 	focusNext(n = 1, loop = false): void {
