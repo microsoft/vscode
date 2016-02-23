@@ -121,8 +121,8 @@ export class WorkbenchKeybindingService extends KeybindingService {
 	private _eventService: IEventService;
 
 	constructor(contextService: IWorkspaceContextService, eventService: IEventService, telemetryService: ITelemetryService, domNode: HTMLElement) {
+		super();
 		this.contextService = contextService;
-		super(domNode);
 		this.eventService = eventService;
 		this.telemetryService = telemetryService;
 		this.toDispose = this.eventService.addListener(EventType.WORKBENCH_OPTIONS_CHANGED, (e) => this.onOptionsChanged(e));
@@ -138,6 +138,8 @@ export class WorkbenchKeybindingService extends KeybindingService {
 				this.updateResolver();
 			}
 		});
+
+		this._beginListening(domNode);
 	}
 
 	setPluginService(pluginService: IPluginService): void {

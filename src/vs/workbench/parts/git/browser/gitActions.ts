@@ -66,9 +66,9 @@ export abstract class GitAction extends Action {
 	protected toDispose: IDisposable[];
 
 	constructor(id: string, label: string, cssClass: string, gitService: IGitService) {
-		this.gitService = gitService;
 		super(id, label, cssClass, false);
 
+		this.gitService = gitService;
 		this.toDispose = [this.gitService.addBulkListener2(() => this.onGitServiceChange())];
 		this.onGitServiceChange();
 	}
@@ -101,8 +101,8 @@ export class OpenChangeAction extends GitAction {
 	protected editorService: IWorkbenchEditorService;
 
 	constructor(@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IGitService gitService: IGitService) {
-		this.editorService = editorService;
 		super(OpenChangeAction.ID, nls.localize('openChange', "Open Change"), 'git-action open-change', gitService);
+		this.editorService = editorService;
 	}
 
 	protected isEnabled():boolean {
@@ -132,10 +132,10 @@ export class OpenFileAction extends GitAction {
 	private contextService: IWorkspaceContextService;
 
 	constructor(@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService, @IGitService gitService: IGitService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+		super(OpenFileAction.ID, nls.localize('openFile', "Open File"), 'git-action open-file', gitService);
 		this.fileService = fileService;
 		this.editorService = editorService;
 		this.contextService = contextService;
-		super(OpenFileAction.ID, nls.localize('openFile', "Open File"), 'git-action open-file', gitService);
 	}
 
 	protected isEnabled():boolean {
@@ -312,12 +312,12 @@ export abstract class BaseUndoAction extends GitAction {
 	private contextService: IWorkspaceContextService;
 
 	constructor(id: string, label: string, className: string, gitService: IGitService, eventService: IEventService, messageService: IMessageService, fileService:IFileService, editorService: IWorkbenchEditorService, contextService: IWorkspaceContextService) {
+		super(id, label, className, gitService);
 		this.eventService = eventService;
 		this.editorService = editorService;
 		this.messageService = messageService;
 		this.fileService = fileService;
 		this.contextService = contextService;
-		super(id, label, className, gitService);
 	}
 
 	protected isEnabled():boolean {
@@ -595,13 +595,13 @@ export class CheckoutAction extends GitAction {
 	private runPromises: Promise[];
 
 	constructor(branch: IBranch, @IGitService gitService: IGitService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
+		super(CheckoutAction.ID, branch.name, 'git-action checkout', gitService);
+
 		this.editorService = editorService;
 		this.branch = branch;
 		this.HEAD = null;
 		this.state = LifecycleState.Alive;
 		this.runPromises = [];
-
-		super(CheckoutAction.ID, branch.name, 'git-action checkout', gitService);
 	}
 
 	protected onGitServiceChange(): void {
@@ -766,8 +766,8 @@ export class SmartCommitAction extends BaseCommitAction {
 	private messageService: IMessageService;
 
 	constructor(commitState: ICommitState, @IGitService gitService: IGitService, @IMessageService messageService: IMessageService) {
-		this.messageService = messageService;
 		super(commitState, SmartCommitAction.ID, SmartCommitAction.ALL, 'git-action smart-commit', gitService);
+		this.messageService = messageService;
 	}
 
 	protected onGitServiceChange(): void {

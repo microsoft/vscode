@@ -40,6 +40,7 @@ import {DiffEditorWidget} from 'vs/editor/browser/widget/diffEditorWidget';
 
 // Set defaults for standalone editor
 DefaultConfig.editor.wrappingIndent = 'none';
+DefaultConfig.editor.folding = false;
 
 export interface IEditorConstructionOptions extends ICodeEditorWidgetCreationOptions {
 	value?: string;
@@ -73,6 +74,9 @@ class StandaloneEditor extends CodeEditorWidget {
 			(<AbstractKeybindingService><any>keybindingService).setInstantiationService(instantiationService);
 		}
 
+		options = options || {};
+		super(domElement, options, instantiationService, codeEditorService, keybindingService, telemetryService);
+
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = <StandaloneKeybindingService>keybindingService;
 		}
@@ -82,15 +86,17 @@ class StandaloneEditor extends CodeEditorWidget {
 		this._markerService = markerService;
 		this._toDispose2 = toDispose;
 
-		options = options || {};
+		let model: IModel = null;
 		if (typeof options.model === 'undefined') {
-			options.model = (<any>self).Monaco.Editor.createModel(options.value || '', options.mode || 'text/plain');
+			model = (<any>self).Monaco.Editor.createModel(options.value || '', options.mode || 'text/plain');
 			this._ownsModel = true;
 		} else {
+			model = options.model;
+			delete options.model;
 			this._ownsModel = false;
 		}
 
-		super(domElement, options, instantiationService, codeEditorService, keybindingService, telemetryService);
+		this._attachModel(model);
 	}
 
 	public dispose(): void {
@@ -164,7 +170,6 @@ class StandaloneEditor extends CodeEditorWidget {
 
 class StandaloneDiffEditor extends DiffEditorWidget {
 
-	private _editorService:IEditorService;
 	private _contextViewService:IEditorContextViewService;
 	private _standaloneKeybindingService: StandaloneKeybindingService;
 	private _toDispose2: IDisposable[];
@@ -187,20 +192,18 @@ class StandaloneDiffEditor extends DiffEditorWidget {
 			(<AbstractKeybindingService><any>keybindingService).setInstantiationService(instantiationService);
 		}
 
+		super(domElement, options, editorWorkerService, instantiationService);
+
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = <StandaloneKeybindingService>keybindingService;
 		}
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
-		this._editorService = editorService;
+
 		this._markerService = markerService;
 		this._telemetryService = telemetryService;
 
 		this._toDispose2 = toDispose;
-
-		options = options || {};
-
-		super(domElement, options, editorWorkerService, instantiationService);
 
 		this._contextViewService.setContainer(this._containerDomElement);
 	}

@@ -10,7 +10,7 @@ import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/comm
 import {IChange, ILineChange, IPosition, IRange} from 'vs/editor/common/editorCommon';
 import {IInplaceReplaceSupportResult, ILink, ISuggestResult} from 'vs/editor/common/modes';
 
-export var ID_EDITOR_WORKER_SERVICE = 'workerService';
+export var ID_EDITOR_WORKER_SERVICE = 'editorWorkerService';
 export var IEditorWorkerService = createDecorator<IEditorWorkerService>(ID_EDITOR_WORKER_SERVICE);
 
 export interface IEditorWorkerService {

@@ -290,10 +290,10 @@ export class Selection extends Range {
 			throw new Error('Invalid arguments');
 		}
 
+		super(anchor, active);
+
 		this._anchor = anchor;
 		this._active = active;
-
-		super(anchor, active);
 	}
 
 	get isReversed(): boolean {

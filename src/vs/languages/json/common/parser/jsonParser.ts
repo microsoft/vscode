@@ -419,9 +419,9 @@ export class StringASTNode extends ASTNode {
 	public value:string;
 
 	constructor(parent:ASTNode, name:string, isKey:boolean, start:number, end?:number) {
+		super(parent, 'string', name, start, end);
 		this.isKey = isKey;
 		this.value = '';
-		super(parent, 'string', name, start, end);
 	}
 
 	public getValue():any {

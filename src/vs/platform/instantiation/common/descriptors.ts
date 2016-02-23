@@ -201,6 +201,9 @@ export class AsyncDescriptor<T> extends AbstractDescriptor<T> implements objects
 
 	constructor(private _moduleName: string, private _ctorName?: string, ...staticArguments: any[]) {
 		super(staticArguments);
+		if (typeof _moduleName !== 'string') {
+			throw new Error('Invalid AsyncDescriptor arguments, expected `moduleName` to be a string!');
+		}
 	}
 
 	public get moduleName(): string {

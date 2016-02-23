@@ -71,7 +71,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 
 	constructor(
 		domElement: IKeybindingScopeLocation,
-		options:editorCommon.ICodeEditorWidgetCreationOptions,
+		options:editorCommon.IEditorOptions,
 		instantiationService: IInstantiationService,
 		codeEditorService: ICodeEditorService,
 		keybindingService: IKeybindingService,
@@ -100,12 +100,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		this._decorationTypeKeysToIds = {};
 
 		options = options || {};
-		var model: editorCommon.IModel = null;
-		if (options.model) {
-			model = options.model;
-			delete options.model;
-		}
-
 		if (typeof options.ariaLabel === 'undefined') {
 			options.ariaLabel = DefaultConfig.editor.ariaLabel;
 		}
@@ -129,7 +123,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 			keybindingService: this._keybindingService
 		});
 
-		this._attachModel(model);
+		this._attachModel(null);
 
 		// Create editor contributions
 		this.contributions = {};
@@ -211,10 +205,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 			tabSize: r.tabSize,
 			insertSpaces: r.insertSpaces
 		};
-	}
-
-	public setIndentationOptions(indentationOptions: editorCommon.IInternalIndentationOptions): void {
-		this._configuration.setIndentationOptions(indentationOptions);
 	}
 
 	public normalizeIndentation(str:string): string {

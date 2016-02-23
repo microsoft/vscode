@@ -550,6 +550,14 @@ export interface IIndentationGuesser {
 	(tabSize:number): editorCommon.IGuessedIndentation;
 }
 
+export interface IElementSizeObserver {
+	startObserving(): void;
+	observe(dimension?:editorCommon.IDimension): void;
+	dispose(): void;
+	getWidth(): number;
+	getHeight(): number;
+}
+
 export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
 
 	public handlerDispatcher:editorCommon.IHandlerDispatcher;
@@ -557,6 +565,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	public editorClone:editorCommon.IInternalEditorOptions;
 
 	protected _configWithDefaults:ConfigurationWithDefaults;
+	protected _elementSizeObserver: IElementSizeObserver;
 	private _indentationGuesser:IIndentationGuesser;
 	private _cachedGuessedIndentationTabSize: number;
 	private _cachedGuessedIndentation:editorCommon.IGuessedIndentation;
@@ -566,9 +575,10 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	private _onDidChange = this._register(new Emitter<editorCommon.IConfigurationChangedEvent>());
 	public onDidChange: Event<editorCommon.IConfigurationChangedEvent> = this._onDidChange.event;
 
-	constructor(options:any, indentationGuesser:IIndentationGuesser = null) {
+	constructor(options:any, elementSizeObserver: IElementSizeObserver = null, indentationGuesser:IIndentationGuesser = null) {
 		super();
 		this._configWithDefaults = new ConfigurationWithDefaults(options);
+		this._elementSizeObserver = elementSizeObserver;
 		this._indentationGuesser = indentationGuesser;
 		this._cachedGuessedIndentationTabSize = -1;
 		this._cachedGuessedIndentation = null;
@@ -725,10 +735,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 	public getIndentationOptions(): editorCommon.IInternalIndentationOptions {
 		return this.editor.indentInfo;
-	}
-
-	public setIndentationOptions(indentationOptions: editorCommon.IInternalIndentationOptions): void {
-		this.editor.indentInfo = indentationOptions;
 	}
 
 	private _normalizeIndentationFromWhitespace(str:string): string {

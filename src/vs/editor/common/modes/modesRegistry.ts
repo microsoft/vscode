@@ -49,6 +49,12 @@ export class EditorModesRegistry {
 		this._workerParticipants = participants;
 	}
 	public registerWorkerParticipant(modeId:string, moduleId:string, ctorName?:string):void {
+		if (typeof modeId !== 'string') {
+			throw new Error('InvalidArgument: expected `modeId` to be a string');
+		}
+		if (typeof moduleId !== 'string') {
+			throw new Error('InvalidArgument: expected `moduleId` to be a string');
+		}
 		this._workerParticipants.push({
 			modeId: modeId,
 			moduleId: moduleId,

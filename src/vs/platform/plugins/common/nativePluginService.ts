@@ -99,12 +99,12 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 		messageService: IMessageService,
 		telemetryService: ITelemetryService
 	) {
+		super(false);
 		let config = contextService.getConfiguration();
 		this._isDev = !config.env.isBuilt || !!config.env.pluginDevelopmentPath;
 
 		this._messageService = messageService;
 		threadService.registerRemotableInstance(MainProcessPluginService, this);
-		super(false);
 		this._threadService = threadService;
 		this._telemetryService = telemetryService;
 		this._proxy = this._threadService.getRemotable(PluginHostPluginService);
@@ -272,8 +272,8 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
 	constructor(threadService: IThreadService) {
-		threadService.registerRemotableInstance(PluginHostPluginService, this);
 		super(true);
+		threadService.registerRemotableInstance(PluginHostPluginService, this);
 		this._threadService = threadService;
 		this._storage = new PluginHostStorage(threadService);
 		this._proxy = this._threadService.getRemotable(MainProcessPluginService);
