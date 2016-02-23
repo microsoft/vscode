@@ -727,10 +727,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		return this.editor.indentInfo;
 	}
 
-	public setIndentationOptions(indentationOptions: editorCommon.IInternalIndentationOptions): void {
-		this.editor.indentInfo = indentationOptions;
-	}
-
 	private _normalizeIndentationFromWhitespace(str:string): string {
 		let indentation = this.getIndentationOptions(),
 			spacesCnt = 0,

@@ -53,7 +53,7 @@ export abstract class Indent extends EditorAction {
 	public run(): TPromise<boolean> {
 		return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() =>
 			this.quickOpenService.pick(['1', '2', '3', '4', '5', '6', '7', '8'], { placeHolder: nls.localize('selectTabWidth', "Select Tab Width")}).then(pick => {
-				this.editor.setIndentationOptions({
+				this.editor.updateOptions({
 					insertSpaces: this.insertSpaces,
 					tabSize: parseInt(pick)
 				});
