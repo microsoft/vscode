@@ -41,7 +41,7 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 
 	constructor(
 		domElement:HTMLElement,
-		options:editorCommon.ICodeEditorWidgetCreationOptions,
+		options:editorCommon.IEditorOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IKeybindingService keybindingService: IKeybindingService,

@@ -129,32 +129,32 @@ export abstract class AbstractKeybindingService {
 	public abstract executeCommand(commandId: string, args: any): TPromise<any>;
 }
 
-export class KeybindingService extends AbstractKeybindingService implements IKeybindingService {
+export abstract class KeybindingService extends AbstractKeybindingService implements IKeybindingService {
 
 	private _lastContextId: number;
 	private _contexts: {
 		[contextId: string]: KeybindingContext;
 	};
 
-	protected _domNode: HTMLElement;
 	private _toDispose: IDisposable;
 	private _cachedResolver: KeybindingResolver;
 	private _firstTimeComputingResolver: boolean;
 	private _currentChord: number;
 	private _currentChordStatusMessage: IDisposable;
 
-	constructor(domNode: HTMLElement) {
-		this._lastContextId = -1;
-		super((++this._lastContextId));
-		this._domNode = domNode;
+	constructor() {
+		super(0);
+		this._lastContextId = 0;
 		this._contexts = Object.create(null);
 		this._contexts[String(this._myContextId)] = new KeybindingContext(this._myContextId, null);
 		this._cachedResolver = null;
 		this._firstTimeComputingResolver = true;
 		this._currentChord = 0;
 		this._currentChordStatusMessage = null;
+	}
 
-		this._toDispose = dom.addDisposableListener(this._domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+	protected _beginListening(domNode: HTMLElement): void {
+		this._toDispose = dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let keyEvent = new StandardKeyboardEvent(e);
 			this._dispatch(keyEvent);
 		});
@@ -169,8 +169,10 @@ export class KeybindingService extends AbstractKeybindingService implements IKey
 	}
 
 	public dispose(): void {
-		this._toDispose.dispose();
-		this._toDispose = null;
+		if (this._toDispose) {
+			this._toDispose.dispose();
+			this._toDispose = null;
+		}
 	}
 
 	public getLabelFor(keybinding: Keybinding): string {
@@ -323,9 +325,9 @@ class ScopedKeybindingService extends AbstractKeybindingService {
 	private _domNode: IKeybindingScopeLocation;
 
 	constructor(parent: AbstractKeybindingService, domNode: IKeybindingScopeLocation) {
+		super(parent.createChildContext());
 		this._parent = parent;
 		this._domNode = domNode;
-		super(this._parent.createChildContext());
 		this._domNode.setAttribute(KEYBINDING_CONTEXT_ATTR, String(this._myContextId));
 	}
 

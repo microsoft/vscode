@@ -44,15 +44,7 @@ function createCompile(build, emitError) {
 	opts.inlineSources = !!build;
 
 	var ts = tsb.create(opts, null, null, quiet ? null : function (err) {
-		var str = err.toString();
-
-		// TODO: remove SOON
-		if (/'super' must be called before accessing 'this' in the constructor of a derived class/.test(str)) {
-			console.log(str);
-			return;
-		}
-
-		reporter(str);
+		reporter(err.toString());
 	});
 
 	return function (token) {

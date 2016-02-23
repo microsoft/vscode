@@ -216,10 +216,12 @@ export class StandaloneKeybindingService extends KeybindingService {
 	private _dynamicCommands: ICommandsMap;
 
 	constructor(domNode: HTMLElement) {
-		super(domNode);
+		super();
 
 		this._dynamicKeybindings = [];
 		this._dynamicCommands = Object.create(null);
+
+		this._beginListening(domNode);
 	}
 
 	public addDynamicKeybinding(keybinding: number, handler:ICommandHandler, context:string, commandId:string = null): string {
