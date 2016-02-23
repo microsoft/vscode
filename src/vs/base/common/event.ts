@@ -155,3 +155,54 @@ export function mapEvent<I,O>(event: Event<I>, map: (i:I)=>O): Event<O> {
 	return (listener, thisArgs?, disposables?) =>
 		event(i => listener(map(i)), thisArgs, disposables);
 }
+
+enum EventDelayerState {
+	Idle,
+	Running
+}
+
+/**
+ * The EventDelayer is useful in situations in which you want
+ * to delay firing your events during some code.
+ * You can wrap that code and be sure that the event will not
+ * be fired during that wrap.
+ *
+ * ```
+ * const emitter: Emitter;
+ * const delayer = new EventDelayer();
+ * const delayedEvent = delayer.delay(emitter.event);
+ *
+ * delayedEvent(console.log);
+ *
+ * delayer.wrap(() => {
+ *   emitter.fire(); // event will not be fired yet
+ * });
+ *
+ * // event will only be fired at this point
+ * ```
+ */
+export class EventDelayer {
+
+	private state = EventDelayerState.Idle;
+	private buffer: Function[] = [];
+
+	delay<T>(event: Event<T>): Event<T> {
+		return (listener, thisArgs?, disposables?) => {
+			return event(i => {
+				if (this.state === EventDelayerState.Idle) {
+					listener(i);
+				} else {
+					this.buffer.push(() => listener(i));
+				}
+			}, thisArgs, disposables);
+		};
+	}
+
+	wrap(fn: () => void): void {
+		this.state = EventDelayerState.Running;
+		fn();
+		this.buffer.forEach(flush => flush());
+		this.buffer = [];
+		this.state = EventDelayerState.Idle;
+	}
+}
