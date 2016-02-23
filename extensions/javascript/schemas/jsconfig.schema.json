@@ -29,27 +29,31 @@
 					"format": "uri"
 				},
 				"module": {
-					"description": "Module code generation to resolve against: 'commonjs', 'amd', 'system', or 'umd'.",
+					"description": "Specify module code generation: 'CommonJS', 'Amd', 'System', 'UMD', 'es6', or 'es2015'.",
 					"enum": [
 						"commonjs",
 						"amd",
+						"umd",
 						"system",
-						"umd"
+						"es6",
+						"es2015"
 					]
 				},
+
 				"noLib": {
 					"description": "Do not include the default library file (lib.d.ts).",
 					"type": "boolean"
 				},
 				"target": {
-					"description": "Specify ECMAScript target version:  'ES3', 'ES5', or 'ES6' (default).",
+					"description": "Specify ECMAScript target version.",
 					"enum": [
 						"ES3",
 						"ES5",
 						"ES6",
 						"es3",
 						"es5",
-						"es6"
+						"es6",
+						"es2015"
 					],
 					"default": "ES6"
 				},
