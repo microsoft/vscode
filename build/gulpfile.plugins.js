@@ -114,7 +114,7 @@ var tasks = readAllPlugins()
 					.pipe(tsFilter)
 					.pipe(compilation())
 					.pipe(tsFilter.restore)
-					.pipe(quiet ? es.through() : reporter());
+					.pipe(quiet ? es.through() : reporter.end());
 
 				return es.duplex(input, output);
 			};

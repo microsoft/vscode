@@ -28,6 +28,15 @@
 	background-image: url('arrow-collapse-dark.svg');
 }
 
+/* High-contrast theme */
+.monaco-editor.hc-black .margin-view-overlays:hover .folding {
+	background-image: url('arrow-expand-dark.svg');
+}
+
+.monaco-editor.hc-black .margin-view-overlays .folding.collapsed {
+	background-image: url('arrow-collapse-dark.svg');
+}
+
 .monaco-editor .inline-folded:after {
 	color: grey;
 	margin: 0.1em 0.2em 0 0.2em;

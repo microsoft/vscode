@@ -33,8 +33,8 @@ export interface INewFindReplaceState {
 	wholeWord?: boolean;
 	matchCase?: boolean;
 	searchScope?: IEditorRange;
-	matchesPosition?: number;
-	matchesCount?: number;
+	// matchesPosition?: number;
+	// matchesCount?: number;
 }
 
 export class FindReplaceState implements IDisposable {
@@ -84,6 +84,45 @@ export class FindReplaceState implements IDisposable {
 
 	public addChangeListener(listener:(e:FindReplaceStateChangedEvent)=>void): IDisposable {
 		return this._eventEmitter.addListener2(FindReplaceState._CHANGED_EVENT, listener);
+	}
+
+	public changeMatchInfo(matchesPosition:number, matchesCount:number): void {
+		let changeEvent:FindReplaceStateChangedEvent = {
+			moveCursor: false,
+			searchString: false,
+			replaceString: false,
+			isRevealed: false,
+			isReplaceRevealed: false,
+			isRegex: false,
+			wholeWord: false,
+			matchCase: false,
+			searchScope: false,
+			matchesPosition: false,
+			matchesCount: false
+		};
+		let somethingChanged = false;
+
+		if (matchesCount === 0) {
+			matchesPosition = 0;
+		}
+		if (matchesPosition > matchesCount) {
+			matchesPosition = matchesCount;
+		}
+
+		if (this._matchesPosition !== matchesPosition) {
+			this._matchesPosition = matchesPosition;
+			changeEvent.matchesPosition = true;
+			somethingChanged = true;
+		}
+		if (this._matchesCount !== matchesCount) {
+			this._matchesCount = matchesCount;
+			changeEvent.matchesCount = true;
+			somethingChanged = true;
+		}
+
+		if (somethingChanged) {
+			this._eventEmitter.emit(FindReplaceState._CHANGED_EVENT, changeEvent);
+		}
 	}
 
 	public change(newState:INewFindReplaceState, moveCursor:boolean): void {
@@ -158,29 +197,6 @@ export class FindReplaceState implements IDisposable {
 				somethingChanged = true;
 			}
 		}
-		if (typeof newState.matchesPosition !== 'undefined') {
-			if (this._matchesPosition !== newState.matchesPosition) {
-				this._matchesPosition = newState.matchesPosition;
-				changeEvent.matchesPosition = true;
-				somethingChanged = true;
-			}
-		}
-		if (typeof newState.matchesCount !== 'undefined') {
-			if (this._matchesCount !== newState.matchesCount) {
-				this._matchesCount = newState.matchesCount;
-				changeEvent.matchesCount = true;
-				somethingChanged = true;
-
-				if (this._matchesCount === 0) {
-					this._matchesPosition = 0;
-					changeEvent.matchesPosition = true;
-				} else if (this._matchesPosition > this._matchesCount) {
-					this._matchesPosition = this._matchesCount;
-					changeEvent.matchesPosition = true;
-				}
-			}
-		}
-
 
 		if (somethingChanged) {
 			this._eventEmitter.emit(FindReplaceState._CHANGED_EVENT, changeEvent);

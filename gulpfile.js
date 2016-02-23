@@ -39,11 +39,13 @@ var tsOptions = {
 	sourceRoot: util.toFileUri(rootDir)
 };
 
-function createCompile(build) {
+function createCompile(build, emitError) {
 	var opts = _.clone(tsOptions);
 	opts.inlineSources = !!build;
 
-	var ts = tsb.create(opts, null, null, quiet ? null : function (err) { reporter(err.toString()); });
+	var ts = tsb.create(opts, null, null, quiet ? null : function (err) {
+		reporter(err.toString());
+	});
 
 	return function (token) {
 		var utf8Filter = filter('**/test/**/*utf8*', { restore: true });
@@ -67,14 +69,14 @@ function createCompile(build) {
 				sourceRoot: tsOptions.sourceRoot
 			}))
 			.pipe(tsFilter.restore)
-			.pipe(quiet ? es.through() : reporter());
+			.pipe(quiet ? es.through() : reporter.end(emitError));
 
 		return es.duplex(input, output);
 	};
 }
 
 function compileTask(out, build) {
-	var compile = createCompile(build);
+	var compile = createCompile(build, true);
 
 	return function () {
 		var src = gulp.src('src/**', { base: 'src' });

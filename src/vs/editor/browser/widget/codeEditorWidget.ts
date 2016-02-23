@@ -41,14 +41,12 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 
 	constructor(
 		domElement:HTMLElement,
-		options:editorCommon.ICodeEditorWidgetCreationOptions,
+		options:editorCommon.IEditorOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		this.domElement = domElement;
-
 		super(domElement, options, instantiationService, codeEditorService, keybindingService, telemetryService);
 
 		// track focus of the domElement and all its anchestors
