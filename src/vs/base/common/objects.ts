@@ -12,7 +12,6 @@ import * as Types from 'vs/base/common/types';
  * are equal to other objects.
  */
 export interface IEqualable {
-	hashCode(): number;
 	equals(other: any): boolean;
 }
 

@@ -6,7 +6,6 @@
 
 import errors = require('vs/base/common/errors');
 import objects = require('vs/base/common/objects');
-import hash = require('vs/base/common/hash');
 import instantiation = require('./instantiation');
 
 export class AbstractDescriptor<T> {
@@ -54,10 +53,6 @@ export class SyncDescriptor<T> extends AbstractDescriptor<T> implements objects.
 			return false;
 		}
 		return (<SyncDescriptor<T>>other).ctor === this.ctor;
-	}
-
-	public hashCode(): number {
-		return 61 * (1 + this.ctor.length);
 	}
 
 	protected bind(...moreStaticArguments): SyncDescriptor<T> {
@@ -223,10 +218,6 @@ export class AsyncDescriptor<T> extends AbstractDescriptor<T> implements objects
 		}
 		return (<AsyncDescriptor<any>>other).moduleName === this.moduleName &&
 			(<AsyncDescriptor<any>>other).ctorName === this.ctorName;
-	}
-
-	public hashCode(): number {
-		return hash.computeMurmur2StringHashCode(this.moduleName) * hash.computeMurmur2StringHashCode(this.ctorName);
 	}
 
 	protected bind(...moreStaticArguments): AsyncDescriptor<T> {

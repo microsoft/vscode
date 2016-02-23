@@ -258,10 +258,6 @@ export class Range implements IEditorRange {
 		return range.endLineNumber > range.startLineNumber;
 	}
 
-	public static hashCode(range:IRange):number {
-		return (range.startLineNumber * 17) + (range.startColumn * 23) + (range.endLineNumber * 29) + (range.endColumn * 37);
-	}
-
 	public static collapseToStart(range:IRange):IRange  {
 		return {
 			startLineNumber: range.startLineNumber,
