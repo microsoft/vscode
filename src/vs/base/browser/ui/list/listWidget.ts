@@ -7,7 +7,7 @@ import 'vs/css!./list';
 import { IDisposable, dispose, disposeAll } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import * as DOM from 'vs/base/browser/dom';
-import Event, { Emitter, mapEvent } from 'vs/base/common/event';
+import Event, { Emitter, mapEvent, EventDelayer } from 'vs/base/common/event';
 import { IDelegate, IRenderer, IListMouseEvent, IFocusChangeEvent, ISelectionChangeEvent } from './list';
 import { ListView } from './listView';
 
@@ -89,34 +89,8 @@ class Trait implements IDisposable {
 		return this.indexes;
 	}
 
-	add(index: number): void {
-		if (this.contains(index)) {
-			return;
-		}
-
-		this.indexes.push(index);
-		this._onChange.fire({ indexes: this.indexes });
-	}
-
-	remove(index: number): void {
-		this.indexes = this.indexes.filter(i => i === index);
-		this._onChange.fire({ indexes: this.indexes });
-	}
-
 	contains(index: number): boolean {
 		return this.indexes.some(i => i === index);
-	}
-
-	next(n: number): void {
-		let index = this.indexes.length ? this.indexes[0] : 0;
-		index = Math.min(index + n, this.indexes.length);
-		this.set(index);
-	}
-
-	previous(n: number): void {
-		let index = this.indexes.length ? this.indexes[0] : this.indexes.length - 1;
-		index = Math.max(index - n, 0);
-		this.set(index);
 	}
 
 	wrapRenderer<T, D>(renderer: IRenderer<T, D>): IRenderer<T, ITraitTemplateData<D>> {
@@ -154,21 +128,16 @@ export class List<T> implements IDisposable {
 
 	private focus: Trait;
 	private selection: Trait;
+	private eventDelayer: EventDelayer;
 	private view: ListView<T>;
 	private controller: Controller<T>;
 
 	get onFocusChange(): Event<IFocusChangeEvent<T>> {
-		return mapEvent(this.focus.onChange, e => ({
-			elements: e.indexes.map(i => this.view.element(i)),
-			indexes: e.indexes
-		}));
+		return this.eventDelayer.delay(mapEvent(this.focus.onChange, e => this.toListEvent(e)));
 	}
 
 	get onSelectionChange(): Event<ISelectionChangeEvent<T>> {
-		return mapEvent(this.selection.onChange, e => ({
-			elements: e.indexes.map(i => this.view.element(i)),
-			indexes: e.indexes
-		}));
+		return this.eventDelayer.delay(mapEvent(this.selection.onChange, e => this.toListEvent(e)));
 	}
 
 	constructor(
@@ -178,6 +147,7 @@ export class List<T> implements IDisposable {
 	) {
 		this.focus = new Trait('focused');
 		this.selection = new Trait('selected');
+		this.eventDelayer = new EventDelayer();
 
 		renderers = renderers.map(r => {
 			r = this.focus.wrapRenderer(r);
@@ -190,9 +160,11 @@ export class List<T> implements IDisposable {
 	}
 
 	splice(start: number, deleteCount: number, ...elements: T[]): void {
-		this.focus.splice(start, deleteCount, elements.length);
-		this.selection.splice(start, deleteCount, elements.length);
-		this.view.splice(start, deleteCount, ...elements);
+		this.eventDelayer.wrap(() => {
+			this.focus.splice(start, deleteCount, elements.length);
+			this.selection.splice(start, deleteCount, elements.length);
+			this.view.splice(start, deleteCount, ...elements);
+		});
 	}
 
 	get length(): number {
@@ -208,8 +180,10 @@ export class List<T> implements IDisposable {
 	}
 
 	setSelection(...indexes: number[]): void {
-		indexes = indexes.concat(this.selection.set(...indexes));
-		indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
+		this.eventDelayer.wrap(() => {
+			indexes = indexes.concat(this.selection.set(...indexes));
+			indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
+		});
 	}
 
 	selectNext(n = 1, loop = false): void {
@@ -230,8 +204,10 @@ export class List<T> implements IDisposable {
 	}
 
 	setFocus(...indexes: number[]): void {
-		indexes = indexes.concat(this.focus.set(...indexes));
-		indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
+		this.eventDelayer.wrap(() => {
+			indexes = indexes.concat(this.focus.set(...indexes));
+			indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
+		});
 	}
 
 	focusNext(n = 1, loop = false): void {
@@ -320,6 +296,10 @@ export class List<T> implements IDisposable {
 				this.view.setScrollTop(viewItemBottom - this.view.renderHeight);
 			}
 		}
+	}
+
+	private toListEvent<T>({ indexes }: ITraitChangeEvent) {
+		return { indexes, elements: indexes.map(i => this.view.element(i)) };
 	}
 
 	dispose(): void {

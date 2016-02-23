@@ -24,16 +24,16 @@ class ArgParser {
 
 	help(): string {
 		const executable = 'code' + (os.platform() === 'win32' ? '.exe' : '');
-
+		const indent = '  ';
 		return `Visual Studio Code v${ packageJson.version }
 
 Usage: ${ executable } [arguments] [paths...]
 
 Options:
-	-h, --help     Print usage.
-	--locale       Use a specific locale.
-	-n             Force a new instance of Code.
-	-v, --version  Print version.`;
+${ indent }-h, --help     Print usage.
+${ indent }--locale       Use a specific locale.
+${ indent }-n             Force a new instance of Code.
+${ indent }-v, --version  Print version.`;
 	}
 }
 
