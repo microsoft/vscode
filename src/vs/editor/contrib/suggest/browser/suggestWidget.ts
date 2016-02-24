@@ -478,7 +478,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 		this.completionModel = e.completionModel;
 
-		if (e.isFrozen) {
+		if (e.isFrozen && this.state !== State.Empty) {
 			this.setState(State.Frozen);
 			return;
 		}
