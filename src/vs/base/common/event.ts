@@ -181,12 +181,12 @@ enum EventDelayerState {
  * // event will only be fired at this point
  * ```
  */
-export class EventDelayer {
+export class EventBufferer {
 
 	private state = EventDelayerState.Idle;
 	private buffer: Function[] = [];
 
-	delay<T>(event: Event<T>): Event<T> {
+	wrapEvent<T>(event: Event<T>): Event<T> {
 		return (listener, thisArgs?, disposables?) => {
 			return event(i => {
 				if (this.state === EventDelayerState.Idle) {
@@ -198,7 +198,7 @@ export class EventDelayer {
 		};
 	}
 
-	wrap(fn: () => void): void {
+	bufferEvents(fn: () => void): void {
 		this.state = EventDelayerState.Running;
 		fn();
 		this.buffer.forEach(flush => flush());

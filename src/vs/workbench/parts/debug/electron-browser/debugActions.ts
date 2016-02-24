@@ -74,7 +74,7 @@ export class AbstractDebugAction extends actions.Action {
 
 export class ConfigureAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.configure';
-	static LABEL = nls.localize('configureDebug', "launch.json");
+	static LABEL = nls.localize('openLaunchJson', "Open launch.json");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
@@ -376,7 +376,7 @@ export class ReapplyBreakpointsAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(): boolean {
-		return super.isEnabled() && !!this.debugService.getActiveSession() && this.debugService.getModel().getBreakpoints().length > 0;
+		return super.isEnabled() && this.debugService.getState() !== debug.State.Disabled && this.debugService.getState() !== debug.State.Inactive;
 	}
 }
 

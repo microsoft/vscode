@@ -6,50 +6,39 @@
 'use strict';
 
 // base common
-import 'vs/base/common/json';
-import 'vs/base/common/uri';
-import 'vs/base/common/network';
-import 'vs/base/common/arrays';
-import 'vs/base/common/collections';
-import 'vs/base/common/lifecycle';
+import 'vs/base/common/assert';
 import 'vs/base/common/async';
-import 'vs/base/common/glob';
+import 'vs/base/common/callbackList';
+import 'vs/base/common/cancellation';
+import 'vs/base/common/collections';
+import 'vs/base/common/event';
 import 'vs/base/common/events';
+import 'vs/base/common/lifecycle';
+import 'vs/base/common/paths';
+import 'vs/base/common/uri';
 
 // platform common
-import 'vs/platform/configuration/common/configurationRegistry';
+import 'vs/platform/platform';
+import 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import 'vs/platform/files/common/files';
-import 'vs/platform/search/common/search';
 import 'vs/platform/request/common/request';
 import 'vs/platform/workspace/common/workspace';
 import 'vs/platform/telemetry/common/telemetry';
+import 'vs/platform/thread/common/thread';
+import 'vs/platform/thread/common/threadService';
 
-// Editor common
+// editor common
 import 'vs/editor/common/editorCommon';
-import 'vs/editor/common/modes/modesRegistry';
+import 'vs/editor/common/modes';
+import 'vs/editor/common/modes/abstractMode';
+import 'vs/editor/common/modes/abstractState';
 import 'vs/editor/common/modes/monarch/monarch';
 import 'vs/editor/common/modes/monarch/monarchCompile';
-import 'vs/editor/common/modes/textToHtmlTokenizer';
-import 'vs/editor/common/services/modeService';
+import 'vs/editor/common/modes/supports/declarationSupport';
+import 'vs/editor/common/modes/supports/parameterHintsSupport';
+import 'vs/editor/common/modes/supports/referenceSupport';
+import 'vs/editor/common/modes/supports/richEditSupport';
+import 'vs/editor/common/modes/supports/suggestSupport';
+import 'vs/editor/common/modes/supports/tokenizationSupport';
 import 'vs/editor/common/services/modelService';
-
-// Modules duplicated in different language bundles
-this.require.config({
-	ignoreDuplicateModules: [
-		// Both TypeScript and JavaScript are referencing and including these
-		'vs/languages/typescript/common/features/tokenization',
-
-		'vs/languages/typescript/common/features/quickFixMainActions',
-		'vs/nls!vs/languages/typescript/common/features/quickFixMainActions',
-
-		'vs/languages/typescript/common/typescript',
-
-		'vs/languages/typescript/common/typescriptMode',
-		'vs/nls!vs/languages/typescript/common/typescriptMode',
-
-		'vs/languages/javascript/common/javascript.extensions',
-
-		// Both markdown and html are referencing and including:
-		'vs/languages/html/common/htmlTokenTypes',
-	]
-});
+import 'vs/editor/common/services/modeService';

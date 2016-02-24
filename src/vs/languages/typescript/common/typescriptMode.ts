@@ -30,6 +30,8 @@ import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport
 import {ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
 import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
+export import tokenization = tokenization;
+
 class SemanticValidator {
 
 	private _modelService: IModelService;

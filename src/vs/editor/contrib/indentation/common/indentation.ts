@@ -23,6 +23,9 @@ export class IndentationToSpacesAction extends EditorAction {
 
 		const command = new IndentationToSpacesCommand(this.editor.getSelection(), this.editor.getIndentationOptions().tabSize);
 		this.editor.executeCommands(this.id, [command]);
+		this.editor.updateOptions({
+			insertSpaces: true
+		});
 
 		return TPromise.as(true);
 	}
@@ -39,14 +42,19 @@ export class IndentationToTabsAction extends EditorAction {
 
 		const command = new IndentationToTabsCommand(this.editor.getSelection(), this.editor.getIndentationOptions().tabSize);
 		this.editor.executeCommands(this.id, [command]);
+		this.editor.updateOptions({
+			insertSpaces: false
+		});
 
 		return TPromise.as(true);
 	}
 }
 
-export abstract class Indent extends EditorAction {
+export class ChangeIndentationSizeAction extends EditorAction {
 
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, private insertSpaces: boolean, private quickOpenService: IQuickOpenService) {
+	static ID = 'editor.action.changeIndentationSize';
+
+	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IQuickOpenService private quickOpenService: IQuickOpenService) {
 		super(descriptor, editor);
 	}
 
@@ -54,7 +62,6 @@ export abstract class Indent extends EditorAction {
 		return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() =>
 			this.quickOpenService.pick(['1', '2', '3', '4', '5', '6', '7', '8'], { placeHolder: nls.localize('selectTabWidth', "Select Tab Width")}).then(pick => {
 				this.editor.updateOptions({
-					insertSpaces: this.insertSpaces,
 					tabSize: parseInt(pick)
 				});
 				return true;
@@ -63,24 +70,7 @@ export abstract class Indent extends EditorAction {
 	}
 }
 
-export class IndentUsingSpaces extends Indent {
-	static ID = 'editor.action.indentUsingSpaces';
-
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IQuickOpenService quickOpenService: IQuickOpenService) {
-		super(descriptor, editor, true, quickOpenService);
-	}
-}
-
-export class IndentUsingTabs extends Indent {
-	static ID = 'editor.action.indentUsingTabs';
-
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IQuickOpenService quickOpenService: IQuickOpenService) {
-		super(descriptor, editor, false, quickOpenService);
-	}
-}
-
 // register actions
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentationToSpacesAction, IndentationToSpacesAction.ID, nls.localize('indentationToSpaces', "Convert Indentation to Spaces")));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentationToTabsAction, IndentationToTabsAction.ID, nls.localize('indentationToTabs', "Convert Indentation to Tabs")));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentUsingSpaces, IndentUsingSpaces.ID, nls.localize('indentUsingSpaces', "Indent Using Spaces")));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentUsingTabs, IndentUsingTabs.ID, nls.localize('indentUsingTabs', "Indent Using Tabs")));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ChangeIndentationSizeAction, ChangeIndentationSizeAction.ID, nls.localize('changeIndentationSize', "Change Indentation Size")));
