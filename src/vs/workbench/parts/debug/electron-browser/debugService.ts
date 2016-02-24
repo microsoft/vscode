@@ -225,7 +225,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 	private registerSessionListeners(): void {
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.INITIALIZED, (event: DebugProtocol.InitializedEvent) => {
-			aria.alert(nls.localize('programStarted', "Program started."));
+			aria.alert(nls.localize('debuggingStarted', "Debugging started."));
 			this.sendAllBreakpoints().then(() => {
 				if (this.session.capabilities.supportsConfigurationDoneRequest) {
 					this.session.configurationDone().done(null, errors.onUnexpectedError);
@@ -244,7 +244,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 					this.windowService.getWindow().focus();
 					const callStack = this.model.getThreads()[threadId].callStack;
 					if (callStack.length > 0) {
-						aria.alert(nls.localize('programStopped', "Program stopped, reason {0}, {1} {2}", event.body.reason, callStack[0].source.name, callStack[0].lineNumber));
+						aria.alert(nls.localize('programPaused', "Program paused, reason {0}, {1} {2}", event.body.reason, callStack[0].source.name, callStack[0].lineNumber));
 						this.setFocusedStackFrameAndEvaluate(callStack[0]);
 						this.openOrRevealEditor(callStack[0].source, callStack[0].lineNumber, false, false).done(null, errors.onUnexpectedError);
 					} else {
@@ -277,7 +277,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.DEBUGEE_TERMINATED, (event: DebugProtocol.TerminatedEvent) => {
-			aria.alert(nls.localize('programTerminated', "Program terminated."));
+			aria.alert(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (this.session && this.session.getId() === (<any>event).sessionId) {
 				if (event.body && typeof event.body.restart === 'boolean' && event.body.restart) {
 					this.restartSession().done(null, errors.onUnexpectedError);
