@@ -35,6 +35,7 @@ const InstallLabel = nls.localize('install', "Install Extension");
 const UpdateLabel = nls.localize('update', "Update Extension");
 
 export interface IHighlights {
+	id: IHighlight[];
 	name: IHighlight[];
 	displayName: IHighlight[];
 	description: IHighlight[];
@@ -64,15 +65,16 @@ interface ITemplateData {
 }
 
 function getHighlights(input: string, extension: IExtension): IHighlights {
+	const id = matchesContiguousSubString(input, `${ extension.publisher }.${ extension.name }`) || [];
 	const name = matchesContiguousSubString(input, extension.name) || [];
 	const displayName = matchesContiguousSubString(input, extension.displayName) || [];
 	const description = matchesContiguousSubString(input, extension.description) || [];
 
-	if (!name.length && !displayName.length && !description.length) {
+	if (!id.length && !name.length && !displayName.length && !description.length) {
 		return null;
 	}
 
-	return { name, displayName, description };
+	return { id, name, displayName, description };
 }
 
 function extensionEquals(one: IExtension, other: IExtension): boolean {
@@ -338,7 +340,7 @@ class LocalExtensionsModel implements IModel<IExtensionEntry> {
 
 	public set input(input: string) {
 		this.entries = this.extensions
-			.map(extension => ({ extension, highlights: getHighlights(input, extension) }))
+			.map(extension => ({ extension, highlights: getHighlights(input.trim(), extension) }))
 			.filter(({ highlights }) => !!highlights)
 			.map(({ extension, highlights }) => ({
 				extension,
@@ -410,7 +412,7 @@ class GalleryExtensionsModel implements IModel<IExtensionEntry> {
 
 	public set input(input: string) {
 		this.entries = this.galleryExtensions
-			.map(extension => ({ extension, highlights: getHighlights(input, extension) }))
+			.map(extension => ({ extension, highlights: getHighlights(input.trim(), extension) }))
 			.filter(({ highlights }) => !!highlights)
 			.map(({ extension, highlights }: { extension: IExtension, highlights: IHighlights }) => {
 				const local = this.localExtensions.filter(local => extensionEquals(local, extension))[0];
@@ -490,7 +492,7 @@ class OutdatedExtensionsModel implements IModel<IExtensionEntry> {
 
 	public set input(input: string) {
 		this.entries = this.galleryExtensions
-			.map(extension => ({ extension, highlights: getHighlights(input, extension) }))
+			.map(extension => ({ extension, highlights: getHighlights(input.trim(), extension) }))
 			.filter(({ extension, highlights }) => {
 				const local = this.localExtensions.filter(local => extensionEquals(local, extension))[0];
 				return local && semver.lt(local.version, extension.version) && !!highlights;
@@ -566,7 +568,7 @@ class SuggestedExtensionsModel implements IModel<IExtensionEntry> {
 
 	public set input(input: string) {
 		this.entries = this.suggestedExtensions
-			.map(extension => ({ extension, highlights: getHighlights(input, extension) }))
+			.map(extension => ({ extension, highlights: getHighlights(input.trim(), extension) }))
 			.filter(({ highlights }) => !!highlights)
 			.map(({ extension, highlights }: { extension: IExtension, highlights: IHighlights }) => {
 
