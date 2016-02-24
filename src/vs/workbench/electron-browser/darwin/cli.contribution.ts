@@ -33,7 +33,7 @@ const isAvailable = fs.existsSync(source);
 class InstallAction extends Action {
 
 	static ID = 'workbench.action.installCommandLine';
-	static LABEL = nls.localize('install', 'Install in PATH');
+	static LABEL = nls.localize('install', "Install 'code' command in PATH");
 
 	constructor(
 		id: string,
@@ -159,7 +159,7 @@ class InstallAction extends Action {
 class UninstallAction extends Action {
 
 	static ID = 'workbench.action.uninstallCommandLine';
-	static LABEL = nls.localize('uninstall', 'Uninstall from PATH');
+	static LABEL = nls.localize('uninstall', "Uninstall 'code' command from PATH");
 
 	constructor(
 		id: string,
