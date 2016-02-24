@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import tokenization = require('vs/languages/typescript/common/features/tokenization');
 import javascriptWorker = require('vs/languages/javascript/common/javascriptWorker');
 import typescriptMode = require('vs/languages/typescript/common/typescriptMode');
 import typescript = require('vs/languages/typescript/common/typescript');
@@ -21,6 +20,8 @@ import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSup
 import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
 import {ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
 import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
+
+import tokenization = typescriptMode.tokenization;
 
 export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaScriptWorker> {
 

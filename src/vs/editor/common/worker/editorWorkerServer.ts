@@ -7,6 +7,8 @@
 
 // include these in the editor bundle because they are widely used by many languages
 import 'vs/editor/common/languages.common';
+import 'vs/editor/common/worker/validationHelper';
+
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {WorkerServer} from 'vs/base/common/worker/workerServer';

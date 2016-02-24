@@ -38,21 +38,18 @@ exports.collectModules = function(args) {
 	var common = new EntryPoint(result, 'vs/editor/common/languages.common');
 	var worker = new EntryPoint(result, ['vs/editor/common/languages.common', 'vs/base/common/worker/workerServer', 'vs/editor/common/worker/editorWorkerServer']);
 
-	// ---- javascript ----------------------------
-	common.define('vs/languages/javascript/common/javascript', ['vs/languages/typescript/common/lib/typescriptServices'])
-		.combine(worker)
-			.define('vs/languages/javascript/common/javascriptWorker', ['vs/languages/typescript/common/typescriptWorker2']);
-
-	common.define('vs/languages/javascript/common/javascript.extensions');
-
 	// ---- json ---------------------------------
 	common.define('vs/languages/json/common/json')
 		.combine(worker)
 			.define('vs/languages/json/common/jsonWorker');
 
-	// ---- typescript -----------------------------------
+	// ---- shared between javascript and typescript -----------------------------------
 	common.define('vs/languages/typescript/common/lib/typescriptServices');
-	var particpantExcludes = common.define('vs/languages/typescript/common/typescriptMode', ['vs/languages/typescript/common/lib/typescriptServices'])
+	common.define('vs/languages/typescript/common/typescript', 'vs/languages/typescript/common/lib/typescriptServices');
+	var SHARED_JS_TS = ['vs/languages/typescript/common/lib/typescriptServices', 'vs/languages/typescript/common/typescript'];
+
+	// ---- typescript -----------------------------------
+	var particpantExcludes = common.define('vs/languages/typescript/common/typescriptMode', SHARED_JS_TS)
 		.combine(worker)
 			.define('vs/languages/typescript/common/typescriptWorker2');
 
@@ -62,6 +59,11 @@ exports.collectModules = function(args) {
 	particpantExcludes.define('vs/languages/typescript/common/js/defineRewriter');
 	particpantExcludes.define('vs/languages/typescript/common/js/es6PropertyDeclarator');
 	particpantExcludes.define('vs/languages/typescript/common/js/requireRewriter');
+
+	// ---- javascript ----------------------------
+	common.define('vs/languages/javascript/common/javascript', SHARED_JS_TS.concat(['vs/languages/typescript/common/typescriptMode']))
+		.combine(worker)
+			.define('vs/languages/javascript/common/javascriptWorker', ['vs/languages/typescript/common/typescriptWorker2']);
 
 	return result;
 };
