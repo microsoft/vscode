@@ -176,13 +176,13 @@
 .monaco-editor.hc-black .line-delete,
 .monaco-editor.hc-black .char-delete {
 	background: none;
-	border: 1px dotted white;
+	border: 1px dashed #FF008F;
 }
 
 .monaco-editor.hc-black .line-insert,
 .monaco-editor.hc-black .char-insert {
 	background: none;
-	border: 1px dashed white;
+	border: 1px dashed rgb(51, 255, 46);
 }
 
 .monaco-editor.hc-black .diagonal-fill {
