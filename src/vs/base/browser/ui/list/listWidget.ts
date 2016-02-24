@@ -7,7 +7,7 @@ import 'vs/css!./list';
 import { IDisposable, dispose, disposeAll } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import * as DOM from 'vs/base/browser/dom';
-import Event, { Emitter, mapEvent, EventDelayer } from 'vs/base/common/event';
+import Event, { Emitter, mapEvent, EventBufferer } from 'vs/base/common/event';
 import { IDelegate, IRenderer, IListMouseEvent, IFocusChangeEvent, ISelectionChangeEvent } from './list';
 import { ListView } from './listView';
 
@@ -128,16 +128,16 @@ export class List<T> implements IDisposable {
 
 	private focus: Trait;
 	private selection: Trait;
-	private eventDelayer: EventDelayer;
+	private eventBufferer: EventBufferer;
 	private view: ListView<T>;
 	private controller: Controller<T>;
 
 	get onFocusChange(): Event<IFocusChangeEvent<T>> {
-		return this.eventDelayer.delay(mapEvent(this.focus.onChange, e => this.toListEvent(e)));
+		return this.eventBufferer.wrapEvent(mapEvent(this.focus.onChange, e => this.toListEvent(e)));
 	}
 
 	get onSelectionChange(): Event<ISelectionChangeEvent<T>> {
-		return this.eventDelayer.delay(mapEvent(this.selection.onChange, e => this.toListEvent(e)));
+		return this.eventBufferer.wrapEvent(mapEvent(this.selection.onChange, e => this.toListEvent(e)));
 	}
 
 	constructor(
@@ -147,7 +147,7 @@ export class List<T> implements IDisposable {
 	) {
 		this.focus = new Trait('focused');
 		this.selection = new Trait('selected');
-		this.eventDelayer = new EventDelayer();
+		this.eventBufferer = new EventBufferer();
 
 		renderers = renderers.map(r => {
 			r = this.focus.wrapRenderer(r);
@@ -160,7 +160,7 @@ export class List<T> implements IDisposable {
 	}
 
 	splice(start: number, deleteCount: number, ...elements: T[]): void {
-		this.eventDelayer.wrap(() => {
+		this.eventBufferer.bufferEvents(() => {
 			this.focus.splice(start, deleteCount, elements.length);
 			this.selection.splice(start, deleteCount, elements.length);
 			this.view.splice(start, deleteCount, ...elements);
@@ -180,7 +180,7 @@ export class List<T> implements IDisposable {
 	}
 
 	setSelection(...indexes: number[]): void {
-		this.eventDelayer.wrap(() => {
+		this.eventBufferer.bufferEvents(() => {
 			indexes = indexes.concat(this.selection.set(...indexes));
 			indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
 		});
@@ -204,7 +204,7 @@ export class List<T> implements IDisposable {
 	}
 
 	setFocus(...indexes: number[]): void {
-		this.eventDelayer.wrap(() => {
+		this.eventBufferer.bufferEvents(() => {
 			indexes = indexes.concat(this.focus.set(...indexes));
 			indexes.forEach(i => this.view.splice(i, 1, this.view.element(i)));
 		});
