@@ -201,3 +201,8 @@
 .monaco-editor.hc-black .token {
 	mix-blend-mode: difference;
 }
+
+/* Status Bar */
+.monaco-shell a.extensions-suggestions:not(.disabled) {
+	background-color: transparent;
+}
