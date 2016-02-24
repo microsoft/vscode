@@ -6,12 +6,14 @@
 	.st0{fill:#B6B6B6;}
 	.st1{fill:none;stroke:#6B6B6B;stroke-miterlimit:10;}
 </style>
-<g id="iconBg">
-	<g>
-		<path class="st0" d="M12,3v9H3V3H12 M13,2H2v11h11V2L13,2z"/>
-	</g>
-</g>
 <g>
-	<line class="st1" x1="11" y1="7.5" x2="4" y2="7.5"/>
+	<g>
+		<path class="st0" d="M11,4v7H4V4H11 M12,3H3v9h9V3L12,3z"/>
+	</g>
+	<g>
+		<g>
+			<line class="st1" x1="10" y1="7.5" x2="5" y2="7.5"/>
+		</g>
+	</g>
 </g>
 </svg>

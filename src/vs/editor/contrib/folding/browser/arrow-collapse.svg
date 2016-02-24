@@ -4,17 +4,23 @@
 	 viewBox="0 0 15 15" style="enable-background:new 0 0 15 15;" xml:space="preserve">
 <style type="text/css">
 	.st0{fill:#E8E8E8;}
-	.st1{fill:none;stroke:#6B6B6B;stroke-miterlimit:10;}
-	.st2{fill:#B6B6B6;}
+	.st1{fill:#B6B6B6;}
+	.st2{fill:none;stroke:#6B6B6B;stroke-miterlimit:10;}
 </style>
-<rect x="2" y="2" class="st0" width="11" height="11"/>
+<rect x="3" y="3" class="st0" width="9" height="9"/>
 <g>
-	<line class="st1" x1="7.5" y1="4" x2="7.5" y2="11"/>
-	<line class="st1" x1="11" y1="7.5" x2="4" y2="7.5"/>
-</g>
-<g id="iconBg">
 	<g>
-		<path class="st2" d="M12,3v9H3V3H12 M13,2H2v11h11V2L13,2z"/>
+		<path class="st1" d="M11,4v7H4V4H11 M12,3H3v9h9V3L12,3z"/>
+	</g>
+	<g>
+		<g>
+			<line class="st2" x1="10" y1="7.5" x2="5" y2="7.5"/>
+		</g>
+	</g>
+	<g>
+		<g>
+			<line class="st2" x1="7.5" y1="5" x2="7.5" y2="10"/>
+		</g>
 	</g>
 </g>
 </svg>
