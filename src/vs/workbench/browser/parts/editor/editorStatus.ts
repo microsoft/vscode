@@ -93,7 +93,11 @@ interface StateDelta {
 	mode?: string;
 	encoding?: string;
 	EOL?: string;
-	indentation?: string;
+	indentation?: {
+		modelId: string;
+		insertSpaces: boolean;
+		tabSize: number;
+	};
 	tabFocusMode?: boolean;
 }
 
@@ -112,6 +116,8 @@ class State {
 
 	private _indentation: string;
 	public get indentation(): string { return this._indentation; }
+	private _indentationHistory: { [modelId: string]: { insertSpaces: boolean, tabSize: number }};
+	public get indentationHistory(): { [modelId: string]: { insertSpaces: boolean, tabSize: number }} { return this._indentationHistory; }
 
 	private _tabFocusMode: boolean;
 	public get tabFocusMode(): boolean { return this._tabFocusMode; }
@@ -122,6 +128,7 @@ class State {
 		this._encoding = null;
 		this._EOL = null;
 		this._tabFocusMode = false;
+		this._indentationHistory = {};
 	}
 
 	public update(update:StateDelta): IStateChange {
@@ -143,8 +150,14 @@ class State {
 			}
 		}
 		if (typeof update.indentation !== 'undefined') {
-			if (this._indentation !== update.indentation) {
-				this._indentation = update.indentation;
+			let indentationLabel = null;
+			if (update.indentation) {
+				indentationLabel = update.indentation.insertSpaces ? nls.localize('spacesSize', "Spaces: {0}", update.indentation.tabSize) :
+					nls.localize('tabSize', "Tab Size: {0}", update.indentation.tabSize);
+				this._indentationHistory[update.indentation.modelId] = update.indentation;
+			}
+			if (this._indentation !== indentationLabel) {
+				this._indentation = indentationLabel;
 				somethingChanged = true;
 				e.indentation = true;
 			}
@@ -217,7 +230,8 @@ export class EditorStatus implements IStatusbarItem {
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEventService private eventService: IEventService,
-		@IModeService private modeService: IModeService
+		@IModeService private modeService: IModeService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.toDispose = [];
 		this.state = new State();
@@ -264,7 +278,7 @@ export class EditorStatus implements IStatusbarItem {
 			this.eventService.addListener2(EventType.TEXT_EDITOR_MODE_CHANGED, (e: EditorEvent) => this.onModeChange(e.editor)),
 			this.eventService.addListener2(EventType.TEXT_EDITOR_CONTENT_CHANGED, (e: EditorEvent) => this.onEOLChange(e.editor)),
 			this.eventService.addListener2(EventType.TEXT_EDITOR_CONFIGURATION_CHANGED, (e: EditorEvent) => this.onTabFocusModeChange(e.editor)),
-			this.eventService.addListener2(EventType.TEXT_EDITOR_CONFIGURATION_CHANGED, (e: EditorEvent) => this.onIndentationChange(e.editor))
+			this.eventService.addListener2(EventType.TEXT_EDITOR_CONFIGURATION_CHANGED, (e: EditorEvent) => this.onIndentationChange(e.editor, false))
 		);
 
 		return combinedDispose(...this.toDispose);
@@ -395,7 +409,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.onEOLChange(e);
 		this.onEncodingChange(e);
 		this.onTabFocusModeChange(e);
-		this.onIndentationChange(e);
+		this.onIndentationChange(e, true);
 	}
 
 	private onModeChange(e: IBaseEditor): void {
@@ -423,7 +437,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState(info);
 	}
 
-	private onIndentationChange(e: IBaseEditor): void {
+	private onIndentationChange(e: IBaseEditor, inputChanged: boolean): void {
 		if (e && !this.isActiveEditor(e)) {
 			return;
 		}
@@ -435,9 +449,29 @@ export class EditorStatus implements IStatusbarItem {
 				if (editorWidget.getEditorType() === EditorType.IDiffEditor) {
 					editorWidget = (<IDiffEditor>editorWidget).getModifiedEditor();
 				}
-				const options = (<ICommonCodeEditor>editorWidget).getIndentationOptions();
-				update.indentation = options.insertSpaces ? nls.localize('spacesSize', "Spaces: {0}", options.tabSize) :
-					nls.localize('tabSize', "Tab Size: {0}", options.tabSize);
+
+				const model = (<ICommonCodeEditor>editorWidget).getModel();
+				if (model) {
+					const modelId = model.getAssociatedResource().toString();
+					if (inputChanged) {
+						if (this.state.indentationHistory[modelId]) {
+							editorWidget.updateOptions(this.state.indentationHistory[modelId]);
+						} else {
+							this.configurationService.loadConfiguration('editor').done(config => {
+								editorWidget.updateOptions({
+									tabSize: config.tabSize,
+									insertSpaces: config.insertSpaces
+								});
+							}, errors.onUnexpectedError);
+						}
+					}
+
+					update.indentation = {
+						insertSpaces: (<ICommonCodeEditor>editorWidget).getIndentationOptions().insertSpaces,
+						tabSize: (<ICommonCodeEditor>editorWidget).getIndentationOptions().tabSize,
+						modelId
+					};
+				}
 			}
 		}
 
