@@ -265,6 +265,8 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	private delegate: IDelegate<CompletionItem>;
 	private list: List<CompletionItem>;
 
+	private editorBlurTimeout: TPromise<void>;
+	private showTimeout: TPromise<void>;
 	private toDispose: IDisposable[];
 
 	private _onDidVisibilityChange: Emitter<boolean> = new Emitter();
@@ -330,7 +332,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private onEditorBlur(): void {
-		TPromise.timeout(150).done(() => {
+		this.editorBlurTimeout = TPromise.timeout(150).then(() => {
 			if (!this.editor.isFocused()) {
 				this.setState(State.Hidden);
 			}
@@ -656,7 +658,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.updateWidgetHeight();
 		this._onDidVisibilityChange.fire(true);
 		this.renderDetails();
-		TPromise.timeout(100).done(() => {
+		this.showTimeout = TPromise.timeout(100).then(() => {
 			addClass(this.element, 'visible');
 		});
 	}
@@ -747,5 +749,17 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.toDispose = disposeAll(this.toDispose);
 		this._onDidVisibilityChange.dispose();
 		this._onDidVisibilityChange = null;
+		clearTimeout(this.loadingTimeout);
+		this.loadingTimeout = null;
+
+		if (this.editorBlurTimeout) {
+			this.editorBlurTimeout.cancel();
+			this.editorBlurTimeout = null;
+		}
+
+		if (this.showTimeout) {
+			this.showTimeout.cancel();
+			this.showTimeout = null;
+		}
 	}
 }
