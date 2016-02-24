@@ -543,8 +543,10 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	}
 
 	public clearReplExpressions(): void {
-		this.replElements = [];
-		this.emit(debug.ModelEvents.REPL_ELEMENTS_UPDATED);
+		if (this.replElements.length > 0) {
+			this.replElements = [];
+			this.emit(debug.ModelEvents.REPL_ELEMENTS_UPDATED);
+		}
 	}
 
 	public getWatchExpressions(): Expression[] {
