@@ -19,3 +19,7 @@
 .monaco-workbench.vs-dark > .part > .composite.title > .title-label span  {
 	color: #bbbbbb;
 }
+
+.monaco-workbench.hc-black > .part > .composite.title > .title-label span  {
+	color: #fff;
+}
