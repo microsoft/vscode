@@ -504,6 +504,8 @@ export class VSCodeMenu {
 		let moveSidebar = this.createMenuItem(nls.localize('miMoveSidebar', "&&Move Side Bar"), 'workbench.action.toggleSidebarPosition');
 		let togglePanel = this.createMenuItem(nls.localize('miTogglePanel', "Toggle &&Panel"), 'workbench.action.togglePanel');
 
+		const toggleWordWrap = this.createMenuItem(nls.localize('miToggleWordWrap', "Toggle &&Word Wrap"), 'editor.action.toggleWordWrap');
+
 		let zoomIn = this.createMenuItem(nls.localize('miZoomIn', "&&Zoom in"), 'workbench.action.zoomIn');
 		let zoomOut = this.createMenuItem(nls.localize('miZoomOut', "Zoom o&&ut"), 'workbench.action.zoomOut');
 
@@ -526,6 +528,8 @@ export class VSCodeMenu {
 			toggleSidebar,
 			moveSidebar,
 			togglePanel,
+			__separator__(),
+			toggleWordWrap,
 			__separator__(),
 			zoomIn,
 			zoomOut
