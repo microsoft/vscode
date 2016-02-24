@@ -170,6 +170,7 @@
 .monaco-editor.hc-black .reference-zone-widget .preview .reference-decoration {
 	background: none;
 	border: 2px solid #f38518;
+	box-sizing: border-box;
 }
 
 .monaco-editor.hc-black .reference-zone-widget .tree {
