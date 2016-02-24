@@ -45,7 +45,7 @@ var editorOtherSources = [
 
 var BUNDLED_FILE_HEADER = [
 	'/*!-----------------------------------------------------------',
-	' * Copyright (C) Microsoft Corporation. All rights reserved.',
+	' * Copyright (c) Microsoft Corporation. All rights reserved.',
 	' * Version: ' + commit,
 	' * Released under the MIT license',
 	' * https://github.com/Microsoft/vscode/blob/master/LICENSE.txt',
