@@ -533,9 +533,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 				}
 
 				this.messageService.show(severity.Error, {
-					message: errorCount === 1 ? nls.localize('preLaunchTaskError', "{0} error detected after running preLaunchTask '{1}'.", errorCount, configuration.preLaunchTask) :
-						errorCount > 1 ? nls.localize('preLaunchTaskErrors', "{0} errors detected after running preLaunchTask '{1}'.", errorCount, configuration.preLaunchTask) :
-						nls.localize('preLaunchTaskExitCode', "preLaunchTask {0} terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
+					message: errorCount > 0 ? nls.localize('preLaunchTaskErrors', "Errors detected while running prelaunch task '{0}'.", configuration.preLaunchTask) :
+						nls.localize('preLaunchTaskExitCode', "Prelaunch task {0} terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
 					actions: [CloseAction, new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
 						this.messageService.hideAll();
 						return this.doCreateSession(configuration, openViewlet);
@@ -610,7 +609,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.taskService.tasks().then(descriptions => {
 			const filteredTasks = descriptions.filter(task => task.name === taskName);
 			if (filteredTasks.length !== 1) {
-				this.messageService.show(severity.Warning, nls.localize('DebugTaskNotFound', "Could not find a unique task \'{0}\'. Make sure the task exists and that it has a unique name.", taskName));
+				this.messageService.show(severity.Error, nls.localize('DebugTaskNotFound', "Could not find the task \'{0}\'. Make sure the task exists and it has a unique name.", taskName));
 				return TPromise.as(null);
 			}
 
