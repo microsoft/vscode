@@ -73,7 +73,7 @@
 		<key>await-modifier</key>
 		<dict>
 			<key>match</key>
-			<string>await</string>
+			<string>\bawait\b</string>
 			<key>name</key>
 			<string>storage.modifier.ts</string>
 		</dict>
@@ -408,7 +408,7 @@
 		<key>expression-operator</key>
 		<dict>
 			<key>match</key>
-			<string>=&gt;|\b(delete|export|import|from|in|instanceof|module|namespace|new|typeof|void|as)\b</string>
+			<string>=&gt;|\b(delete|export|import|from|in|instanceof|new|typeof|void|as)\b</string>
 			<key>name</key>
 			<string>keyword.operator.ts</string>
 		</dict>
@@ -1241,7 +1241,7 @@
 		<key>storage-keyword</key>
 		<dict>
 			<key>match</key>
-			<string>\b(number|boolean|string|any|var|let|function|const)\b</string>
+			<string>\b(number|boolean|string|any|var|let|function|const|module|namespace)\b</string>
 			<key>name</key>
 			<string>storage.type.ts</string>
 		</dict>
