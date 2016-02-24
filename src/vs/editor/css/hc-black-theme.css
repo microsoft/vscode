@@ -73,6 +73,14 @@
 	box-sizing: border-box;
 }
 
+/* Search */
+.search-viewlet .findInFileMatch, .monaco-editor .findInFileMatch {
+	background: none !important;
+	border: 1px dotted #f38518;
+	-moz-box-sizing: border-box;
+	box-sizing: border-box;
+}
+
 /* Squigglies */
 .monaco-editor.hc-black .redsquiggly {
 	background: none;
