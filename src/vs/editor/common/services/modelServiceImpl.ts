@@ -24,6 +24,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import * as platform from 'vs/base/common/platform';
+import {IConfigurationService, ConfigurationServiceEventTypes, IConfigurationServiceEvent} from 'vs/platform/configuration/common/configuration';
 
 export interface IRawModelData {
 	url:URI;
@@ -175,22 +176,46 @@ export class ModelServiceImpl implements IModelService {
 	private _markerServiceSubscription: IDisposable;
 	private _threadService: IThreadService;
 	private _modeService: IModeService;
+	private _configurationService: IConfigurationService;
+	private _configurationServiceSubscription: IDisposable;
 	private _workerHelper: ModelServiceWorkerHelper;
 
 	private _onModelAdded: Emitter<editorCommon.IModel>;
 	private _onModelRemoved: Emitter<editorCommon.IModel>;
 	private _onModelModeChanged: Emitter<{ model: editorCommon.IModel; oldModeId: string; }>;
+	private _defaultEOL: editorCommon.DefaultEndOfLine;
 
 	/**
 	 * All the models known in the system.
 	 */
 	private _models: {[modelId:string]:ModelData;};
 
-	constructor(threadService: IThreadService, markerService: IMarkerService, modeService:IModeService) {
+	constructor(
+		threadService: IThreadService,
+		markerService: IMarkerService,
+		modeService: IModeService,
+		configurationService: IConfigurationService
+	) {
+		this._defaultEOL = (platform.isLinux || platform.isMacintosh) ? editorCommon.DefaultEndOfLine.LF : editorCommon.DefaultEndOfLine.CRLF;
 		this._threadService = threadService;
 		this._markerService = markerService;
 		this._modeService = modeService;
 		this._workerHelper = this._threadService.getRemotable(ModelServiceWorkerHelper);
+		this._configurationService = configurationService;
+
+		let readDefaultEOL = (config:any) => {
+			if (config.files.eol === '\r\n') {
+				this._defaultEOL = editorCommon.DefaultEndOfLine.CRLF;
+			} else if (config.files.eol === '\n') {
+				this._defaultEOL = editorCommon.DefaultEndOfLine.LF;
+			}
+		};
+		this._configurationServiceSubscription = this._configurationService.addListener2(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
+			readDefaultEOL(e.config);
+		});
+		this._configurationService.loadConfiguration().then((config) => {
+			readDefaultEOL(config);
+		});
 
 		this._models = {};
 
@@ -207,6 +232,7 @@ export class ModelServiceImpl implements IModelService {
 		if(this._markerServiceSubscription) {
 			this._markerServiceSubscription.dispose();
 		}
+		this._configurationServiceSubscription.dispose();
 	}
 
 	private _handleMarkerChange(changedResources: URI[]): void {
@@ -231,9 +257,8 @@ export class ModelServiceImpl implements IModelService {
 	}
 
 	private _createModelData(value:string, modeOrPromise:TPromise<IMode>|IMode, resource: URI): ModelData {
-		let defaultEOL = (platform.isLinux || platform.isMacintosh) ? editorCommon.DefaultEndOfLine.LF : editorCommon.DefaultEndOfLine.CRLF;
 		// create & save the model
-		let model = new Model(value, defaultEOL, modeOrPromise, resource);
+		let model = new Model(value, this._defaultEOL, modeOrPromise, resource);
 		let modelId = MODEL_ID(model.getAssociatedResource());
 
 		if (this._models[modelId]) {

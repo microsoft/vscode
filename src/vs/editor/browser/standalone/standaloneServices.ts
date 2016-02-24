@@ -40,7 +40,7 @@ import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceIm
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
-import {SimpleEditorRequestService, SimpleMessageService, SimplePluginService, StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
+import {SimpleConfigurationService, SimpleEditorRequestService, SimpleMessageService, SimplePluginService, StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
 
 export interface IEditorContextViewService extends IContextViewService {
 	dispose(): void;
@@ -73,6 +73,7 @@ export interface IEditorOverrideServices {
 }
 
 export interface IStaticServices {
+	configurationService: IConfigurationService;
 	threadService: IThreadService;
 	modeService: IModeService;
 	pluginService: IPluginService;
@@ -155,9 +156,8 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 
 	let contextService = services.contextService;
 	if (!contextService) {
-		let workspaceUri = URI.create('inmemory', 'model', '/');
 		contextService = new BaseWorkspaceContextService({
-			resource: workspaceUri,
+			resource: URI.create('inmemory', 'model', '/'),
 			id: null,
 			name: null,
 			uid: null,
@@ -173,6 +173,8 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 		telemetryService = new MainTelemetryService({enableTelemetry: enableTelemetry});
 	}
 
+	let eventService = services.eventService || new EventService();
+	let configurationService = services.configurationService || new SimpleConfigurationService(contextService, eventService);
 
 	// warn the user that standaloneEdiktorTelemetryEndpint is absolete
 	if (flags.standaloneEditorTelemetryEndpoint) {
@@ -185,12 +187,12 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	let markerService = services.markerService || new MainProcessMarkerService(threadService);
 	let requestService = services.requestService || new SimpleEditorRequestService(contextService, telemetryService);
 	let modeService = services.modeService || new MainThreadModeServiceImpl(threadService, pluginService);
-	let modelService = services.modelService || new ModelServiceImpl(threadService, markerService, modeService);
+	let modelService = services.modelService || new ModelServiceImpl(threadService, markerService, modeService, configurationService);
 	let editorWorkerService = services.editorWorkerService || new EditorWorkerServiceImpl(modelService);
 	let codeEditorService = services.codeEditorService || new CodeEditorServiceImpl();
-	let eventService = services.eventService || new EventService();
 
 	staticServices = {
+		configurationService: configurationService,
 		pluginService: pluginService,
 		modeService: modeService,
 		threadService: threadService,

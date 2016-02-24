@@ -31,6 +31,11 @@ import {ModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
+import {TPromise} from 'vs/base/common/winjs.base';
+import URI from 'vs/base/common/uri';
+import {ConfigurationService, IContent, IStat} from 'vs/platform/configuration/common/configurationService';
+import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
+import {EventService} from 'vs/platform/event/common/eventService';
 
 export interface IMockPlatformServices {
 	threadService?:IThreadService;
@@ -145,15 +150,54 @@ export function createMockModeService(): IModeService {
 }
 
 export function createMockModelService(): IModelService {
+	let contextService = new BaseWorkspaceContextService({
+		resource: URI.create('inmemory', 'model', '/'),
+		id: null,
+		name: null,
+		uid: null,
+		mtime: null
+	}, {});
+	let eventService = new EventService();
+	let configurationService = new MockConfigurationService(contextService, eventService);
 	var threadService = NULL_THREAD_SERVICE;
 	var pluginService = new MockPluginService();
 	var modeService = new MockModeService(threadService, pluginService);
-	var modelService = new MockModelService(threadService, null, modeService);
+	var modelService = new MockModelService(threadService, null, modeService, configurationService);
 	var inst = createInstantiationService({
 		threadService: threadService,
 		pluginService: pluginService,
-		modeService: modeService
+		modeService: modeService,
+		contextService: contextService,
+		eventService: eventService,
+		configurationService: configurationService
 	});
 	threadService.setInstantiationService(inst);
 	return modelService;
+}
+
+export class MockConfigurationService extends ConfigurationService {
+
+	protected resolveContents(resources: URI[]): TPromise<IContent[]> {
+		return TPromise.as(resources.map((resource) => {
+			return {
+				resource: resource,
+				value: ''
+			};
+		}));
+	}
+
+	protected resolveContent(resource: URI): TPromise<IContent> {
+		return TPromise.as({
+			resource: resource,
+			value: ''
+		});
+	}
+
+	protected resolveStat(resource: URI): TPromise<IStat> {
+		return TPromise.as({
+			resource: resource,
+			isDirectory: false
+		});
+	}
+
 }

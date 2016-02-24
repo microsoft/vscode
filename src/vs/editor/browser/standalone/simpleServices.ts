@@ -22,6 +22,8 @@ import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
+import {ConfigurationService, IContent, IStat} from 'vs/platform/configuration/common/configurationService';
+import URI from 'vs/base/common/uri';
 
 export class SimpleEditor implements IEditor {
 
@@ -282,6 +284,33 @@ export class SimplePluginService extends AbstractPluginService<ActivatedPlugin> 
 
 	protected _actualActivatePlugin(pluginDescription: IPluginDescription): TPromise<ActivatedPlugin> {
 		throw new Error('unexpected');
+	}
+
+}
+
+export class SimpleConfigurationService extends ConfigurationService {
+
+	protected resolveContents(resources: URI[]): TPromise<IContent[]> {
+		return TPromise.as(resources.map((resource) => {
+			return {
+				resource: resource,
+				value: ''
+			};
+		}));
+	}
+
+	protected resolveContent(resource: URI): TPromise<IContent> {
+		return TPromise.as({
+			resource: resource,
+			value: ''
+		});
+	}
+
+	protected resolveStat(resource: URI): TPromise<IStat> {
+		return TPromise.as({
+			resource: resource,
+			isDirectory: false
+		});
 	}
 
 }

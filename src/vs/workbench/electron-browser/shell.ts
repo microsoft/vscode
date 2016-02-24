@@ -275,7 +275,7 @@ export class WorkbenchShell {
 		this.keybindingService.setPluginService(pluginService);
 
 		let modeService = new MainThreadModeServiceImpl(this.threadService, pluginService);
-		let modelService = new ModelServiceImpl(this.threadService, markerService, modeService);
+		let modelService = new ModelServiceImpl(this.threadService, markerService, modeService, configService);
 		let editorWorkerService = new EditorWorkerServiceImpl(modelService);
 
 		let untitledEditorService = new UntitledEditorService();

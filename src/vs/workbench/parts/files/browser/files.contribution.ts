@@ -35,6 +35,7 @@ import {IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import * as platform from 'vs/base/common/platform';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ToggleViewletAction {
@@ -199,6 +200,15 @@ configurationRegistry.registerConfiguration({
 			'enum': Object.keys(SUPPORTED_ENCODINGS),
 			'default': 'utf8',
 			'description': nls.localize('encoding', "The default character set encoding to use when reading and writing files."),
+		},
+		'files.eol': {
+			'type': 'string',
+			'enum': [
+				'\n',
+				'\r\n'
+			],
+			'default': (platform.isLinux || platform.isMacintosh) ? '\n' : '\r\n',
+			'description': nls.localize('eol', "The default end of line character."),
 		},
 		'files.trimTrailingWhitespace': {
 			'type': 'boolean',
