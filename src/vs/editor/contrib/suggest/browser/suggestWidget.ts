@@ -91,7 +91,10 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 
 		if (suggestion.documentationLabel) {
 			show(data.documentationDetails);
-
+			data.documentationDetails.onmousedown = e => {
+				e.stopPropagation();
+				e.preventDefault();
+			};
 			data.documentationDetails.onclick = e => {
 				e.stopPropagation();
 				e.preventDefault();
@@ -99,6 +102,7 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 			};
 		} else {
 			hide(data.documentationDetails);
+			data.documentationDetails.onmousedown = null;
 			data.documentationDetails.onclick = null;
 		}
 	}
@@ -203,6 +207,10 @@ class SuggestionDetails {
 		this.title.innerText = item.suggestion.label;
 		this.type.innerText = item.suggestion.typeLabel || '';
 		this.docs.innerText = item.suggestion.documentationLabel;
+		this.back.onmousedown = e => {
+			e.preventDefault();
+			e.stopPropagation();
+		};
 		this.back.onclick = e => {
 			e.preventDefault();
 			e.stopPropagation();
