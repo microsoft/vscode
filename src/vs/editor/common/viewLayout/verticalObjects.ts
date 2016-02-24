@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {IEditorWhitespace, IViewLinesViewportData, IViewWhitespaceViewportData} from 'vs/editor/common/editorCommon';
 import {WhitespaceComputer} from 'vs/editor/common/viewLayout/whitespaceComputer';
-import EditorCommon = require('vs/editor/common/editorCommon');
 
 /**
  * Layouting of objects that take vertical space (by having a height) and push down other objects.
@@ -243,7 +243,7 @@ export class VerticalObjects {
 	 * @param deviceLineHeight The height, in pixels, for one rendered line.
 	 * @return A structure describing the lines positioned between `verticalOffset1` and `verticalOffset2`.
 	 */
-	public getLinesViewportData(verticalOffset1:number, verticalOffset2:number, deviceLineHeight:number): EditorCommon.IViewLinesViewportData {
+	public getLinesViewportData(verticalOffset1:number, verticalOffset2:number, deviceLineHeight:number): IViewLinesViewportData {
 		// Find first line number
 		// We don't live in a perfect world, so the line number might start before or after verticalOffset1
 		var startLineNumber = this.getLineNumberAtOrAfterVerticalOffset(verticalOffset1, deviceLineHeight);
@@ -329,7 +329,6 @@ export class VerticalObjects {
 
 	public getVerticalOffsetForWhitespaceIndex(whitespaceIndex:number, deviceLineHeight:number): number {
 
-		var previousLinesHeight:number;
 		var afterLineNumber = this.whitespaces.getAfterLineNumberForWhitespaceIndex(whitespaceIndex);
 
 		var previousLinesHeight:number;
@@ -394,7 +393,7 @@ export class VerticalObjects {
 	 * @param deviceLineHeight The height, in pixels, for one rendered line.
 	 * @return Precisely the whitespace that is layouted at `verticaloffset` or null.
 	 */
-	public getWhitespaceAtVerticalOffset(verticalOffset:number, deviceLineHeight:number): EditorCommon.IViewWhitespaceViewportData {
+	public getWhitespaceAtVerticalOffset(verticalOffset:number, deviceLineHeight:number): IViewWhitespaceViewportData {
 
 		var candidateIndex = this.getWhitespaceIndexAtOrAfterVerticallOffset(verticalOffset, deviceLineHeight);
 
@@ -432,7 +431,7 @@ export class VerticalObjects {
 	 * @param deviceLineHeight The height, in pixels, for one rendered line.
 	 * @return An array with all the whitespaces in the viewport. If no whitespace is in viewport, the array is empty.
 	 */
-	public getWhitespaceViewportData(verticalOffset1:number, verticalOffset2:number, deviceLineHeight:number): EditorCommon.IViewWhitespaceViewportData[] {
+	public getWhitespaceViewportData(verticalOffset1:number, verticalOffset2:number, deviceLineHeight:number): IViewWhitespaceViewportData[] {
 
 		var startIndex = this.getWhitespaceIndexAtOrAfterVerticallOffset(verticalOffset1, deviceLineHeight);
 		var endIndex = this.whitespaces.getCount() - 1;
@@ -441,7 +440,7 @@ export class VerticalObjects {
 			return [];
 		}
 
-		var result: EditorCommon.IViewWhitespaceViewportData[] = [],
+		var result: IViewWhitespaceViewportData[] = [],
 			i:number,
 			top:number,
 			height:number;
@@ -464,7 +463,7 @@ export class VerticalObjects {
 		return result;
 	}
 
-	public getWhitespaces(deviceLineHeight:number): EditorCommon.IEditorWhitespace[] {
+	public getWhitespaces(deviceLineHeight:number): IEditorWhitespace[] {
 		return this.whitespaces.getWhitespaces(deviceLineHeight);
 	}
 }

@@ -1,0 +1,20 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench > .part.panel > .title {
+	border-top: 1px solid #007ACC;
+}
+
+.monaco-workbench > .part.panel > .title > .title-label > span {
+	vertical-align: top;
+}
+
+.monaco-workbench > .part.panel {
+	z-index: initial;
+}
+
+.monaco-workbench.no-workspace > .part.panel > .title {
+	border-color: #68217A;
+}

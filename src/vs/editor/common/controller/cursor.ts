@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {ReplaceCommand} from 'vs/editor/common/commands/replaceCommand';
+import {CursorCollection, ICursorCollectionState} from 'vs/editor/common/controller/cursorCollection';
+import {DispatcherEvent} from 'vs/editor/common/controller/handlerDispatcher';
+import {IOneCursorOperationContext, IPostOperationRunnable, IViewModelHelper, OneCursor, OneCursorOp} from 'vs/editor/common/controller/oneCursor';
+import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
-import {Position} from 'vs/editor/common/core/position';
-import {ReplaceCommand} from 'vs/editor/common/commands/replaceCommand';
-import {OneCursor, OneCursorOp, IViewModelHelper, IOneCursorOperationContext, IPostOperationRunnable} from 'vs/editor/common/controller/oneCursor';
-import {DispatcherEvent} from 'vs/editor/common/controller/handlerDispatcher';
-import {CursorCollection, ICursorCollectionState} from 'vs/editor/common/controller/cursorCollection';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Errors = require('vs/base/common/errors');
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 
 export interface ITypingListener {
 	(): void;
@@ -39,7 +39,7 @@ interface IMultipleCursorOperationContext {
 	eventData: any;
 	hasExecutedCommands: boolean;
 	isCursorUndo: boolean;
-	executeCommands: EditorCommon.ICommand[];
+	executeCommands: editorCommon.ICommand[];
 	postOperationRunnables: IPostOperationRunnable[];
 	requestScrollDeltaLines: number;
 }
@@ -50,12 +50,12 @@ interface IExecContext {
 }
 
 interface ICommandData {
-	operations: EditorCommon.IIdentifiedSingleEditOperation[];
+	operations: editorCommon.IIdentifiedSingleEditOperation[];
 	hadTrackedRange: boolean;
 }
 
 interface ICommandsData {
-	operations: EditorCommon.IIdentifiedSingleEditOperation[];
+	operations: editorCommon.IIdentifiedSingleEditOperation[];
 	hadTrackedRanges: boolean[];
 	anyoneHadTrackedRange: boolean;
 }
@@ -63,8 +63,8 @@ interface ICommandsData {
 export class Cursor extends EventEmitter {
 
 	private editorId:number;
-	/* protected */public configuration:EditorCommon.IConfiguration;
-	private model:EditorCommon.IModel;
+	/* protected */public configuration:editorCommon.IConfiguration;
+	private model:editorCommon.IModel;
 
 	private modelUnbinds:IDisposable[];
 
@@ -82,12 +82,12 @@ export class Cursor extends EventEmitter {
 
 	private enableEmptySelectionClipboard:boolean;
 
-	constructor(editorId:number, configuration:EditorCommon.IConfiguration, model:EditorCommon.IModel, viewModelHelper:IViewModelHelper, enableEmptySelectionClipboard:boolean) {
+	constructor(editorId:number, configuration:editorCommon.IConfiguration, model:editorCommon.IModel, viewModelHelper:IViewModelHelper, enableEmptySelectionClipboard:boolean) {
 		super([
-			EditorCommon.EventType.CursorPositionChanged,
-			EditorCommon.EventType.CursorSelectionChanged,
-			EditorCommon.EventType.CursorRevealRange,
-			EditorCommon.EventType.CursorScrollRequest
+			editorCommon.EventType.CursorPositionChanged,
+			editorCommon.EventType.CursorSelectionChanged,
+			editorCommon.EventType.CursorRevealRange,
+			editorCommon.EventType.CursorScrollRequest
 		]);
 		this.editorId = editorId;
 		this.configuration = configuration;
@@ -100,16 +100,16 @@ export class Cursor extends EventEmitter {
 				convertModelPositionToViewPosition: (lineNumber:number, column:number) => {
 					return new Position(lineNumber, column);
 				},
-				convertModelRangeToViewRange: (modelRange: EditorCommon.IEditorRange) => {
+				convertModelRangeToViewRange: (modelRange: editorCommon.IEditorRange) => {
 					return modelRange;
 				},
 				convertViewToModelPosition: (lineNumber:number, column:number) => {
 					return new Position(lineNumber, column);
 				},
-				validateViewPosition: (viewLineNumber:number, viewColumn:number, modelPosition:EditorCommon.IEditorPosition) => {
+				validateViewPosition: (viewLineNumber:number, viewColumn:number, modelPosition:editorCommon.IEditorPosition) => {
 					return modelPosition;
 				},
-				validateViewRange: (viewStartLineNumber:number, viewStartColumn:number, viewEndLineNumber:number, viewEndColumn:number, modelRange:EditorCommon.IEditorRange) => {
+				validateViewRange: (viewStartLineNumber:number, viewStartColumn:number, viewEndLineNumber:number, viewEndColumn:number, modelRange:editorCommon.IEditorRange) => {
 					return modelRange;
 				}
 
@@ -124,13 +124,13 @@ export class Cursor extends EventEmitter {
 		this._isHandling = false;
 
 		this.modelUnbinds = [];
-		this.modelUnbinds.push(this.model.addListener2(EditorCommon.EventType.ModelContentChanged, (e:EditorCommon.IModelContentChangedEvent) => {
+		this.modelUnbinds.push(this.model.addListener2(editorCommon.EventType.ModelContentChanged, (e:editorCommon.IModelContentChangedEvent) => {
 			this._onModelContentChanged(e);
 		}));
-		this.modelUnbinds.push(this.model.addListener2(EditorCommon.EventType.ModelModeChanged, (e:EditorCommon.IModelModeChangedEvent) => {
+		this.modelUnbinds.push(this.model.addListener2(editorCommon.EventType.ModelModeChanged, (e:editorCommon.IModelModeChangedEvent) => {
 			this._onModelModeChanged();
 		}));
-		this.modelUnbinds.push(this.model.addListener2(EditorCommon.EventType.ModelModeSupportChanged, (e: EditorCommon.IModeSupportChangedEvent) => {
+		this.modelUnbinds.push(this.model.addListener2(editorCommon.EventType.ModelModeSupportChanged, (e: editorCommon.IModeSupportChangedEvent) => {
 			// TODO@Alex: react only if certain supports changed?
 			this._onModelModeChanged();
 		}));
@@ -149,11 +149,11 @@ export class Cursor extends EventEmitter {
 		super.dispose();
 	}
 
-	public saveState(): EditorCommon.ICursorState[] {
+	public saveState(): editorCommon.ICursorState[] {
 
 		var selections = this.cursors.getSelections(),
-			result:EditorCommon.ICursorState[] = [],
-			selection: EditorCommon.IEditorSelection;
+			result:editorCommon.ICursorState[] = [],
+			selection: editorCommon.IEditorSelection;
 
 		for (var i = 0; i < selections.length; i++) {
 			selection = selections[i];
@@ -174,10 +174,10 @@ export class Cursor extends EventEmitter {
 		return result;
 	}
 
-	public restoreState(states:EditorCommon.ICursorState[]): void {
+	public restoreState(states:editorCommon.ICursorState[]): void {
 
-		var desiredSelections:EditorCommon.ISelection[] = [],
-			state:EditorCommon.ICursorState;
+		var desiredSelections:editorCommon.ISelection[] = [],
+			state:editorCommon.ICursorState;
 
 		for (var i = 0; i < states.length; i++) {
 			state = states[i];
@@ -216,11 +216,11 @@ export class Cursor extends EventEmitter {
 		}, new DispatcherEvent('restoreState', null));
 	}
 
-	public setEditableRange(range:EditorCommon.IRange): void {
+	public setEditableRange(range:editorCommon.IRange): void {
 		this.model.setEditableRange(range);
 	}
 
-	public getEditableRange(): EditorCommon.IEditorRange {
+	public getEditableRange(): editorCommon.IEditorRange {
 		return this.model.getEditableRange();
 	}
 
@@ -248,8 +248,8 @@ export class Cursor extends EventEmitter {
 		this.cursors.updateMode();
 	}
 
-	private _onModelContentChanged(e:EditorCommon.IModelContentChangedEvent): void {
-		if (e.changeType === EditorCommon.EventType.ModelContentChangedFlush) {
+	private _onModelContentChanged(e:editorCommon.IModelContentChangedEvent): void {
+		if (e.changeType === editorCommon.EventType.ModelContentChangedFlush) {
 			// a model.setValue() was called
 			this.cursors.dispose();
 
@@ -271,19 +271,19 @@ export class Cursor extends EventEmitter {
 
 	// ------ some getters/setters
 
-	public getSelection(): EditorCommon.IEditorSelection {
+	public getSelection(): editorCommon.IEditorSelection {
 		return this.cursors.getSelection(0);
 	}
 
-	public getSelections(): EditorCommon.IEditorSelection[] {
+	public getSelections(): editorCommon.IEditorSelection[] {
 		return this.cursors.getSelections();
 	}
 
-	public getPosition(): EditorCommon.IEditorPosition {
+	public getPosition(): editorCommon.IEditorPosition {
 		return this.cursors.getPosition(0);
 	}
 
-	public setSelections(source: string, selections: EditorCommon.ISelection[]): void {
+	public setSelections(source: string, selections: editorCommon.ISelection[]): void {
 		this._onHandler('setSelections', (ctx:IMultipleCursorOperationContext) => {
 			ctx.shouldReveal = false;
 			this.cursors.setSelections(selections);
@@ -320,7 +320,7 @@ export class Cursor extends EventEmitter {
 		return currentHandlerCtx.hasExecutedCommands;
 	}
 
-	private _onHandler(command:string, handler:(ctx:IMultipleCursorOperationContext)=>boolean, e:EditorCommon.IDispatcherEvent): boolean {
+	private _onHandler(command:string, handler:(ctx:IMultipleCursorOperationContext)=>boolean, e:editorCommon.IDispatcherEvent): boolean {
 
 		this._isHandling = true;
 		this.charactersTyped = '';
@@ -367,7 +367,7 @@ export class Cursor extends EventEmitter {
 						try {
 							listeners[j]();
 						} catch (e) {
-							Errors.onUnexpectedError(e);
+							onUnexpectedError(e);
 						}
 					}
 				}
@@ -403,7 +403,7 @@ export class Cursor extends EventEmitter {
 				this.emitCursorPositionChanged(eventSource, cursorPositionChangeReason);
 
 				if (shouldReveal) {
-					this.emitCursorRevealRange(shouldRevealTarget, shouldRevealVerticalInCenter ? EditorCommon.VerticalRevealType.Center : EditorCommon.VerticalRevealType.Simple, shouldRevealHorizontal);
+					this.emitCursorRevealRange(shouldRevealTarget, shouldRevealVerticalInCenter ? editorCommon.VerticalRevealType.Center : editorCommon.VerticalRevealType.Simple, shouldRevealHorizontal);
 				}
 				this.emitCursorSelectionChanged(eventSource, cursorPositionChangeReason);
 			}
@@ -412,7 +412,7 @@ export class Cursor extends EventEmitter {
 				this.emitCursorScrollRequest(requestScrollDeltaLines);
 			}
 		} catch (err) {
-			Errors.onUnexpectedError(err);
+			onUnexpectedError(err);
 		}
 
 		this._isHandling = false;
@@ -457,7 +457,7 @@ export class Cursor extends EventEmitter {
 		}
 	}
 
-	private _interpretCommandResult(cursorState:EditorCommon.IEditorSelection[]): boolean {
+	private _interpretCommandResult(cursorState:editorCommon.IEditorSelection[]): boolean {
 		if (!cursorState) {
 			return false;
 		}
@@ -466,13 +466,13 @@ export class Cursor extends EventEmitter {
 		return true;
 	}
 
-	private _getEditOperationsFromCommand(ctx: IExecContext, majorIdentifier: number, command: EditorCommon.ICommand): ICommandData {
+	private _getEditOperationsFromCommand(ctx: IExecContext, majorIdentifier: number, command: editorCommon.ICommand): ICommandData {
 		// This method acts as a transaction, if the command fails
 		// everything it has done is ignored
-		var operations: EditorCommon.IIdentifiedSingleEditOperation[] = [],
+		var operations: editorCommon.IIdentifiedSingleEditOperation[] = [],
 			operationMinor = 0;
 
-		var addEditOperation = (selection:EditorCommon.IEditorRange, text:string) => {
+		var addEditOperation = (selection:editorCommon.IEditorRange, text:string) => {
 			if (selection.isEmpty() && text === '') {
 				// This command wants to add a no-op => no thank you
 				return;
@@ -489,7 +489,7 @@ export class Cursor extends EventEmitter {
 		};
 
 		var hadTrackedRange = false;
-		var trackSelection = (selection: EditorCommon.IEditorSelection, trackPreviousOnEmpty?:boolean ) => {
+		var trackSelection = (selection: editorCommon.IEditorSelection, trackPreviousOnEmpty?:boolean ) => {
 			var selectionMarkerStickToPreviousCharacter:boolean,
 				positionMarkerStickToPreviousCharacter:boolean;
 
@@ -509,7 +509,7 @@ export class Cursor extends EventEmitter {
 					}
 				}
 			} else {
-				if (selection.getDirection() === EditorCommon.SelectionDirection.LTR) {
+				if (selection.getDirection() === editorCommon.SelectionDirection.LTR) {
 					selectionMarkerStickToPreviousCharacter = false;
 					positionMarkerStickToPreviousCharacter = true;
 				} else {
@@ -524,7 +524,7 @@ export class Cursor extends EventEmitter {
 			return l.toString();
 		};
 
-		var editOperationBuilder:EditorCommon.IEditOperationBuilder = {
+		var editOperationBuilder:editorCommon.IEditOperationBuilder = {
 			addEditOperation: addEditOperation,
 			trackSelection: trackSelection
 		};
@@ -533,7 +533,7 @@ export class Cursor extends EventEmitter {
 			command.getEditOperations(this.model, editOperationBuilder);
 		} catch (e) {
 			e.friendlyMessage = nls.localize('corrupt.commands', "Unexpected exception while executing command.");
-			Errors.onUnexpectedError(e);
+			onUnexpectedError(e);
 			return {
 				operations: [],
 				hadTrackedRange: false
@@ -546,9 +546,9 @@ export class Cursor extends EventEmitter {
 		};
 	}
 
-	private _getEditOperations(ctx: IExecContext, commands: EditorCommon.ICommand[]): ICommandsData {
+	private _getEditOperations(ctx: IExecContext, commands: editorCommon.ICommand[]): ICommandsData {
 		var oneResult: ICommandData;
-		var operations: EditorCommon.IIdentifiedSingleEditOperation[] = [];
+		var operations: editorCommon.IIdentifiedSingleEditOperation[] = [];
 		var hadTrackedRanges: boolean[] = [];
 		var anyoneHadTrackedRange: boolean;
 
@@ -569,12 +569,12 @@ export class Cursor extends EventEmitter {
 		};
 	}
 
-	private _getLoserCursorMap(operations: EditorCommon.IIdentifiedSingleEditOperation[]): { [index: string]: boolean; } {
+	private _getLoserCursorMap(operations: editorCommon.IIdentifiedSingleEditOperation[]): { [index: string]: boolean; } {
 		// This is destructive on the array
 		operations = operations.slice(0);
 
 		// Sort operations with last one first
-		operations.sort((a:EditorCommon.IIdentifiedSingleEditOperation, b:EditorCommon.IIdentifiedSingleEditOperation): number => {
+		operations.sort((a:editorCommon.IIdentifiedSingleEditOperation, b:editorCommon.IIdentifiedSingleEditOperation): number => {
 			// Note the minus!
 			return -(Range.compareRangesUsingEnds(a.range, b.range));
 		});
@@ -582,8 +582,8 @@ export class Cursor extends EventEmitter {
 		// Operations can not overlap!
 		var loserCursorsMap:{ [index:string]: boolean; } = {};
 
-		var previousOp: EditorCommon.IIdentifiedSingleEditOperation;
-		var currentOp: EditorCommon.IIdentifiedSingleEditOperation;
+		var previousOp: editorCommon.IIdentifiedSingleEditOperation;
+		var currentOp: editorCommon.IIdentifiedSingleEditOperation;
 		var loserMajor: number;
 
 		for (var i = 1; i < operations.length; i++) {
@@ -620,7 +620,7 @@ export class Cursor extends EventEmitter {
 		return loserCursorsMap;
 	}
 
-	private _collapseDeleteCommands(rawCmds: EditorCommon.ICommand[], postOperationRunnables: IPostOperationRunnable[]): boolean {
+	private _collapseDeleteCommands(rawCmds: editorCommon.ICommand[], postOperationRunnables: IPostOperationRunnable[]): boolean {
 		if (rawCmds.length === 1) {
 			return ;
 		}
@@ -676,7 +676,7 @@ export class Cursor extends EventEmitter {
 		}
 	}
 
-	private _internalExecuteCommands(commands: EditorCommon.ICommand[], postOperationRunnables: IPostOperationRunnable[]): boolean {
+	private _internalExecuteCommands(commands: editorCommon.ICommand[], postOperationRunnables: IPostOperationRunnable[]): boolean {
 		var ctx:IExecContext = {
 			selectionStartMarkers: [],
 			positionMarkers: []
@@ -692,7 +692,7 @@ export class Cursor extends EventEmitter {
 		return r;
 	}
 
-	private _arrayIsEmpty(commands: EditorCommon.ICommand[]): boolean {
+	private _arrayIsEmpty(commands: editorCommon.ICommand[]): boolean {
 		var i:number,
 			len:number;
 
@@ -705,7 +705,7 @@ export class Cursor extends EventEmitter {
 		return true;
 	}
 
-	private _innerExecuteCommands(ctx: IExecContext, commands: EditorCommon.ICommand[], postOperationRunnables: IPostOperationRunnable[]): boolean {
+	private _innerExecuteCommands(ctx: IExecContext, commands: editorCommon.ICommand[], postOperationRunnables: IPostOperationRunnable[]): boolean {
 
 		if (this.configuration.editor.readOnly) {
 			return false;
@@ -743,15 +743,15 @@ export class Cursor extends EventEmitter {
 		}
 
 		// Remove operations belonging to losing cursors
-		var filteredOperations: EditorCommon.IIdentifiedSingleEditOperation[] = [];
+		var filteredOperations: editorCommon.IIdentifiedSingleEditOperation[] = [];
 		for (var i = 0; i < rawOperations.length; i++) {
 			if (!loserCursorsMap.hasOwnProperty(rawOperations[i].identifier.major.toString())) {
 				filteredOperations.push(rawOperations[i]);
 			}
 		}
 
-		var selectionsAfter = this.model.pushEditOperations(selectionsBefore, filteredOperations, (inverseEditOperations:EditorCommon.IIdentifiedSingleEditOperation[]): EditorCommon.IEditorSelection[] => {
-			var groupedInverseEditOperations:EditorCommon.IIdentifiedSingleEditOperation[][] = [];
+		var selectionsAfter = this.model.pushEditOperations(selectionsBefore, filteredOperations, (inverseEditOperations:editorCommon.IIdentifiedSingleEditOperation[]): editorCommon.IEditorSelection[] => {
+			var groupedInverseEditOperations:editorCommon.IIdentifiedSingleEditOperation[][] = [];
 			for (var i = 0; i < selectionsBefore.length; i++) {
 				groupedInverseEditOperations[i] = [];
 			}
@@ -759,10 +759,10 @@ export class Cursor extends EventEmitter {
 				var op = inverseEditOperations[i];
 				groupedInverseEditOperations[op.identifier.major].push(op);
 			}
-			var minorBasedSorter = (a:EditorCommon.IIdentifiedSingleEditOperation, b:EditorCommon.IIdentifiedSingleEditOperation) => {
+			var minorBasedSorter = (a:editorCommon.IIdentifiedSingleEditOperation, b:editorCommon.IIdentifiedSingleEditOperation) => {
 				return a.identifier.minor - b.identifier.minor;
 			};
-			var cursorSelections: EditorCommon.IEditorSelection[] = [];
+			var cursorSelections: editorCommon.IEditorSelection[] = [];
 			for (var i = 0; i < selectionsBefore.length; i++) {
 				if (groupedInverseEditOperations[i].length > 0 || commandsData.hadTrackedRanges[i]) {
 					groupedInverseEditOperations[i].sort(minorBasedSorter);
@@ -828,7 +828,7 @@ export class Cursor extends EventEmitter {
 				isInEditableRange = false;
 			}
 		}
-		var e:EditorCommon.ICursorPositionChangedEvent = {
+		var e:editorCommon.ICursorPositionChangedEvent = {
 			position: primaryPosition,
 			viewPosition: primaryViewPosition,
 			secondaryPositions: secondaryPositions,
@@ -837,7 +837,7 @@ export class Cursor extends EventEmitter {
 			source: source,
 			isInEditableRange: isInEditableRange
 		};
-		this.emit(EditorCommon.EventType.CursorPositionChanged, e);
+		this.emit(editorCommon.EventType.CursorPositionChanged, e);
 	}
 
 	private emitCursorSelectionChanged(source:string, reason:string): void {
@@ -849,7 +849,7 @@ export class Cursor extends EventEmitter {
 		let primaryViewSelection = viewSelections[0];
 		let secondaryViewSelections = viewSelections.slice(1);
 
-		let e:EditorCommon.ICursorSelectionChangedEvent = {
+		let e:editorCommon.ICursorSelectionChangedEvent = {
 			selection: primarySelection,
 			viewSelection: primaryViewSelection,
 			secondarySelections: secondarySelections,
@@ -857,17 +857,17 @@ export class Cursor extends EventEmitter {
 			source: source,
 			reason: reason
 		};
-		this.emit(EditorCommon.EventType.CursorSelectionChanged, e);
+		this.emit(editorCommon.EventType.CursorSelectionChanged, e);
 	}
 
 	private emitCursorScrollRequest(lineScrollOffset: number): void {
-		var e:EditorCommon.ICursorScrollRequestEvent = {
+		var e:editorCommon.ICursorScrollRequestEvent = {
 			deltaLines: lineScrollOffset
 		};
-		this.emit(EditorCommon.EventType.CursorScrollRequest, e);
+		this.emit(editorCommon.EventType.CursorScrollRequest, e);
 	}
 
-	private emitCursorRevealRange(revealTarget: RevealTarget, verticalType: EditorCommon.VerticalRevealType, revealHorizontal: boolean): void {
+	private emitCursorRevealRange(revealTarget: RevealTarget, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
 		var positions = this.cursors.getPositions();
 		var viewPositions = this.cursors.getViewPositions();
 
@@ -897,20 +897,20 @@ export class Cursor extends EventEmitter {
 
 		var range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		var viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
-		var e:EditorCommon.ICursorRevealRangeEvent = {
+		var e:editorCommon.ICursorRevealRangeEvent = {
 			range: range,
 			viewRange: viewRange,
 			verticalType: verticalType,
 			revealHorizontal: revealHorizontal
 		};
-		this.emit(EditorCommon.EventType.CursorRevealRange, e);
+		this.emit(editorCommon.EventType.CursorRevealRange, e);
 	}
 
 	// -----------------------------------------------------------------------------------------------------------
 	// ----- handlers beyond this point
 
 	private _registerHandlers(): void {
-		var H = EditorCommon.Handler;
+		var H = editorCommon.Handler;
 		var handlersMap:{
 			[key:string]:(ctx:IMultipleCursorOperationContext)=>boolean;
 		} = {};
@@ -1003,7 +1003,7 @@ export class Cursor extends EventEmitter {
 		handlersMap[H.ExecuteCommands] =			(ctx:IMultipleCursorOperationContext) => this._externalExecuteCommands(ctx);
 
 		var createHandler = (handlerId:string, handlerExec:(ctx:IMultipleCursorOperationContext)=>boolean) => {
-			return (e:EditorCommon.IDispatcherEvent) => this._onHandler(handlerId, handlerExec, e);
+			return (e:editorCommon.IDispatcherEvent) => this._onHandler(handlerId, handlerExec, e);
 		};
 
 		var handler:string;
@@ -1014,15 +1014,30 @@ export class Cursor extends EventEmitter {
 		}
 	}
 
+	private _invokeForAllSorted(ctx: IMultipleCursorOperationContext, callable: (cursorIndex: number, cursor: OneCursor, ctx: IOneCursorOperationContext) => boolean, pushStackElementBefore: boolean = true, pushStackElementAfter: boolean = true): boolean {
+		return this._doInvokeForAll(ctx, true, callable, pushStackElementBefore, pushStackElementAfter);
+	}
+
 	private _invokeForAll(ctx: IMultipleCursorOperationContext, callable: (cursorIndex: number, cursor: OneCursor, ctx: IOneCursorOperationContext) => boolean, pushStackElementBefore: boolean = true, pushStackElementAfter: boolean = true): boolean {
-		var result = false;
-		var cursors = this.cursors.getAll();
-		var context:IOneCursorOperationContext;
+		return this._doInvokeForAll(ctx, false, callable, pushStackElementBefore, pushStackElementAfter);
+	}
+
+	private _doInvokeForAll(ctx: IMultipleCursorOperationContext, sorted: boolean, callable: (cursorIndex: number, cursor: OneCursor, ctx: IOneCursorOperationContext) => boolean, pushStackElementBefore: boolean = true, pushStackElementAfter: boolean = true): boolean {
+		let result = false;
+		let cursors = this.cursors.getAll();
+
+		if (sorted) {
+			cursors = cursors.sort((a, b) => {
+				return Range.compareRangesUsingStarts(a.getSelection(), b.getSelection());
+			});
+		}
+
+		let context:IOneCursorOperationContext;
 
 		ctx.shouldPushStackElementBefore = pushStackElementBefore;
 		ctx.shouldPushStackElementAfter = pushStackElementAfter;
 
-		for (var i = 0; i < cursors.length; i++) {
+		for (let i = 0; i < cursors.length; i++) {
 			context = {
 				cursorPositionChangeReason: '',
 				shouldReveal: true,
@@ -1300,8 +1315,9 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _replacePreviousChar(ctx: IMultipleCursorOperationContext): boolean {
-		var text = ctx.eventData.text;
-		return this._invokeForAll(ctx,(cursorIndex, oneCursor, oneCtx) => OneCursorOp.replacePreviousChar(oneCursor, text, oneCtx));
+		let text = ctx.eventData.text;
+		let replaceCharCnt = ctx.eventData.replaceCharCnt;
+		return this._invokeForAll(ctx,(cursorIndex, oneCursor, oneCtx) => OneCursorOp.replacePreviousChar(oneCursor, text, replaceCharCnt, oneCtx));
 
 	}
 
@@ -1321,7 +1337,7 @@ export class Cursor extends EventEmitter {
 		var distributedPaste = this._distributePasteToCursors(ctx);
 
 		if (distributedPaste) {
-			return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.paste(oneCursor, distributedPaste[cursorIndex], false, oneCtx));
+			return this._invokeForAllSorted(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.paste(oneCursor, distributedPaste[cursorIndex], false, oneCtx));
 		} else {
 			return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.paste(oneCursor, ctx.eventData.text, ctx.eventData.pasteOnNewLine, oneCtx));
 		}

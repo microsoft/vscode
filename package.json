@@ -1,11 +1,11 @@
 {
   "name": "Code",
-  "version": "0.10.7",
+  "version": "0.10.10",
   "electronVersion": "0.35.6",
   "author": {
     "name": "Microsoft Corporation"
   },
-  "main": "./out/vs/workbench/electron-main/bootstrap",
+  "main": "./out/main",
   "private": true,
   "engines": {
     "node": ">= 0.10.0 < 0.11.0"
@@ -13,7 +13,7 @@
   "scripts": {
     "test": "node node_modules/mocha/bin/_mocha",
     "preinstall": "node build/npm/preinstall.js",
-    "postinstall": "npm --prefix extensions/vscode-api-tests/ install extensions/vscode-api-tests/"
+    "postinstall": "npm --prefix extensions/vscode-api-tests/ install extensions/vscode-api-tests/ && npm --prefix extensions/json/ install extensions/json/ && npm --prefix extensions/typescript/ install extensions/typescript/"
   },
   "dependencies": {
     "applicationinsights": "0.15.6",
@@ -24,11 +24,11 @@
     "http-proxy-agent": "^0.2.6",
     "https-proxy-agent": "^0.3.5",
     "iconv-lite": "^0.4.13",
+    "native-keymap": "^0.1.2",
     "sax": "^1.1.1",
     "semver": "^4.2.0",
-    "vscode-debugprotocol": "^1.3.0",
-    "vscode-textmate": "^1.0.9",
-    "native-keymap": "^0.1.2",
+    "vscode-debugprotocol": "^1.5.0",
+    "vscode-textmate": "^1.0.11",
     "weak": "^1.0.1",
     "winreg": "0.0.12",
     "yauzl": "^2.3.1"
@@ -45,20 +45,23 @@
     "ghooks": "^1.0.1",
     "glob": "^5.0.13",
     "gulp": "^3.8.9",
-    "gulp-atom-electron": "^1.1.0",
-    "gulp-azure-storage": "^0.3.0",
+    "gulp-atom-electron": "^1.4.0",
+    "gulp-azure-storage": "^0.6.0",
     "gulp-bom": "^1.0.0",
+    "gulp-buffer": "0.0.2",
     "gulp-concat": "^2.6.0",
     "gulp-cssnano": "^2.1.0",
     "gulp-filter": "^3.0.0",
-    "gulp-insert": "^0.5.0",
     "gulp-json-editor": "^2.2.1",
     "gulp-mocha": "^2.1.3",
     "gulp-remote-src": "^0.4.0",
     "gulp-rename": "^1.2.0",
+    "gulp-replace": "^0.5.4",
+    "gulp-shell": "^0.5.2",
     "gulp-sourcemaps": "^1.6.0",
     "gulp-symdest": "^1.0.0",
-    "gulp-tsb": "~1.7.3",
+    "gulp-tsb": "^1.10.1",
+    "gulp-tslint": "^4.3.0",
     "gulp-uglify": "^1.4.1",
     "gulp-util": "^3.0.6",
     "gulp-vinyl-zip": "^1.1.0",
@@ -78,6 +81,8 @@
     "rimraf": "^2.2.8",
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
+    "tslint": "^3.3.0",
+    "typescript": "^1.8.0",
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",
     "vinyl": "^0.4.5"

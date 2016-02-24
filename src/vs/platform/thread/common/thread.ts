@@ -2,65 +2,44 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict'
+'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import descriptors = require('vs/platform/instantiation/common/descriptors');
 import instantiation = require('vs/platform/instantiation/common/instantiation');
-import {IDisposable} from 'vs/base/common/lifecycle';
 
 // --- thread service (web workers)
 
-export var IThreadService = instantiation.createDecorator<IThreadService>('threadService');
-
-export interface IDynamicProxy<T> extends IDisposable {
-	getProxyDefinition(): T;
-}
+export const IThreadService = instantiation.createDecorator<IThreadService>('threadService');
 
 export interface IThreadService {
-	serviceId : instantiation.ServiceIdentifier<any>;
+	serviceId: instantiation.ServiceIdentifier<any>;
 
 	// --- BEGIN deprecated methods
 	isInMainThread: boolean;
 
-	ensureWorkers(): void;
 	addStatusListener(listener: IThreadServiceStatusListener): void;
 	removeStatusListener(listener: IThreadServiceStatusListener): void;
 
-	MainThread(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, param: any[]): TPromise<any>;
-	OneWorker(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, param: any[], affinity: ThreadAffinity): TPromise<any>;
-	AllWorkers(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, param: any[]): TPromise<any>;
-	Everywhere(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, param: any[]): any;
+	OneWorker(obj: IThreadSynchronizableObject, methodName: string, target: Function, param: any[], affinity: ThreadAffinity): TPromise<any>;
+	AllWorkers(obj: IThreadSynchronizableObject, methodName: string, target: Function, param: any[]): TPromise<any>;
 
-	createInstance<T extends IThreadSynchronizableObject<any>>(ctor: instantiation.INewConstructorSignature0<T>): T;
-	createInstance<A1, T extends IThreadSynchronizableObject<any>>(ctor: instantiation.INewConstructorSignature1<A1, T>, a1: A1): T;
-	createInstance<A1, A2, T extends IThreadSynchronizableObject<any>>(ctor: instantiation.INewConstructorSignature2<A1, A2, T>, a1: A1, a2: A2): T;
-	createInstance<A1, A2, A3, T extends IThreadSynchronizableObject<any>>(ctor: instantiation.INewConstructorSignature3<A1, A2, A3, T>, a1: A1, a2: A2, a3: A3): T;
-
-	createInstance<T extends IThreadSynchronizableObject<any>>(descriptor: descriptors.AsyncDescriptor0<T>): T;
-	createInstance<A1, T extends IThreadSynchronizableObject<any>>(descriptor: descriptors.AsyncDescriptor1<A1, T>, a1: A1): T;
-	createInstance<A1, A2, T extends IThreadSynchronizableObject<any>>(descriptor: descriptors.AsyncDescriptor2<A1, A2, T>, a1: A1, a2: A2): T;
-	createInstance<A1, A2, A3, T extends IThreadSynchronizableObject<any>>(descriptor: descriptors.AsyncDescriptor3<A1, A2, A3, T>, a1: A1, a2: A2, a3: A3): T;
-
-	registerInstance<T extends IThreadSynchronizableObject<any>>(instance: T): void;
+	createInstance<A1, T extends IThreadSynchronizableObject>(ctor: instantiation.IConstructorSignature1<A1, T>, a1: A1): T;
+	createInstance<A1, T extends IThreadSynchronizableObject>(descriptor: descriptors.AsyncDescriptor1<A1, T>, a1: A1): TPromise<T>;
 
 	// --- END deprecated methods
 
-	createDynamicProxyFromMethods<T>(obj:T): IDynamicProxy<T>;
-	createDynamicProxyFromMembers<T>(obj:T, allowedMembers:string[]): IDynamicProxy<T>;
-	isProxyObject<T>(obj: T): boolean;
-
-	getRemotable<T>(ctor: instantiation.INewConstructorSignature0<T>): T;
+	getRemotable<T>(ctor: instantiation.IConstructorSignature0<T>): T;
 
 	registerRemotableInstance(ctor: any, instance: any): void;
 }
 
 export class IRemotableCtorMap {
-	[identifier:string]:Function;
+	[identifier: string]: Function;
 }
 
 export class IRemotableCtorAffinityMap {
-	[identifier:string]: {
+	[identifier: string]: {
 		ctor: Function;
 		affinity: ThreadAffinity;
 	};
@@ -81,49 +60,45 @@ export class Remotable {
 	}
 
 	public static MainContext(identifier: string) {
-		return function (target: Function) {
+		return function(target: Function) {
 			Remotable._ensureUnique(identifier);
 			Remotable.Registry.MainContext[identifier] = target;
 			target[Remotable.PROP_NAME] = identifier;
-		}
+		};
 	}
 
 	public static PluginHostContext(identifier: string) {
-		return function (target: Function) {
+		return function(target: Function) {
 			Remotable._ensureUnique(identifier);
 			Remotable.Registry.PluginHostContext[identifier] = target;
 			target[Remotable.PROP_NAME] = identifier;
-		}
+		};
 	}
 
-	public static WorkerContext(identifier: string, whichWorker:ThreadAffinity) {
-		return function (target: Function) {
+	public static WorkerContext(identifier: string, whichWorker: ThreadAffinity) {
+		return function(target: Function) {
 			Remotable._ensureUnique(identifier);
 			Remotable.Registry.WorkerContext[identifier] = {
 				ctor: target,
 				affinity: whichWorker
 			};
 			target[Remotable.PROP_NAME] = identifier;
-		}
+		};
 	}
 
-	private static _ensureUnique(identifier:string): void {
+	private static _ensureUnique(identifier: string): void {
 		if (Remotable.Registry.MainContext[identifier] || Remotable.Registry.PluginHostContext[identifier] || Remotable.Registry.WorkerContext[identifier]) {
 			throw new Error('Duplicate Remotable identifier found');
 		}
 	}
 }
 
-export interface IThreadSynchronizableObject<S> {
-	getId():string;
+export interface IThreadSynchronizableObject {
+	getId(): string;
 
-	creationDone?:()=>void;
+	creationDone?: () => void;
 
-	asyncCtor?:()=>TPromise<void>;
-
-	getSerializableState?:()=>S;
-
-	setData?:(data:S)=>void;
+	asyncCtor?: () => TPromise<void>;
 }
 
 export enum ThreadAffinity {
@@ -141,7 +116,7 @@ export enum ThreadAffinity {
 }
 
 export interface IWorkerStatus {
-	queueSize:number;
+	queueSize: number;
 }
 
 export interface IThreadServiceStatus {
@@ -149,5 +124,5 @@ export interface IThreadServiceStatus {
 }
 
 export interface IThreadServiceStatusListener {
-	onThreadServiceStatus(status:IThreadServiceStatus): void;
+	onThreadServiceStatus(status: IThreadServiceStatus): void;
 }

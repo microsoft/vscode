@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as Objects from 'vs/base/common/objects';
 import * as Types from 'vs/base/common/types';
 import { IStringDictionary } from 'vs/base/common/collections';
 
@@ -70,13 +69,21 @@ export abstract class Parser {
 
 	protected is(value: any, func: (value:any) => boolean, wrongTypeState?: ValidationState, wrongTypeMessage?: string, undefinedState?: ValidationState, undefinedMessage?: string): boolean {
 		if (Types.isUndefined(value)) {
-			if (undefinedState) this.validationStatus.state = undefinedState;
-			if (undefinedMessage) this.log(undefinedMessage);
+			if (undefinedState) {
+				this.validationStatus.state = undefinedState;
+			}
+			if (undefinedMessage) {
+				this.log(undefinedMessage);
+			}
 			return false;
 		}
 		if (!func(value)) {
-			if (wrongTypeState) this.validationStatus.state = wrongTypeState;
-			if (wrongTypeMessage) this.log(wrongTypeMessage);
+			if (wrongTypeState) {
+				this.validationStatus.state = wrongTypeState;
+			}
+			if (wrongTypeMessage) {
+				this.log(wrongTypeMessage);
+			}
 			return false;
 		}
 		return true;
@@ -93,7 +100,6 @@ export abstract class Parser {
 				destination[key] = sourceValue;
 			} else {
 				if (overwrite) {
-					let source
 					if (Types.isObject(destValue) && Types.isObject(sourceValue)) {
 						this.merge(destValue, sourceValue, overwrite);
 					} else {

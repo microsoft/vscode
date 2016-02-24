@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import TextModel = require('vs/editor/common/model/textModel');
-import Range = require('vs/editor/common/core/range');
-import Position = require('vs/editor/common/core/position');
+import * as assert from 'assert';
+import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
+import {TextModel} from 'vs/editor/common/model/textModel';
 
 function testGuessIndentation(expectedInsertSpaces:boolean, expectedTabSize:number, text:string[], msg?:string): void {
-	var m = new TextModel.TextModel([], TextModel.TextModel.toRawText(text.join('\n')));
+	var m = new TextModel([], TextModel.toRawText(text.join('\n')));
 	var r = m.guessIndentation(1337);
 	m.dispose();
 
@@ -30,31 +30,31 @@ suite('Editor Model - TextModel', () => {
 
 	test('getValueLengthInRange', () => {
 
-		var m = new TextModel.TextModel([], TextModel.TextModel.toRawText('My First Line\r\nMy Second Line\r\nMy Third Line'));
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 1, 1, 1)), ''.length);
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 1, 1, 2)), 'M'.length);
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 2, 1, 3)), 'y'.length);
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 1, 1, 14)), 'My First Line'.length);
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 1, 2, 1)), 'My First Line\r\n'.length);
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 2, 2, 1)), 'y First Line\r\n'.length);
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 2, 2, 2)), 'y First Line\r\nM'.length);
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 2, 2, 1000)), 'y First Line\r\nMy Second Line'.length);
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 2, 3, 1)), 'y First Line\r\nMy Second Line\r\n'.length);
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 2, 3, 1000)), 'y First Line\r\nMy Second Line\r\nMy Third Line'.length);
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 1, 1000, 1000)), 'My First Line\r\nMy Second Line\r\nMy Third Line'.length);
+		var m = new TextModel([], TextModel.toRawText('My First Line\r\nMy Second Line\r\nMy Third Line'));
+		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 1)), ''.length);
+		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 2)), 'M'.length);
+		assert.equal(m.getValueLengthInRange(new Range(1, 2, 1, 3)), 'y'.length);
+		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 14)), 'My First Line'.length);
+		assert.equal(m.getValueLengthInRange(new Range(1, 1, 2, 1)), 'My First Line\r\n'.length);
+		assert.equal(m.getValueLengthInRange(new Range(1, 2, 2, 1)), 'y First Line\r\n'.length);
+		assert.equal(m.getValueLengthInRange(new Range(1, 2, 2, 2)), 'y First Line\r\nM'.length);
+		assert.equal(m.getValueLengthInRange(new Range(1, 2, 2, 1000)), 'y First Line\r\nMy Second Line'.length);
+		assert.equal(m.getValueLengthInRange(new Range(1, 2, 3, 1)), 'y First Line\r\nMy Second Line\r\n'.length);
+		assert.equal(m.getValueLengthInRange(new Range(1, 2, 3, 1000)), 'y First Line\r\nMy Second Line\r\nMy Third Line'.length);
+		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1000, 1000)), 'My First Line\r\nMy Second Line\r\nMy Third Line'.length);
 
-		m = new TextModel.TextModel([], TextModel.TextModel.toRawText('My First Line\nMy Second Line\nMy Third Line'));
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 1, 1, 1)), ''.length);
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 1, 1, 2)), 'M'.length);
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 2, 1, 3)), 'y'.length);
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 1, 1, 14)), 'My First Line'.length);
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 1, 2, 1)), 'My First Line\n'.length);
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 2, 2, 1)), 'y First Line\n'.length);
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 2, 2, 2)), 'y First Line\nM'.length);
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 2, 2, 1000)), 'y First Line\nMy Second Line'.length);
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 2, 3, 1)), 'y First Line\nMy Second Line\n'.length);
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 2, 3, 1000)), 'y First Line\nMy Second Line\nMy Third Line'.length);
-		assert.equal(m.getValueLengthInRange(new Range.Range(1, 1, 1000, 1000)), 'My First Line\nMy Second Line\nMy Third Line'.length);
+		m = new TextModel([], TextModel.toRawText('My First Line\nMy Second Line\nMy Third Line'));
+		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 1)), ''.length);
+		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 2)), 'M'.length);
+		assert.equal(m.getValueLengthInRange(new Range(1, 2, 1, 3)), 'y'.length);
+		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 14)), 'My First Line'.length);
+		assert.equal(m.getValueLengthInRange(new Range(1, 1, 2, 1)), 'My First Line\n'.length);
+		assert.equal(m.getValueLengthInRange(new Range(1, 2, 2, 1)), 'y First Line\n'.length);
+		assert.equal(m.getValueLengthInRange(new Range(1, 2, 2, 2)), 'y First Line\nM'.length);
+		assert.equal(m.getValueLengthInRange(new Range(1, 2, 2, 1000)), 'y First Line\nMy Second Line'.length);
+		assert.equal(m.getValueLengthInRange(new Range(1, 2, 3, 1)), 'y First Line\nMy Second Line\n'.length);
+		assert.equal(m.getValueLengthInRange(new Range(1, 2, 3, 1000)), 'y First Line\nMy Second Line\nMy Third Line'.length);
+		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1000, 1000)), 'My First Line\nMy Second Line\nMy Third Line'.length);
 	});
 
 	test('guess indentation 1', () => {
@@ -393,31 +393,31 @@ suite('Editor Model - TextModel', () => {
 
 	test('modifyPosition', () => {
 
-		var m = new TextModel.TextModel([], TextModel.TextModel.toRawText('line one\nline two'));
-		assert.deepEqual(m.modifyPosition(new Position.Position(1,1), 0), new Position.Position(1, 1));
-		assert.deepEqual(m.modifyPosition(new Position.Position(0,0), 0), new Position.Position(1, 1));
-		assert.deepEqual(m.modifyPosition(new Position.Position(30, 1), 0), new Position.Position(2, 1));
+		var m = new TextModel([], TextModel.toRawText('line one\nline two'));
+		assert.deepEqual(m.modifyPosition(new Position(1,1), 0), new Position(1, 1));
+		assert.deepEqual(m.modifyPosition(new Position(0,0), 0), new Position(1, 1));
+		assert.deepEqual(m.modifyPosition(new Position(30, 1), 0), new Position(2, 1));
 
-		assert.deepEqual(m.modifyPosition(new Position.Position(1,1), 17), new Position.Position(2, 9));
-		assert.deepEqual(m.modifyPosition(new Position.Position(1,1), 1), new Position.Position(1, 2));
-		assert.deepEqual(m.modifyPosition(new Position.Position(1,1), 3), new Position.Position(1, 4));
-		assert.deepEqual(m.modifyPosition(new Position.Position(1, 2), 10), new Position.Position(2, 3));
-		assert.deepEqual(m.modifyPosition(new Position.Position(1, 5), 13), new Position.Position(2, 9));
-		assert.deepEqual(m.modifyPosition(new Position.Position(1, 2), 16), new Position.Position(2, 9));
+		assert.deepEqual(m.modifyPosition(new Position(1,1), 17), new Position(2, 9));
+		assert.deepEqual(m.modifyPosition(new Position(1,1), 1), new Position(1, 2));
+		assert.deepEqual(m.modifyPosition(new Position(1,1), 3), new Position(1, 4));
+		assert.deepEqual(m.modifyPosition(new Position(1, 2), 10), new Position(2, 3));
+		assert.deepEqual(m.modifyPosition(new Position(1, 5), 13), new Position(2, 9));
+		assert.deepEqual(m.modifyPosition(new Position(1, 2), 16), new Position(2, 9));
 
-		assert.deepEqual(m.modifyPosition(new Position.Position(2, 9), -17), new Position.Position(1, 1));
-		assert.deepEqual(m.modifyPosition(new Position.Position(1,2), -1), new Position.Position(1, 1));
-		assert.deepEqual(m.modifyPosition(new Position.Position(1,4), -3), new Position.Position(1, 1));
-		assert.deepEqual(m.modifyPosition(new Position.Position(2, 3), -10), new Position.Position(1, 2));
-		assert.deepEqual(m.modifyPosition(new Position.Position(2, 9), -13), new Position.Position(1, 5));
-		assert.deepEqual(m.modifyPosition(new Position.Position(2, 9), -16), new Position.Position(1, 2));
+		assert.deepEqual(m.modifyPosition(new Position(2, 9), -17), new Position(1, 1));
+		assert.deepEqual(m.modifyPosition(new Position(1,2), -1), new Position(1, 1));
+		assert.deepEqual(m.modifyPosition(new Position(1,4), -3), new Position(1, 1));
+		assert.deepEqual(m.modifyPosition(new Position(2, 3), -10), new Position(1, 2));
+		assert.deepEqual(m.modifyPosition(new Position(2, 9), -13), new Position(1, 5));
+		assert.deepEqual(m.modifyPosition(new Position(2, 9), -16), new Position(1, 2));
 
-		assert.throws(() => m.modifyPosition(new Position.Position(1, 2), 17));
-		assert.throws(() => m.modifyPosition(new Position.Position(1, 2), 100));
+		assert.throws(() => m.modifyPosition(new Position(1, 2), 17));
+		assert.throws(() => m.modifyPosition(new Position(1, 2), 100));
 
-		assert.throws(() => m.modifyPosition(new Position.Position(1, 2), -2));
-		assert.throws(() => m.modifyPosition(new Position.Position(1, 2), -100));
-		assert.throws(() => m.modifyPosition(new Position.Position(2, 2), -100));
-		assert.throws(() => m.modifyPosition(new Position.Position(2, 9), -18));
+		assert.throws(() => m.modifyPosition(new Position(1, 2), -2));
+		assert.throws(() => m.modifyPosition(new Position(1, 2), -100));
+		assert.throws(() => m.modifyPosition(new Position(2, 2), -100));
+		assert.throws(() => m.modifyPosition(new Position(2, 9), -18));
 	});
 });

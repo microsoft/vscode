@@ -6,10 +6,10 @@
 import stream = require('stream');
 import uuid = require('vs/base/common/uuid');
 import ee = require('vs/base/common/eventEmitter');
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import debug = require('vs/workbench/parts/debug/common/debug');
 
-export class V8Protocol extends ee.EventEmitter {
+export abstract class V8Protocol extends ee.EventEmitter {
 
 	public emittedStopped: boolean;
 	public readyForBreakpoints: boolean;
@@ -46,7 +46,7 @@ export class V8Protocol extends ee.EventEmitter {
 			eventType === debug.SessionEvents.DEBUGEE_TERMINATED || eventType === debug.SessionEvents.SERVER_EXIT) {
 			this.flowEventsCount++;
 		}
-		
+
 		if (data) {
 			data.sessionId = this.getId();
 		} else {
@@ -71,7 +71,7 @@ export class V8Protocol extends ee.EventEmitter {
 	}
 
 	protected send(command: string, args: any): TPromise<DebugProtocol.Response> {
-		return new Promise((completeDispatch, errorDispatch) => {
+		return new TPromise((completeDispatch, errorDispatch) => {
 			this.doSend(command, args, (result: DebugProtocol.Response) => {
 				if (result.success) {
 					completeDispatch(result);
@@ -131,19 +131,24 @@ export class V8Protocol extends ee.EventEmitter {
 		}
 	}
 
-	private dispatch(body: string): void {
-		const rawData = JSON.parse(body);
+	protected abstract onServerError(err: Error): void;
 
-		if (typeof rawData.event !== 'undefined') {
-			const event = <DebugProtocol.Event> rawData;
-			this.emit(event.event, event);
-		} else {
-			const response = <DebugProtocol.Response> rawData;
-			const clb = this.pendingRequests[response.request_seq];
-			if (clb) {
-				delete this.pendingRequests[response.request_seq];
-				clb(response);
+	private dispatch(body: string): void {
+		try {
+			const rawData = JSON.parse(body);
+			if (typeof rawData.event !== 'undefined') {
+				const event = <DebugProtocol.Event> rawData;
+				this.emit(event.event, event);
+			} else {
+				const response = <DebugProtocol.Response> rawData;
+				const clb = this.pendingRequests[response.request_seq];
+				if (clb) {
+					delete this.pendingRequests[response.request_seq];
+					clb(response);
+				}
 			}
+		} catch (e) {
+			this.onServerError(new Error(e.message || e));
 		}
 	}
 }

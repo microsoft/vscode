@@ -27,6 +27,7 @@
 
 .explorer-viewlet .explorer-working-files .monaco-tree .monaco-tree-row > .content.actions.working-file-dirty > .primary-action-bar {
 	display: block;
+	width: initial;
 }
 
 .explorer-viewlet .explorer-working-files .monaco-tree .monaco-tree-row > .content.actions > .sub-content {
@@ -36,6 +37,7 @@
 .explorer-viewlet .monaco-count-badge {
 	padding: 1px 6px;
 	margin-left: 6px;
+	border-radius: 0; /* goes better when ellipsis shows up on narrow sidebar */
 }
 
 .explorer-viewlet .explorer-empty-view {

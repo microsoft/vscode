@@ -9,8 +9,6 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import {IOutputService, OUTPUT_EDITOR_INPUT_ID} from 'vs/workbench/parts/output/common/output';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {Position} from 'vs/platform/editor/common/editor';
-import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 
 export class ExtHostOutputChannel implements vscode.OutputChannel {
 
@@ -47,8 +45,12 @@ export class ExtHostOutputChannel implements vscode.OutputChannel {
 		this._proxy.clear(this._name);
 	}
 
-	show(column?: vscode.ViewColumn, preserveFocus?: boolean): void {
-		this._proxy.reveal(this._name, TypeConverters.fromViewColumn(column), preserveFocus);
+	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
+		if (typeof columnOrPreserveFocus === 'boolean') {
+			preserveFocus = columnOrPreserveFocus;
+		}
+
+		this._proxy.reveal(this._name, preserveFocus);
 	}
 
 	hide(): void {
@@ -95,8 +97,8 @@ export class MainThreadOutputService {
 		return undefined;
 	}
 
-	public reveal(channel: string, position: Position, preserveFocus: boolean): TPromise<void> {
-		this._outputService.showOutput(channel, position, preserveFocus);
+	public reveal(channel: string, preserveFocus: boolean): TPromise<void> {
+		this._outputService.showOutput(channel, preserveFocus);
 		return undefined;
 	}
 

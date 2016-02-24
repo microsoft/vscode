@@ -26,4 +26,4 @@ class NullLifecycleService implements ILifecycleService {
 	}
 }
 
-export var Instance: ILifecycleService = new NullLifecycleService();
+export const Instance: ILifecycleService = new NullLifecycleService();

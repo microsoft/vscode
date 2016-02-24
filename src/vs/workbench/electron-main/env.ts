@@ -25,22 +25,21 @@ export interface IUpdateInfo {
 export interface IProductConfiguration {
 	nameShort: string;
 	nameLong: string;
-	icons: {
-		application: {
-			png: string;
-		}
-	};
+	applicationName: string;
 	win32AppUserModelId: string;
 	win32MutexName: string;
+	darwinBundleIdentifier: string;
 	dataFolderName: string;
 	downloadUrl: string;
-	updateUrl: string;
+	updateUrl?: string;
+	quality?: string;
 	commit: string;
 	date: string;
 	expiryDate: number;
 	expiryUrl: string;
 	extensionsGallery: {
 		serviceUrl: string;
+		cacheUrl: string;
 		itemUrl: string;
 	};
 	crashReporter: Electron.CrashReporterStartOptions;
@@ -75,11 +74,12 @@ try {
 }
 
 export const product: IProductConfiguration = productContents;
-product.nameShort = product.nameShort || 'Code [OSS Build]';
-product.nameLong = product.nameLong || 'Code [OSS Build]';
-product.dataFolderName = product.dataFolderName || (isBuilt ? '.code-oss-build' : '.code-oss-build-dev');
+product.nameShort = product.nameShort + (isBuilt ? '' : ' Dev');
+product.nameLong = product.nameLong + (isBuilt ? '' : ' Dev');
+product.dataFolderName = product.dataFolderName + (isBuilt ? '' : '-dev');
 
-export const updateInfo: IUpdateInfo = product.updateUrl ? { baseUrl: product.updateUrl } : void 0;
+export const updateUrl = product.updateUrl;
+export const quality = product.quality;
 
 export const mainIPCHandle = getMainIPCHandle();
 export const sharedIPCHandle = getSharedIPCHandle();
@@ -315,9 +315,6 @@ function massagePath(path: string): string {
 
 	// Trim whitespaces
 	path = strings.trim(strings.trim(path, ' '), '\t');
-
-	// Remove trailing dots
-	path = strings.rtrim(path, '.');
 
 	return path;
 }

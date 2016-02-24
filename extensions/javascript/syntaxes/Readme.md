@@ -1,12 +1,6 @@
-The JavaScriptReact.tmLanguage bundle is derived from the TypeScriptReact.tmLanguage.
+The JavaScript.tmLanguage bundle is derived from the TypeScriptReact.tmLanguage.
 
 Changes:
-- fileTypes -> .jsx
-- scopeName -> scope.jsx
-
-The JavaScript-ts.tmLanguage bundle is derived from the TypeScriptReact.tmLanguage.
-
-Changes:
-- all occurences of .ts -> .js
-- fileTypes -> .js
-- scopeName -> scope.js
+- fileTypes .tsx -> .js
+- scopeName scopr.tsx -> scope.js
+- update language name and file types

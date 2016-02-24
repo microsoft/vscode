@@ -6,11 +6,13 @@
 
 import 'vs/css!./inputBox';
 
+import nls = require('vs/nls');
 import * as Bal from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import * as browser from 'vs/base/browser/browserService';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
+import aria = require('vs/base/browser/ui/aria/aria');
 import {IAction} from 'vs/base/common/actions';
 import {ActionBar} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IContextViewProvider, AnchorAlignment} from 'vs/base/browser/ui/contextview/contextview';
@@ -20,12 +22,12 @@ import {Widget} from 'vs/base/browser/ui/widget';
 let $ = dom.emmet;
 
 export interface IInputOptions {
-	placeholder?:string;
-	ariaLabel?:string;
-	type?:string;
-	validationOptions?:IInputValidationOptions;
+	placeholder?: string;
+	ariaLabel?: string;
+	type?: string;
+	validationOptions?: IInputValidationOptions;
 	flexibleHeight?: boolean;
-	actions?:IAction[];
+	actions?: IAction[];
 }
 
 export interface IInputValidator {
@@ -55,9 +57,7 @@ export interface IRange {
 }
 
 export class InputBox extends Widget {
-
 	private contextViewProvider: IContextViewProvider;
-
 	private element: HTMLElement;
 	private input: HTMLInputElement;
 	private mirror: HTMLElement;
@@ -77,12 +77,11 @@ export class InputBox extends Widget {
 	private _onDidHeightChange = this._register(new Emitter<number>());
 	public onDidHeightChange: Event<number> = this._onDidHeightChange.event;
 
-	constructor(container:HTMLElement, contextViewProvider: IContextViewProvider, options?: IInputOptions) {
+	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider, options?: IInputOptions) {
 		super();
 
 		this.contextViewProvider = contextViewProvider;
 		this.options = options || Object.create(null);
-		// this.toDispose = [];
 		this.message = null;
 		this.cachedHeight = null;
 		this.placeholder = this.options.placeholder || '';
@@ -98,10 +97,13 @@ export class InputBox extends Widget {
 		let tagName = this.options.flexibleHeight ? 'textarea' : 'input';
 
 		let wrapper = dom.append(this.element, $('.wrapper'));
-		this.input = <HTMLInputElement> dom.append(wrapper, $(tagName + '.input'));
+		this.input = <HTMLInputElement>dom.append(wrapper, $(tagName + '.input'));
 		this.input.setAttribute('autocorrect', 'off');
 		this.input.setAttribute('autocapitalize', 'off');
 		this.input.setAttribute('spellcheck', 'false');
+
+		this.onfocus(this.input, () => dom.addClass(this.element, 'synthetic-focus'));
+		this.onblur(this.input, () => dom.removeClass(this.element, 'synthetic-focus'));
 
 		if (this.options.flexibleHeight) {
 			this.mirror = dom.append(wrapper, $('div.mirror'));
@@ -124,7 +126,6 @@ export class InputBox extends Widget {
 
 		// Add placeholder shim for IE because IE decides to hide the placeholder on focus (we dont want that!)
 		if (this.placeholder && Bal.isIE11orEarlier) {
-
 			this.onclick(this.input, (e) => {
 				dom.EventHelper.stop(e, true);
 				this.input.focus();
@@ -135,7 +136,7 @@ export class InputBox extends Widget {
 			}
 		}
 
-		setTimeout(() =>this.layout(), 0);
+		setTimeout(() => this.layout(), 0);
 
 		// Support actions
 		if (this.options.actions) {
@@ -152,9 +153,21 @@ export class InputBox extends Widget {
 		this._showMessage();
 	}
 
-	public setPlaceHolder(placeHolder:string): void {
+	public setPlaceHolder(placeHolder: string): void {
 		if (this.input) {
 			this.input.setAttribute('placeholder', placeHolder);
+		}
+	}
+
+	public setAriaLabel(label: string): void {
+		this.ariaLabel = label;
+
+		if (this.input) {
+			if (label) {
+				this.input.setAttribute('aria-label', this.ariaLabel);
+			} else {
+				this.input.removeAttribute('aria-label');
+			}
 		}
 	}
 
@@ -166,11 +179,11 @@ export class InputBox extends Widget {
 		return this.input;
 	}
 
-	public get value():string {
+	public get value(): string {
 		return this.input.value;
 	}
 
-	public set value(newValue:string) {
+	public set value(newValue: string) {
 		if (this.input.value !== newValue) {
 			this.input.value = newValue;
 			this.onValueChange();
@@ -210,7 +223,7 @@ export class InputBox extends Widget {
 		this._hideMessage();
 	}
 
-	public setEnabled(enabled:boolean): void {
+	public setEnabled(enabled: boolean): void {
 		if (enabled) {
 			this.enable();
 		} else {
@@ -218,15 +231,15 @@ export class InputBox extends Widget {
 		}
 	}
 
-	public get width():number {
+	public get width(): number {
 		return dom.getTotalWidth(this.input);
 	}
 
-	public set width(width:number) {
+	public set width(width: number) {
 		this.input.style.width = width + 'px';
 	}
 
-	public showMessage(message: IMessage, force?:boolean): void {
+	public showMessage(message: IMessage, force?: boolean): void {
 		this.message = message;
 
 		dom.removeClass(this.element, 'idle');
@@ -234,6 +247,18 @@ export class InputBox extends Widget {
 		dom.removeClass(this.element, 'warning');
 		dom.removeClass(this.element, 'error');
 		dom.addClass(this.element, this.classForType(message.type));
+
+		// ARIA Support
+		let alertText: string;
+		if (message.type === MessageType.ERROR) {
+			alertText = nls.localize('alertErrorMessage', "Error: {0}", message.content);
+		} else if (message.type === MessageType.WARNING) {
+			alertText = nls.localize('alertWarningMessage', "Warning: {0}", message.content);
+		} else {
+			alertText = nls.localize('alertInfoMessage', "Info: {0}", message.content);
+		}
+
+		aria.alert(alertText);
 
 		if (this.hasFocus() || force) {
 			this._showMessage();
@@ -262,11 +287,12 @@ export class InputBox extends Widget {
 			result = this.validation(this.value);
 
 			if (!result) {
+				this.inputElement.removeAttribute('aria-invalid');
 				this.hideMessage();
 			} else {
+				this.inputElement.setAttribute('aria-invalid', 'true');
 				this.showMessage(result);
 			}
-
 		}
 
 		return !result;
@@ -308,7 +334,7 @@ export class InputBox extends Widget {
 					renderOptions.text = this.message.content;
 				}
 
-				let spanElement:HTMLElement = <any>renderHtml(renderOptions);
+				let spanElement: HTMLElement = <any>renderHtml(renderOptions);
 				dom.addClass(spanElement, this.classForType(this.message.type));
 				dom.append(div, spanElement);
 				return null;

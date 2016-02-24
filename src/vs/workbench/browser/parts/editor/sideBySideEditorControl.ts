@@ -86,7 +86,6 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 	private lastActivePosition: Position;
 
 	private visibleEditorFocusTrackers: DOM.IFocusTracker[];
-	private globalFocusTracker: DOM.IFocusTracker;
 	private editorInputStateChangeListener: () => void;
 
 	constructor(
@@ -301,23 +300,6 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 	}
 
 	private trackFocus(editor: BaseEditor, position: Position): void {
-
-		// Global focus tracker to support focus changes into iframes
-		if (!this.globalFocusTracker) {
-			this.globalFocusTracker = DOM.trackFocus(window.document.body);
-			this.globalFocusTracker.addBlurListener(() => {
-				let activeElement = window.document.activeElement;
-				if (activeElement) {
-					for (let i = 0; i < this.visibleEditorContainers.length; i++) {
-						let container = this.visibleEditorContainers[i];
-						if (container && DOM.isAncestor(activeElement, container.getHTMLElement())) {
-							this.onFocusGained(this.visibleEditors[i]);
-							break;
-						}
-					}
-				}
-			});
-		}
 
 		// In case there is a previous tracker on the position, dispose it first
 		if (this.visibleEditorFocusTrackers[position]) {
@@ -1034,7 +1016,8 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 			// Toolbar
 			this.editorActionsToolbar[position] = new ToolBar(div.getHTMLElement(), this.contextMenuService, {
 				actionItemProvider: (action: Action) => this.actionItemProvider(action, position),
-				orientation: ActionsOrientation.HORIZONTAL
+				orientation: ActionsOrientation.HORIZONTAL,
+				ariaLabel: nls.localize('araLabelEditorActions', "Editor actions")
 			});
 
 			// Action Run Handling
@@ -1555,10 +1538,6 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 		this.containers.forEach((container) => {
 			container.destroy();
 		});
-
-		if (this.globalFocusTracker) {
-			this.globalFocusTracker.dispose();
-		}
 
 		if (this.editorInputStateChangeListener) {
 			this.editorInputStateChangeListener();

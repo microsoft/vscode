@@ -4,17 +4,6 @@
 
 	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
 
-	<script type="text/javascript">
-		var beforeReadyMessages = [];
-		var beforeReadyListener = function (message) {
-			beforeReadyMessages.push(message.data);
-		};
-		if (window.attachEvent) {
-			window.attachEvent('onmessage', beforeReadyListener);
-		} else {
-			window.onmessage = beforeReadyListener;
-		}
-	</script>
 	<script type="text/javascript" src="../../loader.js"></script>
 	<script>
 	require.config({
@@ -22,25 +11,47 @@
 		catchError: true
 	});
 
-	require(['vs/base/common/worker/workerServer'], function(ws) {
-		var workerServer = ws.create(function (msg) {
-			window.parent.postMessage(msg, '*');
-		});
-		window.isEmulatedWorker = true;
+	(function() {
+		var isFirstMessage = true;
+		var beforeReadyMessages = [];
 
-		var readyListener = function (ev) {
-			workerServer.onmessage(ev.data);
+		var loadCode = function(moduleId) {
+			require([moduleId], function(ws) {
+				var workerServer = ws.create(function (msg) {
+					window.parent.postMessage(msg, '*');
+				});
+
+				var readyListener = function (ev) {
+					workerServer.onmessage(ev.data);
+				};
+				if (window.attachEvent) {
+					window.detachEvent('onmessage', beforeReadyListener);
+					window.attachEvent('onmessage', readyListener);
+				} else {
+					window.onmessage = readyListener;
+				}
+				while(beforeReadyMessages.length > 0) {
+					readyListener({ data: beforeReadyMessages.shift() });
+				}
+			});
 		};
+
+		var beforeReadyListener = function (message) {
+			if (!isFirstMessage) {
+				beforeReadyMessages.push(message.data);
+				return;
+			}
+
+			isFirstMessage = false;
+			loadCode(message.data);
+		};
+
 		if (window.attachEvent) {
-			window.detachEvent('onmessage', beforeReadyListener);
-			window.attachEvent('onmessage', readyListener);
+			window.attachEvent('onmessage', beforeReadyListener);
 		} else {
-			window.onmessage = readyListener;
+			window.onmessage = beforeReadyListener;
 		}
-		while(beforeReadyMessages.length > 0) {
-			readyListener({ data: beforeReadyMessages.shift() });
-		}
-	});
+	})();
 	</script>
 </head>
 <body>

@@ -4,27 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Browser = require('vs/base/browser/browser');
+import {isInWebWorker} from 'vs/base/browser/browser';
 
 export interface IBrowserServiceData {
-	document:Document;
-	window:Window;
-	isHTMLElement: (o:any)=>boolean;
+	document: Document;
+	window: Window;
+	isHTMLElement: (o: any) => boolean;
 }
 
 export interface IBrowserService extends IBrowserServiceData {
 	/**
 	 * Mock the DOM with dummy objects
 	 */
-	mock(source:IBrowserServiceData):void;
+	mock(source: IBrowserServiceData): void;
 
 	/**
 	 * Restore the normal DOM
 	 */
-	restore():void;
+	restore(): void;
 }
 
-export function regularIsHTMLElement(o:any): boolean {
+export function regularIsHTMLElement(o: any): boolean {
 	if (typeof HTMLElement === 'object') {
 		return o instanceof HTMLElement;
 	}
@@ -33,23 +33,23 @@ export function regularIsHTMLElement(o:any): boolean {
 
 class BrowserService implements IBrowserService {
 
-	public document:Document;
-	public window:Window;
-	public isHTMLElement: (o:any)=>boolean;
+	public document: Document;
+	public window: Window;
+	public isHTMLElement: (o: any) => boolean;
 
 	constructor() {
 		this.restore();
 	}
 
-	public mock(source:IBrowserServiceData):void {
+	public mock(source: IBrowserServiceData): void {
 		this.document = source.document;
 		this.window = source.window;
 		this.isHTMLElement = source.isHTMLElement;
 	}
 
-	public restore():void {
+	public restore(): void {
 		this.isHTMLElement = regularIsHTMLElement;
-		if(Browser.isInWebWorker()) {
+		if (isInWebWorker()) {
 			this.document = null;
 			this.window = null;
 		} else {
@@ -59,8 +59,8 @@ class BrowserService implements IBrowserService {
 	}
 }
 
-var browserService = new BrowserService();
+const browserService = new BrowserService();
 
-export function getService():IBrowserService {
+export function getService(): IBrowserService {
 	return browserService;
 }

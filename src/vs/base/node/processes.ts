@@ -75,6 +75,10 @@ export function terminateProcess(process: ChildProcess, cwd?: string): Terminate
 	return { success: true };
 }
 
+export function getWindowsShell(): string {
+	return process.env['comspec'] || 'cmd.exe';
+}
+
 export abstract class AbstractProcess<TProgressData> {
 	private cmd: string;
 	private module: string;
@@ -190,18 +194,17 @@ export abstract class AbstractProcess<TProgressData> {
 			} else {
 				let childProcess: ChildProcess = null;
 				let closeHandler = (data: any) => {
-					console.log("Close received");
 					this.childProcess = null;
 					this.childProcessPromise = null;
 					this.handleClose(data, cc, pp, ee);
 					let result: SuccessData = {
 						terminated: this.terminateRequested
 					};
-					if (this.shell && Platform.isWindows && Types.isNumber(data))  {
+					if (Types.isNumber(data))  {
 						result.cmdCode = <number>data;
 					}
 					cc(result);
-				}
+				};
 				if (this.shell && Platform.isWindows) {
 					let options: any = Objects.clone(this.options);
 					options.windowsVerbatimArguments = true;
@@ -225,7 +228,7 @@ export abstract class AbstractProcess<TProgressData> {
 					];
 					if (quotedCommand) {
 						if (quotedArg) {
-							args.push('"' + commandLine.join(' ') + '"')
+							args.push('"' + commandLine.join(' ') + '"');
 						} else if (commandLine.length > 1) {
 							args.push('"' + commandLine[0] + '"' + ' ' + commandLine.slice(1).join(' '));
 						} else {
@@ -234,7 +237,7 @@ export abstract class AbstractProcess<TProgressData> {
 					} else {
 						args.push(commandLine.join(' '));
 					}
-					childProcess = spawn('cmd.exe', args, options);
+					childProcess = spawn(getWindowsShell(), args, options);
 				} else {
 					if (this.cmd) {
 						childProcess = spawn(this.cmd, this.args, this.options);
@@ -322,7 +325,7 @@ export abstract class AbstractProcess<TProgressData> {
 			if (!this.shell || !Platform.isWindows) {
 				c(false);
 			}
-			let cmdShell = spawn('cmd.exe', ['/s', '/c']);
+			let cmdShell = spawn(getWindowsShell(), ['/s', '/c']);
 			cmdShell.on('error', (error:Error) => {
 				c(true);
 			});

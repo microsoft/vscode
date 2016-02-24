@@ -7,10 +7,7 @@
 
 import workbenchExt = require('vs/workbench/common/contributions');
 import paths = require('vs/base/common/paths');
-import arrays = require('vs/base/common/arrays');
 import async = require('vs/base/common/async');
-import Errors = require('vs/base/common/errors');
-import URI from 'vs/base/common/uri';
 import winjs = require('vs/base/common/winjs.base');
 import extfs = require('vs/base/node/extfs');
 import lifecycle = require('vs/base/common/lifecycle');
@@ -77,7 +74,7 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 				var snippetPath = paths.join(this.snippetFolder, snippetFile);
 				return tmsnippets.snippetUpdated(modeId, snippetPath);
 			}));
-		})
+		});
 	}
 
 	private unregisterListener(): void {
@@ -129,7 +126,7 @@ function readFilesInDir(dirPath: string, namePattern:RegExp = null): winjs.TProm
 		return winjs.TPromise.join(
 			children.map((child) => {
 				if (namePattern && !namePattern.test(child)) {
-					return winjs.Promise.as(null);
+					return winjs.TPromise.as(null);
 				}
 				return fileExists(paths.join(dirPath, child)).then(isFile => {
 					return isFile ? child : null;

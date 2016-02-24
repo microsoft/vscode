@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
-export var IProgressService = createDecorator<IProgressService>('progressService');
+export const IProgressService = createDecorator<IProgressService>('progressService');
 
 export interface IProgressService {
 	serviceId: ServiceIdentifier<any>;
@@ -22,7 +22,7 @@ export interface IProgressService {
 	 * Indicate progress for the duration of the provided promise. Progress will stop in
 	 * any case of promise completion, error or cancellation.
 	 */
-	showWhile(promise: Promise, delay?: number): Promise;
+	showWhile(promise: TPromise<any>, delay?: number): TPromise<void>;
 }
 
 export interface IProgressRunner {

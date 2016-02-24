@@ -5,7 +5,6 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {IEditorService, IEditor, IEditorInput, IEditorOptions, Position, IResourceInput, IEditorModel, ITextEditorModel} from 'vs/platform/editor/common/editor';
 
@@ -83,6 +82,12 @@ export interface IWorkbenchEditorService extends IEditorService {
 	 */
 	focusEditor(editor?: IEditor): TPromise<IEditor>;
 	focusEditor(position?: Position): TPromise<IEditor>;
+
+	/**
+	 * Activate the editor at the provided position without moving focus.
+	 */
+	activateEditor(editor: IEditor): void;
+	activateEditor(position: Position): void;
 
 	/**
 	 * Allows to move the editor at position 1 to position 2.

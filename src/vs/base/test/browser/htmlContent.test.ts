@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
 
-suite("HtmlContent", () => {
+suite('HtmlContent', () => {
 	test('render text', () => {
 		var result = renderHtml({
 			text:'testing',
@@ -116,9 +116,11 @@ suite("HtmlContent", () => {
 		var callbackCalled = false;
 		var result:HTMLElement = <any> renderHtml({
 			formattedText: '[[action]]'
-		}, (index) => {
-			assert.strictEqual(index, 0);
-			callbackCalled = true;
+		}, {
+			actionCallback(content) {
+				assert.strictEqual(content, '0');
+				callbackCalled = true;
+			}
 		});
 		assert.strictEqual(result.innerHTML, '<a href="#">action</a>');
 
@@ -132,9 +134,11 @@ suite("HtmlContent", () => {
 		var callbackCalled = false;
 		var result:HTMLElement = <any> renderHtml({
 			formattedText: '__**[[action]]**__'
-		}, (index) => {
-			assert.strictEqual(index, 0);
-			callbackCalled = true;
+		}, {
+			actionCallback(content) {
+				assert.strictEqual(content, '0');
+				callbackCalled = true;
+			}
 		});
 		assert.strictEqual(result.innerHTML, '<i><b><a href="#">action</a></b></i>');
 

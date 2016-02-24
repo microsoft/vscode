@@ -15,10 +15,10 @@ import {IEventService} from 'vs/platform/event/common/event';
 
 export class TestAction extends Actions.Action {
 	private service;
-	private first:string;
-	private second:string;
+	private first: string;
+	private second: string;
 
-	constructor(first:string, second:string, @IEventService eventService: IEventService) {
+	constructor(first: string, second: string, @IEventService eventService: IEventService) {
 		super(first);
 		this.service = eventService;
 		this.first = first;
@@ -26,8 +26,8 @@ export class TestAction extends Actions.Action {
 	}
 
 
-	public run():WinJS.Promise {
-		return WinJS.Promise.as((!!this.service && !!this.first && !!this.second) ? true : false);
+	public run(): WinJS.Promise {
+		return WinJS.TPromise.as((!!this.service && !!this.first && !!this.second) ? true : false);
 	}
 }
 
@@ -37,13 +37,13 @@ class TestEventService extends EventEmitter.EventEmitter {
 suite('Platform actions', () => {
 	test('DeferredAction', (done) => {
 
-		var services:any = {
+		let services: any = {
 			eventService: {}
 		};
 
-		var instantiationService = InstantiationService.create(services);
+		let instantiationService = InstantiationService.createInstantiationService(services);
 
-		var action = new DeferredAction(
+		let action = new DeferredAction(
 			instantiationService,
 			new AsyncDescriptor<Actions.Action>('vs/platform/actions/test/common/actions.test', 'TestAction', 'my.id', 'Second'),
 			'my.test.action',

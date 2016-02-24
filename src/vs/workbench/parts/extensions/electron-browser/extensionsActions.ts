@@ -83,6 +83,29 @@ export class ListOutdatedExtensionsAction extends Action {
 	}
 }
 
+export class ListSuggestedExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.listSuggestedExtensions';
+	static LABEL = nls.localize('showExtensionTips', "Show Extension Tips");
+
+	constructor(
+		id: string,
+		label: string,
+		@IExtensionsService private extensionsService: IExtensionsService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label, null, true);
+	}
+
+	public run(): Promise {
+		return this.quickOpenService.show('ext tips ');
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
+
 export class InstallAction extends Action {
 
 	constructor(
@@ -111,7 +134,7 @@ export class InstallAction extends Action {
 		this.messageService.show(
 			Severity.Info,
 			{
-				message: nls.localize('success', "{0} {1} was successfully installed. Restart to enable it.", extension.displayName, extension.version),
+				message: nls.localize('success-installed', "'{0}' was successfully installed. Restart to enable it.", extension.displayName),
 				actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('restartNow', "Restart Now"))]
 			}
 		);
@@ -147,7 +170,7 @@ export class UninstallAction extends Action {
 	}
 
 	public run(extension: IExtension): TPromise<any> {
-		if (!window.confirm(nls.localize('deleteSure', "Are you sure you want to uninstall the '{0}' extension?", extension.displayName))) {
+		if (!window.confirm(nls.localize('deleteSure', "Are you sure you want to uninstall '{0}'?", extension.displayName))) {
 			return TPromise.as(null);
 		}
 
@@ -164,7 +187,7 @@ export class UninstallAction extends Action {
 		this.messageService.show(
 			Severity.Info,
 			{
-				message: nls.localize('success', "{0} was successfully uninstalled. Restart to deactivate it.", extension.displayName),
+				message: nls.localize('success-uninstalled', "'{0}' was successfully uninstalled. Restart to deactivate it.", extension.displayName),
 				actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('restartNow2', "Restart Now"))]
 			}
 		);

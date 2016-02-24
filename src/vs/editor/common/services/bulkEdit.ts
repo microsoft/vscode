@@ -5,18 +5,18 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import URI from 'vs/base/common/uri';
 import {merge} from 'vs/base/common/arrays';
 import {IStringDictionary, forEach, values} from 'vs/base/common/collections';
+import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IEventService} from 'vs/platform/event/common/event';
 import {IEditorService} from 'vs/platform/editor/common/editor';
-import {IRange, ISelection, IEditorSelection, IModel, IIdentifiedSingleEditOperation} from 'vs/editor/common/editorCommon';
-import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import {IEventService} from 'vs/platform/event/common/event';
+import {EventType as FileEventType, FileChangesEvent, IFileChange} from 'vs/platform/files/common/files';
+import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
-import {IFileChange, EventType as FileEventType, FileChangesEvent} from 'vs/platform/files/common/files';
-import {EditOperation} from 'vs/editor/common/core/editOperation';
+import {IEditorSelection, IIdentifiedSingleEditOperation, IModel, IRange, ISelection} from 'vs/editor/common/editorCommon';
+import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 
 export interface IResourceEdit {
 	resource: URI;
@@ -212,7 +212,7 @@ class BulkEditModel {
 				var textEditorModel = <IModel>model.textEditorModel,
 					task: EditTask;
 
-				if (textEditorModel.getAssociatedResource().toString() ===  this._sourceModel.toString()) {
+				if (this._sourceModel && textEditorModel.getAssociatedResource().toString() ===  this._sourceModel.toString()) {
 					this._sourceModelTask = new SourceModelEditTask(textEditorModel, this._sourceSelections);
 					task = this._sourceModelTask;
 				} else {
@@ -287,7 +287,7 @@ export function createBulkEdit(eventService: IEventService, editorService: IEdit
 		let uri: URI;
 		let selections: IEditorSelection[];
 
-		if (editor) {
+		if (editor && editor.getModel()) {
 			uri = editor.getModel().getAssociatedResource();
 			selections = editor.getSelections();
 		}
@@ -309,5 +309,5 @@ export function createBulkEdit(eventService: IEventService, editorService: IEdit
 	return {
 		add,
 		finish
-	}
+	};
 }

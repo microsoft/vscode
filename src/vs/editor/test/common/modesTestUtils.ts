@@ -4,17 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import modes = require('vs/editor/common/modes');
 import {Arrays} from 'vs/editor/common/core/arrays';
+import * as modes from 'vs/editor/common/modes';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
 class SimpleTokenTypeClassificationMode implements modes.IMode {
 
 	private _id:string;
-	public tokenTypeClassificationSupport: modes.ITokenTypeClassificationSupport;
 
-	constructor(id:string, tokenTypeClassificationSupport: modes.ITokenTypeClassificationSupport) {
+	public richEditSupport: modes.IRichEditSupport;
+
+	constructor(id:string, wordRegExp:RegExp) {
 		this._id = id;
-		this.tokenTypeClassificationSupport = tokenTypeClassificationSupport;
+		this.richEditSupport = new RichEditSupport(this._id, null, {
+			wordPattern: wordRegExp
+		});
 	}
 
 	public getId(): string {
@@ -27,13 +31,7 @@ class SimpleTokenTypeClassificationMode implements modes.IMode {
 }
 
 export function createMockMode(id:string, wordRegExp:RegExp = null):modes.IMode {
-	var tokenTypeClassificationSupport: modes.ITokenTypeClassificationSupport;
-	if (wordRegExp) {
-		tokenTypeClassificationSupport = {
-			getWordDefinition: () => wordRegExp
-		};
-	}
-	return new SimpleTokenTypeClassificationMode(id, tokenTypeClassificationSupport);
+	return new SimpleTokenTypeClassificationMode(id, wordRegExp);
 }
 
 export interface TokenText {
@@ -48,7 +46,7 @@ export function createLineContextFromTokenText(tokens: TokenText[]): modes.ILine
 
 	var indexSoFar = 0;
 	for (var i = 0; i < tokens.length; ++i){
-		processedTokens.push({ startIndex: indexSoFar, type: tokens[i].type, bracket: (tokens[i].bracket ? tokens[i].bracket : modes.Bracket.None) });
+		processedTokens.push({ startIndex: indexSoFar, type: tokens[i].type });
 		line += tokens[i].text;
 		indexSoFar += tokens[i].text.length;
 	}
@@ -93,10 +91,6 @@ class TestLineContext implements modes.ILineContext {
 
 	public getTokenType(tokenIndex:number): string {
 		return this._tokens[tokenIndex].type;
-	}
-
-	public getTokenBracket(tokenIndex:number): modes.Bracket {
-		return this._tokens[tokenIndex].bracket;
 	}
 
 	public findIndexOfOffset(offset:number): number {

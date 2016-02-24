@@ -74,7 +74,8 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'update.channel': {
 			'type': 'string',
-			'default': 'stable',
+			'enum': ['none', 'default'],
+			'default': 'default',
 			'description': nls.localize('updateChannel', "Configure the update channel to receive updates from. Requires a restart after change.")
 		}
 	}

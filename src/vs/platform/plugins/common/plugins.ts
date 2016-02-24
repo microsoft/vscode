@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {createDecorator, ServiceIdentifier, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {TPromise} from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export interface IPluginDescription {
 	id: string;
@@ -26,14 +26,14 @@ export interface IPluginDescription {
 }
 
 export interface IActivationEventListener {
-	():void;
+	(): void;
 }
 
 export interface IPointListener {
 	(desc: IPluginDescription[]): void;
 }
 
-export var IPluginService = createDecorator<IPluginService>('pluginService');
+export const IPluginService = createDecorator<IPluginService>('pluginService');
 
 export interface IMessage {
 	type: Severity;
@@ -48,25 +48,22 @@ export interface IPluginStatus {
 export interface IPluginService {
 	serviceId: ServiceIdentifier<any>;
 
-	activateByEvent(activationEvent:string): TPromise<any>;
-	activateAndGet(pluginId:string): TPromise<any>;
-	activateAndGet<T>(pluginId:string): TPromise<T>;
-	isActivated(pluginId:string): boolean;
+	activateByEvent(activationEvent: string): TPromise<void>;
+	activateAndGet(pluginId: string): TPromise<void>;
+	isActivated(pluginId: string): boolean;
 
 	/**
 	 * This method should be called only on shutdown!
 	 * More work is needed for this to be called any time!
 	 */
-	deactivate(pluginId:string): void;
+	deactivate(pluginId: string): void;
 
 	/**
 	 * To be used only by the platform once on startup.
 	 */
-	registrationDone(errors?:IMessage[]): void;
+	registrationDone(errors?: IMessage[]): void;
 
 	registerOneTimeActivationEventListener(activationEvent: string, listener: IActivationEventListener): void;
-
-	get(pluginId:string): any;
 
 	/**
 	 * Block on this signal any interactions with extensions.
@@ -75,4 +72,4 @@ export interface IPluginService {
 	getPluginsStatus(): { [id: string]: IPluginStatus };
 }
 
-export var INSTANCE:IPluginService = null;
+export const INSTANCE: IPluginService = null;

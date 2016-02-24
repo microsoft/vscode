@@ -152,11 +152,9 @@ suite('Debug - Model', () => {
 		assert.equal(elements[0].value, 'first line');
 		assert.equal(elements[0].counter, 1);
 		assert.equal(elements[0].severity, severity.Error);
-		assert.equal(elements[0].grouped, false);
 		assert.equal(elements[1].value, 'second line');
 		assert.equal(elements[1].counter, 2);
 		assert.equal(elements[1].severity, severity.Warning);
-		assert.equal(elements[1].grouped, false);
 
 		model.appendReplOutput('1', severity.Error);
 		model.appendReplOutput('2', severity.Error);

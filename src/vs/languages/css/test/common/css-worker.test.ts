@@ -32,7 +32,7 @@ suite('Validation - CSS', () => {
 		var url = URI.parse('inmemory://localhost/vs/editor/common/model/mirrorModel/1');
 		var mirrorModel:any= mockMirrorModel(source, url);
 
-		var markerService = new MarkerService.MarkerService(NULL_THREAD_SERVICE);
+		var markerService = new MarkerService.MainProcessMarkerService(NULL_THREAD_SERVICE);
 		var resourceService = new ResourceService.ResourceService();
 		resourceService.insert(url, mirrorModel);
 
@@ -40,8 +40,8 @@ suite('Validation - CSS', () => {
 			resourceService: resourceService,
 			markerService: markerService
 		});
-		var worker = new cssWorker.CSSWorker(modesUtil.createMockMode('mock.mode.id'), [], services.resourceService, services.markerService);
-		worker.doValidate(url);
+		var worker = new cssWorker.CSSWorker('mock.mode.id', [], services.resourceService, services.markerService);
+		worker.doValidate([url]);
 
 		var markers = markerService.read({ resource: url });
 		var marker = markers[0];
@@ -55,15 +55,15 @@ suite('Validation - CSS', () => {
 		var model = mockMirrorModel(content, url);
 		resourceService.insert(url, model);
 
-		var markerService = new MarkerService.MarkerService(NULL_THREAD_SERVICE);
+		var markerService = new MarkerService.MainProcessMarkerService(NULL_THREAD_SERVICE);
 
 		let services = servicesUtil2.createMockEditorWorkerServices({
 			resourceService: resourceService,
 			markerService: markerService
 		});
 
-		var worker = new cssWorker.CSSWorker(modesUtil.createMockMode('mock.mode.id'), [], services.resourceService, services.markerService);
-		worker.doValidate(url);
+		var worker = new cssWorker.CSSWorker('mock.mode.id', [], services.resourceService, services.markerService);
+		worker.doValidate([url]);
 
 		var markers = markerService.read({ resource: url });
 		return { worker: worker, model: model, markers: markers };
@@ -85,7 +85,7 @@ suite('Validation - CSS', () => {
 		var pos = env.model.getPositionFromOffset(value.indexOf(selection));
 		var range = { startLineNumber: pos.lineNumber, startColumn: pos.column, endLineNumber: pos.lineNumber, endColumn: pos.column + selectionLength };
 
-		return env.worker.inplaceReplaceSupport.navigateValueSet(url, range, up);
+		return env.worker.navigateValueSet(url, range, up);
 	};
 
 	var testOccurrences = function (value: string, tokenBefore: string): WinJS.TPromise<{ occurrences: Modes.IOccurence[]; model: mm.MirrorModel; }> {

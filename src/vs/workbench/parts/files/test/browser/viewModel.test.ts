@@ -14,7 +14,7 @@ import {validateFileName} from 'vs/workbench/parts/files/browser/fileActions';
 import {LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
 import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
 
-function createStat(path, name, isFolder, hasChildren, size, mtime, mime) {
+function createStat(path, name, isFolder, hasChildren, size, mtime) {
 	return new FileStat(toResource(path), isFolder, hasChildren, name, mtime);
 }
 
@@ -26,7 +26,7 @@ suite('Files - View Model', () => {
 
 	test("Properties", function() {
 		let d = new Date().getTime();
-		let s = createStat("/path/to/stat", "sName", true, true, 8096, d, "text/plain");
+		let s = createStat("/path/to/stat", "sName", true, true, 8096, d);
 
 		assert.strictEqual(s.isDirectoryResolved, false);
 		assert.strictEqual(s.resource.fsPath, toResource("/path/to/stat").fsPath);
@@ -34,28 +34,21 @@ suite('Files - View Model', () => {
 		assert.strictEqual(s.isDirectory, true);
 		assert.strictEqual(s.hasChildren, true);
 		assert.strictEqual(s.mtime, new Date(d).getTime());
-		assert.strictEqual(s.mime, undefined);
 		assert(isArray(s.children) && s.children.length === 0);
 
-		s = createStat("/path/to/stat", "sName", true, true, 8096, d, "text/plain; charset utf8");
-		assert.strictEqual(s.mime, undefined);
-
-		s = createStat("/path/to/stat", "sName", false, false, 8096, d, "text/plain; charset utf8");
+		s = createStat("/path/to/stat", "sName", false, false, 8096, d);
 		assert(isUndefinedOrNull(s.children));
-
-		s = createStat("/path/to/stat/sName.js", "sName.js", false, false, 8096, d, "text/plain; charset utf8");
-		assert.strictEqual(s.mime, 'text/javascript, text/plain');
 	});
 
 	test("Add and Remove Child, check for hasChild", function() {
 		let d = new Date().getTime()
-		let s = createStat("/path/to/stat", "sName", true, false, 8096, d, "text/plain");
-		let s2 = createStat("/path/to/stat2", "sName2", false, false, 8096, d, "text/plain");
+		let s = createStat("/path/to/stat", "sName", true, false, 8096, d);
+		let s2 = createStat("/path/to/stat2", "sName2", false, false, 8096, d);
 
-		let child1 = createStat("/path/to/stat/foo", "foo", true, false, 8096, d, "text/plain");
-		let child2 = createStat("/path/to/stat/bar.html", "bar", false, false, 8096, d, "text/html");
-		let child3 = createStat("/path/to/stat/bar.html", "bar", false, false, 8096, d, "text/html");
-		let child4 = createStat("/otherpath/to/other/otherbar.html", "otherbar.html", false, false, 8096, d, "text/html");
+		let child1 = createStat("/path/to/stat/foo", "foo", true, false, 8096, d);
+		let child2 = createStat("/path/to/stat/bar.html", "bar", false, false, 8096, d);
+		let child3 = createStat("/path/to/stat/bar.html", "bar", false, false, 8096, d);
+		let child4 = createStat("/otherpath/to/other/otherbar.html", "otherbar.html", false, false, 8096, d);
 
 		assert.throws(function() {
 			s2.addChild(child1); // Can not add into non directory
@@ -103,10 +96,10 @@ suite('Files - View Model', () => {
 	test("Move", function() {
 		let d = new Date().getTime();
 
-		let s1 = createStat("/", "/", true, false, 8096, d, "text/plain");
-		let s2 = createStat("/path", "path", true, false, 8096, d, "text/plain");
-		let s3 = createStat("/path/to", "to", true, false, 8096, d, "text/plain");
-		let s4 = createStat("/path/to/stat", "stat", false, false, 8096, d, "text/plain");
+		let s1 = createStat("/", "/", true, false, 8096, d);
+		let s2 = createStat("/path", "path", true, false, 8096, d);
+		let s3 = createStat("/path/to", "to", true, false, 8096, d);
+		let s4 = createStat("/path/to/stat", "stat", false, false, 8096, d);
 
 		s1.addChild(s2);
 		s2.addChild(s3);
@@ -135,9 +128,9 @@ suite('Files - View Model', () => {
 		assert.strictEqual(s4.resource.fsPath, toResource("/" + s4.name).fsPath);
 
 		// Move a subtree with children
-		let leaf = createStat("/leaf", "leaf", true, false, 8096, d, "text/plain");
-		let leafC1 = createStat("/leaf/folder", "folder", true, false, 8096, d, "text/plain");
-		let leafCC2 = createStat("/leaf/folder/index.html", "index.html", true, false, 8096, d, "text/html");
+		let leaf = createStat("/leaf", "leaf", true, false, 8096, d);
+		let leafC1 = createStat("/leaf/folder", "folder", true, false, 8096, d);
+		let leafCC2 = createStat("/leaf/folder/index.html", "index.html", true, false, 8096, d);
 
 		leaf.addChild(leafC1);
 		leafC1.addChild(leafCC2);
@@ -151,11 +144,11 @@ suite('Files - View Model', () => {
 	test("Rename", function() {
 		let d = new Date().getTime();
 
-		let s1 = createStat("/", "/", true, false, 8096, d, "text/plain");
-		let s2 = createStat("/path", "path", true, false, 8096, d, "text/plain");
-		let s3 = createStat("/path/to", "to", true, false, 8096, d, "text/plain");
-		let s4 = createStat("/path/to/stat", "stat", true, false, 8096, d, "text/plain");
-		let s5 = createStat("/path/to/stat", "stat", true, false, 8096, d, "text/plain");
+		let s1 = createStat("/", "/", true, false, 8096, d);
+		let s2 = createStat("/path", "path", true, false, 8096, d);
+		let s3 = createStat("/path/to", "to", true, false, 8096, d);
+		let s4 = createStat("/path/to/stat", "stat", true, false, 8096, d);
+		let s5 = createStat("/path/to/stat", "stat", true, false, 8096, d);
 
 		assert.throws(function() {
 			s2.rename(null);
@@ -173,7 +166,7 @@ suite('Files - View Model', () => {
 		s2.addChild(s3);
 		s3.addChild(s4);
 
-		let s2renamed = createStat("/otherpath", "otherpath", true, true, 8096, d, "text/plain");
+		let s2renamed = createStat("/otherpath", "otherpath", true, true, 8096, d);
 		s2.rename(s2renamed);
 
 		// Verify the paths have changed including children
@@ -182,7 +175,7 @@ suite('Files - View Model', () => {
 		assert.strictEqual(s3.resource.fsPath, toResource("/otherpath/to").fsPath);
 		assert.strictEqual(s4.resource.fsPath, toResource("/otherpath/to/stat").fsPath);
 
-		let s4renamed = createStat("/otherpath/to/statother.js", "statother.js", true, false, 8096, d, "text/javascript");
+		let s4renamed = createStat("/otherpath/to/statother.js", "statother.js", true, false, 8096, d);
 		s4.rename(s4renamed);
 		assert.strictEqual(s4.name, s4renamed.name);
 		assert.strictEqual(s4.resource.fsPath, s4renamed.resource.fsPath);
@@ -191,13 +184,13 @@ suite('Files - View Model', () => {
 	test("Find", function() {
 		let d = new Date().getTime();
 
-		let s1 = createStat("/", "/", true, false, 8096, d, "text/plain");
-		let s2 = createStat("/path", "path", true, false, 8096, d, "text/plain");
-		let s3 = createStat("/path/to", "to", true, false, 8096, d, "text/plain");
-		let s4 = createStat("/path/to/stat", "stat", true, false, 8096, d, "text/plain");
+		let s1 = createStat("/", "/", true, false, 8096, d);
+		let s2 = createStat("/path", "path", true, false, 8096, d);
+		let s3 = createStat("/path/to", "to", true, false, 8096, d);
+		let s4 = createStat("/path/to/stat", "stat", true, false, 8096, d);
 
-		let child1 = createStat("/path/to/stat/foo", "foo", true, false, 8096, d, "text/plain");
-		let child2 = createStat("/path/to/stat/foo/bar.html", "bar.html", false, false, 8096, d, "text/html");
+		let child1 = createStat("/path/to/stat/foo", "foo", true, false, 8096, d);
+		let child2 = createStat("/path/to/stat/foo/bar.html", "bar.html", false, false, 8096, d);
 
 		s1.addChild(s2);
 		s2.addChild(s3);
@@ -219,13 +212,13 @@ suite('Files - View Model', () => {
 	test("Find with mixed case", function() {
 		let d = new Date().getTime();
 
-		let s1 = createStat("/", "/", true, false, 8096, d, "text/plain");
-		let s2 = createStat("/path", "path", true, false, 8096, d, "text/plain");
-		let s3 = createStat("/path/to", "to", true, false, 8096, d, "text/plain");
-		let s4 = createStat("/path/to/stat", "stat", true, false, 8096, d, "text/plain");
+		let s1 = createStat("/", "/", true, false, 8096, d);
+		let s2 = createStat("/path", "path", true, false, 8096, d);
+		let s3 = createStat("/path/to", "to", true, false, 8096, d);
+		let s4 = createStat("/path/to/stat", "stat", true, false, 8096, d);
 
-		let child1 = createStat("/path/to/stat/foo", "foo", true, false, 8096, d, "text/plain");
-		let child2 = createStat("/path/to/stat/foo/bar.html", "bar.html", false, false, 8096, d, "text/html");
+		let child1 = createStat("/path/to/stat/foo", "foo", true, false, 8096, d);
+		let child2 = createStat("/path/to/stat/foo/bar.html", "bar.html", false, false, 8096, d);
 
 		s1.addChild(s2);
 		s2.addChild(s3);
@@ -244,8 +237,8 @@ suite('Files - View Model', () => {
 
 	test("Validate File Name (For Create)", function() {
 		let d = new Date().getTime();
-		let s = createStat("/path/to/stat", "sName", true, true, 8096, d, "text/plain");
-		let sChild = createStat("/path/to/stat/alles.klar", "alles.klar", true, true, 8096, d, "text/plain");
+		let s = createStat("/path/to/stat", "sName", true, true, 8096, d);
+		let sChild = createStat("/path/to/stat/alles.klar", "alles.klar", true, true, 8096, d);
 		s.addChild(sChild);
 
 		assert(validateFileName(s, null) !== null);
@@ -271,8 +264,8 @@ suite('Files - View Model', () => {
 
 	test("Validate File Name (For Rename)", function() {
 		let d = new Date().getTime();
-		let s = createStat("/path/to/stat", "sName", true, true, 8096, d, "text/plain");
-		let sChild = createStat("/path/to/stat/alles.klar", "alles.klar", true, true, 8096, d, "text/plain");
+		let s = createStat("/path/to/stat", "sName", true, true, 8096, d);
+		let sChild = createStat("/path/to/stat/alles.klar", "alles.klar", true, true, 8096, d);
 		s.addChild(sChild);
 
 		assert(validateFileName(s, "alles.klar") !== null);

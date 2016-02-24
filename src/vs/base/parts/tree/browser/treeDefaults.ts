@@ -9,9 +9,9 @@ import touch = require('vs/base/browser/touch');
 import errors = require('vs/base/common/errors');
 import dom = require('vs/base/browser/dom');
 import mouse = require('vs/base/browser/mouseEvent');
-import keyboard = require('vs/base/browser/keyboardEvent');
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import _ = require('vs/base/parts/tree/browser/tree');
-import {CommonKeybindings} from 'vs/base/common/keyCodes'
+import {CommonKeybindings} from 'vs/base/common/keyCodes';
 
 export interface ILegacyTemplateData {
 	root: HTMLElement;
@@ -58,7 +58,7 @@ export class LegacyRenderer implements _.IRenderer {
 }
 
 export interface IKeyBindingCallback {
-	(tree:_.ITree, event:keyboard.StandardKeyboardEvent):void;
+	(tree:_.ITree, event:IKeyboardEvent):void;
 }
 
 export interface ICancelableEvent {
@@ -140,7 +140,7 @@ export class DefaultController implements _.IController {
 		this.upKeyBindingDispatcher.set(CommonKeybindings.CTRLCMD_ENTER, this.onEnter.bind(this));
 	}
 
-	public onMouseDown(tree:_.ITree, element: any, event:mouse.StandardMouseEvent, origin: string = 'mouse'):boolean {
+	public onMouseDown(tree:_.ITree, element: any, event:mouse.IMouseEvent, origin: string = 'mouse'):boolean {
 		if (this.options.clickBehavior === ClickBehavior.ON_MOUSE_DOWN && event.leftButton) {
 			if (event.target) {
 				if (event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
@@ -159,7 +159,7 @@ export class DefaultController implements _.IController {
 		return false;
 	}
 
-	public onClick(tree:_.ITree, element: any, event:mouse.StandardMouseEvent):boolean {
+	public onClick(tree:_.ITree, element: any, event:mouse.IMouseEvent):boolean {
 		var isMac = platform.isMacintosh;
 
 		// A Ctrl click on the Mac is a context menu event
@@ -191,7 +191,7 @@ export class DefaultController implements _.IController {
 			tree.clearFocus(payload);
 			tree.clearSelection(payload);
 		} else {
-			var isMouseDown = eventish && (<mouse.StandardMouseEvent>eventish).browserEvent && (<mouse.StandardMouseEvent>eventish).browserEvent.type === 'mousedown';
+			var isMouseDown = eventish && (<mouse.IMouseEvent>eventish).browserEvent && (<mouse.IMouseEvent>eventish).browserEvent.type === 'mousedown';
 			if (!isMouseDown) {
 				eventish.preventDefault(); // we cannot preventDefault onMouseDown because this would break DND otherwise
 			}
@@ -235,15 +235,15 @@ export class DefaultController implements _.IController {
 		return this.onLeftClick(tree, element, event, 'touch');
 	}
 
-	public onKeyDown(tree:_.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	public onKeyDown(tree:_.ITree, event:IKeyboardEvent):boolean {
 		return this.onKey(this.downKeyBindingDispatcher, tree, event);
 	}
 
-	public onKeyUp(tree:_.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	public onKeyUp(tree:_.ITree, event:IKeyboardEvent):boolean {
 		return this.onKey(this.upKeyBindingDispatcher, tree, event);
 	}
 
-	private onKey(bindings:KeybindingDispatcher, tree:_.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	private onKey(bindings:KeybindingDispatcher, tree:_.ITree, event:IKeyboardEvent):boolean {
 		var handler = bindings.dispatch(event.asKeybinding());
 		if (handler) {
 			if (handler(tree, event)) {
@@ -255,7 +255,7 @@ export class DefaultController implements _.IController {
 		return false;
 	}
 
-	protected onUp(tree:_.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	protected onUp(tree:_.ITree, event:IKeyboardEvent):boolean {
 		var payload = { origin: 'keyboard', originalEvent: event };
 
 		if (tree.getHighlight()) {
@@ -267,7 +267,7 @@ export class DefaultController implements _.IController {
 		return true;
 	}
 
-	protected onPageUp(tree:_.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	protected onPageUp(tree:_.ITree, event:IKeyboardEvent):boolean {
 		var payload = { origin: 'keyboard', originalEvent: event };
 
 		if (tree.getHighlight()) {
@@ -279,7 +279,7 @@ export class DefaultController implements _.IController {
 		return true;
 	}
 
-	protected onDown(tree:_.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	protected onDown(tree:_.ITree, event:IKeyboardEvent):boolean {
 		var payload = { origin: 'keyboard', originalEvent: event };
 
 		if (tree.getHighlight()) {
@@ -291,7 +291,7 @@ export class DefaultController implements _.IController {
 		return true;
 	}
 
-	protected onPageDown(tree:_.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	protected onPageDown(tree:_.ITree, event:IKeyboardEvent):boolean {
 		var payload = { origin: 'keyboard', originalEvent: event };
 
 		if (tree.getHighlight()) {
@@ -303,7 +303,7 @@ export class DefaultController implements _.IController {
 		return true;
 	}
 
-	protected onLeft(tree:_.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	protected onLeft(tree:_.ITree, event:IKeyboardEvent):boolean {
 		var payload = { origin: 'keyboard', originalEvent: event };
 
 		if (tree.getHighlight()) {
@@ -319,7 +319,7 @@ export class DefaultController implements _.IController {
 		return true;
 	}
 
-	protected onRight(tree:_.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	protected onRight(tree:_.ITree, event:IKeyboardEvent):boolean {
 		var payload = { origin: 'keyboard', originalEvent: event };
 
 		if (tree.getHighlight()) {
@@ -331,7 +331,7 @@ export class DefaultController implements _.IController {
 		return true;
 	}
 
-	protected onEnter(tree:_.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	protected onEnter(tree:_.ITree, event:IKeyboardEvent):boolean {
 		var payload = { origin: 'keyboard', originalEvent: event };
 
 		if (tree.getHighlight()) {
@@ -344,7 +344,7 @@ export class DefaultController implements _.IController {
 		return true;
 	}
 
-	protected onSpace(tree:_.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	protected onSpace(tree:_.ITree, event:IKeyboardEvent):boolean {
 		if (tree.getHighlight()) {
 			return false;
 		}
@@ -355,7 +355,7 @@ export class DefaultController implements _.IController {
 		return true;
 	}
 
-	protected onEscape(tree:_.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	protected onEscape(tree:_.ITree, event:IKeyboardEvent):boolean {
 		var payload = { origin: 'keyboard', originalEvent: event };
 
 		if (tree.getHighlight()) {
@@ -363,9 +363,13 @@ export class DefaultController implements _.IController {
 			return true;
 		}
 
-		if (tree.getFocus() || tree.getSelection().length) {
-			tree.clearFocus(payload);
+		if (tree.getSelection().length) {
 			tree.clearSelection(payload);
+			return true;
+		}
+
+		if (tree.getFocus()) {
+			tree.clearFocus(payload);
 			return true;
 		}
 
@@ -403,5 +407,12 @@ export class DefaultSorter implements _.ISorter {
 
 	public compare(tree: _.ITree, element: any, otherElement: any):number {
 		return 0;
+	}
+}
+
+export class DefaultAccessibilityProvider implements _.IAccessibilityProvider {
+
+	getAriaLabel(tree: _.ITree, element: any): string {
+		return null;
 	}
 }

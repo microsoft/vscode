@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IPluginService, IPluginDescription, IPointListener} from 'vs/platform/plugins/common/plugins';
+import {IPluginService} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
-import {Registry} from 'vs/platform/platform';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IAction, Action} from 'vs/base/common/actions';
 import {localize} from 'vs/nls';
@@ -28,21 +26,21 @@ function isCommands(thing: Command | Command[]): thing is Command[] {
 	return Array.isArray(thing);
 }
 
-function isValidCommand(candidate:Command, rejects: string[]): boolean {
-	if(!candidate) {
+function isValidCommand(candidate: Command, rejects: string[]): boolean {
+	if (!candidate) {
 		rejects.push(localize('nonempty', "expected non-empty value."));
 		return false;
 	}
 	if (typeof candidate.command !== 'string') {
-		rejects.push(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'command'))
+		rejects.push(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'command'));
 		return false;
 	}
 	if (typeof candidate.title !== 'string') {
-		rejects.push(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'title'))
+		rejects.push(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'title'));
 		return false;
 	}
 	if (candidate.category && typeof candidate.category !== 'string') {
-		rejects.push(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'category'))
+		rejects.push(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'category'));
 		return false;
 	}
 	return true;
@@ -89,7 +87,7 @@ export default class ActionsService implements IActionsService {
 		this._keybindingsService = keybindingsService;
 		commandsExtPoint.setHandler((extensions) => {
 			for (let d of extensions) {
-				this._onDescription(d.value, d.collector)
+				this._onDescription(d.value, d.collector);
 			}
 		});
 	}

@@ -14,7 +14,6 @@ and limitations under the License.
 ***************************************************************************** */
 
 /// <reference no-default-lib="true"/>
-
 /////////////////////////////
 /// ECMAScript APIs
 /////////////////////////////
@@ -1225,7 +1224,7 @@ interface ArrayBuffer {
 interface ArrayBufferConstructor {
     prototype: ArrayBuffer;
     new (byteLength: number): ArrayBuffer;
-    isView(arg: any): boolean;
+    isView(arg: any): arg is ArrayBufferView;
 }
 declare var ArrayBuffer: ArrayBufferConstructor;
 
@@ -3847,7 +3846,7 @@ interface Symbol {
     /** Returns the primitive value of the specified object. */
     valueOf(): Object;
 
-    [Symbol.toStringTag]: string;
+    [Symbol.toStringTag]: "Symbol";
 }
 
 interface SymbolConstructor {
@@ -4405,7 +4404,7 @@ interface IterableIterator<T> extends Iterator<T> {
 }
 
 interface GeneratorFunction extends Function {
-
+    [Symbol.toStringTag]: "GeneratorFunction";
 }
 
 interface GeneratorFunctionConstructor {
@@ -4530,7 +4529,7 @@ interface Math {
       */
     cbrt(x: number): number;
 
-    [Symbol.toStringTag]: string;
+    [Symbol.toStringTag]: "Math";
 }
 
 interface Date {
@@ -4647,7 +4646,7 @@ interface Map<K, V> {
     size: number;
     values(): IterableIterator<V>;
     [Symbol.iterator]():IterableIterator<[K,V]>;
-    [Symbol.toStringTag]: string;
+    [Symbol.toStringTag]: "Map";
 }
 
 interface MapConstructor {
@@ -4659,12 +4658,11 @@ interface MapConstructor {
 declare var Map: MapConstructor;
 
 interface WeakMap<K, V> {
-    clear(): void;
     delete(key: K): boolean;
     get(key: K): V;
     has(key: K): boolean;
     set(key: K, value?: V): WeakMap<K, V>;
-    [Symbol.toStringTag]: string;
+    [Symbol.toStringTag]: "WeakMap";
 }
 
 interface WeakMapConstructor {
@@ -4686,7 +4684,7 @@ interface Set<T> {
     size: number;
     values(): IterableIterator<T>;
     [Symbol.iterator]():IterableIterator<T>;
-    [Symbol.toStringTag]: string;
+    [Symbol.toStringTag]: "Set";
 }
 
 interface SetConstructor {
@@ -4699,10 +4697,9 @@ declare var Set: SetConstructor;
 
 interface WeakSet<T> {
     add(value: T): WeakSet<T>;
-    clear(): void;
     delete(value: T): boolean;
     has(value: T): boolean;
-    [Symbol.toStringTag]: string;
+    [Symbol.toStringTag]: "WeakSet";
 }
 
 interface WeakSetConstructor {
@@ -4714,7 +4711,7 @@ interface WeakSetConstructor {
 declare var WeakSet: WeakSetConstructor;
 
 interface JSON {
-    [Symbol.toStringTag]: string;
+    [Symbol.toStringTag]: "JSON";
 }
 
 /**
@@ -4724,11 +4721,11 @@ interface JSON {
   * buffer as needed.
   */
 interface ArrayBuffer {
-    [Symbol.toStringTag]: string;
+    [Symbol.toStringTag]: "ArrayBuffer";
 }
 
 interface DataView {
-    [Symbol.toStringTag]: string;
+    [Symbol.toStringTag]: "DataView";
 }
 
 /**
@@ -4749,6 +4746,7 @@ interface Int8Array {
       */
     values(): IterableIterator<number>;
     [Symbol.iterator](): IterableIterator<number>;
+    [Symbol.toStringTag]: "Int8Array";
 }
 
 interface Int8ArrayConstructor {
@@ -4781,6 +4779,7 @@ interface Uint8Array {
       */
     values(): IterableIterator<number>;
     [Symbol.iterator](): IterableIterator<number>;
+    [Symbol.toStringTag]: "UInt8Array";
 }
 
 interface Uint8ArrayConstructor {
@@ -4816,6 +4815,7 @@ interface Uint8ClampedArray {
     values(): IterableIterator<number>;
 
     [Symbol.iterator](): IterableIterator<number>;
+    [Symbol.toStringTag]: "Uint8ClampedArray";
 }
 
 interface Uint8ClampedArrayConstructor {
@@ -4853,6 +4853,7 @@ interface Int16Array {
 
 
     [Symbol.iterator](): IterableIterator<number>;
+    [Symbol.toStringTag]: "Int16Array";
 }
 
 interface Int16ArrayConstructor {
@@ -4885,6 +4886,7 @@ interface Uint16Array {
       */
     values(): IterableIterator<number>;
     [Symbol.iterator](): IterableIterator<number>;
+    [Symbol.toStringTag]: "Uint16Array";
 }
 
 interface Uint16ArrayConstructor {
@@ -4917,6 +4919,7 @@ interface Int32Array {
       */
     values(): IterableIterator<number>;
     [Symbol.iterator](): IterableIterator<number>;
+    [Symbol.toStringTag]: "Int32Array";
 }
 
 interface Int32ArrayConstructor {
@@ -4949,6 +4952,7 @@ interface Uint32Array {
       */
     values(): IterableIterator<number>;
     [Symbol.iterator](): IterableIterator<number>;
+    [Symbol.toStringTag]: "Uint32Array";
 }
 
 interface Uint32ArrayConstructor {
@@ -4981,6 +4985,7 @@ interface Float32Array {
       */
     values(): IterableIterator<number>;
     [Symbol.iterator](): IterableIterator<number>;
+    [Symbol.toStringTag]: "Float32Array";
 }
 
 interface Float32ArrayConstructor {
@@ -5013,6 +5018,7 @@ interface Float64Array {
       */
     values(): IterableIterator<number>;
     [Symbol.iterator](): IterableIterator<number>;
+    [Symbol.toStringTag]: "Float64Array";
 }
 
 interface Float64ArrayConstructor {
@@ -5064,7 +5070,7 @@ declare namespace Reflect {
     function isExtensible(target: any): boolean;
     function ownKeys(target: any): Array<PropertyKey>;
     function preventExtensions(target: any): boolean;
-    function set(target: any, propertyKey: PropertyKey, value: any, receiver? :any): boolean;
+    function set(target: any, propertyKey: PropertyKey, value: any, receiver?: any): boolean;
     function setPrototypeOf(target: any, proto: any): boolean;
 }
 
@@ -5089,7 +5095,7 @@ interface Promise<T> {
     catch(onrejected?: (reason: any) => T | PromiseLike<T>): Promise<T>;
     catch(onrejected?: (reason: any) => void): Promise<T>;
 
-    [Symbol.toStringTag]: string;
+    [Symbol.toStringTag]: "Promise";
 }
 
 interface PromiseConstructor {
@@ -5112,7 +5118,16 @@ interface PromiseConstructor {
      * @param values An array of Promises.
      * @returns A new Promise.
      */
-    all<T>(values: Iterable<T | PromiseLike<T>>): Promise<T[]>;
+    all<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>(values: [T1 | PromiseLike<T1>, T2 | PromiseLike<T2>, T3 | PromiseLike<T3>, T4 | PromiseLike <T4>, T5 | PromiseLike<T5>, T6 | PromiseLike<T6>, T7 | PromiseLike<T7>, T8 | PromiseLike<T8>, T9 | PromiseLike<T9>, T10 | PromiseLike<T10>]): Promise<[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10]>;
+    all<T1, T2, T3, T4, T5, T6, T7, T8, T9>(values: [T1 | PromiseLike<T1>, T2 | PromiseLike<T2>, T3 | PromiseLike<T3>, T4 | PromiseLike <T4>, T5 | PromiseLike<T5>, T6 | PromiseLike<T6>, T7 | PromiseLike<T7>, T8 | PromiseLike<T8>, T9 | PromiseLike<T9>]): Promise<[T1, T2, T3, T4, T5, T6, T7, T8, T9]>;
+    all<T1, T2, T3, T4, T5, T6, T7, T8>(values: [T1 | PromiseLike<T1>, T2 | PromiseLike<T2>, T3 | PromiseLike<T3>, T4 | PromiseLike <T4>, T5 | PromiseLike<T5>, T6 | PromiseLike<T6>, T7 | PromiseLike<T7>, T8 | PromiseLike<T8>]): Promise<[T1, T2, T3, T4, T5, T6, T7, T8]>;
+    all<T1, T2, T3, T4, T5, T6, T7>(values: [T1 | PromiseLike<T1>, T2 | PromiseLike<T2>, T3 | PromiseLike<T3>, T4 | PromiseLike <T4>, T5 | PromiseLike<T5>, T6 | PromiseLike<T6>, T7 | PromiseLike<T7>]): Promise<[T1, T2, T3, T4, T5, T6, T7]>;
+    all<T1, T2, T3, T4, T5, T6>(values: [T1 | PromiseLike<T1>, T2 | PromiseLike<T2>, T3 | PromiseLike<T3>, T4 | PromiseLike <T4>, T5 | PromiseLike<T5>, T6 | PromiseLike<T6>]): Promise<[T1, T2, T3, T4, T5, T6]>;
+    all<T1, T2, T3, T4, T5>(values: [T1 | PromiseLike<T1>, T2 | PromiseLike<T2>, T3 | PromiseLike<T3>, T4 | PromiseLike <T4>, T5 | PromiseLike<T5>]): Promise<[T1, T2, T3, T4, T5]>;
+    all<T1, T2, T3, T4>(values: [T1 | PromiseLike<T1>, T2 | PromiseLike<T2>, T3 | PromiseLike<T3>, T4 | PromiseLike <T4>]): Promise<[T1, T2, T3, T4]>;
+    all<T1, T2, T3>(values: [T1 | PromiseLike<T1>, T2 | PromiseLike<T2>, T3 | PromiseLike<T3>]): Promise<[T1, T2, T3]>;
+    all<T1, T2>(values: [T1 | PromiseLike<T1>, T2 | PromiseLike<T2>]): Promise<[T1, T2]>;
+    all<TAll>(values: Iterable<TAll | PromiseLike<TAll>>): Promise<TAll[]>;
 
     /**
      * Creates a Promise that is resolved or rejected when any of the provided Promises are resolved

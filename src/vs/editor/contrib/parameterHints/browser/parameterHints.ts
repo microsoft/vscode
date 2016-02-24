@@ -4,37 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import Model = require('./parameterHintsModel');
-import Widget = require('./parameterHintsWidget');
+import * as nls from 'vs/nls';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution} from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
+import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {ParameterHintsRegistry} from '../common/parameterHints';
+import {ParameterHintsModel} from './parameterHintsModel';
+import {ParameterHintsWidget} from './parameterHintsWidget';
 
-class ParameterHintsController implements EditorCommon.IEditorContribution {
+class ParameterHintsController implements IEditorContribution {
 	static ID = 'editor.controller.parameterHints';
 
-	public static get(editor:EditorCommon.ICommonCodeEditor): ParameterHintsController {
+	public static get(editor:ICommonCodeEditor): ParameterHintsController {
 		return <ParameterHintsController>editor.getContribution(ParameterHintsController.ID);
 	}
 
-	private editor:EditorBrowser.ICodeEditor;
-	private model: Model.ParameterHintsModel;
-	private widget: Widget.ParameterHintsWidget;
+	private editor:ICodeEditor;
+	private model: ParameterHintsModel;
+	private widget: ParameterHintsWidget;
 	private parameterHintsVisible: IKeybindingContextKey<boolean>;
 
-	constructor(editor:EditorBrowser.ICodeEditor, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(editor:ICodeEditor, @IKeybindingService keybindingService: IKeybindingService) {
 		this.editor = editor;
-		this.model = new Model.ParameterHintsModel(this.editor);
+		this.model = new ParameterHintsModel(this.editor);
 		this.parameterHintsVisible = keybindingService.createKey(CONTEXT_PARAMETER_HINTS_VISIBLE, false);
-		this.widget = new Widget.ParameterHintsWidget(this.model, this.editor, () => {
+		this.widget = new ParameterHintsWidget(this.model, this.editor, () => {
 			this.parameterHintsVisible.set(true);
 		}, () => {
 			this.parameterHintsVisible.reset();
@@ -74,7 +74,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 
 	static ID = 'editor.action.triggerParameterHints';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor);
 	}
 

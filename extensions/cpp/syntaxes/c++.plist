@@ -16,6 +16,7 @@
 		<string>hh</string>
 		<string>hpp</string>
 		<string>h++</string>
+		<string>H</string>
 	</array>
 	<key>firstLineMatch</key>
 	<string>-\*- C\+\+ -\*-</string>
@@ -28,10 +29,6 @@
 		<dict>
 			<key>include</key>
 			<string>#special_block</string>
-		</dict>
-		<dict>
-			<key>include</key>
-			<string>source.c</string>
 		</dict>
 		<dict>
 			<key>match</key>
@@ -85,7 +82,7 @@
 		</dict>
 		<dict>
 			<key>match</key>
-			<string>\b(and|and_eq|bitand|bitor|compl|not|not_eq|or|or_eq|typeid|xor|xor_eq)\b</string>
+			<string>\b(alignof|alignas|and|and_eq|bitand|bitor|compl|not|not_eq|or|or_eq|typeid|xor|xor_eq)\b</string>
 			<key>name</key>
 			<string>keyword.operator.c++</string>
 		</dict>
@@ -97,7 +94,7 @@
 		</dict>
 		<dict>
 			<key>match</key>
-			<string>\b(constexpr|export|mutable|typename|thread_local|noexcept)\b</string>
+			<string>\b(constexpr|export|mutable|typename|thread_local)\b</string>
 			<key>name</key>
 			<string>storage.modifier.c++</string>
 		</dict>
@@ -184,6 +181,69 @@
 					<string>$base</string>
 				</dict>
 			</array>
+		</dict>
+        <dict>
+			<key>begin</key>
+			<string>(?x)
+    		(?:  ^                                 # begin-of-line
+    		  |
+    		     (?: (?= \s )           (?&lt;!else|new|return) (?&lt;=\w)      #  or word + space before name
+    		       | (?= \s*[A-Za-z_] ) (?&lt;!&amp;&amp;)       (?&lt;=[*&amp;&gt;])   #  or type modifier before name
+    		     )
+    		)
+    		(\s*) (?!(while|for|do|if|else|switch|catch|enumerate|return|sizeof|[cr]?iterate)\s*\()
+    		(
+    			(?: [A-Za-z_][A-Za-z0-9_]*+ | :: )++ |                  # actual name
+    			(?: (?&lt;=operator) (?: [-*&amp;&lt;&gt;=+!]+ | \(\) | \[\] ) )  # if it is a C++ operator
+    		)
+    		 \s*(?=\()</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.whitespace.function.leading.c</string>
+				</dict>
+				<key>3</key>
+				<dict>
+					<key>name</key>
+					<string>entity.name.function.c</string>
+				</dict>
+				<key>4</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.parameters.c</string>
+				</dict>
+			</dict>
+			<key>end</key>
+			<string>(?&lt;=\})|(?=#)|(;)</string>
+			<key>name</key>
+			<string>meta.function.c++</string>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#comments</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#parens</string>
+				</dict>
+        		<dict>
+					<key>match</key>
+					<string>\b(const|final|override|noexcept)\b</string>
+					<key>name</key>
+					<string>storage.modifier.$1.c++</string>
+				</dict>
+				<dict>
+					<key>include</key>
+					<string>#block</string>
+				</dict>
+			</array>
+		</dict>
+        <dict>
+			<key>include</key>
+			<string>source.c</string>
 		</dict>
 	</array>
 	<key>repository</key>

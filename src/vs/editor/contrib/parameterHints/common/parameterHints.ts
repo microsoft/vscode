@@ -5,12 +5,12 @@
 
 'use strict';
 
-import {IParameterHintsSupport, IParameterHints} from 'vs/editor/common/modes';
-import {IModel, IPosition} from 'vs/editor/common/editorCommon';
+import {illegalArgument} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import {IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {IParameterHints, IParameterHintsSupport} from 'vs/editor/common/modes';
+import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 
 export const ParameterHintsRegistry = new LanguageFeatureRegistry<IParameterHintsSupport>('parameterHintsSupport');
 

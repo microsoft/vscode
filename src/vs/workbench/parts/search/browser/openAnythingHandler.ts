@@ -5,29 +5,27 @@
 
 'use strict';
 
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {ThrottledDelayer} from 'vs/base/common/async';
 import types = require('vs/base/common/types');
 import {isWindows} from 'vs/base/common/platform';
 import scorer = require('vs/base/common/scorer');
 import paths = require('vs/base/common/paths');
-import filters = require('vs/base/common/filters');
 import labels = require('vs/base/common/labels');
 import strings = require('vs/base/common/strings');
 import {IRange} from 'vs/editor/common/editorCommon';
-import {ListenerUnbind} from 'vs/base/common/eventEmitter';
-import {compareByPrefix} from 'vs/base/common/comparers';
 import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
 import {FileEntry, OpenFileHandler} from 'vs/workbench/parts/search/browser/openFileHandler';
+/* tslint:disable:no-unused-variable */
 import * as openSymbolHandler from 'vs/workbench/parts/search/browser/openSymbolHandler';
+/* tslint:enable:no-unused-variable */
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {ISearchConfiguration} from 'vs/platform/search/common/search';
-import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 interface ISearchWithRange {
 	search: string;
@@ -53,7 +51,6 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private pendingSearch: TPromise<QuickOpenModel>;
 	private isClosed: boolean;
 	private scorerCache: { [key: string]: number };
-	private configurationListenerUnbind: ListenerUnbind;
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
@@ -68,7 +65,6 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		this.openFileHandler = instantiationService.createInstance(OpenFileHandler);
 
 		this.openSymbolHandler.setStandalone(false);
-		this.openFileHandler.setStandalone(false);
 
 		this.resultsToSearchCache = Object.create(null);
 		this.scorerCache = Object.create(null);
@@ -113,7 +109,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			// Symbol Results (unless a range is specified)
 			let resultPromises: TPromise<QuickOpenModel>[] = [];
 			if (!searchWithRange) {
-				let symbolSearchTimeoutPromiseFn: (timeout: number) => Promise = (timeout) => {
+				let symbolSearchTimeoutPromiseFn: (timeout: number) => TPromise<QuickOpenModel> = (timeout) => {
 					return TPromise.timeout(timeout).then(() => {
 
 						// As long as the file search query did not return, push out the symbol timeout
@@ -124,7 +120,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 						}
 
 						// Empty result since timeout was reached and file results are in
-						return Promise.as(new QuickOpenModel());
+						return TPromise.as(new QuickOpenModel());
 					});
 				};
 
@@ -132,11 +128,11 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				let timeoutPromise = symbolSearchTimeoutPromiseFn(OpenAnythingHandler.SYMBOL_SEARCH_INITIAL_TIMEOUT);
 
 				// Timeout lookup after N seconds to not block file search results
-				resultPromises.push(Promise.any([lookupPromise, timeoutPromise]).then((result) => {
+				resultPromises.push(TPromise.any([lookupPromise, timeoutPromise]).then((result) => {
 					return result.value;
 				}));
 			} else {
-				resultPromises.push(Promise.as(new QuickOpenModel())); // We need this empty promise because we are using the throttler below!
+				resultPromises.push(TPromise.as(new QuickOpenModel())); // We need this empty promise because we are using the throttler below!
 			}
 
 			// File Results
@@ -159,7 +155,8 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				let result = [...results[0].entries, ...results[1].entries];
 
 				// Sort
-				result.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, this.scorerCache));
+				const normalizedSearchValue = strings.stripWildcards(searchValue).toLowerCase();
+				result.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValue, this.scorerCache));
 
 				// Apply Range
 				result.forEach((element) => {
@@ -173,6 +170,14 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 				// Cap the number of results to make the view snappy
 				const viewResults = result.length > OpenAnythingHandler.MAX_DISPLAYED_RESULTS ? result.slice(0, OpenAnythingHandler.MAX_DISPLAYED_RESULTS) : result;
+
+				// Apply highlights to file entries
+				viewResults.forEach(entry => {
+					if (entry instanceof FileEntry) {
+						const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, true /* fuzzy highlight */);
+						entry.setHighlights(labelHighlights, descriptionHighlights);
+					}
+				});
 
 				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
 			}, (error: Error) => {
@@ -229,7 +234,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			return {
 				search: value.substr(0, patternMatch.index), // clear range suffix from search value
 				range: range
-			}
+			};
 		}
 
 		return null;
@@ -274,15 +279,11 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				continue;
 			}
 
-			// Apply highlights
-			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, true /* fuzzy highlight */);
-			entry.setHighlights(labelHighlights, descriptionHighlights);
-
 			results.push(entry);
 		}
 
 		// Sort
-		results.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, this.scorerCache));
+		results.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValueLowercase, this.scorerCache));
 
 		// Apply Range
 		results.forEach((element) => {
@@ -293,6 +294,12 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// Cap the number of results to make the view snappy
 		const viewResults = results.length > OpenAnythingHandler.MAX_DISPLAYED_RESULTS ? results.slice(0, OpenAnythingHandler.MAX_DISPLAYED_RESULTS) : results;
+
+		// Apply highlights
+		viewResults.forEach(entry => {
+			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, true /* fuzzy highlight */);
+			entry.setHighlights(labelHighlights, descriptionHighlights);
+		});
 
 		return viewResults;
 	}

@@ -21,26 +21,15 @@ suite('Strings', () => {
 		assert(strings.equalsIgnoreCase('ÖL', 'Öl'));
 	});
 
-	test('isNullOrWhitespace', function() {
-		assert(strings.isFalsyOrWhitespace(null));
-		assert(strings.isFalsyOrWhitespace(undefined));
-		assert(strings.isFalsyOrWhitespace(''));
-		assert(strings.isFalsyOrWhitespace(""));
-		assert(strings.isFalsyOrWhitespace(' '));
-		assert(strings.isFalsyOrWhitespace('\t'));
-		assert(strings.isFalsyOrWhitespace('\n'));
-		assert(strings.isFalsyOrWhitespace(' \t\n'));
-	});
-
-	test("format", function () {
-		assert.strictEqual(strings.format("Foo Bar"), "Foo Bar");
-		assert.strictEqual(strings.format("Foo {0} Bar"), "Foo {0} Bar");
-		assert.strictEqual(strings.format("Foo {0} Bar", "yes"), "Foo yes Bar");
-		assert.strictEqual(strings.format("Foo {0} Bar {0}", "yes"), "Foo yes Bar yes");
-		assert.strictEqual(strings.format("Foo {0} Bar {1}{2}", "yes"), "Foo yes Bar {1}{2}");
-		assert.strictEqual(strings.format("Foo {0} Bar {1}{2}", "yes", undefined), "Foo yes Bar undefined{2}");
-		assert.strictEqual(strings.format("Foo {0} Bar {1}{2}", "yes", 5, false), "Foo yes Bar 5false");
-		assert.strictEqual(strings.format("Foo {0} Bar. {1}", "(foo)", ".test"), "Foo (foo) Bar. .test");
+	test('format', function () {
+		assert.strictEqual(strings.format('Foo Bar'), 'Foo Bar');
+		assert.strictEqual(strings.format('Foo {0} Bar'), 'Foo {0} Bar');
+		assert.strictEqual(strings.format('Foo {0} Bar', 'yes'), 'Foo yes Bar');
+		assert.strictEqual(strings.format('Foo {0} Bar {0}', 'yes'), 'Foo yes Bar yes');
+		assert.strictEqual(strings.format('Foo {0} Bar {1}{2}', 'yes'), 'Foo yes Bar {1}{2}');
+		assert.strictEqual(strings.format('Foo {0} Bar {1}{2}', 'yes', undefined), 'Foo yes Bar undefined{2}');
+		assert.strictEqual(strings.format('Foo {0} Bar {1}{2}', 'yes', 5, false), 'Foo yes Bar 5false');
+		assert.strictEqual(strings.format('Foo {0} Bar. {1}', '(foo)', '.test'), 'Foo (foo) Bar. .test');
 	});
 
 	test('computeLineStarts', function () {
@@ -66,87 +55,87 @@ suite('Strings', () => {
 	});
 
 
-	test("pad", function () {
-		assert.strictEqual(strings.pad(1, 0), "1");
-		assert.strictEqual(strings.pad(1, 1), "1");
-		assert.strictEqual(strings.pad(1, 2), "01");
-		assert.strictEqual(strings.pad(0, 2), "00");
+	test('pad', function () {
+		assert.strictEqual(strings.pad(1, 0), '1');
+		assert.strictEqual(strings.pad(1, 1), '1');
+		assert.strictEqual(strings.pad(1, 2), '01');
+		assert.strictEqual(strings.pad(0, 2), '00');
 	});
 
-	test("escape", function () {
-		assert.strictEqual(strings.escape(""), "");
-		assert.strictEqual(strings.escape("foo"), "foo");
-		assert.strictEqual(strings.escape("foo bar"), "foo bar");
-		assert.strictEqual(strings.escape("<foo bar>"), "&lt;foo bar&gt;");
-		assert.strictEqual(strings.escape("<foo>Hello</foo>"), "&lt;foo&gt;Hello&lt;/foo&gt;");
+	test('escape', function () {
+		assert.strictEqual(strings.escape(''), '');
+		assert.strictEqual(strings.escape('foo'), 'foo');
+		assert.strictEqual(strings.escape('foo bar'), 'foo bar');
+		assert.strictEqual(strings.escape('<foo bar>'), '&lt;foo bar&gt;');
+		assert.strictEqual(strings.escape('<foo>Hello</foo>'), '&lt;foo&gt;Hello&lt;/foo&gt;');
 	});
 
-	test("startsWith", function () {
-		assert(strings.startsWith("foo", "f"));
-		assert(strings.startsWith("foo", "fo"));
-		assert(strings.startsWith("foo", "foo"));
-		assert(!strings.startsWith("foo", "o"));
-		assert(!strings.startsWith("", "f"));
-		assert(strings.startsWith("foo", ""));
-		assert(strings.startsWith("", ""));
+	test('startsWith', function () {
+		assert(strings.startsWith('foo', 'f'));
+		assert(strings.startsWith('foo', 'fo'));
+		assert(strings.startsWith('foo', 'foo'));
+		assert(!strings.startsWith('foo', 'o'));
+		assert(!strings.startsWith('', 'f'));
+		assert(strings.startsWith('foo', ''));
+		assert(strings.startsWith('', ''));
 	});
 
-	test("endsWith", function () {
-		assert(strings.endsWith("foo", "o"));
-		assert(strings.endsWith("foo", "oo"));
-		assert(strings.endsWith("foo", "foo"));
-		assert(strings.endsWith("foo bar foo", "foo"));
-		assert(!strings.endsWith("foo", "f"));
-		assert(!strings.endsWith("", "f"));
-		assert(strings.endsWith("foo", ""));
-		assert(strings.endsWith("", ""));
-		assert(strings.endsWith("/", "/"));
+	test('endsWith', function () {
+		assert(strings.endsWith('foo', 'o'));
+		assert(strings.endsWith('foo', 'oo'));
+		assert(strings.endsWith('foo', 'foo'));
+		assert(strings.endsWith('foo bar foo', 'foo'));
+		assert(!strings.endsWith('foo', 'f'));
+		assert(!strings.endsWith('', 'f'));
+		assert(strings.endsWith('foo', ''));
+		assert(strings.endsWith('', ''));
+		assert(strings.endsWith('/', '/'));
 	});
 
-	test("ltrim", function () {
-		assert.strictEqual(strings.ltrim("foo", "f"), "oo");
-		assert.strictEqual(strings.ltrim("foo", "o"), "foo");
-		assert.strictEqual(strings.ltrim("http://www.test.de", "http://"), "www.test.de");
-		assert.strictEqual(strings.ltrim("/foo/", "/"), "foo/");
-		assert.strictEqual(strings.ltrim("//foo/", "/"), "foo/");
-		assert.strictEqual(strings.ltrim("/", ""), "/");
-		assert.strictEqual(strings.ltrim("/", "/"), "");
-		assert.strictEqual(strings.ltrim("///", "/"), "");
-		assert.strictEqual(strings.ltrim("", ""), "");
-		assert.strictEqual(strings.ltrim("", "/"), "");
+	test('ltrim', function () {
+		assert.strictEqual(strings.ltrim('foo', 'f'), 'oo');
+		assert.strictEqual(strings.ltrim('foo', 'o'), 'foo');
+		assert.strictEqual(strings.ltrim('http://www.test.de', 'http://'), 'www.test.de');
+		assert.strictEqual(strings.ltrim('/foo/', '/'), 'foo/');
+		assert.strictEqual(strings.ltrim('//foo/', '/'), 'foo/');
+		assert.strictEqual(strings.ltrim('/', ''), '/');
+		assert.strictEqual(strings.ltrim('/', '/'), '');
+		assert.strictEqual(strings.ltrim('///', '/'), '');
+		assert.strictEqual(strings.ltrim('', ''), '');
+		assert.strictEqual(strings.ltrim('', '/'), '');
 	});
 
-	test("rtrim", function () {
-		assert.strictEqual(strings.rtrim("foo", "o"), "f");
-		assert.strictEqual(strings.rtrim("foo", "f"), "foo");
-		assert.strictEqual(strings.rtrim("http://www.test.de", ".de"), "http://www.test");
-		assert.strictEqual(strings.rtrim("/foo/", "/"), "/foo");
-		assert.strictEqual(strings.rtrim("/foo//", "/"), "/foo");
-		assert.strictEqual(strings.rtrim("/", ""), "/");
-		assert.strictEqual(strings.rtrim("/", "/"), "");
-		assert.strictEqual(strings.rtrim("///", "/"), "");
-		assert.strictEqual(strings.rtrim("", ""), "");
-		assert.strictEqual(strings.rtrim("", "/"), "");
+	test('rtrim', function () {
+		assert.strictEqual(strings.rtrim('foo', 'o'), 'f');
+		assert.strictEqual(strings.rtrim('foo', 'f'), 'foo');
+		assert.strictEqual(strings.rtrim('http://www.test.de', '.de'), 'http://www.test');
+		assert.strictEqual(strings.rtrim('/foo/', '/'), '/foo');
+		assert.strictEqual(strings.rtrim('/foo//', '/'), '/foo');
+		assert.strictEqual(strings.rtrim('/', ''), '/');
+		assert.strictEqual(strings.rtrim('/', '/'), '');
+		assert.strictEqual(strings.rtrim('///', '/'), '');
+		assert.strictEqual(strings.rtrim('', ''), '');
+		assert.strictEqual(strings.rtrim('', '/'), '');
 	});
 
-	test("trim", function () {
-		assert.strictEqual(strings.trim(" foo "), "foo");
-		assert.strictEqual(strings.trim("  foo"), "foo");
-		assert.strictEqual(strings.trim("bar  "), "bar");
-		assert.strictEqual(strings.trim("   "), "");
-		assert.strictEqual(strings.trim("foo bar", "bar"), "foo ");
+	test('trim', function () {
+		assert.strictEqual(strings.trim(' foo '), 'foo');
+		assert.strictEqual(strings.trim('  foo'), 'foo');
+		assert.strictEqual(strings.trim('bar  '), 'bar');
+		assert.strictEqual(strings.trim('   '), '');
+		assert.strictEqual(strings.trim('foo bar', 'bar'), 'foo ');
 	});
 
-	test("trimWhitespace", function () {
-		assert.strictEqual(" foo ".trim(), "foo");
-		assert.strictEqual("	 foo	".trim(), "foo");
-		assert.strictEqual("  foo".trim(), "foo");
-		assert.strictEqual("bar  ".trim(), "bar");
-		assert.strictEqual("   ".trim(), "");
-		assert.strictEqual(" 	  ".trim(), "");
+	test('trimWhitespace', function () {
+		assert.strictEqual(' foo '.trim(), 'foo');
+		assert.strictEqual('	 foo	'.trim(), 'foo');
+		assert.strictEqual('  foo'.trim(), 'foo');
+		assert.strictEqual('bar  '.trim(), 'bar');
+		assert.strictEqual('   '.trim(), '');
+		assert.strictEqual(' 	  '.trim(), '');
 	});
 
-	test("localeCompare", function() {
+	test('localeCompare', function() {
 		assert.strictEqual(strings.localeCompare('a', 'a'), 'a'.localeCompare('a'));
 		assert.strictEqual(strings.localeCompare('A', 'A'), 'A'.localeCompare('A'));
 		assert.strictEqual(strings.localeCompare('All', 'A'), 'All'.localeCompare('A'));

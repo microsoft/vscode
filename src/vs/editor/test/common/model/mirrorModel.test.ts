@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import MirrorModel = require('vs/editor/common/model/mirrorModel');
-import modesUtil = require('vs/editor/test/common/modesTestUtils');
+import * as assert from 'assert';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {IMirrorModelEvents, MirrorModel, createMirrorModelFromString} from 'vs/editor/common/model/mirrorModel';
+import {createMockMode} from 'vs/editor/test/common/modesTestUtils';
 
 function equalRange(left, right) {
 	if(left.startLineNumber !== right.startLineNumber) {
@@ -21,9 +21,9 @@ function equalRange(left, right) {
 	assert.ok(true, 'ranges');
 };
 
-function contentChangedFlushEvent(detail: EditorCommon.IRawText): EditorCommon.IModelContentChangedFlushEvent {
+function contentChangedFlushEvent(detail: editorCommon.IRawText): editorCommon.IModelContentChangedFlushEvent {
 	return {
-		changeType: EditorCommon.EventType.ModelContentChangedFlush,
+		changeType: editorCommon.EventType.ModelContentChangedFlush,
 		isRedoing: false,
 		isUndoing: false,
 		versionId: 0,
@@ -31,9 +31,9 @@ function contentChangedFlushEvent(detail: EditorCommon.IRawText): EditorCommon.I
 	};
 }
 
-function contentChangedLinesDeletedEvent(fromLineNumber: number, toLineNumber: number): EditorCommon.IModelContentChangedLinesDeletedEvent {
+function contentChangedLinesDeletedEvent(fromLineNumber: number, toLineNumber: number): editorCommon.IModelContentChangedLinesDeletedEvent {
 	return {
-		changeType: EditorCommon.EventType.ModelContentChangedLinesDeleted,
+		changeType: editorCommon.EventType.ModelContentChangedLinesDeleted,
 		isRedoing: false,
 		isUndoing: false,
 		versionId: 0,
@@ -42,9 +42,9 @@ function contentChangedLinesDeletedEvent(fromLineNumber: number, toLineNumber: n
 	};
 }
 
-function contentChangedLinesInsertedEvent(fromLineNumber: number, toLineNumber: number, detail: string): EditorCommon.IModelContentChangedLinesInsertedEvent {
+function contentChangedLinesInsertedEvent(fromLineNumber: number, toLineNumber: number, detail: string): editorCommon.IModelContentChangedLinesInsertedEvent {
 	return {
-		changeType: EditorCommon.EventType.ModelContentChangedLinesInserted,
+		changeType: editorCommon.EventType.ModelContentChangedLinesInserted,
 		isRedoing: false,
 		isUndoing: false,
 		versionId: 0,
@@ -54,9 +54,9 @@ function contentChangedLinesInsertedEvent(fromLineNumber: number, toLineNumber: 
 	};
 }
 
-function contentChangedLineChanged(lineNumber: number, detail: string): EditorCommon.IModelContentChangedLineChangedEvent {
+function contentChangedLineChanged(lineNumber: number, detail: string): editorCommon.IModelContentChangedLineChangedEvent {
 	return {
-		changeType: EditorCommon.EventType.ModelContentChangedLineChanged,
+		changeType: editorCommon.EventType.ModelContentChangedLineChanged,
 		isRedoing: false,
 		isUndoing: false,
 		versionId: 0,
@@ -65,19 +65,18 @@ function contentChangedLineChanged(lineNumber: number, detail: string): EditorCo
 	};
 }
 
-function mirrorModelEvents(contentChanged:EditorCommon.IModelContentChangedEvent[]): MirrorModel.IMirrorModelEvents {
+function mirrorModelEvents(contentChanged:editorCommon.IModelContentChangedEvent[]): IMirrorModelEvents {
 	return {
-		propertiesChanged: null,
 		contentChanged: contentChanged
 	};
 }
 
 suite('Editor Model - MirrorModel', () => {
 
-	var mirrorModel:MirrorModel.MirrorModel;
+	var mirrorModel:MirrorModel;
 
 	setup(() => {
-		mirrorModel = MirrorModel.createMirrorModelFromString(null, 0, 'line1\nline2\nline3\nline4', modesUtil.createMockMode('mock.mode.id'));
+		mirrorModel = createMirrorModelFromString(null, 0, 'line1\nline2\nline3\nline4', createMockMode('mock.mode.id'));
 	});
 
 	teardown(() => {
@@ -126,7 +125,7 @@ suite('Editor Model - MirrorModel', () => {
 	});
 
 	test('get (all/unique) words', () => {
-		var model = MirrorModel.createMirrorModelFromString(null, 0, 'foo bar foo bar', modesUtil.createMockMode('mock.mode.id'));
+		var model = createMirrorModelFromString(null, 0, 'foo bar foo bar', createMockMode('mock.mode.id'));
 		var words = model.getAllWords();
 		var uniqueWords = model.getAllUniqueWords();
 		assert.equal(words.length, 4);
@@ -138,7 +137,7 @@ suite('Editor Model - MirrorModel', () => {
 		assert.equal(uniqueWords[0], 'foo');
 		assert.equal(uniqueWords[1], 'bar');
 
-		model = MirrorModel.createMirrorModelFromString(null, 0, 'foo bar\nfoo\nbar', modesUtil.createMockMode('mock.mode.id'));
+		model = createMirrorModelFromString(null, 0, 'foo bar\nfoo\nbar', createMockMode('mock.mode.id'));
 		words = model.getAllWords();
 		uniqueWords = model.getAllUniqueWords();
 		assert.equal(words.length, 4);
@@ -155,7 +154,7 @@ suite('Editor Model - MirrorModel', () => {
 		var pos = { lineNumber: 1, column: 3 };
 		assert.equal(mirrorModel.getWordAtPosition(pos).word, 'line1');
 
-		var model = MirrorModel.createMirrorModelFromString(null, 0, 'foo bar 1234 :";\'', modesUtil.createMockMode('mock.mode.id'));
+		var model = createMirrorModelFromString(null, 0, 'foo bar 1234 :";\'', createMockMode('mock.mode.id'));
 		assert.equal(model.getWordAtPosition({lineNumber: 1, column: 1}).word, 'foo');
 		assert.equal(model.getWordAtPosition({lineNumber: 1, column: 2}).word, 'foo');
 		assert.equal(model.getWordAtPosition({lineNumber: 1, column: 3}).word, 'foo');
@@ -190,7 +189,7 @@ suite('Editor Model - MirrorModel', () => {
 		assert.equal(wordsWithRanges[3].text, 'line4');
 		equalRange(wordsWithRanges[3].range, { startLineNumber: 4, startColumn: 1, endLineNumber: 4, endColumn: 6 });
 
-		var model = MirrorModel.createMirrorModelFromString(null, 0, 'foo bar\nfoo\nbar', modesUtil.createMockMode('mock.mode.id'));
+		var model = createMirrorModelFromString(null, 0, 'foo bar\nfoo\nbar', createMockMode('mock.mode.id'));
 		wordsWithRanges = model.getAllWordsWithRange();
 		assert.equal(wordsWithRanges.length, 4);
 		assert.equal(wordsWithRanges[0].text, 'foo');
@@ -206,10 +205,10 @@ suite('Editor Model - MirrorModel', () => {
 
 suite('Editor Model - MirrorModel Eventing', () => {
 
-	var mirrorModel:MirrorModel.MirrorModel;
+	var mirrorModel:MirrorModel;
 
 	setup(() => {
-		mirrorModel = MirrorModel.createMirrorModelFromString(null, 0, 'line one\nline two\nline three\nline four', modesUtil.createMockMode('mock.mode.id'));
+		mirrorModel = createMirrorModelFromString(null, 0, 'line one\nline two\nline three\nline four', createMockMode('mock.mode.id'));
 	});
 
 	teardown(() => {

@@ -6,18 +6,18 @@
 'use strict';
 
 import 'vs/css!./outlineMarker';
+import {RunOnceScheduler} from 'vs/base/common/async';
+import {onUnexpectedError} from 'vs/base/common/errors';
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
-import lifecycle = require('vs/base/common/lifecycle');
-import schedulers = require('vs/base/common/async');
-import errors = require('vs/base/common/errors');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {Range} from 'vs/editor/common/core/range';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
+import {Range} from 'vs/editor/common/core/range';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {IOutlineEntry} from 'vs/editor/common/modes';
+import {ICodeEditor, IViewZone, IViewZoneChangeAccessor} from 'vs/editor/browser/editorBrowser';
+import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 
-class OutlineViewZone implements EditorBrowser.IViewZone {
+class OutlineViewZone implements IViewZone {
 
 	public afterLineNumber:number;
 	public heightInPx:number;
@@ -25,7 +25,7 @@ class OutlineViewZone implements EditorBrowser.IViewZone {
 
 	public domNode:HTMLElement;
 
-	constructor(range:EditorCommon.IRange, outlineType:string)
+	constructor(range:editorCommon.IRange, outlineType:string)
 	{
 		this.afterLineNumber = range.startLineNumber-1;
 		this.heightInPx = 4;
@@ -44,7 +44,7 @@ interface IDecorationIdCallback {
 
 class OutlineMarkerHelper {
 	private _removeDecorations:string[];
-	private _addDecorations:EditorCommon.IModelDeltaDecoration[];
+	private _addDecorations:editorCommon.IModelDeltaDecoration[];
 	private _addDecorationsCallbacks:IDecorationIdCallback[];
 
 	constructor() {
@@ -53,7 +53,7 @@ class OutlineMarkerHelper {
 		this._addDecorationsCallbacks = [];
 	}
 
-	public addDecoration(decoration:EditorCommon.IModelDeltaDecoration, callback:IDecorationIdCallback): void {
+	public addDecoration(decoration:editorCommon.IModelDeltaDecoration, callback:IDecorationIdCallback): void {
 		this._addDecorations.push(decoration);
 		this._addDecorationsCallbacks.push(callback);
 	}
@@ -62,7 +62,7 @@ class OutlineMarkerHelper {
 		this._removeDecorations.push(decorationId);
 	}
 
-	public commit(changeAccessor:EditorCommon.IModelDecorationsChangeAccessor): void {
+	public commit(changeAccessor:editorCommon.IModelDecorationsChangeAccessor): void {
 		var resultingDecorations = changeAccessor.deltaDecorations(this._removeDecorations, this._addDecorations);
 		for (let i = 0, len = resultingDecorations.length; i < len; i++) {
 			this._addDecorationsCallbacks[i](resultingDecorations[i]);
@@ -75,10 +75,10 @@ class OutlineMarker {
 	private _viewZoneId:number;
 	private _decorationId:string;
 
-	private _editor:EditorBrowser.ICodeEditor;
+	private _editor:ICodeEditor;
 
 
-	public constructor(range:EditorCommon.IRange, outlineType:string, _editor:EditorBrowser.ICodeEditor, helper:OutlineMarkerHelper, viewZoneChangeAccessor:EditorBrowser.IViewZoneChangeAccessor)
+	public constructor(range:editorCommon.IRange, outlineType:string, _editor:ICodeEditor, helper:OutlineMarkerHelper, viewZoneChangeAccessor:IViewZoneChangeAccessor)
 	{
 		this._editor = _editor;
 		this._viewZone = new OutlineViewZone(range, outlineType);
@@ -88,10 +88,10 @@ class OutlineMarker {
 			options: {}
 		}, (decorationId) => {
 			this._decorationId = decorationId;
-		})
+		});
 	}
 
-	public dispose(helper:OutlineMarkerHelper, viewZoneChangeAccessor:EditorBrowser.IViewZoneChangeAccessor): void {
+	public dispose(helper:OutlineMarkerHelper, viewZoneChangeAccessor:IViewZoneChangeAccessor): void {
 		helper.removeDecoration(this._decorationId);
 		viewZoneChangeAccessor.removeZone(this._viewZoneId);
 	}
@@ -100,7 +100,7 @@ class OutlineMarker {
 		return this._viewZone.afterLineNumber;
 	}
 
-	public update(viewZoneChangeAccessor:EditorBrowser.IViewZoneChangeAccessor): void {
+	public update(viewZoneChangeAccessor:IViewZoneChangeAccessor): void {
 		var range = this._editor.getModel().getDecorationRange(this._decorationId);
 
 		this._viewZone.afterLineNumber = range.startLineNumber - 1;
@@ -108,20 +108,20 @@ class OutlineMarker {
 	}
 }
 
-export class OutlineMarkerContribution implements EditorCommon.IEditorContribution {
+export class OutlineMarkerContribution implements editorCommon.IEditorContribution {
 
 	public static ID = 'editor.outlineMarker';
 
-	private _editor:EditorBrowser.ICodeEditor;
+	private _editor:ICodeEditor;
 
-	private _globalToDispose:lifecycle.IDisposable[];
+	private _globalToDispose:IDisposable[];
 
-	private _localToDispose:lifecycle.IDisposable[];
-	private _currentOutlinePromise:TPromise<Modes.IOutlineEntry[]>;
+	private _localToDispose:IDisposable[];
+	private _currentOutlinePromise:TPromise<IOutlineEntry[]>;
 
 	private _markers:OutlineMarker[];
 
-	constructor(editor:EditorBrowser.ICodeEditor, @INullService ns) {
+	constructor(editor:ICodeEditor, @INullService ns) {
 		this._editor = editor;
 
 		this._globalToDispose = [];
@@ -129,14 +129,14 @@ export class OutlineMarkerContribution implements EditorCommon.IEditorContributi
 		this._markers = [];
 		this._currentOutlinePromise = null;
 
-		this._globalToDispose.push(this._editor.addListener2(EditorCommon.EventType.ModelChanged, () => this.onChange(true)));
-		this._globalToDispose.push(this._editor.addListener2(EditorCommon.EventType.ModelModeChanged, () => this.onChange(false)));
-		this._globalToDispose.push(this._editor.addListener2(EditorCommon.EventType.ModelModeSupportChanged, (e: EditorCommon.IModeSupportChangedEvent) => {
+		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ModelChanged, () => this.onChange(true)));
+		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ModelModeChanged, () => this.onChange(false)));
+		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ModelModeSupportChanged, (e: editorCommon.IModeSupportChangedEvent) => {
 			if (e.outlineSupport) {
 				this.onChange(false);
 			}
 		}));
-		this._globalToDispose.push(this._editor.addListener2(EditorCommon.EventType.ConfigurationChanged,(e: EditorCommon.IConfigurationChangedEvent) => {
+		this._globalToDispose.push(this._editor.addListener2(editorCommon.EventType.ConfigurationChanged,(e: editorCommon.IConfigurationChangedEvent) => {
 			if (e.outlineMarkers) {
 				this.onChange(false);
 			}
@@ -147,14 +147,14 @@ export class OutlineMarkerContribution implements EditorCommon.IEditorContributi
 
 	public dispose(): void {
 		this.localDispose();
-		this._globalToDispose = lifecycle.disposeAll(this._globalToDispose);
+		this._globalToDispose = disposeAll(this._globalToDispose);
 	}
 
 	private localDispose(): void {
 		if (this._currentOutlinePromise) {
 			this._currentOutlinePromise.cancel();
 		}
-		this._localToDispose = lifecycle.disposeAll(this._localToDispose);
+		this._localToDispose = disposeAll(this._localToDispose);
 	}
 
 	public getId():string {
@@ -183,7 +183,7 @@ export class OutlineMarkerContribution implements EditorCommon.IEditorContributi
 			return;
 		}
 
-		var scheduler = new schedulers.RunOnceScheduler(() => {
+		var scheduler = new RunOnceScheduler(() => {
 			if (this._currentOutlinePromise) {
 				this._currentOutlinePromise.cancel();
 			}
@@ -193,7 +193,7 @@ export class OutlineMarkerContribution implements EditorCommon.IEditorContributi
 			this._currentOutlinePromise.then((result) => {
 				this.renderOutlines(result);
 			}, (error) => {
-				errors.onUnexpectedError(error);
+				onUnexpectedError(error);
 			});
 		}, 250);
 		this._localToDispose.push(scheduler);
@@ -226,7 +226,7 @@ export class OutlineMarkerContribution implements EditorCommon.IEditorContributi
 		scheduler.schedule();
 	}
 
-	private renderOutlines(entries: Modes.IOutlineEntry[]): void {
+	private renderOutlines(entries: IOutlineEntry[]): void {
 		var centeredRange = this._editor.getCenteredRangeInViewport();
 		var oldMarkersCount = this._markers.length;
 		this._editor.changeDecorations((decorationsAccessor) => {
@@ -246,7 +246,7 @@ export class OutlineMarkerContribution implements EditorCommon.IEditorContributi
 		}
 	}
 
-	private renderOutlinesRecursive(entries: Modes.IOutlineEntry[], helper:OutlineMarkerHelper, viewZoneChangeAccessor:EditorBrowser.IViewZoneChangeAccessor): void {
+	private renderOutlinesRecursive(entries: IOutlineEntry[], helper:OutlineMarkerHelper, viewZoneChangeAccessor:IViewZoneChangeAccessor): void {
 		if (entries) {
 			entries.forEach((outline) => {
 				if (outline.type === 'class' || outline.type === 'method' || outline.type === 'function') {
@@ -262,7 +262,7 @@ export class OutlineMarkerContribution implements EditorCommon.IEditorContributi
 		}
 	}
 
-	private alreadyHasMarkerAtRange(range: EditorCommon.IRange): boolean {
+	private alreadyHasMarkerAtRange(range: editorCommon.IRange): boolean {
 		for (var i = 0; i < this._markers.length; ++i) {
 			if (this._markers[i].getLine() === range.startLineNumber-1) {
 				return true;

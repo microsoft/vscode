@@ -11,7 +11,7 @@ import glob = require('vs/base/common/glob');
 import events = require('vs/base/common/events');
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
-export var IFileService = createDecorator<IFileService>('fileService');
+export const IFileService = createDecorator<IFileService>('fileService');
 
 export interface IFileService {
 	serviceId: ServiceIdentifier<any>;
@@ -148,7 +148,7 @@ export interface IFileChange {
 	 * The unified resource identifier of the file that changed.
 	 */
 	resource: URI;
-};
+}
 
 export class FileChangesEvent extends events.Event {
 	private _changes: IFileChange[];
@@ -412,12 +412,18 @@ export enum FileOperationResult {
 	FILE_TOO_LARGE
 }
 
+export const AutoSaveConfiguration = {
+	OFF: 'off',
+	AFTER_DELAY: 'afterDelay',
+	ON_FOCUS_CHANGE: 'onFocusChange'
+};
+
 export interface IFilesConfiguration {
 	files: {
 		exclude: glob.IExpression;
 		encoding: string;
 		trimTrailingWhitespace: boolean;
+		autoSave: string;
 		autoSaveDelay: number;
-		autoSaveFocusChange: boolean;
 	};
 }

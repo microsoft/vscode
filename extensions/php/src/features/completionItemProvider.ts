@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {CompletionItemProvider, CompletionItem, CompletionItemKind, CancellationToken, TextDocument, Range, Position} from 'vscode';
+import {CompletionItemProvider, CompletionItem, CompletionItemKind, CancellationToken, TextDocument, Position} from 'vscode';
 import phpGlobals = require('./phpGlobals');
 
 export default class PHPCompletionItemProvider implements CompletionItemProvider {
@@ -34,7 +34,7 @@ export default class PHPCompletionItemProvider implements CompletionItemProvider
 
 		var matches = (name:string) => {
 			return prefix.length === 0 || name.length > prefix.length && name.substr(0, prefix.length) === prefix;
-		}
+		};
 
 		for (var name in phpGlobals.globalvariables) {
 			if (phpGlobals.globalvariables.hasOwnProperty(name) && matches(name)) {

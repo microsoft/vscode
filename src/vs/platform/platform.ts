@@ -6,7 +6,7 @@
 
 import Types = require('vs/base/common/types');
 import Assert = require('vs/base/common/assert');
-import {IInstantiationService, IConstructorSignature0, INewConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
 
 export interface IRegistry {
 
@@ -16,30 +16,30 @@ export interface IRegistry {
 	 * @param id a unique identifier
 	 * @param data a contribution
 	 */
-	add(id:string, data:any):void;
+	add(id: string, data: any): void;
 
 	/**
 	 * Returns true iff there is an extension with the provided id.
 	 * @param id an extension idenifier
 	 */
-	knows(id:string):boolean;
+	knows(id: string): boolean;
 
 	/**
 	 * Returns the extension functions and properties defined by the specified key or null.
 	 * @param id an extension idenifier
 	 */
-	as(id:string):any;
+	as(id: string): any;
 }
 
 class RegistryImpl implements IRegistry {
 
-	private data:{[id:string]:any;};
+	private data: { [id: string]: any; };
 
 	constructor() {
 		this.data = {};
 	}
 
-	public add(id:string, data:any):void {
+	public add(id: string, data: any): void {
 		Assert.ok(Types.isString(id));
 		Assert.ok(Types.isObject(data));
 		Assert.ok(!this.data.hasOwnProperty(id), 'There is already an extension with this id');
@@ -47,40 +47,40 @@ class RegistryImpl implements IRegistry {
 		this.data[id] = data;
 	}
 
-	public knows(id:string):boolean {
+	public knows(id: string): boolean {
 		return this.data.hasOwnProperty(id);
 	}
 
-	public as(id:string):any {
+	public as(id: string): any {
 		return this.data[id] || null;
 	}
 }
 
-export var Registry = <IRegistry> new RegistryImpl();
+export var Registry = <IRegistry>new RegistryImpl();
 
 /**
  * A base class for registries that leverage the instantiation service to create instances.
  */
 export class BaseRegistry<T> {
-	private toBeInstantiated:IConstructorSignature0<T>[] = [];
-	private instances:T[] = [];
-	private instantiationService:IInstantiationService;
+	private toBeInstantiated: IConstructorSignature0<T>[] = [];
+	private instances: T[] = [];
+	private instantiationService: IInstantiationService;
 
-	public setInstantiationService(service:IInstantiationService):void {
+	public setInstantiationService(service: IInstantiationService): void {
 		this.instantiationService = service;
 
-		while(this.toBeInstantiated.length > 0) {
+		while (this.toBeInstantiated.length > 0) {
 			let entry = this.toBeInstantiated.shift();
 			this.instantiate(entry);
 		}
 	}
 
-	private instantiate(ctor:IConstructorSignature0<T> | INewConstructorSignature0<T>):void {
+	private instantiate(ctor: IConstructorSignature0<T>): void {
 		let instance = this.instantiationService.createInstance(ctor);
 		this.instances.push(instance);
 	}
 
-	_register(ctor:IConstructorSignature0<T> | INewConstructorSignature0<T>):void {
+	_register(ctor: IConstructorSignature0<T>): void {
 		if (this.instantiationService) {
 			this.instantiate(ctor);
 		} else {
@@ -88,11 +88,11 @@ export class BaseRegistry<T> {
 		}
 	}
 
-	_getInstances():T[] {
+	_getInstances(): T[] {
 		return this.instances.slice(0);
 	}
 
-	_setInstances(instances:T[]):void {
+	_setInstances(instances: T[]): void {
 		this.instances = instances;
 	}
 }

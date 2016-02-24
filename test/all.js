@@ -50,7 +50,7 @@ function loadClientTests(cb) {
 			return file.replace(/\.js$/, '');
 		});
 
-		// load all modules
+		// load all modules with the AMD loader
 		define(modules, function () {
 			cb(null);
 		}, cb);
@@ -61,13 +61,12 @@ function loadPluginTests(cb) {
 	var root = path.join(path.dirname(__dirname), 'extensions');
 	glob(TEST_GLOB, { cwd: root }, function (err, files) {
 
+		// load modules with commonjs
 		var modules = files.map(function (file) {
-			return 'extensions/' + file.replace(/\.js$/, '');
+			return '../extensions/' + file.replace(/\.js$/, '');
 		});
-
-		define(modules, function() {
-			cb(null);
-		}, cb);
+		modules.forEach(require);
+		cb(null);
 	});
 }
 

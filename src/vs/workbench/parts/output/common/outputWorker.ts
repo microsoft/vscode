@@ -7,26 +7,34 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
-import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import arrays = require('vs/base/common/arrays');
 import paths = require('vs/base/common/paths');
-import {ILink, IMode, IWorkerParticipant} from 'vs/editor/common/modes';
+import {ILink, IWorkerParticipant} from 'vs/editor/common/modes';
 import {Range} from 'vs/editor/common/core/range';
 import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
 
 /**
  * A base class of text editor worker that helps with detecting links in the text that point to files in the workspace.
  */
-export class OutputWorker extends AbstractModeWorker {
+export class OutputWorker {
 	private _contextService: IWorkspaceContextService;
 	private patterns: RegExp[];
+	private resourceService:IResourceService;
+	private markerService: IMarkerService;
+	private _modeId: string;
 
-	constructor(mode: IMode, participants: IWorkerParticipant[], @IResourceService resourceService: IResourceService,
-		@IMarkerService markerService: IMarkerService, @IWorkspaceContextService contextService:IWorkspaceContextService) {
-		super(mode, participants, resourceService, markerService);
-
+	constructor(
+		modeId: string,
+		participants: IWorkerParticipant[],
+		@IResourceService resourceService: IResourceService,
+		@IMarkerService markerService: IMarkerService,
+		@IWorkspaceContextService contextService:IWorkspaceContextService
+	) {
+		this._modeId = modeId;
+		this.resourceService = resourceService;
+		this.markerService = markerService;
 		this._contextService = contextService;
 
 		let workspace = this._contextService.getWorkspace();
@@ -38,19 +46,18 @@ export class OutputWorker extends AbstractModeWorker {
 	}
 
 	public computeLinks(resource: URI): TPromise<ILink[]> {
-		return super.computeLinks(resource).then((links) => {
-			if (!this.patterns.length) {
-				return links;
-			}
+		let links: ILink[] = [];
+		if (!this.patterns.length) {
+			return TPromise.as(links);
+		}
 
-			let model = this.resourceService.get(resource);
+		let model = this.resourceService.get(resource);
 
-			for (let i = 1, lineCount = model.getLineCount(); i <= lineCount; i++) {
-				links.push(...OutputWorker.detectLinks(model.getLineContent(i), i, this.patterns, this._contextService));
-			}
+		for (let i = 1, lineCount = model.getLineCount(); i <= lineCount; i++) {
+			links.push(...OutputWorker.detectLinks(model.getLineContent(i), i, this.patterns, this._contextService));
+		}
 
-			return links;
-		});
+		return TPromise.as(links);
 	}
 
 	public static createPatterns(workspace: IWorkspace): RegExp[] {

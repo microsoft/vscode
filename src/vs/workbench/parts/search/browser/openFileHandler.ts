@@ -6,7 +6,6 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import {ThrottledDelayer} from 'vs/base/common/async';
 import paths = require('vs/base/common/paths');
 import labels = require('vs/base/common/labels');
 import URI from 'vs/base/common/uri';
@@ -50,6 +49,10 @@ export class FileEntry extends EditorQuickOpenEntry {
 		return this.name;
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, file picker", this.getLabel());
+	}
+
 	public getDescription(): string {
 		return this.description;
 	}
@@ -82,12 +85,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 }
 
 export class OpenFileHandler extends QuickOpenHandler {
-
-	private static SEARCH_DELAY = 500; // This delay accommodates for the user typing a word and then stops typing to start searching
-
 	private queryBuilder: QueryBuilder;
-	private delayer: ThrottledDelayer<QuickOpenEntry[]>;
-	private isStandalone: boolean;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -101,13 +99,6 @@ export class OpenFileHandler extends QuickOpenHandler {
 		super();
 
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
-		this.delayer = new ThrottledDelayer<QuickOpenEntry[]>(OpenFileHandler.SEARCH_DELAY);
-		this.isStandalone = true;
-	}
-
-	public setStandalone(standalone: boolean) {
-		this.delayer = standalone ? new ThrottledDelayer<QuickOpenEntry[]>(OpenFileHandler.SEARCH_DELAY) : null;
-		this.isStandalone = standalone;
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
@@ -117,8 +108,6 @@ export class OpenFileHandler extends QuickOpenHandler {
 		// Respond directly to empty search
 		if (!searchValue) {
 			promise = TPromise.as([]);
-		} else if (this.delayer) {
-			promise = this.delayer.trigger(() => this.doFindResults(searchValue)); // Run search with delay as needed
 		} else {
 			promise = this.doFindResults(searchValue);
 		}
@@ -127,15 +116,13 @@ export class OpenFileHandler extends QuickOpenHandler {
 	}
 
 	private doFindResults(searchValue: string): TPromise<QuickOpenEntry[]> {
-		let query: IQueryOptions = {
+		const query: IQueryOptions = {
 			folderResources: this.contextService.getWorkspace() ? [this.contextService.getWorkspace().resource] : [],
 			extraFileResources: this.textFileService.getWorkingFilesModel().getOutOfWorkspaceContextEntries().map(e => e.resource),
 			filePattern: searchValue
 		};
 
 		return this.queryBuilder.file(query).then((query) => this.searchService.search(query)).then((complete) => {
-
-			// Highlight
 			let results: QuickOpenEntry[] = [];
 			for (let i = 0; i < complete.results.length; i++) {
 				let fileMatch = complete.results[i];
@@ -143,18 +130,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 				let label = paths.basename(fileMatch.resource.fsPath);
 				let description = labels.getPathLabel(paths.dirname(fileMatch.resource.fsPath), this.contextService);
 
-				let entry = this.instantiationService.createInstance(FileEntry, label, description, fileMatch.resource);
-
-				// Apply highlights
-				let {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, true /* fuzzy highlight */);
-				entry.setHighlights(labelHighlights, descriptionHighlights);
-
-				results.push(entry);
-			}
-
-			// Sort (standalone only)
-			if (this.isStandalone) {
-				results = results.sort((elementA, elementB) => QuickOpenEntry.compare(elementA, elementB, searchValue));
+				results.push(this.instantiationService.createInstance(FileEntry, label, description, fileMatch.resource));
 			}
 
 			return results;

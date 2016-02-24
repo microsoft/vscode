@@ -5,66 +5,66 @@
 'use strict';
 
 import 'vs/css!./referenceSearchWidget';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
+import * as collections from 'vs/base/common/collections';
+import {onUnexpectedError} from 'vs/base/common/errors';
+import {getPathLabel} from 'vs/base/common/labels';
+import {IDisposable, cAll, disposeAll} from 'vs/base/common/lifecycle';
+import {Schemas} from 'vs/base/common/network';
+import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
-import collections = require('vs/base/common/collections');
-import lifecycle = require('vs/base/common/lifecycle');
-import dom = require('vs/base/browser/dom');
 import {TPromise} from 'vs/base/common/winjs.base';
-import strings = require('vs/base/common/strings');
-import network = require('vs/base/common/network');
-import fileLabel = require('vs/base/browser/ui/filelabel/fileLabel');
-import errors = require('vs/base/common/errors');
-import keyboard = require('vs/base/browser/keyboardEvent');
-import mouse = require('vs/base/browser/mouseEvent');
-import builder = require('vs/base/browser/builder');
-import labels = require('vs/base/common/labels');
-import tree = require('vs/base/parts/tree/browser/tree');
-import treeWidget = require('vs/base/parts/tree/browser/treeImpl');
-import treeDefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import leftRightWidget = require('vs/base/browser/ui/leftRightWidget/leftRightWidget');
-import countBadge = require('vs/base/browser/ui/countBadge/countBadge');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
-import embeddedCodeEditorWidget = require('vs/editor/browser/widget/embeddedCodeEditorWidget');
-import codeEditorModel = require('vs/editor/common/model/model');
-import peekViewWidget = require('vs/editor/contrib/zoneWidget/browser/peekViewWidget');
-import model = require('./referenceSearchModel');
-import {Range} from 'vs/editor/common/core/range';
+import {$, Builder} from 'vs/base/browser/builder';
+import * as dom from 'vs/base/browser/dom';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {IMouseEvent} from 'vs/base/browser/mouseEvent';
+import {CountBadge} from 'vs/base/browser/ui/countBadge/countBadge';
+import {FileLabel} from 'vs/base/browser/ui/filelabel/fileLabel';
+import {LeftRightWidget} from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
+import * as tree from 'vs/base/parts/tree/browser/tree';
+import {DefaultController, LegacyRenderer} from 'vs/base/parts/tree/browser/treeDefaults';
+import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
+import {Range} from 'vs/editor/common/core/range';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {Model} from 'vs/editor/common/model/model';
+import {ICodeEditor, IMouseTarget} from 'vs/editor/browser/editorBrowser';
+import {EmbeddedCodeEditorWidget} from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import {PeekViewWidget} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
+import {EventType, FileReferences, OneReference, ReferencesModel} from './referenceSearchModel';
 
-class DecorationsManager implements lifecycle.IDisposable {
+class DecorationsManager implements IDisposable {
 
-	private static DecorationOptions:EditorCommon.IModelDecorationOptions = {
-		stickiness: EditorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+	private static DecorationOptions:editorCommon.IModelDecorationOptions = {
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'reference-decoration'
 	};
 
-	private _decorationSet = collections.createStringDictionary<model.OneReference>();
-	private _decorationIgnoreSet = collections.createStringDictionary<model.OneReference>();
+	private _decorationSet = collections.createStringDictionary<OneReference>();
+	private _decorationIgnoreSet = collections.createStringDictionary<OneReference>();
 
 	private callOnDispose:Function[] = [];
 	private callOnModelChange:Function[] = [];
 
-	constructor(private editor:EditorBrowser.ICodeEditor, private model:model.Model) {
-		this.callOnDispose.push(this.editor.addListener(EditorCommon.EventType.ModelChanged, () => this.onModelChanged()));
+	constructor(private editor:ICodeEditor, private model:ReferencesModel) {
+		this.callOnDispose.push(this.editor.addListener(editorCommon.EventType.ModelChanged, () => this.onModelChanged()));
 		this.onModelChanged();
 	}
 
 	public dispose(): void {
-		this.callOnModelChange = lifecycle.cAll(this.callOnModelChange);
-		this.callOnDispose = lifecycle.cAll(this.callOnDispose);
+		this.callOnModelChange = cAll(this.callOnModelChange);
+		this.callOnDispose = cAll(this.callOnDispose);
 		this.removeDecorations();
 	}
 
 	private onModelChanged():void {
 
 		this.removeDecorations();
-		this.callOnModelChange = lifecycle.cAll(this.callOnModelChange);
+		this.callOnModelChange = cAll(this.callOnModelChange);
 
 		var model = this.editor.getModel();
 		if(!model) {
@@ -79,11 +79,11 @@ class DecorationsManager implements lifecycle.IDisposable {
 		}
 	}
 
-	private addDecorations(reference:model.FileReferences):void {
-		this.callOnModelChange.push(this.editor.getModel().addListener(EditorCommon.EventType.ModelDecorationsChanged, (event) => this.onDecorationChanged(event)));
+	private addDecorations(reference:FileReferences):void {
+		this.callOnModelChange.push(this.editor.getModel().addListener(editorCommon.EventType.ModelDecorationsChanged, (event) => this.onDecorationChanged(event)));
 
 		this.editor.getModel().changeDecorations((accessor) => {
-			var newDecorations: EditorCommon.IModelDeltaDecoration[] = [];
+			var newDecorations: editorCommon.IModelDeltaDecoration[] = [];
 			var newDecorationsActualIndex: number[] = [];
 
 			for(let i = 0, len = reference.children.length; i < len; i++) {
@@ -116,7 +116,7 @@ class DecorationsManager implements lifecycle.IDisposable {
 				continue;
 			}
 
-			var newRange = <EditorCommon.IRange> addedOrChangedDecorations[i].range,
+			var newRange = <editorCommon.IRange> addedOrChangedDecorations[i].range,
 				ignore = false;
 
 			if(Range.equalsRange(newRange, reference.range)) {
@@ -164,24 +164,24 @@ class DecorationsManager implements lifecycle.IDisposable {
 class DataSource implements tree.IDataSource {
 
 	public getId(tree:tree.ITree, element:any):string {
-		if(element instanceof model.Model) {
+		if(element instanceof ReferencesModel) {
 			return 'root';
-		} else if(element instanceof model.FileReferences) {
-			return (<model.FileReferences> element).id;
-		} else if(element instanceof model.OneReference) {
-			return (<model.OneReference> element).id;
+		} else if(element instanceof FileReferences) {
+			return (<FileReferences> element).id;
+		} else if(element instanceof OneReference) {
+			return (<OneReference> element).id;
 		}
 	}
 
 	public hasChildren(tree:tree.ITree, element:any):boolean {
-		return element instanceof model.FileReferences || element instanceof model.Model;
+		return element instanceof FileReferences || element instanceof ReferencesModel;
 	}
 
 	public getChildren(tree:tree.ITree, element:any):TPromise<any[]> {
-		if(element instanceof model.Model) {
-			return TPromise.as((<model.Model> element).children);
-		} else if(element instanceof model.FileReferences) {
-			return (<model.FileReferences> element).resolve().then(val => val.children);
+		if(element instanceof ReferencesModel) {
+			return TPromise.as((<ReferencesModel> element).children);
+		} else if(element instanceof FileReferences) {
+			return (<FileReferences> element).resolve().then(val => val.children);
 		} else {
 			return TPromise.as([]);
 		}
@@ -189,16 +189,16 @@ class DataSource implements tree.IDataSource {
 
 	public getParent(tree:tree.ITree, element:any):TPromise<any> {
 		var result:any = null;
-		if(element instanceof model.FileReferences) {
-			result = (<model.FileReferences> element).parent;
-		} else if (element instanceof model.OneReference) {
-			result = (<model.OneReference> element).parent;
+		if(element instanceof FileReferences) {
+			result = (<FileReferences> element).parent;
+		} else if (element instanceof OneReference) {
+			result = (<OneReference> element).parent;
 		}
 		return TPromise.as(result);
 	}
 }
 
-class Controller extends treeDefaults.DefaultController {
+class Controller extends DefaultController {
 
 	static Events = {
 		FOCUSED: 'events/custom/focused',
@@ -206,9 +206,9 @@ class Controller extends treeDefaults.DefaultController {
 		OPEN_TO_SIDE: 'events/custom/opentoside'
 	};
 
-	public onMouseDown(tree:tree.ITree, element:any, event:mouse.StandardMouseEvent):boolean {
+	public onMouseDown(tree:tree.ITree, element:any, event:IMouseEvent):boolean {
 		if (event.leftButton) {
-			if (element instanceof model.FileReferences) {
+			if (element instanceof FileReferences) {
 				event.preventDefault();
 				event.stopPropagation();
 				return this.expandCollapse(tree, element);
@@ -228,7 +228,7 @@ class Controller extends treeDefaults.DefaultController {
 		return false;
 	}
 
-	public onClick(tree:tree.ITree, element:any, event:mouse.StandardMouseEvent):boolean {
+	public onClick(tree:tree.ITree, element:any, event:IMouseEvent):boolean {
 		if (event.leftButton) {
 			return false; // Already handled by onMouseDown
 		}
@@ -239,20 +239,20 @@ class Controller extends treeDefaults.DefaultController {
 	private expandCollapse(tree:tree.ITree, element:any):boolean {
 
 		if (tree.isExpanded(element)) {
-			tree.collapse(element).done(null, errors.onUnexpectedError);
+			tree.collapse(element).done(null, onUnexpectedError);
 		} else {
-			tree.expand(element).done(null, errors.onUnexpectedError);
+			tree.expand(element).done(null, onUnexpectedError);
 		}
 		return true;
 	}
 
-	public onEscape(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	public onEscape(tree:tree.ITree, event:IKeyboardEvent):boolean {
 		return false;
 	}
 
-	public onEnter(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	public onEnter(tree:tree.ITree, event:IKeyboardEvent):boolean {
 		var element = tree.getFocus();
-		if (element instanceof model.FileReferences) {
+		if (element instanceof FileReferences) {
 			return this.expandCollapse(tree, element);
 		}
 
@@ -265,43 +265,43 @@ class Controller extends treeDefaults.DefaultController {
 		return result;
 	}
 
-	public onUp(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	public onUp(tree:tree.ITree, event:IKeyboardEvent):boolean {
 		super.onUp(tree, event);
 		this.fakeFocus(tree, event);
 		return true;
 	}
 
-	public onPageUp(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	public onPageUp(tree:tree.ITree, event:IKeyboardEvent):boolean {
 		super.onPageUp(tree, event);
 		this.fakeFocus(tree, event);
 		return true;
 	}
 
-	public onLeft(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	public onLeft(tree:tree.ITree, event:IKeyboardEvent):boolean {
 		super.onLeft(tree, event);
 		this.fakeFocus(tree, event);
 		return true;
 	}
 
-	public onDown(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	public onDown(tree:tree.ITree, event:IKeyboardEvent):boolean {
 		super.onDown(tree, event);
 		this.fakeFocus(tree, event);
 		return true;
 	}
 
-	public onPageDown(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	public onPageDown(tree:tree.ITree, event:IKeyboardEvent):boolean {
 		super.onPageDown(tree, event);
 		this.fakeFocus(tree, event);
 		return true;
 	}
 
-	public onRight(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	public onRight(tree:tree.ITree, event:IKeyboardEvent):boolean {
 		super.onRight(tree, event);
 		this.fakeFocus(tree, event);
 		return true;
 	}
 
-	private fakeFocus(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):void {
+	private fakeFocus(tree:tree.ITree, event:IKeyboardEvent):void {
 		// focus next item
 		var focus = tree.getFocus();
 		tree.setSelection([focus]);
@@ -310,10 +310,10 @@ class Controller extends treeDefaults.DefaultController {
 	}
 }
 
-class Renderer extends treeDefaults.LegacyRenderer {
+class Renderer extends LegacyRenderer {
 	private _contextService:IWorkspaceContextService;
 
-	constructor(private editor: EditorBrowser.ICodeEditor, @IWorkspaceContextService contextService:IWorkspaceContextService) {
+	constructor(private editor: ICodeEditor, @IWorkspaceContextService contextService:IWorkspaceContextService) {
 		super();
 		this._contextService = contextService;
 	}
@@ -326,33 +326,37 @@ class Renderer extends treeDefaults.LegacyRenderer {
 
 		dom.clearNode(container);
 
-		if(element instanceof model.FileReferences) {
-			var fileReferences = <model.FileReferences> element,
-				fileReferencesContainer = builder.$('.reference-file');
+		if(element instanceof FileReferences) {
+			var fileReferences = <FileReferences> element,
+				fileReferencesContainer = $('.reference-file');
 
-			new leftRightWidget.LeftRightWidget(fileReferencesContainer, (left: HTMLElement) => {
+			/* tslint:disable:no-unused-expression */
+			new LeftRightWidget(fileReferencesContainer, (left: HTMLElement) => {
 				var resource = fileReferences.resource;
+				new FileLabel(left, resource, this._contextService);
 
-				new fileLabel.FileLabel(left, resource, this._contextService);
-
-				return <lifecycle.IDisposable> null;
+				return <IDisposable> null;
 
 			}, (right: HTMLElement) => {
 				var len = fileReferences.children.length;
-				return new countBadge.CountBadge(right, len, len > 1 ? nls.localize('referencesCount', "{0} references", len) : nls.localize('referenceCount', "{0} reference", len));
+				return new CountBadge(right, len, len > 1 ? nls.localize('referencesCount', "{0} references", len) : nls.localize('referenceCount', "{0} reference", len));
 			});
+			/* tslint:enable:no-unused-expression */
 
 			fileReferencesContainer.appendTo(container);
 
-		} else if(element instanceof model.OneReference) {
+		} else if(element instanceof OneReference) {
 
-			var oneReference = <model.OneReference> element,
-				oneReferenceContainer = builder.$('.reference'),
+			var oneReference = <OneReference> element,
+				oneReferenceContainer = $('.reference'),
 				preview = oneReference.parent.preview.preview(oneReference.range);
 
 			oneReferenceContainer.innerHtml(
-				strings.format('<span>{0}</span><span class="referenceMatch">{1}</span><span>{2}</span>',
-				preview.before, preview.inside, preview.after)).appendTo(container);
+				strings.format(
+					'<span>{0}</span><span class="referenceMatch">{1}</span><span>{2}</span>',
+					strings.escape(preview.before),
+					strings.escape(preview.inside),
+					strings.escape(preview.after))).appendTo(container);
 		}
 
 		return null;
@@ -363,7 +367,7 @@ class Renderer extends treeDefaults.LegacyRenderer {
 /**
  * ZoneWidget that is shown inside the editor
  */
-export class ReferenceWidget extends peekViewWidget.PeekViewWidget {
+export class ReferenceWidget extends PeekViewWidget {
 
 	public static INNER_EDITOR_CONTEXT_KEY = 'inReferenceSearchEditor';
 
@@ -376,21 +380,21 @@ export class ReferenceWidget extends peekViewWidget.PeekViewWidget {
 	private instantiationService:IInstantiationService;
 
 	private decorationsManager:DecorationsManager;
-	private model:model.Model;
-	private callOnModel:lifecycle.IDisposable[];
+	private model:ReferencesModel;
+	private callOnModel:IDisposable[];
 
-	private tree:treeWidget.Tree;
-	private treeContainer:builder.Builder;
+	private tree:Tree;
+	private treeContainer:Builder;
 
-	private preview:EditorBrowser.ICodeEditor;
-	private previewNotAvailableMessage:codeEditorModel.Model;
-	private previewContainer: builder.Builder;
+	private preview:ICodeEditor;
+	private previewNotAvailableMessage:Model;
+	private previewContainer: Builder;
 	private previewDecorations:string[];
-	private messageContainer: builder.Builder;
+	private messageContainer: Builder;
 
 	private lastHeight:string;
 
-	constructor(editorService:IEditorService, keybindingService: IKeybindingService, contextService:IWorkspaceContextService, instantiationService:IInstantiationService, editor:EditorBrowser.ICodeEditor) {
+	constructor(editorService:IEditorService, keybindingService: IKeybindingService, contextService:IWorkspaceContextService, instantiationService:IInstantiationService, editor:ICodeEditor) {
 		super(editor, keybindingService, ReferenceWidget.INNER_EDITOR_CONTEXT_KEY, { frameColor: '#007ACC', showFrame: false, showArrow: true });
 		this.editorService = editorService;
 		this.contextService = contextService;
@@ -422,7 +426,7 @@ export class ReferenceWidget extends peekViewWidget.PeekViewWidget {
 	}
 
 	_fillBody(containerElement:HTMLElement):void {
-		var container = builder.$(containerElement);
+		var container = $(containerElement);
 
 		container.addClass('reference-zone-widget');
 
@@ -432,21 +436,21 @@ export class ReferenceWidget extends peekViewWidget.PeekViewWidget {
 		});
 
 		// editor
-		container.div({ 'class': 'preview inline' }, (div:builder.Builder) => {
+		container.div({ 'class': 'preview inline' }, (div:Builder) => {
 
-			var options:EditorCommon.IEditorOptions = {
+			var options:editorCommon.IEditorOptions = {
 				scrollBeyondLastLine: false,
 				scrollbar: DefaultConfig.editor.scrollbar,
 				overviewRulerLanes: 2
 			};
 
-			this.preview = this.instantiationService.createInstance(embeddedCodeEditorWidget.EmbeddedCodeEditorWidget, div.getHTMLElement(), options, this.editor);
+			this.preview = this.instantiationService.createInstance(EmbeddedCodeEditorWidget, div.getHTMLElement(), options, this.editor);
 			this.previewContainer = div.hide();
-			this.previewNotAvailableMessage = new codeEditorModel.Model(nls.localize('missingPreviewMessage', "no preview available"), null);
+			this.previewNotAvailableMessage = new Model(nls.localize('missingPreviewMessage', "no preview available"), null);
 		});
 
 		// tree
-		container.div({ 'class': 'tree inline' }, (div:builder.Builder) => {
+		container.div({ 'class': 'tree inline' }, (div:Builder) => {
 			var config = {
 				dataSource: this.instantiationService.createInstance(DataSource),
 				renderer: this.instantiationService.createInstance(Renderer, this.editor),
@@ -456,9 +460,10 @@ export class ReferenceWidget extends peekViewWidget.PeekViewWidget {
 
 			var options = {
 				allowHorizontalScroll: false,
-				twistiePixels: 20
+				twistiePixels: 20,
+				ariaLabel: nls.localize('treeAriaLabel', "References")
 			};
-			this.tree = new treeWidget.Tree(div.getHTMLElement(), config, options);
+			this.tree = new Tree(div.getHTMLElement(), config, options);
 
 			this.treeContainer = div.hide();
 		});
@@ -487,9 +492,9 @@ export class ReferenceWidget extends peekViewWidget.PeekViewWidget {
 		this.preview.layout();
 	}
 
-	public setModel(newModel: model.Model): void {
+	public setModel(newModel: ReferencesModel): void {
 		// clean up
-		this.callOnModel = lifecycle.disposeAll(this.callOnModel);
+		this.callOnModel = disposeAll(this.callOnModel);
 		this.model = newModel;
 		if (this.model) {
 			this._onNewModel();
@@ -509,26 +514,26 @@ export class ReferenceWidget extends peekViewWidget.PeekViewWidget {
 		this.callOnModel.push(this.decorationsManager);
 
 		// listen on model changes
-		this.callOnModel.push(this.model.addListener2(model.EventType.OnReferenceRangeChanged, (reference:model.OneReference) => {
+		this.callOnModel.push(this.model.addListener2(EventType.OnReferenceRangeChanged, (reference:OneReference) => {
 			this.tree.refresh(reference);
 		}));
 
 		// listen on selection and focus
 		this.callOnModel.push(this.tree.addListener2(Controller.Events.FOCUSED, (element) => {
-			if (element instanceof model.OneReference) {
+			if (element instanceof OneReference) {
 				this.showReferencePreview(element);
 			}
 		}));
 		this.callOnModel.push(this.tree.addListener2(Controller.Events.SELECTED, (element:any) => {
-			if (element instanceof model.OneReference) {
+			if (element instanceof OneReference) {
 				this.showReferencePreview(element);
 				this.model.currentReference = element;
 			}
 		}));
 		this.callOnModel.push(this.tree.addListener2(Controller.Events.OPEN_TO_SIDE, (element:any) => {
-			if (element instanceof model.OneReference) {
+			if (element instanceof OneReference) {
 				this.editorService.openEditor({
-					resource: (<model.OneReference> element).resource,
+					resource: (<OneReference> element).resource,
 					options: {
 						selection: element.range
 					}
@@ -540,10 +545,10 @@ export class ReferenceWidget extends peekViewWidget.PeekViewWidget {
 
 		this.tree.setInput(input).then(() => {
 			this.tree.setSelection([this.model.currentReference]);
-		}).done(null, errors.onUnexpectedError);
+		}).done(null, onUnexpectedError);
 
 		// listen on editor
-		this.callOnModel.push(this.preview.addListener2(EditorCommon.EventType.MouseDown, (e:{ event:MouseEvent; target:EditorBrowser.IMouseTarget; }) => {
+		this.callOnModel.push(this.preview.addListener2(editorCommon.EventType.MouseDown, (e:{ event:MouseEvent; target:IMouseTarget; }) => {
 			if(e.event.detail === 2) {
 				this.emit(ReferenceWidget.Events.EditorDoubleClick, { reference: this.getFocusedReference(), range: e.target.range, originalEvent: e.event });
 			}
@@ -563,10 +568,10 @@ export class ReferenceWidget extends peekViewWidget.PeekViewWidget {
 
 	private getFocusedReference(): URI {
 		var element = this.tree.getFocus();
-		if(element instanceof model.OneReference) {
-			return (<model.OneReference> element).resource;
-		} else if(element instanceof model.FileReferences) {
-			var referenceFile = (<model.FileReferences> element);
+		if(element instanceof OneReference) {
+			return (<OneReference> element).resource;
+		} else if(element instanceof FileReferences) {
+			var referenceFile = (<FileReferences> element);
 			if(referenceFile.children.length > 0) {
 				return referenceFile.children[0].resource;
 			}
@@ -578,7 +583,7 @@ export class ReferenceWidget extends peekViewWidget.PeekViewWidget {
 		this.tree.DOMFocus();
 	}
 
-	private showReferencePreview(reference:model.OneReference):void {
+	private showReferencePreview(reference:OneReference):void {
 
 		// show in editor
 		this.editorService.resolveEditorModel({ resource: reference.resource }).done((model) => {
@@ -593,13 +598,13 @@ export class ReferenceWidget extends peekViewWidget.PeekViewWidget {
 			}
 
 			// Update widget header
-			if(reference.resource.scheme !== network.schemas.inMemory) {
-				this.setTitle(reference.name, labels.getPathLabel(reference.directory, this.contextService));
+			if(reference.resource.scheme !== Schemas.inMemory) {
+				this.setTitle(reference.name, getPathLabel(reference.directory, this.contextService));
 			} else {
 				this.setTitle(nls.localize('peekView.alternateTitle', "References"));
 			}
 
-		}, errors.onUnexpectedError);
+		}, onUnexpectedError);
 
 		// show in tree
 		this.tree.reveal(reference)
@@ -607,12 +612,12 @@ export class ReferenceWidget extends peekViewWidget.PeekViewWidget {
 				this.tree.setSelection([reference]);
 				this.tree.setFocus(reference);
 			})
-			.done(null, errors.onUnexpectedError);
+			.done(null, onUnexpectedError);
 	}
 
 	public dispose(): void {
 		this.setModel(null);
-		lifecycle.disposeAll(<lifecycle.IDisposable[]>[this.preview, this.previewNotAvailableMessage, this.tree]);
+		disposeAll(<IDisposable[]>[this.preview, this.previewNotAvailableMessage, this.tree]);
 		super.dispose();
 	}
 }

@@ -10,7 +10,7 @@ import {Action, IAction} from 'vs/base/common/actions';
 import {ActionItem, BaseActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
 import {IEditorInputActionContext, IEditorInputAction, EditorInputActionContributor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {AddToWorkingFiles, FocusWorkingFiles, OpenPreviousWorkingFile, OpenNextWorkingFile, CloseAllFilesAction, CloseFileAction, GlobalCompareResourcesAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, keybindingForAction, MoveFileToTrashAction, TriggerRenameFileAction, PasteFileAction, CopyFileAction, SelectResourceForCompareAction, CompareResourcesAction, NewFolderAction, NewFileAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';
+import {AddToWorkingFiles, FocusWorkingFiles, OpenPreviousWorkingFile, OpenNextWorkingFile, CloseAllFilesAction, CloseFileAction, CloseOtherFilesAction, GlobalCompareResourcesAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, keybindingForAction, MoveFileToTrashAction, TriggerRenameFileAction, PasteFileAction, CopyFileAction, SelectResourceForCompareAction, CompareResourcesAction, NewFolderAction, NewFileAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {RevertLocalChangesAction, AcceptLocalChangesAction, ConflictResolutionDiffEditorInput} from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
@@ -169,6 +169,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(RevertFileAction, Reve
 registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalNewFolderAction, GlobalNewFolderAction.ID, GlobalNewFolderAction.LABEL), category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalCompareResourcesAction, GlobalCompareResourcesAction.ID, GlobalCompareResourcesAction.LABEL), category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseFileAction, CloseFileAction.ID, CloseFileAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_W) }), category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(CloseOtherFilesAction, CloseOtherFilesAction.ID, CloseOtherFilesAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W) }), category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseAllFilesAction, CloseAllFilesAction.ID, CloseAllFilesAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_W) }), category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenNextWorkingFile, OpenNextWorkingFile.ID, OpenNextWorkingFile.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.DownArrow) }), category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousWorkingFile, OpenPreviousWorkingFile.ID, OpenPreviousWorkingFile.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.UpArrow) }), category);

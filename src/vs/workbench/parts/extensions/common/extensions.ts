@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
@@ -13,21 +13,30 @@ export interface IExtensionManifest {
 	name: string;
 	publisher: string;
 	version: string;
+	engines: { vscode: string };
 	displayName?: string;
 	description?: string;
+	main?: string;
 }
 
-export interface IGalleryInformation {
+export interface IGalleryVersion {
+	version: string;
+	date: string;
+	manifestUrl: string;
+	downloadUrl: string;
+}
+
+export interface IGalleryMetadata {
 	galleryApiUrl: string;
 	id: string;
-	downloadUrl: string;
 	publisherId: string;
 	publisherDisplayName: string;
-	date: string;
+	installCount: number;
+	versions: IGalleryVersion[];
 }
 
 export interface IExtension extends IExtensionManifest {
-	galleryInformation?: IGalleryInformation;
+	galleryInformation?: IGalleryMetadata;
 	path?: string;
 }
 
@@ -51,4 +60,12 @@ export interface IExtensionsService {
 	install(zipPath: string): TPromise<IExtension>;
 	uninstall(extension: IExtension): TPromise<void>;
 	getInstalled(includeDuplicateVersions?: boolean): TPromise<IExtension[]>;
+}
+
+export var IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');
+
+export interface IExtensionTipsService {
+	serviceId: ServiceIdentifier<any>;
+	tips: IExtension[];
+	onDidChangeTips: Event<IExtension[]>;
 }

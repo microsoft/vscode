@@ -54,6 +54,7 @@ export function renderLine(input:IRenderLineInput): IRenderLineOutput {
 	let out: string[] = [];
 	let charOffsetInPartArr: number[] = [];
 	let charOffsetInPart = 0;
+	let tabsCharDelta = 0;
 
 	out.push('<span>');
 	for (let partIndex = 0, partIndexLen = actualLineParts.length; partIndex < partIndexLen; partIndex++) {
@@ -75,7 +76,6 @@ export function renderLine(input:IRenderLineInput): IRenderLineOutput {
 		}
 
 		charOffsetInPart = 0;
-		let tabsCharDelta = 0;
 		for (; charIndex < toCharIndex; charIndex++) {
 			charOffsetInPartArr[charIndex] = charOffsetInPart;
 			let charCode = lineText.charCodeAt(charIndex);

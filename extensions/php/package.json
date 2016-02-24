@@ -27,7 +27,7 @@
 					"description": "Whether php validation is enabled or not."
 				},
 				"php.validate.executablePath": {
-					"type": "string",
+					"type": ["string", "null"],
 					"default": null,
 					"description": "Points to the php executable."
 				},

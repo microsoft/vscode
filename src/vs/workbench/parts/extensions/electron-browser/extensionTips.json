@@ -1,0 +1,20 @@
+{
+	"ms-vscode.omnisharp": "{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln}",
+	"msjsdiag.debugger-for-chrome": "{**/*.ts,**/*.tsx**/*.js,**/*.jsx,**/*.es6}",
+	"lukehoban.Go": "**/*.go",
+	"ms-vscode.PowerShell": "{**/*.ps,**/*.ps1}",
+	"austin.code-gnu-global": "{**/*.c,**/*.cpp,**/*.h}",
+	"Ionide.Ionide-fsharp": "{**/*.fsx,**/*.fsi,**/*.fs,**/*.ml,**/*.mli}",
+	"dbaeumer.vscode-eslint": "{**/*.js,**/*.jsx,**/*.es6}",
+	"eg2.tslint": "{**/*.ts,**/*.tsx}",
+	"Kasik96.format-indent": "{**/*.php}",
+	"felixfbecker.php-debug": "{**/*.php}",
+	"linyang95.phpmd": "{**/*.php}",
+	"ikappas.phpcs": "{**/*.php}",
+	"tht13.python": "{**/*.py}",
+	"donjayamanne.python": "{**/*.py}",
+	"magicstack.MagicPython": "{**/*.py}",
+	"saviorisdead.RustyCode": "{**/*.rs,**/*.rslib}",
+	"hars.CppSnippets": "{**/*.cpp,**/*.cc,**/*.h}",
+	"mitaki28.vscode-clang": "{**/*.cpp,**/*.cc,**/*.h}"
+}

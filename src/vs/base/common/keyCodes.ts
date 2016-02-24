@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-"use strict";
+'use strict';
 
 import * as nls from 'vs/nls';
 import * as defaultPlatform from 'vs/base/common/platform';
@@ -561,10 +561,10 @@ export class Keybinding {
 	private static _cachedKeybindingRegex: string = null;
 	public static getUserSettingsKeybindingRegex(): string {
 		if (!this._cachedKeybindingRegex) {
-			let numpadKey = "numpad(0|1|2|3|4|5|6|7|8|9|_multiply|_add|_subtract|_decimal|_divide|_separator)";
-			let oemKey = "`|\\-|=|\\[|\\]|\\\\\\\\|;|'|,|\\.|\\/|oem_8|oem_102";
-			let specialKey = "left|up|right|down|pageup|pagedown|end|home|tab|enter|escape|space|backspace|delete|pausebreak|capslock|insert|contextmenu|numlock|scrolllock";
-			let casualKey = "[a-z]|[0-9]|f(1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19)";
+			let numpadKey = 'numpad(0|1|2|3|4|5|6|7|8|9|_multiply|_add|_subtract|_decimal|_divide|_separator)';
+			let oemKey = '`|\\-|=|\\[|\\]|\\\\\\\\|;|\'|,|\\.|\\/|oem_8|oem_102';
+			let specialKey = 'left|up|right|down|pageup|pagedown|end|home|tab|enter|escape|space|backspace|delete|pausebreak|capslock|insert|contextmenu|numlock|scrolllock';
+			let casualKey = '[a-z]|[0-9]|f(1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19)';
 			let key = '((' + [numpadKey, oemKey, specialKey, casualKey].join(')|(') + '))';
 			let mod = '((ctrl|shift|alt|cmd|win|meta)\\+)*';
 			let keybinding = '(' + mod + key + ')';
@@ -973,7 +973,5 @@ function _asHTML(keybinding:number, labelProvider:IKeyBindingLabelProvider, Plat
 		tagName: 'span',
 		className: 'monaco-kb',
 		children: result
-	}]
-
-	return result;
+	}];
 }

@@ -276,7 +276,7 @@ export class VSCodeMenu {
 		let checkForUpdates = this.getUpdateMenuItems();
 		let preferences = this.getPreferencesMenu();
 		let hide = new MenuItem({ label: nls.localize('mHide', "Hide {0}", env.product.nameLong), role: 'hide', accelerator: 'Command+H' });
-		let hideOthers = new MenuItem({ label: nls.localize('mHideOthers', "Hide Others"), role: 'hideothers', accelerator: 'Command+Shift+H' });
+		let hideOthers = new MenuItem({ label: nls.localize('mHideOthers', "Hide Others"), role: 'hideothers', accelerator: 'Command+Alt+H' });
 		let showAll = new MenuItem({ label: nls.localize('mShowAll', "Show All"), role: 'unhide' });
 		let quit = new MenuItem({ label: nls.localize('miQuit', "Quit {0}", env.product.nameLong), click: () => this.quit(), accelerator: 'Command+Q' });
 
@@ -357,7 +357,7 @@ export class VSCodeMenu {
 		let userSettings = this.createMenuItem(nls.localize('miOpenSettings', "&&User Settings"), 'workbench.action.openGlobalSettings');
 		let workspaceSettings = this.createMenuItem(nls.localize('miOpenWorkspaceSettings', "&&Workspace Settings"), 'workbench.action.openWorkspaceSettings');
 		let kebindingSettings = this.createMenuItem(nls.localize('miOpenKeymap', "&&Keyboard Shortcuts"), 'workbench.action.openGlobalKeybindings');
-		let snippetsSettings = this.createMenuItem(nls.localize('miOpenSnippets', "&&User Snippets"), 'workbench.action.openSnippets');
+		let snippetsSettings = this.createMenuItem(nls.localize('miOpenSnippets', "User &&Snippets"), 'workbench.action.openSnippets');
 		let themeSelection = this.createMenuItem(nls.localize('miSelectTheme', "&&Color Theme"), 'workbench.action.selectTheme');
 		let preferencesMenu = new Menu();
 		preferencesMenu.append(userSettings);
@@ -493,13 +493,16 @@ export class VSCodeMenu {
 
 		let commands = this.createMenuItem(nls.localize('miCommandPalette', "&&Command Palette..."), 'workbench.action.showCommands');
 		let markers = this.createMenuItem(nls.localize('miMarker', "&&Errors and Warnings..."), 'workbench.action.showErrorsWarnings');
+
 		let output = this.createMenuItem(nls.localize('miToggleOutput', "Toggle &&Output"), 'workbench.action.output.toggleOutput');
+		let debugConsole = this.createMenuItem(nls.localize('miToggleDebugConsole', "Toggle De&&bug Console"), 'workbench.debug.action.toggleRepl');
 
 		let fullscreen = new MenuItem({ label: mnemonicLabel(nls.localize('miToggleFullScreen', "Toggle &&Full Screen")), accelerator: this.getAccelerator('workbench.action.toggleFullScreen'), click: () => windows.manager.getLastActiveWindow().toggleFullScreen(), enabled: windows.manager.getWindowCount() > 0 });
 		let toggleMenuBar = this.createMenuItem(nls.localize('miToggleMenuBar', "Toggle Menu &&Bar"), 'workbench.action.toggleMenuBar');
 		let splitEditor = this.createMenuItem(nls.localize('miSplitEditor', "Split &&Editor"), 'workbench.action.splitEditor');
 		let toggleSidebar = this.createMenuItem(nls.localize('miToggleSidebar', "&&Toggle Side Bar"), 'workbench.action.toggleSidebarVisibility');
 		let moveSidebar = this.createMenuItem(nls.localize('miMoveSidebar', "&&Move Side Bar"), 'workbench.action.toggleSidebarPosition');
+		let togglePanel = this.createMenuItem(nls.localize('miTogglePanel', "Toggle &&Panel"), 'workbench.action.togglePanel');
 
 		let zoomIn = this.createMenuItem(nls.localize('miZoomIn', "&&Zoom in"), 'workbench.action.zoomIn');
 		let zoomOut = this.createMenuItem(nls.localize('miZoomOut', "Zoom o&&ut"), 'workbench.action.zoomOut');
@@ -512,7 +515,9 @@ export class VSCodeMenu {
 			__separator__(),
 			commands,
 			markers,
+			__separator__(),
 			output,
+			debugConsole,
 			__separator__(),
 			fullscreen,
 			platform.isWindows || platform.isLinux ? toggleMenuBar : void 0,
@@ -520,6 +525,7 @@ export class VSCodeMenu {
 			splitEditor,
 			toggleSidebar,
 			moveSidebar,
+			togglePanel,
 			__separator__(),
 			zoomIn,
 			zoomOut
@@ -570,10 +576,9 @@ export class VSCodeMenu {
 		});
 
 		arrays.coalesce([
-			env.product.welcomePage ? this.createMenuItem(nls.localize('miShowWelcome', "&&Show Welcome"), 'workbench.action.markdown.showWelcome') : null,
 			env.product.documentationUrl ? new MenuItem({ label: mnemonicLabel(nls.localize('miDocumentation', "&&Documentation")), click: () => openUrl(env.product.documentationUrl, 'openDocumentationUrl') }) : null,
-			env.product.releaseNotesUrl ? new MenuItem({ label: mnemonicLabel(nls.localize('miReleaseNotes', "&&Release Notes")), click: () => openUrl(env.product.releaseNotesUrl, 'openReleaseNotesUrl') }) : null,,
-			(env.product.welcomePage || env.product.documentationUrl || env.product.releaseNotesUrl) ? __separator__() : null,
+			env.product.releaseNotesUrl ? new MenuItem({ label: mnemonicLabel(nls.localize('miReleaseNotes', "&&Release Notes")), click: () => openUrl(env.product.releaseNotesUrl, 'openReleaseNotesUrl') }) : null,
+			(env.product.documentationUrl || env.product.releaseNotesUrl) ? __separator__() : null,
 			env.product.twitterUrl ? new MenuItem({ label: mnemonicLabel(nls.localize('miTwitter', "&&Join us on Twitter")), click: () => openUrl(env.product.twitterUrl, 'openTwitterUrl') }) : null,
 			env.product.requestFeatureUrl ? new MenuItem({ label: mnemonicLabel(nls.localize('miUserVoice', "&&Request Features")), click: () => openUrl(env.product.requestFeatureUrl, 'openUserVoiceUrl') }) : null,
 			env.product.reportIssueUrl ? new MenuItem({ label: mnemonicLabel(nls.localize('miReportIssues', "Report &&Issues")), click: () => openUrl(env.product.reportIssueUrl, 'openReportIssues') }) : null,

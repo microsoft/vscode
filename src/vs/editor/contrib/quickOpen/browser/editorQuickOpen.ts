@@ -5,36 +5,36 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import QuickOpenEditorWidget = require('./quickOpenEditorWidget');
-import QuickOpenWidget = require('vs/base/parts/quickopen/browser/quickOpenWidget');
-import QuickOpenModel = require('vs/base/parts/quickopen/browser/quickOpenModel');
-import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
+import {QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
+import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {QuickOpenEditorWidget} from './quickOpenEditorWidget';
 
 export interface IQuickOpenControllerOpts {
 	inputAriaLabel: string;
-	getModel(value:string):QuickOpenModel.QuickOpenModel;
-	getAutoFocus(searchValue:string):QuickOpen.IAutoFocus;
+	getModel(value:string):QuickOpenModel;
+	getAutoFocus(searchValue:string):IAutoFocus;
 	onOk():void;
 	onCancel():void;
 }
 
-export class QuickOpenController implements EditorCommon.IEditorContribution {
+export class QuickOpenController implements editorCommon.IEditorContribution {
 
 	static ID = 'editor.controller.quickOpenController';
 
-	public static get(editor:EditorCommon.ICommonCodeEditor): QuickOpenController {
+	public static get(editor:editorCommon.ICommonCodeEditor): QuickOpenController {
 		return <QuickOpenController>editor.getContribution(QuickOpenController.ID);
 	}
 
-	private editor:EditorBrowser.ICodeEditor;
-	private widget:QuickOpenEditorWidget.QuickOpenEditorWidget;
+	private editor:ICodeEditor;
+	private widget:QuickOpenEditorWidget;
 
-	constructor(editor:EditorBrowser.ICodeEditor, @INullService ns) {
+	constructor(editor:ICodeEditor, @INullService ns) {
 		this.editor = editor;
 	}
 
@@ -57,7 +57,7 @@ export class QuickOpenController implements EditorCommon.IEditorContribution {
 		}
 		// Create goto line widget
 		if (!this.widget) {
-			this.widget = new QuickOpenEditorWidget.QuickOpenEditorWidget(
+			this.widget = new QuickOpenEditorWidget(
 				this.editor,
 				()=>opts.onOk(),
 				()=>opts.onCancel(),
@@ -80,9 +80,9 @@ export class QuickOpenController implements EditorCommon.IEditorContribution {
  */
 export class BaseEditorQuickOpenAction extends EditorAction {
 	private lineHighlightDecorationId:string;
-	private lastKnownEditorSelection:EditorCommon.IEditorSelection;
+	private lastKnownEditorSelection:editorCommon.IEditorSelection;
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, label:string, condition:Behaviour = Behaviour.WidgetFocus) {
+	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, label:string, condition:Behaviour = Behaviour.WidgetFocus) {
 		super(descriptor, editor, condition);
 
 		this.label = label;
@@ -91,8 +91,8 @@ export class BaseEditorQuickOpenAction extends EditorAction {
 	public run():TPromise<boolean> {
 		QuickOpenController.get(this.editor).run({
 			inputAriaLabel: this._getInputAriaLabel(),
-			getModel: (value:string):QuickOpenModel.QuickOpenModel => this._getModel(value),
-			getAutoFocus: (searchValue:string):QuickOpen.IAutoFocus => this._getAutoFocus(searchValue),
+			getModel: (value:string):QuickOpenModel => this._getModel(value),
+			getAutoFocus: (searchValue:string):IAutoFocus => this._getAutoFocus(searchValue),
 			onOk: ():void => this._onClose(false),
 			onCancel: ():void => this._onClose(true)
 		});
@@ -102,7 +102,7 @@ export class BaseEditorQuickOpenAction extends EditorAction {
 		// 	(value:string)=>this.onType(value),
 		// )
 		// this._getInputAriaLabel()
-		// this.widget = new QuickOpenEditorWidget.QuickOpenEditorWidget(
+		// this.widget = new QuickOpenEditorWidget(
 		// 		this.editor,
 		// 		()=>this._onClose(false),
 		// 		()=>this._onClose(true),
@@ -125,14 +125,14 @@ export class BaseEditorQuickOpenAction extends EditorAction {
 	/**
 	 * Subclasses to override to provide the quick open model for the given search value.
 	 */
-	_getModel(value:string):QuickOpenModel.QuickOpenModel {
+	_getModel(value:string):QuickOpenModel {
 		throw new Error('Subclasses to implement');
 	}
 
 	/**
 	 * Subclasses to override to provide the quick open auto focus mode for the given search value.
 	 */
-	_getAutoFocus(searchValue:string):QuickOpen.IAutoFocus {
+	_getAutoFocus(searchValue:string):IAutoFocus {
 		throw new Error('Subclasses to implement');
 	}
 
@@ -142,15 +142,15 @@ export class BaseEditorQuickOpenAction extends EditorAction {
 
 
 
-	public decorateLine(range:EditorCommon.IRange, editor:EditorBrowser.ICodeEditor):void {
-		editor.changeDecorations((changeAccessor:EditorCommon.IModelDecorationsChangeAccessor)=>{
+	public decorateLine(range:editorCommon.IRange, editor:ICodeEditor):void {
+		editor.changeDecorations((changeAccessor:editorCommon.IModelDecorationsChangeAccessor)=>{
 			var oldDecorations: string[] = [];
 			if (this.lineHighlightDecorationId) {
 				oldDecorations.push(this.lineHighlightDecorationId);
 				this.lineHighlightDecorationId = null;
 			}
 
-			var newDecorations: EditorCommon.IModelDeltaDecoration[] = [
+			var newDecorations: editorCommon.IModelDeltaDecoration[] = [
 				{
 					range: range,
 					options: {
@@ -167,7 +167,7 @@ export class BaseEditorQuickOpenAction extends EditorAction {
 
 	public clearDecorations():void {
 		if (this.lineHighlightDecorationId) {
-			this.editor.changeDecorations((changeAccessor:EditorCommon.IModelDecorationsChangeAccessor)=>{
+			this.editor.changeDecorations((changeAccessor:editorCommon.IModelDecorationsChangeAccessor)=>{
 				changeAccessor.deltaDecorations([this.lineHighlightDecorationId], []);
 				this.lineHighlightDecorationId = null;
 			});
@@ -200,7 +200,7 @@ export class BaseEditorQuickOpenAction extends EditorAction {
 }
 
 export interface IDecorator {
-	decorateLine(range:EditorCommon.IRange, editor:EditorCommon.IEditor):void;
+	decorateLine(range:editorCommon.IRange, editor:editorCommon.IEditor):void;
 	clearDecorations():void;
 }
 

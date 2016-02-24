@@ -16,11 +16,9 @@ import { workspace, window, Uri, CancellationToken }  from 'vscode';
 import * as Proto from './protocol';
 import { ITypescriptServiceClient, ITypescriptServiceClientHost }  from './typescriptService';
 
+import * as VersionStatus from './utils/versionStatus';
 
-let isWin = /^win/.test(process.platform);
-let isDarwin = /^darwin/.test(process.platform);
-let isLinux = /^linux/.test(process.platform);
-let arch = process.arch;
+import TelemetryReporter from 'vscode-extension-telemetry';
 
 interface CallbackItem {
 	c: (value: any) => void;
@@ -36,6 +34,12 @@ interface RequestItem {
 	request: Proto.Request;
 	promise: Promise<any>;
 	callbacks: CallbackItem;
+}
+
+interface IPackageInfo {
+	name: string;
+	version: string;
+	aiKey: string;
 }
 
 export default class TypeScriptServiceClient implements ITypescriptServiceClient {
@@ -59,6 +63,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private requestQueue: RequestItem[];
 	private pendingResponses: number;
 	private callbacks: CallbackMap;
+
+	private _packageInfo: IPackageInfo;
+	private telemetryReporter: TelemetryReporter;
 
 	constructor(host: ITypescriptServiceClientHost) {
 		this.host = host;
@@ -87,6 +94,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				this.startService();
 			}
 		});
+		if (this.packageInfo && this.packageInfo.aiKey) {
+			this.telemetryReporter = new TelemetryReporter(this.packageInfo.name, this.packageInfo.version, this.packageInfo.aiKey);
+		}
 		this.startService();
 	}
 
@@ -96,6 +106,32 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	public get trace(): boolean {
 		return TypeScriptServiceClient.Trace;
+	}
+
+	private get packageInfo(): IPackageInfo {
+
+		if (this._packageInfo !== undefined) {
+			return this._packageInfo;
+		}
+		let packagePath = path.join(__dirname, './../package.json');
+		let extensionPackage = require(packagePath);
+		if (extensionPackage) {
+			this._packageInfo = {
+				name: extensionPackage.name,
+				version: extensionPackage.version,
+				aiKey: extensionPackage.aiKey
+			};
+		} else {
+			this._packageInfo = null;
+		}
+
+		return this._packageInfo;
+	}
+
+	private logTelemetry(eventName: string, properties?: {[prop: string]: string}) {
+		if (this.telemetryReporter) {
+			this.telemetryReporter.sendTelemetryEvent(eventName, properties);
+		}
 	}
 
 	private service(): Promise<cp.ChildProcess> {
@@ -111,22 +147,24 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	private startService(resendModels: boolean = false): void {
 		let modulePath = path.join(__dirname, '..', 'server', 'typescript', 'lib', 'tsserver.js');
+
 		if (this.tsdk) {
 			if ((<any>path).isAbsolute(this.tsdk)) {
 				modulePath = path.join(this.tsdk, 'tsserver.js');
 			} else if (workspace.rootPath) {
 				modulePath = path.join(workspace.rootPath, this.tsdk, 'tsserver.js');
 			}
-		} else if (!!process.env['CODE_TSJS'] || !!process.env['VSCODE_TSJS']) {
-			let candidate = path.join(workspace.rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
-			if (fs.existsSync(candidate)) {
-				modulePath = candidate;
-			}
 		}
+
 		if (!fs.existsSync(modulePath)) {
 			window.showErrorMessage(`The path ${path.dirname(modulePath)} doesn't point to a valid tsserver install. TypeScript language features will be disabled.`);
 			return;
 		}
+
+		let label = this.getTypeScriptVersion(modulePath);
+		let tooltip = modulePath;
+		VersionStatus.setInfo(label, tooltip);
+
 		this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
 			try {
 				let options: electron.IForkOptions = {
@@ -143,6 +181,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					if (err) {
 						this.lastError = err;
 						window.showErrorMessage(`TypeScript language server couldn\'t be started. Error message is: ${err.message}`);
+						this.logTelemetry('error', {message: err.message});
 						return;
 					}
 					this.lastStart = Date.now();
@@ -173,6 +212,31 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 	}
 
+	private getTypeScriptVersion(serverPath: string): string {
+		const unknown = 'unknown';
+		let p = serverPath.split(path.sep);
+		if (p.length <= 2) {
+			return unknown;
+		}
+		let p2 = p.slice(0, -2);
+		let modulePath = p2.join(path.sep);
+		let fileName = path.join(modulePath, 'package.json');
+		if (!fs.existsSync(fileName)) {
+			return unknown;
+		}
+		let contents = fs.readFileSync(fileName).toString();
+		let desc:any = null;
+		try {
+			desc = JSON.parse(contents);
+		} catch(err) {
+			return unknown;
+		}
+		if (!desc.version) {
+			return unknown;
+		}
+		return desc.version;
+	}
+
 	private serviceExited(restart: boolean): void {
 		this.servicePromise = null;
 		Object.keys(this.callbacks).forEach((key) => {
@@ -189,6 +253,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				} else if (diff < 2 * 1000 /* 2 seconds */) {
 					startService = false;
 					window.showErrorMessage('The Typesrript language service died 5 times right after it got started. The service will not be restarted. Please open a bug report.');
+					this.logTelemetry('serviceExited');
 				}
 			}
 			if (startService) {
@@ -300,7 +365,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				let p = this.callbacks[response.request_seq];
 				if (p) {
 					if (TypeScriptServiceClient.Trace) {
-						console.log('TypeScript Service: request ' + response.command + '(' + response.request_seq + ') took ' + (Date.now() - p.start) + 'ms. Success: ' + response.success);
+						console.log('TypeScript Service: request ' + response.command + '(' + response.request_seq + ') took ' + (Date.now() - p.start) + 'ms. Success: ' + response.success + ((!response.success) ? ('. Message: ' + response.message) : ''));
 					}
 					delete this.callbacks[response.request_seq];
 					this.pendingResponses--;

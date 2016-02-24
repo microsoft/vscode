@@ -133,7 +133,7 @@ class ElectronRawGitService extends DelayedRawGitService {
 			var enabled = conf.git ? conf.git.enabled : true;
 
 			if (!enabled) {
-				return Promise.as(new DisabledRawGitService());
+				return TPromise.as(new DisabledRawGitService());
 			}
 
 			var gitPath = (conf.git && conf.git.path) || null;
@@ -157,7 +157,7 @@ export class ElectronGitService extends GitService {
 		let workspace = contextService.getWorkspace();
 		let raw = !workspace
 			? new NoOpGitService()
-			: instantiationService.createInstance(ElectronRawGitService, workspace.resource.fsPath)
+			: instantiationService.createInstance(ElectronRawGitService, workspace.resource.fsPath);
 
 		super(raw, instantiationService, eventService, messageService, editorService, outputService, contextService, lifecycleService);
 	}

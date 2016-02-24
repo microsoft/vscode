@@ -4,20 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Browser = require('vs/base/browser/browser');
-import DomUtils = require('vs/base/browser/dom');
-import Lifecycle = require('vs/base/common/lifecycle');
-
-import {ViewLayer, IVisibleLineData} from 'vs/editor/browser/view/viewLayer';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as browser from 'vs/base/browser/browser';
+import * as dom from 'vs/base/browser/dom';
+import {StyleMutator} from 'vs/base/browser/styleMutator';
+import {IConfigurationChangedEvent, IEditorLayoutInfo, IModelDecoration, IScrollEvent} from 'vs/editor/common/editorCommon';
+import * as editorBrowser from 'vs/editor/browser/editorBrowser';
+import {IVisibleLineData, ViewLayer} from 'vs/editor/browser/view/viewLayer';
 
 export class ViewOverlays extends ViewLayer {
-	private _dynamicOverlays:EditorBrowser.IDynamicViewOverlay[];
+	private _dynamicOverlays:editorBrowser.IDynamicViewOverlay[];
 
-	_layoutProvider:EditorBrowser.ILayoutProvider;
+	_layoutProvider:editorBrowser.ILayoutProvider;
 
-	constructor(context:EditorBrowser.IViewContext, layoutProvider:EditorBrowser.ILayoutProvider) {
+	constructor(context:editorBrowser.IViewContext, layoutProvider:editorBrowser.ILayoutProvider) {
 		super(context);
 
 		this._layoutProvider = layoutProvider;
@@ -41,7 +40,7 @@ export class ViewOverlays extends ViewLayer {
 		return this.domNode;
 	}
 
-	public addDynamicOverlay(overlay:EditorBrowser.IDynamicViewOverlay): void {
+	public addDynamicOverlay(overlay:editorBrowser.IDynamicViewOverlay): void {
 		this._dynamicOverlays.push(overlay);
 	}
 
@@ -49,7 +48,7 @@ export class ViewOverlays extends ViewLayer {
 
 	public onViewFocusChanged(isFocused:boolean): boolean {
 		this._requestModificationFrame(() => {
-			DomUtils.toggleClass(this.domNode, 'focused', isFocused);
+			dom.toggleClass(this.domNode, 'focused', isFocused);
 		});
 		return false;
 	}
@@ -62,7 +61,7 @@ export class ViewOverlays extends ViewLayer {
 	}
 
 
-	public onReadAfterForcedLayout(ctx:EditorBrowser.IRenderingContext): void {
+	public onReadAfterForcedLayout(ctx:editorBrowser.IRenderingContext): void {
 		// Overwriting to bypass `shouldRender` flag
 		for (var i = 0; i < this._dynamicOverlays.length; i++) {
 			this._dynamicOverlays[i].shouldCallRender2(ctx);
@@ -75,7 +74,7 @@ export class ViewOverlays extends ViewLayer {
 		return null;
 	}
 
-	_viewOverlaysRender(ctx:EditorBrowser.IRestrictedRenderingContext): void {
+	_viewOverlaysRender(ctx:editorBrowser.IRestrictedRenderingContext): void {
 		super._renderLines(ctx.linesViewportData);
 	}
 
@@ -87,12 +86,12 @@ export class ViewOverlays extends ViewLayer {
 
 class ViewOverlayLine implements IVisibleLineData {
 
-	private _context:EditorBrowser.IViewContext;
-	private _dynamicOverlays:EditorBrowser.IDynamicViewOverlay[];
+	private _context:editorBrowser.IViewContext;
+	private _dynamicOverlays:editorBrowser.IDynamicViewOverlay[];
 	private _domNode: HTMLElement;
 	private _renderPieces: string[];
 
-	constructor(context:EditorBrowser.IViewContext, dynamicOverlays:EditorBrowser.IDynamicViewOverlay[]) {
+	constructor(context:editorBrowser.IViewContext, dynamicOverlays:editorBrowser.IDynamicViewOverlay[]) {
 		this._context = context;
 		this._dynamicOverlays = dynamicOverlays;
 
@@ -122,7 +121,7 @@ class ViewOverlayLine implements IVisibleLineData {
 	onTokensChanged(): void {
 		// Nothing
 	}
-	onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): void {
+	onConfigurationChanged(e:IConfigurationChangedEvent): void {
 		// Nothing
 	}
 
@@ -138,7 +137,7 @@ class ViewOverlayLine implements IVisibleLineData {
 		return true;
 	}
 
-	shouldUpdateHTML(lineNumber:number, inlineDecorations:EditorCommon.IModelDecoration[]): boolean {
+	shouldUpdateHTML(lineNumber:number, inlineDecorations:IModelDecoration[]): boolean {
 		var newPieces: string[] = [];
 		for (var i = 0; i < this._dynamicOverlays.length; i++) {
 			var pieces = this._dynamicOverlays[i].render2(lineNumber);
@@ -163,7 +162,7 @@ class ViewOverlayLine implements IVisibleLineData {
 		out.push('px;height:');
 		out.push(this._context.configuration.editor.lineHeight.toString());
 		out.push('px;" class="');
-		out.push(EditorBrowser.ClassNames.VIEW_LINE);
+		out.push(editorBrowser.ClassNames.VIEW_LINE);
 		out.push('">');
 		out.push(this.getLineInnerHTML(lineNumber));
 		out.push('</div>');
@@ -178,28 +177,28 @@ class ViewOverlayLine implements IVisibleLineData {
 		if (currentLineNumber !== lineNumber.toString()) {
 			this._domNode.setAttribute('lineNumber', lineNumber.toString());
 		}
-		DomUtils.StyleMutator.setTop(this._domNode, deltaTop);
-		DomUtils.StyleMutator.setHeight(this._domNode, this._context.configuration.editor.lineHeight);
+		StyleMutator.setTop(this._domNode, deltaTop);
+		StyleMutator.setHeight(this._domNode, this._context.configuration.editor.lineHeight);
 	}
 }
 
 export class ContentViewOverlays extends ViewOverlays {
 
-	constructor(context:EditorBrowser.IViewContext, layoutProvider:EditorBrowser.ILayoutProvider) {
+	constructor(context:editorBrowser.IViewContext, layoutProvider:editorBrowser.ILayoutProvider) {
 		super(context, layoutProvider);
 
-		DomUtils.StyleMutator.setWidth(this.domNode, 0);
-		DomUtils.StyleMutator.setHeight(this.domNode, 0);
+		StyleMutator.setWidth(this.domNode, 0);
+		StyleMutator.setHeight(this.domNode, 0);
 	}
 
 	public onScrollWidthChanged(scrollWidth:number): boolean {
 		return true;
 	}
 
-	_viewOverlaysRender(ctx:EditorBrowser.IRestrictedRenderingContext): void {
+	_viewOverlaysRender(ctx:editorBrowser.IRestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
 
-		DomUtils.StyleMutator.setWidth(this.domNode, this._layoutProvider.getScrollWidth());
+		StyleMutator.setWidth(this.domNode, this._layoutProvider.getScrollWidth());
 	}
 }
 
@@ -209,22 +208,22 @@ export class MarginViewOverlays extends ViewOverlays {
 	private _glyphMarginWidth:number;
 	private _scrollHeight:number;
 
-	constructor(context:EditorBrowser.IViewContext, layoutProvider:EditorBrowser.ILayoutProvider) {
+	constructor(context:editorBrowser.IViewContext, layoutProvider:editorBrowser.ILayoutProvider) {
 		super(context, layoutProvider);
 
 		this._glyphMarginLeft = 0;
 		this._glyphMarginWidth = 0;
 		this._scrollHeight = layoutProvider.getScrollHeight();
 
-		this.domNode.className = EditorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS + ' monaco-editor-background';
-		DomUtils.StyleMutator.setWidth(this.domNode, 1);
+		this.domNode.className = editorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS + ' monaco-editor-background';
+		StyleMutator.setWidth(this.domNode, 1);
 		this._hasVerticalScroll = true;
 	}
 
 	protected _extraDomNodeHTML(): string {
 		return [
 			'<div class="',
-			EditorBrowser.ClassNames.GLYPH_MARGIN,
+			editorBrowser.ClassNames.GLYPH_MARGIN,
 			'" style="left:',
 			String(this._glyphMarginLeft),
 			'px;width:',
@@ -244,49 +243,49 @@ export class MarginViewOverlays extends ViewOverlays {
 		this._requestModificationFrame(() => {
 			var glyphMargin = this._getGlyphMarginDomNode();
 			if (glyphMargin) {
-				DomUtils.StyleMutator.setHeight(glyphMargin, this._scrollHeight);
+				StyleMutator.setHeight(glyphMargin, this._scrollHeight);
 			}
 		});
 		return super.onScrollHeightChanged(scrollHeight) || true;
 	}
 
-	public onLayoutChanged(layoutInfo:EditorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:IEditorLayoutInfo): boolean {
 		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
 		this._scrollHeight = this._layoutProvider.getScrollHeight();
 
 		this._requestModificationFrame(() => {
-			DomUtils.StyleMutator.setWidth(this.domNode, layoutInfo.contentLeft);
+			StyleMutator.setWidth(this.domNode, layoutInfo.contentLeft);
 
 			var glyphMargin = this._getGlyphMarginDomNode();
 			if (glyphMargin) {
-				DomUtils.StyleMutator.setLeft(glyphMargin, layoutInfo.glyphMarginLeft);
-				DomUtils.StyleMutator.setWidth(glyphMargin, layoutInfo.glyphMarginWidth);
+				StyleMutator.setLeft(glyphMargin, layoutInfo.glyphMarginLeft);
+				StyleMutator.setWidth(glyphMargin, layoutInfo.glyphMarginWidth);
 			}
 		});
 		return super.onLayoutChanged(layoutInfo) || true;
 	}
 
 	private _hasVerticalScroll = false;
-	public onScrollChanged(e:EditorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e:IScrollEvent): boolean {
 		this._hasVerticalScroll = this._hasVerticalScroll || e.vertical;
 		return super.onScrollChanged(e);
 	}
 
-	_viewOverlaysRender(ctx:EditorBrowser.IRestrictedRenderingContext): void {
+	_viewOverlaysRender(ctx:editorBrowser.IRestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
 		if (this._hasVerticalScroll) {
-			if (Browser.canUseTranslate3d) {
+			if (browser.canUseTranslate3d) {
 				var transform = 'translate3d(0px, ' + ctx.linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
-				DomUtils.StyleMutator.setTransform(this.domNode, transform);
+				StyleMutator.setTransform(this.domNode, transform);
 			} else {
 				if (this._hasVerticalScroll) {
-					DomUtils.StyleMutator.setTop(this.domNode, ctx.linesViewportData.visibleRangesDeltaTop);
+					StyleMutator.setTop(this.domNode, ctx.linesViewportData.visibleRangesDeltaTop);
 				}
 			}
 			this._hasVerticalScroll = false;
 		}
 		var height = Math.min(this._layoutProvider.getTotalHeight(), 1000000);
-		DomUtils.StyleMutator.setHeight(this.domNode, height);
+		StyleMutator.setHeight(this.domNode, height);
 	}
 }

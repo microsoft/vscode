@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import BrowserService = require('vs/base/browser/browserService');
 import { MockBrowserServiceData } from 'vs/base/test/browser/mockBrowserService';
 
-suite("BrowserService", () => {
+suite('BrowserService', () => {
 	test('Mocking of Window', () => {
 		try {
 			var service = BrowserService.getService();

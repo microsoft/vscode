@@ -13,14 +13,14 @@ export interface IConfiguration {
 
 export var defaultConfiguration: IConfiguration = {
 	useCodeSnippetsOnMethodSuggest: false
-}
+};
 
 export function load(myPluginId: string): IConfiguration {
 	let configuration = workspace.getConfiguration(myPluginId);
 
-	let useCodeSnippetsOnMethodSuggest = configuration.get('useCodeSnippetsOnMethodSuggest', defaultConfiguration.useCodeSnippetsOnMethodSuggest)
+	let useCodeSnippetsOnMethodSuggest = configuration.get('useCodeSnippetsOnMethodSuggest', defaultConfiguration.useCodeSnippetsOnMethodSuggest);
 
 	return {
 		useCodeSnippetsOnMethodSuggest
-	}
+	};
 }

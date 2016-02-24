@@ -5,15 +5,15 @@
 
 'use strict';
 
+import {illegalArgument, onUnexpectedError} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import {IModel} from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {IOutlineEntry, IOutlineSupport} from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
 const OutlineRegistry = new LanguageFeatureRegistry<IOutlineSupport>('outlineSupport');
 
@@ -60,7 +60,7 @@ export function getOutlineEntries(model: IModel): TPromise<IOutline> {
 		return {
 			entries: flatEntries,
 			outlineGroupLabel: groupLabels
-		}
+		};
 	});
 }
 
@@ -86,7 +86,7 @@ function flatten(bucket: IOutlineEntry[], entries: IOutlineEntry[], overrideCont
 
 CommonEditorRegistry.registerLanguageCommand('_executeDocumentSymbolProvider', function(accessor, args) {
 	const {resource} = args;
-	if (!URI.isURI(resource)) {
+	if (!(resource instanceof URI)) {
 		throw illegalArgument('resource');
 	}
 	const model = accessor.get(IModelService).getModel(resource);

@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
-import Modes = require('vs/editor/common/modes');
-import TokensBinaryEncoding = require('vs/editor/common/model/tokensBinaryEncoding');
-import {IInstantiationService, INewConstructorSignature1, IConstructorSignature2, INewConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {IAction} from 'vs/base/common/actions';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {TPromise} from 'vs/base/common/winjs.base';
+import {IEventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
+import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {IDisposable} from 'vs/base/common/lifecycle';
+import URI from 'vs/base/common/uri';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
+import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
+import {ILineContext, IMode, IModeTransition, IToken} from 'vs/editor/common/modes';
 
 export type KeyCode = KeyCode;
 export type KeyMod = KeyMod;
@@ -169,7 +169,7 @@ export enum SelectionDirection {
 	 * The selection starts below where it ends.
 	 */
 	RTL
-};
+}
 
 /**
  * A selection in the editor.
@@ -269,9 +269,21 @@ export function wrappingIndentFromString(wrappingIndent:string): WrappingIndent 
 }
 
 /**
- * Configuration options for the editor. Common between configuring the editor and the options the editor has computed
+ * Configuration options for the editor.
  */
-export interface ICommonEditorOptions {
+export interface IEditorOptions {
+	experimentalScreenReader?: boolean;
+	ariaLabel?: string;
+	/**
+	 * Render vertical lines at the specified columns.
+	 * Defaults to empty array.
+	 */
+	rulers?: number[];
+	/**
+	 * A string containing the word separators used when doing word navigation.
+	 * Defaults to `~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?
+	 */
+	wordSeparators?: string;
 	/**
 	 * Control the rendering of line numbers.
 	 * If it is a function, it will be invoked when rendering a line number and the return value will be rendered.
@@ -488,16 +500,15 @@ export interface ICommonEditorOptions {
 	 */
 	referenceInfos?: boolean;
 	/**
+	 * Enable code folding
+	 * Defaults to true.
+	 */
+	folding?: boolean;
+	/**
 	 * Enable rendering of leading whitespace.
 	 * Defaults to false.
 	 */
 	renderWhitespace?: boolean;
-}
-
-/**
- * Configuration options for the editor.
- */
-export interface IEditorOptions extends ICommonEditorOptions {
 	/**
 	 * Tab size in spaces. This is used for rendering and for editing.
 	 * 'auto' means the model attached to the editor will be scanned and this property will be guessed.
@@ -583,6 +594,10 @@ export interface IEditorWrappingInfo {
  * Internal configuration options (transformed or computed) for the editor.
  */
 export interface IInternalEditorOptions {
+	experimentalScreenReader: boolean;
+	rulers: number[];
+	wordSeparators: string;
+	ariaLabel: string;
 
 	// ---- Options that are transparent - get no massaging
 	lineNumbers:any;
@@ -621,6 +636,7 @@ export interface IInternalEditorOptions {
 	selectionHighlight:boolean;
 	outlineMarkers: boolean;
 	referenceInfos: boolean;
+	folding: boolean;
 	renderWhitespace: boolean;
 
 	// ---- Options that are computed
@@ -667,51 +683,63 @@ export interface IInternalEditorOptions {
  * An event describing that the configuration of the editor has changed.
  */
 export interface IConfigurationChangedEvent {
-	layoutInfo:boolean;
-	stylingInfo:boolean;
-	wrappingInfo:boolean;
-	indentInfo:boolean;
-	observedOuterWidth:boolean;
-	observedOuterHeight:boolean;
-	lineHeight:boolean;
-	pageSize:boolean;
-	typicalHalfwidthCharacterWidth:boolean;
-	typicalFullwidthCharacterWidth:boolean;
-	fontSize:boolean;
-	lineNumbers:boolean;
-	selectOnLineNumbers:boolean;
-	glyphMargin:boolean;
-	revealHorizontalRightPadding:boolean;
-	roundedSelection:boolean;
-	theme:boolean;
-	readOnly:boolean;
-	scrollbar:boolean;
-	overviewRulerLanes:boolean;
-	cursorBlinking:boolean;
-	cursorStyle:boolean;
-	fontLigatures:boolean;
-	hideCursorInOverviewRuler:boolean;
-	scrollBeyondLastLine:boolean;
-	wrappingIndent:boolean;
+	experimentalScreenReader: boolean;
+	rulers: boolean;
+	wordSeparators: boolean;
+	ariaLabel: boolean;
+
+	// ---- Options that are transparent - get no massaging
+	lineNumbers: boolean;
+	selectOnLineNumbers: boolean;
+	glyphMargin: boolean;
+	revealHorizontalRightPadding: boolean;
+	roundedSelection: boolean;
+	theme: boolean;
+	readOnly: boolean;
+	scrollbar: boolean;
+	overviewRulerLanes: boolean;
+	cursorBlinking: boolean;
+	cursorStyle: boolean;
+	fontLigatures: boolean;
+	hideCursorInOverviewRuler: boolean;
+	scrollBeyondLastLine: boolean;
+	wrappingIndent: boolean;
 	wordWrapBreakBeforeCharacters: boolean;
 	wordWrapBreakAfterCharacters: boolean;
 	wordWrapBreakObtrusiveCharacters: boolean;
-	tabFocusMode:boolean;
-	stopLineTokenizationAfter:boolean;
-	stopRenderingLineAfter:boolean;
-	longLineBoundary:boolean;
-	forcedTokenizationBoundary:boolean;
-	hover:boolean;
-	contextmenu:boolean;
-	quickSuggestions:boolean;
-	quickSuggestionsDelay:boolean;
-	iconsInSuggestions:boolean;
-	autoClosingBrackets:boolean;
-	formatOnType:boolean;
-	suggestOnTriggerCharacters:boolean;
-	selectionHighlight:boolean;
+	tabFocusMode: boolean;
+	stopLineTokenizationAfter: boolean;
+	stopRenderingLineAfter: boolean;
+	longLineBoundary: boolean;
+	forcedTokenizationBoundary: boolean;
+
+	// ---- Options that are transparent - get no massaging
+	hover: boolean;
+	contextmenu: boolean;
+	quickSuggestions: boolean;
+	quickSuggestionsDelay: boolean;
+	iconsInSuggestions: boolean;
+	autoClosingBrackets: boolean;
+	formatOnType: boolean;
+	suggestOnTriggerCharacters: boolean;
+	selectionHighlight: boolean;
 	outlineMarkers: boolean;
 	referenceInfos: boolean;
+	folding: boolean;
+	renderWhitespace: boolean;
+
+	// ---- Options that are computed
+	layoutInfo: boolean;
+	stylingInfo: boolean;
+	wrappingInfo: boolean;
+	indentInfo: boolean;
+	observedOuterWidth: boolean;
+	observedOuterHeight: boolean;
+	lineHeight: boolean;
+	pageSize: boolean;
+	typicalHalfwidthCharacterWidth: boolean;
+	typicalFullwidthCharacterWidth: boolean;
+	fontSize: boolean;
 }
 
 /**
@@ -731,18 +759,12 @@ export interface IModeSupportChangedEvent {
 	logicalSelectionSupport:boolean;
 	formattingSupport:boolean;
 	inplaceReplaceSupport:boolean;
-	diffSupport:boolean;
-	dirtyDiffSupport:boolean;
 	emitOutputSupport:boolean;
 	linkSupport:boolean;
 	configSupport:boolean;
-	electricCharacterSupport:boolean;
-	commentsSupport:boolean;
-	characterPairSupport:boolean;
-	tokenTypeClassificationSupport:boolean;
 	quickFixSupport: boolean;
 	codeLensSupport: boolean;
-	onEnterSupport: boolean;
+	richEditSupport: boolean;
 }
 
 /**
@@ -947,7 +969,7 @@ export interface IWordRange {
 }
 
 export interface ITokenInfo {
-	token: Modes.IToken;
+	token: IToken;
 	lineNumber: number;
 	startColumn: number;
 	endColumn: number;
@@ -1157,19 +1179,16 @@ export interface ITokensInflatorMap {
 export interface ILineTokensBinaryEncoding {
 	START_INDEX_MASK: number;
 	TYPE_MASK: number;
-	BRACKET_MASK: number;
 	START_INDEX_OFFSET: number;
 	TYPE_OFFSET: number;
-	BRACKET_OFFSET: number;
 
-	deflateArr(map:ITokensInflatorMap, tokens:Modes.IToken[]): number[];
-	inflate(map:ITokensInflatorMap, binaryEncodedToken:number): Modes.IToken;
+	deflateArr(map:ITokensInflatorMap, tokens:IToken[]): number[];
+	inflate(map:ITokensInflatorMap, binaryEncodedToken:number): IToken;
 	getStartIndex(binaryEncodedToken:number): number;
 	getType(map:ITokensInflatorMap, binaryEncodedToken:number): string;
-	getBracket(binaryEncodedToken:number): Modes.Bracket;
-	inflateArr(map:ITokensInflatorMap, binaryEncodedTokens:number[]): Modes.IToken[];
+	inflateArr(map:ITokensInflatorMap, binaryEncodedTokens:number[]): IToken[];
 	findIndexOfOffset(binaryEncodedTokens:number[], offset:number): number;
-	sliceAndInflate(map:ITokensInflatorMap, binaryEncodedTokens:number[], startOffset:number, endOffset:number, deltaStartIndex:number): Modes.IToken[];
+	sliceAndInflate(map:ITokensInflatorMap, binaryEncodedTokens:number[], startOffset:number, endOffset:number, deltaStartIndex:number): IToken[];
 }
 export var LineTokensBinaryEncoding:ILineTokensBinaryEncoding = TokensBinaryEncoding;
 
@@ -1190,7 +1209,6 @@ export interface ILineTokens {
 	getTokenCount(): number;
 	getTokenStartIndex(tokenIndex:number): number;
 	getTokenType(tokenIndex:number): string;
-	getTokenBracket(tokenIndex:number): Modes.Bracket;
 	getTokenEndIndex(tokenIndex:number, textLength:number): number;
 
 	/**
@@ -1370,6 +1388,21 @@ export interface ITextModel {
 	isDisposed(): boolean;
 }
 
+export interface IRichEditBracket {
+	modeId: string;
+	open: string;
+	close: string;
+	forwardRegex: RegExp;
+	reversedRegex: RegExp;
+}
+
+export interface IFoundBracket {
+	range: IEditorRange;
+	open: string;
+	close: string;
+	isOpen: boolean;
+}
+
 /**
  * A model that is tokenized.
  */
@@ -1391,9 +1424,9 @@ export interface ITokenizedModel extends ITextModel {
 	/**
 	 * Tokenize if necessary and get the tokenization result for the line `lineNumber`, as returned by the language mode.
 	 */
-	getLineContext(lineNumber:number): Modes.ILineContext;
+	getLineContext(lineNumber:number): ILineContext;
 
-	/*package*/_getLineModeTransitions(lineNumber:number): Modes.IModeTransition[];
+	/*package*/_getLineModeTransitions(lineNumber:number): IModeTransition[];
 
 	/**
 	 * Replace the entire text buffer value contained in this model.
@@ -1404,30 +1437,30 @@ export interface ITokenizedModel extends ITextModel {
 	 * unbinds the mirror model from the previous mode to the new
 	 * one if the mode has changed.
 	 */
-	setValue(newValue:string, newMode?:Modes.IMode): void;
+	setValue(newValue:string, newMode?:IMode): void;
 
 	/**
 	 * Get the current language mode associated with the model.
 	 */
-	getMode(): Modes.IMode;
+	getMode(): IMode;
 
 	/**
 	 * Set the current language mode associated with the model.
 	 */
-	setMode(newMode:Modes.IMode): void;
-	setMode(newModePromise:TPromise<Modes.IMode>): void;
+	setMode(newMode:IMode): void;
+	setMode(newModePromise:TPromise<IMode>): void;
 	/**
 	 * A mode can be currently pending loading if a promise is used when constructing a model or calling setMode().
 	 *
 	 * If there is no currently pending loading mode, then the result promise will complete immediately.
 	 * Otherwise, the result will complete once the currently pending loading mode is loaded.
 	 */
-	whenModeIsReady(): TPromise<Modes.IMode>;
+	whenModeIsReady(): TPromise<IMode>;
 
 	/**
 	 * Returns the true (inner-most) language mode at a given position.
 	 */
-	getModeAtPosition(lineNumber:number, column:number): Modes.IMode;
+	getModeAtPosition(lineNumber:number, column:number): IMode;
 
 	/**
 	 * Get the word under or besides `position`.
@@ -1462,12 +1495,26 @@ export interface ITokenizedModel extends ITextModel {
 	tokenIterator(position: IPosition, callback: (it: ITokenIterator) =>any): any;
 
 	/**
-	 * Find the matching bracket of `tokenType` up, counting brackets.
-	 * @param tokenType The token type of the bracket we're searching for
+	 * Find the matching bracket of `request` up, counting brackets.
+	 * @param request The bracket we're searching for
 	 * @param position The position at which to start the search.
 	 * @return The range of the matching bracket, or null if the bracket match was not found.
 	 */
-	findMatchingBracketUp(tokenType:string, position:IPosition): IEditorRange;
+	findMatchingBracketUp(bracket:string, position:IPosition): IEditorRange;
+
+	/**
+	 * Find the first bracket in the model before `position`.
+	 * @param position The position at which to start the search.
+	 * @return The info for the first bracket before `position`, or null if there are no more brackets before `positions`.
+	 */
+	findPrevBracket(position:IPosition): IFoundBracket;
+
+	/**
+	 * Find the first bracket in the model after `position`.
+	 * @param position The position at which to start the search.
+	 * @return The info for the first bracket after `position`, or null if there are no more brackets after `positions`.
+	 */
+	findNextBracket(position:IPosition): IFoundBracket;
 
 	/**
 	 * Given a `position`, if the position is on top or near a bracket,
@@ -1717,25 +1764,6 @@ export interface IModel extends IEditableTextModel, ITextModelWithMarkers, IToke
 	destroy(): void;
 
 	/**
-	 * Set a property on the model. This property will be forwarded to the
-	 * mirror model associated with this model. Please make sure that the
-	 * value can be serialized. If a property by the same name exists,
-	 * it will be overwritten.
-	 */
-	setProperty(name:string, value:any): void;
-
-	/**
-	 * Returns a property previously set on the model.
-	 * If the property is not defined, returns null.
-	 */
-	getProperty(name:string): any;
-
-	/**
-	 * Returns all properties set on the model.
-	 */
-	getProperties(): {[name:string]:any;};
-
-	/**
 	 * Gets the resource associated with this editor model.
 	 */
 	getAssociatedResource(): URI;
@@ -1792,8 +1820,8 @@ export interface IModel extends IEditableTextModel, ITextModelWithMarkers, IToke
 	 * unbinds the mirror model from the previous mode to the new
 	 * one if the mode has changed.
 	 */
-	setValue(newValue:string, newMode?:Modes.IMode): void;
-	setValue(newValue:string, newModePromise:TPromise<Modes.IMode>): void;
+	setValue(newValue:string, newMode?:IMode): void;
+	setValue(newValue:string, newModePromise:TPromise<IMode>): void;
 
 	onBeforeAttached(): void;
 
@@ -1817,7 +1845,6 @@ export interface IMirrorModel extends IEventEmitter, ITokenizedModel {
 	getAllEmbedded(): IMirrorModel[];
 
 	getAssociatedResource(): URI;
-	getProperty(key:string): any;
 
 	getOffsetFromPosition(position:IPosition): number;
 	getPositionFromOffset(offset:number): IPosition;
@@ -1836,11 +1863,11 @@ export interface IModelModeChangedEvent {
 	/**
 	 * Previous mode
 	 */
-	oldMode:Modes.IMode;
+	oldMode:IMode;
 	/**
 	 * New mode
 	 */
-	newMode:Modes.IMode;
+	newMode:IMode;
 }
 
 /**
@@ -1960,20 +1987,9 @@ export interface IModelContentChangedLinesInsertedEvent extends IModelContentCha
 	detail: string;
 }
 /**
- * An event describing that model properties have changed.
- */
-export interface IModelPropertiesChangedEvent {
-	/**
-	 * A map with all the properties of the model.
-	 */
-	properties: {
-		[key:string]:any;
-	};
-}
-/**
  * Decoration data associated with a model decorations changed event.
  */
-export interface IModelDecorationsChangedEvent_DecorationData {
+export interface IModelDecorationsChangedEventDecorationData {
 	id:string;
 	ownerId:number;
 	range:IRange;
@@ -1991,7 +2007,7 @@ export interface IModelDecorationsChangedEvent {
 	/**
 	 * Lists of details
 	 */
-	addedOrChangedDecorations:IModelDecorationsChangedEvent_DecorationData[];
+	addedOrChangedDecorations:IModelDecorationsChangedEventDecorationData[];
 	removedDecorations:string[];
 	oldOptions:{[decorationId:string]:IModelDecorationOptions;};
 	oldRanges:{[decorationId:string]:IRange;};
@@ -2289,6 +2305,7 @@ export interface IViewState {
 export interface ICodeEditorViewState extends IEditorViewState {
 	cursorState:ICursorState[];
 	viewState:IViewState;
+	contributionsState: {[id:string]:any};
 }
 
 /**
@@ -2400,12 +2417,13 @@ export interface IDiffLineInformation {
 	equivalentLineNumber: number;
 }
 
-export var KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS = 'editorTextFocus';
-export var KEYBINDING_CONTEXT_EDITOR_FOCUS = 'editorFocus';
-export var KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS = 'editorTabMovesFocus';
-export var KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS = 'editorHasMultipleSelections';
-export var KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION = 'editorHasSelection';
-export var KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID = 'editorLangId';
+export const KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS = 'editorTextFocus';
+export const KEYBINDING_CONTEXT_EDITOR_FOCUS = 'editorFocus';
+export const KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS = 'editorTabMovesFocus';
+export const KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS = 'editorHasMultipleSelections';
+export const KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION = 'editorHasSelection';
+export const KEYBINDING_CONTEXT_EDITOR_LANGUAGE_ID = 'editorLangId';
+export const SHOW_ACCESSIBILITY_HELP_ACTION_ID = 'editor.action.showAccessibilityHelp';
 
 export interface IDispatcherEvent {
 	getSource(): string;
@@ -2507,6 +2525,7 @@ export interface IViewModel extends IEventEmitter, IDisposable {
 	getDecorationsResolver(startLineNumber:number, endLineNumber:number): IViewModelDecorationsResolver;
 	getLineRenderLineNumber(lineNumber:number): string;
 	getAllDecorations(): IModelDecoration[];
+	getEOL(): string;
 	getValueInRange(range:IRange, eol:EndOfLinePreference): string;
 	dispose(): void;
 
@@ -2736,9 +2755,9 @@ export interface IEditorActionDescriptorData {
 	label:string;
 }
 
-export type IEditorActionContributionCtor = INewConstructorSignature2<IEditorActionDescriptorData, ICommonCodeEditor, IEditorContribution>;
+export type IEditorActionContributionCtor = IConstructorSignature2<IEditorActionDescriptorData, ICommonCodeEditor, IEditorContribution>;
 
-export type ICommonEditorContributionCtor = INewConstructorSignature1<ICommonCodeEditor, IEditorContribution>;
+export type ICommonEditorContributionCtor = IConstructorSignature1<ICommonCodeEditor, IEditorContribution>;
 
 /**
  * An editor contribution descriptor that will be used to construct editor contributions
@@ -2978,6 +2997,14 @@ export interface IEditorContribution {
 	 * Dispose this contribution.
 	 */
 	dispose(): void;
+	/**
+	 * Store view state.
+	 */
+	saveViewState?(): any;
+	/**
+	 * Restore view state.
+	 */
+	restoreViewState?(state: any): void;
 }
 
 export type MarkedString = string | { language: string; value: string };
@@ -3237,7 +3264,6 @@ export var EventType = {
 	EditorFocus: 'widgetFocus',
 	EditorBlur: 'widgetBlur',
 
-	ModelPropertiesChanged: 'propertiesChanged',
 	ModelDecorationsChanged: 'decorationsChanged',
 
 	CursorPositionChanged: 'positionChanged',
@@ -3359,3 +3385,38 @@ export var Handler = {
 	ScrollPageUp:				'scrollPageUp',
 	ScrollPageDown:				'scrollPageDown'
 };
+
+export class VisibleRange {
+
+	public top:number;
+	public left:number;
+	public width:number;
+
+	constructor(top:number, left:number, width:number) {
+		this.top = top;
+		this.left = left;
+		this.width = width;
+	}
+}
+
+export class HorizontalRange {
+
+	public left: number;
+	public width: number;
+
+	constructor(left:number, width:number) {
+		this.left = left;
+		this.width = width;
+	}
+}
+
+export class LineVisibleRanges {
+
+	public lineNumber: number;
+	public ranges: HorizontalRange[];
+
+	constructor(lineNumber:number, ranges:HorizontalRange[]) {
+		this.lineNumber = lineNumber;
+		this.ranges = ranges;
+	}
+}

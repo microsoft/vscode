@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as assert from 'assert';
+import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import Model = require('vs/editor/common/model/model');
-import {EditOperation} from 'vs/editor/common/core/editOperation';
+import {EventType, IModelDeltaDecoration, IRange, TrackedRangeStickiness} from 'vs/editor/common/editorCommon';
+import {Model} from 'vs/editor/common/model/model';
 
 // --------- utils
 
@@ -78,7 +78,7 @@ suite('Editor Model - Model Decorations', () => {
 
 	// --------- Model Decorations
 
-	var thisModel:Model.Model;
+	var thisModel:Model;
 
 	setup(() => {
 		var text =
@@ -87,7 +87,7 @@ suite('Editor Model - Model Decorations', () => {
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = new Model.Model(text, null);
+		thisModel = new Model(text, null);
 	});
 
 	teardown(() => {
@@ -200,7 +200,7 @@ suite('Editor Model - Model Decorations', () => {
 
 	test('decorations emit event on add', () => {
 		var listenerCalled = 0;
-		thisModel.addListener(EditorCommon.EventType.ModelDecorationsChanged, (e) => {
+		thisModel.addListener(EventType.ModelDecorationsChanged, (e) => {
 			listenerCalled++;
 			assert.equal(e.ids.length, 1);
 			assert.equal(e.addedOrChangedDecorations.length, 1);
@@ -219,7 +219,7 @@ suite('Editor Model - Model Decorations', () => {
 	test('decorations emit event on change', () => {
 		var listenerCalled = 0;
 		var decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
-		thisModel.addListener(EditorCommon.EventType.ModelDecorationsChanged, (e) => {
+		thisModel.addListener(EventType.ModelDecorationsChanged, (e) => {
 			listenerCalled++;
 			assert.equal(e.ids.length, 1);
 			assert.equal(e.addedOrChangedDecorations.length, 1);
@@ -246,7 +246,7 @@ suite('Editor Model - Model Decorations', () => {
 	test('decorations emit event on remove', () => {
 		var listenerCalled = 0;
 		var decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
-		thisModel.addListener(EditorCommon.EventType.ModelDecorationsChanged, (e) => {
+		thisModel.addListener(EventType.ModelDecorationsChanged, (e) => {
 			listenerCalled++;
 			assert.equal(e.ids.length, 1);
 			assert.equal(e.addedOrChangedDecorations.length, 0);
@@ -269,7 +269,7 @@ suite('Editor Model - Model Decorations', () => {
 		var listenerCalled = 0;
 		var decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
 
-		thisModel.addListener(EditorCommon.EventType.ModelDecorationsChanged, (e) => {
+		thisModel.addListener(EventType.ModelDecorationsChanged, (e) => {
 			listenerCalled++;
 			assert.equal(e.ids.length, 1);
 			assert.equal(e.addedOrChangedDecorations.length, 1);
@@ -398,7 +398,7 @@ suite('Editor Model - Model Decorations', () => {
 
 export interface ILightWeightDecoration {
 	id: string;
-	range: EditorCommon.IRange;
+	range: IRange;
 }
 
 suite('deltaDecorations', () => {
@@ -415,7 +415,7 @@ suite('deltaDecorations', () => {
 		};
 	}
 
-	function toModelDeltaDecoration(dec:ILightWeightDecoration): EditorCommon.IModelDeltaDecoration {
+	function toModelDeltaDecoration(dec:ILightWeightDecoration): IModelDeltaDecoration {
 		return {
 			range: dec.range,
 			options: {
@@ -434,7 +434,7 @@ suite('deltaDecorations', () => {
 		return 1;
 	}
 
-	function readModelDecorations(model:Model.Model, ids:string[]): ILightWeightDecoration[] {
+	function readModelDecorations(model:Model, ids:string[]): ILightWeightDecoration[] {
 		return ids.map((id) => {
 			return {
 				range: model.getDecorationRange(id),
@@ -445,7 +445,7 @@ suite('deltaDecorations', () => {
 
 	function testDeltaDecorations(text:string[], decorations:ILightWeightDecoration[], newDecorations:ILightWeightDecoration[]): void {
 
-		var model = new Model.Model(text.join('\n'), null);
+		var model = new Model(text.join('\n'), null);
 
 		// Add initial decorations & assert they are added
 		var initialIds = model.deltaDecorations([], decorations.map(toModelDeltaDecoration));
@@ -478,7 +478,7 @@ suite('deltaDecorations', () => {
 	}
 
 	test('result respects input', () => {
-		var model = new Model.Model([
+		var model = new Model([
 			'Hello world,',
 			'How are you?'
 		].join('\n'), null);
@@ -518,7 +518,7 @@ suite('deltaDecorations', () => {
 				decoration('e', 2, 1, 2, 21),
 				decoration('f', 2, 17, 4, 16)
 			]
-		)
+		);
 	});
 
 	test('deltaDecorations 2', () => {
@@ -542,7 +542,7 @@ suite('deltaDecorations', () => {
 				decoration('c', 1, 4, 1, 5),
 				decoration('d', 1, 5, 1, 6)
 			]
-		)
+		);
 	});
 
 	test('deltaDecorations 3', () => {
@@ -561,11 +561,11 @@ suite('deltaDecorations', () => {
 				decoration('e', 1, 5, 1, 6)
 			],
 			[]
-		)
+		);
 	});
 
 	test('model doesn\'t get confused with individual tracked ranges', () => {
-		var model = new Model.Model([
+		var model = new Model([
 			'Hello world,',
 			'How are you?'
 		].join('\n'), null);
@@ -575,7 +575,7 @@ suite('deltaDecorations', () => {
 			startColumn: 1,
 			endLineNumber: 1,
 			endColumn: 1
-		}, EditorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
+		}, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 		model.removeTrackedRange(trackedRangeId);
 
 		var ids = model.deltaDecorations([], [
@@ -586,7 +586,7 @@ suite('deltaDecorations', () => {
 		assert.deepEqual(model.getDecorationRange(ids[0]), range(1,1,1,12));
 		assert.deepEqual(model.getDecorationRange(ids[1]), range(2,1,2,13));
 
-		var ids = model.deltaDecorations(ids, [
+		ids = model.deltaDecorations(ids, [
 			toModelDeltaDecoration(decoration('a', 1, 1, 1, 12)),
 			toModelDeltaDecoration(decoration('b', 2, 1, 2, 13))
 		]);

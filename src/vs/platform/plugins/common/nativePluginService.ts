@@ -4,18 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IPluginDescription, IMessage, IPluginStatus} from 'vs/platform/plugins/common/plugins';
-import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
-import WinJS = require('vs/base/common/winjs.base');
-import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
-import {ActivatedPlugin, AbstractPluginService, IPluginModule, IPluginContext, IPluginMemento, loadAMDModule} from 'vs/platform/plugins/common/abstractPluginService';
-import Severity from 'vs/base/common/severity';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {PluginHostStorage} from 'vs/platform/storage/common/remotable.storage';
-import * as paths from 'vs/base/common/paths';
-import {IWorkspaceContextService, IConfiguration} from 'vs/platform/workspace/common/workspace';
 import {disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable} from 'vs/base/common/lifecycle';
+import * as paths from 'vs/base/common/paths';
+import Severity from 'vs/base/common/severity';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IMessageService} from 'vs/platform/message/common/message';
+import {AbstractPluginService, ActivatedPlugin, IPluginContext, IPluginMemento, loadAMDModule} from 'vs/platform/plugins/common/abstractPluginService';
+import {IMessage, IPluginDescription, IPluginStatus} from 'vs/platform/plugins/common/plugins';
+import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
+import {PluginHostStorage} from 'vs/platform/storage/common/remotable.storage';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IThreadService, Remotable} from 'vs/platform/thread/common/thread';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+
+const hasOwnProperty = Object.hasOwnProperty;
 
 class PluginMemento implements IPluginMemento {
 
@@ -23,10 +26,10 @@ class PluginMemento implements IPluginMemento {
 	private _shared: boolean;
 	private _storage: PluginHostStorage;
 
-	private _init:WinJS.TPromise<PluginMemento>
-	private _value: { [n: string]: any;}
+	private _init: TPromise<PluginMemento>;
+	private _value: { [n: string]: any; };
 
-	constructor(id: string, global:boolean, storage: PluginHostStorage) {
+	constructor(id: string, global: boolean, storage: PluginHostStorage) {
 		this._id = id;
 		this._shared = global;
 		this._storage = storage;
@@ -37,12 +40,12 @@ class PluginMemento implements IPluginMemento {
 		});
 	}
 
-	get whenReady(): WinJS.TPromise<PluginMemento> {
+	get whenReady(): TPromise<PluginMemento> {
 		return this._init;
 	}
 
 	get<T>(key: string, defaultValue: T): T {
-		let value = this._value[key]
+		let value = this._value[key];
 		if (typeof value === 'undefined') {
 			value = defaultValue;
 		}
@@ -57,8 +60,28 @@ class PluginMemento implements IPluginMemento {
 	}
 }
 
+/**
+ * Represents a failed extension in the ext host.
+ */
+export class MainProcessFailedPlugin extends ActivatedPlugin {
+	constructor() {
+		super(true);
+	}
+}
+
+/**
+ * Represents an extension that was successfully loaded or an
+ * empty extension in the ext host.
+ */
+export class MainProcessSuccessPlugin extends ActivatedPlugin {
+	constructor() {
+		super(false);
+	}
+}
+
+
 @Remotable.MainContext('MainProcessPluginService')
-export class MainProcessPluginService extends AbstractPluginService {
+export class MainProcessPluginService extends AbstractPluginService<ActivatedPlugin> {
 
 	private _threadService: IThreadService;
 	private _messageService: IMessageService;
@@ -73,15 +96,15 @@ export class MainProcessPluginService extends AbstractPluginService {
 	constructor(
 		contextService: IWorkspaceContextService,
 		threadService: IThreadService,
-		messageService:IMessageService,
-		telemetryService:ITelemetryService
+		messageService: IMessageService,
+		telemetryService: ITelemetryService
 	) {
+		super(false);
 		let config = contextService.getConfiguration();
 		this._isDev = !config.env.isBuilt || !!config.env.pluginDevelopmentPath;
 
 		this._messageService = messageService;
 		threadService.registerRemotableInstance(MainProcessPluginService, this);
-		super(false);
 		this._threadService = threadService;
 		this._telemetryService = telemetryService;
 		this._proxy = this._threadService.getRemotable(PluginHostPluginService);
@@ -92,8 +115,12 @@ export class MainProcessPluginService extends AbstractPluginService {
 		});
 	}
 
+	protected _createFailedPlugin() {
+		return new MainProcessFailedPlugin();
+	}
+
 	private getTelemetryActivationEvent(pluginDescription: IPluginDescription): any {
-		var event = {
+		let event = {
 			id: pluginDescription.id,
 			name: pluginDescription.name,
 			publisherDisplayName: pluginDescription.publisher,
@@ -109,19 +136,19 @@ export class MainProcessPluginService extends AbstractPluginService {
 
 			switch (contribution) {
 				case 'debuggers':
-					let types = contributionDetails.reduce((p,c)=> p ? p + ',' + c['type']: c['type'], '');
+					let types = contributionDetails.reduce((p, c) => p ? p + ',' + c['type'] : c['type'], '');
 					event['contribution.debuggers'] = types;
 					break;
 				case 'grammars':
-					let grammers = contributionDetails.reduce((p,c)=> p ? p + ',' + c['language']: c['language'], '');
+					let grammers = contributionDetails.reduce((p, c) => p ? p + ',' + c['language'] : c['language'], '');
 					event['contribution.grammars'] = grammers;
 					break;
 				case 'languages':
-					let languages = contributionDetails.reduce((p,c)=> p ? p + ',' + c['id']: c['id'], '');
+					let languages = contributionDetails.reduce((p, c) => p ? p + ',' + c['id'] : c['id'], '');
 					event['contribution.languages'] = languages;
 					break;
 				case 'tmSnippets':
-					let tmSnippets = contributionDetails.reduce((p,c)=> p ? p + ',' + c['languageId']: c['languageId'], '');
+					let tmSnippets = contributionDetails.reduce((p, c) => p ? p + ',' + c['languageId'] : c['languageId'], '');
 					event['contribution.tmSnippets'] = tmSnippets;
 					break;
 				default:
@@ -132,12 +159,12 @@ export class MainProcessPluginService extends AbstractPluginService {
 		return event;
 	}
 
-	protected _showMessage(severity:Severity, msg:string): void {
+	protected _showMessage(severity: Severity, msg: string): void {
 		this._proxy.$doShowMessage(severity, msg);
 		this.$doShowMessage(severity, msg);
 	}
 
-	public showMessage(severity:Severity, source: string, message:string) {
+	public showMessage(severity: Severity, source: string, message: string) {
 		super.showMessage(severity, source, message);
 		if (!this._pluginsStatus[source]) {
 			this._pluginsStatus[source] = { messages: [] };
@@ -145,7 +172,7 @@ export class MainProcessPluginService extends AbstractPluginService {
 		this._pluginsStatus[source].messages.push({ type: severity, source, message });
 	}
 
-	public $doShowMessage(severity:Severity, msg:string): void {
+	public $doShowMessage(severity: Severity, msg: string): void {
 		let messageShown = false;
 		if (severity === Severity.Error || severity === Severity.Warning) {
 			if (this._isDev) {
@@ -173,13 +200,13 @@ export class MainProcessPluginService extends AbstractPluginService {
 		return this._pluginsStatus;
 	}
 
-	public deactivate(pluginId:string): void {
+	public deactivate(pluginId: string): void {
 		this._proxy.deactivate(pluginId);
 	}
 
 	// -- overwriting AbstractPluginService
 
-	protected _actualActivatePlugin(pluginDescription: IPluginDescription): WinJS.TPromise<ActivatedPlugin> {
+	protected _actualActivatePlugin(pluginDescription: IPluginDescription): TPromise<ActivatedPlugin> {
 		let event = this.getTelemetryActivationEvent(pluginDescription);
 		this._telemetryService.publicLog('activatePlugin', event);
 		// redirect plugin activation to the plugin host
@@ -191,22 +218,51 @@ export class MainProcessPluginService extends AbstractPluginService {
 
 	// -- called by plugin host
 
-	public $onPluginHostReady(pluginDescriptions: IPluginDescription[], messages:IMessage[]): void {
+	public $onPluginHostReady(pluginDescriptions: IPluginDescription[], messages: IMessage[]): void {
 		PluginsRegistry.registerPlugins(pluginDescriptions);
 		this.registrationDone(messages);
 	}
 
-	public $onPluginActivatedInPluginHost(pluginId:string, pluginExports:any): void {
-		this.activatedPlugins[pluginId] = new ActivatedPlugin(false, { activate: undefined, deactivate: undefined}, pluginExports, []);
+	public $onPluginActivatedInPluginHost(pluginId: string): void {
+		this.activatedPlugins[pluginId] = new MainProcessSuccessPlugin();
 	}
 
-	public $onPluginActivationFailedInPluginHost(pluginId:string, err:any): void {
-		this.activatedPlugins[pluginId] = new ActivatedPlugin(true, { activate: undefined, deactivate: undefined}, {}, []);
+	public $onPluginActivationFailedInPluginHost(pluginId: string): void {
+		this.activatedPlugins[pluginId] = new MainProcessFailedPlugin();
+	}
+}
+
+export interface IPluginModule {
+	activate(ctx: IPluginContext): TPromise<IPluginExports>;
+	deactivate(): void;
+}
+
+export interface IPluginExports {
+	// _pluginExportsBrand: any;
+}
+
+export class ExtHostPlugin extends ActivatedPlugin {
+
+	module: IPluginModule;
+	exports: IPluginExports;
+	subscriptions: IDisposable[];
+
+	constructor(activationFailed: boolean, module: IPluginModule, exports: IPluginExports, subscriptions: IDisposable[]) {
+		super(activationFailed);
+		this.module = module;
+		this.exports = exports;
+		this.subscriptions = subscriptions;
+	}
+}
+
+export class EmptyPlugin extends ExtHostPlugin {
+	constructor() {
+		super(false, { activate: undefined, deactivate: undefined }, undefined, []);
 	}
 }
 
 @Remotable.PluginHostContext('PluginHostPluginService')
-export class PluginHostPluginService extends AbstractPluginService {
+export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin> {
 
 	private _threadService: IThreadService;
 	private _storage: PluginHostStorage;
@@ -216,19 +272,19 @@ export class PluginHostPluginService extends AbstractPluginService {
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
 	constructor(threadService: IThreadService) {
-		threadService.registerRemotableInstance(PluginHostPluginService, this);
 		super(true);
+		threadService.registerRemotableInstance(PluginHostPluginService, this);
 		this._threadService = threadService;
 		this._storage = new PluginHostStorage(threadService);
 		this._proxy = this._threadService.getRemotable(MainProcessPluginService);
 	}
 
-	protected _showMessage(severity:Severity, msg:string): void {
+	protected _showMessage(severity: Severity, msg: string): void {
 		this._proxy.$doShowMessage(severity, msg);
 		this.$doShowMessage(severity, msg);
 	}
 
-	public $doShowMessage(severity:Severity, msg:string): void {
+	public $doShowMessage(severity: Severity, msg: string): void {
 		switch (severity) {
 			case Severity.Error:
 				console.error(msg);
@@ -241,7 +297,14 @@ export class PluginHostPluginService extends AbstractPluginService {
 		}
 	}
 
-	public deactivate(pluginId:string): void {
+	public get(pluginId: string): IPluginExports {
+		if (!hasOwnProperty.call(this.activatedPlugins, pluginId)) {
+			throw new Error('Plugin `' + pluginId + '` is not known or not activated');
+		}
+		return this.activatedPlugins[pluginId].exports;
+	}
+
+	public deactivate(pluginId: string): void {
 		let plugin = this.activatedPlugins[pluginId];
 		if (!plugin) {
 			return;
@@ -252,26 +315,30 @@ export class PluginHostPluginService extends AbstractPluginService {
 			if (typeof plugin.module.deactivate === 'function') {
 				plugin.module.deactivate();
 			}
-		} catch(err) {
+		} catch (err) {
 			// TODO: Do something with err if this is not the shutdown case
 		}
 
 		// clean up subscriptions
 		try {
-			disposeAll(plugin.subscriptions)
-		} catch(err) {
+			disposeAll(plugin.subscriptions);
+		} catch (err) {
 			// TODO: Do something with err if this is not the shutdown case
 		}
 	}
 
+	protected _createFailedPlugin() {
+		return new ExtHostPlugin(true, { activate: undefined, deactivate: undefined }, undefined, []);
+	}
+
 	// -- overwriting AbstractPluginService
 
-	public registrationDone(messages:IMessage[]): void {
+	public registrationDone(messages: IMessage[]): void {
 		super.registrationDone([]);
 		this._proxy.$onPluginHostReady(PluginsRegistry.getAllPluginDescriptions(), messages);
 	}
 
-	protected _loadPluginModule(pluginDescription: IPluginDescription): WinJS.TPromise<IPluginModule> {
+	protected _loadPluginModule(pluginDescription: IPluginDescription): TPromise<IPluginModule> {
 		if (pluginDescription.isAMD) {
 			return loadAMDModule(uriFromPath(pluginDescription.main));
 		}
@@ -279,53 +346,88 @@ export class PluginHostPluginService extends AbstractPluginService {
 		return loadCommonJSModule(pluginDescription.main);
 	}
 
-	protected _loadPluginContext(pluginDescription: IPluginDescription): WinJS.TPromise<IPluginContext> {
+	protected _loadPluginContext(pluginDescription: IPluginDescription): TPromise<IPluginContext> {
 
 		let globalState = new PluginMemento(pluginDescription.id, true, this._storage);
 		let workspaceState = new PluginMemento(pluginDescription.id, false, this._storage);
 
-		return WinJS.TPromise.join([globalState.whenReady, workspaceState.whenReady]).then(() => {
+		return TPromise.join([globalState.whenReady, workspaceState.whenReady]).then(() => {
 			return Object.freeze(<IPluginContext>{
 				globalState,
 				workspaceState,
 				subscriptions: [],
-				get extensionPath() { return pluginDescription.extensionFolderPath },
-				asAbsolutePath: (relativePath:string) => { return paths.normalize(paths.join(pluginDescription.extensionFolderPath, relativePath), true); }
+				get extensionPath() { return pluginDescription.extensionFolderPath; },
+				asAbsolutePath: (relativePath: string) => { return paths.normalize(paths.join(pluginDescription.extensionFolderPath, relativePath), true); }
 			});
 		});
 	}
 
-	protected _actualActivatePlugin(pluginDescription: IPluginDescription): WinJS.TPromise<ActivatedPlugin> {
+	protected _actualActivatePlugin(pluginDescription: IPluginDescription): TPromise<ActivatedPlugin> {
 
-		return super._actualActivatePlugin(pluginDescription).then((activatedPlugin) => {
-			let proxyObj = this._threadService.createDynamicProxyFromMethods(activatedPlugin.exports);
-			activatedPlugin.subscriptions.push(proxyObj);
-			this._proxy.$onPluginActivatedInPluginHost(pluginDescription.id, proxyObj.getProxyDefinition());
+		return this._superActualActivatePlugin(pluginDescription).then((activatedPlugin) => {
+			this._proxy.$onPluginActivatedInPluginHost(pluginDescription.id);
 			return activatedPlugin;
 		}, (err) => {
-			this._proxy.$onPluginActivationFailedInPluginHost(pluginDescription.id, err);
+			this._proxy.$onPluginActivationFailedInPluginHost(pluginDescription.id);
 			throw err;
 		});
 	}
 
+	private _superActualActivatePlugin(pluginDescription: IPluginDescription): TPromise<ExtHostPlugin> {
+
+		if (!pluginDescription.main) {
+			// Treat the plugin as being empty => NOT AN ERROR CASE
+			return TPromise.as(new EmptyPlugin());
+		}
+		return this._loadPluginModule(pluginDescription).then((pluginModule) => {
+			return this._loadPluginContext(pluginDescription).then(context => {
+				return PluginHostPluginService._callActivate(pluginModule, context);
+			});
+		});
+	}
+
+	private static _callActivate(pluginModule: IPluginModule, context: IPluginContext): TPromise<ExtHostPlugin> {
+		// Make sure the plugin's surface is not undefined
+		pluginModule = pluginModule || {
+			activate: undefined,
+			deactivate: undefined
+		};
+
+		// let subscriptions:IDisposable[] = [];
+		return this._callActivateOptional(pluginModule, context).then((pluginExports) => {
+			return new ExtHostPlugin(false, pluginModule, pluginExports, context.subscriptions);
+		});
+	}
+
+	private static _callActivateOptional(pluginModule: IPluginModule, context: IPluginContext): TPromise<IPluginExports> {
+		if (typeof pluginModule.activate === 'function') {
+			try {
+				return TPromise.as(pluginModule.activate.apply(global, [context]));
+			} catch (err) {
+				return TPromise.wrapError(err);
+			}
+		} else {
+			// No activate found => the module is the plugin's exports
+			return TPromise.as<IPluginExports>(pluginModule);
+		}
+	}
+
 	// -- called by main thread
 
-	public $activatePluginInPluginHost(pluginDescription: IPluginDescription): WinJS.TPromise<void> {
-		return this._activatePlugin(pluginDescription).then(() => {
-			return null;
-		});
+	public $activatePluginInPluginHost(pluginDescription: IPluginDescription): TPromise<void> {
+		return this._activatePlugin(pluginDescription);
 	}
 
 }
 
-function loadCommonJSModule<T>(modulePath: string): WinJS.TPromise<T> {
-	var r: T = null;
+function loadCommonJSModule<T>(modulePath: string): TPromise<T> {
+	let r: T = null;
 	try {
 		r = require.__$__nodeRequire<T>(modulePath);
-	} catch(e) {
-		return WinJS.TPromise.wrapError(e);
+	} catch (e) {
+		return TPromise.wrapError(e);
 	}
-	return WinJS.TPromise.as(r);
+	return TPromise.as(r);
 }
 
 
@@ -334,7 +436,7 @@ function loadCommonJSModule<T>(modulePath: string): WinJS.TPromise<T> {
 // * src\vs\workbench\electron-main\bootstrap.js
 // * src\vs\platform\plugins\common\nativePluginService.ts
 function uriFromPath(_path) {
-	var pathName = _path.replace(/\\/g, '/');
+	let pathName = _path.replace(/\\/g, '/');
 
 	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
 		pathName = '/' + pathName;

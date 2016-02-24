@@ -22,14 +22,14 @@ export var language = <ILanguage> {
 	// Useful regular expressions
 	qualifiedName: /(?:[\w\.\-]+:)?[\w\.\-]+/,
 
-	enhancedBrackets: [{
-		tokenType: 'tag.tag-$1.xml',
-		openTrigger: '>',
-		open: /<(\w[\w\d]*)([^\/>]*(?!\/)>)[^<>]*$/i,
-		closeComplete: '</$1>',
-		closeTrigger: '>',
-		close: /<\/(\w[\w\d]*)\s*>$/i
-	}],
+	// enhancedBrackets: [{
+	// 	tokenType: 'tag.tag-$1.xml',
+	// 	openTrigger: '>',
+	// 	open: /<(\w[\w\d]*)([^\/>]*(?!\/)>)[^<>]*$/i,
+	// 	closeComplete: '</$1>',
+	// 	closeTrigger: '>',
+	// 	close: /<\/(\w[\w\d]*)\s*>$/i
+	// }],
 
 	autoClosingPairs:  [['\'', '\''], ['"', '"'] ],
 

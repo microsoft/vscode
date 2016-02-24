@@ -91,6 +91,8 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 	execPath: string;
 	version: string;
 	appName: string;
+	applicationName: string;
+	darwinBundleIdentifier: string;
 	appSettingsHome: string;
 	appSettingsPath: string;
 	appKeybindingsPath: string;
@@ -109,24 +111,23 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 	crashReporter: Electron.CrashReporterStartOptions;
 	extensionsGallery: {
 		serviceUrl: string;
+		cacheUrl: string;
 		itemUrl: string;
 	};
 	welcomePage: string;
 	releaseNotesUrl: string;
 	productDownloadUrl: string;
 	enableTelemetry: boolean;
-	userEnv: env.IProcessEnvironment,
+	userEnv: env.IProcessEnvironment;
 	aiConfig: {
 		key: string;
 		asimovKey: string;
-	},
+	};
 	sendASmile: {
 		reportIssueUrl: string,
 		requestFeatureUrl: string
-	}
+	};
 }
-
-const enableDebugLogging = false;
 
 export class VSCodeWindow {
 
@@ -178,8 +179,9 @@ export class VSCodeWindow {
 			title: env.product.nameLong
 		};
 
-		if (platform.isLinux && env.product.icons && env.product.icons.application && env.product.icons.application.png) {
-			options.icon = path.join(env.appRoot, env.product.icons.application.png); // Windows and Mac are better off using the embedded icon(s)
+		if (platform.isLinux) {
+			// Windows and Mac are better off using the embedded icon(s)
+			options.icon = path.join(env.appRoot, 'resources/linux/code.png');
 		}
 
 		// Create the browser window.

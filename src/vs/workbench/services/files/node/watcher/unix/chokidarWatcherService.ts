@@ -11,7 +11,7 @@ import fs = require('fs');
 import gracefulFs = require('graceful-fs');
 gracefulFs.gracefulify(fs);
 
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {FileChangeType} from 'vs/platform/files/common/files';
 import {ThrottledDelayer} from 'vs/base/common/async';
 import strings = require('vs/base/common/strings');
@@ -27,7 +27,7 @@ export class ChokidarWatcherService extends WatcherService {
 	private spamCheckStartTime:number;
 	private spamWarningLogged:boolean;
 
-	public watch(request: IWatcherRequest): Promise {
+	public watch(request: IWatcherRequest): TPromise<void> {
 		let watcherOpts: any = {
 			ignoreInitial: true,
 			ignorePermissionErrors: true,
@@ -40,7 +40,7 @@ export class ChokidarWatcherService extends WatcherService {
 		let undeliveredFileEvents: watcher.IRawFileChange[] = [];
 		let fileEventDelayer = new ThrottledDelayer(ChokidarWatcherService.FS_EVENT_DELAY);
 
-		return new Promise((c, e, p) => {
+		return new TPromise<void>((c, e, p) => {
 			chokidarWatcher.on('all', (type: string, path: string) => {
 				if (path.indexOf(request.basePath) < 0) {
 					return; // we really only care about absolute paths here in our basepath context here
@@ -108,7 +108,7 @@ export class ChokidarWatcherService extends WatcherService {
 							});
 						}
 
-						return Promise.as(null);
+						return TPromise.as(null);
 					});
 				}
 			});

@@ -14,6 +14,9 @@ import objects = require('vs/base/common/objects');
 import dom = require('vs/base/browser/dom');
 import numbers = require('vs/base/common/numbers');
 import sash = require('vs/base/browser/ui/sash/sash');
+import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {CommonKeybindings} from 'vs/base/common/keyCodes';
+import Event, {Emitter} from 'vs/base/common/event';
 
 export enum Orientation {
 	VERTICAL,
@@ -32,7 +35,6 @@ export interface IOptions {
 export interface ISashEvent {
 	start: number;
 	current: number;
-	instantDiff: number;
 }
 
 interface IState {
@@ -55,6 +57,7 @@ export interface IViewOptions {
 export class View extends ee.EventEmitter {
 
 	public size: number;
+
 	protected _sizing: ViewSizing;
 	protected _fixedSize: number;
 	protected _minimumSize: number;
@@ -90,6 +93,10 @@ export class View extends ee.EventEmitter {
 		// to implement
 	}
 
+	public focus(): void {
+		// to implement
+	}
+
 	public layout(size: number, orientation: Orientation): void {
 		// to optionally implement
 	}
@@ -115,7 +122,7 @@ export class HeaderView extends View {
 		this.header = document.createElement('div');
 		this.header.className = 'header';
 
-		var headerSize = this.headerSize + 'px';
+		let headerSize = this.headerSize + 'px';
 
 		if (orientation === Orientation.HORIZONTAL) {
 			this.header.style.width = headerSize;
@@ -148,7 +155,7 @@ export class HeaderView extends View {
 	}
 
 	private layoutBodyContainer(orientation: Orientation): void {
-		var size = `calc(100% - ${this.headerSize}px)`;
+		let size = `calc(100% - ${this.headerSize}px)`;
 
 		if (orientation === Orientation.HORIZONTAL) {
 			this.body.style.width = size;
@@ -170,6 +177,7 @@ export class HeaderView extends View {
 }
 
 export interface ICollapsibleViewOptions {
+	ariaHeaderLabel?: string;
 	fixedSize?: number;
 	minimumSize?: number;
 	headerSize?: number;
@@ -184,11 +192,16 @@ export enum CollapsibleState {
 export class AbstractCollapsibleView extends HeaderView {
 
 	protected state: CollapsibleState;
-	private headerClickListener: () => void;
+
+	private ariaHeaderLabel: string;
+	private headerClickListener: lifecycle.IDisposable;
+	private headerKeyListener: lifecycle.IDisposable;
+	private focusTracker: dom.IFocusTracker;
 
 	constructor(opts: ICollapsibleViewOptions) {
 		super(opts);
 
+		this.ariaHeaderLabel = opts && opts.ariaHeaderLabel;
 		this.changeState(types.isUndefined(opts.initialState) ? CollapsibleState.EXPANDED : opts.initialState);
 	}
 
@@ -198,7 +211,54 @@ export class AbstractCollapsibleView extends HeaderView {
 		dom.addClass(this.header, 'collapsible');
 		dom.addClass(this.body, 'collapsible');
 
-		this.headerClickListener = dom.addListener(this.header, 'click', () => this.toggleExpansion());
+		// Keyboard access
+		this.header.setAttribute('tabindex', '0');
+		this.header.setAttribute('role', 'button');
+		if (this.ariaHeaderLabel) {
+			this.header.setAttribute('aria-label', this.ariaHeaderLabel);
+		}
+		this.header.setAttribute('aria-expanded', String(this.state === CollapsibleState.EXPANDED));
+		this.headerKeyListener = dom.addDisposableListener(this.header, dom.EventType.KEY_DOWN, (e) => {
+			let event = new StandardKeyboardEvent(e);
+			let eventHandled = false;
+			if (event.equals(CommonKeybindings.ENTER) || event.equals(CommonKeybindings.SPACE) || (event.equals(CommonKeybindings.LEFT_ARROW) && this.state === CollapsibleState.EXPANDED) || (event.equals(CommonKeybindings.RIGHT_ARROW) && this.state === CollapsibleState.COLLAPSED)) {
+				this.toggleExpansion();
+				eventHandled = true;
+			} else if (event.equals(CommonKeybindings.ESCAPE)) {
+				this.header.blur();
+				eventHandled = true;
+			} else if (event.equals(CommonKeybindings.UP_ARROW)) {
+				this.emit('focusPrevious');
+				eventHandled = true;
+			} else if (event.equals(CommonKeybindings.DOWN_ARROW)) {
+				this.emit('focusNext');
+				eventHandled = true;
+			}
+
+			if (eventHandled) {
+				dom.EventHelper.stop(event, true);
+			}
+		});
+
+		// Mouse access
+		this.headerClickListener = dom.addDisposableListener(this.header, dom.EventType.CLICK, () => this.toggleExpansion());
+
+		// Track state of focus in header so that other components can adjust styles based on that
+		// (for example show or hide actions based on the state of being focused or not)
+		this.focusTracker = dom.trackFocus(this.header);
+		this.focusTracker.addFocusListener(() => {
+			dom.addClass(this.header, 'focused');
+		});
+
+		this.focusTracker.addBlurListener(() => {
+			dom.removeClass(this.header, 'focused');
+		});
+	}
+
+	public focus(): void {
+		if (this.header) {
+			this.header.focus();
+		}
 	}
 
 	public layout(size: number, orientation: Orientation): void {
@@ -248,13 +308,28 @@ export class AbstractCollapsibleView extends HeaderView {
 
 	protected changeState(state: CollapsibleState): void {
 		this.state = state;
+
+		if (this.header) {
+			this.header.setAttribute('aria-expanded', String(this.state === CollapsibleState.EXPANDED));
+		}
+
 		this.layoutHeader();
 	}
 
 	public dispose(): void {
 		if (this.headerClickListener) {
-			this.headerClickListener();
+			this.headerClickListener.dispose();
 			this.headerClickListener = null;
+		}
+
+		if (this.headerKeyListener) {
+			this.headerKeyListener.dispose();
+			this.headerKeyListener = null;
+		}
+
+		if (this.focusTracker) {
+			this.focusTracker.dispose();
+			this.focusTracker = null;
 		}
 
 		super.dispose();
@@ -321,23 +396,25 @@ function sum(a: number, b: number): number { return a + b; }
 
 export class SplitView implements
 	sash.IHorizontalSashLayoutProvider,
-	sash.IVerticalSashLayoutProvider
-{
+	sash.IVerticalSashLayoutProvider {
 	private orientation: Orientation;
 	private el: HTMLElement;
 	private size: number;
 	private viewElements: HTMLElement[];
 	private views: View[];
 	private viewChangeListeners: lifecycle.IDisposable[];
+	private viewFocusPreviousListeners: lifecycle.IDisposable[];
+	private viewFocusNextListeners: lifecycle.IDisposable[];
+	private viewFocusListeners: lifecycle.IDisposable[];
 	private initialWeights: number[];
 	private sashOrientation: sash.Orientation;
 	private sashes: sash.Sash[];
 	private sashesListeners: lifecycle.IDisposable[];
-	private measureContainerSize: ()=>number;
-	private layoutViewElement: (viewElement: HTMLElement, size: number)=>void;
-	private eventWrapper: (event: sash.ISashEvent)=>ISashEvent;
+	private measureContainerSize: () => number;
+	private layoutViewElement: (viewElement: HTMLElement, size: number) => void;
+	private eventWrapper: (event: sash.ISashEvent) => ISashEvent;
 	private animationTimeout: number;
-
+	private _onFocus: Emitter<View>;
 	private state: IState;
 
 	constructor(container: HTMLElement, options?: IOptions) {
@@ -354,10 +431,14 @@ export class SplitView implements
 		this.viewElements = [];
 		this.views = [];
 		this.viewChangeListeners = [];
+		this.viewFocusPreviousListeners = [];
+		this.viewFocusNextListeners = [];
+		this.viewFocusListeners = [];
 		this.initialWeights = [];
 		this.sashes = [];
 		this.sashesListeners = [];
 		this.animationTimeout = null;
+		this._onFocus = new Emitter<View>();
 
 		this.sashOrientation = this.orientation === Orientation.VERTICAL
 			? sash.Orientation.HORIZONTAL
@@ -366,11 +447,11 @@ export class SplitView implements
 		if (this.orientation === Orientation.VERTICAL) {
 			this.measureContainerSize = () => dom.getContentHeight(container);
 			this.layoutViewElement = (viewElement, size) => viewElement.style.height = size + 'px';
-			this.eventWrapper = e => { return { start: e.startY, current: e.currentY, instantDiff: e.instantDiffY }; };
+			this.eventWrapper = e => { return { start: e.startY, current: e.currentY }; };
 		} else {
 			this.measureContainerSize = () => dom.getContentWidth(container);
 			this.layoutViewElement = (viewElement, size) => viewElement.style.width = size + 'px';
-			this.eventWrapper = e => { return { start: e.startX, current: e.currentX, instantDiff: e.instantDiffX }; };
+			this.eventWrapper = e => { return { start: e.startX, current: e.currentX }; };
 		}
 
 		// The void space exists to handle the case where all other views are fixed size
@@ -381,15 +462,19 @@ export class SplitView implements
 		}), 1, 0);
 	}
 
+	public get onFocus(): Event<View> {
+		return this._onFocus.event;
+	}
+
 	public addView(view: View, initialWeight: number = 1, index = this.views.length - 1): void {
 		if (initialWeight <= 0) {
 			throw new Error('Initial weight must be a positive number.');
 		}
 
-		var viewCount = this.views.length;
+		let viewCount = this.views.length;
 
 		// Create view container
-		var viewElement = document.createElement('div');
+		let viewElement = document.createElement('div');
 		dom.addClass(viewElement, 'split-view-view');
 		this.viewElements.splice(index, 0, viewElement);
 
@@ -409,7 +494,7 @@ export class SplitView implements
 
 		// Add sash
 		if (this.views.length > 2) {
-			var s = new sash.Sash(this.el, this, { orientation: this.sashOrientation });
+			let s = new sash.Sash(this.el, this, { orientation: this.sashOrientation });
 			this.sashes.splice(index - 1, 0, s);
 			this.sashesListeners.push(s.addListener2('start', e => this.onSashStart(s, this.eventWrapper(e))));
 			this.sashesListeners.push(s.addListener2('change', e => this.onSashChange(s, this.eventWrapper(e))));
@@ -417,25 +502,41 @@ export class SplitView implements
 
 		this.viewChangeListeners.splice(index, 0, view.addListener2('change', size => this.onViewChange(view, size)));
 		this.onViewChange(view, view.minimumSize);
+
+		let viewFocusTracker = dom.trackFocus(viewElement);
+		this.viewFocusListeners.splice(index, 0, viewFocusTracker);
+		viewFocusTracker.addFocusListener(() => this._onFocus.fire(view));
+
+		this.viewFocusPreviousListeners.splice(index, 0, view.addListener2('focusPrevious', () => index > 0 && this.views[index - 1].focus()));
+		this.viewFocusNextListeners.splice(index, 0, view.addListener2('focusNext', () => index < this.views.length && this.views[index + 1].focus()));
 	}
 
 	public removeView(view: View): void {
-		var index = this.views.indexOf(view);
+		let index = this.views.indexOf(view);
 
 		if (index < 0) {
 			return;
 		}
 
-		var deadView = new DeadView(view);
+		let deadView = new DeadView(view);
 		this.views[index] = deadView;
 		this.onViewChange(deadView, 0);
 
-		var sashIndex = Math.max(index - 1, 0);
+		let sashIndex = Math.max(index - 1, 0);
 		this.sashes[sashIndex].dispose();
 		this.sashes.splice(sashIndex, 1);
 
 		this.viewChangeListeners[index].dispose();
 		this.viewChangeListeners.splice(index, 1);
+
+		this.viewFocusPreviousListeners[index].dispose();
+		this.viewFocusPreviousListeners.splice(index, 1);
+
+		this.viewFocusListeners[index].dispose();
+		this.viewFocusListeners.splice(index, 1);
+
+		this.viewFocusNextListeners[index].dispose();
+		this.viewFocusNextListeners.splice(index, 1);
 
 		this.views.splice(index, 1);
 		this.el.removeChild(this.viewElements[index]);
@@ -456,11 +557,11 @@ export class SplitView implements
 
 		size = Math.max(size, this.views.reduce((t, v) => t + v.minimumSize, 0));
 
-		var diff = Math.abs(this.size - size);
-		var up = numbers.countToArray(this.views.length - 1, -1);
+		let diff = Math.abs(this.size - size);
+		let up = numbers.countToArray(this.views.length - 1, -1);
 
-		var collapses = this.views.map(v => v.size - v.minimumSize);
-		var expands = this.views.map(v => v.maximumSize - v.size);
+		let collapses = this.views.map(v => v.size - v.minimumSize);
+		let expands = this.views.map(v => v.maximumSize - v.size);
 
 		if (size < this.size) {
 			this.expandCollapse(Math.min(diff, collapses.reduce(sum, 0)), collapses, expands, up, []);
@@ -473,17 +574,17 @@ export class SplitView implements
 	}
 
 	private onSashStart(sash: sash.Sash, event: ISashEvent): void {
-		var i = this.sashes.indexOf(sash);
-		var collapses = this.views.map(v => v.size - v.minimumSize);
-		var expands = this.views.map(v => v.maximumSize - v.size);
+		let i = this.sashes.indexOf(sash);
+		let collapses = this.views.map(v => v.size - v.minimumSize);
+		let expands = this.views.map(v => v.maximumSize - v.size);
 
-		var up = numbers.countToArray(i, -1);
-		var down = numbers.countToArray(i + 1, this.views.length);
+		let up = numbers.countToArray(i, -1);
+		let down = numbers.countToArray(i + 1, this.views.length);
 
-		var collapsesUp = up.map(i => collapses[i]);
-		var collapsesDown = down.map(i => collapses[i]);
-		var expandsUp = up.map(i => expands[i]);
-		var expandsDown = down.map(i => expands[i]);
+		let collapsesUp = up.map(i => collapses[i]);
+		let collapsesDown = down.map(i => collapses[i]);
+		let expandsUp = up.map(i => expands[i]);
+		let expandsDown = down.map(i => expands[i]);
 
 		this.state = {
 			start: event.start,
@@ -498,10 +599,9 @@ export class SplitView implements
 	}
 
 	private onSashChange(sash: sash.Sash, event: ISashEvent): void {
-		var i = this.sashes.indexOf(sash);
-		var diff = event.current - this.state.start;
+		let diff = event.current - this.state.start;
 
-		for (var i = 0; i < this.views.length; i++) {
+		for (let i = 0; i < this.views.length; i++) {
 			this.views[i].size = this.state.sizes[i];
 		}
 
@@ -516,25 +616,25 @@ export class SplitView implements
 
 	// Main algorithm
 	private expandCollapse(collapse: number, collapses: number[], expands: number[], collapseIndexes: number[], expandIndexes: number[]): void {
-		var totalCollapse = collapse;
-		var totalExpand = totalCollapse;
+		let totalCollapse = collapse;
+		let totalExpand = totalCollapse;
 
 		collapseIndexes.forEach(i => {
-			var collapse = Math.min(collapses[i], totalCollapse);
+			let collapse = Math.min(collapses[i], totalCollapse);
 			totalCollapse -= collapse;
 			this.views[i].size -= collapse;
 		});
 
 		expandIndexes.forEach(i => {
-			var expand = Math.min(expands[i], totalExpand);
+			let expand = Math.min(expands[i], totalExpand);
 			totalExpand -= expand;
 			this.views[i].size += expand;
 		});
 	}
 
 	private initialLayout(): void {
-		var totalWeight = 0;
-		var fixedSize = 0;
+		let totalWeight = 0;
+		let fixedSize = 0;
 
 		this.views.forEach((v, i) => {
 			if (v.sizing === ViewSizing.Flexible) {
@@ -544,7 +644,7 @@ export class SplitView implements
 			}
 		});
 
-		var flexibleSize = this.size - fixedSize;
+		let flexibleSize = this.size - fixedSize;
 
 		this.views.forEach((v, i) => {
 			if (v.sizing === ViewSizing.Flexible) {
@@ -555,7 +655,7 @@ export class SplitView implements
 		});
 
 		// Leftover
-		var index = this.getLastFlexibleViewIndex();
+		let index = this.getLastFlexibleViewIndex();
 		if (index >= 0) {
 			this.views[index].size += this.size - this.views.reduce((t, v) => t + v.size, 0);
 		}
@@ -565,7 +665,7 @@ export class SplitView implements
 	}
 
 	private getLastFlexibleViewIndex(exceptIndex: number = null): number {
-		for (var i = this.views.length - 1; i >= 0; i--) {
+		for (let i = this.views.length - 1; i >= 0; i--) {
 			if (exceptIndex === i) {
 				continue;
 			}
@@ -578,7 +678,7 @@ export class SplitView implements
 	}
 
 	private layoutViews(): void {
-		for (var i = 0; i < this.views.length; i++) {
+		for (let i = 0; i < this.views.length; i++) {
 			// Layout the view elements
 			this.layoutViewElement(this.viewElements[i], this.views[i].size);
 
@@ -590,18 +690,18 @@ export class SplitView implements
 		this.sashes.forEach(s => s.layout());
 
 		// Update sashes enablement
-		var previous = false;
-		var collapsesDown = this.views.map(v => previous = (v.size - v.minimumSize > 0) || previous);
+		let previous = false;
+		let collapsesDown = this.views.map(v => previous = (v.size - v.minimumSize > 0) || previous);
 
 		previous = false;
-		var expandsDown = this.views.map(v => previous = (v.maximumSize - v.size > 0) || previous);
+		let expandsDown = this.views.map(v => previous = (v.maximumSize - v.size > 0) || previous);
 
-		var reverseViews = this.views.slice().reverse();
+		let reverseViews = this.views.slice().reverse();
 		previous = false;
-		var collapsesUp = reverseViews.map(v => previous = (v.size - v.minimumSize > 0) || previous).reverse();
+		let collapsesUp = reverseViews.map(v => previous = (v.size - v.minimumSize > 0) || previous).reverse();
 
 		previous = false;
-		var expandsUp = reverseViews.map(v => previous = (v.maximumSize - v.size > 0) || previous).reverse();
+		let expandsUp = reverseViews.map(v => previous = (v.maximumSize - v.size > 0) || previous).reverse();
 
 		this.sashes.forEach((s, i) => {
 			if ((collapsesDown[i] && expandsUp[i + 1]) || (expandsDown[i] && collapsesUp[i + 1])) {
@@ -631,16 +731,16 @@ export class SplitView implements
 
 		this.setupAnimation();
 
-		var index = this.views.indexOf(view);
-		var diff = Math.abs(size - view.size);
-		var up = numbers.countToArray(index - 1, -1);
-		var down = numbers.countToArray(index + 1, this.views.length);
-		var downUp = down.concat(up);
+		let index = this.views.indexOf(view);
+		let diff = Math.abs(size - view.size);
+		let up = numbers.countToArray(index - 1, -1);
+		let down = numbers.countToArray(index + 1, this.views.length);
+		let downUp = down.concat(up);
 
-		var collapses = this.views.map(v => Math.max(v.size - v.minimumSize, 0));
-		var expands = this.views.map(v => Math.max(v.maximumSize - v.size, 0));
+		let collapses = this.views.map(v => Math.max(v.size - v.minimumSize, 0));
+		let expands = this.views.map(v => Math.max(v.maximumSize - v.size, 0));
 
-		var collapse: number, collapseIndexes: number[], expandIndexes: number[];
+		let collapse: number, collapseIndexes: number[], expandIndexes: number[];
 
 		if (size < view.size) {
 			collapse = Math.min(downUp.reduce((t, i) => t + expands[i], 0), diff);
@@ -688,10 +788,10 @@ export class SplitView implements
 	}
 
 	private getSashPosition(sash: sash.Sash): number {
-		var index = this.sashes.indexOf(sash);
-		var position = 0;
+		let index = this.sashes.indexOf(sash);
+		let position = 0;
 
-		for (var i = 0; i <= index; i++) {
+		for (let i = 0; i <= index; i++) {
 			position += this.views[i].size;
 		}
 

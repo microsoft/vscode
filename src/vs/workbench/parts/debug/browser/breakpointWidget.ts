@@ -19,6 +19,7 @@ import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
 import debug = require('vs/workbench/parts/debug/common/debug');
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.emmet;
 const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = 'breakpointWidgetVisible';
@@ -54,7 +55,8 @@ export class BreakpointWidget extends ZoneWidget {
 
 		const inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
 		this.inputBox = new InputBox(inputBoxContainer, this.contextViewService, {
-			placeholder: nls.localize('breakpointWidgetPlaceholder', "Breakpoint on line {0} will only stop if this condition is true. 'Enter' to accept, 'esc' to cancel.", this.lineNumber)
+			placeholder: nls.localize('breakpointWidgetPlaceholder', "Breakpoint on line {0} will only stop if this condition is true. 'Enter' to accept, 'esc' to cancel.", this.lineNumber),
+			ariaLabel: nls.localize('breakpointWidgetAriaLabel', "Type the breakpoint condition for line {0}. The program will only stop here if this condition is true. Press Enter to accept or Escape to cancel.")
 		});
 		this.toDispose.push(this.inputBox);
 
@@ -87,10 +89,11 @@ export class BreakpointWidget extends ZoneWidget {
 			}
 		});
 
-		this.toDispose.push(dom.addStandardDisposableListener(this.inputBox.inputElement, 'keydown', (e: dom.IKeyboardEvent) => {
+		this.toDispose.push(dom.addStandardDisposableListener(this.inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
 			const isEscape = e.equals(CommonKeybindings.ESCAPE);
 			const isEnter = e.equals(CommonKeybindings.ENTER);
 			if (isEscape || isEnter) {
+				e.stopPropagation();
 				wrapUp(isEnter);
 			}
 		}));
@@ -101,6 +104,7 @@ export class BreakpointWidget extends ZoneWidget {
 		this.breakpointWidgetVisible.reset();
 		BreakpointWidget.INSTANCE = undefined;
 		lifecycle.disposeAll(this.toDispose);
+		setTimeout(() => this.editor.focus(), 0);
 	}
 }
 

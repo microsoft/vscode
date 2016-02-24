@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as Browser from 'vs/base/browser/browser';
-import {StyleMutator} from 'vs/base/browser/dom';
-import {IVisibleLineData} from 'vs/editor/browser/view/viewLayer';
+import * as browser from 'vs/base/browser/browser';
+import {StyleMutator} from 'vs/base/browser/styleMutator';
+import {HorizontalRange, IConfigurationChangedEvent, IModelDecoration} from 'vs/editor/common/editorCommon';
 import {ILineParts, createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
-import {ClassNames, IViewContext, HorizontalRange} from 'vs/editor/browser/editorBrowser';
-import {IModelDecoration, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
 import {renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
+import {ClassNames, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {IVisibleLineData} from 'vs/editor/browser/view/viewLayer';
 
 export class ViewLine implements IVisibleLineData {
 
@@ -166,7 +166,7 @@ export class ViewLine implements IVisibleLineData {
 	/**
 	 * Visible ranges for a model range
 	 */
-	public getVisibleRangesForRange(startColumn:number, endColumn:number, endNode:HTMLElement): HorizontalRange[] {
+	public getVisibleRangesForRange(startColumn:number, endColumn:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
 		let stopRenderingLineAfter = this._context.configuration.editor.stopRenderingLineAfter;
 
 		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter && endColumn > stopRenderingLineAfter) {
@@ -182,16 +182,16 @@ export class ViewLine implements IVisibleLineData {
 			endColumn = stopRenderingLineAfter;
 		}
 
-		return this._readVisibleRangesForRange(startColumn, endColumn, endNode);
+		return this._readVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, endNode);
 	}
 
-	protected _readVisibleRangesForRange(startColumn:number, endColumn:number, endNode:HTMLElement): HorizontalRange[] {
+	protected _readVisibleRangesForRange(startColumn:number, endColumn:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
 
 		let result: HorizontalRange[];
 		if (startColumn === endColumn) {
-			result = this._readRawVisibleRangesForPosition(startColumn, endNode);
+			result = this._readRawVisibleRangesForPosition(startColumn, clientRectDeltaLeft, endNode);
 		} else {
-			result = this._readRawVisibleRangesForRange(startColumn, endColumn, endNode);
+			result = this._readRawVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, endNode);
 		}
 
 		if (!result || result.length <= 1) {
@@ -206,7 +206,7 @@ export class ViewLine implements IVisibleLineData {
 		for (let i = 1, len = result.length; i < len; i++) {
 			let currRange = result[i];
 
-			if (prevRange.left + prevRange.width + 0.3 /* account for browser's rounding errors*/ >= currRange.left) {
+			if (prevRange.left + prevRange.width + 0.9 /* account for browser's rounding errors*/ >= currRange.left) {
 				prevRange.width = Math.max(prevRange.width, currRange.left + currRange.width - prevRange.left);
 			} else {
 				output.push(prevRange);
@@ -218,7 +218,7 @@ export class ViewLine implements IVisibleLineData {
 		return output;
 	}
 
-	protected _readRawVisibleRangesForPosition(column:number, endNode:HTMLElement): HorizontalRange[] {
+	protected _readRawVisibleRangesForPosition(column:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
 
 		if (this._charOffsetInPart.length === 0) {
 			// This line is empty
@@ -228,10 +228,10 @@ export class ViewLine implements IVisibleLineData {
 		let partIndex = findIndexInArrayWithMax(this._lineParts, column - 1, this._lastRenderedPartIndex);
 		let charOffsetInPart = this._charOffsetInPart[column - 1];
 
-		return this._readRawVisibleRangesFrom(this._getReadingTarget(), partIndex, charOffsetInPart, partIndex, charOffsetInPart, endNode);
+		return this._readRawVisibleRangesFrom(this._getReadingTarget(), partIndex, charOffsetInPart, partIndex, charOffsetInPart, clientRectDeltaLeft, endNode);
 	}
 
-	private _readRawVisibleRangesForRange(startColumn:number, endColumn:number, endNode:HTMLElement): HorizontalRange[] {
+	private _readRawVisibleRangesForRange(startColumn:number, endColumn:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
 
 		if (startColumn === 1 && endColumn === this._charOffsetInPart.length) {
 			// This branch helps IE with bidi text & gives a performance boost to other browsers when reading visible ranges for an entire line
@@ -244,14 +244,14 @@ export class ViewLine implements IVisibleLineData {
 		let endPartIndex = findIndexInArrayWithMax(this._lineParts, endColumn - 1, this._lastRenderedPartIndex);
 		let endCharOffsetInPart = this._charOffsetInPart[endColumn - 1];
 
-		return this._readRawVisibleRangesFrom(this._getReadingTarget(), startPartIndex, startCharOffsetInPart, endPartIndex, endCharOffsetInPart, endNode);
+		return this._readRawVisibleRangesFrom(this._getReadingTarget(), startPartIndex, startCharOffsetInPart, endPartIndex, endCharOffsetInPart, clientRectDeltaLeft, endNode);
 	}
 
 	private _readRawVisibleRangeForEntireLine(): HorizontalRange {
 		return new HorizontalRange(0, this._getReadingTarget().offsetWidth);
 	}
 
-	private _readRawVisibleRangesFrom(domNode:HTMLElement, startChildIndex:number, startOffset:number, endChildIndex:number, endOffset:number, endNode:HTMLElement): HorizontalRange[] {
+	private _readRawVisibleRangesFrom(domNode:HTMLElement, startChildIndex:number, startOffset:number, endChildIndex:number, endOffset:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
 		let range = RangeUtil.createRange();
 
 		try {
@@ -291,7 +291,7 @@ export class ViewLine implements IVisibleLineData {
 				return null;
 			}
 
-			return this._createRawVisibleRangesFromClientRects(clientRects);
+			return this._createRawVisibleRangesFromClientRects(clientRects, clientRectDeltaLeft);
 
 		} catch (e) {
 			// This is life ...
@@ -301,11 +301,11 @@ export class ViewLine implements IVisibleLineData {
 		}
 	}
 
-	protected _createRawVisibleRangesFromClientRects(clientRects:ClientRectList): HorizontalRange[] {
+	protected _createRawVisibleRangesFromClientRects(clientRects:ClientRectList, clientRectDeltaLeft:number): HorizontalRange[] {
 		let result:HorizontalRange[] = [];
 		for (let i = 0, len = clientRects.length; i < len; i++) {
 			let cR = clientRects[i];
-			result.push(new HorizontalRange(cR.left, cR.width));
+			result.push(new HorizontalRange(Math.max(0, cR.left - clientRectDeltaLeft), cR.width));
 		}
 		return result;
 	}
@@ -405,12 +405,12 @@ class IEViewLine extends ViewLine {
 		super(context);
 	}
 
-	protected _createRawVisibleRangesFromClientRects(clientRects:ClientRectList): HorizontalRange[] {
+	protected _createRawVisibleRangesFromClientRects(clientRects:ClientRectList, clientRectDeltaLeft:number): HorizontalRange[] {
 		let ratioX = screen.logicalXDPI / screen.deviceXDPI;
 		let result:HorizontalRange[] = [];
 		for (let i = 0, len = clientRects.length; i < len; i++) {
 			let cR = clientRects[i];
-			result[i] = new HorizontalRange(cR.left * ratioX, cR.width * ratioX);
+			result[i] = new HorizontalRange(Math.max(0, cR.left * ratioX - clientRectDeltaLeft), cR.width * ratioX);
 		}
 
 		return result;
@@ -423,14 +423,19 @@ class WebKitViewLine extends ViewLine {
 		super(context);
 	}
 
-	protected _readVisibleRangesForRange(startColumn:number, endColumn:number, endNode:HTMLElement): HorizontalRange[] {
-		let output = super._readVisibleRangesForRange(startColumn, endColumn, endNode);
+	protected _readVisibleRangesForRange(startColumn:number, endColumn:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
+		let output = super._readVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, endNode);
 
-		if (this._context.configuration.editor.fontLigatures && endColumn > 1 && startColumn === endColumn && endColumn === this._charOffsetInPart.length) {
-			if (output.length === 1) {
-				let lastSpanBoundingClientRect = (<HTMLElement>this._getReadingTarget().lastChild).getBoundingClientRect();
-				output[0].left = lastSpanBoundingClientRect.right;
+		if (this._context.configuration.editor.fontLigatures && output.length === 1 && endColumn > 1 && endColumn === this._charOffsetInPart.length) {
+			let lastSpanBoundingClientRect = (<HTMLElement>this._getReadingTarget().lastChild).getBoundingClientRect();
+			let lastSpanBoundingClientRectRight = lastSpanBoundingClientRect.right - clientRectDeltaLeft;
+			if (startColumn === endColumn) {
+				output[0].left = lastSpanBoundingClientRectRight;
+				output[0].width = 0;
+			} else {
+				output[0].width = lastSpanBoundingClientRectRight - output[0].left;
 			}
+			return output;
 		}
 
 		if (!output || output.length === 0 || startColumn === endColumn || (startColumn === 1 && endColumn === this._charOffsetInPart.length)) {
@@ -442,9 +447,9 @@ class WebKitViewLine extends ViewLine {
 
 		// This is an attempt to patch things up
 		// Find position of previous column
-		let beforeEndVisibleRanges = this._readRawVisibleRangesForPosition(endColumn - 1, endNode);
+		let beforeEndVisibleRanges = this._readRawVisibleRangesForPosition(endColumn - 1, clientRectDeltaLeft, endNode);
 		// Find position of last column
-		let endVisibleRanges = this._readRawVisibleRangesForPosition(endColumn, endNode);
+		let endVisibleRanges = this._readRawVisibleRangesForPosition(endColumn, clientRectDeltaLeft, endNode);
 
 		if (beforeEndVisibleRanges && beforeEndVisibleRanges.length > 0 && endVisibleRanges && endVisibleRanges.length > 0) {
 			let beforeEndVisibleRange = beforeEndVisibleRanges[0];
@@ -499,7 +504,7 @@ export let createLine: (context: IViewContext) => ViewLine = (function() {
 		// IE11 doesn't need the screen.logicalXDPI / screen.deviceXDPI ratio multiplication
 		// for TextRange.getClientRects() anymore
 		return createIELine;
-	} else if (Browser.isWebKit) {
+	} else if (browser.isWebKit) {
 		return createWebKitLine;
 	}
 	return createNormalLine;

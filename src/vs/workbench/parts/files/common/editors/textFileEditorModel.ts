@@ -5,7 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {TPromise, Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {onUnexpectedError, toErrorMessage} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import {IDisposable} from 'vs/base/common/lifecycle';
@@ -72,7 +72,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 
 	public static ID = 'workbench.editors.files.textFileEditorModel';
 
-	private static DEFAULT_AUTO_SAVE_DELAY = 1000;
 	private static saveErrorHandler: ISaveErrorHandler;
 
 	private resource: URI;
@@ -132,7 +131,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 
 	private updateAutoSaveConfiguration(config: IAutoSaveConfiguration): void {
 		if (typeof config.autoSaveDelay === 'number' && config.autoSaveDelay > 0) {
-			this.autoSaveAfterMillies = config.autoSaveDelay * 1000;
+			this.autoSaveAfterMillies = config.autoSaveDelay;
 			this.autoSaveAfterMilliesEnabled = true;
 		} else {
 			this.autoSaveAfterMillies = void 0;
@@ -198,7 +197,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 				undo();
 			}
 
-			return Promise.wrapError(error);
+			return TPromise.wrapError(error);
 		});
 	}
 
@@ -290,7 +289,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 				}, (error) => {
 					this.createTextEditorModelPromise = null;
 
-					return Promise.wrapError(error);
+					return TPromise.wrapError(error);
 				});
 
 				return this.createTextEditorModelPromise;
@@ -305,7 +304,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 			}
 
 			// Otherwise bubble up the error
-			return Promise.wrapError(error);
+			return TPromise.wrapError(error);
 		});
 	}
 
@@ -377,7 +376,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		this.cancelAutoSavePromises();
 
 		// Create new save promise and keep it
-		let promise: TPromise<void> = Promise.timeout(this.autoSaveAfterMillies).then(() => {
+		let promise: TPromise<void> = TPromise.timeout(this.autoSaveAfterMillies).then(() => {
 
 			// Only trigger save if the version id has not changed meanwhile
 			if (versionId === this.versionId) {
@@ -749,7 +748,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 			isDirectory: stat.isDirectory,
 			hasChildren: stat.hasChildren,
 			children: stat.children
-		}
+		};
 	}
 }
 

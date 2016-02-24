@@ -7,6 +7,8 @@
 require('events').EventEmitter.defaultMaxListeners = 100;
 
 var gulp = require('gulp');
+var json = require('gulp-json-editor');
+var buffer = require('gulp-buffer');
 var tsb = require('gulp-tsb');
 var filter = require('gulp-filter');
 var mocha = require('gulp-mocha');
@@ -22,6 +24,7 @@ var path = require('path');
 var bom = require('gulp-bom');
 var sourcemaps = require('gulp-sourcemaps');
 var _ = require('underscore');
+var assign = require('object-assign');
 var quiet = !!process.env['VSCODE_BUILD_QUIET'];
 
 var rootDir = path.join(__dirname, 'src');
@@ -36,11 +39,13 @@ var tsOptions = {
 	sourceRoot: util.toFileUri(rootDir)
 };
 
-function createCompile(build) {
+function createCompile(build, emitError) {
 	var opts = _.clone(tsOptions);
 	opts.inlineSources = !!build;
 
-	var ts = tsb.create(opts, null, null, quiet ? null : function (err) { reporter(err.toString()); });
+	var ts = tsb.create(opts, null, null, quiet ? null : function (err) {
+		reporter(err.toString());
+	});
 
 	return function (token) {
 		var utf8Filter = filter('**/test/**/*utf8*', { restore: true });
@@ -64,14 +69,14 @@ function createCompile(build) {
 				sourceRoot: tsOptions.sourceRoot
 			}))
 			.pipe(tsFilter.restore)
-			.pipe(quiet ? es.through() : reporter());
+			.pipe(quiet ? es.through() : reporter.end(emitError));
 
 		return es.duplex(input, output);
 	};
 }
 
 function compileTask(out, build) {
-	var compile = createCompile(build);
+	var compile = createCompile(build, true);
 
 	return function () {
 		var src = gulp.src('src/**', { base: 'src' });
@@ -106,7 +111,7 @@ gulp.task('compile-build', ['clean-build'], compileTask('out-build', true));
 gulp.task('watch-build', ['clean-build'], watchTask('out-build', true));
 
 // Default
-gulp.task('default', ['compile-all']);
+gulp.task('default', ['compile']);
 
 // All
 gulp.task('clean', ['clean-client', 'clean-plugins']);
@@ -119,10 +124,25 @@ gulp.task('test', function () {
 		.once('end', function () { process.exit(); });
 });
 
+function rebase(count) {
+	return rename(function (f) {
+		var parts = f.dirname.split(/[\/\\]/);
+		f.dirname = parts.slice(count).join(path.sep);
+	});
+}
+
 gulp.task('mixin', function () {
 	var repo = process.env['VSCODE_MIXIN_REPO'];
 
 	if (!repo) {
+		console.log('Missing VSCODE_MIXIN_REPO, skipping mixin');
+		return;
+	}
+
+	var quality = process.env['VSCODE_QUALITY'];
+
+	if (!quality) {
+		console.log('Missing VSCODE_QUALITY, skipping mixin');
 		return;
 	}
 
@@ -136,11 +156,30 @@ gulp.task('mixin', function () {
 	}
 
 	console.log('Mixing in sources from \'' + url + '\':');
-	return remote(url, opts)
+
+	var all = remote(url, opts)
 		.pipe(zip.src())
-		.pipe(rename(function (f) {
-			f.dirname = f.dirname.replace(/^[^\/\\]+[\/\\]?/, '');
-		}))
+		.pipe(rebase(1));
+
+	if (quality) {
+		var build = all.pipe(filter('build/**'));
+		var productJsonFilter = filter('product.json', { restore: true });
+
+		var mixin = all
+			.pipe(filter('quality/' + quality + '/**'))
+			.pipe(rebase(2))
+			.pipe(productJsonFilter)
+			.pipe(buffer())
+			.pipe(json(function (patch) {
+				var original = require('./product.json');
+				return assign(original, patch);
+			}))
+			.pipe(productJsonFilter.restore);
+
+		all = es.merge(build, mixin);
+	}
+
+	return all
 		.pipe(es.mapSync(function (f) {
 			console.log(f.relative);
 			return f;

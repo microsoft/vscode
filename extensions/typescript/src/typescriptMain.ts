@@ -9,7 +9,7 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { languages, commands, workspace, Uri, ExtensionContext, IndentAction, Diagnostic, DiagnosticCollection, Range } from 'vscode';
+import { languages, commands, workspace, window, Uri, ExtensionContext, IndentAction, Diagnostic, DiagnosticCollection, Range } from 'vscode';
 
 import * as Proto from './protocol';
 import TypeScriptServiceClient from './typescriptServiceClient';
@@ -29,6 +29,8 @@ import BufferSyncSupport from './features/bufferSyncSupport';
 import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 
+import * as VersionStatus from './utils/versionStatus';
+
 export function activate(context: ExtensionContext): void {
 
 	let MODE_ID_TS = 'typescript';
@@ -42,18 +44,18 @@ export function activate(context: ExtensionContext): void {
 	context.subscriptions.push(commands.registerCommand('typescript.reloadProjects', () => {
 		clientHost.reloadProjects();
 	}));
+
+	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
+
 	// Register the supports for both TS and TSX so that we can have separate grammars but share the mode
 	client.onReady().then(() => {
 		registerSupports(MODE_ID_TS, clientHost, client);
 		registerSupports(MODE_ID_TSX, clientHost, client);
-		let useSalsa = !!process.env['CODE_TSJS'] || !!process.env['VSCODE_TSJS']
-		if (useSalsa) {
-			registerSupports(MODE_ID_JS, clientHost, client);
-			registerSupports(MODE_ID_JSX, clientHost, client);
-		}
+		registerSupports(MODE_ID_JS, clientHost, client);
+		registerSupports(MODE_ID_JSX, clientHost, client);
 	}, () => {
 		// Nothing to do here. The client did show a message;
-	})
+	});
 }
 
 function registerSupports(modeID: string, host: TypeScriptServiceClientHost, client: TypeScriptServiceClient) {
@@ -111,11 +113,6 @@ function registerSupports(modeID: string, host: TypeScriptServiceClientHost, cli
 		],
 
 		__electricCharacterSupport: {
-			brackets: [
-				{ tokenType: 'delimiter.curly.' + modeID, open: '{', close: '}', isElectric: true },
-				{ tokenType: 'delimiter.square.' + modeID, open: '[', close: ']', isElectric: true },
-				{ tokenType: 'delimiter.paren.' + modeID, open: '(', close: ')', isElectric: true }
-			],
 			docComment: { scope: 'comment.documentation', open: '/**', lineStart: ' * ', close: ' */' }
 		},
 
@@ -163,7 +160,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			setTimeout(() => {
 				this.triggerAllDiagnostics();
 			}, 1500);
-		}
+		};
 		let watcher = workspace.createFileSystemWatcher('**/tsconfig.json');
 		watcher.onDidCreate(handleProjectCreateOrDelete);
 		watcher.onDidDelete(handleProjectCreateOrDelete);

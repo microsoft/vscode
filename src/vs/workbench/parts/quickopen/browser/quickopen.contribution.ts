@@ -12,7 +12,6 @@ import {Registry} from 'vs/platform/platform';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-import {Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
 import {GotoSymbolAction, GOTO_SYMBOL_PREFIX, SCOPE_PREFIX} from 'vs/workbench/parts/quickopen/browser/gotoSymbolHandler';
 import {ShowAllCommandsAction, ALL_COMMANDS_PREFIX} from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import {GotoLineAction, GOTO_LINE_PREFIX} from 'vs/workbench/parts/quickopen/browser/gotoLineHandler';

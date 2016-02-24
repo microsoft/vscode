@@ -5,19 +5,19 @@
 'use strict';
 
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
+import {IRenderingContext, IViewContext, IViewPart} from 'vs/editor/browser/editorBrowser';
 
 export interface IRunner {
 	(): void;
 }
 
-export class ViewPart extends ViewEventHandler implements EditorBrowser.IViewPart {
+export class ViewPart extends ViewEventHandler implements IViewPart {
 
-	_context:EditorBrowser.IViewContext;
+	_context:IViewContext;
 	private _modificationBeforeRenderingRunners:IRunner[];
 	private _modificationRunners:IRunner[];
 
-	constructor(context:EditorBrowser.IViewContext) {
+	constructor(context:IViewContext) {
 		super();
 		this._context = context;
 		this._context.addEventHandler(this);
@@ -55,7 +55,7 @@ export class ViewPart extends ViewEventHandler implements EditorBrowser.IViewPar
 		}
 	}
 
-	public onReadAfterForcedLayout(ctx:EditorBrowser.IRenderingContext): void {
+	public onReadAfterForcedLayout(ctx:IRenderingContext): void {
 		if (!this.shouldRender) {
 			return;
 		}
@@ -80,7 +80,7 @@ export class ViewPart extends ViewEventHandler implements EditorBrowser.IViewPar
 		}
 	}
 
-	_render(ctx:EditorBrowser.IRenderingContext): void {
+	_render(ctx:IRenderingContext): void {
 		throw new Error('Implement me!');
 	}
 }

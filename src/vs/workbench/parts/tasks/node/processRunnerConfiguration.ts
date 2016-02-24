@@ -10,9 +10,7 @@ import * as Objects from 'vs/base/common/objects';
 import { IStringDictionary } from 'vs/base/common/collections';
 import * as Platform from 'vs/base/common/platform';
 import * as Types from 'vs/base/common/types';
-import * as Strings from 'vs/base/common/strings';
 import * as UUID from 'vs/base/common/uuid';
-import Severity from 'vs/base/common/severity';
 import { Config as ProcessConfig } from 'vs/base/common/processes';
 
 import { ValidationStatus, ValidationState, ILogger } from 'vs/base/common/parsers';
@@ -31,9 +29,9 @@ export class ProblemHandling {
 }
 
 export namespace ShowOutput {
-	let always: string = 'always';
-	let silent: string = 'silent';
-	let never: string = 'never';
+	// let always: string = 'always';
+	// let silent: string = 'silent';
+	// let never: string = 'never';
 }
 
 /**
@@ -667,7 +665,6 @@ class ConfigurationParser {
 			let json = <ProblemMatcherConfig.ProblemMatcher>value;
 			return new ProblemMatcherParser(ProblemMatcherRegistry, this.logger, this.validationStatus).parse(json);
 		}
-		return null;
 	}
 }
 

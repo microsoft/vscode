@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import ViewLineParts = require('vs/editor/common/viewLayout/viewLineParts');
-import {renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
+import * as assert from 'assert';
 import {ILineToken} from 'vs/editor/common/editorCommon';
+import {renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
 
 suite('viewLineRenderer.renderLine', () => {
 
@@ -186,4 +185,112 @@ suite('viewLineRenderer.renderLine', () => {
 		assert.equal(_actual.output.join(''), '<span>' + expectedOutput + '</span>');
 		assert.deepEqual(_actual.charOffsetInPart, expectedOffsets);
 	});
+
+	test('issue #2255: Weird line rendering part 1', () => {
+		let lineText = '\t\t\tcursorStyle:\t\t\t\t\t\t(prevOpts.cursorStyle !== newOpts.cursorStyle),';
+
+		let lineParts = [
+			createPart( 0, 'block body decl declaration meta method object ts'), // 3 chars
+			createPart( 3, 'block body decl declaration member meta method object ts'), // 12 chars
+			createPart(15, 'block body decl declaration member meta method object ts'), // 6 chars
+			createPart(21, 'delimiter paren typescript'), // 1 char
+			createPart(22, 'block body decl declaration member meta method object ts'), // 21 chars
+			createPart(43, 'block body comparison decl declaration keyword member meta method object operator ts'), // 2 chars
+			createPart(45, 'block body comparison decl declaration keyword member meta method object operator ts'), // 1 char
+			createPart(46, 'block body decl declaration member meta method object ts'), // 20 chars
+			createPart(66, 'delimiter paren typescript'), // 1 char
+			createPart(67, 'block body decl declaration meta method object ts'), // 2 chars
+		];
+		let expectedOutput = [
+			'<span class="token block body decl declaration meta method object ts">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
+			'<span class="token block body decl declaration member meta method object ts">cursorStyle:</span>',
+			'<span class="token block body decl declaration member meta method object ts">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
+			'<span class="token delimiter paren typescript">(</span>',
+			'<span class="token block body decl declaration member meta method object ts">prevOpts.cursorStyle&nbsp;</span>',
+			'<span class="token block body comparison decl declaration keyword member meta method object operator ts">!=</span>',
+			'<span class="token block body comparison decl declaration keyword member meta method object operator ts">=</span>',
+			'<span class="token block body decl declaration member meta method object ts">&nbsp;newOpts.cursorStyle</span>',
+			'<span class="token delimiter paren typescript">)</span>',
+			'<span class="token block body decl declaration meta method object ts">,</span>',
+		].join('');
+		let expectedOffsetsArr = [
+			[0, 4, 8], // 3 chars
+			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], // 12 chars
+			[0, 4, 8, 12, 16, 20], // 6 chars
+			[0], // 1 char
+			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], // 21 chars
+			[0, 1], // 2 chars
+			[0], // 1 char
+			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19], // 20 chars
+			[0], // 1 char
+			[0, 1] // 2 chars
+		];
+		let expectedOffsets = expectedOffsetsArr.reduce((prev, curr) => prev.concat(curr), []);
+
+		let _actual = renderLine({
+			lineContent: lineText,
+			tabSize: 4,
+			stopRenderingLineAfter: -1,
+			renderWhitespace: false,
+			parts: lineParts
+		});
+
+		assert.equal(_actual.output.join(''), '<span>' + expectedOutput + '</span>');
+		assert.deepEqual(_actual.charOffsetInPart, expectedOffsets);
+	});
+
+	test('issue #2255: Weird line rendering part 2', () => {
+		let lineText = ' \t\t\tcursorStyle:\t\t\t\t\t\t(prevOpts.cursorStyle !== newOpts.cursorStyle),';
+
+		let lineParts = [
+			createPart( 0, 'block body decl declaration meta method object ts'), // 4 chars
+			createPart( 4, 'block body decl declaration member meta method object ts'), // 12 chars
+			createPart(16, 'block body decl declaration member meta method object ts'), // 6 chars
+			createPart(22, 'delimiter paren typescript'), // 1 char
+			createPart(23, 'block body decl declaration member meta method object ts'), // 21 chars
+			createPart(44, 'block body comparison decl declaration keyword member meta method object operator ts'), // 2 chars
+			createPart(46, 'block body comparison decl declaration keyword member meta method object operator ts'), // 1 char
+			createPart(47, 'block body decl declaration member meta method object ts'), // 20 chars
+			createPart(67, 'delimiter paren typescript'), // 1 char
+			createPart(68, 'block body decl declaration meta method object ts'), // 2 chars
+		];
+		let expectedOutput = [
+			'<span class="token block body decl declaration meta method object ts">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
+			'<span class="token block body decl declaration member meta method object ts">cursorStyle:</span>',
+			'<span class="token block body decl declaration member meta method object ts">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>',
+			'<span class="token delimiter paren typescript">(</span>',
+			'<span class="token block body decl declaration member meta method object ts">prevOpts.cursorStyle&nbsp;</span>',
+			'<span class="token block body comparison decl declaration keyword member meta method object operator ts">!=</span>',
+			'<span class="token block body comparison decl declaration keyword member meta method object operator ts">=</span>',
+			'<span class="token block body decl declaration member meta method object ts">&nbsp;newOpts.cursorStyle</span>',
+			'<span class="token delimiter paren typescript">)</span>',
+			'<span class="token block body decl declaration meta method object ts">,</span>',
+		].join('');
+		let expectedOffsetsArr = [
+			[0, 1, 4, 8], // 4 chars
+			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], // 12 chars
+			[0, 4, 8, 12, 16, 20], // 6 chars
+			[0], // 1 char
+			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], // 21 chars
+			[0, 1], // 2 chars
+			[0], // 1 char
+			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19], // 20 chars
+			[0], // 1 char
+			[0, 1] // 2 chars
+		];
+		let expectedOffsets = expectedOffsetsArr.reduce((prev, curr) => prev.concat(curr), []);
+
+		let _actual = renderLine({
+			lineContent: lineText,
+			tabSize: 4,
+			stopRenderingLineAfter: -1,
+			renderWhitespace: false,
+			parts: lineParts
+		});
+
+		assert.equal(_actual.output.join(''), '<span>' + expectedOutput + '</span>');
+		assert.deepEqual(_actual.charOffsetInPart, expectedOffsets);
+	});
+
+
 });

@@ -4,34 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import quickFixSelectionWidget = require('./quickFixSelectionWidget');
-import quickFixModel = require('./quickFixModel');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import Severity from 'vs/base/common/severity';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import codeEditorWidget = require('vs/editor/browser/widget/codeEditorWidget');
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
-import {IMarkerService} from 'vs/platform/markers/common/markers';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
-import {IEventService} from 'vs/platform/event/common/event';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
+import {IEventService} from 'vs/platform/event/common/event';
+import {INullService} from 'vs/platform/instantiation/common/instantiation';
+import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, IRange} from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {bulkEdit} from 'vs/editor/common/services/bulkEdit';
-import {QuickFixRegistry, IQuickFix2} from '../common/quickFix';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
+import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {IQuickFix2, QuickFixRegistry} from '../common/quickFix';
+import {QuickFixModel} from './quickFixModel';
+import {QuickFixSelectionWidget} from './quickFixSelectionWidget';
 
-export class QuickFixController implements EditorCommon.IEditorContribution {
+export class QuickFixController implements IEditorContribution {
 
 	static ID = 'editor.contrib.quickFixController';
 
-	static getQuickFixController(editor:EditorCommon.ICommonCodeEditor): QuickFixController {
+	static getQuickFixController(editor:ICommonCodeEditor): QuickFixController {
 		return <QuickFixController>editor.getContribution(QuickFixController.ID);
 	}
 
@@ -39,12 +38,12 @@ export class QuickFixController implements EditorCommon.IEditorContribution {
 	private editorService: IEditorService;
 	private messageService: IMessageService;
 
-	private editor:EditorBrowser.ICodeEditor;
-	private model:quickFixModel.QuickFixModel;
-	private suggestWidget: quickFixSelectionWidget.QuickFixSelectionWidget;
+	private editor:ICodeEditor;
+	private model:QuickFixModel;
+	private suggestWidget: QuickFixSelectionWidget;
 	private quickFixWidgetVisible: IKeybindingContextKey<boolean>;
 
-	constructor(editor: EditorBrowser.ICodeEditor,
+	constructor(editor: ICodeEditor,
 		@IMarkerService markerService: IMarkerService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -53,14 +52,14 @@ export class QuickFixController implements EditorCommon.IEditorContribution {
 		@IMessageService messageService: IMessageService
 	) {
 		this.editor = editor;
-		this.model = new quickFixModel.QuickFixModel(this.editor, markerService, this.onAccept.bind(this));
+		this.model = new QuickFixModel(this.editor, markerService, this.onAccept.bind(this));
 		this.eventService = eventService;
 		this.editorService = editorService;
 		this.messageService = messageService;
 
 		this.quickFixWidgetVisible = keybindingService.createKey(CONTEXT_QUICK_FIX_WIDGET_VISIBLE, false);
-		this.suggestWidget = new quickFixSelectionWidget.QuickFixSelectionWidget(this.editor, telemetryService,() => {
-			this.quickFixWidgetVisible.set(true)
+		this.suggestWidget = new QuickFixSelectionWidget(this.editor, telemetryService,() => {
+			this.quickFixWidgetVisible.set(true);
 		},() => {
 			this.quickFixWidgetVisible.reset();
 		});
@@ -71,7 +70,7 @@ export class QuickFixController implements EditorCommon.IEditorContribution {
 		return QuickFixController.ID;
 	}
 
-	private onAccept(fix: IQuickFix2, range: EditorCommon.IRange): void {
+	private onAccept(fix: IQuickFix2, range: IRange): void {
 		var model = this.editor.getModel();
 		if (!model) {
 			return;
@@ -146,7 +145,7 @@ export class QuickFixAction extends EditorAction {
 
 	static ID = 'editor.action.quickFix';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor);
 	}
 

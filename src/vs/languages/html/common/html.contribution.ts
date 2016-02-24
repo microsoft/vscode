@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import modesExtensions = require('vs/editor/common/modes/modesRegistry');
+import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 
-modesExtensions.registerMode({
+ModesRegistry.registerCompatMode({
 	id: 'html',
 	extensions: ['.html', '.htm', '.shtml', '.mdoc', '.jsp', '.asp', '.aspx', '.jshtm'],
 	aliases: ['HTML', 'htm', 'html', 'xhtml'],

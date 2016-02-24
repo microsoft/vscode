@@ -5,12 +5,11 @@
 
 import path = require('path');
 import nls = require('vs/nls');
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import objects = require('vs/base/common/objects');
 import uri from 'vs/base/common/uri';
-import { schemas } from 'vs/base/common/network';
+import { Schemas } from 'vs/base/common/network';
 import paths = require('vs/base/common/paths');
-import Severity from 'vs/base/common/severity';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import editor = require('vs/editor/common/editorCommon');
 import pluginsRegistry = require('vs/platform/plugins/common/pluginsRegistry');
@@ -117,7 +116,7 @@ export var debuggersExtPoint = pluginsRegistry.PluginsRegistry.registerExtension
 
 // debug general schema
 
-export var schemaId = 'local://schemas/launch';
+export var schemaId = 'vscode://schemas/launch';
 const schema: IJSONSchema = {
 	id: schemaId,
 	type: 'object',
@@ -137,7 +136,7 @@ const schema: IJSONSchema = {
 			}
 		}
 	}
-}
+};
 
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>platform.Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(schemaId, schema);
@@ -224,7 +223,7 @@ export class ConfigurationManager {
 		return this.adapters.filter(adapter => adapter.type === this.configuration.type).pop();
 	}
 
-	public setConfiguration(name: string): Promise {
+	public setConfiguration(name: string): TPromise<void> {
 		return this.loadLaunchConfig().then(config => {
 			if (!config || !config.configurations) {
 				this.configuration = null;
@@ -242,12 +241,7 @@ export class ConfigurationManager {
 						this.configuration[key] = this.systemVariables.resolve(this.configuration[key]);
 					});
 				}
-
 				this.configuration.debugServer = config.debugServer;
-				this.configuration.outDir = this.resolvePath(this.configuration.outDir);
-				this.configuration.program = this.resolvePath(this.configuration.program);
-				this.configuration.cwd = this.resolvePath(this.configuration.cwd || '.');
-				this.configuration.runtimeExecutable = this.resolvePath(this.configuration.runtimeExecutable);
 			}
 		});
 	}
@@ -292,13 +286,13 @@ export class ConfigurationManager {
 					version: '0.2.0',
 					configurations: adapter.initialConfigurations ? adapter.initialConfigurations : []
 				}, null, '\t')
-			)
+			);
 		});
 	}
 
-	private massageInitialConfigurations(adapter: Adapter): Promise {
+	private massageInitialConfigurations(adapter: Adapter): TPromise<void> {
 		if (!adapter || !adapter.initialConfigurations || adapter.type !== 'node') {
-			return Promise.as(true);
+			return TPromise.as(undefined);
 		}
 
 		// check package.json for 'main' or 'scripts' so we generate a more pecise 'program' attribute in launch.json.
@@ -315,20 +309,21 @@ export class ConfigurationManager {
 			} catch (error) { }
 
 			return null;
-		}, err => null).then(program => {
+		}, err => null).then((program: string) => {
 			adapter.initialConfigurations.forEach(config => {
 				if (program && config.program) {
+					if (!path.isAbsolute(program)) {
+						program = path.join('${workspaceRoot}', program);
+					}
+
 					config.program = program;
 				}
 			});
 		});
 	}
 
-	public canSetBreakpointsIn(model: editor.IModel, lineNumber: number): boolean {
-		if (model.getLineLastNonWhitespaceColumn(lineNumber) === 0) {
-			return false;
-		}
-		if (model.getAssociatedResource().scheme === schemas.inMemory) {
+	public canSetBreakpointsIn(model: editor.IModel): boolean {
+		if (model.getAssociatedResource().scheme === Schemas.inMemory) {
 			return false;
 		}
 
@@ -336,17 +331,6 @@ export class ConfigurationManager {
 		const modeId = mode ? mode.getId() : null;
 
 		return !!this.allModeIdsForBreakpoints[modeId];
-	}
-
-	private resolvePath(p: string): string {
-		if (!p) {
-			return null;
-		}
-		if (path.isAbsolute(p)) {
-			return paths.normalize(p, true);
-		}
-
-		return paths.normalize(uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, p)).fsPath, true);
 	}
 
 	public loadLaunchConfig(): TPromise<debug.IGlobalConfig> {

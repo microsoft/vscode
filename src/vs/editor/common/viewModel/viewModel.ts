@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {EventEmitter, IEventEmitter, EmitterEvent, IEmitterEvent, ListenerUnbind} from 'vs/base/common/eventEmitter';
-import Strings = require('vs/base/common/strings');
-import {Selection} from 'vs/editor/common/core/selection';
-import {Range} from 'vs/editor/common/core/range';
-import {ViewModelDecorations} from 'vs/editor/common/viewModel/viewModelDecorations';
-import {ViewModelCursors} from 'vs/editor/common/viewModel/viewModelCursors';
+import {EmitterEvent, EventEmitter, IEmitterEvent, IEventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import * as strings from 'vs/base/common/strings';
 import {Position} from 'vs/editor/common/core/position';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {Range} from 'vs/editor/common/core/range';
+import {Selection} from 'vs/editor/common/core/selection';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {ViewModelCursors} from 'vs/editor/common/viewModel/viewModelCursors';
+import {ViewModelDecorations} from 'vs/editor/common/viewModel/viewModelDecorations';
 
 export interface ILinesCollection {
 	setTabSize(newTabSize:number, emit:(evenType:string, payload:any)=>void): boolean;
 	setWrappingColumn(newWrappingColumn:number, columnsForFullWidthChar:number, emit:(evenType:string, payload:any)=>void): boolean;
-	setWrappingIndent(newWrappingIndent:EditorCommon.WrappingIndent, emit:(evenType:string, payload:any)=>void): boolean;
+	setWrappingIndent(newWrappingIndent:editorCommon.WrappingIndent, emit:(evenType:string, payload:any)=>void): boolean;
 
 	onModelFlushed(versionId:number, emit:(evenType:string, payload:any)=>void): void;
 	onModelLinesDeleted(versionId:number, fromLineNumber:number, toLineNumber:number, emit:(evenType:string, payload:any)=>void): void;
@@ -27,16 +27,18 @@ export interface ILinesCollection {
 	getOutputLineContent(outputLineNumber:number): string;
 	getOutputLineMinColumn(outputLineNumber:number): number;
 	getOutputLineMaxColumn(outputLineNumber:number): number;
-	getOutputLineTokens(outputLineNumber:number, inaccurateTokensAcceptable:boolean): EditorCommon.IViewLineTokens;
-	convertOutputPositionToInputPosition(viewLineNumber:number, viewColumn:number): EditorCommon.IEditorPosition;
-	convertInputPositionToOutputPosition(inputLineNumber:number, inputColumn:number): EditorCommon.IEditorPosition;
+	getOutputLineTokens(outputLineNumber:number, inaccurateTokensAcceptable:boolean): editorCommon.IViewLineTokens;
+	convertOutputPositionToInputPosition(viewLineNumber:number, viewColumn:number): editorCommon.IEditorPosition;
+	convertInputPositionToOutputPosition(inputLineNumber:number, inputColumn:number): editorCommon.IEditorPosition;
+	setHiddenAreas(ranges:editorCommon.IRange[], emit:(evenType:string, payload:any)=>void): void;
+	dispose(): void;
 }
 
-export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
+export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 
 	private editorId:number;
-	private configuration:EditorCommon.IConfiguration;
-	private model:EditorCommon.IModel;
+	private configuration:editorCommon.IConfiguration;
+	private model:editorCommon.IModel;
 
 	private listenersToRemove:ListenerUnbind[];
 	private _toDispose: IDisposable[];
@@ -45,9 +47,9 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 	private cursors:ViewModelCursors;
 	private shouldForceTokenization:boolean;
 
-	private getCurrentCenteredModelRange:()=>EditorCommon.IEditorRange;
+	private getCurrentCenteredModelRange:()=>editorCommon.IEditorRange;
 
-	constructor(lines:ILinesCollection, editorId:number, configuration:EditorCommon.IConfiguration, model:EditorCommon.IModel, getCurrentCenteredModelRange:()=>EditorCommon.IEditorRange) {
+	constructor(lines:ILinesCollection, editorId:number, configuration:editorCommon.IConfiguration, model:editorCommon.IModel, getCurrentCenteredModelRange:()=>editorCommon.IEditorRange) {
 		super();
 		this.lines = lines;
 
@@ -58,7 +60,7 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 		this.getCurrentCenteredModelRange = getCurrentCenteredModelRange;
 
 		this.decorations = new ViewModelDecorations(this.editorId, this.configuration, {
-			convertModelRangeToViewRange: (modelRange:EditorCommon.IRange, isWholeLine:boolean) => {
+			convertModelRangeToViewRange: (modelRange:editorCommon.IRange, isWholeLine:boolean) => {
 				if (isWholeLine) {
 					return this.convertWholeLineModelRangeToViewRange(modelRange);
 				}
@@ -74,8 +76,16 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 		this._toDispose = [];
 		this.listenersToRemove.push(this.model.addBulkListener((events:IEmitterEvent[]) => this.onEvents(events)));
 		this._toDispose.push(this.configuration.onDidChange((e) => {
-			this.onEvents([new EmitterEvent(EditorCommon.EventType.ConfigurationChanged, e)]);
+			this.onEvents([new EmitterEvent(editorCommon.EventType.ConfigurationChanged, e)]);
 		}));
+	}
+
+	public setHiddenAreas(ranges:editorCommon.IRange[]): void {
+		this.deferredEmit(() => {
+			this.lines.setHiddenAreas(ranges, (eventType:string, payload:any) => this.emit(eventType, payload));
+			this.decorations.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
+			this.cursors.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
+		});
 	}
 
 	public dispose(): void {
@@ -86,6 +96,7 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 		this.listenersToRemove = [];
 		this.decorations.dispose();
 		this.decorations = null;
+		this.lines.dispose();
 		this.lines = null;
 		this.configuration = null;
 		this.model = null;
@@ -98,7 +109,7 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 	private _onTabSizeChange(newTabSize:number): boolean {
 		var lineMappingChanged = this.lines.setTabSize(newTabSize, (eventType:string, payload:any) => this.emit(eventType, payload));
 		if (lineMappingChanged) {
-			this.emit(EditorCommon.ViewEventNames.LineMappingChangedEvent);
+			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
 			this.decorations.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 			this._updateShouldForceTokenization();
@@ -107,9 +118,9 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 	}
 
 	private _onWrappingIndentChange(newWrappingIndent:string): boolean {
-		var lineMappingChanged = this.lines.setWrappingIndent(EditorCommon.wrappingIndentFromString(newWrappingIndent), (eventType:string, payload:any) => this.emit(eventType, payload));
+		var lineMappingChanged = this.lines.setWrappingIndent(editorCommon.wrappingIndentFromString(newWrappingIndent), (eventType:string, payload:any) => this.emit(eventType, payload));
 		if (lineMappingChanged) {
-			this.emit(EditorCommon.ViewEventNames.LineMappingChangedEvent);
+			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
 			this.decorations.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 			this._updateShouldForceTokenization();
@@ -117,23 +128,23 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 		return lineMappingChanged;
 	}
 
-	private _restoreCenteredModelRange(range:EditorCommon.IEditorRange): void {
+	private _restoreCenteredModelRange(range:editorCommon.IEditorRange): void {
 		// modelLine -> viewLine
 		var newCenteredViewRange = this.convertModelRangeToViewRange(range);
 
 		// Send a reveal event to restore the centered content
-		var restoreRevealEvent:EditorCommon.IViewRevealRangeEvent = {
+		var restoreRevealEvent:editorCommon.IViewRevealRangeEvent = {
 			range: newCenteredViewRange,
-			verticalType: EditorCommon.VerticalRevealType.Center,
+			verticalType: editorCommon.VerticalRevealType.Center,
 			revealHorizontal: false
 		};
-		this.emit(EditorCommon.ViewEventNames.RevealRangeEvent, restoreRevealEvent);
+		this.emit(editorCommon.ViewEventNames.RevealRangeEvent, restoreRevealEvent);
 	}
 
 	private _onWrappingColumnChange(newWrappingColumn:number, columnsForFullWidthChar:number): boolean {
 		let lineMappingChanged = this.lines.setWrappingColumn(newWrappingColumn, columnsForFullWidthChar, (eventType:string, payload:any) => this.emit(eventType, payload));
 		if (lineMappingChanged) {
-			this.emit(EditorCommon.ViewEventNames.LineMappingChangedEvent);
+			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
 			this.decorations.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 			this._updateShouldForceTokenization();
@@ -148,8 +159,8 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 	private onEvents(events:IEmitterEvent[]): void {
 		this.deferredEmit(() => {
 
-			let hasContentChange = events.some((e) => e.getType() === EditorCommon.EventType.ModelContentChanged),
-				previousCenteredModelRange:EditorCommon.IEditorRange;
+			let hasContentChange = events.some((e) => e.getType() === editorCommon.EventType.ModelContentChanged),
+				previousCenteredModelRange:editorCommon.IEditorRange;
 			if (!hasContentChange) {
 				// We can only convert the current centered view range to the current centered model range if the model has no changes.
 				previousCenteredModelRange = this.getCurrentCenteredModelRange();
@@ -160,7 +171,7 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 				e: IEmitterEvent,
 				data:any,
 				shouldUpdateForceTokenization = false,
-				modelContentChangedEvent:EditorCommon.IModelContentChangedEvent,
+				modelContentChangedEvent:editorCommon.IModelContentChangedEvent,
 				hadOtherModelChange = false,
 				hadModelLineChangeThatChangedLineMapping = false,
 				revealPreviousCenteredModelRange = false;
@@ -171,27 +182,27 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 
 				switch (e.getType()) {
 
-					case EditorCommon.EventType.ModelContentChanged:
-						modelContentChangedEvent = <EditorCommon.IModelContentChangedEvent>data;
+					case editorCommon.EventType.ModelContentChanged:
+						modelContentChangedEvent = <editorCommon.IModelContentChangedEvent>data;
 
 						switch (modelContentChangedEvent.changeType) {
-							case EditorCommon.EventType.ModelContentChangedFlush:
-								this.onModelFlushed(<EditorCommon.IModelContentChangedFlushEvent>modelContentChangedEvent);
+							case editorCommon.EventType.ModelContentChangedFlush:
+								this.onModelFlushed(<editorCommon.IModelContentChangedFlushEvent>modelContentChangedEvent);
 								hadOtherModelChange = true;
 								break;
 
-							case EditorCommon.EventType.ModelContentChangedLinesDeleted:
-								this.onModelLinesDeleted(<EditorCommon.IModelContentChangedLinesDeletedEvent>modelContentChangedEvent);
+							case editorCommon.EventType.ModelContentChangedLinesDeleted:
+								this.onModelLinesDeleted(<editorCommon.IModelContentChangedLinesDeletedEvent>modelContentChangedEvent);
 								hadOtherModelChange = true;
 								break;
 
-							case EditorCommon.EventType.ModelContentChangedLinesInserted:
-								this.onModelLinesInserted(<EditorCommon.IModelContentChangedLinesInsertedEvent>modelContentChangedEvent);
+							case editorCommon.EventType.ModelContentChangedLinesInserted:
+								this.onModelLinesInserted(<editorCommon.IModelContentChangedLinesInsertedEvent>modelContentChangedEvent);
 								hadOtherModelChange = true;
 								break;
 
-							case EditorCommon.EventType.ModelContentChangedLineChanged:
-								hadModelLineChangeThatChangedLineMapping = this.onModelLineChanged(<EditorCommon.IModelContentChangedLineChangedEvent>modelContentChangedEvent);
+							case editorCommon.EventType.ModelContentChangedLineChanged:
+								hadModelLineChangeThatChangedLineMapping = this.onModelLineChanged(<editorCommon.IModelContentChangedLineChangedEvent>modelContentChangedEvent);
 								break;
 
 							default:
@@ -201,63 +212,59 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 						shouldUpdateForceTokenization = true;
 						break;
 
-					case EditorCommon.EventType.ModelTokensChanged:
-						this.onModelTokensChanged(<EditorCommon.IModelTokensChangedEvent>data);
+					case editorCommon.EventType.ModelTokensChanged:
+						this.onModelTokensChanged(<editorCommon.IModelTokensChangedEvent>data);
 						break;
 
-					case EditorCommon.EventType.ModelModeChanged:
+					case editorCommon.EventType.ModelModeChanged:
 						// That's ok, a model tokens changed event will follow shortly
 						break;
 
-					case EditorCommon.EventType.ModelModeSupportChanged:
+					case editorCommon.EventType.ModelModeSupportChanged:
 						// That's ok, no work to do
 						break;
 
-					case EditorCommon.EventType.ModelPropertiesChanged:
+					case editorCommon.EventType.ModelContentChanged2:
 						// Ignore
 						break;
 
-					case EditorCommon.EventType.ModelContentChanged2:
-						// Ignore
+					case editorCommon.EventType.ModelDecorationsChanged:
+						this.onModelDecorationsChanged(<editorCommon.IModelDecorationsChangedEvent>data);
 						break;
 
-					case EditorCommon.EventType.ModelDecorationsChanged:
-						this.onModelDecorationsChanged(<EditorCommon.IModelDecorationsChangedEvent>data);
-						break;
-
-					case EditorCommon.EventType.ModelDispose:
+					case editorCommon.EventType.ModelDispose:
 						// Ignore, since the editor will take care of this and destroy the view shortly
 						break;
 
-					case EditorCommon.EventType.CursorPositionChanged:
-						this.onCursorPositionChanged(<EditorCommon.ICursorPositionChangedEvent>data);
+					case editorCommon.EventType.CursorPositionChanged:
+						this.onCursorPositionChanged(<editorCommon.ICursorPositionChangedEvent>data);
 						break;
 
-					case EditorCommon.EventType.CursorSelectionChanged:
-						this.onCursorSelectionChanged(<EditorCommon.ICursorSelectionChangedEvent>data);
+					case editorCommon.EventType.CursorSelectionChanged:
+						this.onCursorSelectionChanged(<editorCommon.ICursorSelectionChangedEvent>data);
 						break;
 
-					case EditorCommon.EventType.CursorRevealRange:
-						this.onCursorRevealRange(<EditorCommon.ICursorRevealRangeEvent>data);
+					case editorCommon.EventType.CursorRevealRange:
+						this.onCursorRevealRange(<editorCommon.ICursorRevealRangeEvent>data);
 						break;
 
-					case EditorCommon.EventType.CursorScrollRequest:
-						this.onCursorScrollRequest(<EditorCommon.ICursorScrollRequestEvent>data);
+					case editorCommon.EventType.CursorScrollRequest:
+						this.onCursorScrollRequest(<editorCommon.ICursorScrollRequestEvent>data);
 						break;
 
-					case EditorCommon.EventType.ConfigurationChanged:
+					case editorCommon.EventType.ConfigurationChanged:
 						revealPreviousCenteredModelRange = this._onTabSizeChange(this.configuration.getIndentationOptions().tabSize) || revealPreviousCenteredModelRange;
 						revealPreviousCenteredModelRange = this._onWrappingIndentChange(this.configuration.editor.wrappingIndent) || revealPreviousCenteredModelRange;
 						revealPreviousCenteredModelRange = this._onWrappingColumnChange(this.configuration.editor.wrappingInfo.wrappingColumn, this.configuration.editor.typicalFullwidthCharacterWidth / this.configuration.editor.typicalHalfwidthCharacterWidth) || revealPreviousCenteredModelRange;
-						if ((<EditorCommon.IConfigurationChangedEvent>data).readOnly) {
+						if ((<editorCommon.IConfigurationChangedEvent>data).readOnly) {
 							// Must read again all decorations due to readOnly filtering
 							this.decorations.reset(this.model);
-							var decorationsChangedEvent:EditorCommon.IViewDecorationsChangedEvent = {
+							var decorationsChangedEvent:editorCommon.IViewDecorationsChangedEvent = {
 								inlineDecorationsChanged: false
 							};
-							this.emit(EditorCommon.ViewEventNames.DecorationsChangedEvent, decorationsChangedEvent);
+							this.emit(editorCommon.ViewEventNames.DecorationsChangedEvent, decorationsChangedEvent);
 						}
-						this.emit(e.getType(), <EditorCommon.IConfigurationChangedEvent>data);
+						this.emit(e.getType(), <editorCommon.IConfigurationChangedEvent>data);
 						break;
 
 					default:
@@ -271,7 +278,7 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 			}
 
 			if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
-				this.emit(EditorCommon.ViewEventNames.LineMappingChangedEvent);
+				this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
 				this.decorations.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
 				this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
 				this._updateShouldForceTokenization();
@@ -284,41 +291,41 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 	}
 
 	// --- begin inbound event conversion
-	private onModelFlushed(e:EditorCommon.IModelContentChangedFlushEvent): void {
+	private onModelFlushed(e:editorCommon.IModelContentChangedFlushEvent): void {
 		this.lines.onModelFlushed(e.versionId, (eventType:string, payload:any) => this.emit(eventType, payload));
 		this.decorations.reset(this.model);
 	}
-	private onModelDecorationsChanged(e:EditorCommon.IModelDecorationsChangedEvent): void {
+	private onModelDecorationsChanged(e:editorCommon.IModelDecorationsChangedEvent): void {
 		this.decorations.onModelDecorationsChanged(e, (eventType:string, payload:any) => this.emit(eventType, payload));
 	}
-	private onModelLinesDeleted(e:EditorCommon.IModelContentChangedLinesDeletedEvent): void {
+	private onModelLinesDeleted(e:editorCommon.IModelContentChangedLinesDeletedEvent): void {
 		this.lines.onModelLinesDeleted(e.versionId, e.fromLineNumber, e.toLineNumber, (eventType:string, payload:any) => this.emit(eventType, payload));
 	}
-	private onModelTokensChanged(e:EditorCommon.IModelTokensChangedEvent): void {
+	private onModelTokensChanged(e:editorCommon.IModelTokensChangedEvent): void {
 		var viewStartLineNumber = this.convertModelPositionToViewPosition(e.fromLineNumber, 1).lineNumber;
 		var viewEndLineNumber = this.convertModelPositionToViewPosition(e.toLineNumber, this.model.getLineMaxColumn(e.toLineNumber)).lineNumber;
 
-		var e:EditorCommon.IViewTokensChangedEvent = {
+		var e:editorCommon.IViewTokensChangedEvent = {
 			fromLineNumber: viewStartLineNumber,
 			toLineNumber: viewEndLineNumber
 		};
-		this.emit(EditorCommon.ViewEventNames.TokensChangedEvent, e);
+		this.emit(editorCommon.ViewEventNames.TokensChangedEvent, e);
 	}
-	private onModelLineChanged(e:EditorCommon.IModelContentChangedLineChangedEvent): boolean {
+	private onModelLineChanged(e:editorCommon.IModelContentChangedLineChangedEvent): boolean {
 		var lineMappingChanged = this.lines.onModelLineChanged(e.versionId, e.lineNumber, e.detail, (eventType:string, payload:any) => this.emit(eventType, payload));
 		return lineMappingChanged;
 	}
-	private onModelLinesInserted(e:EditorCommon.IModelContentChangedLinesInsertedEvent): void {
+	private onModelLinesInserted(e:editorCommon.IModelContentChangedLinesInsertedEvent): void {
 		this.lines.onModelLinesInserted(e.versionId, e.fromLineNumber, e.toLineNumber, e.detail.split('\n'), (eventType:string, payload:any) => this.emit(eventType, payload));
 	}
 
-	public validateViewRange(viewStartLineNumber:number, viewStartColumn:number, viewEndLineNumber:number, viewEndColumn:number, modelRange:EditorCommon.IEditorRange): EditorCommon.IEditorRange {
+	public validateViewRange(viewStartLineNumber:number, viewStartColumn:number, viewEndLineNumber:number, viewEndColumn:number, modelRange:editorCommon.IEditorRange): editorCommon.IEditorRange {
 		var validViewStart = this.validateViewPosition(viewStartColumn, viewStartColumn, modelRange.getStartPosition());
 		var validViewEnd = this.validateViewPosition(viewEndLineNumber, viewEndColumn, modelRange.getEndPosition());
 		return new Range(validViewStart.lineNumber, validViewStart.column, validViewEnd.lineNumber, validViewEnd.column);
 	}
 
-	public validateViewPosition(viewLineNumber:number, viewColumn:number, modelPosition:EditorCommon.IEditorPosition): EditorCommon.IEditorPosition {
+	public validateViewPosition(viewLineNumber:number, viewColumn:number, modelPosition:editorCommon.IEditorPosition): editorCommon.IEditorPosition {
 		if (viewLineNumber < 1) {
 			viewLineNumber = 1;
 		}
@@ -341,7 +348,7 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 		return this.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
 	}
 
-	public validateViewSelection(viewSelection:EditorCommon.IEditorSelection, modelSelection:EditorCommon.IEditorSelection): EditorCommon.IEditorSelection {
+	public validateViewSelection(viewSelection:editorCommon.IEditorSelection, modelSelection:editorCommon.IEditorSelection): editorCommon.IEditorSelection {
 		let modelSelectionStart = new Position(modelSelection.selectionStartLineNumber, modelSelection.selectionStartColumn);
 		let modelPosition = new Position(modelSelection.positionLineNumber, modelSelection.positionColumn);
 
@@ -351,16 +358,16 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 		return new Selection(viewSelectionStart.lineNumber, viewSelectionStart.column, viewPosition.lineNumber, viewPosition.column);
 	}
 
-	private onCursorPositionChanged(e:EditorCommon.ICursorPositionChangedEvent): void {
+	private onCursorPositionChanged(e:editorCommon.ICursorPositionChangedEvent): void {
 		this.cursors.onCursorPositionChanged(e, (eventType:string, payload:any) => this.emit(eventType, payload));
 	}
-	private onCursorSelectionChanged(e:EditorCommon.ICursorSelectionChangedEvent): void {
+	private onCursorSelectionChanged(e:editorCommon.ICursorSelectionChangedEvent): void {
 		this.cursors.onCursorSelectionChanged(e, (eventType:string, payload:any) => this.emit(eventType, payload));
 	}
-	private onCursorRevealRange(e:EditorCommon.ICursorRevealRangeEvent): void {
+	private onCursorRevealRange(e:editorCommon.ICursorRevealRangeEvent): void {
 		this.cursors.onCursorRevealRange(e, (eventType:string, payload:any) => this.emit(eventType, payload));
 	}
-	private onCursorScrollRequest(e:EditorCommon.ICursorScrollRequestEvent): void {
+	private onCursorScrollRequest(e:editorCommon.ICursorScrollRequestEvent): void {
 		this.cursors.onCursorScrollRequest(e, (eventType:string, payload:any) => this.emit(eventType, payload));
 	}
 	// --- end inbound event conversion
@@ -382,7 +389,7 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 	}
 
 	public getLineFirstNonWhitespaceColumn(lineNumber: number): number {
-		var result = Strings.firstNonWhitespaceIndex(this.getLineContent(lineNumber));
+		var result = strings.firstNonWhitespaceIndex(this.getLineContent(lineNumber));
 		if (result === -1) {
 			return 0;
 		}
@@ -390,14 +397,14 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 	}
 
 	public getLineLastNonWhitespaceColumn(lineNumber: number): number {
-		var result = Strings.lastNonWhitespaceIndex(this.getLineContent(lineNumber));
+		var result = strings.lastNonWhitespaceIndex(this.getLineContent(lineNumber));
 		if (result === -1) {
 			return 0;
 		}
 		return result + 2;
 	}
 
-	public getLineTokens(lineNumber:number): EditorCommon.IViewLineTokens {
+	public getLineTokens(lineNumber:number): editorCommon.IViewLineTokens {
 		return this.lines.getOutputLineTokens(lineNumber, !this.shouldForceTokenization);
 	}
 
@@ -415,15 +422,19 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 		return modelLineNumber.toString();
 	}
 
-	public getDecorationsResolver(startLineNumber:number, endLineNumber:number): EditorCommon.IViewModelDecorationsResolver {
+	public getDecorationsResolver(startLineNumber:number, endLineNumber:number): editorCommon.IViewModelDecorationsResolver {
 		return this.decorations.getDecorationsResolver(startLineNumber, endLineNumber);
 	}
 
-	public getAllDecorations(): EditorCommon.IModelDecoration[] {
+	public getAllDecorations(): editorCommon.IModelDecoration[] {
 		return this.decorations.getAllDecorations();
 	}
 
-	public getValueInRange(range:EditorCommon.IRange, eol:EditorCommon.EndOfLinePreference): string {
+	public getEOL(): string {
+		return this.model.getEOL();
+	}
+
+	public getValueInRange(range:editorCommon.IRange, eol:editorCommon.EndOfLinePreference): string {
 		var modelRange = this.convertViewRangeToModelRange(range);
 		return this.model.getValueInRange(modelRange, eol);
 	}
@@ -432,7 +443,7 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 		return this.model.getLineContent(modelLineNumber);
 	}
 
-	public getSelections(): EditorCommon.IEditorSelection[] {
+	public getSelections(): editorCommon.IEditorSelection[] {
 		return this.cursors.getSelections();
 	}
 
@@ -440,37 +451,37 @@ export class ViewModel extends EventEmitter implements EditorCommon.IViewModel {
 		return this.model.getLineMaxColumn(modelLineNumber);
 	}
 
-	public validateModelPosition(position:EditorCommon.IPosition): EditorCommon.IEditorPosition {
+	public validateModelPosition(position:editorCommon.IPosition): editorCommon.IEditorPosition {
 		return this.model.validatePosition(position);
 	}
 
-	public convertViewPositionToModelPosition(viewLineNumber:number, viewColumn:number): EditorCommon.IEditorPosition {
+	public convertViewPositionToModelPosition(viewLineNumber:number, viewColumn:number): editorCommon.IEditorPosition {
 		return this.lines.convertOutputPositionToInputPosition(viewLineNumber, viewColumn);
 	}
 
-	public convertViewRangeToModelRange(viewRange:EditorCommon.IRange): EditorCommon.IEditorRange {
+	public convertViewRangeToModelRange(viewRange:editorCommon.IRange): editorCommon.IEditorRange {
 		var start = this.convertViewPositionToModelPosition(viewRange.startLineNumber, viewRange.startColumn);
 		var end = this.convertViewPositionToModelPosition(viewRange.endLineNumber, viewRange.endColumn);
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 	}
 
-	public convertModelPositionToViewPosition(modelLineNumber:number, modelColumn:number): EditorCommon.IEditorPosition {
+	public convertModelPositionToViewPosition(modelLineNumber:number, modelColumn:number): editorCommon.IEditorPosition {
 		return this.lines.convertInputPositionToOutputPosition(modelLineNumber, modelColumn);
 	}
 
-	public convertModelSelectionToViewSelection(modelSelection:EditorCommon.IEditorSelection): EditorCommon.IEditorSelection {
+	public convertModelSelectionToViewSelection(modelSelection:editorCommon.IEditorSelection): editorCommon.IEditorSelection {
 		var selectionStart = this.convertModelPositionToViewPosition(modelSelection.selectionStartLineNumber, modelSelection.selectionStartColumn);
 		var position = this.convertModelPositionToViewPosition(modelSelection.positionLineNumber, modelSelection.positionColumn);
 		return new Selection(selectionStart.lineNumber, selectionStart.column, position.lineNumber, position.column);
 	}
 
-	public convertModelRangeToViewRange(modelRange:EditorCommon.IRange): EditorCommon.IEditorRange {
+	public convertModelRangeToViewRange(modelRange:editorCommon.IRange): editorCommon.IEditorRange {
 		var start = this.convertModelPositionToViewPosition(modelRange.startLineNumber, modelRange.startColumn);
 		var end = this.convertModelPositionToViewPosition(modelRange.endLineNumber, modelRange.endColumn);
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 	}
 
-	public convertWholeLineModelRangeToViewRange(modelRange:EditorCommon.IRange): EditorCommon.IEditorRange {
+	public convertWholeLineModelRangeToViewRange(modelRange:editorCommon.IRange): editorCommon.IEditorRange {
 		var start = this.convertModelPositionToViewPosition(modelRange.startLineNumber, 1);
 		var end = this.convertModelPositionToViewPosition(modelRange.endLineNumber, this.model.getLineMaxColumn(modelRange.endLineNumber));
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-"use strict";
+'use strict';
 
-import Platform = require('vs/base/common/platform');
-import Browser = require('vs/base/browser/browser');
-import {KeyMod, KeyCode, BinaryKeybindings} from 'vs/base/common/keyCodes';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import * as platform from 'vs/base/common/platform';
+import * as browser from 'vs/base/browser/browser';
 
 let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
 (function() {
@@ -127,18 +127,18 @@ let KEY_CODE_MAP: {[keyCode:number]:KeyCode} = {};
 
 	KEY_CODE_MAP[226] = KeyCode.OEM_102;
 
-	if (Browser.isIE11orEarlier) {
+	if (browser.isIE11orEarlier) {
 		KEY_CODE_MAP[91] = KeyCode.Meta;
-	} else if (Browser.isFirefox) {
+	} else if (browser.isFirefox) {
 		KEY_CODE_MAP[59] = KeyCode.US_SEMICOLON;
 		KEY_CODE_MAP[107] = KeyCode.US_EQUAL;
 		KEY_CODE_MAP[109] = KeyCode.US_MINUS;
-		if (Platform.isMacintosh) {
+		if (platform.isMacintosh) {
 			KEY_CODE_MAP[224] = KeyCode.Meta;
 		}
-	} else if (Browser.isWebKit) {
+	} else if (browser.isWebKit) {
 		KEY_CODE_MAP[91] = KeyCode.Meta;
-		if (Platform.isMacintosh) {
+		if (platform.isMacintosh) {
 			// the two meta keys in the Mac have different key codes (91 and 93)
 			KEY_CODE_MAP[93] = KeyCode.Meta;
 		} else {
@@ -163,7 +163,7 @@ let extractKeyCode = function extractKeyCode(e:KeyboardEvent): KeyCode {
 		return KeyCode.fromString(char);
 	}
 	return lookupKeyCode(e);
-}
+};
 
 export function setExtractKeyCode(newExtractKeyCode:(e:KeyboardEvent)=>KeyCode): void {
 	extractKeyCode = newExtractKeyCode;
@@ -187,10 +187,10 @@ export interface IKeyboardEvent {
 	stopPropagation(): void;
 }
 
-const ctrlKeyMod = (Platform.isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
+const ctrlKeyMod = (platform.isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
 const altKeyMod = KeyMod.Alt;
 const shiftKeyMod = KeyMod.Shift;
-const metaKeyMod = (Platform.isMacintosh ? KeyMod.CtrlCmd : KeyMod.WinCtrl);
+const metaKeyMod = (platform.isMacintosh ? KeyMod.CtrlCmd : KeyMod.WinCtrl);
 
 export class StandardKeyboardEvent implements IKeyboardEvent {
 
@@ -229,7 +229,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 			this.metaKey = e.metaKey;
 			this.keyCode = extractKeyCode(e);
 
-			// console.info(e.type + ": keyCode: " + e.keyCode + ", which: " + e.which + ", charCode: " + e.charCode + ", detail: " + e.detail + " ====> " + this.key + ' -- ' + KeyCode[this.keyCode]);
+			// console.info(e.type + ": keyCode: " + e.keyCode + ", which: " + e.which + ", charCode: " + e.charCode + ", detail: " + e.detail + " ====> " + this.keyCode + ' -- ' + KeyCode[this.keyCode]);
 
 			this.ctrlKey = this.ctrlKey || this.keyCode === KeyCode.Ctrl;
 			this.altKey = this.altKey || this.keyCode === KeyCode.Alt;

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-import assert = require('assert');
-import stream = require('vs/editor/common/modes/lineStream');
+import * as assert from 'assert';
+import {LineStream} from 'vs/editor/common/modes/lineStream';
 
 suite('Editor Modes - LineStream', () => {
 
 	test('advanceIf - regex', () => {
-		var lineStream = new stream.LineStream('...xxx...x.');
+		var lineStream = new LineStream('...xxx...x.');
 		assert.equal(lineStream.advanceIfRegExp(/^x/), '');
 		lineStream.next();
 		assert.equal(lineStream.advanceIfRegExp(/^x/), '');
@@ -32,7 +32,7 @@ suite('Editor Modes - LineStream', () => {
 	});
 
 	test('advanceWhile - regex', () => {
-		var lineStream = new stream.LineStream('...xxx...x.');
+		var lineStream = new LineStream('...xxx...x.');
 		assert.equal(lineStream.advanceWhile(/^x/), '');
 		lineStream.next();
 		assert.equal(lineStream.advanceWhile(/^x/), '');
@@ -53,7 +53,7 @@ suite('Editor Modes - LineStream', () => {
 	});
 
 	test('advanceUntil - regex', () => {
-		var lineStream = new stream.LineStream('...x..xx..x');
+		var lineStream = new LineStream('...x..xx..x');
 		assert.equal(lineStream.advanceUntil(/^x/, false), '...');
 		assert.equal(lineStream.advanceUntil(/^x/, false), '');
 		lineStream.next();
@@ -69,7 +69,7 @@ suite('Editor Modes - LineStream', () => {
 	});
 
 	test('advanceUntil - regex (including)', () => {
-		var lineStream = new stream.LineStream('...x..xx..x');
+		var lineStream = new LineStream('...x..xx..x');
 		assert.equal(lineStream.advanceUntil(/^x/, true), '...x');
 		assert.equal(lineStream.advanceUntil(/^x/, true), '..x');
 		assert.equal(lineStream.advanceUntil(/^x/, true), 'x');
@@ -78,7 +78,7 @@ suite('Editor Modes - LineStream', () => {
 	});
 
 	test('advanceIf - string', () => {
-		var lineStream = new stream.LineStream('...abcabcabc...abc.');
+		var lineStream = new LineStream('...abcabcabc...abc.');
 		assert.equal(lineStream.advanceIfString('abc'), '');
 		lineStream.next();
 		assert.equal(lineStream.advanceIfString('abc'), '');
@@ -101,7 +101,7 @@ suite('Editor Modes - LineStream', () => {
 	});
 
 	test('advanceWhile - string', () => {
-		var lineStream = new stream.LineStream('...abcabcabc...abc.');
+		var lineStream = new LineStream('...abcabcabc...abc.');
 		assert.equal(lineStream.advanceWhile('abc'), '');
 		lineStream.next();
 		assert.equal(lineStream.advanceWhile('abc'), '');
@@ -122,7 +122,7 @@ suite('Editor Modes - LineStream', () => {
 	});
 
 	test('advanceUntil - string', () => {
-		var lineStream = new stream.LineStream('...abc..ab..abc..bc');
+		var lineStream = new LineStream('...abc..ab..abc..bc');
 		assert.equal(lineStream.advanceUntil('abc', false), '...');
 		assert.equal(lineStream.advanceUntil('abc', false), '');
 		lineStream.next();
@@ -134,7 +134,7 @@ suite('Editor Modes - LineStream', () => {
 	});
 
 	test('advanceUntil - string (including)', () => {
-		var lineStream = new stream.LineStream('...abc..ab..abc..bc');
+		var lineStream = new LineStream('...abc..ab..abc..bc');
 		assert.equal(lineStream.advanceUntil('abc', true), '...abc');
 		assert.equal(lineStream.advanceUntil('abc', true), '..ab..abc');
 		assert.equal(lineStream.advanceUntil('abc', true), '..bc');
@@ -142,7 +142,7 @@ suite('Editor Modes - LineStream', () => {
 	});
 
 	test('skipWhitespace', () => {
-		var lineStream = new stream.LineStream('\ta bc d  \t   e ');
+		var lineStream = new LineStream('\ta bc d  \t   e ');
 		assert.equal(lineStream.skipWhitespace(), '\t');
 		lineStream.next();
 		assert.equal(lineStream.skipWhitespace(), ' ');
@@ -157,7 +157,7 @@ suite('Editor Modes - LineStream', () => {
 	});
 
 	test('peekToken', () => {
-		var lineStream = new stream.LineStream('a b  c edf ');
+		var lineStream = new LineStream('a b  c edf ');
 		assert.equal(lineStream.peekToken(), 'a');
 		lineStream.next();
 		assert.equal(lineStream.peekToken(), 'b');
@@ -182,7 +182,7 @@ suite('Editor Modes - LineStream', () => {
 	});
 
 	test('nextToken', () => {
-		var lineStream = new stream.LineStream('a b  c edf ');
+		var lineStream = new LineStream('a b  c edf ');
 		assert.equal(lineStream.nextToken(), 'a');
 		assert.equal(lineStream.nextToken(), 'b');
 		assert.equal(lineStream.nextToken(), 'c');
@@ -193,7 +193,7 @@ suite('Editor Modes - LineStream', () => {
 	});
 
 	function newTokenStream(source, separators, whitespace) {
-		var lineStream = new stream.LineStream(source);
+		var lineStream = new LineStream(source);
 		lineStream.setTokenRules(separators, whitespace);
 		return lineStream;
 	}
@@ -335,7 +335,7 @@ suite('Editor Modes - LineStream', () => {
 	});
 
 	test('next & goBack', () => {
-		var lineStream = new stream.LineStream('albert, bart, charlie, damon, erich');
+		var lineStream = new LineStream('albert, bart, charlie, damon, erich');
 		lineStream.setTokenRules(',', ' ');
 
 		assert.equal(lineStream.peekToken(), 'albert');

@@ -18,13 +18,13 @@ import settings = require('vs/workbench/electron-main/settings');
 import {Instance as UpdateManager} from 'vs/workbench/electron-main/update-manager';
 import {Server, serve, connect} from 'vs/base/node/service.net';
 import {getUserEnvironment} from 'vs/base/node/env';
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {GitAskpassService} from 'vs/workbench/parts/git/electron-main/askpassService';
 import {spawnSharedProcess} from 'vs/workbench/electron-main/sharedProcess';
 import {Mutex} from 'windows-mutex';
 
 export class LaunchService {
-	public start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): Promise {
+	public start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): TPromise<void> {
 		env.log('Received data from other instance', args);
 
 		// Otherwise handle in windows manager
@@ -38,7 +38,7 @@ export class LaunchService {
 			windows.manager.open({ cli: args, userEnv: userEnv, forceNewWindow: !args.openInSameWindow });
 		}
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -125,7 +125,8 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 			ipcServer = null;
 		}
 
-		sharedProcess.kill();
+		sharedProcess.dispose();
+
 		if (windowsMutex) {
 			windowsMutex.release();
 		}
@@ -169,12 +170,12 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 	}
 }
 
-function timebomb(): Promise {
+function timebomb(): TPromise<void> {
 	if (!env.product.expiryDate || Date.now() <= env.product.expiryDate) {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
-	return new Promise((c, e) => {
+	return new TPromise<void>((c, e) => {
 		dialog.showMessageBox({
 			type: 'warning',
 			title: env.product.nameLong,
@@ -196,7 +197,7 @@ function setupIPC(): TPromise<Server> {
 	function setup(retry: boolean): TPromise<Server> {
 		return serve(env.mainIPCHandle).then(null, err => {
 			if (err.code !== 'EADDRINUSE') {
-				return Promise.wrapError(err);
+				return TPromise.wrapError(err);
 			}
 
 			// there's a running instance, let's connect to it
@@ -208,7 +209,7 @@ function setupIPC(): TPromise<Server> {
 						const errorMsg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
 						console.error(errorMsg);
 
-						return Promise.wrapError(errorMsg);
+						return TPromise.wrapError(errorMsg);
 					}
 
 					env.log('Sending env to running instance...');
@@ -217,11 +218,11 @@ function setupIPC(): TPromise<Server> {
 
 					return service.start(env.cliArgs, process.env)
 						.then(() => client.dispose())
-						.then(() => Promise.wrapError('Sent env to running instance. Terminating...'));
+						.then(() => TPromise.wrapError('Sent env to running instance. Terminating...'));
 				},
 				err => {
 					if (!retry || platform.isWindows || err.code !== 'ECONNREFUSED') {
-						return Promise.wrapError(err);
+						return TPromise.wrapError(err);
 					}
 
 					// it happens on Linux and OS X that the pipe is left behind
@@ -231,7 +232,7 @@ function setupIPC(): TPromise<Server> {
 						fs.unlinkSync(env.mainIPCHandle);
 					} catch (e) {
 						env.log('Fatal error deleting obsolete instance handle', e);
-						return Promise.wrapError(e);
+						return TPromise.wrapError(e);
 					}
 
 					return setup(false);

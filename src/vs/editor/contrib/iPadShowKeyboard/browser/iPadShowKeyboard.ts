@@ -6,27 +6,27 @@
 'use strict';
 
 import 'vs/css!./iPadShowKeyboard';
-import Browser = require('vs/base/browser/browser');
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import DomUtils = require('vs/base/browser/dom');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Lifecycle = require('vs/base/common/lifecycle');
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import * as browser from 'vs/base/browser/browser';
+import * as dom from 'vs/base/browser/dom';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
+import {EventType, IEditorContribution} from 'vs/editor/common/editorCommon';
+import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
+import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 
-export class iPadShowKeyboard implements EditorCommon.IEditorContribution {
+export class IPadShowKeyboard implements IEditorContribution {
 
 	static ID = 'editor.contrib.iPadShowKeyboard';
 
-	private editor:EditorBrowser.ICodeEditor;
+	private editor:ICodeEditor;
 	private widget:ShowKeyboardWidget;
-	private toDispose:Lifecycle.IDisposable[];
+	private toDispose:IDisposable[];
 
-	constructor(editor:EditorBrowser.ICodeEditor, @INullService ns) {
+	constructor(editor:ICodeEditor, @INullService ns) {
 		this.editor = editor;
 		this.toDispose = [];
-		if (Browser.isIPad) {
-			this.toDispose.push(editor.addListener2(EditorCommon.EventType.ConfigurationChanged, () => this.update()));
+		if (browser.isIPad) {
+			this.toDispose.push(editor.addListener2(EventType.ConfigurationChanged, () => this.update()));
 			this.update();
 		}
 	}
@@ -48,11 +48,11 @@ export class iPadShowKeyboard implements EditorCommon.IEditorContribution {
 	}
 
 	public getId(): string {
-		return iPadShowKeyboard.ID;
+		return IPadShowKeyboard.ID;
 	}
 
 	public dispose(): void {
-		this.toDispose = Lifecycle.disposeAll(this.toDispose);
+		this.toDispose = disposeAll(this.toDispose);
 		if (this.widget) {
 			this.widget.dispose();
 			this.widget = null;
@@ -60,25 +60,25 @@ export class iPadShowKeyboard implements EditorCommon.IEditorContribution {
 	}
 }
 
-class ShowKeyboardWidget implements EditorBrowser.IOverlayWidget {
+class ShowKeyboardWidget implements IOverlayWidget {
 
 	private static ID = 'editor.contrib.ShowKeyboardWidget';
 
-	private editor: EditorBrowser.ICodeEditor;
+	private editor: ICodeEditor;
 
 	private _domNode:HTMLElement;
-	private _toDispose:Lifecycle.IDisposable[];
+	private _toDispose:IDisposable[];
 
-	constructor(editor:EditorBrowser.ICodeEditor) {
+	constructor(editor:ICodeEditor) {
 		this.editor = editor;
 		this._domNode = document.createElement('textarea');
 		this._domNode.className = 'iPadShowKeyboard';
 
 		this._toDispose = [];
-		this._toDispose.push(DomUtils.addDisposableListener(this._domNode, 'touchstart', (e) => {
+		this._toDispose.push(dom.addDisposableListener(this._domNode, 'touchstart', (e) => {
 			this.editor.focus();
 		}));
-		this._toDispose.push(DomUtils.addDisposableListener(this._domNode, 'focus', (e) => {
+		this._toDispose.push(dom.addDisposableListener(this._domNode, 'focus', (e) => {
 			this.editor.focus();
 		}));
 
@@ -87,7 +87,7 @@ class ShowKeyboardWidget implements EditorBrowser.IOverlayWidget {
 
 	public dispose(): void {
 		this.editor.removeOverlayWidget(this);
-		this._toDispose = Lifecycle.disposeAll(this._toDispose);
+		this._toDispose = disposeAll(this._toDispose);
 	}
 
 	// ----- IOverlayWidget API
@@ -100,11 +100,11 @@ class ShowKeyboardWidget implements EditorBrowser.IOverlayWidget {
 		return this._domNode;
 	}
 
-	public getPosition(): EditorBrowser.IOverlayWidgetPosition {
+	public getPosition(): IOverlayWidgetPosition {
 		return {
-			preference: EditorBrowser.OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
+			preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
 		};
 	}
 }
 
-EditorBrowserRegistry.registerEditorContribution(iPadShowKeyboard);
+EditorBrowserRegistry.registerEditorContribution(IPadShowKeyboard);

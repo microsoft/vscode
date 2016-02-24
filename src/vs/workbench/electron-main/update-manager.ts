@@ -11,7 +11,6 @@ import events = require('events');
 import electron = require('electron');
 import platform = require('vs/base/common/platform');
 import env = require('vs/workbench/electron-main/env');
-import storage = require('vs/workbench/electron-main/storage');
 import settings = require('vs/workbench/electron-main/settings');
 import {Win32AutoUpdaterImpl} from 'vs/workbench/electron-main/win32/auto-updater.win32';
 import {manager as Lifecycle} from 'vs/workbench/electron-main/lifecycle';
@@ -45,8 +44,6 @@ interface IAutoUpdater extends NodeJS.EventEmitter {
 
 export class UpdateManager extends events.EventEmitter {
 
-	private static DEFAULT_UPDATE_CHANNEL = 'stable';
-
 	private _state: State;
 	private explicitState: ExplicitState;
 	private _availableUpdate: IUpdate;
@@ -79,6 +76,7 @@ export class UpdateManager extends events.EventEmitter {
 	private initRaw(): void {
 		this.raw.on('error', (event: any, message: string) => {
 			this.emit('error', event, message);
+			this.setState(State.Idle);
 		});
 
 		this.raw.on('checking-for-update', () => {
@@ -132,8 +130,8 @@ export class UpdateManager extends events.EventEmitter {
 			return; // already initialized
 		}
 
-		let channel = UpdateManager.getUpdateChannel();
-		let feedUrl = UpdateManager.getUpdateFeedUrl(channel);
+		const channel = UpdateManager.getUpdateChannel();
+		const feedUrl = UpdateManager.getUpdateFeedUrl(channel);
 
 		if (!feedUrl) {
 			return; // updates not available
@@ -185,18 +183,15 @@ export class UpdateManager extends events.EventEmitter {
 	}
 
 	private static getUpdateChannel(): string {
-		let channel = settings.manager.getValue('update.channel');
-		if (!channel) {
-			channel = storage.getItem<string>('updateChannel'); // TODO@Ben this should be removed after a couple of versions
-			if (!channel) {
-				channel = UpdateManager.DEFAULT_UPDATE_CHANNEL;
-			}
-		}
-
-		return channel;
+		const channel = settings.manager.getValue('update.channel') || 'default';
+		return channel === 'none' ? null : env.quality;
 	}
 
 	private static getUpdateFeedUrl(channel: string): string {
+		if (!channel) {
+			return null;
+		}
+
 		if (platform.isLinux) {
 			return null;
 		}
@@ -205,11 +200,11 @@ export class UpdateManager extends events.EventEmitter {
 			return null;
 		}
 
-		if (!env.updateInfo || !env.updateInfo.baseUrl || !env.product.commit) {
+		if (!env.updateUrl || !env.product.commit) {
 			return null;
 		}
 
-		return `${ env.updateInfo.baseUrl }/api/update/${ env.getPlatformIdentifier() }/${ channel }/${ env.product.commit }`;
+		return `${ env.updateUrl }/api/update/${ env.getPlatformIdentifier() }/${ channel }/${ env.product.commit }`;
 	}
 }
 

@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {onUnexpectedError, transformErrorForSerialization} from 'vs/base/common/errors';
+import {parse, stringify} from 'vs/base/common/marshalling';
+import {IRemoteCom} from 'vs/base/common/remote';
+import * as timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
-import timer = require('vs/base/common/timer');
-import errors = require('vs/base/common/errors');
-import protocol = require('vs/base/common/worker/workerProtocol');
-import remote = require('vs/base/common/remote');
-import marshalling = require('vs/base/common/marshalling');
+import * as workerProtocol from 'vs/base/common/worker/workerProtocol';
 
 export interface IWorker {
 	getId():number;
 	postMessage(message:string):void;
-	terminate():void;
+	dispose():void;
 }
 
 export interface IWorkerCallback {
@@ -22,7 +22,7 @@ export interface IWorkerCallback {
 }
 
 export interface IWorkerFactory {
-	create(id:number, callback:IWorkerCallback, onCrashCallback?:()=>void):IWorker;
+	create(moduleId:string, callback:IWorkerCallback, onCrashCallback?:()=>void):IWorker;
 }
 
 interface IActiveRequest {
@@ -35,44 +35,35 @@ interface IActiveRequest {
 
 export class WorkerClient {
 
-	private static LAST_WORKER_ID = 0;
-
 	private _lastMessageId:number;
 	private _promises:{[id:string]:IActiveRequest;};
-	private _messageHandlers:{[type:string]:(payload:any)=>void;};
-	private _workerId:number;
 	private _worker:IWorker;
 
-	private _messagesQueue:protocol.IClientMessage[];
+	private _messagesQueue:workerProtocol.IClientMessage[];
 	private _processQueueTimeout:number;
 	private _waitingForWorkerReply:boolean;
 	private _lastTimerEvent:timer.ITimerEvent;
 
-	private _remoteCom: protocol.RemoteCom;
-	private _proxiesMarshalling: remote.ProxiesMarshallingContribution;
-	private _decodeMessageName: (msg: protocol.IClientMessage) => string;
+	private _remoteCom: workerProtocol.RemoteCom;
+	private _decodeMessageName: (msg: workerProtocol.IClientMessage) => string;
 
 	public onModuleLoaded:TPromise<void>;
 
-	constructor(workerFactory:IWorkerFactory, moduleId:string, decodeMessageName:(msg:protocol.IClientMessage)=>string, onCrashCallback:(workerClient:WorkerClient)=>void, workerId:number=++WorkerClient.LAST_WORKER_ID) {
+	constructor(workerFactory:IWorkerFactory, moduleId:string, decodeMessageName:(msg:workerProtocol.IClientMessage)=>string) {
 		this._decodeMessageName = decodeMessageName;
 		this._lastMessageId = 0;
 		this._promises = {};
-		this._messageHandlers= {};
 
 		this._messagesQueue = [];
 		this._processQueueTimeout = -1;
 		this._waitingForWorkerReply = false;
 		this._lastTimerEvent = null;
-		this._workerId = workerId;
 
-		this._worker = workerFactory.create(workerId, (msg) => this._onSerializedMessage(msg), () => {
-			onCrashCallback(this);
-		});
+		this._worker = workerFactory.create('vs/base/common/worker/workerServer', (msg) => this._onSerializedMessage(msg));
 
-		var loaderConfiguration:any = null;
+		let loaderConfiguration:any = null;
 
-		var globalRequire = (<any>window).require;
+		let globalRequire = (<any>window).require;
 		if (typeof globalRequire.getConfig === 'function') {
 			// Get the configuration from the Monaco AMD Loader
 			loaderConfiguration = globalRequire.getConfig();
@@ -81,26 +72,21 @@ export class WorkerClient {
 			loaderConfiguration = (<any>window).requirejs.s.contexts._.config;
 		}
 
-		var MonacoEnvironment = (<any>window).MonacoEnvironment || null;
+		let MonacoEnvironment = (<any>window).MonacoEnvironment || null;
 
-		this.onModuleLoaded = this._sendMessage(protocol.MessageType.INITIALIZE, {
+		this.onModuleLoaded = this._sendMessage(workerProtocol.MessageType.INITIALIZE, {
 			id: this._worker.getId(),
 			moduleId: moduleId,
 			loaderConfiguration: loaderConfiguration,
 			MonacoEnvironment: MonacoEnvironment
 		});
-		this.onModuleLoaded.then(null, () => this._onError('Worker failed to load ' + moduleId));
+		this.onModuleLoaded.then(null, (e) => this._onError('Worker failed to load ' + moduleId, e));
 
-		this._remoteCom = new protocol.RemoteCom(this);
-		this._proxiesMarshalling = new remote.ProxiesMarshallingContribution(this._remoteCom);
+		this._remoteCom = new workerProtocol.RemoteCom(this);
 	}
 
-	public getRemoteCom(): remote.IRemoteCom {
+	public getRemoteCom(): IRemoteCom {
 		return this._remoteCom;
-	}
-
-	public get workerId():number {
-		return this._workerId;
 	}
 
 	public getQueueSize(): number {
@@ -113,7 +99,7 @@ export class WorkerClient {
 			throw new Error('Illegal requestName: ' + requestName);
 		}
 
-		var shouldCancelPromise = false,
+		let shouldCancelPromise = false,
 			messagePromise:TPromise<any>;
 
 		return new TPromise<any>((c, e, p) => {
@@ -141,38 +127,30 @@ export class WorkerClient {
 	}
 
 	public dispose(): void {
-		var promises = Object.keys(this._promises);
+		let promises = Object.keys(this._promises);
 		if (promises.length > 0) {
 			console.warn('Terminating a worker with ' + promises.length + ' pending promises:');
 			console.warn(this._promises);
-			for (var id in this._promises) {
+			for (let id in this._promises) {
 				if (promises.hasOwnProperty(id)) {
 					this._promises[id].error('Worker forcefully terminated');
 				}
 			}
 		}
-		this._worker.terminate();
-	}
-
-	public addMessageHandler(message:string, handler:(payload:any)=>void): void {
-		this._messageHandlers[message]= handler;
-	}
-
-	public removeMessageHandler(message:string): void {
-		delete this._messageHandlers[message];
+		this._worker.dispose();
 	}
 
 	private _sendMessage(type:string, payload:any, forceTimestamp:number=(new Date()).getTime()):TPromise<any> {
 
-		var msg = {
+		let msg = {
 			id: ++this._lastMessageId,
 			type: type,
 			timestamp: forceTimestamp,
 			payload: payload
 		};
 
-		var pc:(value:any)=>void, pe:(err:any)=>void, pp:(progress:any)=>void;
-		var promise = new TPromise<any>((c, e, p) => {
+		let pc:(value:any)=>void, pe:(err:any)=>void, pp:(progress:any)=>void;
+		let promise = new TPromise<any>((c, e, p) => {
 				pc = c;
 				pe = e;
 				pp = p;
@@ -194,9 +172,9 @@ export class WorkerClient {
 		return promise;
 	}
 
-	private _enqueueMessage(msg:protocol.IClientMessage): void {
+	private _enqueueMessage(msg:workerProtocol.IClientMessage): void {
 
-		var lastIndexSmallerOrEqual = -1,
+		let lastIndexSmallerOrEqual = -1,
 			i:number;
 
 		// Find the right index to insert at - keep the queue ordered by timestamp
@@ -212,7 +190,7 @@ export class WorkerClient {
 	}
 
 	private _removeMessage(msgId:number): void {
-		for (var i = 0, len = this._messagesQueue.length; i < len; i++) {
+		for (let i = 0, len = this._messagesQueue.length; i < len; i++) {
 			if (this._messagesQueue[i].id === msgId) {
 				if (this._promises.hasOwnProperty(String(msgId))) {
 					delete this._promises[String(msgId)];
@@ -238,7 +216,7 @@ export class WorkerClient {
 			return;
 		}
 
-		var delayUntilNextMessage = this._messagesQueue[0].timestamp - (new Date()).getTime();
+		let delayUntilNextMessage = this._messagesQueue[0].timestamp - (new Date()).getTime();
 		delayUntilNextMessage = Math.max(0, delayUntilNextMessage);
 
 		this._processQueueTimeout = setTimeout(() => {
@@ -247,20 +225,20 @@ export class WorkerClient {
 				return;
 			}
 			this._waitingForWorkerReply = true;
-			var msg = this._messagesQueue.shift();
+			let msg = this._messagesQueue.shift();
 			this._lastTimerEvent = timer.start(timer.Topic.WORKER, this._decodeMessageName(msg));
 			this._postMessage(msg);
 		}, delayUntilNextMessage);
 	}
 
 	private _postMessage(msg:any): void {
-		this._worker.postMessage(marshalling.marshallObject(msg, this._proxiesMarshalling));
+		this._worker.postMessage(stringify(msg));
 	}
 
 	private _onSerializedMessage(msg:string): void {
-		var message:protocol.IServerMessage = null;
+		let message:workerProtocol.IServerMessage = null;
 		try {
-			message = marshalling.demarshallObject(msg, this._proxiesMarshalling);
+			message = parse(msg);
 		} catch (e) {
 			// nothing
 		}
@@ -269,7 +247,7 @@ export class WorkerClient {
 		}
 	}
 
-	private _onmessage(msg:protocol.IServerMessage): void {
+	private _onmessage(msg:workerProtocol.IServerMessage): void {
 		if (!msg.monacoWorker) {
 			return;
 		}
@@ -278,8 +256,8 @@ export class WorkerClient {
 		}
 
 		switch (msg.type) {
-			case protocol.MessageType.REPLY:
-				var serverReplyMessage = <protocol.IServerReplyMessage>msg;
+			case workerProtocol.MessageType.REPLY:
+				let serverReplyMessage = <workerProtocol.IServerReplyMessage>msg;
 
 				this._waitingForWorkerReply = false;
 				if(this._lastTimerEvent) {
@@ -292,30 +270,30 @@ export class WorkerClient {
 				}
 
 				switch (serverReplyMessage.action) {
-					case protocol.ReplyType.COMPLETE:
+					case workerProtocol.ReplyType.COMPLETE:
 						this._promises[serverReplyMessage.id].complete(serverReplyMessage.payload);
 						delete this._promises[serverReplyMessage.id];
 						break;
 
-					case protocol.ReplyType.ERROR:
+					case workerProtocol.ReplyType.ERROR:
 						this._onError('Main Thread sent to worker the following message:', {
 							type: this._promises[serverReplyMessage.id].type,
 							payload: this._promises[serverReplyMessage.id].payload
 						});
 						this._onError('And the worker replied with an error:', serverReplyMessage.payload);
-						errors.onUnexpectedError(serverReplyMessage.payload);
+						onUnexpectedError(serverReplyMessage.payload);
 						this._promises[serverReplyMessage.id].error(serverReplyMessage.payload);
 						delete this._promises[serverReplyMessage.id];
 						break;
 
-					case protocol.ReplyType.PROGRESS:
+					case workerProtocol.ReplyType.PROGRESS:
 						this._promises[serverReplyMessage.id].progress(serverReplyMessage.payload);
 						break;
 				}
 				break;
 
-			case protocol.MessageType.PRINT:
-				var serverPrintMessage = <protocol.IServerPrintMessage>msg;
+			case workerProtocol.MessageType.PRINT:
+				let serverPrintMessage = <workerProtocol.IServerPrintMessage>msg;
 				this._consoleLog(serverPrintMessage.level, serverPrintMessage.payload);
 				break;
 
@@ -326,43 +304,39 @@ export class WorkerClient {
 		this._processMessagesQueue();
 	}
 
-	private _dispatchRequestFromWorker(msg:protocol.IServerMessage): void {
+	private _dispatchRequestFromWorker(msg:workerProtocol.IServerMessage): void {
 		this._handleWorkerRequest(msg).then((result) => {
-			var reply: protocol.IClientReplyMessage = {
+			let reply: workerProtocol.IClientReplyMessage = {
 				id: 0,
-				type: protocol.MessageType.REPLY,
+				type: workerProtocol.MessageType.REPLY,
 				timestamp: (new Date()).getTime(),
 
 				seq: msg.req,
-				payload: (result instanceof Error ? errors.transformErrorForSerialization(result) : result),
+				payload: (result instanceof Error ? transformErrorForSerialization(result) : result),
 				err: null
 			};
 			this._postMessage(reply);
 		}, (err) => {
-			var reply: protocol.IClientReplyMessage = {
+			let reply: workerProtocol.IClientReplyMessage = {
 				id: 0,
-				type: protocol.MessageType.REPLY,
+				type: workerProtocol.MessageType.REPLY,
 				timestamp: (new Date()).getTime(),
 
 				seq: msg.req,
 				payload: null,
-				err: (err instanceof Error ? errors.transformErrorForSerialization(err) : err)
+				err: (err instanceof Error ? transformErrorForSerialization(err) : err)
 			};
 			this._postMessage(reply);
 		});
 	}
 
-	private _handleWorkerRequest(msg:protocol.IServerMessage): TPromise<any> {
+	private _handleWorkerRequest(msg:workerProtocol.IServerMessage): TPromise<any> {
 		if (msg.type === '_proxyObj') {
 			return this._remoteCom.handleMessage(msg.payload);
 		}
 
 		if (typeof this[msg.type] === 'function') {
 			return this._invokeHandler(this[msg.type], this, msg.payload);
-		}
-
-		if (typeof this._messageHandlers[msg.type] === 'function') {
-			return this._invokeHandler(this._messageHandlers[msg.type], null, msg.payload);
 		}
 
 		this._onError('Received unexpected message from Worker:', msg);
@@ -379,19 +353,19 @@ export class WorkerClient {
 
 	_consoleLog(level:string, payload:any): void {
 		switch (level) {
-			case protocol.PrintType.LOG:
+			case workerProtocol.PrintType.LOG:
 				console.log(payload);
 				break;
-			case protocol.PrintType.DEBUG:
+			case workerProtocol.PrintType.DEBUG:
 				console.info(payload);
 				break;
-			case protocol.PrintType.INFO:
+			case workerProtocol.PrintType.INFO:
 				console.info(payload);
 				break;
-			case protocol.PrintType.WARN:
+			case workerProtocol.PrintType.WARN:
 				console.warn(payload);
 				break;
-			case protocol.PrintType.ERROR:
+			case workerProtocol.PrintType.ERROR:
 				console.error(payload);
 				break;
 			default:

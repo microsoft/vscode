@@ -33,24 +33,6 @@
 	background-image: url('ellipsis-inverse.svg');
 }
 
-/*.monaco-toolbar .monaco-action-bar:focus:after {
-	content: "";
-	position: relative;
-	top: -5px;
-	height: 0;
-	width: 100%;
-	border-top: 2px solid #39F;
-	display: block;
-}
-
-.vs .monaco-toolbar .monaco-action-bar .action-label:focus {
-	background-color: #DCEBFC;
-}
-
-.vs-dark .monaco-toolbar .monaco-action-bar .action-label:focus {
-	background-color: #073655;
-}*/
-
 /* High Contrast Theming */
 .hc-black .monaco-toolbar .action-label.toolbar-toggle-more {
 	background: none;
@@ -61,14 +43,6 @@
 	position: absolute;
 	top: 12px;
 	left: 8px;
-	height: 16px; 
+	height: 16px;
 	width: 16px;
 }
-
-/*.hc-black .monaco-toolbar .monaco-action-bar:focus:after {
-	border-color: #DF740C;
-}
-
-.hc-black .monaco-toolbar .monaco-action-bar .action-label:focus {
-	border: 1px solid #DF740C;
-}*/

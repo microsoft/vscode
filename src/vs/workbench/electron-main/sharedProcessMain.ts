@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import platform = require('vs/base/common/platform');
 import { serve, Server, connect } from 'vs/base/node/service.net';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { create as createInstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { createInstantiationService as createInstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 // Services
@@ -30,7 +30,10 @@ interface IInitData {
 }
 
 function quit(err?: Error) {
-	err && console.error(err);
+	if (err) {
+		console.error(err);
+	}
+
 	process.exit(err ? 1 : 0);
 }
 

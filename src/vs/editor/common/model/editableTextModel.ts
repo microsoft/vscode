@@ -5,18 +5,15 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import {EditStack} from 'vs/editor/common/model/editStack';
-import {IChangedMarkers, ITextWithMarkers, ModelLine, ILineEdit, ILineMarker} from 'vs/editor/common/model/modelLine';
-import {TextModelWithDecorations, DeferredEventsBuilder} from 'vs/editor/common/model/textModelWithDecorations';
+import {ILineEdit, ILineMarker, ModelLine} from 'vs/editor/common/model/modelLine';
+import {DeferredEventsBuilder, TextModelWithDecorations} from 'vs/editor/common/model/textModelWithDecorations';
 import {IMode} from 'vs/editor/common/modes';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Errors = require('vs/base/common/errors');
 
 export interface IDeltaSingleEditOperation {
 	original: IValidatedEditOperation;
-	isNoOp: boolean;
 	deltaStartLineNumber: number;
 	deltaStartColumn: number;
 	deltaEndLineNumber: number;
@@ -24,19 +21,18 @@ export interface IDeltaSingleEditOperation {
 }
 
 export interface IValidatedEditOperation {
-	identifier: EditorCommon.ISingleEditOperationIdentifier;
-	range: EditorCommon.IEditorRange;
+	identifier: editorCommon.ISingleEditOperationIdentifier;
+	range: editorCommon.IEditorRange;
+	rangeLength: number;
 	lines: string[];
 	forceMoveMarkers: boolean;
 }
 
-interface ISequentialEdit {
-	range: EditorCommon.IEditorRange;
-	rangeLength: number;
-	text: string;
+interface IIdentifiedLineEdit extends ILineEdit{
+	lineNumber: number;
 }
 
-export class EditableTextModel extends TextModelWithDecorations implements EditorCommon.IEditableTextModel {
+export class EditableTextModel extends TextModelWithDecorations implements editorCommon.IEditableTextModel {
 
 	private _commandManager:EditStack;
 
@@ -48,9 +44,9 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 	private _hasEditableRange:boolean;
 	private _editableRangeId:string;
 
-	constructor(allowedEventTypes:string[], rawText:EditorCommon.IRawText, modeOrPromise:IMode|TPromise<IMode>) {
-		allowedEventTypes.push(EditorCommon.EventType.ModelContentChanged);
-		allowedEventTypes.push(EditorCommon.EventType.ModelContentChanged2);
+	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText, modeOrPromise:IMode|TPromise<IMode>) {
+		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged);
+		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged2);
 		super(allowedEventTypes, rawText, modeOrPromise);
 
 		this._commandManager = new EditStack(this);
@@ -67,7 +63,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		super.dispose();
 	}
 
-	_resetValue(e:EditorCommon.IModelContentChangedFlushEvent, newValue:string): void {
+	_resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:string): void {
 		super._resetValue(e, newValue);
 
 		// Destroy my edit history and settings
@@ -84,7 +80,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		this._commandManager.pushStackElement();
 	}
 
-	public pushEditOperations(beforeCursorState:EditorCommon.IEditorSelection[], editOperations:EditorCommon.IIdentifiedSingleEditOperation[], cursorStateComputer:EditorCommon.ICursorStateComputer): EditorCommon.IEditorSelection[] {
+	public pushEditOperations(beforeCursorState:editorCommon.IEditorSelection[], editOperations:editorCommon.IIdentifiedSingleEditOperation[], cursorStateComputer:editorCommon.ICursorStateComputer): editorCommon.IEditorSelection[] {
 		if (this._isDisposed) {
 			throw new Error('EditableTextModel.pushEditOperations: Model is disposed');
 		}
@@ -159,19 +155,25 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		return {
 			identifier: operations[0].identifier,
 			range: entireEditRange,
+			rangeLength: this.getValueLengthInRange(entireEditRange),
 			lines: result.join('').split('\n'),
 			forceMoveMarkers: forceMoveMarkers
 		};
 	}
 
-	public applyEdits(rawOperations:EditorCommon.IIdentifiedSingleEditOperation[]): EditorCommon.IIdentifiedSingleEditOperation[] {
+	public applyEdits(rawOperations:editorCommon.IIdentifiedSingleEditOperation[]): editorCommon.IIdentifiedSingleEditOperation[] {
+		if (rawOperations.length === 0) {
+			return [];
+		}
 
-		var operations:IValidatedEditOperation[] = [];
-		for (var i = 0; i < rawOperations.length; i++) {
+		let operations:IValidatedEditOperation[] = [];
+		for (let i = 0; i < rawOperations.length; i++) {
 			let op = rawOperations[i];
+			let validatedRange = this.validateRange(op.range);
 			operations[i] = {
 				identifier: op.identifier,
-				range: this.validateRange(op.range),
+				range: validatedRange,
+				rangeLength: this.getValueLengthInRange(validatedRange),
 				lines: op.text ? op.text.split(/\r\n|\r|\n/) : null,
 				forceMoveMarkers: op.forceMoveMarkers
 			};
@@ -183,30 +185,31 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		});
 
 		// Operations can not overlap!
-		for (var i = operations.length - 2; i >= 0; i--) {
+		for (let i = operations.length - 2; i >= 0; i--) {
 			if (operations[i+1].range.getStartPosition().isBeforeOrEqual(operations[i].range.getEndPosition())) {
 				throw new Error('Overlapping ranges are not allowed!');
 			}
 		}
 
+		// console.log(JSON.stringify(operations, null, '\t'));
+
 		operations = this._reduceOperations(operations);
 
-		var editableRange = this.getEditableRange();
-		var editableRangeStart = editableRange.getStartPosition();
-		var editableRangeEnd = editableRange.getEndPosition();
-		for (i = 0; i < operations.length; i++) {
-			var operationRange = operations[i].range;
+		let editableRange = this.getEditableRange();
+		let editableRangeStart = editableRange.getStartPosition();
+		let editableRangeEnd = editableRange.getEndPosition();
+		for (let i = 0; i < operations.length; i++) {
+			let operationRange = operations[i].range;
 			if (!editableRangeStart.isBeforeOrEqual(operationRange.getStartPosition()) || !operationRange.getEndPosition().isBeforeOrEqual(editableRangeEnd)) {
 				throw new Error('Editing outside of editable range not allowed!');
 			}
 		}
 
 		// Delta encode operations
-		var deltaOperations = EditableTextModel._toDeltaOperations(operations);
-
-		var reverseRanges = EditableTextModel._getInverseEditRanges(deltaOperations);
-		var reverseOperations: EditorCommon.IIdentifiedSingleEditOperation[] = [];
-		for (var i = 0; i < operations.length; i++) {
+		let deltaOperations = EditableTextModel._toDeltaOperations(operations);
+		let reverseRanges = EditableTextModel._getInverseEditRanges(deltaOperations);
+		let reverseOperations: editorCommon.IIdentifiedSingleEditOperation[] = [];
+		for (let i = 0; i < operations.length; i++) {
 			reverseOperations[i] = {
 				identifier: operations[i].identifier,
 				range: reverseRanges[i],
@@ -215,24 +218,19 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 			};
 		}
 
-		this._applyEdits(deltaOperations);
+		this._applyEdits(operations);
 
 		return reverseOperations;
 	}
 
 	private static _toDeltaOperation(base: IValidatedEditOperation, operation:IValidatedEditOperation): IDeltaSingleEditOperation {
-		var deltaStartLineNumber = operation.range.startLineNumber - (base ? base.range.endLineNumber : 0);
-		var deltaStartColumn = operation.range.startColumn - (deltaStartLineNumber === 0 ? base.range.endColumn : 0);
-		var deltaEndLineNumber = operation.range.endLineNumber - (base ? base.range.endLineNumber : 0);
-		var deltaEndColumn = operation.range.endColumn - (deltaEndLineNumber === 0 ? base.range.endColumn : 0);
+		let deltaStartLineNumber = operation.range.startLineNumber - (base ? base.range.endLineNumber : 0);
+		let deltaStartColumn = operation.range.startColumn - (deltaStartLineNumber === 0 ? base.range.endColumn : 0);
+		let deltaEndLineNumber = operation.range.endLineNumber - (base ? base.range.endLineNumber : 0);
+		let deltaEndColumn = operation.range.endColumn - (deltaEndLineNumber === 0 ? base.range.endColumn : 0);
 
 		return {
 			original: operation,
-			isNoOp: (
-				operation.range.startLineNumber === operation.range.endLineNumber
-				&& operation.range.startColumn === operation.range.endColumn
-				&& (!operation.lines || operation.lines.length === 0)
-			),
 			deltaStartLineNumber: deltaStartLineNumber,
 			deltaStartColumn: deltaStartColumn,
 			deltaEndLineNumber: deltaEndLineNumber,
@@ -243,17 +241,17 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 	/**
 	 * Assumes `operations` are validated and sorted ascending
 	 */
-	public static _getInverseEditRanges(operations:IDeltaSingleEditOperation[]): EditorCommon.IEditorRange[] {
-		var lineNumber = 0,
+	public static _getInverseEditRanges(operations:IDeltaSingleEditOperation[]): editorCommon.IEditorRange[] {
+		let lineNumber = 0,
 			column = 0,
-			result:EditorCommon.IEditorRange[] = [];
+			result:editorCommon.IEditorRange[] = [];
 
-		for (var i = 0, len = operations.length; i < len; i++) {
-			var op = operations[i];
+		for (let i = 0, len = operations.length; i < len; i++) {
+			let op = operations[i];
 
-			var startLineNumber = op.deltaStartLineNumber + lineNumber;
-			var startColumn = op.deltaStartColumn + (op.deltaStartLineNumber === 0 ? column : 0);
-			var resultRange: EditorCommon.IEditorRange;
+			let startLineNumber = op.deltaStartLineNumber + lineNumber;
+			let startColumn = op.deltaStartColumn + (op.deltaStartLineNumber === 0 ? column : 0);
+			let resultRange: editorCommon.IEditorRange;
 
 			if (op.original.lines && op.original.lines.length > 0) {
 				// There is something to insert
@@ -278,278 +276,214 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		return result;
 	}
 
-	private _generateSequentialEdits(operations:IDeltaSingleEditOperation[]): ISequentialEdit[] {
-		var r:ISequentialEdit[] = [],
-			lineNumber = 0,
-			column = 0;
+	private _applyEdits(operations:IValidatedEditOperation[]): void {
 
-		for (var i = 0, len = operations.length; i < len; i++) {
-			var op = operations[i];
-
-			var startLineNumber = op.deltaStartLineNumber + lineNumber;
-			var startColumn = op.deltaStartColumn + (op.deltaStartLineNumber === 0 ? column : 0);
-			var endLineNumber = op.deltaEndLineNumber + lineNumber;
-			var endColumn = op.deltaEndColumn + (op.deltaEndLineNumber === 0 ? column : 0);
-
-			var range = new Range(startLineNumber, startColumn, endLineNumber, endColumn);
-			var valueInRangeLength = this.getValueLengthInRange(range);
-
-			r.push({
-				range: range,
-				rangeLength: valueInRangeLength,
-				text: op.original.lines ? op.original.lines.join(this.getEOL()) : ''
-			});
-
-			if (op.original.lines && op.original.lines.length > 0) {
-				// There is something to insert
-				if (op.original.lines.length === 1) {
-					// Single line insert
-					lineNumber = startLineNumber;
-					column = startColumn + op.original.lines[0].length;
-				} else {
-					// Multi line insert
-					lineNumber = startLineNumber + op.original.lines.length - 1;
-					column = op.original.lines[op.original.lines.length - 1].length + 1;
-				}
-			} else {
-				// There is nothing to insert
-				lineNumber = startLineNumber;
-				column = startColumn;
-			}
-		}
-
-		return r;
-	}
-
-	private _applyEdits(operations:IDeltaSingleEditOperation[]): void {
-		var sequentialEdits = this._generateSequentialEdits(operations);
-
-		// console.log(sequentialEdits);
+		// Note the minus!
+		operations = operations.sort((a, b) => -Range.compareRangesUsingEnds(a.range, b.range));
 
 		this._withDeferredEvents((deferredEventsBuilder:DeferredEventsBuilder) => {
-			var baseLineNumber = 0,
-				baseColumn = 0,
-				deltaLines = 0,
-				adjustedLineNumbers = 0,
-				currentLineEdits: ILineEdit[] = [],
-				currentLineNumber = 0;
+			let contentChangedEvents: editorCommon.IModelContentChangedEvent[] = [];
+			let contentChanged2Events: editorCommon.IModelContentChangedEvent2[] = [];
+			let lineEditsQueue: IIdentifiedLineEdit[] = [];
 
-			var adjustLineNumbers = (toLineNumber:number, delta:number): void => {
-				// console.log('adjustLineNumbers: ' + toLineNumber + ' by ' + delta + ', lines.length: ' + this._lines.length);
-				if (delta !== 0) {
-					for (let lineNumber = adjustedLineNumbers + 1; lineNumber <= toLineNumber; lineNumber++) {
-						this._lines[lineNumber - 1].updateLineNumber(deferredEventsBuilder.changedMarkers, lineNumber);
-					}
-				}
-				adjustedLineNumbers = toLineNumber;
-			};
-
-			var pushLineEdit = (editLineNumber:number, startColumn:number, endColumn:number, text:string, forceMoveMarkers:boolean) => {
-				// console.log('pushLineEdit: ' + editLineNumber + '(' + this._lines[editLineNumber - 1].text + ')' + ': [' + startColumn + ' -> ' + endColumn + ']: <<' + text + '>>');
-
-				// Apply previous edits if they were for a different line
-				if (editLineNumber !== currentLineNumber) {
-					if (currentLineEdits.length > 0) {
-						this._applyLineEdits(deferredEventsBuilder, currentLineNumber, currentLineEdits);
-						currentLineEdits = [];
-					}
-					currentLineNumber = editLineNumber;
-				}
-
-				if (startColumn === endColumn && text.length === 0) {
+			let queueLineEdit = (lineEdit:IIdentifiedLineEdit) => {
+				if (lineEdit.startColumn === lineEdit.endColumn && lineEdit.text.length === 0) {
 					// empty edit => ignore it
 					return;
 				}
-
-				currentLineEdits.push({
-					startColumn: startColumn,
-					endColumn: endColumn,
-					text: text,
-					forceMoveMarkers: forceMoveMarkers
-				});
+				lineEditsQueue.push(lineEdit);
 			};
 
-			var flushLineEdits = () => {
-				// console.log('flushLineEdits');
-				var r = 0;
-				if (currentLineEdits.length > 0) {
-					r = this._applyLineEdits(deferredEventsBuilder, currentLineNumber, currentLineEdits);
-					currentLineEdits = [];
+			let flushLineEdits = () => {
+				if (lineEditsQueue.length === 0) {
+					return;
 				}
-				currentLineNumber = 0;
-				return r;
+
+				lineEditsQueue.reverse();
+
+				// `lineEditsQueue` now contains edits from smaller (line number,column) to larger (line number,column)
+				let currentLineNumber = lineEditsQueue[0].lineNumber, currentLineNumberStart = 0;
+
+				for (let i = 1, len = lineEditsQueue.length; i < len; i++) {
+					let lineNumber = lineEditsQueue[i].lineNumber;
+
+					if (lineNumber === currentLineNumber) {
+						continue;
+					}
+
+					this._invalidateLine(currentLineNumber - 1);
+					this._lines[currentLineNumber - 1].applyEdits(deferredEventsBuilder.changedMarkers, lineEditsQueue.slice(currentLineNumberStart, i));
+					contentChangedEvents.push(this._createLineChangedEvent(currentLineNumber));
+
+					currentLineNumber = lineNumber;
+					currentLineNumberStart = i;
+				}
+
+				this._invalidateLine(currentLineNumber - 1);
+				this._lines[currentLineNumber - 1].applyEdits(deferredEventsBuilder.changedMarkers, lineEditsQueue.slice(currentLineNumberStart, lineEditsQueue.length));
+				contentChangedEvents.push(this._createLineChangedEvent(currentLineNumber));
+
+				lineEditsQueue = [];
 			};
 
-			let lastContentChanged2VersionId = this.getVersionId();
-
-			let lastRealOpIndex = 0;
-			for (let i = operations.length - 1; i >= 0; i--) {
-				if (!operations[i].isNoOp) {
-					lastRealOpIndex = i;
-					break;
-				}
-			}
+			let minTouchedLineNumber = operations[operations.length - 1].range.startLineNumber;
+			let maxTouchedLineNumber = operations[0].range.endLineNumber + 1;
+			let totalLinesCountDelta = 0;
 
 			for (let i = 0, len = operations.length; i < len; i++) {
 				let op = operations[i];
 
-				let startLineNumber = op.deltaStartLineNumber + baseLineNumber;
-				let startColumn = op.deltaStartColumn + (op.deltaStartLineNumber === 0 ? baseColumn : 0);
-				let endLineNumber = op.deltaEndLineNumber + baseLineNumber;
-				let endColumn = op.deltaEndColumn + (op.deltaEndLineNumber === 0 ? baseColumn : 0);
-
-				baseLineNumber = startLineNumber + (op.original.lines ? op.original.lines.length - 1 : 0);
-				baseColumn = endColumn;
-
-				if (op.isNoOp) {
-					continue;
-				}
-
 				// console.log();
 				// console.log('-------------------');
 				// console.log('OPERATION #' + (i));
+				// console.log('op: ', op);
 				// console.log('<<<\n' + this._lines.map(l => l.text).join('\n') + '\n>>>');
-				// if (currentLineEdits.length > 0) {
-				// 	console.log('PENDING on line ' + currentLineNumber + ': ' + currentLineEdits.map(e => '[' + e.startColumn + ', ' + e.endColumn + ']: <<' + e.text + '>>'));
-				// }
-				// console.log('baseLineNumber: ' + baseLineNumber + ', baseColumn: ' + baseColumn);
-				// console.log('deltaOp: [' + op.deltaStartLineNumber + ',' + op.deltaStartColumn + '] -> [' + op.deltaEndLineNumber + ',' + op.deltaEndColumn + '] : <<' + op.original.lines + '>>');
-				// console.log('op: [' + startLineNumber + ',' + startColumn + '] -> [' + endLineNumber + ',' + endColumn + '] : <<' + op.original.lines + '>>');
 
-				let deletingLinesCnt = endLineNumber - startLineNumber;
-				let insertingLinesCnt = (op.original.lines ? op.original.lines.length - 1 : 0);
-				let editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
+				let startLineNumber = op.range.startLineNumber;
+				let startColumn = op.range.startColumn;
+				let endLineNumber = op.range.endLineNumber;
+				let endColumn = op.range.endColumn;
 
-				let lastLineEndColumn = 0,
-					lastLineDeltaColumn = 0;
-
-				for (let j = 0; j <= editingLinesCnt; j++) {
-					let editLineNumber = startLineNumber + j;
-					let editLineStartColumn = (editLineNumber === startLineNumber ? startColumn : 1);
-					let editLineEndColumn = (editLineNumber === endLineNumber ? endColumn : this.getLineMaxColumn(editLineNumber));
-					let editLineText = (op.original.lines ? op.original.lines[j] : '');
-
-					pushLineEdit(
-						editLineNumber,
-						editLineStartColumn,
-						editLineEndColumn,
-						editLineText,
-						op.original.forceMoveMarkers
-					);
-
-					if (j === editingLinesCnt) {
-						lastLineEndColumn = editLineEndColumn;
-					}
+				if (startLineNumber === endLineNumber && startColumn === endColumn && (!op.lines || op.lines.length === 0)) {
+					// no-op
+					continue;
 				}
 
+				let deletingLinesCnt = endLineNumber - startLineNumber;
+				let insertingLinesCnt = (op.lines ? op.lines.length - 1 : 0);
+				let editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
 
-				// console.log('baseColumn = endColumn: ' + endColumn);
+				totalLinesCountDelta += (insertingLinesCnt - deletingLinesCnt);
+
+				// Iterating descending to overlap with previous op
+				// in case there are common lines being edited in both
+				for (let j = editingLinesCnt; j >= 0; j--) {
+					let editLineNumber = startLineNumber + j;
+
+					queueLineEdit({
+						lineNumber: editLineNumber,
+						startColumn: (editLineNumber === startLineNumber ? startColumn : 1),
+						endColumn: (editLineNumber === endLineNumber ? endColumn : this.getLineMaxColumn(editLineNumber)),
+						text: (op.lines ? op.lines[j] : ''),
+						forceMoveMarkers: op.forceMoveMarkers
+					});
+				}
 
 				if (editingLinesCnt < deletingLinesCnt) {
 					// Must delete some lines
 
-					// Flush pending edits on last edited line
-					lastLineDeltaColumn = flushLineEdits();
-					let splitColumn = lastLineEndColumn + lastLineDeltaColumn;
+					// Flush any pending line edits
+					flushLineEdits();
 
-					// Must delete lines
-					baseColumn = splitColumn;
-					// console.log('splitColumn would be: ' + splitColumn);
-					// console.log('baseColumn = startColumn: ' + startColumn);
+					let spliceStartLineNumber = startLineNumber + editingLinesCnt;
+					let spliceStartColumn = this.getLineMaxColumn(spliceStartLineNumber);
 
-					// Split last line and collect remaining
 					let endLineRemains = this._lines[endLineNumber - 1].split(deferredEventsBuilder.changedMarkers, endColumn, false);
-					// this.emitModelContentChangedLineChangedEvent(endLineNumber - 1);
+					this._invalidateLine(spliceStartLineNumber - 1);
 
-					this._invalidateLine(startLineNumber + editingLinesCnt - 1);
+					let spliceCnt = endLineNumber - spliceStartLineNumber;
 
-					let spliceStart = startLineNumber + editingLinesCnt;
-					let spliceCnt = deletingLinesCnt - editingLinesCnt;
-					adjustLineNumbers(startLineNumber + editingLinesCnt, deltaLines);
-					deltaLines -= spliceCnt;
-
-					var markersOnDeletedLines: ILineMarker[] = [];
+					// Collect all these markers
+					let markersOnDeletedLines: ILineMarker[] = [];
 					for (let j = 0; j < spliceCnt; j++) {
-						let deleteLineIndex = spliceStart + j;
-						// Collect all these markers
-						markersOnDeletedLines = markersOnDeletedLines.concat(this._lines[deleteLineIndex].deleteLine(deferredEventsBuilder.changedMarkers, splitColumn, deleteLineIndex + 1));
+						let deleteLineIndex = spliceStartLineNumber + j;
+						markersOnDeletedLines = markersOnDeletedLines.concat(this._lines[deleteLineIndex].deleteLine(deferredEventsBuilder.changedMarkers, spliceStartColumn, deleteLineIndex + 1));
 					}
 
-					this._lines.splice(spliceStart, spliceCnt);
+					this._lines.splice(spliceStartLineNumber, spliceCnt);
 
 					// Reconstruct first line
-					this._lines[spliceStart - 1].append(deferredEventsBuilder.changedMarkers, endLineRemains);
-					this._lines[spliceStart - 1].addMarkers(markersOnDeletedLines);
-					this.emitModelContentChangedLineChangedEvent(spliceStart);
+					this._lines[spliceStartLineNumber - 1].append(deferredEventsBuilder.changedMarkers, endLineRemains);
+					this._lines[spliceStartLineNumber - 1].addMarkers(markersOnDeletedLines);
+					contentChangedEvents.push(this._createLineChangedEvent(spliceStartLineNumber));
 
-					this.emitModelContentChangedLinesDeletedEvent(spliceStart + 1, spliceStart + spliceCnt);
-					// this.emitModelContentChangedLinesInsertedEvent(startLineNumber + editingLinesCnt + 1, startLineNumber + insertingLinesCnt, newLinesContent.join('\n'));
+					contentChangedEvents.push(this._createLinesDeletedEvent(spliceStartLineNumber + 1, spliceStartLineNumber + spliceCnt));
 				}
 
 				if (editingLinesCnt < insertingLinesCnt) {
 					// Must insert some lines
 
-					// Flush pending edits on last edited line
-					lastLineDeltaColumn = flushLineEdits();
+					// Flush any pending line edits
+					flushLineEdits();
 
-					// Split last line
-					let splitColumn = lastLineEndColumn + lastLineDeltaColumn;
-					let leftoverLine = this._lines[startLineNumber + editingLinesCnt - 1].split(deferredEventsBuilder.changedMarkers, splitColumn, op.original.forceMoveMarkers);
-					this.emitModelContentChangedLineChangedEvent(startLineNumber + editingLinesCnt);
-
-					this._invalidateLine(startLineNumber + editingLinesCnt - 1);
-
-					// Must insert some lines
-					baseColumn = op.original.lines[op.original.lines.length - 1].length + 1;
-					// console.log('baseColumn = op.original.lines[op.original.lines.length - 1].length + 1: ' + (op.original.lines[op.original.lines.length - 1].length + 1));
-
-					adjustLineNumbers(startLineNumber + editingLinesCnt, deltaLines);
-					deltaLines += insertingLinesCnt - editingLinesCnt;
-
-					let newLinesContent:string[] = [];
-					// Lines in the middle
-					for (let j = editingLinesCnt + 1; j <= insertingLinesCnt; j++) {
-						let editLineNumber = startLineNumber + j;
-						// console.log('line in the middle: ' + editLineNumber);
-						this._lines.splice(editLineNumber - 1, 0, new ModelLine(editLineNumber, op.original.lines[j]));
-						newLinesContent.push(op.original.lines[j]);
+					let spliceLineNumber = startLineNumber + editingLinesCnt;
+					let spliceColumn = (spliceLineNumber === startLineNumber ? startColumn : 1);
+					if (op.lines) {
+						spliceColumn += op.lines[editingLinesCnt].length;
 					}
 
+					// Split last line
+					let leftoverLine = this._lines[spliceLineNumber - 1].split(deferredEventsBuilder.changedMarkers, spliceColumn, op.forceMoveMarkers);
+					contentChangedEvents.push(this._createLineChangedEvent(spliceLineNumber));
+					this._invalidateLine(spliceLineNumber - 1);
+
+					// Lines in the middle
+					let newLinesContent:string[] = [];
+					for (let j = editingLinesCnt + 1; j <= insertingLinesCnt; j++) {
+						let newLineNumber = startLineNumber + j;
+						this._lines.splice(newLineNumber - 1, 0, new ModelLine(newLineNumber, op.lines[j]));
+						newLinesContent.push(op.lines[j]);
+					}
 					newLinesContent[newLinesContent.length - 1] += leftoverLine.text;
 
 					// Last line
 					this._lines[startLineNumber + insertingLinesCnt - 1].append(deferredEventsBuilder.changedMarkers, leftoverLine);
-
-					this.emitModelContentChangedLinesInsertedEvent(startLineNumber + editingLinesCnt + 1, startLineNumber + insertingLinesCnt, newLinesContent.join('\n'));
+					contentChangedEvents.push(this._createLinesInsertedEvent(spliceLineNumber + 1, startLineNumber + insertingLinesCnt, newLinesContent.join('\n')));
 				}
 
-				// console.log('~~~');
-				// console.log('RESULT: ');
-				// console.log('baseLineNumber: ' + baseLineNumber + ', baseColumn: ' + baseColumn);
+				contentChanged2Events.push({
+					range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
+					rangeLength: op.rangeLength,
+					text: op.lines ? op.lines.join(this.getEOL()) : '',
+					eol: this._EOL,
+					versionId: -1,
+					isUndoing: this._isUndoing,
+					isRedoing: this._isRedoing
+				});
+
+				// console.log('AFTER:');
 				// console.log('<<<\n' + this._lines.map(l => l.text).join('\n') + '\n>>>');
-				// if (currentLineEdits.length > 0) {
-				// 	console.log('PENDING on line ' + currentLineNumber + ': ' + currentLineEdits.map(e => '[' + e.startColumn + ', ' + e.endColumn + ']: <<' + e.text + '>>'));
-				// }
-				// console.log('op: [' + startLineNumber + ',' + startColumn + '] -> [' + endLineNumber + ',' + endColumn + '] : <<' + op.original.lines + '>>');
-
-				if (i === lastRealOpIndex) {
-					flushLineEdits();
-				}
-
-				let seqEdit = sequentialEdits[i];
-
-				if (this.getVersionId() === lastContentChanged2VersionId) {
-					this._increaseVersionId();
-				}
-				lastContentChanged2VersionId = this.getVersionId();
-
-				// let lastContentChanged2VersionId = this.getVersionId();
-				// this._increaseVersionId();
-				this._emitContentChanged2(seqEdit.range.startLineNumber, seqEdit.range.startColumn, seqEdit.range.endLineNumber, seqEdit.range.endColumn, seqEdit.rangeLength, seqEdit.text, this._isUndoing, this._isRedoing);
 			}
 
+			flushLineEdits();
 
-			adjustLineNumbers(this._lines.length, deltaLines);
+			maxTouchedLineNumber = Math.max(1, Math.min(this.getLineCount(), maxTouchedLineNumber + totalLinesCountDelta));
+			if (totalLinesCountDelta !== 0) {
+				// must update line numbers all the way to the bottom
+				maxTouchedLineNumber = this.getLineCount();
+			}
+
+			for (let lineNumber = minTouchedLineNumber; lineNumber <= maxTouchedLineNumber; lineNumber++) {
+				this._lines[lineNumber - 1].updateLineNumber(deferredEventsBuilder.changedMarkers, lineNumber);
+			}
+
+			if (contentChangedEvents.length !== 0 || contentChanged2Events.length !== 0) {
+				if (contentChangedEvents.length === 0) {
+					// Fabricate a fake line changed event to get an event out
+					// This most likely occurs when there edit operations are no-ops
+					contentChangedEvents.push(this._createLineChangedEvent(minTouchedLineNumber));
+				}
+
+				let versionBumps = Math.max(contentChangedEvents.length, contentChanged2Events.length);
+				let finalVersionId = this.getVersionId() + versionBumps;
+				this._setVersionId(finalVersionId);
+
+				for (let i = contentChangedEvents.length - 1, versionId = finalVersionId; i >= 0; i--, versionId--) {
+					contentChangedEvents[i].versionId = versionId;
+				}
+				for (let i = contentChanged2Events.length - 1, versionId = finalVersionId; i >= 0; i--, versionId--) {
+					contentChanged2Events[i].versionId = versionId;
+				}
+
+				for (let i = 0, len = contentChangedEvents.length; i < len; i++) {
+					this.emit(editorCommon.EventType.ModelContentChanged, contentChangedEvents[i]);
+				}
+				for (let i = 0, len = contentChanged2Events.length; i < len; i++) {
+					this.emit(editorCommon.EventType.ModelContentChanged2, contentChanged2Events[i]);
+				}
+			}
+
+			// this._assertLineNumbersOK();
 		});
 	}
 
@@ -574,35 +508,28 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 			}
 		}
 
-		var totalMarkersCnt = Object.keys(this._markerIdToMarker).length;
+		let totalMarkersCnt = Object.keys(this._markerIdToMarker).length;
 		if (totalMarkersCnt !== foundMarkersCnt) {
 			throw new Error('There are misplaced markers!');
 		}
 	}
 
-	private _applyLineEdits(deferredEventsBuilder:DeferredEventsBuilder, lineNumber:number, edits:ILineEdit[]): number {
-		this._invalidateLine(lineNumber - 1);
-		var result = this._lines[lineNumber - 1].applyEdits(deferredEventsBuilder.changedMarkers, edits);
-		this.emitModelContentChangedLineChangedEvent(lineNumber);
-		return result;
-	}
-
 	public static _toDeltaOperations(operations:IValidatedEditOperation[]): IDeltaSingleEditOperation[] {
-		var result: IDeltaSingleEditOperation[] = [];
-		for (var i = 0; i < operations.length; i++) {
+		let result: IDeltaSingleEditOperation[] = [];
+		for (let i = 0; i < operations.length; i++) {
 			result[i] = EditableTextModel._toDeltaOperation(i > 0 ? operations[i-1] : null, operations[i]);
 		}
 		return result;
 	}
 
-	public undo(): EditorCommon.IEditorSelection[] {
+	public undo(): editorCommon.IEditorSelection[] {
 		if (this._isDisposed) {
 			throw new Error('EditableTextModel.undo: Model is disposed');
 		}
 
 		return this._withDeferredEvents(() => {
 			this._isUndoing = true;
-			var r = this._commandManager.undo();
+			let r = this._commandManager.undo();
 			this._isUndoing = false;
 
 			if (!r) {
@@ -615,14 +542,14 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		});
 	}
 
-	public redo(): EditorCommon.IEditorSelection[] {
+	public redo(): editorCommon.IEditorSelection[] {
 		if (this._isDisposed) {
 			throw new Error('EditableTextModel.redo: Model is disposed');
 		}
 
 		return this._withDeferredEvents(() => {
 			this._isRedoing = true;
-			var r = this._commandManager.redo();
+			let r = this._commandManager.redo();
 			this._isRedoing = false;
 
 			if (!r) {
@@ -635,7 +562,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		});
 	}
 
-	public setEditableRange(range:EditorCommon.IRange): void {
+	public setEditableRange(range:editorCommon.IRange): void {
 		if (this._isDisposed) {
 			throw new Error('EditableTextModel.setEditableRange: Model is disposed');
 		}
@@ -649,7 +576,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 
 		if (range) {
 			this._hasEditableRange = true;
-			this._editableRangeId = this.addTrackedRange(range, EditorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
+			this._editableRangeId = this.addTrackedRange(range, editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 		}
 	}
 
@@ -661,7 +588,7 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		return this._hasEditableRange;
 	}
 
-	public getEditableRange(): EditorCommon.IEditorRange {
+	public getEditableRange(): editorCommon.IEditorRange {
 		if (this._isDisposed) {
 			throw new Error('EditableTextModel.getEditableRange: Model is disposed');
 		}
@@ -673,63 +600,37 @@ export class EditableTextModel extends TextModelWithDecorations implements Edito
 		}
 	}
 
-	private _updateLineNumbers(changedMarkers:IChangedMarkers, startLineNumber:number): void {
-		var lines = this._lines,
-			i:number,
-			len:number,
-			j:number,
-			lenJ:number,
-			markers:ILineMarker[],
-			marker:ILineMarker;
-
-		for (i = startLineNumber - 1, len = lines.length; i < len; i++) {
-			lines[i].updateLineNumber(changedMarkers, i + 1);
-		}
-	}
-
-	private emitModelContentChangedLineChangedEvent(lineNumber: number): void {
-		this._increaseVersionId();
-		var e:EditorCommon.IModelContentChangedLineChangedEvent = {
-			changeType: EditorCommon.EventType.ModelContentChangedLineChanged,
+	private _createLineChangedEvent(lineNumber: number): editorCommon.IModelContentChangedLineChangedEvent {
+		return {
+			changeType: editorCommon.EventType.ModelContentChangedLineChanged,
 			lineNumber: lineNumber,
 			detail: this._lines[lineNumber - 1].text,
-			versionId: this.getVersionId(),
+			versionId: -1,
 			isUndoing: this._isUndoing,
 			isRedoing: this._isRedoing
 		};
-		if (!this._isDisposing) {
-			this.emit(EditorCommon.EventType.ModelContentChanged, e);
-		}
 	}
 
-	private emitModelContentChangedLinesDeletedEvent(fromLineNumber: number, toLineNumber: number): void {
-		this._increaseVersionId();
-		var e:EditorCommon.IModelContentChangedLinesDeletedEvent = {
-			changeType: EditorCommon.EventType.ModelContentChangedLinesDeleted,
+	private _createLinesDeletedEvent(fromLineNumber: number, toLineNumber: number): editorCommon.IModelContentChangedLinesDeletedEvent {
+		return {
+			changeType: editorCommon.EventType.ModelContentChangedLinesDeleted,
 			fromLineNumber: fromLineNumber,
 			toLineNumber: toLineNumber,
-			versionId: this.getVersionId(),
+			versionId: -1,
 			isUndoing: this._isUndoing,
 			isRedoing: this._isRedoing
 		};
-		if (!this._isDisposing) {
-			this.emit(EditorCommon.EventType.ModelContentChanged, e);
-		}
 	}
 
-	private emitModelContentChangedLinesInsertedEvent(fromLineNumber: number, toLineNumber: number, newLinesContent: string): void {
-		this._increaseVersionId();
-		var e:EditorCommon.IModelContentChangedLinesInsertedEvent = {
-			changeType: EditorCommon.EventType.ModelContentChangedLinesInserted,
+	private _createLinesInsertedEvent(fromLineNumber: number, toLineNumber: number, newLinesContent: string): editorCommon.IModelContentChangedLinesInsertedEvent {
+		return {
+			changeType: editorCommon.EventType.ModelContentChangedLinesInserted,
 			fromLineNumber: fromLineNumber,
 			toLineNumber: toLineNumber,
 			detail: newLinesContent,
-			versionId: this.getVersionId(),
+			versionId: -1,
 			isUndoing: this._isUndoing,
 			isRedoing: this._isRedoing
 		};
-		if (!this._isDisposing) {
-			this.emit(EditorCommon.EventType.ModelContentChanged, e);
-		}
 	}
 }

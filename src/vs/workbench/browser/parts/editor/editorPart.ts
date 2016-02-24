@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/editorpart';
 import 'vs/workbench/browser/parts/editor/editor.contribution';
-import {TPromise, Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Registry} from 'vs/platform/platform';
 import timer = require('vs/base/common/timer');
 import {EventType} from 'vs/base/common/events';
@@ -79,6 +79,8 @@ export class EditorPart extends Part implements IEditorPart {
 	private mapEditorCreationPromiseToEditor: { [editorId: string]: TPromise<BaseEditor>; }[];
 	private editorOpenToken: number[];
 	private editorSetInputErrorCounter: number[];
+	private pendingEditorInputsToClose: EditorInput[];
+	private pendingEditorInputCloseTimeout: number;
 
 	constructor(
 		private messageService: IMessageService,
@@ -111,6 +113,9 @@ export class EditorPart extends Part implements IEditorPart {
 		this.mapActionsToEditors = this.createPositionArray(false);
 		this.mapEditorLoadingPromiseToEditor = this.createPositionArray(false);
 		this.mapEditorCreationPromiseToEditor = this.createPositionArray(false);
+
+		this.pendingEditorInputsToClose = [];
+		this.pendingEditorInputCloseTimeout = null;
 	}
 
 	public setInstantiationService(service: IInstantiationService): void {
@@ -209,14 +214,13 @@ export class EditorPart extends Part implements IEditorPart {
 		if (input) {
 			this.visibleInputListeners[position] = input.addListener(EventType.DISPOSE, () => {
 
-				// To prevent race conditions, we call the close in a timeout because it can well be
-				// that an input is being disposed with the intent to replace it with some other input
-				// right after.
-				setTimeout(() => {
-					if (input === this.visibleInputs[position]) {
-						this.closeEditors(false, input).done(null, errors.onUnexpectedError);
-					}
-				}, 0);
+				// Keep the inputs to close. We use this to support multiple inputs closing
+				// right after each other and this helps avoid layout issues with the delayed
+				// timeout based closing below
+				if (input === this.visibleInputs[position]) {
+					this.pendingEditorInputsToClose.push(input);
+					this.startDelayedCloseEditorsFromInputDispose();
+				}
 			});
 		}
 
@@ -303,9 +307,7 @@ export class EditorPart extends Part implements IEditorPart {
 				// Build Container off-DOM
 				editorContainer = $().div({
 					'class': 'editor-container',
-					id: editorDescriptor.getId(),
-					'role': 'presentation',
-					'aria-label': nls.localize('editorAccessibleLabel', "Editor")
+					id: editorDescriptor.getId()
 				}, (div) => {
 					newlyCreatedEditorContainerBuilder = div;
 				});
@@ -338,7 +340,7 @@ export class EditorPart extends Part implements IEditorPart {
 						loaded = true;
 						delete this.mapEditorLoadingPromiseToEditor[position][editorDescriptor.getId()];
 
-						return Promise.wrapError(error);
+						return TPromise.wrapError(error);
 					});
 
 					if (!loaded) {
@@ -367,7 +369,7 @@ export class EditorPart extends Part implements IEditorPart {
 				// Register as Emitter to Workbench Bus
 				this.visibleEditorListeners[position].push(this.eventService.addEmitter(this.visibleEditors[position], this.visibleEditors[position].getId()));
 
-				let createEditorPromise: TPromise<BaseEditor>;
+				let createEditorPromise: TPromise<any>;
 				if (newlyCreatedEditorContainerBuilder) { // Editor created for the first time
 
 					// create editor
@@ -379,7 +381,7 @@ export class EditorPart extends Part implements IEditorPart {
 						created = true;
 						delete this.mapEditorCreationPromiseToEditor[position][editorDescriptor.getId()];
 
-						return Promise.wrapError(error);
+						return TPromise.wrapError(error);
 					});
 
 					if (!created) {
@@ -434,22 +436,38 @@ export class EditorPart extends Part implements IEditorPart {
 		});
 	}
 
-	public closeEditors(othersOnly?: boolean, input?: EditorInput): TPromise<void> {
-		let promises: Promise[] = [];
+	private startDelayedCloseEditorsFromInputDispose(): void {
+
+		// To prevent race conditions, we call the close in a timeout because it can well be
+		// that an input is being disposed with the intent to replace it with some other input
+		// right after.
+		if (this.pendingEditorInputCloseTimeout === null) {
+			this.pendingEditorInputCloseTimeout = setTimeout(() => {
+				this.closeEditors(false, this.pendingEditorInputsToClose).done(null, errors.onUnexpectedError);
+
+				// Reset
+				this.pendingEditorInputCloseTimeout = null;
+				this.pendingEditorInputsToClose = [];
+			}, 0);
+		}
+	}
+
+	public closeEditors(othersOnly?: boolean, inputs?: EditorInput[]): TPromise<void> {
+		let promises: TPromise<BaseEditor>[] = [];
 
 		let editors = this.getVisibleEditors().reverse(); // start from the end to prevent layout to happen through rochade
-		for (let i = 0; i < editors.length; i++) {
-			let editor = editors[i];
+		for (var i = 0; i < editors.length; i++) {
+			var editor = editors[i];
 			if (othersOnly && this.getActiveEditor() === editor) {
 				continue;
 			}
 
-			if (!input || input === editor.input) {
+			if (!inputs || inputs.some(inp => inp === editor.input)) {
 				promises.push(this.openEditor(null, null, editor.position));
 			}
 		}
 
-		return Promise.join(promises);
+		return TPromise.join(promises).then(() => void 0);
 	}
 
 	private findPosition(sideBySide?: boolean, widthRatios?: number[]): Position;
@@ -650,6 +668,19 @@ export class EditorPart extends Part implements IEditorPart {
 			// Make sure that the user meanwhile has not opened another input
 			if (this.visibleInputs[position] !== input) {
 				timerEvent.stop();
+
+				// It can happen that the same editor input is being opened rapidly one after the other
+				// (e.g. fast double click on a file). In this case the first open will stop here because
+				// we detect that a second open happens. However, since the input is the same, inputChanged
+				// is false and we are not doing some things that we typically do when opening a file because
+				// we think, the input has not changed.
+				// The fix is to detect if the active input matches with this one that gets canceled and only
+				// in that case notify others about the input change event as well as to make sure that the
+				// editor title area is up to date.
+				if (this.visibleInputs[position] && this.visibleInputs[position].matches(input)) {
+					this.updateEditorTitleArea();
+					this.emit(WorkbenchEventType.EDITOR_INPUT_CHANGED, new EditorEvent(editor, editor.getId(), this.visibleInputs[position], options, position));
+				}
 
 				return editor;
 			}
@@ -909,7 +940,7 @@ export class EditorPart extends Part implements IEditorPart {
 			}
 
 			// Open editor inputs in parallel if any
-			let promises: Promise[] = [];
+			let promises: TPromise<BaseEditor>[] = [];
 			inputsToRestore.forEach((input, index) => {
 				let preserveFocus = (input !== activeInput);
 				let option: EditorOptions;
@@ -923,7 +954,7 @@ export class EditorPart extends Part implements IEditorPart {
 				promises.push(this.openEditor(input, option, index, widthRatios));
 			});
 
-			return Promise.join(promises).then(() => {
+			return TPromise.join(promises).then(editors => {
 
 				// Workaround for bad layout issue: If any of the editors fails to load, reset side by side by closing
 				// all editors. This fixes an issue where a side editor might show, but no editor to the left hand side.
@@ -933,10 +964,18 @@ export class EditorPart extends Part implements IEditorPart {
 
 				// Full layout side by side
 				this.sideBySideControl.layout(this.dimension);
+
+				return editors;
 			});
 		}
 
-		return TPromise.as(null);
+		return TPromise.as([]);
+	}
+
+	public activateEditor(editor: BaseEditor): void {
+		if (editor) {
+			this.sideBySideControl.setActive(editor);
+		}
 	}
 
 	private onEditorFocusChanged(): void {

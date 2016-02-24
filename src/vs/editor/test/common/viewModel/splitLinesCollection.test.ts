@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import SplitLinesCollection = require('vs/editor/common/viewModel/splitLinesCollection');
-import CharacterHardWrappingLineMapper = require('vs/editor/common/viewModel/characterHardWrappingLineMapper');
-import PrefixSumComputer = require('vs/editor/common/viewModel/prefixSumComputer');
-import Position = require('vs/editor/common/core/position');
+import * as assert from 'assert';
+import {Position} from 'vs/editor/common/core/position';
+import {CharacterHardWrappingLineMapping} from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
+import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
+import {ILineMapping, IModel, SplitLine} from 'vs/editor/common/viewModel/splitLinesCollection';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
@@ -41,8 +41,8 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			assert.deepEqual(line1.getOutputPositionOfInputPosition(0, col), pos(2, col - 13 - 14), 'getOutputPositionOfInputPosition(' + col + ')');
 		}
 
-		var model1:SplitLinesCollection.IModel = createModel('My First LineMy Second LineAnd another one');
-		var line1 = createSplitLine([13, 14, 15], '\t');
+		model1 = createModel('My First LineMy Second LineAnd another one');
+		line1 = createSplitLine([13, 14, 15], '\t');
 
 		assert.equal(line1.getOutputLineCount(), 3);
 		assert.equal(line1.getOutputLineContent(model1, 1, 0), 'My First Line');
@@ -79,19 +79,19 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 });
 
 
-function pos(lineNumber: number, column: number): Position.Position {
-	return new Position.Position(lineNumber, column);
+function pos(lineNumber: number, column: number): Position {
+	return new Position(lineNumber, column);
 }
 
-function createSplitLine(splitLengths:number[], wrappedLinesPrefix:string): SplitLinesCollection.SplitLine {
-	return new SplitLinesCollection.SplitLine(createLineMapping(splitLengths, wrappedLinesPrefix));
+function createSplitLine(splitLengths:number[], wrappedLinesPrefix:string, isVisible: boolean = true): SplitLine {
+	return new SplitLine(createLineMapping(splitLengths, wrappedLinesPrefix), isVisible);
 }
 
-function createLineMapping(breakingLengths:number[], wrappedLinesPrefix:string): SplitLinesCollection.ILineMapping {
-	return new CharacterHardWrappingLineMapper.CharacterHardWrappingLineMapping(new PrefixSumComputer.PrefixSumComputer(breakingLengths), wrappedLinesPrefix);
+function createLineMapping(breakingLengths:number[], wrappedLinesPrefix:string): ILineMapping {
+	return new CharacterHardWrappingLineMapping(new PrefixSumComputer(breakingLengths), wrappedLinesPrefix);
 }
 
-function createModel(text:string): SplitLinesCollection.IModel {
+function createModel(text:string): IModel {
 	return {
 		getLineTokens: (lineNumber:number, inaccurateTokensAcceptable?:boolean) => {
 			return null;

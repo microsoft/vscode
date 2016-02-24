@@ -14,8 +14,7 @@ import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
 import {IContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenModel, IHighlight} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {Extensions as QuickOpenExtensions, QuickOpenHandler, EditorQuickOpenEntryGroup} from 'vs/workbench/browser/quickopen';
+import {QuickOpenHandler, EditorQuickOpenEntryGroup} from 'vs/workbench/browser/quickopen';
 import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {TextEditorOptions, EditorOptions, EditorInput} from 'vs/workbench/common/editor';
@@ -204,26 +203,37 @@ class OutlineModel extends QuickOpenModel {
 	}
 
 	private renderGroupLabel(type: string, count: number, outline: Outline): string {
-		if (outline.outlineGroupLabel) {
-			let label = outline.outlineGroupLabel[type];
-			if (label) {
-				return nls.localize('grouplabel', "{0} ({1})", label, count);
-			}
-		}
-		switch (type) {
-			case 'module': return nls.localize('modules', "modules ({0})", count);
-			case 'class': return nls.localize('class', "classes ({0})", count);
-			case 'interface': return nls.localize('interface', "interfaces ({0})", count);
-			case 'method': return nls.localize('method', "methods ({0})", count);
-			case 'function': return nls.localize('function', "functions ({0})", count);
-			case 'property': return nls.localize('property', "properties ({0})", count);
-			case 'variable': return nls.localize('variable', "variables ({0})", count);
-			case 'var': return nls.localize('variable2', "variables ({0})", count);
-			case 'constructor': return nls.localize('_constructor', "constructors ({0})", count);
-			case 'call': return nls.localize('call', "calls ({0})", count);
+
+		let pattern = outline.outlineGroupLabel[type] || OutlineModel.getDefaultGroupLabelPatterns()[type];
+		if (pattern) {
+			return strings.format(pattern, count);
 		}
 
 		return type;
+	}
+
+	private static getDefaultGroupLabelPatterns(): { [type: string]: string } {
+		const result: { [type: string]: string } = Object.create(null);
+		result['method'] = nls.localize('method', "methods ({0})");
+		result['function'] = nls.localize('function', "functions ({0})");
+		result['constructor'] = <any>nls.localize('_constructor', "constructors ({0})");
+		result['variable'] = nls.localize('variable', "variables ({0})");
+		result['class'] = nls.localize('class', "classes ({0})");
+		result['interface'] = nls.localize('interface', "interfaces ({0})");
+		result['namespace'] = nls.localize('namespace', "namespaces ({0})");
+		result['package'] = nls.localize('package', "packages ({0})");
+		result['module'] = nls.localize('modules', "modules ({0})");
+		result['property'] = nls.localize('property', "properties ({0})");
+		result['enum'] = nls.localize('enum', "enumerations ({0})");
+		result['string'] = nls.localize('string', "strings ({0})");
+		result['rule'] = nls.localize('rule', "rules ({0})");
+		result['file'] = nls.localize('file', "files ({0})");
+		result['array'] = nls.localize('array', "arrays ({0})");
+		result['number'] = nls.localize('number', "numbers ({0})");
+		result['boolean'] = nls.localize('boolean', "booleans ({0})");
+		result['object'] = nls.localize('object', "objects ({0})");
+		result['key'] = nls.localize('key', "keys ({0})");
+		return result;
 	}
 }
 
@@ -257,6 +267,10 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 
 	public getLabel(): string {
 		return this.name;
+	}
+
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, symbols", this.getLabel());
 	}
 
 	public getIcon(): string {
@@ -408,6 +422,10 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return nls.localize('noSymbolsFound', "No symbols found");
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('gotoSymbolHandlerAriaLabel', "Type to narrow down symbols of the currently active editor.");
+	}
+
 	public canRun(): boolean | string {
 		let canRun = false;
 
@@ -418,7 +436,6 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			if (model && (<IDiffEditorModel>model).modified && (<IDiffEditorModel>model).original) {
 				model = (<IDiffEditorModel>model).modified; // Support for diff editor models
 			}
-
 
 			if (model && types.isFunction((<ITokenizedModel>model).getMode)) {
 				canRun = OutlineRegistry.has(<IModel>model);

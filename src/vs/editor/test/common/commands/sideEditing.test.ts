@@ -4,20 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import {Model} from 'vs/editor/common/model/model';
-import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
-import {Position} from 'vs/editor/common/core/position';
+import * as assert from 'assert';
 import {Cursor} from 'vs/editor/common/controller/cursor';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {IMode} from 'vs/editor/common/modes';
-import {CommonEditorConfiguration, ICSSConfig} from 'vs/editor/common/config/commonEditorConfig';
-import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
-import {ModelLine, ILineEdit} from 'vs/editor/common/model/modelLine';
+import {Position} from 'vs/editor/common/core/position';
+import {Selection} from 'vs/editor/common/core/selection';
+import {IIdentifiedSingleEditOperation} from 'vs/editor/common/editorCommon';
+import {Model} from 'vs/editor/common/model/model';
+import {ILineEdit, ModelLine} from 'vs/editor/common/model/modelLine';
+import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 
-function testCommand(lines:string[], selection:Selection, edits:EditorCommon.IIdentifiedSingleEditOperation[], expectedLines:string[], expectedSelection:Selection): void {
+function testCommand(lines:string[], selection:Selection, edits:IIdentifiedSingleEditOperation[], expectedLines:string[], expectedSelection:Selection): void {
 	let model = new Model(lines.join('\n'), null);
 	let config = new MockConfiguration(null);
 	let cursor = new Cursor(0, config, model, null, false);

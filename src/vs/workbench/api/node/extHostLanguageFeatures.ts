@@ -12,10 +12,9 @@ import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import {Range as EditorRange} from 'vs/editor/common/core/range';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import {Range, DocumentHighlightKind, Disposable, Diagnostic, SignatureHelp} from 'vs/workbench/api/node/extHostTypes';
+import {Range, DocumentHighlightKind, Disposable, Diagnostic, SignatureHelp, CompletionList} from 'vs/workbench/api/node/extHostTypes';
 import {IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import {CancellationTokenSource} from 'vs/base/common/cancellation';
 import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
 import {IMarkerService, IMarker} from 'vs/platform/markers/common/markers';
 import {ExtHostCommands} from 'vs/workbench/api/node/extHostCommands';
@@ -31,7 +30,7 @@ import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/com
 import {CodeLensRegistry} from 'vs/editor/contrib/codelens/common/codelens';
 import {ParameterHintsRegistry} from 'vs/editor/contrib/parameterHints/common/parameterHints';
 import {SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
-import {asWinJsPromise} from 'vs/base/common/async';
+import {asWinJsPromise, ShallowCancelThenPromise} from 'vs/base/common/async';
 
 // --- adapter
 
@@ -59,7 +58,7 @@ interface CachedCodeLens {
 	symbols: modes.ICodeLensSymbol[];
 	lenses: vscode.CodeLens[];
 	disposables: IDisposable[];
-};
+}
 
 class CodeLensAdapter implements modes.ICodeLensSupport {
 
@@ -83,7 +82,7 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 		// from cache
 		let entry = this._cache[key];
 		if (entry && entry.version === version) {
-			return entry.data.then(cached => cached.symbols);
+			return new ShallowCancelThenPromise(entry.data.then(cached => cached.symbols));
 		}
 
 		const newCodeLensData = asWinJsPromise(token => this._provider.provideCodeLenses(doc, token)).then(lenses => {
@@ -95,7 +94,7 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 				lenses,
 				symbols: [],
 				disposables: [],
-			}
+			};
 
 			lenses.forEach((lens, i) => {
 				data.symbols.push(<modes.ICodeLensSymbol>{
@@ -113,13 +112,13 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 			data: newCodeLensData
 		};
 
-		return newCodeLensData.then(newCached => {
+		return new ShallowCancelThenPromise(newCodeLensData.then(newCached => {
 			if (entry) {
 				// only now dispose old commands et al
 				entry.data.then(oldCached => disposeAll(oldCached.disposables));
 			}
 			return newCached && newCached.symbols;
-		});
+		}));
 
 	}
 
@@ -488,7 +487,7 @@ class SuggestAdapter implements modes.ISuggestSupport {
 
 	private _documents: ExtHostModelService;
 	private _provider: vscode.CompletionItemProvider;
-	private _cache: { [key: string]: vscode.CompletionItem[] } = Object.create(null);
+	private _cache: { [key: string]: CompletionList } = Object.create(null);
 
 	constructor(documents: ExtHostModelService, provider: vscode.CompletionItemProvider) {
 		this._documents = documents;
@@ -504,7 +503,7 @@ class SuggestAdapter implements modes.ISuggestSupport {
 		const key = resource.toString();
 		delete this._cache[key];
 
-		return asWinJsPromise(token => this._provider.provideCompletionItems(doc, pos, token)).then(value => {
+		return asWinJsPromise<vscode.CompletionItem[]|vscode.CompletionList>(token => this._provider.provideCompletionItems(doc, pos, token)).then(value => {
 
 			let defaultSuggestions: modes.ISuggestResult = {
 				suggestions: [],
@@ -512,10 +511,19 @@ class SuggestAdapter implements modes.ISuggestSupport {
 			};
 			let allSuggestions: modes.ISuggestResult[] = [defaultSuggestions];
 
+			let list: CompletionList;
+			if (Array.isArray(value)) {
+				list = new CompletionList(value);
+			} else if (value instanceof CompletionList) {
+				list = value;
+				defaultSuggestions.incomplete = list.isIncomplete;
+			} else {
+				return;
+			}
 
-			for (let i = 0; i < value.length; i++) {
-				const item = value[i];
-				const suggestion = <ISuggestion2> TypeConverters.Suggest.from(item);
+			for (let i = 0; i < list.items.length; i++) {
+				const item = list.items[i];
+				const suggestion = <ISuggestion2> TypeConverters.Suggest.from(<any>item);
 
 				if (item.textEdit) {
 
@@ -535,7 +543,8 @@ class SuggestAdapter implements modes.ISuggestSupport {
 
 					allSuggestions.push({
 						currentWord: doc.getText(<any>editRange),
-						suggestions: [suggestion]
+						suggestions: [suggestion],
+						incomplete: list.isIncomplete
 					});
 
 				} else {
@@ -547,7 +556,7 @@ class SuggestAdapter implements modes.ISuggestSupport {
 			}
 
 			// cache for details call
-			this._cache[key] = value;
+			this._cache[key] = list;
 
 			return allSuggestions;
 		});
@@ -557,11 +566,11 @@ class SuggestAdapter implements modes.ISuggestSupport {
 		if (typeof this._provider.resolveCompletionItem !== 'function') {
 			return TPromise.as(suggestion);
 		}
-		let items = this._cache[resource.toString()];
-		if (!items) {
+		let list = this._cache[resource.toString()];
+		if (!list) {
 			return TPromise.as(suggestion);
 		}
-		let item = items[Number((<ISuggestion2> suggestion).id)];
+		let item = list.items[Number((<ISuggestion2> suggestion).id)];
 		if (!item) {
 			return TPromise.as(suggestion);
 		}

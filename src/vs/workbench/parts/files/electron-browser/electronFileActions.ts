@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Action} from 'vs/base/common/actions';
 import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
@@ -31,10 +31,10 @@ export class RevealInOSAction extends Action {
 		this.order = 45;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		shell.showItemInFolder(paths.normalize(this.resource.fsPath, true));
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -52,7 +52,7 @@ export class GlobalRevealInOSAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 		if (fileInput) {
 			shell.showItemInFolder(paths.normalize(fileInput.getResource().fsPath, true));
@@ -60,7 +60,7 @@ export class GlobalRevealInOSAction extends Action {
 			this.messageService.show(severity.Info, nls.localize('openFileToReveal', "Open a file first to reveal"));
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -75,10 +75,10 @@ export class CopyPathAction extends Action {
 		this.order = 140;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		clipboard.writeText(labels.getPathLabel(this.resource));
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -96,7 +96,7 @@ export class GlobalCopyPathAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 		if (fileInput) {
 			clipboard.writeText(labels.getPathLabel(fileInput.getResource()));
@@ -105,7 +105,7 @@ export class GlobalCopyPathAction extends Action {
 			this.messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -119,10 +119,10 @@ export class BaseOpenAction extends Action {
 		this.ipcMsg = ipcMsg;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		ipc.send(this.ipcMsg); // Handle in browser process
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -171,7 +171,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 		if (fileInput) {
 			ipc.send('vscode:windowOpen', [fileInput.getResource().fsPath], true /* force new window */); // handled from browser process
@@ -179,6 +179,6 @@ export class ShowOpenedFileInNewWindow extends Action {
 			this.messageService.show(severity.Info, nls.localize('openFileToShow', "Open a file first to open in new window"));
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }

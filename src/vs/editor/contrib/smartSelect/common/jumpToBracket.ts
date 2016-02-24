@@ -4,25 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import EditorCommon = require('vs/editor/common/editorCommon');
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
+import {Handler, ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 
 class SelectBracketAction extends EditorAction {
 
 	static ID = 'editor.action.jumpToBracket';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor, Behaviour.TextFocus);
 	}
 
 	public run():TPromise<boolean> {
 
-		this.editor.trigger(this.id, EditorCommon.Handler.JumpToBracket, {});
+		this.editor.trigger(this.id, Handler.JumpToBracket, {});
 
 		return TPromise.as(true);
 	}
@@ -32,5 +33,5 @@ class SelectBracketAction extends EditorAction {
 // register actions
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SelectBracketAction, SelectBracketAction.ID, nls.localize('smartSelect.jumpBracket', "Go to Bracket"), {
 	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH
 }));

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Registry} from 'vs/platform/platform';
+import {BinaryKeybindings, KeyCode} from 'vs/base/common/keyCodes';
+import * as platform from 'vs/base/common/platform';
 import {TypeConstraint, validateConstraints} from 'vs/base/common/types';
 import {ICommandHandler, ICommandHandlerDescription, ICommandsMap, IKeybindingItem, IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
-import {KeyMod, KeyCode, BinaryKeybindings} from 'vs/base/common/keyCodes';
-import Platform = require('vs/base/common/platform');
+import {Registry} from 'vs/platform/platform';
 
 export interface ICommandRule extends IKeybindings {
 	id: string;
@@ -22,7 +22,7 @@ export interface ICommandDescriptor extends ICommandRule {
 }
 
 export interface IKeybindingsRegistry {
-	registerCommandRule(rule:ICommandRule);
+	registerCommandRule(rule: ICommandRule);
 	registerCommandDesc(desc: ICommandDescriptor): void;
 	getCommands(): ICommandsMap;
 	getDefaultKeybindings(): IKeybindingItem[];
@@ -31,8 +31,8 @@ export interface IKeybindingsRegistry {
 		editorCore(importance?: number): number;
 		editorContrib(importance?: number): number;
 		workbenchContrib(importance?: number): number;
-		builtinExtension(importance?:number): number;
-		externalExtension(importance?:number): number;
+		builtinExtension(importance?: number): number;
+		externalExtension(importance?: number): number;
 	};
 }
 
@@ -51,10 +51,10 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		workbenchContrib: (importance: number = 0): number => {
 			return 200 + importance;
 		},
-		builtinExtension: (importance:number = 0): number => {
+		builtinExtension: (importance: number = 0): number => {
 			return 300 + importance;
 		},
-		externalExtension: (importance:number = 0): number => {
+		externalExtension: (importance: number = 0): number => {
 			return 400 + importance;
 		}
 	};
@@ -67,12 +67,12 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	/**
 	 * Take current platform into account and reduce to primary & secondary.
 	 */
-	private static bindToCurrentPlatform(kb:IKeybindings): { primary?: number; secondary?: number[]; } {
-		if (Platform.isWindows) {
+	private static bindToCurrentPlatform(kb: IKeybindings): { primary?: number; secondary?: number[]; } {
+		if (platform.isWindows) {
 			if (kb && kb.win) {
 				return kb.win;
 			}
-		} else if (Platform.isMacintosh) {
+		} else if (platform.isMacintosh) {
 			if (kb && kb.mac) {
 				return kb.mac;
 			}
@@ -85,7 +85,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		return kb;
 	}
 
-	public registerCommandRule(rule:ICommandRule): void {
+	public registerCommandRule(rule: ICommandRule): void {
 		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
 
 		if (actualKb && actualKb.primary) {
@@ -131,8 +131,8 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		return this._commands;
 	}
 
-	private registerDefaultKeybinding(keybinding: number, commandId:string, weight1: number, weight2:number, context:KbExpr): void {
-		if (Platform.isWindows) {
+	private registerDefaultKeybinding(keybinding: number, commandId: string, weight1: number, weight2: number, context: KbExpr): void {
+		if (platform.isWindows) {
 			if (BinaryKeybindings.hasCtrlCmd(keybinding) && !BinaryKeybindings.hasShift(keybinding) && BinaryKeybindings.hasAlt(keybinding) && !BinaryKeybindings.hasWinCtrl(keybinding)) {
 				if (/^[A-Z0-9\[\]\|\;\'\,\.\/\`]$/.test(KeyCode.toString(BinaryKeybindings.extractKeyCode(keybinding)))) {
 					console.warn('Ctrl+Alt+ keybindings should not be used by default under Windows. Offender: ', keybinding, ' for ', commandId);
@@ -152,7 +152,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		return this._keybindings;
 	}
 }
-export let KeybindingsRegistry:IKeybindingsRegistry = new KeybindingsRegistryImpl();
+export let KeybindingsRegistry: IKeybindingsRegistry = new KeybindingsRegistryImpl();
 
 // Define extension point ids
 export let Extensions = {

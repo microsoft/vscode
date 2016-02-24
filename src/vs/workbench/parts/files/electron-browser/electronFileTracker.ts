@@ -6,7 +6,7 @@
 'use strict';
 
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
-import {LocalFileChangeEvent, IWorkingFileModelChangeEvent, EventType as FileEventType, ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent, IWorkingFileModelChangeEvent, EventType as FileEventType, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {IFileService} from 'vs/platform/files/common/files';
 import {OpenResourcesAction} from 'vs/workbench/parts/files/browser/fileActions';
 import plat = require('vs/base/common/platform');
@@ -159,8 +159,8 @@ export class FileTracker implements IWorkbenchContribution {
 	}
 
 	private onTextFileDirty(e: LocalFileChangeEvent): void {
-		if (!this.textFileService.isAutoSaveEnabled() && !this.isDocumentedEdited) {
-			this.updateDocumentEdited(); // no indication needed when auto save is turned off and we didn't show dirty
+		if ((this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) && !this.isDocumentedEdited) {
+			this.updateDocumentEdited(); // no indication needed when auto save is enabled for short delay
 		}
 	}
 
@@ -184,14 +184,16 @@ export class FileTracker implements IWorkbenchContribution {
 
 	private updateDocumentEdited(): void {
 		if (plat.platform === plat.Platform.Mac) {
-			let win = remote.getCurrentWindow();
-			let isDirtyIndicated = win.isDocumentEdited();
-			let hasDirtyFiles = this.textFileService.isDirty();
-			this.isDocumentedEdited = hasDirtyFiles;
+			process.nextTick(() => {
+				let win = remote.getCurrentWindow();
+				let isDirtyIndicated = win.isDocumentEdited();
+				let hasDirtyFiles = this.textFileService.isDirty();
+				this.isDocumentedEdited = hasDirtyFiles;
 
-			if (hasDirtyFiles !== isDirtyIndicated) {
-				win.setDocumentEdited(hasDirtyFiles);
-			}
+				if (hasDirtyFiles !== isDirtyIndicated) {
+					win.setDocumentEdited(hasDirtyFiles);
+				}
+			});
 		}
 	}
 

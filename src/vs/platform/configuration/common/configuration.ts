@@ -5,23 +5,29 @@
 
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {IEventEmitter} from 'vs/base/common/eventEmitter';
+import Event from 'vs/base/common/event';
 import winjs = require('vs/base/common/winjs.base');
 
-export var IConfigurationService = createDecorator<IConfigurationService>('configurationService');
+export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
 export interface IConfigurationService extends IEventEmitter {
-	serviceId : ServiceIdentifier<any>;
+	serviceId: ServiceIdentifier<any>;
 
 	/**
 	 * Fetches the appropriate section of the configuration JSON file.
 	 * This will be an object keyed off the section name.
 	 */
-	loadConfiguration(section?:string):winjs.TPromise<any>;
+	loadConfiguration(section?: string): winjs.TPromise<any>;
 
 	/**
 	 * Returns iff the workspace has configuration or not.
 	 */
-	hasWorkspaceConfiguration():boolean;
+	hasWorkspaceConfiguration(): boolean;
+
+	/**
+	 * Event that fires when the configuration changes.
+	 */
+	onDidUpdateConfiguration: Event<{ config: any }>;
 }
 
 export class ConfigurationServiceEventTypes {
@@ -39,8 +45,8 @@ export class ConfigurationServiceEventTypes {
 }
 
 export interface IConfigurationServiceEvent {
-	section?:string;
-	config:any;
+	section?: string;
+	config: any;
 }
 
 export function extractSetting(config: any, settingPath: string): any {

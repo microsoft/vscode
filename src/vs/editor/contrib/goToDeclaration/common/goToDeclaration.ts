@@ -5,14 +5,13 @@
 
 'use strict';
 
-import URI from 'vs/base/common/uri';
-import {TPromise} from 'vs/base/common/winjs.base';
 import {onUnexpectedError} from 'vs/base/common/errors';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {IModel, IPosition} from 'vs/editor/common/editorCommon';
-import {IDeclarationSupport} from 'vs/editor/common/modes';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
-import {IReference} from 'vs/editor/common/modes';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {IDeclarationSupport} from 'vs/editor/common/modes';
+import {IReference} from 'vs/editor/common/modes';
+import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 
 export const DeclarationRegistry = new LanguageFeatureRegistry<IDeclarationSupport>('declarationSupport');
 
@@ -43,4 +42,4 @@ export function getDeclarationsAtPosition(model: IModel, position: IPosition): T
 	});
 }
 
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeDefinitionProvider', getDeclarationsAtPosition)
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeDefinitionProvider', getDeclarationsAtPosition);

@@ -12,7 +12,7 @@ import {Action, IAction} from 'vs/base/common/actions';
 import {BaseActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {ITree} from 'vs/base/parts/tree/browser/tree';
-import {IInstantiationService, IConstructorSignature0, INewConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * The action bar contributor allows to add actions to an actionbar in a given context.
@@ -59,9 +59,30 @@ export class ActionBarContributor {
  * Some predefined scopes to contribute actions to
  */
 export const Scope = {
+
+	/**
+	 * Actions inside the global activity bar (DEPRECATED)
+	 */
 	GLOBAL: 'global',
-	VIEW: 'view',
+
+	/**
+	 * Actions inside viewlets.
+	 */
+	VIEWLET: 'viewlet',
+
+	/**
+	 * Actions inside panels.
+	 */
+	PANEL: 'panel',
+
+	/**
+	 * Actions inside editors.
+	 */
 	EDITOR: 'editor',
+
+	/**
+	 * Actions inside tree widgets.
+	 */
 	VIEWER: 'viewer'
 };
 
@@ -249,7 +270,7 @@ export interface IActionBarRegistry {
 	 * Registers an Actionbar contributor. It will be called to contribute actions to all the action bars
 	 * that are used in the Monaco Workbench in the given scope.
 	 */
-	registerActionBarContributor(scope: string, ctor: IConstructorSignature0<ActionBarContributor> | INewConstructorSignature0<ActionBarContributor>): void;
+	registerActionBarContributor(scope: string, ctor: IConstructorSignature0<ActionBarContributor>): void;
 
 	/**
 	 * Returns an array of registered action bar contributors known to the workbench for the given scope.

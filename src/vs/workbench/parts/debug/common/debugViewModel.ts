@@ -9,6 +9,7 @@ export class ViewModel extends ee.EventEmitter implements debug.IViewModel, debu
 
 	private focusedStackFrame: debug.IStackFrame;
 	private selectedExpression: debug.IExpression;
+	private selectedFunctionBreakpoint: debug.IFunctionBreakpoint;
 
 	public getId(): string {
 		return 'root';
@@ -34,5 +35,14 @@ export class ViewModel extends ee.EventEmitter implements debug.IViewModel, debu
 	public setSelectedExpression(expression: debug.IExpression) {
 		this.selectedExpression = expression;
 		this.emit(debug.ViewModelEvents.SELECTED_EXPRESSION_UPDATED, expression);
+	}
+
+	public getSelectedFunctionBreakpoint(): debug.IFunctionBreakpoint {
+		return this.selectedFunctionBreakpoint;
+	}
+
+	public setSelectedFunctionBreakpoint(functionBreakpoint: debug.IFunctionBreakpoint): void {
+		this.selectedFunctionBreakpoint = functionBreakpoint;
+		this.emit(debug.ViewModelEvents.SELECTED_FUNCTION_BREAKPOINT_UPDATED, functionBreakpoint);
 	}
 }

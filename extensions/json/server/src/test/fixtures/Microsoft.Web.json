@@ -1,0 +1,332 @@
+﻿{
+"id": "http://schema.management.azure.com/schemas/2014-06-01/Microsoft.Web.json",
+"$schema": "http://json-schema.org/draft-04/schema#",
+"title": "Microsoft.Web",
+"description": "Microsoft Web Resource Types",
+"definitions": {
+	"serverfarms": {
+		"type": "object",
+			"properties": {
+			"type": {
+				"enum": [
+					"Microsoft.Web/serverfarms"
+				]
+			},
+			"apiVersion": {
+				"enum": [
+					"2014-06-01"
+				]
+			},
+			"properties": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "Microsoft.Web/serverfarms: Name of the server farm."
+					},
+					"sku": {
+						"oneOf": [
+							{
+								"$ref":  "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#/definitions/expression"
+							},
+							{
+								"enum": [
+									"Free",
+									"Shared",
+									"Basic",
+									"Standard"
+								]
+							}
+						],
+						"description": "Microsoft.Web/serverfarms: Server farm sku."
+					},
+				"workerSize": {
+					"oneOf": [
+						{
+							"$ref":  "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#/definitions/expression"
+						},
+						{
+							"enum": [
+								"Small",
+								"Medium",
+								"Large"
+							]
+						},
+						{
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 2
+						}
+					],
+					"description": "Microsoft.Web/serverfarms: The instance size."
+				},
+				"numberOfWorkers": {
+					"oneOf": [
+						{
+							"$ref":  "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#/definitions/expression"
+						},
+						{
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 10
+						}
+					],
+					"description": "Microsoft.Web/serverfarms: The instance count, which is the number of virtual machines dedicated to the farm. Supported values are 1-10."
+				}
+			}
+		}
+	},
+	"required": [
+		"type",
+		"apiVersion",
+		"properties"
+	]
+	},
+	"config": {
+	"type": "object",
+		"properties": {
+			"type": {
+				"enum": [
+				"Microsoft.Web/sites/config",
+				"config"
+				]
+			},
+			"apiVersion": {
+				"enum": [
+				"2014-06-01"
+				]
+			},
+			"properties": {
+				"type": "object",
+				"properties": {
+					"connectionStrings": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"ConnectionString": {
+									"type": "string",
+									"description": "Microsoft.Web/sites/config: connection string"
+								},
+								"Name": {
+									"type": "string",
+									"description": "Microsoft.Web/sites/config: connection string name"
+								},
+								"Type": {
+									"type": "integer",
+									"description": "Microsoft.Web/sites/config: connection string type"
+								}
+							}
+						},
+						"uniqueItems": true,
+						"description": "Microsoft.Web/sites/config: Connection strings for database and other external resources."
+					},
+					"phpVersion": {
+						"type": "string",
+						"description": "Microsoft.Web/sites/config: PHP version (an empty string disables PHP)."
+					},
+					"netFrameworkVersion": {
+						"type": "string",
+						"description": "Microsoft.Web/sites/config: The .Net Framework version."
+					}
+				}
+			}
+		},
+		"description": "Microsoft.Web/sites: Configuration settings for a web site.",
+		"required": [
+			"type",
+			"apiVersion",
+			"properties"
+		]
+	},
+	"extensions": {
+	"type": "object",
+		"properties": {
+		"type": {
+			"enum": [
+				"Microsoft.Web/sites/extensions",
+				"extensions"
+			]
+		},
+		"apiVersion": {
+			"enum": [
+			"2014-06-01"
+			]
+		},
+		"properties": {
+			"type": "object",
+			"properties": {
+				"packageUri": {
+					"type": "string",
+					"description": "Microsoft.Web/sites/extensions: uri of package"
+				},
+				"dbType": {
+					"type": "string",
+					"description": "Microsoft.Web/sites/extensions: type of database"
+				},
+				"connectionString": {
+					"type": "string",
+					"description": "Microsoft.Web/sites/extensions: connection string"
+				},
+				"setParameters": {
+					"type": "object",
+					"description": "Microsoft.Web/sites/extensions: parameters"
+				}
+			}
+		}
+	},
+	"required": [
+		"type",
+		"apiVersion",
+		"properties"
+	]
+	},
+	"sites": {
+	"type": "object",
+		"properties": {
+		"type": {
+			"enum": [
+				"Microsoft.Web/sites"
+			]
+		},
+		"apiVersion": {
+			"enum": [
+				"2014-06-01"
+			]
+		},
+		"properties": {
+			"type": "object",
+			"properties": {
+			"name": {
+				"type": "string",
+				"description": "Microsoft.Web/sites: The name of web site."
+			},
+			"serverFarm": {
+				"type": "string",
+				"description": "Microsoft.Web/sites: The name of server farm site belongs to."
+			},
+			"hostnames": {
+				"type": "array",
+				"items": {
+					"type": "string"
+				},
+				"description": "Microsoft.Web/sites: An array of strings that contains the public hostnames for the site, including custom domains."
+			},
+			"enabledHostnames": {
+				"type": "array",
+				"items": {
+					"type": "string"
+				},
+				"description": "Microsoft.Web/sites: An array of strings that contains enabled hostnames for the site. By default, these are <SiteName>.azurewebsites.net and <SiteName>.scm.azurewebsites.net."
+			},
+			"hostNameSslStates": {
+				"type": "array",
+				"items": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string",
+							"description": "Microsoft.Web/sites/hostNameSslStates: The URL of the web site."
+						},
+						"sslState": {
+							"oneOf": [
+								{
+									"enum": [
+										"Disabled",
+										"IpBasedEnabled",
+										"SniEnabled"
+									]
+								},
+								{
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 2
+								},
+								{
+									"$ref":  "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#/definitions/expression"
+								}
+							],
+							"description": "Microsoft.Web/sites/hostNameSslStates. The SSL state."
+						},
+						"thumbprint": {
+							"type": "string",
+							"description": "Microsoft.Web/sites/hostNameSslStates: A string that contains the thumbprint of the SSL certificate."
+						},
+						"ipBasedSslState": {
+							"oneOf": [
+								{
+									"enum": [
+										"Disabled",
+										"IpBasedEnabled",
+										"SniEnabled"
+									]
+								},
+								{
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 2
+								},
+								{
+									"$ref":  "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#/definitions/expression"
+								}
+							],
+							"description": "Microsoft.Web/sites/hostNameSslStates: IP Based SSL state"
+						}
+					}
+				},
+				"description": "Microsoft.Web/sites: Container for SSL states."
+			}
+			}
+		},
+		"resources": {
+			"type": "array",
+			"items": {
+				"allOf": [
+					{ "$ref":  "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#/definitions/resourceBase" },
+					{
+						"oneOf": [
+							{"$ref":  "#/definitions/config"},
+							{"$ref":  "#/definitions/extensions"}
+						]
+					}
+				],
+				"description": "Microsoft.Web/sites: Child resources to define configuration and extensions."
+			}
+		}
+	},
+	"required": [
+		"type",
+		"apiVersion",
+		"properties"
+	]
+	},
+	"certificates": {
+	"type": "object",
+		"properties": {
+			"type": {
+				"enum": [
+				"Microsoft.Web/certificates"
+				]
+			},
+			"apiVersion": {
+				"enum": [
+				"2014-06-01"
+				]
+			},
+			"properties": {
+				"type": "object",
+				"properties": {
+					"pfxBlob": {
+						"type": "string",
+						"description": "Microsoft.Web/certificates: A base64Binary value that contains the PfxBlob of the certificate."
+					},
+					"password": {
+						"type": "string",
+						"description": "Microsoft.Web/certficates: A string that contains the password for the certificate."
+					}
+				}
+			}
+		}
+	}
+}
+}

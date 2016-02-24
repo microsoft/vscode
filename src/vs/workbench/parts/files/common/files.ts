@@ -293,6 +293,13 @@ export interface IAutoSaveConfiguration {
 	autoSaveFocusChange: boolean;
 }
 
+export enum AutoSaveMode {
+	OFF,
+	AFTER_SHORT_DELAY,
+	AFTER_LONG_DELAY,
+	ON_FOCUS_CHANGE
+}
+
 export var ITextFileService = createDecorator<ITextFileService>(TEXT_FILE_SERVICE_ID);
 
 export interface ITextFileService extends IDisposable {
@@ -307,12 +314,12 @@ export interface ITextFileService extends IDisposable {
 	isDirty(resource?: URI): boolean;
 
 	/**
-	 * Returns all resources that are currently dirty matching the provided resource or all dirty resources.
+	 * Returns all resources that are currently dirty matching the provided resources or all dirty resources.
 	 *
-	 * @param resource the resource to check for being dirty. If it is not specified, will check for
+	 * @param resources the resources to check for being dirty. If it is not specified, will check for
 	 * all dirty resources.
 	 */
-	getDirty(resource?: URI): URI[];
+	getDirty(resources?: URI[]): URI[];
 
 	/**
 	 * Saves the resource.
@@ -357,9 +364,10 @@ export interface ITextFileService extends IDisposable {
 	/**
 	 * Brings up the confirm dialog to either save, don't save or cancel.
 	 *
-	 * @param resource the resource of the file to ask for confirmation.
+	 * @param resources the resources of the files to ask for confirmation or null if
+	 * confirming for all dirty resources.
 	 */
-	confirmSave(resource?: URI): ConfirmResult;
+	confirmSave(resources?: URI[]): ConfirmResult;
 
 	/**
 	 * Provides access to the list of working files.
@@ -367,12 +375,12 @@ export interface ITextFileService extends IDisposable {
 	getWorkingFilesModel(): IWorkingFilesModel;
 
 	/**
-	 * Checks if the user configured auto save to be enabled or not
+	 * Convinient fast access to the current auto save mode.
 	 */
-	isAutoSaveEnabled(): boolean;
+	getAutoSaveMode(): AutoSaveMode;
 
 	/**
-	 * Convinient fast access to the configured auto save settings.
+	 * Convinient fast access to the raw configured auto save settings.
 	 */
 	getAutoSaveConfiguration(): IAutoSaveConfiguration;
 

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {TypeConstraint} from 'vs/base/common/types';
-import {createDecorator, ServiceIdentifier, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {Keybinding} from 'vs/base/common/keyCodes';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {Keybinding} from 'vs/base/common/keyCodes';
+import {TypeConstraint} from 'vs/base/common/types';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {ServiceIdentifier, ServicesAccessor, createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
 export interface IUserFriendlyKeybinding {
 	key: string;
@@ -34,24 +34,24 @@ export interface IKeybindings {
 }
 
 export interface KbExpr {
-	equals(other:KbExpr): boolean;
-	evaluate(context:any): boolean;
+	equals(other: KbExpr): boolean;
+	evaluate(context: any): boolean;
 	normalize(): KbExpr;
 	serialize(): string;
 }
 
 export class KbDefinedExpression implements KbExpr {
-	constructor(private key:string) {
+	constructor(private key: string) {
 	}
 
-	public equals(other:KbExpr): boolean {
+	public equals(other: KbExpr): boolean {
 		if (other instanceof KbDefinedExpression) {
 			return (this.key === other.key);
 		}
 		return false;
 	}
 
-	public evaluate(context:any): boolean {
+	public evaluate(context: any): boolean {
 		return (!!context[this.key]);
 	}
 
@@ -65,18 +65,21 @@ export class KbDefinedExpression implements KbExpr {
 }
 
 export class KbEqualsExpression implements KbExpr {
-	constructor(private key:string, private value:any) {
+	constructor(private key: string, private value: any) {
 	}
 
-	public equals(other:KbExpr): boolean {
+	public equals(other: KbExpr): boolean {
 		if (other instanceof KbEqualsExpression) {
 			return (this.key === other.key && this.value === other.value);
 		}
 		return false;
 	}
 
-	public evaluate(context:any): boolean {
+	public evaluate(context: any): boolean {
+		/* tslint:disable:triple-equals */
+		// Intentional ==
 		return (context[this.key] == this.value);
+		/* tslint:enable:triple-equals */
 	}
 
 	public normalize(): KbExpr {
@@ -99,18 +102,21 @@ export class KbEqualsExpression implements KbExpr {
 }
 
 export class KbNotEqualsExpression implements KbExpr {
-	constructor(private key:string, private value:any) {
+	constructor(private key: string, private value: any) {
 	}
 
-	public equals(other:KbExpr): boolean {
+	public equals(other: KbExpr): boolean {
 		if (other instanceof KbNotEqualsExpression) {
 			return (this.key === other.key && this.value === other.value);
 		}
 		return false;
 	}
 
-	public evaluate(context:any): boolean {
+	public evaluate(context: any): boolean {
+		/* tslint:disable:triple-equals */
+		// Intentional !=
 		return (context[this.key] != this.value);
+		/* tslint:enable:triple-equals */
 	}
 
 	public normalize(): KbExpr {
@@ -133,17 +139,17 @@ export class KbNotEqualsExpression implements KbExpr {
 }
 
 export class KbNotExpression implements KbExpr {
-	constructor(private key:string) {
+	constructor(private key: string) {
 	}
 
-	public equals(other:KbExpr): boolean {
+	public equals(other: KbExpr): boolean {
 		if (other instanceof KbNotExpression) {
 			return (this.key === other.key);
 		}
 		return false;
 	}
 
-	public evaluate(context:any): boolean {
+	public evaluate(context: any): boolean {
 		return (!context[this.key]);
 	}
 
@@ -157,17 +163,17 @@ export class KbNotExpression implements KbExpr {
 }
 
 export class KbAndExpression implements KbExpr {
-	private expr:KbExpr[];
+	private expr: KbExpr[];
 
-	constructor(expr:KbExpr[]) {
+	constructor(expr: KbExpr[]) {
 		this.expr = expr || [];
 	}
 
-	public equals(other:KbExpr): boolean {
+	public equals(other: KbExpr): boolean {
 		return this === other;
 	}
 
-	public evaluate(context:any): boolean {
+	public evaluate(context: any): boolean {
 		for (let i = 0, len = this.expr.length; i < len; i++) {
 			if (!this.expr[i].evaluate(context)) {
 				return false;
@@ -177,7 +183,7 @@ export class KbAndExpression implements KbExpr {
 	}
 
 	public normalize(): KbExpr {
-		let expr:KbExpr[] = [];
+		let expr: KbExpr[] = [];
 
 		for (let i = 0, len = this.expr.length; i < len; i++) {
 			let e = this.expr[i];
@@ -222,12 +228,12 @@ export class KbAndExpression implements KbExpr {
 
 
 export let KbExpr = {
-	has: (key:string) => new KbDefinedExpression(key),
-	equals: (key:string, value:any) => new KbEqualsExpression(key, value),
-	notEquals: (key:string, value:any) => new KbNotEqualsExpression(key, value),
-	not: (key:string) => new KbNotExpression(key),
-	and: (...expr:KbExpr[]) => new KbAndExpression(expr),
-	deserialize: (serialized:string): KbExpr => {
+	has: (key: string) => new KbDefinedExpression(key),
+	equals: (key: string, value: any) => new KbEqualsExpression(key, value),
+	notEquals: (key: string, value: any) => new KbNotEqualsExpression(key, value),
+	not: (key: string) => new KbNotExpression(key),
+	and: (...expr: KbExpr[]) => new KbAndExpression(expr),
+	deserialize: (serialized: string): KbExpr => {
 		if (!serialized) {
 			return null;
 		}
@@ -237,7 +243,7 @@ export let KbExpr = {
 		return result.normalize();
 	},
 
-	_deserializeOne: (serializedOne:string): KbExpr => {
+	_deserializeOne: (serializedOne: string): KbExpr => {
 		serializedOne = serializedOne.trim();
 
 		if (serializedOne.indexOf('!=') >= 0) {
@@ -257,7 +263,7 @@ export let KbExpr = {
 		return new KbDefinedExpression(serializedOne);
 	},
 
-	_deserializeValue: (serializedValue:string): any => {
+	_deserializeValue: (serializedValue: string): any => {
 		serializedValue = serializedValue.trim();
 
 		if (serializedValue === 'true') {
@@ -275,7 +281,7 @@ export let KbExpr = {
 
 		return serializedValue;
 	}
-}
+};
 
 export interface IKeybindingItem {
 	keybinding: number;
@@ -297,7 +303,7 @@ export interface ICommandHandlerDescription {
 }
 
 export interface ICommandsMap {
-	[id: string]: ICommandHandler
+	[id: string]: ICommandHandler;
 }
 
 export interface IKeybindingContextKey<T> {
@@ -308,12 +314,12 @@ export interface IKeybindingContextKey<T> {
 export let IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
 
 export interface IKeybindingScopeLocation {
-	setAttribute(attr:string, value:string): void;
-	removeAttribute(attr:string): void;
+	setAttribute(attr: string, value: string): void;
+	removeAttribute(attr: string): void;
 }
 
 export interface IKeybindingService {
-	serviceId : ServiceIdentifier<any>;
+	serviceId: ServiceIdentifier<any>;
 	dispose(): void;
 
 	createKey<T>(key: string, defaultValue: T): IKeybindingContextKey<T>;
@@ -324,9 +330,9 @@ export interface IKeybindingService {
 	lookupKeybindings(commandId: string): Keybinding[];
 	customKeybindingsCount(): number;
 
-	getLabelFor(keybinding:Keybinding): string;
-	getHTMLLabelFor(keybinding:Keybinding): IHTMLContentElement[];
-	getElectronAcceleratorFor(keybinding:Keybinding): string;
+	getLabelFor(keybinding: Keybinding): string;
+	getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[];
+	getElectronAcceleratorFor(keybinding: Keybinding): string;
 
 	executeCommand<T>(commandId: string, args?: any): TPromise<T>;
 	executeCommand(commandId: string, args?: any): TPromise<any>;

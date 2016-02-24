@@ -26,6 +26,13 @@ suite('Mime', () => {
 		guess = guessMimeTypes('foo.Codefile');
 		assert.deepEqual(guess, ['application/unknown']);
 
+		registerTextMimeByFilename('Docker*', 'text/docker');
+		guess = guessMimeTypes('Docker-debug');
+		assert.deepEqual(guess, ['text/docker', 'text/plain']);
+
+		guess = guessMimeTypes('docker-PROD');
+		assert.deepEqual(guess, ['text/docker', 'text/plain']);
+
 		registerTextMimeByFirstLine(/RegexesAreNice/, 'text/nice-regex');
 		guess = guessMimeTypes('Randomfile.noregistration', 'RegexesAreNice');
 		assert.deepEqual(guess, ['text/nice-regex', 'text/plain']);
@@ -46,6 +53,11 @@ suite('Mime', () => {
 
 		guess = guessMimeTypes('foo.monaco', 'foobar');
 		assert.deepEqual(guess, ['text/foobar', 'text/plain']);
+
+		registerTextMimeByFilename('dockerfile', 'text/winner');
+		registerTextMimeByFilename('dockerfile*', 'text/looser');
+		guess = guessMimeTypes('dockerfile');
+		assert.deepEqual(guess, ['text/winner', 'text/plain']);
 	});
 
 	test('Specificity priority 1', () => {

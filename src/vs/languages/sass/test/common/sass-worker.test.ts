@@ -26,7 +26,7 @@ suite('SASS - Worker', () => {
 			resourceService: resourceService,
 		});
 
-		var worker = new sassWorker.SassWorker(modesUtil.createMockMode('mock.mode.id'), [], services.resourceService, services.markerService);
+		var worker = new sassWorker.SassWorker('mock.mode.id', [], services.resourceService, services.markerService);
 		return { worker: worker, model: model };
 	};
 
@@ -46,7 +46,7 @@ suite('SASS - Worker', () => {
 		var pos = env.model.getPositionFromOffset(value.indexOf(selection));
 		var range = { startLineNumber: pos.lineNumber, startColumn: pos.column, endLineNumber: pos.lineNumber, endColumn: pos.column + selectionLength };
 
-		return env.worker.inplaceReplaceSupport.navigateValueSet(url, range, up);
+		return env.worker.navigateValueSet(url, range, up);
 	};
 
 	var testOccurrences = function(value:string, tokenBefore:string):WinJS.TPromise<{ occurrences: Modes.IOccurence[]; model: mm.MirrorModel }> {

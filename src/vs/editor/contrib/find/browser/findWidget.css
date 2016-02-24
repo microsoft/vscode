@@ -28,10 +28,6 @@
 	background-color: black;
 }
 
-.monaco-checkbox .checkbox:focus + .label {
-	outline: auto 5px rgb(229, 151, 0);
-}
-
 /* Find widget */
 .monaco-editor .find-widget {
 	position: absolute;
@@ -111,8 +107,24 @@
 	vertical-align: middle;
 }
 
-.monaco-editor .find-widget.no-results .monaco-findInput .monaco-inputbox {
-	border-color: #E51400;
+.monaco-editor .find-widget.no-results .matchesCount {
+	background-color: rgba(255,0,0,0.5);
+}
+.monaco-editor.vs-dark .find-widget.no-results .matchesCount {
+	background-color: rgba(255,0,0,0.3);
+}
+
+.monaco-editor .find-widget .matchesCount {
+	font-family: "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
+	display: inline-block;
+	margin: 0 1px 0 3px;
+	padding: 2px 2px 0 2px;
+	min-width: 69px;
+	height: 25px;
+	vertical-align: middle;
+	box-sizing: border-box;
+	text-align: center;
+	line-height: 23px;
 }
 
 .monaco-editor .find-widget .button {
@@ -394,7 +406,7 @@
 
 .monaco-editor.hc-black .findMatch {
 	background: none;
-	border: 1px dotted #DF740C;
+	border: 1px dotted #f38518;
 	-moz-box-sizing: border-box;
 	box-sizing: border-box;
 }
@@ -402,14 +414,14 @@
 .monaco-editor.hc-black .currentFindMatch {
 	background: none;
 	padding: 1px;
-	border: 2px solid #DF740C;
+	border: 2px solid #f38518;
 	-moz-box-sizing: border-box;
 	box-sizing: border-box;
 }
 
 .monaco-editor.hc-black .findScope {
 	background: none;
-	border: 1px dashed #DF740C;
+	border: 1px dashed #f38518;
 	opacity: .4;
 }
 

@@ -5,12 +5,11 @@
 
 'use strict';
 
-import types = require('../types');
-import assert = require('assert');
-import modesUtil = require('vs/editor/test/common/modesUtil');
-import monarchCompile = require('vs/editor/common/modes/monarch/monarchCompile');
-import MonarchDefinition = require('vs/editor/common/modes/monarch/monarchDefinition');
-import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
+import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
+import {createRichEditSupport} from 'vs/editor/common/modes/monarch/monarchDefinition';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {createOnEnterAsserter, executeMonarchTokenizationTests} from 'vs/editor/test/common/modesUtil';
+import {ILanguage} from '../types';
 
 export enum Bracket {
 	None = 0,
@@ -35,20 +34,20 @@ export interface IOnEnterAsserter {
 	indentsOutdents(oneLineAboveText:string, beforeText:string, afterText:string): void;
 }
 
-export function testTokenization(name:string, language: types.ILanguage, tests:ITestItem[][]): void {
+export function testTokenization(name:string, language: ILanguage, tests:ITestItem[][]): void {
 	suite(language.displayName || name, () => {
 		test('Tokenization', () => {
-			modesUtil.executeMonarchTokenizationTests(name, language, <any>tests);
+			executeMonarchTokenizationTests(name, language, <any>tests);
 		});
 	});
 }
 
-export function testOnEnter(name:string, language: types.ILanguage, callback:(assertOnEnter: IOnEnterAsserter)=>void): void {
+export function testOnEnter(name:string, language: ILanguage, callback:(assertOnEnter: IOnEnterAsserter)=>void): void {
 	suite(language.displayName || name, () => {
 		test('onEnter', () => {
-			var lexer = monarchCompile.compile(language);
-			var onEnterSupport = new OnEnterSupport('test', MonarchDefinition.createOnEnterSupportOptions(lexer));
-			callback(modesUtil.createOnEnterAsserter('test', onEnterSupport));
+			var lexer = compile(language);
+			var richEditSupport = new RichEditSupport('test', null, createRichEditSupport(lexer));
+			callback(createOnEnterAsserter('test', richEditSupport));
 		});
 	});
 }

@@ -4,22 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
+import * as strings from 'vs/base/common/strings';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Strings = require('vs/base/common/strings');
+import {Range} from 'vs/editor/common/core/range';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 
-export class TrimTrailingWhitespaceCommand implements EditorCommon.ICommand {
+export class TrimTrailingWhitespaceCommand implements editorCommon.ICommand {
 
-	private selection:EditorCommon.IEditorSelection;
+	private selection:editorCommon.IEditorSelection;
 	private selectionId:string;
 
-	constructor(selection:EditorCommon.IEditorSelection) {
+	constructor(selection:editorCommon.IEditorSelection) {
 		this.selection = selection;
 	}
 
-	public getEditOperations(model:EditorCommon.ITokenizedModel, builder:EditorCommon.IEditOperationBuilder):void {
+	public getEditOperations(model:editorCommon.ITokenizedModel, builder:editorCommon.IEditOperationBuilder):void {
 		var ops = trimTrailingWhitespace(model, []);
 		for (var i = 0, len = ops.length; i < len; i++) {
 			var op = ops[i];
@@ -30,7 +29,7 @@ export class TrimTrailingWhitespaceCommand implements EditorCommon.ICommand {
 		this.selectionId = builder.trackSelection(this.selection);
 	}
 
-	public computeCursorState(model:EditorCommon.ITokenizedModel, helper: EditorCommon.ICursorStateComputerData):EditorCommon.IEditorSelection {
+	public computeCursorState(model:editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData):editorCommon.IEditorSelection {
 		return helper.getTrackedSelection(this.selectionId);
 	}
 }
@@ -38,7 +37,7 @@ export class TrimTrailingWhitespaceCommand implements EditorCommon.ICommand {
 /**
  * Generate commands for trimming trailing whitespace on a model and ignore lines on which cursors are sitting.
  */
-export function trimTrailingWhitespace(model:EditorCommon.ITextModel, cursors: EditorCommon.IPosition[]): EditorCommon.IIdentifiedSingleEditOperation[] {
+export function trimTrailingWhitespace(model:editorCommon.ITextModel, cursors: editorCommon.IPosition[]): editorCommon.IIdentifiedSingleEditOperation[] {
 	// Sort cursors ascending
 	cursors.sort((a, b) => {
 		if (a.lineNumber === b.lineNumber) {
@@ -55,7 +54,7 @@ export function trimTrailingWhitespace(model:EditorCommon.ITextModel, cursors: E
 		}
 	}
 
-	var r:EditorCommon.IIdentifiedSingleEditOperation[] = [],
+	var r:editorCommon.IIdentifiedSingleEditOperation[] = [],
 		cursorIndex = 0,
 		cursorLen = cursors.length,
 		lineNumber:number,
@@ -85,7 +84,7 @@ export function trimTrailingWhitespace(model:EditorCommon.ITextModel, cursors: E
 			continue;
 		}
 
-		lastNonWhitespaceIndex = Strings.lastNonWhitespaceIndex(lineContent);
+		lastNonWhitespaceIndex = strings.lastNonWhitespaceIndex(lineContent);
 
 		fromColumn = 0;
 		if (lastNonWhitespaceIndex === -1) {

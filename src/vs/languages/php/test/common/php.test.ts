@@ -9,8 +9,6 @@ import 'vs/languages/html/common/html.contribution';
 import 'vs/languages/javascript/common/javascript.contribution';
 import 'vs/languages/css/common/css.contribution';
 
-import phpMode = require('vs/languages/php/common/php');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import {htmlTokenTypes} from 'vs/languages/html/common/html';
@@ -24,10 +22,10 @@ suite('Syntax Highlighting - PHP', () => {
 	var assertOnEnter: modesUtil.IOnEnterAsserter;
 
 	setup((done) => {
-		modesUtil.load('php').then(mode => {
+		modesUtil.load('php', ['html', 'javascript', 'css']).then(mode => {
 			tokenizationSupport = mode.tokenizationSupport;
-			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.onEnterSupport);
-			wordDefinition = mode.tokenTypeClassificationSupport.getWordDefinition();
+			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
+			wordDefinition = mode.richEditSupport.wordDefinition;
 			done();
 		});
 	});

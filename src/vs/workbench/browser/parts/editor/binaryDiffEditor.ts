@@ -13,7 +13,7 @@ import {Sash, ISashEvent, IVerticalSashLayoutProvider} from 'vs/base/browser/ui/
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {ResourceViewer} from 'vs/base/browser/ui/resourceviewer/resourceViewer';
 import {IScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/impl/scrollableElement';
+import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElementImpl';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
@@ -56,7 +56,7 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 		let leftBinaryContainerElement = document.createElement('div');
 		leftBinaryContainerElement.className = 'binary-container';
 		this.leftBinaryContainer = $(leftBinaryContainerElement);
-		this.leftBinaryContainer.tabindex(0); // enable focus support
+		this.leftBinaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
 
 		// Left Custom Scrollbars
 		this.leftScrollbar = new ScrollableElement(leftBinaryContainerElement, { horizontal: 'hidden', vertical: 'hidden' });
@@ -73,7 +73,7 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 		let rightBinaryContainerElement = document.createElement('div');
 		rightBinaryContainerElement.className = 'binary-container';
 		this.rightBinaryContainer = $(rightBinaryContainerElement);
-		this.rightBinaryContainer.tabindex(0); // enable focus support
+		this.rightBinaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
 
 		// Right Custom Scrollbars
 		this.rightScrollbar = new ScrollableElement(rightBinaryContainerElement, { horizontal: 'hidden', vertical: 'hidden' });

@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { registerContributions } from 'vs/workbench/parts/git/browser/gitWorkbenchContributions';
-import { Registry } from 'vs/platform/platform';
 import { ElectronGitService } from 'vs/workbench/parts/git/electron-browser/electronGitService';
 import { IGitService } from 'vs/workbench/parts/git/common/git';
-import {registerSingleton} from 'vs/platform/instantiation/common/extensions'
+import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
 
 registerContributions();
 

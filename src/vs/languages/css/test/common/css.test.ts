@@ -21,8 +21,8 @@ suite('CSS Colorizing', () => {
 	suiteSetup((done) => {
 		modesUtil.load('css').then(mode => {
 			tokenizationSupport = mode.tokenizationSupport;
-			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.onEnterSupport);
-			wordDefinition = mode.tokenTypeClassificationSupport.getWordDefinition();
+			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
+			wordDefinition = mode.richEditSupport.wordDefinition;
 			done();
 		});
 	});

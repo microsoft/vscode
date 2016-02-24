@@ -7,16 +7,16 @@
 
 import 'vs/css!./media/iframeeditor';
 import nls = require('vs/nls');
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
+import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import errors = require('vs/base/common/errors');
 import {EditorOptions, EditorInput} from 'vs/workbench/common/editor';
-import {EditorInputAction, BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
 import {IFrameEditorModel} from 'vs/workbench/common/editor/iframeEditorModel';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {IStorageService} from 'vs/platform/storage/common/storage';
 import {Position} from 'vs/platform/editor/common/editor';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -32,6 +32,7 @@ export class IFrameEditor extends BaseEditor {
 
 	private iframeContainer: Builder;
 	private iframeBuilder: Builder;
+	private focusTracker: DOM.IFocusTracker;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -51,7 +52,7 @@ export class IFrameEditor extends BaseEditor {
 		let iframeContainerElement = document.createElement('div');
 		iframeContainerElement.className = 'iframe-container monaco-editor-background'; // Inherit the background color from selected theme
 		this.iframeContainer = $(iframeContainerElement);
-		this.iframeContainer.tabindex(0); // enable focus support
+		this.iframeContainer.tabindex(0); // enable focus support from the editor part (do not remove)
 
 		// IFrame
 		this.iframeBuilder = $(this.iframeContainer).element('iframe').addClass('iframe');
@@ -109,6 +110,19 @@ export class IFrameEditor extends BaseEditor {
 			} catch (error) {
 				setTimeout(() => this.reload(true /* clear */), 1000); // retry in case of an error which indicates the iframe (only) might be on a different URL
 			}
+
+			// When content is fully replaced, we also need to recreate the focus tracker
+			if (!isUpdate) {
+				this.clearFocusTracker();
+			}
+
+			// Track focus on contents and make the editor active when focus is received
+			if (!this.focusTracker) {
+				this.focusTracker = DOM.trackFocus((<HTMLIFrameElement>this.iframeBuilder.getHTMLElement()).contentWindow);
+				this.focusTracker.addFocusListener(() => {
+					this.editorService.activateEditor(this.position);
+				});
+			}
 		});
 	}
 
@@ -138,7 +152,8 @@ export class IFrameEditor extends BaseEditor {
 		return [
 			'<script>',
 			'var ignoredKeys = [9 /* tab */, 32 /* space */, 33 /* page up */, 34 /* page down */, 38 /* up */, 40 /* down */];',
-			'var ignoredCtrlCmdKeys = [67 /* c */];',
+			'var ignoredCtrlCmdKeys = [65 /* a */, 67 /* c */];',
+			'var ignoredShiftKeys = [9 /* tab */];',
 			'window.document.body.addEventListener("keydown", function(event) {',		// Listen to keydown events in the iframe
 			'	try {',
 			'		if (ignoredKeys.some(function(i) { return i === event.keyCode; })) {',
@@ -150,6 +165,12 @@ export class IFrameEditor extends BaseEditor {
 			'		if (ignoredCtrlCmdKeys.some(function(i) { return i === event.keyCode; })) {',
 			'			if (event.ctrlKey || event.metaKey) {',
 			'				return;',													// we want some ctrl/cmd keys to be supported (e.g. Ctrl+C for copy)
+			'			}',
+			'		}',
+			'',
+			'		if (ignoredShiftKeys.some(function(i) { return i === event.keyCode; })) {',
+			'			if (event.shiftKey) {',
+			'				return;',													// we want some shift keys to be supported (e.g. Shift+Tab for copy)
 			'			}',
 			'		}',
 			'',
@@ -206,6 +227,16 @@ export class IFrameEditor extends BaseEditor {
 	private clearIFrame(): void {
 		this.iframeBuilder.src('about:blank');
 		this.iframeBuilder.removeProperty(IFrameEditor.RESOURCE_PROPERTY);
+
+		// Focus Listener
+		this.clearFocusTracker();
+	}
+
+	private clearFocusTracker(): void {
+		if (this.focusTracker) {
+			this.focusTracker.dispose();
+			this.focusTracker = null;
+		}
 	}
 
 	public layout(dimension: Dimension): void {
@@ -249,6 +280,9 @@ export class IFrameEditor extends BaseEditor {
 
 		// Destroy Container
 		this.iframeContainer.destroy();
+
+		// Focus Listener
+		this.clearFocusTracker();
 
 		super.dispose();
 	}

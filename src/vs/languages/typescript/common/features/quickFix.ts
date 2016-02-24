@@ -29,16 +29,16 @@ export function evaluate(languageService: ts.LanguageService, resource: URI, ran
 	var [command] = quickFix.command.arguments;
 	switch (command.type) {
 		case 'rename': {
-			var start = sourceFile.getLineAndCharacterOfPosition(token.getStart());
-			var end = sourceFile.getLineAndCharacterOfPosition(token.getEnd());
-			var renameRange: EditorCommon.IRange = { startLineNumber: start.line + 1, startColumn: start.character + 1, endLineNumber: end.line + 1, endColumn: end.character + 1 };
+			let start = sourceFile.getLineAndCharacterOfPosition(token.getStart());
+			let end = sourceFile.getLineAndCharacterOfPosition(token.getEnd());
+			let renameRange: EditorCommon.IRange = { startLineNumber: start.line + 1, startColumn: start.character + 1, endLineNumber: end.line + 1, endColumn: end.character + 1 };
 			return {
 				edits: [{ resource, range: renameRange, newText: command.name }]
 			};
 		}
 		case 'addglobal': {
-			var content = strings.format('/* global {0} */\n', command.name);
-			var renameRange: EditorCommon.IRange = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
+			let content = strings.format('/* global {0} */\n', command.name);
+			let renameRange: EditorCommon.IRange = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
 			return {
 				edits: [{ resource, range: renameRange, newText: content }]
 			};
@@ -199,7 +199,7 @@ function computeAddTypeDefinitionProposals(languageService: ts.LanguageService, 
 		offset = converter.getOffset(sourceFile, { lineNumber: range.endLineNumber, column: range.endColumn }),
 		token = ts.findTokenOnLeftOfPosition(sourceFile, offset);
 
-	if (!token || token.getWidth() === 0 || (network.schemas.inMemory === resource.scheme)) {
+	if (!token || token.getWidth() === 0 || (network.Schemas.inMemory === resource.scheme)) {
 		return;
 	}
 

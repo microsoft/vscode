@@ -310,12 +310,6 @@ export interface ITree extends Events.IEventEmitter {
 	hasTrait(trait: string, element: any): boolean;
 
 	/**
-	 * Allows to render an invisible fake row, for measurement purposes.
-	 * Returns whatever fn(...) returns.
-	 */
-	withFakeRow(fn:(container:HTMLElement)=>any):any;
-
-	/**
 	 * Returns a navigator which allows to discover the visible and
 	 * expanded elements in the tree.
 	 */
@@ -391,6 +385,21 @@ export interface IRenderer {
 	disposeTemplate(tree: ITree, templateId: string, templateData: any): void;
 }
 
+export interface IAccessibilityProvider {
+
+	/**
+	 * Given an element in the tree, return the ARIA label that should be associated with the
+	 * item. This helps screen readers to provide a meaningful label for the currently focused
+	 * tree element.
+	 *
+	 * Returning null will not disable ARIA for the element. Instead it is up to the screen reader
+	 * to compute a meaningful label based on the contents of the element in the DOM
+	 *
+	 * See also: https://www.w3.org/TR/wai-aria/states_and_properties#aria-label
+	 */
+	getAriaLabel(tree: ITree, element: any): string;
+}
+
 export /* abstract */ class ContextMenuEvent {
 
 	private _posx: number;
@@ -426,9 +435,9 @@ export /* abstract */ class ContextMenuEvent {
 
 export class MouseContextMenuEvent extends ContextMenuEvent {
 
-	private originalEvent: Mouse.StandardMouseEvent;
+	private originalEvent: Mouse.IMouseEvent;
 
-	constructor(originalEvent: Mouse.StandardMouseEvent) {
+	constructor(originalEvent: Mouse.IMouseEvent) {
 		super(originalEvent.posx, originalEvent.posy, originalEvent.target);
 		this.originalEvent = originalEvent;
 	}
@@ -444,9 +453,9 @@ export class MouseContextMenuEvent extends ContextMenuEvent {
 
 export class KeyboardContextMenuEvent extends ContextMenuEvent {
 
-	private originalEvent: Keyboard.StandardKeyboardEvent;
+	private originalEvent: Keyboard.IKeyboardEvent;
 
-	constructor(posx: number, posy: number, originalEvent: Keyboard.StandardKeyboardEvent) {
+	constructor(posx: number, posy: number, originalEvent: Keyboard.IKeyboardEvent) {
 		super(posx, posy, originalEvent.target);
 		this.originalEvent = originalEvent;
 	}
@@ -465,7 +474,7 @@ export interface IController {
 	/**
 	 * Called when an element is clicked.
 	 */
-	onClick(tree: ITree, element: any, event: Mouse.StandardMouseEvent): boolean;
+	onClick(tree: ITree, element: any, event: Mouse.IMouseEvent): boolean;
 
 	/**
 	 * Called when an element is requested for a context menu.
@@ -480,22 +489,22 @@ export interface IController {
 	/**
 	 * Called when a key is pressed down while selecting elements.
 	 */
-	onKeyDown(tree: ITree, event: Keyboard.StandardKeyboardEvent): boolean;
+	onKeyDown(tree: ITree, event: Keyboard.IKeyboardEvent): boolean;
 
 	/**
 	 * Called when a key is released while selecting elements.
 	 */
-	onKeyUp(tree: ITree, event: Keyboard.StandardKeyboardEvent): boolean;
+	onKeyUp(tree: ITree, event: Keyboard.IKeyboardEvent): boolean;
 
 	/**
 	 * Called when a mouse button is pressed down on an element.
 	 */
-	onMouseDown?(tree: ITree, element: any, event: Mouse.StandardMouseEvent): boolean;
+	onMouseDown?(tree: ITree, element: any, event: Mouse.IMouseEvent): boolean;
 
 	/**
 	 * Called when a mouse button goes up on an element.
 	 */
-	onMouseUp?(tree: ITree, element: any, event: Mouse.StandardMouseEvent): boolean;
+	onMouseUp?(tree: ITree, element: any, event: Mouse.IMouseEvent): boolean;
 }
 
 export enum DragOverEffect {
@@ -599,6 +608,7 @@ export interface ITreeConfiguration {
 	dnd?: IDragAndDrop;
 	filter?: IFilter;
 	sorter?: ISorter;
+	accessibilityProvider?: IAccessibilityProvider;
 }
 
 export interface ITreeOptions {
@@ -611,6 +621,7 @@ export interface ITreeOptions {
 	bare?:boolean;
 	useShadows?:boolean;
 	paddingOnRow?:boolean;
+	ariaLabel?:string;
 }
 
 export interface ITreeContext extends ITreeConfiguration {

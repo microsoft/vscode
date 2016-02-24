@@ -7,14 +7,17 @@
 
 import 'vs/css!./messageList';
 import nls = require('vs/nls');
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, withElementById, $} from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
+import aria = require('vs/base/browser/ui/aria/aria');
 import types = require('vs/base/common/types');
 import Event, {Emitter} from 'vs/base/common/event';
 import {Action} from 'vs/base/common/actions';
 import htmlRenderer = require('vs/base/browser/htmlContentRenderer');
+import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {CommonKeybindings} from 'vs/base/common/keyCodes';
 
 export enum Severity {
 	Info,
@@ -53,7 +56,7 @@ export class MessageList {
 	private static DEFAULT_MAX_MESSAGE_LENGTH = 500;
 
 	private messages: IMessageEntry[];
-	private messageListPurger: Promise;
+	private messageListPurger: TPromise<void>;
 	private messageListContainer: Builder;
 
 	private containerElementId: string;
@@ -141,21 +144,32 @@ export class MessageList {
 		// Render
 		this.renderMessages(true, 1);
 
+		// Support in Screen Readers too
+		let alertText: string;
+		if (severity === Severity.Error) {
+			alertText = nls.localize('alertErrorMessage', "Error: {0}", message);
+		} else if (severity === Severity.Warning) {
+			alertText = nls.localize('alertWarningMessage', "Warning: {0}", message);
+		} else {
+			alertText = nls.localize('alertInfoMessage', "Info: {0}", message);
+		}
+
+		aria.alert(alertText);
+
 		return () => {
 			this.hideMessage(id);
 		};
 	}
 
 	private renderMessages(animate: boolean, delta: number): void {
+		let container = withElementById(this.containerElementId);
+		if (!container) {
+			return; // Cannot build container for messages yet, return
+		}
 
 		// Lazily create, otherwise clear old
 		if (!this.messageListContainer) {
-			let container = withElementById(this.containerElementId);
-			if (container) {
-				this.messageListContainer = $('.global-message-list').appendTo(container);
-			} else {
-				return; // Cannot build container for messages yet, return
-			}
+			this.messageListContainer = $('.global-message-list').appendTo(container);
 		} else {
 			$(this.messageListContainer).empty();
 			$(this.messageListContainer).removeClass('transition');
@@ -190,22 +204,29 @@ export class MessageList {
 	}
 
 	private renderMessage(message: IMessageEntry, container: Builder, total: number, delta: number): void {
-
-		// Actions (if none provided, add one default action to hide message)
-		let messageActions = this.getMessageActions(message);
 		container.li({ class: 'message-list-entry message-list-entry-with-action' }, (li) => {
+
+			// Actions (if none provided, add one default action to hide message)
+			let messageActions = this.getMessageActions(message);
 			messageActions.forEach((action) => {
 				let clazz = (total > 1 || delta < 0) ? 'message-right-side multiple' : 'message-right-side';
 				li.div({ class: clazz }, (div) => {
-					div.a({ class: 'action-button' }).text(action.label).on('click', (e) => {
+					div.a({ class: 'action-button', tabindex: '0', role: 'button' }).text(action.label).on([DOM.EventType.CLICK, DOM.EventType.KEY_DOWN], (e) => {
+						if (e instanceof KeyboardEvent) {
+							let event = new StandardKeyboardEvent(e);
+							if (!event.equals(CommonKeybindings.ENTER) && !event.equals(CommonKeybindings.SPACE)) {
+								return; // Only handle Enter/Escape for keyboard access
+							}
+						}
+
 						DOM.EventHelper.stop(e, true);
 
 						if (this.usageLogger) {
 							this.usageLogger.publicLog('workbenchActionExecuted', { id: action.id, from: 'message' });
 						}
 
-						(action.run() || Promise.as(null))
-							.then(null, error => this.showMessage(Severity.Error, error))
+						(action.run() || TPromise.as(null))
+							.then<any>(null, error => this.showMessage(Severity.Error, error))
 							.done((r) => {
 								if (r === false) {
 									return;
@@ -231,11 +252,10 @@ export class MessageList {
 				let messageContentElement: HTMLElement = <any>htmlRenderer.renderHtml({
 					tagName: 'span',
 					className: 'message-left-side',
-					role: 'alert',
 					formattedText: text
 				});
 
-				$(messageContentElement).attr({ role: 'alert' }).title(messageContentElement.textContent).appendTo(div);
+				$(messageContentElement).title(messageContentElement.textContent).appendTo(div);
 			});
 		});
 	}
@@ -249,7 +269,7 @@ export class MessageList {
 				new Action('close.message.action', nls.localize('close', "Close"), null, true, () => {
 					this.hideMessage(message.text); // hide all matching the text since there may be duplicates
 
-					return Promise.as(true);
+					return TPromise.as(true);
 				})
 			];
 		}
@@ -346,7 +366,7 @@ export class MessageList {
 		}
 
 		// Configure
-		this.messageListPurger = Promise.timeout(this.options.purgeInterval).then(() => {
+		this.messageListPurger = TPromise.timeout(this.options.purgeInterval).then(() => {
 			let needsUpdate = false;
 			let counter = 0;
 

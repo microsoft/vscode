@@ -5,7 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Registry} from 'vs/platform/platform';
 import baseplatform = require('vs/base/common/platform');
 import {IAction, Action} from 'vs/base/common/actions';
@@ -46,16 +46,16 @@ export class OpenConsoleAction extends Action {
 		this.enabled = !paths.isUNC(this.resource.fsPath);
 	}
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<any> {
 		let workspace = this.contextService.getWorkspace();
 		let path = this.resource ? this.resource.fsPath : (workspace && workspace.resource.fsPath);
 
 		if (!path) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		this.terminalService.openTerminal(path);
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 

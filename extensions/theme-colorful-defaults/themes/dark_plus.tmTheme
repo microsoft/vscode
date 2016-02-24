@@ -21,7 +21,11 @@
 			<key>name</key>
 			<string>Types declaration and references</string>
 			<key>scope</key>
-			<string>meta.parameter.type, name.class, storage.type, meta.return.type, meta.object.type, return-type, meta.cast, new.storage.type.ts, cast.storage.type.ts, heritage.storage.type.ts, annotation.storage.type.ts, var.annotation.type.ts, field.storage.type.ts</string>
+			<string>meta.parameter.type, name.class, storage.type, meta.return.type, meta.object.type, return-type, meta.cast,
+				new.storage.type.ts, cast.storage.type.ts, heritage.storage.type.ts, annotation.storage.type.ts, var.annotation.type.ts, field.storage.type.ts,
+				new.storage.type.js, cast.storage.type.js, heritage.storage.type.js, annotation.storage.type.js, var.annotation.type.js, field.storage.type.js,
+				new.storage.type.tsx, cast.storage.type.tsx, heritage.storage.type.tsx, annotation.storage.type.tsx, var.annotation.type.tsx, field.storage.type.tsx
+			</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
@@ -32,7 +36,7 @@
 			<key>name</key>
 			<string>TS storage type workaround</string>
 			<key>scope</key>
-			<string>storage.type.ts</string>
+			<string>storage.type.ts, storage.type.js, storage.type.tsx</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>

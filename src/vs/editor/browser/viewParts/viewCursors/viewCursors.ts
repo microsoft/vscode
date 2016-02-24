@@ -6,12 +6,11 @@
 'use strict';
 
 import 'vs/css!./viewCursors';
-import Browser = require('vs/base/browser/browser');
-
-import {ViewCursor} from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
+import * as browser from 'vs/base/browser/browser';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {ClassNames, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {ViewCursor} from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 
 enum RenderType {
 	Hidden,
@@ -34,7 +33,7 @@ export class ViewCursors extends ViewPart {
 	private _primaryCursor: ViewCursor;
 	private _secondaryCursors: ViewCursor[];
 
-	constructor(context:EditorBrowser.IViewContext) {
+	constructor(context:IViewContext) {
 		super(context);
 
 		this._primaryCursor = new ViewCursor(this._context, false);
@@ -42,7 +41,7 @@ export class ViewCursors extends ViewPart {
 
 		this._domNode = document.createElement('div');
 		this._updateDomClassName();
-		if (Browser.canUseTranslate3d) {
+		if (browser.canUseTranslate3d) {
 			this._domNode.style.transform = 'translate3d(0px, 0px, 0px)';
 		}
 
@@ -77,21 +76,21 @@ export class ViewCursors extends ViewPart {
 		this._secondaryCursors = [];
 		return true;
 	}
-	public onModelDecorationsChanged(e:EditorCommon.IViewDecorationsChangedEvent): boolean {
+	public onModelDecorationsChanged(e:editorCommon.IViewDecorationsChangedEvent): boolean {
 		// true for inline decorations that can end up relayouting text
 		return e.inlineDecorationsChanged;
 	}
-	public onModelLinesDeleted(e:EditorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e:editorCommon.IViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onModelLineChanged(e:EditorCommon.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e:editorCommon.IViewLineChangedEvent): boolean {
 		return true;
 	}
-	public onModelLinesInserted(e:EditorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e:editorCommon.IViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onModelTokensChanged(e:EditorCommon.IViewTokensChangedEvent): boolean {
-		var shouldRender = (position:EditorCommon.IPosition) => {
+	public onModelTokensChanged(e:editorCommon.IViewTokensChangedEvent): boolean {
+		var shouldRender = (position:editorCommon.IPosition) => {
 			return e.fromLineNumber <= position.lineNumber && position.lineNumber <= e.toLineNumber;
 		};
 		if (shouldRender(this._primaryCursor.getPosition())) {
@@ -104,7 +103,7 @@ export class ViewCursors extends ViewPart {
 		}
 		return false;
 	}
-	public onCursorPositionChanged(e:EditorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e:editorCommon.IViewCursorPositionChangedEvent): boolean {
 		this._primaryCursor.onCursorPositionChanged(e.position, e.isInEditableRange);
 		this._updateBlinking();
 
@@ -131,10 +130,10 @@ export class ViewCursors extends ViewPart {
 
 		return true;
 	}
-	public onCursorSelectionChanged(e:EditorCommon.IViewCursorSelectionChangedEvent): boolean {
+	public onCursorSelectionChanged(e:editorCommon.IViewCursorSelectionChangedEvent): boolean {
 		return false;
 	}
-	public onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
 		this._primaryCursor.onConfigurationChanged(e);
 		this._updateBlinking();
 		if (e.cursorStyle) {
@@ -145,10 +144,10 @@ export class ViewCursors extends ViewPart {
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo:EditorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
 		return true;
 	}
-	public onScrollChanged(e:EditorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
 		return true;
 	}
 	public onZonesChanged(): boolean {
@@ -167,7 +166,7 @@ export class ViewCursors extends ViewPart {
 	}
 	// --- end event handlers
 
-	public getPosition(): EditorCommon.IPosition {
+	public getPosition(): editorCommon.IPosition {
 		return this._primaryCursor.getPosition();
 	}
 
@@ -177,11 +176,11 @@ export class ViewCursors extends ViewPart {
 		if (this._editorHasFocus) {
 			if (this._primaryCursor.getIsInEditableRange() && !this._context.configuration.editor.readOnly) {
 				switch (this._context.configuration.editor.cursorBlinking) {
-					case ("blink"):
+					case 'blink':
 						return RenderType.Blink;
-					case ("visible"):
+					case 'visible':
 						return RenderType.Visible;
-					case ("hidden"):
+					case 'hidden':
 						return RenderType.Hidden;
 					default:
 						return RenderType.Blink;
@@ -217,7 +216,7 @@ export class ViewCursors extends ViewPart {
 	}
 
 	private _getClassName(): string {
-		let result = EditorBrowser.ClassNames.VIEW_CURSORS_LAYER;
+		let result = ClassNames.VIEW_CURSORS_LAYER;
 		let extraClassName: string;
 		switch (this._context.configuration.editor.cursorStyle) {
 			case 'line':
@@ -258,7 +257,7 @@ export class ViewCursors extends ViewPart {
 
 	// ---- IViewPart implementation
 
-	_render(ctx:EditorBrowser.IRenderingContext): void {
+	_render(ctx:IRenderingContext): void {
 		this._primaryCursor.prepareRender(ctx);
 		for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
 			this._secondaryCursors[i].prepareRender(ctx);

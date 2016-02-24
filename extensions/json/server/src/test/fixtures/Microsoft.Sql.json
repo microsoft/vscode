@@ -1,0 +1,376 @@
+﻿{
+    "id": "http://schema.management.azure.com/schemas/2014-04-01-preview/Microsoft.Sql.json#",
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "title": "Microsoft.SQLDatabase",
+    "description": "Microsoft SQL Database Resource Types",
+    "definitions": {
+        "servers": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "enum": [
+                        "Microsoft.Sql/servers"
+                    ]
+                },
+                "apiVersion": {
+                    "enum": [
+                        "2014-04-01-preview"
+                    ]
+                },
+                "properties": {
+                    "type": "object",
+                    "properties": {
+                        "version": {
+                            "enum": [
+                                "2.0",
+                                "12.0"
+                            ],
+                            "description": "Microsoft.Sql/server: Azure SQL DB server version"
+                        },
+                        "administratorLogin": {
+                            "type": "string",
+                            "description": "Microsoft.Sql/server: administrator login name"
+                        },
+                        "administratorLoginPassword": {
+                            "type": "string",
+                            "description": "Microsoft.Sql/server: administrator login password"
+                        }
+                    },
+                    "required": [
+                        "administratorLogin",
+                        "administratorLoginPassword"
+                    ]
+                },
+                "resources": {
+                    "type": "array",
+                    "items": {
+                        "allOf": [
+                            {
+                                "$ref": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#/definitions/resourceBase"
+                            },
+                            {
+                                "oneOf": [
+                                    { "$ref": "http://schema.management.azure.com/schemas/2015-01-01/Microsoft.Authorization.json#/definitions/locks" },
+                                    { "$ref": "http://schema.management.azure.com/schemas/2015-01-01/Microsoft.Resources.json#/definitions/links" },
+                                    { "$ref": "#/definitions/databasesChild" },
+                                    { "$ref": "#/definitions/firewallrulesChild" }
+                                ]
+                            }
+                        ]
+                    },
+                    "description": "Microsoft.Sql/servers: Child resources to define databases and firewall rules."
+                }
+            },
+            "required": [
+                "type",
+                "apiVersion",
+                "properties"
+            ]
+        },
+        "databasesBaseCommon": {
+            "type": "object",
+            "properties": {
+                "edition": {
+                    "oneOf": [
+                        {
+                            "$ref": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#/definitions/expression"
+                        },
+                        {
+                            "enum": [
+                                "Web",
+                                "Business",
+                                "Basic",
+                                "Standard",
+                                "Premium"
+                            ]
+                        }
+                    ],
+                    "description": "Microsoft.Sql/server/databases: Optional. Edition of the database to be created. If omitted, the default is Web on server version 2.0 or Standard on server version 12.0."
+                },
+                "collation": {
+                    "oneOf": [
+                        {
+                            "$ref": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#/definitions/expression"
+                        },
+                        {
+                            "enum": [
+                                "SQL_Latin1_General_Cp437_CS_AS_KI_WI",
+                                "SQL_Latin1_General_Cp437_CI_AS_KI_WI",
+                                "SQL_Latin1_General_Pref_Cp437_CI_AS_KI_WI",
+                                "SQL_Latin1_General_Cp437_CI_AI_KI_WI",
+                                "SQL_Latin1_General_Cp437_BIN",
+                                "SQL_Latin1_General_Cp850_BIN",
+                                "SQL_Latin1_General_Cp850_CS_AS_KI_WI",
+                                "SQL_Latin1_General_Cp850_CI_AS_KI_WI",
+                                "SQL_Latin1_General_Cp850_CI_AI_KI_WI",
+                                "SQL_Latin1_General_Pref_Cp850_CI_AS_KI_WI",
+                                "SQL_1xCompat_Cp850_CI_AS_KI_WI",
+                                "SQL_Latin1_General_Cp1_CS_AS_KI_WI",
+                                "SQL_Latin1_General_Cp1_CI_AS_KI_WI",
+                                "SQL_Latin1_General_Pref_Cp1_CI_AS_KI_WI",
+                                "SQL_Latin1_General_Cp1_CI_AI_KI_WI",
+                                "SQL_AltDiction_Cp850_CS_AS_KI_WI",
+                                "SQL_AltDiction_Pref_Cp850_CI_AS_KI_WI",
+                                "SQL_AltDiction_Cp850_CI_AI_KI_WI",
+                                "SQL_Scandainavian_Pref_Cp850_CI_AS_KI_WI",
+                                "SQL_Scandainavian_Cp850_CS_AS_KI_WI",
+                                "SQL_Scandainavian_Cp850_CI_AS_KI_WI",
+                                "SQL_AltDiction_Cp850_CI_AS_KI_WI",
+                                "SQL_Latin1_General_1250_BIN",
+                                "SQL_Latin1_General_Cp1250_CS_AS_KI_WI",
+                                "SQL_Latin1_General_Cp1250_CI_AS_KI_WI",
+                                "SQL_Czech_Cp1250_CS_AS_KI_WI",
+                                "SQL_Czech_Cp1250_CI_AS_KI_WI",
+                                "SQL_Hungarian_Cp1250_CS_AS_KI_WI",
+                                "SQL_Hungarian_Cp1250_CI_AS_KI_WI",
+                                "SQL_Polish_Cp1250_CS_AS_KI_WI",
+                                "SQL_Polish_Cp1250_CI_AS_KI_WI",
+                                "SQL_Romanian_Cp1250_CS_AS_KI_WI",
+                                "SQL_Romanian_Cp1250_CI_AS_KI_WI",
+                                "SQL_Croatian_Cp1250_CS_AS_KI_WI",
+                                "SQL_Croatian_Cp1250_CI_AS_KI_WI",
+                                "SQL_Slovak_Cp1250_CS_AS_KI_WI",
+                                "SQL_Slovak_Cp1250_CI_AS_KI_WI",
+                                "SQL_Slovenian_Cp1250_CS_AS_KI_WI",
+                                "SQL_Slovenian_Cp1250_CI_AS_KI_WI",
+                                "SQL_Latin1_General_1251_BIN",
+                                "SQL_Latin1_General_Cp1251_CS_AS_KI_WI",
+                                "SQL_Latin1_General_Cp1251_CI_AS_KI_WI",
+                                "SQL_Ukrainian_Cp1251_CS_AS_KI_WI",
+                                "SQL_Ukrainian_Cp1251_CI_AS_KI_WI",
+                                "SQL_Latin1_General_1253_BIN",
+                                "SQL_Latin1_General_Cp1253_CS_AS_KI_WI",
+                                "SQL_Latin1_General_Cp1253_CI_AS_KI_WI",
+                                "SQL_Latin1_General_Cp1253_CI_AI_KI_WI",
+                                "SQL_Latin1_General_1254_BIN",
+                                "SQL_Latin1_General_Cp1254_CS_AS_KI_WI",
+                                "SQL_Latin1_General_Cp1254_CI_AS_KI_WI",
+                                "SQL_Latin1_General_1255_BIN",
+                                "SQL_Latin1_General_Cp1255_CS_AS_KI_WI",
+                                "SQL_Latin1_General_Cp1255_CI_AS_KI_WI",
+                                "SQL_Latin1_General_1256_BIN",
+                                "SQL_Latin1_General_Cp1256_CS_AS_KI_WI",
+                                "SQL_Latin1_General_Cp1256_CI_AS_KI_WI",
+                                "SQL_Latin1_General_1257_BIN",
+                                "SQL_Latin1_General_Cp1257_CS_AS_KI_WI",
+                                "SQL_Latin1_General_Cp1257_CI_AS_KI_WI",
+                                "SQL_Estonian_Cp1257_CS_AS_KI_WI",
+                                "SQL_Estonian_Cp1257_CI_AS_KI_WI",
+                                "SQL_Latvian_Cp1257_CS_AS_KI_WI",
+                                "SQL_Latvian_Cp1257_CI_AS_KI_WI",
+                                "SQL_Lithuanian_Cp1257_CS_AS_KI_WI",
+                                "SQL_Lithuanian_Cp1257_CI_AS_KI_WI",
+                                "SQL_Danish_Pref_Cp1_CI_AS_KI_WI",
+                                "SQL_SwedishPhone_Pref_Cp1_CI_AS_KI_WI",
+                                "SQL_SwedishStd_Pref_Cp1_CI_AS_KI_WI",
+                                "SQL_Icelandic_Pref_Cp1_CI_AS_KI_WI"
+                            ]
+                        }
+                    ],
+                    "description": "Microsoft.Sql/server/databases: Database collation"
+                },
+                "maxSizeBytes": {
+                    "oneOf": [
+                        {
+                            "$ref": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#/definitions/expression"
+                        },
+                        {
+                            "enum": [
+                                "104857600",
+                                "524288000",
+                                "1073741824",
+                                "2147483648",
+                                "5368709120",
+                                "10737418240",
+                                "21474836480",
+                                "32212254720",
+                                "42949672960",
+                                "53687091200",
+                                "107374182400",
+                                "161061273600",
+                                "214748364800",
+                                "268435456000",
+                                "322122547200",
+                                "429496729600",
+                                "536870912000"
+                            ]
+                        }
+                    ],
+                    "description": "Microsoft.Sql/server/databases: Sets the maximum size, in bytes, for the database. This value must be within the range of allowed values for Edition."
+                },
+                "requestedServiceObjectiveId": {
+                    "oneOf": [
+                        {
+                            "$ref": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#/definitions/expression"
+                        },
+                        {
+                            "enum": [
+                                "910B4FCB-8A29-4C3E-958F-F7BA794388B2",
+                                "DD6D99BB-F193-4EC1-86F2-43D3BCCBC49C",
+                                "F1173C43-91BD-4AAA-973C-54E79E15235B",
+                                "1B1EBD4D-D903-4BAA-97F9-4EA675F5E928",
+                                "455330E1-00CD-488B-B5FA-177C226F28B7",
+                                "789681B8-CA10-4EB0-BDF2-E0B050601B40",
+                                "7203483A-C4FB-4304-9E9F-17C71C904F5D",
+                                "A7D1B92D-C987-4375-B54D-2B1D0E0F5BB0",
+                                "A7C4C615-CFB1-464B-B252-925BE0A19446"
+                            ]
+                        }
+                    ],
+                    "description": "Microsoft.Sql/server/databases: The GUID corresponding to the performance level for Edition. Shared = 910B4FCB-8A29-4C3E-958F-F7BA794388B2, Basic = DD6D99BB-F193-4EC1-86F2-43D3BCCBC49C, S0 = F1173C43-91BD-4AAA-973C-54E79E15235B, S1 = 1B1EBD4D-D903-4BAA-97F9-4EA675F5E928, S2 = 455330E1-00CD-488B-B5FA-177C226F28B7, S3 = 789681B8-CA10-4EB0-BDF2-E0B050601B40, P1 = 7203483A-C4FB-4304-9E9F-17C71C904F5D, P2 = A7D1B92D-C987-4375-B54D-2B1D0E0F5BB0, P3 = A7C4C615-CFB1-464B-B252-925BE0A19446"
+                }
+            }
+        },
+        "databasesBaseAll": {
+            "type": "object",
+            "properties": {
+                "createMode": {
+                    "oneOf": [
+                        {
+                            "$ref": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#/definitions/expression"
+                        },
+                        {
+                            "enum": [
+                                "Copy",
+                                "OnlineSecondary",
+                                "OfflineSecondary",
+                                "Recovery",
+                                "PointInTimeRestore",
+                                "Restore"
+                            ]
+                        }
+                    ],
+                    "description": "Microsoft.Sql/server/databases: Defines that databases is created as a Point-In-Time restoration of another database."
+                },
+                "sourceDatabaseId": {
+                    "type": "string",
+                    "description": "Microsoft.Sql/server/databases: The URI of the source database."
+                },
+                "restorePointInTime": {
+                    "$ref": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#/definitions/UTC",
+                    "description": "Microsoft.Sql/server/databases: The point in time for the restore."
+                },
+                "sourceDatabaseDeletionDate": {
+                    "$ref": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#/definitions/UTC",
+                    "description": "Microsoft.Sql/server/databases: The deletion date time of the source database."
+                }
+
+            }
+        },
+        "databasesBase": {
+            "allOf": [
+                {
+                    "$ref": "#/definitions/databasesBaseCommon"
+                },
+                {
+                    "$ref": "#/definitions/databasesBaseAll"
+                }
+            ]
+        },
+        "databasesChild": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "enum": [
+                        "databases"
+                    ]
+                },
+                "apiVersion": {
+                    "enum": [
+                        "2014-04-01-preview"
+                    ]
+                },
+                "properties": {
+                    "$ref": "#/definitions/databasesBase"
+                }
+            },
+            "required": [
+                "type",
+                "apiVersion",
+                "properties"
+            ]
+        },
+        "databases": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "enum": [
+                        "Microsoft.Sql/servers/databases"
+                    ]
+                },
+                "apiVersion": {
+                    "enum": [
+                        "2014-04-01-preview"
+                    ]
+                },
+                "properties": {
+                    "$ref": "#/definitions/databasesBase"
+                }
+            },
+            "required": [
+                "type",
+                "apiVersion",
+                "properties"
+            ]
+        },
+        "firewallrulesBase": {
+            "type": "object",
+            "properties": {
+                "endIpAddress": {
+                    "type": "string",
+                    "description": "Microsoft.Sql/server/firewallrules: ending IP address"
+                },
+                "startIpAddress": {
+                    "type": "string",
+                    "description": "Microsoft.Sql/server/firewallrules: starting IP address"
+                }
+            }
+        },
+        "firewallrulesChild": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "enum": [
+                        "firewallrules"
+                    ]
+                },
+                "apiVersion": {
+                    "enum": [
+                        "2014-04-01-preview"
+                    ]
+                },
+                "properties": {
+                    "$ref": "#/definitions/firewallrulesBase"
+                }
+            },
+            "required": [
+                "type",
+                "apiVersion",
+                "properties"
+            ]
+        },
+        "firewallrules": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "enum": [
+                        "Microsoft.Sql/servers/firewallrules"
+                    ]
+                },
+                "apiVersion": {
+                    "enum": [
+                        "2014-04-01-preview"
+                    ]
+                },
+                "properties": {
+                    "$ref": "#/definitions/firewallrulesBase"
+                }
+            },
+            "required": [
+                "type",
+                "apiVersion",
+                "properties"
+            ]
+        }
+    }
+}

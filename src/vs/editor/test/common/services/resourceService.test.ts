@@ -4,23 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import Emit = require('vs/base/common/eventEmitter');
-import Service = require('vs/editor/common/services/resourceServiceImpl');
-import MirrorModel = require('vs/editor/common/model/mirrorModel');
-import resourceService = require('vs/editor/common/services/resourceService');
+import {createMirrorModelFromString} from 'vs/editor/common/model/mirrorModel';
+import {ResourceEvents} from 'vs/editor/common/services/resourceService';
+import {ResourceService} from 'vs/editor/common/services/resourceServiceImpl';
 
 suite('Editor Services - ResourceService', () => {
 
 	test('insert, remove, all', () => {
 
-		var service = new Service.ResourceService();
+		var service = new ResourceService();
 
-		service.insert(URI.parse('test://1'), MirrorModel.createMirrorModelFromString(null, 1, 'hi', null));
+		service.insert(URI.parse('test://1'), createMirrorModelFromString(null, 1, 'hi', null));
 		assert.equal(service.all().length, 1);
 
-		service.insert(URI.parse('test://2'), MirrorModel.createMirrorModelFromString(null, 1, 'hi', null));
+		service.insert(URI.parse('test://2'), createMirrorModelFromString(null, 1, 'hi', null));
 		assert.equal(service.all().length, 2);
 
 		assert.ok(service.contains(URI.parse('test://1')));
@@ -38,13 +37,13 @@ suite('Editor Services - ResourceService', () => {
 		var eventCnt = 0;
 
 		var url = URI.parse('far');
-		var element = MirrorModel.createMirrorModelFromString(null, 1, 'hi', null);
-		var service = new Service.ResourceService();
-		service.addListener(resourceService.ResourceEvents.ADDED, () => {
+		var element = createMirrorModelFromString(null, 1, 'hi', null);
+		var service = new ResourceService();
+		service.addListener(ResourceEvents.ADDED, () => {
 			eventCnt++;
 			assert.ok(true);
 		});
-		service.addListener(resourceService.ResourceEvents.REMOVED, () => {
+		service.addListener(ResourceEvents.REMOVED, () => {
 			eventCnt++;
 			assert.ok(true);
 		});
@@ -59,10 +58,10 @@ suite('Editor Services - ResourceService', () => {
 		var eventCnt = 0;
 
 		var url = URI.parse('far');
-		var element = MirrorModel.createMirrorModelFromString(null, 1, 'hi', null);
+		var element = createMirrorModelFromString(null, 1, 'hi', null);
 		var event = {};
 
-		var service = new Service.ResourceService();
+		var service = new ResourceService();
 		service.insert(url, element);
 
 		service.addBulkListener((events) => {

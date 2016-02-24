@@ -6,17 +6,21 @@
 	"author": "Microsoft Corporation",
 	"license": "MIT",
 	"publisher": "vscode",
+	"aiKey":"AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
 	"engines": {
 		"vscode": "*"
+	},
+	"dependencies": {
+    "vscode-extension-telemetry": "^0.0.4"
 	},
 	"scripts": {
 		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../gulpfile.plugins.js compile-plugin:typescript ./src/tsconfig.json"
 	},
 	"activationEvents": [
-		"onLanguage:typescript",
-		"onLanguage:typescriptreact",
 		"onLanguage:javascript",
 		"onLanguage:javascriptreact",
+		"onLanguage:typescript",
+		"onLanguage:typescriptreact",
 		"onCommand:typescript.reloadProjects"
 	],
 	"main": "./out/typescriptMain",
@@ -58,17 +62,17 @@
 		],
 		"configuration": {
 			"type": "object",
-			"title": "TypeScript configuration",
+			"title": "%configuration.typescript%",
 			"properties": {
 				"typescript.useCodeSnippetsOnMethodSuggest": {
 					"type": "boolean",
 					"default": false,
-					"description": "Complete functions with their parameter signature."
+					"description": "%typescript.useCodeSnippetsOnMethodSuggest.dec%"
 				},
 				"typescript.tsdk": {
-					"type": "string",
+					"type": ["string", "null"],
 					"default": null,
-					"description": "Specifies the folder path containing the tsserver and lib*.d.ts files to use."
+					"description": "%typescript.tsdk.desc%"
 				}
 			}
 		},
@@ -80,7 +84,7 @@
 		"commands": [
 			{
 				"command": "typescript.reloadProjects",
-				"title": "Reload Projects",
+				"title": "%typescript.reloadProjects.title%",
 				"category": "TypeScript"
 			}
 		],
@@ -116,6 +120,10 @@
 			{
 				"fileMatch": "tsconfig.json",
 				"url": "http://json.schemastore.org/tsconfig"
+			},
+			{
+				"fileMatch": "tsconfig.json",
+				"url": "./schemas/tsconfig.schema.json"
 			}
 		]
 	}

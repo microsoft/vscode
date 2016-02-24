@@ -4,18 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as nls from 'vs/nls';
+import {IEditorOptions} from 'vs/editor/common/editorCommon';
 
 export interface IConfiguration {
-	editor:EditorCommon.IEditorOptions;
+	editor:IEditorOptions;
 }
+
+export const USUAL_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?';
 
 class ConfigClass implements IConfiguration {
 
-	public editor: EditorCommon.IEditorOptions;
+	public editor: IEditorOptions;
 
 	constructor() {
 		this.editor = {
+			experimentalScreenReader: false,
+			rulers: [],
+			wordSeparators: USUAL_WORD_SEPARATORS,
+			ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
 			lineNumbers: true,
 			selectOnLineNumbers: true,
 			lineNumbersMinChars: 5,
@@ -63,6 +70,7 @@ class ConfigClass implements IConfiguration {
 			selectionHighlight: true,
 			outlineMarkers: false,
 			referenceInfos: true,
+			folding: true,
 			renderWhitespace: false,
 
 			tabSize: 4,

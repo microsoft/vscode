@@ -3,16 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { assign } from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IGalleryService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
+import { IGalleryService, IExtension, IGalleryVersion } from 'vs/workbench/parts/extensions/common/extensions';
+import { IXHRResponse } from 'vs/base/common/http';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
-
-import { nfcall } from 'vs/base/common/async';
-import * as fs from 'fs';
 
 export interface IGalleryExtensionFile {
 	assetType: string;
@@ -33,35 +28,111 @@ export interface IGalleryExtension {
 	publisher: { displayName: string, publisherId: string, publisherName: string; };
 	versions: IGalleryExtensionVersion[];
 	galleryApiUrl: string;
+	statistics: IGalleryExtensionStatistics[];
 }
+
+export interface IGalleryExtensionStatistics {
+	statisticName: string;
+	value: number;
+}
+
+function getInstallCount(statistics: IGalleryExtensionStatistics[]): number {
+	if (!statistics) {
+		return 0;
+	}
+
+	const result = statistics.filter(s => s.statisticName === 'install')[0];
+	return result ? result.value : 0;
+}
+
+const FIVE_MINUTES = 1000 * 60 * 5;
 
 export class GalleryService implements IGalleryService {
 
-	public serviceId = IGalleryService;
+	serviceId = IGalleryService;
 
 	private extensionsGalleryUrl: string;
+	private extensionsCacheUrl: string;
 
 	constructor(
 		@IRequestService private requestService: IRequestService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
-		const extensionsGalleryConfig = contextService.getConfiguration().env.extensionsGallery;
-		this.extensionsGalleryUrl = extensionsGalleryConfig && extensionsGalleryConfig.serviceUrl;
+		const config = contextService.getConfiguration().env.extensionsGallery;
+		this.extensionsGalleryUrl = config && config.serviceUrl;
+		this.extensionsCacheUrl = config && config.cacheUrl;
 	}
 
 	private api(path = ''): string {
 		return `${ this.extensionsGalleryUrl }${ path }`;
 	}
 
-	public isEnabled(): boolean {
+	isEnabled(): boolean {
 		return !!this.extensionsGalleryUrl;
 	}
 
-	public query(): TPromise<IExtension[]> {
-		if (!this.extensionsGalleryUrl) {
+	query(): TPromise<IExtension[]> {
+		if (!this.isEnabled()) {
 			return TPromise.wrapError(new Error('No extension gallery service configured.'));
 		}
 
+		const gallery = this.queryGallery();
+		const cache = this.queryCache().then(r => {
+			const rawLastModified = r.getResponseHeader('last-modified');
+
+			if (!rawLastModified) {
+				return gallery;
+			}
+
+			const lastModified = new Date(rawLastModified).getTime();
+			const now = new Date().getTime();
+			const diff = now - lastModified;
+
+			if (diff > FIVE_MINUTES) {
+				return gallery;
+			}
+
+			gallery.cancel();
+			return TPromise.as(r);
+		}, err => gallery);
+
+		return cache
+			.then<IGalleryExtension[]>(r => JSON.parse(r.responseText).results[0].extensions || [])
+			.then<IExtension[]>(extensions => {
+				return extensions.map(e => {
+					const versions = e.versions.map<IGalleryVersion>(v => ({
+						version: v.version,
+						date: v.lastUpdated,
+						downloadUrl: `${ v.assetUri }/Microsoft.VisualStudio.Services.VSIXPackage?install=true`,
+						manifestUrl: `${ v.assetUri }/Microsoft.VisualStudio.Code.Manifest`
+					}));
+
+					return {
+						name: e.extensionName,
+						displayName: e.displayName || e.extensionName,
+						publisher: e.publisher.publisherName,
+						version: versions[0].version,
+						engines: { vscode: void 0 }, // TODO: ugly
+						description: e.shortDescription || '',
+						galleryInformation: {
+							galleryApiUrl: this.extensionsGalleryUrl,
+							id: e.extensionId,
+							publisherId: e.publisher.publisherId,
+							publisherDisplayName: e.publisher.displayName,
+							installCount: getInstallCount(e.statistics),
+							versions
+						}
+					};
+				});
+			});
+	}
+
+	private queryCache(): TPromise<IXHRResponse> {
+		const url = this.extensionsCacheUrl;
+		return this.requestService.makeRequest({ url });
+	}
+
+	private queryGallery(): TPromise<IXHRResponse> {
 		const data = JSON.stringify({
 			filters: [{
 				criteria:[{
@@ -69,7 +140,7 @@ export class GalleryService implements IGalleryService {
 					value: 'vscode'
 				}]
 			}],
-			flags: 0x1 | 0x4 | 0x80
+			flags: 0x1 | 0x4 | 0x80 | 0x100
 		});
 
 		const request = {
@@ -83,24 +154,6 @@ export class GalleryService implements IGalleryService {
 			}
 		};
 
-		return this.requestService.makeRequest(request)
-			.then<IGalleryExtension[]>(r => JSON.parse(r.responseText).results[0].extensions || [])
-			.then<IExtension[]>(extensions => {
-				return extensions.map(extension => ({
-					name: extension.extensionName,
-					displayName: extension.displayName || extension.extensionName,
-					publisher: extension.publisher.publisherName,
-					version: extension.versions[0].version,
-					description: extension.shortDescription || '',
-					galleryInformation: {
-						galleryApiUrl: this.extensionsGalleryUrl,
-						id: extension.extensionId,
-						downloadUrl: `${ extension.versions[0].assetUri }/Microsoft.VisualStudio.Services.VSIXPackage?install=true`,
-						publisherId: extension.publisher.publisherId,
-						publisherDisplayName: extension.publisher.displayName,
-						date: extension.versions[0].lastUpdated
-					}
-				}));
-			});
+		return this.requestService.makeRequest(request);
 	}
 }

@@ -10,9 +10,7 @@ import nls = require('vs/nls');
 import async = require('vs/base/common/async');
 import errors = require('vs/base/common/errors');
 import paths = require('vs/base/common/paths');
-import actions = require('vs/base/common/actions');
 import lifecycle = require('vs/base/common/lifecycle');
-import Severity from 'vs/base/common/severity';
 import winjs = require('vs/base/common/winjs.base');
 import ext = require('vs/workbench/common/contributions');
 import git = require('vs/workbench/parts/git/common/git');
@@ -30,7 +28,6 @@ import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import confregistry = require('vs/platform/configuration/common/configurationRegistry');
 import quickopen = require('vs/workbench/browser/quickopen');
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import editorcontrib = require('vs/workbench/parts/git/browser/gitEditorContributions');
 import {IActivityService, ProgressBadge, NumberBadge} from 'vs/workbench/services/activity/common/activityService';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -40,6 +37,10 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {IModelService} from 'vs/editor/common/services/modelService';
+import {TextModel} from 'vs/editor/common/model/textModel';
+import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
+import URI from 'vs/base/common/uri';
 
 import IGitService = git.IGitService;
 
@@ -105,6 +106,7 @@ export class StatusUpdater implements ext.IWorkbenchContribution
 }
 
 class DirtyDiffModelDecorator {
+	static GIT_ORIGINAL_SCHEME = 'git-index';
 
 	static ID = 'Monaco.IDE.UI.Viewlets.GitViewlet.Editor.DirtyDiffDecorator';
 	static MODIFIED_DECORATION_OPTIONS: common.IModelDecorationOptions = {
@@ -135,32 +137,38 @@ class DirtyDiffModelDecorator {
 		}
 	};
 
+	private modelService: IModelService;
+	private editorWorkerService: IEditorWorkerService;
 	private editorService: IWorkbenchEditorService;
 	private contextService: IWorkspaceContextService;
 	private gitService: IGitService;
 
 	private model: common.IModel;
+	private _originalContentsURI: URI;
 	private path: string;
 	private decorations: string[];
-	private firstRun: boolean;
 
 	private delayer: async.ThrottledDelayer<void>;
 	private diffDelayer: async.ThrottledDelayer<void>;
 	private toDispose: lifecycle.IDisposable[];
 
 	constructor(model: common.IModel, path: string,
+		@IModelService modelService: IModelService,
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IGitService gitService: IGitService
 	) {
+		this.modelService = modelService;
+		this.editorWorkerService = editorWorkerService;
 		this.editorService = editorService;
 		this.contextService = contextService;
 		this.gitService = gitService;
 
 		this.model = model;
+		this._originalContentsURI = model.getAssociatedResource().withScheme(DirtyDiffModelDecorator.GIT_ORIGINAL_SCHEME);
 		this.path = path;
 		this.decorations = [];
-		this.firstRun = true;
 
 		this.delayer = new async.ThrottledDelayer<void>(500);
 		this.diffDelayer = new async.ThrottledDelayer<void>(200);
@@ -196,6 +204,26 @@ class DirtyDiffModelDecorator {
 			.done(null, errors.onUnexpectedError);
 	}
 
+	private static _stringArrEquals(a:string[], b:string[]): boolean {
+		if (a.length !== b.length) {
+			return false;
+		}
+		for (let i = 0, len = a.length; i < len; i++) {
+			if (a[i] !== b[i]) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private static _equals(model:common.IModel, rawText:common.IRawText): boolean {
+		if (!model) {
+			return false;
+		}
+		let modelRawText = model.toRawText();
+		return this._stringArrEquals(modelRawText.lines, rawText.lines);
+	}
+
 	private diffOriginalContents(): winjs.TPromise<void> {
 		return this.getOriginalContents()
 			.then(contents => {
@@ -203,16 +231,29 @@ class DirtyDiffModelDecorator {
 					return; // disposed
 				}
 
-				// return early if nothing has changed
-				if (!this.firstRun && this.model.getProperty('original') === contents) {
-					return winjs.Promise.as(null);
+				if (!contents) {
+					// untracked file
+					this.modelService.destroyModel(this._originalContentsURI);
+					return this.triggerDiff();
 				}
 
-				this.firstRun = false;
-				this.model.setProperty('original', contents);
+				let rawText = TextModel.toRawText(contents);
+				let originalModel = this.modelService.getModel(this._originalContentsURI);
 
-				// wait a bit, for the 'original' property to propagate
-				return winjs.Promise.timeout(500).then(() =>  this.triggerDiff());
+				// return early if nothing has changed
+				if (DirtyDiffModelDecorator._equals(originalModel, rawText)) {
+					return winjs.TPromise.as(null);
+				}
+
+				if (!originalModel) {
+					// this is the first time we load the original contents
+					this.modelService.createModel(contents, null, this._originalContentsURI);
+				} else {
+					// we already have the original contents
+					originalModel.setValue(contents);
+				}
+
+				return this.triggerDiff();
 			});
 	}
 
@@ -225,22 +266,16 @@ class DirtyDiffModelDecorator {
 
 	private triggerDiff(): winjs.Promise {
 		if (!this.diffDelayer) {
-			return winjs.Promise.as(null);
+			return winjs.TPromise.as(null);
 		}
 
 		return this.diffDelayer.trigger(() => {
 			if (!this.model || this.model.isDisposed()) {
-				return winjs.Promise.as([]); // disposed
+				return winjs.TPromise.as<any>([]); // disposed
 			}
 
-			var mode = this.model.getMode(); // might be null
-
-			if (!mode || !mode.dirtyDiffSupport) {
-				return winjs.Promise.as([]);
-			}
-
-			return mode.dirtyDiffSupport.computeDirtyDiff(this.model.getAssociatedResource(), true);
-		}).then(diff => {
+			return this.editorWorkerService.computeDirtyDiff(this._originalContentsURI, this.model.getAssociatedResource(), true);
+		}).then((diff:common.IChange[]) => {
 			if (!this.model || this.model.isDisposed()) {
 				return; // disposed
 			}
@@ -288,6 +323,7 @@ class DirtyDiffModelDecorator {
 	}
 
 	public dispose(): void {
+		this.modelService.destroyModel(this._originalContentsURI);
 		this.toDispose = lifecycle.disposeAll(this.toDispose);
 		if (this.model && !this.model.isDisposed()) {
 			this.model.deltaDecorations(this.decorations, []);
@@ -444,7 +480,7 @@ export function registerContributions(): void {
 	);
 
 	// Register Viewlet
-	(<viewlet.IViewletRegistry>platform.Registry.as(viewlet.Extensions.Viewlets)).registerViewlet(new viewlet.ViewletDescriptor(
+	(<viewlet.ViewletRegistry>platform.Registry.as(viewlet.Extensions.Viewlets)).registerViewlet(new viewlet.ViewletDescriptor(
 		'vs/workbench/parts/git/browser/gitViewlet',
 		'GitViewlet',
 		VIEWLET_ID,
@@ -495,17 +531,17 @@ export function registerContributions(): void {
 		title: nls.localize('gitConfigurationTitle', "Git configuration"),
 		type: 'object',
 		properties: {
-			"git.enabled": {
+			'git.enabled': {
 				type: 'boolean',
 				description: nls.localize('gitEnabled', "Is git enabled"),
 				default: true
 			},
-			"git.path": {
-				type: 'string',
+			'git.path': {
+				type: ['string', 'null'],
 				description: nls.localize('gitPath', "Path to the git executable"),
 				default: null
 			},
-			"git.autofetch": {
+			'git.autofetch': {
 				type: 'boolean',
 				description: nls.localize('gitAutoFetch', "Whether auto fetching is enabled."),
 				default: true

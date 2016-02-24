@@ -61,10 +61,6 @@
 	font-size: 13px;
 }
 
-.monaco-editor .reference-zone-widget .tree .monaco-tree {
-	outline: none;
-}
-
 .monaco-editor .reference-zone-widget .tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) {
 	background-color: rgba(51, 153, 255, .2);
 	color: #6C6C6C !important;
@@ -173,7 +169,7 @@
 
 .monaco-editor.hc-black .reference-zone-widget .preview .reference-decoration {
 	background: none;
-	border: 2px solid #DF740C;
+	border: 2px solid #f38518;
 }
 
 .monaco-editor.hc-black .reference-zone-widget .tree {
@@ -198,5 +194,5 @@
 
 .monaco-editor.hc-black .reference-zone-widget .tree .referenceMatch {
 	background: none;
-	border: 1px dotted #DF740C;
+	border: 1px dotted #f38518;
 }

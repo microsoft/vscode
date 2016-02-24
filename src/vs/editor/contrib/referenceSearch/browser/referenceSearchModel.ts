@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import collections = require('vs/base/common/collections');
-import strings = require('vs/base/common/strings');
-import uuid = require('vs/base/common/uuid');
-import eventsEmitter = require('vs/base/common/eventEmitter');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IRange, IPosition, IModel} from 'vs/editor/common/editorCommon';
-import {IReference} from 'vs/editor/common/modes';
-import {dirname, basename} from 'vs/base/common/paths';
-import {Range} from 'vs/editor/common/core/range';
-import {IEditorService} from 'vs/platform/editor/common/editor';
+import * as collections from 'vs/base/common/collections';
+import {EventEmitter} from 'vs/base/common/eventEmitter';
+import {basename, dirname} from 'vs/base/common/paths';
+import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
+import {generateUuid} from 'vs/base/common/uuid';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IEditorService} from 'vs/platform/editor/common/editor';
+import {Range} from 'vs/editor/common/core/range';
+import {IModel, IPosition, IRange} from 'vs/editor/common/editorCommon';
+import {IReference} from 'vs/editor/common/modes';
 
 export namespace EventType {
 	export var OnReferenceRangeChanged = 'refrence.rangeChanged';
@@ -27,7 +27,7 @@ export class OneReference {
 	private _range: IRange;
 
 	constructor(private _parent: FileReferences, reference: IReference) {
-		this._id = uuid.generateUuid();
+		this._id = generateUuid();
 		this._range = reference.range;
 	}
 
@@ -75,10 +75,6 @@ export class FilePreview {
 		this._lineStarts = strings.computeLineStarts(value);
 	}
 
-	private _getOffsetFromPosition(line: number, column: number): number {
-		return this._lineStarts[line - 1] + column - 1;
-	}
-
 	public preview(range: IRange, n: number = 8): { before: string; inside: string; after: string } {
 
 		var lineStart = this._lineStarts[range.startLineNumber - 1],
@@ -103,7 +99,7 @@ export class FileReferences {
 	private _preview: FilePreview;
 	private _resolved: boolean;
 
-	constructor(private _parent: Model, private _resource: URI, private _editorService: IEditorService) {
+	constructor(private _parent: ReferencesModel, private _resource: URI, private _editorService: IEditorService) {
 		this._children = [];
 	}
 
@@ -111,7 +107,7 @@ export class FileReferences {
 		return this._resource.toString();
 	}
 
-	public get parent(): Model {
+	public get parent(): ReferencesModel {
 		return this._parent;
 	}
 
@@ -149,7 +145,7 @@ export class FileReferences {
 	}
 }
 
-export class Model extends eventsEmitter.EventEmitter {
+export class ReferencesModel extends EventEmitter {
 
 	private _references: FileReferences[];
 	private _currentReference: OneReference;
@@ -165,7 +161,7 @@ export class Model extends eventsEmitter.EventEmitter {
 
 		references.forEach(reference => {
 
-			let hash = Model._hash(reference);
+			let hash = ReferencesModel._hash(reference);
 			if (!seen[hash]) {
 				seen[hash] = true;
 
@@ -178,7 +174,7 @@ export class Model extends eventsEmitter.EventEmitter {
 		});
 
 		this._references = collections.values(referencesByFile);
-		this._references.sort(Model._compare);
+		this._references.sort(ReferencesModel._compare);
 	}
 
 	public get children(): FileReferences[] {

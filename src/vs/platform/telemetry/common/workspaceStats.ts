@@ -7,10 +7,10 @@
 
 import winjs = require('vs/base/common/winjs.base');
 import errors = require('vs/base/common/errors');
-import paths = require('vs/base/common/paths');
+import env = require('vs/base/common/flags');
 import {IFileService} from 'vs/platform/files/common/files';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService, IWorkspace} from 'vs/platform/workspace/common/workspace';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 export class WorkspaceStats {
 	constructor(
@@ -25,12 +25,12 @@ export class WorkspaceStats {
 	}
 
 	private getWorkspaceTags(): winjs.TPromise<{ [index: string]: boolean }> {
-		var tags: { [index: string]: boolean } = Object.create(null);
-		var workspace = this.contextService.getWorkspace();
+		let tags: { [index: string]: boolean } = Object.create(null);
+		let workspace = this.contextService.getWorkspace();
 
 		if (workspace && this.fileService) {
 			return this.fileService.resolveFile(workspace.resource).then(stats => {
-				var names = stats.children.map(c => c.name);
+				let names = stats.children.map(c => c.name);
 
 				tags['workspace.empty'] = false;
 
@@ -60,25 +60,25 @@ export class WorkspaceStats {
 				tags['workspace.yeoman.code'] = this.searchArray(names, /^vscodequickstart\.md$/i);
 				tags['workspace.yeoman.code.ext'] = this.searchArray(names, /^vsc-extension-quickstart\.md$/i);
 
-				var mainActivity = this.searchArray(names, /^MainActivity\.cs$/i) || this.searchArray(names, /^MainActivity\.fs$/i);
-				var appDelegate = this.searchArray(names, /^AppDelegate\.cs$/i) || this.searchArray(names, /^AppDelegate\.fs$/i);
-				var androidManifest = this.searchArray(names, /^AndroidManifest\.xml$/i);
+				let mainActivity = this.searchArray(names, /^MainActivity\.cs$/i) || this.searchArray(names, /^MainActivity\.fs$/i);
+				let appDelegate = this.searchArray(names, /^AppDelegate\.cs$/i) || this.searchArray(names, /^AppDelegate\.fs$/i);
+				let androidManifest = this.searchArray(names, /^AndroidManifest\.xml$/i);
 
-				var platforms = this.searchArray(names, /^platforms$/i);
-				var plugins = this.searchArray(names, /^plugins$/i);
-				var www = this.searchArray(names, /^www$/i);
-				var properties = this.searchArray(names, /^Properties/i);
-				var resources = this.searchArray(names, /^Resources/i);
-				var jni = this.searchArray(names, /^JNI/i);
+				let platforms = this.searchArray(names, /^platforms$/i);
+				let plugins = this.searchArray(names, /^plugins$/i);
+				let www = this.searchArray(names, /^www$/i);
+				let properties = this.searchArray(names, /^Properties/i);
+				let resources = this.searchArray(names, /^Resources/i);
+				let jni = this.searchArray(names, /^JNI/i);
 
-				if ( tags['workspace.config.xml'] &&
+				if (tags['workspace.config.xml'] &&
 					!tags['workspace.language.cs'] && !tags['workspace.language.vb'] && !tags['workspace.language.aspx']) {
-						if (platforms && plugins && www) {
-							tags['workspace.cordova.high'] = true;
-						} else {
-							tags['workspace.cordova.low'] = true;
-						}
+					if (platforms && plugins && www) {
+						tags['workspace.cordova.high'] = true;
+					} else {
+						tags['workspace.cordova.low'] = true;
 					}
+				}
 
 				if (mainActivity && properties && resources) {
 					tags['workspace.xamarin.android'] = true;
@@ -92,6 +92,10 @@ export class WorkspaceStats {
 					tags['workspace.android.cpp'] = true;
 				}
 
+				tags['workspace.reactNative'] = this.searchArray(names, /^android$/i) && this.searchArray(names, /^ios$/i) &&
+					this.searchArray(names, /^index\.android\.js$/i) && this.searchArray(names, /^index\.ios\.js$/i);
+
+				tags['workspace.enableTypeScriptServiceModeForJS'] = !!env.enableTypeScriptServiceModeForJS;
 				return tags;
 			}, error => { errors.onUnexpectedError(error); return null; });
 		} else {

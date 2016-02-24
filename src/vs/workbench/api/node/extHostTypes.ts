@@ -37,8 +37,8 @@ export class Disposable {
 }
 
 export interface EditorOptions {
-	tabSize: number;
-	insertSpaces: boolean;
+	tabSize: number | string;
+	insertSpaces: boolean | string;
 }
 
 export class Position {
@@ -150,7 +150,7 @@ export class Position {
 	}
 
 	toJSON(): any {
-		return [this.line, this.character];
+		return { line: this.line, character: this.character };
 	}
 }
 
@@ -290,10 +290,10 @@ export class Selection extends Range {
 			throw new Error('Invalid arguments');
 		}
 
+		super(anchor, active);
+
 		this._anchor = anchor;
 		this._active = active;
-
-		super(anchor, active);
 	}
 
 	get isReversed(): boolean {
@@ -360,7 +360,7 @@ export class TextEdit {
 	}
 }
 
-export class Uri extends URI { };
+export class Uri extends URI { }
 
 export class WorkspaceEdit {
 
@@ -536,6 +536,9 @@ export enum SymbolKind {
 	Number,
 	Boolean,
 	Array,
+	Object,
+	Key,
+	Null
 }
 
 export class SymbolInformation {
@@ -660,6 +663,18 @@ export class CompletionItem {
 			insertText: this.insertText,
 			textEdit: this.textEdit
 		};
+	}
+}
+
+export class CompletionList {
+
+	isIncomplete: boolean;
+
+	items: vscode.CompletionItem[];
+
+	constructor(items: vscode.CompletionItem[] = [], isIncomplete: boolean = false) {
+		this.items = items;
+		this.isIncomplete = isIncomplete;
 	}
 }
 

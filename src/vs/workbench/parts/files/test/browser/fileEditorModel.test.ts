@@ -6,13 +6,13 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {TextFileEditorModel, CACHE} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {create} from 'vs/platform/instantiation/common/instantiationService';
+import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {TextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {EventType, LocalFileChangeEvent} from 'vs/workbench/parts/files/common/files';
 import {TestFileService, TestLifecycleService, TestPartService, TestEditorService, TestConfigurationService, TestUntitledEditorService, TestStorageService, TestTelemetryService, TestContextService, TestMessageService, TestEventService} from 'vs/workbench/test/browser/servicesTestUtils';
@@ -37,7 +37,7 @@ suite('Files - TextFileEditorModel', () => {
 		eventService = new TestEventService();
 		messageService = new TestMessageService();
 
-		baseInstantiationService = create({
+		baseInstantiationService = createInstantiationService({
 			eventService: eventService,
 			messageService: messageService,
 			fileService: TestFileService,
@@ -201,7 +201,7 @@ suite('Files - TextFileEditorModel', () => {
 		m1.load().then(() => {
 			m1.textEditorModel.setValue("foo");
 
-			return Promise.timeout(50).then(() => {
+			return TPromise.timeout(50).then(() => {
 				assert.ok(!m1.isDirty());
 				assert.equal(eventCounter, 2);
 
@@ -254,7 +254,7 @@ suite('Files - TextFileEditorModel', () => {
 				m2.textEditorModel.setValue("foo");
 				assert.ok(textFileService.isDirty(toResource('/path/index_async.txt')));
 
-				return Promise.timeout(10).then(() => {
+				return TPromise.timeout(10).then(() => {
 					textFileService.saveAll().then(() => {
 						assert.ok(!textFileService.isDirty(toResource('/path/index_async.txt')));
 						assert.ok(!textFileService.isDirty(toResource('/path/index_async2.txt')));

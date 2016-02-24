@@ -4,32 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEmitterEvent} from 'vs/base/common/eventEmitter';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
-import {IMirrorModelEvents, MirrorModel} from 'vs/editor/common/model/mirrorModel';
-import {Range} from 'vs/editor/common/core/range';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import {IResourceService} from 'vs/editor/common/services/resourceService';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {Remotable, IThreadService, ThreadAffinity, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
-import {AllWorkersAttr} from 'vs/platform/thread/common/threadService';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
+import {IEmitterEvent} from 'vs/base/common/eventEmitter';
+import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {IDisposable} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import Errors = require('vs/base/common/errors');
+import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
 import {anonymize} from 'vs/platform/telemetry/common/telemetry';
+import {IThreadService, Remotable, ThreadAffinity} from 'vs/platform/thread/common/thread';
+import {Range} from 'vs/editor/common/core/range';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {IMirrorModelEvents, MirrorModel} from 'vs/editor/common/model/mirrorModel';
 import {Model} from 'vs/editor/common/model/model';
+import {IMode} from 'vs/editor/common/modes';
+import {IModeService} from 'vs/editor/common/services/modeService';
+import {IModelService} from 'vs/editor/common/services/modelService';
+import {IResourceService} from 'vs/editor/common/services/resourceService';
 
 export interface IRawModelData {
 	url:URI;
 	versionId:number;
-	value:EditorCommon.IRawText;
-	properties:any;
+	value:editorCommon.IRawText;
 	modeId:string;
 }
 
@@ -38,13 +36,13 @@ function MODEL_ID(resource:URI): string {
 }
 
 class ModelData implements IDisposable {
-	model: EditorCommon.IModel;
+	model: editorCommon.IModel;
 	isSyncedToWorkers: boolean;
 
 	private _markerDecorations: string[];
 	private _modelEventsListener: IDisposable;
 
-	constructor(model: EditorCommon.IModel, eventsHandler:(modelData:ModelData, events:IEmitterEvent[])=>void) {
+	constructor(model: editorCommon.IModel, eventsHandler:(modelData:ModelData, events:IEmitterEvent[])=>void) {
 		this.model = model;
 		this.isSyncedToWorkers = false;
 
@@ -63,7 +61,7 @@ class ModelData implements IDisposable {
 		return MODEL_ID(this.model.getAssociatedResource());
 	}
 
-	public acceptMarkerDecorations(newDecorations:EditorCommon.IModelDeltaDecoration[]): void {
+	public acceptMarkerDecorations(newDecorations:editorCommon.IModelDeltaDecoration[]): void {
 		this._markerDecorations = this.model.deltaDecorations(this._markerDecorations, newDecorations);
 	}
 }
@@ -75,7 +73,7 @@ class ModelMarkerHandler {
 		// Limit to the first 500 errors/warnings
 		markers = markers.slice(0, 500);
 
-		let newModelDecorations:EditorCommon.IModelDeltaDecoration[] = markers.map((marker) => {
+		let newModelDecorations:editorCommon.IModelDeltaDecoration[] = markers.map((marker) => {
 			return {
 				range: this._createDecorationRange(modelData.model, marker),
 				options: this._createDecorationOption(marker)
@@ -85,9 +83,9 @@ class ModelMarkerHandler {
 		modelData.acceptMarkerDecorations(newModelDecorations);
 	}
 
-	private static _createDecorationRange(model:EditorCommon.IModel, rawMarker: IMarker): EditorCommon.IRange {
+	private static _createDecorationRange(model:editorCommon.IModel, rawMarker: IMarker): editorCommon.IRange {
 		let marker = model.validateRange(new Range(rawMarker.startLineNumber, rawMarker.startColumn, rawMarker.endLineNumber, rawMarker.endColumn));
-		let ret: EditorCommon.IEditorRange = new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn);
+		let ret: editorCommon.IEditorRange = new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn);
 		if (ret.isEmpty()) {
 			let word = model.getWordAtPosition(ret.getStartPosition());
 			if (word) {
@@ -119,7 +117,7 @@ class ModelMarkerHandler {
 		return ret;
 	}
 
-	private static _createDecorationOption(marker:IMarker): EditorCommon.IModelDecorationOptions {
+	private static _createDecorationOption(marker:IMarker): editorCommon.IModelDecorationOptions {
 
 		let className: string;
 		let color: string;
@@ -132,13 +130,13 @@ class ModelMarkerHandler {
 				break;
 			case Severity.Warning:
 			case Severity.Info:
-				className = EditorCommon.ClassName.EditorWarningDecoration;
+				className = editorCommon.ClassName.EditorWarningDecoration;
 				color = 'rgba(18,136,18,0.7)';
 				darkColor = 'rgba(18,136,18,0.7)';
 				break;
 			case Severity.Error:
 			default:
-				className = EditorCommon.ClassName.EditorErrorDecoration;
+				className = editorCommon.ClassName.EditorErrorDecoration;
 				color = 'rgba(255,18,18,0.7)';
 				darkColor = 'rgba(255,18,18,0.7)';
 				break;
@@ -157,13 +155,13 @@ class ModelMarkerHandler {
 		}
 
 		return {
-			stickiness: EditorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			className,
 			htmlMessage: htmlMessage,
 			overviewRuler: {
 				color,
 				darkColor,
-				position: EditorCommon.OverviewRulerLane.Right
+				position: editorCommon.OverviewRulerLane.Right
 			}
 		};
 	}
@@ -175,27 +173,29 @@ export class ModelServiceImpl implements IModelService {
 	private _markerService: IMarkerService;
 	private _markerServiceSubscription: IDisposable;
 	private _threadService: IThreadService;
+	private _modeService: IModeService;
 	private _workerHelper: ModelServiceWorkerHelper;
 
-	private _onModelAdded: Emitter<EditorCommon.IModel>;
-	private _onModelRemoved: Emitter<EditorCommon.IModel>;
-	private _onModelModeChanged: Emitter<{ model: EditorCommon.IModel; oldModeId: string; }>;
+	private _onModelAdded: Emitter<editorCommon.IModel>;
+	private _onModelRemoved: Emitter<editorCommon.IModel>;
+	private _onModelModeChanged: Emitter<{ model: editorCommon.IModel; oldModeId: string; }>;
 
 	/**
 	 * All the models known in the system.
 	 */
 	private _models: {[modelId:string]:ModelData;};
 
-	constructor(threadService: IThreadService, markerService: IMarkerService) {
+	constructor(threadService: IThreadService, markerService: IMarkerService, modeService:IModeService) {
 		this._threadService = threadService;
 		this._markerService = markerService;
+		this._modeService = modeService;
 		this._workerHelper = this._threadService.getRemotable(ModelServiceWorkerHelper);
 
 		this._models = {};
 
-		this._onModelAdded = new Emitter<EditorCommon.IModel>();
-		this._onModelRemoved = new Emitter<EditorCommon.IModel>();
-		this._onModelModeChanged = new Emitter<{ model: EditorCommon.IModel; oldModeId: string; }>();
+		this._onModelAdded = new Emitter<editorCommon.IModel>();
+		this._onModelRemoved = new Emitter<editorCommon.IModel>();
+		this._onModelModeChanged = new Emitter<{ model: editorCommon.IModel; oldModeId: string; }>();
 
 		if(this._markerService) {
 			this._markerServiceSubscription = this._markerService.onMarkerChanged(this._handleMarkerChange, this);
@@ -221,7 +221,15 @@ export class ModelServiceImpl implements IModelService {
 
 	// --- begin IModelService
 
-	private _createModelData(value:string, modeOrPromise:TPromise<Modes.IMode>|Modes.IMode, resource: URI): ModelData {
+	private _shouldSyncModelToWorkers(model:editorCommon.IModel): boolean {
+		if (model.isTooLargeForHavingARichMode()) {
+			return false;
+		}
+		// Only sync models with compat modes to the workers
+		return this._modeService.isCompatMode(model.getMode().getId());
+	}
+
+	private _createModelData(value:string, modeOrPromise:TPromise<IMode>|IMode, resource: URI): ModelData {
 		// create & save the model
 		let model = new Model(value, modeOrPromise, resource);
 		let modelId = MODEL_ID(model.getAssociatedResource());
@@ -237,19 +245,17 @@ export class ModelServiceImpl implements IModelService {
 		return modelData;
 	}
 
-	public createModel(value:string, modeOrPromise:TPromise<Modes.IMode>|Modes.IMode, resource: URI): EditorCommon.IModel {
+	public createModel(value:string, modeOrPromise:TPromise<IMode>|IMode, resource: URI): editorCommon.IModel {
 		let modelData = this._createModelData(value, modeOrPromise, resource);
-		let modelId = modelData.getModelId();
 
 		// handle markers (marker service => model)
 		if (this._markerService) {
 			ModelMarkerHandler.setMarkers(modelData, this._markerService.read({ resource: modelData.model.getAssociatedResource() }));
 		}
 
-		if (!modelData.model.isTooLargeForHavingARichMode()) {
+		if (this._shouldSyncModelToWorkers(modelData.model)) {
 			// send this model to the workers
-			modelData.isSyncedToWorkers = true;
-			this._workerHelper.$_acceptNewModel(ModelServiceImpl._getBoundModelData(modelData.model));
+			this._beginWorkerSync(modelData);
 		}
 
 		this._onModelAdded.fire(modelData.model);
@@ -266,8 +272,8 @@ export class ModelServiceImpl implements IModelService {
 		modelData.model.dispose();
 	}
 
-	public getModels(): EditorCommon.IModel[] {
-		let ret: EditorCommon.IModel[] = [];
+	public getModels(): editorCommon.IModel[] {
+		let ret: editorCommon.IModel[] = [];
 		for (let modelId in this._models) {
 			if (this._models.hasOwnProperty(modelId)) {
 				ret.push(this._models[modelId].model);
@@ -276,7 +282,7 @@ export class ModelServiceImpl implements IModelService {
 		return ret;
 	}
 
-	public getModel(resource: URI): EditorCommon.IModel {
+	public getModel(resource: URI): editorCommon.IModel {
 		let modelId = MODEL_ID(resource);
 		let modelData = this._models[modelId];
 		if (!modelData) {
@@ -285,21 +291,38 @@ export class ModelServiceImpl implements IModelService {
 		return modelData.model;
 	}
 
-	public get onModelAdded(): Event<EditorCommon.IModel> {
+	public get onModelAdded(): Event<editorCommon.IModel> {
 		return this._onModelAdded ? this._onModelAdded.event : null;
 	}
 
-	public get onModelRemoved(): Event<EditorCommon.IModel> {
+	public get onModelRemoved(): Event<editorCommon.IModel> {
 		return this._onModelRemoved ? this._onModelRemoved.event : null;
 	}
 
-	public get onModelModeChanged(): Event<{ model: EditorCommon.IModel; oldModeId: string; }> {
+	public get onModelModeChanged(): Event<{ model: editorCommon.IModel; oldModeId: string; }> {
 		return this._onModelModeChanged ? this._onModelModeChanged.event : null;
 	}
 
 	// --- end IModelService
 
-	private _onModelDisposing(model:EditorCommon.IModel): void {
+	private _beginWorkerSync(modelData:ModelData): void {
+		if (modelData.isSyncedToWorkers) {
+			throw new Error('Model is already being synced to workers!');
+		}
+
+		modelData.isSyncedToWorkers = true;
+		this._workerHelper.$_acceptNewModel(ModelServiceImpl._getBoundModelData(modelData.model));
+	}
+
+	private _stopWorkerSync(modelData:ModelData): void {
+		if (!modelData.isSyncedToWorkers) {
+			throw new Error('Model is already not being synced to workers!');
+		}
+		modelData.isSyncedToWorkers = false;
+		this._workerHelper.$_acceptDidDisposeModel(modelData.model.getAssociatedResource());
+	}
+
+	private _onModelDisposing(model:editorCommon.IModel): void {
 		let modelId = MODEL_ID(model.getAssociatedResource());
 		let modelData = this._models[modelId];
 
@@ -314,7 +337,7 @@ export class ModelServiceImpl implements IModelService {
 
 		if (modelData.isSyncedToWorkers) {
 			// Dispose model in workers
-			this._workerHelper.$_acceptDidDisposeModel(model.getAssociatedResource());
+			this._stopWorkerSync(modelData);
 		}
 
 		delete this._models[modelId];
@@ -323,53 +346,82 @@ export class ModelServiceImpl implements IModelService {
 		this._onModelRemoved.fire(model);
 	}
 
-	private static _getBoundModelData(model:EditorCommon.IModel): IRawModelData {
+	private static _getBoundModelData(model:editorCommon.IModel): IRawModelData {
 		return {
 			url: model.getAssociatedResource(),
 			versionId: model.getVersionId(),
-			properties: model.getProperties(),
 			value: model.toRawText(),
 			modeId: model.getMode().getId()
 		};
 	}
 
 	private _onModelEvents(modelData:ModelData, events:IEmitterEvent[]): void {
-		let eventsForWorkers: IMirrorModelEvents = { contentChanged: [], propertiesChanged: null };
 
+		// First look for dispose
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
-			let data = e.getData();
-
-			switch (e.getType()) {
-				case EditorCommon.EventType.ModelDispose:
-					this._onModelDisposing(modelData.model);
-					// no more event processing
-					return;
-
-				case EditorCommon.EventType.ModelContentChanged:
-					if (modelData.isSyncedToWorkers) {
-						eventsForWorkers.contentChanged.push(<EditorCommon.IModelContentChangedEvent>data);
-					}
-					break;
-
-				case EditorCommon.EventType.ModelPropertiesChanged:
-					if (modelData.isSyncedToWorkers) {
-						eventsForWorkers.propertiesChanged = <EditorCommon.IModelPropertiesChangedEvent>data;
-					}
-					break;
-
-				case EditorCommon.EventType.ModelModeChanged:
-					let modeChangedEvent = <EditorCommon.IModelModeChangedEvent>data;
-					if (modelData.isSyncedToWorkers) {
-						// Forward mode change to all the workers
-						this._workerHelper.$_acceptDidChangeModelMode(modelData.getModelId(), modeChangedEvent.oldMode.getId(), modeChangedEvent.newMode.getId());
-					}
-					this._onModelModeChanged.fire({ model: modelData.model, oldModeId: modeChangedEvent.oldMode.getId() });
-					break;
+			if (e.getType() === editorCommon.EventType.ModelDispose) {
+				this._onModelDisposing(modelData.model);
+				// no more processing since model got disposed
+				return;
 			}
 		}
 
-		if (eventsForWorkers.contentChanged.length > 0 || eventsForWorkers.propertiesChanged) {
+		// Second, look for mode change
+		for (let i = 0, len = events.length; i < len; i++) {
+			let e = events[i];
+			if (e.getType() === editorCommon.EventType.ModelModeChanged) {
+				let wasSyncedToWorkers = modelData.isSyncedToWorkers;
+				let shouldSyncToWorkers = this._shouldSyncModelToWorkers(modelData.model);
+
+				this._onModelModeChanged.fire({
+					model: modelData.model,
+					oldModeId: (<editorCommon.IModelModeChangedEvent>e.getData()).oldMode.getId()
+				});
+
+				if (wasSyncedToWorkers) {
+					if (shouldSyncToWorkers) {
+						// true -> true
+						// Forward mode change to all the workers
+						this._workerHelper.$_acceptDidChangeModelMode(modelData.getModelId(), modelData.model.getMode().getId());
+					} else {
+						// true -> false
+						// Stop worker sync for this model
+						this._stopWorkerSync(modelData);
+						// no more processing since we have removed the model from the workers
+						return;
+					}
+				} else {
+					if (shouldSyncToWorkers) {
+						// false -> true
+						// Begin syncing this model to the workers
+						this._beginWorkerSync(modelData);
+						// no more processing since we are sending the latest state
+						return;
+					} else {
+						// false -> false
+						// no more processing since this model was not synced and will not be synced
+						return;
+					}
+				}
+			}
+		}
+
+		if (!modelData.isSyncedToWorkers) {
+			return;
+		}
+
+		// Finally, look for model content changes
+		let eventsForWorkers: IMirrorModelEvents = { contentChanged: [] };
+		for (let i = 0, len = events.length; i < len; i++) {
+			let e = events[i];
+
+			if (e.getType() === editorCommon.EventType.ModelContentChanged) {
+				eventsForWorkers.contentChanged.push(<editorCommon.IModelContentChangedEvent>e.getData());
+			}
+		}
+
+		if (eventsForWorkers.contentChanged.length > 0) {
 			// Forward events to all the workers
 			this._workerHelper.$_acceptModelEvents(modelData.getModelId(), eventsForWorkers);
 		}
@@ -392,7 +444,7 @@ export class ModelServiceWorkerHelper {
 
 	public $_acceptNewModel(data:IRawModelData): TPromise<void> {
 		// Create & insert the mirror model eagerly in the resource service
-		let mirrorModel = new MirrorModel(this._resourceService, data.versionId, data.value, null, data.url, data.properties);
+		let mirrorModel = new MirrorModel(this._resourceService, data.versionId, data.value, null, data.url);
 		this._resourceService.insert(mirrorModel.getAssociatedResource(), mirrorModel);
 
 		// Block worker execution until the mode is instantiated
@@ -410,7 +462,7 @@ export class ModelServiceWorkerHelper {
 		});
 	}
 
-	public $_acceptDidChangeModelMode(modelId:string, oldModeId:string, newModeId:string): TPromise<void> {
+	public $_acceptDidChangeModelMode(modelId:string, newModeId:string): TPromise<void> {
 		let mirrorModel = this._resourceService.get(URI.parse(modelId));
 
 		// Block worker execution until the mode is instantiated
@@ -444,7 +496,7 @@ export class ModelServiceWorkerHelper {
 		try {
 			model.onEvents(events);
 		} catch (err) {
-			Errors.onUnexpectedError(err);
+			onUnexpectedError(err);
 		}
 	}
 }

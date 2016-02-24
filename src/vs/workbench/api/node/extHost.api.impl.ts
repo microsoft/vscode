@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IBracketElectricCharacterContribution} from 'vs/editor/common/modes/supports';
+import {Emitter} from 'vs/base/common/event';
 import {score} from 'vs/editor/common/modes/languageSelector';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import * as errors from 'vs/base/common/errors';
@@ -25,13 +25,12 @@ import {registerApiCommands} from 'vs/workbench/api/node/extHostApiCommands';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import Modes = require('vs/editor/common/modes');
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {ICommentsSupportContribution, ITokenTypeClassificationSupportContribution} from 'vs/editor/common/modes/supports';
-import {IOnEnterSupportOptions} from 'vs/editor/common/modes/supports/onEnter';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IPluginService, IPluginDescription} from 'vs/platform/plugins/common/plugins';
+import {PluginHostPluginService} from 'vs/platform/plugins/common/nativePluginService';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -39,6 +38,7 @@ import {CancellationTokenSource} from 'vs/base/common/cancellation';
 import vscode = require('vscode');
 import {TextEditorRevealType} from 'vs/workbench/api/node/mainThreadEditors';
 import * as paths from 'vs/base/common/paths';
+import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
 
 /**
  * This class implements the API described in vscode.d.ts,
@@ -53,9 +53,9 @@ export class ExtHostAPIImplementation {
 
 	private _threadService: IThreadService;
 	private _proxy: MainProcessVSCodeAPIHelper;
-	private _pluginService: IPluginService;
 
 	version: typeof vscode.version;
+	env: typeof vscode.env;
 	Uri: typeof vscode.Uri;
 	Location: typeof vscode.Location;
 	Diagnostic: typeof vscode.Diagnostic;
@@ -69,6 +69,7 @@ export class ExtHostAPIImplementation {
 	Range: typeof vscode.Range;
 	Selection: typeof vscode.Selection;
 	CancellationTokenSource: typeof vscode.CancellationTokenSource;
+	EventEmitter: typeof vscode.EventEmitter;
 	Hover: typeof vscode.Hover;
 	DocumentHighlightKind: typeof vscode.DocumentHighlightKind;
 	DocumentHighlight: typeof vscode.DocumentHighlight;
@@ -80,6 +81,7 @@ export class ExtHostAPIImplementation {
 	SignatureHelp: typeof vscode.SignatureHelp;
 	CompletionItem: typeof vscode.CompletionItem;
 	CompletionItemKind: typeof vscode.CompletionItemKind;
+	CompletionList: typeof vscode.CompletionList;
 	IndentAction: typeof vscode.IndentAction;
 	OverviewRulerLane: typeof vscode.OverviewRulerLane;
 	TextEditorRevealType: typeof vscode.TextEditorRevealType;
@@ -92,9 +94,9 @@ export class ExtHostAPIImplementation {
 	constructor(
 		@IThreadService threadService: IThreadService,
 		@IPluginService pluginService: IPluginService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		this._pluginService = pluginService;
 		this._threadService = threadService;
 		this._proxy = threadService.getRemotable(MainProcessVSCodeAPIHelper);
 
@@ -102,7 +104,8 @@ export class ExtHostAPIImplementation {
 		this.Uri = URI;
 		this.Location = extHostTypes.Location;
 		this.Diagnostic = <any> extHostTypes.Diagnostic;
-		this.DiagnosticSeverity = <any> extHostTypes.DiagnosticSeverity;
+		this.DiagnosticSeverity = <any>extHostTypes.DiagnosticSeverity;
+		this.EventEmitter = Emitter;
 		this.Disposable = extHostTypes.Disposable;
 		this.TextEdit = extHostTypes.TextEdit;
 		this.WorkspaceEdit = extHostTypes.WorkspaceEdit;
@@ -121,6 +124,7 @@ export class ExtHostAPIImplementation {
 		this.SignatureHelp = extHostTypes.SignatureHelp;
 		this.CompletionItem = <any>extHostTypes.CompletionItem;
 		this.CompletionItemKind = <any>extHostTypes.CompletionItemKind;
+		this.CompletionList = extHostTypes.CompletionList;
 		this.ViewColumn = <any>extHostTypes.ViewColumn;
 		this.StatusBarAlignment = <any>extHostTypes.StatusBarAlignment;
 		this.IndentAction = <any>Modes.IndentAction;
@@ -137,6 +141,15 @@ export class ExtHostAPIImplementation {
 		const pluginHostQuickOpen = this._threadService.getRemotable(ExtHostQuickOpen);
 		const pluginHostStatusBar = new ExtHostStatusBar(this._threadService);
 		const extHostOutputService = new ExtHostOutputService(this._threadService);
+
+		// env namespace
+		let telemetryInfo: ITelemetryInfo;
+		this.env = Object.freeze({
+			get machineId() { return telemetryInfo.machineId; },
+			get sessionId() { return telemetryInfo.sessionId; },
+			get language() { return contextService.getConfiguration().env.language; }
+		});
+		telemetryService.getTelemetryInfo().then(info => telemetryInfo = info, errors.onUnexpectedError);
 
 		// commands namespace
 		this.commands = {
@@ -190,6 +203,9 @@ export class ExtHostAPIImplementation {
 			},
 			onDidChangeTextEditorOptions: (listener: (e: vscode.TextEditorOptionsChangeEvent) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
 				return pluginHostEditors.onDidChangeTextEditorOptions(listener, thisArgs, disposables);
+			},
+			onDidChangeTextEditorViewColumn(listener, thisArg?, disposables?) {
+				return pluginHostEditors.onDidChangeTextEditorViewColumn(listener, thisArg, disposables);
 			},
 			showInformationMessage: (message, ...items) => {
 				return pluginHostMessageService.showMessage(Severity.Info, message, items);
@@ -358,11 +374,11 @@ export class ExtHostAPIImplementation {
 			getExtension(extensionId: string):Extension<any> {
 				let desc = PluginsRegistry.getPluginDescription(extensionId);
 				if (desc) {
-					return new Extension(pluginService, desc);
+					return new Extension(<PluginHostPluginService> pluginService, desc);
 				}
 			},
 			get all():Extension<any>[] {
-				return PluginsRegistry.getAllPluginDescriptions().map((desc) => new Extension(pluginService, desc));
+				return PluginsRegistry.getAllPluginDescriptions().map((desc) => new Extension(<PluginHostPluginService> pluginService, desc));
 			}
 		};
 
@@ -376,117 +392,34 @@ export class ExtHostAPIImplementation {
 
 	private _setLanguageConfiguration(modeId: string, configuration: vscode.LanguageConfiguration): vscode.Disposable {
 
-		let disposables: IDisposable[] = [];
-		let {comments, wordPattern} = configuration;
-
-		// comment configuration
-		if (comments) {
-			let contrib: ICommentsSupportContribution = { commentsConfiguration: {} };
-			if (comments.lineComment) {
-				contrib.commentsConfiguration.lineCommentTokens = [comments.lineComment];
-			}
-			if (comments.blockComment) {
-				let [blockStart, blockEnd] = comments.blockComment;
-				contrib.commentsConfiguration.blockCommentStartToken = blockStart;
-				contrib.commentsConfiguration.blockCommentEndToken = blockEnd;
-			}
-			let d = this.Modes_CommentsSupport_register(modeId, contrib);
-			disposables.push(d);
-		}
+		let {wordPattern} = configuration;
 
 		// word definition
 		if (wordPattern) {
 			setWordDefinitionFor(modeId, wordPattern);
-			let d = this.Modes_TokenTypeClassificationSupport_register(modeId, {
-				wordDefinition: wordPattern
-			});
-			disposables.push(d);
-
 		} else {
 			setWordDefinitionFor(modeId, null);
 		}
 
-		// on enter
-		let onEnter: IOnEnterSupportOptions = {};
-		let empty = true;
-		let {brackets, indentationRules, onEnterRules} = configuration;
-
-		if (brackets) {
-			empty = false;
-			onEnter.brackets = brackets.map(pair => {
-				let [open, close] = pair;
-				return { open, close };
-			});
-		}
-		if (indentationRules) {
-			empty = false;
-			onEnter.indentationRules = indentationRules;
-		}
-		if (onEnterRules) {
-			empty = false;
-			onEnter.regExpRules = <any>onEnterRules;
-		}
-
-		if (!empty) {
-			let d = this.Modes_OnEnterSupport_register(modeId, onEnter);
-			disposables.push(d);
-		}
-
-		if (configuration.__electricCharacterSupport) {
-			disposables.push(
-				this.Modes_ElectricCharacterSupport_register(modeId, configuration.__electricCharacterSupport)
-			);
-		}
-
-		if (configuration.__characterPairSupport) {
-			disposables.push(
-				this.Modes_CharacterPairSupport_register(modeId, configuration.__characterPairSupport)
-			);
-		}
-
-		return extHostTypes.Disposable.from(...disposables);
+		return this.Modes_RichEditSupport_register(modeId, configuration);
 	}
 
-	private Modes_CommentsSupport_register(modeId: string, commentsSupport: ICommentsSupportContribution): IDisposable {
+	private Modes_RichEditSupport_register(modeId: string, configuration:vscode.LanguageConfiguration): IDisposable {
 		let disposeToken = ExtHostAPIImplementation.generateDisposeToken();
-		this._proxy.Modes_CommentsSupport_register(disposeToken, modeId, commentsSupport);
-		return this._disposableFromToken(disposeToken);
-	}
-
-	private Modes_TokenTypeClassificationSupport_register(modeId: string, tokenTypeClassificationSupport:ITokenTypeClassificationSupportContribution): IDisposable {
-		let disposeToken = ExtHostAPIImplementation.generateDisposeToken();
-		this._proxy.Modes_TokenTypeClassificationSupport_register(disposeToken, modeId, tokenTypeClassificationSupport);
-		return this._disposableFromToken(disposeToken);
-	}
-
-	private Modes_ElectricCharacterSupport_register(modeId: string, electricCharacterSupport:IBracketElectricCharacterContribution): IDisposable {
-		let disposeToken = ExtHostAPIImplementation.generateDisposeToken();
-		this._proxy.Modes_ElectricCharacterSupport_register(disposeToken, modeId, electricCharacterSupport);
-		return this._disposableFromToken(disposeToken);
-	}
-
-	private Modes_CharacterPairSupport_register(modeId: string, characterPairSupport:Modes.ICharacterPairContribution): IDisposable {
-		let disposeToken = ExtHostAPIImplementation.generateDisposeToken();
-		this._proxy.Modes_CharacterPairSupport_register(disposeToken, modeId, characterPairSupport);
-		return this._disposableFromToken(disposeToken);
-	}
-
-	private Modes_OnEnterSupport_register(modeId: string, opts: IOnEnterSupportOptions): IDisposable {
-		let disposeToken = ExtHostAPIImplementation.generateDisposeToken();
-		this._proxy.Modes_OnEnterSupport_register(disposeToken, modeId, opts);
+		this._proxy.Modes_RichEditSupport_register(disposeToken, modeId, configuration);
 		return this._disposableFromToken(disposeToken);
 	}
 }
 
 class Extension<T> implements vscode.Extension<T> {
 
-	private _pluginService: IPluginService;
+	private _pluginService: PluginHostPluginService;
 
 	public id: string;
 	public extensionPath: string;
 	public packageJSON: any;
 
-	constructor(pluginService:IPluginService, description:IPluginDescription) {
+	constructor(pluginService:PluginHostPluginService, description:IPluginDescription) {
 		this._pluginService = pluginService;
 		this.id = description.id;
 		this.extensionPath = paths.normalize(description.extensionFolderPath, true);
@@ -498,11 +431,11 @@ class Extension<T> implements vscode.Extension<T> {
 	}
 
 	get exports(): T {
-		return this._pluginService.get(this.id);
+		return <T>this._pluginService.get(this.id);
 	}
 
 	activate(): Thenable<T> {
-		return this._pluginService.activateAndGet<T>(this.id);
+		return this._pluginService.activateAndGet(this.id).then(() => this.exports);
 	}
 }
 
@@ -543,23 +476,7 @@ export class MainProcessVSCodeAPIHelper {
 		}
 	}
 
-	public Modes_CommentsSupport_register(disposeToken:string, modeId: string, commentsSupport: ICommentsSupportContribution): void {
-		this._token2Dispose[disposeToken] = this._modeService.registerDeclarativeCommentsSupport(modeId, commentsSupport);
-	}
-
-	public Modes_TokenTypeClassificationSupport_register(disposeToken:string, modeId: string, tokenTypeClassificationSupport:ITokenTypeClassificationSupportContribution): void {
-		this._token2Dispose[disposeToken] = this._modeService.registerDeclarativeTokenTypeClassificationSupport(modeId, tokenTypeClassificationSupport);
-	}
-
-	public Modes_ElectricCharacterSupport_register(disposeToken:string, modeId: string, electricCharacterSupport:IBracketElectricCharacterContribution): void {
-		this._token2Dispose[disposeToken] = this._modeService.registerDeclarativeElectricCharacterSupport(modeId, electricCharacterSupport);
-	}
-
-	public Modes_CharacterPairSupport_register(disposeToken:string, modeId: string, characterPairSupport:Modes.ICharacterPairContribution): void {
-		this._token2Dispose[disposeToken] = this._modeService.registerDeclarativeCharacterPairSupport(modeId, characterPairSupport);
-	}
-
-	public Modes_OnEnterSupport_register(disposeToken:string, modeId: string, opts:IOnEnterSupportOptions): void {
-		this._token2Dispose[disposeToken] = this._modeService.registerDeclarativeOnEnterSupport(modeId, <any>opts);
+	public Modes_RichEditSupport_register(disposeToken:string, modeId: string, configuration:vscode.LanguageConfiguration): void {
+		this._token2Dispose[disposeToken] = this._modeService.registerRichEditSupport(modeId, <any>configuration);
 	}
 }

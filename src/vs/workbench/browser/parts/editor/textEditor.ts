@@ -15,13 +15,14 @@ import {Preferences} from 'vs/workbench/common/constants';
 import {IEditorViewState} from 'vs/editor/common/editorCommon';
 import {OptionsChangeEvent, EventType as WorkbenchEventType, EditorEvent, TextEditorSelectionEvent} from 'vs/workbench/common/events';
 import {Scope} from 'vs/workbench/common/memento';
+import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
 import {IEditorSelection, IEditor, EventType, IConfigurationChangedEvent, IModelContentChangedEvent, IModelModeChangedEvent, ICursorPositionChangedEvent, IEditorOptions} from 'vs/editor/common/editorCommon';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {Position} from 'vs/platform/editor/common/editor';
-import {DEFAULT_THEME_ID} from 'vs/platform/theme/common/themes';
+import {DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
 import {IStorageService, StorageScope, StorageEvent, StorageEventType} from 'vs/platform/storage/common/storage';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -169,6 +170,12 @@ export abstract class BaseTextEditor extends BaseEditor {
 	 */
 	public createEditorControl(parent: Builder): IEditor {
 		return this._instantiationService.createInstance(CodeEditorWidget, parent.getHTMLElement(), this.getCodeEditorOptions());
+	}
+
+	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+		return super.setInput(input, options).then(() => {
+			this.editorControl.updateOptions(this.getCodeEditorOptions()); // support input specific editor options
+		});
 	}
 
 	public setVisible(visible: boolean, position: Position = null): TPromise<void> {

@@ -17,7 +17,6 @@ import uri from 'vs/base/common/uri';
 import uuid = require('vs/base/common/uuid');
 import extfs = require('vs/base/node/extfs');
 import encoding = require('vs/base/node/encoding');
-import {EventEmitter} from 'vs/base/common/eventEmitter';
 import utils = require('vs/workbench/services/files/test/node/utils');
 
 suite('FileService', () => {
@@ -59,8 +58,6 @@ suite('FileService', () => {
 	});
 
 	test('createFile', function(done: () => void) {
-		this.timeout(10000); // TODO@Ben test tends to need longer?
-
 		let contents = 'Hello World';
 		service.createFile(uri.file(path.join(testDir, 'test.txt')), contents).done(s => {
 			assert.equal(s.name, 'test.txt');
@@ -320,7 +317,6 @@ suite('FileService', () => {
 	});
 
 	test('resolveContent - FILE_IS_BINARY', function(done: () => void) {
-		let charset = 'utf16le';
 		let resource = uri.file(path.join(testDir, 'binary.txt'));
 
 		service.resolveContent(resource, { acceptTextOnly: true }).done(null, (e:IFileOperationResult) => {
@@ -450,7 +446,7 @@ suite('FileService', () => {
 			encodingOverride.push({
 				resource: uri.file(path.join(testDir, 'deep')),
 				encoding: 'utf16le'
-			})
+			});
 
 			let _service = new FileService(_testDir, null, {
 				encoding: 'windows1252',

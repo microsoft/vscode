@@ -7,7 +7,6 @@
 
 import { Url, parse as parseUrl } from 'url';
 import { isBoolean } from 'vs/base/common/types';
-import { assign } from 'vs/base/common/objects';
 import HttpProxyAgent = require('http-proxy-agent');
 import HttpsProxyAgent = require('https-proxy-agent');
 

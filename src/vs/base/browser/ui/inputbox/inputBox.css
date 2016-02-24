@@ -58,10 +58,6 @@
 	overflow: hidden;
 }
 
-.monaco-inputbox > .wrapper > .input:focus {
-	outline: none;
-}
-
 .monaco-inputbox > .wrapper > .mirror {
 	position: absolute;
 	display: inline-block;

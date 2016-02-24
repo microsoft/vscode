@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer';
+import * as assert from 'assert';
+import {IMode, IStream, ITokenizationResult, ITokenizationSupport} from 'vs/editor/common/modes';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import modes = require('vs/editor/common/modes');
-import supports = require('vs/editor/common/modes/supports');
+import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
+import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer';
 
 suite('Editor Modes - textToHtmlTokenizer', () => {
 	test('TextToHtmlTokenizer', () => {
@@ -58,7 +58,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 class State extends AbstractState {
 
-	constructor(mode:modes.IMode) {
+	constructor(mode:IMode) {
 		super(mode);
 	}
 
@@ -66,26 +66,26 @@ class State extends AbstractState {
 		return new State(this.getMode());
 	}
 
-	public tokenize(stream:modes.IStream):modes.ITokenizationResult {
+	public tokenize(stream:IStream):ITokenizationResult {
 		return { type: stream.next() === '.' ? '' : 'text' };
 	}
 }
 
-class Mode implements modes.IMode {
+class Mode implements IMode {
 
-	public tokenizationSupport: modes.ITokenizationSupport;
+	public tokenizationSupport: ITokenizationSupport;
 
 	constructor() {
-		this.tokenizationSupport = new supports.TokenizationSupport(this, {
+		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new State(this)
 		}, false, false);
 	}
 
 	public getId(): string {
-		return "testMode";
+		return 'testMode';
 	}
 
-	public toSimplifiedMode(): modes.IMode {
+	public toSimplifiedMode(): IMode {
 		return this;
 	}
 }

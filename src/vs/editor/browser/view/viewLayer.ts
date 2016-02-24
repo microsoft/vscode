@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import DomUtils = require('vs/base/browser/dom');
-import Timer = require('vs/base/common/timer');
-
+import * as dom from 'vs/base/browser/dom';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {IViewContext} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
 
 export interface IVisibleLineData {
 	getDomNode(): HTMLElement;
@@ -20,12 +18,12 @@ export interface IVisibleLineData {
 	onLinesDeletedAbove(): void;
 	onLineChangedAbove(): void;
 	onTokensChanged(): void;
-	onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): void;
+	onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): void;
 
 	getLineOuterHTML(out:string[], lineNumber: number, deltaTop: number): void;
 	getLineInnerHTML(lineNumber: number): string;
 
-	shouldUpdateHTML(lineNumber:number, inlineDecorations:EditorCommon.IModelDecoration[]): boolean;
+	shouldUpdateHTML(lineNumber:number, inlineDecorations:editorCommon.IModelDecoration[]): boolean;
 	layoutLine(lineNumber: number, deltaTop:number): void;
 }
 
@@ -34,7 +32,7 @@ interface IRendererContext {
 	rendLineNumberStart: number;
 	lines: IVisibleLineData[];
 	linesLength: number;
-	getInlineDecorationsForLineInViewport(lineNumber:number): EditorCommon.IModelDecoration[];
+	getInlineDecorationsForLineInViewport(lineNumber:number): editorCommon.IModelDecoration[];
 	viewportTop: number;
 	viewportHeight: number;
 	scrollDomNode: HTMLElement;
@@ -50,7 +48,7 @@ export class ViewLayer extends ViewPart {
 
 	private _renderer: ViewLayerRenderer;
 
-	constructor(context:EditorBrowser.IViewContext) {
+	constructor(context:IViewContext) {
 		super(context);
 
 		this.domNode = this._createDomNode();
@@ -75,18 +73,18 @@ export class ViewLayer extends ViewPart {
 
 	// ---- begin view event handlers
 
-	public onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
 		for (var i = 0; i < this._lines.length; i++) {
 			this._lines[i].onConfigurationChanged(e);
 		}
 		return true;
 	}
 
-	public onLayoutChanged(layoutInfo:EditorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
 		return true;
 	}
 
-	public onScrollChanged(e:EditorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
 		return e.vertical;
 	}
 
@@ -97,11 +95,11 @@ export class ViewLayer extends ViewPart {
 	public onModelFlushed(): boolean {
 		this._lines = [];
 		this._rendLineNumberStart = 1;
-		DomUtils.clearNode(this.domNode);
+		dom.clearNode(this.domNode);
 		return true;
 	}
 
-	public onModelLinesDeleted(e:EditorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e:editorCommon.IViewLinesDeletedEvent): boolean {
 		var from = Math.max(e.fromLineNumber - this._rendLineNumberStart, 0);
 		var to = Math.min(e.toLineNumber - this._rendLineNumberStart, this._lines.length - 1);
 		var i:number;
@@ -140,7 +138,7 @@ export class ViewLayer extends ViewPart {
 		return true;
 	}
 
-	public onModelLineChanged(e:EditorCommon.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e:editorCommon.IViewLineChangedEvent): boolean {
 		var lineIndex = e.lineNumber - this._rendLineNumberStart,
 			shouldRender = false;
 
@@ -158,7 +156,7 @@ export class ViewLayer extends ViewPart {
 		return shouldRender;
 	}
 
-	public onModelLinesInserted(e:EditorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e:editorCommon.IViewLinesInsertedEvent): boolean {
 		var i:number;
 
 		if (e.fromLineNumber <= this._rendLineNumberStart) {
@@ -212,7 +210,7 @@ export class ViewLayer extends ViewPart {
 		return true;
 	}
 
-	public onModelTokensChanged(e:EditorCommon.IViewTokensChangedEvent): boolean {
+	public onModelTokensChanged(e:editorCommon.IViewTokensChangedEvent): boolean {
 		var changedFromIndex = e.fromLineNumber - this._rendLineNumberStart;
 		var changedToIndex = e.toLineNumber - this._rendLineNumberStart;
 
@@ -237,7 +235,7 @@ export class ViewLayer extends ViewPart {
 	// ---- end view event handlers
 	private _scrollDomNode: HTMLElement = null;
 	private _scrollDomNodeIsAbove: boolean = false;
-	public _renderLines(linesViewportData:EditorCommon.IViewLinesViewportData): void {
+	public _renderLines(linesViewportData:editorCommon.IViewLinesViewportData): void {
 
 		var ctx: IRendererContext = {
 			domNode: this.domNode,

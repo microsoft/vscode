@@ -32,7 +32,7 @@ export function readdir(path: string, callback: (error: Error, files: string[]) 
 	}
 
 	return readdirNormalize(path, callback);
-};
+}
 
 function readdirNormalize(path: string, callback: (error: Error, files: string[]) => void): void {
 	fs.readdir(path, (error, children) => {

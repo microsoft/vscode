@@ -21,7 +21,7 @@ export class JSONIntellisense {
 
 	private schemaService: SchemaService.IJSONSchemaService;
 	private requestService: IRequestService;
-	private contributions: JsonWorker.IJSONWorkerContribution[]
+	private contributions: JsonWorker.IJSONWorkerContribution[];
 
 	constructor(schemaService: SchemaService.IJSONSchemaService, requestService: IRequestService, contributions: JsonWorker.IJSONWorkerContribution[]) {
 		this.schemaService = schemaService;
@@ -126,7 +126,7 @@ export class JSONIntellisense {
 			}
 
 			// proposals for values
-			if (node && (node.type === 'string' || node.type === 'number' || node.type === 'boolean' || node.type === 'null')) {
+			if (node && (node.type === 'string' || node.type === 'number' || node.type === 'integer' || node.type === 'boolean' || node.type === 'null')) {
 				var nodeRange = modelMirror.getRangeFromOffsetAndLength(node.start, node.end - node.start);
 				overwriteBefore = position.column - nodeRange.startColumn;
 				overwriteAfter = nodeRange.endColumn - position.column;
@@ -172,8 +172,6 @@ export class JSONIntellisense {
 	private getPropertySuggestions(resource: URI, schema: SchemaService.ResolvedSchema, doc: Parser.JSONDocument, node: Parser.ASTNode, currentWord: string, addValue: boolean, isLast: boolean, collector: JsonWorker.ISuggestionsCollector): void {
 		var matchingSchemas: Parser.IApplicableSchema[] = [];
 		doc.validate(schema.schema, matchingSchemas, node.start);
-
-		var collectPromises: WinJS.TPromise<Modes.ISuggestion[]>[] = [];
 
 		matchingSchemas.forEach((s) => {
 			if (s.node === node && !s.inverted) {
@@ -266,7 +264,6 @@ export class JSONIntellisense {
 
 	public getValueSuggestions(resource: URI, schema: SchemaService.ResolvedSchema, doc: Parser.JSONDocument, node: Parser.ASTNode, offset: number, collector: JsonWorker.ISuggestionsCollector) : void {
 
-		var collectPromises: WinJS.TPromise<Modes.ISuggestion[]>[] = [];
 		if (!node) {
 			this.addDefaultSuggestion(schema.schema, collector);
 		} else {
@@ -365,6 +362,7 @@ export class JSONIntellisense {
 			case 'string':
 				return '"{{' + snippet.substr(1, snippet.length - 2) + '}}"';
 			case 'number':
+			case 'integer':
 			case 'boolean':
 				return '{{' + snippet + '}}';
 		}
@@ -428,6 +426,7 @@ export class JSONIntellisense {
 					result += '[\n\t{{}}\n]';
 					break;
 				case 'number':
+				case 'integer':
 					result += '{{0}}';
 					break;
 				case 'null':

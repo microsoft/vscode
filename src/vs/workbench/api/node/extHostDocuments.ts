@@ -52,6 +52,8 @@ export function getWordDefinitionFor(modeId: string): RegExp {
 @Remotable.PluginHostContext('ExtHostModelService')
 export class ExtHostModelService {
 
+	private static _handlePool: number = 0;
+
 	private _onDidAddDocumentEventEmitter: Emitter<vscode.TextDocument>;
 	public onDidAddDocument: Event<vscode.TextDocument>;
 
@@ -66,7 +68,7 @@ export class ExtHostModelService {
 
 	private _documentData: { [modelUri: string]: ExtHostDocumentData; };
 	private _documentLoader: { [modelUri: string]: TPromise<ExtHostDocumentData> };
-	private _documentContentProviders: { [scheme: string]: vscode.TextDocumentContentProvider };
+	private _documentContentProviders: { [handle: number]: vscode.TextDocumentContentProvider; };
 
 	private _proxy: MainThreadDocuments;
 
@@ -131,53 +133,50 @@ export class ExtHostModelService {
 	}
 
 	public registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider): vscode.Disposable {
-		if (scheme === 'file' || scheme === 'untitled' || this._documentContentProviders[scheme]) {
+		if (scheme === 'file' || scheme === 'untitled') {
 			throw new Error(`scheme '${scheme}' already registered`);
 		}
-		this._documentContentProviders[scheme] = provider;
-		this._proxy.$registerTextContentProvider(scheme);
+
+		const handle = ExtHostModelService._handlePool++;
+
+		this._documentContentProviders[handle] = provider;
+		this._proxy.$registerTextContentProvider(handle, scheme);
 
 		let subscription: IDisposable;
 		if (typeof provider.onDidChange === 'function') {
 			subscription = provider.onDidChange(uri => {
 				if (this._documentData[uri.toString()]) {
-					this.$provideTextDocumentContent(<URI>uri).then(value => {
+					this.$provideTextDocumentContent(handle, <URI>uri).then(value => {
 						return this._proxy.$onVirtualDocumentChange(<URI>uri, value);
 					}, onUnexpectedError);
 				}
 			});
 		}
 		return new Disposable(() => {
-			this._proxy.$unregisterTextContentProvider(scheme);
-			this._documentContentProviders[scheme] = undefined; // keep the knowledge of that scheme
+			if (delete this._documentContentProviders[handle]) {
+				this._proxy.$unregisterTextContentProvider(handle);
+			}
 			if (subscription) {
 				subscription.dispose();
+				subscription = undefined;
 			}
 		});
 	}
 
-	$provideTextDocumentContent(uri: URI): TPromise<string> {
-		const provider = this._documentContentProviders[uri.scheme];
+	$provideTextDocumentContent(handle: number, uri: URI): TPromise<string> {
+		const provider = this._documentContentProviders[handle];
 		if (!provider) {
 			return TPromise.wrapError<string>(`unsupported uri-scheme: ${uri.scheme}`);
 		}
-		return asWinJsPromise(token => provider.provideTextDocumentContent(uri, token)).then(value => {
-			if (typeof value !== 'string') {
-				return TPromise.wrapError('received illegal value from text document provider');
-			}
-			return value;
-		});
+		return asWinJsPromise(token => provider.provideTextDocumentContent(uri, token));
 	}
 
-	$getUnreferencedDocuments(): TPromise<URI[]> {
-		const result: URI[] = [];
-		for (let key in this._documentData) {
-			let uri = URI.parse(key);
-			if (this._documentContentProviders[uri.scheme] && !this._documentData[key].isDocumentReferenced) {
-				result.push(uri);
-			}
+	$isDocumentReferenced(uri: URI): TPromise<boolean> {
+		const key = uri.toString();
+		const document = this._documentData[key];
+		if (document) {
+			return TPromise.as(document.isDocumentReferenced);
 		}
-		return TPromise.as(result);
 	}
 
 	public _acceptModelAdd(initData: IModelAddedData): void {
@@ -190,8 +189,8 @@ export class ExtHostModelService {
 		this._onDidAddDocumentEventEmitter.fire(data.document);
 	}
 
-	public _acceptModelModeChanged(url: URI, oldModeId: string, newModeId: string): void {
-		let data = this._documentData[url.toString()];
+	public _acceptModelModeChanged(strURL: string, oldModeId: string, newModeId: string): void {
+		let data = this._documentData[strURL];
 
 		// Treat a mode change as a remove + add
 
@@ -200,35 +199,34 @@ export class ExtHostModelService {
 		this._onDidAddDocumentEventEmitter.fire(data.document);
 	}
 
-	public _acceptModelSaved(url: URI): void {
-		let data = this._documentData[url.toString()];
+	public _acceptModelSaved(strURL: string): void {
+		let data = this._documentData[strURL];
 		data._acceptIsDirty(false);
 		this._onDidSaveDocumentEventEmitter.fire(data.document);
 	}
 
-	public _acceptModelDirty(url: URI): void {
-		let document = this._documentData[url.toString()];
+	public _acceptModelDirty(strURL: string): void {
+		let document = this._documentData[strURL];
 		document._acceptIsDirty(true);
 	}
 
-	public _acceptModelReverted(url: URI): void {
-		let document = this._documentData[url.toString()];
+	public _acceptModelReverted(strURL: string): void {
+		let document = this._documentData[strURL];
 		document._acceptIsDirty(false);
 	}
 
-	public _acceptModelRemoved(url: URI): void {
-		let key = url.toString();
-		if (!this._documentData[key]) {
-			throw new Error('Document `' + key + '` does not exist.');
+	public _acceptModelRemoved(strURL: string): void {
+		if (!this._documentData[strURL]) {
+			throw new Error('Document `' + strURL + '` does not exist.');
 		}
-		let data = this._documentData[key];
-		delete this._documentData[key];
+		let data = this._documentData[strURL];
+		delete this._documentData[strURL];
 		this._onDidRemoveDocumentEventEmitter.fire(data.document);
 		data.dispose();
 	}
 
-	public _acceptModelChanged(url: URI, events: EditorCommon.IModelContentChangedEvent2[]): void {
-		let data = this._documentData[url.toString()];
+	public _acceptModelChanged(strURL: string, events: EditorCommon.IModelContentChangedEvent2[]): void {
+		let data = this._documentData[strURL];
 		data.onEvents(events);
 		this._onDidChangeDocumentEventEmitter.fire({
 			document: data.document,
@@ -275,21 +273,21 @@ export class ExtHostDocumentData extends MirrorModel2 {
 		if (!this.isDocumentReferenced) {
 			const data = this;
 			const doc = {
-				get uri() { return data._uri },
-				get fileName() { return data._uri.fsPath },
-				get isUntitled() { return data._uri.scheme !== 'file' },
-				get languageId() { return data._languageId },
-				get version() { return data._versionId },
-				get isDirty() { return data._isDirty },
-				save() { return data._proxy._trySaveDocument(data._uri) },
-				getText(range?) { return range ? data._getTextInRange(range) : data.getText() },
-				get lineCount() { return data._lines.length },
-				lineAt(lineOrPos) { return data.lineAt(lineOrPos) },
-				offsetAt(pos) { return data.offsetAt(pos) },
-				positionAt(offset) { return data.positionAt(offset) },
-				validateRange(ran) { return data.validateRange(ran) },
-				validatePosition(pos) { return data.validatePosition(pos) },
-				getWordRangeAtPosition(pos) { return data.getWordRangeAtPosition(pos) }
+				get uri() { return data._uri; },
+				get fileName() { return data._uri.fsPath; },
+				get isUntitled() { return data._uri.scheme !== 'file'; },
+				get languageId() { return data._languageId; },
+				get version() { return data._versionId; },
+				get isDirty() { return data._isDirty; },
+				save() { return data._proxy._trySaveDocument(data._uri); },
+				getText(range?) { return range ? data._getTextInRange(range) : data.getText(); },
+				get lineCount() { return data._lines.length; },
+				lineAt(lineOrPos) { return data.lineAt(lineOrPos); },
+				offsetAt(pos) { return data.offsetAt(pos); },
+				positionAt(offset) { return data.positionAt(offset); },
+				validateRange(ran) { return data.validateRange(ran); },
+				validatePosition(pos) { return data.validatePosition(pos); },
+				getWordRangeAtPosition(pos) { return data.getWordRangeAtPosition(pos); }
 			};
 			this._documentRef = weak(doc);
 		}
@@ -468,7 +466,8 @@ export class MainThreadDocuments {
 	private _modelToDisposeMap: { [modelUrl: string]: IDisposable; };
 	private _proxy: ExtHostModelService;
 	private _modelIsSynced: { [modelId: string]: boolean; };
-	private _resourceContentProvider: { [scheme: string]: IDisposable };
+	private _resourceContentProvider: { [handle: number]: IDisposable };
+	private _virtualDocumentSet: { [resource: string]: boolean };
 
 	constructor(
 		@IThreadService threadService: IThreadService,
@@ -495,20 +494,21 @@ export class MainThreadDocuments {
 		modelService.onModelModeChanged(this._onModelModeChanged, this, this._toDispose);
 
 		this._toDispose.push(eventService.addListener2(FileEventType.FILE_SAVED, (e: LocalFileChangeEvent) => {
-			this._proxy._acceptModelSaved(e.getAfter().resource);
+			this._proxy._acceptModelSaved(e.getAfter().resource.toString());
 		}));
 		this._toDispose.push(eventService.addListener2(FileEventType.FILE_REVERTED, (e: LocalFileChangeEvent) => {
-			this._proxy._acceptModelReverted(e.getAfter().resource);
+			this._proxy._acceptModelReverted(e.getAfter().resource.toString());
 		}));
 		this._toDispose.push(eventService.addListener2(FileEventType.FILE_DIRTY, (e: LocalFileChangeEvent) => {
-			this._proxy._acceptModelDirty(e.getAfter().resource);
+			this._proxy._acceptModelDirty(e.getAfter().resource.toString());
 		}));
 
 		const handle = setInterval(() => this._runDocumentCleanup(), 30 * 1000);
-		this._toDispose.push({ dispose() { clearInterval(handle) } });
+		this._toDispose.push({ dispose() { clearInterval(handle); } });
 
 		this._modelToDisposeMap = Object.create(null);
 		this._resourceContentProvider = Object.create(null);
+		this._virtualDocumentSet = Object.create(null);
 	}
 
 	public dispose(): void {
@@ -543,7 +543,7 @@ export class MainThreadDocuments {
 		if (!this._modelIsSynced[modelUrl.toString()]) {
 			return;
 		}
-		this._proxy._acceptModelModeChanged(model.getAssociatedResource(), oldModeId, model.getMode().getId());
+		this._proxy._acceptModelModeChanged(model.getAssociatedResource().toString(), oldModeId, model.getMode().getId());
 	}
 
 	private _onModelRemoved(model: EditorCommon.IModel): void {
@@ -554,7 +554,7 @@ export class MainThreadDocuments {
 		delete this._modelIsSynced[modelUrl.toString()];
 		this._modelToDisposeMap[modelUrl.toString()].dispose();
 		delete this._modelToDisposeMap[modelUrl.toString()];
-		this._proxy._acceptModelRemoved(modelUrl);
+		this._proxy._acceptModelRemoved(modelUrl.toString());
 	}
 
 	private _onModelEvents(modelUrl: URI, events: IEmitterEvent[]): void {
@@ -568,7 +568,7 @@ export class MainThreadDocuments {
 			}
 		}
 		if (changedEvents.length > 0) {
-			this._proxy._acceptModelChanged(modelUrl, changedEvents);
+			this._proxy._acceptModelChanged(modelUrl.toString(), changedEvents);
 		}
 	}
 
@@ -580,8 +580,8 @@ export class MainThreadDocuments {
 
 	_tryOpenDocument(uri: URI): TPromise<any> {
 
-		if (!uri.scheme || !uri.fsPath) {
-			return TPromise.wrapError('Uri must have scheme and path. One or both are missing in: ' + uri.toString());
+		if (!uri.scheme || !(uri.fsPath || uri.authority)) {
+			return TPromise.wrapError(`Invalid uri. Scheme and authority or path must be set.`);
 		}
 
 		let promise: TPromise<boolean>;
@@ -621,7 +621,7 @@ export class MainThreadDocuments {
 				if (input.getResource().toString() !== uri.toString()) {
 					throw new Error(`expected URI ${uri.toString() } BUT GOT ${input.getResource().toString() }`);
 				}
-				return this._proxy._acceptModelDirty(uri); // mark as dirty
+				return this._proxy._acceptModelDirty(uri.toString()); // mark as dirty
 			}).then(() => {
 				return true;
 			});
@@ -630,22 +630,26 @@ export class MainThreadDocuments {
 
 	// --- virtual document logic
 
-	$registerTextContentProvider(scheme: string): void {
-		this._resourceContentProvider[scheme] = ResourceEditorInput.registerResourceContentProvider(scheme, {
+	$registerTextContentProvider(handle:number, scheme: string): void {
+		this._resourceContentProvider[handle] = ResourceEditorInput.registerResourceContentProvider(scheme, {
 			provideTextContent: (uri: URI): TPromise<EditorCommon.IModel> => {
-				return this._proxy.$provideTextDocumentContent(uri).then(value => {
-					const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
-					const mode = this._modeService.getOrCreateModeByFilenameOrFirstLine(uri.fsPath, firstLineText);
-					return this._modelService.createModel(value, mode, uri);
+				return this._proxy.$provideTextDocumentContent(handle, uri).then(value => {
+					if (value) {
+						this._virtualDocumentSet[uri.toString()] = true;
+						const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
+						const mode = this._modeService.getOrCreateModeByFilenameOrFirstLine(uri.fsPath, firstLineText);
+						return this._modelService.createModel(value, mode, uri);
+					}
 				});
 			}
 		});
 	}
 
-	$unregisterTextContentProvider(scheme: string): void {
-		const registration = this._resourceContentProvider[scheme];
+	$unregisterTextContentProvider(handle: number): void {
+		const registration = this._resourceContentProvider[handle];
 		if (registration) {
 			registration.dispose();
+			delete this._resourceContentProvider[handle];
 		}
 	}
 
@@ -657,23 +661,25 @@ export class MainThreadDocuments {
 	}
 
 	private _runDocumentCleanup(): void {
-		this._proxy.$getUnreferencedDocuments().then(resources => {
 
-			const toBeDisposed: URI[] = [];
-			const promises = resources.map(resource => {
-				return this._editorService.inputToType({ resource }).then(input => {
-					if (!this._editorService.isVisible(input, true)) {
-						toBeDisposed.push(resource);
-					}
-				});
-			});
+		const toBeDisposed: URI[] = [];
 
-			return TPromise.join(promises).then(() => {
-				for (let resource of toBeDisposed) {
-					this._modelService.destroyModel(resource);
+		TPromise.join(Object.keys(this._virtualDocumentSet).map(key => {
+			let resource = URI.parse(key);
+			return this._proxy.$isDocumentReferenced(resource).then(referenced => {
+				if (!referenced) {
+					return this._editorService.inputToType({ resource }).then(input => {
+						if (!this._editorService.isVisible(input, true)) {
+							toBeDisposed.push(resource);
+						}
+					});
 				}
 			});
-
+		})).then(() => {
+			for (let resource of toBeDisposed) {
+				this._modelService.destroyModel(resource);
+				delete this._virtualDocumentSet[resource.toString()];
+			}
 		}, onUnexpectedError);
 	}
 }

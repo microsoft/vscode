@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import URI from 'vs/base/common/uri';
-import network = require('vs/base/common/network');
 import labels = require('vs/base/common/labels');
 import {Registry} from 'vs/platform/platform';
 import {Action} from 'vs/base/common/actions';
@@ -17,7 +16,7 @@ import {getDefaultValuesContent} from 'vs/platform/configuration/common/model';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {Position} from 'vs/platform/editor/common/editor';
+import {Position, IEditor} from 'vs/platform/editor/common/editor';
 import {IFileService, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {IMessageService, Severity, CloseAction} from 'vs/platform/message/common/message';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
@@ -47,15 +46,15 @@ export class BaseTwoEditorsAction extends Action {
 		return this.fileService.resolveContent(resource, { acceptTextOnly: true }).then(null, (error) => {
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 				return this.fileService.updateContent(resource, contents).then(null, (error) => {
-					return Promise.wrapError(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", labels.getPathLabel(resource, this.contextService), error)));
+					return TPromise.wrapError(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", labels.getPathLabel(resource, this.contextService), error)));
 				});
 			}
 
-			return Promise.wrapError(error);
+			return TPromise.wrapError(error);
 		});
 	}
 
-	protected openTwoEditors(leftHandDefaultInput: StringEditorInput, editableResource: URI, defaultEditableContents: string): Promise {
+	protected openTwoEditors(leftHandDefaultInput: StringEditorInput, editableResource: URI, defaultEditableContents: string): TPromise<IEditor> {
 
 		// Create as needed and open in editor
 		return this.createIfNotExists(editableResource, defaultEditableContents).then(() => {
@@ -84,7 +83,7 @@ export class BaseOpenSettingsAction extends BaseTwoEditorsAction {
 		super(id, label, editorService, fileService, configurationService, messageService, contextService, keybindingService, instantiationService);
 	}
 
-	protected open(emptySettingsContents: string, settingsResource: URI): Promise {
+	protected open(emptySettingsContents: string, settingsResource: URI): TPromise<IEditor> {
 		return this.openTwoEditors(DefaultSettingsInput.getInstance(this.instantiationService), settingsResource, emptySettingsContents);
 	}
 }
@@ -93,7 +92,7 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 	public static ID = 'workbench.action.openGlobalSettings';
 	public static LABEL = nls.localize('openGlobalSettings', "Open User Settings");
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<IEditor> {
 
 		// Inform user about workspace settings
 		if (this.configurationService.hasWorkspaceConfiguration()) {
@@ -139,7 +138,7 @@ export class OpenGlobalKeybindingsAction extends BaseTwoEditorsAction {
 		super(id, label, editorService, fileService, configurationService, messageService, contextService, keybindingService, instantiationService);
 	}
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<IEditor> {
 		let emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
 
 		return this.openTwoEditors(DefaultKeybindingsInput.getInstance(this.instantiationService, this.keybindingService), URI.file(this.contextService.getConfiguration().env.appKeybindingsPath), emptyContents);
@@ -150,7 +149,7 @@ export class OpenWorkspaceSettingsAction extends BaseOpenSettingsAction {
 	public static ID = 'workbench.action.openWorkspaceSettings';
 	public static LABEL = nls.localize('openWorkspaceSettings', "Open Workspace Settings");
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<IEditor> {
 		if (!this.contextService.getWorkspace()) {
 			this.messageService.show(Severity.Info, nls.localize('openFolderFirst', "Open a folder first to create workspace settings"));
 
@@ -182,7 +181,7 @@ class DefaultSettingsInput extends StringEditorInput {
 	}
 
 	protected getResource(): URI {
-		return URI.create(network.schemas.inMemory, 'defaults', '/settings.json'); // URI is used to register JSON schema support
+		return URI.create('vscode', 'defaultsettings', '/settings.json'); // URI is used to register JSON schema support
 	}
 }
 
@@ -201,7 +200,7 @@ class DefaultKeybindingsInput extends StringEditorInput {
 	}
 
 	protected getResource(): URI {
-		return URI.create(network.schemas.inMemory, 'defaults', '/keybindings.json'); // URI is used to register JSON schema support
+		return URI.create('vscode', 'defaultsettings', '/keybindings.json'); // URI is used to register JSON schema support
 	}
 }
 

@@ -5,14 +5,14 @@
 'use strict';
 
 import {Selection} from 'vs/editor/common/core/selection';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as editorCommon from 'vs/editor/common/editorCommon';
 
-export class ReplaceCommand implements EditorCommon.ICommand {
+export class ReplaceCommand implements editorCommon.ICommand {
 
-	private _range: EditorCommon.IEditorRange;
+	private _range: editorCommon.IEditorRange;
 	private _text: string;
 
-	constructor(range: EditorCommon.IEditorRange, text: string) {
+	constructor(range: editorCommon.IEditorRange, text: string) {
 		this._range = range;
 		this._text = text;
 	}
@@ -21,19 +21,19 @@ export class ReplaceCommand implements EditorCommon.ICommand {
 		return this._text;
 	}
 
-	public getRange():EditorCommon.IEditorRange {
+	public getRange():editorCommon.IEditorRange {
 		return this._range;
 	}
 
-	public setRange(newRange:EditorCommon.IEditorRange): void {
+	public setRange(newRange:editorCommon.IEditorRange): void {
 		this._range = newRange;
 	}
 
-	public getEditOperations(model: EditorCommon.ITokenizedModel, builder: EditorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
 		builder.addEditOperation(this._range, this._text);
 	}
 
-	public computeCursorState(model: EditorCommon.ITokenizedModel, helper: EditorCommon.ICursorStateComputerData): EditorCommon.IEditorSelection {
+	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): editorCommon.IEditorSelection {
 		var inverseEditOperations = helper.getInverseEditOperations();
 		var srcRange = inverseEditOperations[0].range;
 		return new Selection(
@@ -47,11 +47,11 @@ export class ReplaceCommand implements EditorCommon.ICommand {
 
 export class ReplaceCommandWithoutChangingPosition extends ReplaceCommand {
 
-	constructor(range: EditorCommon.IEditorRange, text: string) {
+	constructor(range: editorCommon.IEditorRange, text: string) {
 		super(range, text);
 	}
 
-	public computeCursorState(model: EditorCommon.ITokenizedModel, helper: EditorCommon.ICursorStateComputerData): EditorCommon.IEditorSelection {
+	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): editorCommon.IEditorSelection {
 		var inverseEditOperations = helper.getInverseEditOperations();
 		var srcRange = inverseEditOperations[0].range;
 		return new Selection(
@@ -68,13 +68,13 @@ export class ReplaceCommandWithOffsetCursorState extends ReplaceCommand {
 	private _columnDeltaOffset: number;
 	private _lineNumberDeltaOffset: number;
 
-	constructor(range: EditorCommon.IEditorRange, text: string, lineNumberDeltaOffset: number, columnDeltaOffset: number) {
+	constructor(range: editorCommon.IEditorRange, text: string, lineNumberDeltaOffset: number, columnDeltaOffset: number) {
 		super(range, text);
 		this._columnDeltaOffset = columnDeltaOffset;
 		this._lineNumberDeltaOffset = lineNumberDeltaOffset;
 	}
 
-	public computeCursorState(model: EditorCommon.ITokenizedModel, helper: EditorCommon.ICursorStateComputerData): EditorCommon.IEditorSelection {
+	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): editorCommon.IEditorSelection {
 		var inverseEditOperations = helper.getInverseEditOperations();
 		var srcRange = inverseEditOperations[0].range;
 		return new Selection(
@@ -88,21 +88,21 @@ export class ReplaceCommandWithOffsetCursorState extends ReplaceCommand {
 
 export class ReplaceCommandThatPreservesSelection extends ReplaceCommand {
 
-	private _initialSelection: EditorCommon.IEditorSelection;
+	private _initialSelection: editorCommon.IEditorSelection;
 	private _selectionId: string;
 
-	constructor(editRange: EditorCommon.IEditorRange, text: string, initialSelection: EditorCommon.IEditorSelection) {
+	constructor(editRange: editorCommon.IEditorRange, text: string, initialSelection: editorCommon.IEditorSelection) {
 		super(editRange, text);
 		this._initialSelection = initialSelection;
 	}
 
-	public getEditOperations(model: EditorCommon.ITokenizedModel, builder: EditorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
 		super.getEditOperations(model, builder);
 
 		this._selectionId = builder.trackSelection(this._initialSelection);
 	}
 
-	public computeCursorState(model: EditorCommon.ITokenizedModel, helper: EditorCommon.ICursorStateComputerData): EditorCommon.IEditorSelection {
+	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): editorCommon.IEditorSelection {
 		return helper.getTrackedSelection(this._selectionId);
 	}
 }

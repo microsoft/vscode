@@ -6,32 +6,30 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import {Registry} from 'vs/platform/platform';
-import {IEditorModesRegistry, Extensions as ModesExtensions} from 'vs/editor/common/modes/modesRegistry';
+import {TPromise} from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import strings = require('vs/base/common/strings');
 import {isWindows} from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
-import {Action} from 'vs/base/common/actions';
 import {UntitledEditorModel} from 'vs/workbench/common/editor/untitledEditorModel';
 import {IEventService} from 'vs/platform/event/common/event';
 import {TextFileService as AbstractTextFileService} from 'vs/workbench/parts/files/browser/textFileServices';
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {ITextFileOperationResult, ConfirmResult} from 'vs/workbench/parts/files/common/files';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
+import {ITextFileOperationResult, ConfirmResult, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IFileService} from 'vs/platform/files/common/files';
-import {IInstantiationService, INullService} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IModeService} from 'vs/editor/common/services/modeService';
 
 import {remote} from 'electron';
 
 export class TextFileService extends AbstractTextFileService {
+
+	private modeService: IModeService;
 
 	constructor(
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -41,9 +39,11 @@ export class TextFileService extends AbstractTextFileService {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IEventService eventService: IEventService
+		@IEventService eventService: IEventService,
+		@IModeService modeService: IModeService
 	) {
 		super(contextService, instantiationService, configurationService, telemetryService, lifecycleService, eventService);
+		this.modeService = modeService;
 
 		this.init();
 	}
@@ -55,7 +55,7 @@ export class TextFileService extends AbstractTextFileService {
 		if (this.getDirty().length) {
 
 			// If auto save is enabled, save all files and then check again for dirty files
-			if (this.isAutoSaveEnabled()) {
+			if (this.getAutoSaveMode() !== AutoSaveMode.OFF) {
 				return this.saveAll(false /* files only */).then(() => {
 					if (this.getDirty().length) {
 						return this.confirmBeforeShutdown(); // we still have dirty files around, so confirm normally
@@ -119,19 +119,17 @@ export class TextFileService extends AbstractTextFileService {
 		});
 	}
 
-	public getDirty(resource?: URI): URI[] {
+	public getDirty(resources?: URI[]): URI[] {
 
 		// Collect files
-		let dirty = super.getDirty(resource);
+		let dirty = super.getDirty(resources);
 
 		// Add untitled ones
-		if (!resource) {
+		if (!resources) {
 			dirty.push(...this.untitledEditorService.getDirty());
 		} else {
-			let input = this.untitledEditorService.get(resource);
-			if (input && input.isDirty()) {
-				dirty.push(input.getResource());
-			}
+			let dirtyUntitled = resources.map(r => this.untitledEditorService.get(r)).filter(u => u && u.isDirty()).map(u => u.getResource());
+			dirty.push(...dirtyUntitled);
 		}
 
 		return dirty;
@@ -145,12 +143,12 @@ export class TextFileService extends AbstractTextFileService {
 		return this.untitledEditorService.getDirty().some((dirty) => !resource || dirty.toString() === resource.toString());
 	}
 
-	public confirmSave(resource?: URI): ConfirmResult {
+	public confirmSave(resources?: URI[]): ConfirmResult {
 		if (!!this.contextService.getConfiguration().env.pluginDevelopmentPath) {
 			return ConfirmResult.DONT_SAVE; // no veto when we are in plugin dev mode because we cannot assum we run interactive (e.g. tests)
 		}
 
-		let resourcesToConfirm = this.getDirty(resource);
+		let resourcesToConfirm = this.getDirty(resources);
 		if (resourcesToConfirm.length === 0) {
 			return ConfirmResult.DONT_SAVE;
 		}
@@ -210,9 +208,7 @@ export class TextFileService extends AbstractTextFileService {
 		// get all dirty
 		let toSave: URI[] = [];
 		if (Array.isArray(arg1)) {
-			(<URI[]>arg1).forEach((r) => {
-				toSave.push(...this.getDirty(r));
-			});
+			toSave = this.getDirty(arg1);
 		} else {
 			toSave = this.getDirty();
 		}
@@ -249,7 +245,7 @@ export class TextFileService extends AbstractTextFileService {
 				else {
 					targetPath = this.promptForPathSync(this.suggestFileName(untitledResources[i]));
 					if (!targetPath) {
-						return Promise.as({
+						return TPromise.as({
 							results: [...fileResources, ...untitledResources].map((r) => {
 								return {
 									source: r
@@ -267,7 +263,7 @@ export class TextFileService extends AbstractTextFileService {
 		return super.saveAll(fileResources).then((result) => {
 
 			// Handle untitled
-			let untitledSaveAsPromises: Promise[] = [];
+			let untitledSaveAsPromises: TPromise<void>[] = [];
 			targetsForUntitled.forEach((target, index) => {
 				let untitledSaveAsPromise = this.saveAs(untitledResources[index], target).then((uri) => {
 					result.results.push({
@@ -280,7 +276,7 @@ export class TextFileService extends AbstractTextFileService {
 				untitledSaveAsPromises.push(untitledSaveAsPromise);
 			});
 
-			return Promise.join(untitledSaveAsPromises).then(() => {
+			return TPromise.join(untitledSaveAsPromises).then(() => {
 				return result;
 			});
 		});
@@ -291,7 +287,7 @@ export class TextFileService extends AbstractTextFileService {
 		// Get to target resource
 		let targetPromise: TPromise<URI>;
 		if (target) {
-			targetPromise = Promise.as(target);
+			targetPromise = TPromise.as(target);
 		} else {
 			let dialogPath = resource.fsPath;
 			if (resource.scheme === 'untitled') {
@@ -384,18 +380,18 @@ export class TextFileService extends AbstractTextFileService {
 		// - https://github.com/Microsoft/vscode/issues/451
 		// - Bug on Windows: When "All Files" is picked, the path gets an extra ".*"
 		// Until these issues are resolved, we disable the dialog file extension filtering.
-		if (true) {
+		let disable = true; // Simply using if (true) flags the code afterwards as not reachable.
+		if (disable) {
 			return options;
 		}
 
-		interface IFilter { name: string, extensions: string[] };
+		interface IFilter { name: string; extensions: string[]; }
 
 		// Build the file filter by using our known languages
 		let ext: string = paths.extname(defaultPath);
 		let matchingFilter: IFilter;
-		let modesRegistry = <IEditorModesRegistry>Registry.as(ModesExtensions.EditorModes);
-		let filters: IFilter[] = modesRegistry.getRegisteredLanguageNames().map(languageName => {
-			let extensions = modesRegistry.getExtensions(languageName);
+		let filters: IFilter[] = this.modeService.getRegisteredLanguageNames().map(languageName => {
+			let extensions = this.modeService.getExtensions(languageName);
 			if (!extensions || !extensions.length) {
 				return null;
 			}

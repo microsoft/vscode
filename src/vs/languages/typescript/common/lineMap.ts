@@ -54,7 +54,7 @@ namespace LineMap {
 				startColumn: startPosition.column,
 				endLineNumber: endPosition.lineNumber,
 				endColumn: endPosition.column,
-			}
+			};
 		}
 
 		return {

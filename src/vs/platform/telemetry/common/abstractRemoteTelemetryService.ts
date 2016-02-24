@@ -5,9 +5,8 @@
 'use strict';
 
 import AbstractTelemetryService = require('vs/platform/telemetry/common/abstractTelemetryService');
-import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
 import {ITelemetryService, ITelemetryInfo, ITelemetryAppender} from 'vs/platform/telemetry/common/telemetry';
-import {Remotable, IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
+import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 
 /**
  * Helper always instantiated in the main process to receive telemetry events from remote telemetry services
@@ -17,11 +16,11 @@ export class RemoteTelemetryServiceHelper {
 
 	private _telemetryService: ITelemetryService;
 
-	constructor(@ITelemetryService telemetryService: ITelemetryService) {
+	constructor( @ITelemetryService telemetryService: ITelemetryService) {
 		this._telemetryService = telemetryService;
 	}
 
-	public _handleRemoteTelemetryEvent(eventName:string, data?:any):void {
+	public _handleRemoteTelemetryEvent(eventName: string, data?: any): void {
 		this._telemetryService.publicLog(eventName, data);
 	}
 
@@ -51,7 +50,7 @@ export class AbstractRemoteTelemetryService extends AbstractTelemetryService.Abs
 		throw new Error('Telemetry appenders are not supported in this execution envirnoment');
 	}
 
-	protected handleEvent(eventName:string, data?:any):void {
+	protected handleEvent(eventName: string, data?: any): void {
 		this._proxy._handleRemoteTelemetryEvent(eventName, data);
 	}
 }

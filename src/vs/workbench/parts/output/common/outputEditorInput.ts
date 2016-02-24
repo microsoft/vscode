@@ -7,15 +7,16 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {EditorModel} from 'vs/workbench/common/editor';
-import {LogEditorInput} from 'vs/workbench/common/editor/logEditorInput';
-import {OUTPUT_EDITOR_INPUT_ID, IOutputEvent, OUTPUT_MIME, IOutputService} from 'vs/workbench/parts/output/common/output';
+import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
+import {OUTPUT_EDITOR_INPUT_ID, OUTPUT_PANEL_ID, IOutputEvent, OUTPUT_MIME, IOutputService} from 'vs/workbench/parts/output/common/output';
+import {OutputPanel} from 'vs/workbench/parts/output/browser/outputPanel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 
 /**
  * Output Editor Input
  */
-export class OutputEditorInput extends LogEditorInput {
+export class OutputEditorInput extends StringEditorInput {
 
 	private static instances: { [channel: string]: OutputEditorInput; } = Object.create(null);
 	private static MAX_OUTPUT_LINES = 10000; // Max. number of output lines to show in output
@@ -41,10 +42,10 @@ export class OutputEditorInput extends LogEditorInput {
 	constructor(
 		channel: string,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IOutputService private outputService: IOutputService
+		@IOutputService private outputService: IOutputService,
+		@IPanelService private panelService: IPanelService
 	) {
-		super(nls.localize('output', "Output"), channel ? nls.localize('outputChannel', "for '{0}'", channel) : '', '', OUTPUT_MIME, true, instantiationService, editorService);
+		super(nls.localize('output', "Output"), channel ? nls.localize('outputChannel', "for '{0}'", channel) : '', '', OUTPUT_MIME, true, instantiationService);
 
 		this.channel = channel;
 		this.toUnbind = [];
@@ -58,6 +59,10 @@ export class OutputEditorInput extends LogEditorInput {
 			if (e.output) {
 				this.append(e.output);
 				this.trim(OutputEditorInput.MAX_OUTPUT_LINES);
+				const panel = this.panelService.getActivePanel();
+				if (panel && panel.getId() === OUTPUT_PANEL_ID && this.outputService.getActiveChannel() === this.channel) {
+					(<OutputPanel>panel).revealLastLine();
+				}
 			} else if (e.output === null) {
 				this.clearValue(); // special output indicates we should clear
 			}
@@ -83,12 +88,6 @@ export class OutputEditorInput extends LogEditorInput {
 		});
 	}
 
-	public clearOutput(): void {
-		if (this.outputService) {
-			this.outputService.clearOutput(this.channel);
-		}
-	}
-
 	public getChannel(): string {
 		return this.channel;
 	}
@@ -98,7 +97,7 @@ export class OutputEditorInput extends LogEditorInput {
 			let otherOutputEditorInput = <OutputEditorInput>otherInput;
 			if (otherOutputEditorInput.getChannel() === this.channel) {
 				return super.matches(otherInput);
-			};
+			}
 		}
 
 		return false;

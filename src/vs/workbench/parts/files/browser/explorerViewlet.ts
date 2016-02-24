@@ -6,7 +6,8 @@
 'use strict';
 
 import 'vs/css!./media/explorerviewlet';
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {IDisposable} from 'vs/base/common/lifecycle';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder} from 'vs/base/browser/builder';
 import {Scope} from 'vs/workbench/common/memento';
 import {VIEWLET_ID} from 'vs/workbench/parts/files/common/files';
@@ -30,6 +31,8 @@ export class ExplorerViewlet extends Viewlet {
 
 	private explorerView: ExplorerView;
 	private workingFilesView: WorkingFilesView;
+	private lastFocusedView: ExplorerView | WorkingFilesView;
+	private focusListener: IDisposable;
 
 	private viewletSettings: any;
 	private viewletState: FileViewletState;
@@ -61,7 +64,12 @@ export class ExplorerViewlet extends Viewlet {
 		// Explorer view
 		this.addExplorerView();
 
-		return Promise.join(this.views.map((view) => view.create()));
+		// Track focus
+		this.focusListener = this.splitView.onFocus((view: ExplorerView | WorkingFilesView) => {
+			this.lastFocusedView = view;
+		});
+
+		return TPromise.join(this.views.map((view) => view.create())).then(() => void 0);
 	}
 
 	private addWorkingFilesView(): void {
@@ -95,7 +103,7 @@ export class ExplorerViewlet extends Viewlet {
 	 * @param reveal if set to true, the current active input will be revealed in the explorer
 	 */
 	public refresh(focus: boolean, reveal: boolean, instantProgress?: boolean): TPromise<void> {
-		return Promise.join(this.views.map((view) => view.refresh(focus, reveal, instantProgress)));
+		return TPromise.join(this.views.map((view) => view.refresh(focus, reveal, instantProgress))).then(() => void 0);
 	}
 
 	public getExplorerView(): ExplorerView {
@@ -108,16 +116,52 @@ export class ExplorerViewlet extends Viewlet {
 
 	public setVisible(visible: boolean): TPromise<void> {
 		return super.setVisible(visible).then(() => {
-			return Promise.join(this.views.map((view) => view.setVisible(visible)));
+			return TPromise.join(this.views.map((view) => view.setVisible(visible))).then(() => void 0);
 		});
 	}
 
 	public focus(): void {
 		super.focus();
 
-		if (this.explorerView) {
-			this.explorerView.focus();
+		if (this.lastFocusedView && this.lastFocusedView.isExpanded() && this.hasSelectionOrFocus(this.lastFocusedView)) {
+			this.lastFocusedView.focusBody();
+			return;
 		}
+
+		if (this.hasSelectionOrFocus(this.workingFilesView)) {
+			return this.workingFilesView.focusBody();
+		}
+
+		if (this.hasSelectionOrFocus(this.explorerView)) {
+			return this.explorerView.focusBody();
+		}
+
+		if (this.workingFilesView && this.workingFilesView.isExpanded()) {
+			return this.workingFilesView.focusBody();
+		}
+
+		if (this.explorerView && this.explorerView.isExpanded()) {
+			return this.explorerView.focusBody();
+		}
+
+		return this.workingFilesView.focus();
+	}
+
+	private hasSelectionOrFocus(view: ExplorerView|WorkingFilesView): boolean {
+		if (!view) {
+			return false;
+		}
+
+		if (!view.isExpanded()) {
+			return false;
+		}
+
+		const viewer = view.getViewer();
+		if (!viewer) {
+			return false;
+		}
+
+		return !!viewer.getFocus() || (viewer.getSelection() && viewer.getSelection().length > 0);
 	}
 
 	public layout(dimension: Dimension): void {
@@ -145,6 +189,12 @@ export class ExplorerViewlet extends Viewlet {
 	public dispose(): void {
 		if (this.splitView) {
 			this.splitView.dispose();
+			this.splitView = null;
+		}
+
+		if (this.focusListener) {
+			this.focusListener.dispose();
+			this.focusListener = null;
 		}
 	}
 }

@@ -4,44 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {isFalsyOrEmpty} from 'vs/base/common/arrays';
+import {onUnexpectedError} from 'vs/base/common/errors';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {cAll} from 'vs/base/common/lifecycle';
+import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import Severity from 'vs/base/common/severity';
-import lifecycle = require('vs/base/common/lifecycle');
-import errors = require('vs/base/common/errors');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {Range} from 'vs/editor/common/core/range';
-import {Position} from 'vs/editor/common/core/position';
-import Modes = require('vs/editor/common/modes');
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import widget = require('./referenceSearchWidget');
-import model = require('./referenceSearchModel');
-import peekView = require('vs/editor/contrib/zoneWidget/browser/peekViewWidget');
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {ICommandHandler, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IKeybindingService, IKeybindingContextKey, ICommandHandler} from 'vs/platform/keybinding/common/keybindingService';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {IReference} from 'vs/editor/common/modes';
+import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
+import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {Events, IPeekViewService, getOuterEditor} from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import {ReferenceRegistry, findReferences} from '../common/referenceSearch';
-import IPeekViewService = peekView.IPeekViewService;
+import {EventType, ReferencesModel} from './referenceSearchModel';
+import {ReferenceWidget} from './referenceSearchWidget';
 
-export class FindReferencesController implements EditorCommon.IEditorContribution {
+export class FindReferencesController implements editorCommon.IEditorContribution {
 
 	public static ID = 'editor.contrib.findReferencesController';
 
-	private editor:EditorBrowser.ICodeEditor;
-	private widget:widget.ReferenceWidget;
+	private editor:ICodeEditor;
+	private widget:ReferenceWidget;
 	private requestIdPool: number;
 	private callOnClear:Function[];
-	private model:model.Model;
+	private model:ReferencesModel;
 	private modelRevealing:boolean;
 
 	private editorService: IEditorService;
@@ -55,11 +55,11 @@ export class FindReferencesController implements EditorCommon.IEditorContributio
 	private _startTime: number = -1;
 	private _referenceSearchVisible: IKeybindingContextKey<boolean>;
 
-	static getController(editor:EditorCommon.ICommonCodeEditor): FindReferencesController {
+	static getController(editor:editorCommon.ICommonCodeEditor): FindReferencesController {
 		return <FindReferencesController> editor.getContribution(FindReferencesController.ID);
 	}
 
-	public constructor(editor:EditorBrowser.ICodeEditor, @IEditorService editorService: IEditorService, @ITelemetryService telemetryService: ITelemetryService, @IMessageService messageService: IMessageService, @IInstantiationService instantiationService: IInstantiationService, @IPeekViewService peekViewService: IPeekViewService, @IWorkspaceContextService contextService: IWorkspaceContextService, @IKeybindingService keybindingService: IKeybindingService) {
+	public constructor(editor:ICodeEditor, @IEditorService editorService: IEditorService, @ITelemetryService telemetryService: ITelemetryService, @IMessageService messageService: IMessageService, @IInstantiationService instantiationService: IInstantiationService, @IPeekViewService peekViewService: IPeekViewService, @IWorkspaceContextService contextService: IWorkspaceContextService, @IKeybindingService keybindingService: IKeybindingService) {
 		this.requestIdPool = 0;
 		this.callOnClear = [];
 		this.editorService = editorService;
@@ -94,7 +94,7 @@ export class FindReferencesController implements EditorCommon.IEditorContributio
 		this.clear();
 	}
 
-	public processRequest(range: EditorCommon.IEditorRange, referencesPromise: TPromise<Modes.IReference[]>) : widget.ReferenceWidget {
+	public processRequest(range: editorCommon.IEditorRange, referencesPromise: TPromise<IReference[]>) : ReferenceWidget {
 		var widgetPosition = !this.widget ? null : this.widget.position;
 
 		// clean up from previous invocation
@@ -108,21 +108,21 @@ export class FindReferencesController implements EditorCommon.IEditorContributio
 		this._referenceSearchVisible.set(true);
 
 		// close the widget on model/mode changes
-		this.callOnClear.push(this.editor.addListener(EditorCommon.EventType.ModelModeChanged, () => { this.clear(); }));
-		this.callOnClear.push(this.editor.addListener(EditorCommon.EventType.ModelChanged, () => {
+		this.callOnClear.push(this.editor.addListener(editorCommon.EventType.ModelModeChanged, () => { this.clear(); }));
+		this.callOnClear.push(this.editor.addListener(editorCommon.EventType.ModelChanged, () => {
 			if(!this.modelRevealing) {
 				this.clear();
 			}
 		}));
 
-		this.widget = new widget.ReferenceWidget(this.editorService, this.keybindingService, this.contextService, this.instantiationService, this.editor);
+		this.widget = new ReferenceWidget(this.editorService, this.keybindingService, this.contextService, this.instantiationService, this.editor);
 		this.widget.setTitle(nls.localize('labelLoading', "Loading..."));
 		this.widget.show(range, 18);
-		this.callOnClear.push(this.widget.addListener(peekView.Events.Closed, () => {
+		this.callOnClear.push(this.widget.addListener(Events.Closed, () => {
 			this.widget = null;
 			this.clear();
 		}));
-		this.callOnClear.push(this.widget.addListener(widget.ReferenceWidget.Events.EditorDoubleClick, (event:any) => {
+		this.callOnClear.push(this.widget.addListener(ReferenceWidget.Events.EditorDoubleClick, (event:any) => {
 
 			if(!event.reference) {
 				return;
@@ -132,7 +132,7 @@ export class FindReferencesController implements EditorCommon.IEditorContributio
 			this.editorService.openEditor({
 				resource: event.reference,
 				options: { selection: event.range }
-			}, event.originalEvent.ctrlKey || event.originalEvent.metaKey).done(null, errors.onUnexpectedError);
+			}, event.originalEvent.ctrlKey || event.originalEvent.metaKey).done(null, onUnexpectedError);
 
 			// close zone
 			if (!(event.originalEvent.ctrlKey || event.originalEvent.metaKey)) {
@@ -146,7 +146,7 @@ export class FindReferencesController implements EditorCommon.IEditorContributio
 			mode: editorModel.getMode().getId()
 		});
 
-		referencesPromise.then((references:Modes.IReference[]) => {
+		referencesPromise.then((references:IReference[]) => {
 
 			// still current request?
 			if(requestId !== this.requestIdPool) {
@@ -162,10 +162,10 @@ export class FindReferencesController implements EditorCommon.IEditorContributio
 			}
 
 			// create result model
-			this.model = new model.Model(references, this.editorService);
+			this.model = new ReferencesModel(references, this.editorService);
 			this.model.currentReference = this.model.findReference(editorModel.getAssociatedResource(), range.getStartPosition());
 
-			var unbind = this.model.addListener(model.EventType.CurrentReferenceChanged, () => {
+			var unbind = this.model.addListener(EventType.CurrentReferenceChanged, () => {
 
 				this.modelRevealing = true;
 
@@ -189,7 +189,7 @@ export class FindReferencesController implements EditorCommon.IEditorContributio
 					this.widget.focus();
 				}, (err) => {
 					this.modelRevealing = false;
-					errors.onUnexpectedError(err);
+					onUnexpectedError(err);
 				});
 			});
 
@@ -222,7 +222,7 @@ export class FindReferencesController implements EditorCommon.IEditorContributio
 
 		this._referenceSearchVisible.reset();
 
-		lifecycle.cAll(this.callOnClear);
+		cAll(this.callOnClear);
 
 		this.model = null;
 
@@ -249,7 +249,7 @@ export class ReferenceAction extends EditorAction {
 
 	// state - changes with every invocation
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @IPeekViewService peekViewService: IPeekViewService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, @IPeekViewService peekViewService: IPeekViewService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange);
 
 		this.label = nls.localize('references.action.label', "Find All References");
@@ -296,18 +296,18 @@ export class ReferenceAction extends EditorAction {
 let findReferencesCommand: ICommandHandler = (accessor, args) => {
 
 	let resource = <URI>args[0];
-	let position = <EditorCommon.IPosition>args[1];
+	let position = <editorCommon.IPosition>args[1];
 
 	if (!(resource instanceof URI)) {
 		throw new Error('illegal argument, uri');
 	}
 	if (!position) {
-		throw new Error('illega argument, position')
+		throw new Error('illega argument, position');
 	}
 
 	return accessor.get(IEditorService).openEditor({ resource }).then(editor => {
 
-		let control = <EditorCommon.ICommonCodeEditor>editor.getControl();
+		let control = <editorCommon.ICommonCodeEditor>editor.getControl();
 		if (!control || typeof control.getEditorType !== 'function') {
 			return;
 		}
@@ -317,16 +317,16 @@ let findReferencesCommand: ICommandHandler = (accessor, args) => {
 		let range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		return TPromise.as(controller.processRequest(range, request));
 	});
-}
+};
 
-let showReferencesCommand: ICommandHandler = (accessor, args:[URI, EditorCommon.IPosition, Modes.IReference[]]) => {
+let showReferencesCommand: ICommandHandler = (accessor, args:[URI, editorCommon.IPosition, IReference[]]) => {
 	if (!(args[0] instanceof URI)) {
 		throw new Error('illegal argument, uri expected');
 	}
 
 	return accessor.get(IEditorService).openEditor({ resource: args[0] }).then(editor => {
 
-		let control = <EditorCommon.ICommonCodeEditor>editor.getControl();
+		let control = <editorCommon.ICommonCodeEditor>editor.getControl();
 		if (!control || typeof control.getEditorType !== 'function') {
 			return;
 		}
@@ -368,14 +368,14 @@ KeybindingsRegistry.registerCommandDesc({
 	}
 });
 CommonEditorRegistry.registerEditorCommand('closeReferenceSearch', CommonEditorRegistry.commandWeight(50), { primary: KeyCode.Escape }, false, CONTEXT_REFERENCE_SEARCH_VISIBLE, (accessor, editor, args) => {
-	var outerEditor = peekView.getOuterEditor(accessor, args);
+	var outerEditor = getOuterEditor(accessor, args);
 	if (outerEditor) {
 		var controller = FindReferencesController.getController(outerEditor);
 		controller.closeReferenceSearch();
 	}
 });
-CommonEditorRegistry.registerEditorCommand('closeReferenceSearchEditor', CommonEditorRegistry.commandWeight(-101), { primary: KeyCode.Escape }, false, widget.ReferenceWidget.INNER_EDITOR_CONTEXT_KEY, (accessor, editor, args) => {
-	var outerEditor = peekView.getOuterEditor(accessor, args);
+CommonEditorRegistry.registerEditorCommand('closeReferenceSearchEditor', CommonEditorRegistry.commandWeight(-101), { primary: KeyCode.Escape }, false, ReferenceWidget.INNER_EDITOR_CONTEXT_KEY, (accessor, editor, args) => {
+	var outerEditor = getOuterEditor(accessor, args);
 	if (outerEditor) {
 		var controller = FindReferencesController.getController(outerEditor);
 		controller.closeReferenceSearch();

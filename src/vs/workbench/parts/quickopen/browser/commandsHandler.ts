@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/commandsHandler';
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
@@ -14,15 +14,16 @@ import strings = require('vs/base/common/strings');
 import {IAction, Action} from 'vs/base/common/actions';
 import {toErrorMessage} from 'vs/base/common/errors';
 import {Mode, IContext, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
-import {QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry} from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import {QuickOpenEntryGroup, IHighlight, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {SyncActionDescriptor, IActionsService} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {Registry} from 'vs/platform/platform';
-import {Extensions as QuickOpenExtensions, QuickOpenHandler} from 'vs/workbench/browser/quickopen';
+import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
 import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
 import filters = require('vs/base/common/filters');
 import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
@@ -65,6 +66,10 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 		return this.description;
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, commands", this.getLabel());
+	}
+
 	public getGroupLabel(): string {
 		return this.key;
 	}
@@ -78,11 +83,11 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 	protected runAction(action: IAction): void {
 
 		// Use a timeout to give the quick open widget a chance to close itself first
-		Promise.timeout(50).done(() => {
+		TPromise.timeout(50).done(() => {
 			if (action && action.enabled) {
 				try {
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'quick open' });
-					(action.run() || Promise.as(null)).done(() => {
+					(action.run() || TPromise.as(null)).done(() => {
 						action.dispose();
 					}, (err) => this.onError(err));
 				} catch (error) {
@@ -339,7 +344,7 @@ export class QuickCommandsEditorAction extends EditorAction {
 		return '4_tools/1_commands';
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Pass focus to editor first before running quick open action
 		this.editor.focus();

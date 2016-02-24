@@ -7,47 +7,32 @@
 
 import 'vs/workbench/browser/parts/editor/editor.contribution'; // make sure to load all contributed editor things into tests
 import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import Objects = require('vs/base/common/objects');
 import EventEmitter = require('vs/base/common/eventEmitter');
-import Strings = require('vs/base/common/strings');
 import Paths = require('vs/base/common/paths');
-import Env = require('vs/base/common/flags');
 import URI from 'vs/base/common/uri';
 import MainTelemetryService = require('vs/platform/telemetry/browser/mainTelemetryService');
 import Storage = require('vs/workbench/common/storage');
 import WorkbenchEditorCommon = require('vs/workbench/common/editor');
-import Viewlet = require('vs/workbench/browser/viewlet');
-import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
-import Event, {Emitter} from 'vs/base/common/event';
+import Event from 'vs/base/common/event';
 import LifecycleService = require('vs/platform/lifecycle/common/baseLifecycleService');
 import Types = require('vs/base/common/types');
-import Mime = require('vs/base/common/mime');
-import Assert = require('vs/base/common/assert');
 import Severity from 'vs/base/common/severity';
-import Arrays = require('vs/base/common/arrays');
-import Errors = require('vs/base/common/errors');
 import http = require('vs/base/common/http');
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import UntitledEditorService = require('vs/workbench/services/untitled/common/untitledEditorService');
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
 import QuickOpenService = require('vs/workbench/services/quickopen/common/quickOpenService');
-import ViewletService = require('vs/workbench/services/viewlet/common/viewletService');
 import PartService = require('vs/workbench/services/part/common/partService');
 import WorkspaceContextService = require('vs/workbench/services/workspace/common/contextService');
-import ViewletCommon = require('vs/workbench/common/viewlet');
-import Files = require('vs/platform/files/common/files');
-import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
-import {IEditorInput, IEditorModel, IEditorOptions, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
+import {IEditorInput, IEditorModel, Position, IEditor, IResourceInput, ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IMessageService, IConfirmation} from 'vs/platform/message/common/message';
 import Lifecycle = require('vs/base/common/lifecycle');
-import {IRequestService} from 'vs/platform/request/common/request';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService, IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
+import {IWorkspace, IConfiguration} from 'vs/platform/workspace/common/workspace';
 
 export const TestWorkspace: IWorkspace = {
 	resource: URI.file('C:\\testWorkspace'),
@@ -195,7 +180,7 @@ export class TestPartService implements PartService.IPartService {
 	}
 
 	public joinCreation(): Promise {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public hasFocus(part): boolean {
@@ -211,6 +196,12 @@ export class TestPartService implements PartService.IPartService {
 	}
 
 	public setSideBarHidden(hidden: boolean): void { }
+
+	public isPanelHidden(): boolean {
+		return false;
+	}
+
+	public setPanelHidden(hidden: boolean): void { }
 
 	public getSideBarPosition() {
 		return 0;
@@ -348,11 +339,11 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 	}
 
 	public setEditors(inputs): Promise {
-		return Promise.as([]);
+		return TPromise.as([]);
 	}
 
 	public closeEditors(othersOnly?: boolean): Promise {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public isVisible(input: IEditorInput, includeDiff: boolean): boolean {
@@ -377,6 +368,12 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		return [];
 	}
 
+	public activateEditor(position: Position): void;
+	public activateEditor(editor: IEditor): void;
+	public activateEditor(arg: any): void {
+		this.callback('activateEditor');
+	}
+
 	public moveEditor(from: Position, to: Position): void {
 		this.callback('moveEditor');
 	}
@@ -392,7 +389,7 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 		this.activeEditorOptions = options;
 		this.activeEditorPosition = position;
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public resolveEditorModel(input: IEditorInput, refresh?: boolean): TPromise<IEditorModel>;
@@ -421,7 +418,7 @@ export class TestEditorService implements WorkbenchEditorService.IWorkbenchEdito
 	}
 
 	public inputToType(input: IResourceInput): TPromise<IEditorInput> {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -435,21 +432,23 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 	}
 
 	pick(arg: any, placeHolder?: string, autoFocusFirst?: boolean): Promise {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	input(options?: any): Promise {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	refresh(): Promise {
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 
 	show(prefix?: string, quickNavigateConfiguration?: any): Promise {
-		this.callback && this.callback(prefix);
+		if (this.callback) {
+			this.callback(prefix);
+		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 
 	getEditorHistory(): WorkbenchEditorCommon.EditorInput[] {
@@ -471,7 +470,7 @@ export class TestQuickOpenService implements QuickOpenService.IQuickOpenService 
 
 export const TestFileService = {
 	resolveContent: function(resource) {
-		return Promise.as({
+		return TPromise.as({
 			resource: resource,
 			value: 'Hello Html',
 			etag: 'index.txt',
@@ -483,7 +482,7 @@ export const TestFileService = {
 	},
 
 	updateContent: function(res) {
-		return Promise.timeout(1).then(() => {
+		return TPromise.timeout(1).then(() => {
 			return {
 				resource: res,
 				etag: 'index.txt',
@@ -494,7 +493,7 @@ export const TestFileService = {
 			};
 		});
 	}
-}
+};
 
 export class TestConfigurationService extends EventEmitter.EventEmitter implements IConfigurationService {
 	public serviceId = IConfigurationService;
@@ -505,5 +504,9 @@ export class TestConfigurationService extends EventEmitter.EventEmitter implemen
 
 	public hasWorkspaceConfiguration():boolean {
 		return false;
+	}
+
+	public onDidUpdateConfiguration() {
+		return { dispose() { } };
 	}
 }

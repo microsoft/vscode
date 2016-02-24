@@ -5,15 +5,15 @@
 
 'use strict';
 
-import {IFormattingSupport, IFormattingOptions} from 'vs/editor/common/modes';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {illegalArgument} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import {IModelService} from 'vs/editor/common/services/modelService';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IModel, IRange, IPosition, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
+import {IModel, IPosition, IRange, ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {IFormattingOptions, IFormattingSupport} from 'vs/editor/common/modes';
+import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import {IModelService} from 'vs/editor/common/services/modelService';
 
 export const FormatRegistry = new LanguageFeatureRegistry<IFormattingSupport>('formattingSupport');
 export const FormatOnTypeRegistry = new LanguageFeatureRegistry<IFormattingSupport>('formattingSupport');
@@ -59,7 +59,7 @@ export function formatAfterKeystroke(model: IModel, position: IPosition, ch: str
 
 CommonEditorRegistry.registerLanguageCommand('_executeFormatRangeProvider', function(accessor, args) {
 	const {resource, range, options} = args;
-	if (!URI.isURI(resource) || !Range.isIRange(range)) {
+	if (!(resource instanceof URI) || !Range.isIRange(range)) {
 		throw illegalArgument();
 	}
 	const model = accessor.get(IModelService).getModel(resource);
@@ -71,7 +71,7 @@ CommonEditorRegistry.registerLanguageCommand('_executeFormatRangeProvider', func
 
 CommonEditorRegistry.registerLanguageCommand('_executeFormatDocumentProvider', function(accessor, args) {
 	const {resource, options} = args;
-	if (!URI.isURI(resource)) {
+	if (!(resource instanceof URI)) {
 		throw illegalArgument('resource');
 	}
 	const model = accessor.get(IModelService).getModel(resource);
@@ -79,7 +79,7 @@ CommonEditorRegistry.registerLanguageCommand('_executeFormatDocumentProvider', f
 		throw illegalArgument('resource');
 	}
 
-	return formatDocument(model, options)
+	return formatDocument(model, options);
 });
 
 CommonEditorRegistry.registerDefaultLanguageCommand('_executeFormatOnTypeProvider', function(model, position, args) {

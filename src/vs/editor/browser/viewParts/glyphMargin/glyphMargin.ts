@@ -6,24 +6,22 @@
 'use strict';
 
 import 'vs/css!./glyphMargin';
-import DomUtils = require('vs/base/browser/dom');
-
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {IDynamicViewOverlay, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
 
 interface IRenderResult {
 	[lineNumber:string]:string[];
 }
 
-export class GlyphMarginOverlay extends ViewEventHandler implements EditorBrowser.IDynamicViewOverlay {
+export class GlyphMarginOverlay extends ViewEventHandler implements IDynamicViewOverlay {
 
-	private _context:EditorBrowser.IViewContext;
+	private _context:IViewContext;
 	private _glyphMarginLeft:number;
 	private _glyphMarginWidth:number;
 	private _renderResult:IRenderResult;
 
-	constructor(context:EditorBrowser.IViewContext) {
+	constructor(context:IViewContext) {
 		super();
 		this._context = context;
 		this._glyphMarginLeft = 0;
@@ -43,36 +41,36 @@ export class GlyphMarginOverlay extends ViewEventHandler implements EditorBrowse
 	public onModelFlushed(): boolean {
 		return true;
 	}
-	public onModelDecorationsChanged(e:EditorCommon.IViewDecorationsChangedEvent): boolean {
+	public onModelDecorationsChanged(e:editorCommon.IViewDecorationsChangedEvent): boolean {
 		return true;
 	}
-	public onModelLinesDeleted(e:EditorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e:editorCommon.IViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onModelLineChanged(e:EditorCommon.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e:editorCommon.IViewLineChangedEvent): boolean {
 		return true;
 	}
-	public onModelLinesInserted(e:EditorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e:editorCommon.IViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onCursorPositionChanged(e:EditorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e:editorCommon.IViewCursorPositionChangedEvent): boolean {
 		return false;
 	}
-	public onCursorSelectionChanged(e:EditorCommon.IViewCursorSelectionChangedEvent): boolean {
+	public onCursorSelectionChanged(e:editorCommon.IViewCursorSelectionChangedEvent): boolean {
 		return false;
 	}
-	public onCursorRevealRange(e:EditorCommon.IViewRevealRangeEvent): boolean {
+	public onCursorRevealRange(e:editorCommon.IViewRevealRangeEvent): boolean {
 		return false;
 	}
-	public onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
 		return true;
 	}
-	public onLayoutChanged(layoutInfo:EditorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
 		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
 		return true;
 	}
-	public onScrollChanged(e:EditorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
 		return e.vertical;
 	}
 	public onZonesChanged(): boolean {
@@ -87,7 +85,7 @@ export class GlyphMarginOverlay extends ViewEventHandler implements EditorBrowse
 
 	// --- end event handlers
 
-	public shouldCallRender2(ctx:EditorBrowser.IRenderingContext): boolean {
+	public shouldCallRender2(ctx:IRenderingContext): boolean {
 		if (!this.shouldRender) {
 			return false;
 		}
@@ -103,8 +101,8 @@ export class GlyphMarginOverlay extends ViewEventHandler implements EditorBrowse
 
 		var decorations = ctx.getDecorationsInViewport(),
 			lineHeight = this._context.configuration.editor.lineHeight.toString(),
-			d:EditorCommon.IModelDecoration,
-			rng:EditorCommon.IRange,
+			d:editorCommon.IModelDecoration,
+			rng:editorCommon.IRange,
 			i:number, lenI:number,
 			classNames:{[lineNumber:string]:{[className:string]:boolean;};} = {},
 			lineClassNames:{[className:string]:boolean;},

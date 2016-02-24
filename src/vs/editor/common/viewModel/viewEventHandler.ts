@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EventEmitter = require('vs/base/common/eventEmitter');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {IEmitterEvent} from 'vs/base/common/eventEmitter';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 
 export class ViewEventHandler {
 
@@ -23,40 +23,40 @@ export class ViewEventHandler {
 	public onModelFlushed(): boolean {
 		return false;
 	}
-	public onModelDecorationsChanged(e:EditorCommon.IViewDecorationsChangedEvent): boolean {
+	public onModelDecorationsChanged(e:editorCommon.IViewDecorationsChangedEvent): boolean {
 		return false;
 	}
-	public onModelLinesDeleted(e:EditorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e:editorCommon.IViewLinesDeletedEvent): boolean {
 		return false;
 	}
-	public onModelLineChanged(e:EditorCommon.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e:editorCommon.IViewLineChangedEvent): boolean {
 		return false;
 	}
-	public onModelLinesInserted(e:EditorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e:editorCommon.IViewLinesInsertedEvent): boolean {
 		return false;
 	}
-	public onModelTokensChanged(e:EditorCommon.IViewTokensChangedEvent): boolean {
+	public onModelTokensChanged(e:editorCommon.IViewTokensChangedEvent): boolean {
 		return false;
 	}
-	public onCursorPositionChanged(e:EditorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e:editorCommon.IViewCursorPositionChangedEvent): boolean {
 		return false;
 	}
-	public onCursorSelectionChanged(e:EditorCommon.IViewCursorSelectionChangedEvent): boolean {
+	public onCursorSelectionChanged(e:editorCommon.IViewCursorSelectionChangedEvent): boolean {
 		return false;
 	}
-	public onCursorRevealRange(e:EditorCommon.IViewRevealRangeEvent): boolean {
+	public onCursorRevealRange(e:editorCommon.IViewRevealRangeEvent): boolean {
 		return false;
 	}
-	public onCursorScrollRequest(e:EditorCommon.IViewScrollRequestEvent): boolean {
+	public onCursorScrollRequest(e:editorCommon.IViewScrollRequestEvent): boolean {
 		return false;
 	}
-	public onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
 		return false;
 	}
-	public onLayoutChanged(layoutInfo:EditorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
 		return false;
 	}
-	public onScrollChanged(e:EditorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
 		return false;
 	}
 	public onZonesChanged(): boolean {
@@ -74,10 +74,10 @@ export class ViewEventHandler {
 
 	// --- end event handlers
 
-	public handleEvents(events:EventEmitter.IEmitterEvent[]): void {
+	public handleEvents(events:IEmitterEvent[]): void {
 		var i:number,
 			len:number,
-			e:EventEmitter.IEmitterEvent,
+			e:IEmitterEvent,
 			data:any;
 
 		for (i = 0, len = events.length; i < len; i++) {
@@ -86,75 +86,75 @@ export class ViewEventHandler {
 
 			switch (e.getType()) {
 
-				case EditorCommon.ViewEventNames.LineMappingChangedEvent:
+				case editorCommon.ViewEventNames.LineMappingChangedEvent:
 					this.shouldRender = this.onLineMappingChanged() || this.shouldRender;
 					break;
 
-				case EditorCommon.ViewEventNames.ModelFlushedEvent:
+				case editorCommon.ViewEventNames.ModelFlushedEvent:
 					this.shouldRender = this.onModelFlushed() || this.shouldRender;
 					break;
 
-				case EditorCommon.ViewEventNames.LinesDeletedEvent:
-					this.shouldRender = this.onModelLinesDeleted(<EditorCommon.IViewLinesDeletedEvent>data) || this.shouldRender;
+				case editorCommon.ViewEventNames.LinesDeletedEvent:
+					this.shouldRender = this.onModelLinesDeleted(<editorCommon.IViewLinesDeletedEvent>data) || this.shouldRender;
 					break;
 
-				case EditorCommon.ViewEventNames.LinesInsertedEvent:
-					this.shouldRender = this.onModelLinesInserted(<EditorCommon.IViewLinesInsertedEvent>data) || this.shouldRender;
+				case editorCommon.ViewEventNames.LinesInsertedEvent:
+					this.shouldRender = this.onModelLinesInserted(<editorCommon.IViewLinesInsertedEvent>data) || this.shouldRender;
 					break;
 
-				case EditorCommon.ViewEventNames.LineChangedEvent:
-					this.shouldRender = this.onModelLineChanged(<EditorCommon.IViewLineChangedEvent>data) || this.shouldRender;
+				case editorCommon.ViewEventNames.LineChangedEvent:
+					this.shouldRender = this.onModelLineChanged(<editorCommon.IViewLineChangedEvent>data) || this.shouldRender;
 					break;
 
-				case EditorCommon.ViewEventNames.TokensChangedEvent:
-					this.shouldRender = this.onModelTokensChanged(<EditorCommon.IViewTokensChangedEvent>data) || this.shouldRender;
+				case editorCommon.ViewEventNames.TokensChangedEvent:
+					this.shouldRender = this.onModelTokensChanged(<editorCommon.IViewTokensChangedEvent>data) || this.shouldRender;
 					break;
 
-				case EditorCommon.ViewEventNames.DecorationsChangedEvent:
-					this.shouldRender = this.onModelDecorationsChanged(<EditorCommon.IViewDecorationsChangedEvent>data) || this.shouldRender;
+				case editorCommon.ViewEventNames.DecorationsChangedEvent:
+					this.shouldRender = this.onModelDecorationsChanged(<editorCommon.IViewDecorationsChangedEvent>data) || this.shouldRender;
 					break;
 
-				case EditorCommon.ViewEventNames.CursorPositionChangedEvent:
-					this.shouldRender = this.onCursorPositionChanged(<EditorCommon.IViewCursorPositionChangedEvent>data) || this.shouldRender;
+				case editorCommon.ViewEventNames.CursorPositionChangedEvent:
+					this.shouldRender = this.onCursorPositionChanged(<editorCommon.IViewCursorPositionChangedEvent>data) || this.shouldRender;
 					break;
 
-				case EditorCommon.ViewEventNames.CursorSelectionChangedEvent:
-					this.shouldRender = this.onCursorSelectionChanged(<EditorCommon.IViewCursorSelectionChangedEvent>data) || this.shouldRender;
+				case editorCommon.ViewEventNames.CursorSelectionChangedEvent:
+					this.shouldRender = this.onCursorSelectionChanged(<editorCommon.IViewCursorSelectionChangedEvent>data) || this.shouldRender;
 					break;
 
-				case EditorCommon.ViewEventNames.RevealRangeEvent:
-					this.shouldRender = this.onCursorRevealRange(<EditorCommon.IViewRevealRangeEvent>data) || this.shouldRender;
+				case editorCommon.ViewEventNames.RevealRangeEvent:
+					this.shouldRender = this.onCursorRevealRange(<editorCommon.IViewRevealRangeEvent>data) || this.shouldRender;
 					break;
 
-				case EditorCommon.ViewEventNames.ScrollRequestEvent:
-					this.shouldRender = this.onCursorScrollRequest(<EditorCommon.IViewScrollRequestEvent>data) || this.shouldRender;
+				case editorCommon.ViewEventNames.ScrollRequestEvent:
+					this.shouldRender = this.onCursorScrollRequest(<editorCommon.IViewScrollRequestEvent>data) || this.shouldRender;
 					break;
 
-				case EditorCommon.EventType.ConfigurationChanged:
-					this.shouldRender = this.onConfigurationChanged(<EditorCommon.IConfigurationChangedEvent>data) || this.shouldRender;
+				case editorCommon.EventType.ConfigurationChanged:
+					this.shouldRender = this.onConfigurationChanged(<editorCommon.IConfigurationChangedEvent>data) || this.shouldRender;
 					break;
 
-				case EditorCommon.EventType.ViewLayoutChanged:
-					this.shouldRender = this.onLayoutChanged(<EditorCommon.IEditorLayoutInfo>data) || this.shouldRender;
+				case editorCommon.EventType.ViewLayoutChanged:
+					this.shouldRender = this.onLayoutChanged(<editorCommon.IEditorLayoutInfo>data) || this.shouldRender;
 					break;
 
-				case EditorCommon.EventType.ViewScrollChanged:
-					this.shouldRender = this.onScrollChanged(<EditorCommon.IScrollEvent>data) || this.shouldRender;
+				case editorCommon.EventType.ViewScrollChanged:
+					this.shouldRender = this.onScrollChanged(<editorCommon.IScrollEvent>data) || this.shouldRender;
 					break;
 
-				case EditorCommon.EventType.ViewZonesChanged:
+				case editorCommon.EventType.ViewZonesChanged:
 					this.shouldRender = this.onZonesChanged() || this.shouldRender;
 					break;
 
-				case EditorCommon.EventType.ViewScrollWidthChanged:
+				case editorCommon.EventType.ViewScrollWidthChanged:
 					this.shouldRender = this.onScrollWidthChanged(<number>data) || this.shouldRender;
 					break;
 
-				case EditorCommon.EventType.ViewScrollHeightChanged:
+				case editorCommon.EventType.ViewScrollHeightChanged:
 					this.shouldRender = this.onScrollHeightChanged(<number>data) || this.shouldRender;
 					break;
 
-				case EditorCommon.EventType.ViewFocusChanged:
+				case editorCommon.EventType.ViewFocusChanged:
 					this.shouldRender = this.onViewFocusChanged(<boolean>data) || this.shouldRender;
 					break;
 

@@ -14,6 +14,6 @@
 	},
 	"devDependencies": {
 		"typescript": "^1.6.2",
-		"vscode": "next"
+		"vscode": "^0.11.1"
 	}
 }

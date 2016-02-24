@@ -5,6 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
+import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import ts = require('vs/languages/typescript/common/lib/typescriptServices');
@@ -21,15 +22,13 @@ export function compute(languageService: ts.LanguageService, resource:URI, posit
 
 	if(info) {
 
-		var htmlContent = [
-			previewer.html(info.displayParts),
-			previewer.html(info.documentation, 'documentation')
+		var htmlContent: IHTMLContentElement[] = [
+			{ markdown: previewer.plain(info.documentation) },
+			{ markdown: '```javascript\n' + previewer.plain(info.displayParts) + '\n```' },
 		];
 
 		result = {
-			value: '',
 			htmlContent: htmlContent,
-			className: 'typeInfo ts',
 			range: converter.getRange(sourceFile, info.textSpan)
 		};
 	}

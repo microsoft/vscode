@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import {ProgressBar} from 'vs/base/browser/ui/progressbar/progressbar';
-import {EditorEvent, EventType, ViewletEvent} from 'vs/workbench/common/events';
+import {EditorEvent, EventType, CompositeEvent} from 'vs/workbench/common/events';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
 
@@ -47,14 +47,14 @@ export abstract class ScopedService {
 			}
 		});
 
-		this.eventService.addListener(EventType.VIEWLET_CLOSED, (e: ViewletEvent) => {
-			if (e.viewletId === this.scopeId) {
+		this.eventService.addListener(EventType.COMPOSITE_CLOSED, (e: CompositeEvent) => {
+			if (e.compositeId === this.scopeId) {
 				this.onScopeDeactivated();
 			}
 		});
 
-		this.eventService.addListener(EventType.VIEWLET_OPENED, (e: ViewletEvent) => {
-			if (e.viewletId === this.scopeId) {
+		this.eventService.addListener(EventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
+			if (e.compositeId === this.scopeId) {
 				this.onScopeActivated();
 			}
 		});
@@ -209,7 +209,7 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 		};
 	}
 
-	public showWhile(promise: TPromise<any>, delay?: number): TPromise<any> {
+	public showWhile(promise: TPromise<any>, delay?: number): TPromise<void> {
 		let stack: boolean = !!this.progressState.whilePromise;
 
 		// Reset State

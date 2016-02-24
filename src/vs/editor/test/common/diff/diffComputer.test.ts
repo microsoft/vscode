@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import DiffComputer = require('vs/editor/common/diff/diffComputer');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as assert from 'assert';
+import {DiffComputer} from 'vs/editor/common/diff/diffComputer';
+import {IChange, ICharChange, ILineChange} from 'vs/editor/common/editorCommon';
 
-function extractCharChangeRepresentation(change, expectedChange): EditorCommon.ICharChange {
+function extractCharChangeRepresentation(change, expectedChange): ICharChange {
 	var hasOriginal = expectedChange && expectedChange.originalStartLineNumber > 0;
 	var hasModified = expectedChange && expectedChange.modifiedStartLineNumber > 0;
 	return {
@@ -24,8 +24,8 @@ function extractCharChangeRepresentation(change, expectedChange): EditorCommon.I
 	};
 }
 
-function extractLineChangeRepresentation(change, expectedChange): EditorCommon.ILineChange {
-	var result:EditorCommon.ILineChange = <any>{
+function extractLineChangeRepresentation(change, expectedChange): ILineChange {
+	var result:ILineChange = <any>{
 		originalStartLineNumber:change.originalStartLineNumber,
 		originalEndLineNumber: change.originalEndLineNumber,
 		modifiedStartLineNumber: change.modifiedStartLineNumber,
@@ -42,12 +42,8 @@ function extractLineChangeRepresentation(change, expectedChange): EditorCommon.I
 	return result;
 }
 
-function lineChangeEqual(change, expectedChange): void {
-	assert.deepEqual(extractLineChangeRepresentation(change, expectedChange), expectedChange);
-}
-
-function assertDiff(originalLines:string[], modifiedLines:string[], expectedChanges:EditorCommon.IChange[], shouldPostProcessCharChanges:boolean = false, shouldIgnoreTrimWhitespace:boolean=false) {
-	var diffComputer = new DiffComputer.DiffComputer(originalLines, modifiedLines, {
+function assertDiff(originalLines:string[], modifiedLines:string[], expectedChanges:IChange[], shouldPostProcessCharChanges:boolean = false, shouldIgnoreTrimWhitespace:boolean=false) {
+	var diffComputer = new DiffComputer(originalLines, modifiedLines, {
 		shouldPostProcessCharChanges: shouldPostProcessCharChanges || false,
 		shouldIgnoreTrimWhitespace: shouldIgnoreTrimWhitespace || false,
 		shouldConsiderTrimWhitespaceInEmptyCase: true
@@ -61,7 +57,7 @@ function assertDiff(originalLines:string[], modifiedLines:string[], expectedChan
 	assert.deepEqual(extracted, expectedChanges);
 }
 
-function createLineDeletion(startLineNumber, endLineNumber, modifiedLineNumber): EditorCommon.IChange {
+function createLineDeletion(startLineNumber, endLineNumber, modifiedLineNumber): IChange {
 	return {
 		originalStartLineNumber: startLineNumber,
 		originalEndLineNumber: endLineNumber,
@@ -70,7 +66,7 @@ function createLineDeletion(startLineNumber, endLineNumber, modifiedLineNumber):
 	};
 }
 
-function createLineInsertion(startLineNumber, endLineNumber, originalLineNumber): EditorCommon.IChange {
+function createLineInsertion(startLineNumber, endLineNumber, originalLineNumber): IChange {
 	return {
 		originalStartLineNumber: originalLineNumber,
 		originalEndLineNumber: 0,
@@ -79,7 +75,7 @@ function createLineInsertion(startLineNumber, endLineNumber, originalLineNumber)
 	};
 }
 
-function createLineChange(originalStartLineNumber, originalEndLineNumber, modifiedStartLineNumber, modifiedEndLineNumber, charChanges): EditorCommon.ILineChange {
+function createLineChange(originalStartLineNumber, originalEndLineNumber, modifiedStartLineNumber, modifiedEndLineNumber, charChanges): ILineChange {
 	return {
 		originalStartLineNumber: originalStartLineNumber,
 		originalEndLineNumber: originalEndLineNumber,

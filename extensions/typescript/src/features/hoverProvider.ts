@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { workspace, HoverProvider, Hover, TextDocument, Position, Range, CancellationToken } from 'vscode';
+import { HoverProvider, Hover, TextDocument, Position, Range, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';

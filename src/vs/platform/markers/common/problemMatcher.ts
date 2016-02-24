@@ -17,9 +17,6 @@ import URI from 'vs/base/common/uri';
 import { ValidationStatus, ValidationState, ILogger, Parser } from 'vs/base/common/parsers';
 import { IStringDictionary } from 'vs/base/common/collections';
 
-import { IPluginDescription } from 'vs/platform/plugins/common/plugins';
-import { PluginsRegistry } from 'vs/platform/plugins/common/pluginsRegistry';
-
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 
 export enum FileLocationKind {
@@ -118,7 +115,7 @@ export interface NamedProblemMatcher extends ProblemMatcher {
 }
 
 export function isNamedProblemMatcher(value: ProblemMatcher): value is NamedProblemMatcher {
-	return Types.isString((<NamedProblemMatcher>value).name);
+	return Types.isString((<NamedProblemMatcher>value).name) ? true : false;
 }
 
 let valueMap: { [key: string]: string; } = {
@@ -934,7 +931,7 @@ export class ProblemMatcherParser extends Parser {
 		if (!(file && message && (location || line))) {
 			this.status.state = ValidationState.Error;
 			this.log(NLS.localize('ProblemMatcherParser.problemPattern.missingProperty', 'The problem pattern is invalid. It must have at least a file, message and line or location match group.'));
-		};
+		}
 	}
 
 	private addWatchingMatcher(external: Config.ProblemMatcher, internal: ProblemMatcher): void {
@@ -945,7 +942,7 @@ export class ProblemMatcherParser extends Parser {
 				activeOnStart: false,
 				beginsPattern: { regexp: oldBegins },
 				endsPattern: { regexp: oldEnds }
-			}
+			};
 			return;
 		}
 		if (Types.isUndefinedOrNull(external.watching)) {
@@ -959,7 +956,7 @@ export class ProblemMatcherParser extends Parser {
 				activeOnStart: Types.isBoolean(watching.activeOnStart) ? watching.activeOnStart : false,
 				beginsPattern: begins,
 				endsPattern: ends
-			}
+			};
 			return;
 		}
 		if (begins || ends) {
@@ -1027,16 +1024,16 @@ export class ProblemMatcherRegistry {
 		*/
 	}
 
-	private onProblemMatcher(json: Config.NamedProblemMatcher): void {
-		let logger: ILogger = {
-			log: (message) => { console.warn(message); }
-		}
-		let parser = new ProblemMatcherParser(this, logger);
-		let result = parser.parse(json);
-		if (isNamedProblemMatcher(result) && parser.status.isOK()) {
-			this.add(result.name, result);
-		}
-	}
+	// private onProblemMatcher(json: Config.NamedProblemMatcher): void {
+	// 	let logger: ILogger = {
+	// 		log: (message) => { console.warn(message); }
+	// 	}
+	// 	let parser = new ProblemMatcherParser(this, logger);
+	// 	let result = parser.parse(json);
+	// 	if (isNamedProblemMatcher(result) && parser.status.isOK()) {
+	// 		this.add(result.name, result);
+	// 	}
+	// }
 
 	public add(name: string, matcher: ProblemMatcher): void {
 		this.matchers[name] = matcher;
@@ -1128,7 +1125,6 @@ registry.add('eslint-compact', {
 registry.add('eslint-stylish', {
 	owner: 'javascript',
 	applyTo: ApplyToKind.allDocuments,
-	fileLocation: FileLocationKind.Relative,
-	filePrefix: '${cwd}',
+	fileLocation: FileLocationKind.Absolute,
 	pattern: defaultPattern('eslint-stylish')
 });

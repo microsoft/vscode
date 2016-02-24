@@ -28,14 +28,17 @@
 	opacity: 0.6;
 }
 
-.quick-open-widget .extension .version {
-	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+.quick-open-widget .extension .installCount:not(:empty) {
+	margin-left: 6px;
+	padding: 1px 3px;
+	border-radius: 3px;
+	background-color: rgba(132, 132, 132, 0.3);
 	font-size: smaller;
+	opacity: 0.7;
 }
 
-.quick-open-widget .extension .version {
-	padding-left: 6px;
-	opacity: 0.7;
+.quick-open-widget .extension .installCount:not(:empty):before {
+	margin-right: 2px;
 }
 
 .quick-open-widget .extension .published {
@@ -44,7 +47,7 @@
 	font-size: smaller;
 }
 
-.quick-open-widget .extension .published > .since {
+.quick-open-widget .extension .published > .version {
 	opacity: 0.6;
 	margin-right: 0.5em;
 }
@@ -75,12 +78,21 @@
 	height: 12px;
 	font-size: smaller;
 	border: 1px solid rgba(132, 132, 132, 0.5);
-	border-radius: 2px;
+	/*border-radius: 2px;*/
 	padding: 1px;
 	vertical-align: text-bottom;
 	text-transform: uppercase;
 	color: rgb(0, 157, 255);
 	border-color: rgb(0, 157, 255);
+}
+
+.quick-open-widget .monaco-tree.focused .monaco-tree-row.focused .extension .actions .action-label:focus {
+	outline: 1px solid #DF740C;
+	outline-offset: -1px;
+}
+
+.quick-open-widget .monaco-tree.focused .monaco-tree-row.focused .extension .actions .action-label:active {
+	outline: none;
 }
 
 .quick-open-widget .extension .actions .action-label:not(.icon) {
@@ -128,4 +140,19 @@
 	background: url('extensions-status.svg') center center no-repeat;
 	background-size: 14px;
 	background-position: 4px 50%;
+}
+
+.monaco-shell .extensions-suggestions {
+	display: none;
+	padding: 0 5px 0 5px;
+	-webkit-transition: visibility 250ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
+	transition: visibility 250ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.monaco-shell .extensions-suggestions:not(.disabled) {
+	background-color: rgba(76, 119, 76, 0.9);
+}
+
+.monaco-shell .extensions-suggestions > .octicon {
+	font-size: 14px;
 }

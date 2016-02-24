@@ -37,7 +37,7 @@ export function parallel<T, E>(list: T[], fn: (item: T, callback: (err: Error, r
 			}
 		});
 	});
-};
+}
 
 /**
  * Executes the given function (fn) over the given array of items (param) in sequential order and returns the first occurred error or the result as
@@ -117,7 +117,7 @@ export function loop<E>(param: any, fn: (item: any, callback: (error: Error, res
 		// Start looping with first element in array
 		looper(0);
 	}
-};
+}
 
 function Sequence(sequences: { (...param: any[]): void; }[]): void {
 
@@ -186,4 +186,4 @@ export function sequence(errorHandler: (error: Error) => void, ...sequences: Fun
 export function sequence(sequences: Function[]): void;
 export function sequence(sequences: any): void {
 	Sequence((Array.isArray(sequences)) ? sequences : Array.prototype.slice.call(arguments));
-};
+}

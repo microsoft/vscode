@@ -12,15 +12,17 @@ import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import sassWorker = require('vs/languages/sass/common/sassWorker');
-import supports = require('vs/editor/common/modes/supports');
 import * as sassTokenTypes from 'vs/languages/sass/common/sassTokenTypes';
-import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
-import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
-import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
+import {ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
+import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
+import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
+import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
+import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 
 export var language = <Types.ILanguage>{
 	displayName: 'Sass',
@@ -276,8 +278,10 @@ export var language = <Types.ILanguage>{
 	}
 };
 
-export class SASSMode extends Monarch.MonarchMode<sassWorker.SassWorker> implements Modes.IExtraInfoSupport, Modes.IOutlineSupport {
+export class SASSMode extends Monarch.MonarchMode implements Modes.IExtraInfoSupport, Modes.IOutlineSupport {
 
+	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
+	public configSupport:Modes.IConfigurationSupport;
 	public referenceSupport: Modes.IReferenceSupport;
 	public logicalSelectionSupport: Modes.ILogicalSelectionSupport;
 	public extraInfoSupport: Modes.IExtraInfoSupport;
@@ -286,50 +290,83 @@ export class SASSMode extends Monarch.MonarchMode<sassWorker.SassWorker> impleme
 	public suggestSupport: Modes.ISuggestSupport;
 
 	private modeService: IModeService;
+	private _modeWorkerManager: ModeWorkerManager<sassWorker.SassWorker>;
+	private _threadService:IThreadService;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThreadService threadService: IThreadService,
 		@IModeService modeService: IModeService,
-		@IModelService modelService: IModelService
+		@IModelService modelService: IModelService,
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(descriptor, Compile.compile(language), instantiationService, threadService, modeService, modelService);
+		super(descriptor.id, Compile.compile(language), modeService, modelService, editorWorkerService);
+		this._modeWorkerManager = new ModeWorkerManager<sassWorker.SassWorker>(descriptor, 'vs/languages/sass/common/sassWorker', 'SassWorker', 'vs/languages/css/common/cssWorker', instantiationService);
+		this._threadService = threadService;
 
 		this.modeService = modeService;
 
 		this.extraInfoSupport = this;
-		this.referenceSupport = new supports.ReferenceSupport(this, {
+		this.inplaceReplaceSupport = this;
+		this.configSupport = this;
+		this.referenceSupport = new ReferenceSupport(this.getId(), {
 			tokens: [sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_VALUE + '.sass', 'variable.decl.sass', 'variable.ref.sass', 'support.function.name.sass', sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_SELECTOR + '.sass'],
 			findReferences: (resource, position, /*unused*/includeDeclaration) => this.findReferences(resource, position)});
 		this.logicalSelectionSupport = this;
-		this.declarationSupport = new supports.DeclarationSupport(this, {
+		this.declarationSupport = new DeclarationSupport(this.getId(), {
 			tokens: ['variable.decl.sass', 'variable.ref.sass', 'support.function.name.sass', sassTokenTypes.TOKEN_PROPERTY + '.sass', sassTokenTypes.TOKEN_SELECTOR + '.sass'],
 			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
 		this.outlineSupport = this;
 
-		this.suggestSupport = new supports.SuggestSupport(this, {
+		this.suggestSupport = new SuggestSupport(this.getId(), {
 			triggerCharacters: [],
 			excludeTokens: ['comment.sass', 'string.sass'],
 			suggest: (resource, position) => this.suggest(resource, position)});
 	}
 
-	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], sassWorker.SassWorker> {
-		return createAsyncDescriptor2('vs/languages/sass/common/sassWorker', 'SassWorker');
+	public creationDone(): void {
+		if (this._threadService.isInMainThread) {
+			// Pick a worker to do validation
+			this._pickAWorkerToValidate();
+		}
 	}
 
-	_worker<T>(runner:(worker:sassWorker.SassWorker)=>winjs.TPromise<T>): winjs.TPromise<T> {
-		// TODO@Alex: workaround for missing `bundles` config, before instantiating the sassWorker, we ensure the cssWorker has been loaded
-		return this.modeService.getOrCreateMode('css').then((cssMode) => {
-			return (<AbstractMode<any>>cssMode)._worker((worker) => winjs.TPromise.as(true));
-		}).then(() => {
-			return super._worker(runner);
-		});
+	private _worker<T>(runner:(worker:sassWorker.SassWorker)=>winjs.TPromise<T>): winjs.TPromise<T> {
+		return this._modeWorkerManager.worker(runner);
+	}
+
+	public configure(options:any): winjs.TPromise<void> {
+		if (this._threadService.isInMainThread) {
+			return this._configureWorkers(options);
+		} else {
+			return this._worker((w) => w._doConfigure(options));
+		}
+	}
+
+	static $_configureWorkers = AllWorkersAttr(SASSMode, SASSMode.prototype._configureWorkers);
+	private _configureWorkers(options:any): winjs.TPromise<void> {
+		return this._worker((w) => w._doConfigure(options));
+	}
+
+	static $navigateValueSet = OneWorkerAttr(SASSMode, SASSMode.prototype.navigateValueSet);
+	public navigateValueSet(resource:URI, position:EditorCommon.IRange, up:boolean):winjs.TPromise<Modes.IInplaceReplaceSupportResult> {
+		return this._worker((w) => w.navigateValueSet(resource, position, up));
+	}
+
+	static $_pickAWorkerToValidate = OneWorkerAttr(SASSMode, SASSMode.prototype._pickAWorkerToValidate, ThreadAffinity.Group1);
+	private _pickAWorkerToValidate(): winjs.TPromise<void> {
+		return this._worker((w) => w.enableValidator());
 	}
 
 	static $findReferences = OneWorkerAttr(SASSMode, SASSMode.prototype.findReferences);
 	public findReferences(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.IReference[]> {
 		return this._worker((w) => w.findReferences(resource, position));
+	}
+
+	static $suggest = OneWorkerAttr(SASSMode, SASSMode.prototype.suggest);
+	public suggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
+		return this._worker((w) => w.suggest(resource, position));
 	}
 
 	static $getRangesToPosition = OneWorkerAttr(SASSMode, SASSMode.prototype.getRangesToPosition);

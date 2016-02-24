@@ -34,6 +34,12 @@ function watch(root) {
 
 			var changeType = line[0];
 			var changePath = line.substr(2);
+
+			// filter as early as possible
+			if (/^\.git/.test(changePath) || /(^|\\)out($|\\)/.test(changePath)) {
+				continue;
+			}
+
 			var changePathFull = path.join(root, changePath);
 
 			var file = new File({

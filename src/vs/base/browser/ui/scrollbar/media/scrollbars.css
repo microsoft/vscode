@@ -1,0 +1,102 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+/* Arrows */
+.monaco-scrollable-element > .scrollbar > .up-arrow {
+	background: url('arrow-up.png');
+	cursor: pointer;
+}
+.monaco-scrollable-element > .scrollbar > .down-arrow {
+	background: url('arrow-down.png');
+	cursor: pointer;
+}
+.monaco-scrollable-element > .scrollbar > .left-arrow {
+	background: url('arrow-left.png');
+	cursor: pointer;
+}
+.monaco-scrollable-element > .scrollbar > .right-arrow {
+	background: url('arrow-right.png');
+	cursor: pointer;
+}
+
+.monaco-scrollable-element > .visible {
+	opacity: 1;
+/* Background rule added for IE9 - to allow clicks on dom node */
+	background:rgba(0,0,0,0);
+	-webkit-transition: opacity 100ms linear;
+	-o-transition: opacity 100ms linear;
+	-moz-transition: opacity 100ms linear;
+	-ms-transition: opacity 100ms linear;
+}
+.monaco-scrollable-element > .invisible {
+	opacity: 0;
+}
+.monaco-scrollable-element > .invisible.fade {
+	-webkit-transition: opacity 800ms linear;
+	-o-transition: opacity 800ms linear;
+	-moz-transition: opacity 800ms linear;
+	-ms-transition: opacity 800ms linear;
+}
+
+/* Scrollable Content Inset Shadow */
+.monaco-scrollable-element > .shadow {
+	position: absolute;
+	display: none;
+}
+.monaco-scrollable-element > .shadow.top {
+	display: block;
+	top: 0;
+	left: 3px;
+	height: 3px;
+	width: 100%;
+	box-shadow: #DDD 0 6px 6px -6px inset;
+}
+.monaco-scrollable-element > .shadow.left {
+	display: block;
+	top: 3px;
+	left: 0;
+	height: 100%;
+	width: 3px;
+	box-shadow: #DDD 6px 0 6px -6px inset;
+}
+.monaco-scrollable-element > .shadow.top-left-corner {
+	display: block;
+	top: 0;
+	left: 0;
+	height: 3px;
+	width: 3px;
+}
+.monaco-scrollable-element > .shadow.top.left {
+	box-shadow: #DDD 6px 6px 6px -6px inset;
+}
+
+/* ---------- Default Style ---------- */
+
+.monaco-scrollable-element > .scrollbar > .slider {
+	background: rgba(100, 100, 100, .4);
+}
+
+.monaco-scrollable-element > .scrollbar > .slider:hover {
+	background: rgba(100, 100, 100, .7);
+}
+
+.monaco-scrollable-element > .scrollbar > .slider.active {
+	background: rgba(0, 0, 0, .6);
+}
+
+/* High Contrast Theming */
+
+.hc-black .monaco-scrollable-element > .scrollbar > .slider {
+	background: none;
+	border: 20px solid #6FC3DF;
+	opacity: .4;
+}
+
+.hc-black .monaco-scrollable-element > .scrollbar > .slider:hover {
+	opacity: .85;
+}
+
+.hc-black .monaco-scrollable-element > .scrollbar > .slider.active {
+	opacity: .9;
+}

@@ -5,7 +5,7 @@
 
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
-import { Promise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import dom = require('vs/base/browser/dom');
 import { IAction } from 'vs/base/common/actions';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -49,13 +49,25 @@ export class SelectConfigActionItem extends BaseActionItem {
 		this.setOptions().done(null, errors.onUnexpectedError);
 	}
 
-	private setOptions(): Promise {
+	public focus(): void {
+		if (this.select) {
+			this.select.focus();
+		}
+	}
+
+	public blur(): void {
+		if (this.select) {
+			this.select.blur();
+		}
+	}
+
+	private setOptions(): TPromise<any> {
 		let previousSelectedIndex = this.select.selectedIndex;
 		this.select.options.length = 0;
 
 		return this.debugService.loadLaunchConfig().then(config => {
 			if (!config || !config.configurations) {
-				this.select.options.add(this.createOption('<none>'));
+				this.select.add(this.createOption('<none>'));
 				this.select.disabled = true;
 				return;
 			}
@@ -66,7 +78,7 @@ export class SelectConfigActionItem extends BaseActionItem {
 			let found = false;
 			const configurationName = this.debugService.getConfigurationName();
 			for (let i = 0; i < configurations.length; i++) {
-				this.select.options.add(this.createOption(configurations[i].name));
+				this.select.add(this.createOption(configurations[i].name));
 				if (configurationName === configurations[i].name) {
 					this.select.selectedIndex = i;
 					found = true;

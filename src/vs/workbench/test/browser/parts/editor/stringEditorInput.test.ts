@@ -6,11 +6,10 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Promise } from 'vs/base/common/winjs.base';
+import {TPromise } from 'vs/base/common/winjs.base';
 import * as Strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
-import {LogEditorInput} from 'vs/workbench/common/editor/logEditorInput';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
 import {ResourceEditorModel} from 'vs/workbench/common/editor/resourceEditorModel';
 import {TestWorkspace, TestEditorService, MockRequestService} from 'vs/workbench/test/browser/servicesTestUtils';
@@ -21,7 +20,7 @@ suite("Workbench - StringEditorInput", () => {
 
 	test("StringEditorInput", function(done) {
 		let editorService = new TestEditorService(function() { });
-		let inst = InstantiationService.create({
+		let inst = InstantiationService.createInstantiationService({
 			modeService: createMockModeService(),
 			modelService: createMockModelService()
 		});
@@ -72,7 +71,7 @@ suite("Workbench - StringEditorInput", () => {
 	});
 
 	test("StringEditorInput - setValue, clearValue, append", function() {
-		let inst = InstantiationService.create({
+		let inst = InstantiationService.createInstantiationService({
 			modeService: createMockModeService(),
 			modelService: createMockModelService()
 		});
@@ -91,9 +90,9 @@ suite("Workbench - StringEditorInput", () => {
 	});
 
 	test("Input.matches() - StringEditorInput", function() {
-		let inst = InstantiationService.create({});
+		let inst = InstantiationService.createInstantiationService({});
 
-		let promise = Promise.as("value");
+		let promise = TPromise.as("value");
 
 		let stringEditorInput = inst.createInstance(StringEditorInput, "name", 'description', "value", "mime", false);
 		let promiseEditorInput = inst.createInstance(ResourceEditorInput, "name", "description", URI.create('inMemory', null, 'thePath'));
@@ -111,21 +110,10 @@ suite("Workbench - StringEditorInput", () => {
 		assert.strictEqual(stringEditorInput.matches(stringEditorInput2), true);
 	});
 
-	test("LogEditorInput", function() {
-		let inst = InstantiationService.create({});
-
-		let logEditorInput = inst.createInstance(LogEditorInput, "name", 'description', "value\nvalue\nvalue", "mime", false);
-		let logEditorInput2 = inst.createInstance(LogEditorInput, "name", 'description', "value\nvalue\nvalue", "mime", false);
-		let stringEditorInput = inst.createInstance(StringEditorInput, "name", 'description', "value", "mime", false);
-
-		assert.strictEqual(logEditorInput.matches(stringEditorInput), false);
-		assert.strictEqual(logEditorInput.matches(logEditorInput2), true);
-	});
-
 	test("ResourceEditorInput", function(done) {
 		let modelService = createMockModelService();
 		let modeService = createMockModeService();
-		let inst = InstantiationService.create({
+		let inst = InstantiationService.createInstantiationService({
 			modeService: modeService,
 			modelService: modelService
 		});

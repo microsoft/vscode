@@ -279,7 +279,7 @@ export class Item extends Events.EventEmitter {
 
 	public expand(): WinJS.Promise {
 		if (this.isExpanded() || !this.doesHaveChildren || this.lock.isLocked(this)) {
-			return WinJS.Promise.as(false);
+			return WinJS.TPromise.as(false);
 		}
 
 		var result = this.lock.run(this, () => {
@@ -290,7 +290,7 @@ export class Item extends Events.EventEmitter {
 			if (this.needsChildrenRefresh) {
 				result = this.refreshChildren(false, true, true);
 			} else {
-				result = WinJS.Promise.as(null);
+				result = WinJS.TPromise.as(null);
 			}
 
 			return result.then(() => {
@@ -316,7 +316,7 @@ export class Item extends Events.EventEmitter {
 
 	public collapse(recursive: boolean = false): WinJS.Promise {
 		if (recursive) {
-			var collapseChildrenPromise = WinJS.Promise.as(null);
+			var collapseChildrenPromise = WinJS.TPromise.as(null);
 			this.forEachChild((child) => {
 				collapseChildrenPromise = collapseChildrenPromise.then(() => child.collapse(true));
 			});
@@ -325,7 +325,7 @@ export class Item extends Events.EventEmitter {
 			});
 		} else {
 			if (!this.isExpanded() || this.lock.isLocked(this)) {
-				return WinJS.Promise.as(false);
+				return WinJS.TPromise.as(false);
 			}
 
 			return this.lock.run(this, () => {
@@ -334,7 +334,7 @@ export class Item extends Events.EventEmitter {
 				this._setExpanded(false);
 				this.emit('item:collapsed', eventData);
 
-				return WinJS.Promise.as(true);
+				return WinJS.TPromise.as(true);
 			});
 		}
 	}
@@ -373,7 +373,7 @@ export class Item extends Events.EventEmitter {
 	private refreshChildren(recursive: boolean, safe: boolean = false, force: boolean = false): WinJS.Promise {
 		if (!force && !this.isExpanded()) {
 			this.needsChildrenRefresh = true;
-			return WinJS.Promise.as(this);
+			return WinJS.TPromise.as(this);
 		}
 
 		this.needsChildrenRefresh = false;
@@ -386,7 +386,7 @@ export class Item extends Events.EventEmitter {
 			if (this.doesHaveChildren) {
 				childrenPromise = this.context.dataSource.getChildren(this.context.tree, this.element);
 			} else {
-				childrenPromise = WinJS.Promise.as([]);
+				childrenPromise = WinJS.TPromise.as([]);
 			}
 
 			return childrenPromise.then((elements: any[]) => {
@@ -422,7 +422,7 @@ export class Item extends Events.EventEmitter {
 						return child.doRefresh(recursive, true);
 					}));
 				} else {
-					return WinJS.Promise.as(null);
+					return WinJS.TPromise.as(null);
 				}
 			}).then(() => {
 				this.emit('item:childrenRefreshed', eventData);
@@ -824,7 +824,7 @@ export class TreeModel extends Events.EventEmitter {
 		var item = this.getItem(element);
 
 		if (!item) {
-			return WinJS.Promise.as(null);
+			return WinJS.TPromise.as(null);
 		}
 
 		var eventData: IRefreshEvent = { item: item, recursive: recursive };
@@ -848,7 +848,7 @@ export class TreeModel extends Events.EventEmitter {
 		var item = this.getItem(element);
 
 		if (!item) {
-			return WinJS.Promise.as(false);
+			return WinJS.TPromise.as(false);
 		}
 
 		return item.expand();
@@ -877,7 +877,7 @@ export class TreeModel extends Events.EventEmitter {
 		var item = this.getItem(element);
 
 		if (!item) {
-			return WinJS.Promise.as(false);
+			return WinJS.TPromise.as(false);
 		}
 
 		return item.collapse(recursive);
@@ -933,7 +933,7 @@ export class TreeModel extends Events.EventEmitter {
 
 	public reveal(element: any, relativeTop: number = null): WinJS.Promise {
 		return this.resolveUnknownParentChain(element).then((chain: any[]) => {
-			var result = WinJS.Promise.as(null);
+			var result = WinJS.TPromise.as(null);
 
 			chain.forEach((e) => {
 				result = result.then(() => this.expand(e));
@@ -952,7 +952,7 @@ export class TreeModel extends Events.EventEmitter {
 	private resolveUnknownParentChain(element: any): WinJS.Promise {
 		return this.context.dataSource.getParent(this.context.tree, element).then((parent) => {
 			if (!parent) {
-				return WinJS.Promise.as([]);
+				return WinJS.TPromise.as([]);
 			}
 
 			return this.resolveUnknownParentChain(parent).then((result) => {

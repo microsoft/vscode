@@ -25,6 +25,7 @@ export class TreeContext implements _.ITreeContext {
 	public dnd:_.IDragAndDrop;
 	public filter:_.IFilter;
 	public sorter:_.ISorter;
+	public accessibilityProvider:_.IAccessibilityProvider;
 
 	constructor(tree:_.ITree, configuration:_.ITreeConfiguration, options:_.ITreeOptions = {}) {
 		this.tree = tree;
@@ -41,6 +42,7 @@ export class TreeContext implements _.ITreeContext {
 		this.dnd = configuration.dnd || new TreeDefaults.DefaultDragAndDrop();
 		this.filter = configuration.filter || new TreeDefaults.DefaultFilter();
 		this.sorter = configuration.sorter || null;
+		this.accessibilityProvider = configuration.accessibilityProvider || new TreeDefaults.DefaultAccessibilityProvider();
 	}
 }
 
@@ -305,10 +307,6 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 
 	public hasTrait(trait: string, element: any): boolean {
 		return this.model.hasTrait(trait, element);
-	}
-
-	public withFakeRow(fn:(container:HTMLElement)=>any):any {
-		return this.view.withFakeRow(fn);
 	}
 
 	getNavigator(): INavigator<any> {

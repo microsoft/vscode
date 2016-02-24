@@ -4,70 +4,87 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {ThrottledDelayer} from 'vs/base/common/async';
+import {EventEmitter, IEventEmitter, ListenerCallback} from 'vs/base/common/eventEmitter';
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
-import lifecycle = require('vs/base/common/lifecycle');
-import hash = require('vs/base/common/bits/hash');
-import async = require('vs/base/common/async');
-import events = require('vs/base/common/eventEmitter');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import {EventType, ICommonCodeEditor, ICursorSelectionChangedEvent, IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
+import {IParameter, IParameterHints, ISignature} from 'vs/editor/common/modes';
 import {ParameterHintsRegistry, getParameterHints} from '../common/parameterHints';
-import {sequence} from 'vs/base/common/async';
 
-function hashParameterHints(hints: Modes.IParameterHints): string {
-	if (!hints) {
-		return null;
+function equalsArr<T>(a: T[], b:T[], equalsFn:(a:T,b:T)=>boolean): boolean {
+	if (a.length !== b.length) {
+		return false;
 	}
+	for (let i = 0, len = a.length; i < len; i++) {
+		if (!equalsFn(a[i], b[i])) {
+			return false;
+		}
+	}
+	return true;
+}
 
-	var result = new hash.SHA1();
+function equalsParameter(a: IParameter, b: IParameter): boolean {
+	return (
+		a.documentation === b.documentation
+		&& a.label === b.label
+		&& a.signatureLabelEnd === b.signatureLabelEnd
+		&& a.signatureLabelOffset === b.signatureLabelOffset
+	);
+}
 
-	hints.signatures.forEach(s => {
-		result.update(s.documentation || '');
-		result.update(s.label || '');
+function equalsSignature(a: ISignature, b: ISignature): boolean {
+	return (
+		a.documentation === b.documentation
+		&& a.label === b.label
+		&& equalsArr(a.parameters, b.parameters, equalsParameter)
+	);
+}
 
-		s.parameters.forEach(p => {
-			result.update(p.documentation || '');
-			result.update(p.label || '');
-			result.update(p.signatureLabelEnd.toString());
-			result.update(p.signatureLabelOffset.toString());
-		});
-	});
-
-	return result.digest();
+function equalsParameterHints(a: IParameterHints, b: IParameterHints): boolean {
+	if (!a && !b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	return (
+		equalsArr(a.signatures, b.signatures, equalsSignature)
+	);
 }
 
 export interface IHintEvent {
-	hints: Modes.IParameterHints;
+	hints: IParameterHints;
 }
 
-export class ParameterHintsModel extends events.EventEmitter {
+export class ParameterHintsModel extends EventEmitter {
 
 	static DELAY = 120; // ms
 
-	private editor: EditorCommon.ICommonCodeEditor;
-	private toDispose: lifecycle.IDisposable[];
-	private triggerCharactersListeners: lifecycle.IDisposable[];
+	private editor: ICommonCodeEditor;
+	private toDispose: IDisposable[];
+	private triggerCharactersListeners: IDisposable[];
 
 	private active: boolean;
-	private hash: string;
-	private throttledDelayer: async.ThrottledDelayer<boolean>;
+	private prevResult: IParameterHints;
+	private throttledDelayer: ThrottledDelayer<boolean>;
 
-	constructor(editor:EditorCommon.ICommonCodeEditor) {
+	constructor(editor:ICommonCodeEditor) {
 		super(['cancel', 'hint', 'destroy']);
 
 		this.editor = editor;
 		this.toDispose = [];
 		this.triggerCharactersListeners = [];
 
-		this.throttledDelayer = new async.ThrottledDelayer<boolean>(ParameterHintsModel.DELAY);
+		this.throttledDelayer = new ThrottledDelayer<boolean>(ParameterHintsModel.DELAY);
 
 		this.active = false;
-		this.hash = null;
+		this.prevResult = null;
 
-		this.event(this.editor, EditorCommon.EventType.ModelChanged, e => this.onModelChanged());
-		this.event(this.editor, EditorCommon.EventType.ModelModeChanged, encodeURI => this.onModelChanged());
-		this.event(this.editor, EditorCommon.EventType.ModelModeSupportChanged, e => this.onModeChanged(e));
-		this.event(this.editor, EditorCommon.EventType.CursorSelectionChanged, e => this.onCursorChange(e));
+		this.event(this.editor, EventType.ModelChanged, e => this.onModelChanged());
+		this.event(this.editor, EventType.ModelModeChanged, encodeURI => this.onModelChanged());
+		this.event(this.editor, EventType.ModelModeSupportChanged, e => this.onModeChanged(e));
+		this.event(this.editor, EventType.CursorSelectionChanged, e => this.onCursorChange(e));
 		this.toDispose.push(ParameterHintsRegistry.onDidChange(this.onModelChanged, this));
 		this.onModelChanged();
 	}
@@ -76,7 +93,7 @@ export class ParameterHintsModel extends events.EventEmitter {
 		this.active = false;
 
 		if (!refresh) {
-			this.hash = null;
+			this.prevResult = null;
 		}
 
 		this.throttledDelayer.cancel();
@@ -97,15 +114,17 @@ export class ParameterHintsModel extends events.EventEmitter {
 
 	public doTrigger(triggerCharacter: string): TPromise<boolean> {
 		return getParameterHints(this.editor.getModel(), this.editor.getPosition(), triggerCharacter).then(result => {
-			var hash = hashParameterHints(result);
-			if (!result || result.signatures.length === 0 || (this.hash && hash !== this.hash)) {
+
+			let equalsPrevResult = equalsParameterHints(this.prevResult, result);
+
+			if (!result || result.signatures.length === 0 || (this.prevResult && !equalsPrevResult)) {
 				this.cancel();
 				this.emit('cancel');
 				return false;
 			}
 
 			this.active = true;
-			this.hash = hash;
+			this.prevResult = result;
 
 			var event:IHintEvent = { hints: result };
 			this.emit('hint', event);
@@ -118,7 +137,7 @@ export class ParameterHintsModel extends events.EventEmitter {
 	}
 
 	private onModelChanged(): void {
-		this.triggerCharactersListeners = lifecycle.disposeAll(this.triggerCharactersListeners);
+		this.triggerCharactersListeners = disposeAll(this.triggerCharactersListeners);
 
 		var model = this.editor.getModel();
 		if (!model) {
@@ -146,13 +165,13 @@ export class ParameterHintsModel extends events.EventEmitter {
 		});
 	}
 
-	private onModeChanged(e: EditorCommon.IModeSupportChangedEvent): void {
+	private onModeChanged(e: IModeSupportChangedEvent): void {
 		if (e.parameterHintsSupport) {
 			this.onModelChanged();
 		}
 	}
 
-	private onCursorChange(e: EditorCommon.ICursorSelectionChangedEvent): void {
+	private onCursorChange(e: ICursorSelectionChangedEvent): void {
 		if (e.source === 'mouse') {
 			this.cancel();
 		} else if (this.isTriggered()) {
@@ -160,15 +179,15 @@ export class ParameterHintsModel extends events.EventEmitter {
 		}
 	}
 
-	private event(emitter: events.IEventEmitter, eventType: string, cb: events.ListenerCallback): void {
+	private event(emitter: IEventEmitter, eventType: string, cb: ListenerCallback): void {
 		this.toDispose.push(emitter.addListener2(eventType, cb));
 	}
 
 	public dispose(): void {
 		this.cancel(true);
 
-		this.triggerCharactersListeners = lifecycle.disposeAll(this.triggerCharactersListeners);
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.triggerCharactersListeners = disposeAll(this.triggerCharactersListeners);
+		this.toDispose = disposeAll(this.toDispose);
 
 		this.emit('destroy', null);
 

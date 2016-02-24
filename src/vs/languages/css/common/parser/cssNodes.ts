@@ -173,7 +173,7 @@ export class Node {
 	}
 
 	public getTextProvider(): ITextProvider {
-		var node = this;
+		var node: Node = this;
 		while (node && !node.textProvider) {
 			node = node.parent;
 		}
@@ -349,7 +349,7 @@ export class Node {
 	}
 
 	public findParent(type:NodeType):Node {
-		var result = this;
+		var result: Node = this;
 		while (result && result.type !== type) {
 			result = result.parent;
 		}

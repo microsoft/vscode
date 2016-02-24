@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import BlockCommentCommand = require('./blockCommentCommand');
-import Strings = require('vs/base/common/strings');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import {Range} from 'vs/editor/common/core/range';
-import {Position} from 'vs/editor/common/core/position';
-import {Selection} from 'vs/editor/common/core/selection';
+import * as strings from 'vs/base/common/strings';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
+import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
+import {Selection} from 'vs/editor/common/core/selection';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {ICommentsConfiguration, IMode} from 'vs/editor/common/modes';
+import {BlockCommentCommand} from './blockCommentCommand';
 
 export interface IInsertionPoint {
 	ignore: boolean;
@@ -23,7 +23,7 @@ export interface ILinePreflightData {
 	commentStr: string;
 	commentStrOffset: number;
 	commentStrLength: number;
-};
+}
 
 export interface IPreflightData {
 	supported: boolean;
@@ -41,16 +41,16 @@ export enum Type {
 	ForceRemove = 2
 }
 
-export class LineCommentCommand implements EditorCommon.ICommand {
+export class LineCommentCommand implements editorCommon.ICommand {
 
-	private _selection: EditorCommon.IEditorSelection;
+	private _selection: editorCommon.IEditorSelection;
 	private _selectionId: string;
 	private _deltaColumn:number;
 	private _moveEndPositionDown: boolean;
 	private _tabSize: number;
 	private _type:Type;
 
-	constructor(selection:EditorCommon.IEditorSelection, tabSize:number, type:Type) {
+	constructor(selection:editorCommon.IEditorSelection, tabSize:number, type:Type) {
 		this._selection = selection;
 		this._tabSize = tabSize;
 		this._type = type;
@@ -61,15 +61,15 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 	 * Do an initial pass over the lines and gather info about the line comment string.
 	 * Returns null if any of the lines doesn't support a line comment string.
 	 */
-	public static _gatherPreflightCommentStrings(model:EditorCommon.ITokenizedModel, startLineNumber: number, endLineNumber: number): ILinePreflightData[] {
+	public static _gatherPreflightCommentStrings(model:editorCommon.ITokenizedModel, startLineNumber: number, endLineNumber: number): ILinePreflightData[] {
 		var lines: ILinePreflightData[] = [],
-			config:Modes.ICommentsConfiguration,
+			config:ICommentsConfiguration,
 			commentStr:string,
 			seenModes: {[modeId:string]:string;} = Object.create(null),
 			i:number,
 			lineCount:number,
 			lineNumber:number,
-			mode: Modes.IMode,
+			mode: IMode,
 			modeId: string;
 
 		for (i = 0, lineCount = endLineNumber - startLineNumber + 1; i < lineCount; i++) {
@@ -81,9 +81,9 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 			if (seenModes[modeId]) {
 				commentStr = seenModes[modeId];
 			} else {
-				config = (mode.commentsSupport ? mode.commentsSupport.getCommentsConfiguration() : null);
-				commentStr = (config && config.lineCommentTokens && config.lineCommentTokens.length > 0 ? config.lineCommentTokens[0] : null);
-				if (commentStr === null || commentStr.length === 0) {
+				config = (mode.richEditSupport ? mode.richEditSupport.comments : null);
+				commentStr = (config ? config.lineCommentToken : null);
+				if (!commentStr) {
 					// Mode does not support line comments
 					return null;
 				}
@@ -110,15 +110,12 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 		var lineData: ILinePreflightData,
 			lineContentStartOffset:number,
 			commentStrEndOffset:number,
-			seenModes: {[modeId:string]:string;} = Object.create(null),
 			i:number,
 			lineCount:number,
 			lineNumber:number,
 			shouldRemoveComments:boolean,
 			lineContent: string,
 			_space = ' '.charCodeAt(0),
-			_tab = '\t'.charCodeAt(0),
-			char: number,
 			onlyWhitespaceLines = true;
 
 		if (type === Type.Toggle) {
@@ -134,7 +131,7 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 			lineNumber = startLineNumber + i;
 
 			lineContent = model.getLineContent(lineNumber);
-			lineContentStartOffset = Strings.firstNonWhitespaceIndex(lineContent);
+			lineContentStartOffset = strings.firstNonWhitespaceIndex(lineContent);
 
 			if (lineContentStartOffset === -1) {
 				// Empty or whitespace only line
@@ -153,7 +150,7 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 			lineData.ignore = false;
 			lineData.commentStrOffset = lineContentStartOffset;
 
-			if (shouldRemoveComments && !BlockCommentCommand.BlockCommentCommand._haystackHasNeedleAtOffset(lineContent, lineData.commentStr, lineContentStartOffset)) {
+			if (shouldRemoveComments && !BlockCommentCommand._haystackHasNeedleAtOffset(lineContent, lineData.commentStr, lineContentStartOffset)) {
 				if (type === Type.Toggle) {
 					// Every line so far has been a line comment, but this one is not
 					shouldRemoveComments = false;
@@ -192,7 +189,7 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 	/**
 	 * Analyze all lines and decide exactly what to do => not supported | insert line comments | remove line comments
 	 */
-	public static _gatherPreflightData(type:Type, model:EditorCommon.ITokenizedModel, startLineNumber: number, endLineNumber: number): IPreflightData {
+	public static _gatherPreflightData(type:Type, model:editorCommon.ITokenizedModel, startLineNumber: number, endLineNumber: number): IPreflightData {
 		var lines = LineCommentCommand._gatherPreflightCommentStrings(model, startLineNumber, endLineNumber);
 		if (lines === null) {
 			return {
@@ -208,9 +205,9 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 	/**
 	 * Given a successful analysis, execute either insert line comments, either remove line comments
 	 */
-	private _executeLineComments(model:ISimpleModel, builder:EditorCommon.IEditOperationBuilder, data:IPreflightData, s:EditorCommon.IEditorSelection): void {
+	private _executeLineComments(model:ISimpleModel, builder:editorCommon.IEditOperationBuilder, data:IPreflightData, s:editorCommon.IEditorSelection): void {
 
-		var ops:EditorCommon.IIdentifiedSingleEditOperation[];
+		var ops:editorCommon.IIdentifiedSingleEditOperation[];
 
 		if (data.shouldRemoveComments) {
 			ops = LineCommentCommand._createRemoveLineCommentsOperations(data.lines, s.startLineNumber);
@@ -231,7 +228,7 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 		this._selectionId = builder.trackSelection(s);
 	}
 
-	private _attemptRemoveBlockComment(model:EditorCommon.ITokenizedModel, s:EditorCommon.IEditorSelection, startToken: string, endToken: string): EditorCommon.IIdentifiedSingleEditOperation[] {
+	private _attemptRemoveBlockComment(model:editorCommon.ITokenizedModel, s:editorCommon.IEditorSelection, startToken: string, endToken: string): editorCommon.IIdentifiedSingleEditOperation[] {
 		let startLineNumber = s.startLineNumber;
 		let endLineNumber = s.endLineNumber;
 
@@ -261,7 +258,7 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 		}
 
 		if (startTokenIndex !== -1 && endTokenIndex !== -1) {
-			return BlockCommentCommand.BlockCommentCommand._createRemoveBlockCommentOperations({
+			return BlockCommentCommand._createRemoveBlockCommentOperations({
 				startLineNumber: startLineNumber,
 				startColumn: startTokenIndex + startToken.length + 1,
 				endLineNumber: endLineNumber,
@@ -275,39 +272,34 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 	/**
 	 * Given an unsuccessful analysis, delegate to the block comment command
 	 */
-	private _executeBlockComment(model:EditorCommon.ITokenizedModel, builder:EditorCommon.IEditOperationBuilder, s:EditorCommon.IEditorSelection): void {
-		var commentsSupport = model.getModeAtPosition(s.startLineNumber, s.startColumn).commentsSupport;
-		if (!commentsSupport) {
-			// Mode does not support comments
-			return;
-		}
-
-		var config = commentsSupport.getCommentsConfiguration();
+	private _executeBlockComment(model:editorCommon.ITokenizedModel, builder:editorCommon.IEditOperationBuilder, s:editorCommon.IEditorSelection): void {
+		let richEditSupport = model.getModeAtPosition(s.startLineNumber, s.startColumn).richEditSupport;
+		let config = richEditSupport ? richEditSupport.comments : null;
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
 			// Mode does not support block comments
 			return;
 		}
 
-		var startToken = config.blockCommentStartToken, startTokenLength = startToken.length;
-		var endToken = config.blockCommentEndToken, endTokenLength = endToken.length;
+		var startToken = config.blockCommentStartToken;
+		var endToken = config.blockCommentEndToken;
 
 		var ops = this._attemptRemoveBlockComment(model, s, startToken, endToken);
 		if (!ops) {
 			if (s.isEmpty()) {
 				var lineContent = model.getLineContent(s.startLineNumber);
-				var firstNonWhitespaceIndex = Strings.firstNonWhitespaceIndex(lineContent);
+				var firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
 				if (firstNonWhitespaceIndex === -1) {
 					// Line is empty or contains only whitespace
 					firstNonWhitespaceIndex = lineContent.length;
 				}
-				ops = BlockCommentCommand.BlockCommentCommand._createAddBlockCommentOperations({
+				ops = BlockCommentCommand._createAddBlockCommentOperations({
 					startLineNumber: s.startLineNumber,
 					startColumn: firstNonWhitespaceIndex + 1,
 					endLineNumber: s.startLineNumber,
 					endColumn: lineContent.length + 1
 				}, startToken, endToken);
 			} else {
-				ops = BlockCommentCommand.BlockCommentCommand._createAddBlockCommentOperations({
+				ops = BlockCommentCommand._createAddBlockCommentOperations({
 					startLineNumber: s.startLineNumber,
 					startColumn: model.getLineFirstNonWhitespaceColumn(s.startLineNumber),
 					endLineNumber: s.endLineNumber,
@@ -325,7 +317,7 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 		}
 	}
 
-	public getEditOperations(model:EditorCommon.ITokenizedModel, builder:EditorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model:editorCommon.ITokenizedModel, builder:editorCommon.IEditOperationBuilder): void {
 
 		var s = this._selection;
 		this._moveEndPositionDown = false;
@@ -343,7 +335,7 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 		return this._executeBlockComment(model, builder, s);
 	}
 
-	public computeCursorState(model:EditorCommon.ITokenizedModel, helper: EditorCommon.ICursorStateComputerData): EditorCommon.IEditorSelection {
+	public computeCursorState(model:editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): editorCommon.IEditorSelection {
 		var result = helper.getTrackedSelection(this._selectionId);
 
 		if (this._moveEndPositionDown) {
@@ -361,11 +353,11 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 	/**
 	 * Generate edit operations in the remove line comment case
 	 */
-	public static _createRemoveLineCommentsOperations(lines:ILinePreflightData[], startLineNumber:number): EditorCommon.IIdentifiedSingleEditOperation[] {
+	public static _createRemoveLineCommentsOperations(lines:ILinePreflightData[], startLineNumber:number): editorCommon.IIdentifiedSingleEditOperation[] {
 		var i: number,
 			len: number,
 			lineData: ILinePreflightData,
-			res: EditorCommon.IIdentifiedSingleEditOperation[] = [];
+			res: editorCommon.IIdentifiedSingleEditOperation[] = [];
 
 		for (i = 0, len = lines.length; i < len; i++) {
 			lineData = lines[i];
@@ -386,11 +378,11 @@ export class LineCommentCommand implements EditorCommon.ICommand {
 	/**
 	 * Generate edit operations in the add line comment case
 	 */
-	public static _createAddLineCommentsOperations(lines:ILinePreflightData[], startLineNumber:number): EditorCommon.IIdentifiedSingleEditOperation[] {
+	public static _createAddLineCommentsOperations(lines:ILinePreflightData[], startLineNumber:number): editorCommon.IIdentifiedSingleEditOperation[] {
 		var i: number,
 			len: number,
 			lineData: ILinePreflightData,
-			res: EditorCommon.IIdentifiedSingleEditOperation[] = [];
+			res: editorCommon.IIdentifiedSingleEditOperation[] = [];
 
 		for (i = 0, len = lines.length; i < len; i++) {
 			lineData = lines[i];

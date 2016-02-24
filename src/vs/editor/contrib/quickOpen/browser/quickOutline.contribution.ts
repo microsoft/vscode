@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import QuickOutline = require('./quickOutline');
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {QuickOutlineAction} from './quickOutline';
 
 // Contribute "Quick Outline" to context menu
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(QuickOutline.QuickOutlineAction, QuickOutline.QuickOutlineAction.ID, nls.localize('label', "Go to Symbol..."), {
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(QuickOutlineAction, QuickOutlineAction.ID, nls.localize('label', "Go to Symbol..."), {
 	context: ContextKey.EditorFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O 
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
 }));

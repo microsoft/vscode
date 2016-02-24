@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import { serialize, deserialize } from 'vs/base/common/marshalling';
+import { parse, stringify } from 'vs/base/common/marshalling';
 import { normalize } from 'vs/base/common/paths';
 
 suite('URI', () => {
@@ -24,7 +24,7 @@ suite('URI', () => {
 		assert.equal(URI.file('c:/win/path/').fsPath.replace(/\\/g, '/'), 'c:/win/path/');
 		assert.equal(URI.file('C:/win/path').fsPath.replace(/\\/g, '/'), 'c:/win/path');
 		assert.equal(URI.file('/c:/win/path').fsPath.replace(/\\/g, '/'), 'c:/win/path');
-		assert.equal(URI.file('./c/win/path').fsPath.replace(/\\/g, '/'), './c/win/path');
+		assert.equal(URI.file('./c/win/path').fsPath.replace(/\\/g, '/'), '/./c/win/path');
 		assert.equal(URI.file('c:\\win\\path').fsPath.replace(/\\/g, '/'), 'c:/win/path');
 		assert.equal(URI.file('c:\\win/path').fsPath.replace(/\\/g, '/'), 'c:/win/path');
 	});
@@ -133,7 +133,7 @@ suite('URI', () => {
 
 	test('Bug 16793:# in folder name => mirror models get out of sync', () => {
 		var uri1 = URI.file('C:\\C#\\file.txt');
-		assert.equal(deserialize(serialize(uri1.toString())), uri1.toString());
+		assert.equal(parse(stringify(uri1)).toString(), uri1.toString());
 	});
 
 	test('URI#parse', () => {
@@ -276,6 +276,21 @@ suite('URI', () => {
 		assert.equal(value.toString(), 'file:///c%3A/test/drive');
 	});
 
+	test('URI#file, always slash', () => {
+
+		var value = URI.file('a.file');
+		assert.equal(value.scheme, 'file');
+		assert.equal(value.authority, '');
+		assert.equal(value.path, '/a.file');
+		assert.equal(value.toString(), 'file:///a.file');
+
+		value = URI.parse(value.toString());
+		assert.equal(value.scheme, 'file');
+		assert.equal(value.authority, '');
+		assert.equal(value.path, '/a.file');
+		assert.equal(value.toString(), 'file:///a.file');
+	});
+
 	test('URI#file, disallow scheme', () => {
 		assert.throws(() => URI.file('file:///some/path'));
 	});
@@ -337,8 +352,8 @@ suite('URI', () => {
 		// let c = 100000;
 		// while (c-- > 0) {
 		for(let value of values) {
-			let data = value._toSerialized();
-			let clone = URI._fromSerialized(data);
+			let data = value.toJSON();
+			let clone = URI.revive(data);
 
 			assert.equal(clone.scheme, value.scheme);
 			assert.equal(clone.authority, value.authority);

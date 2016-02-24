@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {OverviewRulerImpl} from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
+import * as themes from 'vs/platform/theme/common/themes';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {IOverviewRulerZone, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Themes = require('vs/platform/theme/common/themes');
+import {OverviewRulerImpl} from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
 
 export class DecorationsOverviewRuler extends ViewPart {
 
@@ -24,18 +24,18 @@ export class DecorationsOverviewRuler extends ViewPart {
 	private _shouldForceRender:boolean;
 	private _hideCursor:boolean;
 
-	private _zonesFromDecorations: EditorBrowser.IOverviewRulerZone[];
-	private _zonesFromCursors: EditorBrowser.IOverviewRulerZone[];
+	private _zonesFromDecorations: IOverviewRulerZone[];
+	private _zonesFromCursors: IOverviewRulerZone[];
 
-	private _cursorPositions: EditorCommon.IEditorPosition[];
+	private _cursorPositions: editorCommon.IEditorPosition[];
 
-	constructor(context:EditorBrowser.IViewContext, scrollHeight:number, getVerticalOffsetForLine:(lineNumber:number)=>number) {
+	constructor(context:IViewContext, scrollHeight:number, getVerticalOffsetForLine:(lineNumber:number)=>number) {
 		super(context);
 		this._overviewRuler = new OverviewRulerImpl(1, 'decorationsOverviewRuler', scrollHeight, this._context.configuration.editor.lineHeight,
 					DecorationsOverviewRuler.DECORATION_HEIGHT, DecorationsOverviewRuler.DECORATION_HEIGHT, getVerticalOffsetForLine);
 		this._overviewRuler.setLanesCount(this._context.configuration.editor.overviewRulerLanes, false);
 		let theme = this._context.configuration.editor.theme;
-		this._overviewRuler.setUseDarkColor(!Themes.isLightTheme(theme), false);
+		this._overviewRuler.setUseDarkColor(!themes.isLightTheme(theme), false);
 
 		this._shouldUpdateDecorations = true;
 		this._zonesFromDecorations = [];
@@ -56,14 +56,14 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	// ---- begin view event handlers
 
-	public onCursorPositionChanged(e:EditorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e:editorCommon.IViewCursorPositionChangedEvent): boolean {
 		this._shouldUpdateCursorPosition = true;
 		this._cursorPositions = [ e.position ];
 		this._cursorPositions = this._cursorPositions.concat(e.secondaryPositions);
 		return true;
 	}
 
-	public onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
 		var prevLanesCount = this._overviewRuler.getLanesCount();
 		var newLanesCount = this._context.configuration.editor.overviewRulerLanes;
 
@@ -89,7 +89,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 		if (e.theme) {
 			let theme = this._context.configuration.editor.theme;
-			this._overviewRuler.setUseDarkColor(!Themes.isLightTheme(theme), false);
+			this._overviewRuler.setUseDarkColor(!themes.isLightTheme(theme), false);
 			this._shouldForceRender = true;
 			shouldRender = true;
 		}
@@ -97,7 +97,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return shouldRender;
 	}
 
-	public onLayoutChanged(layoutInfo:EditorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
 		this._shouldForceRender = true;
 		this._requestModificationFrame(() => {
 			this._overviewRuler.setLayout(layoutInfo.overviewRuler, false);
@@ -115,7 +115,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return true;
 	}
 
-	public onModelDecorationsChanged(e:EditorCommon.IViewDecorationsChangedEvent): boolean {
+	public onModelDecorationsChanged(e:editorCommon.IViewDecorationsChangedEvent): boolean {
 		this._shouldUpdateDecorations = true;
 		return true;
 	}
@@ -132,12 +132,12 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return this._overviewRuler.getDomNode();
 	}
 
-	private _createZonesFromDecorations(): EditorBrowser.IOverviewRulerZone[] {
+	private _createZonesFromDecorations(): IOverviewRulerZone[] {
 		var decorations = this._context.model.getAllDecorations(),
-			zones:EditorBrowser.IOverviewRulerZone[] = [],
+			zones:IOverviewRulerZone[] = [],
 			i:number,
 			len:number,
-			dec:EditorCommon.IModelDecoration;
+			dec:editorCommon.IModelDecoration;
 
 		for (i = 0, len = decorations.length; i < len; i++) {
 			dec = decorations[i];
@@ -155,11 +155,11 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return zones;
 	}
 
-	private _createZonesFromCursors(): EditorBrowser.IOverviewRulerZone[] {
-		var zones:EditorBrowser.IOverviewRulerZone[] = [],
+	private _createZonesFromCursors(): IOverviewRulerZone[] {
+		var zones:IOverviewRulerZone[] = [],
 			i:number,
 			len:number,
-			cursor:EditorCommon.IEditorPosition;
+			cursor:editorCommon.IEditorPosition;
 
 		for (i = 0, len = this._cursorPositions.length; i < len; i++) {
 			cursor = this._cursorPositions[i];
@@ -170,14 +170,14 @@ export class DecorationsOverviewRuler extends ViewPart {
 				endLineNumber: cursor.lineNumber,
 				color: DecorationsOverviewRuler._CURSOR_COLOR,
 				darkColor: DecorationsOverviewRuler._CURSOR_COLOR_DARK,
-				position: EditorCommon.OverviewRulerLane.Full
+				position: editorCommon.OverviewRulerLane.Full
 			});
 		}
 
 		return zones;
 	}
 
-	_render(ctx:EditorBrowser.IRenderingContext): void {
+	_render(ctx:IRenderingContext): void {
 
 		var shouldForceRender = this._shouldForceRender;
 		this._shouldForceRender = false;
@@ -200,7 +200,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 				}
 			}
 
-			var allZones:EditorBrowser.IOverviewRulerZone[] = [];
+			var allZones:IOverviewRulerZone[] = [];
 			allZones = allZones.concat(this._zonesFromCursors);
 			allZones = allZones.concat(this._zonesFromDecorations);
 
@@ -218,7 +218,8 @@ export class DecorationsOverviewRuler extends ViewPart {
 					ctx2.beginPath();
 					ctx2.lineWidth = 1;
 					ctx2.strokeStyle = 'rgba(197,197,197,0.8)';
-					ctx2.rect(0, 0, this._overviewRuler.getWidth(), this._overviewRuler.getHeight());
+					ctx2.moveTo(0, 0);
+					ctx2.lineTo(0, this._overviewRuler.getHeight());
 					ctx2.stroke();
 				}
 			});

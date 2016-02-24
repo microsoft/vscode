@@ -5,28 +5,12 @@
 
 'use strict';
 
-import Platform = require('vs/base/common/platform');
-import Objects = require('vs/base/common/objects');
-import uuid = require('vs/base/common/uuid');
+import * as Platform from 'vs/base/common/platform';
+import * as uuid from 'vs/base/common/uuid';
 import {AbstractTelemetryService} from 'vs/platform/telemetry/common/abstractTelemetryService';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryService, ITelemetryServiceConfig} from 'vs/platform/telemetry/common/telemetry';
 import {IdleMonitor, UserStatus} from 'vs/base/browser/idleMonitor';
 
-export interface TelemetryServiceConfig {
-	enableTelemetry?: boolean;
-
-	enableHardIdle?: boolean;
-	enableSoftIdle?: boolean;
-	sessionID?: string;
-	commitHash?: string;
-	version?: string;
-}
-
-var DefaultTelemetryServiceConfig:TelemetryServiceConfig = {
-	enableTelemetry: true,
-	enableHardIdle: true,
-	enableSoftIdle:true
-};
 
 export class MainTelemetryService extends AbstractTelemetryService implements ITelemetryService {
 	// how long of inactivity before a user is considered 'inactive' - 2 minutes
@@ -34,60 +18,66 @@ export class MainTelemetryService extends AbstractTelemetryService implements IT
 	public static IDLE_START_EVENT_NAME = 'UserIdleStart';
 	public static IDLE_STOP_EVENT_NAME = 'UserIdleStop';
 
-	protected config:TelemetryServiceConfig;
-
-	private hardIdleMonitor:IdleMonitor;
-	private softIdleMonitor:IdleMonitor;
+	private hardIdleMonitor: IdleMonitor;
+	private softIdleMonitor: IdleMonitor;
 	private eventCount: number;
 	private userIdHash: string;
 	private startTime: Date;
+	private optInFriendly: string[];
 
-	constructor(config?:TelemetryServiceConfig) {
-		this.config = Objects.withDefaults(config, DefaultTelemetryServiceConfig);
-		super();
+	constructor(config?: ITelemetryServiceConfig) {
+		super(config);
 
 		this.sessionId = this.config.sessionID || (uuid.generateUuid() + Date.now());
 
-		if(this.config.enableHardIdle) {
+		if (this.config.enableHardIdle) {
 			this.hardIdleMonitor = new IdleMonitor();
 		}
-		if(this.config.enableSoftIdle) {
+		if (this.config.enableSoftIdle) {
 			this.softIdleMonitor = new IdleMonitor(MainTelemetryService.SOFT_IDLE_TIME);
-			this.softIdleMonitor.addOneTimeActiveListener(()=>this.onUserActive());
-			this.softIdleMonitor.addOneTimeIdleListener(()=>this.onUserIdle());
+			this.softIdleMonitor.addOneTimeActiveListener(() => this.onUserActive());
+			this.softIdleMonitor.addOneTimeIdleListener(() => this.onUserIdle());
 		}
 
 		this.eventCount = 0;
 		this.startTime = new Date();
+
+		//holds a cache of predefined events that can be sent regardress of user optin status
+		this.optInFriendly = ['optInStatus'];
 	}
 
-	private onUserIdle():void {
+	private onUserIdle(): void {
 		this.publicLog(MainTelemetryService.IDLE_START_EVENT_NAME);
-		this.softIdleMonitor.addOneTimeIdleListener(()=>this.onUserIdle());
+		this.softIdleMonitor.addOneTimeIdleListener(() => this.onUserIdle());
 	}
 
-	private onUserActive():void {
+	private onUserActive(): void {
 		this.publicLog(MainTelemetryService.IDLE_STOP_EVENT_NAME);
-		this.softIdleMonitor.addOneTimeActiveListener(()=>this.onUserActive());
+		this.softIdleMonitor.addOneTimeActiveListener(() => this.onUserActive());
 	}
 
-	public dispose():void {
-		if(this.hardIdleMonitor) {
+	public dispose(): void {
+		if (this.hardIdleMonitor) {
 			this.hardIdleMonitor.dispose();
 		}
-		if(this.softIdleMonitor) {
+		if (this.softIdleMonitor) {
 			this.softIdleMonitor.dispose();
 		}
 		super.dispose();
 	}
 
-	protected handleEvent(eventName:string, data?:any):void {
-		if(this.hardIdleMonitor && this.hardIdleMonitor.getStatus() === UserStatus.Idle) {
+	protected handleEvent(eventName: string, data?: any): void {
+		if (this.hardIdleMonitor && this.hardIdleMonitor.getStatus() === UserStatus.Idle) {
 			return;
 		}
 
-		// don't send telemetry when not enabled
+		// don't send telemetry when channel is not enabled
 		if (!this.config.enableTelemetry) {
+			return;
+		}
+
+		// don't send events when the user is optout unless the event is flaged as optin friendly
+		if(!this.config.userOptIn && this.optInFriendly.indexOf(eventName) === -1) {
 			return;
 		}
 
@@ -95,8 +85,8 @@ export class MainTelemetryService extends AbstractTelemetryService implements IT
 
 		data = this.addCommonProperties(data);
 
-		var allAppenders = this.getAppenders();
-		for (var i =0; i < allAppenders.length; i++) {
+		let allAppenders = this.getAppenders();
+		for (let i = 0; i < allAppenders.length; i++) {
 			allAppenders[i].log(eventName, data);
 		}
 	}
@@ -104,7 +94,7 @@ export class MainTelemetryService extends AbstractTelemetryService implements IT
 	protected addCommonProperties(data?: any): void {
 		data = data || {};
 
-		var eventDate: Date = new Date();
+		let eventDate: Date = new Date();
 		data['sessionID'] = this.sessionId;
 		data['timestamp'] = eventDate;
 		data['version'] = this.config.version;
@@ -113,7 +103,7 @@ export class MainTelemetryService extends AbstractTelemetryService implements IT
 
 		data['common.platform'] = Platform.Platform[Platform.platform];
 		data['common.timesincesessionstart'] = (eventDate.getTime() - this.startTime.getTime());
-		data['common.sequence'] =  this.eventCount;
+		data['common.sequence'] = this.eventCount;
 		data['common.instanceId'] = this.instanceId;
 		data['common.machineId'] = this.machineId;
 		return data;

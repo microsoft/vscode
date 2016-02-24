@@ -5,7 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {IModelContentChangedEvent2, IRange, IPosition} from 'vs/editor/common/editorCommon';
+import {IModelContentChangedEvent2, IPosition, IRange} from 'vs/editor/common/editorCommon';
 import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
 
 export class MirrorModel2 {

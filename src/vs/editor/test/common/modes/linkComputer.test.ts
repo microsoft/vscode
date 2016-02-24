@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import LinkComputer = require('vs/editor/common/modes/linkComputer');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as assert from 'assert';
+import {ILink} from 'vs/editor/common/modes';
+import {ILinkComputerTarget, computeLinks} from 'vs/editor/common/modes/linkComputer';
 
-class SimpleLinkComputerTarget implements LinkComputer.ILinkComputerTarget {
+class SimpleLinkComputerTarget implements ILinkComputerTarget {
 
 	constructor(private _lines:string[]) {
 		// Intentional Empty
@@ -24,9 +23,9 @@ class SimpleLinkComputerTarget implements LinkComputer.ILinkComputerTarget {
 	}
 }
 
-function computeLinks(lines:string[]): Modes.ILink[] {
+function myComputeLinks(lines:string[]): ILink[] {
 	var target = new SimpleLinkComputerTarget(lines);
-	return LinkComputer.computeLinks(target);
+	return computeLinks(target);
 }
 
 function assertLink(text:string, extractedLink:string): void {
@@ -51,7 +50,7 @@ function assertLink(text:string, extractedLink:string): void {
 		}
 	}
 
-	var r = computeLinks([text]);
+	var r = myComputeLinks([text]);
 	assert.deepEqual(r, [{
 		range: {
 			startLineNumber: 1,
@@ -66,7 +65,7 @@ function assertLink(text:string, extractedLink:string): void {
 suite('Editor Modes - Link Computer', () => {
 
 	test('Null model',() => {
-		var r = LinkComputer.computeLinks(null);
+		var r = computeLinks(null);
 		assert.deepEqual(r, []);
 	});
 
@@ -132,6 +131,10 @@ suite('Editor Modes - Link Computer', () => {
 			'                             http://go.microsoft.com/fwlink/?LinkID=513275&clcid=0x409'
 		);
 		assertLink(
+			'// Click here to learn more. http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx',
+			'                             http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx'
+		);
+		assertLink(
 			'// https://github.com/projectkudu/kudu/blob/master/Kudu.Core/Scripts/selectNodeVersion.js',
 			'   https://github.com/projectkudu/kudu/blob/master/Kudu.Core/Scripts/selectNodeVersion.js'
 		);
@@ -142,6 +145,10 @@ suite('Editor Modes - Link Computer', () => {
 		assertLink(
 			'For instructions, see http://go.microsoft.com/fwlink/?LinkId=166007.</value>',
 			'                      http://go.microsoft.com/fwlink/?LinkId=166007         '
+		);
+		assertLink(
+			'For instructions, see http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx.</value>',
+			'                      http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx         '
 		);
 
 		// foo bar (see http://www.w3schools.com/tags/att_iframe_sandbox.asp)

@@ -4,18 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
 import {IMatch} from 'vs/base/common/filters';
-import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
-import EditorCommon = require('vs/editor/common/editorCommon');
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import URI from 'vs/base/common/uri';
 import {IDisposable} from 'vs/base/common/lifecycle';
+import URI from 'vs/base/common/uri';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
+import {IMarker} from 'vs/platform/markers/common/markers';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 
 export interface IWorkerParticipantDescriptor {
-	modeId:string;
-	descriptor: AsyncDescriptor0<IWorkerParticipant>;
+	modeId: string;
+	moduleId: string;
+	ctorName: string;
 }
 
 export interface IWorkerParticipant {
@@ -175,7 +176,6 @@ export interface ILineContext {
 	getTokenCount(): number;
 	getTokenStartIndex(tokenIndex:number): number;
 	getTokenType(tokenIndex:number): string;
-	getTokenBracket(tokenIndex:number): Bracket;
 	getTokenText(tokenIndex:number): string;
 	getTokenEndIndex(tokenIndex:number): number;
 	findIndexOfOffset(offset:number): number;
@@ -190,7 +190,7 @@ export interface IMode {
 	 */
 	toSimplifiedMode(): IMode;
 
-	addSupportChangedListener?(callback: (e: EditorCommon.IModeSupportChangedEvent) => void): IDisposable;
+	addSupportChangedListener?(callback: (e: editorCommon.IModeSupportChangedEvent) => void): IDisposable;
 
 	/**
 	 * Register a support by name. Only optional.
@@ -258,16 +258,6 @@ export interface IMode {
 	inplaceReplaceSupport?:IInplaceReplaceSupport;
 
 	/**
-	 * Optional adapter to support diff'ing two models.
-	 */
-	diffSupport?:IDiffSupport;
-
-	/**
-	 * Optional adapter to support diff'ing a model with its original version.
-	 */
-	dirtyDiffSupport?:IDirtyDiffSupport;
-
-	/**
 	 * Optional adapter to support output for a model (e.g. markdown -> html)
 	 */
 	emitOutputSupport?:IEmitOutputSupport;
@@ -281,26 +271,6 @@ export interface IMode {
 	 * Optional adapter to support configuring this mode.
 	 */
 	configSupport?:IConfigurationSupport;
-
-	/**
-	 * Optional adapter to support electric characters.
-	 */
-	electricCharacterSupport?:IElectricCharacterSupport;
-
-	/**
-	 * Optional adapter to support comment insertion.
-	 */
-	commentsSupport?:ICommentsSupport;
-
-	/**
-	 * Optional adapter to support insertion of character pair.
-	 */
-	characterPairSupport?:ICharacterPairSupport;
-
-	/**
-	 * Optional adapter to support classification of tokens.
-	 */
-	tokenTypeClassificationSupport?:ITokenTypeClassificationSupport;
 
 	/**
 	 * Optional adapter to support quick fix of typing errors.
@@ -322,7 +292,10 @@ export interface IMode {
 	 */
 	taskSupport?: ITaskSupport;
 
-	onEnterSupport?: IOnEnterSupport;
+	/**
+	 * Optional adapter to support rich editing.
+	 */
+	richEditSupport?: IRichEditSupport;
 }
 
 /**
@@ -331,7 +304,7 @@ export interface IMode {
 export interface IToken {
 	startIndex:number;
 	type:string;
-	bracket:Bracket;
+	bracket?:Bracket;
 }
 
 export interface IModeTransition {
@@ -362,13 +335,13 @@ export interface ITokenizationSupport {
  * Interface used to get extra info for a symbol
  */
 export interface IComputeExtraInfoResult {
-	range: EditorCommon.IRange;
+	range: editorCommon.IRange;
 	value?: string;
 	htmlContent?: IHTMLContentElement[];
 	className?: string;
 }
 export interface IExtraInfoSupport {
-	computeInfo(resource:URI, position:EditorCommon.IPosition):TPromise<IComputeExtraInfoResult>;
+	computeInfo(resource:URI, position:editorCommon.IPosition):TPromise<IComputeExtraInfoResult>;
 }
 
 
@@ -396,10 +369,6 @@ export interface ISuggestionFilter {
 	(word: string, suggestion: ISuggestion): IMatch[];
 }
 
-export interface ISuggestionCompare {
-	(one: ISuggestion, other: ISuggestion): number;
-}
-
 /**
  * Interface used to get completion suggestions at a specific location.
  */
@@ -408,18 +377,17 @@ export interface ISuggestSupport {
 	/**
 	 * Compute all completions for the given resource at the given position.
 	 */
-	suggest(resource: URI, position: EditorCommon.IPosition, triggerCharacter?: string): TPromise<ISuggestResult[]>;
+	suggest(resource: URI, position: editorCommon.IPosition, triggerCharacter?: string): TPromise<ISuggestResult[]>;
 
 	/**
 	 * Compute more details for the given suggestion.
 	 */
-	getSuggestionDetails?:(resource:URI, position:EditorCommon.IPosition, suggestion:ISuggestion)=>TPromise<ISuggestion>;
+	getSuggestionDetails?: (resource: URI, position: editorCommon.IPosition, suggestion: ISuggestion) => TPromise<ISuggestion>;
 
-	getFilter():ISuggestionFilter;
-	getSorter?():ISuggestionCompare;
-	getTriggerCharacters():string[];
-	shouldShowEmptySuggestionList():boolean;
-	shouldAutotriggerSuggest(context:ILineContext, offset:number, triggeredByCharacter:string):boolean;
+	getFilter(): ISuggestionFilter;
+	getTriggerCharacters(): string[];
+	shouldShowEmptySuggestionList(): boolean;
+	shouldAutotriggerSuggest(context: ILineContext, offset: number, triggeredByCharacter: string): boolean;
 }
 
 /**
@@ -436,9 +404,9 @@ export interface IQuickFixResult {
 }
 
 export interface IQuickFixSupport {
-	getQuickFixes(resource: URI, range: IMarker | EditorCommon.IRange): TPromise<IQuickFix[]>;
+	getQuickFixes(resource: URI, range: IMarker | editorCommon.IRange): TPromise<IQuickFix[]>;
 	//TODO@joh this should be removed in the furture such that we can trust the command and it's args
-	runQuickFixAction(resource: URI, range: EditorCommon.IRange, quickFix: IQuickFix):TPromise<IQuickFixResult>;
+	runQuickFixAction(resource: URI, range: editorCommon.IRange, quickFix: IQuickFix):TPromise<IQuickFixResult>;
 }
 
 export interface IParameter {
@@ -460,32 +428,26 @@ export interface IParameterHints {
 	signatures:ISignature[];
 }
 
-export interface IParameterHintsContribution {
-	triggerCharacters: string[];
-	excludeTokens: string[];
-	getParameterHints: (resource: URI, position: EditorCommon.IPosition) => TPromise<IParameterHints>;
-}
-
 /**
  * Interface used to get parameter hints.
  */
 export interface IParameterHintsSupport {
 	getParameterHintsTriggerCharacters(): string[];
 	shouldTriggerParameterHints(context: ILineContext, offset: number): boolean;
-	getParameterHints(resource: URI, position: EditorCommon.IPosition, triggerCharacter?: string): TPromise<IParameterHints>;
+	getParameterHints(resource: URI, position: editorCommon.IPosition, triggerCharacter?: string): TPromise<IParameterHints>;
 }
 
 
 export interface IOccurence {
 	kind?:string;
-	range:EditorCommon.IRange;
+	range:editorCommon.IRange;
 }
 
 /**
  * Interface used to find occurrences of a symbol
  */
 export interface IOccurrencesSupport {
-	findOccurrences(resource:URI, position:EditorCommon.IPosition, strict?:boolean):TPromise<IOccurence[]>;
+	findOccurrences(resource:URI, position:editorCommon.IPosition, strict?:boolean):TPromise<IOccurence[]>;
 }
 
 
@@ -494,7 +456,7 @@ export interface IOccurrencesSupport {
  */
 export interface IReference {
 	resource: URI;
-	range: EditorCommon.IRange;
+	range: editorCommon.IRange;
 }
 
 /**
@@ -512,7 +474,7 @@ export interface IReferenceSupport {
 	 * @returns a list of reference of the symbol at the position in the
 	 * 	given resource.
 	 */
-	findReferences(resource:URI, position:EditorCommon.IPosition, includeDeclaration:boolean):TPromise<IReference[]>;
+	findReferences(resource:URI, position:editorCommon.IPosition, includeDeclaration:boolean):TPromise<IReference[]>;
 }
 
 /**
@@ -520,12 +482,12 @@ export interface IReferenceSupport {
  */
 export interface IDeclarationSupport {
 	canFindDeclaration(context:ILineContext, offset:number):boolean;
-	findDeclaration(resource:URI, position:EditorCommon.IPosition):TPromise<IReference|IReference[]>;
+	findDeclaration(resource:URI, position:editorCommon.IPosition):TPromise<IReference|IReference[]>;
 }
 
 export interface ITypeDeclarationSupport {
 	canFindTypeDeclaration(context:ILineContext, offset:number):boolean;
-	findTypeDeclaration(resource:URI, position:EditorCommon.IPosition):TPromise<IReference>;
+	findTypeDeclaration(resource:URI, position:editorCommon.IPosition):TPromise<IReference>;
 }
 
 /**
@@ -536,7 +498,7 @@ export interface IOutlineEntry {
 	containerLabel?: string;
 	type: string;
 	icon?: string; // icon class or null to use the default images based on the type
-	range: EditorCommon.IRange;
+	range: editorCommon.IRange;
 	children?: IOutlineEntry[];
 }
 
@@ -550,10 +512,10 @@ export interface IOutlineSupport {
  */
 export interface ILogicalSelectionEntry {
 	type:string;
-	range:EditorCommon.IRange;
+	range:editorCommon.IRange;
 }
 export interface ILogicalSelectionSupport {
-	getRangesToPosition(resource:URI, position:EditorCommon.IPosition):TPromise<ILogicalSelectionEntry[]>;
+	getRangesToPosition(resource:URI, position:editorCommon.IPosition):TPromise<ILogicalSelectionEntry[]>;
 }
 
 /**
@@ -573,41 +535,25 @@ export interface IFormattingOptions {
  */
 export interface IFormattingSupport {
 
-	formatDocument?: (resource: URI, options: IFormattingOptions) => TPromise<EditorCommon.ISingleEditOperation[]>;
+	formatDocument?: (resource: URI, options: IFormattingOptions) => TPromise<editorCommon.ISingleEditOperation[]>;
 
-	formatRange?: (resource: URI, range: EditorCommon.IRange, options: IFormattingOptions) => TPromise<EditorCommon.ISingleEditOperation[]>;
+	formatRange?: (resource: URI, range: editorCommon.IRange, options: IFormattingOptions) => TPromise<editorCommon.ISingleEditOperation[]>;
 
 	autoFormatTriggerCharacters?: string[];
 
-	formatAfterKeystroke?: (resource: URI, position: EditorCommon.IPosition, ch: string, options: IFormattingOptions) => TPromise<EditorCommon.ISingleEditOperation[]>;
+	formatAfterKeystroke?: (resource: URI, position: editorCommon.IPosition, ch: string, options: IFormattingOptions) => TPromise<editorCommon.ISingleEditOperation[]>;
 }
 
 export interface IInplaceReplaceSupportResult {
 	value: string;
-	range:EditorCommon.IRange;
+	range:editorCommon.IRange;
 }
 
 /**
  * Interface used to navigate with a value-set.
  */
 export interface IInplaceReplaceSupport {
-	navigateValueSet(resource:URI, range:EditorCommon.IRange, up:boolean):TPromise<IInplaceReplaceSupportResult>;
-}
-
-
-/**
- * Interface used to compute the diff between two models.
- */
-export interface IDiffSupport {
-	computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.ILineChange[]>;
-}
-
-
-/**
- * Interface used to compute the diff between a model and its original version.
- */
-export interface IDirtyDiffSupport {
-	computeDirtyDiff(resource:URI, ignoreTrimWhitespace:boolean):TPromise<EditorCommon.IChange[]>;
+	navigateValueSet(resource:URI, range:editorCommon.IRange, up:boolean):TPromise<IInplaceReplaceSupportResult>;
 }
 
 /**
@@ -627,7 +573,7 @@ export interface IEmitOutput {
  */
 export interface ILink {
 
-	range: EditorCommon.IRange;
+	range: editorCommon.IRange;
 
 	/**
 	 * The url of the link.
@@ -646,93 +592,12 @@ export interface ILinkSupport {
  * Interface used to define a configurable editor mode.
  */
 export interface IConfigurationSupport {
-	configure(options:any):TPromise<boolean>;
-}
-
-
-
-
-/**
- * Interface used to support electric characters
- */
-export interface IElectricAction {
-	// Only one of the following properties should be defined:
-
-	// The line will be indented at the same level of the line
-	// which contains the matching given bracket type.
-	matchBracketType?:string;
-
-	// The text will be appended after the electric character.
-	appendText?:string;
-
-	// The number of characters to advance the cursor, useful with appendText
-	advanceCount?:number;
-}
-
-export enum IndentAction {
-	None,
-	Indent,
-	IndentOutdent,
-	Outdent
-}
-
-/**
- * An action the editor executes when 'enter' is being pressed
- */
-export interface IEnterAction {
-	indentAction:IndentAction;
-	appendText?:string;
-	removeText?:number;
-}
-
-export interface IElectricCharacterSupport {
-	getElectricCharacters():string[];
-	// Should return opening bracket type to match indentation with
-	onElectricCharacter(context:ILineContext, offset:number):IElectricAction;
-	onEnter(context:ILineContext, offset:number):IEnterAction;
-}
-
-export interface IOnEnterSupport {
-	onEnter(model:EditorCommon.ITokenizedModel, position: EditorCommon.IPosition): IEnterAction;
-}
-
-/**
- * Interface used to support insertion of mode specific comments.
- */
-export interface ICommentsConfiguration {
-	lineCommentTokens?:string[];
-	blockCommentStartToken?:string;
-	blockCommentEndToken?:string;
-}
-export interface ICommentsSupport {
-	getCommentsConfiguration():ICommentsConfiguration;
-}
-
-
-
-/**
- * Interface used to support insertion of matching characters like brackets and qoutes.
- */
-export interface IAutoClosingPair {
-	open:string;
-	close:string;
-}
-export interface ICharacterPairSupport {
-	getAutoClosingPairs():IAutoClosingPairConditional[];
-	shouldAutoClosePair(character:string, context:ILineContext, offset:number):boolean;
-	getSurroundingPairs():IAutoClosingPair[];
-}
-
-/**
- * Interface used to support the classification of tokens.
- */
-export interface ITokenTypeClassificationSupport {
-	getWordDefinition():RegExp;
+	configure(options:any):TPromise<void>;
 }
 
 export interface IResourceEdit {
 	resource: URI;
-	range?: EditorCommon.IRange;
+	range?: editorCommon.IRange;
 	newText: string;
 }
 
@@ -749,7 +614,7 @@ export interface IRenameSupport {
 
 	filter?: string[];
 
-	rename(resource: URI, position: EditorCommon.IPosition, newName: string): TPromise<IRenameResult>;
+	rename(resource: URI, position: editorCommon.IPosition, newName: string): TPromise<IRenameResult>;
 }
 
 export interface ICommand {
@@ -759,7 +624,7 @@ export interface ICommand {
 }
 
 export interface ICodeLensSymbol {
-	range: EditorCommon.IRange;
+	range: editorCommon.IRange;
 	id?: string;
 	command?: ICommand;
 }
@@ -784,51 +649,114 @@ export interface ITaskSupport {
 	clean?():TPromise<void>;
 }
 
-/**
- * Standard brackets used for auto indentation
- */
-export interface IBracketPair {
-	tokenType:string;
-	open:string;
-	close:string;
-	isElectric:boolean;
-}
-
-/**
- * Regular expression based brackets. These are always electric.
- */
-export interface IRegexBracketPair {
-	openTrigger?: string; // The character that will trigger the evaluation of 'open'.
-	open: RegExp; // The definition of when an opening brace is detected. This regex is matched against the entire line upto, and including the last typed character (the trigger character).
-	closeComplete?: string; // How to complete a matching open brace. Matches from 'open' will be expanded, e.g. '</$1>'
-	matchCase?: boolean; // If set to true, the case of the string captured in 'open' will be detected an applied also to 'closeComplete'.
-						// This is useful for cases like BEGIN/END or begin/end where the opening and closing phrases are unrelated.
-						// For identical phrases, use the $1 replacement syntax above directly in closeComplete, as it will
-						// include the proper casing from the captured string in 'open'.
-						// Upper/Lower/Camel cases are detected. Camel case dection uses only the first two characters and assumes
-						// that 'closeComplete' contains wors separated by spaces (e.g. 'End Loop')
-
-	closeTrigger?: string; // The character that will trigger the evaluation of 'close'.
-	close?: RegExp; // The definition of when a closing brace is detected. This regex is matched against the entire line upto, and including the last typed character (the trigger character).
-	tokenType?: string; // The type of the token. Matches from 'open' or 'close' will be expanded, e.g. 'keyword.$1'.
-					// Only used to auto-(un)indent a closing bracket.
-}
-
-/**
- * Definition of documentation comments (e.g. Javadoc/JSdoc)
- */
-export interface IDocComment {
-	scope: string; // What tokens should be used to detect a doc comment (e.g. 'comment.documentation').
-	open: string; // The string that starts a doc comment (e.g. '/**')
-	lineStart: string; // The string that appears at the start of each line, except the first and last (e.g. ' * ').
-	close?: string; // The string that appears on the last line and closes the doc comment (e.g. ' */').
-}
+export type CharacterPair = [string, string];
 
 export interface IAutoClosingPairConditional extends IAutoClosingPair {
 	notIn?: string[];
 }
 
-export interface ICharacterPairContribution {
-	autoClosingPairs: IAutoClosingPairConditional[];
-	surroundingPairs?: IAutoClosingPair[];
+/**
+ * Interface used to support electric characters
+ */
+export interface IElectricAction {
+	// Only one of the following properties should be defined:
+
+	// The line will be indented at the same level of the line
+	// which contains the matching given bracket type.
+	matchOpenBracket?:string;
+
+	// The text will be appended after the electric character.
+	appendText?:string;
+
+	// The number of characters to advance the cursor, useful with appendText
+	advanceCount?:number;
+}
+
+export enum IndentAction {
+	None,
+	Indent,
+	IndentOutdent,
+	Outdent
+}
+
+/**
+ * An action the editor executes when 'enter' is being pressed
+ */
+export interface IEnterAction {
+	indentAction:IndentAction;
+	appendText?:string;
+	removeText?:number;
+}
+
+export interface IRichEditElectricCharacter {
+	getElectricCharacters():string[];
+	// Should return opening bracket type to match indentation with
+	onElectricCharacter(context:ILineContext, offset:number):IElectricAction;
+}
+
+export interface IRichEditOnEnter {
+	onEnter(model:editorCommon.ITokenizedModel, position: editorCommon.IPosition): IEnterAction;
+}
+
+/**
+ * Interface used to support insertion of mode specific comments.
+ */
+export interface ICommentsConfiguration {
+	lineCommentToken?:string;
+	blockCommentStartToken?:string;
+	blockCommentEndToken?:string;
+}
+
+/**
+ * Interface used to support insertion of matching characters like brackets and qoutes.
+ */
+export interface IAutoClosingPair {
+	open:string;
+	close:string;
+}
+export interface IRichEditCharacterPair {
+	getAutoClosingPairs():IAutoClosingPairConditional[];
+	shouldAutoClosePair(character:string, context:ILineContext, offset:number):boolean;
+	getSurroundingPairs():IAutoClosingPair[];
+}
+
+export interface IRichEditBrackets {
+	maxBracketLength: number;
+	forwardRegex: RegExp;
+	reversedRegex: RegExp;
+	brackets: editorCommon.IRichEditBracket[];
+	textIsBracket: {[text:string]:editorCommon.IRichEditBracket;};
+	textIsOpenBracket: {[text:string]:boolean;};
+}
+
+export interface IRichEditSupport {
+	/**
+	 * Optional adapter for electric characters.
+	 */
+	electricCharacter?:IRichEditElectricCharacter;
+
+	/**
+	 * Optional adapter for comment insertion.
+	 */
+	comments?:ICommentsConfiguration;
+
+	/**
+	 * Optional adapter for insertion of character pair.
+	 */
+	characterPair?:IRichEditCharacterPair;
+
+	/**
+	 * Optional adapter for classification of tokens.
+	 */
+	wordDefinition?: RegExp;
+
+	/**
+	 * Optional adapter for custom Enter handling.
+	 */
+	onEnter?: IRichEditOnEnter;
+
+	/**
+	 * Optional adapter for brackets.
+	 */
+	brackets?: IRichEditBrackets;
 }

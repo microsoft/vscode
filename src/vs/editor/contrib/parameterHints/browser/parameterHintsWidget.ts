@@ -6,38 +6,36 @@
 'use strict';
 
 import 'vs/css!./parameterHints';
+import {ListenerUnbind} from 'vs/base/common/eventEmitter';
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
-import lifecycle = require('vs/base/common/lifecycle');
-import Builder = require('vs/base/browser/builder');
-import Model = require('./parameterHintsModel');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import EventEmitter = require('vs/base/common/eventEmitter');
-
-var $ = Builder.$;
+import {Builder, $} from 'vs/base/browser/builder';
+import {EventType, ICursorSelectionChangedEvent} from 'vs/editor/common/editorCommon';
+import {IParameterHints, ISignature} from 'vs/editor/common/modes';
+import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition} from 'vs/editor/browser/editorBrowser';
+import {IHintEvent, ParameterHintsModel} from './parameterHintsModel';
 
 interface ISignatureView {
 	top: number;
 	height: number;
 }
 
-export class ParameterHintsWidget implements EditorBrowser.IContentWidget {
+export class ParameterHintsWidget implements IContentWidget {
 
 	static ID = 'editor.widget.parameterHintsWidget';
 
-	private editor: EditorBrowser.ICodeEditor;
-	private modelListenersToRemove: EventEmitter.ListenerUnbind[];
-	private model: Model.ParameterHintsModel;
-	private $el: Builder.Builder;
-	private $wrapper: Builder.Builder;
-	private $signatures: Builder.Builder;
-	private $overloads: Builder.Builder;
+	private editor: ICodeEditor;
+	private modelListenersToRemove: ListenerUnbind[];
+	private model: ParameterHintsModel;
+	private $el: Builder;
+	private $wrapper: Builder;
+	private $signatures: Builder;
+	private $overloads: Builder;
 	private signatureViews: ISignatureView[];
 	private currentSignature: number;
 	private isDisposed: boolean;
 	private isVisible: boolean;
-	private toDispose: lifecycle.IDisposable[];
+	private toDispose: IDisposable[];
 
 	private _onShown: () => void;
 	private _onHidden: () => void;
@@ -45,7 +43,7 @@ export class ParameterHintsWidget implements EditorBrowser.IContentWidget {
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
 
-	constructor(model: Model.ParameterHintsModel, editor: EditorBrowser.ICodeEditor, onShown: () => void, onHidden: () => void) {
+	constructor(model: ParameterHintsModel, editor: ICodeEditor, onShown: () => void, onHidden: () => void) {
 		this._onShown = onShown;
 		this._onHidden = onHidden;
 		this.editor = editor;
@@ -89,16 +87,16 @@ export class ParameterHintsWidget implements EditorBrowser.IContentWidget {
 
 		this.toDispose = [];
 
-		this.toDispose.push(this.editor.addListener2(EditorCommon.EventType.CursorSelectionChanged,(e: EditorCommon.ICursorSelectionChangedEvent) => {
+		this.toDispose.push(this.editor.addListener2(EventType.CursorSelectionChanged,(e: ICursorSelectionChangedEvent) => {
 			this.editor.layoutContentWidget(this);
 		}));
 	}
 
-	private setModel(newModel: Model.ParameterHintsModel): void {
+	private setModel(newModel: ParameterHintsModel): void {
 		this.releaseModel();
 		this.model = newModel;
 
-		this.modelListenersToRemove.push(this.model.addListener('hint', (e:Model.IHintEvent) => {
+		this.modelListenersToRemove.push(this.model.addListener('hint', (e:IHintEvent) => {
 			this.show();
 			this.render(e.hints);
 			this.currentSignature = e.hints.currentSignature;
@@ -134,17 +132,17 @@ export class ParameterHintsWidget implements EditorBrowser.IContentWidget {
 		this.editor.layoutContentWidget(this);
 	}
 
-	public getPosition():EditorBrowser.IContentWidgetPosition {
+	public getPosition():IContentWidgetPosition {
 		if (this.isVisible) {
 			return {
 				position: this.editor.getPosition(),
-				preference: [EditorBrowser.ContentWidgetPositionPreference.ABOVE, EditorBrowser.ContentWidgetPositionPreference.BELOW]
+				preference: [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW]
 			};
 		}
 		return null;
 	}
 
-	private render(hints:Modes.IParameterHints): void {
+	private render(hints:IParameterHints): void {
 		if (hints.signatures.length > 1) {
 			this.$el.addClass('multiple');
 		} else {
@@ -172,7 +170,7 @@ export class ParameterHintsWidget implements EditorBrowser.IContentWidget {
 		}
 	}
 
-	private renderSignature($el:Builder.Builder, signature:Modes.ISignature, currentParameter:number):Builder.Builder {
+	private renderSignature($el:Builder, signature:ISignature, currentParameter:number):Builder {
 
 		var $signature = $('.signature').appendTo($el),
 			hasParameters = signature.parameters.length > 0;
@@ -199,7 +197,7 @@ export class ParameterHintsWidget implements EditorBrowser.IContentWidget {
 		return $signature;
 	}
 
-	private renderDocumentation($el:Builder.Builder, signature:Modes.ISignature, activeParameterIdx:number): void {
+	private renderDocumentation($el:Builder, signature:ISignature, activeParameterIdx:number): void {
 
 		if(signature.documentation) {
 			$el.append($('.documentation').text(signature.documentation));
@@ -285,7 +283,7 @@ export class ParameterHintsWidget implements EditorBrowser.IContentWidget {
 	}
 
 	public destroy(): void {
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = disposeAll(this.toDispose);
 		this.releaseModel();
 
 		if (this.$overloads) {

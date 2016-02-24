@@ -111,10 +111,22 @@ export function fromViewColumn(column?: vscode.ViewColumn): EditorPosition {
 	return editorColumn;
 }
 
+export function toViewColumn(position?: EditorPosition): vscode.ViewColumn {
+	if (typeof position !== 'number') {
+		return;
+	}
+	if (position === EditorPosition.LEFT) {
+		return <number> types.ViewColumn.One;
+	} else if (position === EditorPosition.CENTER) {
+		return <number> types.ViewColumn.Two;
+	} else if (position === EditorPosition.RIGHT) {
+		return <number> types.ViewColumn.Three;
+	}
+}
 
 export function fromFormattedString(value: vscode.MarkedString): IHTMLContentElement {
 	if (typeof value === 'string') {
-		return { formattedText: value };
+		return { markdown: value };
 	} else if (typeof value === 'object') {
 		return { code: value };
 	}
@@ -124,8 +136,8 @@ export function toFormattedString(value: IHTMLContentElement): vscode.MarkedStri
 	if (typeof value.code === 'string') {
 		return value.code;
 	}
-	let {formattedText, text} = value;
-	return formattedText || text || '<???>';
+	let {markdown, text} = value;
+	return markdown || text || '<???>';
 }
 
 function isMarkedStringArr(something: vscode.MarkedString | vscode.MarkedString[]): something is vscode.MarkedString[] {
@@ -150,7 +162,7 @@ function isRangeWithMessageArr(something: vscode.Range[]|vscode.DecorationOption
 	if (something.length === 0) {
 		return true;
 	}
-	return isRangeWithMessage(something[0]);
+	return isRangeWithMessage(something[0]) ? true : false;
 }
 
 export function fromRangeOrRangeWithMessage(ranges:vscode.Range[]|vscode.DecorationOptions[]): IRangeWithMessage[] {
@@ -198,9 +210,11 @@ export namespace SymbolKind {
 				return 'class';
 			case types.SymbolKind.Interface:
 				return 'interface';
-			case types.SymbolKind.Module:
 			case types.SymbolKind.Namespace:
+				return 'namespace';
 			case types.SymbolKind.Package:
+				return 'package';
+			case types.SymbolKind.Module:
 				return 'module';
 			case types.SymbolKind.Property:
 				return 'property';
@@ -216,6 +230,12 @@ export namespace SymbolKind {
 				return 'number';
 			case types.SymbolKind.Boolean:
 				return 'boolean';
+			case types.SymbolKind.Object:
+				return 'object';
+			case types.SymbolKind.Key:
+				return 'key';
+			case types.SymbolKind.Null:
+				return 'null';
 		}
 		return 'property';
 	}
@@ -234,9 +254,11 @@ export namespace SymbolKind {
 				return types.SymbolKind.Class;
 			case 'interface':
 				return types.SymbolKind.Interface;
+			case 'namespace':
+				return types.SymbolKind.Namespace;
+			case 'package':
+				return types.SymbolKind.Package;
 			case 'module':
-			// case types.SymbolKind.Namespace:
-			// case types.SymbolKind.Package:
 				return types.SymbolKind.Module;
 			case 'property':
 				return types.SymbolKind.Property;
@@ -252,6 +274,12 @@ export namespace SymbolKind {
 				return types.SymbolKind.Number;
 			case 'boolean':
 				return types.SymbolKind.Boolean;
+			case 'object':
+				return types.SymbolKind.Object;
+			case 'key':
+				return types.SymbolKind.Key;
+			case 'null':
+				return types.SymbolKind.Null;
 		}
 		return types.SymbolKind.Property;
 	}
@@ -303,12 +331,12 @@ export const location = {
 		return {
 			range: fromRange(value.range),
 			resource: value.uri
-		}
+		};
 	},
 	to(value: modes.IReference): types.Location {
 		return new types.Location(value.resource, toRange(value.range));
 	}
-}
+};
 
 export function fromHover(hover: vscode.Hover): modes.IComputeExtraInfoResult {
 	return <modes.IComputeExtraInfoResult>{
@@ -454,7 +482,7 @@ export namespace Command {
 			_cache[id] = command;
 
 			const disposable1 = context.commands.registerCommand(id, () => context.commands.executeCommand(command.command, ..._cache[id].arguments));
-			const disposable2 = { dispose() { delete _cache[id] } };
+			const disposable2 = { dispose() { delete _cache[id]; } };
 			context.disposables.push(disposable1, disposable2);
 		}
 
@@ -468,7 +496,7 @@ export namespace Command {
 			result = {
 				command: command.id,
 				title: command.title
-			}
+			};
 		}
 		return result;
 	}

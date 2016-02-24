@@ -8,21 +8,16 @@ import 'vs/css!./typescript';
 import nls = require('vs/nls');
 import env = require('vs/base/common/flags');
 import platform = require('vs/platform/platform');
-import modesExtensions = require('vs/editor/common/modes/modesRegistry');
+import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
-import typescript = require('vs/languages/typescript/common/typescript');
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import suggest = require('vs/editor/contrib/suggest/common/suggest');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import options = require('vs/languages/typescript/common/options');
-import defaults = options.typeScriptOptions;
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+let defaults = options.typeScriptOptions;
 
 // ----- Registration and Configuration --------------------------------------------------------
 
 if (!env.enableTypeScriptServiceMode) {
 
-	modesExtensions.registerMode({
+	ModesRegistry.registerCompatMode({
 		id: 'typescript',
 		extensions: ['.ts'],
 		aliases: ['TypeScript', 'ts', 'typescript'],

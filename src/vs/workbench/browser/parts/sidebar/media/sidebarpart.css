@@ -3,22 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench > .sidebar > .title {
-	display: block !important; /* Enable Title visibility */
-}
-
-.monaco-workbench > .sidebar > .title > .title-label span {
-	text-transform: uppercase;
-}
-
-.monaco-workbench.vs > .sidebar > .title > .title-label span {
-	color: #6f6f6f;
-}
-
-.monaco-workbench.vs-dark > .sidebar > .title > .title-label span {
-	color: #bbbbbb;
-}
-
 .monaco-workbench > .sidebar > .title > .title-actions {
 	background-color: rgb(243, 243, 243);
 }
@@ -36,10 +20,6 @@
 	visibility: hidden !important;
 }
 
-.monaco-workbench > .sidebar > .content > .viewlet {
-	height: 100%;
-}
-
 .monaco-workbench .viewlet .collapsible.header .title {
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -49,11 +29,12 @@
 .monaco-workbench .viewlet .collapsible.header .actions {
 	float: right;
 	padding-right: 8px;
-	display: none;
+	width: 0; /* not using display: none for keyboard a11y reasons */
 }
 
-.monaco-workbench .viewlet .collapsible.header:hover .actions {
-	display: block;
+.monaco-workbench .viewlet .collapsible.header:hover .actions,
+.monaco-workbench .viewlet .collapsible.header.focused .actions {
+	width: initial;
 }
 
 .monaco-workbench .viewlet .collapsible.header .actions .action-label {
@@ -62,6 +43,7 @@
 	background-position: center center;
 	background-repeat: no-repeat;
 	margin-right: 0;
+	height: 22px;
 }
 
 .monaco-workbench .viewlet .collapsible.header .actions .action-label .label {
@@ -74,7 +56,6 @@
 
 .monaco-workbench .viewlet .collapsible.header .action-label {
 	margin-right: 0.2em;
-	margin-top: 3px;
 	background-repeat: no-repeat;
 	width: 16px;
 	height: 16px;

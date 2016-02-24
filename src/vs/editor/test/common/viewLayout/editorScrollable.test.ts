@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import EditorScrollable = require('vs/editor/common/viewLayout/editorScrollable');
+import * as assert from 'assert';
+import {EditorScrollable} from 'vs/editor/common/viewLayout/editorScrollable';
 
 suite('Editor ViewLayout - EditorScrollable', () => {
 
-	function assertScrollState(scrollable:EditorScrollable.EditorScrollable, scrollTop:number, scrollLeft:number, width:number, height:number, scrollWidth:number, scrollHeight:number) {
+	function assertScrollState(scrollable:EditorScrollable, scrollTop:number, scrollLeft:number, width:number, height:number, scrollWidth:number, scrollHeight:number) {
 		assert.equal(scrollable.getScrollTop(), scrollTop);
 		assert.equal(scrollable.getScrollLeft(), scrollLeft);
 		assert.equal(scrollable.getScrollWidth(), scrollWidth);
@@ -19,7 +19,7 @@ suite('Editor ViewLayout - EditorScrollable', () => {
 	}
 
 	test('EditorScrollable', () => {
-		var scrollable = new EditorScrollable.EditorScrollable();
+		var scrollable = new EditorScrollable();
 
 		scrollable.setWidth(100);
 		scrollable.setHeight(100);

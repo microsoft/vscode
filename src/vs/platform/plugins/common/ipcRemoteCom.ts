@@ -19,19 +19,19 @@ interface IRPCFunc {
 	(rpcId: string, method: string, args: any[]): winjs.TPromise<any>;
 }
 
-var pendingRPCReplies: { [msgId: string]: IRPCReply; } = {};
+const pendingRPCReplies: { [msgId: string]: IRPCReply; } = {};
 
-function createRPC(serializeAndSend:(obj:any)=>void): IRPCFunc {
-	var lastMessageId = 0;
+function createRPC(serializeAndSend: (obj: any) => void): IRPCFunc {
+	let lastMessageId = 0;
 
 	return function rpc(rpcId: string, method: string, args: any[]): winjs.TPromise<any> {
-		var req = String(++lastMessageId);
-		var reply: IRPCReply = {
+		let req = String(++lastMessageId);
+		let reply: IRPCReply = {
 			c: null,
 			e: null,
 			p: null
 		};
-		var r = new winjs.TPromise<any>((c, e, p) => {
+		let r = new winjs.TPromise<any>((c, e, p) => {
 			reply.c = c;
 			reply.e = e;
 			reply.p = p;
@@ -51,87 +51,123 @@ function createRPC(serializeAndSend:(obj:any)=>void): IRPCFunc {
 
 		return r;
 	};
-};
-
-export interface IPluginsIPC extends remote.IRemoteCom {
-	handle(msg: string): void;
 }
 
-export function create(send:(obj:string)=>void): IPluginsIPC {
-	var rpc = createRPC(serializeAndSend);
-	var bigHandler: remote.IManyHandler = null;
-	var invokedHandlers: { [req: string]: winjs.TPromise<any>; } = Object.create(null);
+export interface IPluginsIPC extends remote.IRemoteCom {
+	handle(msg: string[]): void;
+}
 
-	var r: IPluginsIPC = {
+export function create(send: (obj: string[]) => void): IPluginsIPC {
+	let rpc = createRPC(marshallAndSend);
+	let bigHandler: remote.IManyHandler = null;
+	let invokedHandlers: { [req: string]: winjs.TPromise<any>; } = Object.create(null);
+	let messagesToSend: string[] = [];
+
+	let messagesToReceive: string[] = [];
+	let receiveOneMessage = () => {
+		let rawmsg = messagesToReceive.shift();
+
+		if (messagesToReceive.length > 0) {
+			process.nextTick(receiveOneMessage);
+		}
+
+		let msg = marshalling.parse(rawmsg);
+
+		if (msg.seq) {
+			if (!pendingRPCReplies.hasOwnProperty(msg.seq)) {
+				console.warn('Got reply to unknown seq');
+				return;
+			}
+			let reply = pendingRPCReplies[msg.seq];
+			delete pendingRPCReplies[msg.seq];
+
+			if (msg.err) {
+				let err = msg.err;
+				if (msg.err.$isError) {
+					err = new Error();
+					err.name = msg.err.name;
+					err.message = msg.err.message;
+					err.stack = msg.err.stack;
+				}
+				reply.e(err);
+				return;
+			}
+
+			reply.c(msg.res);
+			return;
+		}
+
+		if (msg.cancel) {
+			if (invokedHandlers[msg.cancel]) {
+				invokedHandlers[msg.cancel].cancel();
+			}
+			return;
+		}
+
+		if (msg.err) {
+			console.error(msg.err);
+			return;
+		}
+
+		let rpcId = msg.rpcId;
+
+		if (!bigHandler) {
+			throw new Error('got message before big handler attached!');
+		}
+
+		let req = msg.req;
+
+		invokedHandlers[req] = invokeHandler(rpcId, msg.method, msg.args);
+
+		invokedHandlers[req].then((r) => {
+			delete invokedHandlers[req];
+			marshallAndSend({
+				seq: req,
+				res: r
+			});
+		}, (err) => {
+			delete invokedHandlers[req];
+			marshallAndSend({
+				seq: req,
+				err: errors.transformErrorForSerialization(err)
+			});
+		});
+	};
+
+	let r: IPluginsIPC = {
 		callOnRemote: rpc,
-		registerBigHandler: (_bigHandler: remote.IManyHandler): void => {
+		setManyHandler: (_bigHandler: remote.IManyHandler): void => {
 			bigHandler = _bigHandler;
 		},
 		handle: (rawmsg) => {
-			var msg = marshalling.demarshallObject(rawmsg, proxiesMarshalling);
-
-			if (msg.seq) {
-				if (!pendingRPCReplies.hasOwnProperty(msg.seq)) {
-					console.warn('Got reply to unknown seq');
-					return;
-				}
-				var reply = pendingRPCReplies[msg.seq];
-				delete pendingRPCReplies[msg.seq];
-
-				if (msg.err) {
-					reply.e(msg.err);
-					return;
-				}
-
-				reply.c(msg.res);
-				return;
+			// console.log('RECEIVED ' + rawmsg.length + ' MESSAGES.');
+			if (messagesToReceive.length === 0) {
+				process.nextTick(receiveOneMessage);
 			}
 
-			if (msg.cancel) {
-				if (invokedHandlers[msg.cancel]) {
-					invokedHandlers[msg.cancel].cancel();
-				}
-				return;
-			}
-
-			if (msg.err) {
-				console.error(msg.err);
-				return;
-			}
-
-			var rpcId = msg.rpcId;
-
-			if (!bigHandler) {
-				throw new Error('got message before big handler attached!');
-			}
-
-			var req = msg.req;
-
-			invokedHandlers[req] = invokeHandler(rpcId, msg.method, msg.args);
-
-			invokedHandlers[req].then((r) => {
-				delete invokedHandlers[req];
-				serializeAndSend({
-					seq: req,
-					res: r
-				});
-			},(err) => {
-				delete invokedHandlers[req];
-				serializeAndSend({
-					seq: req,
-					err: errors.transformErrorForSerialization(err)
-				});
-			});
+			messagesToReceive = messagesToReceive.concat(rawmsg);
 		}
 	};
 
-	var proxiesMarshalling = new remote.ProxiesMarshallingContribution(r);
+	function sendAccumulated(): void {
+		let tmp = messagesToSend;
+		messagesToSend = [];
 
-	function serializeAndSend(msg:any): void {
-		send(marshalling.marshallObject(msg, proxiesMarshalling));
+		// console.log('SENDING ' + tmp.length + ' MESSAGES.');
+		send(tmp);
 	}
 
-	function invokeHandler(rpcId:string, method:string, args:any[]): winjs.TPromise<any> {
+	function marshallAndSend(msg: any): void {
+		let value = marshalling.stringify(msg);
+
+		if (messagesToSend.length === 0) {
+			process.nextTick(sendAccumulated);
+		}
+
+		messagesToSend.push(value);
+	}
+
+	function invokeHandler(rpcId: string, method: string, args: any[]): winjs.TPromise<any> {
 		try {
 			return winjs.TPromise.as(bigHandler.handle(rpcId, method, args));
 		} catch (err) {
@@ -140,5 +176,5 @@ export function create(send:(obj:string)=>void): IPluginsIPC {
 	}
 
 	return r;
-};
+}
 

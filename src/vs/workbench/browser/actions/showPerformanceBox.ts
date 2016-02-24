@@ -4,16 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {TimeKeeperRenderer} from 'vs/base/browser/ui/timer/timer';
-import {Registry} from 'vs/platform/platform';
 import {Action} from 'vs/base/common/actions';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
-
-const ID = 'workbench.action.showPerfBox';
-const LABEL = 'Display Performance Box';
 
 let timeKeeperRenderer: TimeKeeperRenderer = null;
 
@@ -23,18 +17,18 @@ export class ShowPerformanceBox extends Action {
 		super(id, label, null, true);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		if (timeKeeperRenderer === null) {
 			timeKeeperRenderer = new TimeKeeperRenderer(() => {
 				timeKeeperRenderer.destroy();
 				timeKeeperRenderer = null;
 			});
 		}
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
-if (false /* Env.enablePerformanceTools */) {
-	let registry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
-	registry.registerWorkbenchAction(new SyncActionDescriptor(ShowPerformanceBox, ID, LABEL));
-}
+// if (false /* Env.enablePerformanceTools */) {
+// 	let registry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
+// 	registry.registerWorkbenchAction(new SyncActionDescriptor(ShowPerformanceBox, ID, LABEL));
+// }

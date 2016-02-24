@@ -14,7 +14,7 @@ import Instantiation = require('vs/platform/instantiation/common/instantiation')
 import {KbExpr, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
-export var IActionsService = createDecorator<IActionsService>('actionsService');
+export let IActionsService = createDecorator<IActionsService>('actionsService');
 
 export interface IActionsService {
 	serviceId: ServiceIdentifier<any>;
@@ -31,8 +31,8 @@ export class SyncActionDescriptor {
 	private _keybindingContext: KbExpr;
 	private _keybindingWeight: number;
 
-	constructor(ctor:Instantiation.INewConstructorSignature2<string, string, Actions.Action>,
-		id:string, label:string, keybindings?:IKeybindings, keybindingContext?:KbExpr, keybindingWeight?:number
+	constructor(ctor: Instantiation.IConstructorSignature2<string, string, Actions.Action>,
+		id: string, label: string, keybindings?: IKeybindings, keybindingContext?: KbExpr, keybindingWeight?: number
 	) {
 		this._id = id;
 		this._label = label;
@@ -46,15 +46,15 @@ export class SyncActionDescriptor {
 		return this._descriptor;
 	}
 
-	public get id():string {
+	public get id(): string {
 		return this._id;
 	}
 
-	public get label():string {
+	public get label(): string {
 		return this._label;
 	}
 
-	public get keybindings():IKeybindings {
+	public get keybindings(): IKeybindings {
 		return this._keybindings;
 	}
 
@@ -72,24 +72,24 @@ export class SyncActionDescriptor {
  * module loading up to the point until the run method is being executed.
  */
 export class DeferredAction extends Actions.Action {
-	private _cachedAction:Actions.IAction;
-	private _emitterUnbind:EventEmitter.ListenerUnbind;
+	private _cachedAction: Actions.IAction;
+	private _emitterUnbind: EventEmitter.ListenerUnbind;
 
-	constructor(private _instantiationService:Instantiation.IInstantiationService, private _descriptor:Descriptors.AsyncDescriptor<Actions.Action>,
-		id:string, label='', cssClass='', enabled= true) {
+	constructor(private _instantiationService: Instantiation.IInstantiationService, private _descriptor: Descriptors.AsyncDescriptor<Actions.Action>,
+		id: string, label = '', cssClass = '', enabled = true) {
 
 		super(id, label, cssClass, enabled);
 	}
 
-	public get cachedAction():Actions.IAction {
+	public get cachedAction(): Actions.IAction {
 		return this._cachedAction;
 	}
 
-	public set cachedAction(action:Actions.IAction) {
+	public set cachedAction(action: Actions.IAction) {
 		this._cachedAction = action;
 	}
 
-	public get id():string {
+	public get id(): string {
 		if (this._cachedAction instanceof Actions.Action) {
 			return this._cachedAction.id;
 		}
@@ -97,7 +97,7 @@ export class DeferredAction extends Actions.Action {
 		return this._id;
 	}
 
-	public get label():string {
+	public get label(): string {
 		if (this._cachedAction instanceof Actions.Action) {
 			return this._cachedAction.label;
 		}
@@ -105,7 +105,7 @@ export class DeferredAction extends Actions.Action {
 		return this._label;
 	}
 
-	public set label(value:string) {
+	public set label(value: string) {
 		if (this._cachedAction instanceof Actions.Action) {
 			this._cachedAction.label = value;
 		} else {
@@ -113,7 +113,7 @@ export class DeferredAction extends Actions.Action {
 		}
 	}
 
-	public get class():string {
+	public get class(): string {
 		if (this._cachedAction instanceof Actions.Action) {
 			return this._cachedAction.class;
 		}
@@ -121,7 +121,7 @@ export class DeferredAction extends Actions.Action {
 		return this._cssClass;
 	}
 
-	public set class(value:string) {
+	public set class(value: string) {
 		if (this._cachedAction instanceof Actions.Action) {
 			this._cachedAction.class = value;
 		} else {
@@ -129,14 +129,14 @@ export class DeferredAction extends Actions.Action {
 		}
 	}
 
-	public get enabled():boolean {
+	public get enabled(): boolean {
 		if (this._cachedAction instanceof Actions.Action) {
 			return this._cachedAction.enabled;
 		}
 		return this._enabled;
 	}
 
-	public set enabled(value:boolean) {
+	public set enabled(value: boolean) {
 		if (this._cachedAction instanceof Actions.Action) {
 			this._cachedAction.enabled = value;
 		} else {
@@ -144,14 +144,14 @@ export class DeferredAction extends Actions.Action {
 		}
 	}
 
-	public get order():number {
+	public get order(): number {
 		if (this._cachedAction instanceof Actions.Action) {
 			return (<Actions.Action>this._cachedAction).order;
 		}
 		return this._order;
 	}
 
-	public set order(order:number) {
+	public set order(order: number) {
 		if (this._cachedAction instanceof Actions.Action) {
 			(<Actions.Action>this._cachedAction).order = order;
 		} else {
@@ -159,17 +159,17 @@ export class DeferredAction extends Actions.Action {
 		}
 	}
 
-	public run(event?:any):WinJS.Promise {
-		if(this._cachedAction) {
+	public run(event?: any): WinJS.Promise {
+		if (this._cachedAction) {
 			return this._cachedAction.run(event);
 		}
-		return this._createAction().then((action:Actions.IAction)=>{
+		return this._createAction().then((action: Actions.IAction) => {
 			return action.run(event);
 		});
 	}
 
-	private _createAction():WinJS.TPromise<Actions.IAction> {
-		var promise = WinJS.TPromise.as(undefined);
+	private _createAction(): WinJS.TPromise<Actions.IAction> {
+		let promise = WinJS.TPromise.as(undefined);
 		return promise.then(() => {
 			return this._instantiationService.createInstance(this._descriptor);
 
@@ -184,11 +184,11 @@ export class DeferredAction extends Actions.Action {
 		});
 	}
 
-	public dispose():void {
+	public dispose(): void {
 		if (this._emitterUnbind) {
 			this._emitterUnbind();
 		}
-		if(this._cachedAction) {
+		if (this._cachedAction) {
 			this._cachedAction.dispose();
 		}
 		super.dispose();

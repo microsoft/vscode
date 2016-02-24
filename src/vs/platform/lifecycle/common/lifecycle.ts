@@ -8,7 +8,7 @@ import winjs = require('vs/base/common/winjs.base');
 import Event from 'vs/base/common/event';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
-export var ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
+export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
 export interface IBeforeShutdownParticipant {
 

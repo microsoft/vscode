@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise, Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import {ListenerUnbind} from 'vs/base/common/eventEmitter';
 import Event, {Emitter} from 'vs/base/common/event';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
-import {IResult, ITextFileOperationResult, ConfirmResult, ITextFileService, IAutoSaveConfiguration} from 'vs/workbench/parts/files/common/files';
+import {IResult, ITextFileOperationResult, ConfirmResult, ITextFileService, IAutoSaveConfiguration, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {EventType} from 'vs/workbench/common/events';
 import {WorkingFilesModel} from 'vs/workbench/parts/files/common/workingFilesModel';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {IFilesConfiguration, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
+import {IFilesConfiguration, IFileOperationResult, FileOperationResult, AutoSaveConfiguration} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -98,22 +98,37 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
-		const wasAutoSaveEnabled = this.isAutoSaveEnabled();
+		const wasAutoSaveEnabled = (this.getAutoSaveMode() !== AutoSaveMode.OFF);
 
-		this.configuredAutoSaveDelay = configuration && configuration.files && configuration.files.autoSaveDelay;
-		this.configuredAutoSaveOnFocusChange = configuration && configuration.files && configuration.files.autoSaveFocusChange;
+		const autoSaveMode = (configuration && configuration.files && configuration.files.autoSave) || AutoSaveConfiguration.OFF;
+		switch (autoSaveMode) {
+			case AutoSaveConfiguration.AFTER_DELAY:
+				this.configuredAutoSaveDelay = configuration && configuration.files && configuration.files.autoSaveDelay;
+				this.configuredAutoSaveOnFocusChange = false;
+				break;
+
+			case AutoSaveConfiguration.ON_FOCUS_CHANGE:
+				this.configuredAutoSaveDelay = void 0;
+				this.configuredAutoSaveOnFocusChange = true;
+				break;
+
+			default:
+				this.configuredAutoSaveDelay = void 0;
+				this.configuredAutoSaveOnFocusChange = false;
+				break;
+		}
 
 		// Emit as event
 		this._onAutoSaveConfigurationChange.fire(this.getAutoSaveConfiguration());
 
 		// save all dirty when enabling auto save
-		if (!wasAutoSaveEnabled && this.isAutoSaveEnabled()) {
+		if (!wasAutoSaveEnabled && this.getAutoSaveMode() !== AutoSaveMode.OFF) {
 			this.saveAll().done(null, errors.onUnexpectedError);
 		}
 	}
 
-	public getDirty(resource?: URI): URI[] {
-		return this.getDirtyFileModels(resource).map((m) => m.getResource());
+	public getDirty(resources?: URI[]): URI[] {
+		return this.getDirtyFileModels(resources).map((m) => m.getResource());
 	}
 
 	public isDirty(resource?: URI): boolean {
@@ -136,7 +151,7 @@ export abstract class TextFileService implements ITextFileService {
 			};
 		});
 
-		return Promise.join(dirtyFileModels.map((model) => {
+		return TPromise.join(dirtyFileModels.map((model) => {
 			return model.save().then(() => {
 				if (!model.isDirty()) {
 					mapResourceToResult[model.getResource().toString()].success = true;
@@ -172,7 +187,7 @@ export abstract class TextFileService implements ITextFileService {
 
 	public abstract saveAs(resource: URI, targetResource?: URI): TPromise<URI>;
 
-	public confirmSave(resource?: URI): ConfirmResult {
+	public confirmSave(resources?: URI[]): ConfirmResult {
 		throw new Error('Unsupported');
 	}
 
@@ -190,7 +205,7 @@ export abstract class TextFileService implements ITextFileService {
 			};
 		});
 
-		return Promise.join(fileModels.map((model) => {
+		return TPromise.join(fileModels.map((model) => {
 			return model.revert().then(() => {
 				if (!model.isDirty()) {
 					mapResourceToResult[model.getResource().toString()].success = true;
@@ -211,7 +226,7 @@ export abstract class TextFileService implements ITextFileService {
 
 				// Otherwise bubble up the error
 				else {
-					return Promise.wrapError(error);
+					return TPromise.wrapError(error);
 				}
 			});
 		})).then((r) => {
@@ -233,15 +248,23 @@ export abstract class TextFileService implements ITextFileService {
 		return this.workingFilesModel;
 	}
 
-	public isAutoSaveEnabled(): boolean {
-		return this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 || this.configuredAutoSaveOnFocusChange;
+	public getAutoSaveMode(): AutoSaveMode {
+		if (this.configuredAutoSaveOnFocusChange) {
+			return AutoSaveMode.ON_FOCUS_CHANGE;
+		}
+
+		if (this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0) {
+			return this.configuredAutoSaveDelay <= 1000 ? AutoSaveMode.AFTER_SHORT_DELAY :  AutoSaveMode.AFTER_LONG_DELAY;
+		}
+
+		return AutoSaveMode.OFF;
 	}
 
 	public getAutoSaveConfiguration(): IAutoSaveConfiguration {
 		return {
 			autoSaveDelay: this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 ? this.configuredAutoSaveDelay : void 0,
 			autoSaveFocusChange: this.configuredAutoSaveOnFocusChange
-		}
+		};
 	}
 
 	public dispose(): void {

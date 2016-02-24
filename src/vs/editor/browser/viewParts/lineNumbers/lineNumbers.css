@@ -2,8 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 .monaco-editor .margin-view-overlays .line-numbers {
 	position: absolute;
 	text-align: right;
 	cursor: url('./flipped-cursor.svg') 12.6 0, default;
+
+	display: inline-block;
+	vertical-align: middle;
+	box-sizing: border-box;
+}
+
+.monaco-editor .margin-view-overlays .line-numbers.lh-odd {
+	margin-top: 1px;
 }

@@ -9,23 +9,22 @@ import 'vs/languages/javascript/common/javascript.contribution';
 import assert = require('assert');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import htmlMode = require('vs/languages/html/common/html');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import {Model} from 'vs/editor/common/model/model';
-import Supports = require('vs/editor/common/modes/supports');
 import {getTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE, COMMENT, DELIM_COMMENT, DELIM_DOCTYPE, DOCTYPE} from 'vs/languages/html/common/htmlTokenTypes';
-
+import {getRawEnterActionAtPosition} from 'vs/editor/common/modes/supports/onEnter';
+import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
+import {TextModel} from 'vs/editor/common/model/textModel';
+import {Range} from 'vs/editor/common/core/range';
 
 suite('Colorizing - HTML', () => {
 
-	var onEnter: modesUtil.IOnEnterFunc;
 	var tokenizationSupport: Modes.ITokenizationSupport;
 	var _mode: Modes.IMode;
 
 	suiteSetup((done) => {
-		modesUtil.load('html').then(mode => {
+		modesUtil.load('html', ['javascript']).then(mode => {
 			tokenizationSupport = mode.tokenizationSupport;
-			onEnter = modesUtil.createOnEnter(mode);
 			_mode = mode;
 			done();
 		});
@@ -479,7 +478,7 @@ suite('Colorizing - HTML', () => {
 				{ startIndex:11, type: ATTRIB_VALUE },
 				{ startIndex:16, type: DELIM_START, bracket: Modes.Bracket.Close }
 			]}
-		])
+		]);
 	});
 
 	test('Tag with Name-Only-Attribute #1', () => {
@@ -609,7 +608,7 @@ suite('Colorizing - HTML', () => {
 	test('onEnter', function() {
 		var model = new Model('<script type=\"text/javascript\">function f() { foo(); }', _mode);
 
-		var actual = _mode.onEnterSupport.onEnter(model, {
+		var actual = _mode.richEditSupport.onEnter.onEnter(model, {
 			lineNumber: 1,
 			column: 46
 		});
@@ -620,21 +619,84 @@ suite('Colorizing - HTML', () => {
 	});
 
 	test('onEnter', function() {
-		assert.equal(onEnter('', 0), null);
-		assert.equal(onEnter('>', 1), null);
-		assert.equal(onEnter('span>', 5), null);
-		assert.equal(onEnter('</span>', 7), null);
-		assert.equal(onEnter('<img />', 7), null);
-		assert.equal(onEnter('<span>', 6).indentAction, Modes.IndentAction.Indent);
-		assert.equal(onEnter('<p>', 3).indentAction, Modes.IndentAction.Indent);
-		assert.equal(onEnter('<span><span>', 6).indentAction, Modes.IndentAction.Indent);
-		assert.equal(onEnter('<p><span>', 3).indentAction, Modes.IndentAction.Indent);
-		assert.equal(onEnter('<span></span>', 6).indentAction, Modes.IndentAction.IndentOutdent);
-		assert.equal(onEnter('<p></p>', 3).indentAction, Modes.IndentAction.IndentOutdent);
-		assert.equal(onEnter('<span>a</span>', 6).indentAction, Modes.IndentAction.Indent);
-		assert.equal(onEnter('<span>a</span>', 7).indentAction, Modes.IndentAction.IndentOutdent);
-		assert.equal(onEnter('<span> </span>', 6).indentAction, Modes.IndentAction.Indent);
-		assert.equal(onEnter('<span> </span>', 7).indentAction, Modes.IndentAction.IndentOutdent);
+
+		function onEnter(line:string, offset:number): Modes.IEnterAction {
+			let model = new TextModelWithTokens([], TextModel.toRawText(line), false, _mode);
+			let result = getRawEnterActionAtPosition(model, 1, offset + 1);
+			model.dispose();
+			return result;
+		}
+
+		function assertOnEnter(text:string, offset:number, expected: Modes.IndentAction): void {
+			let _actual = onEnter(text, offset);
+			let actual = _actual ? _actual.indentAction : null;
+			let actualStr = actual ? Modes.IndentAction[actual] : null;
+			let expectedStr = expected ? Modes.IndentAction[expected] : null;
+			assert.equal(actualStr, expectedStr, 'TEXT: <<' + text + '>>, OFFSET: <<' + offset + '>>');
+		}
+
+		assertOnEnter('', 0, null);
+		assertOnEnter('>', 1, null);
+		assertOnEnter('span>', 5, null);
+		assertOnEnter('</span>', 7, null);
+		assertOnEnter('<img />', 7, null);
+		assertOnEnter('<span>', 6, Modes.IndentAction.Indent);
+		assertOnEnter('<p>', 3, Modes.IndentAction.Indent);
+		assertOnEnter('<span><span>', 6, Modes.IndentAction.Indent);
+		assertOnEnter('<p><span>', 3, Modes.IndentAction.Indent);
+		assertOnEnter('<span></SPan>', 6, Modes.IndentAction.IndentOutdent);
+		assertOnEnter('<span></span>', 6, Modes.IndentAction.IndentOutdent);
+		assertOnEnter('<p></p>', 3, Modes.IndentAction.IndentOutdent);
+		assertOnEnter('<span>a</span>', 6, Modes.IndentAction.Indent);
+		assertOnEnter('<span>a</span>', 7, Modes.IndentAction.IndentOutdent);
+		assertOnEnter('<span> </span>', 6, Modes.IndentAction.Indent);
+		assertOnEnter('<span> </span>', 7, Modes.IndentAction.IndentOutdent);
+	});
+
+	test('matchBracket', () => {
+
+		function toString(brackets:EditorCommon.IEditorRange[]): string[] {
+			if (!brackets) {
+				return null;
+			}
+			brackets.sort(Range.compareRangesUsingStarts);
+			return brackets.map(b => b.toString());
+		}
+
+		function assertBracket(lines:string[], lineNumber:number, column:number, expected:EditorCommon.IEditorRange[]): void {
+			let model = new TextModelWithTokens([], TextModel.toRawText(lines.join('\n')), false, _mode);
+			// force tokenization
+			model.getLineContext(model.getLineCount());
+			let actual = model.matchBracket({
+				lineNumber: lineNumber,
+				column: column
+			});
+			let actualStr = actual ? toString(actual.brackets) : null;
+			let expectedStr = toString(expected);
+			assert.deepEqual(actualStr, expectedStr, 'TEXT <<' + lines.join('\n') + '>>, POS: ' + lineNumber + ', ' + column);
+		}
+
+		assertBracket(['<p></p>'], 1, 1, [new Range(1, 1, 1, 2), new Range(1, 3, 1, 4)]);
+		assertBracket(['<p></p>'], 1, 2, [new Range(1, 1, 1, 2), new Range(1, 3, 1, 4)]);
+		assertBracket(['<p></p>'], 1, 3, [new Range(1, 1, 1, 2), new Range(1, 3, 1, 4)]);
+		assertBracket(['<p></p>'], 1, 4, [new Range(1, 1, 1, 2), new Range(1, 3, 1, 4)]);
+		assertBracket(['<p></p>'], 1, 5, [new Range(1, 4, 1, 5), new Range(1, 7, 1, 8)]);
+		assertBracket(['<p></p>'], 1, 6, null);
+		assertBracket(['<p></p>'], 1, 7, [new Range(1, 4, 1, 5), new Range(1, 7, 1, 8)]);
+		assertBracket(['<p></p>'], 1, 8, [new Range(1, 4, 1, 5), new Range(1, 7, 1, 8)]);
+
+		assertBracket(['<script>a[a</script>a[a<script>a]a'], 1, 10, [new Range(1, 10, 1, 11), new Range(1, 33, 1, 34)]);
+		assertBracket(['<script>a[a</script>a[a<script>a]a'], 1, 11, [new Range(1, 10, 1, 11), new Range(1, 33, 1, 34)]);
+		assertBracket(['<script>a[a</script>a[a<script>a]a'], 1, 22, null);
+		assertBracket(['<script>a[a</script>a[a<script>a]a'], 1, 23, null);
+		assertBracket(['<script>a[a</script>a[a<script>a]a'], 1, 33, [new Range(1, 10, 1, 11), new Range(1, 33, 1, 34)]);
+		assertBracket(['<script>a[a</script>a[a<script>a]a'], 1, 34, [new Range(1, 10, 1, 11), new Range(1, 33, 1, 34)]);
+
+		assertBracket(['<script>a[a</script>a]a<script>a]a'], 1, 10, [new Range(1, 10, 1, 11), new Range(1, 33, 1, 34)]);
+		assertBracket(['<script>a[a</script>a]a<script>a]a'], 1, 11, [new Range(1, 10, 1, 11), new Range(1, 33, 1, 34)]);
+		assertBracket(['<script>a[a</script>a]a<script>a]a'], 1, 22, null);
+		assertBracket(['<script>a[a</script>a]a<script>a]a'], 1, 23, null);
+		assertBracket(['<script>a[a</script>a]a<script>a]a'], 1, 33, [new Range(1, 10, 1, 11), new Range(1, 33, 1, 34)]);
+		assertBracket(['<script>a[a</script>a]a<script>a]a'], 1, 34, [new Range(1, 10, 1, 11), new Range(1, 33, 1, 34)]);
 	});
 });
-

@@ -11,7 +11,7 @@ import uri from 'vs/base/common/uri';
 import { GitErrorCodes } from 'vs/workbench/parts/git/common/git';
 import gitlib = require('vs/workbench/parts/git/node/git.lib');
 import { RawGitService, DelayedRawGitService } from 'vs/workbench/parts/git/node/rawGitService';
-import { join, dirname, normalize } from 'path';
+import { join, normalize } from 'path';
 import { tmpdir } from 'os';
 import { realpath } from 'vs/base/node/pfs';
 

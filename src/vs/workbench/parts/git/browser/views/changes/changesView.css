@@ -32,16 +32,16 @@
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .content {
 	line-height: 22px;
+	display: flex;
 }
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .content .monaco-action-bar {
-	float: right;
 	display: none;
 	margin-right: 12px;
 }
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .content .monaco-action-bar .action-item {
-	vertical-align: middle;
+	margin-top: 2px;
 }
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .content .monaco-action-bar .action-label {
@@ -49,8 +49,14 @@
 	height: 16px;
 }
 
-.git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row:hover .content .monaco-action-bar {
+.git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row:hover .content .monaco-action-bar,
+.git-viewlet > .changes-view > .status-view > .monaco-tree.focused .monaco-tree-row.focused .content .monaco-action-bar {
 	display: block;
+}
+
+.git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row:hover .content .monaco-count-badge,
+.git-viewlet > .changes-view > .status-view > .monaco-tree.focused .monaco-tree-row.focused .content .monaco-count-badge {
+	display: none;
 }
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-rows > .monaco-tree-row > .content:after,
@@ -66,18 +72,14 @@
 }
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .count-badge-wrapper {
-	float: right;
 	padding-right: 12px;
-}
-
-.git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row:hover .monaco-count-badge {
-	display: none;
 }
 
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .status-group,
 .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .file-status {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	flex: 1;
 }
 
 .vs-dark .git-viewlet > .changes-view > .status-view > .monaco-tree .monaco-tree-row .status-group {

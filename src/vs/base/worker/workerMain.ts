@@ -16,20 +16,28 @@
 		catchError: true
 	});
 
-	var beforeReadyMessages:any[] = [];
-	self.onmessage = (message) => beforeReadyMessages.push(message);
+	var loadCode = function(moduleId) {
+		require([moduleId], function(ws) {
+			var messageHandler = ws.create((msg:any) => {
+				(<any>self).postMessage(msg);
+			}, null);
 
-	// Note: not using a import-module statement here, because
-	// it would wrap above statements in the define call.
+			self.onmessage = (e) => messageHandler.onmessage(e.data);
+			while(beforeReadyMessages.length > 0) {
+				self.onmessage(beforeReadyMessages.shift());
+			}
+		});
+	};
 
-	require(['vs/base/common/worker/workerServer'], function(ws) {
-		var messageHandler = ws.create((msg:any) => {
-			(<any>self).postMessage(msg);
-		}, null);
-
-		self.onmessage = (e) => messageHandler.onmessage(e.data);
-		while(beforeReadyMessages.length > 0) {
-			self.onmessage(beforeReadyMessages.shift());
+	var isFirstMessage = true;
+	var beforeReadyMessages:MessageEvent[] = [];
+	self.onmessage = (message) => {
+		if (!isFirstMessage) {
+			beforeReadyMessages.push(message);
+			return;
 		}
-	});
+
+		isFirstMessage = false;
+		loadCode(message.data);
+	};
 })();

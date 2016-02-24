@@ -4,16 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EventEmitter = require('vs/base/common/eventEmitter');
+import {EmitterEvent, IEmitterEvent} from 'vs/base/common/eventEmitter';
+import {IViewEventBus} from 'vs/editor/common/editorCommon';
+import {IViewEventHandler} from 'vs/editor/browser/editorBrowser';
 
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-
-export class ViewEventDispatcher implements EditorCommon.IViewEventBus {
+export class ViewEventDispatcher implements IViewEventBus {
 
 	private eventHandlerGateKeeper:(callback:()=>void)=>void;
-	private eventHandlers:EditorBrowser.IViewEventHandler[];
-	private eventQueue:EventEmitter.IEmitterEvent[];
+	private eventHandlers:IViewEventHandler[];
+	private eventQueue:IEmitterEvent[];
 	private isConsumingQueue:boolean;
 
 	constructor(eventHandlerGateKeeper:(callback:()=>void)=>void) {
@@ -23,7 +22,7 @@ export class ViewEventDispatcher implements EditorCommon.IViewEventBus {
 		this.isConsumingQueue = false;
 	}
 
-	public addEventHandler(eventHandler: EditorBrowser.IViewEventHandler): void {
+	public addEventHandler(eventHandler: IViewEventHandler): void {
 		for (var i = 0, len = this.eventHandlers.length; i < len; i++) {
 			if (this.eventHandlers[i] === eventHandler) {
 				console.warn('Detected duplicate listener in ViewEventDispatcher', eventHandler);
@@ -32,7 +31,7 @@ export class ViewEventDispatcher implements EditorCommon.IViewEventBus {
 		this.eventHandlers.push(eventHandler);
 	}
 
-	public removeEventHandler(eventHandler:EditorBrowser.IViewEventHandler): void {
+	public removeEventHandler(eventHandler:IViewEventHandler): void {
 		for (var i = 0; i < this.eventHandlers.length; i++) {
 			if (this.eventHandlers[i] === eventHandler) {
 				this.eventHandlers.splice(i, 1);
@@ -42,13 +41,13 @@ export class ViewEventDispatcher implements EditorCommon.IViewEventBus {
 	}
 
 	public emit(eventType:string, data?:any): void {
-		this.eventQueue.push(new EventEmitter.EmitterEvent(eventType, data));
+		this.eventQueue.push(new EmitterEvent(eventType, data));
 		if (!this.isConsumingQueue) {
 			this.consumeQueue();
 		}
 	}
 
-	public emitMany(events:EventEmitter.IEmitterEvent[]): void {
+	public emitMany(events:IEmitterEvent[]): void {
 		this.eventQueue = this.eventQueue.concat(events);
 		if (!this.isConsumingQueue) {
 			this.consumeQueue();
@@ -62,8 +61,8 @@ export class ViewEventDispatcher implements EditorCommon.IViewEventBus {
 
 				var i:number,
 					len:number,
-					eventHandlers:EditorBrowser.IViewEventHandler[],
-					events:EventEmitter.IEmitterEvent[];
+					eventHandlers:IViewEventHandler[],
+					events:IEmitterEvent[];
 
 				while (this.eventQueue.length > 0) {
 					// Empty event queue, as events might come in while sending these off

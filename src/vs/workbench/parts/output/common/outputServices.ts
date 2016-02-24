@@ -2,19 +2,23 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
 import Event, {Emitter} from 'vs/base/common/event';
-import {EditorOptions} from 'vs/workbench/common/editor';
-import {OUTPUT_MIME, DEFAULT_OUTPUT_CHANNEL, IOutputEvent, IOutputService} from 'vs/workbench/parts/output/common/output';
-import {OutputEditorInput} from 'vs/workbench/parts/output/common/outputEditorInput';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditor, Position} from 'vs/platform/editor/common/editor';
+import {IEditor} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {Registry} from 'vs/platform/platform';
+import {EditorOptions} from 'vs/workbench/common/editor';
+import {IOutputEvent, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry} from 'vs/workbench/parts/output/common/output';
+import {OutputEditorInput} from 'vs/workbench/parts/output/common/outputEditorInput';
+import {OutputPanel} from 'vs/workbench/parts/output/browser/outputPanel';
+import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
+
+const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
 export class OutputService implements IOutputService {
 	public serviceId = IOutputService;
@@ -27,24 +31,28 @@ export class OutputService implements IOutputService {
 	private sendOutputEventsTimerId: number;
 	private lastSentOutputEventsTime: number;
 	private bufferedOutput: { [channel: string]: string; };
+	private activeChannel: string;
 
 	private _onOutput: Emitter<IOutputEvent>;
 	private _onOutputChannel: Emitter<string>;
 
 	constructor(
+		@IStorageService private storageService: IStorageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEventService private eventService: IEventService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IPanelService private panelService: IPanelService
 	) {
 		this._onOutput = new Emitter<IOutputEvent>();
 		this._onOutputChannel = new Emitter<string>();
 
 		this.receivedOutput = Object.create(null);
-
 		this.bufferedOutput = Object.create(null);
 		this.sendOutputEventsTimerId = -1;
 		this.lastSentOutputEventsTime = -1;
+
+		const channels = (<IOutputChannelRegistry>Registry.as(Extensions.OutputChannels)).getChannels();
+		this.activeChannel = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, channels && channels.length > 0 ? channels[0] : null);
 
 		this.registerListeners();
 	}
@@ -61,18 +69,7 @@ export class OutputService implements IOutputService {
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
-	public append(channelOrOutput: string, output?: string): void {
-		let channel: string = DEFAULT_OUTPUT_CHANNEL;
-		if (output) {
-			channel = channelOrOutput;
-		} else {
-			output = channelOrOutput;
-		}
-
-		this.doAppend(channel, output);
-	}
-
-	private doAppend(channel: string, output: string): void {
+	public append(channel: string, output: string): void {
 
 		// Initialize
 		if (!this.receivedOutput[channel]) {
@@ -147,7 +144,7 @@ export class OutputService implements IOutputService {
 		this.bufferedOutput = Object.create(null);
 	}
 
-	public getOutput(channel = DEFAULT_OUTPUT_CHANNEL): string {
+	public getOutput(channel: string): string {
 		return this.receivedOutput[channel] || '';
 	}
 
@@ -155,41 +152,24 @@ export class OutputService implements IOutputService {
 		return Object.keys(this.receivedOutput);
 	}
 
-	public clearOutput(channel = DEFAULT_OUTPUT_CHANNEL): void {
+	public getActiveChannel(): string {
+		return this.activeChannel;
+	}
+
+	public clearOutput(channel: string): void {
 		this.receivedOutput[channel] = '';
 
 		this._onOutput.fire({ channel: channel, output: null /* indicator to clear output */ });
 	}
 
-	public showOutput(channel: string = DEFAULT_OUTPUT_CHANNEL, sideBySide?: boolean | Position, preserveFocus?: boolean): TPromise<IEditor> {
+	public showOutput(channel: string, preserveFocus?: boolean): TPromise<IEditor> {
+		this.activeChannel = channel;
+		this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel, StorageScope.WORKSPACE);
 
-		// If already opened, focus it unless we want to preserve focus
-		let existingOutputEditor = this.findOutputEditor(channel);
-		if (existingOutputEditor) {
-			if (!preserveFocus) {
-				return this.editorService.focusEditor(existingOutputEditor);
-			}
-
-			// Still reveal last line
-			(<OutputEditorInput>existingOutputEditor.input).revealLastLine();
-
-			return Promise.as(existingOutputEditor);
-		}
-
-		// Otherwise open new
-		return this.editorService.openEditor(OutputEditorInput.getInstance(this.instantiationService, channel), preserveFocus ? EditorOptions.create({ preserveFocus: true }) : null, <any>sideBySide);
-	}
-
-	private findOutputEditor(channel: string): IEditor {
-		let editors = this.editorService.getVisibleEditors();
-		for (let i = 0; i < editors.length; i++) {
-			let editor = editors[i];
-			if (editor.input instanceof OutputEditorInput && (<OutputEditorInput>editor.input).getChannel() === channel && (<OutputEditorInput>editor.input).getMime() === OUTPUT_MIME) {
-				return editor;
-			}
-		}
-
-		return null;
+		return this.panelService.openPanel(OUTPUT_PANEL_ID, !preserveFocus).then((outputPanel: OutputPanel) => {
+			return outputPanel && outputPanel.setInput(OutputEditorInput.getInstance(this.instantiationService, channel), EditorOptions.create({ preserveFocus: preserveFocus })).
+				then(() => outputPanel);
+		});
 	}
 
 	public dispose(): void {

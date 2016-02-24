@@ -46,6 +46,13 @@ export class TextBadge extends BaseBadge {
 	}
 }
 
+export class IconBadge extends BaseBadge {
+
+	constructor(descriptorFn: (args: any) => string) {
+		super(descriptorFn);
+	}
+}
+
 export class ProgressBadge extends BaseBadge {
 }
 

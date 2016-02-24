@@ -4,29 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import DOM = require('vs/base/browser/dom');
+import * as nls from 'vs/nls';
+import {IAction} from 'vs/base/common/actions';
+import {KeyCode, KeyMod, Keybinding} from 'vs/base/common/keyCodes';
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {SortedList} from 'vs/base/common/sortedList';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Actions = require('vs/base/common/actions');
-import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
-import Lifecycle = require('vs/base/common/lifecycle');
-import SortedList = require('vs/base/common/sortedList');
-import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import * as dom from 'vs/base/browser/dom';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {ActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
+import {IContextMenuService, IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
-import {KeyMod, KeyCode, Keybinding} from 'vs/base/common/keyCodes';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
+import {EventType, ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, MouseTargetType} from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
+import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 
 interface IPosition {
 	x:number;
 	y:number;
 }
 
-class ContextMenuController implements EditorCommon.IEditorContribution {
+class ContextMenuController implements IEditorContribution {
 
 	public static ID = 'editor.contrib.contextmenu';
 
@@ -34,11 +36,11 @@ class ContextMenuController implements EditorCommon.IEditorContribution {
 	private contextViewService: IContextViewService;
 	private keybindingService: IKeybindingService;
 
-	private _editor:EditorBrowser.ICodeEditor;
-	private _toDispose:Lifecycle.IDisposable[];
+	private _editor:ICodeEditor;
+	private _toDispose:IDisposable[];
 	private _contextMenuIsBeingShownCount:number;
 
-	constructor(editor:EditorBrowser.ICodeEditor, @IContextMenuService contextMenuService: IContextMenuService, @IContextViewService contextViewService: IContextViewService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(editor:ICodeEditor, @IContextMenuService contextMenuService: IContextMenuService, @IContextViewService contextViewService: IContextViewService, @IKeybindingService keybindingService: IKeybindingService) {
 		this.contextMenuService = contextMenuService;
 		this.contextViewService = contextViewService;
 		this.keybindingService = keybindingService;
@@ -48,8 +50,8 @@ class ContextMenuController implements EditorCommon.IEditorContribution {
 
 		this._contextMenuIsBeingShownCount = 0;
 
-		this._toDispose.push(this._editor.addListener2(EditorCommon.EventType.ContextMenu, (e:EditorBrowser.IMouseEvent)=>this._onContextMenu(e)));
-		this._toDispose.push(this._editor.addListener2(EditorCommon.EventType.KeyDown, (e:DOM.IKeyboardEvent)=> {
+		this._toDispose.push(this._editor.addListener2(EventType.ContextMenu, (e:IEditorMouseEvent)=>this._onContextMenu(e)));
+		this._toDispose.push(this._editor.addListener2(EventType.KeyDown, (e:IKeyboardEvent)=> {
 			if (e.keyCode === KeyCode.ContextMenu) {
 				// Chrome is funny like that
 				e.preventDefault();
@@ -59,7 +61,7 @@ class ContextMenuController implements EditorCommon.IEditorContribution {
 		}));
 	}
 
-	private _onContextMenu(e:EditorBrowser.IMouseEvent): void {
+	private _onContextMenu(e:IEditorMouseEvent): void {
 		if (!this._editor.getConfiguration().contextmenu) {
 			this._editor.focus();
 			// Ensure the cursor is at the position of the mouse click
@@ -69,13 +71,13 @@ class ContextMenuController implements EditorCommon.IEditorContribution {
 			return; // Context menu is turned off through configuration
 		}
 
-		if (e.target.type === EditorCommon.MouseTargetType.OVERLAY_WIDGET) {
+		if (e.target.type === MouseTargetType.OVERLAY_WIDGET) {
 			return; // allow native menu on widgets to support right click on input field for example in find
 		}
 
 		e.event.preventDefault();
 
-		if (e.target.type !== EditorCommon.MouseTargetType.CONTENT_TEXT && e.target.type !== EditorCommon.MouseTargetType.CONTENT_EMPTY && e.target.type !== EditorCommon.MouseTargetType.TEXTAREA) {
+		if (e.target.type !== MouseTargetType.CONTENT_TEXT && e.target.type !== MouseTargetType.CONTENT_EMPTY && e.target.type !== MouseTargetType.TEXTAREA) {
 			return; // only support mouse click into text or native context menu key for now
 		}
 
@@ -89,7 +91,7 @@ class ContextMenuController implements EditorCommon.IEditorContribution {
 
 		// Unless the user triggerd the context menu through Shift+F10, use the mouse position as menu position
 		var forcedPosition:IPosition;
-		if (e.target.type !== EditorCommon.MouseTargetType.TEXTAREA) {
+		if (e.target.type !== MouseTargetType.TEXTAREA) {
 			forcedPosition = { x: e.event.posx, y: e.event.posy + 1 };
 		}
 
@@ -122,7 +124,7 @@ class ContextMenuController implements EditorCommon.IEditorContribution {
 		}
 	}
 
-	private _getMenuActions(): Actions.IAction[] {
+	private _getMenuActions(): IAction[] {
 		var editorModel = this._editor.getModel();
 		if (!editorModel) {
 			return [];
@@ -134,21 +136,21 @@ class ContextMenuController implements EditorCommon.IEditorContribution {
 		return this._prepareActions(contributedActions);
 	}
 
-	private _prepareActions(actions:EditorAction[]):Actions.IAction[] {
-		var list = new SortedList.SortedList<string, SortedList.SortedList<string, EditorAction>>();
+	private _prepareActions(actions:EditorAction[]):IAction[] {
+		var list = new SortedList<string, SortedList<string, EditorAction>>();
 
 		actions.forEach((action)=>{
 			var groups = action.getGroupId().split('/');
 			var actionsForGroup = list.getValue(groups[0]);
 			if (!actionsForGroup) {
-				actionsForGroup = new SortedList.SortedList<string, EditorAction>();
+				actionsForGroup = new SortedList<string, EditorAction>();
 				list.add(groups[0], actionsForGroup);
 			}
 
 			actionsForGroup.add(groups[1] || groups[0], action);
 		});
 
-		var sortedAndGroupedActions:Actions.IAction[] = [];
+		var sortedAndGroupedActions:IAction[] = [];
 		var groupIterator = list.getIterator();
 		while(groupIterator.moveNext()) {
 			var group = groupIterator.current.value;
@@ -159,14 +161,14 @@ class ContextMenuController implements EditorCommon.IEditorContribution {
 			}
 
 			if (groupIterator.hasNext()) {
-				sortedAndGroupedActions.push(new ActionBar.Separator());
+				sortedAndGroupedActions.push(new Separator());
 			}
 		}
 
 		return sortedAndGroupedActions;
 	}
 
-	private _doShowContextMenu(actions:Actions.IAction[], forcedPosition:IPosition = null): void {
+	private _doShowContextMenu(actions:IAction[], forcedPosition:IPosition = null): void {
 
 		// Make the editor believe one of its widgets is focused
 		this._editor.beginForcedWidgetFocus();
@@ -186,7 +188,7 @@ class ContextMenuController implements EditorCommon.IEditorContribution {
 			var cursorCoords = this._editor.getScrolledVisiblePosition(this._editor.getPosition());
 
 			// Translate to absolute editor position
-			var editorCoords = DOM.getDomNodePosition(this._editor.getDomNode());
+			var editorCoords = dom.getDomNodePosition(this._editor.getDomNode());
 			var posx = editorCoords.left + cursorCoords.left;
 			var posy = editorCoords.top + cursorCoords.top + cursorCoords.height;
 
@@ -204,7 +206,7 @@ class ContextMenuController implements EditorCommon.IEditorContribution {
 			getActionItem: (action) => {
 				var keybinding = this._keybindingFor(action);
 				if (keybinding) {
-					return new ActionBar.ActionItem(action, action, { label: true, keybinding: this.keybindingService.getLabelFor(keybinding) });
+					return new ActionItem(action, action, { label: true, keybinding: this.keybindingService.getLabelFor(keybinding) });
 				}
 
 				var customActionItem = <any>action;
@@ -230,7 +232,7 @@ class ContextMenuController implements EditorCommon.IEditorContribution {
 		});
 	}
 
-	private _keybindingFor(action: Actions.IAction): Keybinding {
+	private _keybindingFor(action: IAction): Keybinding {
 		var opts = this.keybindingService.lookupKeybindings(action.id);
 		if (opts.length > 0) {
 			return opts[0]; // only take the first one
@@ -247,7 +249,7 @@ class ContextMenuController implements EditorCommon.IEditorContribution {
 			this.contextViewService.hideContextView();
 		}
 
-		this._toDispose = Lifecycle.disposeAll(this._toDispose);
+		this._toDispose = disposeAll(this._toDispose);
 	}
 }
 
@@ -255,7 +257,7 @@ class ShowContextMenu extends EditorAction {
 
 	public static ID = 'editor.action.showContextMenu';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor, Behaviour.TextFocus);
 	}
 

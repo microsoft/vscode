@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ICommonCodeEditor, IDecorationRenderOptions, IModelDecorationOptions} from 'vs/editor/common/editorCommon';
+import {IDecorationRenderOptions, IModelDecorationOptions} from 'vs/editor/common/editorCommon';
 import {AbstractCodeEditorService} from 'vs/editor/common/services/abstractCodeEditorService';
 
 export class MockCodeEditorService extends AbstractCodeEditorService {

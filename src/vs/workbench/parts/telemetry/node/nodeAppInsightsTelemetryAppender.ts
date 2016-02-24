@@ -4,18 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+/* tslint:disable:semicolon */
+
 import errors = require('vs/base/common/errors');
-import types = require('vs/base/common/types');
-import {safeStringify} from 'vs/base/common/objects';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {IStorageService} from 'vs/platform/storage/common/storage';
 import {ITelemetryAppender} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {AIAdapter, IAIAdapter} from 'vs/base/node/aiAdapter';
 
 import winreg = require('winreg');
-import getmac = require('getmac');
-import crypto = require('crypto');
 import os = require('os');
-import appInsights = require('applicationinsights');
 
 class StorageKeys {
 	public static sqmUserId: string = 'telemetry.sqm.userId';
@@ -26,15 +24,15 @@ class StorageKeys {
 
 export class NodeAppInsightsTelemetryAppender implements ITelemetryAppender {
 
-	public static EVENT_NAME_PREFIX: string = 'monacoworkbench/';
+	public static EVENT_NAME_PREFIX: string = 'monacoworkbench';
 
 	private static SQM_KEY: string = '\\Software\\Microsoft\\SQMClient';
 
 	private storageService:IStorageService;
 	private contextService: IWorkspaceContextService;
 
-	private appInsights: typeof appInsights.client;
-	private appInsightsVortex: typeof appInsights.client;
+	private appInsights: IAIAdapter;
+	private appInsightsVortex: IAIAdapter;
 
 	protected commonProperties: {[key:string] : string};
 	protected commonMetrics: {[key: string]: number};
@@ -66,33 +64,14 @@ export class NodeAppInsightsTelemetryAppender implements ITelemetryAppender {
 		}
 
 		if (key) {
-			this.appInsights = appInsights.setup(key)
-			.setAutoCollectRequests(false)
-			.setAutoCollectPerformance(false)
-			.setAutoCollectExceptions(false)
-			.setOfflineMode(true)
-			.start()
-			.client;
-
-			this.setupAIClient(this.appInsights);
+			this.appInsights = new AIAdapter(key, NodeAppInsightsTelemetryAppender.EVENT_NAME_PREFIX);
 		}
 
 		if(asimovKey) {
-			this.appInsightsVortex = appInsights.getClient(asimovKey);
-			this.appInsightsVortex.config.endpointUrl = "https://vortex.data.microsoft.com/collect/v1";
-			this.setupAIClient(this.appInsightsVortex);
+			this.appInsightsVortex = new AIAdapter(asimovKey, NodeAppInsightsTelemetryAppender.EVENT_NAME_PREFIX);
 		}
 
 		this.loadAddtionaProperties();
-	}
-
-	private setupAIClient(client: typeof appInsights.client): void {
-		//prevent App Insights from reporting machine name
-		if (client && client.context &&
-			client.context.keys && client.context.tags) {
-			var machineNameKey = client.context.keys.deviceMachineName;
-			client.context.tags[machineNameKey] = '';
-		}
 	}
 
 	private loadAddtionaProperties(): void {
@@ -177,109 +156,48 @@ export class NodeAppInsightsTelemetryAppender implements ITelemetryAppender {
 		}
 	}
 
-	private getData(data?: any): any {
-		var properties: {[key: string]: string;} = {};
-		var measurements: {[key: string]: number;} = {};
-
-		var event_data = this.flaten(data);
-		for(var prop in event_data) {
-			// enforce property names less than 150 char, take the last 150 char
-			var propName = prop && prop.length > 150 ? prop.substr( prop.length - 149) : prop;
-			var property = event_data[prop];
-			if (types.isNumber(property)) {
-				measurements[propName] = property;
-
-			} else if (types.isBoolean(property)) {
-				measurements[propName] = property ? 1:0;
-			} else if (types.isString(property)) {
-				//enforce proeprty value to be less than 1024 char, take the first 1024 char
-				var propValue = property && property.length > 1024 ? property.substring(0, 1023): property;
-				properties[propName] = propValue;
-			} else if (!types.isUndefined(property) && property !== null) {
-				properties[propName] = property;
-			}
-		}
-
-		properties = this.addCommonProperties(properties);
-		measurements = this.addCommonMetrics(measurements);
-
-		return {
-			properties: properties,
-			measurements: measurements
-		};
-	}
-
-	private flaten(obj:any, order:number = 0, prefix? : string): any {
-		var result:{[key:string]: any} = {};
-		var properties = obj ? Object.getOwnPropertyNames(obj) : [];
-		for (var i =0; i < properties.length; i++) {
-			var item = properties[i];
-			var index = prefix ? prefix + item : item;
-
-			if (types.isArray(obj[item])) {
-				try {
-					result[index] = safeStringify(obj[item]);
-				} catch (e) {
-					// workaround for catching the edge case for #18383
-					// safe stringfy should never throw circular object exception
-					result[index] = '[Circular-Array]';
-				}
-			} else if (obj[item] instanceof Date) {
-				result[index] = (<Date> obj[item]).toISOString();
-			} else if (types.isObject(obj[item])) {
-				if (order < 2) {
-					var item_result = this.flaten(obj[item], order + 1, index + '.');
-					for (var prop in item_result) {
-						result[prop] = item_result[prop];
-					}
-				} else {
-					try {
-						result[index] = safeStringify(obj[item]);
-					} catch (e) {
-						// workaround for catching the edge case for #18383
-						// safe stringfy should never throw circular object exception
-						result[index] = '[Circular]';
-					}
-				}
-			} else {
-				result[index] = obj[item];
-			}
-		}
-		return result;
-	}
-
 	public log(eventName: string, data?: any): void {
-		var result = this.getData(data);
+
+		data = data || Object.create(null);
+		data = this.addCommonMetrics(data);
+		data = this.addCommonProperties(data);
 
 		if (this.appInsights) {
 			if (eventName === 'UnhandledError' && data) {
-				this.appInsights.trackException(data);
+				this.appInsights.logException(data);
 			}
-
-			this.appInsights.trackEvent(NodeAppInsightsTelemetryAppender.EVENT_NAME_PREFIX+eventName, result.properties, result.measurements);
+			this.appInsights.log(eventName, data);
 		}
 
 		if (this.appInsightsVortex) {
 			if (eventName === 'UnhandledError' && data) {
-				this.appInsightsVortex.trackException(data);
+				this.appInsightsVortex.logException(data);
 			}
-			this.appInsightsVortex.trackEvent(NodeAppInsightsTelemetryAppender.EVENT_NAME_PREFIX+eventName, result.properties, result.measurements);
+			this.appInsightsVortex.log(eventName, data);
 		}
 	}
 
 	public dispose(): void {
+		if (this.appInsights) {
+			this.appInsights.dispose();
+		}
+
+		if (this.appInsightsVortex) {
+			this.appInsightsVortex.dispose();
+		}
+
 		this.appInsights = null;
 		this.appInsightsVortex = null;
 	}
 
-	protected addCommonProperties(properties: { [key: string]: string }): any {
+	protected addCommonProperties(properties: any): any {
 		for (var prop in this.commonProperties) {
 			properties['common.' + prop] = this.commonProperties[prop];
 		}
 		return properties;
 	}
 
-	protected addCommonMetrics = function (metrics: { [key: string]: number }): any {
+	protected addCommonMetrics(metrics: any): any {
 		for (var prop in this.commonMetrics) {
 			metrics['common.' + prop] = this.commonMetrics[prop];
 		}

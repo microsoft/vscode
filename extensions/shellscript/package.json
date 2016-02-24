@@ -7,9 +7,10 @@
 		"languages": [{
 			"id": "shellscript",
 			"aliases": ["Shell Script (Bash)", "shellscript"],
-			"extensions": [".sh", ".bash", ".zsh", ".bashrc", ".bash_profile", ".bash_login", ".profile", ".bash_logout"],
+			"extensions": [".sh", ".bash", ".bashrc", ".bash_profile", ".bash_login", ".profile", ".bash_logout", ".zsh", ".zshrc"],
 			"firstLine": "^#!.*\\b(bash|zsh|sh|tcsh)|^#\\s*-\\*-[^*]*mode:\\s*shell-script[^*]*-\\*-",
-			"configuration": "./shellscript.configuration.json"
+			"configuration": "./shellscript.configuration.json",
+			"mimetypes": ["text/x-shellscript"]
 		}],
 		"grammars": [{
 			"language": "shellscript",

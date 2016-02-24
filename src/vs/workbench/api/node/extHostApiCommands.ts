@@ -22,7 +22,7 @@ import {IThreadService} from 'vs/platform/thread/common/thread';
 
 export function registerApiCommands(threadService: IThreadService) {
 	const commands = threadService.getRemotable(ExtHostCommands);
-	new ExtHostApiCommands(commands);
+	new ExtHostApiCommands(commands).registerCommands();
 }
 
 class ExtHostApiCommands {
@@ -32,10 +32,12 @@ class ExtHostApiCommands {
 
 	constructor(commands: ExtHostCommands) {
 		this._commands = commands;
+	}
 
+	registerCommands() {
 		this._register('vscode.executeWorkspaceSymbolProvider', this._executeWorkspaceSymbolProvider, {
 			description: 'Execute all workspace symbol provider.',
-			args: [{ name: 'query', constraint: String }],
+			args: [{ name: 'query', description: 'Search string', constraint: String }],
 			returns: 'A promise that resolves to an array of SymbolInformation-instances.'
 
 		});
@@ -48,7 +50,7 @@ class ExtHostApiCommands {
 			returns: 'A promise that resolves to an array of Location-instances.'
 		});
 		this._register('vscode.executeHoverProvider', this._executeHoverProvider, {
-			description: 'Execute all definition provider.',
+			description: 'Execute all hover provider.',
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
 				{ name: 'position', description: 'Position of a symbol', constraint: types.Position }
@@ -101,7 +103,7 @@ class ExtHostApiCommands {
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
 				{ name: 'position', description: 'Position in a text document', constraint: types.Position }
 			],
-			returns: 'A promise that resolves to an array of CompletionItem-instances.'
+			returns: 'A promise that resolves to a CompletionList-instance.'
 		});
 		this._register('vscode.executeCodeActionProvider', this._executeCodeActionProvider, {
 			description: 'Execute code action provider.',
@@ -144,6 +146,19 @@ class ExtHostApiCommands {
 				{ name: 'options', description: 'Formatting options' }
 			],
 			returns: 'A promise that resolves to an array of TextEdits.'
+		});
+
+
+		this._register('vscode.previewHtml', (uri: URI, position?: vscode.ViewColumn) => {
+			return this._commands.executeCommand('_workbench.previewHtml', uri,
+				typeof position === 'number' ? typeConverters.fromViewColumn(position) : void 0);
+
+		}, {
+			description: 'Preview an html document.',
+			args: [
+				{ name: 'uri', description: 'Uri of the document to preview.', constraint: URI },
+				{ name: 'column', description: '(optional) Column in which to preview.' },
+			]
 		});
 	}
 
@@ -250,7 +265,7 @@ class ExtHostApiCommands {
 		});
 	}
 
-	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string): Thenable<types.CompletionItem[]> {
+	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string): Thenable<types.CompletionItem[]|types.CompletionList> {
 		const args = {
 			resource,
 			position: position && typeConverters.fromPosition(position),
@@ -259,15 +274,17 @@ class ExtHostApiCommands {
 		return this._commands.executeCommand<modes.ISuggestResult[][]>('_executeCompletionItemProvider', args).then(value => {
 			if (value) {
 				let items: types.CompletionItem[] = [];
+				let incomplete: boolean;
 				for (let group of value) {
 					for (let suggestions of group) {
+						incomplete = suggestions.incomplete || incomplete;
 						for (let suggestion of suggestions.suggestions) {
 							const item = typeConverters.Suggest.to(suggestions, position, suggestion);
 							items.push(item);
 						}
 					}
 				}
-				return items;
+				return new types.CompletionList(<any>items, incomplete);
 			}
 		});
 	}

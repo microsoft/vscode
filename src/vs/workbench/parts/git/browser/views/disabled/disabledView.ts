@@ -7,14 +7,11 @@
 
 import 'vs/css!./disabledView';
 import nls = require('vs/nls');
-import git = require('vs/workbench/parts/git/common/git');
-import platform = require('vs/base/common/platform');
 import winjs = require('vs/base/common/winjs.base');
 import ee = require('vs/base/common/eventEmitter');
 import view = require('vs/workbench/parts/git/browser/views/view');
 import builder = require('vs/base/browser/builder');
 import actions = require('vs/base/common/actions');
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ISelection, Selection} from 'vs/platform/selection/common/selection';
 
 var $ = builder.$;
@@ -51,7 +48,7 @@ export class DisabledView
 	}
 
 	public setVisible(visible:boolean): winjs.TPromise<void> {
-		return winjs.Promise.as(null);
+		return winjs.TPromise.as(null);
 	}
 
 	public getSelection(): ISelection {

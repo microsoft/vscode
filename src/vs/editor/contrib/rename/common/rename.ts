@@ -5,14 +5,14 @@
 
 'use strict';
 
-import {IRenameSupport, IRenameResult} from 'vs/editor/common/modes';
-import {IModel, IPosition} from 'vs/editor/common/editorCommon';
-import {TPromise} from 'vs/base/common/winjs.base';
 import {localize} from 'vs/nls';
 import {sequence} from 'vs/base/common/async';
-import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import {illegalArgument} from 'vs/base/common/errors';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {IRenameResult, IRenameSupport} from 'vs/editor/common/modes';
+import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 
 export const RenameRegistry = new LanguageFeatureRegistry<IRenameSupport>('renameSupport');
 

@@ -6,21 +6,18 @@
 'use strict';
 
 import 'vs/css!./media/markdownactions';
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Action} from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
-import paths = require('vs/base/common/paths');
 import nls = require('vs/nls');
 import {FileEditorInput} from 'vs/workbench/parts/files/common/files';
 import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {EditorOptions, getUntitledOrFileResource} from 'vs/workbench/common/editor';
+import {getUntitledOrFileResource} from 'vs/workbench/common/editor';
 import {MarkdownEditorInput} from 'vs/workbench/parts/markdown/common/markdownEditorInput';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 
 export class GlobalTogglePreviewMarkdownAction extends Action {
 
@@ -37,7 +34,7 @@ export class GlobalTogglePreviewMarkdownAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<any> {
 		let activeInput = this.editorService.getActiveEditorInput();
 
 		// View source if we are in a markdown file already
@@ -65,7 +62,7 @@ export class GlobalTogglePreviewMarkdownAction extends Action {
 		}
 
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -84,12 +81,12 @@ export class OpenPreviewToSideAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<any> {
 		let activeInput = this.editorService.getActiveEditorInput();
 
 		// Do nothing if already in markdown preview
 		if (activeInput instanceof MarkdownEditorInput) {
-			return Promise.as(true);
+			return TPromise.as(true);
 		}
 
 		// Otherwise try to open as markdown preview to the side
@@ -111,7 +108,7 @@ export class OpenPreviewToSideAction extends Action {
 		}
 
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -128,7 +125,7 @@ export class PreviewMarkdownAction extends Action {
 		this.markdownResource = markdownResource;
 	}
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<any> {
 		let input = this.instantiationService.createInstance(MarkdownEditorInput, this.markdownResource, void 0, void 0);
 
 		return this.editorService.openEditor(input);
@@ -147,58 +144,12 @@ export class PreviewMarkdownEditorInputAction extends EditorInputAction {
 		this.order = 100; // far end
 	}
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<any> {
 		let input = <FileEditorInput>this.input;
 
 		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
 		let markdownInput = this.instantiationService.createInstance(MarkdownEditorInput, input.getResource(), void 0, void 0);
 
 		return this.editorService.openEditor(markdownInput, null, sideBySide);
-	}
-}
-
-export class ShowWelcomeAction extends Action {
-
-	public static ID = 'workbench.action.markdown.showWelcome';
-	public static LABEL = nls.localize('showWelcome', "Show Welcome");
-
-	private preserveFocus: boolean;
-	private welcomePageResource: URI;
-
-	constructor(
-		id: string,
-		label: string,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IPartService private partService: IPartService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
-	) {
-		super(id, label);
-
-		this.preserveFocus = false;
-
-		const env = contextService.getConfiguration().env;
-		if (env.welcomePage) {
-			this.welcomePageResource = URI.file(paths.join(env.appRoot, env.welcomePage));
-		}
-
-		this.enabled = !!this.welcomePageResource;
-	}
-
-	public setPreserveFocus(preserveFocus: boolean) {
-		this.preserveFocus = preserveFocus;
-	}
-
-	public run(): Promise {
-		return this.partService.joinCreation().then(() => {
-			let editorCount = this.editorService.getVisibleEditors().length;
-
-			let markdownInput = this.instantiationService.createInstance(MarkdownEditorInput, this.welcomePageResource, nls.localize('welcome', "Welcome"), nls.localize('vscode', "Getting Started"));
-
-			let options = new EditorOptions();
-			options.preserveFocus = this.preserveFocus;
-
-			return this.editorService.openEditor(markdownInput, options, editorCount !== 0 && editorCount !== 3);
-		});
 	}
 }

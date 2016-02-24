@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
+import {illegalArgument, onUnexpectedError} from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import {Position} from 'vs/editor/common/core/position';
-import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {Registry} from 'vs/platform/platform';
-import {KeybindingsRegistry,ICommandDescriptor} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import config = require('vs/editor/common/config/config');
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {SyncDescriptor1, createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {KbExpr, ICommandHandler, IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
+import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {ICommandHandler, IKeybindings, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
+import {ICommandDescriptor, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {Registry} from 'vs/platform/platform';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {findFocusedEditor, getActiveEditor, withCodeEditorFromCommandHandler} from 'vs/editor/common/config/config';
+import {Position} from 'vs/editor/common/core/position';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {IModelService} from 'vs/editor/common/services/modelService';
 
 // --- Keybinding extensions to make it more concise to express keybindings conditions
 export enum ContextKey {
@@ -27,6 +27,7 @@ export enum ContextKey {
 export interface IEditorActionKeybindingOptions extends IKeybindings {
 	handler?: ICommandHandler;
 	context: ContextKey;
+	kbExpr?: KbExpr;
 }
 export interface IEditorCommandKeybindingOptions extends IKeybindings {
 	context: ContextKey;
@@ -35,13 +36,13 @@ export interface IEditorCommandKeybindingOptions extends IKeybindings {
 // --- Editor Actions
 export class EditorActionDescriptor {
 
-	public ctor:EditorCommon.IEditorActionContributionCtor;
+	public ctor:editorCommon.IEditorActionContributionCtor;
 	public id:string;
 	public label:string;
 
 	public kbOpts:IEditorActionKeybindingOptions;
 
-	constructor(ctor:EditorCommon.IEditorActionContributionCtor, id:string, label:string, kbOpts: IEditorActionKeybindingOptions = defaultEditorActionKeybindingOptions) {
+	constructor(ctor:editorCommon.IEditorActionContributionCtor, id:string, label:string, kbOpts: IEditorActionKeybindingOptions = defaultEditorActionKeybindingOptions) {
 		this.ctor = ctor;
 		this.id = id;
 		this.label = label;
@@ -50,7 +51,7 @@ export class EditorActionDescriptor {
 }
 
 export interface IEditorCommandHandler {
-	(accessor:ServicesAccessor, editor: EditorCommon.ICommonCodeEditor, args: any): void;
+	(accessor:ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void;
 }
 
 export module CommonEditorRegistry {
@@ -60,10 +61,10 @@ export module CommonEditorRegistry {
 	}
 
 	// --- Editor Contributions
-	export function registerEditorContribution(ctor:EditorCommon.ICommonEditorContributionCtor): void {
+	export function registerEditorContribution(ctor:editorCommon.ICommonEditorContributionCtor): void {
 		(<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).registerEditorContribution2(ctor);
 	}
-	export function getEditorContributions(): EditorCommon.ICommonEditorContributionDescriptor[] {
+	export function getEditorContributions(): editorCommon.ICommonEditorContributionDescriptor[] {
 		return (<EditorContributionRegistry>Registry.as(Extensions.EditorCommonContributions)).getEditorContributions2();
 	}
 
@@ -103,11 +104,11 @@ export module CommonEditorRegistry {
 		});
 	}
 
-	export function registerDefaultLanguageCommand(id: string, handler: (model: EditorCommon.IModel, position: EditorCommon.IPosition, args: { [n: string]: any }) => any) {
+	export function registerDefaultLanguageCommand(id: string, handler: (model: editorCommon.IModel, position: editorCommon.IPosition, args: { [n: string]: any }) => any) {
 		registerLanguageCommand(id, function(accessor, args) {
 
 			const {resource, position} = args;
-			if (!URI.isURI(resource) || !Position.isIPosition(position)) {
+			if (!(resource instanceof URI) || !Position.isIPosition(position)) {
 				throw illegalArgument();
 			}
 
@@ -121,30 +122,30 @@ export module CommonEditorRegistry {
 	}
 }
 
-class SimpleEditorContributionDescriptor implements EditorCommon.ICommonEditorContributionDescriptor {
-	private _ctor:EditorCommon.ICommonEditorContributionCtor;
+class SimpleEditorContributionDescriptor implements editorCommon.ICommonEditorContributionDescriptor {
+	private _ctor:editorCommon.ICommonEditorContributionCtor;
 
-	constructor(ctor:EditorCommon.ICommonEditorContributionCtor) {
+	constructor(ctor:editorCommon.ICommonEditorContributionCtor) {
 		this._ctor = ctor;
 	}
 
-	public createInstance(instantiationService: IInstantiationService, editor:EditorCommon.ICommonCodeEditor): EditorCommon.IEditorContribution {
+	public createInstance(instantiationService: IInstantiationService, editor:editorCommon.ICommonCodeEditor): editorCommon.IEditorContribution {
 		return instantiationService.createInstance(this._ctor, editor);
 	}
 }
 
-class InternalEditorActionDescriptor implements EditorCommon.ICommonEditorContributionDescriptor {
+class InternalEditorActionDescriptor implements editorCommon.ICommonEditorContributionDescriptor {
 
-	private _descriptor: SyncDescriptor1<EditorCommon.ICommonCodeEditor, EditorCommon.IEditorContribution>;
+	private _descriptor: SyncDescriptor1<editorCommon.ICommonCodeEditor, editorCommon.IEditorContribution>;
 
-	constructor(ctor:EditorCommon.IEditorActionContributionCtor, id:string, label:string) {
+	constructor(ctor:editorCommon.IEditorActionContributionCtor, id:string, label:string) {
 		this._descriptor = createSyncDescriptor(ctor, {
 			id: id,
 			label: label
 		});
 	}
 
-	public createInstance(instService:IInstantiationService, editor:EditorCommon.ICommonCodeEditor): EditorCommon.IEditorContribution {
+	public createInstance(instService:IInstantiationService, editor:editorCommon.ICommonCodeEditor): editorCommon.IEditorContribution {
 		return instService.createInstance(this._descriptor, editor);
 	}
 }
@@ -156,13 +157,13 @@ var Extensions = {
 
 class EditorContributionRegistry {
 
-	private editorContributions: EditorCommon.ICommonEditorContributionDescriptor[];
+	private editorContributions: editorCommon.ICommonEditorContributionDescriptor[];
 
 	constructor() {
 		this.editorContributions = [];
 	}
 
-	public registerEditorContribution2(ctor:EditorCommon.ICommonEditorContributionCtor): void {
+	public registerEditorContribution2(ctor:editorCommon.ICommonEditorContributionCtor): void {
 		this.editorContributions.push(new SimpleEditorContributionDescriptor(ctor));
 	}
 
@@ -177,10 +178,14 @@ class EditorContributionRegistry {
 		}
 
 		var context: KbExpr = null;
-		if (desc.kbOpts.context === ContextKey.EditorTextFocus) {
-			context = KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS);
-		} else if (desc.kbOpts.context === ContextKey.EditorFocus) {
-			context = KbExpr.has(EditorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS);
+		if (typeof desc.kbOpts.kbExpr === 'undefined') {
+			if (desc.kbOpts.context === ContextKey.EditorTextFocus) {
+				context = KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS);
+			} else if (desc.kbOpts.context === ContextKey.EditorFocus) {
+				context = KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS);
+			}
+		} else {
+			context = desc.kbOpts.kbExpr;
 		}
 
 		var commandDesc: ICommandDescriptor = {
@@ -199,27 +204,27 @@ class EditorContributionRegistry {
 		this.editorContributions.push(new InternalEditorActionDescriptor(desc.ctor, desc.id, desc.label));
 	}
 
-	public getEditorContributions2(): EditorCommon.ICommonEditorContributionDescriptor[] {
+	public getEditorContributions2(): editorCommon.ICommonEditorContributionDescriptor[] {
 		return this.editorContributions.slice(0);
 	}
 }
 Registry.add(Extensions.EditorCommonContributions, new EditorContributionRegistry());
 
 function triggerEditorAction(actionId: string, accessor: ServicesAccessor, args: any): void {
-	config.withCodeEditorFromCommandHandler(actionId, accessor, args,(editor) => {
+	withCodeEditorFromCommandHandler(actionId, accessor, args,(editor) => {
 		editor.trigger('keyboard', actionId, args);
 	});
 }
 
 function triggerEditorActionGlobal(actionId: string, accessor: ServicesAccessor, args: any): void {
 	// TODO: this is not necessarily keyboard
-	var focusedEditor = config.findFocusedEditor(actionId, accessor, args, false);
+	var focusedEditor = findFocusedEditor(actionId, accessor, args, false);
 	if (focusedEditor) {
 		focusedEditor.trigger('keyboard', actionId, args);
 		return;
 	}
 
-	var activeEditor = config.getActiveEditor(accessor);
+	var activeEditor = getActiveEditor(accessor);
 	if (activeEditor) {
 		var action = activeEditor.getAction(actionId);
 		if (action) {
@@ -234,7 +239,7 @@ var defaultEditorActionKeybindingOptions:IEditorActionKeybindingOptions = { prim
 
 function contextRule(needsTextFocus: boolean, needsKey: string): KbExpr {
 
-	let base = KbExpr.has(needsTextFocus ? EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS : EditorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS);
+	let base = KbExpr.has(needsTextFocus ? editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS : editorCommon.KEYBINDING_CONTEXT_EDITOR_FOCUS);
 
 	if (needsKey) {
 		return KbExpr.and(base, KbExpr.has(needsKey));
@@ -245,7 +250,7 @@ function contextRule(needsTextFocus: boolean, needsKey: string): KbExpr {
 
 function createCommandHandler(commandId: string, handler: IEditorCommandHandler): ICommandHandler {
 	return (accessor, args) => {
-		config.withCodeEditorFromCommandHandler(commandId, accessor, args, (editor) => {
+		withCodeEditorFromCommandHandler(commandId, accessor, args, (editor) => {
 			handler(accessor, editor, args);
 		});
 	};

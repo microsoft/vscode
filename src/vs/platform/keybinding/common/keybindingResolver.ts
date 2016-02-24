@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as defaultPlatform from 'vs/base/common/platform';
-import {IKeybindingItem, KbExpr, IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybindingService';
-import {KeyMod, KeyCode, BinaryKeybindings, Keybinding, ISimplifiedPlatform} from 'vs/base/common/keyCodes';
+import {BinaryKeybindings, ISimplifiedPlatform, Keybinding} from 'vs/base/common/keyCodes';
+import * as platform from 'vs/base/common/platform';
+import {IKeybindingItem, IUserFriendlyKeybinding, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 
 export interface IResolveResult {
 	enterChord: number;
@@ -45,7 +45,7 @@ export class KeybindingResolver {
 	};
 	private _shouldWarnOnConflict: boolean;
 
-	constructor(defaultKeybindings: IKeybindingItem[], overrides: IKeybindingItem[], shouldWarnOnConflict:boolean = true) {
+	constructor(defaultKeybindings: IKeybindingItem[], overrides: IKeybindingItem[], shouldWarnOnConflict: boolean = true) {
 		defaultKeybindings = defaultKeybindings.slice(0).sort(sorter);
 
 		this._defaultKeybindings = defaultKeybindings;
@@ -72,7 +72,7 @@ export class KeybindingResolver {
 				k.context = k.context.normalize();
 			}
 
-			let entry:ICommandEntry = {
+			let entry: ICommandEntry = {
 				context: k.context,
 				keybinding: k.keybinding,
 				commandId: k.command
@@ -96,7 +96,7 @@ export class KeybindingResolver {
 		}
 	}
 
-	private _addKeyPress(keypress: number, entry: ICommandEntry, item:IKeybindingItem, isDefault:boolean): void {
+	private _addKeyPress(keypress: number, entry: ICommandEntry, item: IKeybindingItem, isDefault: boolean): void {
 
 		if (!this._map[keypress]) {
 			// There is no conflict so far
@@ -122,7 +122,7 @@ export class KeybindingResolver {
 			if (KeybindingResolver.contextIsEntirelyIncluded(true, conflict.context, item.context)) {
 				// `item` completely overwrites `conflict`
 				if (this._shouldWarnOnConflict && isDefault) {
-					console.warn('Conflict detected, command `' + conflict.commandId + '` cannot be triggered by ' + Keybinding.toUserSettingsLabel(keypress));
+					console.warn('Conflict detected, command `' + conflict.commandId + '` cannot be triggered by ' + Keybinding.toUserSettingsLabel(keypress) + ' due to ' + item.command);
 				}
 				this._lookupMapUnreachable[conflict.commandId] = this._lookupMapUnreachable[conflict.commandId] || [];
 				this._lookupMapUnreachable[conflict.commandId].push(conflict.keybinding);
@@ -153,7 +153,7 @@ export class KeybindingResolver {
 		let aRulesArr = a.serialize().split(' && ');
 		let bRulesArr = b.serialize().split(' && ');
 
-		let aRules: { [rule:string]: boolean; } = Object.create(null);
+		let aRules: { [rule: string]: boolean; } = Object.create(null);
 		for (let i = 0, len = aRulesArr.length; i < len; i++) {
 			aRules[aRulesArr[i]] = true;
 		}
@@ -197,7 +197,7 @@ export class KeybindingResolver {
 	}
 
 	public lookupKeybinding(commandId: string): Keybinding[] {
-		let rawPossibleTriggers = this._lookupMap[commandId]
+		let rawPossibleTriggers = this._lookupMap[commandId];
 		if (!rawPossibleTriggers) {
 			return [];
 		}
@@ -338,11 +338,11 @@ export class IOSupport {
 		} else {
 			out.write('"' + item.command + '" ');
 		}
-//		out.write(String(item.weight));
+		//		out.write(String(item.weight));
 		out.write('}');
 	}
 
-	public static readKeybindingItem(input: IUserFriendlyKeybinding, index:number): IKeybindingItem {
+	public static readKeybindingItem(input: IUserFriendlyKeybinding, index: number): IKeybindingItem {
 		let key = IOSupport.readKeybinding(input.key);
 		let context = IOSupport.readKeybindingContexts(input.when);
 		return {
@@ -354,11 +354,11 @@ export class IOSupport {
 		};
 	}
 
-	public static writeKeybinding(input: number, Platform: ISimplifiedPlatform = defaultPlatform): string {
+	public static writeKeybinding(input: number, Platform: ISimplifiedPlatform = platform): string {
 		return Keybinding.toUserSettingsLabel(input, Platform);
 	}
 
-	public static readKeybinding(input: string, Platform: ISimplifiedPlatform = defaultPlatform): number {
+	public static readKeybinding(input: string, Platform: ISimplifiedPlatform = platform): number {
 		return Keybinding.fromUserSettingsLabel(input, Platform);
 	}
 

@@ -34,9 +34,8 @@
 }
 .monaco-editor.hc-black.focused .current-line {
 	background: none;
-	border: 2px solid #DF740C;
+	border: 2px solid #f38518;
 	box-sizing: border-box;
-	opacity: .5;
 }
 
 /* Highlight a line */
@@ -46,11 +45,9 @@
 
 /* Selection */
 .monaco-editor.hc-black .view-overlays.focused .selected-text {
-	border: 2px solid #DF740C;
-	background: none;
+	background: white;
 	box-sizing: border-box;
 	border-radius: 0;
-	opacity: .5;
 }
 .monaco-editor.hc-black .view-overlays .selected-text {
 	background: none;
@@ -67,6 +64,13 @@
 }
 .monaco-editor.hc-black .bottom-right-radius {
 	border-bottom-right-radius: 0;
+}
+
+.monaco-editor.hc-black .selectionHighlight {
+	background: none;
+	border: 1px dotted #f38518;
+	-moz-box-sizing: border-box;
+	box-sizing: border-box;
 }
 
 /* Squigglies */
@@ -136,7 +140,7 @@
 .monaco-editor.hc-black .snippet-placeholder		{ background-color: rgba(124, 124, 124, 0.1); }
 .monaco-editor.hc-black .finish-snippet-placeholder	{ outline: #525252 solid 1px; }
 
-/* Scrollbar */
+/* Scrollbar */    /* TODO: many of these are not doing anything, not specific enough.  Clean up */
 .hc-black.monaco-scrollable-element .slider {
 	background: none;
 	border: 20px solid #6FC3DF;
@@ -186,3 +190,6 @@
 }
 
 /* Tokens colors are defined in tokens.css */
+.monaco-editor.hc-black .token {
+	mix-blend-mode: difference;
+}

@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDimension} from 'vs/editor/common/editorCommon';
 import {Disposable} from 'vs/base/common/lifecycle';
+import {IDimension} from 'vs/editor/common/editorCommon';
+import {IElementSizeObserver} from 'vs/editor/common/config/commonEditorConfig';
 
-export class ElementSizeObserver extends Disposable {
+export class ElementSizeObserver extends Disposable implements IElementSizeObserver {
 
 	private referenceDomElement:HTMLElement;
 	private measureReferenceDomElementToken:number;

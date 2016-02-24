@@ -4,37 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Range} from 'vs/editor/common/core/range';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Errors = require('vs/base/common/errors');
+import {onUnexpectedError} from 'vs/base/common/errors';
+import {ICursorStateComputer, IEditableTextModel, IEditorSelection, IIdentifiedSingleEditOperation} from 'vs/editor/common/editorCommon';
 
 interface IEditOperation {
-	operations: EditorCommon.IIdentifiedSingleEditOperation[];
+	operations: IIdentifiedSingleEditOperation[];
 }
 
 interface IStackElement {
 	beforeVersionId: number;
-	beforeCursorState: EditorCommon.IEditorSelection[];
+	beforeCursorState: IEditorSelection[];
 
 	editOperations: IEditOperation[];
 
-	afterCursorState: EditorCommon.IEditorSelection[];
+	afterCursorState: IEditorSelection[];
 	afterVersionId: number;
 }
 
 export interface IUndoRedoResult {
-	selections: EditorCommon.IEditorSelection[];
+	selections: IEditorSelection[];
 	recordedVersionId: number;
 }
 
 export class EditStack {
 
-	private model:EditorCommon.IEditableTextModel;
+	private model:IEditableTextModel;
 	private currentOpenStackElement:IStackElement;
 	private past:IStackElement[];
 	private future:IStackElement[];
 
-	constructor(model:EditorCommon.IEditableTextModel) {
+	constructor(model:IEditableTextModel) {
 		this.model = model;
 		this.currentOpenStackElement = null;
 		this.past = [];
@@ -54,7 +53,7 @@ export class EditStack {
 		this.future = [];
 	}
 
-	public pushEditOperation(beforeCursorState: EditorCommon.IEditorSelection[], editOperations:EditorCommon.IIdentifiedSingleEditOperation[], cursorStateComputer:EditorCommon.ICursorStateComputer): EditorCommon.IEditorSelection[] {
+	public pushEditOperation(beforeCursorState: IEditorSelection[], editOperations:IIdentifiedSingleEditOperation[], cursorStateComputer:ICursorStateComputer): IEditorSelection[] {
 		// No support for parallel universes :(
 		this.future = [];
 
@@ -76,7 +75,7 @@ export class EditStack {
 		try {
 			this.currentOpenStackElement.afterCursorState = cursorStateComputer ? cursorStateComputer(inverseEditOperation.operations) : null;
 		} catch (e) {
-			Errors.onUnexpectedError(e);
+			onUnexpectedError(e);
 			this.currentOpenStackElement.afterCursorState = null;
 		}
 		this.currentOpenStackElement.afterVersionId = this.model.getVersionId();

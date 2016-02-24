@@ -16,7 +16,6 @@ import themes = require('vs/platform/theme/common/themes');
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
 import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {MarkdownEditorInput} from 'vs/workbench/parts/markdown/common/markdownEditorInput';
-import {ShowWelcomeAction} from 'vs/workbench/parts/markdown/browser/markdownActions';
 import {EditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
@@ -36,7 +35,6 @@ interface ILanguageConfiguration {
 // This extension tracks markdown files for changes to update markdown editors and inputs accordingly.
 export class MarkdownFileTracker implements IWorkbenchContribution {
 
-	private static hideWelcomeSettingskey = 'workbench.hide.welcome';
 	private static RELOAD_MARKDOWN_DELAY = 300; // delay before reloading markdown preview after user typing
 
 	private fileChangeListener: () => void;
@@ -64,7 +62,6 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 		this.configureMode(this.storageService.get(Preferences.THEME, StorageScope.GLOBAL));
 
 		this.registerListeners();
-		this.handleWelcome();
 	}
 
 	private registerListeners(): void {
@@ -122,21 +119,6 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 				// Unbind when input or model gets disposed
 				toUnbind.push(input.addListener(EventType.DISPOSE, unbind));
 				toUnbind.push(editorModel.addListener(EditorEventType.ModelDispose, unbind));
-			}
-		}
-	}
-
-	private handleWelcome(): void {
-		let firstStartup = !this.storageService.get(MarkdownFileTracker.hideWelcomeSettingskey);
-		let emptyWorkbench = !this.contextService.getWorkspace() && (!this.contextService.getOptions().filesToOpen || this.contextService.getOptions().filesToOpen.length === 0) && (!this.contextService.getOptions().filesToCreate || this.contextService.getOptions().filesToCreate.length === 0);
-
-		if (firstStartup && emptyWorkbench) {
-			this.storageService.store(MarkdownFileTracker.hideWelcomeSettingskey, true); // only once
-
-			let action = this.instantiationService.createInstance(ShowWelcomeAction, ShowWelcomeAction.ID, ShowWelcomeAction.LABEL);
-			if (action.enabled) {
-				action.setPreserveFocus(true);
-				action.run().done(() => action.dispose(), errors.onUnexpectedError);
 			}
 		}
 	}

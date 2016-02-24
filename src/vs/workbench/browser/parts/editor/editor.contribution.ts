@@ -6,7 +6,7 @@
 
 import {Registry} from 'vs/platform/platform';
 import nls = require('vs/nls');
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extensions as StatusExtensions} from 'vs/workbench/browser/parts/statusbar/statusbar';
 import {EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions, IEditorInputActionContext, IEditorInputAction, EditorInputActionContributor, EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -15,7 +15,9 @@ import {StringEditor} from 'vs/workbench/browser/parts/editor/stringEditor';
 import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
+import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 import {TextDiffEditor} from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {BinaryResourceDiffEditor} from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
@@ -23,7 +25,7 @@ import {IFrameEditor} from 'vs/workbench/browser/parts/editor/iframeEditor';
 import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
 import {ChangeEncodingAction, ChangeEOLAction, ChangeModeAction, EditorStatus} from 'vs/workbench/browser/parts/editor/editorStatus';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
+import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions} from 'vs/workbench/browser/actionBarRegistry';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
@@ -102,7 +104,7 @@ export class ViewSourceEditorInputAction extends EditorInputAction {
 		super('workbench.files.action.viewSourceFromEditor', nls.localize('viewSource', "View Source"), 'iframe-editor-action view-source');
 	}
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<any> {
 		let iFrameEditorInput = <IFrameEditorInput>this.input;
 		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
 
@@ -118,13 +120,13 @@ export class RefreshIFrameEditorInputAction extends EditorInputAction {
 		super('workbench.files.action.refreshIFrameEditor', nls.localize('reload', "Reload"), 'iframe-editor-action refresh');
 	}
 
-	public run(event?: any): Promise {
+	public run(event?: any): TPromise<any> {
 		let editor = this.editorService.getActiveEditor();
 		if (editor instanceof IFrameEditor) {
 			(<IFrameEditor>editor).reload(true);
 		}
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -149,3 +151,29 @@ class IFrameEditorActionContributor extends EditorInputActionContributor {
 
 // Contribute to IFrame Editor Inputs
 actionBarRegistry.registerActionBarContributor(Scope.EDITOR, IFrameEditorActionContributor);
+
+// Register keybinding for "Next Change" & "Previous Change" in visible diff editor
+KeybindingsRegistry.registerCommandDesc({
+	id: 'workbench.action.compareEditor.nextChange',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	context: KbExpr.has('textCompareEditorVisible'),
+	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.RightArrow),
+	handler: accessor => navigateInDiffEditor(accessor, true)
+});
+
+KeybindingsRegistry.registerCommandDesc({
+	id: 'workbench.action.compareEditor.previousChange',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	context: KbExpr.has('textCompareEditorVisible'),
+	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.LeftArrow),
+	handler: accessor => navigateInDiffEditor(accessor, false)
+});
+
+function navigateInDiffEditor(accessor: ServicesAccessor, next: boolean): void {
+	let editorService = accessor.get(IWorkbenchEditorService);
+	const candidates = [editorService.getActiveEditor(), ...editorService.getVisibleEditors()].filter(e => e instanceof TextDiffEditor);
+
+	if (candidates.length > 0) {
+		next ? (<TextDiffEditor>candidates[0]).getDiffNavigator().next() : (<TextDiffEditor>candidates[0]).getDiffNavigator().previous();
+	}
+}

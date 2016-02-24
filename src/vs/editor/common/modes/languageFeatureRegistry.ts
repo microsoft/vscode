@@ -5,13 +5,10 @@
 
 'use strict';
 
-import Event, {Emitter} from 'vs/base/common/event';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IDisposable} from 'vs/base/common/lifecycle';
-import URI from 'vs/base/common/uri';
 import {binarySearch} from 'vs/base/common/arrays';
-import {IPosition, IModel} from 'vs/editor/common/editorCommon';
-import {IDeclarationSupport, ILineContext, IReference} from 'vs/editor/common/modes';
+import Event, {Emitter} from 'vs/base/common/event';
+import {IDisposable} from 'vs/base/common/lifecycle';
+import {IModel} from 'vs/editor/common/editorCommon';
 import {LanguageSelector, score} from 'vs/editor/common/modes/languageSelector';
 
 interface Entry<T> {
@@ -25,14 +22,14 @@ export default class LanguageFeatureRegistry<T> {
 
 	private _clock: number = 0;
 	private _entries: Entry<T>[] = [];
-	private _onDidChange = new Emitter<number>();
+	private _onDidChange: Emitter<number> = new Emitter<number>();
 	private _supportName: string;
 
 	constructor(supportName?: string) {
 		this._supportName = supportName;
 	}
 
-	get onDidChange():Event<number> {
+	get onDidChange(): Event<number> {
 		return this._onDidChange.event;
 	}
 
@@ -61,7 +58,7 @@ export default class LanguageFeatureRegistry<T> {
 					}
 				}
 			}
-		}
+		};
 	}
 
 	has(model: IModel): boolean {
@@ -180,7 +177,7 @@ export default class LanguageFeatureRegistry<T> {
 			return 1;
 		} else if (a._score > b._score) {
 			return -1;
-		} else if(a._time < b._time){
+		} else if (a._time < b._time) {
 			return 1;
 		} else if (a._time > b._time) {
 			return -1;

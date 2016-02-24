@@ -4,23 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 import {Range} from 'vs/editor/common/core/range';
-import {Position} from 'vs/editor/common/core/position';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 
-export class EditOperationsCommand implements EditorCommon.ICommand {
+export class EditOperationsCommand implements editorCommon.ICommand {
 
-	private _edits:EditorCommon.ISingleEditOperation[];
-	private _initialSelection: EditorCommon.IEditorSelection;
+	private _edits:editorCommon.ISingleEditOperation[];
+	private _initialSelection: editorCommon.IEditorSelection;
 	private _selectionId: string;
 
-	constructor(edits:EditorCommon.ISingleEditOperation[], initialSelection: EditorCommon.IEditorSelection) {
+	constructor(edits:editorCommon.ISingleEditOperation[], initialSelection: editorCommon.IEditorSelection) {
 		this._edits = edits;
 		this._initialSelection = initialSelection;
 	}
 
-	public getEditOperations(model: EditorCommon.ITokenizedModel, builder: EditorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
 		this._edits
 			// We know that this edit.range comes from the mirror model, so it should only contain \n and no \r's
 			.map((edit) => EditOperationsCommand.trimEdit(edit, model))
@@ -45,11 +44,11 @@ export class EditOperationsCommand implements EditorCommon.ICommand {
 		}
 	}
 
-	public computeCursorState(model: EditorCommon.ITokenizedModel, helper: EditorCommon.ICursorStateComputerData): EditorCommon.IEditorSelection {
+	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): editorCommon.IEditorSelection {
 		return helper.getTrackedSelection(this._selectionId);
 	}
 
-	static fixLineTerminators(edit: EditorCommon.ISingleEditOperation, model: EditorCommon.ITokenizedModel): void {
+	static fixLineTerminators(edit: editorCommon.ISingleEditOperation, model: editorCommon.ITokenizedModel): void {
 		edit.text = edit.text.replace(/\r\n|\r|\n/g, model.getEOL());
 	}
 
@@ -61,19 +60,19 @@ export class EditOperationsCommand implements EditorCommon.ICommand {
 	 * bug #15108. There the cursor was jumping since the tracked selection was in the middle of the range edit
 	 * and was lost.
 	 */
-	static trimEdit(edit:EditorCommon.ISingleEditOperation, model: EditorCommon.ITokenizedModel): EditorCommon.ISingleEditOperation {
+	static trimEdit(edit:editorCommon.ISingleEditOperation, model: editorCommon.ITokenizedModel): editorCommon.ISingleEditOperation {
 
 		this.fixLineTerminators(edit, model);
 
 		return this._trimEdit(model.validateRange(edit.range), edit.text, edit.forceMoveMarkers, model);
 	}
 
-	static _trimEdit(editRange:Range, editText:string, editForceMoveMarkers:boolean, model: EditorCommon.ITokenizedModel): EditorCommon.ISingleEditOperation {
+	static _trimEdit(editRange:Range, editText:string, editForceMoveMarkers:boolean, model: editorCommon.ITokenizedModel): editorCommon.ISingleEditOperation {
 
 		let currentText = model.getValueInRange(editRange);
 
 		// Find the equal characters in the front
-		let commonPrefixLength = Strings.commonPrefixLength(editText, currentText);
+		let commonPrefixLength = strings.commonPrefixLength(editText, currentText);
 
 		// If the two strings are identical, return no edit (no-op)
 		if (commonPrefixLength === currentText.length && commonPrefixLength === editText.length) {
@@ -89,7 +88,7 @@ export class EditOperationsCommand implements EditorCommon.ICommand {
 		}
 
 		// Find the equal characters in the rear
-		let commonSuffixLength = Strings.commonSuffixLength(editText, currentText);
+		let commonSuffixLength = strings.commonSuffixLength(editText, currentText);
 
 		if (commonSuffixLength > 0) {
 			// Apply rear trimming

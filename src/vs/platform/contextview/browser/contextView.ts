@@ -11,36 +11,36 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import {Keybinding} from 'vs/base/common/keyCodes';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
-export var IContextViewService = createDecorator<IContextViewService>('contextViewService');
+export const IContextViewService = createDecorator<IContextViewService>('contextViewService');
 
 export interface IContextViewService {
-	serviceId : ServiceIdentifier<any>;
-	showContextView(delegate: IContextViewDelegate):void;
-	hideContextView(data?: any):void;
-	layout():void;
+	serviceId: ServiceIdentifier<any>;
+	showContextView(delegate: IContextViewDelegate): void;
+	hideContextView(data?: any): void;
+	layout(): void;
 }
 
 export interface IContextViewDelegate {
-	getAnchor():HTMLElement|{x: number; y: number; }
+	getAnchor(): HTMLElement | { x: number; y: number; };
 	render(container: HTMLElement): Lifecycle.IDisposable;
-	canRelayout?:boolean; // Default: true
-	onDOMEvent?(e:Event, activeElement: HTMLElement):void;
-	onHide?(data?: any):void;
+	canRelayout?: boolean; // Default: true
+	onDOMEvent?(e: Event, activeElement: HTMLElement): void;
+	onHide?(data?: any): void;
 }
 
-export var IContextMenuService = createDecorator<IContextMenuService>('contextMenuService');
+export const IContextMenuService = createDecorator<IContextMenuService>('contextMenuService');
 
 export interface IContextMenuService {
-	serviceId : ServiceIdentifier<any>;
-	showContextMenu(delegate: IContextMenuDelegate):void;
+	serviceId: ServiceIdentifier<any>;
+	showContextMenu(delegate: IContextMenuDelegate): void;
 }
 
 export interface IContextMenuDelegate {
-	getAnchor():HTMLElement|{x: number; y: number; }
+	getAnchor(): HTMLElement | { x: number; y: number; };
 	getActions(): TPromise<IAction[]>;
 	getActionItem?(action: IAction): ActionBar.IActionItem;
-	getActionsContext?():any;
+	getActionsContext?(): any;
 	getKeyBinding?(action: IAction): Keybinding;
-	getMenuClassName?():string;
+	getMenuClassName?(): string;
 	onHide?(didCancel: boolean): void;
 }

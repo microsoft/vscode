@@ -29,6 +29,38 @@
 	text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
 }
 
+.monaco-workbench > .activitybar > .content .monaco-action-bar .badge:active:before,
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
+	content: "";
+	position: absolute;
+	top: 4px;
+	height: 32px;
+	width: 0;
+	border-left: 2px solid;
+}
+
+.monaco-workbench.vs > .activitybar > .content .monaco-action-bar .badge:active:before,
+.monaco-workbench.vs-dark > .activitybar > .content .monaco-action-bar .badge:active:before,
+.monaco-workbench.vs > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before,
+.monaco-workbench.vs-dark > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
+	border-left-color: #007ACC;
+}
+
+.monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .badge:active:before,
+.monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
+	border-left-color: #f38518;
+}
+
+.monaco-workbench > .activitybar.left > .content .monaco-action-bar .badge:active:before,
+.monaco-workbench > .activitybar.left > .content .monaco-action-bar .action-item .action-label:focus:before {
+	left: 1px;
+}
+
+.monaco-workbench > .activitybar.right > .content .monaco-action-bar .badge:active:before,
+.monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-item .action-label:focus:before {
+	right: 1px;
+}
+
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label > .label {
 	-ms-flex: 1 1 auto;
 	flex: 1 1 auto;
@@ -48,14 +80,6 @@
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label:hover {
 	text-decoration: none;
-}
-
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active {
-	-ms-transform: none;
-	-webkit-transform: none;
-	-moz-transform: none;
-	-o-transform: none;
-	transform: none;
 }
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .badge {
@@ -82,57 +106,8 @@
 }
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active,
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label,
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus {
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
 	opacity: 1;
-}
-
-.monaco-workbench.vs > .activitybar.left:not(.help) > .content > .monaco-action-bar.position-top .action-label.active:after {
-	content: '';
-	position: absolute;
-	top: 15px;
-	right: 0;
-	width: 0;
-	height: 0;
-	border-top: 5px solid transparent;
-	border-bottom: 5px solid transparent;
-	border-right: 5px solid #F6F6F6;
-}
-
-.monaco-workbench.vs-dark > .activitybar.left:not(.help) > .content > .monaco-action-bar.position-top .action-label.active:after {
-	content: '';
-	position: absolute;
-	top: 15px;
-	right: 0;
-	width: 0;
-	height: 0;
-	border-top: 5px solid transparent;
-	border-bottom: 5px solid transparent;
-	border-right: 5px solid #252526;
-}
-
-.monaco-workbench.vs > .activitybar.right:not(.help) > .content > .monaco-action-bar.position-top .action-label.active:before {
-	content: '';
-	position: absolute;
-	top: 15px;
-	left: 0;
-	width: 0;
-	height: 0;
-	border-top: 5px solid transparent;
-	border-bottom: 5px solid transparent;
-	border-left: 5px solid #F6F6F6;
-}
-
-.monaco-workbench.vs-dark > .activitybar.right:not(.help) > .content > .monaco-action-bar.position-top .action-label.active:before {
-	content: '';
-	position: absolute;
-	top: 15px;
-	left: 0;
-	width: 0;
-	height: 0;
-	border-top: 5px solid transparent;
-	border-bottom: 5px solid transparent;
-	border-left: 5px solid #252526;
 }
 
 /* Right  aligned */
@@ -160,7 +135,6 @@
 /* High Contrast Theming */
 .monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-label,
 .monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-label.active {
-	background: none;
 	opacity: 1;
 }
 
@@ -179,7 +153,7 @@
 }
 
 .monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar .action-item .action-label.active:before {
-	border: 1px solid #DF740C;
+	outline: 1px solid #f38518;
 }
 
 .monaco-workbench.hc-black > .activitybar > .content .monaco-action-bar.global .action-item .action-label.active:before {

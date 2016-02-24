@@ -10,9 +10,9 @@ import glob = require('vs/base/common/glob');
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
-export var ID = 'searchService';
+export const ID = 'searchService';
 
-export var ISearchService = createDecorator<ISearchService>(ID);
+export const ISearchService = createDecorator<ISearchService>(ID);
 /**
  * A service that enables to search for files or with in files.
  */

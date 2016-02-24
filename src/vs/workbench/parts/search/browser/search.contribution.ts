@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/search.contribution';
 import {Registry} from 'vs/platform/platform';
-import {IViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction} from 'vs/workbench/browser/viewlet';
+import {ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction} from 'vs/workbench/browser/viewlet';
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
 import nls = require('vs/nls');
 import {IAction} from 'vs/base/common/actions';
@@ -42,7 +42,6 @@ KeybindingsRegistry.registerCommandDesc({
 	}
 });
 
-
 class OpenSearchViewletAction extends ToggleViewletAction {
 	public static ID = VIEWLET_ID;
 	public static LABEL = nls.localize('showSearchViewlet', "Show Search");
@@ -53,7 +52,6 @@ class OpenSearchViewletAction extends ToggleViewletAction {
 }
 
 class ExplorerViewerActionContributor extends ActionBarContributor {
-
 	private _instantiationService: IInstantiationService;
 	private _contextService: IWorkspaceContextService;
 
@@ -110,7 +108,7 @@ class ShowAllSymbolsAction extends QuickOpenAction {
 }
 
 // Register Viewlet
-(<IViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).registerViewlet(new ViewletDescriptor(
+(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).registerViewlet(new ViewletDescriptor(
 	'vs/workbench/parts/search/browser/searchViewlet',
 	'SearchViewlet',
 	VIEWLET_ID,
