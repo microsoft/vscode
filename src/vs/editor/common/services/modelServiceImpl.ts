@@ -23,6 +23,7 @@ import {IMode} from 'vs/editor/common/modes';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
+import * as platform from 'vs/base/common/platform';
 
 export interface IRawModelData {
 	url:URI;
@@ -230,8 +231,9 @@ export class ModelServiceImpl implements IModelService {
 	}
 
 	private _createModelData(value:string, modeOrPromise:TPromise<IMode>|IMode, resource: URI): ModelData {
+		let defaultEOL = (platform.isLinux || platform.isMacintosh) ? editorCommon.DefaultEndOfLine.LF : editorCommon.DefaultEndOfLine.CRLF;
 		// create & save the model
-		let model = new Model(value, modeOrPromise, resource);
+		let model = new Model(value, defaultEOL, modeOrPromise, resource);
 		let modelId = MODEL_ID(model.getAssociatedResource());
 
 		if (this._models[modelId]) {

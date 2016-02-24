@@ -446,7 +446,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 			this.preview = this.instantiationService.createInstance(EmbeddedCodeEditorWidget, div.getHTMLElement(), options, this.editor);
 			this.previewContainer = div.hide();
-			this.previewNotAvailableMessage = new Model(nls.localize('missingPreviewMessage', "no preview available"), null);
+			this.previewNotAvailableMessage = new Model(nls.localize('missingPreviewMessage', "no preview available"), editorCommon.DefaultEndOfLine.LF, null);
 		});
 
 		// tree

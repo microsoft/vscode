@@ -34,6 +34,7 @@ const model: EditorCommon.IModel = new EditorModel(
 		'This is the second line',
 		'This is the third line',
 	].join('\n'),
+	EditorCommon.DefaultEndOfLine.LF,
 	undefined,
 	URI.parse('far://testing/file.b'));
 
@@ -82,7 +83,8 @@ suite('ExtHostLanguageFeatureCommands', function() {
 				EOL: model.getEOL(),
 				lines: model.getValue().split(model.getEOL()),
 				BOM: '',
-				length: -1
+				length: -1,
+				defaultEOL: EditorCommon.DefaultEndOfLine.LF
 			},
 		});
 

@@ -66,7 +66,7 @@ export function withMockCodeEditor(text:string[], options:editorCommon.ICodeEdit
 		telemetryService: telemetryService
 	});
 
-	let model = new Model(text.join('\n'), null);
+	let model = new Model(text.join('\n'), editorCommon.DefaultEndOfLine.LF, null);
 	let editor = new MockCodeEditor(new MockScopeLocation(), options, instantiationService, codeEditorService, keybindingService, telemetryService);
 	editor.setModel(model);
 

@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {EventType, IModel} from 'vs/editor/common/editorCommon';
+import {EventType, IModel, DefaultEndOfLine} from 'vs/editor/common/editorCommon';
 import {EditableTextModel} from 'vs/editor/common/model/editableTextModel';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {IMode} from 'vs/editor/common/modes';
@@ -49,10 +49,10 @@ export class Model extends EditableTextModel implements IModel {
 	 *   The resource associated with this model. If the value is not provided an
 	 *   unique in memory URL is constructed as the associated resource.
 	 */
-	constructor(rawText:string, modeOrPromise:IMode|TPromise<IMode>, associatedResource:URI=null) {
+	constructor(rawText:string, defaultEOL:DefaultEndOfLine, modeOrPromise:IMode|TPromise<IMode>, associatedResource:URI=null) {
 		super([
 			EventType.ModelDispose
-		], TextModel.toRawText(rawText), modeOrPromise);
+		], TextModel.toRawText(rawText, defaultEOL), modeOrPromise);
 
 		// Generate a new unique model id
 		MODEL_ID++;

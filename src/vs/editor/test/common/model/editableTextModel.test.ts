@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import {Range} from 'vs/editor/common/core/range';
-import {EndOfLinePreference, EndOfLineSequence, EventType, IIdentifiedSingleEditOperation, IModelContentChangedEvent2} from 'vs/editor/common/editorCommon';
+import {EndOfLinePreference, EndOfLineSequence, EventType, IIdentifiedSingleEditOperation, IModelContentChangedEvent2, DefaultEndOfLine} from 'vs/editor/common/editorCommon';
 import {EditableTextModel, IValidatedEditOperation} from 'vs/editor/common/model/editableTextModel';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
 import {TextModel} from 'vs/editor/common/model/textModel';
@@ -273,7 +273,7 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 	}
 
 	function testSimpleApplyEdits(original:string[], edits:IValidatedEditOperation[], expected:IValidatedEditOperation): void {
-		let model = new EditableTextModel([], TextModel.toRawText(original.join('\n')), null);
+		let model = new EditableTextModel([], TextModel.toRawText(original.join('\n'), DefaultEndOfLine.LF), null);
 		model.setEOL(EndOfLineSequence.LF);
 
 		let actual = model._toSingleEditOperation(edits);
@@ -1228,7 +1228,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 	});
 
 	test('issue #1580: Changes in line endings are not correctly reflected in the extension host, leading to invalid offsets sent to external refactoring tools', () => {
-		let model = new EditableTextModel([], TextModel.toRawText('Hello\nWorld!'), null);
+		let model = new EditableTextModel([], TextModel.toRawText('Hello\nWorld!', DefaultEndOfLine.LF), null);
 		assert.equal(model.getEOL(), '\n');
 
 		let mirrorModel2 = new MirrorModel2(null, model.toRawText().lines, model.toRawText().EOL, model.getVersionId());
@@ -1299,7 +1299,7 @@ suite('EditorModel - EditableTextModel.applyEdits & markers', () => {
 		// var expectedMarkersMap = toMarkersMap(expectedMarkers);
 		var markerId2ModelMarkerId = Object.create(null);
 
-		var model = new EditableTextModel([], TextModel.toRawText(textStr), null);
+		var model = new EditableTextModel([], TextModel.toRawText(textStr, DefaultEndOfLine.LF), null);
 		model.setEOL(EndOfLineSequence.LF);
 
 		// Add markers

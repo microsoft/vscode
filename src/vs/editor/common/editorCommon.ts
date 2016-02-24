@@ -1001,6 +1001,20 @@ export enum EndOfLinePreference {
 }
 
 /**
+ * The default end of line to use when instantiating models.
+ */
+export enum DefaultEndOfLine {
+	/**
+	 * Use line feed (\n) as the end of line character.
+	 */
+	LF = 1,
+	/**
+	 * Use carriage return and line feed (\r\n) as the end of line character.
+	 */
+	CRLF = 2
+}
+
+/**
  * End of line character preference.
  */
 export enum EndOfLineSequence {
@@ -1933,6 +1947,7 @@ export interface IRawText {
 	lines: string[];
 	BOM: string;
 	EOL: string;
+	defaultEOL: DefaultEndOfLine;
 }
 /**
  * An event describing that a model has been reset to a new value.

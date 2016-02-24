@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import {Range} from 'vs/editor/common/core/range';
-import {IFoundBracket} from 'vs/editor/common/editorCommon';
+import {IFoundBracket, DefaultEndOfLine} from 'vs/editor/common/editorCommon';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
 
@@ -60,7 +60,7 @@ suite('TextModelWithTokens', () => {
 			}
 		}
 
-		let model = new TextModelWithTokens([], TextModel.toRawText(contents.join('\n')), false, null);
+		let model = new TextModelWithTokens([], TextModel.toRawText(contents.join('\n'), DefaultEndOfLine.LF), false, null);
 
 		// findPrevBracket
 		{

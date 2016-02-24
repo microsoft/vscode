@@ -259,7 +259,7 @@ export class MirrorModelEmbedded extends AbstractMirrorModel implements editorCo
 			endColumn: lastColumn
 		}, ' ');
 
-		return TextModel.toRawText(resultingText);
+		return TextModel.toRawText(resultingText, actualModel.toRawText().defaultEOL);
 	}
 
 	public setIncludedRanges(newIncludedRanges:editorCommon.IRange[]): void {
@@ -287,8 +287,8 @@ class EmbeddedModeRange {
 	}
 }
 
-export function createMirrorModelFromString(resourceService:IResourceService, versionId:number, value:string, mode:IMode, associatedResource?:URI): MirrorModel {
-	return new MirrorModel(resourceService, versionId, TextModel.toRawText(value), mode, associatedResource);
+export function createMirrorModelFromString(resourceService:IResourceService, versionId:number, value:string, defaultEOL: editorCommon.DefaultEndOfLine, mode:IMode, associatedResource?:URI): MirrorModel {
+	return new MirrorModel(resourceService, versionId, TextModel.toRawText(value, defaultEOL), mode, associatedResource);
 }
 
 export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMirrorModel {

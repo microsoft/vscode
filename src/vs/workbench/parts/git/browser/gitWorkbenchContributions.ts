@@ -216,12 +216,8 @@ class DirtyDiffModelDecorator {
 		return true;
 	}
 
-	private static _equals(model:common.IModel, rawText:common.IRawText): boolean {
-		if (!model) {
-			return false;
-		}
-		let modelRawText = model.toRawText();
-		return this._stringArrEquals(modelRawText.lines, rawText.lines);
+	private static _equals(a:common.IRawText, b:common.IRawText): boolean {
+		return this._stringArrEquals(a.lines, b.lines);
 	}
 
 	private diffOriginalContents(): winjs.TPromise<void> {
@@ -237,12 +233,15 @@ class DirtyDiffModelDecorator {
 					return this.triggerDiff();
 				}
 
-				let rawText = TextModel.toRawText(contents);
 				let originalModel = this.modelService.getModel(this._originalContentsURI);
+				if (originalModel) {
+					let originalRawText = originalModel.toRawText();
+					let contentsRawText = TextModel.toRawText(contents, originalRawText.defaultEOL);
 
-				// return early if nothing has changed
-				if (DirtyDiffModelDecorator._equals(originalModel, rawText)) {
-					return winjs.TPromise.as(null);
+					// return early if nothing has changed
+					if (DirtyDiffModelDecorator._equals(originalRawText, contentsRawText)) {
+						return winjs.TPromise.as(null);
+					}
 				}
 
 				if (!originalModel) {

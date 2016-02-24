@@ -8,10 +8,11 @@ import * as assert from 'assert';
 import {Model} from 'vs/editor/common/model/model';
 import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingRange';
 import {computeRanges} from 'vs/editor/contrib/folding/common/indentFoldStrategy';
+import {DefaultEndOfLine} from 'vs/editor/common/editorCommon';
 
 suite('Folding', () => {
 	function assertRanges(lines: string[], tabSize: number, expected:IFoldingRange[]): void {
-		let model = new Model(lines.join('\n'), null);
+		let model = new Model(lines.join('\n'), DefaultEndOfLine.LF, null);
 		let actual = computeRanges(model, tabSize);
 		actual.sort((r1, r2) => r1.startLineNumber - r2.startLineNumber);
 		assert.deepEqual(actual, expected);

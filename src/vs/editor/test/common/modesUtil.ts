@@ -12,6 +12,7 @@ import {compile} from 'vs/editor/common/modes/monarch/monarchCompile';
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
 import {createMockModeService} from 'vs/editor/test/common/servicesTestUtils';
+import {DefaultEndOfLine} from 'vs/editor/common/editorCommon';
 
 export interface IRelaxedToken {
 	startIndex:number;
@@ -81,6 +82,7 @@ export function createOnEnterAsserter(modeId:string, richEditSupport: modes.IRic
 	var assertOne = (oneLineAboveText:string, beforeText:string, afterText:string, expected: modes.IndentAction) => {
 		var model = new Model(
 			[ oneLineAboveText, beforeText + afterText ].join('\n'),
+			DefaultEndOfLine.LF,
 			new SimpleMode(modeId)
 		);
 		var actual = richEditSupport.onEnter.onEnter(model, { lineNumber: 2, column: beforeText.length + 1 });

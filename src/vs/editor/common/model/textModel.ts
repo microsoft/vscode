@@ -5,7 +5,6 @@
 'use strict';
 
 import {OrderGuaranteeEventEmitter} from 'vs/base/common/eventEmitter';
-import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
@@ -15,7 +14,6 @@ import {ModelLine} from 'vs/editor/common/model/modelLine';
 var __space = ' '.charCodeAt(0);
 var __tab = '\t'.charCodeAt(0);
 var LIMIT_FIND_COUNT = 999;
-var DEFAULT_PLATFORM_EOL = (platform.isLinux || platform.isMacintosh) ? '\n' : '\r\n';
 
 export interface IIndentationFactors {
 	/**
@@ -38,6 +36,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	_EOL:string;
 	_isDisposed:boolean;
 	_isDisposing:boolean;
+	private _defaultEOL:editorCommon.DefaultEndOfLine;
 
 	private _versionId:number;
 	/**
@@ -50,6 +49,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged);
 		super(allowedEventTypes);
 
+		this._defaultEOL = rawText.defaultEOL;
 		this._constructLines(rawText);
 		this._setVersionId(1);
 		this._isDisposed = false;
@@ -130,7 +130,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	_resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:string): void {
-		this._constructLines(TextModel.toRawText(newValue));
+		this._constructLines(TextModel.toRawText(newValue, this._defaultEOL));
 		this._increaseVersionId();
 
 		e.detail = this.toRawText();
@@ -142,7 +142,8 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			BOM: this._BOM,
 			EOL: this._EOL,
 			lines: this.getLinesContent(),
-			length: this.getValueLength()
+			length: this.getValueLength(),
+			defaultEOL: this._defaultEOL
 		};
 	}
 
@@ -772,7 +773,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 	}
 
-	public static toRawText(rawText:string): editorCommon.IRawText {
+	public static toRawText(rawText:string, defaultEOL:editorCommon.DefaultEndOfLine): editorCommon.IRawText {
 		// Count the number of lines that end with \r\n
 		var carriageReturnCnt = 0,
 			lastCarriageReturnIndex = -1;
@@ -794,7 +795,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		var EOL = '';
 		if (lineFeedCnt === 0) {
 			// This is an empty file or a file with precisely one line
-			EOL = DEFAULT_PLATFORM_EOL;
+			EOL = (defaultEOL === editorCommon.DefaultEndOfLine.LF ? '\n' : '\r\n');
 		} else if (carriageReturnCnt > lineFeedCnt / 2) {
 			// More than half of the file contains \r\n ending lines
 			EOL = '\r\n';
@@ -807,7 +808,8 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			BOM: BOM,
 			EOL: EOL,
 			lines: lines,
-			length: rawText.length
+			length: rawText.length,
+			defaultEOL: defaultEOL
 		};
 	}
 
