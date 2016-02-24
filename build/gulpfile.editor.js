@@ -58,6 +58,8 @@ function editorLoaderConfig(removeAllOSS) {
 
 	// never ship marked in editor
 	result.paths['vs/base/common/marked/marked'] = 'out-build/vs/base/common/marked/marked.mock';
+	// never ship octicons in editor
+	result.paths['vs/base/browser/ui/octiconLabel/octiconLabel'] = 'out-build/vs/base/browser/ui/octiconLabel/octiconLabel.mock';
 
 	if (removeAllOSS) {
 		result.paths['vs/languages/lib/common/beautify-html'] = 'out-build/vs/languages/lib/common/beautify-html.mock';
