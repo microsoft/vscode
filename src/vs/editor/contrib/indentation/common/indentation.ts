@@ -23,6 +23,9 @@ export class IndentationToSpacesAction extends EditorAction {
 
 		const command = new IndentationToSpacesCommand(this.editor.getSelection(), this.editor.getIndentationOptions().tabSize);
 		this.editor.executeCommands(this.id, [command]);
+		this.editor.updateOptions({
+			insertSpaces: true
+		});
 
 		return TPromise.as(true);
 	}
@@ -39,6 +42,9 @@ export class IndentationToTabsAction extends EditorAction {
 
 		const command = new IndentationToTabsCommand(this.editor.getSelection(), this.editor.getIndentationOptions().tabSize);
 		this.editor.executeCommands(this.id, [command]);
+		this.editor.updateOptions({
+			insertSpaces: false
+		});
 
 		return TPromise.as(true);
 	}
