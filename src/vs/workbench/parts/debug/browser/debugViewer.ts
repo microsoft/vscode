@@ -926,7 +926,7 @@ export class BreakpointsAccessibilityProvider implements tree.IAccessibilityProv
 			return nls.localize('breakpointAriaLabel', "Breakpoint line {0} {1}, breakpoints, debug", (<model.Breakpoint>element).lineNumber, getSourceName((<model.Breakpoint>element).source, this.contextService));
 		}
 		if (element instanceof model.FunctionBreakpoint) {
-			return nls.localize('functionBreakpointAriaLabel', "Funktion breakpoint {0}, breakpoints, debug", (<model.FunctionBreakpoint>element).name);
+			return nls.localize('functionBreakpointAriaLabel', "Function breakpoint {0}, breakpoints, debug", (<model.FunctionBreakpoint>element).name);
 		}
 		if (element instanceof model.ExceptionBreakpoint) {
 			return nls.localize('exceptionBreakpointAriaLabel', "Exception breakpoint {0}, breakpoints, debug", (<model.ExceptionBreakpoint>element).filter);
