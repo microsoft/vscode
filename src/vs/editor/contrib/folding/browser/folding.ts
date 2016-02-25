@@ -304,7 +304,8 @@ export class FoldingController implements editorCommon.IEditorContribution {
 			this.decorations = [];
 			this.updateHiddenAreas();
 		}});
-		this.localToDispose.push(this.editor.addListener2(editorCommon.EventType.MouseDown, (e) => this._onEditorMouseDown(e)));
+		this.localToDispose.push(this.editor.addListener2(editorCommon.EventType.MouseDown, e => this._onEditorMouseDown(e)));
+		this.localToDispose.push(this.editor.addListener2(editorCommon.EventType.MouseUp, e => this._onEditorMouseUp(e)));
 
 		this.updateScheduler.schedule();
 	}
@@ -320,7 +321,11 @@ export class FoldingController implements editorCommon.IEditorContribution {
 		return TPromise.as(ranges);
 	}
 
+	private _mouseDownInfo: { lineNumber: number, iconClicked: boolean };
+
 	private _onEditorMouseDown(e: IEditorMouseEvent): void {
+		this._mouseDownInfo = null;
+
 		if (this.decorations.length === 0) {
 			return;
 		}
@@ -334,10 +339,10 @@ export class FoldingController implements editorCommon.IEditorContribution {
 
 		let model = this.editor.getModel();
 
-		let toggleClicked = false;
+		let iconClicked = false;
 		switch (e.target.type) {
 			case editorCommon.MouseTargetType.GUTTER_LINE_DECORATIONS:
-				toggleClicked = true;
+				iconClicked = true;
 				break;
 			case editorCommon.MouseTargetType.CONTENT_TEXT:
 				if (range.isEmpty && range.startColumn === model.getLineMaxColumn(range.startLineNumber)) {
@@ -348,26 +353,46 @@ export class FoldingController implements editorCommon.IEditorContribution {
 				return;
 		}
 
-		let hasChanges = false;
+		this._mouseDownInfo = { lineNumber: range.startLineNumber, iconClicked};
+	}
+
+	private _onEditorMouseUp(e: IEditorMouseEvent): void {
+		if (!this._mouseDownInfo) {
+			return;
+		}
+		let lineNumber = this._mouseDownInfo.lineNumber;
+		let iconClicked = this._mouseDownInfo.iconClicked;
+
+		let range = e.target.range;
+		if (!range || !range.isEmpty || range.startLineNumber !== lineNumber) {
+			return;
+		}
+
+		let model = this.editor.getModel();
+
+		if (iconClicked) {
+			if (e.target.type !== editorCommon.MouseTargetType.GUTTER_LINE_DECORATIONS) {
+				return;
+			}
+		} else {
+			if (range.startColumn !== model.getLineMaxColumn(range.startLineNumber)) {
+				return;
+			}
+		}
 
 		this.editor.changeDecorations(changeAccessor => {
 			for (let i = 0; i < this.decorations.length; i++) {
 				let dec = this.decorations[i];
 				let decRange = dec.getDecorationRange(model);
-				if (decRange.startLineNumber === range.startLineNumber) {
-					if (toggleClicked || dec.isCollapsed) {
+				if (decRange.startLineNumber === lineNumber) {
+					if (iconClicked || dec.isCollapsed) {
 						dec.setCollapsed(!dec.isCollapsed, changeAccessor);
-						hasChanges = true;
+						this.updateHiddenAreas();
 					}
-					break;
+					return;
 				}
 			}
 		});
-
-		if (hasChanges) {
-			this.updateHiddenAreas();
-		}
-
 	}
 
 	private updateHiddenAreas(): void {
