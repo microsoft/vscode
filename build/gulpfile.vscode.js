@@ -230,12 +230,14 @@ function packageTask(platform, arch, opts) {
 			.pipe(filter(['**', '!LICENSE', '!LICENSES.chromium.html', '!version']));
 
 		if (platform === 'win32') {
-			var shortcutFilter = filter('bin/*.cmd', { restore: true });
+			result = es.merge(result, gulp.src('sources/win32/bin/code.js', { base: 'resources/win32' }));
 
-			result = es.merge(result, gulp.src('resources/win32/bin/**', { base: 'resources/win32' }))
-				.pipe(shortcutFilter)
-				.pipe(rename(function (f) { f.basename = product.applicationName; }))
-				.pipe(shortcutFilter.restore);
+			result = es.merge(result, gulp.src('sources/win32/bin/code.cmd', { base: 'resources/win32' })
+				.pipe(rename(function (f) { f.basename = product.applicationName; })));
+
+			result = es.merge(result, gulp.src('sources/win32/bin/code.sh', { base: 'resources/win32' })
+				.pipe(replace('@@NAME@@', product.nameShort))
+				.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
 		}
 
 		return result.pipe(symdest(destination));
