@@ -362,34 +362,49 @@ export class MouseTargetFactory {
 	}
 
 	private _actualDoHitTestWithCaretRangeFromPoint(hitx:number, hity:number): IHitTestResult {
-		var resultPosition: IPosition = null;
-		var resultHitTarget: Element = null;
 
-		var range:Range = (<any>document).caretRangeFromPoint(hitx, hity);
+		let range:Range = (<any>document).caretRangeFromPoint(hitx, hity);
 
-		var container = range ? range.startContainer : null;
-		var parent1 = container ? container.parentNode : null;
-		var parent2 = parent1 ? parent1.parentNode : null;
-		var parent3 = parent2 ? parent2.parentNode : null;
-
-		var parent2ClassName = parent2 && parent2.nodeType === parent2.ELEMENT_NODE ? (<HTMLElement>parent2).className : '';
-		var parent3ClassName = parent3 && parent3.nodeType === parent3.ELEMENT_NODE ? (<HTMLElement>parent3).className : '';
-
-		if (parent3ClassName === ClassNames.VIEW_LINE) {
-			resultPosition = this.viewHelper.getPositionFromDOMInfo(<HTMLElement>range.startContainer.parentNode, range.startOffset);
-		} else if (parent2ClassName === ClassNames.VIEW_LINE) {
-			resultPosition = this.viewHelper.getPositionFromDOMInfo(<HTMLElement>range.startContainer, range.startOffset);
-		} else {
-			// Looks like we've hit something foreign
-			resultHitTarget = <Element>parent1;
+		if (!range || !range.startContainer) {
+			return {
+				position: null,
+				hitTarget: null
+			};
 		}
 
-		// WebKit now shows warning in console for calling Range.detach(), because it is a no-op
-		// per DOM (http://dom.spec.whatwg.org/#dom-range-detach), therefore not calling .detach() anymore.
+		// Chrome always hits a TEXT_NODE, while Edge sometimes hits a token span
+		let startContainer = range.startContainer;
+
+		if (startContainer.nodeType === startContainer.TEXT_NODE) {
+			// startContainer is expected to be the token text
+			let parent1 = startContainer.parentNode; // expected to be the token span
+			let parent2 = parent1 ? parent1.parentNode : null; // expected to be the view line container span
+			let parent3 = parent2 ? parent2.parentNode : null; // expected to be the view line div
+			let parent3ClassName = parent3 && parent3.nodeType === parent3.ELEMENT_NODE ? (<HTMLElement>parent3).className : null;
+
+			if (parent3ClassName === ClassNames.VIEW_LINE) {
+				return {
+					position: this.viewHelper.getPositionFromDOMInfo(<HTMLElement>parent1, range.startOffset),
+					hitTarget: null
+				};
+			}
+		} else if (startContainer.nodeType === startContainer.ELEMENT_NODE) {
+			// startContainer is expected to be the token span
+			let parent1 = startContainer.parentNode; // expected to be the view line container span
+			let parent2 = parent1 ? parent1.parentNode : null; // expected to be the view line div
+			let parent2ClassName = parent2 && parent2.nodeType === parent2.ELEMENT_NODE ? (<HTMLElement>parent2).className : null;
+
+			if (parent2ClassName === ClassNames.VIEW_LINE) {
+				return {
+					position: this.viewHelper.getPositionFromDOMInfo(<HTMLElement>startContainer, (<HTMLElement>startContainer).textContent.length),
+					hitTarget: null
+				};
+			}
+		}
 
 		return {
-			position: resultPosition,
-			hitTarget: resultHitTarget
+			position: null,
+			hitTarget: <HTMLElement>range.startContainer.parentNode
 		};
 	}
 
