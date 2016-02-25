@@ -84,8 +84,11 @@
 		"commands": [
 			{
 				"command": "typescript.reloadProjects",
-				"title": "%typescript.reloadProjects.title%",
-				"category": "TypeScript"
+				"title": "%typescript.reloadProjects.title%"
+			},
+			{
+				"command": "javascript.reloadProjects",
+				"title": "%javascript.reloadProjects.title%"
 			}
 		],
 		"debuggers": [
