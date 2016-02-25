@@ -269,7 +269,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 			this.decorations = newDecorations;
 		});
 		if (updateHiddenRegions) {
-			this.updateHiddenAreas();
+			this.updateHiddenAreas(void 0);
 		}
 
 	}
@@ -302,7 +302,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 
 			});
 			this.decorations = [];
-			this.updateHiddenAreas();
+			this.editor.setHiddenAreas([]);
 		}});
 		this.localToDispose.push(this.editor.addListener2(editorCommon.EventType.MouseDown, e => this._onEditorMouseDown(e)));
 		this.localToDispose.push(this.editor.addListener2(editorCommon.EventType.MouseUp, e => this._onEditorMouseUp(e)));
@@ -375,7 +375,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 				return;
 			}
 		} else {
-			if (range.startColumn !== model.getLineMaxColumn(range.startLineNumber)) {
+			if (range.startColumn !== model.getLineMaxColumn(lineNumber)) {
 				return;
 			}
 		}
@@ -387,7 +387,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 				if (decRange.startLineNumber === lineNumber) {
 					if (iconClicked || dec.isCollapsed) {
 						dec.setCollapsed(!dec.isCollapsed, changeAccessor);
-						this.updateHiddenAreas();
+						this.updateHiddenAreas(lineNumber);
 					}
 					return;
 				}
@@ -395,7 +395,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 		});
 	}
 
-	private updateHiddenAreas(): void {
+	private updateHiddenAreas(focusLine: number): void {
 		let model = this.editor.getModel();
 		var cursorPosition : editorCommon.IPosition = this.editor.getPosition();
 		var updateCursorPosition = false;
@@ -413,11 +413,17 @@ export class FoldingController implements editorCommon.IEditorContribution {
 				updateCursorPosition = true;
 			}
 		});
+		let revealPosition;
+		if (focusLine) {
+			revealPosition = { lineNumber: focusLine, column: 1 };
+		} else {
+			revealPosition = cursorPosition;
+		}
 		if (updateCursorPosition) {
 			this.editor.setPosition(cursorPosition);
 		}
 		this.editor.setHiddenAreas(hiddenAreas);
-		this.editor.revealPositionInCenterIfOutsideViewport(cursorPosition);
+		this.editor.revealPositionInCenterIfOutsideViewport(revealPosition);
 	}
 
 	private findRegions(lineNumber: number, collapsed: boolean): CollapsibleRegion[] {
@@ -438,7 +444,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 			this.editor.changeDecorations(changeAccessor => {
 				surrounding[0].setCollapsed(false, changeAccessor);
 			});
-			this.updateHiddenAreas();
+			this.updateHiddenAreas(lineNumber);
 		}
 	}
 
@@ -448,7 +454,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 			this.editor.changeDecorations(changeAccessor => {
 				surrounding[surrounding.length - 1].setCollapsed(true, changeAccessor);
 			});
-			this.updateHiddenAreas();
+			this.updateHiddenAreas(lineNumber);
 		}
 	}
 
@@ -465,7 +471,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 				});
 			});
 			if (hasChanges) {
-				this.updateHiddenAreas();
+				this.updateHiddenAreas(void 0);
 			}
 		}
 	}
