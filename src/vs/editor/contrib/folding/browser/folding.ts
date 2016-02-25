@@ -277,6 +277,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 				this.decorations.forEach(dec => dec.dispose(changeAccessor));
 				this.decorations = [];
 			});
+			this.updateHiddenAreas();
 		}});
 		this.localToDispose.push(this.editor.addListener2(editorCommon.EventType.MouseDown, (e) => this._onEditorMouseDown(e)));
 
