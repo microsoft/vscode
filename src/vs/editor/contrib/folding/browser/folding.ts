@@ -17,17 +17,14 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
-import {IFoldingRange, toString as rangeToString} from 'vs/editor/contrib/folding/common/foldingRange';
-import {computeRanges} from 'vs/editor/contrib/folding/common/indentFoldStrategy';
-
-let log = function(msg: string) {
-	//console.log(msg);
-};
+import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingRange';
+import {computeRanges, limitByIndent} from 'vs/editor/contrib/folding/common/indentFoldStrategy';
 
 class CollapsibleRegion {
 
 	private decorationIds: string[];
 	private _isCollapsed: boolean;
+	private _indent: number;
 
 	private _lastRange: IFoldingRange;
 
@@ -38,6 +35,10 @@ class CollapsibleRegion {
 
 	public get isCollapsed(): boolean {
 		return this._isCollapsed;
+	}
+
+	public get indent(): number {
+		return this._indent;
 	}
 
 	public setCollapsed(isCollaped: boolean, changeAccessor:editorCommon.IModelDecorationsChangeAccessor): void {
@@ -78,6 +79,7 @@ class CollapsibleRegion {
 	public update(newRange:IFoldingRange, model:editorCommon.IModel, changeAccessor:editorCommon.IModelDecorationsChangeAccessor): void {
 		this._lastRange = newRange;
 		this._isCollapsed = !!newRange.isCollapsed;
+		this._indent = newRange.indent;
 
 		let newDecorations : editorCommon.IModelDeltaDecoration[] = [];
 
@@ -176,7 +178,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 			if (d.isCollapsed) {
 				var range = d.getDecorationRange(model);
 				if (range) {
-					collapsedRegions.push({ startLineNumber: range.startLineNumber, endLineNumber: range.endLineNumber, isCollapsed: true});
+					collapsedRegions.push({ startLineNumber: range.startLineNumber, endLineNumber: range.endLineNumber, indent: d.indent, isCollapsed: true});
 				}
 			}
 		});
@@ -202,9 +204,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 		if (!model) {
 			return;
 		}
-
-		regions = regions.sort((r1, r2) => r1.startLineNumber - r2.startLineNumber);
-		log('imput ranges ' + regions.map(rangeToString).join(', '));
+		regions = limitByIndent(regions, 10000).sort((r1, r2) => r1.startLineNumber - r2.startLineNumber);
 
 		this.editor.changeDecorations(changeAccessor => {
 
@@ -215,19 +215,16 @@ export class FoldingController implements editorCommon.IEditorContribution {
 				let dec = this.decorations[i];
 				let decRange = dec.getDecorationRange(model);
 				if (!decRange) {
-					log('range no longer valid, was ' + dec.toString());
 					dec.dispose(changeAccessor);
 					i++;
 				} else {
 					while (k < regions.length && decRange.startLineNumber > regions[k].startLineNumber) {
-						log('new range ' + rangeToString(regions[k]));
 						newDecorations.push(new CollapsibleRegion(regions[k], model, changeAccessor));
 						k++;
 					}
 					if (k < regions.length) {
 						let currRange = regions[k];
 						if (decRange.startLineNumber < currRange.startLineNumber) {
-							log('range no longer valid, was ' + dec.toString());
 							dec.dispose(changeAccessor);
 							i++;
 						} else if (decRange.startLineNumber === currRange.startLineNumber) {
@@ -241,12 +238,10 @@ export class FoldingController implements editorCommon.IEditorContribution {
 				}
 			}
 			while (i < this.decorations.length) {
-				log('range no longer valid, was ' + this.decorations[i].toString());
 				this.decorations[i].dispose(changeAccessor);
 				i++;
 			}
 			while (k < regions.length) {
-				log('new range ' + rangeToString(regions[k]));
 				newDecorations.push(new CollapsibleRegion(regions[k], model, changeAccessor));
 				k++;
 			}

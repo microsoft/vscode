@@ -7,10 +7,10 @@
 import * as assert from 'assert';
 import {Model} from 'vs/editor/common/model/model';
 import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingRange';
-import {computeRanges} from 'vs/editor/contrib/folding/common/indentFoldStrategy';
+import {computeRanges, limitByIndent} from 'vs/editor/contrib/folding/common/indentFoldStrategy';
 import {DefaultEndOfLine} from 'vs/editor/common/editorCommon';
 
-suite('Folding', () => {
+suite('Indentation Folding', () => {
 	function assertRanges(lines: string[], tabSize: number, expected:IFoldingRange[]): void {
 		let model = new Model(lines.join('\n'), DefaultEndOfLine.LF, null);
 		let actual = computeRanges(model, tabSize);
@@ -19,40 +19,40 @@ suite('Folding', () => {
 		model.dispose();
 	}
 
-	function r(startLineNumber: number, endLineNumber: number): IFoldingRange {
-		return { startLineNumber, endLineNumber };
+	function r(startLineNumber: number, endLineNumber: number, indent: number): IFoldingRange {
+		return { startLineNumber, endLineNumber, indent };
 	}
 
-	test('t1', () => {
+	test('Fold one level', () => {
 		assertRanges([
 			'A',
 			'  A',
 			'  A',
 			'  A'
-		], 4, [r(1, 4)]);
+		], 4, [r(1, 4, 0)]);
 	});
 
-	test('t2', () => {
+	test('Fold two levels', () => {
 		assertRanges([
 			'A',
 			'  A',
 			'  A',
 			'    A',
 			'    A'
-		], 4, [r(1, 5), r(3, 5)] );
+		], 4, [r(1, 5, 0), r(3, 5, 2)] );
 	});
 
-	test('t3', () => {
+	test('Fold three levels', () => {
 		assertRanges([
 			'A',
 			'  A',
 			'    A',
 			'      A',
 			'A'
-		], 4, [r(1, 4), r(2, 4), r(3, 4)] );
+		], 4, [r(1, 4, 0), r(2, 4, 2), r(3, 4, 4)] );
 	});
 
-	test('t4', () => {
+	test('Fold decreasing indent', () => {
 		assertRanges([
 			'    A',
 			'  A',
@@ -60,7 +60,7 @@ suite('Folding', () => {
 		], 4, [] );
 	});
 
-	test('Java', () => {
+	test('Fold Java', () => {
 		assertRanges([
 		/* 1*/	'class A {',
 		/* 2*/	'  void foo() {',
@@ -75,10 +75,10 @@ suite('Folding', () => {
 		/*11*/	'interface B {',
 		/*12*/	'  void bar();',
 		/*13*/	'}',
-		], 4, [r(1, 9), r(2, 4), r(7, 8), r(11, 12)] );
+		], 4, [r(1, 9, 0), r(2, 4, 2), r(7, 8, 2), r(11, 12, 0)] );
 	});
 
-	test('Javadoc', () => {
+	test('Fold Javadoc', () => {
 		assertRanges([
 		/* 1*/	'/**',
 		/* 2*/	' * Comment',
@@ -87,9 +87,9 @@ suite('Folding', () => {
 		/* 5*/	'  void foo() {',
 		/* 6*/	'  }',
 		/* 7*/	'}',
-		], 4, [r(1, 3), r(4, 6)] );
+		], 4, [r(1, 3, 0), r(4, 6, 0)] );
 	});
-	test('Whitespace', () => {
+	test('Fold Whitespace', () => {
 		assertRanges([
 		/* 1*/	'class A {',
 		/* 2*/	'',
@@ -99,8 +99,20 @@ suite('Folding', () => {
 		/* 6*/	'  }',
 		/* 7*/	'      ',
 		/* 8*/	'}',
-		], 4, [r(1, 7), r(3, 5)] );
+		], 4, [r(1, 7, 0), r(3, 5, 2)] );
 	});
 
+	test('Limit By indent', () => {
+		let ranges = [r(1, 4, 0), r(3, 4, 2), r(5, 8, 0), r(6, 7, 1), r(9, 15, 0), r(10, 15, 10), r(11, 12, 2000), r(14, 15, 2000)];
+		assert.deepEqual(limitByIndent(ranges, 8), [r(1, 4, 0), r(3, 4, 2), r(5, 8, 0), r(6, 7, 1), r(9, 15, 0), r(10, 15, 10), r(11, 12, 2000), r(14, 15, 2000)]);
+		assert.deepEqual(limitByIndent(ranges, 7), [r(1, 4, 0), r(3, 4, 2), r(5, 8, 0), r(6, 7, 1), r(9, 15, 0), r(10, 15, 10)]);
+		assert.deepEqual(limitByIndent(ranges, 6), [r(1, 4, 0), r(3, 4, 2), r(5, 8, 0), r(6, 7, 1), r(9, 15, 0), r(10, 15, 10)]);
+		assert.deepEqual(limitByIndent(ranges, 5), [r(1, 4, 0), r(3, 4, 2), r(5, 8, 0), r(6, 7, 1), r(9, 15, 0)]);
+		assert.deepEqual(limitByIndent(ranges, 4), [r(1, 4, 0), r(5, 8, 0), r(6, 7, 1), r(9, 15, 0)]);
+		assert.deepEqual(limitByIndent(ranges, 3), [r(1, 4, 0), r(5, 8, 0), r(9, 15, 0)]);
+		assert.deepEqual(limitByIndent(ranges, 2), []);
+		assert.deepEqual(limitByIndent(ranges, 1), []);
+		assert.deepEqual(limitByIndent(ranges, 0), []);
+	});
 
 });

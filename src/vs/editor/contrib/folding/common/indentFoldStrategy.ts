@@ -33,7 +33,7 @@ export function computeRanges(model: IModel, tabSize: number, minimumRangeSize: 
 			// new folding range
 			let endLineNumber = previous.line - 1;
 			if (endLineNumber - line >= minimumRangeSize) {
-				result.push({ startLineNumber: line, endLineNumber });
+				result.push({ startLineNumber: line, endLineNumber, indent: indent });
 			}
 		}
 		if (previous.indent === indent) {
@@ -66,4 +66,32 @@ function computeIndentLevel(line: string, tabSize: number): number {
 		return -1; // line only consists of whitespace
 	}
 	return indent;
+}
+
+/**
+ * Limits the number of folding ranges by removing ranges with larger indent levels
+ */
+export function limitByIndent(ranges: IFoldingRange[], maxEntries: number): IFoldingRange[] {
+	if (ranges.length <= maxEntries) {
+		return ranges;
+	}
+
+	let indentOccurrences = [];
+	ranges.forEach(r => {
+		if (r.indent < 1000) {
+			indentOccurrences[r.indent] = (indentOccurrences[r.indent] || 0) + 1;
+		}
+	});
+	let maxIndent = indentOccurrences.length;
+	for (let i = 0; i < indentOccurrences.length; i++) {
+		if (indentOccurrences[i]) {
+			maxEntries -= indentOccurrences[i];
+			if (maxEntries < 0) {
+				maxIndent = i;
+				break;
+			}
+		}
+
+	}
+	return ranges.filter(r => r.indent < maxIndent);
 }
