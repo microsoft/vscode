@@ -1089,6 +1089,48 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
+	test('issue #3071: Investigate why undo stack gets corrupted', () => {
+		usingCursor({
+			text: [
+				'some lines',
+				'and more lines',
+				'just some text',
+			],
+			mode: null,
+			config: null
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 1, false);
+			moveTo(cursor, 3, 4, true);
+
+			let isFirst = true;
+			model.addListener2(EventType.ModelContentChanged, (e) => {
+				if (isFirst) {
+					isFirst = false;
+					cursorCommand(cursor, H.Type, { text: '\t' }, null, 'keyboard');
+				}
+			});
+
+			cursorCommand(cursor, H.Tab);
+			assert.equal(model.getValue(), [
+				'\t just some text'
+			].join('\n'), '001');
+
+			cursorCommand(cursor, H.Undo);
+			assert.equal(model.getValue(), [
+				'some lines',
+				'and more lines',
+				'just some text',
+			].join('\n'), '002');
+
+			cursorCommand(cursor, H.Undo);
+			assert.equal(model.getValue(), [
+				'some lines',
+				'and more lines',
+				'just some text',
+			].join('\n'), '003');
+		});
+	});
+
 	test('issue #832: deleteWordLeft', () => {
 		usingCursor({
 			text: [
