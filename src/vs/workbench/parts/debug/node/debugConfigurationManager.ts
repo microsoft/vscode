@@ -238,7 +238,7 @@ export class ConfigurationManager {
 			if (this.configuration) {
 				if (this.systemVariables) {
 					Object.keys(this.configuration).forEach(key => {
-						this.configuration[key] = this.systemVariables.resolve(this.configuration[key]);
+						this.configuration[key] = this.systemVariables.resolveAny(this.configuration[key]);
 					});
 				}
 				this.configuration.debugServer = config.debugServer;
