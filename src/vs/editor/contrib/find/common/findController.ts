@@ -534,9 +534,10 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 		}
 
 		let model = this.editor.getModel();
+		let hasFindOccurences = OccurrencesRegistry.has(model);
 		if (r.nextMatch) {
 			// This is an empty selection
-			if (OccurrencesRegistry.has(model)) {
+			if (hasFindOccurences) {
 				// Do not interfere with semantic word highlighting in the no selection case
 				this.removeDecorations();
 				return;
@@ -590,7 +591,13 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 				range: r,
 				options: {
 					stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-					className: 'selectionHighlight'
+					className: 'selectionHighlight',
+					// Show in overviewRuler only if model has no semantic highlighting
+					overviewRuler: (hasFindOccurences ? undefined : {
+						color: '#A0A0A0',
+						darkColor: '#A0A0A0',
+						position: editorCommon.OverviewRulerLane.Center
+					})
 				}
 			};
 		});
