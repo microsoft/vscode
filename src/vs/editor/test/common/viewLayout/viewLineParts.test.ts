@@ -37,6 +37,19 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		]);
 	});
 
+	test('issue #3462: no whitespace shown at the end of a decorated line', () => {
+
+		var result = LineDecorationsNormalizer.normalize(3, [
+			newDecoration(3, 15, 3, 21, 'trailing whitespace'),
+			newDecoration(3, 20, 3, 21, 'inline-folded'),
+		]);
+
+		assert.deepEqual(result, [
+			new DecorationSegment(14, 18, 'trailing whitespace'),
+			new DecorationSegment(19, 19, 'trailing whitespace inline-folded')
+		]);
+	});
+
 	test('ViewLineParts', () => {
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize(1, [

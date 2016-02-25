@@ -7,6 +7,7 @@
 import * as strings from 'vs/base/common/strings';
 import {Arrays} from 'vs/editor/common/core/arrays';
 import {ILineToken, IRange, IViewLineTokens} from 'vs/editor/common/editorCommon';
+import {Range} from 'vs/editor/common/core/range';
 
 export interface ILineParts {
 
@@ -17,9 +18,17 @@ export interface ILineParts {
 	findIndexOfOffset(offset:number): number;
 }
 
+function cmpLineDecorations(a:ILineDecoration, b:ILineDecoration): number {
+	return Range.compareRangesUsingStarts(a.range, b.range);
+}
+
 export function createLineParts(lineNumber:number, lineContent:string, lineTokens:IViewLineTokens, rawLineDecorations:ILineDecoration[], renderWhitespace:boolean): ILineParts {
 	if (renderWhitespace) {
+		let oldLength = rawLineDecorations.length;
 		rawLineDecorations = insertWhitespace(lineNumber, lineContent, lineTokens.getFauxIndentLength(), rawLineDecorations);
+		if (rawLineDecorations.length !== oldLength) {
+			rawLineDecorations.sort(cmpLineDecorations);
+		}
 	}
 
 	if (rawLineDecorations.length > 0) {
