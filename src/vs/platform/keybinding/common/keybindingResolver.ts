@@ -327,16 +327,17 @@ export class OutputBuilder {
 export class IOSupport {
 
 	public static writeKeybindingItem(out: OutputBuilder, item: IKeybindingItem): void {
-		out.write('{ "key": ' + rightPaddedString('"' + IOSupport.writeKeybinding(item.keybinding).replace(/\\/g, '\\\\') + '",', 25) + ' "command": ');
+		let quotedSerializedKeybinding = JSON.stringify(IOSupport.writeKeybinding(item.keybinding));
+		out.write(`{ "key": ${rightPaddedString(quotedSerializedKeybinding + ',', 25)} "command": `);
+
 		let serializedContext = item.context ? item.context.serialize() : '';
+		let quotedSerializeCommand = JSON.stringify(item.command);
 		if (serializedContext.length > 0) {
-			out.write('"' + item.command + '",');
+			out.write(`${quotedSerializeCommand},`);
 			out.writeLine();
-			out.write('                                     "when": "');
-			out.write(serializedContext);
-			out.write('" ');
+			out.write(`                                     "when": "${serializedContext}" `);
 		} else {
-			out.write('"' + item.command + '" ');
+			out.write(`${quotedSerializeCommand} `);
 		}
 		//		out.write(String(item.weight));
 		out.write('}');
