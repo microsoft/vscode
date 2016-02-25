@@ -10,7 +10,7 @@ import { forEach } from 'vs/base/common/collections';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, CancelAction } from 'vs/platform/message/common/message';
+import { IMessageService } from 'vs/platform/message/common/message';
 import { InstallAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IExtensionsService, IGalleryService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IEventService } from 'vs/platform/event/common/event';
@@ -94,11 +94,15 @@ export function checkForLegacyExtensionNeeds(accessor: ServicesAccessor): void {
 						return;
 					}
 
-					let message = nls.localize('hint', "'{0}' is now an optional extension. Do you want to install it?", extension.displayName);
+					let message = nls.localize('hint', "'{0}' is now an extension. Would you like to install it?", extension.displayName);
 					let actions = [
-						CancelAction,
-						new Action('ext.install', nls.localize('install', "Install"), undefined, undefined, () => {
-							let actualInstall = instantiationService.createInstance(InstallAction, nls.localize('install', "Install"));
+						new Action('ext.later', nls.localize('later', "Later"), undefined, true, () => TPromise.as(true)),
+						new Action('ext.no', nls.localize('no', "No"), undefined, true, () => {
+							storageService.store(key, 'OK', StorageScope.GLOBAL);
+							return TPromise.as(true);
+						}),
+						new Action('ext.install', nls.localize('yes', "Yes"), undefined, undefined, () => {
+							let actualInstall = instantiationService.createInstance(InstallAction, nls.localize('yes', "Yes"));
 							actualInstall.run(extension);
 							return TPromise.as(true);
 						})
@@ -106,7 +110,6 @@ export function checkForLegacyExtensionNeeds(accessor: ServicesAccessor): void {
 
 					// inform user and remember
 					messageService.show(Severity.Info, { message, actions });
-					storageService.store(key, 'OK', StorageScope.GLOBAL);
 
 				}, onUnexpectedError);
 			});
