@@ -230,12 +230,12 @@ function packageTask(platform, arch, opts) {
 			.pipe(filter(['**', '!LICENSE', '!LICENSES.chromium.html', '!version']));
 
 		if (platform === 'win32') {
-			result = es.merge(result, gulp.src('sources/win32/bin/code.js', { base: 'resources/win32' }));
+			result = es.merge(result, gulp.src('resources/win32/bin/code.js', { base: 'resources/win32' }));
 
-			result = es.merge(result, gulp.src('sources/win32/bin/code.cmd', { base: 'resources/win32' })
+			result = es.merge(result, gulp.src('resources/win32/bin/code.cmd', { base: 'resources/win32' })
 				.pipe(rename(function (f) { f.basename = product.applicationName; })));
 
-			result = es.merge(result, gulp.src('sources/win32/bin/code.sh', { base: 'resources/win32' })
+			result = es.merge(result, gulp.src('resources/win32/bin/code.sh', { base: 'resources/win32' })
 				.pipe(replace('@@NAME@@', product.nameShort))
 				.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
 		}
@@ -309,7 +309,7 @@ gulp.task('clean-vscode-linux-arm', util.rimraf(path.join(path.dirname(root), 'V
 gulp.task('clean-vscode-linux-ia32-deb', util.rimraf('.build/linux/i386'));
 gulp.task('clean-vscode-linux-x64-deb', util.rimraf('.build/linux/amd64'));
 
-gulp.task('vscode-win32', ['optimize-vscode', 'clean-vscode-win32'], packageTask('win32'));
+gulp.task('vscode-win32', [/*'optimize-vscode', */'clean-vscode-win32'], packageTask('win32'));
 gulp.task('vscode-darwin', ['optimize-vscode', 'clean-vscode-darwin'], packageTask('darwin'));
 gulp.task('vscode-linux-ia32', ['optimize-vscode', 'clean-vscode-linux-ia32'], packageTask('linux', 'ia32'));
 gulp.task('vscode-linux-x64', ['optimize-vscode', 'clean-vscode-linux-x64'], packageTask('linux', 'x64'));
