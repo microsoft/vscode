@@ -6,6 +6,7 @@
 import nls = require('vs/nls');
 import Severity from 'vs/base/common/severity';
 import {onUnexpectedError} from 'vs/base/common/errors';
+import platform = require('vs/base/common/platform');
 import { forEach } from 'vs/base/common/collections';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
@@ -46,7 +47,8 @@ function omnisharpChecker(accessor, callback) {
 function monoDebugChecker(accessor, callback) {
 	const debugService = (<IDebugService>accessor.get(IDebugService));
 	const subscription = debugService.addListener2(ServiceEvents.TYPE_NOT_SUPPORTED, (type: string) => {
-		if (type === 'mono') {
+		// mono debugging is not supported on windows, so do not offer an extension install if on windows
+		if (type === 'mono' && !platform.isWindows) {
 			subscription.dispose();
 			callback();
 		}
