@@ -19,14 +19,14 @@ suite('SASS - Worker', () => {
 
 	var mockSASSWorkerEnv = function (url:URI, content: string) : { worker: sassWorker.SassWorker; model: mm.MirrorModel } {
 		var resourceService = new ResourceService.ResourceService();
-		var model = mm.createMirrorModelFromString(null, 0, content, modesUtil.createMockMode('mock.mode.id', /(#?-?\d*\.\d\w*%?)|([$@#!]?[\w-?]+%?)|[$@#!]/g), url);
+		var model = mm.createMirrorModelFromString(null, 0, content, EditorCommon.DefaultEndOfLine.LF, modesUtil.createMockMode('mock.mode.id', /(#?-?\d*\.\d\w*%?)|([$@#!]?[\w-?]+%?)|[$@#!]/g), url);
 		resourceService.insert(url, model);
 
 		let services = servicesUtil2.createMockEditorWorkerServices({
 			resourceService: resourceService,
 		});
 
-		var worker = new sassWorker.SassWorker(modesUtil.createMockMode('mock.mode.id'), [], services.resourceService, services.markerService);
+		var worker = new sassWorker.SassWorker('mock.mode.id', [], services.resourceService, services.markerService);
 		return { worker: worker, model: model };
 	};
 
@@ -46,7 +46,7 @@ suite('SASS - Worker', () => {
 		var pos = env.model.getPositionFromOffset(value.indexOf(selection));
 		var range = { startLineNumber: pos.lineNumber, startColumn: pos.column, endLineNumber: pos.lineNumber, endColumn: pos.column + selectionLength };
 
-		return env.worker.inplaceReplaceSupport.navigateValueSet(url, range, up);
+		return env.worker.navigateValueSet(url, range, up);
 	};
 
 	var testOccurrences = function(value:string, tokenBefore:string):WinJS.TPromise<{ occurrences: Modes.IOccurence[]; model: mm.MirrorModel }> {

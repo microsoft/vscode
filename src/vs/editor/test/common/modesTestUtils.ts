@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Modes = require('vs/editor/common/modes');
 import {Arrays} from 'vs/editor/common/core/arrays';
+import * as modes from 'vs/editor/common/modes';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 
-class SimpleTokenTypeClassificationMode implements Modes.IMode {
+class SimpleTokenTypeClassificationMode implements modes.IMode {
 
 	private _id:string;
 
-	public richEditSupport: Modes.IRichEditSupport;
+	public richEditSupport: modes.IRichEditSupport;
 
 	constructor(id:string, wordRegExp:RegExp) {
 		this._id = id;
-		this.richEditSupport = new RichEditSupport(this._id, {
+		this.richEditSupport = new RichEditSupport(this._id, null, {
 			wordPattern: wordRegExp
 		});
 	}
@@ -25,24 +25,24 @@ class SimpleTokenTypeClassificationMode implements Modes.IMode {
 		return this._id;
 	}
 
-	public toSimplifiedMode(): Modes.IMode {
+	public toSimplifiedMode(): modes.IMode {
 		return this;
 	}
 }
 
-export function createMockMode(id:string, wordRegExp:RegExp = null):Modes.IMode {
+export function createMockMode(id:string, wordRegExp:RegExp = null):modes.IMode {
 	return new SimpleTokenTypeClassificationMode(id, wordRegExp);
 }
 
 export interface TokenText {
 	text: string;
 	type: string;
-	bracket?: Modes.Bracket;
+	bracket?: modes.Bracket;
 }
 
-export function createLineContextFromTokenText(tokens: TokenText[]): Modes.ILineContext {
+export function createLineContextFromTokenText(tokens: TokenText[]): modes.ILineContext {
 	var line = '';
-	var processedTokens: Modes.IToken[] = [];
+	var processedTokens: modes.IToken[] = [];
 
 	var indexSoFar = 0;
 	for (var i = 0; i < tokens.length; ++i){
@@ -54,17 +54,17 @@ export function createLineContextFromTokenText(tokens: TokenText[]): Modes.ILine
 	return new TestLineContext(line, processedTokens, null);
 }
 
-export function createLineContext(line:string, tokens:Modes.ILineTokens): Modes.ILineContext {
+export function createLineContext(line:string, tokens:modes.ILineTokens): modes.ILineContext {
 	return new TestLineContext(line, tokens.tokens, tokens.modeTransitions);
 }
 
-class TestLineContext implements Modes.ILineContext {
+class TestLineContext implements modes.ILineContext {
 
-	public modeTransitions: Modes.IModeTransition[];
+	public modeTransitions: modes.IModeTransition[];
 	private _line:string;
-	private _tokens: Modes.IToken[];
+	private _tokens: modes.IToken[];
 
-	constructor(line:string, tokens: Modes.IToken[], modeTransitions:Modes.IModeTransition[]) {
+	constructor(line:string, tokens: modes.IToken[], modeTransitions:modes.IModeTransition[]) {
 		this.modeTransitions = modeTransitions;
 		this._line = line;
 		this._tokens = tokens;

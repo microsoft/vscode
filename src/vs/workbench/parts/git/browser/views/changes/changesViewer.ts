@@ -265,13 +265,6 @@ export class Renderer implements tree.IRenderer {
 	private renderStatusGroupTemplate(statusType: git.StatusType, container: HTMLElement): IStatusGroupTemplateData {
 		var data: IStatusGroupTemplateData = Object.create(null);
 
-		data.actionBar = new actionbar.ActionBar(container, { actionRunner: this.actionRunner });
-		data.actionBar.push(this.actionProvider.getActionsForGroupStatusType(statusType), { icon: true, label: false });
-		data.actionBar.addListener2('run', e => e.error && this.onError(e.error));
-
-		const wrapper = dom.append(container, $('.count-badge-wrapper'));
-		data.count = new countbadge.CountBadge(wrapper);
-
 		data.root = dom.append(container, $('.status-group'));
 
 		switch (statusType) {
@@ -280,15 +273,18 @@ export class Renderer implements tree.IRenderer {
 			case git.StatusType.MERGE:			data.root.textContent = nls.localize('mergeChanges', "Merge Changes"); break;
 		}
 
+		const wrapper = dom.append(container, $('.count-badge-wrapper'));
+		data.count = new countbadge.CountBadge(wrapper);
+
+		data.actionBar = new actionbar.ActionBar(container, { actionRunner: this.actionRunner });
+		data.actionBar.push(this.actionProvider.getActionsForGroupStatusType(statusType), { icon: true, label: false });
+		data.actionBar.addListener2('run', e => e.error && this.onError(e.error));
+
 		return data;
 	}
 
 	private renderFileStatusTemplate(statusType: git.StatusType, container: HTMLElement): IFileStatusTemplateData {
 		var data: IFileStatusTemplateData = Object.create(null);
-
-		data.actionBar = new actionbar.ActionBar(container, { actionRunner: this.actionRunner });
-		data.actionBar.push(this.actionProvider.getActionsForFileStatusType(statusType), { icon: true, label: false });
-		data.actionBar.addListener2('run', e => e.error && this.onError(e.error));
 
 		data.root = dom.append(container, $('.file-status'));
 		data.status = dom.append(data.root, $('span.status'));
@@ -301,6 +297,10 @@ export class Renderer implements tree.IRenderer {
 
 		data.renameName = dom.append(rename, $('span.rename-name'));
 		data.renameFolder = dom.append(rename, $('span.rename-folder'));
+
+		data.actionBar = new actionbar.ActionBar(container, { actionRunner: this.actionRunner });
+		data.actionBar.push(this.actionProvider.getActionsForFileStatusType(statusType), { icon: true, label: false });
+		data.actionBar.addListener2('run', e => e.error && this.onError(e.error));
 
 		return data;
 	}
@@ -685,7 +685,7 @@ export class Controller extends treedefaults.DefaultController {
 		this.downKeyBindingDispatcher.set(CommonKeybindings.SHIFT_PAGE_DOWN, this.onPageDown.bind(this));
 	}
 
-	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.StandardMouseEvent): boolean {
+	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
 		// Status group should never get selected nor expanded/collapsed
 		if (element instanceof gitmodel.StatusGroup) {
 			event.preventDefault();
@@ -733,7 +733,7 @@ export class Controller extends treedefaults.DefaultController {
 		return super.onLeftClick(tree, element, event);
 	}
 
-	protected onEnter(tree: tree.ITree, event: keyboard.StandardKeyboardEvent): boolean {
+	protected onEnter(tree: tree.ITree, event: keyboard.IKeyboardEvent): boolean {
 		var element = tree.getFocus();
 
 		// Status group should never get selected nor expanded/collapsed
@@ -747,7 +747,7 @@ export class Controller extends treedefaults.DefaultController {
 		return super.onEnter(tree, event);
 	}
 
-	protected onSpace(tree: tree.ITree, event: keyboard.StandardKeyboardEvent):boolean {
+	protected onSpace(tree: tree.ITree, event: keyboard.IKeyboardEvent):boolean {
 		var focus = tree.getFocus();
 
 		if (!focus) {
@@ -801,15 +801,15 @@ export class Controller extends treedefaults.DefaultController {
 		return false;
 	}
 
-	protected onLeft(tree: tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	protected onLeft(tree: tree.ITree, event:keyboard.IKeyboardEvent):boolean {
 		return true;
 	}
 
-	protected onRight(tree: tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	protected onRight(tree: tree.ITree, event:keyboard.IKeyboardEvent):boolean {
 		return true;
 	}
 
-	protected onUp(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	protected onUp(tree:tree.ITree, event:keyboard.IKeyboardEvent):boolean {
 		var oldFocus = tree.getFocus();
 		var base = super.onUp(tree, event);
 
@@ -820,7 +820,7 @@ export class Controller extends treedefaults.DefaultController {
 		return this.shiftSelect(tree, oldFocus, event);
 	}
 
-	protected onPageUp(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	protected onPageUp(tree:tree.ITree, event:keyboard.IKeyboardEvent):boolean {
 		var oldFocus = tree.getFocus();
 		var base = super.onPageUp(tree, event);
 
@@ -831,7 +831,7 @@ export class Controller extends treedefaults.DefaultController {
 		return this.shiftSelect(tree, oldFocus, event);
 	}
 
-	protected onDown(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	protected onDown(tree:tree.ITree, event:keyboard.IKeyboardEvent):boolean {
 		var oldFocus = tree.getFocus();
 		var base = super.onDown(tree, event);
 
@@ -842,7 +842,7 @@ export class Controller extends treedefaults.DefaultController {
 		return this.shiftSelect(tree, oldFocus, event);
 	}
 
-	protected onPageDown(tree:tree.ITree, event:keyboard.StandardKeyboardEvent):boolean {
+	protected onPageDown(tree:tree.ITree, event:keyboard.IKeyboardEvent):boolean {
 		var oldFocus = tree.getFocus();
 		var base = super.onPageDown(tree, event);
 
@@ -865,7 +865,7 @@ export class Controller extends treedefaults.DefaultController {
 		});
 	}
 
-	private shiftSelect(tree: tree.ITree, oldFocus: any, event:keyboard.StandardKeyboardEvent): boolean {
+	private shiftSelect(tree: tree.ITree, oldFocus: any, event:keyboard.IKeyboardEvent): boolean {
 		var payload = { origin: 'keyboard', originalEvent: event };
 		var focus = tree.getFocus();
 

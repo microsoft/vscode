@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Strings = require('vs/base/common/strings');
-import Modes = require('vs/editor/common/modes');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Errors = require('vs/base/common/errors');
+import {onUnexpectedError} from 'vs/base/common/errors';
+import * as strings from 'vs/base/common/strings';
+import {ITokensInflatorMap} from 'vs/editor/common/editorCommon';
+import {IToken} from 'vs/editor/common/modes';
 
-class InflatedToken implements Modes.IToken {
+class InflatedToken implements IToken {
 	startIndex:number;
 	type:string;
 
@@ -32,12 +32,12 @@ var DEFAULT_TOKEN = {
 	startIndex: 0,
 	type: ''
 };
-var INFLATED_TOKENS_EMPTY_TEXT = <Modes.IToken[]>[];
+var INFLATED_TOKENS_EMPTY_TEXT = <IToken[]>[];
 var DEFLATED_TOKENS_EMPTY_TEXT = <number[]>[];
-var INFLATED_TOKENS_NON_EMPTY_TEXT = <Modes.IToken[]>[DEFAULT_TOKEN];
+var INFLATED_TOKENS_NON_EMPTY_TEXT = <IToken[]>[DEFAULT_TOKEN];
 var DEFLATED_TOKENS_NON_EMPTY_TEXT = <number[]>[0];
 
-export function deflateArr(map:EditorCommon.ITokensInflatorMap, tokens:Modes.IToken[]): number[] {
+export function deflateArr(map:ITokensInflatorMap, tokens:IToken[]): number[] {
 	if (tokens.length === 0) {
 		return DEFLATED_TOKENS_EMPTY_TEXT;
 	}
@@ -49,7 +49,7 @@ export function deflateArr(map:EditorCommon.ITokensInflatorMap, tokens:Modes.ITo
 		len:number,
 		deflatedToken:number,
 		deflated:number,
-		token:Modes.IToken,
+		token:IToken,
 		inflateMap = map._inflate,
 		deflateMap = map._deflate,
 		prevStartIndex:number = -1,
@@ -60,7 +60,7 @@ export function deflateArr(map:EditorCommon.ITokensInflatorMap, tokens:Modes.ITo
 
 		if (token.startIndex <= prevStartIndex) {
 			token.startIndex = prevStartIndex + 1;
-			Errors.onUnexpectedError({
+			onUnexpectedError({
 				message: 'Invalid tokens detected',
 				tokens: tokens
 			});
@@ -97,7 +97,7 @@ export function deflateArr(map:EditorCommon.ITokensInflatorMap, tokens:Modes.ITo
 	return result;
 }
 
-export function inflate(map:EditorCommon.ITokensInflatorMap, binaryEncodedToken:number): Modes.IToken {
+export function inflate(map:ITokensInflatorMap, binaryEncodedToken:number): IToken {
 	if (binaryEncodedToken === 0) {
 		return DEFAULT_TOKEN;
 	}
@@ -112,15 +112,15 @@ export function getStartIndex(binaryEncodedToken:number): number {
 	return (binaryEncodedToken / START_INDEX_OFFSET) & START_INDEX_MASK;
 }
 
-export function getType(map:EditorCommon.ITokensInflatorMap, binaryEncodedToken:number): string {
+export function getType(map:ITokensInflatorMap, binaryEncodedToken:number): string {
 	var deflatedType = (binaryEncodedToken / TYPE_OFFSET) & TYPE_MASK;
 	if (deflatedType === 0) {
-		return Strings.empty;
+		return strings.empty;
 	}
 	return map._inflate[deflatedType];
 }
 
-export function inflateArr(map:EditorCommon.ITokensInflatorMap, binaryEncodedTokens:number[]): Modes.IToken[] {
+export function inflateArr(map:ITokensInflatorMap, binaryEncodedTokens:number[]): IToken[] {
 	if (binaryEncodedTokens.length === 0) {
 		return INFLATED_TOKENS_EMPTY_TEXT;
 	}
@@ -128,7 +128,7 @@ export function inflateArr(map:EditorCommon.ITokensInflatorMap, binaryEncodedTok
 		return INFLATED_TOKENS_NON_EMPTY_TEXT;
 	}
 
-	var result: Modes.IToken[] = new Array(binaryEncodedTokens.length),
+	var result: IToken[] = new Array(binaryEncodedTokens.length),
 		i:number,
 		len:number,
 		deflated:number,
@@ -152,7 +152,7 @@ export function findIndexOfOffset(binaryEncodedTokens:number[], offset:number): 
 	return findIndexInSegmentsArray(binaryEncodedTokens, offset);
 }
 
-export function sliceAndInflate(map:EditorCommon.ITokensInflatorMap, binaryEncodedTokens:number[], startOffset:number, endOffset:number, deltaStartIndex:number): Modes.IToken[] {
+export function sliceAndInflate(map:ITokensInflatorMap, binaryEncodedTokens:number[], startOffset:number, endOffset:number, deltaStartIndex:number): IToken[] {
 	if (binaryEncodedTokens.length === 0) {
 		return INFLATED_TOKENS_EMPTY_TEXT;
 	}
@@ -167,7 +167,7 @@ export function sliceAndInflate(map:EditorCommon.ITokensInflatorMap, binaryEncod
 		originalStartIndex:number,
 		newStartIndex:number,
 		deflatedType:number,
-		result: Modes.IToken[] = [],
+		result: IToken[] = [],
 		inflateMap = map._inflate;
 
 	originalToken = binaryEncodedTokens[startIndex];

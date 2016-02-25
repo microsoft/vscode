@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import {IIndentationRules, IBracketPair, OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
-import {IndentAction} from 'vs/editor/common/modes';
+import * as assert from 'assert';
+import {IndentAction, CharacterPair} from 'vs/editor/common/modes';
+import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 
 suite('OnEnter', () => {
 
@@ -38,9 +38,9 @@ suite('OnEnter', () => {
 	});
 
 	test('uses brackets', () => {
-		var brackets: IBracketPair[] = [
-			{ open:'(', close:')' },
-			{ open:'begin', close:'end' }
+		var brackets: CharacterPair[] = [
+			['(', ')'],
+			['begin', 'end']
 		];
 		var support = new OnEnterSupport(null, {
 			brackets: brackets

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as EditorCommon from 'vs/editor/common/editorCommon';
-import {Range} from 'vs/editor/common/core/range';
 import Event from 'vs/base/common/event';
 import {commonPrefixLength, commonSuffixLength} from 'vs/base/common/strings';
+import {Range} from 'vs/editor/common/core/range';
+import {EndOfLinePreference, IEditorPosition, IEditorRange, IRange} from 'vs/editor/common/editorCommon';
 
 export interface IClipboardEvent {
 	canUseTextData(): boolean;
@@ -45,10 +45,10 @@ export interface ITextAreaWrapper {
 export interface ISimpleModel {
 	getLineMaxColumn(lineNumber:number): number;
 	getEOL(): string;
-	getValueInRange(range:EditorCommon.IRange, eol:EditorCommon.EndOfLinePreference): string;
+	getValueInRange(range:IRange, eol:EndOfLinePreference): string;
 	getModelLineContent(lineNumber:number): string;
 	getLineCount(): number;
-	convertViewPositionToModelPosition(viewLineNumber:number, viewColumn:number): EditorCommon.IEditorPosition;
+	convertViewPositionToModelPosition(viewLineNumber:number, viewColumn:number): IEditorPosition;
 }
 
 export interface ITypeData {
@@ -101,7 +101,7 @@ export abstract class TextAreaState {
 
 	public abstract fromTextArea(textArea:ITextAreaWrapper): TextAreaState;
 
-	public abstract fromEditorSelection(model:ISimpleModel, selection:EditorCommon.IEditorRange);
+	public abstract fromEditorSelection(model:ISimpleModel, selection:IEditorRange);
 
 	public abstract fromText(text:string): TextAreaState;
 
@@ -249,7 +249,7 @@ export class IENarratorTextAreaState extends TextAreaState {
 		return new IENarratorTextAreaState(this, textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd(), textArea.isInOverwriteMode(), this.selectionToken);
 	}
 
-	public fromEditorSelection(model:ISimpleModel, selection:EditorCommon.IEditorRange): TextAreaState {
+	public fromEditorSelection(model:ISimpleModel, selection:IEditorRange): TextAreaState {
 		let LIMIT_CHARS = 100;
 		let PADDING_LINES_COUNT = 0;
 
@@ -269,9 +269,9 @@ export class IENarratorTextAreaState extends TextAreaState {
 		let pretext = '';
 		let startLineNumber = Math.max(1, selectionStartLineNumber - PADDING_LINES_COUNT);
 		if (startLineNumber < selectionStartLineNumber) {
-			pretext = model.getValueInRange(new Range(startLineNumber, 1, selectionStartLineNumber, 1), EditorCommon.EndOfLinePreference.LF);
+			pretext = model.getValueInRange(new Range(startLineNumber, 1, selectionStartLineNumber, 1), EndOfLinePreference.LF);
 		}
-		pretext += model.getValueInRange(new Range(selectionStartLineNumber, 1, selectionStartLineNumber, selectionStartColumn), EditorCommon.EndOfLinePreference.LF);
+		pretext += model.getValueInRange(new Range(selectionStartLineNumber, 1, selectionStartLineNumber, selectionStartColumn), EndOfLinePreference.LF);
 		if (pretext.length > LIMIT_CHARS) {
 			pretext = pretext.substring(pretext.length - LIMIT_CHARS, pretext.length);
 		}
@@ -280,9 +280,9 @@ export class IENarratorTextAreaState extends TextAreaState {
 		// `posttext` contains the text after the selection
 		let posttext = '';
 		let endLineNumber = Math.min(selectionEndLineNumber + PADDING_LINES_COUNT, model.getLineCount());
-		posttext += model.getValueInRange(new Range(selectionEndLineNumber, selectionEndColumn, selectionEndLineNumber, selectionEndLineNumberMaxColumn), EditorCommon.EndOfLinePreference.LF);
+		posttext += model.getValueInRange(new Range(selectionEndLineNumber, selectionEndColumn, selectionEndLineNumber, selectionEndLineNumberMaxColumn), EndOfLinePreference.LF);
 		if (endLineNumber > selectionEndLineNumber) {
-			posttext = '\n' + model.getValueInRange(new Range(selectionEndLineNumber + 1, 1, endLineNumber, model.getLineMaxColumn(endLineNumber)), EditorCommon.EndOfLinePreference.LF);
+			posttext = '\n' + model.getValueInRange(new Range(selectionEndLineNumber + 1, 1, endLineNumber, model.getLineMaxColumn(endLineNumber)), EndOfLinePreference.LF);
 		}
 		if (posttext.length > LIMIT_CHARS) {
 			posttext = posttext.substring(0, LIMIT_CHARS);
@@ -290,7 +290,7 @@ export class IENarratorTextAreaState extends TextAreaState {
 
 
 		// `text` contains the text of the selection
-		let text = model.getValueInRange(new Range(selectionStartLineNumber, selectionStartColumn, selectionEndLineNumber, selectionEndColumn), EditorCommon.EndOfLinePreference.LF);
+		let text = model.getValueInRange(new Range(selectionStartLineNumber, selectionStartColumn, selectionEndLineNumber, selectionEndColumn), EndOfLinePreference.LF);
 		if (text.length > 2 * LIMIT_CHARS) {
 			text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
 		}
@@ -361,7 +361,7 @@ export class NVDAPagedTextAreaState extends TextAreaState {
 		return new Range(startLineNumber, 1, endLineNumber, Number.MAX_VALUE);
 	}
 
-	public fromEditorSelection(model:ISimpleModel, selection:EditorCommon.IEditorRange): TextAreaState {
+	public fromEditorSelection(model:ISimpleModel, selection:IEditorRange): TextAreaState {
 
 		let selectionStartPage = NVDAPagedTextAreaState._getPageOfLine(selection.startLineNumber);
 		let selectionStartPageRange = NVDAPagedTextAreaState._getRangeForPage(selectionStartPage);
@@ -370,24 +370,24 @@ export class NVDAPagedTextAreaState extends TextAreaState {
 		let selectionEndPageRange = NVDAPagedTextAreaState._getRangeForPage(selectionEndPage);
 
 		let pretextRange = selectionStartPageRange.intersectRanges(new Range(1, 1, selection.startLineNumber, selection.startColumn));
-		let pretext = model.getValueInRange(pretextRange, EditorCommon.EndOfLinePreference.LF);
+		let pretext = model.getValueInRange(pretextRange, EndOfLinePreference.LF);
 
 		let lastLine = model.getLineCount();
 		let lastLineMaxColumn = model.getLineMaxColumn(lastLine);
 		let posttextRange = selectionEndPageRange.intersectRanges(new Range(selection.endLineNumber, selection.endColumn, lastLine, lastLineMaxColumn));
-		let posttext = model.getValueInRange(posttextRange, EditorCommon.EndOfLinePreference.LF);
+		let posttext = model.getValueInRange(posttextRange, EndOfLinePreference.LF);
 
 		let text:string = null;
 		if (selectionStartPage <= selectionEndPage) {
 			// take full selection
-			text = model.getValueInRange(selection, EditorCommon.EndOfLinePreference.LF);
+			text = model.getValueInRange(selection, EndOfLinePreference.LF);
 		} else {
 			let selectionRange1 = selectionStartPageRange.intersectRanges(selection);
 			let selectionRange2 = selectionEndPageRange.intersectRanges(selection);
 			text = (
-				model.getValueInRange(selectionRange1, EditorCommon.EndOfLinePreference.LF)
+				model.getValueInRange(selectionRange1, EndOfLinePreference.LF)
 				+ String.fromCharCode(8230)
-				+ model.getValueInRange(selectionRange2, EditorCommon.EndOfLinePreference.LF)
+				+ model.getValueInRange(selectionRange2, EndOfLinePreference.LF)
 			);
 		}
 
@@ -446,12 +446,12 @@ export class NVDAFullTextAreaState extends TextAreaState {
 		return new NVDAFullTextAreaState(this, textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd(), textArea.isInOverwriteMode());
 	}
 
-	public fromEditorSelection(model:ISimpleModel, selection:EditorCommon.IEditorRange): TextAreaState {
-		let pretext = model.getValueInRange(new Range(1, 1, selection.startLineNumber, selection.startColumn), EditorCommon.EndOfLinePreference.LF);
-		let text = model.getValueInRange(selection, EditorCommon.EndOfLinePreference.LF);
+	public fromEditorSelection(model:ISimpleModel, selection:IEditorRange): TextAreaState {
+		let pretext = model.getValueInRange(new Range(1, 1, selection.startLineNumber, selection.startColumn), EndOfLinePreference.LF);
+		let text = model.getValueInRange(selection, EndOfLinePreference.LF);
 		let lastLine = model.getLineCount();
 		let lastLineMaxColumn = model.getLineMaxColumn(lastLine);
-		let posttext = model.getValueInRange(new Range(selection.endLineNumber, selection.endColumn, lastLine, lastLineMaxColumn), EditorCommon.EndOfLinePreference.LF);
+		let posttext = model.getValueInRange(new Range(selection.endLineNumber, selection.endColumn, lastLine, lastLineMaxColumn), EndOfLinePreference.LF);
 
 		return new NVDAFullTextAreaState(this, pretext + text + posttext, pretext.length, pretext.length + text.length, false);
 	}

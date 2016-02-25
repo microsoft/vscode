@@ -15,15 +15,16 @@ import { assign } from 'vs/base/common/objects';
 import { flatten } from 'vs/base/common/arrays';
 import { extract, buffer } from 'vs/base/node/zip';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { IExtensionsService, IExtension, IExtensionManifest, IGalleryInformation } from 'vs/workbench/parts/extensions/common/extensions';
-import { download } from 'vs/base/node/request';
+import { IExtensionsService, IExtension, IExtensionManifest, IGalleryMetadata, IGalleryVersion } from 'vs/workbench/parts/extensions/common/extensions';
+import { download, json, IRequestOptions } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { Limiter } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
 import { UserSettings } from 'vs/workbench/node/userSettings';
 import * as semver from 'semver';
-import {groupBy, values} from 'vs/base/common/collections';
+import { groupBy, values } from 'vs/base/common/collections';
+import { isValidExtensionVersion } from 'vs/platform/plugins/node/pluginVersionValidator';
 
 function parseManifest(raw: string): TPromise<IExtensionManifest> {
 	return new Promise((c, e) => {
@@ -35,7 +36,7 @@ function parseManifest(raw: string): TPromise<IExtensionManifest> {
 	});
 }
 
-function validate(zipPath: string, extension?: IExtension): TPromise<IExtension> {
+function validate(zipPath: string, extension?: IExtension, version = extension && extension.version): TPromise<IExtension> {
 	return buffer(zipPath, 'extension/package.json')
 		.then(buffer => parseManifest(buffer.toString('utf8')))
 		.then(manifest => {
@@ -48,7 +49,7 @@ function validate(zipPath: string, extension?: IExtension): TPromise<IExtension>
 					return Promise.wrapError(Error(nls.localize('invalidPublisher', "Extension invalid: manifest publisher mismatch.")));
 				}
 
-				if (extension.version !== manifest.version) {
+				if (version !== manifest.version) {
 					return Promise.wrapError(Error(nls.localize('invalidVersion', "Extension invalid: manifest version mismatch.")));
 				}
 			}
@@ -57,12 +58,13 @@ function validate(zipPath: string, extension?: IExtension): TPromise<IExtension>
 		});
 }
 
-function createExtension(manifest: IExtensionManifest, galleryInformation?: IGalleryInformation, path?: string): IExtension {
+function createExtension(manifest: IExtensionManifest, galleryInformation?: IGalleryMetadata, path?: string): IExtension {
 	const extension: IExtension = {
 		name: manifest.name,
 		displayName: manifest.displayName || manifest.name,
 		publisher: manifest.publisher,
 		version: manifest.version,
+		engines: { vscode: manifest.engines.vscode },
 		description: manifest.description || ''
 	};
 
@@ -77,8 +79,8 @@ function createExtension(manifest: IExtensionManifest, galleryInformation?: IGal
 	return extension;
 }
 
-function getExtensionId(extension: IExtension): string {
-	return `${ extension.publisher }.${ extension.name }-${ extension.version }`;
+function getExtensionId(extension: IExtensionManifest, version = extension.version): string {
+	return `${ extension.publisher }.${ extension.name }-${ version }`;
 }
 
 export class ExtensionsService implements IExtensionsService {
@@ -127,23 +129,16 @@ export class ExtensionsService implements IExtensionsService {
 			return TPromise.wrapError(new Error(nls.localize('missingGalleryInformation', "Gallery information is missing")));
 		}
 
-		const url = galleryInformation.downloadUrl;
-		const zipPath = path.join(tmpdir(), galleryInformation.id);
-		const extensionPath = path.join(this.extensionsPath, getExtensionId(extension));
-		const manifestPath = path.join(extensionPath, 'package.json');
+		return this.getLastValidExtensionVersion(extension, extension.galleryInformation.versions).then(versionInfo => {
+			const version = versionInfo.version;
+			const url = versionInfo.downloadUrl;
+			const zipPath = path.join(tmpdir(), galleryInformation.id);
+			const extensionPath = path.join(this.extensionsPath, getExtensionId(extension, version));
+			const manifestPath = path.join(extensionPath, 'package.json');
 
-		const settings = TPromise.join([
-			UserSettings.getValue(this.contextService, 'http.proxy'),
-			UserSettings.getValue(this.contextService, 'http.proxyStrictSSL')
-		]);
-
-		return settings.then(settings => {
-			const proxyUrl: string = settings[0];
-			const strictSSL: boolean = settings[1];
-			const agent = getProxyAgent(url, { proxyUrl, strictSSL });
-
-			return download(zipPath, { url, agent, strictSSL })
-				.then(() => validate(zipPath, extension))
+			return this.request(url)
+				.then(opts => download(zipPath, opts))
+				.then(() => validate(zipPath, extension, version))
 				.then(manifest => { this._onInstallExtension.fire(manifest); return manifest; })
 				.then(manifest => extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true }).then(() => manifest))
 				.then(manifest => {
@@ -152,6 +147,30 @@ export class ExtensionsService implements IExtensionsService {
 				})
 				.then(() => { this._onDidInstallExtension.fire(extension); return extension; });
 		});
+	}
+
+	private getLastValidExtensionVersion(extension: IExtension, versions: IGalleryVersion[]): TPromise<IGalleryVersion> {
+		if (!versions.length) {
+			return TPromise.wrapError(new Error(nls.localize('noCompatible', "Couldn't find a compatible version of {0} with this version of Code.", extension.displayName)));
+		}
+
+		const version = versions[0];
+		return this.request(version.manifestUrl)
+			.then(opts => json<IExtensionManifest>(opts))
+			.then(manifest => {
+				const codeVersion = this.contextService.getConfiguration().env.version;
+				const desc = {
+					isBuiltin: false,
+					engines: { vscode: manifest.engines.vscode },
+					main: manifest.main
+				};
+
+				if (!isValidExtensionVersion(codeVersion, desc, [])) {
+					return this.getLastValidExtensionVersion(extension, versions.slice(1));
+				}
+
+				return version;
+			});
 	}
 
 	private installFromZip(zipPath: string): TPromise<IExtension> {
@@ -265,6 +284,24 @@ export class ExtensionsService implements IExtensionsService {
 					}
 				})
 				.then(() => result);
+		});
+	}
+
+	// Helper for proxy business... shameful.
+	// This should be pushed down and not rely on the context service
+	private request(url: string): TPromise<IRequestOptions> {
+		const settings = TPromise.join([
+			UserSettings.getValue(this.contextService, 'http.proxy'),
+			UserSettings.getValue(this.contextService, 'http.proxyStrictSSL')
+		]);
+
+		return settings.then(settings => {
+			const proxyUrl: string = settings[0];
+			const strictSSL: boolean = settings[1];
+			const agent = getProxyAgent(url, { proxyUrl, strictSSL });
+
+
+			return { url, agent, strictSSL };
 		});
 	}
 }

@@ -5,7 +5,7 @@
 'use strict';
 
 import {SyncDescriptor} from './descriptors';
-import {ServiceIdentifier, INewConstructorSignature0} from './instantiation';
+import {ServiceIdentifier, IConstructorSignature0} from './instantiation';
 
 export const Services = 'di.services';
 
@@ -16,7 +16,7 @@ export interface IServiceContribution<T> {
 
 const _registry: IServiceContribution<any>[] = [];
 
-export function registerSingleton<T>(id: ServiceIdentifier<T>, ctor: INewConstructorSignature0<T>): void {
+export function registerSingleton<T>(id: ServiceIdentifier<T>, ctor: IConstructorSignature0<T>): void {
 	_registry.push({ id, descriptor: new SyncDescriptor<T>(ctor) });
 }
 

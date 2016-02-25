@@ -13,22 +13,30 @@ export interface IExtensionManifest {
 	name: string;
 	publisher: string;
 	version: string;
+	engines: { vscode: string };
 	displayName?: string;
 	description?: string;
+	main?: string;
 }
 
-export interface IGalleryInformation {
+export interface IGalleryVersion {
+	version: string;
+	date: string;
+	manifestUrl: string;
+	downloadUrl: string;
+}
+
+export interface IGalleryMetadata {
 	galleryApiUrl: string;
 	id: string;
-	downloadUrl: string;
 	publisherId: string;
 	publisherDisplayName: string;
 	installCount: number;
-	date: string;
+	versions: IGalleryVersion[];
 }
 
 export interface IExtension extends IExtensionManifest {
-	galleryInformation?: IGalleryInformation;
+	galleryInformation?: IGalleryMetadata;
 	path?: string;
 }
 

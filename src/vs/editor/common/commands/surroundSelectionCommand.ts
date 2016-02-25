@@ -6,20 +6,20 @@
 
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorSelection, ITokenizedModel} from 'vs/editor/common/editorCommon';
 
-export class SurroundSelectionCommand implements EditorCommon.ICommand {
-	private _range: EditorCommon.IEditorSelection;
+export class SurroundSelectionCommand implements ICommand {
+	private _range: IEditorSelection;
 	private _charBeforeSelection: string;
 	private _charAfterSelection: string;
 
-	constructor(range:EditorCommon.IEditorSelection, charBeforeSelection:string, charAfterSelection:string) {
+	constructor(range:IEditorSelection, charBeforeSelection:string, charAfterSelection:string) {
 		this._range = range;
 		this._charBeforeSelection = charBeforeSelection;
 		this._charAfterSelection = charAfterSelection;
 	}
 
-	public getEditOperations(model:EditorCommon.ITokenizedModel, builder:EditorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model:ITokenizedModel, builder:IEditOperationBuilder): void {
 		builder.addEditOperation(new Range(
 			this._range.startLineNumber,
 			this._range.startColumn,
@@ -35,7 +35,7 @@ export class SurroundSelectionCommand implements EditorCommon.ICommand {
 		), this._charAfterSelection);
 	}
 
-	public computeCursorState(model: EditorCommon.ITokenizedModel, helper: EditorCommon.ICursorStateComputerData): EditorCommon.IEditorSelection {
+	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): IEditorSelection {
 		var inverseEditOperations = helper.getInverseEditOperations();
 		var firstOperationRange = inverseEditOperations[0].range;
 		var secondOperationRange = inverseEditOperations[1].range;

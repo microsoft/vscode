@@ -16,6 +16,7 @@ export const VIEWLET_ID = 'workbench.view.debug';
 export const REPL_ID = 'workbench.panel.repl';
 export const DEBUG_SERVICE_ID = 'debugService';
 export const CONTEXT_IN_DEBUG_MODE = 'inDebugMode';
+export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 
 // raw
 
@@ -301,6 +302,11 @@ export interface IDebugService extends ee.IEventEmitter {
 	 * Reveals the repl.
 	 */
 	revealRepl(focus?: boolean): TPromise<void>;
+}
+
+// Editor interfaces
+export interface IDebugEditorContribution extends editor.IEditorContribution {
+	showHover(range: editor.IEditorRange, hoveringOver: string, focus: boolean): TPromise<void>;
 }
 
 // utils

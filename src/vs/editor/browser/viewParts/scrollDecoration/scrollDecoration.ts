@@ -6,12 +6,11 @@
 'use strict';
 
 import 'vs/css!./scrollDecoration';
-import DomUtils = require('vs/base/browser/dom');
-
-import {ViewPart} from 'vs/editor/browser/view/viewPart';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as dom from 'vs/base/browser/dom';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
+import {IConfigurationChangedEvent, IEditorLayoutInfo, IScrollEvent} from 'vs/editor/common/editorCommon';
+import {ClassNames, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {ViewPart} from 'vs/editor/browser/view/viewPart';
 
 export class ScrollDecorationViewPart extends ViewPart {
 
@@ -20,7 +19,7 @@ export class ScrollDecorationViewPart extends ViewPart {
 	private _width: number;
 	private _shouldShow: boolean;
 
-	constructor(context: EditorBrowser.IViewContext) {
+	constructor(context: IViewContext) {
 		super(context);
 
 		this._scrollTop = 0;
@@ -44,27 +43,27 @@ export class ScrollDecorationViewPart extends ViewPart {
 
 	// --- begin event handlers
 
-	public onConfigurationChanged(e: EditorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: IConfigurationChangedEvent): boolean {
 		return this._updateShouldShow();
 	}
-	public onLayoutChanged(layoutInfo: EditorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo: IEditorLayoutInfo): boolean {
 		if (this._width !== layoutInfo.width) {
 			this._width = layoutInfo.width;
 			return true;
 		}
 		return false;
 	}
-	public onScrollChanged(e: EditorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: IScrollEvent): boolean {
 		this._scrollTop = e.scrollTop;
 		return this._updateShouldShow();
 	}
 
 	// --- end event handlers
 
-	_render(ctx: EditorBrowser.IRenderingContext): void {
+	_render(ctx: IRenderingContext): void {
 		this._requestModificationFrame(() => {
 			StyleMutator.setWidth(this._domNode, this._width);
-			DomUtils.toggleClass(this._domNode, EditorBrowser.ClassNames.SCROLL_DECORATION, this._shouldShow);
+			dom.toggleClass(this._domNode, ClassNames.SCROLL_DECORATION, this._shouldShow);
 		});
 	}
 }

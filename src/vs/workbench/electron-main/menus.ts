@@ -357,7 +357,7 @@ export class VSCodeMenu {
 		let userSettings = this.createMenuItem(nls.localize('miOpenSettings', "&&User Settings"), 'workbench.action.openGlobalSettings');
 		let workspaceSettings = this.createMenuItem(nls.localize('miOpenWorkspaceSettings', "&&Workspace Settings"), 'workbench.action.openWorkspaceSettings');
 		let kebindingSettings = this.createMenuItem(nls.localize('miOpenKeymap', "&&Keyboard Shortcuts"), 'workbench.action.openGlobalKeybindings');
-		let snippetsSettings = this.createMenuItem(nls.localize('miOpenSnippets', "&&User Snippets"), 'workbench.action.openSnippets');
+		let snippetsSettings = this.createMenuItem(nls.localize('miOpenSnippets', "User &&Snippets"), 'workbench.action.openSnippets');
 		let themeSelection = this.createMenuItem(nls.localize('miSelectTheme', "&&Color Theme"), 'workbench.action.selectTheme');
 		let preferencesMenu = new Menu();
 		preferencesMenu.append(userSettings);
@@ -504,6 +504,8 @@ export class VSCodeMenu {
 		let moveSidebar = this.createMenuItem(nls.localize('miMoveSidebar', "&&Move Side Bar"), 'workbench.action.toggleSidebarPosition');
 		let togglePanel = this.createMenuItem(nls.localize('miTogglePanel', "Toggle &&Panel"), 'workbench.action.togglePanel');
 
+		const toggleWordWrap = this.createMenuItem(nls.localize('miToggleWordWrap', "Toggle &&Word Wrap"), 'editor.action.toggleWordWrap');
+
 		let zoomIn = this.createMenuItem(nls.localize('miZoomIn', "&&Zoom in"), 'workbench.action.zoomIn');
 		let zoomOut = this.createMenuItem(nls.localize('miZoomOut', "Zoom o&&ut"), 'workbench.action.zoomOut');
 
@@ -526,6 +528,8 @@ export class VSCodeMenu {
 			toggleSidebar,
 			moveSidebar,
 			togglePanel,
+			__separator__(),
+			toggleWordWrap,
 			__separator__(),
 			zoomIn,
 			zoomOut

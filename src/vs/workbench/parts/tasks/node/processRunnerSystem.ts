@@ -26,7 +26,7 @@ import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
-import { ITaskSystem, ITaskSummary, ITaskRunResult, TaskError, TaskRunnerConfiguration, TaskDescription, CommandOptions, ShowOutput, TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { ITaskSystem, ITaskSummary, ITaskRunResult, TaskError, TaskErrors, TaskRunnerConfiguration, TaskDescription, CommandOptions, ShowOutput, TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType } from 'vs/workbench/parts/tasks/common/taskSystem';
 import * as FileConfig from './processRunnerConfiguration';
 
 export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
@@ -83,7 +83,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 
 	public build(): ITaskRunResult {
 		if (!this.defaultBuildTaskIdentifier) {
-			throw new TaskError(Severity.Info, nls.localize('TaskRunnerSystem.noBuildTask', 'No build task configured.'), 1);
+			throw new TaskError(Severity.Info, nls.localize('TaskRunnerSystem.noBuildTask', 'No build task configured.'), TaskErrors.NoBuildTask);
 		}
 		return this.executeTask(this.defaultBuildTaskIdentifier, Triggers.shortcut);
 	}
@@ -98,7 +98,7 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 
 	public runTest(): ITaskRunResult {
 		if (!this.defaultTestTaskIdentifier) {
-			throw new TaskError(Severity.Info, nls.localize('TaskRunnerSystem.noTestTask', 'No test task configured.'), 1);
+			throw new TaskError(Severity.Info, nls.localize('TaskRunnerSystem.noTestTask', 'No test task configured.'), TaskErrors.NoTestTask);
 		}
 		return this.executeTask(this.defaultTestTaskIdentifier, Triggers.shortcut);
 	}
@@ -147,11 +147,11 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 
 	private executeTask(taskIdentifier: string, trigger: string = Triggers.command): ITaskRunResult {
 		if (this.validationStatus.isFatal()) {
-			throw new TaskError(Severity.Error, nls.localize('TaskRunnerSystem.fatalError', 'The provided task configuration has validation errors. See tasks output log for details.'));
+			throw new TaskError(Severity.Error, nls.localize('TaskRunnerSystem.fatalError', 'The provided task configuration has validation errors. See tasks output log for details.'), TaskErrors.ConfigValidationError);
 		}
 		let task = this.configuration.tasks[taskIdentifier];
 		if (!task) {
-			throw new TaskError(Severity.Info, nls.localize('TaskRunnerSystem.norebuild', 'No task to execute found.'));
+			throw new TaskError(Severity.Info, nls.localize('TaskRunnerSystem.norebuild', 'No task to execute found.'), TaskErrors.TaskNotFound);
 		}
 		let telemetryEvent: TelemetryEvent = {
 			trigger: trigger,
@@ -177,10 +177,10 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 			} else if (err instanceof Error) {
 				let error = <Error>err;
 				this.outputService.append(this.outputChannel, error.message);
-				throw new TaskError(Severity.Error, error.message);
+				throw new TaskError(Severity.Error, error.message, TaskErrors.UnknownError);
 			} else {
 				this.outputService.append(this.outputChannel, err.toString());
-				throw new TaskError(Severity.Error, nls.localize('TaskRunnerSystem.unknownError', 'A unknown error has occurred while executing a task. See task output log for details.'));
+				throw new TaskError(Severity.Error, nls.localize('TaskRunnerSystem.unknownError', 'A unknown error has occurred while executing a task. See task output log for details.'), TaskErrors.UnknownError);
 			}
 		}
 	}

@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {OverviewRulerImpl} from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
+import {IConfigurationChangedEvent, IOverviewRulerPosition} from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {IOverviewRuler, IOverviewRulerZone, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {OverviewRulerImpl} from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
 
-export class OverviewRuler extends ViewEventHandler implements EditorBrowser.IOverviewRuler {
+export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 
-	private _context:EditorBrowser.IViewContext;
+	private _context:IViewContext;
 	private _overviewRuler:OverviewRulerImpl;
 
-	constructor(context:EditorBrowser.IViewContext, cssClassName:string, scrollHeight:number, minimumHeight:number, maximumHeight:number, getVerticalOffsetForLine:(lineNumber:number)=>number) {
+	constructor(context:IViewContext, cssClassName:string, scrollHeight:number, minimumHeight:number, maximumHeight:number, getVerticalOffsetForLine:(lineNumber:number)=>number) {
 		super();
 		this._context = context;
 		this._overviewRuler = new OverviewRulerImpl(0, cssClassName, scrollHeight, this._context.configuration.editor.lineHeight,
@@ -32,7 +32,7 @@ export class OverviewRuler extends ViewEventHandler implements EditorBrowser.IOv
 		this._overviewRuler.dispose();
 	}
 
-	public onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e:IConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._overviewRuler.setLineHeight(this._context.configuration.editor.lineHeight, true);
 			return true;
@@ -57,11 +57,11 @@ export class OverviewRuler extends ViewEventHandler implements EditorBrowser.IOv
 		return this._overviewRuler.getDomNode();
 	}
 
-	public setLayout(position:EditorCommon.IOverviewRulerPosition): void {
+	public setLayout(position:IOverviewRulerPosition): void {
 		this._overviewRuler.setLayout(position, true);
 	}
 
-	public setZones(zones:EditorBrowser.IOverviewRulerZone[]): void {
+	public setZones(zones:IOverviewRulerZone[]): void {
 		this._overviewRuler.setZones(zones, true);
 	}
 }

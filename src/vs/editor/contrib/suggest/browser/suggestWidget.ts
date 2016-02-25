@@ -7,30 +7,30 @@
 
 import 'vs/css!./suggest';
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
+import {isPromiseCanceledError, onUnexpectedError} from 'vs/base/common/errors';
 import Event, { Emitter } from 'vs/base/common/event';
-import { append, addClass, removeClass, toggleClass, emmet as $, hide, show } from 'vs/base/browser/dom';
-import { IRenderer, IDelegate, IFocusChangeEvent, ISelectionChangeEvent } from 'vs/base/browser/ui/list/list';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import * as HighlightedLabel from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { SuggestModel, ICancelEvent, ISuggestEvent, ITriggerEvent } from './suggestModel';
-import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
-import * as Timer from 'vs/base/common/timer';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { SuggestRegistry, CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY } from '../common/suggest';
-import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
-import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElementImpl';
-import {CompletionModel, CompletionItem} from './completionModel';
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import * as timer from 'vs/base/common/timer';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {addClass, append, emmet as $, hide, removeClass, show, toggleClass} from 'vs/base/browser/dom';
+import {HighlightedLabel} from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import {IDelegate, IFocusChangeEvent, IRenderer, ISelectionChangeEvent} from 'vs/base/browser/ui/list/list';
+import {List} from 'vs/base/browser/ui/list/listWidget';
+import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElementImpl';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {EventType, IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
+import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition} from 'vs/editor/browser/editorBrowser';
+import {CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY, SuggestRegistry} from '../common/suggest';
+import {CompletionItem, CompletionModel} from './completionModel';
+import {ICancelEvent, ISuggestEvent, ITriggerEvent, SuggestModel} from './suggestModel';
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
 	icon: HTMLElement;
 	colorspan: HTMLElement;
-	highlightedLabel: HighlightedLabel.HighlightedLabel;
+	highlightedLabel: HighlightedLabel;
 	typeLabel: HTMLElement;
 	documentationDetails: HTMLElement;
 	documentation: HTMLElement;
@@ -61,7 +61,7 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 
 		const text = append(container, $('.text'));
 		const main = append(text, $('.main'));
-		data.highlightedLabel = new HighlightedLabel.HighlightedLabel(main);
+		data.highlightedLabel = new HighlightedLabel(main);
 		data.typeLabel = append(main, $('span.type-label'));
 		const docs = append(text, $('.docs'));
 		data.documentation = append(docs, $('span.docs-text'));
@@ -91,7 +91,10 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 
 		if (suggestion.documentationLabel) {
 			show(data.documentationDetails);
-
+			data.documentationDetails.onmousedown = e => {
+				e.stopPropagation();
+				e.preventDefault();
+			};
 			data.documentationDetails.onclick = e => {
 				e.stopPropagation();
 				e.preventDefault();
@@ -99,6 +102,7 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 			};
 		} else {
 			hide(data.documentationDetails);
+			data.documentationDetails.onmousedown = null;
 			data.documentationDetails.onclick = null;
 		}
 	}
@@ -203,6 +207,10 @@ class SuggestionDetails {
 		this.title.innerText = item.suggestion.label;
 		this.type.innerText = item.suggestion.typeLabel || '';
 		this.docs.innerText = item.suggestion.documentationLabel;
+		this.back.onmousedown = e => {
+			e.preventDefault();
+			e.stopPropagation();
+		};
 		this.back.onclick = e => {
 			e.preventDefault();
 			e.stopPropagation();
@@ -235,7 +243,7 @@ class SuggestionDetails {
 	}
 }
 
-export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable {
+export class SuggestWidget implements IContentWidget, IDisposable {
 
 	static ID: string = 'editor.widget.suggestWidget';
 	static WIDTH: number = 438;
@@ -256,7 +264,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 
 	private telemetryData: ITelemetryData;
 	private telemetryService: ITelemetryService;
-	private telemetryTimer: Timer.ITimerEvent;
+	private telemetryTimer: timer.ITimerEvent;
 
 	private element: HTMLElement;
 	private messageElement: HTMLElement;
@@ -265,13 +273,15 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	private delegate: IDelegate<CompletionItem>;
 	private list: List<CompletionItem>;
 
+	private editorBlurTimeout: TPromise<void>;
+	private showTimeout: TPromise<void>;
 	private toDispose: IDisposable[];
 
 	private _onDidVisibilityChange: Emitter<boolean> = new Emitter();
 	public get onDidVisibilityChange(): Event<boolean> { return this._onDidVisibilityChange.event; }
 
 	constructor(
-		private editor: EditorBrowser.ICodeEditor,
+		private editor: ICodeEditor,
 		private model: SuggestModel,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -303,14 +313,14 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.list = new List(this.listElement, this.delegate, [renderer]);
 
 		this.toDispose = [
-			editor.addListener2(EditorCommon.EventType.ModelChanged, () => this.onModelModeChanged()),
-			editor.addListener2(EditorCommon.EventType.ModelModeChanged, () => this.onModelModeChanged()),
-			editor.addListener2(EditorCommon.EventType.ModelModeSupportChanged, (e: EditorCommon.IModeSupportChangedEvent) => e.suggestSupport && this.onModelModeChanged()),
+			editor.addListener2(EventType.ModelChanged, () => this.onModelModeChanged()),
+			editor.addListener2(EventType.ModelModeChanged, () => this.onModelModeChanged()),
+			editor.addListener2(EventType.ModelModeSupportChanged, (e: IModeSupportChangedEvent) => e.suggestSupport && this.onModelModeChanged()),
 			SuggestRegistry.onDidChange(() => this.onModelModeChanged()),
-			editor.addListener2(EditorCommon.EventType.EditorTextBlur, () => this.onEditorBlur()),
+			editor.addListener2(EventType.EditorTextBlur, () => this.onEditorBlur()),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
-			this.editor.addListener2(EditorCommon.EventType.CursorSelectionChanged, () => this.onCursorSelectionChanged()),
+			this.editor.addListener2(EventType.CursorSelectionChanged, () => this.onCursorSelectionChanged()),
 			this.model.onDidTrigger(e => this.onDidTrigger(e)),
 			this.model.onDidSuggest(e => this.onDidSuggest(e)),
 			this.model.onDidCancel(e => this.onDidCancel(e))
@@ -330,7 +340,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 	}
 
 	private onEditorBlur(): void {
-		TPromise.timeout(150).done(() => {
+		this.editorBlurTimeout = TPromise.timeout(150).then(() => {
 			if (!this.editor.isFocused()) {
 				this.setState(State.Hidden);
 			}
@@ -478,7 +488,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 
 		this.completionModel = e.completionModel;
 
-		if (e.isFrozen) {
+		if (e.isFrozen && this.state !== State.Empty) {
 			this.setState(State.Frozen);
 			return;
 		}
@@ -656,7 +666,7 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.updateWidgetHeight();
 		this._onDidVisibilityChange.fire(true);
 		this.renderDetails();
-		TPromise.timeout(100).done(() => {
+		this.showTimeout = TPromise.timeout(100).then(() => {
 			addClass(this.element, 'visible');
 		});
 	}
@@ -674,14 +684,14 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		}
 	}
 
-	public getPosition(): EditorBrowser.IContentWidgetPosition {
+	public getPosition(): IContentWidgetPosition {
 		if (this.state === State.Hidden) {
 			return null;
 		}
 
 		return {
 			position: this.editor.getPosition(),
-			preference: [EditorBrowser.ContentWidgetPositionPreference.BELOW, EditorBrowser.ContentWidgetPositionPreference.ABOVE]
+			preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
 		};
 	}
 
@@ -747,5 +757,17 @@ export class SuggestWidget implements EditorBrowser.IContentWidget, IDisposable 
 		this.toDispose = disposeAll(this.toDispose);
 		this._onDidVisibilityChange.dispose();
 		this._onDidVisibilityChange = null;
+		clearTimeout(this.loadingTimeout);
+		this.loadingTimeout = null;
+
+		if (this.editorBlurTimeout) {
+			this.editorBlurTimeout.cancel();
+			this.editorBlurTimeout = null;
+		}
+
+		if (this.showTimeout) {
+			this.showTimeout.cancel();
+			this.showTimeout = null;
+		}
 	}
 }

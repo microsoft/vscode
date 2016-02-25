@@ -22,7 +22,7 @@ export var language = <ILanguage> {
 	// TODO(owensd): Support the @availability macro properly.
 	attributes: [
 		'@autoclosure', '@noescape', '@noreturn', '@NSApplicationMain', '@NSCopying', '@NSManaged',
-		'@objc', '@UIApplicationMain', '@noreturn', '@availability', '@IBAction', '@IBDesignable', '@IBInspectable'
+		'@objc', '@UIApplicationMain', '@noreturn', '@availability', '@IBAction', '@IBDesignable', '@IBInspectable', '@IBOutlet'
 	],
 	accessmodifiers: [ 'public', 'private', 'internal' ],
 	keywords: [

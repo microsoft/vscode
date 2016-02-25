@@ -55,7 +55,7 @@ function monoDebugChecker(accessor, callback) {
 
 const extensionChecker: { [id: string]: LegacyExtensionChecker } = Object.create(null);
 extensionChecker['ms-vscode.omnisharp'] = omnisharpChecker;
-extensionChecker['andreweinand.mono-debug'] = monoDebugChecker;
+extensionChecker['ms-vscode.mono-debug'] = monoDebugChecker;
 
 export function checkForLegacyExtensionNeeds(accessor: ServicesAccessor): void {
 

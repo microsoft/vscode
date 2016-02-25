@@ -43,13 +43,15 @@ import {SearchService} from 'vs/workbench/services/search/node/searchService';
 import {LifecycleService} from 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
 import {WorkbenchKeybindingService} from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import {MainThreadService} from 'vs/workbench/services/thread/electron-browser/threadService';
-import {MarkerService} from 'vs/platform/markers/common/markerService';
+import {MainProcessMarkerService} from 'vs/platform/markers/common/markerService';
 import {IActionsService} from 'vs/platform/actions/common/actions';
 import ActionsService from 'vs/platform/actions/common/actionsService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
+import {EditorWorkerServiceImpl} from 'vs/editor/common/services/editorWorkerServiceImpl';
+import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {MainProcessVSCodeAPIHelper} from 'vs/workbench/api/node/extHost.api.impl';
 import {MainProcessPluginService} from 'vs/platform/plugins/common/nativePluginService';
 import {MainThreadDocuments} from 'vs/workbench/api/node/extHostDocuments';
@@ -77,7 +79,7 @@ import {WorkspaceContextService} from 'vs/workbench/services/workspace/common/co
 import {IStorageService, StorageScope, StorageEvent, StorageEventType} from 'vs/platform/storage/common/storage';
 import {MainThreadStorage} from 'vs/platform/storage/common/remotable.storage';
 import {IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import {create as createInstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import {createInstantiationService as createInstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import {IContextViewService, IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IFileService} from 'vs/platform/files/common/files';
@@ -232,19 +234,19 @@ export class WorkbenchShell {
 		let disableWorkspaceStorage = this.configuration.env.pluginTestsPath || (!this.workspace && !this.configuration.env.pluginDevelopmentPath); // without workspace or in any plugin test, we use inMemory storage unless we develop a plugin where we want to preserve state
 		this.storageService = new Storage(this.contextService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 
+		let configService = new ConfigurationService(
+			this.contextService,
+			eventService
+		);
+
 		// no telemetry in a window for plugin development!
 		let enableTelemetry = this.configuration.env.isBuilt && !this.configuration.env.pluginDevelopmentPath ? !!this.configuration.env.enableTelemetry : false;
-		this.telemetryService = new ElectronTelemetryService(this.storageService, { enableTelemetry: enableTelemetry, version: this.configuration.env.version, commitHash: this.configuration.env.commitHash });
+		this.telemetryService = new ElectronTelemetryService(configService, this.storageService, { enableTelemetry: enableTelemetry, version: this.configuration.env.version, commitHash: this.configuration.env.commitHash });
 
 		this.keybindingService = new WorkbenchKeybindingService(this.contextService, eventService, this.telemetryService, <any>window);
 
 		this.messageService = new MessageService(this.contextService, this.windowService, this.telemetryService, this.keybindingService);
 		this.keybindingService.setMessageService(this.messageService);
-
-		let configService = new ConfigurationService(
-			this.contextService,
-			eventService
-		);
 
 		let fileService = new FileService(
 			configService,
@@ -267,13 +269,14 @@ export class WorkbenchShell {
 		);
 		lifecycleService.onShutdown(() => requestService.dispose());
 
-		let markerService = new MarkerService(this.threadService);
+		let markerService = new MainProcessMarkerService(this.threadService);
 
 		let pluginService = new MainProcessPluginService(this.contextService, this.threadService, this.messageService, this.telemetryService);
 		this.keybindingService.setPluginService(pluginService);
 
-		let modelService = new ModelServiceImpl(this.threadService, markerService);
-		let modeService = new MainThreadModeServiceImpl(this.threadService, pluginService, modelService);
+		let modeService = new MainThreadModeServiceImpl(this.threadService, pluginService);
+		let modelService = new ModelServiceImpl(this.threadService, markerService, modeService, configService);
+		let editorWorkerService = new EditorWorkerServiceImpl(modelService);
 
 		let untitledEditorService = new UntitledEditorService();
 		this.themeService = new ThemeService(pluginService);
@@ -300,6 +303,7 @@ export class WorkbenchShell {
 		result.addSingleton(IMarkerService, markerService);
 		result.addSingleton(IModelService, modelService);
 		result.addSingleton(ICodeEditorService, new CodeEditorServiceImpl());
+		result.addSingleton(IEditorWorkerService, editorWorkerService);
 		result.addSingleton(IThemeService, this.themeService);
 		result.addSingleton(IActionsService, new ActionsService(pluginService, this.keybindingService));
 

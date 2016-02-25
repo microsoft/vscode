@@ -76,8 +76,8 @@ export function request(options: IRequestOptions): TPromise<IRequestResult> {
 	() => req && req.abort());
 }
 
-export function download(filePath: string, opts: IRequestOptions): Promise {
-	return request(assign(opts, { followRedirects: 3 })).then(pair => new Promise((c, e) => {
+export function download(filePath: string, opts: IRequestOptions): TPromise<void> {
+	return request(assign(opts, { followRedirects: 3 })).then(pair => new TPromise<void>((c, e) => {
 		let out = createWriteStream(filePath);
 
 		out.once('finish', () => c(null));

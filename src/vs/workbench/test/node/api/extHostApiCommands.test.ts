@@ -15,8 +15,8 @@ import {Range as CodeEditorRange} from 'vs/editor/common/core/range';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {Model as EditorModel} from 'vs/editor/common/model/model';
 import {TestThreadService} from './testThreadService'
-import {create as createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
-import {MarkerService} from 'vs/platform/markers/common/markerService';
+import {createInstantiationService as createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {MainProcessMarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
@@ -34,6 +34,7 @@ const model: EditorCommon.IModel = new EditorModel(
 		'This is the second line',
 		'This is the third line',
 	].join('\n'),
+	EditorCommon.DefaultEndOfLine.LF,
 	undefined,
 	URI.parse('far://testing/file.b'));
 
@@ -60,7 +61,7 @@ suite('ExtHostLanguageFeatureCommands', function() {
 				return TPromise.as(instantiationService.invokeFunction(handler, args));
 			}
 		});
-		instantiationService.addSingleton(IMarkerService, new MarkerService(threadService));
+		instantiationService.addSingleton(IMarkerService, new MainProcessMarkerService(threadService));
 		instantiationService.addSingleton(IThreadService, threadService);
 		instantiationService.addSingleton(IModelService, <IModelService>{
 			serviceId: IModelService,
@@ -82,7 +83,8 @@ suite('ExtHostLanguageFeatureCommands', function() {
 				EOL: model.getEOL(),
 				lines: model.getValue().split(model.getEOL()),
 				BOM: '',
-				length: -1
+				length: -1,
+				defaultEOL: EditorCommon.DefaultEndOfLine.LF
 			},
 		});
 

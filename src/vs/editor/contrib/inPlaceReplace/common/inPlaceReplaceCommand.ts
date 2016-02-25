@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
 import {Selection} from 'vs/editor/common/core/selection';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 
-export class InPlaceReplaceCommand implements EditorCommon.ICommand {
+export class InPlaceReplaceCommand implements editorCommon.ICommand {
 
-	private _editRange: EditorCommon.IEditorRange;
-	private _originalSelection: EditorCommon.IEditorSelection;
+	private _editRange: editorCommon.IEditorRange;
+	private _originalSelection: editorCommon.IEditorSelection;
 	private _text:string;
 
-	constructor(editRange: EditorCommon.IEditorRange, originalSelection: EditorCommon.IEditorSelection, text:string) {
+	constructor(editRange: editorCommon.IEditorRange, originalSelection: editorCommon.IEditorSelection, text:string) {
 		this._editRange = editRange;
 		this._originalSelection = originalSelection;
 		this._text = text;
 	}
 
-	public getEditOperations(model:EditorCommon.ITokenizedModel, builder:EditorCommon.IEditOperationBuilder):void {
+	public getEditOperations(model:editorCommon.ITokenizedModel, builder:editorCommon.IEditOperationBuilder):void {
 		builder.addEditOperation(this._editRange, this._text);
 	}
 
-	public computeCursorState(model:EditorCommon.ITokenizedModel, helper: EditorCommon.ICursorStateComputerData):EditorCommon.IEditorSelection {
+	public computeCursorState(model:editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData):editorCommon.IEditorSelection {
 		var inverseEditOperations = helper.getInverseEditOperations();
 		var srcRange = inverseEditOperations[0].range;
 

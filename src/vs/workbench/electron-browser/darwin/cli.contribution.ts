@@ -33,7 +33,7 @@ const isAvailable = fs.existsSync(source);
 class InstallAction extends Action {
 
 	static ID = 'workbench.action.installCommandLine';
-	static LABEL = nls.localize('install', 'Install in PATH');
+	static LABEL = nls.localize('install', "Install 'code' command in PATH");
 
 	constructor(
 		id: string,
@@ -100,7 +100,7 @@ class InstallAction extends Action {
 							});
 						}
 					})
-					.then(() => this.messageService.show(Severity.Info, nls.localize('success', "Shell command '{0}' successfully installed in PATH.", this.applicationName)));
+					.then(() => this.messageService.show(Severity.Info, nls.localize('successIn', "Shell command '{0}' successfully installed in PATH.", this.applicationName)));
 			});
 	}
 
@@ -159,7 +159,7 @@ class InstallAction extends Action {
 class UninstallAction extends Action {
 
 	static ID = 'workbench.action.uninstallCommandLine';
-	static LABEL = nls.localize('uninstall', 'Uninstall from PATH');
+	static LABEL = nls.localize('uninstall', "Uninstall 'code' command from PATH");
 
 	constructor(
 		id: string,
@@ -181,7 +181,7 @@ class UninstallAction extends Action {
 	run(): TPromise<void> {
 		return pfs.unlink(this.target)
 			.then(null, ignore('ENOENT'))
-			.then(() => this.messageService.show(Severity.Info, nls.localize('success', "Shell command '{0}' successfully uninstalled from PATH.", this.applicationName)));
+			.then(() => this.messageService.show(Severity.Info, nls.localize('successFrom', "Shell command '{0}' successfully uninstalled from PATH.", this.applicationName)));
 	}
 }
 

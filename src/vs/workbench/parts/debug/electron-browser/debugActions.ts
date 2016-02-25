@@ -7,19 +7,21 @@ import nls = require('vs/nls');
 import actions = require('vs/base/common/actions');
 import lifecycle = require('vs/base/common/lifecycle');
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Range } from 'vs/editor/common/core/range';
 import editorCommon = require('vs/editor/common/editorCommon');
 import editorbrowser = require('vs/editor/browser/editorBrowser');
-import { EditorAction, Behaviour } from 'vs/editor/common/editorAction';
+import { EditorAction } from 'vs/editor/common/editorAction';
+import { Behaviour } from 'vs/editor/common/editorActionEnablement';
 import { IEventService } from 'vs/platform/event/common/event';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
+import { INullService } from 'vs/platform/instantiation/common/instantiation';
 import { EventType, CompositeEvent } from 'vs/workbench/common/events';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
-
-import {clipboard} from 'electron';
+import { clipboard } from 'electron';
 import IDebugService = debug.IDebugService;
 
 export class AbstractDebugAction extends actions.Action {
@@ -72,7 +74,7 @@ export class AbstractDebugAction extends actions.Action {
 
 export class ConfigureAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.configure';
-	static LABEL = nls.localize('configureDebug', "launch.json");
+	static LABEL = nls.localize('openLaunchJson', "Open launch.json");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
@@ -374,7 +376,7 @@ export class ReapplyBreakpointsAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(): boolean {
-		return super.isEnabled() && !!this.debugService.getActiveSession() && this.debugService.getModel().getBreakpoints().length > 0;
+		return super.isEnabled() && this.debugService.getState() !== debug.State.Disabled && this.debugService.getState() !== debug.State.Inactive;
 	}
 }
 
@@ -519,7 +521,7 @@ export class RunToCursorAction extends EditorAction {
 	}
 
 	public getGroupId(): string {
-		return '1_debug/1_continue';
+		return '5_debug/1_run_to_cursor';
 	}
 
 	public shouldShowInContextMenu(): boolean {
@@ -557,7 +559,7 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 export class SelectionToWatchExpressionsAction extends EditorAction {
 	static ID = 'editor.debug.action.selectionToWatch';
 
-	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, @IDebugService private debugService: IDebugService, @IViewletService private viewletService: IViewletService) {
+	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @IDebugService private debugService: IDebugService, @IViewletService private viewletService: IViewletService) {
 		super(descriptor, editor, Behaviour.TextFocus);
 	}
 
@@ -567,21 +569,21 @@ export class SelectionToWatchExpressionsAction extends EditorAction {
 	}
 
 	public getGroupId(): string {
-		return '1_debug/3_selection_to_watch';
+		return '5_debug/3_selection_to_watch';
 	}
 
 	public shouldShowInContextMenu(): boolean {
 		const selection = this.editor.getSelection();
 		const text = this.editor.getModel().getValueInRange(selection);
 
-		return !!selection && !selection.isEmpty() && this.debugService.getState() !== debug.State.Inactive && text && /\S/.test(text);
+		return !!selection && !selection.isEmpty() && this.debugService.getConfigurationName() && text && /\S/.test(text);
 	}
 }
 
 export class SelectionToReplAction extends EditorAction {
 	static ID = 'editor.debug.action.selectionToRepl';
 
-	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, @IDebugService private debugService: IDebugService) {
+	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @IDebugService private debugService: IDebugService) {
 		super(descriptor, editor, Behaviour.TextFocus);
 	}
 
@@ -591,12 +593,31 @@ export class SelectionToReplAction extends EditorAction {
 	}
 
 	public getGroupId(): string {
-		return '1_debug/2_selection_to_repl';
+		return '5_debug/2_selection_to_repl';
 	}
 
 	public shouldShowInContextMenu(): boolean {
 		const selection = this.editor.getSelection();
 		return !!selection && !selection.isEmpty() && this.debugService.getState() === debug.State.Stopped;
+	}
+}
+
+export class ShowDebugHoverAction extends EditorAction {
+	static ID = 'editor.debug.action.showDebugHover';
+
+	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @INullService ns) {
+		super(descriptor, editor, Behaviour.TextFocus);
+	}
+
+	public run(): TPromise<any> {
+		const position = this.editor.getPosition();
+		const word = this.editor.getModel().getWordAtPosition(position);
+		if (!word) {
+			return TPromise.as(null);
+		}
+
+		const range = new Range(position.lineNumber, position.column, position.lineNumber, word.endColumn);
+		return (<debug.IDebugEditorContribution>this.editor.getContribution(debug.EDITOR_CONTRIBUTION_ID)).showHover(range, word.word, true);
 	}
 }
 

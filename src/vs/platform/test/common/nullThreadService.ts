@@ -15,7 +15,7 @@ export class NullThreadService extends abstractThreadService.AbstractThreadServi
 
 	constructor() {
 		super(true);
-		this.setInstantiationService(instantiationService.create({
+		this.setInstantiationService(instantiationService.createInstantiationService({
 			threadService: this
 		}));
 	}
@@ -24,24 +24,12 @@ export class NullThreadService extends abstractThreadService.AbstractThreadServi
 		return super._doCreateInstance(params);
 	}
 
-	MainThread(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): winjs.Promise {
-		return target.apply(obj, params);
-	}
-
-	OneWorker(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[], affinity: ThreadAffinity): winjs.Promise {
+	OneWorker(obj: IThreadSynchronizableObject, methodName: string, target: Function, params: any[], affinity: ThreadAffinity): winjs.Promise {
 		return winjs.TPromise.as(null);
 	}
 
-	AllWorkers(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): winjs.Promise {
+	AllWorkers(obj: IThreadSynchronizableObject, methodName: string, target: Function, params: any[]): winjs.Promise {
 		return winjs.TPromise.as(null);
-	}
-
-	Everywhere(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): any {
-		return target.apply(obj, params);
-	}
-
-	ensureWorkers(): void {
-		// Nothing to do
 	}
 
 	addStatusListener(listener: IThreadServiceStatusListener): void {

@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 import {Arrays} from 'vs/editor/common/core/arrays';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {ILineToken, IRange, IViewLineTokens} from 'vs/editor/common/editorCommon';
 
 export interface ILineParts {
 
-	getParts(): EditorCommon.ILineToken[];
+	getParts(): ILineToken[];
 
 	equals(other:ILineParts): boolean;
 
 	findIndexOfOffset(offset:number): number;
 }
 
-export function createLineParts(lineNumber:number, lineContent:string, lineTokens:EditorCommon.IViewLineTokens, rawLineDecorations:ILineDecoration[], renderWhitespace:boolean): ILineParts {
+export function createLineParts(lineNumber:number, lineContent:string, lineTokens:IViewLineTokens, rawLineDecorations:ILineDecoration[], renderWhitespace:boolean): ILineParts {
 	if (renderWhitespace) {
 		rawLineDecorations = insertWhitespace(lineNumber, lineContent, lineTokens.getFauxIndentLength(), rawLineDecorations);
 	}
@@ -47,11 +47,11 @@ function insertWhitespace(lineNumber:number, lineContent: string, fauxIndentLeng
 		return rawLineDecorations;
 	}
 
-	var prepend: EditorCommon.IRange = null,
-		append: EditorCommon.IRange = null,
+	var prepend: IRange = null,
+		append: IRange = null,
 		computeTrailing = true;
 
-	var firstNonWhitespaceIndex = Strings.firstNonWhitespaceIndex(lineContent);
+	var firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
 
 	if (firstNonWhitespaceIndex !== 0) {
 		// There is leading whitespace
@@ -84,7 +84,7 @@ function insertWhitespace(lineNumber:number, lineContent: string, fauxIndentLeng
 	}
 
 	if (computeTrailing) {
-		var lastNonWhitespaceIndex = Strings.lastNonWhitespaceIndex(lineContent);
+		var lastNonWhitespaceIndex = strings.lastNonWhitespaceIndex(lineContent);
 		if (lastNonWhitespaceIndex !== lineContent.length - 1) {
 			// There is trailing whitespace
 			// No need to handle the case that the entire string is empty, since it is handled above
@@ -123,16 +123,16 @@ function insertWhitespace(lineNumber:number, lineContent: string, fauxIndentLeng
 
 export class FastViewLineParts implements ILineParts {
 
-	private lineTokens: EditorCommon.IViewLineTokens;
+	private lineTokens: IViewLineTokens;
 	private parts: LinePart[];
 
-	constructor(lineTokens:EditorCommon.IViewLineTokens, lineContent:string) {
+	constructor(lineTokens:IViewLineTokens, lineContent:string) {
 		this.lineTokens = lineTokens;
 		this.parts = lineTokens.getTokens();
 		this.parts = trimEmptyTrailingPart(this.parts, lineContent);
 	}
 
-	public getParts(): EditorCommon.ILineToken[]{
+	public getParts(): ILineToken[]{
 		return this.parts;
 	}
 
@@ -156,7 +156,7 @@ export class ViewLineParts implements ILineParts {
 	private lastPartIndex:number;
 	private lastEndOffset:number;
 
-	constructor(lineNumber:number, lineTokens:EditorCommon.IViewLineTokens, lineContent:string, rawLineDecorations:ILineDecoration[]) {
+	constructor(lineNumber:number, lineTokens:IViewLineTokens, lineContent:string, rawLineDecorations:ILineDecoration[]) {
 
 		// lineDecorations might overlap on top of each other, so they need to be normalized
 		var lineDecorations = LineDecorationsNormalizer.normalize(lineNumber, rawLineDecorations),
@@ -205,7 +205,7 @@ export class ViewLineParts implements ILineParts {
 		this.lastEndOffset = currentTokenEndOffset;
 	}
 
-	public getParts(): EditorCommon.ILineToken[] {
+	public getParts(): ILineToken[] {
 		return this.parts;
 	}
 
@@ -236,7 +236,7 @@ export class ViewLineParts implements ILineParts {
 	}
 }
 
-class LinePart implements EditorCommon.ILineToken {
+class LinePart implements ILineToken {
 	startIndex:number;
 	type:string;
 
@@ -318,7 +318,7 @@ class Stack {
 }
 
 export interface ILineDecoration {
-	range: EditorCommon.IRange;
+	range: IRange;
 	options: {
 		inlineClassName?: string;
 	};

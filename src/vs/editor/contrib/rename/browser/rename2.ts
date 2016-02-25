@@ -6,23 +6,24 @@
 'use strict';
 
 import 'vs/css!./rename';
-import {TPromise} from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
-import * as EditorBrowser from 'vs/editor/browser/editorBrowser';
-import {BulkEdit, createBulkEdit} from 'vs/editor/common/services/bulkEdit';
-import * as supports from 'vs/editor/common/modes/supports';
-import RenameInputField from './renameInputField';
-import Severity from 'vs/base/common/severity';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IEditorService} from 'vs/platform/editor/common/editor';
+import {isPromiseCanceledError} from 'vs/base/common/errors';
 import {KeyCode} from 'vs/base/common/keyCodes';
+import Severity from 'vs/base/common/severity';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IEditorService} from 'vs/platform/editor/common/editor';
+import {IEventService} from 'vs/platform/event/common/event';
+import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IMessageService} from 'vs/platform/message/common/message';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
+import {IEditorActionDescriptorData, IRange} from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {isLineToken} from 'vs/editor/common/modes/supports';
+import {BulkEdit, createBulkEdit} from 'vs/editor/common/services/bulkEdit';
+import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {RenameRegistry, rename} from '../common/rename';
+import RenameInputField from './renameInputField';
 
 // ---  register actions and commands
 
@@ -40,7 +41,7 @@ export class RenameAction extends EditorAction {
 	private _renameInputField: RenameInputField;
 	private _renameInputVisible: IKeybindingContextKey<boolean>;
 
-	constructor(descriptor: EditorCommon.IEditorActionDescriptorData, editor: EditorBrowser.ICodeEditor,
+	constructor(descriptor: IEditorActionDescriptorData, editor: ICodeEditor,
 		@IMessageService messageService: IMessageService, @IKeybindingService keybindingService: IKeybindingService,
 		@IEventService eventService: IEventService, @IEditorService editorService: IEditorService) {
 		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.Writeable | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange);
@@ -70,11 +71,11 @@ export class RenameAction extends EditorAction {
 			if (!support.filter) {
 				return true;
 			}
-			if (supports.isLineToken(lineContext, position.column - 1, support.filter)) {
+			if (isLineToken(lineContext, position.column - 1, support.filter)) {
 				return true;
 			}
 
-			if (position.column > 1 && supports.isLineToken(lineContext, position.column - 2, support.filter)) {
+			if (position.column > 1 && isLineToken(lineContext, position.column - 2, support.filter)) {
 				// in case we are in between two tokens
 				return true;
 			}
@@ -93,7 +94,7 @@ export class RenameAction extends EditorAction {
 		let lineNumber = selection.startLineNumber,
 			selectionStart = 0,
 			selectionEnd = word.word.length,
-			wordRange: EditorCommon.IRange;
+			wordRange: IRange;
 
 		wordRange = {
 			startLineNumber: lineNumber,
@@ -130,7 +131,7 @@ export class RenameAction extends EditorAction {
 			this._renameInputVisible.reset();
 			this.editor.focus();
 
-			if (!errors.isPromiseCanceledError(err)) {
+			if (!isPromiseCanceledError(err)) {
 				return TPromise.wrapError(err);
 			}
 		});
@@ -148,7 +149,7 @@ export class RenameAction extends EditorAction {
 
 		// start recording of file changes so that we can figure out if a file that
 		// is to be renamed conflicts with another (concurrent) modification
-		let edit = createBulkEdit(this._eventService, this._editorService, <EditorBrowser.ICodeEditor>this.editor);
+		let edit = createBulkEdit(this._eventService, this._editorService, <ICodeEditor>this.editor);
 
 		return rename(this.editor.getModel(), this.editor.getPosition(), newName).then(result => {
 			if (result.rejectReason) {

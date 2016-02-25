@@ -5,15 +5,15 @@
 
 'use strict';
 
-import languageDef = require('vs/editor/standalone-languages/cpp');
-import T = require('vs/editor/standalone-languages/test/testUtil');
+import {language} from 'vs/editor/standalone-languages/cpp';
+import {testOnEnter, testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
 var Bracket = {
 	Open: 1,
 	Close: -1
 };
 
-T.testOnEnter('cpp', languageDef.language, (assertOnEnter) => {
+testOnEnter('cpp', language, (assertOnEnter) => {
 	assertOnEnter.nothing('', ' a', '');
 	assertOnEnter.indents('', ' <', '');
 	assertOnEnter.indents('', ' {', '');
@@ -22,7 +22,7 @@ T.testOnEnter('cpp', languageDef.language, (assertOnEnter) => {
 	assertOnEnter.indentsOutdents('', ' { ', ' } ');
 });
 
-T.testTokenization('cpp', languageDef.language, [
+testTokenization('cpp', language, [
 	// Keywords
 	[{
 	line: 'int _tmain(int argc, _TCHAR* argv[])',

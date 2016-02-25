@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ITextAreaWrapper, IClipboardEvent, IKeyboardEventWrapper} from 'vs/editor/common/controller/textAreaState';
 import Event, {Emitter} from 'vs/base/common/event';
 import {Disposable} from 'vs/base/common/lifecycle';
+import {IClipboardEvent, IKeyboardEventWrapper, ITextAreaWrapper} from 'vs/editor/common/controller/textAreaState';
 
 export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper {
 

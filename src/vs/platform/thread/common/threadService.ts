@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Platform = require('vs/platform/platform');
 import {TPromise} from 'vs/base/common/winjs.base';
 import thread = require('./thread');
 
@@ -25,13 +24,6 @@ function findThreadService(obj: any): thread.IThreadService {
 		throw new Error('Objects that use thread attributes must be instantiated with the thread service');
 	}
 	return threadService;
-}
-
-export function MainThreadAttr(type: Function, target: Function): void {
-	let methodName = findMember(type.prototype, target);
-	type.prototype[methodName] = function(...param: any[]) {
-		return findThreadService(this).MainThread(this, methodName, target, param);
-	};
 }
 
 export interface IOneWorkerAnnotation {
@@ -81,41 +73,3 @@ export function AllWorkersAttr(type: Function, target: Function): void {
 	};
 }
 
-export function EverywhereAttr(type: Function, target: Function): void {
-	let methodName = findMember(type.prototype, target);
-	type.prototype[methodName] = function(...param: any[]) {
-		return findThreadService(this).Everywhere(this, methodName, target, param);
-	};
-}
-
-class SynchronizableObjectsRegistry {
-	private _list: thread.IThreadSynchronizableObject<any>[] = [];
-
-	constructor() {
-		this._list = [];
-	}
-
-	public register(obj: thread.IThreadSynchronizableObject<any>): void {
-		this._list.push(obj);
-	}
-
-	public read(): thread.IThreadSynchronizableObject<any>[] {
-		return this._list;
-	}
-}
-
-export const Extensions = {
-	SynchronizableObjects: 'SynchronizableObjects'
-};
-
-Platform.Registry.add(Extensions.SynchronizableObjects, new SynchronizableObjectsRegistry());
-
-export function registerThreadSynchronizableObject(obj: thread.IThreadSynchronizableObject<any>): void {
-	let registry = <SynchronizableObjectsRegistry>Platform.Registry.as(Extensions.SynchronizableObjects);
-	registry.register(obj);
-}
-
-export function readThreadSynchronizableObjects(): thread.IThreadSynchronizableObject<any>[] {
-	let registry = <SynchronizableObjectsRegistry>Platform.Registry.as(Extensions.SynchronizableObjects);
-	return registry.read();
-}

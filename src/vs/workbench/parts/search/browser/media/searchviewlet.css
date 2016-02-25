@@ -42,6 +42,10 @@
 	height: 13px;
 }
 
+.monaco-workbench.hc-black .search-viewlet .query-details .more {
+	background: url('ellipsis-inverse.svg') top center no-repeat;
+}
+
 .monaco-workbench.vs-dark .search-viewlet .query-details .more {
 	background: url('ellipsis-inverse.svg') top center no-repeat;
 }

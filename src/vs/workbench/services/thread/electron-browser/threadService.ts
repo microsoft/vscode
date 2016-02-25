@@ -41,7 +41,7 @@ export class MainThreadService extends CommonMainThreadService {
 	private remoteCom: pluginsIPC.IPluginsIPC;
 
 	constructor(contextService: IWorkspaceContextService, messageService: IMessageService, windowService: IWindowService) {
-		super(contextService, 'vs/editor/common/worker/editorWorkerServer');
+		super(contextService, 'vs/editor/common/worker/editorWorkerServer', 1);
 
 		this.pluginHostProcessManager = new PluginHostProcessManager(contextService, messageService, windowService);
 

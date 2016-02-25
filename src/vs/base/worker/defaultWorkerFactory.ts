@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import dom = require('vs/base/browser/dom');
-import lifecycle = require('vs/base/common/lifecycle');
-import env = require('vs/base/common/flags');
+import * as flags from 'vs/base/common/flags';
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {IWorker, IWorkerCallback, IWorkerFactory} from 'vs/base/common/worker/workerClient';
+import * as dom from 'vs/base/browser/dom';
 
 function defaultGetWorkerUrl(workerId:string, label:string): string {
 	return require.toUrl('./' + workerId + '?' + encodeURIComponent(label));
 }
-var getWorkerUrl = env.getCrossOriginWorkerScriptUrl || defaultGetWorkerUrl;
+var getWorkerUrl = flags.getCrossOriginWorkerScriptUrl || defaultGetWorkerUrl;
 
 
 /**
@@ -22,11 +22,12 @@ var getWorkerUrl = env.getCrossOriginWorkerScriptUrl || defaultGetWorkerUrl;
 class WebWorker implements IWorker {
 
 	private id:number;
-	private worker:any;
+	private worker:Worker;
 
-	constructor(id:number, label:string, onMessageCallback:IWorkerCallback) {
+	constructor(moduleId:string, id:number, label:string, onMessageCallback:IWorkerCallback) {
 		this.id = id;
 		this.worker = new Worker(getWorkerUrl('workerMain.js', label));
+		this.postMessage(moduleId);
 		this.worker.onmessage = function (ev:any) {
 			onMessageCallback(ev.data);
 		};
@@ -40,8 +41,9 @@ class WebWorker implements IWorker {
 		this.worker.postMessage(msg);
 	}
 
-	public terminate(): void {
+	public dispose(): void {
 		this.worker.terminate();
+		this.worker = null;
 	}
 }
 
@@ -58,15 +60,17 @@ class FrameWorker implements IWorker {
 	private loaded: boolean;
 	private beforeLoadMessages: any[];
 
-	private _listeners: lifecycle.IDisposable[];
+	private _listeners: IDisposable[];
 
-	constructor(id: number, onMessageCallback:IWorkerCallback) {
+	constructor(moduleId:string, id: number, onMessageCallback:IWorkerCallback) {
 		this.id = id;
 		this._listeners = [];
 
 		// Collect all messages sent to the worker until the iframe is loaded
 		this.loaded = false;
 		this.beforeLoadMessages = [];
+
+		this.postMessage(moduleId);
 
 		this.iframe = <HTMLIFrameElement> document.createElement('iframe');
 		this.iframe.id = this.iframeId();
@@ -83,7 +87,9 @@ class FrameWorker implements IWorker {
 	}
 
 	public dispose(): void {
-		this._listeners = lifecycle.disposeAll(this._listeners);
+		this._listeners = disposeAll(this._listeners);
+		window.removeEventListener('message', this.onMessage);
+		window.frames[this.iframeId()].close();
 	}
 
 	private iframeId(): string {
@@ -113,21 +119,17 @@ class FrameWorker implements IWorker {
 			this.beforeLoadMessages.push(msg);
 		}
 	}
-
-	public terminate(): void {
-		window.removeEventListener('message', this.onMessage);
-		window.frames[this.iframeId()].close();
-	}
 }
 
 export class DefaultWorkerFactory implements IWorkerFactory {
-	public create(id:number, onMessageCallback:IWorkerCallback, onCrashCallback:()=>void = null):IWorker {
-		var result:IWorker = null;
-		try {
-			result = new WebWorker(id, 'service' + id, onMessageCallback);
-		} catch (e) {
-			result = new FrameWorker(id, onMessageCallback);
+
+	private static LAST_WORKER_ID = 0;
+
+	public create(moduleId:string, onMessageCallback:IWorkerCallback):IWorker {
+		var workerId = (++DefaultWorkerFactory.LAST_WORKER_ID);
+		if (typeof WebWorker !== 'undefined') {
+			return new WebWorker(moduleId, workerId, 'service' + workerId, onMessageCallback);
 		}
-		return result;
+		return new FrameWorker(moduleId, workerId, onMessageCallback);
 	}
 }

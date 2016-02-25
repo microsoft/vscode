@@ -4,7 +4,7 @@
     "name": "Microsoft Corp."
   },
   "homepage": "http://typescriptlang.org/",
-  "version": "1.8.0",
+  "version": "1.8.2",
   "license": "Apache-2.0",
   "description": "TypeScript is a language for application scale JavaScript development",
   "keywords": [
@@ -19,7 +19,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Microsoft/TypeScript.git"
+    "url": "https://github.com/Microsoft/TypeScript.git"
   },
   "main": "./lib/typescript.js",
   "typings": "./lib/typescript.d.ts",
@@ -58,10 +58,10 @@
     "os": false,
     "path": false
   },
-  "gitHead": "a288b84632c1400806df55025ca6b568cfa4d00e",
-  "_id": "typescript@1.8.0",
-  "_shasum": "cc5bc63d7f7d84ea26debd7adb774c0362b0ec11",
-  "_from": "typescript@1.8.0",
+  "gitHead": "e5dd34f9e69f517182abfc996a10b8312b14e015",
+  "_id": "typescript@1.8.2",
+  "_shasum": "4d2ad7db172be67a913d09862b510133bad61b33",
+  "_from": "typescript@latest",
   "_npmVersion": "2.0.0",
   "_npmUser": {
     "name": "typescript",
@@ -74,10 +74,9 @@
     }
   ],
   "dist": {
-    "shasum": "cc5bc63d7f7d84ea26debd7adb774c0362b0ec11",
-    "tarball": "http://registry.npmjs.org/typescript/-/typescript-1.8.0.tgz"
+    "shasum": "4d2ad7db172be67a913d09862b510133bad61b33",
+    "tarball": "http://registry.npmjs.org/typescript/-/typescript-1.8.2.tgz"
   },
   "directories": {},
-  "_resolved": "https://registry.npmjs.org/typescript/-/typescript-1.8.0.tgz",
-  "readme": "ERROR: No README data found!"
+  "_resolved": "https://registry.npmjs.org/typescript/-/typescript-1.8.2.tgz"
 }

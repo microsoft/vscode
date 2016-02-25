@@ -5,15 +5,10 @@
 
 'use strict';
 
-import languageDef = require('vs/editor/standalone-languages/lua');
-import T = require('vs/editor/standalone-languages/test/testUtil');
+import {language} from 'vs/editor/standalone-languages/lua';
+import {testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
-var Bracket = {
-	Open: 1,
-	Close: -1
-};
-
-T.testTokenization('lua', languageDef.language, [
+testTokenization('lua', language, [
 
 	// Keywords
 	[{

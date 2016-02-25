@@ -5,7 +5,6 @@
 
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
-import Objects = require('vs/base/common/objects');
 import mime = require('vs/base/common/mime');
 import ee = require('vs/base/common/eventEmitter');
 import uri from 'vs/base/common/uri';
@@ -40,7 +39,8 @@ import { Repl } from 'vs/workbench/parts/debug/browser/repl';
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/node/debugConfigurationManager';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
-import { ITaskService , TaskEvent, TaskType, TaskServiceEvents, ITaskSummary} from 'vs/workbench/parts/tasks/common/taskService';
+import { ITaskService, TaskEvent, TaskType, TaskServiceEvents, ITaskSummary} from 'vs/workbench/parts/tasks/common/taskService';
+import { TaskError, TaskErrors } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { IViewletService } from 'vs/workbench/services/viewlet/common/viewletService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -71,7 +71,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	private lastTaskEvent: TaskEvent;
 	private toDispose: lifecycle.IDisposable[];
 	private inDebugMode: IKeybindingContextKey<boolean>;
-	private telemetryInfo: any;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -112,12 +111,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.viewModel = new viewmodel.ViewModel();
 
 		this.registerListeners(eventService, lifecycleService);
-
-		this.telemetryInfo = Object.create(null);
-		this.telemetryService.getTelemetryInfo().then(info => {
-			this.telemetryInfo['common.vscodemachineid'] = info.machineId;
-			this.telemetryInfo['common.vscodesessionid'] = info.sessionId;
-		});
 	}
 
 	private registerListeners(eventService: IEventService, lifecycleService: ILifecycleService): void {
@@ -232,7 +225,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 	private registerSessionListeners(): void {
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.INITIALIZED, (event: DebugProtocol.InitializedEvent) => {
-			aria.alert(nls.localize('programStarted', "Program started."));
+			aria.alert(nls.localize('debuggingStarted', "Debugging started."));
 			this.sendAllBreakpoints().then(() => {
 				if (this.session.capabilities.supportsConfigurationDoneRequest) {
 					this.session.configurationDone().done(null, errors.onUnexpectedError);
@@ -242,7 +235,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.STOPPED, (event: DebugProtocol.StoppedEvent) => {
 			this.setStateAndEmit(debug.State.Stopped);
-			aria.alert(nls.localize('programStopped', "Program stopped, reason {0}.", event.body.reason));
 			const threadId = event.body.threadId;
 
 			this.getThreadData(threadId).then(() => {
@@ -252,6 +244,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 					this.windowService.getWindow().focus();
 					const callStack = this.model.getThreads()[threadId].callStack;
 					if (callStack.length > 0) {
+						aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, callStack[0].source.name, callStack[0].lineNumber));
 						this.setFocusedStackFrameAndEvaluate(callStack[0]);
 						this.openOrRevealEditor(callStack[0].source, callStack[0].lineNumber, false, false).done(null, errors.onUnexpectedError);
 					} else {
@@ -262,6 +255,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.CONTINUED, () => {
+			aria.alert(nls.localize('debuggingContinued', "Debugging continued."));
 			this.model.clearThreads(false);
 			this.setFocusedStackFrameAndEvaluate(null);
 			this.setStateAndEmit(debug.State.Running);
@@ -284,22 +278,21 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.DEBUGEE_TERMINATED, (event: DebugProtocol.TerminatedEvent) => {
-			aria.alert(nls.localize('programTerminated', "Program terminated."));
+			aria.alert(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (this.session && this.session.getId() === (<any>event).sessionId) {
-				this.session.disconnect().done(null, errors.onUnexpectedError);
+				if (event.body && typeof event.body.restart === 'boolean' && event.body.restart) {
+					this.restartSession().done(null, errors.onUnexpectedError);
+				} else {
+					this.session.disconnect().done(null, errors.onUnexpectedError);
+				}
 			}
 		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.OUTPUT, (event: DebugProtocol.OutputEvent) => {
 			if (event.body && event.body.category === 'telemetry') {
-				const key = this.configurationManager.getAdapter().aiKey;
 				// only log telemetry events from debug adapter if the adapter provided the telemetry key
-				if (key) {
-					if (!this.telemetryAdapter) {
-						this.telemetryAdapter = new AIAdapter(key, this.session.getType());
-					}
-					let data = Objects.mixin(event.body.data, this.telemetryInfo);
-					this.telemetryAdapter.log(event.body.output, data);
+				if (this.telemetryAdapter) {
+					this.telemetryAdapter.log(event.body.output, event.body.data);
 				}
 			} else if (event.body && typeof event.body.output === 'string' && event.body.output.length > 0) {
 				this.onOutput(event);
@@ -515,10 +508,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	public createSession(openViewlet = !this.partService.isSideBarHidden()): TPromise<any> {
-		this.textFileService.saveAll().done(null, errors.onUnexpectedError);
 		this.clearReplExpressions();
 
-		return this.pluginService.onReady().then(() => this.configurationManager.setConfiguration(this.configurationManager.getConfigurationName())).then(() => {
+		return this.textFileService.saveAll().then(() => this.pluginService.onReady()).then(() => this.configurationManager.setConfiguration(this.configurationManager.getConfigurationName())).then(() => {
+
 			const configuration = this.configurationManager.getConfiguration();
 			if (!configuration) {
 				return this.configurationManager.openConfigFile(false).then(openend => {
@@ -540,20 +533,36 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 				}
 
 				this.messageService.show(severity.Error, {
-					message: errorCount === 1 ? nls.localize('preLaunchTaskError', "{0} error detected after running preLaunchTask '{1}'.", errorCount, configuration.preLaunchTask) :
-						errorCount > 1 ? nls.localize('preLaunchTaskErrors', "{0} errors detected after running preLaunchTask '{1}'.", errorCount, configuration.preLaunchTask) :
-						nls.localize('preLaunchTaskExitCode', "preLaunchTask {0} terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
+					message: errorCount > 0 ? nls.localize('preLaunchTaskErrors', "Errors detected while running prelaunch task '{0}'.", configuration.preLaunchTask) :
+						nls.localize('preLaunchTaskExitCode', "Prelaunch task {0} terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
 					actions: [CloseAction, new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
 						this.messageService.hideAll();
 						return this.doCreateSession(configuration, openViewlet);
 					})]
+				});
+			}, (err: TaskError) => {
+				if (err.code !== TaskErrors.NotConfigured) {
+					return err;
+				}
+
+				this.messageService.show(err.severity, {
+					message: err.message,
+					actions: [CloseAction, this.taskService.configureAction()]
 				});
 			});
 		});
 	}
 
 	private doCreateSession(configuration: debug.IConfig, openViewlet: boolean): TPromise<any> {
-		this.session = new session.RawDebugSession(this.messageService, this.telemetryService, configuration.debugServer, this.configurationManager.getAdapter());
+		const key = this.configurationManager.getAdapter().aiKey;
+		const telemetryInfo = Object.create(null);
+		this.telemetryService.getTelemetryInfo().then(info => {
+			telemetryInfo['common.vscodemachineid'] = info.machineId;
+			telemetryInfo['common.vscodesessionid'] = info.sessionId;
+		}, errors.onUnexpectedError);
+		this.telemetryAdapter = new AIAdapter(key, this.configurationManager.getAdapter().type, null, telemetryInfo);
+		this.session = new session.RawDebugSession(this.messageService, this.telemetryService, configuration.debugServer, this.configurationManager.getAdapter(), this.telemetryAdapter);
+
 		this.registerSessionListeners();
 
 		return this.session.initialize({
@@ -600,7 +609,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.taskService.tasks().then(descriptions => {
 			const filteredTasks = descriptions.filter(task => task.name === taskName);
 			if (filteredTasks.length !== 1) {
-				this.messageService.show(severity.Warning, nls.localize('DebugTaskNotFound', "Could not find a unique task \'{0}\'. Make sure the task exists and that it has a unique name.", taskName));
+				this.messageService.show(severity.Error, nls.localize('DebugTaskNotFound', "Could not find the task \'{0}\'. Make sure the task exists and it has a unique name.", taskName));
 				return TPromise.as(null);
 			}
 

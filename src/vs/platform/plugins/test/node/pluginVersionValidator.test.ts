@@ -4,13 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import {
-isValidVersionStr, isValidVersion,
-parseVersion, IParsedVersion,
-normalizeVersion, INormalizedVersion,
-IReducedExtensionDescription, isValidExtensionVersion
-} from 'vs/platform/plugins/node/pluginVersionValidator';
+import * as assert from 'assert';
+import {INormalizedVersion, IParsedVersion, IReducedExtensionDescription, isValidExtensionVersion, isValidVersion, isValidVersionStr, normalizeVersion, parseVersion} from 'vs/platform/plugins/node/pluginVersionValidator';
 
 suite('Plugin Version Validator', () => {
 
@@ -167,7 +162,7 @@ suite('Plugin Version Validator', () => {
 			let reasons: string[] = [];
 			let actual = isValidExtensionVersion(version, desc, reasons);
 
-			assert.equal(actual, expectedResult, "version: " + version + ", desiredVersion: " + desiredVersion + ", desc: " + JSON.stringify(desc) + ", reasons: " + JSON.stringify(reasons));
+			assert.equal(actual, expectedResult, 'version: ' + version + ', desiredVersion: ' + desiredVersion + ', desc: ' + JSON.stringify(desc) + ', reasons: ' + JSON.stringify(reasons));
 		}
 
 		function testIsInvalidExtensionVersion(version: string, desiredVersion: string, isBuiltin: boolean, hasMain: boolean): void {

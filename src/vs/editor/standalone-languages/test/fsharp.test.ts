@@ -5,15 +5,10 @@
 
 'use strict';
 
-import languageDef = require('vs/editor/standalone-languages/fsharp');
-import T = require('vs/editor/standalone-languages/test/testUtil');
+import {language} from 'vs/editor/standalone-languages/fsharp';
+import {testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
-var Bracket = {
-	Open: 1,
-	Close: -1
-};
-
-T.testTokenization('fsharp', languageDef.language, [
+testTokenization('fsharp', language, [
 	// comments - single line
 	[{
 	line: '// one line comment',

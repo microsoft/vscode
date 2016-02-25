@@ -9,7 +9,6 @@ import remote = require('vs/base/common/remote');
 import descriptors = require('vs/platform/instantiation/common/descriptors');
 
 import abstractThreadService = require('./abstractThreadService');
-import {readThreadSynchronizableObjects} from 'vs/platform/thread/common/threadService';
 import {IThreadService, IThreadSynchronizableObject, ThreadAffinity, IThreadServiceStatusListener} from 'vs/platform/thread/common/thread';
 
 export class PluginHostThreadService extends abstractThreadService.AbstractThreadService implements IThreadService {
@@ -20,29 +19,14 @@ export class PluginHostThreadService extends abstractThreadService.AbstractThrea
 		super(false);
 		this._remoteCom = remoteCom;
 		this._remoteCom.setManyHandler(this);
-
-		// Register all statically instantiated synchronizable objects
-		readThreadSynchronizableObjects().forEach((obj) => this.registerInstance(obj));
 	}
 
-	MainThread(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): TPromise<any> {
-		return target.apply(obj, params);
-	}
-
-	OneWorker(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[], affinity: ThreadAffinity): TPromise<any> {
+	OneWorker(obj: IThreadSynchronizableObject, methodName: string, target: Function, params: any[], affinity: ThreadAffinity): TPromise<any> {
 		return TPromise.as(null);
 	}
 
-	AllWorkers(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): TPromise<any> {
+	AllWorkers(obj: IThreadSynchronizableObject, methodName: string, target: Function, params: any[]): TPromise<any> {
 		return TPromise.as(null);
-	}
-
-	Everywhere(obj: IThreadSynchronizableObject<any>, methodName: string, target: Function, params: any[]): TPromise<any> {
-		return target.apply(obj, params);
-	}
-
-	ensureWorkers(): void {
-		// Nothing to do
 	}
 
 	addStatusListener(listener: IThreadServiceStatusListener): void {

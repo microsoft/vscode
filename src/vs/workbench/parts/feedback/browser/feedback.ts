@@ -99,7 +99,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		this.feedbackForm = <HTMLFormElement>$form.getHTMLElement();
 
-		$('h2.title').text(nls.localize("label.sendASmile", "Tweet us your feedback")).appendTo($form);
+		$('h2.title').text(nls.localize("label.sendASmile", "Tweet us your feedback.")).appendTo($form);
 
 		this.invoke($('div.cancel').attr('tabindex', '0'), () => {
 			this.hide();
@@ -147,7 +147,7 @@ export class FeedbackDropdown extends Dropdown {
 		$('div').append($('a').attr('target', '_blank').attr('href', this.requestFeatureLink).text(nls.localize("request a missing feature", "Request a missing feature")).attr('tabindex', '0'))
 			.appendTo($contactUsContainer);
 
-		let $charCounter = $('span.char-counter').text('(' + FeedbackDropdown.MAX_FEEDBACK_CHARS + ' ' + nls.localize("characters left", "characters left") + ')');
+		let $charCounter = $('span.char-counter').text(this.getCharCountText(0));
 
 		$('h3').text(nls.localize("tell us why?", "Tell us why?"))
 			.append($charCounter)
@@ -160,7 +160,7 @@ export class FeedbackDropdown extends Dropdown {
 		})
 			.text(this.feedback).attr('required', 'required')
 			.on('keyup', () => {
-				$charCounter.text('(' + (FeedbackDropdown.MAX_FEEDBACK_CHARS - this.feedbackDescriptionInput.value.length) + ' ' + nls.localize("characters left", "characters left") + ')');
+				$charCounter.text(this.getCharCountText(this.feedbackDescriptionInput.value.length));
 				this.feedbackDescriptionInput.value ? this.sendButton.removeAttribute('disabled') : this.sendButton.attr('disabled', '');
 			})
 			.appendTo($form).domFocus().getHTMLElement();
@@ -182,6 +182,15 @@ export class FeedbackDropdown extends Dropdown {
 				this.frownyInput = null;
 			}
 		};
+	}
+
+	private getCharCountText(charCount: number): string {
+		let remaining = FeedbackDropdown.MAX_FEEDBACK_CHARS - charCount;
+		let text = (remaining === 1)
+			? nls.localize("character left", "character left")
+			: nls.localize("characters left", "characters left");
+
+		return '(' + remaining + ' ' + text + ')';
 	}
 
 	protected setSentiment(smile: boolean): void {
@@ -255,11 +264,11 @@ export class FeedbackDropdown extends Dropdown {
 			case FormEvent.SENDING:
 				this.isSendingFeedback = true;
 				this.sendButton.setClass('send in-progress');
-				this.sendButton.value(nls.localize('feedbackSending', "Sending..."));
+				this.sendButton.value(nls.localize('feedbackSending', "Sending"));
 				break;
 			case FormEvent.SENT:
 				this.isSendingFeedback = false;
-				this.sendButton.setClass('send success').value(nls.localize('feedbackSent', "Thanks :)"));
+				this.sendButton.setClass('send success').value(nls.localize('feedbackSent', "Thanks"));
 				this.resetForm();
 				this.autoHideTimeout = setTimeout(() => {
 					this.hide();

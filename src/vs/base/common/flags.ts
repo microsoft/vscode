@@ -6,7 +6,6 @@
 
 import { globals } from 'vs/base/common/platform';
 
-export const workersCount = environment('workersCount', 2);
 export const enableTasks = environment('enableTasks');
 export const enableSendASmile = environment('enableSendASmile');
 export const enableJavaScriptRewriting = environment('enableJavaScriptRewriting');
@@ -25,4 +24,8 @@ function environment(name:string, fallback:any = false):any {
 	}
 
 	return fallback;
+}
+
+export function workersCount(defaultCount:number): number {
+	return environment('workersCount', defaultCount);
 }

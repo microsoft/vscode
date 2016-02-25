@@ -7,7 +7,7 @@
 import objects = require('vs/base/common/objects');
 import Modes = require('vs/editor/common/modes');
 import htmlMode = require('vs/languages/html/common/html');
-import VSXML = require('vs/languages/vsxml/common/vsxml');
+import VSXML = require('vs/languages/razor/common/vsxml');
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {isDigit} from 'vs/editor/common/modes/abstractMode';
 import razorTokenTypes = require('vs/languages/razor/common/razorTokenTypes');
@@ -21,9 +21,9 @@ var whitespace = '\t ';
 var brackets = (function() {
 
 	let bracketsSource = [
-		{ tokenType:'punctuation.bracket.cs', open: '{', close: '}', isElectric: true },
-		{ tokenType:'punctuation.array.cs', open: '[', close: ']', isElectric: true },
-		{ tokenType:'punctuation.parenthesis.cs', open: '(', close: ')', isElectric: true }
+		{ tokenType:'punctuation.bracket.cs', open: '{', close: '}' },
+		{ tokenType:'punctuation.array.cs', open: '[', close: ']' },
+		{ tokenType:'punctuation.parenthesis.cs', open: '(', close: ')' }
 	];
 
 	let MAP: {

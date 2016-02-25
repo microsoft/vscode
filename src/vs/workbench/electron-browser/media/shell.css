@@ -80,8 +80,12 @@
 .monaco-shell.hc-black input[type="submit"]:focus,
 .monaco-shell.hc-black input[type="text"]:focus, .monaco-shell.hc-black textarea:focus,
 .monaco-shell.hc-black input[type="checkbox"]:focus {
-	outline: 2px solid #DF740C;
-	outline-offset: -2px;
+	outline: 2px solid #f38518;
+	outline-offset: -1px;
+}
+
+.monaco-shell.hc-black .synthetic-focus input {
+	background:transparent; /* Search input focus fix when in high contrast */
 }
 
 .monaco-shell.vs .monaco-tree.focused .monaco-tree-row.focused [tabindex="0"]:focus {
@@ -114,7 +118,7 @@
 }
 
 .monaco-shell.hc-black .monaco-tree.focused.no-focused-item:focus:before {
-	outline: 2px solid #DF740C; /* we still need to handle the empty tree or no focus item case */
+	outline: 2px solid #f38518; /* we still need to handle the empty tree or no focus item case */
 	outline-offset: -2px;
 }
 

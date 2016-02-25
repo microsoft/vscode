@@ -8,11 +8,18 @@ import Errors = require('vs/base/common/errors');
 import Types = require('vs/base/common/types');
 import Platform = require('vs/base/common/platform');
 import {TimeKeeper, IEventsListener, ITimerEvent} from 'vs/base/common/timer';
-import {safeStringify} from 'vs/base/common/objects';
+import {safeStringify, withDefaults} from 'vs/base/common/objects';
 import {Registry} from 'vs/platform/platform';
-import {ITelemetryService, ITelemetryAppender, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryService, ITelemetryAppender, ITelemetryInfo, ITelemetryServiceConfig} from 'vs/platform/telemetry/common/telemetry';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+
+const DefaultTelemetryServiceConfig: ITelemetryServiceConfig = {
+	enableTelemetry: true,
+	enableHardIdle: true,
+	enableSoftIdle: true,
+	userOptIn: true
+};
 
 /**
  * Base class for main process telemetry services
@@ -22,7 +29,6 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 
 	public serviceId = ITelemetryService;
 
-	private toUnbind: any[];
 	private timeKeeper: TimeKeeper;
 	private appenders: ITelemetryAppender[];
 	private oldOnError: any;
@@ -34,8 +40,11 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 	protected sessionId: string;
 	protected instanceId: string;
 	protected machineId: string;
+	protected toUnbind: any[];
 
-	constructor() {
+	protected config: ITelemetryServiceConfig;
+
+	constructor(config?: ITelemetryServiceConfig) {
 		this.sessionId = 'SESSION_ID_NOT_SET';
 		this.timeKeeper = new TimeKeeper();
 		this.toUnbind = [];
@@ -49,6 +58,8 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		this.enableGlobalErrorHandler();
 
 		this.errorFlushTimeout = -1;
+
+		this.config = withDefaults(config, DefaultTelemetryServiceConfig);
 	}
 
 	private _safeStringify(data: any): string {

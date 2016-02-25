@@ -9,15 +9,14 @@ import objects = require('vs/base/common/objects');
 import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
+import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import cssWorker = require('vs/languages/css/common/cssWorker');
 import cssTokenTypes = require('vs/languages/css/common/cssTokenTypes');
-import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
+import {AbstractMode, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {IMarker} from 'vs/platform/markers/common/markers';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IThreadService} from 'vs/platform/thread/common/thread';
+import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
@@ -279,11 +278,12 @@ export class State extends AbstractState {
 	}
 }
 
-export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
+export class CSSMode extends AbstractMode {
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
-
+	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
+	public configSupport:Modes.IConfigurationSupport;
 	public referenceSupport: Modes.IReferenceSupport;
 	public logicalSelectionSupport: Modes.ILogicalSelectionSupport;
 	public extraInfoSupport:Modes.IExtraInfoSupport;
@@ -293,18 +293,23 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 	public suggestSupport: Modes.ISuggestSupport;
 	public quickFixSupport: Modes.IQuickFixSupport;
 
+	private _modeWorkerManager: ModeWorkerManager<cssWorker.CSSWorker>;
+	private _threadService:IThreadService;
+
 	constructor(
 		descriptor:Modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThreadService threadService: IThreadService
 	) {
-		super(descriptor, instantiationService, threadService);
+		super(descriptor.id);
+		this._modeWorkerManager = new ModeWorkerManager<cssWorker.CSSWorker>(descriptor, 'vs/languages/css/common/cssWorker', 'CSSWorker', null, instantiationService);
+		this._threadService = threadService;
 
 		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new State(this, States.Selector, false, null, false, 0)
 		}, false, false);
 
-		this.richEditSupport = new RichEditSupport(this.getId(), {
+		this.richEditSupport = new RichEditSupport(this.getId(), null, {
 			// TODO@Martin: This definition does not work with umlauts for example
 			wordPattern: /(#?-?\d*\.\d\w*%?)|((::|[@#.!:])?[\w-?]+%?)|::|[@#.!:]/g,
 
@@ -318,12 +323,6 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 				['(', ')']
 			],
 
-			__electricCharacterSupport: {
-				brackets: [
-					{ tokenType: 'punctuation.bracket.css', open: '{', close: '}', isElectric: true }
-				]
-			},
-
 			__characterPairSupport: {
 				autoClosingPairs: [
 					{ open: '{', close: '}' },
@@ -335,6 +334,8 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 			}
 		});
 
+		this.inplaceReplaceSupport = this;
+		this.configSupport = this;
 		this.occurrencesSupport = this;
 		this.extraInfoSupport = this;
 		this.referenceSupport = new ReferenceSupport(this.getId(), {
@@ -355,13 +356,48 @@ export class CSSMode extends AbstractMode<cssWorker.CSSWorker> {
 		this.quickFixSupport = this;
 	}
 
-	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], cssWorker.CSSWorker> {
-		return createAsyncDescriptor2('vs/languages/css/common/cssWorker', 'CSSWorker');
+	public creationDone(): void {
+		if (this._threadService.isInMainThread) {
+			// Pick a worker to do validation
+			this._pickAWorkerToValidate();
+		}
+	}
+
+	private _worker<T>(runner:(worker:cssWorker.CSSWorker)=>WinJS.TPromise<T>): WinJS.TPromise<T> {
+		return this._modeWorkerManager.worker(runner);
+	}
+
+	public configure(options:any): WinJS.TPromise<void> {
+		if (this._threadService.isInMainThread) {
+			return this._configureWorkers(options);
+		} else {
+			return this._worker((w) => w._doConfigure(options));
+		}
+	}
+
+	static $_configureWorkers = AllWorkersAttr(CSSMode, CSSMode.prototype._configureWorkers);
+	private _configureWorkers(options:any): WinJS.TPromise<void> {
+		return this._worker((w) => w._doConfigure(options));
+	}
+
+	static $navigateValueSet = OneWorkerAttr(CSSMode, CSSMode.prototype.navigateValueSet);
+	public navigateValueSet(resource:URI, position:EditorCommon.IRange, up:boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
+		return this._worker((w) => w.navigateValueSet(resource, position, up));
+	}
+
+	static $_pickAWorkerToValidate = OneWorkerAttr(CSSMode, CSSMode.prototype._pickAWorkerToValidate, ThreadAffinity.Group1);
+	private _pickAWorkerToValidate(): WinJS.TPromise<void> {
+		return this._worker((w) => w.enableValidator());
 	}
 
 	static $findOccurrences = OneWorkerAttr(CSSMode, CSSMode.prototype.findOccurrences);
 	public findOccurrences(resource:URI, position:EditorCommon.IPosition, strict:boolean = false): WinJS.TPromise<Modes.IOccurence[]> {
 		return this._worker((w) => w.findOccurrences(resource, position, strict));
+	}
+
+	static $suggest = OneWorkerAttr(CSSMode, CSSMode.prototype.suggest);
+	public suggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult[]> {
+		return this._worker((w) => w.suggest(resource, position));
 	}
 
 	static $findDeclaration = OneWorkerAttr(CSSMode, CSSMode.prototype.findDeclaration);

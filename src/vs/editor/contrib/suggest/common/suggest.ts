@@ -5,12 +5,12 @@
 'use strict';
 
 import {sequence} from 'vs/base/common/async';
-import {IModel, IPosition} from 'vs/editor/common/editorCommon';
+import {illegalArgument, onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
-import {ISuggestSupport, ISuggestResult} from 'vs/editor/common/modes';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import {IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ISuggestResult, ISuggestSupport} from 'vs/editor/common/modes';
+import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {SnippetsRegistry} from 'vs/editor/common/modes/supports';
 
 export var CONTEXT_SUGGEST_WIDGET_VISIBLE = 'suggestWidgetVisible';

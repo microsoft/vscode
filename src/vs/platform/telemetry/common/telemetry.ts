@@ -63,6 +63,17 @@ export interface ITelemetryAppender extends Lifecycle.IDisposable {
 	log(eventName: string, data?: any): void;
 }
 
+export interface ITelemetryServiceConfig {
+	enableTelemetry?: boolean;
+	userOptIn?: boolean;
+
+	enableHardIdle?: boolean;
+	enableSoftIdle?: boolean;
+	sessionID?: string;
+	commitHash?: string;
+	version?: string;
+}
+
 export function anonymize(input: string): string {
 	if (!input) {
 		return input;

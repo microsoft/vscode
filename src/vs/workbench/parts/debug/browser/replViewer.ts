@@ -370,7 +370,7 @@ export class ReplExpressionsRenderer implements tree.IRenderer {
 		return linkContainer || text;
 	}
 
-	private onLinkClick(event: mouse.StandardMouseEvent, resource: URI, line: number, column: number): void {
+	private onLinkClick(event: mouse.IMouseEvent, resource: URI, line: number, column: number): void {
 		const selection = window.getSelection();
 		if (selection.type === 'Range') {
 			return; // do not navigate when user is selecting
@@ -485,7 +485,7 @@ export class ReplExpressionsController extends debugviewer.BaseDebugController {
 	}
 
 	protected onLeftClick(tree: tree.ITree, element: any, eventish: treedefaults.ICancelableEvent, origin: string = 'mouse'): boolean {
-		const mouseEvent = <mouse.StandardMouseEvent> eventish;
+		const mouseEvent = <mouse.IMouseEvent> eventish;
 		// input and output are one element in the tree => we only expand if the user clicked on the output.
 		if ((element.reference > 0 || (element instanceof model.KeyValueOutputElement && element.getChildren().length > 0)) && mouseEvent.target.className.indexOf('input expression') === -1) {
 			super.onLeftClick(tree, element, eventish, origin);
@@ -503,7 +503,7 @@ export class ReplExpressionsController extends debugviewer.BaseDebugController {
 		return true;
 	}
 
-	protected onDown(tree: tree.ITree, event: keyboard.StandardKeyboardEvent): boolean {
+	protected onDown(tree: tree.ITree, event: keyboard.IKeyboardEvent): boolean {
 		if (tree.getFocus()) {
 			return super.onDown(tree, event);
 		}

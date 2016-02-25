@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
+import {Range} from 'vs/editor/common/core/range';
+import {IFoundBracket, DefaultEndOfLine} from 'vs/editor/common/editorCommon';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
-import {IFoundBracket} from 'vs/editor/common/editorCommon';
-import {Position} from 'vs/editor/common/core/position';
-import {Range} from 'vs/editor/common/core/range';
 
 suite('TextModelWithTokens', () => {
 
@@ -61,7 +60,7 @@ suite('TextModelWithTokens', () => {
 			}
 		}
 
-		let model = new TextModelWithTokens([], TextModel.toRawText(contents.join('\n')), false, null);
+		let model = new TextModelWithTokens([], TextModel.toRawText(contents.join('\n'), DefaultEndOfLine.LF), false, null);
 
 		// findPrevBracket
 		{
@@ -125,7 +124,7 @@ suite('TextModelWithTokens', () => {
 			['{', '}'],
 			['[', ']'],
 			['(', ')']
-		])
+		]);
 	});
 
 });

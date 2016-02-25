@@ -4,18 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import {TPromise} from 'vs/base/common/winjs.base';
-import modes = require('vs/editor/common/modes');
-import supports = require('vs/editor/common/modes/supports');
-import stream = require('vs/editor/common/modes/lineStream');
-import servicesUtil = require('vs/editor/test/common/servicesTestUtils');
-import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer';
-import {createLineContext} from 'vs/editor/test/common/modesTestUtils';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as assert from 'assert';
 import {IDisposable, empty as EmptyDisposable} from 'vs/base/common/lifecycle';
-import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
+import {IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
+import * as modes from 'vs/editor/common/modes';
+import {AbstractState} from 'vs/editor/common/modes/abstractState';
+import {handleEvent} from 'vs/editor/common/modes/supports';
+import {IEnteringNestedModeData, ILeavingNestedModeData, TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
+import {createLineContext} from 'vs/editor/test/common/modesTestUtils';
 
 export class State extends AbstractState {
 
@@ -43,7 +39,7 @@ export class Mode implements modes.IMode {
 	}
 
 	public getId(): string {
-		return "testMode";
+		return 'testMode';
 	}
 
 	public toSimplifiedMode(): modes.IMode {
@@ -123,7 +119,7 @@ export class SwitchingMode implements modes.IMode {
 		return this;
 	}
 
-	public addSupportChangedListener(callback: (e: EditorCommon.IModeSupportChangedEvent) => void): IDisposable {
+	public addSupportChangedListener(callback: (e: IModeSupportChangedEvent) => void): IDisposable {
 		return EmptyDisposable;
 	}
 
@@ -359,7 +355,7 @@ suite('Editor Modes - Tokenization', () => {
 			{ startIndex: 5, id: 'B' }
 		]);
 
-		supports.handleEvent(createLineContext('abc (def', lineTokens), 0, (mode:modes.IMode, context:modes.ILineContext, offset:number) => {
+		handleEvent(createLineContext('abc (def', lineTokens), 0, (mode:modes.IMode, context:modes.ILineContext, offset:number) => {
 			assert.deepEqual(mode.getId(), 'A');
 			assert.equal(context.getTokenCount(), 3);
 			assert.equal(context.getTokenStartIndex(0), 0);
@@ -372,7 +368,7 @@ suite('Editor Modes - Tokenization', () => {
 			assert.equal(context.getLineContent(), 'abc (');
 		});
 
-		supports.handleEvent(createLineContext('abc (def', lineTokens), 6, (mode:modes.IMode, context:modes.ILineContext, offset:number) => {
+		handleEvent(createLineContext('abc (def', lineTokens), 6, (mode:modes.IMode, context:modes.ILineContext, offset:number) => {
 			assert.deepEqual(mode.getId(), 'B');
 			assert.equal(context.getTokenCount(), 1);
 			assert.equal(context.getTokenStartIndex(0), 0);

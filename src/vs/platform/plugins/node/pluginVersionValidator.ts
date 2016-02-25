@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {isValidPluginDescription as baseIsValidPluginDescription} from 'vs/platform/plugins/common/pluginsRegistry';
 import * as semver from 'semver';
@@ -196,7 +196,7 @@ export function isValidExtensionVersion(version: string, extensionDesc: IReduced
 	}
 
 	if (!isValidVersion(version, desiredVersion)) {
-		notices.push(nls.localize('versionMismatch', "Extension is not version compatible with VSCode. VSCode version: {0}, extension's declared engine: {1}", version, extensionDesc.engines.vscode));
+		notices.push(nls.localize('versionMismatch', "Extension is not compatible with Code {0}. Extension requires: {1}.", version, extensionDesc.engines.vscode));
 		return false;
 	}
 

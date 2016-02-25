@@ -8,7 +8,7 @@ import 'vs/css!./media/scrollbars';
 
 import * as DomUtils from 'vs/base/browser/dom';
 import * as Platform from 'vs/base/common/platform';
-import {StandardMouseWheelEvent, StandardMouseEvent} from 'vs/base/browser/mouseEvent';
+import {StandardMouseWheelEvent, IMouseEvent} from 'vs/base/browser/mouseEvent';
 import {DomNodeScrollable} from 'vs/base/browser/ui/scrollbar/domNodeScrollable';
 import {HorizontalScrollbar} from 'vs/base/browser/ui/scrollbar/horizontalScrollbar';
 import {VerticalScrollbar} from 'vs/base/browser/ui/scrollbar/verticalScrollbar';
@@ -319,12 +319,12 @@ export class ScrollableElement extends Widget implements IScrollableElement {
 		this._hide();
 	}
 
-	private _onMouseOut(e: StandardMouseEvent): void {
+	private _onMouseOut(e: IMouseEvent): void {
 		this._mouseIsOver = false;
 		this._hide();
 	}
 
-	private _onMouseOver(e: StandardMouseEvent): void {
+	private _onMouseOver(e: IMouseEvent): void {
 		this._mouseIsOver = true;
 		this._reveal();
 	}

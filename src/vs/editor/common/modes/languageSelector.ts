@@ -6,7 +6,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {match as matchGlobPattern} from 'vs/base/common/glob';
+import {match as matchGlobPattern} from 'vs/base/common/glob'; // TODO@Alex
 
 export interface LanguageFilter {
 	language?: string;

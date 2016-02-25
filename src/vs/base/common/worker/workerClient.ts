@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {onUnexpectedError, transformErrorForSerialization} from 'vs/base/common/errors';
+import {parse, stringify} from 'vs/base/common/marshalling';
+import {IRemoteCom} from 'vs/base/common/remote';
 import * as timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {onUnexpectedError, transformErrorForSerialization} from 'vs/base/common/errors';
-import protocol = require('vs/base/common/worker/workerProtocol');
-import remote = require('vs/base/common/remote');
-import marshalling = require('vs/base/common/marshalling');
+import * as workerProtocol from 'vs/base/common/worker/workerProtocol';
 
 export interface IWorker {
 	getId():number;
 	postMessage(message:string):void;
-	terminate():void;
+	dispose():void;
 }
 
 export interface IWorkerCallback {
@@ -22,7 +22,7 @@ export interface IWorkerCallback {
 }
 
 export interface IWorkerFactory {
-	create(id:number, callback:IWorkerCallback, onCrashCallback?:()=>void):IWorker;
+	create(moduleId:string, callback:IWorkerCallback, onCrashCallback?:()=>void):IWorker;
 }
 
 interface IActiveRequest {
@@ -35,39 +35,31 @@ interface IActiveRequest {
 
 export class WorkerClient {
 
-	private static LAST_WORKER_ID = 0;
-
 	private _lastMessageId:number;
 	private _promises:{[id:string]:IActiveRequest;};
-	private _messageHandlers:{[type:string]:(payload:any)=>void;};
-	private _workerId:number;
 	private _worker:IWorker;
 
-	private _messagesQueue:protocol.IClientMessage[];
+	private _messagesQueue:workerProtocol.IClientMessage[];
 	private _processQueueTimeout:number;
 	private _waitingForWorkerReply:boolean;
 	private _lastTimerEvent:timer.ITimerEvent;
 
-	private _remoteCom: protocol.RemoteCom;
-	private _decodeMessageName: (msg: protocol.IClientMessage) => string;
+	private _remoteCom: workerProtocol.RemoteCom;
+	private _decodeMessageName: (msg: workerProtocol.IClientMessage) => string;
 
 	public onModuleLoaded:TPromise<void>;
 
-	constructor(workerFactory:IWorkerFactory, moduleId:string, decodeMessageName:(msg:protocol.IClientMessage)=>string, onCrashCallback:(workerClient:WorkerClient)=>void, workerId:number=++WorkerClient.LAST_WORKER_ID) {
+	constructor(workerFactory:IWorkerFactory, moduleId:string, decodeMessageName:(msg:workerProtocol.IClientMessage)=>string) {
 		this._decodeMessageName = decodeMessageName;
 		this._lastMessageId = 0;
 		this._promises = {};
-		this._messageHandlers= {};
 
 		this._messagesQueue = [];
 		this._processQueueTimeout = -1;
 		this._waitingForWorkerReply = false;
 		this._lastTimerEvent = null;
-		this._workerId = workerId;
 
-		this._worker = workerFactory.create(workerId, (msg) => this._onSerializedMessage(msg), () => {
-			onCrashCallback(this);
-		});
+		this._worker = workerFactory.create('vs/base/common/worker/workerServer', (msg) => this._onSerializedMessage(msg));
 
 		let loaderConfiguration:any = null;
 
@@ -82,23 +74,19 @@ export class WorkerClient {
 
 		let MonacoEnvironment = (<any>window).MonacoEnvironment || null;
 
-		this.onModuleLoaded = this._sendMessage(protocol.MessageType.INITIALIZE, {
+		this.onModuleLoaded = this._sendMessage(workerProtocol.MessageType.INITIALIZE, {
 			id: this._worker.getId(),
 			moduleId: moduleId,
 			loaderConfiguration: loaderConfiguration,
 			MonacoEnvironment: MonacoEnvironment
 		});
-		this.onModuleLoaded.then(null, () => this._onError('Worker failed to load ' + moduleId));
+		this.onModuleLoaded.then(null, (e) => this._onError('Worker failed to load ' + moduleId, e));
 
-		this._remoteCom = new protocol.RemoteCom(this);
+		this._remoteCom = new workerProtocol.RemoteCom(this);
 	}
 
-	public getRemoteCom(): remote.IRemoteCom {
+	public getRemoteCom(): IRemoteCom {
 		return this._remoteCom;
-	}
-
-	public get workerId():number {
-		return this._workerId;
 	}
 
 	public getQueueSize(): number {
@@ -149,15 +137,7 @@ export class WorkerClient {
 				}
 			}
 		}
-		this._worker.terminate();
-	}
-
-	public addMessageHandler(message:string, handler:(payload:any)=>void): void {
-		this._messageHandlers[message]= handler;
-	}
-
-	public removeMessageHandler(message:string): void {
-		delete this._messageHandlers[message];
+		this._worker.dispose();
 	}
 
 	private _sendMessage(type:string, payload:any, forceTimestamp:number=(new Date()).getTime()):TPromise<any> {
@@ -192,7 +172,7 @@ export class WorkerClient {
 		return promise;
 	}
 
-	private _enqueueMessage(msg:protocol.IClientMessage): void {
+	private _enqueueMessage(msg:workerProtocol.IClientMessage): void {
 
 		let lastIndexSmallerOrEqual = -1,
 			i:number;
@@ -252,13 +232,13 @@ export class WorkerClient {
 	}
 
 	private _postMessage(msg:any): void {
-		this._worker.postMessage(marshalling.stringify(msg));
+		this._worker.postMessage(stringify(msg));
 	}
 
 	private _onSerializedMessage(msg:string): void {
-		let message:protocol.IServerMessage = null;
+		let message:workerProtocol.IServerMessage = null;
 		try {
-			message = marshalling.parse(msg);
+			message = parse(msg);
 		} catch (e) {
 			// nothing
 		}
@@ -267,7 +247,7 @@ export class WorkerClient {
 		}
 	}
 
-	private _onmessage(msg:protocol.IServerMessage): void {
+	private _onmessage(msg:workerProtocol.IServerMessage): void {
 		if (!msg.monacoWorker) {
 			return;
 		}
@@ -276,8 +256,8 @@ export class WorkerClient {
 		}
 
 		switch (msg.type) {
-			case protocol.MessageType.REPLY:
-				let serverReplyMessage = <protocol.IServerReplyMessage>msg;
+			case workerProtocol.MessageType.REPLY:
+				let serverReplyMessage = <workerProtocol.IServerReplyMessage>msg;
 
 				this._waitingForWorkerReply = false;
 				if(this._lastTimerEvent) {
@@ -290,12 +270,12 @@ export class WorkerClient {
 				}
 
 				switch (serverReplyMessage.action) {
-					case protocol.ReplyType.COMPLETE:
+					case workerProtocol.ReplyType.COMPLETE:
 						this._promises[serverReplyMessage.id].complete(serverReplyMessage.payload);
 						delete this._promises[serverReplyMessage.id];
 						break;
 
-					case protocol.ReplyType.ERROR:
+					case workerProtocol.ReplyType.ERROR:
 						this._onError('Main Thread sent to worker the following message:', {
 							type: this._promises[serverReplyMessage.id].type,
 							payload: this._promises[serverReplyMessage.id].payload
@@ -306,14 +286,14 @@ export class WorkerClient {
 						delete this._promises[serverReplyMessage.id];
 						break;
 
-					case protocol.ReplyType.PROGRESS:
+					case workerProtocol.ReplyType.PROGRESS:
 						this._promises[serverReplyMessage.id].progress(serverReplyMessage.payload);
 						break;
 				}
 				break;
 
-			case protocol.MessageType.PRINT:
-				let serverPrintMessage = <protocol.IServerPrintMessage>msg;
+			case workerProtocol.MessageType.PRINT:
+				let serverPrintMessage = <workerProtocol.IServerPrintMessage>msg;
 				this._consoleLog(serverPrintMessage.level, serverPrintMessage.payload);
 				break;
 
@@ -324,11 +304,11 @@ export class WorkerClient {
 		this._processMessagesQueue();
 	}
 
-	private _dispatchRequestFromWorker(msg:protocol.IServerMessage): void {
+	private _dispatchRequestFromWorker(msg:workerProtocol.IServerMessage): void {
 		this._handleWorkerRequest(msg).then((result) => {
-			let reply: protocol.IClientReplyMessage = {
+			let reply: workerProtocol.IClientReplyMessage = {
 				id: 0,
-				type: protocol.MessageType.REPLY,
+				type: workerProtocol.MessageType.REPLY,
 				timestamp: (new Date()).getTime(),
 
 				seq: msg.req,
@@ -337,9 +317,9 @@ export class WorkerClient {
 			};
 			this._postMessage(reply);
 		}, (err) => {
-			let reply: protocol.IClientReplyMessage = {
+			let reply: workerProtocol.IClientReplyMessage = {
 				id: 0,
-				type: protocol.MessageType.REPLY,
+				type: workerProtocol.MessageType.REPLY,
 				timestamp: (new Date()).getTime(),
 
 				seq: msg.req,
@@ -350,17 +330,13 @@ export class WorkerClient {
 		});
 	}
 
-	private _handleWorkerRequest(msg:protocol.IServerMessage): TPromise<any> {
+	private _handleWorkerRequest(msg:workerProtocol.IServerMessage): TPromise<any> {
 		if (msg.type === '_proxyObj') {
 			return this._remoteCom.handleMessage(msg.payload);
 		}
 
 		if (typeof this[msg.type] === 'function') {
 			return this._invokeHandler(this[msg.type], this, msg.payload);
-		}
-
-		if (typeof this._messageHandlers[msg.type] === 'function') {
-			return this._invokeHandler(this._messageHandlers[msg.type], null, msg.payload);
 		}
 
 		this._onError('Received unexpected message from Worker:', msg);
@@ -377,19 +353,19 @@ export class WorkerClient {
 
 	_consoleLog(level:string, payload:any): void {
 		switch (level) {
-			case protocol.PrintType.LOG:
+			case workerProtocol.PrintType.LOG:
 				console.log(payload);
 				break;
-			case protocol.PrintType.DEBUG:
+			case workerProtocol.PrintType.DEBUG:
 				console.info(payload);
 				break;
-			case protocol.PrintType.INFO:
+			case workerProtocol.PrintType.INFO:
 				console.info(payload);
 				break;
-			case protocol.PrintType.WARN:
+			case workerProtocol.PrintType.WARN:
 				console.warn(payload);
 				break;
-			case protocol.PrintType.ERROR:
+			case workerProtocol.PrintType.ERROR:
 				console.error(payload);
 				break;
 			default:

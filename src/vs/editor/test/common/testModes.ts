@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import modes = require('vs/editor/common/modes');
-import {AbstractMode} from 'vs/editor/common/modes/abstractMode';
+import * as modes from 'vs/editor/common/modes';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 
@@ -31,14 +29,12 @@ export class CommentState extends AbstractState {
 	}
 }
 
-export class CommentMode extends AbstractMode<AbstractModeWorker> {
+export class CommentMode implements modes.IMode {
 
 	public tokenizationSupport: modes.ITokenizationSupport;
 	public richEditSupport: modes.IRichEditSupport;
 
 	constructor(commentsConfig:modes.ICommentsConfiguration) {
-		super({ id: 'tests.commentMode', workerParticipants: [] }, null, null);
-
 		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new CommentState(this, 0)
 		}, false, false);
@@ -46,6 +42,14 @@ export class CommentMode extends AbstractMode<AbstractModeWorker> {
 		this.richEditSupport = {
 			comments:commentsConfig
 		};
+	}
+
+	public getId():string {
+		return 'tests.commentMode';
+	}
+
+	public toSimplifiedMode(): modes.IMode {
+		return this;
 	}
 }
 
@@ -226,14 +230,12 @@ export class BracketMode extends TestingMode {
 		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new BracketState(this)
 		}, false, false);
-		this.richEditSupport = new RichEditSupport(this.getId(), {
-			__electricCharacterSupport: {
-				brackets: [
-					{ tokenType: 'asd', open: '{', close: '}', isElectric: true },
-					{ tokenType: 'qwe', open: '[', close: ']', isElectric: true },
-					{ tokenType: 'zxc', open: '(', close: ')', isElectric: true }
-				]
-			}
+		this.richEditSupport = new RichEditSupport(this.getId(), null, {
+			brackets: [
+				['{', '}'],
+				['[', ']'],
+				['(', ')'],
+			]
 		});
 	}
 }
@@ -275,8 +277,8 @@ export class NMode extends TestingMode {
 	public tokenizationSupport: modes.ITokenizationSupport;
 
 	constructor(n:number) {
-		this.n = n;
 		super();
+		this.n = n;
 		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new NState(this, this.n)
 		}, false, false);

@@ -7,6 +7,7 @@ import 'vs/css!../browser/media/debug.contribution';
 import 'vs/css!../browser/media/debugHover';
 import nls = require('vs/nls');
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import editorcommon = require('vs/editor/common/editorCommon');
 import { CommonEditorRegistry, ContextKey, EditorActionDescriptor } from 'vs/editor/common/editorCommonExtensions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import platform = require('vs/platform/platform');
@@ -47,6 +48,11 @@ EditorBrowserRegistry.registerEditorContribution(DebugEditorContribution);
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(dbgactions.ToggleBreakpointAction, dbgactions.ToggleBreakpointAction.ID, nls.localize('toggleBreakpointAction', "Debug: Toggle Breakpoint"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyCode.F9
+}));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(dbgactions.ShowDebugHoverAction, dbgactions.ShowDebugHoverAction.ID, nls.localize('showDebugHover', "Debug: Show Hover"), {
+	context: ContextKey.EditorTextFocus,
+	kbExpr: KbExpr.and(KbExpr.has(debug.CONTEXT_IN_DEBUG_MODE), KbExpr.has(editorcommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS)),
+	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
 }));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(dbgactions.EditorConditionalBreakpointAction, dbgactions.EditorConditionalBreakpointAction.ID, nls.localize('conditionalBreakpointEditorAction', "Debug: Conditional Breakpoint")));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(dbgactions.SelectionToReplAction, dbgactions.SelectionToReplAction.ID, nls.localize('debugEvaluate', "Debug: Evaluate")));
