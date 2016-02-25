@@ -204,9 +204,11 @@ export class ModelServiceImpl implements IModelService {
 		this._configurationService = configurationService;
 
 		let readDefaultEOL = (config:any) => {
-			if (config.files.eol === '\r\n') {
+			const eol = config.files && config.files.eol;
+
+			if (eol === '\r\n') {
 				this._defaultEOL = editorCommon.DefaultEndOfLine.CRLF;
-			} else if (config.files.eol === '\n') {
+			} else if (eol === '\n') {
 				this._defaultEOL = editorCommon.DefaultEndOfLine.LF;
 			}
 		};
