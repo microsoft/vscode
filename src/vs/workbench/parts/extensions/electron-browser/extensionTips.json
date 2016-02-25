@@ -16,5 +16,8 @@
 	"magicstack.MagicPython": "{**/*.py}",
 	"saviorisdead.RustyCode": "{**/*.rs,**/*.rslib}",
 	"hars.CppSnippets": "{**/*.cpp,**/*.cc,**/*.h}",
-	"mitaki28.vscode-clang": "{**/*.cpp,**/*.cc,**/*.h}"
+	"mitaki28.vscode-clang": "{**/*.cpp,**/*.cc,**/*.h}",
+	"seanmcbreen.Spell": "{**/*.md}",
+	"ms-vscode.Theme-MarkdownKit": "{**/*.md}",
+	"DavidAnson.vscode-markdownlint": "{**/*.md}"
 }
