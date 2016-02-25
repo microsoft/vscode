@@ -104,7 +104,10 @@ export function checkForLegacyExtensionNeeds(accessor: ServicesAccessor): void {
 						new Action('ext.install', nls.localize('yes', "Yes"), undefined, undefined, () => {
 							let actualInstall = instantiationService.createInstance(InstallAction, nls.localize('yes', "Yes"));
 							actualInstall.run(extension);
-							return TPromise.as(true);
+							return TPromise.as(true).then(() => {
+								messageService.hideAll();
+								messageService.show(Severity.Info, nls.localize('extensionsInstalled', "Extension '{0}' is being installed...", extension.displayName));
+							});
 						})
 					];
 
