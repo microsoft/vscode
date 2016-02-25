@@ -29,6 +29,7 @@ export class AbstractDebugAction extends actions.Action {
 	protected debugService: IDebugService;
 	private keybindingService: IKeybindingService;
 	protected toDispose: lifecycle.IDisposable[];
+	private keybinding: string;
 
 	constructor(id: string, label: string, cssClass: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, cssClass, false);
@@ -37,23 +38,25 @@ export class AbstractDebugAction extends actions.Action {
 		this.toDispose = [];
 		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => this.updateEnablement()));
 
-		let keybinding: string = null;
 		const keys = this.keybindingService.lookupKeybindings(id).map(k => this.keybindingService.getLabelFor(k));
 		if (keys && keys.length) {
-			keybinding = keys[0];
+			this.keybinding = keys[0];
 		}
 
-		if (keybinding) {
-			this.label = nls.localize('debugActionLabelAndKeybinding', "{0} ({1})", label, keybinding);
-		} else {
-			this.label = label;
-		}
-
+		this.updateLabel(label);
 		this.updateEnablement();
 	}
 
 	public run(e?: any): TPromise<any> {
 		throw new Error('implement me');
+	}
+
+	protected updateLabel(newLabel: string): void {
+		if (this.keybinding) {
+			this.label = nls.localize('debugActionLabelAndKeybinding', "{0} ({1})", newLabel, this.keybinding);
+		} else {
+			this.label = newLabel;
+		}
 	}
 
 	protected updateEnablement(): void {
@@ -132,7 +135,7 @@ export class RestartDebugAction extends AbstractDebugAction {
 		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => {
 			const session = this.debugService.getActiveSession();
 			if (session) {
-				this.label = session.isAttach ? RestartDebugAction.RECONNECT_LABEL : RestartDebugAction.LABEL;
+				this.updateLabel(session.isAttach ? RestartDebugAction.RECONNECT_LABEL : RestartDebugAction.LABEL);
 			}
 		}));
 	}
@@ -207,7 +210,7 @@ export class StopDebugAction extends AbstractDebugAction {
 		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => {
 			const session = this.debugService.getActiveSession();
 			if (session) {
-				this.label = session.isAttach ? StopDebugAction.DISCONNECT_LABEL : StopDebugAction.LABEL;
+				this.updateLabel(session.isAttach ? StopDebugAction.DISCONNECT_LABEL : StopDebugAction.LABEL);
 			}
 		}));
 	}
@@ -347,14 +350,11 @@ export class ToggleBreakpointsActivatedAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action breakpoints-activate', debugService, keybindingService);
-		this.updateLabel();
-		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.BREAKPOINTS_UPDATED, () => {
-			this.updateLabel();
-		}));
-	}
+		this.updateLabel(this.debugService.getModel().areBreakpointsActivated() ? ToggleBreakpointsActivatedAction.DEACTIVATE_LABEL : ToggleBreakpointsActivatedAction.ACTIVATE_LABEL);
 
-	private updateLabel(): void {
-		this.label = this.debugService.getModel().areBreakpointsActivated() ? ToggleBreakpointsActivatedAction.DEACTIVATE_LABEL : ToggleBreakpointsActivatedAction.ACTIVATE_LABEL;
+		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.BREAKPOINTS_UPDATED, () => {
+			this.updateLabel(this.debugService.getModel().areBreakpointsActivated() ? ToggleBreakpointsActivatedAction.DEACTIVATE_LABEL : ToggleBreakpointsActivatedAction.ACTIVATE_LABEL);
+		}));
 	}
 
 	public run(): TPromise<any> {
