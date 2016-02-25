@@ -138,7 +138,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 				if (type === Type.Toggle) {
 					lineData.ignore = true;
 				} else if (type === Type.ForceAdd) {
-					lineData.ignore = false;
+					lineData.ignore = true;
 				} else {
 					lineData.ignore = true;
 				}

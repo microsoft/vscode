@@ -17,6 +17,11 @@ suite('Editor Contrib - Line Comment Command', () => {
 		testCommand(lines, mode, selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
 	}
 
+	function testAddLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+		var mode = new CommentMode({ lineCommentToken: '!@#', blockCommentStartToken: '<!@#', blockCommentEndToken: '#@!>' });
+		testCommand(lines, mode, selection, (sel) => new LineCommentCommand(sel, 4, Type.ForceAdd), expectedLines, expectedSelection);
+	}
+
 	test('comment single line', function () {
 		testLineCommentCommand(
 			[
@@ -481,6 +486,33 @@ suite('Editor Contrib - Line Comment Command', () => {
 				'fifth'
 			],
 			new Selection(1, 1, 2, 3)
+		);
+	});
+
+	test('issue #2837 "Add Line Comment" fault when blank lines involved', function () {
+		testAddLineCommentCommand(
+			[
+				'    if displayName == "":',
+				'        displayName = groupName',
+				'    description = getAttr(attributes, "description")',
+				'    mailAddress = getAttr(attributes, "mail")',
+				'',
+				'    print "||Group name|%s|" % displayName',
+				'    print "||Description|%s|" % description',
+				'    print "||Email address|[mailto:%s]|" % mailAddress`',
+			],
+			new Selection(1, 1, 8, 56),
+			[
+				'    !@# if displayName == "":',
+				'    !@#     displayName = groupName',
+				'    !@# description = getAttr(attributes, "description")',
+				'    !@# mailAddress = getAttr(attributes, "mail")',
+				'',
+				'    !@# print "||Group name|%s|" % displayName',
+				'    !@# print "||Description|%s|" % description',
+				'    !@# print "||Email address|[mailto:%s]|" % mailAddress`',
+			],
+			new Selection(1, 1, 8, 60)
 		);
 	});
 });
