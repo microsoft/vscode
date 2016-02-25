@@ -860,52 +860,61 @@ export class OneCursorOp {
 		return true;
 	}
 
-	public static line(cursor:OneCursor, inSelectionMode: boolean, position:editorCommon.IPosition, viewPosition:editorCommon.IPosition, ctx: IOneCursorOperationContext): boolean {
+	public static line(cursor:OneCursor, inSelectionMode: boolean, _position:editorCommon.IPosition, _viewPosition:editorCommon.IPosition, ctx: IOneCursorOperationContext): boolean {
 		// TODO@Alex -> select in editable range
 
-		let validatedPosition = cursor.validatePosition(position);
+		let position = cursor.validatePosition(_position);
+		let viewPosition = (
+			_viewPosition ?
+			cursor.validateViewPosition(_viewPosition.lineNumber, _viewPosition.column, position)
+			: cursor.convertModelPositionToViewPosition(position.lineNumber, position.column)
+		);
+
 		ctx.cursorPositionChangeReason = 'explicit';
 		ctx.shouldRevealHorizontal = false;
 
 		if (!inSelectionMode || !cursor.hasSelection()) {
-			let nextLinePosition: editorCommon.IPosition;
-			if (validatedPosition.lineNumber === cursor.model.getLineCount()) {
-				nextLinePosition = {
-					lineNumber: validatedPosition.lineNumber,
-					column: cursor.model.getLineMaxColumn(validatedPosition.lineNumber)
-				};
-			} else {
-				nextLinePosition = {
-					lineNumber: validatedPosition.lineNumber + 1,
-					column: 1
-				};
+			// Entering line selection for the first time
+
+			let selectToLineNumber = position.lineNumber + 1;
+			let selectToColumn = 1;
+			if (selectToLineNumber > cursor.model.getLineCount()) {
+				selectToLineNumber = cursor.model.getLineCount();
+				selectToColumn = cursor.model.getLineMaxColumn(selectToLineNumber);
 			}
-			let selectionStartRange = new Range(validatedPosition.lineNumber, 1, nextLinePosition.lineNumber, nextLinePosition.column);
-			let r1 = cursor.convertModelPositionToViewPosition(validatedPosition.lineNumber, 1);
-			let r2 = cursor.convertModelPositionToViewPosition(nextLinePosition.lineNumber, nextLinePosition.column);
+
+			let selectionStartRange = new Range(position.lineNumber, 1, selectToLineNumber, selectToColumn);
+			let r1 = cursor.convertModelPositionToViewPosition(position.lineNumber, 1);
+			let r2 = cursor.convertModelPositionToViewPosition(selectToLineNumber, selectToColumn);
 			cursor.setSelectionStart(selectionStartRange, new Range(r1.lineNumber, r1.column, r2.lineNumber, r2.column));
 			cursor.moveModelPosition(cursor.hasSelection(), selectionStartRange.endLineNumber, selectionStartRange.endColumn, 0, false);
+
 			return true;
 		} else {
-			if (validatedPosition.lineNumber !== cursor.getSelectionStart().getStartPosition().lineNumber) {
-				let validatedViewPosition: editorCommon.IPosition;
-				if (viewPosition) {
-					validatedViewPosition = cursor.validateViewPosition(viewPosition.lineNumber, viewPosition.column, validatedPosition);
-				} else {
-					validatedViewPosition = cursor.convertModelPositionToViewPosition(validatedPosition.lineNumber, validatedPosition.column);
+			// Continuing line selection
+			let enteringLineNumber = cursor.getSelectionStart().getStartPosition().lineNumber;
+
+			if (position.lineNumber < enteringLineNumber) {
+
+				cursor.moveViewPosition(cursor.hasSelection(), viewPosition.lineNumber, 1, 0, false);
+
+			} else if (position.lineNumber > enteringLineNumber) {
+
+				let selectToViewLineNumber = viewPosition.lineNumber + 1;
+				let selectToViewColumn = 1;
+				if (selectToViewLineNumber > cursor.getViewLineCount()) {
+					selectToViewLineNumber = cursor.getViewLineCount();
+					selectToViewColumn = cursor.getViewLineMaxColumn(selectToViewLineNumber);
 				}
-				let column = validatedViewPosition.column;
-				if (validatedViewPosition.lineNumber !== cursor.getViewLineCount() || validatedViewPosition.column !== cursor.getViewLineMaxColumn(validatedViewPosition.lineNumber)) {
-					column = 1;
-				}
-				cursor.moveViewPosition(cursor.hasSelection(), validatedViewPosition.lineNumber, column, 0, false);
+				cursor.moveViewPosition(cursor.hasSelection(), selectToViewLineNumber, selectToViewColumn, 0, false);
+
 			} else {
-				let column = validatedPosition.column;
-				if (validatedPosition.lineNumber !== cursor.model.getLineCount() || validatedPosition.column !== cursor.model.getLineMaxColumn(validatedPosition.lineNumber)) {
-					column = 1;
-				}
-				cursor.moveModelPosition(cursor.hasSelection(), validatedPosition.lineNumber, column, 0, false);
+
+				let endPositionOfSelectionStart = cursor.getSelectionStart().getEndPosition();
+				cursor.moveModelPosition(cursor.hasSelection(), endPositionOfSelectionStart.lineNumber, endPositionOfSelectionStart.column, 0, false);
+
 			}
+
 
 			return true;
 		}
