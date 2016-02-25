@@ -41,6 +41,14 @@ class CollapsibleRegion {
 		return this._indent;
 	}
 
+	public get startLineNumber(): number {
+		return this._lastRange ? this._lastRange.startLineNumber : void 0;
+	}
+
+	public get endLineNumber(): number {
+		return this._lastRange ? this._lastRange.endLineNumber : void 0;
+	}
+
 	public setCollapsed(isCollaped: boolean, changeAccessor:editorCommon.IModelDecorationsChangeAccessor): void {
 		this._isCollapsed = isCollaped;
 		if (this.decorationIds.length > 0) {
@@ -204,6 +212,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 		if (!model) {
 			return;
 		}
+		let updateHiddenRegions = false;
 		regions = limitByIndent(regions, 10000).sort((r1, r2) => r1.startLineNumber - r2.startLineNumber);
 
 		this.editor.changeDecorations(changeAccessor => {
@@ -215,19 +224,26 @@ export class FoldingController implements editorCommon.IEditorContribution {
 				let dec = this.decorations[i];
 				let decRange = dec.getDecorationRange(model);
 				if (!decRange) {
+					updateHiddenRegions = updateHiddenRegions || dec.isCollapsed;
 					dec.dispose(changeAccessor);
 					i++;
 				} else {
 					while (k < regions.length && decRange.startLineNumber > regions[k].startLineNumber) {
-						newDecorations.push(new CollapsibleRegion(regions[k], model, changeAccessor));
+						let region = regions[k];
+						updateHiddenRegions = updateHiddenRegions || region.isCollapsed;
+						newDecorations.push(new CollapsibleRegion(region, model, changeAccessor));
 						k++;
 					}
 					if (k < regions.length) {
 						let currRange = regions[k];
 						if (decRange.startLineNumber < currRange.startLineNumber) {
+							updateHiddenRegions = updateHiddenRegions || dec.isCollapsed;
 							dec.dispose(changeAccessor);
 							i++;
 						} else if (decRange.startLineNumber === currRange.startLineNumber) {
+							if (dec.isCollapsed && (dec.startLineNumber !== currRange.startLineNumber || dec.endLineNumber !== currRange.endLineNumber)) {
+								updateHiddenRegions = true;
+							}
 							currRange.isCollapsed = dec.isCollapsed; // preserve collapse state
 							dec.update(currRange, model, changeAccessor);
 							newDecorations.push(dec);
@@ -238,16 +254,23 @@ export class FoldingController implements editorCommon.IEditorContribution {
 				}
 			}
 			while (i < this.decorations.length) {
-				this.decorations[i].dispose(changeAccessor);
+				let dec = this.decorations[i];
+				updateHiddenRegions = updateHiddenRegions || dec.isCollapsed;
+				dec.dispose(changeAccessor);
 				i++;
 			}
 			while (k < regions.length) {
-				newDecorations.push(new CollapsibleRegion(regions[k], model, changeAccessor));
+				let region = regions[k];
+				updateHiddenRegions = updateHiddenRegions || region.isCollapsed;
+				newDecorations.push(new CollapsibleRegion(region, model, changeAccessor));
 				k++;
 			}
 			this.decorations = newDecorations;
 		});
-		this.updateHiddenAreas();
+		if (updateHiddenRegions) {
+			this.updateHiddenAreas();
+		}
+
 	}
 
 	private onModelChanged(): void {
