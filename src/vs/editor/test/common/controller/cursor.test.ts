@@ -1131,6 +1131,27 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
+	test('issue #3463: pressing tab adds spaces, but not as many as for a tab', () => {
+		usingCursor({
+			text: [
+				'function a() {',
+				'\tvar a = {',
+				'\t\tx: 3',
+				'\t};',
+				'}',
+			],
+			mode: null,
+			config: {
+				insertSpaces: true,
+				tabSize: 4
+			}
+		}, (model, cursor) => {
+			moveTo(cursor, 3, 2, false);
+			cursorCommand(cursor, H.Tab);
+			assert.equal(model.getLineContent(3), '\t    \tx: 3');
+		});
+	});
+
 	test('issue #832: deleteWordLeft', () => {
 		usingCursor({
 			text: [

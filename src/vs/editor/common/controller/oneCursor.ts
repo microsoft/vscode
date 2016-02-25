@@ -78,6 +78,26 @@ export interface IFindWordResult extends editorCommon.IWordRange {
 	wordType: WordType;
 }
 
+export enum WordType {
+	None = 0,
+	Regular = 1,
+	Separator = 2
+};
+
+enum CharacterClass {
+	Regular = 0,
+	Whitespace = 1,
+	WordSeparator = 2
+};
+
+const CH_REGULAR = CharacterClass.Regular;
+const CH_WHITESPACE = CharacterClass.Whitespace;
+const CH_WORD_SEPARATOR = CharacterClass.WordSeparator;
+
+const W_NONE = WordType.None;
+const W_REGULAR = WordType.Regular;
+const W_SEPARATOR = WordType.Separator;
+
 export class OneCursor {
 
 	// --- contextual state
@@ -475,6 +495,9 @@ export class OneCursor {
 	}
 	public getColumnAtEndOfLine(lineNumber:number, column:number): number {
 		return this.helper.getColumnAtEndOfLine(this.model, lineNumber, column);
+	}
+	public getVisibleColumnFromColumn(lineNumber:number, column:number): number {
+		return this.helper.visibleColumnFromColumn(this.model, lineNumber, column);
 	}
 
 	// -- view
@@ -1337,20 +1360,22 @@ export class OneCursorOp {
 	}
 
 	public static tab(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
-		var selection = cursor.getSelection();
+		let selection = cursor.getSelection();
 
 		if (selection.isEmpty()) {
 
-			var typeText = '';
+			let typeText = '';
 
 			if (cursor.model.getLineMaxColumn(selection.startLineNumber) === 1) {
 				// Line is empty => indent straight to the right place
 				typeText = cursor.configuration.normalizeIndentation(this._goodIndentForLine(cursor, selection.startLineNumber));
 			} else {
-				var position = cursor.getPosition();
+				let position = cursor.getPosition();
 				if (cursor.configuration.getIndentationOptions().insertSpaces) {
-					var nextTabColumn = CursorMoveHelper.nextTabColumn(position.column - 1, cursor.configuration.getIndentationOptions().tabSize);
-					for (var i = position.column; i <= nextTabColumn; i++) {
+					let visibleColumnFromColumn = cursor.getVisibleColumnFromColumn(position.lineNumber, position.column);
+					let tabSize = cursor.configuration.getIndentationOptions().tabSize;
+					let spacesCnt = tabSize - (visibleColumnFromColumn % tabSize);
+					for (let i = 0; i < spacesCnt; i++) {
 						typeText += ' ';
 					}
 				} else {
@@ -1786,19 +1811,23 @@ class CursorHelper {
 		return this.moveHelper.getColumnAtEndOfLine(model, lineNumber, column);
 	}
 
-	/**
-	 * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
-	 */
-	public nextTabColumn(column:number): number {
-		return CursorMoveHelper.nextTabColumn(column, this.configuration.getIndentationOptions().tabSize);
+	public visibleColumnFromColumn(model:ICursorMoveHelperModel, lineNumber:number, column:number): number {
+		return this.moveHelper.visibleColumnFromColumn(model, lineNumber, column);
 	}
 
-	/**
-	 * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
-	 */
-	public prevTabColumn(column:number): number {
-		return CursorMoveHelper.prevTabColumn(column, this.configuration.getIndentationOptions().tabSize);
-	}
+	// /**
+	//  * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
+	//  */
+	// public nextTabColumn(column:number): number {
+	// 	return CursorMoveHelper.nextTabColumn(column, this.configuration.getIndentationOptions().tabSize);
+	// }
+
+	// /**
+	//  * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
+	//  */
+	// public prevTabColumn(column:number): number {
+	// 	return CursorMoveHelper.prevTabColumn(column, this.configuration.getIndentationOptions().tabSize);
+	// }
 
 	// public findWord(position:editorCommon.IEditorPosition, preference:string, skipSyntaxTokens:boolean=false): editorCommon.IWordRange {
 	// 	var words = this.model.getWords(position.lineNumber);
@@ -1954,26 +1983,6 @@ class CursorHelper {
 		return 0;
 	}
 }
-
-export enum WordType {
-	None = 0,
-	Regular = 1,
-	Separator = 2
-};
-
-enum CharacterClass {
-	Regular = 0,
-	Whitespace = 1,
-	WordSeparator = 2
-};
-
-const CH_REGULAR = CharacterClass.Regular;
-const CH_WHITESPACE = CharacterClass.Whitespace;
-const CH_WORD_SEPARATOR = CharacterClass.WordSeparator;
-
-const W_NONE = WordType.None;
-const W_REGULAR = WordType.Regular;
-const W_SEPARATOR = WordType.Separator;
 
 function once<T, R>(keyFn:(input:T)=>string, computeFn:(input:T)=>R):(input:T)=>R {
 	let cache: {[key:string]:R;} = {};
