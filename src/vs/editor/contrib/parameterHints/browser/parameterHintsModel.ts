@@ -9,49 +9,8 @@ import {EventEmitter, IEventEmitter, ListenerCallback} from 'vs/base/common/even
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EventType, ICommonCodeEditor, ICursorSelectionChangedEvent, IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
-import {IParameter, IParameterHints, ISignature} from 'vs/editor/common/modes';
+import {IParameterHints} from 'vs/editor/common/modes';
 import {ParameterHintsRegistry, getParameterHints} from '../common/parameterHints';
-
-function equalsArr<T>(a: T[], b:T[], equalsFn:(a:T,b:T)=>boolean): boolean {
-	if (a.length !== b.length) {
-		return false;
-	}
-	for (let i = 0, len = a.length; i < len; i++) {
-		if (!equalsFn(a[i], b[i])) {
-			return false;
-		}
-	}
-	return true;
-}
-
-function equalsParameter(a: IParameter, b: IParameter): boolean {
-	return (
-		a.documentation === b.documentation
-		&& a.label === b.label
-		&& a.signatureLabelEnd === b.signatureLabelEnd
-		&& a.signatureLabelOffset === b.signatureLabelOffset
-	);
-}
-
-function equalsSignature(a: ISignature, b: ISignature): boolean {
-	return (
-		a.documentation === b.documentation
-		&& a.label === b.label
-		&& equalsArr(a.parameters, b.parameters, equalsParameter)
-	);
-}
-
-function equalsParameterHints(a: IParameterHints, b: IParameterHints): boolean {
-	if (!a && !b) {
-		return true;
-	}
-	if (!a || !b) {
-		return false;
-	}
-	return (
-		equalsArr(a.signatures, b.signatures, equalsSignature)
-	);
-}
 
 export interface IHintEvent {
 	hints: IParameterHints;
@@ -115,9 +74,7 @@ export class ParameterHintsModel extends EventEmitter {
 	public doTrigger(triggerCharacter: string): TPromise<boolean> {
 		return getParameterHints(this.editor.getModel(), this.editor.getPosition(), triggerCharacter).then(result => {
 
-			let equalsPrevResult = equalsParameterHints(this.prevResult, result);
-
-			if (!result || result.signatures.length === 0 || (this.prevResult && !equalsPrevResult)) {
+			if (!result || result.signatures.length === 0) {
 				this.cancel();
 				this.emit('cancel');
 				return false;
