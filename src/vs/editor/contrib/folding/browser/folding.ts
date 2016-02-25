@@ -366,7 +366,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 				return false;
 			}
 			let decRange = dec.getDecorationRange(model);
-			return decRange && decRange.startLineNumber <= lineNumber && lineNumber < decRange.endLineNumber;
+			return decRange && decRange.startLineNumber <= lineNumber && lineNumber <= decRange.endLineNumber;
 		});
 	}
 
