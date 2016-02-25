@@ -609,7 +609,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.taskService.tasks().then(descriptions => {
 			const filteredTasks = descriptions.filter(task => task.name === taskName);
 			if (filteredTasks.length !== 1) {
-				this.messageService.show(severity.Error, nls.localize('DebugTaskNotFound', "Could not find the task \'{0}\'. Make sure the task exists and it has a unique name.", taskName));
+				this.messageService.show(severity.Error, nls.localize('DebugTaskNotFound', "Could not find the preLaunchTask \'{0}\'. Make sure the task exists and it has a unique name.", taskName));
 				return TPromise.as(null);
 			}
 
