@@ -281,7 +281,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			aria.alert(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (this.session && this.session.getId() === (<any>event).sessionId) {
 				if (event.body && typeof event.body.restart === 'boolean' && event.body.restart) {
-					this.restartSession().done(null, errors.onUnexpectedError);
+					this.restartSession().done(null, err => this.messageService.show(severity.Error, err.message));
 				} else {
 					this.session.disconnect().done(null, errors.onUnexpectedError);
 				}
@@ -666,9 +666,9 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 	public restartSession(): TPromise<any> {
 		return this.session ? this.session.disconnect(true).then(() =>
-			new TPromise<void>(c => {
+			new TPromise<void>((c, e) => {
 				setTimeout(() => {
-					this.createSession(false).then(() => c(null));
+					this.createSession(false).then(() => c(null), err => e(err));
 				}, 300);
 			})
 		) : this.createSession(false);
