@@ -47,7 +47,7 @@ export function computeRanges(model: IModel, tabSize: number, minimumRangeSize: 
 }
 
 
-function computeIndentLevel(line: string, tabSize: number): number {
+export function computeIndentLevel(line: string, tabSize: number): number {
 	let i = 0;
 	let indent = 0;
 	while (i < line.length) {
@@ -55,8 +55,7 @@ function computeIndentLevel(line: string, tabSize: number): number {
 		if (ch === ' ') {
 			indent++;
 		} else if (ch === '\t') {
-			indent++;
-			indent += (indent % tabSize);
+			indent = indent - indent % tabSize + tabSize;
 		} else {
 			break;
 		}

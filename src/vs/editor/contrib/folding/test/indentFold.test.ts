@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import {Model} from 'vs/editor/common/model/model';
 import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingRange';
-import {computeRanges, limitByIndent} from 'vs/editor/contrib/folding/common/indentFoldStrategy';
+import {computeRanges, limitByIndent, computeIndentLevel} from 'vs/editor/contrib/folding/common/indentFoldStrategy';
 import {DefaultEndOfLine} from 'vs/editor/common/editorCommon';
 
 suite('Indentation Folding', () => {
@@ -102,6 +102,19 @@ suite('Indentation Folding', () => {
 		], 4, [r(1, 7, 0), r(3, 5, 2)] );
 	});
 
+	test('Fold Tabs', () => {
+		assertRanges([
+		/* 1*/	'class A {',
+		/* 2*/	'\t\t',
+		/* 3*/	'\tvoid foo() {',
+		/* 4*/	'\t \t//hello',
+		/* 5*/	'\t    return 0;',
+		/* 6*/	'  \t}',
+		/* 7*/	'      ',
+		/* 8*/	'}',
+		], 4, [r(1, 7, 0), r(3, 5, 4)] );
+	});
+
 	test('Limit By indent', () => {
 		let ranges = [r(1, 4, 0), r(3, 4, 2), r(5, 8, 0), r(6, 7, 1), r(9, 15, 0), r(10, 15, 10), r(11, 12, 2000), r(14, 15, 2000)];
 		assert.deepEqual(limitByIndent(ranges, 8), [r(1, 4, 0), r(3, 4, 2), r(5, 8, 0), r(6, 7, 1), r(9, 15, 0), r(10, 15, 10), r(11, 12, 2000), r(14, 15, 2000)]);
@@ -113,6 +126,20 @@ suite('Indentation Folding', () => {
 		assert.deepEqual(limitByIndent(ranges, 2), []);
 		assert.deepEqual(limitByIndent(ranges, 1), []);
 		assert.deepEqual(limitByIndent(ranges, 0), []);
+	});
+
+	test('Compute indent level', () => {
+		assert.equal(computeIndentLevel("Hello", 4), 0);
+		assert.equal(computeIndentLevel(" Hello", 4), 1);
+		assert.equal(computeIndentLevel("   Hello", 4), 3);
+		assert.equal(computeIndentLevel("\tHello", 4), 4);
+		assert.equal(computeIndentLevel(" \tHello", 4), 4);
+		assert.equal(computeIndentLevel("  \tHello", 4), 4);
+		assert.equal(computeIndentLevel("   \tHello", 4), 4);
+		assert.equal(computeIndentLevel("    \tHello", 4), 8);
+		assert.equal(computeIndentLevel("     \tHello", 4), 8);
+		assert.equal(computeIndentLevel("\t Hello", 4), 5);
+		assert.equal(computeIndentLevel("\t \tHello", 4), 8);
 	});
 
 });
