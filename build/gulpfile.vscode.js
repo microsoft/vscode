@@ -233,6 +233,7 @@ function packageTask(platform, arch, opts) {
 			result = es.merge(result, gulp.src('resources/win32/bin/code.js', { base: 'resources/win32' }));
 
 			result = es.merge(result, gulp.src('resources/win32/bin/code.cmd', { base: 'resources/win32' })
+				.pipe(replace('@@NAME@@', product.nameShort))
 				.pipe(rename(function (f) { f.basename = product.applicationName; })));
 
 			result = es.merge(result, gulp.src('resources/win32/bin/code.sh', { base: 'resources/win32' })
