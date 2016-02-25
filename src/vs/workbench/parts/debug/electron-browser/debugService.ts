@@ -507,7 +507,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.model.clearWatchExpressions(id);
 	}
 
-	public createSession(openViewlet = !this.partService.isSideBarHidden()): TPromise<any> {
+	public createSession(changeViewState = !this.partService.isSideBarHidden()): TPromise<any> {
 		this.clearReplExpressions();
 
 		return this.textFileService.saveAll().then(() => this.pluginService.onReady()).then(() => this.configurationManager.setConfiguration(this.configurationManager.getConfigurationName())).then(() => {
@@ -529,7 +529,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 				const errorCount = configuration.preLaunchTask ? this.markerService.getStatistics().errors : 0;
 				const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
 				if (errorCount === 0 && !failureExitCode) {
-					return this.doCreateSession(configuration, openViewlet);
+					return this.doCreateSession(configuration, changeViewState);
 				}
 
 				this.messageService.show(severity.Error, {
@@ -538,7 +538,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 						nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
 					actions: [CloseAction, new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
 						this.messageService.hideAll();
-						return this.doCreateSession(configuration, openViewlet);
+						return this.doCreateSession(configuration, changeViewState);
 					})]
 				});
 			}, (err: TaskError) => {
@@ -554,7 +554,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		});
 	}
 
-	private doCreateSession(configuration: debug.IConfig, openViewlet: boolean): TPromise<any> {
+	private doCreateSession(configuration: debug.IConfig, changeViewState: boolean): TPromise<any> {
 		const key = this.configurationManager.getAdapter().aiKey;
 		const telemetryInfo = Object.create(null);
 		this.telemetryService.getTelemetryInfo().then(info => {
@@ -580,15 +580,15 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			this.model.setExceptionBreakpoints(this.session.capabilities.exceptionBreakpointFilters);
 			return configuration.request === 'attach' ? this.session.attach(configuration) : this.session.launch(configuration);
 		}).then((result: DebugProtocol.Response) => {
-			if (openViewlet) {
+			if (changeViewState) {
 				this.viewletService.openViewlet(debug.VIEWLET_ID);
+				this.revealRepl(false).done(undefined, errors.onUnexpectedError);
 			}
 			this.partService.addClass('debugging');
 			this.contextService.updateOptions('editor', {
 				glyphMargin: true
 			});
 			this.inDebugMode.set(true);
-			this.revealRepl(false).done(undefined, errors.onUnexpectedError);
 
 			this.telemetryService.publicLog('debugSessionStart', { type: configuration.type, breakpointCount: this.model.getBreakpoints().length, exceptionBreakpoints: this.model.getExceptionBreakpoints() });
 		}).then(undefined, (error: Error) => {
