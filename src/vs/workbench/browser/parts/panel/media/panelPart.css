@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench > .part.panel > .title {
-	border-top: 1px solid #007ACC;
+	border-top: 1px solid rgba(128, 128, 128, 0.35);
 }
 
 .monaco-workbench > .part.panel > .title > .title-label > span {
@@ -13,8 +13,4 @@
 
 .monaco-workbench > .part.panel {
 	z-index: initial;
-}
-
-.monaco-workbench.no-workspace > .part.panel > .title {
-	border-color: #68217A;
 }
