@@ -14,6 +14,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import {Range} from 'vs/editor/common/core/range';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
@@ -371,6 +372,8 @@ export class FoldingController implements editorCommon.IEditorContribution {
 
 	private updateHiddenAreas(): void {
 		let model = this.editor.getModel();
+		var cursorPosition : editorCommon.IPosition = this.editor.getPosition();
+		var updateCursorPosition = false;
 		let hiddenAreas: editorCommon.IRange[] = [];
 		this.decorations.filter(dec => dec.isCollapsed).forEach(dec => {
 			let decRange = dec.getDecorationRange(model);
@@ -380,8 +383,16 @@ export class FoldingController implements editorCommon.IEditorContribution {
 				endLineNumber: decRange.endLineNumber,
 				endColumn: 1
 			});
+			if (Range.containsPosition(decRange, cursorPosition)) {
+				cursorPosition = { lineNumber: decRange.startLineNumber, column: model.getLineMaxColumn(decRange.startLineNumber) };
+				updateCursorPosition = true;
+			}
 		});
+		if (updateCursorPosition) {
+			this.editor.setPosition(cursorPosition);
+		}
 		this.editor.setHiddenAreas(hiddenAreas);
+		this.editor.revealPositionInCenterIfOutsideViewport(cursorPosition);
 	}
 
 	private findRegions(lineNumber: number, collapsed: boolean): CollapsibleRegion[] {
