@@ -1,5 +1,6 @@
 {
 	"ms-vscode.csharp": "{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln}",
+	"ms-vscode.mono-debug": "{**/*.cs,**/*.csproj,**/*.sln}",
 	"msjsdiag.debugger-for-chrome": "{**/*.ts,**/*.tsx**/*.js,**/*.jsx,**/*.es6}",
 	"lukehoban.Go": "**/*.go",
 	"ms-vscode.PowerShell": "{**/*.ps,**/*.ps1}",
