@@ -8,14 +8,14 @@
 	background-origin: border-box;
 	background-position: 3px center;
 	background-size: 15px;
-	background-image: url('arrow-expand.svg');
 	margin-left: 5px;
 	cursor: pointer;
 	opacity: 0;
-	transition: opacity .3s;
+	transition: opacity .5s;
 }
 
 .monaco-editor .margin-view-overlays:hover .folding {
+	background-image: url('arrow-expand.svg');
 	opacity: 1;
 }
 
@@ -24,7 +24,7 @@
 	opacity: 1;
 }
 
-.monaco-editor.vs-dark .margin-view-overlays .folding {
+.monaco-editor.vs-dark .margin-view-overlays:hover .folding {
 	background-image: url('arrow-expand-dark.svg');
 }
 
@@ -33,7 +33,7 @@
 }
 
 /* High-contrast theme */
-.monaco-editor.hc-black .margin-view-overlays .folding {
+.monaco-editor.hc-black .margin-view-overlays:hover .folding {
 	background-image: url('arrow-expand-dark.svg');
 }
 
