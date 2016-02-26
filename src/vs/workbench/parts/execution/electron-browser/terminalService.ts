@@ -9,7 +9,6 @@ import uri from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ITerminalService} from 'vs/workbench/parts/execution/common/execution';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {IMessageService} from 'vs/platform/message/common/message';
 
 import cp = require('child_process');
 import processes = require('vs/base/node/processes');
@@ -18,13 +17,35 @@ export class WinTerminalService implements ITerminalService {
 	public serviceId = ITerminalService;
 
 	constructor(
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IMessageService private _messageService: IMessageService
+		@IConfigurationService private _configurationService: IConfigurationService
 	) {
 	}
 
 	public openTerminal(path: string): void {
-		cp.spawn(processes.getWindowsShell(), ['/c', 'start', '/wait'], { cwd: path });
+		this._configurationService.loadConfiguration().done(configuration => {
+			return new Promise((success, failed) => {
+				this.spawnTerminal(
+					cp,
+					configuration,
+					processes.getWindowsShell(),
+					path,
+					success,
+					err => {
+						errors.onUnexpectedError(err);
+						failed(err);
+					}
+				);
+			});
+		}, errors.onUnexpectedError);
+	}
+
+	private spawnTerminal(spawner, configuration, command: string, path: string, onExit, onError) {
+		let terminalConfig = configuration.terminal;
+		let cmdArgs = ['/c', 'start', '/wait', terminalConfig.windows.exec];
+
+		let child = spawner.spawn(command, cmdArgs, { cwd: path });
+		child.on('error', onError);
+		child.on('exit', onExit);
 	}
 }
 
@@ -49,14 +70,41 @@ export class MacTerminalService implements ITerminalService {
 			child.on('exit', (code: number) => {
 				c(code === 0 ? 'iterm.scpt' : 'terminal.scpt');
 			});
-		}).then(name => uri.parse(require.toUrl(`vs/workbench/parts/execution/electron-browser/${ name }`)).fsPath);
+		}).then(name => uri.parse(require.toUrl(`vs/workbench/parts/execution/electron-browser/${name}`)).fsPath);
 	}
 }
 
 export class LinuxTerminalService implements ITerminalService {
 	public serviceId = ITerminalService;
 
+	constructor(
+		@IConfigurationService private _configurationService: IConfigurationService
+	) { }
+
+
 	public openTerminal(path: string): void {
-		cp.spawn('x-terminal-emulator', [], { cwd: path });
+		this._configurationService.loadConfiguration().done(configuration => {
+			return new Promise((success, failed) => {
+				this.spawnTerminal(
+					cp,
+					configuration,
+					path,
+					success,
+					err => {
+						errors.onUnexpectedError(err);
+						failed(err);
+					}
+				);
+			});
+		}, errors.onUnexpectedError);
 	}
+
+	private spawnTerminal(spawner, configuration, path: string, onExit, onError) {
+		let terminalConfig = configuration.terminal;
+
+		const child = spawner.spawn(terminalConfig.linux.exec, [], { cwd: path });
+		child.on('error', onError);
+		child.on('exit', onExit);
+	}
+
 }

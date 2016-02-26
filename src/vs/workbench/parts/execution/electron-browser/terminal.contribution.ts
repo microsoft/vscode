@@ -19,6 +19,39 @@ import {ITerminalService} from 'vs/workbench/parts/execution/common/execution';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {Extensions, IConfigurationRegistry} from 'vs/platform/configuration/common/configurationRegistry';
+
+let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
+configurationRegistry.registerConfiguration({
+	'id': 'terminal',
+	'order': 100,
+	'title': nls.localize('terminalConfigurationTitle', "Terminal configuration"),
+	'type': 'object',
+	'properties': {
+		'terminal.windows': {
+			'description': nls.localize('terminal.windows', "Windows specific settings."),
+			'type': 'object',
+			'properties': {
+				'exec': {
+					'type': 'string',
+					'description': nls.localize('terminal.windows.exec', "Customizes which terminal to run."),
+					'default': 'cmd'
+				}
+			}
+		},
+		'terminal.linux': {
+			'description': nls.localize('terminal.linux', "Linux specific settings."),
+			'type': 'object',
+			'properties': {
+				'exec': {
+					'type': 'string',
+					'description': nls.localize('terminal.linux.exec', "Customizes which terminal to run."),
+					'default': 'x-terminal-emulator'
+				}
+			}
+		}
+	}
+});
 
 export class OpenConsoleAction extends Action {
 
