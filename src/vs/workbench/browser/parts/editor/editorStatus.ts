@@ -524,13 +524,10 @@ export class EditorStatus implements IStatusbarItem {
 			return;
 		}
 
-		let codeEditor = getCodeEditor(e);
-		if (!codeEditor) {
-			return;
-		}
-
 		let info: StateDelta = { EOL: null };
-		if (!codeEditor.getConfiguration().readOnly) {
+
+		let codeEditor = getCodeEditor(e);
+		if (codeEditor && !codeEditor.getConfiguration().readOnly) {
 			let codeEditorModel = codeEditor.getModel();
 			if (codeEditorModel) {
 				info.EOL = codeEditorModel.getEOL();
