@@ -3,10 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*
-	This is the Type Definition file for VSCode version 0.10.1
-*/
-
 declare namespace vscode {
 
 	/**
