@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+#
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See License.txt in the project root for license information.
+
+get_apt_config_value() {
+	echo $(apt-config dump | grep "$1 " | sed -e "s/$1 \"//" -e "s/\";$//")
+}
+
+APT_DIR=$(get_apt_config_value Dir)
+APT_ETC=$APT_DIR$(get_apt_config_value Dir::Etc)
+APT_SOURCE_PARTS=$APT_ETC$(get_apt_config_value Dir::Etc::sourceparts)
+CODE_SOURCE_LIST=$APT_SOURCE_PARTS/visual-studio-@@NAME@@.list
+
+rm -f $CODE_SOURCE_LIST
+echo "deb @@UPDATEURL@@/api/deb/@@QUALITY@@/ @@ARCHITECTURE@@/" > $CODE_SOURCE_LIST
