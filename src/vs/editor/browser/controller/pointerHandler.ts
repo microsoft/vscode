@@ -198,6 +198,8 @@ class TouchHandler extends MouseHandler {
 
 		this.listenersToRemove.push(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Tap, (e) => this.onTap(e)));
 		this.listenersToRemove.push(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Change, (e) => this.onChange(e)));
+		this.listenersToRemove.push(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Contextmenu, (e: MouseEvent) => this._onContextMenu(e, false)));
+
 	}
 
 	public dispose(): void {
