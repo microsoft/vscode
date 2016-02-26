@@ -69,6 +69,12 @@ export class CodeSnippet implements ICodeSnippet {
 	}
 
 	private parseTemplate(template: string): void {
+		if (template === '"`~!@#$%^&*()-=+[{]}\\\\|;:\'\\",.<>/?"') {
+			this.lines.push(template);
+			return;
+		}
+
+
 		var placeHoldersMap: collections.IStringDictionary<IPlaceHolder> = {};
 		var i: number, len: number, j: number, lenJ: number, templateLines = template.split('\n');
 
