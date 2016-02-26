@@ -77,7 +77,7 @@ export class AbstractDebugAction extends actions.Action {
 
 export class ConfigureAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.configure';
-	static LABEL = nls.localize('openLaunchJson', "Open launch.json");
+	static LABEL = nls.localize('openLaunchJson', "Open {0}", 'launch.json');
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
