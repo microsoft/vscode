@@ -10,18 +10,14 @@
 	background-size: 15px;
 	margin-left: 5px;
 	cursor: pointer;
-	opacity: 0;
-	transition: opacity .5s;
 }
 
 .monaco-editor .margin-view-overlays:hover .folding {
 	background-image: url('arrow-expand.svg');
-	opacity: 1;
 }
 
 .monaco-editor .margin-view-overlays .folding.collapsed {
 	background-image: url('arrow-collapse.svg');
-	opacity: 1;
 }
 
 .monaco-editor.vs-dark .margin-view-overlays:hover .folding {
