@@ -45,6 +45,10 @@ export function activate(context: ExtensionContext): void {
 		clientHost.reloadProjects();
 	}));
 
+	context.subscriptions.push(commands.registerCommand('javascript.reloadProjects', () => {
+		clientHost.reloadProjects();
+	}));
+
 	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
 
 	// Register the supports for both TS and TSX so that we can have separate grammars but share the mode

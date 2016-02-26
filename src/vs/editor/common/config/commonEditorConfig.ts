@@ -1024,7 +1024,7 @@ configurationRegistry.registerConfiguration({
 		'editor.folding' : {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.folding,
-			'description': nls.localize('folding', "Controls wheter the editor has code folding enabled")
+			'description': nls.localize('folding', "Controls whether the editor has code folding enabled")
 		},
 		'diffEditor.renderSideBySide' : {
 			'type': 'boolean',

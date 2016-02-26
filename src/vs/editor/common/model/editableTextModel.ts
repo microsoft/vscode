@@ -85,7 +85,9 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			throw new Error('EditableTextModel.pushEditOperations: Model is disposed');
 		}
 
-		return this._commandManager.pushEditOperation(beforeCursorState, editOperations, cursorStateComputer);
+		return this.deferredEmit(() => {
+			return this._commandManager.pushEditOperation(beforeCursorState, editOperations, cursorStateComputer);
+		});
 	}
 
 	/**

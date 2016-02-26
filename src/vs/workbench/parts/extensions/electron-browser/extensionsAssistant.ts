@@ -6,11 +6,12 @@
 import nls = require('vs/nls');
 import Severity from 'vs/base/common/severity';
 import {onUnexpectedError} from 'vs/base/common/errors';
+import platform = require('vs/base/common/platform');
 import { forEach } from 'vs/base/common/collections';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, CancelAction } from 'vs/platform/message/common/message';
+import { IMessageService } from 'vs/platform/message/common/message';
 import { InstallAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IExtensionsService, IGalleryService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IEventService } from 'vs/platform/event/common/event';
@@ -46,7 +47,8 @@ function omnisharpChecker(accessor, callback) {
 function monoDebugChecker(accessor, callback) {
 	const debugService = (<IDebugService>accessor.get(IDebugService));
 	const subscription = debugService.addListener2(ServiceEvents.TYPE_NOT_SUPPORTED, (type: string) => {
-		if (type === 'mono') {
+		// mono debugging is not supported on windows, so do not offer an extension install if on windows
+		if (type === 'mono' && !platform.isWindows) {
 			subscription.dispose();
 			callback();
 		}
@@ -54,7 +56,7 @@ function monoDebugChecker(accessor, callback) {
 }
 
 const extensionChecker: { [id: string]: LegacyExtensionChecker } = Object.create(null);
-extensionChecker['ms-vscode.omnisharp'] = omnisharpChecker;
+extensionChecker['ms-vscode.csharp'] = omnisharpChecker;
 extensionChecker['ms-vscode.mono-debug'] = monoDebugChecker;
 
 export function checkForLegacyExtensionNeeds(accessor: ServicesAccessor): void {
@@ -94,19 +96,25 @@ export function checkForLegacyExtensionNeeds(accessor: ServicesAccessor): void {
 						return;
 					}
 
-					let message = nls.localize('hint', "'{0}' is now an optional extension. Do you want to install it?", extension.displayName);
+					let message = nls.localize('hint', "'{0}' is now an extension. Would you like to install it?", extension.displayName);
 					let actions = [
-						CancelAction,
-						new Action('ext.install', nls.localize('install', "Install"), undefined, undefined, () => {
-							let actualInstall = instantiationService.createInstance(InstallAction, nls.localize('install', "Install"));
-							actualInstall.run(extension);
+						new Action('ext.later', nls.localize('later', "Later"), undefined, true, () => TPromise.as(true)),
+						new Action('ext.no', nls.localize('no', "No"), undefined, true, () => {
+							storageService.store(key, 'OK', StorageScope.GLOBAL);
 							return TPromise.as(true);
+						}),
+						new Action('ext.install', nls.localize('yes', "Yes"), undefined, undefined, () => {
+							let actualInstall = instantiationService.createInstance(InstallAction, nls.localize('yes', "Yes"));
+							actualInstall.run(extension);
+							return TPromise.as(true).then(() => {
+								messageService.hideAll();
+								messageService.show(Severity.Info, nls.localize('extensionsInstalled', "Extension '{0}' is being installed...", extension.displayName));
+							});
 						})
 					];
 
 					// inform user and remember
 					messageService.show(Severity.Info, { message, actions });
-					storageService.store(key, 'OK', StorageScope.GLOBAL);
 
 				}, onUnexpectedError);
 			});

@@ -1089,6 +1089,69 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
+	test('issue #3071: Investigate why undo stack gets corrupted', () => {
+		usingCursor({
+			text: [
+				'some lines',
+				'and more lines',
+				'just some text',
+			],
+			mode: null,
+			config: null
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 1, false);
+			moveTo(cursor, 3, 4, true);
+
+			let isFirst = true;
+			model.addListener2(EventType.ModelContentChanged, (e) => {
+				if (isFirst) {
+					isFirst = false;
+					cursorCommand(cursor, H.Type, { text: '\t' }, null, 'keyboard');
+				}
+			});
+
+			cursorCommand(cursor, H.Tab);
+			assert.equal(model.getValue(), [
+				'\t just some text'
+			].join('\n'), '001');
+
+			cursorCommand(cursor, H.Undo);
+			assert.equal(model.getValue(), [
+				'some lines',
+				'and more lines',
+				'just some text',
+			].join('\n'), '002');
+
+			cursorCommand(cursor, H.Undo);
+			assert.equal(model.getValue(), [
+				'some lines',
+				'and more lines',
+				'just some text',
+			].join('\n'), '003');
+		});
+	});
+
+	test('issue #3463: pressing tab adds spaces, but not as many as for a tab', () => {
+		usingCursor({
+			text: [
+				'function a() {',
+				'\tvar a = {',
+				'\t\tx: 3',
+				'\t};',
+				'}',
+			],
+			mode: null,
+			config: {
+				insertSpaces: true,
+				tabSize: 4
+			}
+		}, (model, cursor) => {
+			moveTo(cursor, 3, 2, false);
+			cursorCommand(cursor, H.Tab);
+			assert.equal(model.getLineContent(3), '\t    \tx: 3');
+		});
+	});
+
 	test('issue #832: deleteWordLeft', () => {
 		usingCursor({
 			text: [

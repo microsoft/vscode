@@ -145,7 +145,7 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 		this.lastMouseLeaveTime = -1;
 
 		this.listenersToRemove.push(dom.addDisposableListener(this.viewHelper.viewDomNode, 'contextmenu',
-			(e: MouseEvent) => this._onContextMenu(e)));
+			(e: MouseEvent) => this._onContextMenu(e, true)));
 
 		this._mouseMoveEventHandler = new EventGateKeeper<IMouseEvent>((e) => this._onMouseMove(e), () => !this.viewHelper.isDirty());
 		this.toDispose.push(this._mouseMoveEventHandler);
@@ -203,9 +203,9 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 		return this.mouseTargetFactory.createMouseTarget(this._layoutInfo, editorContent, e, testEventTarget);
 	}
 
-	private _onContextMenu(rawEvent: MouseEvent): void {
+	protected _onContextMenu(rawEvent: MouseEvent, testEventTarget:boolean): void {
 		var e = new StandardMouseEvent(rawEvent);
-		var t = this._createMouseTarget(e, true);
+		var t = this._createMouseTarget(e, testEventTarget);
 		var mouseEvent: editorBrowser.IEditorMouseEvent = {
 			event: e,
 			target: t

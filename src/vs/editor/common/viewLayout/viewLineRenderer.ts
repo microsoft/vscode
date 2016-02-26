@@ -67,7 +67,7 @@ export function renderLine(input:IRenderLineInput): IRenderLineOutput {
 
 		let partRendersWhitespace = false;
 		if (renderWhitespace) {
-			partRendersWhitespace = (/whitespace$/.test(part.type));
+			partRendersWhitespace = (/\bwhitespace\b/.test(part.type));
 		}
 
 		let toCharIndex = lineTextLength;

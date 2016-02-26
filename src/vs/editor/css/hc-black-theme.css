@@ -74,7 +74,7 @@
 }
 
 /* Search */
-.search-viewlet .findInFileMatch, .monaco-editor .findInFileMatch {
+.monaco-workbench.hc-black .search-viewlet .findInFileMatch, .monaco-editor.hc-black .findInFileMatch {
 	background: none !important;
 	border: 1px dotted #f38518;
 	-moz-box-sizing: border-box;

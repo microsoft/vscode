@@ -221,6 +221,10 @@ export class DecorationsOverviewRuler extends ViewPart {
 					ctx2.moveTo(0, 0);
 					ctx2.lineTo(0, this._overviewRuler.getHeight());
 					ctx2.stroke();
+
+					ctx2.moveTo(0, 0);
+					ctx2.lineTo(this._overviewRuler.getWidth(), 0);
+					ctx2.stroke();
 				}
 			});
 		}

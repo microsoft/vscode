@@ -208,10 +208,7 @@ class ConfigureTaskRunnerAction extends Action {
 				options: {
 					forceOpen: true
 				}
-			}, sideBySide).then((value) => {
-				this.outputService.showOutput(TaskService.OutputChannel, true);
-				return value;
-			});
+			}, sideBySide);
 		}, (error) => {
 			throw new Error(nls.localize('ConfigureTaskRunnerAction.failed', "Unable to create the 'tasks.json' file inside the '.vscode' folder. Consult the task output for details."));
 		});

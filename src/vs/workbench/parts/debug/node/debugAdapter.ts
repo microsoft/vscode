@@ -102,7 +102,8 @@ export class Adapter {
 					description: nls.localize('debugRequest', "Request type of configuration. Can be \"launch\" or \"attach\"."),
 				};
 				properties.preLaunchTask = {
-					type: 'string',
+					type: ['string', 'null'],
+					default: null,
 					description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
 				};
 				this.warnRelativePaths(properties.outDir);

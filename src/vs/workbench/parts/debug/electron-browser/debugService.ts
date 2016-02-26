@@ -281,7 +281,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			aria.alert(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (this.session && this.session.getId() === (<any>event).sessionId) {
 				if (event.body && typeof event.body.restart === 'boolean' && event.body.restart) {
-					this.restartSession().done(null, errors.onUnexpectedError);
+					this.restartSession().done(null, err => this.messageService.show(severity.Error, err.message));
 				} else {
 					this.session.disconnect().done(null, errors.onUnexpectedError);
 				}
@@ -507,7 +507,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.model.clearWatchExpressions(id);
 	}
 
-	public createSession(openViewlet = !this.partService.isSideBarHidden()): TPromise<any> {
+	public createSession(changeViewState = !this.partService.isSideBarHidden()): TPromise<any> {
 		this.clearReplExpressions();
 
 		return this.textFileService.saveAll().then(() => this.pluginService.onReady()).then(() => this.configurationManager.setConfiguration(this.configurationManager.getConfigurationName())).then(() => {
@@ -522,22 +522,23 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			}
 			if (!this.configurationManager.getAdapter()) {
 				this.emit(debug.ServiceEvents.TYPE_NOT_SUPPORTED, configuration.type);
-				return TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type {0} is not supported.", configuration.type)));
+				return TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)));
 			}
 
 			return this.runPreLaunchTask(configuration.preLaunchTask).then((taskSummary: ITaskSummary) => {
 				const errorCount = configuration.preLaunchTask ? this.markerService.getStatistics().errors : 0;
 				const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
 				if (errorCount === 0 && !failureExitCode) {
-					return this.doCreateSession(configuration, openViewlet);
+					return this.doCreateSession(configuration, changeViewState);
 				}
 
 				this.messageService.show(severity.Error, {
-					message: errorCount > 0 ? nls.localize('preLaunchTaskErrors', "Errors detected while running prelaunch task '{0}'.", configuration.preLaunchTask) :
-						nls.localize('preLaunchTaskExitCode', "Prelaunch task {0} terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
-					actions: [CloseAction, new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), null, true, () => {
+					message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Errors detected while running the preLaunchTask '{0}'.", configuration.preLaunchTask) :
+						errorCount === 1 ?  nls.localize('preLaunchTaskError', "Error detected while running the preLaunchTask '{0}'.", configuration.preLaunchTask) :
+						nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", configuration.preLaunchTask, taskSummary.exitCode),
+					actions: [CloseAction, new Action('debug.continue', nls.localize('continue', "Continue"), null, true, () => {
 						this.messageService.hideAll();
-						return this.doCreateSession(configuration, openViewlet);
+						return this.doCreateSession(configuration, changeViewState);
 					})]
 				});
 			}, (err: TaskError) => {
@@ -553,7 +554,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		});
 	}
 
-	private doCreateSession(configuration: debug.IConfig, openViewlet: boolean): TPromise<any> {
+	private doCreateSession(configuration: debug.IConfig, changeViewState: boolean): TPromise<any> {
 		const key = this.configurationManager.getAdapter().aiKey;
 		const telemetryInfo = Object.create(null);
 		this.telemetryService.getTelemetryInfo().then(info => {
@@ -579,15 +580,15 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			this.model.setExceptionBreakpoints(this.session.capabilities.exceptionBreakpointFilters);
 			return configuration.request === 'attach' ? this.session.attach(configuration) : this.session.launch(configuration);
 		}).then((result: DebugProtocol.Response) => {
-			if (openViewlet) {
+			if (changeViewState) {
 				this.viewletService.openViewlet(debug.VIEWLET_ID);
+				this.revealRepl(false).done(undefined, errors.onUnexpectedError);
 			}
 			this.partService.addClass('debugging');
 			this.contextService.updateOptions('editor', {
 				glyphMargin: true
 			});
 			this.inDebugMode.set(true);
-			this.revealRepl(false).done(undefined, errors.onUnexpectedError);
 
 			this.telemetryService.publicLog('debugSessionStart', { type: configuration.type, breakpointCount: this.model.getBreakpoints().length, exceptionBreakpoints: this.model.getExceptionBreakpoints() });
 		}).then(undefined, (error: Error) => {
@@ -609,7 +610,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.taskService.tasks().then(descriptions => {
 			const filteredTasks = descriptions.filter(task => task.name === taskName);
 			if (filteredTasks.length !== 1) {
-				this.messageService.show(severity.Error, nls.localize('DebugTaskNotFound', "Could not find the task \'{0}\'. Make sure the task exists and it has a unique name.", taskName));
+				this.messageService.show(severity.Error, nls.localize('DebugTaskNotFound', "Could not find the preLaunchTask \'{0}\'.", taskName));
 				return TPromise.as(null);
 			}
 
@@ -665,9 +666,9 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 	public restartSession(): TPromise<any> {
 		return this.session ? this.session.disconnect(true).then(() =>
-			new TPromise<void>(c => {
+			new TPromise<void>((c, e) => {
 				setTimeout(() => {
-					this.createSession(false).then(() => c(null));
+					this.createSession(false).then(() => c(null), err => e(err));
 				}, 300);
 			})
 		) : this.createSession(false);

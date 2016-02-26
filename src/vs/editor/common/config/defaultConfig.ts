@@ -19,7 +19,7 @@ class ConfigClass implements IConfiguration {
 
 	constructor() {
 		this.editor = {
-			experimentalScreenReader: false,
+			experimentalScreenReader: true,
 			rulers: [],
 			wordSeparators: USUAL_WORD_SEPARATORS,
 			ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),

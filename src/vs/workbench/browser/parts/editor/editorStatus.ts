@@ -97,6 +97,7 @@ interface StateDelta {
 		modelId: string;
 		insertSpaces: boolean;
 		tabSize: number;
+		storeInHistory: boolean;
 	};
 	tabFocusMode?: boolean;
 }
@@ -154,7 +155,9 @@ class State {
 			if (update.indentation) {
 				indentationLabel = update.indentation.insertSpaces ? nls.localize('spacesSize', "Spaces: {0}", update.indentation.tabSize) :
 					nls.localize('tabSize', "Tab Size: {0}", update.indentation.tabSize);
-				this._indentationHistory[update.indentation.modelId] = update.indentation;
+				if (update.indentation.storeInHistory) {
+					this._indentationHistory[update.indentation.modelId] = update.indentation;
+				}
 			}
 			if (this._indentation !== indentationLabel) {
 				this._indentation = indentationLabel;
@@ -469,7 +472,8 @@ export class EditorStatus implements IStatusbarItem {
 					update.indentation = {
 						insertSpaces: (<ICommonCodeEditor>editorWidget).getIndentationOptions().insertSpaces,
 						tabSize: (<ICommonCodeEditor>editorWidget).getIndentationOptions().tabSize,
-						modelId
+						modelId,
+						storeInHistory: !inputChanged
 					};
 				}
 			}
@@ -520,15 +524,14 @@ export class EditorStatus implements IStatusbarItem {
 			return;
 		}
 
-		let codeEditor = getCodeEditor(e);
-		if (!codeEditor) {
-			return;
-		}
-
 		let info: StateDelta = { EOL: null };
-		if (!codeEditor.getConfiguration().readOnly) {
+
+		let codeEditor = getCodeEditor(e);
+		if (codeEditor && !codeEditor.getConfiguration().readOnly) {
 			let codeEditorModel = codeEditor.getModel();
-			info.EOL = codeEditorModel.getEOL();
+			if (codeEditorModel) {
+				info.EOL = codeEditorModel.getEOL();
+			}
 		}
 
 		this.updateState(info);

@@ -8,9 +8,10 @@
 export interface IFoldingRange {
 	startLineNumber:number;
 	endLineNumber:number;
+	indent:number;
 	isCollapsed?:boolean;
 }
 
 export function toString(range: IFoldingRange): string {
-	return (range ? range.startLineNumber + '/' + range.endLineNumber : 'null') + range.isCollapsed ? ' (collapsed)' : '';
+	return (range ? range.startLineNumber + '/' + range.endLineNumber : 'null') + (range.isCollapsed ? ' (collapsed)' : '') + ' - ' + range.indent;
 }

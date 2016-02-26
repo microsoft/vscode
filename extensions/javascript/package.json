@@ -58,6 +58,10 @@
 			{
 				"language": "javascript",
 				"path": "./snippets/javascript.json"
+			},
+			{
+				"language": "javascriptreact",
+				"path": "./snippets/javascriptreact.json"
 			}
 		],
 		"jsonValidation": [

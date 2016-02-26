@@ -372,7 +372,12 @@ export class ModeServiceImpl implements IModeService {
 		if (compatModeData) {
 			// This is a compatibility mode
 			let compatModeAsyncDescriptor = createAsyncDescriptor1<modes.IModeDescriptor, modes.IMode>(compatModeData.moduleId, compatModeData.ctorName);
-			return this._threadService.createInstance(compatModeAsyncDescriptor, modeDescriptor);
+			return this._threadService.createInstance(compatModeAsyncDescriptor, modeDescriptor).then((compatMode) => {
+				if (compatMode.configSupport) {
+					compatMode.configSupport.configure(this.getConfigurationForMode(modeId));
+				}
+				return compatMode;
+			});
 		}
 
 		return TPromise.as<modes.IMode>(this._threadService.createInstance(FrankensteinMode, modeDescriptor));
