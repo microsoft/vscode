@@ -411,6 +411,7 @@ export interface IDebugService {
 	next(threadId: number): TPromise<void>;
 	stepIn(threadId: number): TPromise<void>;
 	stepOut(threadId: number): TPromise<void>;
+	stepBack(threadId: number): TPromise<void>;
 	continue(threadId: number): TPromise<void>;
 	pause(threadId: number): TPromise<any>;
 }

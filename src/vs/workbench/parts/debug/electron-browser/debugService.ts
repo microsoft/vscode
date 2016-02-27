@@ -872,6 +872,16 @@ export class DebugService implements debug.IDebugService {
 		});
 	}
 
+	public stepBack(threadId: number): TPromise<void> {
+		if (!this.session) {
+			return TPromise.as(null);
+		}
+
+		return this.session.stepBack({ threadId }).then(() => {
+			this.lazyTransitionToRunningState(threadId);
+		});
+	}
+
 	public continue(threadId: number): TPromise<void> {
 		if (!this.session) {
 			return TPromise.as(null);

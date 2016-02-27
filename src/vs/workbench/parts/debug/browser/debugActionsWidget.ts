@@ -112,6 +112,7 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 				instantiationService.createInstance(dbgactions.StepOverDebugAction, dbgactions.StepOverDebugAction.ID, dbgactions.StepOverDebugAction.LABEL),
 				instantiationService.createInstance(dbgactions.StepIntoDebugAction, dbgactions.StepIntoDebugAction.ID, dbgactions.StepIntoDebugAction.LABEL),
 				instantiationService.createInstance(dbgactions.StepOutDebugAction, dbgactions.StepOutDebugAction.ID, dbgactions.StepOutDebugAction.LABEL),
+				instantiationService.createInstance(dbgactions.StepBackDebugAction, dbgactions.StepBackDebugAction.ID, dbgactions.StepBackDebugAction.LABEL),
 				instantiationService.createInstance(dbgactions.RestartDebugAction, dbgactions.RestartDebugAction.ID, dbgactions.RestartDebugAction.LABEL),
 				instantiationService.createInstance(dbgactions.StopDebugAction, dbgactions.StopDebugAction.ID, dbgactions.StopDebugAction.LABEL)
 			];
