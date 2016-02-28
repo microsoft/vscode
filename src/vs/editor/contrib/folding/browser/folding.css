@@ -4,40 +4,50 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .margin-view-overlays .folding {
+	margin-left: 5px;
+	cursor: pointer;
+}
+
+.monaco-editor .margin-view-overlays .folding::after {
 	background-repeat: no-repeat;
 	background-origin: border-box;
 	background-position: 3px center;
 	background-size: 15px;
-	background-image: url('arrow-expand.svg');
-	margin-left: 5px;
-	cursor: pointer;
+	position: absolute;
+ 	background-image: url('arrow-expand.svg');
+	top: 0;
+	left:0;
+	right: 0;
+	bottom: 0;
+	z-index: -1;
+	content: "";
 	opacity: 0;
-	transition: opacity .3s;
+	transition: opacity 0.3s;
 }
 
-.monaco-editor .margin-view-overlays:hover .folding {
+.monaco-editor .margin-view-overlays:hover .folding::after {
 	opacity: 1;
 }
 
-.monaco-editor .margin-view-overlays .folding.collapsed {
+.monaco-editor .margin-view-overlays .folding.collapsed::after {
 	background-image: url('arrow-collapse.svg');
 	opacity: 1;
 }
 
-.monaco-editor.vs-dark .margin-view-overlays .folding {
+.monaco-editor.vs-dark .margin-view-overlays .folding::after {
 	background-image: url('arrow-expand-dark.svg');
 }
 
-.monaco-editor.vs-dark .margin-view-overlays .folding.collapsed {
+.monaco-editor.vs-dark .margin-view-overlays .folding.collapsed::after {
 	background-image: url('arrow-collapse-dark.svg');
 }
 
 /* High-contrast theme */
-.monaco-editor.hc-black .margin-view-overlays .folding {
+.monaco-editor.hc-black .margin-view-overlays .folding::after {
 	background-image: url('arrow-expand-dark.svg');
 }
 
-.monaco-editor.hc-black .margin-view-overlays .folding.collapsed {
+.monaco-editor.hc-black .margin-view-overlays .folding.collapsed::after {
 	background-image: url('arrow-collapse-dark.svg');
 }
 
