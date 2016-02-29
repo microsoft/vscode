@@ -65,6 +65,17 @@
 				<string>#9CDCFE</string>
 			</dict>
 		</dict>
+		<dict>
+			<key>name</key>
+			<string>CSS property value</string>
+			<key>scope</key>
+			<string>css.support.property-value, css.constant.rgb-value</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#CE9178</string>
+			</dict>
+		</dict>
 	</array>
 </dict>
 </plist>
