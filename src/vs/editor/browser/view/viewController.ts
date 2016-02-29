@@ -58,7 +58,7 @@ export class ViewController implements IViewController {
 	public dispatchMouse(data:IMouseDispatchData): void {
 		if (data.startedOnLineNumbers) {
 			// If the dragging started on the gutter, then have operations work on the entire line
-			if (data.altKey) {
+			if (data.startAltKey) {
 				if (data.inSelectionMode) {
 					this.lastCursorLineSelect('mouse', data.position);
 				} else {
@@ -74,7 +74,7 @@ export class ViewController implements IViewController {
 		} else if (data.mouseDownCount >= 4) {
 			this.selectAll('mouse');
 		} else if (data.mouseDownCount === 3) {
-			if (data.altKey) {
+			if (data.startAltKey) {
 				if (data.inSelectionMode) {
 					this.lastCursorLineSelectDrag('mouse', data.position);
 				} else {
@@ -88,7 +88,7 @@ export class ViewController implements IViewController {
 				}
 			}
 		} else if (data.mouseDownCount === 2) {
-			if (data.altKey) {
+			if (data.startAltKey) {
 				this.lastCursorWordSelect('mouse', data.position);
 			} else {
 				if (data.inSelectionMode) {
@@ -98,8 +98,8 @@ export class ViewController implements IViewController {
 				}
 			}
 		} else {
-			if (data.altKey) {
-				if (!data.ctrlKey && !data.metaKey) {
+			if (data.startAltKey) {
+				if (!data.startCtrlKey && !data.startMetaKey) {
 					// Do multi-cursor operations only when purely alt is pressed
 					if (data.inSelectionMode) {
 						this.lastCursorMoveToSelect('mouse', data.position);

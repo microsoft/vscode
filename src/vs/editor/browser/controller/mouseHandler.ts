@@ -74,6 +74,16 @@ class EventGateKeeper<T> extends Disposable {
 	}
 }
 
+class MousePosition {
+	public position: editorCommon.IEditorPosition;
+	public mouseColumn: number;
+
+	constructor(position:editorCommon.IEditorPosition, mouseColumn:number) {
+		this.position = position;
+		this.mouseColumn = mouseColumn;
+	}
+}
+
 export class MouseHandler extends ViewEventHandler implements IDisposable {
 
 	static MOUSE_MOVE_MINIMUM_TIME = 100; // ms
@@ -99,7 +109,13 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 		this.mouseTargetFactory = new MouseTargetFactory(this.context, viewHelper);
 		this.listenersToRemove = [];
 
-		this._mouseDownOperation = new MouseDownOperation(this.context, this.viewController, this.viewHelper, (e, testEventTarget) => this._createMouseTarget(e, testEventTarget));
+		this._mouseDownOperation = new MouseDownOperation(
+			this.context,
+			this.viewController,
+			this.viewHelper,
+			(e, testEventTarget) => this._createMouseTarget(e, testEventTarget),
+			(e) => this._getMouseColumn(e)
+		);
 
 		this.toDispose = [];
 
@@ -152,6 +168,11 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 	protected _createMouseTarget(e:ISimplifiedMouseEvent, testEventTarget:boolean): editorBrowser.IMouseTarget {
 		let editorContent = dom.getDomNodePosition(this.viewHelper.viewDomNode);
 		return this.mouseTargetFactory.createMouseTarget(this._layoutInfo, editorContent, e, testEventTarget);
+	}
+
+	private _getMouseColumn(e:ISimplifiedMouseEvent): number {
+		let editorContent = dom.getDomNodePosition(this.viewHelper.viewDomNode);
+		return this.mouseTargetFactory.getMouseColumn(this._layoutInfo, editorContent, e);
 	}
 
 	protected _onContextMenu(rawEvent: MouseEvent, testEventTarget:boolean): void {
@@ -261,6 +282,7 @@ class MouseDownOperation extends Disposable {
 	private _viewController:editorBrowser.IViewController;
 	private _viewHelper:editorBrowser.IPointerHandlerHelper;
 	private _createMouseTarget:(e:ISimplifiedMouseEvent, testEventTarget:boolean)=>editorBrowser.IMouseTarget;
+	private _getMouseColumn:(e:ISimplifiedMouseEvent)=>number;
 
 	private _mouseMoveMonitor:GlobalMouseMoveMonitor<IMouseEvent>;
 	private _mouseDownThenMoveEventHandler: EventGateKeeper<IMouseEvent>;
@@ -277,13 +299,15 @@ class MouseDownOperation extends Disposable {
 		context:editorBrowser.IViewContext,
 		viewController:editorBrowser.IViewController,
 		viewHelper:editorBrowser.IPointerHandlerHelper,
-		createMouseTarget:(e:ISimplifiedMouseEvent, testEventTarget:boolean)=>editorBrowser.IMouseTarget
+		createMouseTarget:(e:ISimplifiedMouseEvent, testEventTarget:boolean)=>editorBrowser.IMouseTarget,
+		getMouseColumn:(e:ISimplifiedMouseEvent)=>number
 	) {
 		super();
 		this._context = context;
 		this._viewController = viewController;
 		this._viewHelper = viewHelper;
 		this._createMouseTarget = createMouseTarget;
+		this._getMouseColumn = getMouseColumn;
 
 		this._currentSelection = Selection.createSelection(1, 1, 1, 1);
 		this._mouseState = new MouseDownState();
@@ -311,12 +335,35 @@ class MouseDownOperation extends Disposable {
 	}
 
 	private _onMouseDownThenMove(e:IMouseEvent): void {
-		this._updateMouse(e, true);
+		this._lastMouseEvent = e;
+
+		let position = this._findMousePosition(e, true);
+		if (!position) {
+			// Ignoring because position is unknown
+			return;
+		}
+
+		this._dispatchMouse(position, true);
 	}
 
 	public start(targetType:editorCommon.MouseTargetType, e:IMouseEvent): void {
+		this._lastMouseEvent = e;
+
 		this._mouseState.setStartedOnLineNumbers(targetType === editorCommon.MouseTargetType.GUTTER_LINE_NUMBERS);
-		this._updateMouse(e, e.shiftKey, e.detail);
+		this._mouseState.setStartModifiers(e);
+
+		let position = this._findMousePosition(e, true);
+		if (!position) {
+			// Ignoring because position is unknown
+			return;
+		}
+
+		this._mouseState.trySetCount(e.detail, position.position);
+
+		// Overwrite the detail of the MouseEvent, as it will be sent out in an event and contributions might rely on it.
+		e.detail = this._mouseState.count;
+
+		this._dispatchMouse(position, e.shiftKey);
 
 		if (!this._isActive) {
 			this._isActive = true;
@@ -351,33 +398,36 @@ class MouseDownOperation extends Disposable {
 		this._currentSelection = e.selection;
 	}
 
-	private _getPositionOutsideEditor(e: ISimplifiedMouseEvent): editorCommon.IEditorPosition {
+	// private _getMouseColumn(e: ISimplifiedMouseEvent)
+
+	private _getPositionOutsideEditor(e: ISimplifiedMouseEvent): MousePosition {
 		let editorContent = dom.getDomNodePosition(this._viewHelper.viewDomNode);
+		let mouseColumn = this._getMouseColumn(e);
 
 		if (e.posy < editorContent.top) {
 			let aboveLineNumber = this._viewHelper.getLineNumberAtVerticalOffset(Math.max(this._viewHelper.getScrollTop() - (editorContent.top - e.posy), 0));
-			return new Position(aboveLineNumber, 1);
+			return new MousePosition(new Position(aboveLineNumber, 1), mouseColumn);
 		}
 
 		if (e.posy > editorContent.top + editorContent.height) {
 			let belowLineNumber = this._viewHelper.getLineNumberAtVerticalOffset(this._viewHelper.getScrollTop() + (e.posy - editorContent.top));
-			return new Position(belowLineNumber, this._context.model.getLineMaxColumn(belowLineNumber));
+			return new MousePosition(new Position(belowLineNumber, this._context.model.getLineMaxColumn(belowLineNumber)), mouseColumn);
 		}
 
 		let possibleLineNumber = this._viewHelper.getLineNumberAtVerticalOffset(this._viewHelper.getScrollTop() + (e.posy - editorContent.top));
 
 		if (e.posx < editorContent.left) {
-			return new Position(possibleLineNumber, 1);
+			return new MousePosition(new Position(possibleLineNumber, 1), mouseColumn);
 		}
 
 		if (e.posx > editorContent.left + editorContent.width) {
-			return new Position(possibleLineNumber, this._context.model.getLineMaxColumn(possibleLineNumber));
+			return new MousePosition(new Position(possibleLineNumber, this._context.model.getLineMaxColumn(possibleLineNumber)), mouseColumn);
 		}
 
 		return null;
 	}
 
-	private _findMousePosition(e:ISimplifiedMouseEvent, testEventTarget:boolean): editorCommon.IEditorPosition {
+	private _findMousePosition(e:ISimplifiedMouseEvent, testEventTarget:boolean): MousePosition {
 		let positionOutsideEditor = this._getPositionOutsideEditor(e);
 		if (positionOutsideEditor) {
 			return positionOutsideEditor;
@@ -398,53 +448,30 @@ class MouseDownOperation extends Disposable {
 
 			if (positionBefore && positionAfter) {
 				if (positionBefore.isBefore(selectionStart)) {
-					return positionBefore;
+					return new MousePosition(positionBefore, t.mouseColumn);
 				} else {
-					return positionAfter;
+					return new MousePosition(positionAfter, t.mouseColumn);
 				}
 			}
 		}
 
-		return hintedPosition;
+		return new MousePosition(hintedPosition, t.mouseColumn);
 	}
 
-	private _updateMouse(e:IMouseEvent, inSelectionMode:boolean, setMouseDownCount:number = 0): void {
-		this._lastMouseEvent = e;
-
-		let position = this._findMousePosition(e, true);
-		if (!position) {
-			// Ignoring because position is unknown
-			return;
-		}
-
-		if (setMouseDownCount) {
-			this._mouseState.trySetCount(setMouseDownCount, position);
-			// Overwrite the detail of the MouseEvent, as it will be sent out in an event and contributions might rely on it.
-			e.detail = this._mouseState.count;
-		}
-
-		this._mouseState.setModifiers(e);
-		this._dispatchMouse(position, inSelectionMode);
-	}
-
-	private _dispatchMouse(position: editorCommon.IEditorPosition, inSelectionMode:boolean): void {
+	private _dispatchMouse(position: MousePosition, inSelectionMode:boolean): void {
 		this._viewController.dispatchMouse({
-			position: position,
+			position: position.position,
+			mouseColumn: position.mouseColumn,
 			startedOnLineNumbers: this._mouseState.startedOnLineNumbers,
 
 			inSelectionMode: inSelectionMode,
 			mouseDownCount: this._mouseState.count,
-			altKey: this._mouseState.altKey,
-			ctrlKey: this._mouseState.ctrlKey,
-			metaKey: this._mouseState.metaKey,
+			startAltKey: this._mouseState.altKey,
+			startCtrlKey: this._mouseState.ctrlKey,
+			startMetaKey: this._mouseState.metaKey,
+			startShiftKey: this._mouseState.shiftKey,
 		});
 	}
-}
-
-interface IModifiersSource {
-	altKey: boolean;
-	ctrlKey: boolean;
-	metaKey: boolean;
 }
 
 class MouseDownState {
@@ -460,6 +487,9 @@ class MouseDownState {
 	private _metaKey: boolean;
 	public get metaKey(): boolean { return this._metaKey; }
 
+	private _shiftKey: boolean;
+	public get shiftKey(): boolean { return this._shiftKey; }
+
 	private _startedOnLineNumbers: boolean;
 	public get startedOnLineNumbers(): boolean { return this._startedOnLineNumbers; }
 
@@ -472,6 +502,7 @@ class MouseDownState {
 		this._altKey = false;
 		this._ctrlKey = false;
 		this._metaKey = false;
+		this._shiftKey = false;
 		this._startedOnLineNumbers = false;
 		this._lastMouseDownPosition = null;
 		this._lastMouseDownPositionEqualCount = 0;
@@ -483,10 +514,11 @@ class MouseDownState {
 		return this._lastMouseDownCount;
 	}
 
-	public setModifiers(source:IModifiersSource) {
+	public setStartModifiers(source:IMouseEvent) {
 		this._altKey = source.altKey;
 		this._ctrlKey = source.ctrlKey;
 		this._metaKey = source.metaKey;
+		this._shiftKey = source.shiftKey;
 	}
 
 	public setStartedOnLineNumbers(startedOnLineNumbers:boolean): void {

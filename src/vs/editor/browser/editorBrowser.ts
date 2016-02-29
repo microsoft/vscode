@@ -112,13 +112,18 @@ export interface IViewZoneData {
 
 export interface IMouseDispatchData {
 	position: editorCommon.IEditorPosition;
+	/**
+	 * Desired mouse column (e.g. when position.column gets clamped to text length -- clicking after text on a line).
+	 */
+	mouseColumn: number;
 	startedOnLineNumbers: boolean;
 
 	inSelectionMode: boolean;
 	mouseDownCount: number;
-	altKey: boolean;
-	ctrlKey: boolean;
-	metaKey: boolean;
+	startAltKey: boolean;
+	startCtrlKey: boolean;
+	startMetaKey: boolean;
+	startShiftKey: boolean;
 }
 
 export interface IViewController {
@@ -461,6 +466,10 @@ export interface IMouseTarget {
 	 * The 'approximate' editor position
 	 */
 	position: editorCommon.IEditorPosition;
+	/**
+	 * Desired mouse column (e.g. when position.column gets clamped to text length -- clicking after text on a line).
+	 */
+	mouseColumn: number;
 	/**
 	 * The 'approximate' editor range
 	 */
