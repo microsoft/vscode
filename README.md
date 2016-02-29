@@ -17,7 +17,7 @@ Works on both Windows and Mac.
 ##[Wiki](https://github.com/DonJayamanne/pythonVSCode/wiki)
 
 ##[Issues and Feature Requests](https://github.com/DonJayamanne/pythonVSCode/issues)
-* Support of shebang (in development)
+* Support of shebang (testing)
 * Remote Debugging (testing)
 * Support for Virtual Environments (in development)
 * More features on the way
