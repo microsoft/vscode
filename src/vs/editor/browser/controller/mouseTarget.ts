@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 import {Position} from 'vs/editor/common/core/position';
 import {Range as EditorRange} from 'vs/editor/common/core/range';
 import {IEditorLayoutInfo, IEditorPosition, IEditorRange, IPosition, MouseTargetType} from 'vs/editor/common/editorCommon';
@@ -20,6 +19,12 @@ export interface IDomNodePosition {
 	left: number;
 	width: number;
 	height: number;
+}
+
+export interface ISimplifiedMouseEvent {
+	target: EventTarget;
+	posx: number;
+	posy: number;
 }
 
 class MouseTarget implements IMouseTarget {
@@ -157,8 +162,8 @@ export class MouseTargetFactory {
 		return path.join('/');
 	}
 
-	public mouseTargetIsWidget(e:IMouseEvent): boolean {
-		var t:Element = e.target;
+	public mouseTargetIsWidget(e:ISimplifiedMouseEvent): boolean {
+		var t = <Element>e.target;
 		var path = this.getClassNamePathTo(t, this.viewHelper.viewDomNode);
 
 		// Is it a content widget?
@@ -174,7 +179,7 @@ export class MouseTargetFactory {
 		return false;
 	}
 
-	public createMouseTarget(layoutInfo:IEditorLayoutInfo, editorContent:IDomNodePosition, e:IMouseEvent, testEventTarget:boolean): IMouseTarget {
+	public createMouseTarget(layoutInfo:IEditorLayoutInfo, editorContent:IDomNodePosition, e:ISimplifiedMouseEvent, testEventTarget:boolean): IMouseTarget {
 		try {
 			var r = this._unsafeCreateMouseTarget(layoutInfo, editorContent, e, testEventTarget);
 			return r;
@@ -183,11 +188,11 @@ export class MouseTargetFactory {
 		}
 	}
 
-	private _unsafeCreateMouseTarget(layoutInfo:IEditorLayoutInfo, editorContent:IDomNodePosition, e:IMouseEvent, testEventTarget:boolean): IMouseTarget {
+	private _unsafeCreateMouseTarget(layoutInfo:IEditorLayoutInfo, editorContent:IDomNodePosition, e:ISimplifiedMouseEvent, testEventTarget:boolean): IMouseTarget {
 		var mouseVerticalOffset = Math.max(0, this.viewHelper.getScrollTop() + (e.posy - editorContent.top));
 		var mouseContentHorizontalOffset = this.viewHelper.getScrollLeft() + (e.posx - editorContent.left) - layoutInfo.contentLeft;
 
-		var t:Element = e.target;
+		var t = <Element>e.target;
 		var path = this.getClassNamePathTo(t, this.viewHelper.viewDomNode);
 
 		// Is it a cursor ?
@@ -335,7 +340,7 @@ export class MouseTargetFactory {
 	/**
 	 * Most probably WebKit browsers
 	 */
-	private _doHitTestWithCaretRangeFromPoint(editorContent:IDomNodePosition, e: IMouseEvent, mouseVerticalOffset: number): IHitTestResult {
+	private _doHitTestWithCaretRangeFromPoint(editorContent:IDomNodePosition, e: ISimplifiedMouseEvent, mouseVerticalOffset: number): IHitTestResult {
 
 		// In Chrome, especially on Linux it is possible to click between lines,
 		// so try to adjust the `hity` below so that it lands in the center of a line
@@ -411,7 +416,7 @@ export class MouseTargetFactory {
 	/**
 	 * Most probably Gecko
 	 */
-	private _doHitTestWithCaretPositionFromPoint(e: IMouseEvent): IHitTestResult {
+	private _doHitTestWithCaretPositionFromPoint(e: ISimplifiedMouseEvent): IHitTestResult {
 		var resultPosition: IPosition = null;
 		var resultHitTarget: Element = null;
 
@@ -435,7 +440,7 @@ export class MouseTargetFactory {
 	/**
 	 * Most probably IE
 	 */
-	private _doHitTestWithMoveToPoint(e: IMouseEvent): IHitTestResult {
+	private _doHitTestWithMoveToPoint(e: ISimplifiedMouseEvent): IHitTestResult {
 		var resultPosition: IPosition = null;
 		var resultHitTarget: Element = null;
 
@@ -484,7 +489,7 @@ export class MouseTargetFactory {
 		};
 	}
 
-	private _doHitTest(editorContent:IDomNodePosition, e:IMouseEvent, mouseVerticalOffset: number): IHitTestResult {
+	private _doHitTest(editorContent:IDomNodePosition, e:ISimplifiedMouseEvent, mouseVerticalOffset: number): IHitTestResult {
 		// State of the art (18.10.2012):
 		// The spec says browsers should support document.caretPositionFromPoint, but nobody implemented it (http://dev.w3.org/csswg/cssom-view/)
 		// Gecko:
