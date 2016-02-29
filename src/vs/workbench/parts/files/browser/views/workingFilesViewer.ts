@@ -171,10 +171,12 @@ export class WorkingFilesActionProvider extends ContributableActionProvider {
 
 					let saveAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
 					saveAction.setResource(element.resource);
+					saveAction.enabled = element.dirty;
 					actions.push(saveAction);
 
 					let revertAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
 					revertAction.setResource(element.resource);
+					revertAction.enabled = element.dirty;
 					actions.push(revertAction);
 				}
 
