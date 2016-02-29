@@ -23,7 +23,7 @@ export class ExtHostConfiguration {
 		this._onDidChangeConfiguration = new Emitter<void>();
 	}
 
-	get onDidChangeConfiguration() {
+	get onDidChangeConfiguration(): Event<void> {
 		return this._onDidChangeConfiguration && this._onDidChangeConfiguration.event;
 	}
 

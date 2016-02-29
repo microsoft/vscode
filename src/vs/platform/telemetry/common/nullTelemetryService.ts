@@ -11,14 +11,14 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 export class NullTelemetryService implements ITelemetryService {
 	public serviceId = ITelemetryService;
 
-	protected sessionId:string = null;
-	protected instanceId:string = null;
-	protected machineId:string = null;
+	protected sessionId: string = null;
+	protected instanceId: string = null;
+	protected machineId: string = null;
 
-	publicLog(eventName: string, data?: any):void {
+	publicLog(eventName: string, data?: any): void {
 	}
 
-	start(name:string, data?:any):any {
+	start(name: string, data?: any): any {
 		return null;
 	}
 

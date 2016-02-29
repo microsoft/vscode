@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {Promise } from 'vs/base/common/winjs.base';
+import {TPromise } from 'vs/base/common/winjs.base';
 import * as Strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import {StringEditorInput} from 'vs/workbench/common/editor/stringEditorInput';
@@ -20,7 +20,7 @@ suite("Workbench - StringEditorInput", () => {
 
 	test("StringEditorInput", function(done) {
 		let editorService = new TestEditorService(function() { });
-		let inst = InstantiationService.create({
+		let inst = InstantiationService.createInstantiationService({
 			modeService: createMockModeService(),
 			modelService: createMockModelService()
 		});
@@ -71,7 +71,7 @@ suite("Workbench - StringEditorInput", () => {
 	});
 
 	test("StringEditorInput - setValue, clearValue, append", function() {
-		let inst = InstantiationService.create({
+		let inst = InstantiationService.createInstantiationService({
 			modeService: createMockModeService(),
 			modelService: createMockModelService()
 		});
@@ -90,9 +90,9 @@ suite("Workbench - StringEditorInput", () => {
 	});
 
 	test("Input.matches() - StringEditorInput", function() {
-		let inst = InstantiationService.create({});
+		let inst = InstantiationService.createInstantiationService({});
 
-		let promise = Promise.as("value");
+		let promise = TPromise.as("value");
 
 		let stringEditorInput = inst.createInstance(StringEditorInput, "name", 'description', "value", "mime", false);
 		let promiseEditorInput = inst.createInstance(ResourceEditorInput, "name", "description", URI.create('inMemory', null, 'thePath'));
@@ -113,7 +113,7 @@ suite("Workbench - StringEditorInput", () => {
 	test("ResourceEditorInput", function(done) {
 		let modelService = createMockModelService();
 		let modeService = createMockModeService();
-		let inst = InstantiationService.create({
+		let inst = InstantiationService.createInstantiationService({
 			modeService: modeService,
 			modelService: modelService
 		});

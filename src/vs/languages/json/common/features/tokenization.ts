@@ -5,7 +5,6 @@
 'use strict';
 
 import json = require('vs/base/common/json');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import jsonTokenTypes = require('vs/languages/json/common/features/jsonTokenTypes');
 
@@ -181,8 +180,7 @@ function tokenize(mode:Modes.IMode, comments:boolean, line:string, state:JSONSta
 		ret.endState = new JSONState(state.getMode(), state.getStateData(), scanner.getTokenError(), lastWasColon);
 		ret.tokens.push({
 			startIndex: offset,
-			type: type,
-			bracket: bracket
+			type: type
 		});
 	}
 

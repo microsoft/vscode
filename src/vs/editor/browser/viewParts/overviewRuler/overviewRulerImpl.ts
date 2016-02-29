@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Browser = require('vs/base/browser/browser');
-import DomUtils = require('vs/base/browser/dom');
-
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as browser from 'vs/base/browser/browser';
+import {StyleMutator} from 'vs/base/browser/styleMutator';
+import {IOverviewRulerPosition, OverviewRulerLane} from 'vs/editor/common/editorCommon';
+import {IOverviewRulerZone} from 'vs/editor/browser/editorBrowser';
 
 interface IColorZone {
 	from: number;
@@ -19,7 +18,7 @@ interface IColorZoneMap {
 	[color:string]:IColorZone[];
 }
 
-function zoneEquals(a:EditorBrowser.IOverviewRulerZone, b:EditorBrowser.IOverviewRulerZone): boolean {
+function zoneEquals(a:IOverviewRulerZone, b:IOverviewRulerZone): boolean {
 	return (
 		a.startLineNumber === b.startLineNumber
 		&& a.endLineNumber === b.endLineNumber
@@ -29,7 +28,7 @@ function zoneEquals(a:EditorBrowser.IOverviewRulerZone, b:EditorBrowser.IOvervie
 	);
 }
 
-function zonesEqual(a:EditorBrowser.IOverviewRulerZone[], b:EditorBrowser.IOverviewRulerZone[]): boolean {
+function zonesEqual(a:IOverviewRulerZone[], b:IOverviewRulerZone[]): boolean {
 	if (a === b) {
 		return true;
 	}
@@ -52,8 +51,8 @@ export class OverviewRulerImpl {
 	private _minimumHeight: number;
 	private _maximumHeight: number;
 	private _getVerticalOffsetForLine:(lineNumber:number)=>number;
-	private _zones:EditorBrowser.IOverviewRulerZone[];
-	private _renderedZones:EditorBrowser.IOverviewRulerZone[];
+	private _zones:IOverviewRulerZone[];
+	private _renderedZones:IOverviewRulerZone[];
 	private _canvasLeftOffset: number;
 
 	private _domNode: HTMLCanvasElement;
@@ -77,7 +76,7 @@ export class OverviewRulerImpl {
 		this._domNode = <HTMLCanvasElement>document.createElement('canvas');
 		this._domNode.className = cssClassName;
 		this._domNode.style.position = 'absolute';
-		if (Browser.canUseTranslate3d) {
+		if (browser.canUseTranslate3d) {
 			this._domNode.style.transform = 'translate3d(0px, 0px, 0px)';
 		}
 
@@ -92,9 +91,9 @@ export class OverviewRulerImpl {
 		this._zones = [];
 	}
 
-	public setLayout(position:EditorCommon.IOverviewRulerPosition, render:boolean): void {
-		DomUtils.StyleMutator.setTop(this._domNode, position.top);
-		DomUtils.StyleMutator.setRight(this._domNode, position.right);
+	public setLayout(position:IOverviewRulerPosition, render:boolean): void {
+		StyleMutator.setTop(this._domNode, position.top);
+		StyleMutator.setRight(this._domNode, position.right);
 
 		if (this._width !== position.width || this._height !== position.height) {
 			this._width = position.width;
@@ -154,7 +153,7 @@ export class OverviewRulerImpl {
 		}
 	}
 
-	public setZones(zones:EditorBrowser.IOverviewRulerZone[], render:boolean): void {
+	public setZones(zones:IOverviewRulerZone[], render:boolean): void {
 		this._zones = zones;
 		if (render) {
 			this.render(false);
@@ -187,7 +186,7 @@ export class OverviewRulerImpl {
 		});
 	}
 
-	private _getColorForZone(zone:EditorBrowser.IOverviewRulerZone): string {
+	private _getColorForZone(zone:IOverviewRulerZone): string {
 		if (this._useDarkColor) {
 			return zone.darkColor;
 		}
@@ -196,7 +195,7 @@ export class OverviewRulerImpl {
 
 	private _renderVerticalPatch(ctx:CanvasRenderingContext2D, heightRatio:number, laneMask:number, xpos:number, width:number): void {
 		var colorsZones:IColorZoneMap = {};
-		var i:number, len:number, zone:EditorBrowser.IOverviewRulerZone, y1:number, y2:number, zoneLineNumbers:number, zoneMaximumHeight:number;
+		var i:number, len:number, zone:IOverviewRulerZone, y1:number, y2:number, zoneLineNumbers:number, zoneMaximumHeight:number;
 		for (i = 0, len = this._zones.length; i < len; i++) {
 			zone = this._zones[i];
 
@@ -295,7 +294,7 @@ export class OverviewRulerImpl {
 
 	private _renderOneLane(ctx:CanvasRenderingContext2D, heightRatio:number, w:number): void {
 
-		this._renderVerticalPatch(ctx, heightRatio, EditorCommon.OverviewRulerLane.Left | EditorCommon.OverviewRulerLane.Center | EditorCommon.OverviewRulerLane.Right, this._canvasLeftOffset, w);
+		this._renderVerticalPatch(ctx, heightRatio, OverviewRulerLane.Left | OverviewRulerLane.Center | OverviewRulerLane.Right, this._canvasLeftOffset, w);
 
 	}
 
@@ -306,8 +305,8 @@ export class OverviewRulerImpl {
 			leftOffset = this._canvasLeftOffset,
 			rightOffset = this._canvasLeftOffset + leftWidth;
 
-		this._renderVerticalPatch(ctx, heightRatio, EditorCommon.OverviewRulerLane.Left | EditorCommon.OverviewRulerLane.Center, leftOffset, leftWidth);
-		this._renderVerticalPatch(ctx, heightRatio, EditorCommon.OverviewRulerLane.Right, rightOffset, rightWidth);
+		this._renderVerticalPatch(ctx, heightRatio, OverviewRulerLane.Left | OverviewRulerLane.Center, leftOffset, leftWidth);
+		this._renderVerticalPatch(ctx, heightRatio, OverviewRulerLane.Right, rightOffset, rightWidth);
 	}
 
 	private _renderThreeLanes(ctx:CanvasRenderingContext2D, heightRatio:number, w:number): void {
@@ -319,8 +318,8 @@ export class OverviewRulerImpl {
 			centerOffset = this._canvasLeftOffset + leftWidth,
 			rightOffset = this._canvasLeftOffset + leftWidth + centerWidth;
 
-		this._renderVerticalPatch(ctx, heightRatio, EditorCommon.OverviewRulerLane.Left, leftOffset, leftWidth);
-		this._renderVerticalPatch(ctx, heightRatio, EditorCommon.OverviewRulerLane.Center, centerOffset, centerWidth);
-		this._renderVerticalPatch(ctx, heightRatio, EditorCommon.OverviewRulerLane.Right, rightOffset, rightWidth);
+		this._renderVerticalPatch(ctx, heightRatio, OverviewRulerLane.Left, leftOffset, leftWidth);
+		this._renderVerticalPatch(ctx, heightRatio, OverviewRulerLane.Center, centerOffset, centerWidth);
+		this._renderVerticalPatch(ctx, heightRatio, OverviewRulerLane.Right, rightOffset, rightWidth);
 	}
 }

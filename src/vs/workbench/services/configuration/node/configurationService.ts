@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {TPromise, Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import platform = require('vs/base/common/platform');
@@ -35,7 +35,7 @@ export class ConfigurationService extends CommonConfigurationService {
 	protected resolveContents(resources: uri[]): TPromise<IContent[]> {
 		let contents: IContent[] = [];
 
-		return Promise.join(resources.map((resource) => {
+		return TPromise.join(resources.map((resource) => {
 			return this.resolveContent(resource).then((content) => {
 				contents.push(content);
 			});
@@ -102,7 +102,7 @@ export class ConfigurationService extends CommonConfigurationService {
 
 		// Return early if we don't have a workspace
 		if (!this.contextService.getWorkspace()) {
-			return Promise.as({});
+			return TPromise.as({});
 		}
 
 		// Migrate as needed (.settings => .vscode)

@@ -7,7 +7,6 @@
 import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import ts = require('vs/languages/typescript/common/lib/typescriptServices');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 
 export function getEmitOutput(languageService:ts.LanguageService, resource:URI, type:string):Modes.IEmitOutput {

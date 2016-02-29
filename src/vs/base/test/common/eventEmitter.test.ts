@@ -215,16 +215,16 @@ suite('EventEmitter', () => {
 
 		emitter.addListener('foo', function() {
 			actualCallOrder.push('listener1-foo');
-			emitter.emit('bar')
+			emitter.emit('bar');
 		});
 
 
 		emitter.addListener('foo', function() {
 			actualCallOrder.push('listener2-foo');
-		})
+		});
 		emitter.addListener('bar', function() {
 			actualCallOrder.push('listener2-bar');
-		})
+		});
 
 		emitter.emit('foo');
 
@@ -242,17 +242,17 @@ suite('EventEmitter', () => {
 		emitter.addListener('foo', function() {
 			actualCallOrder.push('listener1-foo');
 			emitter.deferredEmit(() => {
-				emitter.emit('bar')
-			})
+				emitter.emit('bar');
+			});
 		});
 
 
 		emitter.addListener('foo', function() {
 			actualCallOrder.push('listener2-foo');
-		})
+		});
 		emitter.addListener('bar', function() {
 			actualCallOrder.push('listener2-bar');
-		})
+		});
 
 		emitter.deferredEmit(() => {
 			emitter.emit('foo');
@@ -271,16 +271,16 @@ suite('EventEmitter', () => {
 
 		emitter.addListener('foo', function() {
 			actualCallOrder.push('listener1-foo');
-			emitter.emit('bar')
+			emitter.emit('bar');
 		});
 
 
 		emitter.addListener('foo', function() {
 			actualCallOrder.push('listener2-foo');
-		})
+		});
 		emitter.addListener('bar', function() {
 			actualCallOrder.push('listener2-bar');
-		})
+		});
 
 		emitter.emit('foo');
 
@@ -298,17 +298,17 @@ suite('EventEmitter', () => {
 		emitter.addListener('foo', function() {
 			actualCallOrder.push('listener1-foo');
 			emitter.deferredEmit(() => {
-				emitter.emit('bar')
-			})
+				emitter.emit('bar');
+			});
 		});
 
 
 		emitter.addListener('foo', function() {
 			actualCallOrder.push('listener2-foo');
-		})
+		});
 		emitter.addListener('bar', function() {
 			actualCallOrder.push('listener2-bar');
-		})
+		});
 
 		emitter.deferredEmit(() => {
 			emitter.emit('foo');

@@ -156,7 +156,7 @@ export var language = <ILanguage> {
 	],
 
 	// Cause an automatic indent to occur after lines ending in :.
-	enhancedBrackets: [ { open: /.*:\s*$/,  closeComplete: 'else:' } ],
+	// enhancedBrackets: [ { open: /.*:\s*$/,  closeComplete: 'else:' } ],
 
 	tokenizer: {
 	root: [

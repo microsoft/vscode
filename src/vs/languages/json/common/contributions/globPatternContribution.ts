@@ -6,7 +6,6 @@
 
 import HtmlContent = require('vs/base/common/htmlContent');
 import Strings = require('vs/base/common/strings');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import WinJS = require('vs/base/common/winjs.base');
 import nls = require('vs/nls');

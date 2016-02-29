@@ -5,11 +5,8 @@
 'use strict';
 
 import nls = require('vs/nls');
-import Objects = require('vs/base/common/objects');
-import Arrays = require('vs/base/common/arrays');
 import Filters = require('vs/base/common/filters');
 import { TPromise } from 'vs/base/common/winjs.base';
-import Severity from 'vs/base/common/severity';
 import Quickopen = require('vs/workbench/browser/quickopen');
 import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
@@ -30,6 +27,10 @@ class TaskEntry extends Model.QuickOpenEntry {
 
 	public getLabel(): string {
 		return this.task.name;
+	}
+
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, tasks", this.getLabel());
 	}
 
 	public run(mode:QuickOpen.Mode, context:Model.IContext):boolean {
@@ -54,6 +55,10 @@ export class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 
 		this.quickOpenService = quickOpenService;
 		this.taskService = taskService;
+	}
+
+	public getAriaLabel(): string {
+		return nls.localize('tasksAriaLabel', "Type the name of a task to run");
 	}
 
 	public getResults(input: string): TPromise<Model.QuickOpenModel> {

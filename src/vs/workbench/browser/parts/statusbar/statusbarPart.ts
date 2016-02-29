@@ -10,7 +10,7 @@ import dom = require('vs/base/browser/dom');
 import types = require('vs/base/common/types');
 import nls = require('vs/nls');
 import {toErrorMessage} from 'vs/base/common/errors';
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
 import {Builder, $} from 'vs/base/browser/builder';
 import {OcticonLabel} from 'vs/base/browser/ui/octiconLabel/octiconLabel';
@@ -166,7 +166,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 	}
 
 	public render(el: HTMLElement): IDisposable {
-		let toDispose: { (): void; }[] = [];
+		let toDispose: IDisposable[] = [];
 		dom.addClass(el, 'statusbar-entry');
 
 		// Text Container
@@ -196,9 +196,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 
 		return {
 			dispose: () => {
-				while (toDispose.length) {
-					toDispose.pop()();
-				}
+				toDispose = disposeAll(toDispose);
 			}
 		};
 	}
@@ -230,7 +228,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 		if (action) {
 			if (action.enabled) {
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'status bar' });
-				(action.run() || Promise.as(null)).done(() => {
+				(action.run() || TPromise.as(null)).done(() => {
 					action.dispose();
 				}, (err) => this.messageService.show(Severity.Error, toErrorMessage(err)));
 			} else {

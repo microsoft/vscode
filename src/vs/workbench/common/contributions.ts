@@ -5,7 +5,7 @@
 'use strict';
 
 import {Registry, BaseRegistry} from 'vs/platform/platform';
-import {IInstantiationService, IConstructorSignature0, INewConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, IConstructorSignature0} from 'vs/platform/instantiation/common/instantiation';
 
 // --- Workbench Contribution Registry
 
@@ -22,9 +22,9 @@ export interface IWorkbenchContribution {
 
 export namespace Extensions {
 	export const Workbench = 'workbench.contributions.kind';
-};
+}
 
-export type IWorkbenchContributionSignature = IConstructorSignature0<IWorkbenchContribution> | INewConstructorSignature0<IWorkbenchContribution>;
+export type IWorkbenchContributionSignature = IConstructorSignature0<IWorkbenchContribution>;
 
 export interface IWorkbenchContributionsRegistry {
 

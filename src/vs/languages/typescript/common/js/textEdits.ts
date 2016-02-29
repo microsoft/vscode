@@ -6,7 +6,6 @@
 
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
-import collections = require('vs/base/common/collections');
 
 export interface ITextSpan {
 	offset:number;

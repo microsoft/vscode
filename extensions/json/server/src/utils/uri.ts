@@ -190,7 +190,7 @@ export default class URI {
 			ret._path = match[5] || ret._path;
 			ret._query = match[7] || ret._query;
 			ret._fragment = match[9] || ret._fragment;
-		};
+		}
 		URI._validate(ret);
 		return ret;
 	}

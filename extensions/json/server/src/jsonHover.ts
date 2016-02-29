@@ -9,7 +9,7 @@ import Parser = require('./jsonParser');
 import SchemaService = require('./jsonSchemaService');
 import {IJSONWorkerContribution} from './jsonContributions';
 
-import {Hover, ITextDocument, TextDocumentPosition, Range, MarkedString, RemoteConsole} from 'vscode-languageserver';
+import {Hover, ITextDocument, TextDocumentPosition, Range, MarkedString} from 'vscode-languageserver';
 
 export class JSONHover {
 
@@ -25,7 +25,6 @@ export class JSONHover {
 
 		let offset = document.offsetAt(textDocumentPosition.position);
 		let node = doc.getNodeFromOffset(offset);
-		let originalNode = node;
 
 		// use the property description when hovering over an object key
 		if (node && node.type === 'string') {
@@ -55,7 +54,7 @@ export class JSONHover {
 					}
 					return true;
 				});
-				
+
 				var createHover = (contents: MarkedString[]) => {
 					let range = Range.create(document.positionAt(node.start), document.positionAt(node.end));
 					let result: Hover = {
@@ -64,7 +63,7 @@ export class JSONHover {
 					};
 					return result;
 				};
-				
+
 				let location = node.getNodeLocation();
 				for (let i = this.contributions.length - 1; i >= 0; i--) {
 					let contribution = this.contributions[i];

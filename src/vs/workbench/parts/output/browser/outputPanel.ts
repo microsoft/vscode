@@ -80,12 +80,10 @@ export class OutputPanel extends StringEditor {
 		options.lineNumbers = false;			// all output editors hide line numbers
 		options.glyphMargin = false;
 		options.lineDecorationsWidth = 20;
+		options.rulers = [];
 
-		let input = this.getInput();
-		let ariaLabel: string;
 		let channel = this.outputService.getActiveChannel();
-
-		options.ariaLabel = channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}. Output panel.", channel) : nls.localize('outputPanelAriaLabel', "Output panel.");
+		options.ariaLabel = channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}, Output panel", channel) : nls.localize('outputPanelAriaLabel', "Output panel");
 
 		return options;
 	}

@@ -5,15 +5,15 @@
 
 'use strict';
 
-import languageDef = require('vs/editor/standalone-languages/coffee');
-import T = require('vs/editor/standalone-languages/test/testUtil');
+import {language} from 'vs/editor/standalone-languages/coffee';
+import {testOnEnter, testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
 var Bracket = {
 	Open: 1,
 	Close: -1
 };
 
-T.testOnEnter('coffeescript', languageDef.language, (assertOnEnter) => {
+testOnEnter('coffeescript', language, (assertOnEnter) => {
 	assertOnEnter.nothing('', ' a', '');
 	assertOnEnter.indents('', ' {', '');
 	assertOnEnter.indents('', '( ', '');
@@ -21,7 +21,7 @@ T.testOnEnter('coffeescript', languageDef.language, (assertOnEnter) => {
 	assertOnEnter.indentsOutdents('', ' { ', ' } ');
 });
 
-T.testTokenization('coffeescript', languageDef.language, [
+testTokenization('coffeescript', language, [
 	// Comments
 	[{
 	line: '#',

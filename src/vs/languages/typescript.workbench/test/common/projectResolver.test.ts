@@ -186,9 +186,9 @@ function createTelemetryService(): ITelemetryService {
 var instantiationService: IInstantiationService;
 
 function setup() {
-	instantiationService = instantiation.create({
+	instantiationService = instantiation.createInstantiationService({
 		eventService: new eventEmitter.EventEmitter(),
-		markerService: new markerService.MarkerService(NULL_THREAD_SERVICE),
+		markerService: new markerService.MainProcessMarkerService(NULL_THREAD_SERVICE),
 		fileService: createFileService(),
 		searchService: createSearchService(),
 		messageService: createMessageService(),

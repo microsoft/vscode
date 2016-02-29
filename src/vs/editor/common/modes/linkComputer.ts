@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Modes = require('vs/editor/common/modes');
+import {ILink} from 'vs/editor/common/modes';
 
 export interface ILinkComputerTarget {
 	getLineCount(): number;
@@ -29,7 +29,7 @@ enum CharacterClass {
 }
 
 var getCharacterClasses = (function() {
-	var FORCE_TERMINATION_CHARACTERS = ' \t<>)]}\'\"';
+	var FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"';
 	var CANNOT_END_WITH_CHARACTERS = '.,;';
 	var _cachedResult: CharacterClass[] = null;
 
@@ -70,9 +70,16 @@ var getCharacterClasses = (function() {
 	};
 })();
 
+let _openParens = '('.charCodeAt(0);
+let _closeParens = ')'.charCodeAt(0);
+let _openSquareBracket = '['.charCodeAt(0);
+let _closeSquareBracket = ']'.charCodeAt(0);
+let _openCurlyBracket = '{'.charCodeAt(0);
+let _closeCurlyBracket = '}'.charCodeAt(0);
+
 class LinkComputer {
 
-	private static _createLink(line:string, lineNumber:number, linkBeginIndex:number, linkEndIndex:number):Modes.ILink {
+	private static _createLink(line:string, lineNumber:number, linkBeginIndex:number, linkEndIndex:number):ILink {
 		return {
 			range: {
 				startLineNumber: lineNumber,
@@ -84,11 +91,11 @@ class LinkComputer {
 		};
 	}
 
-	public static computeLinks(model:ILinkComputerTarget):Modes.ILink[] {
+	public static computeLinks(model:ILinkComputerTarget):ILink[] {
 
 		var i:number,
 			lineCount:number,
-			result:Modes.ILink[] = [];
+			result:ILink[] = [];
 
 		var line:string,
 			j:number,
@@ -101,7 +108,10 @@ class LinkComputer {
 			ch:string,
 			chCode:number,
 			chClass:CharacterClass,
-			resetStateMachine:boolean;
+			resetStateMachine:boolean,
+			hasOpenParens:boolean,
+			hasOpenSquareBracket:boolean,
+			hasOpenCurlyBracket:boolean;
 
 		for (i = 1, lineCount = model.getLineCount(); i <= lineCount; i++) {
 			line = model.getLineContent(i);
@@ -109,6 +119,9 @@ class LinkComputer {
 			len = line.length;
 			linkBeginIndex = 0;
 			state = START_STATE;
+			hasOpenParens = false;
+			hasOpenSquareBracket = false;
+			hasOpenCurlyBracket = false;
 
 			while (j < len) {
 				ch = line.charAt(j);
@@ -116,7 +129,32 @@ class LinkComputer {
 				resetStateMachine = false;
 
 				if (state === ACCEPT_STATE) {
-					chClass = (chCode < characterClassesLength ? characterClasses[chCode] : CharacterClass.None);
+
+					switch (chCode) {
+						case _openParens:
+							hasOpenParens = true;
+							chClass = CharacterClass.None;
+							break;
+						case _closeParens:
+							chClass = (hasOpenParens ? CharacterClass.None : CharacterClass.ForceTermination);
+							break;
+						case _openSquareBracket:
+							hasOpenSquareBracket = true;
+							chClass = CharacterClass.None;
+							break;
+						case _closeSquareBracket:
+							chClass = (hasOpenSquareBracket ? CharacterClass.None : CharacterClass.ForceTermination);
+							break;
+						case _openCurlyBracket:
+							hasOpenCurlyBracket = true;
+							chClass = CharacterClass.None;
+							break;
+						case _closeCurlyBracket:
+							chClass = (hasOpenCurlyBracket ? CharacterClass.None : CharacterClass.ForceTermination);
+							break;
+						default:
+							chClass = (chCode < characterClassesLength ? characterClasses[chCode] : CharacterClass.None);
+					}
 
 					// Check if character terminates link
 					if (chClass === CharacterClass.ForceTermination) {
@@ -154,6 +192,9 @@ class LinkComputer {
 
 				if (resetStateMachine) {
 					state = START_STATE;
+					hasOpenParens = false;
+					hasOpenSquareBracket = false;
+					hasOpenCurlyBracket = false;
 
 					// Record where the link started
 					linkBeginIndex = j + 1;
@@ -177,7 +218,7 @@ class LinkComputer {
  * document. *Note* that this operation is computational
  * expensive and should not run in the UI thread.
  */
-export function computeLinks(model:ILinkComputerTarget):Modes.ILink[] {
+export function computeLinks(model:ILinkComputerTarget):ILink[] {
 	if (!model || typeof model.getLineCount !== 'function' || typeof model.getLineContent !== 'function') {
 		// Unknown caller!
 		return [];

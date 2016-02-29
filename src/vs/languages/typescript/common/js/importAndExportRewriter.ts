@@ -373,9 +373,9 @@ export class ImportsAndExportsCollector implements rewriter.ISyntaxRewriter {
 	// 	// this._context.newReplace(node.offset, node.length - node.name.length, 'export var ');
 	// }
 
-	private _translateNamedExportExpresson(node:NamedExportExpresson):void {
-		this._context.newAppend(`export var ${node.name}:any;\n`);
-	}
+	// private _translateNamedExportExpresson(node:NamedExportExpresson):void {
+	// 	this._context.newAppend(`export var ${node.name}:any;\n`);
+	// }
 
 	private _translateDefineNode(node:DefineNode):void {
 

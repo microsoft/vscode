@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise, Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import {EndOfLinePreference, IModel, EventType} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 import {EditorModel} from 'vs/workbench/common/editor';
-import {Registry} from 'vs/platform/platform';
-import {IEditorModesRegistry, Extensions} from 'vs/editor/common/modes/modesRegistry';
 import URI from 'vs/base/common/uri';
 import {NullMode} from 'vs/editor/common/modes/nullMode';
 import {ITextEditorModel} from 'vs/platform/editor/common/editor';
@@ -62,7 +60,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		let firstLineText = this.getFirstLineText(value);
 
 		// To avoid flickering, give the mode at most 50ms to load. If the mode doesn't load in 50ms, proceed creating the model with a mode promise
-		return Promise.any([Promise.timeout(50), this.getOrCreateMode(this.modeService, mime, firstLineText)]).then(() => {
+		return TPromise.any<any>([TPromise.timeout(50), this.getOrCreateMode(this.modeService, mime, firstLineText)]).then(() => {
 			let model = this.modelService.createModel(value, this.getOrCreateMode(this.modeService, mime, firstLineText), resource);
 			this.createdEditorModel = true;
 
@@ -105,8 +103,6 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	 * This is a no-op if neither the value did not change nor the mime.
 	 */
 	protected updateTextEditorModel(newValue?: string, newMime?: string): void {
-		let modesRegistry = <IEditorModesRegistry>Registry.as(Extensions.EditorModes);
-
 		// Detect content changes
 		let currentModelValue = this.getValue();
 		let valueChanged = (!types.isUndefinedOrNull(newValue) && currentModelValue !== newValue);
@@ -114,7 +110,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		// Detect mode changes
 		let modeChanged = false;
 		if (!types.isUndefinedOrNull(newMime)) {
-			let modeId = modesRegistry.getModeId(newMime);
+			let modeId = this.modeService.getModeId(newMime);
 			let currentMode = this.textEditorModel.getMode();
 			if (currentMode && currentMode.getId() !== NullMode.ID && modeId) {
 				let currentModeId = currentMode.getId();

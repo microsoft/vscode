@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {IMode, IState, ITokenizationResult} from 'vs/editor/common/modes';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-
 import {StackElement} from 'vscode-textmate';
 
 function stackElementEquals(a:StackElement, b:StackElement): boolean {
@@ -26,13 +24,13 @@ function stackElementEquals(a:StackElement, b:StackElement): boolean {
 	);
 }
 
-export class TMState implements Modes.IState {
+export class TMState implements IState {
 
-	private _mode: Modes.IMode;
-	private _parentEmbedderState: Modes.IState;
+	private _mode: IMode;
+	private _parentEmbedderState: IState;
 	private _ruleStack: StackElement[];
 
-	constructor(mode: Modes.IMode, parentEmbedderState: Modes.IState, ruleStack: StackElement[]) {
+	constructor(mode: IMode, parentEmbedderState: IState, ruleStack: StackElement[]) {
 		this._mode = mode;
 		this._parentEmbedderState = parentEmbedderState;
 		this._ruleStack = ruleStack;
@@ -44,7 +42,7 @@ export class TMState implements Modes.IState {
 		return new TMState(this._mode, parentEmbedderStateClone, ruleStackClone);
 	}
 
-	public equals(other:Modes.IState):boolean {
+	public equals(other:IState):boolean {
 		if (!other || !(other instanceof TMState)) {
 			return false;
 		}
@@ -74,19 +72,19 @@ export class TMState implements Modes.IState {
 		return true;
 	}
 
-	public getMode():Modes.IMode {
+	public getMode():IMode {
 		return this._mode;
 	}
 
-	public tokenize(stream:any):Modes.ITokenizationResult {
+	public tokenize(stream:any):ITokenizationResult {
 		throw new Error();
 	}
 
-	public getStateData():Modes.IState {
+	public getStateData():IState {
 		return this._parentEmbedderState;
 	}
 
-	public setStateData(state:Modes.IState):void {
+	public setStateData(state:IState):void {
 		this._parentEmbedderState = state;
 	}
 

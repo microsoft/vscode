@@ -5,15 +5,10 @@
 
 'use strict';
 
-import languageDef = require('vs/editor/standalone-languages/vb');
-import T = require('vs/editor/standalone-languages/test/testUtil');
+import {testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
+import {language} from 'vs/editor/standalone-languages/vb';
 
-var Bracket = {
-	Open: 1,
-	Close: -1
-};
-
-T.testTokenization('vb', languageDef.language, [
+testTokenization('vb', language, [
 
 	// Comments - single line
 	[{

@@ -4,37 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import lifecycle = require('vs/base/common/lifecycle');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import DomUtils = require('vs/base/browser/dom');
-import eventEmitter = require('vs/base/common/eventEmitter');
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import * as dom from 'vs/base/browser/dom';
+import {IPosition} from 'vs/editor/common/editorCommon';
+import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition} from 'vs/editor/browser/editorBrowser';
 
-class LightBulpWidget implements EditorBrowser.IContentWidget, lifecycle.IDisposable {
+export class LightBulpWidget implements IContentWidget, IDisposable {
 
-	private editor: EditorBrowser.ICodeEditor;
-	private position: EditorCommon.IPosition;
+	private editor: ICodeEditor;
+	private position: IPosition;
 	private domNode: HTMLElement;
 	private visible: boolean;
-	private onclick: (pos: EditorCommon.IPosition) => void;
-	private listenersToRemove:eventEmitter.ListenerUnbind[];
+	private onclick: (pos: IPosition) => void;
+	private toDispose:IDisposable[];
 
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
 
-	constructor(editor: EditorBrowser.ICodeEditor, onclick: (pos: EditorCommon.IPosition) => void) {
+	constructor(editor: ICodeEditor, onclick: (pos: IPosition) => void) {
 		this.editor = editor;
 		this.onclick = onclick;
-		this.listenersToRemove = [];
+		this.toDispose = [];
 		this.editor.addContentWidget(this);
 	}
 
 	public dispose(): void {
 		this.editor.removeContentWidget(this);
-		this.listenersToRemove.forEach((element) => {
-			element();
-		});
-		this.listenersToRemove = [];
+		this.toDispose = disposeAll(this.toDispose);
 	}
 
 	public getId(): string {
@@ -47,7 +43,7 @@ class LightBulpWidget implements EditorBrowser.IContentWidget, lifecycle.IDispos
 			this.domNode.style.width = '20px';
 			this.domNode.style.height = '20px';
 			this.domNode.className = 'lightbulp-glyph';
-			this.listenersToRemove.push(DomUtils.addListener(this.domNode, 'click',(e) => {
+			this.toDispose.push(dom.addDisposableListener(this.domNode, 'click',(e) => {
 				this.editor.focus();
 				this.onclick(this.position);
 			}));
@@ -55,13 +51,13 @@ class LightBulpWidget implements EditorBrowser.IContentWidget, lifecycle.IDispos
 		return this.domNode;
 	}
 
-	public getPosition(): EditorBrowser.IContentWidgetPosition {
+	public getPosition(): IContentWidgetPosition {
 		return this.visible
-			? { position: this.position, preference: [EditorBrowser.ContentWidgetPositionPreference.BELOW, EditorBrowser.ContentWidgetPositionPreference.ABOVE] }
+			? { position: this.position, preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE] }
 			: null;
 	}
 
-	public show(where:EditorCommon.IPosition): void {
+	public show(where:IPosition): void {
 		this.position = where;
 
 		this.visible = true;
@@ -74,4 +70,3 @@ class LightBulpWidget implements EditorBrowser.IContentWidget, lifecycle.IDispos
 	}
 }
 
-export = LightBulpWidget;

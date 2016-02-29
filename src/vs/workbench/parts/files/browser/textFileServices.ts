@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise, Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import {ListenerUnbind} from 'vs/base/common/eventEmitter';
@@ -127,8 +127,8 @@ export abstract class TextFileService implements ITextFileService {
 		}
 	}
 
-	public getDirty(resource?: URI): URI[] {
-		return this.getDirtyFileModels(resource).map((m) => m.getResource());
+	public getDirty(resources?: URI[]): URI[] {
+		return this.getDirtyFileModels(resources).map((m) => m.getResource());
 	}
 
 	public isDirty(resource?: URI): boolean {
@@ -151,7 +151,7 @@ export abstract class TextFileService implements ITextFileService {
 			};
 		});
 
-		return Promise.join(dirtyFileModels.map((model) => {
+		return TPromise.join(dirtyFileModels.map((model) => {
 			return model.save().then(() => {
 				if (!model.isDirty()) {
 					mapResourceToResult[model.getResource().toString()].success = true;
@@ -187,7 +187,7 @@ export abstract class TextFileService implements ITextFileService {
 
 	public abstract saveAs(resource: URI, targetResource?: URI): TPromise<URI>;
 
-	public confirmSave(resource?: URI): ConfirmResult {
+	public confirmSave(resources?: URI[]): ConfirmResult {
 		throw new Error('Unsupported');
 	}
 
@@ -205,7 +205,7 @@ export abstract class TextFileService implements ITextFileService {
 			};
 		});
 
-		return Promise.join(fileModels.map((model) => {
+		return TPromise.join(fileModels.map((model) => {
 			return model.revert().then(() => {
 				if (!model.isDirty()) {
 					mapResourceToResult[model.getResource().toString()].success = true;
@@ -226,7 +226,7 @@ export abstract class TextFileService implements ITextFileService {
 
 				// Otherwise bubble up the error
 				else {
-					return Promise.wrapError(error);
+					return TPromise.wrapError(error);
 				}
 			});
 		})).then((r) => {
@@ -264,7 +264,7 @@ export abstract class TextFileService implements ITextFileService {
 		return {
 			autoSaveDelay: this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 ? this.configuredAutoSaveDelay : void 0,
 			autoSaveFocusChange: this.configuredAutoSaveOnFocusChange
-		}
+		};
 	}
 
 	public dispose(): void {

@@ -209,7 +209,7 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 		};
 	}
 
-	public showWhile(promise: TPromise<any>, delay?: number): TPromise<any> {
+	public showWhile(promise: TPromise<any>, delay?: number): TPromise<void> {
 		let stack: boolean = !!this.progressState.whilePromise;
 
 		// Reset State

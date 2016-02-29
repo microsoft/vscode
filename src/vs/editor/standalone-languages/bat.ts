@@ -23,17 +23,17 @@ export var language = <ILanguage> {
 		{ token: 'punctuation.square', open: '[', close: ']' }
 	],
 
-	enhancedBrackets: [
-			{
-				openTrigger: 'l',
-				open: /setlocal$/i,
-				closeComplete: 'endlocal',
-				matchCase: true,
-				closeTrigger: 'l',
-				close: /endlocal$/i,
-				tokenType: 'keyword.tag-setlocal'
-			}
-		],
+	// enhancedBrackets: [
+	// 		{
+	// 			openTrigger: 'l',
+	// 			open: /setlocal$/i,
+	// 			closeComplete: 'endlocal',
+	// 			matchCase: true,
+	// 			closeTrigger: 'l',
+	// 			close: /endlocal$/i,
+	// 			tokenType: 'keyword.tag-setlocal'
+	// 		}
+	// 	],
 
 	keywords: /call|defined|echo|errorlevel|exist|for|goto|if|pause|set|shift|start|title|not|pushd|popd/,
 

@@ -585,6 +585,8 @@ export class WindowsManager {
 		configuration.filesToCreate = filesToCreate;
 		configuration.extensionsToInstall = extensionsToInstall;
 		configuration.appName = env.product.nameLong;
+		configuration.applicationName = env.product.applicationName;
+		configuration.darwinBundleIdentifier = env.product.darwinBundleIdentifier;
 		configuration.appRoot = env.appRoot;
 		configuration.version = env.version;
 		configuration.commitHash = env.product.commit;

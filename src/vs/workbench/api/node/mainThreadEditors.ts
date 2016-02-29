@@ -15,12 +15,12 @@ import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 
 export interface ITextEditorConfigurationUpdate {
-	tabSize?: number;
-	insertSpaces?: boolean;
+	tabSize?: number | string;
+	insertSpaces?: boolean | string;
 }
 export interface ITextEditorConfiguration {
-	tabSize: number;
-	insertSpaces: boolean;
+	tabSize: number | string;
+	insertSpaces: boolean | string;
 }
 
 function configurationsEqual(a:ITextEditorConfiguration, b:ITextEditorConfiguration) {

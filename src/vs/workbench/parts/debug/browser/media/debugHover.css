@@ -17,7 +17,6 @@
 	-ms-animation-name: fadeIn;
 	animation-duration: 0.15s;
 	animation-name: fadeIn;
-	word-wrap: break-word;
 	-webkit-user-select: text;
 
 	white-space: pre;
@@ -67,6 +66,7 @@
 }
 
 .monaco-editor .debug-hover-widget .value {
+	word-wrap: break-word;
 	color: rgba(108, 108, 108, 0.8);
 }
 

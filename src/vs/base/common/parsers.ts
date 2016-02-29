@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as Objects from 'vs/base/common/objects';
 import * as Types from 'vs/base/common/types';
 import { IStringDictionary } from 'vs/base/common/collections';
 
@@ -70,13 +69,21 @@ export abstract class Parser {
 
 	protected is(value: any, func: (value:any) => boolean, wrongTypeState?: ValidationState, wrongTypeMessage?: string, undefinedState?: ValidationState, undefinedMessage?: string): boolean {
 		if (Types.isUndefined(value)) {
-			if (undefinedState) this.validationStatus.state = undefinedState;
-			if (undefinedMessage) this.log(undefinedMessage);
+			if (undefinedState) {
+				this.validationStatus.state = undefinedState;
+			}
+			if (undefinedMessage) {
+				this.log(undefinedMessage);
+			}
 			return false;
 		}
 		if (!func(value)) {
-			if (wrongTypeState) this.validationStatus.state = wrongTypeState;
-			if (wrongTypeMessage) this.log(wrongTypeMessage);
+			if (wrongTypeState) {
+				this.validationStatus.state = wrongTypeState;
+			}
+			if (wrongTypeMessage) {
+				this.log(wrongTypeMessage);
+			}
 			return false;
 		}
 		return true;
@@ -93,7 +100,6 @@ export abstract class Parser {
 				destination[key] = sourceValue;
 			} else {
 				if (overwrite) {
-					let source
 					if (Types.isObject(destValue) && Types.isObject(sourceValue)) {
 						this.merge(destValue, sourceValue, overwrite);
 					} else {
@@ -111,6 +117,7 @@ export interface ISystemVariables {
 	resolve(value: IStringDictionary<string>): IStringDictionary<string>;
 	resolve(value: IStringDictionary<string[]>): IStringDictionary<string[]>;
 	resolve(value: IStringDictionary<IStringDictionary<string>>): IStringDictionary<IStringDictionary<string>>;
+	resolveAny<T>(value: T): T;
 	[key: string]: any;
 }
 
@@ -128,6 +135,19 @@ export abstract class AbstractSystemVariables implements ISystemVariables {
 			return this.__resolveArray(value);
 		} else if (Types.isObject(value)) {
 			return this.__resolveLiteral(value);
+		}
+
+		return value;
+	}
+
+	resolveAny<T>(value: T): T;
+	resolveAny<T>(value: any): any {
+		if (Types.isString(value)) {
+			return this.__resolveString(value);
+		} else if (Types.isArray(value)) {
+			return this.__resolveAnyArray(value);
+		} else if (Types.isObject(value)) {
+			return this.__resolveAnyLiteral(value);
 		}
 
 		return value;
@@ -154,7 +174,22 @@ export abstract class AbstractSystemVariables implements ISystemVariables {
 		return result;
 	}
 
+	private __resolveAnyLiteral<T>(values: T): T;
+	private __resolveAnyLiteral<T>(values: any): any {
+		let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
+		Object.keys(values).forEach(key => {
+			let value = values[key];
+			result[key] = <any>this.resolveAny(<any>value);
+		});
+		return result;
+	}
+
 	private __resolveArray(value: string[]): string[] {
 		return value.map(s => this.__resolveString(s));
+	}
+
+	private __resolveAnyArray<T>(value: T[]): T[];
+	private __resolveAnyArray(value: any[]): any[] {
+		return value.map(s => this.resolveAny(s));
 	}
 }

@@ -523,7 +523,7 @@
 
 .monaco-editor.hc-black .token.builtin.function					{ color: #569CD6; }
 
-.monaco-editor.hc-black .token.comment							{ color: #608B4E; }
+.monaco-editor.hc-black .token.comment							{ color: #7ca668; }
 
 .monaco-editor.hc-black .token.constant							{ color: #569CD6; }
 .monaco-editor.hc-black .token.constant.language				{ color: #569CD6; }

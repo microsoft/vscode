@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./media/workbench';
-import {TPromise, Promise, ValueCallback} from 'vs/base/common/winjs.base';
+import {TPromise, ValueCallback} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import strings = require('vs/base/common/strings');
@@ -50,7 +50,7 @@ import {IActivityService} from 'vs/workbench/services/activity/common/activitySe
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
 import {WorkbenchMessageService} from 'vs/workbench/services/message/browser/messageService';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService'
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IHistoryService} from 'vs/workbench/services/history/common/history';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -200,7 +200,7 @@ export class Workbench implements IPartService {
 			this.registerEmitters();
 
 			// Load composits and editors in parallel
-			let compositeAndEditorPromises: Promise[] = [];
+			let compositeAndEditorPromises: TPromise<any>[] = [];
 
 			// Show default viewlet unless sidebar is hidden or we dont have a default viewlet
 			let viewletRegistry = (<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets));
@@ -222,7 +222,7 @@ export class Workbench implements IPartService {
 
 			// Check for configured options to open files on startup and resolve if any or open untitled for empty workbench
 			let editorTimerEvent = timer.start(timer.Topic.STARTUP, strings.format('Restoring Editor(s)'));
-			let resolveEditorInputsPromise: TPromise<EditorInput[]> = Promise.as(null);
+			let resolveEditorInputsPromise: TPromise<EditorInput[]> = TPromise.as(null);
 			let options: EditorOptions[] = [];
 
 			// Files to open or create
@@ -236,7 +236,7 @@ export class Workbench implements IPartService {
 				options.push(...filesToCreate.map(r => null)); // fill empty options for files to create because we dont have options there
 
 				// Files to open
-				resolveEditorInputsPromise = Promise.join(filesToOpen.map((resourceInput) => this.editorService.inputToType(resourceInput))).then((inputsToOpen) => {
+				resolveEditorInputsPromise = TPromise.join<EditorInput>(filesToOpen.map((resourceInput) => this.editorService.inputToType(resourceInput))).then((inputsToOpen) => {
 					inputs.push(...inputsToOpen);
 					options.push(...filesToOpen.map(resourceInput => TextEditorOptions.from(resourceInput)));
 
@@ -246,7 +246,7 @@ export class Workbench implements IPartService {
 
 			// Empty workbench
 			else if (!this.workbenchParams.workspace) {
-				resolveEditorInputsPromise = Promise.as([this.untitledEditorService.createOrGet()]);
+				resolveEditorInputsPromise = TPromise.as([this.untitledEditorService.createOrGet()]);
 			}
 
 			// Restore editor state (either from last session or with given inputs)
@@ -258,7 +258,7 @@ export class Workbench implements IPartService {
 			}));
 
 			// Flag workbench as created once done
-			Promise.join(compositeAndEditorPromises).then(() => {
+			TPromise.join(compositeAndEditorPromises).then(() => {
 				this.workbenchCreated = true;
 				this.eventService.emit(EventType.WORKBENCH_CREATED);
 				this.creationPromiseComplete(true);
@@ -291,7 +291,7 @@ export class Workbench implements IPartService {
 			(<AbstractKeybindingService><any>this.keybindingService).setMessageService(messageService);
 		}
 		let threadService = this.instantiationService.getInstance(IThreadService);
-		let pluginService = this.instantiationService.getInstance(IPluginService);
+		this.instantiationService.getInstance(IPluginService);
 		this.lifecycleService = this.instantiationService.getInstance(ILifecycleService);
 		this.toDispose.push(this.lifecycleService.onShutdown(this.shutdownComponents, this));
 		let contextMenuService = this.instantiationService.getInstance(IContextMenuService);

@@ -15,7 +15,7 @@ import {createMockModelService, createMockModeService} from 'vs/editor/test/comm
 suite("Workbench - StringEditorModel", () => {
 
 	test("StringEditorModel", function(done) {
-		let inst = InstantiationService.create({
+		let inst = InstantiationService.createInstantiationService({
 			modeService: createMockModeService(),
 			modelService: createMockModelService(),
 		});
@@ -40,7 +40,7 @@ suite("Workbench - StringEditorModel", () => {
 	});
 
 	test("StringEditorModel - setValue, clearValue, append, trim", function(done) {
-		let inst = InstantiationService.create({
+		let inst = InstantiationService.createInstantiationService({
 			modeService: createMockModeService(),
 			modelService: createMockModelService(),
 		});

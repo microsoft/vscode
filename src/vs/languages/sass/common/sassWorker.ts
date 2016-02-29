@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
 import cssWorker = require('vs/languages/css/common/cssWorker');
 import cssParser = require('vs/languages/css/common/parser/cssParser');
 import sassParser = require('./parser/sassParser');

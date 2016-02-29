@@ -7,7 +7,6 @@
 
 import 'vs/css!./gitlessView';
 import nls = require('vs/nls');
-import git = require('vs/workbench/parts/git/common/git');
 import platform = require('vs/base/common/platform');
 import winjs = require('vs/base/common/winjs.base');
 import ee = require('vs/base/common/eventEmitter');
@@ -88,7 +87,7 @@ export class GitlessView
 	}
 
 	public setVisible(visible:boolean): winjs.TPromise<void> {
-		return winjs.Promise.as(null);
+		return winjs.TPromise.as(null);
 	}
 
 	public getSelection(): ISelection {

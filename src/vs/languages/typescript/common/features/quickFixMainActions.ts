@@ -6,13 +6,9 @@
 
 import nls = require('vs/nls');
 import URI from 'vs/base/common/uri';
-import network = require('vs/base/common/network');
-import strings = require('vs/base/common/strings');
-import errors = require('vs/base/common/errors');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import winjs = require('vs/base/common/winjs.base');
-import paths = require('vs/base/common/paths');
 import http = require('vs/base/common/http');
 import {IFileService} from 'vs/platform/files/common/files';
 import {IRequestService} from 'vs/platform/request/common/request';
@@ -41,7 +37,7 @@ export class QuickFixMainActions {
 				return this.evaluateAddTypeDefinitionProposal(command.name, resource);
 			}
 		}
-		return winjs.Promise.as(null);
+		return winjs.TPromise.as(null);
 	}
 
 	public evaluateAddTypeDefinitionProposal(typingsReference: string, resource: URI): winjs.TPromise<Modes.IQuickFixResult> {
@@ -49,20 +45,13 @@ export class QuickFixMainActions {
 		var dtsFileResource = this._contextService.toResource(dtsFile);
 		var jsConfigResource = this._contextService.toResource('jsconfig.json');
 		if (!dtsFileResource || !jsConfigResource) {
-			return winjs.Promise.as(null);
+			return winjs.TPromise.as(null);
 		}
 
 		var resourcePath = this._contextService.toWorkspaceRelativePath(resource);
 		if (!resourcePath) {
 			resourcePath = resource.fsPath;
 		}
-
-		var currentFolderPath = strings.rtrim(paths.dirname(resourcePath), '/');
-		var relativeDtsPath = paths.relative(currentFolderPath, dtsFile);
-
-		var action = {
-			edits: []
-		};
 
 		return this._fileService.resolveFile(dtsFileResource).then(file => {
 			// file exists already

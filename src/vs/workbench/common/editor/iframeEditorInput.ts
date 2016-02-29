@@ -6,7 +6,6 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
-import {Registry} from 'vs/platform/platform';
 import URI from 'vs/base/common/uri';
 
 /**

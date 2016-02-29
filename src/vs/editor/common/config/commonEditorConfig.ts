@@ -5,16 +5,16 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import * as Objects from 'vs/base/common/objects';
 import Event, {Emitter} from 'vs/base/common/event';
-import * as Strings from 'vs/base/common/strings';
+import {Disposable} from 'vs/base/common/lifecycle';
+import * as objects from 'vs/base/common/objects';
+import * as strings from 'vs/base/common/strings';
+import {Extensions, IConfigurationRegistry} from 'vs/platform/configuration/common/configurationRegistry';
 import {Registry} from 'vs/platform/platform';
-import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
-import * as EditorCommon from 'vs/editor/common/editorCommon';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {HandlerDispatcher} from 'vs/editor/common/controller/handlerDispatcher';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import {EditorLayoutProvider} from 'vs/editor/common/viewLayout/editorLayoutProvider';
-import {Disposable} from 'vs/base/common/lifecycle';
 
 /**
  * Experimental screen reader support toggle
@@ -40,26 +40,129 @@ export class GlobalScreenReaderNVDA {
 
 export class ConfigurationWithDefaults {
 
-	private _editor:EditorCommon.IEditorOptions;
+	private _editor:editorCommon.IEditorOptions;
 
-	constructor(options:EditorCommon.IEditorOptions) {
-		this._editor = <EditorCommon.IEditorOptions>Objects.clone(DefaultConfig.editor);
+	constructor(options:editorCommon.IEditorOptions) {
+		this._editor = <editorCommon.IEditorOptions>objects.clone(DefaultConfig.editor);
 
 		this._mergeOptionsIn(options);
 	}
 
-	public getEditorOptions(): EditorCommon.IEditorOptions {
+	public getEditorOptions(): editorCommon.IEditorOptions {
 		return this._editor;
 	}
 
-	private _mergeOptionsIn(newOptions:EditorCommon.IEditorOptions): void {
-		this._editor = Objects.mixin(this._editor, newOptions || {});
+	private _mergeOptionsIn(newOptions:editorCommon.IEditorOptions): void {
+		this._editor = objects.mixin(this._editor, newOptions || {});
 	}
 
-	public updateOptions(newOptions:EditorCommon.IEditorOptions): void {
+	public updateOptions(newOptions:editorCommon.IEditorOptions): void {
 		// Apply new options
 		this._mergeOptionsIn(newOptions);
 	}
+}
+
+function cloneInternalEditorOptions(opts: editorCommon.IInternalEditorOptions): editorCommon.IInternalEditorOptions {
+	return {
+		experimentalScreenReader: opts.experimentalScreenReader,
+		rulers: opts.rulers.slice(0),
+		wordSeparators: opts.wordSeparators,
+		ariaLabel: opts.ariaLabel,
+		lineNumbers: opts.lineNumbers,
+		selectOnLineNumbers: opts.selectOnLineNumbers,
+		glyphMargin: opts.glyphMargin,
+		revealHorizontalRightPadding: opts.revealHorizontalRightPadding,
+		roundedSelection: opts.roundedSelection,
+		theme: opts.theme,
+		readOnly: opts.readOnly,
+		scrollbar: {
+			arrowSize: opts.scrollbar.arrowSize,
+			vertical: opts.scrollbar.vertical,
+			horizontal: opts.scrollbar.horizontal,
+			useShadows: opts.scrollbar.useShadows,
+			verticalHasArrows: opts.scrollbar.verticalHasArrows,
+			horizontalHasArrows: opts.scrollbar.horizontalHasArrows,
+			handleMouseWheel: opts.scrollbar.handleMouseWheel,
+			horizontalScrollbarSize: opts.scrollbar.horizontalScrollbarSize,
+			horizontalSliderSize: opts.scrollbar.horizontalSliderSize,
+			verticalScrollbarSize: opts.scrollbar.verticalScrollbarSize,
+			verticalSliderSize: opts.scrollbar.verticalSliderSize,
+			mouseWheelScrollSensitivity: opts.scrollbar.mouseWheelScrollSensitivity,
+		},
+		overviewRulerLanes: opts.overviewRulerLanes,
+		cursorBlinking: opts.cursorBlinking,
+		cursorStyle: opts.cursorStyle,
+		fontLigatures: opts.fontLigatures,
+		hideCursorInOverviewRuler: opts.hideCursorInOverviewRuler,
+		scrollBeyondLastLine: opts.scrollBeyondLastLine,
+		wrappingIndent: opts.wrappingIndent,
+		wordWrapBreakBeforeCharacters: opts.wordWrapBreakBeforeCharacters,
+		wordWrapBreakAfterCharacters: opts.wordWrapBreakAfterCharacters,
+		wordWrapBreakObtrusiveCharacters: opts.wordWrapBreakObtrusiveCharacters,
+		tabFocusMode: opts.tabFocusMode,
+		stopLineTokenizationAfter: opts.stopLineTokenizationAfter,
+		stopRenderingLineAfter: opts.stopRenderingLineAfter,
+		longLineBoundary: opts.longLineBoundary,
+		forcedTokenizationBoundary: opts.forcedTokenizationBoundary,
+		hover: opts.hover,
+		contextmenu: opts.contextmenu,
+		quickSuggestions: opts.quickSuggestions,
+		quickSuggestionsDelay: opts.quickSuggestionsDelay,
+		iconsInSuggestions: opts.iconsInSuggestions,
+		autoClosingBrackets: opts.autoClosingBrackets,
+		formatOnType: opts.formatOnType,
+		suggestOnTriggerCharacters: opts.suggestOnTriggerCharacters,
+		selectionHighlight: opts.selectionHighlight,
+		outlineMarkers: opts.outlineMarkers,
+		referenceInfos: opts.referenceInfos,
+		folding: opts.folding,
+		renderWhitespace: opts.renderWhitespace,
+		layoutInfo: {
+			width: opts.layoutInfo.width,
+			height: opts.layoutInfo.height,
+			glyphMarginLeft: opts.layoutInfo.glyphMarginLeft,
+			glyphMarginWidth: opts.layoutInfo.glyphMarginWidth,
+			glyphMarginHeight: opts.layoutInfo.glyphMarginHeight,
+			lineNumbersLeft: opts.layoutInfo.lineNumbersLeft,
+			lineNumbersWidth: opts.layoutInfo.lineNumbersWidth,
+			lineNumbersHeight: opts.layoutInfo.lineNumbersHeight,
+			decorationsLeft: opts.layoutInfo.decorationsLeft,
+			decorationsWidth: opts.layoutInfo.decorationsWidth,
+			decorationsHeight: opts.layoutInfo.decorationsHeight,
+			contentLeft: opts.layoutInfo.contentLeft,
+			contentWidth: opts.layoutInfo.contentWidth,
+			contentHeight: opts.layoutInfo.contentHeight,
+			verticalScrollbarWidth: opts.layoutInfo.verticalScrollbarWidth,
+			horizontalScrollbarHeight: opts.layoutInfo.horizontalScrollbarHeight,
+			overviewRuler:{
+				width: opts.layoutInfo.overviewRuler.width,
+				height: opts.layoutInfo.overviewRuler.height,
+				top: opts.layoutInfo.overviewRuler.top,
+				right: opts.layoutInfo.overviewRuler.right,
+			}
+		},
+		stylingInfo: {
+			editorClassName: opts.stylingInfo.editorClassName,
+			fontFamily: opts.stylingInfo.fontFamily,
+			fontSize: opts.stylingInfo.fontSize,
+			lineHeight: opts.stylingInfo.lineHeight,
+		},
+		wrappingInfo: {
+			isViewportWrapping: opts.wrappingInfo.isViewportWrapping,
+			wrappingColumn: opts.wrappingInfo.wrappingColumn,
+		},
+		indentInfo: {
+			tabSize: opts.indentInfo.tabSize,
+			insertSpaces: opts.indentInfo.insertSpaces,
+		},
+		observedOuterWidth: opts.observedOuterWidth,
+		observedOuterHeight: opts.observedOuterHeight,
+		lineHeight: opts.lineHeight,
+		pageSize: opts.pageSize,
+		typicalHalfwidthCharacterWidth: opts.typicalHalfwidthCharacterWidth,
+		typicalFullwidthCharacterWidth: opts.typicalFullwidthCharacterWidth,
+		fontSize: opts.fontSize,
+	};
 }
 
 class InternalEditorOptionsHelper {
@@ -70,7 +173,7 @@ class InternalEditorOptionsHelper {
 	public static createInternalEditorOptions(
 		outerWidth:number,
 		outerHeight:number,
-		opts:EditorCommon.IEditorOptions,
+		opts:editorCommon.IEditorOptions,
 		editorClassName:string,
 		requestedFontFamily:string,
 		requestedFontSize:number,
@@ -79,8 +182,8 @@ class InternalEditorOptionsHelper {
 		themeOpts: ICSSConfig,
 		isDominatedByLongLines:boolean,
 		lineCount: number,
-		indentationOptions: EditorCommon.IInternalIndentationOptions
-	): EditorCommon.IInternalEditorOptions {
+		indentationOptions: editorCommon.IInternalIndentationOptions
+	): editorCommon.IInternalEditorOptions {
 
 		let wrappingColumn = toInteger(opts.wrappingColumn, -1);
 
@@ -109,6 +212,9 @@ class InternalEditorOptionsHelper {
 		let lineNumbers = opts.lineNumbers;
 		let lineNumbersMinChars = toInteger(opts.lineNumbersMinChars, 1);
 		let lineDecorationsWidth = toInteger(opts.lineDecorationsWidth, 0);
+		if (opts.folding) {
+			lineDecorationsWidth += 16;
+		}
 		let layoutInfo = EditorLayoutProvider.compute({
 			outerWidth: outerWidth,
 			outerHeight: outerHeight,
@@ -132,7 +238,7 @@ class InternalEditorOptionsHelper {
 			wrappingColumn = 0;
 		}
 
-		let wrappingInfo: EditorCommon.IEditorWrappingInfo;
+		let wrappingInfo: editorCommon.IEditorWrappingInfo;
 
 		if (wrappingColumn === 0) {
 			// If viewport width wrapping is enabled
@@ -174,6 +280,7 @@ class InternalEditorOptionsHelper {
 			cursorBlinking: opts.cursorBlinking,
 			experimentalScreenReader: toBoolean(opts.experimentalScreenReader),
 			rulers: toSortedIntegerArray(opts.rulers),
+			wordSeparators: String(opts.wordSeparators),
 			ariaLabel: String(opts.ariaLabel),
 			cursorStyle: opts.cursorStyle,
 			fontLigatures: toBoolean(opts.fontLigatures),
@@ -200,6 +307,7 @@ class InternalEditorOptionsHelper {
 			selectionHighlight: toBoolean(opts.selectionHighlight),
 			outlineMarkers: toBoolean(opts.outlineMarkers),
 			referenceInfos: toBoolean(opts.referenceInfos),
+			folding: toBoolean(opts.folding),
 			renderWhitespace: toBoolean(opts.renderWhitespace),
 
 			layoutInfo: layoutInfo,
@@ -226,7 +334,7 @@ class InternalEditorOptionsHelper {
 		};
 	}
 
-	private static _sanitizeScrollbarOpts(raw:EditorCommon.IEditorScrollbarOptions, mouseWheelScrollSensitivity:number): EditorCommon.IInternalEditorScrollbarOptions {
+	private static _sanitizeScrollbarOpts(raw:editorCommon.IEditorScrollbarOptions, mouseWheelScrollSensitivity:number): editorCommon.IInternalEditorScrollbarOptions {
 		let horizontalScrollbarSize = toIntegerWithDefault(raw.horizontalScrollbarSize, 10);
 		let verticalScrollbarSize = toIntegerWithDefault(raw.verticalScrollbarSize, 14);
 		return {
@@ -250,10 +358,11 @@ class InternalEditorOptionsHelper {
 		};
 	}
 
-	public static createConfigurationChangedEvent(prevOpts:EditorCommon.IInternalEditorOptions, newOpts:EditorCommon.IInternalEditorOptions): EditorCommon.IConfigurationChangedEvent {
+	public static createConfigurationChangedEvent(prevOpts:editorCommon.IInternalEditorOptions, newOpts:editorCommon.IInternalEditorOptions): editorCommon.IConfigurationChangedEvent {
 		return {
 			experimentalScreenReader:		(prevOpts.experimentalScreenReader !== newOpts.experimentalScreenReader),
 			rulers:							(!this._numberArraysEqual(prevOpts.rulers, newOpts.rulers)),
+			wordSeparators:					(prevOpts.wordSeparators !== newOpts.wordSeparators),
 			ariaLabel:						(prevOpts.ariaLabel !== newOpts.ariaLabel),
 
 			lineNumbers:					(prevOpts.lineNumbers !== newOpts.lineNumbers),
@@ -291,6 +400,7 @@ class InternalEditorOptionsHelper {
 			selectionHighlight:				(prevOpts.selectionHighlight !== newOpts.selectionHighlight),
 			outlineMarkers:					(prevOpts.outlineMarkers !== newOpts.outlineMarkers),
 			referenceInfos:					(prevOpts.referenceInfos !== newOpts.referenceInfos),
+			folding:						(prevOpts.folding !== newOpts.folding),
 			renderWhitespace:				(prevOpts.renderWhitespace !== newOpts.renderWhitespace),
 
 			layoutInfo: 					(!EditorLayoutProvider.layoutEqual(prevOpts.layoutInfo, newOpts.layoutInfo)),
@@ -307,7 +417,7 @@ class InternalEditorOptionsHelper {
 		};
 	}
 
-	private static _scrollbarOptsEqual(a:EditorCommon.IInternalEditorScrollbarOptions, b:EditorCommon.IInternalEditorScrollbarOptions): boolean {
+	private static _scrollbarOptsEqual(a:editorCommon.IInternalEditorScrollbarOptions, b:editorCommon.IInternalEditorScrollbarOptions): boolean {
 		return (
 			a.arrowSize === b.arrowSize
 			&& a.vertical === b.vertical
@@ -324,7 +434,7 @@ class InternalEditorOptionsHelper {
 		);
 	}
 
-	private static _stylingInfoEqual(a:EditorCommon.IEditorStyling, b:EditorCommon.IEditorStyling): boolean {
+	private static _stylingInfoEqual(a:editorCommon.IEditorStyling, b:editorCommon.IEditorStyling): boolean {
 		return (
 			a.editorClassName === b.editorClassName
 			&& a.fontFamily === b.fontFamily
@@ -333,14 +443,14 @@ class InternalEditorOptionsHelper {
 		);
 	}
 
-	private static _wrappingInfoEqual(a:EditorCommon.IEditorWrappingInfo, b:EditorCommon.IEditorWrappingInfo): boolean {
+	private static _wrappingInfoEqual(a:editorCommon.IEditorWrappingInfo, b:editorCommon.IEditorWrappingInfo): boolean {
 		return (
 			a.isViewportWrapping === b.isViewportWrapping
 			&& a.wrappingColumn === b.wrappingColumn
 		);
 	}
 
-	private static _indentInfoEqual(a:EditorCommon.IInternalIndentationOptions, b:EditorCommon.IInternalIndentationOptions): boolean {
+	private static _indentInfoEqual(a:editorCommon.IInternalIndentationOptions, b:editorCommon.IInternalIndentationOptions): boolean {
 		return (
 			a.insertSpaces === b.insertSpaces
 			&& a.tabSize === b.tabSize
@@ -437,27 +547,38 @@ interface IValidatedIndentationOptions {
 }
 
 export interface IIndentationGuesser {
-	(tabSize:number): EditorCommon.IGuessedIndentation;
+	(tabSize:number): editorCommon.IGuessedIndentation;
 }
 
-export abstract class CommonEditorConfiguration extends Disposable implements EditorCommon.IConfiguration {
+export interface IElementSizeObserver {
+	startObserving(): void;
+	observe(dimension?:editorCommon.IDimension): void;
+	dispose(): void;
+	getWidth(): number;
+	getHeight(): number;
+}
 
-	public handlerDispatcher:EditorCommon.IHandlerDispatcher;
-	public editor:EditorCommon.IInternalEditorOptions;
+export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
+
+	public handlerDispatcher:editorCommon.IHandlerDispatcher;
+	public editor:editorCommon.IInternalEditorOptions;
+	public editorClone:editorCommon.IInternalEditorOptions;
 
 	protected _configWithDefaults:ConfigurationWithDefaults;
+	protected _elementSizeObserver: IElementSizeObserver;
 	private _indentationGuesser:IIndentationGuesser;
 	private _cachedGuessedIndentationTabSize: number;
-	private _cachedGuessedIndentation:EditorCommon.IGuessedIndentation;
+	private _cachedGuessedIndentation:editorCommon.IGuessedIndentation;
 	private _isDominatedByLongLines:boolean;
 	private _lineCount:number;
 
-	private _onDidChange = this._register(new Emitter<EditorCommon.IConfigurationChangedEvent>());
-	public onDidChange: Event<EditorCommon.IConfigurationChangedEvent> = this._onDidChange.event;
+	private _onDidChange = this._register(new Emitter<editorCommon.IConfigurationChangedEvent>());
+	public onDidChange: Event<editorCommon.IConfigurationChangedEvent> = this._onDidChange.event;
 
-	constructor(options:any, indentationGuesser:IIndentationGuesser = null) {
+	constructor(options:any, elementSizeObserver: IElementSizeObserver = null, indentationGuesser:IIndentationGuesser = null) {
 		super();
 		this._configWithDefaults = new ConfigurationWithDefaults(options);
+		this._elementSizeObserver = elementSizeObserver;
 		this._indentationGuesser = indentationGuesser;
 		this._cachedGuessedIndentationTabSize = -1;
 		this._cachedGuessedIndentation = null;
@@ -467,6 +588,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements Ed
 		this.handlerDispatcher = new HandlerDispatcher();
 
 		this.editor = this._computeInternalOptions();
+		this.editorClone = cloneInternalEditorOptions(this.editor);
 	}
 
 	public dispose(): void {
@@ -476,6 +598,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements Ed
 	protected _recomputeOptions(): void {
 		let oldOpts = this.editor;
 		this.editor = this._computeInternalOptions();
+		this.editorClone = cloneInternalEditorOptions(this.editor);
 
 		let changeEvent = InternalEditorOptionsHelper.createConfigurationChangedEvent(oldOpts, this.editor);
 
@@ -494,11 +617,11 @@ export abstract class CommonEditorConfiguration extends Disposable implements Ed
 		}
 	}
 
-	public getRawOptions(): EditorCommon.IEditorOptions {
+	public getRawOptions(): editorCommon.IEditorOptions {
 		return this._configWithDefaults.getEditorOptions();
 	}
 
-	private _computeInternalOptions(): EditorCommon.IInternalEditorOptions {
+	private _computeInternalOptions(): editorCommon.IInternalEditorOptions {
 		let opts = this._configWithDefaults.getEditorOptions();
 
 		let editorClassName = this._getEditorClassName(opts.theme, toBoolean(opts.fontLigatures));
@@ -529,7 +652,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements Ed
 		);
 	}
 
-	public updateOptions(newOptions:EditorCommon.IEditorOptions): void {
+	public updateOptions(newOptions:editorCommon.IEditorOptions): void {
 		this._configWithDefaults.updateOptions(newOptions);
 		this._recomputeOptions();
 	}
@@ -550,7 +673,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements Ed
 		this._recomputeOptions();
 	}
 
-	private _guessIndentationOptionsCached(tabSize:number): EditorCommon.IGuessedIndentation {
+	private _guessIndentationOptionsCached(tabSize:number): editorCommon.IGuessedIndentation {
 		if (!this._cachedGuessedIndentation || this._cachedGuessedIndentationTabSize !== tabSize) {
 			this._cachedGuessedIndentationTabSize = tabSize;
 
@@ -563,7 +686,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements Ed
 		return this._cachedGuessedIndentation;
 	}
 
-	private static _getValidatedIndentationOptions(opts: EditorCommon.IEditorOptions): IValidatedIndentationOptions {
+	private static _getValidatedIndentationOptions(opts: editorCommon.IEditorOptions): IValidatedIndentationOptions {
 		let r: IValidatedIndentationOptions = {
 			tabSizeIsAuto: false,
 			tabSize: 4,
@@ -586,16 +709,16 @@ export abstract class CommonEditorConfiguration extends Disposable implements Ed
 		return r;
 	}
 
-	private static _computeIndentationOptions(allOpts: EditorCommon.IEditorOptions, indentationGuesser:IIndentationGuesser): EditorCommon.IInternalIndentationOptions {
+	private static _computeIndentationOptions(allOpts: editorCommon.IEditorOptions, indentationGuesser:IIndentationGuesser): editorCommon.IInternalIndentationOptions {
 		let opts = this._getValidatedIndentationOptions(allOpts);
 
-		let guessedIndentation:EditorCommon.IGuessedIndentation = null;
+		let guessedIndentation:editorCommon.IGuessedIndentation = null;
 		if (opts.tabSizeIsAuto || opts.insertSpacesIsAuto) {
 			// We must use the indentation guesser to come up with the indentation options
 			guessedIndentation = indentationGuesser(opts.tabSize);
 		}
 
-		let r: EditorCommon.IInternalIndentationOptions = {
+		let r: editorCommon.IInternalIndentationOptions = {
 			insertSpaces: opts.insertSpaces,
 			tabSize: opts.tabSize
 		};
@@ -610,7 +733,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements Ed
 		return r;
 	}
 
-	public getIndentationOptions(): EditorCommon.IInternalIndentationOptions {
+	public getIndentationOptions(): editorCommon.IInternalIndentationOptions {
 		return this.editor.indentInfo;
 	}
 
@@ -644,7 +767,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements Ed
 	}
 
 	public normalizeIndentation(str:string): string {
-		let firstNonWhitespaceIndex = Strings.firstNonWhitespaceIndex(str);
+		let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(str);
 		if (firstNonWhitespaceIndex === -1) {
 			firstNonWhitespaceIndex = str.length;
 		}
@@ -683,14 +806,14 @@ export class EditorConfiguration {
 	/**
 	 * Ask the provided configuration service to apply its configuration to the provided editor.
 	 */
-	public static apply(config:any, editor?:EditorCommon.IEditor): void;
-	public static apply(config:any, editor?:EditorCommon.IEditor[]): void;
+	public static apply(config:any, editor?:editorCommon.IEditor): void;
+	public static apply(config:any, editor?:editorCommon.IEditor[]): void;
 	public static apply(config:any, editorOrArray?:any): void {
 		if (!config) {
 			return;
 		}
 
-		let editors:EditorCommon.IEditor[] = editorOrArray;
+		let editors:editorCommon.IEditor[] = editorOrArray;
 		if (!Array.isArray(editorOrArray)) {
 			editors = [editorOrArray];
 		}
@@ -701,18 +824,18 @@ export class EditorConfiguration {
 			// Editor Settings (Code Editor, Diff, Terminal)
 			if (editor && typeof editor.updateOptions === 'function') {
 				let type = editor.getEditorType();
-				if (type !== EditorCommon.EditorType.ICodeEditor && type !== EditorCommon.EditorType.IDiffEditor) {
+				if (type !== editorCommon.EditorType.ICodeEditor && type !== editorCommon.EditorType.IDiffEditor) {
 					continue;
 				}
 
 				let editorConfig = config[EditorConfiguration.EDITOR_SECTION];
-				if (type === EditorCommon.EditorType.IDiffEditor) {
+				if (type === editorCommon.EditorType.IDiffEditor) {
 					let diffEditorConfig = config[EditorConfiguration.DIFF_EDITOR_SECTION];
 					if (diffEditorConfig) {
 						if (!editorConfig) {
 							editorConfig = diffEditorConfig;
 						} else {
-							editorConfig = Objects.mixin(editorConfig, diffEditorConfig);
+							editorConfig = objects.mixin(editorConfig, diffEditorConfig);
 						}
 					}
 				}
@@ -726,7 +849,7 @@ export class EditorConfiguration {
 	}
 }
 
-let configurationRegistry = <ConfigurationRegistry.IConfigurationRegistry>Registry.as(ConfigurationRegistry.Extensions.Configuration);
+let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': 'editor',
 	'order': 5,
@@ -765,6 +888,11 @@ configurationRegistry.registerConfiguration({
 			},
 			'default': DefaultConfig.editor.rulers,
 			'description': nls.localize('rulers', "Columns at which to show vertical rulers")
+		},
+		'editor.wordSeparators' : {
+			'type': 'string',
+			'default': DefaultConfig.editor.wordSeparators,
+			'description': nls.localize('wordSeparators', "Characters that will be used as word separators when doing word related navigations or operations")
 		},
 		'editor.tabSize' : {
 			'oneOf': [
@@ -892,6 +1020,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': DefaultConfig.editor.referenceInfos,
 			'description': nls.localize('referenceInfos', "Controls if the editor shows reference information for the modes that support it")
+		},
+		'editor.folding' : {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.folding,
+			'description': nls.localize('folding', "Controls whether the editor has code folding enabled")
 		},
 		'diffEditor.renderSideBySide' : {
 			'type': 'boolean',

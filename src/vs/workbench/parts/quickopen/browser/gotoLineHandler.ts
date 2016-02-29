@@ -10,8 +10,7 @@ import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import {IContext, Mode, IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import {Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
-import {Extensions as QuickOpenExtensions, QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
+import {QuickOpenHandler, EditorQuickOpenEntry} from 'vs/workbench/browser/quickopen';
 import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
 import {TextEditorOptions, EditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
@@ -174,6 +173,10 @@ export class GotoLineHandler extends QuickOpenHandler {
 
 	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super();
+	}
+
+	public getAriaLabel(): string {
+		return nls.localize('gotoLineHandlerAriaLabel', "Type a line number to navigate to.");
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {

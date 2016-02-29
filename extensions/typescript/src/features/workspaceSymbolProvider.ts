@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { workspace, Uri, WorkspaceSymbolProvider, SymbolInformation, SymbolKind, TextDocument, Position, Range, CancellationToken } from 'vscode';
+import { workspace, Uri, WorkspaceSymbolProvider, SymbolInformation, SymbolKind, Range, CancellationToken } from 'vscode';
 
 import * as Proto  from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -21,7 +21,7 @@ _kindMapping['var'] = SymbolKind.Variable;
 export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbolProvider {
 
 	private client: ITypescriptServiceClient;
-	private modeId: string
+	private modeId: string;
 
 	public constructor(client: ITypescriptServiceClient, modeId: string) {
 		this.client = client;

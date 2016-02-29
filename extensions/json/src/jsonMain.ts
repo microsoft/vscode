@@ -6,8 +6,8 @@
 
 import * as path from 'path';
 
-import {workspace, languages, Disposable, ExtensionContext, extensions, Uri} from 'vscode';
-import {LanguageClient, LanguageClientOptions, RequestType, SettingMonitor, ServerOptions, TransportKind, NotificationType} from 'vscode-languageclient';
+import {workspace, languages, ExtensionContext, extensions, Uri} from 'vscode';
+import {LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType} from 'vscode-languageclient';
 
 namespace TelemetryNotification {
 	export const type: NotificationType<{ key: string, data: any }> = { get method() { return 'telemetry'; } };
@@ -30,14 +30,14 @@ export function activate(context: ExtensionContext) {
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'server.js'));
 	// The debug options for the server
-	let debugOptions = { execArgv: ["--nolazy", "--debug=6004"] };
+	let debugOptions = { execArgv: ['--nolazy', '--debug=6004'] };
 
 	// If the extension is launch in debug mode the debug server options are use
 	// Otherwise the run options are used
 	let serverOptions: ServerOptions = {
 		run: { module: serverModule, transport: TransportKind.ipc },
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
-	}
+	};
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
@@ -48,7 +48,7 @@ export function activate(context: ExtensionContext) {
 			configurationSection: ['json.schemas', 'http.proxy', 'http.proxyStrictSSL'],
 			fileEvents: workspace.createFileSystemWatcher('**/.json')
 		}
-	}
+	};
 
 	// Create the language client and start the client.
 	let client = new LanguageClient('JSON Server', serverOptions, clientOptions);
@@ -62,7 +62,7 @@ export function activate(context: ExtensionContext) {
 		return workspace.openTextDocument(uri).then(doc => {
 			return doc.getText();
 		}, error => {
-			return Promise.reject(error)
+			return Promise.reject(error);
 		});
 	});
 
@@ -75,7 +75,17 @@ export function activate(context: ExtensionContext) {
 	context.subscriptions.push(disposable);
 
 	languages.setLanguageConfiguration('json', {
-		wordPattern: /(-?\d*\.\d\w*)|([^\[\{\]\}\:\"\,\s]+)/g
+		wordPattern: /(-?\d*\.\d\w*)|([^\[\{\]\}\:\"\,\s]+)/g,
+		__characterPairSupport: {
+			autoClosingPairs: [
+				{ open: '{', close: '}' },
+				{ open: '[', close: ']' },
+				{ open: '(', close: ')' },
+				{ open: '"', close: '"', notIn: ['string'] },
+				{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+				{ open: '`', close: '`', notIn: ['string', 'comment'] }
+			]
+		}
 	});
 }
 

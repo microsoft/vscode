@@ -11,15 +11,6 @@ import pfs = require('vs/base/node/pfs');
 import { Repository, GitError } from 'vs/workbench/parts/git/node/git.lib';
 import { IRawGitService, RawServiceState, IRawStatus, IHead, GitErrorCodes, IPushOptions } from 'vs/workbench/parts/git/common/git';
 
-function pathsAreEqual(p1: string, p2: string): boolean {
-	if (/^(win32|darwin)$/.test(process.platform)) {
-		p1 = p1.toLowerCase();
-		p2 = p2.toLowerCase();
-	}
-
-	return p1 === p2;
-}
-
 export class RawGitService implements IRawGitService {
 
 	private repo: Repository;
@@ -110,7 +101,7 @@ export class RawGitService implements IRawGitService {
 	public fetch(): TPromise<IRawStatus> {
 		return this.repo.fetch().then(null, (err) => {
 			if (err.gitErrorCode === GitErrorCodes.NoRemoteRepositorySpecified) {
-				return Promise.as(null);
+				return TPromise.as(null);
 			}
 
 			return Promise.wrapError(err);
@@ -130,7 +121,7 @@ export class RawGitService implements IRawGitService {
 	}
 
 	public commit(message:string, amend?: boolean, stage?: boolean): TPromise<IRawStatus> {
-		var promise: Promise = Promise.as(null);
+		var promise: Promise = TPromise.as(null);
 
 		if (stage) {
 			promise = this.repo.add(null);

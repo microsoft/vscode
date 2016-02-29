@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {IDispatcherEvent, IHandler} from 'vs/editor/common/editorCommon';
 
-export class DispatcherEvent implements EditorCommon.IDispatcherEvent {
+export class DispatcherEvent implements IDispatcherEvent {
 
 	private source:string;
 	private data:any;
@@ -26,7 +26,7 @@ export class DispatcherEvent implements EditorCommon.IDispatcherEvent {
 }
 
 interface IHandlersMap {
-	[key:string]:EditorCommon.IHandler;
+	[key:string]:IHandler;
 }
 
 export class HandlerDispatcher {
@@ -36,7 +36,7 @@ export class HandlerDispatcher {
 		this.registry = {};
 	}
 
-	public setHandler(handlerId:string, handlerCallback:EditorCommon.IHandler): void {
+	public setHandler(handlerId:string, handlerCallback:IHandler): void {
 		this.registry[handlerId] = handlerCallback;
 	}
 
@@ -44,7 +44,7 @@ export class HandlerDispatcher {
 		this.registry = {};
 	}
 
-	private getHandler(handlerId:string): EditorCommon.IHandler {
+	private getHandler(handlerId:string): IHandler {
 		return this.registry.hasOwnProperty(handlerId) ? this.registry[handlerId] : null;
 	}
 

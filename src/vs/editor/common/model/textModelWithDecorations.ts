@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import Strings = require('vs/base/common/strings');
-import {IMode} from 'vs/editor/common/modes';
-import {TextModelWithTrackedRanges} from 'vs/editor/common/model/textModelWithTrackedRanges';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {onUnexpectedError} from 'vs/base/common/errors';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import Errors = require('vs/base/common/errors');
+import * as strings from 'vs/base/common/strings';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {IdGenerator} from 'vs/editor/common/core/idGenerator';
 import {Range} from 'vs/editor/common/core/range';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {TextModelWithTrackedRanges} from 'vs/editor/common/model/textModelWithTrackedRanges';
+import {IMode} from 'vs/editor/common/modes';
 
 export class DeferredEventsBuilder {
 
 	public changedMarkers:{[markerId:string]:boolean;};
 
-	public oldDecorationRange:{[decorationId:string]:EditorCommon.IRange;};
-	public oldDecorationOptions:{[decorationId:string]:EditorCommon.IModelDecorationOptions;};
+	public oldDecorationRange:{[decorationId:string]:editorCommon.IRange;};
+	public oldDecorationOptions:{[decorationId:string]:editorCommon.IModelDecorationOptions;};
 
 	public newOrChangedDecorations:{[decorationId:string]:boolean;};
 	public removedDecorations:{[decorationId:string]:boolean;};
@@ -38,7 +38,7 @@ export class DeferredEventsBuilder {
 		this.newOrChangedDecorations[id] = true;
 	}
 
-	public addRemovedDecoration(id:string, ownerId:number, range:EditorCommon.IRange, options:EditorCommon.IModelDecorationOptions): void {
+	public addRemovedDecoration(id:string, ownerId:number, range:editorCommon.IRange, options:editorCommon.IModelDecorationOptions): void {
 		if (this.newOrChangedDecorations.hasOwnProperty(id)) {
 			delete this.newOrChangedDecorations[id];
 		}
@@ -51,14 +51,14 @@ export class DeferredEventsBuilder {
 		this.removedDecorations[id] = true;
 	}
 
-	public addMovedDecoration(id:string, oldRange:EditorCommon.IRange): void {
+	public addMovedDecoration(id:string, oldRange:editorCommon.IRange): void {
 		if (!this.oldDecorationRange.hasOwnProperty(id)) {
 			this.oldDecorationRange[id] = oldRange;
 		}
 		this.newOrChangedDecorations[id] = true;
 	}
 
-	public addUpdatedDecoration(id:string, oldOptions:EditorCommon.IModelDecorationOptions): void {
+	public addUpdatedDecoration(id:string, oldOptions:editorCommon.IModelDecorationOptions): void {
 		if (!this.oldDecorationOptions.hasOwnProperty(id)) {
 			this.oldDecorationOptions[id] = oldOptions;
 		}
@@ -82,22 +82,22 @@ interface IRangeIdToDecorationIdMap {
 }
 
 interface IOldDecoration {
-	range: EditorCommon.IEditorRange;
+	range: editorCommon.IEditorRange;
 	options: ModelDecorationOptions;
 	id: string;
 }
 
 var _INSTANCE_COUNT = 0;
 
-export class TextModelWithDecorations extends TextModelWithTrackedRanges implements EditorCommon.ITextModelWithDecorations {
+export class TextModelWithDecorations extends TextModelWithTrackedRanges implements editorCommon.ITextModelWithDecorations {
 
 	private _currentDeferredEvents:DeferredEventsBuilder;
 	private _decorationIdGenerator: IdGenerator;
 	private decorations:IInternalDecorationsMap;
 	private rangeIdToDecorationId:IRangeIdToDecorationIdMap;
 
-	constructor(allowedEventTypes:string[], rawText:EditorCommon.IRawText, modeOrPromise:IMode|TPromise<IMode>) {
-		allowedEventTypes.push(EditorCommon.EventType.ModelDecorationsChanged);
+	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText, modeOrPromise:IMode|TPromise<IMode>) {
+		allowedEventTypes.push(editorCommon.EventType.ModelDecorationsChanged);
 		super(allowedEventTypes, rawText, modeOrPromise);
 
 		// Initialize decorations
@@ -113,7 +113,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		super.dispose();
 	}
 
-	_resetValue(e:EditorCommon.IModelContentChangedFlushEvent, newValue:string): void {
+	_resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:string): void {
 		super._resetValue(e, newValue);
 
 		// Destroy all my decorations
@@ -121,26 +121,26 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		this.rangeIdToDecorationId = {};
 	}
 
-	public changeDecorations(callback: (changeAccessor:EditorCommon.IModelDecorationsChangeAccessor)=>any, ownerId:number=0): any {
+	public changeDecorations(callback: (changeAccessor:editorCommon.IModelDecorationsChangeAccessor)=>any, ownerId:number=0): any {
 		if (this._isDisposed) {
 			throw new Error('TextModelWithDecorations.changeDecorations: Model is disposed');
 		}
 
 		return this._withDeferredEvents((deferredEventsBuilder:DeferredEventsBuilder) => {
-			var changeAccessor:EditorCommon.IModelDecorationsChangeAccessor = {
-				addDecoration: (range:EditorCommon.IRange, options:EditorCommon.IModelDecorationOptions): string => {
+			var changeAccessor:editorCommon.IModelDecorationsChangeAccessor = {
+				addDecoration: (range:editorCommon.IRange, options:editorCommon.IModelDecorationOptions): string => {
 					return this._addDecorationImpl(deferredEventsBuilder, ownerId, this.validateRange(range), _normalizeOptions(options));
 				},
-				changeDecoration: (id:string, newRange:EditorCommon.IRange): void => {
+				changeDecoration: (id:string, newRange:editorCommon.IRange): void => {
 					this._changeDecorationImpl(deferredEventsBuilder, id, this.validateRange(newRange));
 				},
-				changeDecorationOptions: (id: string, options:EditorCommon.IModelDecorationOptions) => {
+				changeDecorationOptions: (id: string, options:editorCommon.IModelDecorationOptions) => {
 					this._changeDecorationOptionsImpl(deferredEventsBuilder, id, _normalizeOptions(options));
 				},
 				removeDecoration: (id:string): void => {
 					this._removeDecorationImpl(deferredEventsBuilder, id);
 				},
-				deltaDecorations: (oldDecorations:string[], newDecorations:EditorCommon.IModelDeltaDecoration[]): string[] => {
+				deltaDecorations: (oldDecorations:string[], newDecorations:editorCommon.IModelDeltaDecoration[]): string[] => {
 					return this._deltaDecorationsImpl(deferredEventsBuilder, ownerId, oldDecorations, this._normalizeDeltaDecorations(newDecorations));
 				}
 			};
@@ -148,7 +148,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 			try {
 				result = callback(changeAccessor);
 			} catch (e) {
-				Errors.onUnexpectedError(e);
+				onUnexpectedError(e);
 			}
 			// Invalidate change accessor
 			changeAccessor.addDecoration = null;
@@ -159,7 +159,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		});
 	}
 
-	public deltaDecorations(oldDecorations:string[], newDecorations:EditorCommon.IModelDeltaDecoration[], ownerId:number=0): string[] {
+	public deltaDecorations(oldDecorations:string[], newDecorations:editorCommon.IModelDeltaDecoration[], ownerId:number=0): string[] {
 		if (this._isDisposed) {
 			throw new Error('TextModelWithDecorations.deltaDecorations: Model is disposed');
 		}
@@ -194,7 +194,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		this._removeDecorationsImpl(null, toRemove);
 	}
 
-	public getDecorationOptions(decorationId:string): EditorCommon.IModelDecorationOptions {
+	public getDecorationOptions(decorationId:string): editorCommon.IModelDecorationOptions {
 		if (this._isDisposed) {
 			throw new Error('TextModelWithDecorations.getDecorationOptions: Model is disposed');
 		}
@@ -205,7 +205,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		return null;
 	}
 
-	public getDecorationRange(decorationId:string): EditorCommon.IEditorRange {
+	public getDecorationRange(decorationId:string): editorCommon.IEditorRange {
 		if (this._isDisposed) {
 			throw new Error('TextModelWithDecorations.getDecorationRange: Model is disposed');
 		}
@@ -217,7 +217,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		return null;
 	}
 
-	public getLineDecorations(lineNumber:number, ownerId:number=0, filterOutValidation:boolean=false): EditorCommon.IModelDecoration[] {
+	public getLineDecorations(lineNumber:number, ownerId:number=0, filterOutValidation:boolean=false): editorCommon.IModelDecoration[] {
 		if (this._isDisposed) {
 			throw new Error('TextModelWithDecorations.getLineDecorations: Model is disposed');
 		}
@@ -228,12 +228,12 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		return this.getLinesDecorations(lineNumber, lineNumber, ownerId, filterOutValidation);
 	}
 
-	private _getDecorationsInRange(startLineNumber:number, startColumn:number, endLineNumber:number, endColumn:number, ownerId:number, filterOutValidation:boolean): EditorCommon.IModelDecoration[] {
-		var result:EditorCommon.IModelDecoration[] = [],
+	private _getDecorationsInRange(startLineNumber:number, startColumn:number, endLineNumber:number, endColumn:number, ownerId:number, filterOutValidation:boolean): editorCommon.IModelDecoration[] {
+		var result:editorCommon.IModelDecoration[] = [],
 			decoration:IInternalDecoration,
 			lineRanges = this.getLinesTrackedRanges(startLineNumber, endLineNumber),
 			i:number,
-			lineRange: EditorCommon.IModelTrackedRange,
+			lineRange: editorCommon.IModelTrackedRange,
 			len:number;
 
 		for (i = 0, len = lineRanges.length; i < len; i++) {
@@ -248,7 +248,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 				}
 
 				if (filterOutValidation) {
-					if (decoration.options.className === EditorCommon.ClassName.EditorErrorDecoration || decoration.options.className === EditorCommon.ClassName.EditorWarningDecoration) {
+					if (decoration.options.className === editorCommon.ClassName.EditorErrorDecoration || decoration.options.className === editorCommon.ClassName.EditorWarningDecoration) {
 						continue;
 					}
 				}
@@ -273,7 +273,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		return result;
 	}
 
-	public getLinesDecorations(startLineNumber: number, endLineNumber: number, ownerId:number=0, filterOutValidation:boolean=false): EditorCommon.IModelDecoration[] {
+	public getLinesDecorations(startLineNumber: number, endLineNumber: number, ownerId:number=0, filterOutValidation:boolean=false): editorCommon.IModelDecoration[] {
 		if (this._isDisposed) {
 			throw new Error('TextModelWithDecorations.getLinesDecorations: Model is disposed');
 		}
@@ -284,7 +284,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		return this._getDecorationsInRange(startLineNumber, 1, endLineNumber, Number.MAX_VALUE, ownerId, filterOutValidation);
 	}
 
-	public getDecorationsInRange(range: EditorCommon.IRange, ownerId?: number, filterOutValidation?: boolean): EditorCommon.IModelDecoration[] {
+	public getDecorationsInRange(range: editorCommon.IRange, ownerId?: number, filterOutValidation?: boolean): editorCommon.IModelDecoration[] {
 		if (this._isDisposed) {
 			throw new Error('TextModelWithDecorations.getDecorationsInRange: Model is disposed');
 		}
@@ -293,12 +293,12 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		return this._getDecorationsInRange(validatedRange.startLineNumber, validatedRange.startColumn, validatedRange.endLineNumber, validatedRange.endColumn, ownerId, filterOutValidation);
 	}
 
-	public getAllDecorations(ownerId:number=0, filterOutValidation:boolean=false): EditorCommon.IModelDecoration[] {
+	public getAllDecorations(ownerId:number=0, filterOutValidation:boolean=false): editorCommon.IModelDecoration[] {
 		if (this._isDisposed) {
 			throw new Error('TextModelWithDecorations.getAllDecorations: Model is disposed');
 		}
 
-		var result:EditorCommon.IModelDecoration[] = [];
+		var result:editorCommon.IModelDecoration[] = [];
 		var decorationId:string;
 		var decoration:IInternalDecoration;
 
@@ -311,7 +311,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 				}
 
 				if (filterOutValidation) {
-					if (decoration.options.className === EditorCommon.ClassName.EditorErrorDecoration || decoration.options.className === EditorCommon.ClassName.EditorWarningDecoration) {
+					if (decoration.options.className === editorCommon.ClassName.EditorErrorDecoration || decoration.options.className === editorCommon.ClassName.EditorWarningDecoration) {
 						continue;
 					}
 				}
@@ -369,7 +369,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		}
 	}
 
-	private _onChangedRanges(eventBuilder:DeferredEventsBuilder, changedRanges:EditorCommon.IChangedTrackedRanges): void {
+	private _onChangedRanges(eventBuilder:DeferredEventsBuilder, changedRanges:editorCommon.IChangedTrackedRanges): void {
 		var rangeId:string;
 		var decorationId:string;
 
@@ -384,17 +384,17 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 
 	private _handleCollectedDecorationsEvents(b:DeferredEventsBuilder): void {
 		var decorationId:string,
-			addedOrChangedDecorations:EditorCommon.IModelDecorationsChangedEvent_DecorationData[] = [],
+			addedOrChangedDecorations:editorCommon.IModelDecorationsChangedEventDecorationData[] = [],
 			removedDecorations:string[] = [],
 			decorationIds:string[] = [],
-			decorationData:EditorCommon.IModelDecorationsChangedEvent_DecorationData,
-			oldRange:EditorCommon.IRange;
+			decorationData:editorCommon.IModelDecorationsChangedEventDecorationData,
+			oldRange:editorCommon.IRange;
 
 		for (decorationId in b.newOrChangedDecorations) {
 			if (b.newOrChangedDecorations.hasOwnProperty(decorationId)) {
 				decorationIds.push(decorationId);
 				decorationData = this._getDecorationData(decorationId);
-				decorationData.isForValidation = (decorationData.options.className === EditorCommon.ClassName.EditorErrorDecoration || decorationData.options.className === EditorCommon.ClassName.EditorWarningDecoration);
+				decorationData.isForValidation = (decorationData.options.className === editorCommon.ClassName.EditorErrorDecoration || decorationData.options.className === editorCommon.ClassName.EditorWarningDecoration);
 				addedOrChangedDecorations.push(decorationData);
 				if (b.oldDecorationRange.hasOwnProperty(decorationId)) {
 					oldRange = b.oldDecorationRange[decorationId];
@@ -414,7 +414,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		}
 
 		if (decorationIds.length > 0) {
-			var e:EditorCommon.IModelDecorationsChangedEvent = {
+			var e:editorCommon.IModelDecorationsChangedEvent = {
 				ids: decorationIds,
 				addedOrChangedDecorations: addedOrChangedDecorations,
 				removedDecorations: removedDecorations,
@@ -425,7 +425,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		}
 	}
 
-	private _getDecorationData(decorationId:string): EditorCommon.IModelDecorationsChangedEvent_DecorationData {
+	private _getDecorationData(decorationId:string): editorCommon.IModelDecorationsChangedEventDecorationData {
 		var decoration = this.decorations[decorationId];
 		return {
 			id: decoration.id,
@@ -436,22 +436,22 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		};
 	}
 
-	private emitModelDecorationsChangedEvent(e:EditorCommon.IModelDecorationsChangedEvent): void {
+	private emitModelDecorationsChangedEvent(e:editorCommon.IModelDecorationsChangedEvent): void {
 		if (!this._isDisposing) {
-			this.emit(EditorCommon.EventType.ModelDecorationsChanged, e);
+			this.emit(editorCommon.EventType.ModelDecorationsChanged, e);
 		}
 	}
 
-	private _normalizeDeltaDecorations(deltaDecorations:EditorCommon.IModelDeltaDecoration[]): ModelDeltaDecoration[] {
+	private _normalizeDeltaDecorations(deltaDecorations:editorCommon.IModelDeltaDecoration[]): ModelDeltaDecoration[] {
 		let result:ModelDeltaDecoration[] = [];
 		for (let i = 0, len = deltaDecorations.length; i < len; i++) {
 			let deltaDecoration = deltaDecorations[i];
-			result.push(new ModelDeltaDecoration(i, this.validateRange(deltaDecoration.range), _normalizeOptions(deltaDecoration.options)))
+			result.push(new ModelDeltaDecoration(i, this.validateRange(deltaDecoration.range), _normalizeOptions(deltaDecoration.options)));
 		}
 		return result;
 	}
 
-	private _addDecorationImpl(eventBuilder:DeferredEventsBuilder, ownerId:number, range:EditorCommon.IEditorRange, options:ModelDecorationOptions): string {
+	private _addDecorationImpl(eventBuilder:DeferredEventsBuilder, ownerId:number, range:editorCommon.IEditorRange, options:ModelDecorationOptions): string {
 		var rangeId = this.addTrackedRange(range, options.stickiness);
 
 		var decoration = new ModelInternalDecoration(this._decorationIdGenerator.generate(), ownerId, rangeId, options);
@@ -484,7 +484,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		return result;
 	}
 
-	private _changeDecorationImpl(eventBuilder:DeferredEventsBuilder, id:string, newRange:EditorCommon.IEditorRange): void {
+	private _changeDecorationImpl(eventBuilder:DeferredEventsBuilder, id:string, newRange:editorCommon.IEditorRange): void {
 		if (this.decorations.hasOwnProperty(id)) {
 			var decoration = this.decorations[id];
 			var oldRange = this.getTrackedRange(decoration.rangeId);
@@ -513,7 +513,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	private _removeDecorationImpl(eventBuilder:DeferredEventsBuilder, id:string): void {
 		if (this.decorations.hasOwnProperty(id)) {
 			var decoration = this.decorations[id];
-			var oldRange:EditorCommon.IEditorRange = null;
+			var oldRange:editorCommon.IEditorRange = null;
 			if (eventBuilder) {
 				oldRange = this.getTrackedRange(decoration.rangeId);
 			}
@@ -681,29 +681,29 @@ class ModelInternalDecoration implements IInternalDecoration {
 	}
 }
 
-class ModelDecorationOptions implements EditorCommon.IModelDecorationOptions {
+class ModelDecorationOptions implements editorCommon.IModelDecorationOptions {
 
-	stickiness:EditorCommon.TrackedRangeStickiness;
+	stickiness:editorCommon.TrackedRangeStickiness;
 	className:string;
 	hoverMessage:string;
 	htmlMessage:IHTMLContentElement[];
 	isWholeLine:boolean;
 	showInOverviewRuler:string;
-	overviewRuler:EditorCommon.IModelDecorationOverviewRulerOptions;
+	overviewRuler:editorCommon.IModelDecorationOverviewRulerOptions;
 	glyphMarginClassName:string;
 	linesDecorationsClassName:string;
 	inlineClassName:string;
 
-	constructor(options:EditorCommon.IModelDecorationOptions) {
-		this.stickiness = options.stickiness||EditorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
-		this.className = cleanClassName(options.className||Strings.empty);
-		this.hoverMessage = options.hoverMessage||Strings.empty;
+	constructor(options:editorCommon.IModelDecorationOptions) {
+		this.stickiness = options.stickiness||editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
+		this.className = cleanClassName(options.className||strings.empty);
+		this.hoverMessage = options.hoverMessage||strings.empty;
 		this.htmlMessage = options.htmlMessage||[];
 		this.isWholeLine = options.isWholeLine||false;
 		this.overviewRuler = _normalizeOverviewRulerOptions(options.overviewRuler, options.showInOverviewRuler);
-		this.glyphMarginClassName = cleanClassName(options.glyphMarginClassName||Strings.empty);
-		this.linesDecorationsClassName = cleanClassName(options.linesDecorationsClassName||Strings.empty);
-		this.inlineClassName = cleanClassName(options.inlineClassName||Strings.empty);
+		this.glyphMarginClassName = cleanClassName(options.glyphMarginClassName||strings.empty);
+		this.linesDecorationsClassName = cleanClassName(options.linesDecorationsClassName||strings.empty);
+		this.inlineClassName = cleanClassName(options.inlineClassName||strings.empty);
 	}
 
 	private static _htmlContentEquals(a:IHTMLContentElement, b:IHTMLContentElement): boolean {
@@ -743,7 +743,7 @@ class ModelDecorationOptions implements EditorCommon.IModelDecorationOptions {
 		return true;
 	}
 
-	private static _overviewRulerEquals(a:EditorCommon.IModelDecorationOverviewRulerOptions, b:EditorCommon.IModelDecorationOverviewRulerOptions): boolean {
+	private static _overviewRulerEquals(a:editorCommon.IModelDecorationOverviewRulerOptions, b:editorCommon.IModelDecorationOverviewRulerOptions): boolean {
 		return (
 			a.color === b.color
 			&& a.position === b.position
@@ -767,32 +767,32 @@ class ModelDecorationOptions implements EditorCommon.IModelDecorationOptions {
 	}
 }
 
-class ModelDeltaDecoration implements EditorCommon.IModelDeltaDecoration {
+class ModelDeltaDecoration implements editorCommon.IModelDeltaDecoration {
 
 	index: number;
-	range: EditorCommon.IEditorRange;
+	range: editorCommon.IEditorRange;
 	options: ModelDecorationOptions;
 
-	constructor(index: number, range: EditorCommon.IEditorRange, options: ModelDecorationOptions) {
+	constructor(index: number, range: editorCommon.IEditorRange, options: ModelDecorationOptions) {
 		this.index = index;
 		this.range = range;
 		this.options = options;
 	}
 }
 
-function _normalizeOptions(options:EditorCommon.IModelDecorationOptions): ModelDecorationOptions {
+function _normalizeOptions(options:editorCommon.IModelDecorationOptions): ModelDecorationOptions {
 	return new ModelDecorationOptions(options);
 }
 
-class ModelDecorationOverviewRulerOptions implements EditorCommon.IModelDecorationOverviewRulerOptions {
+class ModelDecorationOverviewRulerOptions implements editorCommon.IModelDecorationOverviewRulerOptions {
 	color: string;
 	darkColor: string;
-	position: EditorCommon.OverviewRulerLane;
+	position: editorCommon.OverviewRulerLane;
 
-	constructor(options:EditorCommon.IModelDecorationOverviewRulerOptions, legacyShowInOverviewRuler:string) {
-		this.color = Strings.empty;
-		this.darkColor = Strings.empty;
-		this.position = EditorCommon.OverviewRulerLane.Center;
+	constructor(options:editorCommon.IModelDecorationOverviewRulerOptions, legacyShowInOverviewRuler:string) {
+		this.color = strings.empty;
+		this.darkColor = strings.empty;
+		this.position = editorCommon.OverviewRulerLane.Center;
 
 		if (legacyShowInOverviewRuler) {
 			this.color = legacyShowInOverviewRuler;
@@ -809,6 +809,6 @@ class ModelDecorationOverviewRulerOptions implements EditorCommon.IModelDecorati
 	}
 }
 
-function _normalizeOverviewRulerOptions(options:EditorCommon.IModelDecorationOverviewRulerOptions, legacyShowInOverviewRuler: string = null): EditorCommon.IModelDecorationOverviewRulerOptions {
+function _normalizeOverviewRulerOptions(options:editorCommon.IModelDecorationOverviewRulerOptions, legacyShowInOverviewRuler: string = null): editorCommon.IModelDecorationOverviewRulerOptions {
 	return new ModelDecorationOverviewRulerOptions(options, legacyShowInOverviewRuler);
 }

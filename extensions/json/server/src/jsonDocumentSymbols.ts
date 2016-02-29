@@ -5,7 +5,6 @@
 'use strict';
 
 import Parser = require('./jsonParser');
-import SchemaService = require('./jsonSchemaService');
 import Strings = require('./utils/strings');
 
 import {SymbolInformation, SymbolKind, ITextDocument, Range, Location} from 'vscode-languageserver';
@@ -59,7 +58,7 @@ export class JSONDocumentSymbols {
 				});
 			}
 			return result;
-		}
+		};
 		let result = collectOutlineEntries([], root, void 0);
 		return Promise.resolve(result);
 	}

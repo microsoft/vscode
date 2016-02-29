@@ -14,7 +14,7 @@ suite('LanguageSelector', function() {
 	let model = {
 		language: 'farboo',
 		uri: URI.parse('file:///testbed/file.fb')
-	}
+	};
 
 	test('score, invalid selector', function() {
 		assert.equal(score({}, model.uri, model.language), 0);

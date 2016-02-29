@@ -9,7 +9,7 @@ import * as assert from 'assert';
 import { getSelectedChanges, applyChangesToModel } from 'vs/workbench/parts/git/common/stageRanges';
 import { Model } from 'vs/editor/common/model/model';
 import { NullMode } from 'vs/editor/common/modes/nullMode';
-import { IChange, IEditorSelection, } from 'vs/editor/common/editorCommon';
+import { IChange, IEditorSelection, DefaultEndOfLine } from 'vs/editor/common/editorCommon';
 import { Selection } from 'vs/editor/common/core/selection';
 
 function changesEqual(actual: IChange[], expected: IChange[]) {
@@ -142,8 +142,8 @@ suite('Git - Stage ranges', () => {
 	});
 
 	test('Apply changes to model - no changes', () => {
-		var original = new Model('One line that is equal. ', mode);
-		var modified = new Model('One line that is equal. \n Second line is new.', mode);
+		var original = new Model('One line that is equal. ', DefaultEndOfLine.LF, mode);
+		var modified = new Model('One line that is equal. \n Second line is new.', DefaultEndOfLine.LF, mode);
 		var changes: IChange[] = [];
 		var result = applyChangesToModel(original, modified, changes);
 		var expected = original;
@@ -153,8 +153,8 @@ suite('Git - Stage ranges', () => {
 	});
 
 	test('Apply changes to model - one line change at the end', () => {
-		var original = new Model('One line that is equal. ', mode);
-		var modified = new Model('One line that is equal. \n Second line is new.', mode);
+		var original = new Model('One line that is equal. ', DefaultEndOfLine.LF, mode);
+		var modified = new Model('One line that is equal. \n Second line is new.', DefaultEndOfLine.LF, mode);
 		var changes: IChange[] = [];
 		changes.push(createChange(2, 2, 2, 2));
 		var result = applyChangesToModel(original, modified, changes);
@@ -165,8 +165,8 @@ suite('Git - Stage ranges', () => {
 	});
 
 	test('Apply changes to model - one line insertion in the middle', () => {
-		var original = new Model('One line that is equal. \n Last line same. ', mode);
-		var modified = new Model('One line that is equal. \n Second line is new. \n Last line same. ', mode);
+		var original = new Model('One line that is equal. \n Last line same. ', DefaultEndOfLine.LF, mode);
+		var modified = new Model('One line that is equal. \n Second line is new. \n Last line same. ', DefaultEndOfLine.LF, mode);
 		var changes: IChange[] = [];
 		changes.push(createChange(2, 2, 1, 0));
 		var result = applyChangesToModel(original, modified, changes);
@@ -177,8 +177,8 @@ suite('Git - Stage ranges', () => {
 	});
 
 	test('Apply changes to model - three empty lines insertion in the middle', () => {
-		var original = new Model('hello\n there\n isidor\n', mode);
-		var modified = new Model('hello\n there\n \n \n \n isidor\n', mode);
+		var original = new Model('hello\n there\n isidor\n', DefaultEndOfLine.LF, mode);
+		var modified = new Model('hello\n there\n \n \n \n isidor\n', DefaultEndOfLine.LF, mode);
 		var changes: IChange[] = [];
 		changes.push(createChange(3, 5, 2, 0));
 		var result = applyChangesToModel(original, modified, changes);
@@ -189,12 +189,12 @@ suite('Git - Stage ranges', () => {
 	});
 
 	test('Apply changes to model - one line deletion', () => {
-		var original = new Model('One line that is equal. \n Second line is old. \n Third line same. \n Forth line not important', mode);
-		var modified = new Model('One line that is equal. \n Third line same. ', mode);
+		var original = new Model('One line that is equal. \n Second line is old. \n Third line same. \n Forth line not important', DefaultEndOfLine.LF, mode);
+		var modified = new Model('One line that is equal. \n Third line same. ', DefaultEndOfLine.LF, mode);
 		var changes: IChange[] = [];
 		changes.push(createChange(2, 0, 2, 2));
 		var result = applyChangesToModel(original, modified, changes);
-		var expected = new Model('One line that is equal. \n Third line same. \n Forth line not important', mode);
+		var expected = new Model('One line that is equal. \n Third line same. \n Forth line not important', DefaultEndOfLine.LF, mode);
 		assert.equal(result, expected.getValue());
 		original.dispose();
 		modified.dispose();
@@ -202,12 +202,12 @@ suite('Git - Stage ranges', () => {
 	});
 
 	test('Apply changes to model - one multi line change', () => {
-		var original = new Model('One line that is equal. \n Second line is different. \n Third line also different. \n Forth line is same. \n Fifth line is different.', mode);
-		var modified = new Model('One line that is equal. \n 2nd line is different. \n 3rd line also different. \n Forth line is same. \n 5th line is different.', mode);
+		var original = new Model('One line that is equal. \n Second line is different. \n Third line also different. \n Forth line is same. \n Fifth line is different.', DefaultEndOfLine.LF, mode);
+		var modified = new Model('One line that is equal. \n 2nd line is different. \n 3rd line also different. \n Forth line is same. \n 5th line is different.', DefaultEndOfLine.LF, mode);
 		var changes: IChange[] = [];
 		changes.push(createChange(2, 3, 2, 3));
 		var result = applyChangesToModel(original, modified, changes);
-		var expected = new Model('One line that is equal. \n 2nd line is different. \n 3rd line also different. \n Forth line is same. \n Fifth line is different.', mode);
+		var expected = new Model('One line that is equal. \n 2nd line is different. \n 3rd line also different. \n Forth line is same. \n Fifth line is different.', DefaultEndOfLine.LF, mode);
 		assert.equal(result, expected.getValue());
 		original.dispose();
 		modified.dispose();
@@ -215,12 +215,12 @@ suite('Git - Stage ranges', () => {
 	});
 
 	test('Apply changes to model - two overlapping changes', () => {
-		var original = new Model(' One \n Two \n Three \n Four \n Five \n', mode);
-		var modified = new Model(' One \n 2 \n 3 \n 4 \n NotSelected \n', mode);
+		var original = new Model(' One \n Two \n Three \n Four \n Five \n', DefaultEndOfLine.LF, mode);
+		var modified = new Model(' One \n 2 \n 3 \n 4 \n NotSelected \n', DefaultEndOfLine.LF, mode);
 		var changes: IChange[] = [];
 		changes.push(createChange(2, 3, 2, 4), createChange(4, 4, 2, 4));
 		var result = applyChangesToModel(original, modified, changes);
-		var expected = new Model(' One \n 2 \n 3 \n 4 \n Five \n', mode);
+		var expected = new Model(' One \n 2 \n 3 \n 4 \n Five \n', DefaultEndOfLine.LF, mode);
 		assert.equal(result, expected.getValue());
 		original.dispose();
 		modified.dispose();
@@ -228,12 +228,12 @@ suite('Git - Stage ranges', () => {
 	});
 
 	test('Apply changes to model - multiple small changes', () => {
-		var original = new Model(' One \n Two \n Three \n Four \n Five \n Six \n Seven \n Eight \n', mode);
-		var modified = new Model(' One \n 2 \n Three \n 4 \n 5 \n Six \n 7 \n 8 \n', mode);
+		var original = new Model(' One \n Two \n Three \n Four \n Five \n Six \n Seven \n Eight \n', DefaultEndOfLine.LF, mode);
+		var modified = new Model(' One \n 2 \n Three \n 4 \n 5 \n Six \n 7 \n 8 \n', DefaultEndOfLine.LF, mode);
 		var changes: IChange[] = [];
 		changes.push(createChange(1, 2, 1, 2), createChange(5, 5, 5, 5), createChange(7, 8, 7, 8));
 		var result = applyChangesToModel(original, modified, changes);
-		var expected = new Model(' One \n 2 \n Three \n Four \n 5 \n Six \n 7 \n 8 \n', mode);
+		var expected = new Model(' One \n 2 \n Three \n Four \n 5 \n Six \n 7 \n 8 \n', DefaultEndOfLine.LF, mode);
 		assert.equal(result, expected.getValue());
 		original.dispose();
 		modified.dispose();
@@ -241,12 +241,12 @@ suite('Git - Stage ranges', () => {
 	});
 
 	test('Apply changes to model - multiple changes - insertion, deletion and modification', () => {
-		var original = new Model(' One \n Two \n Three \n Four \n Five \n Six \n Seven \n Eight \n Nine \n Ten', mode);
-		var modified = new Model(' 1 \n Three \n 4 \n 5 \n Six \n 7 \n NEWLINE \n Eight ', mode);
+		var original = new Model(' One \n Two \n Three \n Four \n Five \n Six \n Seven \n Eight \n Nine \n Ten', DefaultEndOfLine.LF, mode);
+		var modified = new Model(' 1 \n Three \n 4 \n 5 \n Six \n 7 \n NEWLINE \n Eight ', DefaultEndOfLine.LF, mode);
 		var changes: IChange[] = [];
 		changes.push(createChange(1, 1, 1, 1), createChange(2, 0, 2, 2), createChange(3, 3, 4, 4), createChange(7, 7, 7, 0), createChange(7, 0, 9, 10));
 		var result = applyChangesToModel(original, modified, changes);
-		var expected = new Model(' 1 \n Three \n 4 \n Five \n Six \n Seven \n NEWLINE \n Eight ', mode);
+		var expected = new Model(' 1 \n Three \n 4 \n Five \n Six \n Seven \n NEWLINE \n Eight ', DefaultEndOfLine.LF, mode);
 		assert.equal(result, expected.getValue());
 		original.dispose();
 		modified.dispose();
@@ -254,12 +254,12 @@ suite('Git - Stage ranges', () => {
 	});
 
 	test('Apply changes to model - multiple changes 2 - insertion, deletion and modification', () => {
-		var original = new Model(' One \n Two \n Three \n Four \n Five \n Six \n Seven \n Eight \n Nine \n Ten ', mode);
-		var modified = new Model(' Two \n Three \n INSERTED \n Four \n Six \n 7 \n Eight \n 9 \n CHANGEIGNORED \n INSERTED', mode);
+		var original = new Model(' One \n Two \n Three \n Four \n Five \n Six \n Seven \n Eight \n Nine \n Ten ', DefaultEndOfLine.LF, mode);
+		var modified = new Model(' Two \n Three \n INSERTED \n Four \n Six \n 7 \n Eight \n 9 \n CHANGEIGNORED \n INSERTED', DefaultEndOfLine.LF, mode);
 		var changes: IChange[] = [];
 		changes.push(createChange(1, 0, 1, 1), createChange(3, 3, 3, 0), createChange(5, 0, 5, 5), createChange(6, 8, 7, 9), createChange(10, 10, 10, 0));
 		var result = applyChangesToModel(original, modified, changes);
-		var expected = new Model(' Two \n Three \n INSERTED \n Four \n Six \n 7 \n Eight \n 9 \n Ten \n INSERTED', mode);
+		var expected = new Model(' Two \n Three \n INSERTED \n Four \n Six \n 7 \n Eight \n 9 \n Ten \n INSERTED', DefaultEndOfLine.LF, mode);
 		assert.equal(result, expected.getValue());
 		original.dispose();
 		modified.dispose();

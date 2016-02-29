@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import EditorCommon = require('vs/editor/common/editorCommon');
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
+import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
 
 class ToggleWordWrapAction extends EditorAction {
 
 	static ID = 'editor.action.toggleWordWrap';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
 		super(descriptor, editor, Behaviour.TextFocus);
 	}
 
@@ -26,7 +26,7 @@ class ToggleWordWrapAction extends EditorAction {
 
 		let wrappingInfo = this.editor.getConfiguration().wrappingInfo;
 
-		if (wrappingInfo.isViewportWrapping == false) {
+		if (!wrappingInfo.isViewportWrapping) {
 			wrappingInfo.wrappingColumn = 0;
 		} else {
 			wrappingInfo.wrappingColumn = DefaultConfig.editor.wrappingColumn;
@@ -38,7 +38,7 @@ class ToggleWordWrapAction extends EditorAction {
 }
 
 // register actions
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ToggleWordWrapAction, ToggleWordWrapAction.ID, nls.localize('toggle.wordwrap', "ww: Toggle Word Wrap"), {
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ToggleWordWrapAction, ToggleWordWrapAction.ID, nls.localize('toggle.wordwrap', "View: Toggle Word Wrap"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.Alt | KeyCode.KEY_Z,
 	mac: { primary: KeyMod.Alt |  KeyCode.KEY_Z },

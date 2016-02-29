@@ -6,12 +6,13 @@
 'use strict';
 
 import 'vs/css!./progressbar';
-import {Promise, ValueCallback} from 'vs/base/common/winjs.base';
+import {TPromise, ValueCallback} from 'vs/base/common/winjs.base';
 import assert = require('vs/base/common/assert');
 import browser = require('vs/base/browser/browser');
 import {Builder, $} from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
 import uuid = require('vs/base/common/uuid');
+import {IDisposable,disposeAll} from 'vs/base/common/lifecycle';
 
 const css_done = 'done';
 const css_active = 'active';
@@ -25,7 +26,7 @@ const css_progress_bit = 'progress-bit';
  */
 export class ProgressBar {
 
-	private toUnbind: { (): void; }[];
+	private toUnbind: IDisposable[];
 	private workedVal: number;
 	private element: Builder;
 	private animationRunning: boolean;
@@ -98,7 +99,7 @@ export class ProgressBar {
 			this.bit.style.width = 'inherit';
 
 			if (delayed) {
-				Promise.timeout(200).then(() => this.off());
+				TPromise.timeout(200).then(() => this.off());
 			} else {
 				this.off();
 			}
@@ -108,7 +109,7 @@ export class ProgressBar {
 		else {
 			this.bit.style.opacity = '0';
 			if (delayed) {
-				Promise.timeout(200).then(() => this.off());
+				TPromise.timeout(200).then(() => this.off());
 			} else {
 				this.off();
 			}
@@ -147,7 +148,7 @@ export class ProgressBar {
 
 		let counter = 0;
 		let animationFn: () => void = () => {
-			Promise.timeout(50).then(() => {
+			TPromise.timeout(50).then(() => {
 
 				// Return if another manualInfinite() call was made
 				if (currentProgressToken !== this.currentProgressToken) {
@@ -238,8 +239,6 @@ export class ProgressBar {
 	}
 
 	public dispose(): void {
-		while (this.toUnbind.length) {
-			this.toUnbind.pop()();
-		}
+		this.toUnbind = disposeAll(this.toUnbind);
 	}
 }

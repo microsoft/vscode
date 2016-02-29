@@ -4,33 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Range} from 'vs/editor/common/core/range';
-import EditorCommon = require('vs/editor/common/editorCommon');
 import {IDisposable} from 'vs/base/common/lifecycle';
+import {Range} from 'vs/editor/common/core/range';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 
 export interface IModelRangeToViewRangeConverter {
-	convertModelRangeToViewRange(modelRange:EditorCommon.IRange, isWholeLine:boolean): EditorCommon.IEditorRange;
+	convertModelRangeToViewRange(modelRange:editorCommon.IRange, isWholeLine:boolean): editorCommon.IEditorRange;
 }
 
-interface IViewModelDecoration extends EditorCommon.IModelDecoration {
-	modelRange: EditorCommon.IRange;
+interface IViewModelDecoration extends editorCommon.IModelDecoration {
+	modelRange: editorCommon.IRange;
 }
 
 interface IViewModelDecorationSource {
 	id: string;
 	ownerId: number;
-	range: EditorCommon.IRange;
-	options: EditorCommon.IModelDecorationOptions;
+	range: editorCommon.IRange;
+	options: editorCommon.IModelDecorationOptions;
 }
 
 class ViewModelDecoration implements IViewModelDecoration {
 	id: string;
 	ownerId: number;
-	range: EditorCommon.IRange;
-	options: EditorCommon.IModelDecorationOptions;
-	modelRange: EditorCommon.IRange;
+	range: editorCommon.IRange;
+	options: editorCommon.IModelDecorationOptions;
+	modelRange: editorCommon.IRange;
 
-	constructor(source:IViewModelDecorationSource, range:EditorCommon.IRange) {
+	constructor(source:IViewModelDecorationSource, range:editorCommon.IRange) {
 		this.id = source.id;
 		this.options = source.options;
 		this.ownerId = source.ownerId;
@@ -42,15 +42,15 @@ class ViewModelDecoration implements IViewModelDecoration {
 export class ViewModelDecorations implements IDisposable {
 
 	private editorId:number;
-	private configuration:EditorCommon.IConfiguration;
+	private configuration:editorCommon.IConfiguration;
 	private converter:IModelRangeToViewRangeConverter;
 	private decorations:IViewModelDecoration[];
 
-	private _cachedModelDecorationsResolver:EditorCommon.IViewModelDecorationsResolver;
+	private _cachedModelDecorationsResolver:editorCommon.IViewModelDecorationsResolver;
 	private _cachedModelDecorationsResolverStartLineNumber:number;
 	private _cachedModelDecorationsResolverEndLineNumber:number;
 
-	constructor(editorId:number, configuration:EditorCommon.IConfiguration, converter:IModelRangeToViewRangeConverter) {
+	constructor(editorId:number, configuration:editorCommon.IConfiguration, converter:IModelRangeToViewRangeConverter) {
 		this.editorId = editorId;
 		this.configuration = configuration;
 		this.converter = converter;
@@ -71,15 +71,15 @@ export class ViewModelDecorations implements IDisposable {
 		this._clearCachedModelDecorationsResolver();
 	}
 
-	public static compareDecorations(a:EditorCommon.IModelDecoration, b:EditorCommon.IModelDecoration): number {
+	public static compareDecorations(a:editorCommon.IModelDecoration, b:editorCommon.IModelDecoration): number {
 		return Range.compareRangesUsingStarts(a.range, b.range);
 	}
 
-	public reset(model:EditorCommon.IModel): void {
+	public reset(model:editorCommon.IModel): void {
 		var decorations = model.getAllDecorations(this.editorId, this.configuration.editor.readOnly),
 			i:number,
 			len:number,
-			theirDecoration:EditorCommon.IModelDecoration,
+			theirDecoration:editorCommon.IModelDecoration,
 			myDecoration:IViewModelDecoration;
 
 		this.decorations = [];
@@ -92,7 +92,7 @@ export class ViewModelDecorations implements IDisposable {
 		this.decorations.sort(ViewModelDecorations.compareDecorations);
 	}
 
-	public onModelDecorationsChanged(e:EditorCommon.IModelDecorationsChangedEvent, emit:(eventType:string, payload:any)=>void): void {
+	public onModelDecorationsChanged(e:editorCommon.IModelDecorationsChangedEvent, emit:(eventType:string, payload:any)=>void): void {
 
 		var somethingChanged = false,
 			inlineDecorationsChanged = false;
@@ -101,8 +101,8 @@ export class ViewModelDecorations implements IDisposable {
 		// Interpret addedOrChangedDecorations
 
 		var removedMap:{[id:string]:boolean;} = {},
-			addedOrChangedMap:{[id:string]:EditorCommon.IModelDecorationsChangedEvent_DecorationData;} = {},
-			theirDecoration:EditorCommon.IModelDecorationsChangedEvent_DecorationData,
+			addedOrChangedMap:{[id:string]:editorCommon.IModelDecorationsChangedEventDecorationData;} = {},
+			theirDecoration:editorCommon.IModelDecorationsChangedEventDecorationData,
 			i:number,
 			skipValidation = this.configuration.editor.readOnly,
 			len:number;
@@ -174,10 +174,10 @@ export class ViewModelDecorations implements IDisposable {
 		if (somethingChanged) {
 			this._clearCachedModelDecorationsResolver();
 			this.decorations.sort(ViewModelDecorations.compareDecorations);
-			var newEvent:EditorCommon.IViewDecorationsChangedEvent = {
+			var newEvent:editorCommon.IViewDecorationsChangedEvent = {
 				inlineDecorationsChanged: inlineDecorationsChanged
 			};
-			emit(EditorCommon.ViewEventNames.DecorationsChangedEvent, newEvent);
+			emit(editorCommon.ViewEventNames.DecorationsChangedEvent, newEvent);
 		}
 	}
 
@@ -185,7 +185,7 @@ export class ViewModelDecorations implements IDisposable {
 		var decorations = this.decorations,
 			d:IViewModelDecoration,
 			i:number,
-			newRange:EditorCommon.IEditorRange,
+			newRange:editorCommon.IEditorRange,
 			somethingChanged:boolean = false,
 			inlineDecorationsChanged = false,
 			len:number;
@@ -205,18 +205,18 @@ export class ViewModelDecorations implements IDisposable {
 		if (somethingChanged) {
 			this._clearCachedModelDecorationsResolver();
 			this.decorations.sort(ViewModelDecorations.compareDecorations);
-			var newEvent:EditorCommon.IViewDecorationsChangedEvent = {
+			var newEvent:editorCommon.IViewDecorationsChangedEvent = {
 				inlineDecorationsChanged: inlineDecorationsChanged
 			};
-			emit(EditorCommon.ViewEventNames.DecorationsChangedEvent, newEvent);
+			emit(editorCommon.ViewEventNames.DecorationsChangedEvent, newEvent);
 		}
 	}
 
-	public getAllDecorations(): EditorCommon.IModelDecoration[] {
+	public getAllDecorations(): editorCommon.IModelDecoration[] {
 		return this.decorations;
 	}
 
-	public getDecorationsResolver(startLineNumber: number, endLineNumber: number): EditorCommon.IViewModelDecorationsResolver {
+	public getDecorationsResolver(startLineNumber: number, endLineNumber: number): editorCommon.IViewModelDecorationsResolver {
 		var cacheIsValid = true;
 		cacheIsValid = cacheIsValid && (this._cachedModelDecorationsResolver !== null);
 		cacheIsValid = cacheIsValid && (this._cachedModelDecorationsResolverStartLineNumber === startLineNumber);
@@ -229,15 +229,15 @@ export class ViewModelDecorations implements IDisposable {
 		return this._cachedModelDecorationsResolver;
 	}
 
-	private _createDecorationsResolver(startLineNumber: number, endLineNumber: number): EditorCommon.IViewModelDecorationsResolver {
-		var decorationsInViewport: EditorCommon.IModelDecoration[] = [],
-			inlineDecorations: EditorCommon.IModelDecoration[][] = [],
+	private _createDecorationsResolver(startLineNumber: number, endLineNumber: number): editorCommon.IViewModelDecorationsResolver {
+		var decorationsInViewport: editorCommon.IModelDecoration[] = [],
+			inlineDecorations: editorCommon.IModelDecoration[][] = [],
 			j: number,
 			intersectedStartLineNumber: number,
 			intersectedEndLineNumber: number,
 			decorations = this.decorations,
-			d:EditorCommon.IModelDecoration,
-			r:EditorCommon.IRange,
+			d:editorCommon.IModelDecoration,
+			r:editorCommon.IRange,
 			i:number,
 			len:number;
 

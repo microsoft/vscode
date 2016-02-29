@@ -16,12 +16,9 @@ import { workspace, window, Uri, CancellationToken }  from 'vscode';
 import * as Proto from './protocol';
 import { ITypescriptServiceClient, ITypescriptServiceClientHost }  from './typescriptService';
 
-import * as SalsaStatus from './utils/salsaStatus';
+import * as VersionStatus from './utils/versionStatus';
 
-let isWin = /^win/.test(process.platform);
-let isDarwin = /^darwin/.test(process.platform);
-let isLinux = /^linux/.test(process.platform);
-let arch = process.arch;
+import TelemetryReporter from 'vscode-extension-telemetry';
 
 interface CallbackItem {
 	c: (value: any) => void;
@@ -37,6 +34,12 @@ interface RequestItem {
 	request: Proto.Request;
 	promise: Promise<any>;
 	callbacks: CallbackItem;
+}
+
+interface IPackageInfo {
+	name: string;
+	version: string;
+	aiKey: string;
 }
 
 export default class TypeScriptServiceClient implements ITypescriptServiceClient {
@@ -60,6 +63,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private requestQueue: RequestItem[];
 	private pendingResponses: number;
 	private callbacks: CallbackMap;
+
+	private _packageInfo: IPackageInfo;
+	private telemetryReporter: TelemetryReporter;
 
 	constructor(host: ITypescriptServiceClientHost) {
 		this.host = host;
@@ -88,6 +94,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				this.startService();
 			}
 		});
+		if (this.packageInfo && this.packageInfo.aiKey) {
+			this.telemetryReporter = new TelemetryReporter(this.packageInfo.name, this.packageInfo.version, this.packageInfo.aiKey);
+		}
 		this.startService();
 	}
 
@@ -97,6 +106,32 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	public get trace(): boolean {
 		return TypeScriptServiceClient.Trace;
+	}
+
+	private get packageInfo(): IPackageInfo {
+
+		if (this._packageInfo !== undefined) {
+			return this._packageInfo;
+		}
+		let packagePath = path.join(__dirname, './../package.json');
+		let extensionPackage = require(packagePath);
+		if (extensionPackage) {
+			this._packageInfo = {
+				name: extensionPackage.name,
+				version: extensionPackage.version,
+				aiKey: extensionPackage.aiKey
+			};
+		} else {
+			this._packageInfo = null;
+		}
+
+		return this._packageInfo;
+	}
+
+	private logTelemetry(eventName: string, properties?: {[prop: string]: string}) {
+		if (this.telemetryReporter) {
+			this.telemetryReporter.sendTelemetryEvent(eventName, properties);
+		}
 	}
 
 	private service(): Promise<cp.ChildProcess> {
@@ -112,7 +147,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	private startService(resendModels: boolean = false): void {
 		let modulePath = path.join(__dirname, '..', 'server', 'typescript', 'lib', 'tsserver.js');
-		let useSalsa = !!process.env['CODE_TSJS'] || !!process.env['VSCODE_TSJS'];
 
 		if (this.tsdk) {
 			if ((<any>path).isAbsolute(this.tsdk)) {
@@ -120,30 +154,16 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			} else if (workspace.rootPath) {
 				modulePath = path.join(workspace.rootPath, this.tsdk, 'tsserver.js');
 			}
-		} else if (useSalsa) {
-			let candidate = path.join(workspace.rootPath, 'node_modules', 'typescript', 'lib', 'tsserver.js');
-			if (fs.existsSync(candidate)) {
-				modulePath = candidate;
-			}
 		}
+
 		if (!fs.existsSync(modulePath)) {
 			window.showErrorMessage(`The path ${path.dirname(modulePath)} doesn't point to a valid tsserver install. TypeScript language features will be disabled.`);
 			return;
 		}
 
-		if (useSalsa) {
-			let versionOK = this.isTypeScriptVersionOkForSalsa(modulePath);
-			let tooltip = modulePath;
-			let label;
-			if (!versionOK) {
-				label = '(Salsa !)';
-				tooltip = `${tooltip} does not support Salsa!`;
-			} else {
-				label = '(Salsa)';
-				tooltip = `${tooltip} does support Salsa.`;
-			}
-			SalsaStatus.show(label, tooltip, !versionOK);
-		}
+		let label = this.getTypeScriptVersion(modulePath);
+		let tooltip = modulePath;
+		VersionStatus.setInfo(label, tooltip);
 
 		this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
 			try {
@@ -161,6 +181,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					if (err) {
 						this.lastError = err;
 						window.showErrorMessage(`TypeScript language server couldn\'t be started. Error message is: ${err.message}`);
+						this.logTelemetry('error', {message: err.message});
 						return;
 					}
 					this.lastStart = Date.now();
@@ -191,29 +212,29 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 	}
 
-	private isTypeScriptVersionOkForSalsa(serverPath: string): boolean {
+	private getTypeScriptVersion(serverPath: string): string {
+		const unknown = 'unknown';
 		let p = serverPath.split(path.sep);
 		if (p.length <= 2) {
-			return true; // assume OK, cannot check
+			return unknown;
 		}
 		let p2 = p.slice(0, -2);
 		let modulePath = p2.join(path.sep);
 		let fileName = path.join(modulePath, 'package.json');
 		if (!fs.existsSync(fileName)) {
-			return true; // assume OK, cannot check
+			return unknown;
 		}
 		let contents = fs.readFileSync(fileName).toString();
 		let desc = null;
 		try {
 			desc = JSON.parse(contents);
 		} catch(err) {
-			return true;
+			return unknown;
 		}
 		if (!desc.version) {
-			return true;
+			return unknown;
 		}
-		// just use a string compare, don't want to add a dependency on semver
-		return desc.version.indexOf('1.8') >= 0 || desc.version.indexOf('1.9') >= 0 ;
+		return desc.version;
 	}
 
 	private serviceExited(restart: boolean): void {
@@ -232,6 +253,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				} else if (diff < 2 * 1000 /* 2 seconds */) {
 					startService = false;
 					window.showErrorMessage('The Typesrript language service died 5 times right after it got started. The service will not be restarted. Please open a bug report.');
+					this.logTelemetry('serviceExited');
 				}
 			}
 			if (startService) {

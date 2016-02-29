@@ -38,6 +38,10 @@ class HelpEntry extends QuickOpenEntryItem {
 		return this.prefix;
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, picker help", this.getLabel());
+	}
+
 	public getDescription(): string {
 		return this.description;
 	}

@@ -15,7 +15,7 @@ export class TestService {
 	}
 
 	public cancelMe(): winjs.TPromise<boolean> {
-		return winjs.Promise.timeout(100).then(() => {
+		return winjs.TPromise.timeout(100).then(() => {
 			return true;
 		});
 	}

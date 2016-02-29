@@ -5,13 +5,13 @@
 'use strict';
 
 import 'vs/css!vs/languages/css/common/css-hover';
-import ModesExt = require('vs/editor/common/modes/modesRegistry');
+import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import Platform = require('vs/platform/platform');
 import nls = require('vs/nls');
 import LintRules = require('vs/languages/css/common/services/lintRules');
 import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
 
-ModesExt.registerMode({
+ModesRegistry.registerCompatMode({
 	id: 'sass',
 	extensions: ['.scss'],
 	aliases: ['Sass', 'sass', 'scss'],

@@ -3,10 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*
-	This is the Type Definition file for VSCode version 0.10.1
-*/
-
 declare namespace vscode {
 
 	/**
@@ -532,13 +528,17 @@ declare namespace vscode {
 		 * The size in spaces a tab takes. This is used for two purposes:
 		 *  - the rendering width of a tab character;
 		 *  - the number of spaces to insert when [insertSpaces](#TextEditorOptions.insertSpaces) is true.
+		 * When getting a text editor's options, this property will always be a number (resolved).
+		 * When setting a text editor's options, this property is optional and it can be a number or `"auto"`.
 		 */
-		tabSize: number;
+		tabSize?: number | string;
 
 		/**
 		 * When pressing Tab insert [n](#TextEditorOptions.tabSize) spaces.
+		 * When getting a text editor's options, this property will always be a boolean (resolved).
+		 * When setting a text editor's options, this property is optional and it can be a boolean or `"auto"`.
 		 */
-		insertSpaces: boolean;
+		insertSpaces?: boolean | string;
 	}
 
 	/**
@@ -1053,7 +1053,7 @@ declare namespace vscode {
 		 * true if this file system watcher has been created such that
 		 * it ignores delete file system events.
 		 */
-		ignoreDeleteEvents: boolean
+		ignoreDeleteEvents: boolean;
 
 		/**
 		 * An event which fires on file/folder creation.
@@ -2243,12 +2243,6 @@ declare namespace vscode {
 		 * @deprecated Will be replaced by a better API soon.
 		 */
 		__electricCharacterSupport?: {
-			brackets: {
-				tokenType: string;
-				open: string;
-				close: string;
-				isElectric: boolean;
-			}[];
 			docComment?: {
 				scope: string;
 				open: string;
@@ -2879,7 +2873,7 @@ declare namespace vscode {
 		/**
 		 * An [event](#Event) which fires when the view column of an editor das changed.
 		 */
-		export const onDidChangeTextEditorViewColumn: Event<TextEditorViewColumnChangeEvent>
+		export const onDidChangeTextEditorViewColumn: Event<TextEditorViewColumnChangeEvent>;
 
 		/**
 		 * Show the given document in a text editor. A [column](#ViewColumn) can be provided
@@ -3104,6 +3098,8 @@ declare namespace vscode {
 		/**
 		 * The folder that is open in VS Code. `undefined` when no folder
 		 * has been opened.
+		 *
+		 * @readonly
 		 */
 		export let rootPath: string;
 
@@ -3462,7 +3458,7 @@ declare namespace vscode {
 		export function registerDocumentRangeFormattingEditProvider(selector: DocumentSelector, provider: DocumentRangeFormattingEditProvider): Disposable;
 
 		/**
-		 * Register a formatting provider that works on type.
+		 * Register a formatting provider that works on type. The provider is active when the user enables the setting `editor.formatOnType`.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
 		 * by their [score](#languages.match) and the result of best-matching provider is used. Failure

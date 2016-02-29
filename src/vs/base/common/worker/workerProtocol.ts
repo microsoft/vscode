@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {IManyHandler, IRemoteCom} from 'vs/base/common/remote';
 import {TPromise} from 'vs/base/common/winjs.base';
-import marshalling = require('vs/base/common/marshalling');
-import remote = require('vs/base/common/remote');
 
 /**
  * A message sent from the UI thread to a worker
@@ -76,10 +75,10 @@ export interface IRequester {
 	request(requestName: string, payload: any): TPromise<any>;
 }
 
-export class RemoteCom implements remote.IRemoteCom {
+export class RemoteCom implements IRemoteCom {
 
 	private _requester: IRequester;
-	private _bigHandler: remote.IManyHandler;
+	private _bigHandler: IManyHandler;
 
 	constructor(requester:IRequester) {
 		this._requester = requester;
@@ -94,7 +93,7 @@ export class RemoteCom implements remote.IRemoteCom {
 		});
 	}
 
-	public registerBigHandler(handler:remote.IManyHandler): void {
+	public setManyHandler(handler:IManyHandler): void {
 		this._bigHandler = handler;
 	}
 

@@ -6,20 +6,18 @@
 'use strict';
 
 import 'vs/css!./peekViewWidget';
-import nls = require('vs/nls');
-import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
-import actions = require('vs/base/common/actions');
-import strings = require('vs/base/common/strings');
-import labels = require('vs/base/common/labels');
-import builder = require('vs/base/browser/builder');
-import dom = require('vs/base/browser/dom');
-import zoneWidget = require('./zoneWidget');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import * as nls from 'vs/nls';
+import {Action} from 'vs/base/common/actions';
+import * as strings from 'vs/base/common/strings';
+import {$} from 'vs/base/browser/builder';
+import * as dom from 'vs/base/browser/dom';
+import {ActionBar} from 'vs/base/browser/ui/actionbar/actionbar';
+import {ServiceIdentifier, ServicesAccessor, createDecorator} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import {createDecorator, ServiceIdentifier, ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
+import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
+import {IOptions, ZoneWidget} from './zoneWidget';
 
 export var IPeekViewService = createDecorator<IPeekViewService>('peekViewService');
 
@@ -36,7 +34,7 @@ export namespace Events {
 
 var CONTEXT_OUTER_EDITOR = 'outerEditorId';
 
-export function getOuterEditor(accessor:ServicesAccessor, args: any): EditorCommon.ICommonCodeEditor {
+export function getOuterEditor(accessor:ServicesAccessor, args: any): ICommonCodeEditor {
 	var outerEditorId = args.context[CONTEXT_OUTER_EDITOR];
 	if (!outerEditorId) {
 		return null;
@@ -44,7 +42,7 @@ export function getOuterEditor(accessor:ServicesAccessor, args: any): EditorComm
 	return accessor.get(ICodeEditorService).getCodeEditor(outerEditorId);
 }
 
-export class PeekViewWidget extends zoneWidget.ZoneWidget implements IPeekViewService {
+export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 	public serviceId = IPeekViewService;
 	public contextKey:string;
 
@@ -53,10 +51,10 @@ export class PeekViewWidget extends zoneWidget.ZoneWidget implements IPeekViewSe
 	_headElement:HTMLDivElement;
 	_primaryHeading:HTMLElement;
 	_secondaryHeading:HTMLElement;
-	_actionbarWidget:actionbar.ActionBar;
+	_actionbarWidget:ActionBar;
 	_bodyElement:HTMLDivElement;
 
-	constructor(editor: EditorBrowser.ICodeEditor, keybindingService:IKeybindingService, contextKey:string, options: zoneWidget.IOptions = {}) {
+	constructor(editor: ICodeEditor, keybindingService:IKeybindingService, contextKey:string, options: IOptions = {}) {
 		super(editor, options);
 		this.contextKey = contextKey;
 		keybindingService.createKey(CONTEXT_OUTER_EDITOR, editor.getId());
@@ -81,10 +79,10 @@ export class PeekViewWidget extends zoneWidget.ZoneWidget implements IPeekViewSe
 	}
 
 	public fillContainer(container:HTMLElement):void {
-		builder.$(container).addClass('peekview-widget');
+		$(container).addClass('peekview-widget');
 
-		this._headElement = <HTMLDivElement> builder.$('.head').getHTMLElement();
-		this._bodyElement = <HTMLDivElement> builder.$('.body').getHTMLElement();
+		this._headElement = <HTMLDivElement> $('.head').getHTMLElement();
+		this._bodyElement = <HTMLDivElement> $('.body').getHTMLElement();
 
 		this._fillHead(this._headElement);
 		this._fillBody(this._bodyElement);
@@ -94,20 +92,20 @@ export class PeekViewWidget extends zoneWidget.ZoneWidget implements IPeekViewSe
 	}
 
 	_fillHead(container:HTMLElement):void {
-		var titleElement = builder.$('.peekview-title').
+		var titleElement = $('.peekview-title').
 			on(dom.EventType.CLICK, (e) => this._onTitleClick(e)).
 			appendTo(this._headElement).
 			getHTMLElement();
 
-		this._primaryHeading = builder.$('span.filename').appendTo(titleElement).getHTMLElement();
-		this._secondaryHeading = builder.$('span.dirname').appendTo(titleElement).getHTMLElement();
+		this._primaryHeading = $('span.filename').appendTo(titleElement).getHTMLElement();
+		this._secondaryHeading = $('span.dirname').appendTo(titleElement).getHTMLElement();
 
-		this._actionbarWidget = new actionbar.ActionBar(
-			builder.$('.peekview-actions').
+		this._actionbarWidget = new ActionBar(
+			$('.peekview-actions').
 			appendTo(this._headElement)
 		);
 
-		this._actionbarWidget.push(new actions.Action('peekview.close', nls.localize('label.close', "Close"), 'close-peekview-action', true, () => {
+		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), 'close-peekview-action', true, () => {
 			this.dispose();
 			this.emit(Events.Closed, this);
 			return null;
@@ -119,9 +117,9 @@ export class PeekViewWidget extends zoneWidget.ZoneWidget implements IPeekViewSe
 	}
 
 	public setTitle(primaryHeading:string, secondaryHeading?:string):void {
-		builder.$(this._primaryHeading).safeInnerHtml(primaryHeading);
+		$(this._primaryHeading).safeInnerHtml(primaryHeading);
 		if(secondaryHeading) {
-			builder.$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
+			$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
 		} else {
 			dom.clearNode(this._secondaryHeading);
 		}

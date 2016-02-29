@@ -7,15 +7,16 @@
 
 import DOM = require('vs/base/browser/dom');
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {TPromise} from 'vs/base/common/winjs.base';
+// import {TPromise} from 'vs/base/common/winjs.base';
 // import {WorkerClient} from 'vs/base/common/worker/workerClient';
 // import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
-import {marked, MarkedOptions} from 'vs/base/common/marked/marked';
+import {marked} from 'vs/base/common/marked/marked';
+import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 
 export type RenderableContent = string | IHTMLContentElement | IHTMLContentElement[];
 
 export interface RenderOptions {
-	actionCallback?: (content: string, event?: DOM.IMouseEvent) => void;
+	actionCallback?: (content: string, event?: IMouseEvent) => void;
 	codeBlockRenderer?: (modeId: string, value: string) => string;
 }
 
@@ -75,16 +76,16 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 	if (content.markdown) {
 		const renderer = new marked.Renderer();
 		renderer.link = (href, title, text): string => {
-			return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`
-		}
+			return `<a href="#" data-href="${href}" title="${title || text}">${text}</a>`;
+		};
 		renderer.paragraph = (text): string => {
 			return `<div>${text}</div>`;
-		}
+		};
 
 		if (options.codeBlockRenderer) {
 			renderer.code = (code, lang) => {
 				return options.codeBlockRenderer(lang, code);
-			}
+			};
 		}
 
 		if (options.actionCallback) {
@@ -228,7 +229,7 @@ interface IFormatParseTree {
 	children?: IFormatParseTree[];
 }
 
-function renderFormattedText(element: Node, treeNode: IFormatParseTree, actionCallback?: (content: string, event?: DOM.IMouseEvent) => void) {
+function renderFormattedText(element: Node, treeNode: IFormatParseTree, actionCallback?: (content: string, event?: IMouseEvent) => void) {
 	var child: Node;
 
 	if (treeNode.type === FormatType.Text) {

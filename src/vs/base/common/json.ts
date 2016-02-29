@@ -679,7 +679,7 @@ export function parse(text:string, errors: string[] = []) : any {
 		while (_scanner.getToken() !== SyntaxKind.CloseBraceToken && _scanner.getToken() !== SyntaxKind.EOF) {
 			if (_scanner.getToken() === SyntaxKind.CommaToken) {
 				if (!needsComma) {
-					handleError(nls.localize('ValeExpected', 'Value expected'), [], [] );
+					handleError(nls.localize('ValueExpected', 'Value expected'), [], [] );
 				}
 				scanNext(); // consume comma
 			} else if (needsComma) {

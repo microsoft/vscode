@@ -29,7 +29,8 @@ function fifo(array:any[], size:number) {
 
 export function register(what: string, fn: Function): (...args: any[]) => void {
 
-	if (true) {
+	let disable = true; // Otherwise we have unreachable code.
+	if (disable) {
 		return () => {
 			// Intentional empty, disable for now because it is leaking memory
 		};
@@ -57,7 +58,6 @@ export function register(what: string, fn: Function): (...args: any[]) => void {
 				data[idx + 1] = [];
 			}
 
-			var backInTime = allArgs.length > 1;
 			var doIt:()=>void = function() {
 				var thisArguments = allArgs.shift();
 				fn.apply(fn, thisArguments);

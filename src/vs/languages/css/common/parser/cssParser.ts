@@ -112,7 +112,6 @@ export class Parser {
 				this.token = this.scanner.scan();
 			}
 		}
-		return false;
 	}
 
 	public createNode(nodeType:nodes.NodeType): nodes.Node {
@@ -272,7 +271,6 @@ export class Parser {
 			case nodes.NodeType.MSViewPort:
 			case nodes.NodeType.Media:
 			case nodes.NodeType.Ruleset:
-			case nodes.NodeType.Media:
 			case nodes.NodeType.Namespace:
 			case nodes.NodeType.If:
 			case nodes.NodeType.For:
@@ -326,7 +324,7 @@ export class Parser {
 	public _parseBody<T extends nodes.BodyDeclaration>(node: T, parseDeclaration: () => nodes.Node): T {
 		if (!node.setDeclarations(this._parseDeclarations(parseDeclaration))) {
 			return this.finish(node, errors.ParseError.LeftCurlyExpected, [scanner.TokenType.CurlyR, scanner.TokenType.SemiColon ]);
-		};
+		}
 		return this.finish(node);
 	}
 

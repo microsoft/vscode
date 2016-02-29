@@ -8,29 +8,29 @@ import Lifecycle = require('vs/base/common/lifecycle');
 import Timer = require('vs/base/common/timer');
 import {createDecorator, ServiceIdentifier, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
-export var ID = 'telemetryService';
+export const ID = 'telemetryService';
 
-export var ITelemetryService = createDecorator<ITelemetryService>(ID);
+export const ITelemetryService = createDecorator<ITelemetryService>(ID);
 
 export interface ITelemetryInfo {
-		sessionId: string;
-		machineId: string;
-		instanceId: string;
+	sessionId: string;
+	machineId: string;
+	instanceId: string;
 }
 
 export interface ITelemetryService extends Lifecycle.IDisposable {
-	serviceId : ServiceIdentifier<any>;
+	serviceId: ServiceIdentifier<any>;
 
 	/**
 	 * Sends a telemetry event that has been privacy approved.
 	 * Do not call this unless you have been given approval.
 	 */
-	publicLog(eventName: string, data?: any):void;
+	publicLog(eventName: string, data?: any): void;
 
 	/**
 	 * Starts a telemetry timer. Call stop() to send the event.
 	 */
-	start(name:string, data?:any):Timer.ITimerEvent;
+	start(name: string, data?: any): Timer.ITimerEvent;
 
 	/**
 	 * Session Id
@@ -63,14 +63,25 @@ export interface ITelemetryAppender extends Lifecycle.IDisposable {
 	log(eventName: string, data?: any): void;
 }
 
+export interface ITelemetryServiceConfig {
+	enableTelemetry?: boolean;
+	userOptIn?: boolean;
+
+	enableHardIdle?: boolean;
+	enableSoftIdle?: boolean;
+	sessionID?: string;
+	commitHash?: string;
+	version?: string;
+}
+
 export function anonymize(input: string): string {
 	if (!input) {
 		return input;
 	}
 
-	var r = '';
-	for (var i = 0; i < input.length; i++) {
-		var ch = input[i];
+	let r = '';
+	for (let i = 0; i < input.length; i++) {
+		let ch = input[i];
 		if (ch >= '0' && ch <= '9') {
 			r += '0';
 			continue;

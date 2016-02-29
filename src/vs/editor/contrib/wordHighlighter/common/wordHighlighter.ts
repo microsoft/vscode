@@ -4,21 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
-import {IOccurrencesSupport, IOccurence} from 'vs/editor/common/modes';
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
-import {Range} from 'vs/editor/common/core/range';
-import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {sequence} from 'vs/base/common/async';
-import {IModelService} from 'vs/editor/common/services/modelService';
+import {onUnexpectedError} from 'vs/base/common/errors';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {INullService} from 'vs/platform/instantiation/common/instantiation';
+import {Range} from 'vs/editor/common/core/range';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {IOccurence, IOccurrencesSupport} from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 
 export const OccurrencesRegistry = new LanguageFeatureRegistry<IOccurrencesSupport>('occurrencesSupport');
 
-export function getOccurrencesAtPosition(model: EditorCommon.IModel, position: EditorCommon.IPosition):TPromise<IOccurence[]> {
+export function getOccurrencesAtPosition(model: editorCommon.IModel, position: editorCommon.IPosition):TPromise<IOccurence[]> {
 
 	const resource = model.getAssociatedResource();
 	const orderedByScore = OccurrencesRegistry.ordered(model);
@@ -39,9 +37,9 @@ export function getOccurrencesAtPosition(model: EditorCommon.IModel, position: E
 					onUnexpectedError(err);
 				});
 			}
-		}
+		};
 	})).then(values => {
-		return values[0]
+		return values[0];
 	});
 }
 
@@ -49,9 +47,9 @@ CommonEditorRegistry.registerDefaultLanguageCommand('_executeDocumentHighlights'
 
 class WordHighlighter {
 
-	private editor: EditorCommon.ICommonCodeEditor;
-	private model: EditorCommon.IModel;
-	private _lastWordRange: EditorCommon.IEditorRange;
+	private editor: editorCommon.ICommonCodeEditor;
+	private model: editorCommon.IModel;
+	private _lastWordRange: editorCommon.IEditorRange;
 	private _decorationIds: string[];
 	private toUnhook: Function[];
 
@@ -63,14 +61,14 @@ class WordHighlighter {
 	private lastCursorPositionChangeTime:number = 0;
 	private renderDecorationsTimer:number = -1;
 
-	constructor(editor:EditorCommon.ICommonCodeEditor) {
+	constructor(editor:editorCommon.ICommonCodeEditor) {
 		this.editor = editor;
 		this.model = this.editor.getModel();
 		this.toUnhook = [];
-		this.toUnhook.push(editor.addListener(EditorCommon.EventType.CursorPositionChanged, (e:EditorCommon.ICursorPositionChangedEvent) => {
+		this.toUnhook.push(editor.addListener(editorCommon.EventType.CursorPositionChanged, (e:editorCommon.ICursorPositionChangedEvent) => {
 			this._onPositionChanged(e);
 		}));
-		this.toUnhook.push(editor.addListener(EditorCommon.EventType.ModelChanged, (e) => {
+		this.toUnhook.push(editor.addListener(editorCommon.EventType.ModelChanged, (e) => {
 			this._stopAll();
 			this.model = this.editor.getModel();
 		}));
@@ -120,7 +118,7 @@ class WordHighlighter {
 		}
 	}
 
-	private _onPositionChanged(e:EditorCommon.ICursorPositionChangedEvent): void {
+	private _onPositionChanged(e:editorCommon.ICursorPositionChangedEvent): void {
 
 		// ignore typing & other
 		if (e.reason !== 'explicit') {
@@ -237,7 +235,7 @@ class WordHighlighter {
 
 	private renderDecorations(): void {
 		this.renderDecorationsTimer = -1;
-		var decorations:EditorCommon.IModelDeltaDecoration[] = [];
+		var decorations:editorCommon.IModelDeltaDecoration[] = [];
 		for(var i = 0, len = this.workerRequestValue.length; i < len; i++) {
 			var info = this.workerRequestValue[i];
 			var className = 'wordHighlight';
@@ -246,19 +244,19 @@ class WordHighlighter {
 			if (info.kind === 'write') {
 				className = className + 'Strong';
 			} else if (info.kind === 'text') {
-				className = 'selectionHighlight'
+				className = 'selectionHighlight';
 				// Keep the same color for now
 				//color = 'rgba(249, 206, 130, 0.7)';
 			}
 			decorations.push({
 				range: info.range,
 				options: {
-					stickiness: EditorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+					stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 					className: className,
 					overviewRuler: {
 						color: color,
 						darkColor: color,
-						position: EditorCommon.OverviewRulerLane.Center
+						position: editorCommon.OverviewRulerLane.Center
 					}
 				}
 			});
@@ -275,13 +273,13 @@ class WordHighlighter {
 	}
 }
 
-class WordHighlighterContribution implements EditorCommon.IEditorContribution {
+class WordHighlighterContribution implements editorCommon.IEditorContribution {
 
 	static ID = 'editor.contrib.wordHighlighter';
 
 	private wordHighligher: WordHighlighter;
 
-	constructor(editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(editor:editorCommon.ICommonCodeEditor, @INullService ns) {
 		this.wordHighligher = new WordHighlighter(editor);
 	}
 

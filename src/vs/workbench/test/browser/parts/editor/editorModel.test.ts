@@ -45,7 +45,7 @@ suite("Workbench - EditorModel", () => {
 	});
 
 	test("TextDiffEditorModel", function(done) {
-		let inst = InstantiationService.create({
+		let inst = InstantiationService.createInstantiationService({
 			modeService: createMockModeService(),
 			modelService: createMockModelService(),
 		});

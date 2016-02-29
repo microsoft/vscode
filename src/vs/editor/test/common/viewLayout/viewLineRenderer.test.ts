@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import ViewLineParts = require('vs/editor/common/viewLayout/viewLineParts');
-import {renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
+import * as assert from 'assert';
 import {ILineToken} from 'vs/editor/common/editorCommon';
+import {renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
 
 suite('viewLineRenderer.renderLine', () => {
 

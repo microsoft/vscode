@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import MockDom = require('vs/base/test/browser/mockDom');
 
-suite("MockDom", () => {
+suite('MockDom', () => {
 	test('Create Element', () => {
 		var doc = new MockDom.MockDocument();
 		var div = doc.createElement('div');
@@ -24,7 +24,7 @@ suite("MockDom", () => {
 		var callback = function(event:any) {
 			assert.strictEqual(event, fakeEvent);
 			count++;
-		}
+		};
 		div.addEventListener('test', callback);
 		div.dispatchEvent(fakeEvent);
 		assert.strictEqual(count, 1);

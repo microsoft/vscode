@@ -5,10 +5,10 @@
 
 'use strict';
 
-import { Promise } from 'vs/base/common/winjs.base';
+import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
 import { IDisposable, fnToDisposable }  from 'vs/base/common/lifecycle';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 
 enum RequestType {
 	Common,
@@ -69,6 +69,10 @@ enum ServiceState {
 
 export interface IServiceMap {
 	[name: string]: any;
+}
+
+export interface IClient {
+	getService<TService>(serviceName: string, serviceCtor: IServiceCtor<TService>): TService;
 }
 
 const ServiceEventProperty = '$__SERVICE_EVENT';
@@ -191,7 +195,7 @@ export class Server {
 	}
 }
 
-export class Client {
+export class Client implements IClient {
 
 	private state: ServiceState;
 	private bufferedRequests: IRequest[];
@@ -338,4 +342,51 @@ export class Client {
 			// noop
 		}
 	}
+}
+
+/**
+ * Useful when the service itself is needed right away but the client
+ * is wrapped within a promise.
+ */
+export function getService<TService>(clientPromise: TPromise<IClient>, serviceName: string, serviceCtor: IServiceCtor<TService>): TService {
+	let _servicePromise: TPromise<TService>;
+	let servicePromise = () => {
+		if (!_servicePromise) {
+			_servicePromise = clientPromise.then(client => client.getService(serviceName, serviceCtor));
+		}
+		return _servicePromise;
+	};
+
+	return Object.keys(serviceCtor.prototype)
+		.filter(key => key !== 'constructor')
+		.reduce((result, key) => {
+			if (isServiceEvent(serviceCtor.prototype[key])) {
+				let promise: TPromise<void>;
+				let disposable: IDisposable;
+
+				const emitter = new Emitter<any>({
+					onFirstListenerAdd: () => {
+						promise = servicePromise().then(service => {
+							disposable = service[key](e => emitter.fire(e));
+						});
+					},
+					onLastListenerRemove: () => {
+						if (disposable) {
+							disposable.dispose();
+							disposable = null;
+						}
+						promise.cancel();
+						promise = null;
+					}
+				});
+
+				return assign(result, { [key]: emitter.event });
+			}
+
+			return assign(result, {
+				[key]: (...args) => {
+					return servicePromise().then(service => service[key](...args));
+				}
+			});
+		}, {} as TService);
 }

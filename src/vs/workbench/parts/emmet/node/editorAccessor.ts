@@ -19,7 +19,7 @@ export class EditorAccessor implements emmet.Editor {
 
 	lineStarts: number[] = null;
 
-	emmetSupportedModes = ['html', 'razor', 'css', 'less', 'scss', 'xml', 'xsl', 'jade', 'handlebars', 'hbs', 'jsx', 'tsx'];
+	emmetSupportedModes = ['html', 'razor', 'css', 'less', 'scss', 'xml', 'xsl', 'jade', 'handlebars', 'hbs', 'jsx', 'tsx', 'erb', 'php', 'twig'];
 
 	constructor(editor: ICommonCodeEditor) {
 		this.editor = editor;
@@ -47,7 +47,7 @@ export class EditorAccessor implements emmet.Editor {
 		let currentLine = this.editor.getSelection().startLineNumber;
 		let lineStarts = this.getLineStarts();
 		let start = lineStarts[currentLine - 1];
-		let end = lineStarts[currentLine]
+		let end = lineStarts[currentLine];
 		return {
 			start: start,
 			end: end
@@ -100,7 +100,7 @@ export class EditorAccessor implements emmet.Editor {
 
 		let snippet = snippets.CodeSnippet.convertExternalSnippet(value, snippets.ExternalSnippetType.EmmetSnippet);
 		let codeSnippet = new snippets.CodeSnippet(snippet);
-		snippets.get(this.editor).run(codeSnippet, deletePreviousChars, 0);
+		snippets.getSnippetController(this.editor).run(codeSnippet, deletePreviousChars, 0);
 	}
 
 	public getContent(): string {
@@ -115,10 +115,10 @@ export class EditorAccessor implements emmet.Editor {
 		let position = this.editor.getSelection().getStartPosition();
 		let mode = this.editor.getModel().getModeAtPosition(position.lineNumber, position.column);
 		let syntax = mode.getId().split('.').pop();
-		if (syntax === 'razor' || syntax === 'handlebars') { // treat razor and handlebars like html
+		if (/\b(razor|handlebars|erb|php|hbs|twig)\b/.test(syntax)) { // treat like html
 			return 'html';
 		}
-		if (syntax === 'typescriptreact' || syntax == 'javascriptreact') { // treat like tsx like jsx
+		if (/\b(typescriptreact|javascriptreact)\b/.test(syntax)) { // treat like tsx like jsx
 			return 'jsx';
 		}
 		if (syntax === 'sass') { // sass is really sccs... map it to scss
@@ -145,20 +145,6 @@ export class EditorAccessor implements emmet.Editor {
 
 	public flushCache(): void {
 		this.lineStarts = null;
-	}
-
-	private getPositionFromOffsetSlow(offset: number): IPosition {
-		let lineStarts = this.getLineStarts();
-
-		for (var line = 0; line < lineStarts.length; line++) {
-			if (lineStarts[line] > offset) {
-				break;
-			}
-		}
-		return {
-			lineNumber: line,
-			column: offset - lineStarts[line - 1]
-		};
 	}
 
 	private getPositionFromOffset(offset: number): IPosition {

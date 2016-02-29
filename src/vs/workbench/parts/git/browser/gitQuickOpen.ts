@@ -5,8 +5,6 @@
 'use strict';
 
 import nls = require('vs/nls');
-import objects = require('vs/base/common/objects');
-import arrays = require('vs/base/common/arrays');
 import filters = require('vs/base/common/filters');
 import winjs = require('vs/base/common/winjs.base');
 import severity from 'vs/base/common/severity';
@@ -14,7 +12,6 @@ import git = require('vs/workbench/parts/git/common/git');
 import quickopenwb = require('vs/workbench/browser/quickopen');
 import quickopen = require('vs/base/parts/quickopen/common/quickOpen');
 import model = require('vs/base/parts/quickopen/browser/quickOpenModel');
-import widget = require('vs/base/parts/quickopen/browser/quickOpenWidget');
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IMessageService} from 'vs/platform/message/common/message';
 
@@ -39,6 +36,7 @@ class AbstractRefEntry extends model.QuickOpenEntry {
 	public getIcon(): string { return 'git'; }
 	public getLabel(): string { return this.head.name; }
 	public getDescription(): string { return ''; }
+	public getAriaLabel(): string { return nls.localize('refAriaLabel', "{0}, git", this.getLabel()); }
 
 	public run(mode: quickopen.Mode, context: model.IContext):boolean {
 		if (mode === quickopen.Mode.PREVIEW) {
@@ -97,6 +95,7 @@ class BranchEntry extends model.QuickOpenEntry {
 
 	public getIcon(): string { return 'git'; }
 	public getLabel(): string { return this.name; }
+	public getAriaLabel(): string { return nls.localize('branchAriaLabel', "{0}, git branch", this.getLabel()); }
 	public getDescription(): string { return nls.localize('createBranch', "Create branch {0}", this.name); }
 
 	public run(mode: quickopen.Mode, context: model.IContext):boolean {

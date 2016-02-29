@@ -40,7 +40,7 @@ const defaultExcludeSegments: string[] = [
 	'/jspm_packages/',
 	'/tmp/',
 	'/temp/',
-]
+];
 
 class ProjectFileEventListener {
 
@@ -54,7 +54,7 @@ class ProjectFileEventListener {
 		this._baseDir = paths.normalize(this._baseDir, true);
 
 		if (Array.isArray(files)) {
-			this._includes = []
+			this._includes = [];
 			for (let relativePath of files) {
 				this._includes.push(paths.normalize(paths.join(this._baseDir, relativePath), true));
 			}
@@ -190,7 +190,7 @@ class ProjectResolver implements typescript.IProjectResolver2 {
 						kind: typescript.ChangeKind.Added,
 						content: c.value,
 						resource: c.resource
-					}
+					};
 				});
 				return this._consumer.acceptFileChanges(changes)
 					.then(undefined, err => this._messageService.show(Severity.Warning, err));
@@ -285,7 +285,7 @@ class ProjectResolver implements typescript.IProjectResolver2 {
 			this._projectDiscovery = this._searchResources(this._configuration.projects).then(result => {
 				this._resolveProject(typescript.virtualProjectResource, typescript.ChangeKind.Added);
 				for (let resource of result.resources) {
-					this._resolveProject(resource, typescript.ChangeKind.Added)
+					this._resolveProject(resource, typescript.ChangeKind.Added);
 				}
 			});
 
@@ -367,7 +367,7 @@ class ProjectResolver implements typescript.IProjectResolver2 {
 			options: ts.getDefaultCompilerOptions()
 		};
 
-		let fileLimitReached = false
+		let fileLimitReached = false;
 
 		return this._fileService.resolveContent(resource).then(content => {
 
@@ -414,7 +414,7 @@ class ProjectResolver implements typescript.IProjectResolver2 {
 					URI.file(basePath), parsed.config['exclude']).then(result => {
 
 					fileLimitReached = result.limitReached;
-					data.files = result.resources
+					data.files = result.resources;
 				});
 			}
 		}).then(_ => {
@@ -469,7 +469,7 @@ class ProjectResolver implements typescript.IProjectResolver2 {
 				resource: typescript.virtualProjectResource,
 				kind: typescript.ChangeKind.Changed,
 				options: undefined
-			}
+			};
 		});
 	}
 
@@ -538,25 +538,6 @@ class ProjectResolver implements typescript.IProjectResolver2 {
 		if(isAffectedByChanges) {
 			this.resolveProjects();
 		}
-	}
-
-	private static _lookUpProjects(resource: URI, index: { [dirname: string]: URI }): URI[] {
-
-		var dirnames = paths.dirnames(resource.fsPath),
-			element = dirnames.next(),
-			result: URI[];
-
-		while (!element.done) {
-			var project = index[element.value];
-			if (project) {
-				if (!result) {
-					result = [];
-				}
-				result.push(project);
-			}
-			element = dirnames.next();
-		}
-		return result;
 	}
 
 	private static _asChangeKind(fileChangeType: Files.FileChangeType): typescript.ChangeKind {

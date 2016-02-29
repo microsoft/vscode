@@ -8,11 +8,18 @@ import Errors = require('vs/base/common/errors');
 import Types = require('vs/base/common/types');
 import Platform = require('vs/base/common/platform');
 import {TimeKeeper, IEventsListener, ITimerEvent} from 'vs/base/common/timer';
-import {safeStringify} from 'vs/base/common/objects';
+import {safeStringify, withDefaults} from 'vs/base/common/objects';
 import {Registry} from 'vs/platform/platform';
-import {ITelemetryService, ITelemetryAppender, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
+import {ITelemetryService, ITelemetryAppender, ITelemetryInfo, ITelemetryServiceConfig} from 'vs/platform/telemetry/common/telemetry';
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+
+const DefaultTelemetryServiceConfig: ITelemetryServiceConfig = {
+	enableTelemetry: true,
+	enableHardIdle: true,
+	enableSoftIdle: true,
+	userOptIn: true
+};
 
 /**
  * Base class for main process telemetry services
@@ -22,26 +29,27 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 
 	public serviceId = ITelemetryService;
 
-	private toUnbind:any[];
-	private timeKeeper:TimeKeeper;
-	private appenders:ITelemetryAppender[];
-	private appendersErrors:number[];
-	private oldOnError:any;
+	private timeKeeper: TimeKeeper;
+	private appenders: ITelemetryAppender[];
+	private oldOnError: any;
 	private instantiationService: IInstantiationService;
 	private timeKeeperListener: IEventsListener;
-	private errorBuffer: {[stack: string]: any};
+	private errorBuffer: { [stack: string]: any };
 	private errorFlushTimeout: number;
 
-	protected sessionId:string;
+	protected sessionId: string;
 	protected instanceId: string;
 	protected machineId: string;
+	protected toUnbind: any[];
 
-	constructor() {
+	protected config: ITelemetryServiceConfig;
+
+	constructor(config?: ITelemetryServiceConfig) {
 		this.sessionId = 'SESSION_ID_NOT_SET';
 		this.timeKeeper = new TimeKeeper();
 		this.toUnbind = [];
 		this.appenders = [];
-		this.timeKeeperListener = (events:ITimerEvent[]) => this.onTelemetryTimerEventStop(events);
+		this.timeKeeperListener = (events: ITimerEvent[]) => this.onTelemetryTimerEventStop(events);
 		this.timeKeeper.addListener(this.timeKeeperListener);
 		this.toUnbind.push(Errors.errorHandler.addListener(this.onErrorEvent.bind(this)));
 
@@ -50,27 +58,29 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		this.enableGlobalErrorHandler();
 
 		this.errorFlushTimeout = -1;
+
+		this.config = withDefaults(config, DefaultTelemetryServiceConfig);
 	}
 
-	private _safeStringify(data:any): string {
+	private _safeStringify(data: any): string {
 		return safeStringify(data);
 	}
 
-	private onTelemetryTimerEventStop(events:ITimerEvent[]):void {
-		for (var i = 0; i < events.length; i++) {
-			var event = events[i];
-			var data = event.data || {};
+	private onTelemetryTimerEventStop(events: ITimerEvent[]): void {
+		for (let i = 0; i < events.length; i++) {
+			let event = events[i];
+			let data = event.data || {};
 			data.duration = event.timeTaken();
 			this.publicLog(event.name, data);
 		}
 	}
 
-	private onErrorEvent(e:any):void {
+	private onErrorEvent(e: any): void {
 
 		let error = Object.create(null);
 
 		// unwrap nested errors from loader
-		if(e.detail && e.detail.stack) {
+		if (e.detail && e.detail.stack) {
 			e = e.detail;
 		}
 
@@ -79,7 +89,7 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		let message = e.message ? e.message : this._safeStringify(e);
 
 		// errors without a stack are not useful telemetry
-		if(!stack) {
+		if (!stack) {
 			return;
 		}
 
@@ -89,7 +99,7 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		this.addErrortoBuffer(error);
 	}
 
-	private addErrortoBuffer(e:any): void {
+	private addErrortoBuffer(e: any): void {
 		if (this.errorBuffer[e.stack]) {
 			this.errorBuffer[e.stack].count++;
 		} else {
@@ -107,7 +117,7 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 
 	private flushErrorBuffer(): void {
 		if (this.errorBuffer) {
-			for(var stack in this.errorBuffer) {
+			for (let stack in this.errorBuffer) {
 				this.publicLog('UnhandledError', this.errorBuffer[stack]);
 			}
 		}
@@ -119,7 +129,7 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 	private cleanupInfo(stack: string): string {
 
 		// `file:///DANGEROUS/PATH/resources/app/Useful/Information`
-		var reg = /file:\/\/\/.*?\/resources\/app\//gi;
+		let reg = /file:\/\/\/.*?\/resources\/app\//gi;
 		stack = stack.replace(reg, '');
 
 		// Any other file path that doesn't match the approved form above should be cleaned.
@@ -132,15 +142,15 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		return stack;
 	}
 
-	private enableGlobalErrorHandler():void {
-		if(Types.isFunction(Platform.globals.onerror)) {
+	private enableGlobalErrorHandler(): void {
+		if (Types.isFunction(Platform.globals.onerror)) {
 			this.oldOnError = Platform.globals.onerror;
 		}
 
-		var that = this;
-		var newHandler:any = function(message:string, filename:string, line:number, column?:number, e?:any) {
+		let that = this;
+		let newHandler: any = function(message: string, filename: string, line: number, column?: number, e?: any) {
 			that.onUncaughtError(message, filename, line, column, e);
-			if(that.oldOnError) {
+			if (that.oldOnError) {
 				that.oldOnError.apply(this, arguments);
 			}
 		};
@@ -148,17 +158,17 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		Platform.globals.onerror = newHandler;
 	}
 
-	private onUncaughtError(message:string, filename:string, line:number, column?:number, e?:any):void {
+	private onUncaughtError(message: string, filename: string, line: number, column?: number, e?: any): void {
 		filename = this.cleanupInfo(filename);
 		message = this.cleanupInfo(message);
-		var data:any = {
+		let data: any = {
 			message: message,
 			filename: filename,
 			line: line,
 			column: column
 		};
 
-		if(e) {
+		if (e) {
 			data.error = {
 				name: e.name,
 				message: e.message
@@ -166,8 +176,8 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 
 			if (e.stack) {
 
-				if(Array.isArray(e.stack)) {
-						e.stack = e.stack.join('\n');
+				if (Array.isArray(e.stack)) {
+					e.stack = e.stack.join('\n');
 				}
 
 				data.stack = this.cleanupInfo(e.stack);
@@ -182,11 +192,11 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 	}
 
 	private loadTelemetryAppendersFromRegistery(): void {
-		var appendersRegistry = (<ITelemetryAppendersRegistry>Registry.as(Extenstions.TelemetryAppenders)).getTelemetryAppenderDescriptors();
+		let appendersRegistry = (<ITelemetryAppendersRegistry>Registry.as(Extenstions.TelemetryAppenders)).getTelemetryAppenderDescriptors();
 
-		for (var i = 0; i < appendersRegistry.length; i++) {
-			var descriptor = appendersRegistry[i];
-			var appender = this.instantiationService.createInstance(descriptor);
+		for (let i = 0; i < appendersRegistry.length; i++) {
+			let descriptor = appendersRegistry[i];
+			let appender = this.instantiationService.createInstance(descriptor);
 			this.addTelemetryAppender(appender);
 		}
 	}
@@ -211,7 +221,7 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		});
 	}
 
-	public dispose():void {
+	public dispose(): void {
 		if (this.errorFlushTimeout !== -1) {
 			clearTimeout(this.errorFlushTimeout);
 			this.flushErrorBuffer();
@@ -223,21 +233,21 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		this.timeKeeper.removeListener(this.timeKeeperListener);
 		this.timeKeeper.dispose();
 
-		for(var i =0; i< this.appenders.length; i++){
+		for (let i = 0; i < this.appenders.length; i++) {
 			this.appenders[i].dispose();
 		}
 	}
 
-	public start(name:string, data?:any):ITimerEvent {
-		var topic ='public';
-		var event = this.timeKeeper.start(topic, name);
-		if(data) {
+	public start(name: string, data?: any): ITimerEvent {
+		let topic = 'public';
+		let event = this.timeKeeper.start(topic, name);
+		if (data) {
 			event.data = data;
 		}
 		return event;
 	}
 
-	public publicLog(eventName:string, data?:any):void {
+	public publicLog(eventName: string, data?: any): void {
 		this.handleEvent(eventName, data);
 	}
 
@@ -254,7 +264,7 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 	}
 
 	public removeTelemetryAppender(appender: ITelemetryAppender): void {
-		var index= this.appenders.indexOf(appender);
+		let index = this.appenders.indexOf(appender);
 
 		if (index > -1) {
 			this.appenders.splice(index, 1);
@@ -269,13 +279,13 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		}
 	}
 
-	protected handleEvent(eventName:string, data?:any):void {
+	protected handleEvent(eventName: string, data?: any): void {
 		throw new Error('Not implemented!');
 	}
 }
 
-export var Extenstions = {
-	TelemetryAppenders : 'telemetry.appenders'
+export const Extenstions = {
+	TelemetryAppenders: 'telemetry.appenders'
 };
 
 export interface ITelemetryAppendersRegistry {
@@ -291,11 +301,11 @@ class TelemetryAppendersRegistry implements ITelemetryAppendersRegistry {
 		this.telemetryAppenderDescriptors = [];
 	}
 
-	public registerTelemetryAppenderDescriptor(descriptor:SyncDescriptor0<ITelemetryAppender>): void {
+	public registerTelemetryAppenderDescriptor(descriptor: SyncDescriptor0<ITelemetryAppender>): void {
 		this.telemetryAppenderDescriptors.push(descriptor);
 	}
 
-	public getTelemetryAppenderDescriptors():  SyncDescriptor0<ITelemetryAppender>[] {
+	public getTelemetryAppenderDescriptors(): SyncDescriptor0<ITelemetryAppender>[] {
 		return this.telemetryAppenderDescriptors;
 	}
 }

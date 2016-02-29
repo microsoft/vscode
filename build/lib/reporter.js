@@ -18,7 +18,7 @@ function onEnd() {
 	}
 
 	var errors = _.flatten(allErrors);
-	errors.map(function (err) { console.log('*** Error:', err); });
+	errors.map(function (err) { console.error('*** Error:', err); });
 	console.log('*** Finished with', errors.length, 'errors.');
 }
 
@@ -26,17 +26,23 @@ module.exports = function () {
 	var errors = [];
 	allErrors.push(errors);
 
-	return function (err) {
-		if (err) {
-			errors.push(err);
-			return;
-		}
+	var result = function (err) {
+		errors.push(err);
+	};
 
+	result.end = function (emitError) {
 		errors.length = 0;
 		onStart();
 		return es.through(null, function () {
 			onEnd();
-			this.emit('end');
+
+			if (emitError && errors.length > 0) {
+				this.emit('error', 'Errors occurred.');
+			} else {
+				this.emit('end');
+			}
 		});
 	};
+
+	return result;
 };

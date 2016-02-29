@@ -7,7 +7,7 @@
 
 import 'vs/css!./menu';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import {Builder, $} from 'vs/base/browser/builder';
+import {$} from 'vs/base/browser/builder';
 import {IActionRunner, IAction} from 'vs/base/common/actions';
 import {ActionBar, IActionItemProvider, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
 import {EventEmitter} from 'vs/base/common/eventEmitter';

@@ -10,8 +10,6 @@ import nls = require('vs/nls');
 import Lifecycle = require('vs/base/common/lifecycle');
 import EventEmitter = require('vs/base/common/eventEmitter');
 import DOM = require('vs/base/browser/dom');
-import Errors = require('vs/base/common/errors');
-import Keyboard = require('vs/base/browser/keyboardEvent');
 import {Button} from 'vs/base/browser/ui/button/button';
 import WinJS = require('vs/base/common/winjs.base');
 import Builder = require('vs/base/browser/builder');
@@ -20,7 +18,6 @@ import InputBox = require('vs/base/browser/ui/inputbox/inputBox');
 import git = require('vs/workbench/parts/git/common/git');
 import GitView = require('vs/workbench/parts/git/browser/views/view');
 import GitActions = require('vs/workbench/parts/git/browser/gitActions');
-import Severity from 'vs/base/common/severity';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService} from 'vs/platform/message/common/message';
@@ -140,10 +137,6 @@ export class EmptyView extends EventEmitter.EventEmitter implements GitView.IVie
 		this.initButton.enabled = true;
 	}
 
-	private onError(e: Error): void {
-		this.messageService.show(Severity.Error, e);
-	}
-
 	public focus():void {
 		// no-op
 	}
@@ -155,7 +148,7 @@ export class EmptyView extends EventEmitter.EventEmitter implements GitView.IVie
 	public setVisible(visible:boolean): WinJS.TPromise<void> {
 		this.isVisible = visible;
 
-		return WinJS.Promise.as(null);
+		return WinJS.TPromise.as(null);
 	}
 
 	public getSelection():ISelection {

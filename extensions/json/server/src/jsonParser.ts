@@ -8,7 +8,6 @@ import nls = require('./utils/nls');
 import Json = require('./json-toolbox/json');
 import JsonSchema = require('./json-toolbox/jsonSchema');
 import {JSONLocation} from './jsonLocation';
-import SchemaService = require('./jsonSchemaService');
 
 export interface IRange {
 	start: number;
@@ -104,7 +103,7 @@ export class ASTNode {
 			if ((<string[]>schema.type).indexOf(this.type) === -1) {
 				validationResult.warnings.push({
 					location: { start: this.start, end: this.end },
-					message: nls.localize('typeArrayMismatchWarning', 'Incorrect type. Expected one of {0}', schema.type.join())
+					message: nls.localize('typeArrayMismatchWarning', 'Incorrect type. Expected one of {0}', schema.type.join(', '))
 				});
 			}
 		}
@@ -418,9 +417,9 @@ export class StringASTNode extends ASTNode {
 	public value: string;
 
 	constructor(parent: ASTNode, name: string, isKey: boolean, start: number, end?: number) {
+		super(parent, 'string', name, start, end);
 		this.isKey = isKey;
 		this.value = '';
-		super(parent, 'string', name, start, end);
 	}
 
 	public getValue(): any {

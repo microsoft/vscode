@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
+import * as assert from 'assert';
+import {IENarratorTextAreaState, ISimpleModel, TextAreaState} from 'vs/editor/common/controller/textAreaState';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import {EndOfLinePreference, IEditorRange, IRange, IEditorPosition} from 'vs/editor/common/editorCommon';
-import {ISimpleModel, TextAreaState, IENarratorTextAreaState} from 'vs/editor/common/controller/textAreaState';
+import {EndOfLinePreference, IEditorPosition, IRange} from 'vs/editor/common/editorCommon';
 import {MockTextAreaWrapper} from 'vs/editor/test/common/mocks/mockTextAreaWrapper';
 
 suite('TextAreaState', () => {
@@ -227,6 +227,15 @@ suite('TextAreaState', () => {
 			'a',
 			0, 1, false,
 			'a', 0
+		);
+	});
+
+	test('issue #2586: Replacing selected end-of-line with newline locks up the document', () => {
+		testDeduceInput(
+			new IENarratorTextAreaState(null, ']\n', 1, 2, false, 0),
+			']\n',
+			2, 2, false,
+			'\n', 0
 		);
 	});
 

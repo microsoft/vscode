@@ -8,7 +8,7 @@ import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
-export var IEventService = createDecorator<IEventService>('eventService');
+export const IEventService = createDecorator<IEventService>('eventService');
 
 export interface IEventService {
 	serviceId: ServiceIdentifier<any>;

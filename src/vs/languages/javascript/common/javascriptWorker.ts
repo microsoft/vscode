@@ -13,7 +13,6 @@ import Modes = require('vs/editor/common/modes');
 import typeScriptWorker = require('vs/languages/typescript/common/typescriptWorker2');
 import Options = require('vs/languages/typescript/common/options');
 import rewriter = require('vs/languages/typescript/common/js/rewriting');
-import typescript = require('vs/languages/typescript/common/typescript');
 import suggestions = require('vs/languages/typescript/common/features/suggestions');
 import parameterHints = require('vs/languages/typescript/common/features/parameterHints');
 import occurrences = require('vs/languages/typescript/common/features/occurrences');
@@ -24,12 +23,6 @@ import quickFix = require('vs/languages/typescript/common/features/quickFix');
 import diagnostics = require('vs/languages/typescript/common/features/diagnostics');
 import rename = require('vs/languages/typescript/common/features/rename');
 import ShebangRewriter = require('vs/languages/typescript/common/js/shebangRewriter');
-import ES6PropertyDeclarator = require('vs/languages/typescript/common/js/es6PropertyDeclarator');
-import RequireRewriter = require('vs/languages/typescript/common/js/requireRewriter');
-import DefineRewriter = require('vs/languages/typescript/common/js/defineRewriter');
-import ExportRewriter = require('vs/languages/typescript/common/js/importAndExportRewriter');
-import GlobalVarRewriter = require('vs/languages/typescript/common/js/globalVariableRewriter');
-import AngularRewriter = require('vs/languages/typescript/common/js/angularServiceRewriter');
 import {IMarker, IMarkerData, IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 
@@ -37,10 +30,10 @@ export class JavaScriptWorker extends typeScriptWorker.TypeScriptWorker2 {
 
 	private _fancyRewriters: rewriter.ISyntaxRewriter[];
 
-	constructor(mode: Modes.IMode, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
+	constructor(modeId: string, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
 		@IMarkerService markerService: IMarkerService) {
 
-		super(mode, participants, resourceService, markerService);
+		super(modeId, participants, resourceService, markerService);
 
 		// since we colorize the shebang we should also always handle it
 		this._projectService.defaultRewriter = [new ShebangRewriter()];
@@ -53,7 +46,7 @@ export class JavaScriptWorker extends typeScriptWorker.TypeScriptWorker2 {
 		});
 	}
 
-	_doConfigure(options: any): winjs.TPromise<boolean> {
+	_doConfigure(options: any): winjs.TPromise<void> {
 		return super._doConfigure(options, Options.javaScriptOptions);
 	}
 
@@ -63,7 +56,6 @@ export class JavaScriptWorker extends typeScriptWorker.TypeScriptWorker2 {
 
 		// perform the semantic checks on the rewritten project and
 		// filter/translate the error markers
-		var missing: URI[] = [];
 		var project = this._projectService.getProject(resource, this._fancyRewriters);
 		var result = diagnostics.getSemanticDiagnostics(project.languageService, resource, this._options);
 		if (result) {
@@ -80,12 +72,12 @@ export class JavaScriptWorker extends typeScriptWorker.TypeScriptWorker2 {
 					markers.push(marker);
 				}
 			});
-			this.markerService.changeOne(`/${this._getMode().getId() }/semantic`, resource, markers);
+			this.markerService.changeOne(`/${this._modeId}/semantic`, resource, markers);
 			return result.hasMissingFiles;
 		}
 	}
 
-	public doSuggest(resource: URI, position: EditorCommon.IPosition): winjs.TPromise<Modes.ISuggestResult> {
+	protected doSuggest(resource: URI, position: EditorCommon.IPosition): winjs.TPromise<Modes.ISuggestResult> {
 
 		var project = this._projectService.getProject(resource, this._fancyRewriters);
 		position = project.translations.getTranslator(resource).to(position);

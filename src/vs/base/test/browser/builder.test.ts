@@ -8,7 +8,8 @@ import * as assert from 'assert';
 import { Build, Builder, MultiBuilder, Binding, Dimension, Position, Box, $ } from 'vs/base/browser/builder';
 import * as Types from 'vs/base/common/types';
 import * as DomUtils from 'vs/base/browser/dom';
-import { Promise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 var withElementsBySelector = function(selector: string, offdom: boolean = false) {
 	var elements = window.document.querySelectorAll(selector);
@@ -809,7 +810,7 @@ suite("Builder", () => {
 		b.showDelayed(20);
 		assert(b.hasClass("hidden"));
 
-		Promise.timeout(30).then(function() {
+		TPromise.timeout(30).then(function() {
 			assert(!b.hasClass("hidden"));
 			done();
 		});
@@ -824,7 +825,7 @@ suite("Builder", () => {
 
 		b.hide(); // Should cancel the visibility promise
 
-		Promise.timeout(30).then(function() {
+		TPromise.timeout(30).then(function() {
 			assert(b.hasClass("hidden"));
 			done();
 		});
@@ -1220,14 +1221,16 @@ suite("Builder", () => {
 		var b = Build.withElementById(fixtureId);
 		var unbindCounter = 0;
 
-		var old = DomUtils.addListener;
+		var old = DomUtils.addDisposableListener;
 		try {
-			DomUtils.addListener = function(node, type, handler) {
-				var unbind = old.call(null, node, type, handler);
+			DomUtils.addDisposableListener = function(node, type, handler) {
+				var unbind:IDisposable = old.call(null, node, type, handler);
 
-				return function() {
-					unbindCounter++;
-					unbind.call(null);
+				return {
+					dispose: function() {
+						unbindCounter++;
+						unbind.dispose();
+					}
 				};
 			};
 
@@ -1246,7 +1249,7 @@ suite("Builder", () => {
 			b.empty();
 			assert.strictEqual(unbindCounter, 8);
 		} finally {
-			DomUtils.addListener = old;
+			DomUtils.addDisposableListener = old;
 		}
 	});
 
@@ -1405,14 +1408,16 @@ suite("Builder", () => {
 		var b = Build.withElementById(fixtureId);
 		var unbindCounter = 0;
 
-		var old = DomUtils.addListener;
+		var old = DomUtils.addDisposableListener;
 		try {
-			DomUtils.addListener = function(node, type, handler) {
-				var unbind = old.call(null, node, type, handler);
+			DomUtils.addDisposableListener = function(node, type, handler) {
+				var unbind:IDisposable = old.call(null, node, type, handler);
 
-				return function() {
-					unbindCounter++;
-					unbind.call(null);
+				return {
+					dispose: function() {
+						unbindCounter++;
+						unbind.dispose();
+					}
 				};
 			};
 
@@ -1433,7 +1438,7 @@ suite("Builder", () => {
 			b.destroy();
 			assert.strictEqual(unbindCounter, 16);
 		} finally {
-			DomUtils.addListener = old;
+			DomUtils.addDisposableListener = old;
 		}
 	});
 

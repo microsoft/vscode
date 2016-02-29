@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IKeybindingService, IKeybindingContextKey, IKeybindingItem} from 'vs/platform/keybinding/common/keybindingService';
-import {Keybinding} from 'vs/base/common/keyCodes';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {Keybinding} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
+import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 
 class MockKeybindingContextKey<T> implements IKeybindingContextKey<T> {
 	private _key: string;
@@ -39,15 +39,15 @@ export class MockKeybindingService implements IKeybindingService {
 		return new MockKeybindingContextKey(key, defaultValue);
 	}
 
-	public getLabelFor(keybinding:Keybinding): string {
+	public getLabelFor(keybinding: Keybinding): string {
 		return keybinding._toUSLabel();
 	}
 
-	public getHTMLLabelFor(keybinding:Keybinding): IHTMLContentElement[] {
+	public getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[] {
 		return keybinding._toUSHTMLLabel();
 	}
 
-	public getElectronAcceleratorFor(keybinding:Keybinding): string {
+	public getElectronAcceleratorFor(keybinding: Keybinding): string {
 		return keybinding._toElectronAccelerator();
 	}
 

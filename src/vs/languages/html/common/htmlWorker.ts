@@ -6,22 +6,21 @@
 
 import URI from 'vs/base/common/uri';
 import winjs = require('vs/base/common/winjs.base');
-import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
 import beautifyHTML = require('vs/languages/lib/common/beautify-html');
 import htmlTags = require('vs/languages/html/common/htmlTags');
 import network = require('vs/base/common/network');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import strings = require('vs/base/common/strings');
-import {Range} from 'vs/editor/common/core/range';
 import {Position} from 'vs/editor/common/core/position';
-import {IRequestService} from 'vs/platform/request/common/request';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import {getScanner, IHTMLScanner} from 'vs/languages/html/common/htmlScanner';
 import {isTag, DELIM_END, DELIM_START, DELIM_ASSIGN, ATTRIB_NAME, ATTRIB_VALUE} from 'vs/languages/html/common/htmlTokenTypes';
 import {isEmptyElement} from 'vs/languages/html/common/htmlEmptyTagsShared';
+import {filterSuggestions} from 'vs/editor/common/modes/supports/suggestSupport';
+import paths = require('vs/base/common/paths');
 
 enum LinkDetectionState {
 	LOOKING_FOR_HREF_OR_SRC = 1,
@@ -33,16 +32,25 @@ interface IColorRange {
 	value:string;
 }
 
-export class HTMLWorker extends AbstractModeWorker {
+export class HTMLWorker {
 
 	private _contextService: IWorkspaceContextService;
-
+	private resourceService:IResourceService;
+	private markerService: IMarkerService;
+	private _modeId: string;
 	private _tagProviders: htmlTags.IHTMLTagProvider[];
 
-	constructor(mode: Modes.IMode, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
-		@IMarkerService markerService: IMarkerService, @IWorkspaceContextService contextService:IWorkspaceContextService) {
+	constructor(
+		modeId: string,
+		participants: Modes.IWorkerParticipant[],
+		@IResourceService resourceService: IResourceService,
+		@IMarkerService markerService: IMarkerService,
+		@IWorkspaceContextService contextService:IWorkspaceContextService
+	) {
 
-		super(mode, participants, resourceService, markerService);
+		this._modeId = modeId;
+		this.resourceService = resourceService;
+		this.markerService = markerService;
 		this._contextService = contextService;
 
 		this._tagProviders = [];
@@ -96,7 +104,7 @@ export class HTMLWorker extends AbstractModeWorker {
 
 		var modeAtPosition = modelAtPosition.getMode();
 
-		return callback(modeAtPosition.getId() !== this._getMode().getId(), modelAtPosition);
+		return callback(modeAtPosition.getId() !== this._modeId, modelAtPosition);
 	}
 
 	_delegateToAllModes<T>(resource:URI, callback:(models:EditorCommon.IMirrorModel[]) => T): T {
@@ -330,11 +338,11 @@ export class HTMLWorker extends AbstractModeWorker {
 		});
 	}
 
-	public suggestHTML(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
-		return super.suggest(resource, position);
+	private suggestHTML(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {
+		return this.doSuggest(resource, position).then(value => filterSuggestions(value));
 	}
 
-	public doSuggest(resource: URI, position: EditorCommon.IPosition): winjs.TPromise<Modes.ISuggestResult> {
+	private doSuggest(resource: URI, position: EditorCommon.IPosition): winjs.TPromise<Modes.ISuggestResult> {
 
 		var model = this.resourceService.get(resource),
 			currentWord = model.getWordUntilPosition(position).word;
@@ -398,7 +406,7 @@ export class HTMLWorker extends AbstractModeWorker {
 					this.collectTagSuggestions(scanner, position, suggestions);
 				}
 		}
-		return winjs.Promise.as(suggestions);
+		return winjs.TPromise.as(suggestions);
 	}
 
 	private findMatchingBracket(tagname: string, scanner: IHTMLScanner) : EditorCommon.IRange {
@@ -509,10 +517,7 @@ export class HTMLWorker extends AbstractModeWorker {
 	}
 
 	public static _getWorkspaceUrl(modelAbsoluteUri: URI, rootAbsoluteUri: URI, tokenContent: string): string {
-		var modelAbsoluteUrl = network.URL.fromUri(modelAbsoluteUri);
-		var rootAbsoluteUrl = network.URL.fromUri(rootAbsoluteUri);
 		tokenContent = HTMLWorker._stripQuotes(tokenContent);
-
 
 		if (/^\s*javascript\:/i.test(tokenContent) || /^\s*\#/i.test(tokenContent)) {
 			return null;
@@ -525,27 +530,29 @@ export class HTMLWorker extends AbstractModeWorker {
 
 		if (/^\s*\/\//i.test(tokenContent)) {
 			// Absolute link (that does not name the protocol)
-			var modelScheme = modelAbsoluteUrl.getScheme();
-			var pickedScheme = 'http';
-			if (modelScheme === network.schemas.https) {
-				pickedScheme = network.schemas.https;
+			let pickedScheme = network.Schemas.http;
+			if (modelAbsoluteUri.scheme === network.Schemas.https) {
+				pickedScheme = network.Schemas.https;
 			}
 			return pickedScheme + ':' + tokenContent.replace(/^\s*/g, '');
 		}
 
-		try {
-			var potentialResult = modelAbsoluteUrl.combine(tokenContent).toString();
-		} catch (err) {
-			// invalid URL
-			return null;
+		let modelPath = paths.dirname(modelAbsoluteUri.path);
+		let alternativeResultPath: string = null;
+		if (tokenContent.length > 0 && tokenContent.charAt(0) === '/') {
+			alternativeResultPath = tokenContent;
+		} else {
+			alternativeResultPath = paths.join(modelPath, tokenContent);
+			alternativeResultPath = alternativeResultPath.replace(/^(\/\.\.)+/, '');
 		}
+		let potentialResult = modelAbsoluteUri.withPath(alternativeResultPath).toString();
 
-		if (rootAbsoluteUrl && modelAbsoluteUrl.startsWith(rootAbsoluteUrl)) {
+		let rootAbsoluteUrlStr = (rootAbsoluteUri ? rootAbsoluteUri.toString() : null);
+		if (rootAbsoluteUrlStr && strings.startsWith(modelAbsoluteUri.toString(), rootAbsoluteUrlStr)) {
 			// The `rootAbsoluteUrl` is set and matches our current model
 			// We need to ensure that this `potentialResult` does not escape `rootAbsoluteUrl`
 
-			var rootAbsoluteUrlStr = rootAbsoluteUrl.toString();
-			var commonPrefixLength = strings.commonPrefixLength(rootAbsoluteUrlStr, potentialResult);
+			let commonPrefixLength = strings.commonPrefixLength(rootAbsoluteUrlStr, potentialResult);
 			if (strings.endsWith(rootAbsoluteUrlStr, '/')) {
 				commonPrefixLength = potentialResult.lastIndexOf('/', commonPrefixLength) + 1;
 			}
@@ -555,7 +562,7 @@ export class HTMLWorker extends AbstractModeWorker {
 		return potentialResult;
 	}
 
-	private createLink(modelAbsoluteUrl: URI, rootAbsoluteUrl: network.URL, tokenContent: string, lineNumber: number, startColumn: number, endColumn: number): Modes.ILink {
+	private createLink(modelAbsoluteUrl: URI, rootAbsoluteUrl: URI, tokenContent: string, lineNumber: number, startColumn: number, endColumn: number): Modes.ILink {
 		var workspaceUrl = HTMLWorker._getWorkspaceUrl(modelAbsoluteUrl, rootAbsoluteUrl, tokenContent);
 		if (!workspaceUrl) {
 			return null;
@@ -589,15 +596,15 @@ export class HTMLWorker extends AbstractModeWorker {
 			tokenContent: string,
 			link: Modes.ILink;
 
-		let rootAbsoluteUrl: network.URL = null;
+		let rootAbsoluteUrl: URI = null;
 		let workspace = this._contextService.getWorkspace();
 		if (workspace) {
 			// The workspace can be null in the no folder opened case
 			let strRootAbsoluteUrl = String(workspace.resource);
 			if (strRootAbsoluteUrl.charAt(strRootAbsoluteUrl.length - 1) === '/') {
-				rootAbsoluteUrl = new network.URL(strRootAbsoluteUrl);
+				rootAbsoluteUrl = URI.parse(strRootAbsoluteUrl);
 			} else {
-				rootAbsoluteUrl = new network.URL(strRootAbsoluteUrl + '/');
+				rootAbsoluteUrl = URI.parse(strRootAbsoluteUrl + '/');
 			}
 		}
 
@@ -616,13 +623,13 @@ export class HTMLWorker extends AbstractModeWorker {
 						break;
 
 					case ATTRIB_NAME:
-						if (state === LinkDetectionState.LOOKING_FOR_HREF_OR_SRC) {
-							nextTokenEndIndex = tokens.getTokenEndIndex(i, lineContentLength);
-							tokenContent = lineContent.substring(tokens.getTokenStartIndex(i), nextTokenEndIndex).toLowerCase();
+						nextTokenEndIndex = tokens.getTokenEndIndex(i, lineContentLength);
+						tokenContent = lineContent.substring(tokens.getTokenStartIndex(i), nextTokenEndIndex).toLowerCase();
 
-							if (tokenContent === 'src' || tokenContent === 'href') {
-								state = LinkDetectionState.AFTER_HREF_OR_SRC;
-							}
+						if (tokenContent === 'src' || tokenContent === 'href') {
+							state = LinkDetectionState.AFTER_HREF_OR_SRC;
+						} else {
+							state = LinkDetectionState.LOOKING_FOR_HREF_OR_SRC;
 						}
 						break;
 
@@ -653,55 +660,8 @@ export class HTMLWorker extends AbstractModeWorker {
 	}
 
 	public computeLinks(resource: URI): winjs.TPromise<Modes.ILink[]> {
-
-		return super.computeLinks(resource).then((oldLinks) => {
-
-			var model = this.resourceService.get(resource);
-
-			var newLinks = this._computeHTMLLinks(model);
-
-			// reunite oldLinks with newLinks and remove duplicates
-			var result: Modes.ILink[] = [],
-				oldIndex: number,
-				oldLen: number,
-				newIndex: number,
-				newLen: number,
-				oldLink: Modes.ILink,
-				newLink: Modes.ILink,
-				comparisonResult: number;
-
-			for (oldIndex = 0, newIndex = 0, oldLen = oldLinks.length, newLen = newLinks.length; oldIndex < oldLen && newIndex < newLen;) {
-				oldLink = oldLinks[oldIndex];
-				newLink = newLinks[newIndex];
-
-				if (Range.areIntersectingOrTouching(oldLink.range, newLink.range)) {
-					// Remove the oldLink
-					oldIndex++;
-					continue;
-				}
-
-				comparisonResult = Range.compareRangesUsingStarts(oldLink.range, newLink.range);
-
-				if (comparisonResult < 0) {
-					// oldLink is before
-					result.push(oldLink);
-					oldIndex++;
-				} else {
-					// newLink is before
-					result.push(newLink);
-					newIndex++;
-				}
-			}
-
-			for (; oldIndex < oldLen; oldIndex++) {
-				result.push(oldLinks[oldIndex]);
-			}
-			for (; newIndex < newLen; newIndex++) {
-				result.push(newLinks[newIndex]);
-			}
-
-			return result;
-		});
+		let model = this.resourceService.get(resource);
+		return winjs.TPromise.as(this._computeHTMLLinks(model));
 	}
 }
 

@@ -10,7 +10,6 @@ import Types = require('vs/base/common/types');
 import Json = require('vs/base/common/json');
 import JsonSchema = require('vs/base/common/jsonSchema');
 import {JSONLocation} from './jsonLocation';
-import SchemaService = require('vs/languages/json/common/jsonSchemaService');
 
 export interface IRange {
 	start:number;
@@ -420,9 +419,9 @@ export class StringASTNode extends ASTNode {
 	public value:string;
 
 	constructor(parent:ASTNode, name:string, isKey:boolean, start:number, end?:number) {
+		super(parent, 'string', name, start, end);
 		this.isKey = isKey;
 		this.value = '';
-		super(parent, 'string', name, start, end);
 	}
 
 	public getValue():any {

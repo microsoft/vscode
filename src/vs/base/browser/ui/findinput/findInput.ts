@@ -13,8 +13,8 @@ import {Checkbox} from 'vs/base/browser/ui/checkbox/checkbox';
 import {IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
 import {Widget} from 'vs/base/browser/ui/widget';
 import Event, {Emitter} from 'vs/base/common/event';
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
-import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
 
 export interface IFindInputOptions {
@@ -49,8 +49,6 @@ export class FindInput extends Widget {
 	private validation:IInputValidator;
 	private label:string;
 
-	private optionsKeyListener: () => void;
-
 	private regex:Checkbox;
 	private wholeWords:Checkbox;
 	private caseSensitive:Checkbox;
@@ -58,20 +56,20 @@ export class FindInput extends Widget {
 	public domNode: HTMLElement;
 	public inputBox:InputBox;
 
-	private _onDidOptionChange = this._register(new Emitter<void>());
-	public onDidOptionChange: Event<void> = this._onDidOptionChange.event;
+	private _onDidOptionChange = this._register(new Emitter<boolean>());
+	public onDidOptionChange: Event<boolean /* via keyboard */> = this._onDidOptionChange.event;
 
-	private _onKeyDown = this._register(new Emitter<StandardKeyboardEvent>());
-	public onKeyDown: Event<StandardKeyboardEvent> = this._onKeyDown.event;
+	private _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
+	public onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
 
 	private _onInput = this._register(new Emitter<void>());
 	public onInput: Event<void> = this._onInput.event;
 
-	private _onKeyUp = this._register(new Emitter<StandardKeyboardEvent>());
-	public onKeyUp: Event<StandardKeyboardEvent> = this._onKeyUp.event;
+	private _onKeyUp = this._register(new Emitter<IKeyboardEvent>());
+	public onKeyUp: Event<IKeyboardEvent> = this._onKeyUp.event;
 
-	private _onCaseSensitiveKeyDown = this._register(new Emitter<StandardKeyboardEvent>());
-	public onCaseSensitiveKeyDown: Event<StandardKeyboardEvent> = this._onCaseSensitiveKeyDown.event;
+	private _onCaseSensitiveKeyDown = this._register(new Emitter<IKeyboardEvent>());
+	public onCaseSensitiveKeyDown: Event<IKeyboardEvent> = this._onCaseSensitiveKeyDown.event;
 
 	constructor(parent:HTMLElement, contextViewProvider: IContextViewProvider, options?:IFindInputOptions) {
 		super();
@@ -212,9 +210,11 @@ export class FindInput extends Widget {
 			actionClassName: 'regex',
 			title: NLS_REGEX_CHECKBOX_LABEL + appendRegexLabel,
 			isChecked: false,
-			onChange: () => {
-				this._onDidOptionChange.fire();
-				this.inputBox.focus();
+			onChange: (viaKeyboard) => {
+				this._onDidOptionChange.fire(viaKeyboard);
+				if (!viaKeyboard) {
+					this.inputBox.focus();
+				}
 				this.setInputWidth();
 				this.validate();
 			}
@@ -223,9 +223,11 @@ export class FindInput extends Widget {
 			actionClassName: 'whole-word',
 			title: NLS_WHOLE_WORD_CHECKBOX_LABEL + appendWholeWordsLabel,
 			isChecked: false,
-			onChange: () => {
-				this._onDidOptionChange.fire();
-				this.inputBox.focus();
+			onChange: (viaKeyboard) => {
+				this._onDidOptionChange.fire(viaKeyboard);
+				if (!viaKeyboard) {
+					this.inputBox.focus();
+				}
 				this.setInputWidth();
 				this.validate();
 			}
@@ -234,9 +236,11 @@ export class FindInput extends Widget {
 			actionClassName: 'case-sensitive',
 			title: NLS_CASE_SENSITIVE_CHECKBOX_LABEL + appendCaseSensitiveLabel,
 			isChecked: false,
-			onChange: () => {
-				this._onDidOptionChange.fire();
-				this.inputBox.focus();
+			onChange: (viaKeyboard) => {
+				this._onDidOptionChange.fire(viaKeyboard);
+				if (!viaKeyboard) {
+					this.inputBox.focus();
+				}
 				this.setInputWidth();
 				this.validate();
 			},
@@ -253,8 +257,7 @@ export class FindInput extends Widget {
 
 		// Arrow-Key support to navigate between options
 		let indexes = [this.caseSensitive.domNode, this.wholeWords.domNode, this.regex.domNode];
-		this.optionsKeyListener = dom.addListener(this.domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			let event = new StandardKeyboardEvent(e);
+		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
 			if (event.equals(CommonKeybindings.LEFT_ARROW) || event.equals(CommonKeybindings.RIGHT_ARROW) || event.equals(CommonKeybindings.ESCAPE)) {
 				let index = indexes.indexOf(<HTMLElement>document.activeElement);
 				if (index >= 0) {
@@ -309,17 +312,12 @@ export class FindInput extends Widget {
 	}
 
 	public dispose(): void {
-		if (this.optionsKeyListener) {
-			this.optionsKeyListener();
-			this.optionsKeyListener = null;
-		}
-
 		super.dispose();
 	}
 }
 
 interface IMatchCountOpts {
-	onClick: (e:StandardMouseEvent) => void;
+	onClick: (e:IMouseEvent) => void;
 }
 
 class MatchCount extends Widget {

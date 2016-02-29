@@ -6,17 +6,18 @@
 'use strict';
 
 import 'vs/css!./zoneWidget';
-import domUtils = require('vs/base/browser/dom');
-import Objects = require('vs/base/common/objects');
-import Events = require('vs/base/common/eventEmitter');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {EventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
+import * as objects from 'vs/base/common/objects';
+import * as dom from 'vs/base/browser/dom';
+import {EventType, IEditorLayoutInfo, IPosition, IRange} from 'vs/editor/common/editorCommon';
+import {ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor} from 'vs/editor/browser/editorBrowser';
 
 export interface IOptions {
 	showFrame?: boolean;
 	showArrow?: boolean;
 	frameColor?: string;
 	className?: string;
+	isAccessible?: boolean;
 }
 
 var defaultOptions:IOptions = {
@@ -28,7 +29,7 @@ var defaultOptions:IOptions = {
 
 var WIDGET_ID = 'vs.editor.contrib.zoneWidget';
 
-class ViewZoneDelegate implements EditorBrowser.IViewZone {
+class ViewZoneDelegate implements IViewZone {
 
 	public domNode:HTMLElement;
 	public afterLineNumber:number;
@@ -55,7 +56,7 @@ class ViewZoneDelegate implements EditorBrowser.IViewZone {
 	}
 }
 
-class OverlayWidgetDelegate implements EditorBrowser.IOverlayWidget {
+class OverlayWidgetDelegate implements IOverlayWidget {
 
 	private _id: string;
 	private _domNode: HTMLElement;
@@ -73,14 +74,14 @@ class OverlayWidgetDelegate implements EditorBrowser.IOverlayWidget {
 		return this._domNode;
 	}
 
-	public getPosition(): EditorBrowser.IOverlayWidgetPosition {
+	public getPosition(): IOverlayWidgetPosition {
 		return null;
 	}
 
 }
 
 // TODO@Joh - this is an event emitter, why?
-export class ZoneWidget extends Events.EventEmitter {
+export class ZoneWidget extends EventEmitter {
 
 	private zoneId:number;
 	private lastView:any;
@@ -90,26 +91,28 @@ export class ZoneWidget extends Events.EventEmitter {
 	public shadowTop: HTMLElement;
 	public shadowBottom: HTMLElement;
 	public domNode:HTMLElement;
-	public position:EditorCommon.IPosition;
-	public editor:EditorBrowser.ICodeEditor;
+	public position:IPosition;
+	public editor:ICodeEditor;
 	public options:IOptions;
 
-	private listenersToRemove:Events.ListenerUnbind[];
+	private listenersToRemove:ListenerUnbind[];
 
-	constructor(editor:EditorBrowser.ICodeEditor, options:IOptions = {}) {
+	constructor(editor:ICodeEditor, options:IOptions = {}) {
 		super();
 		this.editor = editor;
-		this.options = Objects.mixin(Objects.clone(defaultOptions), options);
+		this.options = objects.mixin(objects.clone(defaultOptions), options);
 		this.zoneId = -1;
 		this.overlayWidget = null;
 		this.lastView = null;
 		this.domNode = document.createElement('div');
-		this.domNode.setAttribute('aria-hidden', 'true');
-		this.domNode.setAttribute('role', 'presentation');
+		if (!this.options.isAccessible) {
+			this.domNode.setAttribute('aria-hidden', 'true');
+			this.domNode.setAttribute('role', 'presentation');
+		}
 
 		this.container = null;
 		this.listenersToRemove = [];
-		this.listenersToRemove.push(this.editor.addListener(EditorCommon.EventType.EditorLayout, (info:EditorCommon.IEditorLayoutInfo) => {
+		this.listenersToRemove.push(this.editor.addListener(EventType.EditorLayout, (info:IEditorLayoutInfo) => {
 			var width = this.getWidth(info);
 			this.domNode.style.width = width + 'px';
 			this.onWidth(width);
@@ -118,17 +121,17 @@ export class ZoneWidget extends Events.EventEmitter {
 
 	public create():void {
 
-		domUtils.addClass(this.domNode, 'zone-widget');
-		domUtils.addClass(this.domNode, this.options.className);
+		dom.addClass(this.domNode, 'zone-widget');
+		dom.addClass(this.domNode, this.options.className);
 
 		this.container = document.createElement('div');
-		domUtils.addClass(this.container, 'zone-widget-container');
+		dom.addClass(this.container, 'zone-widget-container');
 		this.domNode.appendChild(this.container);
 
 		this.fillContainer(this.container);
 	}
 
-	private getWidth(info:EditorCommon.IEditorLayoutInfo=this.editor.getLayoutInfo()):number {
+	private getWidth(info:IEditorLayoutInfo=this.editor.getLayoutInfo()):number {
 		return info.width - info.verticalScrollbarWidth;
 	}
 
@@ -140,22 +143,22 @@ export class ZoneWidget extends Events.EventEmitter {
 		this.domNode.style.height = height + 'px';
 	}
 
-	public show(where:EditorCommon.IRange, heightInLines:number):void;
-	public show(where:EditorCommon.IPosition, heightInLines:number):void;
+	public show(where:IRange, heightInLines:number):void;
+	public show(where:IPosition, heightInLines:number):void;
 	public show(where:any, heightInLines:number):void {
 		if(typeof where.startLineNumber === 'number') {
-			this.showImpl(<EditorCommon.IRange>where, heightInLines);
+			this.showImpl(<IRange>where, heightInLines);
 		} else {
 			this.showImpl({
-				startLineNumber: (<EditorCommon.IPosition>where).lineNumber,
-				startColumn: (<EditorCommon.IPosition>where).column,
-				endLineNumber: (<EditorCommon.IPosition>where).lineNumber,
-				endColumn: (<EditorCommon.IPosition>where).column
+				startLineNumber: (<IPosition>where).lineNumber,
+				startColumn: (<IPosition>where).column,
+				endLineNumber: (<IPosition>where).lineNumber,
+				endColumn: (<IPosition>where).column
 			}, heightInLines);
 		}
 	}
 
-	private showImpl(where:EditorCommon.IRange, heightInLines:number):void {
+	private showImpl(where:IRange, heightInLines:number):void {
 		var position = {
 			lineNumber: where.startLineNumber,
 			column: where.startColumn
@@ -195,7 +198,7 @@ export class ZoneWidget extends Events.EventEmitter {
 		}
 
 		// insert zone widget
-		this.editor.changeViewZones((accessor:EditorBrowser.IViewZoneChangeAccessor) => {
+		this.editor.changeViewZones((accessor:IViewZoneChangeAccessor) => {
 			if (this.zoneId !== -1) {
 				accessor.removeZone(this.zoneId);
 			}

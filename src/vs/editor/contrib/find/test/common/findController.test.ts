@@ -4,22 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import {FindModelBoundToEditorModel, parseReplaceString} from 'vs/editor/contrib/find/common/findModel';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
-import {withMockCodeEditor} from 'vs/editor/test/common/mocks/mockCodeEditor';
-import {Cursor} from 'vs/editor/common/controller/cursor';
-import {INewFindReplaceState, FindReplaceStateChangedEvent, FindReplaceState} from 'vs/editor/contrib/find/common/findState';
-import {Range} from 'vs/editor/common/core/range';
-import {Position} from 'vs/editor/common/core/position';
-import {
-	CommonFindController,
-	IFindStartOptions,
-	FindStartFocusAction,
-	StartFindAction,
-	NextMatchFindAction
-} from 'vs/editor/contrib/find/common/findController';
+import * as assert from 'assert';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
+import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
+import {IRange} from 'vs/editor/common/editorCommon';
+import {CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, StartFindAction} from 'vs/editor/contrib/find/common/findController';
+import {withMockCodeEditor} from 'vs/editor/test/common/mocks/mockCodeEditor';
 
 class TestFindController extends CommonFindController {
 
@@ -36,7 +27,7 @@ class TestFindController extends CommonFindController {
 
 suite('FindController', () => {
 
-	function fromRange(rng:EditorCommon.IRange): number[] {
+	function fromRange(rng:IRange): number[] {
 		return [rng.startLineNumber, rng.startColumn, rng.endLineNumber, rng.endColumn];
 	}
 
@@ -94,6 +85,31 @@ suite('FindController', () => {
 
 			findController.dispose();
 			startFindAction.dispose();
+			nextMatchFindAction.dispose();
+		});
+	});
+
+	test('issue #3090: F3 does not loop with two matches on a single line', () => {
+		withMockCodeEditor([
+			'import nls = require(\'vs/nls\');'
+		], {}, (editor, cursor) => {
+
+			// The cursor is at the very top, of the file, at the first ABC
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let nextMatchFindAction = new NextMatchFindAction({id:'',label:''}, editor, null);
+
+			editor.setPosition({
+				lineNumber: 1,
+				column: 9
+			});
+
+			nextMatchFindAction.run();
+			assert.deepEqual(fromRange(editor.getSelection()), [1, 26, 1, 29]);
+
+			nextMatchFindAction.run();
+			assert.deepEqual(fromRange(editor.getSelection()), [1, 8, 1, 11]);
+
+			findController.dispose();
 			nextMatchFindAction.dispose();
 		});
 	});

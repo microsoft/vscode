@@ -7,7 +7,7 @@
 import URI from 'vs/base/common/uri';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
-export var IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
+export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
 export interface IWorkspaceContextService {
 	serviceId: ServiceIdentifier<any>;
@@ -78,12 +78,6 @@ export interface IWorkspace {
 }
 
 export interface IConfiguration {
-
-	/**
-	 * Additional worker services
-	 */
-	additionalWorkerServices?: { serviceId: string; moduleName: string; ctorName: string; }[];
-
 	/**
 	 * Some environmental flags
 	 */
@@ -98,6 +92,9 @@ export interface IEnvironment {
 	isBuilt: boolean;
 	execPath: string;
 
+	applicationName: string;
+	darwinBundleIdentifier: string;
+
 	version: string;
 	commitHash: string;
 
@@ -106,6 +103,7 @@ export interface IEnvironment {
 
 	extensionsGallery: {
 		serviceUrl: string;
+		cacheUrl: string;
 		itemUrl: string;
 	};
 

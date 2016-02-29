@@ -29,7 +29,7 @@ import BufferSyncSupport from './features/bufferSyncSupport';
 import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 
-import * as SalsaStatus from './utils/salsaStatus';
+import * as VersionStatus from './utils/versionStatus';
 
 export function activate(context: ExtensionContext): void {
 
@@ -45,20 +45,21 @@ export function activate(context: ExtensionContext): void {
 		clientHost.reloadProjects();
 	}));
 
-	window.onDidChangeActiveTextEditor(SalsaStatus.showHideStatus, null, context.subscriptions);
+	context.subscriptions.push(commands.registerCommand('javascript.reloadProjects', () => {
+		clientHost.reloadProjects();
+	}));
+
+	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
 
 	// Register the supports for both TS and TSX so that we can have separate grammars but share the mode
 	client.onReady().then(() => {
 		registerSupports(MODE_ID_TS, clientHost, client);
 		registerSupports(MODE_ID_TSX, clientHost, client);
-		let useSalsa = !!process.env['CODE_TSJS'] || !!process.env['VSCODE_TSJS']
-		if (useSalsa) {
-			registerSupports(MODE_ID_JS, clientHost, client);
-			registerSupports(MODE_ID_JSX, clientHost, client);
-		}
+		registerSupports(MODE_ID_JS, clientHost, client);
+		registerSupports(MODE_ID_JSX, clientHost, client);
 	}, () => {
 		// Nothing to do here. The client did show a message;
-	})
+	});
 }
 
 function registerSupports(modeID: string, host: TypeScriptServiceClientHost, client: TypeScriptServiceClient) {
@@ -116,11 +117,6 @@ function registerSupports(modeID: string, host: TypeScriptServiceClientHost, cli
 		],
 
 		__electricCharacterSupport: {
-			brackets: [
-				{ tokenType: 'delimiter.curly.' + modeID, open: '{', close: '}', isElectric: true },
-				{ tokenType: 'delimiter.square.' + modeID, open: '[', close: ']', isElectric: true },
-				{ tokenType: 'delimiter.paren.' + modeID, open: '(', close: ')', isElectric: true }
-			],
 			docComment: { scope: 'comment.documentation', open: '/**', lineStart: ' * ', close: ' */' }
 		},
 
@@ -168,7 +164,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			setTimeout(() => {
 				this.triggerAllDiagnostics();
 			}, 1500);
-		}
+		};
 		let watcher = workspace.createFileSystemWatcher('**/tsconfig.json');
 		watcher.onDidCreate(handleProjectCreateOrDelete);
 		watcher.onDidDelete(handleProjectCreateOrDelete);

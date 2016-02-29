@@ -25,8 +25,10 @@ export interface IUpdateInfo {
 export interface IProductConfiguration {
 	nameShort: string;
 	nameLong: string;
+	applicationName: string;
 	win32AppUserModelId: string;
 	win32MutexName: string;
+	darwinBundleIdentifier: string;
 	dataFolderName: string;
 	downloadUrl: string;
 	updateUrl?: string;
@@ -37,6 +39,7 @@ export interface IProductConfiguration {
 	expiryUrl: string;
 	extensionsGallery: {
 		serviceUrl: string;
+		cacheUrl: string;
 		itemUrl: string;
 	};
 	crashReporter: Electron.CrashReporterStartOptions;
@@ -312,9 +315,6 @@ function massagePath(path: string): string {
 
 	// Trim whitespaces
 	path = strings.trim(strings.trim(path, ' '), '\t');
-
-	// Remove trailing dots
-	path = strings.rtrim(path, '.');
 
 	return path;
 }

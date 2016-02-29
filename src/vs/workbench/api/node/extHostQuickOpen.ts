@@ -74,7 +74,7 @@ export class ExtHostQuickOpen {
 			if (options && typeof options.onDidSelectItem === 'function') {
 				this._onDidSelectItem = (handle) => {
 					options.onDidSelectItem(items[handle]);
-				}
+				};
 			}
 
 			// show items
@@ -186,7 +186,7 @@ export class MainThreadQuickOpen {
 		if (validateInput) {
 			inputOptions.validateInput = (value) => {
 				return this._proxy.$validateInput(value);
-			}
+			};
 		}
 
 		return this._quickOpenService.input(inputOptions);

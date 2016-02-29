@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise, Promise} from 'vs/base/common/winjs.base';
+import nls = require('vs/nls');
+import {TPromise} from 'vs/base/common/winjs.base';
 import platform = require('vs/base/common/platform');
 import {$} from 'vs/base/browser/builder';
 import {IDataSource, ITree, ISorter, IElementCallback, IAccessibilityProvider, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT, DRAG_OVER_REJECT, ContextMenuEvent} from 'vs/base/parts/tree/browser/tree';
@@ -15,13 +16,13 @@ import errors = require('vs/base/common/errors');
 import mime = require('vs/base/common/mime');
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import {StandardMouseEvent, DragMouseEvent} from 'vs/base/browser/mouseEvent';
-import {StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+import {IMouseEvent, DragMouseEvent} from 'vs/base/browser/mouseEvent';
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import actions = require('vs/base/common/actions');
 import {ActionsRenderer} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {ContributableActionProvider} from 'vs/workbench/browser/actionBarRegistry';
-import {keybindingForAction, CloseWorkingFileAction, SelectResourceForCompareAction, CompareResourcesAction, SaveFileAsAction, SaveFileAction, RevertFileAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';
+import {keybindingForAction, CloseOneWorkingFileAction, CloseOtherWorkingFilesAction, CloseAllWorkingFilesAction, SelectResourceForCompareAction, CompareResourcesAction, SaveFileAsAction, SaveFileAction, RevertFileAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {asFileResource, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {WorkingFileEntry, WorkingFilesModel} from 'vs/workbench/parts/files/common/workingFilesModel';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -54,22 +55,22 @@ export class WorkingFilesDataSource implements IDataSource {
 		return false;
 	}
 
-	public getChildren(tree: ITree, element: any): Promise {
+	public getChildren(tree: ITree, element: any): TPromise<any[]> {
 		if (element instanceof WorkingFilesModel) {
-			return Promise.as((<WorkingFilesModel>element).getEntries());
+			return TPromise.as((<WorkingFilesModel>element).getEntries());
 		}
 
-		return Promise.as([]);
+		return TPromise.as([]);
 	}
 
-	public getParent(tree: ITree, element: any): Promise {
-		return Promise.as(null);
+	public getParent(tree: ITree, element: any): TPromise<any> {
+		return TPromise.as(null);
 	}
 }
 
 export class WorkingFilesSorter implements ISorter {
 
-	constructor( @INullService ns) { }
+	constructor(@INullService ns) { }
 
 	public compare(tree: ITree, element: any, otherElement: any): number {
 		return WorkingFilesModel.compare(element, otherElement);
@@ -119,7 +120,7 @@ export class WorkingFilesAccessibilityProvider implements IAccessibilityProvider
 	getAriaLabel(tree: ITree, element: any): string {
 		let entry = <WorkingFileEntry>element;
 
-		return paths.basename(entry.resource.fsPath);
+		return nls.localize('workingFilesViewerAriaLabel', "{0}, Working Files", paths.basename(entry.resource.fsPath));
 	}
 }
 
@@ -145,10 +146,10 @@ export class WorkingFilesActionProvider extends ContributableActionProvider {
 		let actions: actions.IAction[] = [];
 
 		if (element instanceof WorkingFileEntry) {
-			actions.push(this.instantiationService.createInstance(CloseWorkingFileAction, this.model, element));
+			actions.push(this.instantiationService.createInstance(CloseOneWorkingFileAction, this.model, element));
 		}
 
-		return Promise.as(actions);
+		return TPromise.as(actions);
 	}
 
 	public hasSecondaryActions(tree: ITree, element: WorkingFileEntry): boolean {
@@ -208,7 +209,12 @@ export class WorkingFilesActionProvider extends ContributableActionProvider {
 
 				// Close
 				actions.push(new Separator());
-				actions.push(this.instantiationService.createInstance(CloseWorkingFileAction, this.model, element));
+				actions.push(this.instantiationService.createInstance(CloseOneWorkingFileAction, this.model, element));
+				actions.push(this.instantiationService.createInstance(CloseAllWorkingFilesAction, this.model));
+
+				if (this.model.count() > 1) {
+					actions.push(this.instantiationService.createInstance(CloseOtherWorkingFilesAction, this.model, element));
+				}
 			}
 
 			return actions;
@@ -335,11 +341,11 @@ export class WorkingFilesController extends DefaultController {
 		}
 	}
 
-	/* protected */ public onClick(tree: ITree, element: any, event: StandardMouseEvent): boolean {
+	/* protected */ public onClick(tree: ITree, element: any, event: IMouseEvent): boolean {
 
 		// Close working file on middle mouse click
 		if (element instanceof WorkingFileEntry && event.browserEvent && event.browserEvent.button === 1 /* Middle Button */) {
-			const closeAction = this.instantiationService.createInstance(CloseWorkingFileAction, this.model, element);
+			const closeAction = this.instantiationService.createInstance(CloseOneWorkingFileAction, this.model, element);
 			closeAction.run().done(() => {
 				closeAction.dispose();
 			}, errors.onUnexpectedError);
@@ -350,7 +356,7 @@ export class WorkingFilesController extends DefaultController {
 		return super.onClick(tree, element, event);
 	}
 
-	/* protected */ public onLeftClick(tree: ITree, element: any, event: StandardMouseEvent, origin: string = 'mouse'): boolean {
+	/* protected */ public onLeftClick(tree: ITree, element: any, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		let payload = { origin: origin };
 		let isDoubleClick = (origin === 'mouse' && event.detail === 2);
 
@@ -374,12 +380,9 @@ export class WorkingFilesController extends DefaultController {
 
 		// Allow to unselect
 		if (event.shiftKey) {
-			let focus = tree.getFocus();
 			let selection = tree.getSelection();
-
-			if ((selection && selection.length > 0 && selection[0] === element) || focus === element) {
+			if (selection && selection.length > 0 && selection[0] === element) {
 				tree.clearSelection(payload);
-				tree.clearFocus(payload);
 			}
 		}
 
@@ -399,7 +402,7 @@ export class WorkingFilesController extends DefaultController {
 		return true;
 	}
 
-	private onEnterDown(tree: ITree, event: StandardKeyboardEvent): boolean {
+	private onEnterDown(tree: ITree, event: IKeyboardEvent): boolean {
 		let payload = { origin: 'keyboard' };
 
 		let element = tree.getFocus();
@@ -411,7 +414,7 @@ export class WorkingFilesController extends DefaultController {
 		return true;
 	}
 
-	private onModifierEnterUp(tree: ITree, event: StandardKeyboardEvent): boolean {
+	private onModifierEnterUp(tree: ITree, event: IKeyboardEvent): boolean {
 		let element = tree.getFocus();
 		if (element) {
 			this.openEditor(<WorkingFileEntry>element, false, true);

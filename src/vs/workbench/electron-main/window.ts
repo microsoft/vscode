@@ -91,6 +91,8 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 	execPath: string;
 	version: string;
 	appName: string;
+	applicationName: string;
+	darwinBundleIdentifier: string;
 	appSettingsHome: string;
 	appSettingsPath: string;
 	appKeybindingsPath: string;
@@ -109,24 +111,23 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 	crashReporter: Electron.CrashReporterStartOptions;
 	extensionsGallery: {
 		serviceUrl: string;
+		cacheUrl: string;
 		itemUrl: string;
 	};
 	welcomePage: string;
 	releaseNotesUrl: string;
 	productDownloadUrl: string;
 	enableTelemetry: boolean;
-	userEnv: env.IProcessEnvironment,
+	userEnv: env.IProcessEnvironment;
 	aiConfig: {
 		key: string;
 		asimovKey: string;
-	},
+	};
 	sendASmile: {
 		reportIssueUrl: string,
 		requestFeatureUrl: string
-	}
+	};
 }
-
-const enableDebugLogging = false;
 
 export class VSCodeWindow {
 

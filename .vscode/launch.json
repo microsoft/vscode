@@ -5,19 +5,18 @@
 			"name": "Unit Tests",
 			"type": "node",
 			"request": "launch",
-			"program": "node_modules/mocha/bin/_mocha",
+			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
 			"stopOnEntry": false,
 			"args": [
 				"--timeout",
 				"999999",
 				"--colors"
 			],
-			"cwd": ".",
-			"runtimeExecutable": null,
+			"cwd": "${workspaceRoot}",
 			"runtimeArgs": [],
 			"env": {},
 			"sourceMaps": true,
-			"outDir": "out"
+			"outDir": "${workspaceRoot}/out"
 		},
 		{
 			"name": "Attach to Extension Host",
@@ -25,7 +24,7 @@
 			"request": "attach",
 			"port": 5870,
 			"sourceMaps": true,
-			"outDir": "out"
+			"outDir": "${workspaceRoot}/out"
 		},
 		{
 			"name": "VSCode API Tests",
@@ -39,15 +38,21 @@
 			],
 			"stopOnEntry": false,
 			"sourceMaps": true,
-			"outDir": "out"
+			"outDir": "${workspaceRoot}/out"
 		},
 		{
 			"name": "Attach to VSCode",
 			"type": "chrome",
 			"request": "attach",
 			"port": 9222,
-			"sourceMaps": true,
-			"outDir": "out"
+			"sourceMaps": true
+		},
+		{
+			"name": "Launch VSCode",
+			"type": "chrome",
+			"request": "launch",
+			"runtimeExecutable": "${workspaceRoot}/scripts/code.bat",
+			"sourceMaps": true
 		},
 		{
 			"name": "Convert css-schema to browser.js",

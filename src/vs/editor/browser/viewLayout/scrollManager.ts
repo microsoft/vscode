@@ -4,15 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import ScrollableElement = require('vs/base/browser/ui/scrollbar/scrollableElement');
-import ScrollableElementImpl = require('vs/base/browser/ui/scrollbar/impl/scrollableElement');
-import DomUtils = require('vs/base/browser/dom');
-import Lifecycle = require('vs/base/common/lifecycle');
-import Objects = require('vs/base/common/objects');
-
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import * as dom from 'vs/base/browser/dom';
+import {IOverviewRulerLayoutInfo, IScrollableElement, IScrollableElementCreationOptions} from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElementImpl';
+import {EventType, IConfiguration, IConfigurationChangedEvent, IScrollEvent, IViewEventBus} from 'vs/editor/common/editorCommon';
 import {EditorScrollable} from 'vs/editor/common/viewLayout/editorScrollable';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {ClassNames} from 'vs/editor/browser/editorBrowser';
 
 function addPropertyIfPresent(src:any, dst:any, prop:string): void {
 	if (src.hasOwnProperty(prop)) {
@@ -20,37 +18,37 @@ function addPropertyIfPresent(src:any, dst:any, prop:string): void {
 	}
 }
 
-export class ScrollManager implements Lifecycle.IDisposable {
+export class ScrollManager implements IDisposable {
 
-	private configuration: EditorCommon.IConfiguration;
-	private privateViewEventBus:EditorCommon.IViewEventBus;
+	private configuration: IConfiguration;
+	private privateViewEventBus:IViewEventBus;
 
-	private toDispose:Lifecycle.IDisposable[];
+	private toDispose:IDisposable[];
 	private scrollable: EditorScrollable;
 	private linesContent: HTMLElement;
-	private scrollbar: ScrollableElement.IScrollableElement;
+	private scrollbar: IScrollableElement;
 
-	constructor(scrollable:EditorScrollable, configuration:EditorCommon.IConfiguration, privateViewEventBus:EditorCommon.IViewEventBus, linesContent:HTMLElement, viewDomNode:HTMLElement, overflowGuardDomNode:HTMLElement) {
+	constructor(scrollable:EditorScrollable, configuration:IConfiguration, privateViewEventBus:IViewEventBus, linesContent:HTMLElement, viewDomNode:HTMLElement, overflowGuardDomNode:HTMLElement) {
 		this.toDispose = [];
 		this.scrollable = scrollable;
 		this.configuration = configuration;
 		this.privateViewEventBus = privateViewEventBus;
 		this.linesContent = linesContent;
 
-		this.toDispose.push(this.scrollable.addScrollListener((e:EditorCommon.IScrollEvent) => {
-			this.privateViewEventBus.emit(EditorCommon.EventType.ViewScrollChanged, e);
+		this.toDispose.push(this.scrollable.addScrollListener((e:IScrollEvent) => {
+			this.privateViewEventBus.emit(EventType.ViewScrollChanged, e);
 		}));
 
 		var configScrollbarOpts = this.configuration.editor.scrollbar;
 
-		var scrollbarOptions:ScrollableElement.ICreationOptions = {
+		var scrollbarOptions:IScrollableElementCreationOptions = {
 			scrollable: this.scrollable,
 			listenOnDomNode: viewDomNode,
 			vertical: configScrollbarOpts.vertical,
 			horizontal: configScrollbarOpts.horizontal,
-			className: EditorBrowser.ClassNames.SCROLLABLE_ELEMENT + ' ' + this.configuration.editor.theme,
+			className: ClassNames.SCROLLABLE_ELEMENT + ' ' + this.configuration.editor.theme,
 			useShadows: false,
-			saveLastScrollTimeOnClassName: EditorBrowser.ClassNames.VIEW_LINE
+			saveLastScrollTimeOnClassName: ClassNames.VIEW_LINE
 		};
 		addPropertyIfPresent(configScrollbarOpts, scrollbarOptions, 'verticalHasArrows');
 		addPropertyIfPresent(configScrollbarOpts, scrollbarOptions, 'horizontalHasArrows');
@@ -63,7 +61,7 @@ export class ScrollManager implements Lifecycle.IDisposable {
 		addPropertyIfPresent(configScrollbarOpts, scrollbarOptions, 'mouseWheelScrollSensitivity');
 
 
-		this.scrollbar = new ScrollableElementImpl.ScrollableElement(linesContent, scrollbarOptions, {
+		this.scrollbar = new ScrollableElement(linesContent, scrollbarOptions, {
 			width: this.configuration.editor.layoutInfo.contentWidth,
 			height: this.configuration.editor.layoutInfo.contentHeight,
 		});
@@ -72,7 +70,7 @@ export class ScrollManager implements Lifecycle.IDisposable {
 		this.toDispose.push(this.scrollable.addInternalSizeChangeListener(() => {
 			this.scrollbar.onElementInternalDimensions();
 		}));
-		this.toDispose.push(this.configuration.onDidChange((e:EditorCommon.IConfigurationChangedEvent) => {
+		this.toDispose.push(this.configuration.onDidChange((e:IConfigurationChangedEvent) => {
 			this.scrollbar.updateClassName(this.configuration.editor.theme);
 			if (e.scrollbar) {
 				this.scrollbar.updateOptions(this.configuration.editor.scrollbar);
@@ -102,13 +100,13 @@ export class ScrollManager implements Lifecycle.IDisposable {
 		};
 
 		// I've seen this happen both on the view dom node & on the lines content dom node.
-		this.toDispose.push(DomUtils.addDisposableListener(viewDomNode, 'scroll', (e:Event) => onBrowserDesperateReveal(viewDomNode, true, true)));
-		this.toDispose.push(DomUtils.addDisposableListener(linesContent, 'scroll', (e:Event) => onBrowserDesperateReveal(linesContent, true, false)));
-		this.toDispose.push(DomUtils.addDisposableListener(overflowGuardDomNode, 'scroll', (e:Event) => onBrowserDesperateReveal(overflowGuardDomNode, true, false)));
+		this.toDispose.push(dom.addDisposableListener(viewDomNode, 'scroll', (e:Event) => onBrowserDesperateReveal(viewDomNode, true, true)));
+		this.toDispose.push(dom.addDisposableListener(linesContent, 'scroll', (e:Event) => onBrowserDesperateReveal(linesContent, true, false)));
+		this.toDispose.push(dom.addDisposableListener(overflowGuardDomNode, 'scroll', (e:Event) => onBrowserDesperateReveal(overflowGuardDomNode, true, false)));
 	}
 
 	public dispose(): void {
-		this.toDispose = Lifecycle.disposeAll(this.toDispose);
+		this.toDispose = disposeAll(this.toDispose);
 	}
 
 	public onSizeProviderLayoutChanged(): void {
@@ -120,7 +118,7 @@ export class ScrollManager implements Lifecycle.IDisposable {
 		}
 	}
 
-	public getOverviewRulerLayoutInfo(): ScrollableElement.IOverviewRulerLayoutInfo {
+	public getOverviewRulerLayoutInfo(): IOverviewRulerLayoutInfo {
 		if (this.scrollbar) {
 			return this.scrollbar.getOverviewRulerLayoutInfo();
 		}

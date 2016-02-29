@@ -84,12 +84,12 @@ class GruntTaskMatcher implements TaskDetectorMatcher {
 			//
 			// Tasks run in the order specified
 			if (!this.tasksStart && !this.tasksEnd) {
-				if (line.indexOf('Available tasks') == 0) {
+				if (line.indexOf('Available tasks') === 0) {
 					this.tasksStart = true;
 				}
 			}
 			else if (this.tasksStart && !this.tasksEnd) {
-				if (line.indexOf('Tasks run in the order specified') == 0) {
+				if (line.indexOf('Tasks run in the order specified') === 0) {
 					this.tasksEnd = true;
 				} else {
 					if (this.descriptionOffset === null) {
@@ -171,7 +171,7 @@ export class ProcessRunnerDetector {
 							return value;
 						}
 						return { config: null, stderr: this.stderr };
-					})
+					});
 				});
 			});
 		}

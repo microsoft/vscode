@@ -4,29 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEmitterEvent} from 'vs/base/common/eventEmitter';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {IResourceService, ResourceEvents, IResourceAddedEvent, IResourceRemovedEvent} from 'vs/editor/common/services/resourceService';
 import {RunOnceScheduler} from 'vs/base/common/async';
-import URI from 'vs/base/common/uri';
+import {IEmitterEvent} from 'vs/base/common/eventEmitter';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import URI from 'vs/base/common/uri';
+import {IMirrorModel} from 'vs/editor/common/editorCommon';
+import {IResourceAddedEvent, IResourceRemovedEvent, IResourceService, ResourceEvents} from 'vs/editor/common/services/resourceService';
 
-export interface IValidationHelperFilter {
-	(resource:EditorCommon.IMirrorModel): boolean;
+interface IValidationHelperFilter {
+	(resource:IMirrorModel): boolean;
 }
 
 export interface IValidationHelperCallback {
-	(changed:URI[], notChanged:URI[], isDueToConfigurationChange:boolean): void;
+	(toValidate:URI[]): void;
 }
 
 class ValidationModel implements IDisposable {
 
 	private _toDispose: IDisposable[];
 	private _changeCallback: (model:ValidationModel)=>void;
-	private _model: EditorCommon.IMirrorModel;
+	private _model: IMirrorModel;
 	private _isDirty: boolean;
 
-	public constructor(model: EditorCommon.IMirrorModel, changeCallback:(model:ValidationModel)=>void) {
+	public constructor(model: IMirrorModel, changeCallback:(model:ValidationModel)=>void) {
 		this._toDispose = [];
 		this._changeCallback = changeCallback;
 		this._model = model;
@@ -53,7 +53,7 @@ class ValidationModel implements IDisposable {
 		return this._isDirty;
 	}
 
-	public getMirrorModel(): EditorCommon.IMirrorModel {
+	public getMirrorModel(): IMirrorModel {
 		return this._model;
 	}
 
@@ -83,12 +83,12 @@ export class ValidationHelper implements IDisposable {
 	private _models:{[url:string]:ValidationModel;};
 	private _isDueToConfigurationChange:boolean;
 
-	public constructor(resourceService:IResourceService, callback:IValidationHelperCallback, filter:IValidationHelperFilter, validationDelay:number = 500) {
+	public constructor(resourceService:IResourceService, modeId: string, callback:IValidationHelperCallback) {
 		this._toDispose = [];
 		this._resourceService = resourceService;
 		this._callback = callback;
-		this._filter = filter;
-		this._validationDelay = validationDelay;
+		this._filter = (resource) => (resource.getMode().getId() === modeId);
+		this._validationDelay = 500;
 		this._models = {};
 		this._isDueToConfigurationChange = false;
 
@@ -122,12 +122,12 @@ export class ValidationHelper implements IDisposable {
 		this._validate.schedule();
 	}
 
-	private _addElement(element:EditorCommon.IMirrorModel): void {
+	private _addElement(element:IMirrorModel): void {
 		if (!this._filter(element)) {
 			return;
 		}
 
-		var model = <EditorCommon.IMirrorModel>element;
+		var model = <IMirrorModel>element;
 
 		var validationModel = new ValidationModel(model, (model) => this._onChanged(model));
 		this._models[model.getAssociatedResource().toString()] = validationModel;
@@ -179,7 +179,13 @@ export class ValidationHelper implements IDisposable {
 
 		var isDueToConfigurationChange = this._isDueToConfigurationChange;
 		this._isDueToConfigurationChange = false;
-		this._callback(dirtyModels, cleanModels, isDueToConfigurationChange);
+
+		let toValidate: URI[] = dirtyModels;
+		if (isDueToConfigurationChange) {
+			toValidate = toValidate.concat(cleanModels);
+		}
+
+		this._callback(toValidate);
 	}
 
 	public enable(): void {

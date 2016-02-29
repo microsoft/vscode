@@ -5,11 +5,11 @@
 'use strict';
 
 import nls = require('vs/nls');
-import ModesExtensions = require('vs/editor/common/modes/modesRegistry');
+import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
 import Platform = require('vs/platform/platform');
 
-ModesExtensions.registerMode({
+ModesRegistry.registerCompatMode({
 	id: 'markdown',
 	extensions: ['.md', '.markdown', '.mdown', '.mkdn', '.mkd', '.mdwn', '.mdtxt', '.mdtext'],
 	aliases: ['Markdown', 'markdown'],

@@ -6,9 +6,8 @@
 
 import errors = require('vs/base/common/errors');
 import uri from 'vs/base/common/uri';
-import severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ITerminalService, IExecutionService} from 'vs/workbench/parts/execution/common/execution';
+import {ITerminalService} from 'vs/workbench/parts/execution/common/execution';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IMessageService} from 'vs/platform/message/common/message';
 

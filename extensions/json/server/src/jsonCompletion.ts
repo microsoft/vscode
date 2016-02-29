@@ -5,14 +5,13 @@
 'use strict';
 
 
-import URI from './utils/uri';
 import Parser = require('./jsonParser');
 import SchemaService = require('./jsonSchemaService');
 import JsonSchema = require('./json-toolbox/jsonSchema');
 import nls = require('./utils/nls');
 import {IJSONWorkerContribution} from './jsonContributions';
 
-import {CompletionItem, CompletionItemKind, CompletionList, CompletionOptions, ITextDocument, TextDocumentIdentifier, TextDocumentPosition, Range, TextEdit} from 'vscode-languageserver';
+import {CompletionItem, CompletionItemKind, CompletionList, ITextDocument, TextDocumentPosition, Range, TextEdit} from 'vscode-languageserver';
 
 export interface ISuggestionsCollector {
 	add(suggestion: CompletionItem): void;
@@ -40,7 +39,7 @@ export class JSONCompletion {
 		let result: CompletionList = {
 			items: [],
 			isIncomplete: false
-		}
+		};
 
 		if (node && (node.type === 'string' || node.type === 'number' || node.type === 'boolean' || node.type === 'null')) {
 			overwriteRange = Range.create(document.positionAt(node.start), document.positionAt(node.end));
@@ -73,7 +72,7 @@ export class JSONCompletion {
 
 			let addValue = true;
 			let currentKey = '';
-			
+
 			let currentProperty: Parser.PropertyASTNode = null;
 			if (node) {
 
@@ -134,8 +133,8 @@ export class JSONCompletion {
 			} else {
 				// value proposals without schema
 				this.getSchemaLessValueSuggestions(doc, node, offset, document, collector);
-			}	
-			
+			}
+
 			if (!node) {
 				this.contributions.forEach((contribution) => {
 					let collectPromise = contribution.collectDefaultSuggestions(textDocumentPosition.uri, collector);
@@ -305,12 +304,21 @@ export class JSONCompletion {
 		collector.add({ kind: this.getSuggestionKind('boolean'), label: value ? 'true' : 'false', insertText: this.getTextForValue(value), documentation: '' });
 	}
 
+	private addNullSuggestion(collector: ISuggestionsCollector): void {
+		collector.add({ kind: this.getSuggestionKind('null'), label: 'null', insertText: 'null', documentation: '' });
+	}
+
 	private addEnumSuggestion(schema: JsonSchema.IJSONSchema, collector: ISuggestionsCollector): void {
 		if (Array.isArray(schema.enum)) {
 			schema.enum.forEach((enm) => collector.add({ kind: this.getSuggestionKind(schema.type), label: this.getLabelForValue(enm), insertText: this.getTextForValue(enm), documentation: '' }));
-		} else if (schema.type === 'boolean') {
-			this.addBooleanSuggestion(true, collector);
-			this.addBooleanSuggestion(false, collector);
+		} else {
+			if (this.isType(schema, 'boolean')) {
+				this.addBooleanSuggestion(true, collector);
+				this.addBooleanSuggestion(false, collector);
+			}
+			if (this.isType(schema, 'null')) {
+				this.addNullSuggestion(collector);
+			}
 		}
 		if (Array.isArray(schema.allOf)) {
 			schema.allOf.forEach((s) => this.addEnumSuggestion(s, collector));
@@ -321,6 +329,13 @@ export class JSONCompletion {
 		if (Array.isArray(schema.oneOf)) {
 			schema.oneOf.forEach((s) => this.addEnumSuggestion(s, collector));
 		}
+	}
+
+	private isType(schema: JsonSchema.IJSONSchema, type: string) {
+		if (Array.isArray(schema.type)) {
+			return schema.type.indexOf(type) !== -1;
+		}
+		return schema.type === type;
 	}
 
 	private addDefaultSuggestion(schema: JsonSchema.IJSONSchema, collector: ISuggestionsCollector): void {
@@ -385,7 +400,7 @@ export class JSONCompletion {
 			case 'string': return CompletionItemKind.Text;
 			case 'object': return CompletionItemKind.Module;
 			case 'property': return CompletionItemKind.Property;
-			default: return CompletionItemKind.Value
+			default: return CompletionItemKind.Value;
 		}
 	}
 
@@ -409,7 +424,7 @@ export class JSONCompletion {
 			return result;
 		}
 		result += ': ';
-		
+
 		if (propertySchema) {
 			let defaultVal = propertySchema.default;
 			if (typeof defaultVal !== 'undefined') {
@@ -417,7 +432,8 @@ export class JSONCompletion {
 			} else if (propertySchema.enum && propertySchema.enum.length > 0) {
 				result = result + this.getSnippetForValue(propertySchema.enum[0]);
 			} else {
-				switch (propertySchema.type) {
+				var type = Array.isArray(propertySchema.type) ? propertySchema.type[0] : propertySchema.type;
+				switch (type) {
 					case 'boolean':
 						result += '{{false}}';
 						break;
@@ -456,7 +472,7 @@ export class JSONCompletion {
 	private getCurrentWord(document: ITextDocument, offset: number) {
 		var i = offset - 1;
 		var text = document.getText();
-		while (i >= 0 && ' \t\n\r\v"'.indexOf(text.charAt(i)) === -1) {
+		while (i >= 0 && ' \t\n\r\v":{[,'.indexOf(text.charAt(i)) === -1) {
 			i--;
 		}
 		return text.substring(i+1, offset);

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {onUnexpectedError} from 'vs/base/common/errors';
+import {IModeConfiguration, IOneCursorState, IViewModelHelper, OneCursor} from 'vs/editor/common/controller/oneCursor';
 import {Selection} from 'vs/editor/common/core/selection';
-import {OneCursor, IOneCursorState, IModeConfiguration, IViewModelHelper} from 'vs/editor/common/controller/oneCursor';
+import {IConfiguration, IEditorPosition, IEditorSelection, IModel, ISelection} from 'vs/editor/common/editorCommon';
 import {IAutoClosingPair} from 'vs/editor/common/modes';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Errors = require('vs/base/common/errors');
 
 export interface ICursorCollectionState {
 	primary: IOneCursorState;
@@ -18,8 +18,8 @@ export interface ICursorCollectionState {
 export class CursorCollection {
 
 	private editorId: number;
-	private model: EditorCommon.IModel;
-	private configuration: EditorCommon.IConfiguration;
+	private model: IModel;
+	private configuration: IConfiguration;
 	private modeConfiguration: IModeConfiguration;
 
 	private primaryCursor: OneCursor;
@@ -30,7 +30,7 @@ export class CursorCollection {
 
 	private viewModelHelper:IViewModelHelper;
 
-	constructor(editorId: number, model: EditorCommon.IModel, configuration: EditorCommon.IConfiguration, viewModelHelper:IViewModelHelper) {
+	constructor(editorId: number, model: IModel, configuration: IConfiguration, viewModelHelper:IViewModelHelper) {
 		this.editorId = editorId;
 		this.model = model;
 		this.configuration = configuration;
@@ -78,7 +78,7 @@ export class CursorCollection {
 		return result;
 	}
 
-	public getPosition(index: number): EditorCommon.IEditorPosition {
+	public getPosition(index: number): IEditorPosition {
 		if (index === 0) {
 			return this.primaryCursor.getPosition();
 		} else {
@@ -86,7 +86,7 @@ export class CursorCollection {
 		}
 	}
 
-	public getViewPosition(index: number): EditorCommon.IEditorPosition {
+	public getViewPosition(index: number): IEditorPosition {
 		if (index === 0) {
 			return this.primaryCursor.getViewPosition();
 		} else {
@@ -94,8 +94,8 @@ export class CursorCollection {
 		}
 	}
 
-	public getPositions(): EditorCommon.IEditorPosition[] {
-		var result: EditorCommon.IEditorPosition[] = [];
+	public getPositions(): IEditorPosition[] {
+		var result: IEditorPosition[] = [];
 		result.push(this.primaryCursor.getPosition());
 		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
 			result.push(this.secondaryCursors[i].getPosition());
@@ -103,8 +103,8 @@ export class CursorCollection {
 		return result;
 	}
 
-	public getViewPositions(): EditorCommon.IEditorPosition[] {
-		var result: EditorCommon.IEditorPosition[] = [];
+	public getViewPositions(): IEditorPosition[] {
+		var result: IEditorPosition[] = [];
 		result.push(this.primaryCursor.getViewPosition());
 		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
 			result.push(this.secondaryCursors[i].getViewPosition());
@@ -112,7 +112,7 @@ export class CursorCollection {
 		return result;
 	}
 
-	public getSelection(index: number): EditorCommon.IEditorSelection {
+	public getSelection(index: number): IEditorSelection {
 		if (index === 0) {
 			return this.primaryCursor.getSelection();
 		} else {
@@ -120,8 +120,8 @@ export class CursorCollection {
 		}
 	}
 
-	public getSelections(): EditorCommon.IEditorSelection[] {
-		var result: EditorCommon.IEditorSelection[] = [];
+	public getSelections(): IEditorSelection[] {
+		var result: IEditorSelection[] = [];
 		result.push(this.primaryCursor.getSelection());
 		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
 			result.push(this.secondaryCursors[i].getSelection());
@@ -129,8 +129,8 @@ export class CursorCollection {
 		return result;
 	}
 
-	public getViewSelections(): EditorCommon.IEditorSelection[] {
-		var result: EditorCommon.IEditorSelection[] = [];
+	public getViewSelections(): IEditorSelection[] {
+		var result: IEditorSelection[] = [];
 		result.push(this.primaryCursor.getViewSelection());
 		for (var i = 0, len = this.secondaryCursors.length; i < len; i++) {
 			result.push(this.secondaryCursors[i].getViewSelection());
@@ -138,7 +138,7 @@ export class CursorCollection {
 		return result;
 	}
 
-	public setSelections(selections: EditorCommon.ISelection[]): void {
+	public setSelections(selections: ISelection[]): void {
 		this.primaryCursor.setSelection(selections[0]);
 		this._setSecondarySelections(selections.slice(1));
 	}
@@ -156,7 +156,7 @@ export class CursorCollection {
 		}
 	}
 
-	public addSecondaryCursor(selection: EditorCommon.ISelection): void {
+	public addSecondaryCursor(selection: ISelection): void {
 		var newCursor = new OneCursor(this.editorId, this.model, this.configuration, this.modeConfiguration, this.viewModelHelper);
 		if (selection) {
 			newCursor.setSelection(selection);
@@ -191,7 +191,7 @@ export class CursorCollection {
 	 * 		- a negative number indicates the number of secondary cursors removed
 	 * 		- 0 indicates that no changes have been done to the secondary cursors list
 	 */
-	private _setSecondarySelections(secondarySelections: EditorCommon.ISelection[]): number {
+	private _setSecondarySelections(secondarySelections: ISelection[]): number {
 		var secondaryCursorsLength = this.secondaryCursors.length;
 		var secondarySelectionsLength = secondarySelections.length;
 		var returnValue = secondarySelectionsLength - secondaryCursorsLength;
@@ -232,7 +232,7 @@ export class CursorCollection {
 		var cursors = this.getAll();
 		var sortedCursors:{
 			index: number;
-			selection: EditorCommon.IEditorSelection;
+			selection: IEditorSelection;
 		}[] = [];
 		for (var i = 0; i < cursors.length; i++) {
 			sortedCursors.push({
@@ -280,7 +280,7 @@ export class CursorCollection {
 						resultingSelectionIsLTR = winnerSelectionIsLTR;
 					}
 
-					var resultingSelection: EditorCommon.IEditorSelection;
+					var resultingSelection: IEditorSelection;
 					if (resultingSelectionIsLTR) {
 						resultingSelection = new Selection(resultingRange.startLineNumber, resultingRange.startColumn, resultingRange.endLineNumber, resultingRange.endColumn);
 					} else {
@@ -307,21 +307,23 @@ export class CursorCollection {
 	}
 
 	private getModeConfiguration(): IModeConfiguration {
-		var i: number;
+		let i: number;
 
-		var result: IModeConfiguration = {
+		let result: IModeConfiguration = {
 			electricChars: {},
 			autoClosingPairsOpen: {},
 			autoClosingPairsClose: {},
 			surroundingPairs: {}
 		};
 
-		var electricChars: string[];
-		if (this.model.getMode().electricCharacterSupport) {
+		let richEditSupport = this.model.getMode().richEditSupport;
+
+		let electricChars: string[];
+		if (richEditSupport && richEditSupport.electricCharacter) {
 			try {
-				electricChars = this.model.getMode().electricCharacterSupport.getElectricCharacters();
+				electricChars = richEditSupport.electricCharacter.getElectricCharacters();
 			} catch(e) {
-				Errors.onUnexpectedError(e);
+				onUnexpectedError(e);
 				electricChars = null;
 			}
 		}
@@ -331,12 +333,12 @@ export class CursorCollection {
 			}
 		}
 
-		var autoClosingPairs: IAutoClosingPair[];
-		if (this.model.getMode().characterPairSupport) {
+		let autoClosingPairs: IAutoClosingPair[];
+		if (richEditSupport && richEditSupport.characterPair) {
 			try {
-				autoClosingPairs = this.model.getMode().characterPairSupport.getAutoClosingPairs();
+				autoClosingPairs = richEditSupport.characterPair.getAutoClosingPairs();
 			} catch(e) {
-				Errors.onUnexpectedError(e);
+				onUnexpectedError(e);
 				autoClosingPairs = null;
 			}
 		}
@@ -347,12 +349,12 @@ export class CursorCollection {
 			}
 		}
 
-		var surroundingPairs: IAutoClosingPair[];
-		if (this.model.getMode().characterPairSupport) {
+		let surroundingPairs: IAutoClosingPair[];
+		if (richEditSupport && richEditSupport.characterPair) {
 			try {
-				surroundingPairs = this.model.getMode().characterPairSupport.getSurroundingPairs();
+				surroundingPairs = richEditSupport.characterPair.getSurroundingPairs();
 			} catch(e) {
-				Errors.onUnexpectedError(e);
+				onUnexpectedError(e);
 				surroundingPairs = null;
 			}
 		}

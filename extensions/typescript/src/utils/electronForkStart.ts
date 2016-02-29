@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 var net = require('net'),
-	fs = require('fs'),
-	stream = require('stream'),
-	util = require('util');
+	fs = require('fs');
 
 var ENABLE_LOGGING = false;
 
@@ -23,7 +21,7 @@ var log = (function() {
 			return;
 		}
 		fs.appendFileSync(LOG_LOCATION, str + '\n');
-	}
+	};
 })();
 
 var stdInPipeName = process.env['STDIN_PIPE_NAME'];

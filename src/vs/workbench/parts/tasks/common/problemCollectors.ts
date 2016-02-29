@@ -11,8 +11,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 
-import { ILineMatcher, createLineMatcher, ProblemMatcher, FileLocationKind, ProblemMatch, ApplyToKind, WatchingPattern, getResource } from 'vs/platform/markers/common/problemMatcher';
-import { IMarkerService, IMarkerData, MarkerType, IResourceMarker, IMarker, MarkerStatistics } from 'vs/platform/markers/common/markers';
+import { ILineMatcher, createLineMatcher, ProblemMatcher, ProblemMatch, ApplyToKind, WatchingPattern, getResource } from 'vs/platform/markers/common/problemMatcher';
+import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
 
 export namespace ProblemCollectorEvents {
 	export let WatchingBeginDetected: string = 'watchingBeginDetected';
@@ -107,9 +107,9 @@ export class AbstractProblemCollector extends EventEmitter implements IDisposabl
 			case ApplyToKind.allDocuments:
 				return true;
 			case ApplyToKind.openDocuments:
-				return this.openModels[result.resource.toString()]
+				return this.openModels[result.resource.toString()];
 			case ApplyToKind.closedDocuments:
-				return !this.openModels[result.resource.toString()]
+				return !this.openModels[result.resource.toString()];
 			default:
 				return true;
 		}
@@ -274,7 +274,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				this.watchingBeginsPatterns.push({ problemMatcher: matcher, pattern: matcher.watching.beginsPattern });
 				this.watchingEndsPatterns.push({ problemMatcher: matcher, pattern: matcher.watching.endsPattern });
 			}
-		})
+		});
 	}
 
 	public aboutToStart(): void {
@@ -288,11 +288,11 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				this.ignoreOpenResourcesByOwner[matcher.owner] = (matcher.applyTo === ApplyToKind.closedDocuments);
 			} else {
 				let newValue = value && (matcher.applyTo === ApplyToKind.closedDocuments);
-				if (newValue != value) {
+				if (newValue !== value) {
 					this.ignoreOpenResourcesByOwner[matcher.owner] = newValue;
 				}
 			}
-		})
+		});
 	}
 
 	public processLine(line: string): void {

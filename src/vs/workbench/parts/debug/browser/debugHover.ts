@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import lifecycle = require('vs/base/common/lifecycle');
 import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
+import { CommonKeybindings } from 'vs/base/common/keyCodes';
 import dom = require('vs/base/browser/dom');
 import * as nls from 'vs/nls';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
@@ -16,6 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import debug = require('vs/workbench/parts/debug/common/debug');
 import {evaluateExpression, Expression} from 'vs/workbench/parts/debug/common/debugModel';
 import viewer = require('vs/workbench/parts/debug/browser/debugViewer');
+import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.emmet;
 const debugTreeOptions = {
@@ -32,34 +35,43 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	public allowEditorOverflow = true;
 
 	private domNode: HTMLElement;
-	private isVisible: boolean;
+	public isVisible: boolean;
 	private tree: ITree;
 	private showAtPosition: editorcommon.IEditorPosition;
-	private lastHoveringOver: string;
 	private highlightDecorations: string[];
 	private treeContainer: HTMLElement;
 	private valueContainer: HTMLElement;
+	private stoleFocus: boolean;
+	private toDispose: lifecycle.IDisposable[];
 
 	constructor(private editor: editorbrowser.ICodeEditor, private debugService: debug.IDebugService, private instantiationService: IInstantiationService) {
 		this.domNode = $('.debug-hover-widget monaco-editor-background');
 		this.treeContainer = dom.append(this.domNode, $('.debug-hover-tree'));
+		this.treeContainer.setAttribute('role', 'tree');
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: new viewer.VariablesDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
 			controller: new DebugHoverController(editor)
 		}, debugTreeOptions);
-		this.tree.addListener2('item:expanded', () => {
+		this.toDispose = [];
+		this.toDispose.push(this.tree.addListener2('item:expanded', () => {
 			this.layoutTree();
-		});
-		this.tree.addListener2('item:collapsed', () => {
+		}));
+		this.toDispose.push(this.tree.addListener2('item:collapsed', () => {
 			this.layoutTree();
-		});
+		}));
 
-		this.valueContainer = dom.append(this.domNode, $('.debug-hover-value'));
+		this.toDispose.push(dom.addStandardDisposableListener(this.domNode, 'keydown', (e: IKeyboardEvent) => {
+			if (e.equals(CommonKeybindings.ESCAPE)) {
+				this.hide();
+			}
+		}));
+		this.valueContainer = dom.append(this.domNode, $('.value'));
+		this.valueContainer.tabIndex = 0;
+		this.valueContainer.setAttribute('role', 'tooltip');
 
 		this.isVisible = false;
 		this.showAtPosition = null;
-		this.lastHoveringOver = null;
 		this.highlightDecorations = [];
 
 		this.editor.addContentWidget(this);
@@ -73,14 +85,11 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		return this.domNode;
 	}
 
-	public showAt(range: editorcommon.IEditorRange): void {
+	public showAt(range: editorcommon.IEditorRange, hoveringOver: string, focus: boolean): TPromise<void> {
 		const pos = range.getStartPosition();
 		const model = this.editor.getModel();
-		const wordAtPosition = model.getWordAtPosition(pos);
-		const hoveringOver = wordAtPosition ? wordAtPosition.word : null;
 		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
-		if (!hoveringOver || !focusedStackFrame || (this.isVisible && hoveringOver === this.lastHoveringOver) ||
-			(focusedStackFrame.source.uri.toString() !== model.getAssociatedResource().toString())) {
+		if (!hoveringOver || !focusedStackFrame || (focusedStackFrame.source.uri.toString() !== model.getAssociatedResource().toString())) {
 			return;
 		}
 
@@ -91,8 +100,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		namesToFind.push(hoveringOver);
 		namesToFind[0] = namesToFind[0].substring(namesToFind[0].lastIndexOf(' ') + 1);
 
-
-		this.getExpression(namesToFind).done(expression => {
+		return this.getExpression(namesToFind).then(expression => {
 			if (!expression || !expression.available) {
 				this.hide();
 				return;
@@ -103,22 +111,22 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 				range: {
 					startLineNumber: pos.lineNumber,
 					endLineNumber: pos.lineNumber,
-					startColumn: wordAtPosition.startColumn,
-					endColumn: wordAtPosition.endColumn
+					startColumn: lineContent.indexOf(hoveringOver) + 1,
+					endColumn: lineContent.indexOf(hoveringOver) + 1 + hoveringOver.length
 				},
 				options: {
 					className: 'hoverHighlight'
 				}
 			}]);
-			this.lastHoveringOver = hoveringOver;
-			this.doShow(pos, expression);
-		}, errors.onUnexpectedError);
+
+			return this.doShow(pos, expression, focus);
+		});
 	}
 
 	private getExpression(namesToFind: string[]): TPromise<Expression> {
 		const session = this.debugService.getActiveSession();
 		const focusedStackFrame = this.debugService.getViewModel().getFocusedStackFrame();
-		if (session.capablities.supportsEvaluateForHovers) {
+		if (session.capabilities.supportsEvaluateForHovers) {
 			return evaluateExpression(session, focusedStackFrame, new Expression(namesToFind.join('.'), true), 'hover');
 		}
 
@@ -154,23 +162,35 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		}).then(() => variables.length === 1 ? TPromise.as(variables[0]) : TPromise.as(null));
 	}
 
-	private doShow(position: editorcommon.IEditorPosition, expression: debug.IExpression, forceValueHover = false): void {
-		if (expression.reference > 0 && !forceValueHover) {
-			this.valueContainer.hidden = true;
-			this.treeContainer.hidden = false;
-			this.tree.setInput(expression).then(() => {
-				this.layoutTree();
-			}).done(null, errors.onUnexpectedError);
-		} else {
-			this.treeContainer.hidden = true;
-			this.valueContainer.hidden = false;
-			viewer.renderExpressionValue(expression, false, this.valueContainer, false);
-			this.valueContainer.title = '';
-		}
-
+	private doShow(position: editorcommon.IEditorPosition, expression: debug.IExpression, focus: boolean, forceValueHover = false): TPromise<void> {
 		this.showAtPosition = position;
 		this.isVisible = true;
-		this.editor.layoutContentWidget(this);
+		this.stoleFocus = focus;
+
+		if (expression.reference === 0 || forceValueHover) {
+			this.treeContainer.hidden = true;
+			this.valueContainer.hidden = false;
+			viewer.renderExpressionValue(expression, this.valueContainer, false);
+			this.valueContainer.title = '';
+			this.editor.layoutContentWidget(this);
+			if (focus) {
+				this.editor.render();
+				this.valueContainer.focus();
+			}
+			return TPromise.as(null);
+		}
+
+		this.valueContainer.hidden = true;
+		this.treeContainer.hidden = false;
+
+		return this.tree.setInput(expression).then(() => {
+			this.layoutTree();
+			this.editor.layoutContentWidget(this);
+			if (focus) {
+				this.editor.render();
+				this.tree.DOMFocus();
+			}
+		});
 	}
 
 	private layoutTree(): void {
@@ -181,7 +201,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		}
 
 		if (visibleElementsCount === 0) {
-			this.doShow(this.showAtPosition, this.tree.getInput(), true);
+			this.doShow(this.showAtPosition, this.tree.getInput(), false, true);
 		} else {
 			const height = Math.min(visibleElementsCount, MAX_ELEMENTS_SHOWN) * 18;
 
@@ -201,6 +221,9 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 		this.editor.deltaDecorations(this.highlightDecorations, []);
 		this.highlightDecorations = [];
 		this.editor.layoutContentWidget(this);
+		if (this.stoleFocus) {
+			this.editor.focus();
+		}
 	}
 
 	public getPosition(): editorbrowser.IContentWidgetPosition {
@@ -211,6 +234,10 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 				editorbrowser.ContentWidgetPositionPreference.BELOW
 			]
 		} : null;
+	}
+
+	public dispose(): void {
+		this.toDispose = lifecycle.disposeAll(this.toDispose);
 	}
 }
 

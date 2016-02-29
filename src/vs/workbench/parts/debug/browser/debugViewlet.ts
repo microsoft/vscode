@@ -7,7 +7,7 @@ import 'vs/css!./media/debugViewlet';
 import nls = require('vs/nls');
 import dom = require('vs/base/browser/dom');
 import builder = require('vs/base/browser/builder');
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import lifecycle = require('vs/base/common/lifecycle');
 import events = require('vs/base/common/events');
@@ -77,8 +77,9 @@ class VariablesView extends viewlet.CollapsibleViewletView {
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.VariablesDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(viewer.VariablesRenderer),
+			accessibilityProvider: new viewer.VariablesAccessibilityProvider(),
 			controller: new viewer.BaseDebugController(this.debugService, this.contextMenuService, new viewer.VariablesActionProvider(this.instantiationService))
-		}, debugTreeOptions(nls.localize('variablesAriaTreeLabel', "Variables")));
+		}, debugTreeOptions(nls.localize('variablesAriaTreeLabel', "Debug Variables")));
 
 		const viewModel = this.debugService.getViewModel();
 
@@ -145,8 +146,9 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.WatchExpressionsDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(viewer.WatchExpressionsRenderer, actionProvider, this.actionRunner),
+			accessibilityProvider: new viewer.WatchExpressionsAccessibilityProvider(),
 			controller: new viewer.WatchExpressionsController(this.debugService, this.contextMenuService, actionProvider)
-		}, debugTreeOptions(nls.localize('watchAriaTreeLabel', "Watch Expressions")));
+		}, debugTreeOptions(nls.localize('watchAriaTreeLabel', "Debug Watch Expressions")));
 
 		this.tree.setInput(this.debugService.getModel());
 
@@ -163,12 +165,9 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 
 			this.tree.refresh(expression, false).then(() => {
 				this.tree.setHighlight(expression);
-
-				const unbind = this.tree.addListener(events.EventType.HIGHLIGHT, (e: tree.IHighlightEvent) => {
+				this.tree.addOneTimeListener(events.EventType.HIGHLIGHT, (e: tree.IHighlightEvent) => {
 					if (!e.highlight) {
 						this.debugService.getViewModel().setSelectedExpression(null);
-						this.tree.refresh(expression).done(null, errors.onUnexpectedError);
-						unbind();
 					}
 				});
 			}).done(null, errors.onUnexpectedError);
@@ -177,7 +176,7 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 
 	private onWatchExpressionsUpdated(we: model.Expression): void {
 		this.tree.refresh().done(() => {
-			return we instanceof model.Expression ? this.tree.reveal(we): Promise.as(true);
+			return we instanceof model.Expression ? this.tree.reveal(we): TPromise.as(true);
 		}, errors.onUnexpectedError);
 	}
 
@@ -190,8 +189,8 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 class CallStackView extends viewlet.CollapsibleViewletView {
 
 	private static MEMENTO = 'callstackview.memento';
-	private messageBox: HTMLDivElement;
-	private fullSize: number;
+	private pauseMessage: builder.Builder;
+	private pauseMessageLabel: builder.Builder;
 
 	constructor(actionRunner: actions.IActionRunner, private settings: any,
 		@IMessageService messageService: IMessageService,
@@ -204,19 +203,22 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 
 	public renderHeader(container: HTMLElement): void {
 		super.renderHeader(container);
-		const titleDiv = $('div.title').appendTo(container);
-		$('span').text(nls.localize('callStack', "Call Stack")).appendTo(titleDiv);
+		const title = $('div.debug-call-stack-title').appendTo(container);
+		$('span.title').text(nls.localize('callStack', "Call Stack")).appendTo(title);
+		this.pauseMessage = $('span.pause-message').appendTo(title);
+		this.pauseMessage.hide();
+		this.pauseMessageLabel = $('span.label').appendTo(this.pauseMessage);
 	}
 
 	public renderBody(container: HTMLElement): void {
 		dom.addClass(container, 'debug-call-stack');
-		this.renderMessageBox(container);
 		this.treeContainer = renderViewTree(container);
 
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.CallStackDataSource(),
-			renderer: this.instantiationService.createInstance(viewer.CallStackRenderer)
-		}, debugTreeOptions(nls.localize('callStackAriaLabel', "Call Stack")));
+			renderer: this.instantiationService.createInstance(viewer.CallStackRenderer),
+			accessibilityProvider: this.instantiationService.createInstance(viewer.CallstackAccessibilityProvider)
+		}, debugTreeOptions(nls.localize('callStackAriaLabel', "Debug Call Stack")));
 
 		const debugModel = this.debugService.getModel();
 
@@ -252,18 +254,12 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 		}));
 		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => {
 			const focussedThread = this.debugService.getModel().getThreads()[this.debugService.getViewModel().getFocusedThreadId()];
-			const previouslyHidden = this.messageBox.hidden;
 			if (focussedThread && focussedThread.stoppedReason && focussedThread.stoppedReason !== 'step') {
-				this.messageBox.textContent = nls.localize('debugStopped', "Paused on {0}.", focussedThread.stoppedReason);
-				focussedThread.stoppedReason === 'exception' ? this.messageBox.classList.add('exception') : this.messageBox.classList.remove('exception');
-
-				this.messageBox.hidden = false;
+				this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", focussedThread.stoppedReason));
+				focussedThread.stoppedReason === 'exception' ? this.pauseMessageLabel.addClass('exception') : this.pauseMessageLabel.removeClass('exception');
+				this.pauseMessage.show();
 			} else {
-				this.messageBox.hidden = true;
-			}
-
-			if (previouslyHidden !== this.messageBox.hidden) {
-				this.layoutBody(this.fullSize);
+				this.pauseMessage.hide();
 			}
 		}));
 
@@ -279,19 +275,6 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 				this.tree.setFocus(focused);
 			}
 		}));
-	}
-
-	public layoutBody(size: number): void {
-		this.fullSize = size;
-		const sizeWithRespectToMessageBox = this.messageBox && !this.messageBox.hidden ? size - 27 : size;
-		super.layoutBody(sizeWithRespectToMessageBox);
-	}
-
-	private renderMessageBox(container: HTMLElement): void {
-		this.messageBox = document.createElement('div');
-		dom.addClass(this.messageBox, 'debug-message-box');
-		this.messageBox.hidden = true;
-		container.appendChild(this.messageBox);
 	}
 
 	public shutdown(): void {
@@ -332,6 +315,7 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.BreakpointsDataSource(),
 			renderer: this.instantiationService.createInstance(viewer.BreakpointsRenderer, actionProvider, this.actionRunner),
+			accessibilityProvider: this.instantiationService.createInstance(viewer.BreakpointsAccessibilityProvider),
 			controller: new viewer.BreakpointsController(this.debugService, this.contextMenuService, actionProvider),
 			sorter: {
 				compare(tree: tree.ITree, element: any, otherElement: any): number {
@@ -357,7 +341,7 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 					return first.desiredLineNumber - second.desiredLineNumber;
 				}
 			}
-		}, debugTreeOptions(nls.localize('breakpointsAriaTreeLabel', "Breakpoints")));
+		}, debugTreeOptions(nls.localize('breakpointsAriaTreeLabel', "Debug Breakpoints")));
 
 		const debugModel = this.debugService.getModel();
 
@@ -387,11 +371,26 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 				this.debugService.openOrRevealEditor(breakpoint.source, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
 			}
 		}));
+
+		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.SELECTED_FUNCTION_BREAKPOINT_UPDATED, (fbp: debug.IFunctionBreakpoint) => {
+			if (!fbp || !(fbp instanceof model.FunctionBreakpoint)) {
+				return;
+			}
+
+			this.tree.refresh(fbp, false).then(() => {
+				this.tree.setHighlight(fbp);
+				this.tree.addOneTimeListener(events.EventType.HIGHLIGHT, (e: tree.IHighlightEvent) => {
+					if (!e.highlight) {
+						this.debugService.getViewModel().setSelectedFunctionBreakpoint(null);
+					}
+				});
+			}).done(null, errors.onUnexpectedError);
+		}));
 	}
 
 	public getActions(): actions.IAction[] {
 		return [
-			// this.instantiationService.createInstance(debugactions.AddFunctionBreakpointAction, debugactions.AddFunctionBreakpointAction.ID, debugactions.AddFunctionBreakpointAction.LABEL),
+			this.instantiationService.createInstance(debugactions.AddFunctionBreakpointAction, debugactions.AddFunctionBreakpointAction.ID, debugactions.AddFunctionBreakpointAction.LABEL),
 			this.instantiationService.createInstance(debugactions.ReapplyBreakpointsAction, debugactions.ReapplyBreakpointsAction.ID, debugactions.ReapplyBreakpointsAction.LABEL),
 			this.instantiationService.createInstance(debugactions.ToggleBreakpointsActivatedAction, debugactions.ToggleBreakpointsActivatedAction.ID, debugactions.ToggleBreakpointsActivatedAction.LABEL),
 			this.instantiationService.createInstance(debugactions.RemoveAllBreakpointsAction, debugactions.RemoveAllBreakpointsAction.ID, debugactions.RemoveAllBreakpointsAction.LABEL)
@@ -429,6 +428,8 @@ export class DebugViewlet extends viewlet.Viewlet {
 	private splitView: splitview.SplitView;
 	private views: viewlet.IViewletView[];
 
+	private lastFocusedView: viewlet.CollapsibleViewletView | viewlet.AdaptiveCollapsibleViewletView;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IProgressService private progressService: IProgressService,
@@ -464,6 +465,11 @@ export class DebugViewlet extends viewlet.Viewlet {
 			this.splitView = new splitview.SplitView(this.$el.getHTMLElement());
 			this.toDispose.push(this.splitView);
 			this.views.forEach(v => this.splitView.addView(<any> v));
+
+			// Track focus
+			this.toDispose.push(this.splitView.onFocus((view: viewlet.CollapsibleViewletView | viewlet.AdaptiveCollapsibleViewletView) => {
+				this.lastFocusedView = view;
+			}));
 		} else {
 			this.$el.append($([
 				'<div class="noworkspace-view">',
@@ -473,12 +479,12 @@ export class DebugViewlet extends viewlet.Viewlet {
 			].join('')));
 		}
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
+	public setVisible(visible: boolean): TPromise<any> {
 		return super.setVisible(visible).then(() => {
-			return Promise.join(this.views.map((view) => view.setVisible(visible)));
+			return TPromise.join(this.views.map((view) => view.setVisible(visible)));
 		});
 	}
 
@@ -490,6 +496,11 @@ export class DebugViewlet extends viewlet.Viewlet {
 
 	public focus(): void {
 		super.focus();
+
+		if (this.lastFocusedView && this.lastFocusedView.isExpanded()) {
+			this.lastFocusedView.focusBody();
+			return;
+		}
 
 		if (this.views.length > 0) {
 			(<VariablesView>this.views[0]).focusBody();

@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import ee = require('vs/base/common/eventEmitter');
-import uri from 'vs/base/common/uri';
 import uuid = require('vs/base/common/uuid');
 import severity from 'vs/base/common/severity';
 import types = require('vs/base/common/types');
@@ -38,7 +37,7 @@ export function evaluateExpression(session: debug.IRawDebugSession, stackFrame: 
 		expression.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate") : Expression.DEFAULT_VALUE;
 		expression.available = false;
 		expression.reference = 0;
-		return Promise.as(expression);
+		return TPromise.as(expression);
 	}
 
 	return session.evaluate({
@@ -104,10 +103,8 @@ export class Thread implements debug.IThread {
 
 export class OutputElement implements debug.ITreeElement {
 
-	private id: string;
-
-	constructor(public grouped = false) {
-		this.id = uuid.generateUuid();
+	constructor(private id = uuid.generateUuid()) {
+		// noop
 	}
 
 	public getId(): string {
@@ -117,8 +114,8 @@ export class OutputElement implements debug.ITreeElement {
 
 export class ValueOutputElement extends OutputElement {
 
-	constructor(public value: string, public severity: severity, grouped = false, public category?: string, public counter:number = 1) {
-		super(grouped);
+	constructor(public value: string, public severity: severity, public category?: string, public counter:number = 1) {
+		super();
 	}
 }
 
@@ -129,8 +126,8 @@ export class KeyValueOutputElement extends OutputElement {
 	private children: debug.ITreeElement[];
 	private _valueName: string;
 
-	constructor(public key: string, public valueObj: any, public annotation?: string, grouped?: boolean) {
-		super(grouped);
+	constructor(public key: string, public valueObj: any, public annotation?: string) {
+		super();
 
 		this._valueName = null;
 	}
@@ -160,9 +157,9 @@ export class KeyValueOutputElement extends OutputElement {
 	public getChildren(): debug.ITreeElement[] {
 		if (!this.children) {
 			if (Array.isArray(this.valueObj)) {
-				this.children = (<any[]>this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN).map((v, index) => new KeyValueOutputElement(String(index), v, null, true));
+				this.children = (<any[]>this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN).map((v, index) => new KeyValueOutputElement(String(index), v, null));
 			} else if (types.isObject(this.valueObj)) {
-				this.children = Object.getOwnPropertyNames(this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN).map(key => new KeyValueOutputElement(key, this.valueObj[key], null, true));
+				this.children = Object.getOwnPropertyNames(this.valueObj).slice(0, KeyValueOutputElement.MAX_CHILDREN).map(key => new KeyValueOutputElement(key, this.valueObj[key], null));
 			} else {
 				this.children = [];
 			}
@@ -172,36 +169,14 @@ export class KeyValueOutputElement extends OutputElement {
 	}
 }
 
-// TODO@Isidor move common code for expression and variable into a super class
-export class Expression implements debug.IExpression {
-	static DEFAULT_VALUE = 'not available';
+export class ExpressionContainer implements debug.IExpressionContainer {
+
+	private children: TPromise<debug.IExpression[]>;
+	public valueChanged: boolean;
 	public static allValues: { [id: string]: string } = {};
 
-	public reference: number;
-	public available: boolean;
-	public valueChanged: boolean;
-	private _value: string;
-	private children: TPromise<debug.IExpression[]>;
-
-	constructor(public name: string, private cacheChildren: boolean, private id = uuid.generateUuid()) {
-		this.reference = 0;
-		this.value = Expression.DEFAULT_VALUE;
-		this.available = false;
+	constructor(public reference: number, private id: string, private cacheChildren: boolean) {
 		this.children = null;
-	}
-
-	public get value(): string {
-		return this._value;
-	}
-
-	public set value(value: string) {
-		this._value = massageValue(value);
-		this.valueChanged = Expression.allValues[this.getId()] && Expression.allValues[this.getId()] !== Expression.DEFAULT_VALUE && Expression.allValues[this.getId()] !== value;
-		Expression.allValues[this.getId()] = value;
-	}
-
-	public getId(): string {
-		return this.id;
 	}
 
 	public getChildren(debugService: debug.IDebugService): TPromise<debug.IExpression[]> {
@@ -214,33 +189,46 @@ export class Expression implements debug.IExpression {
 
 		return this.children;
 	}
-}
-
-export class Variable implements debug.IExpression {
-
-	public static allValues: { [id: string]: string } = {};
-	// cache children to optimize debug hover behaviour.
-	private children: TPromise<debug.IExpression[]>;
-	public value: string;
-	public valueChanged: boolean;
-
-	constructor(public parent: debug.IExpressionContainer, public reference: number, public name: string, value: string, public available = true) {
-		this.children = null;
-		this.value = massageValue(value);
-		this.valueChanged = Variable.allValues[this.getId()] && Variable.allValues[this.getId()] !== value;
-		Variable.allValues[this.getId()] = value;
-	}
 
 	public getId(): string {
-		return `variable:${ this.parent.getId() }:${ this.name }`;
+		return this.id;
 	}
 
-	public getChildren(debugService: debug.IDebugService): TPromise<debug.IExpression[]> {
-		if (!this.children) {
-			this.children = resolveChildren(debugService, this);
-		}
+}
 
-		return this.children;
+export class Expression extends ExpressionContainer implements debug.IExpression {
+	static DEFAULT_VALUE = 'not available';
+
+	public available: boolean;
+	private _value: string;
+
+	constructor(public name: string, cacheChildren: boolean, id = uuid.generateUuid()) {
+		super(0, id, cacheChildren);
+		this.value = Expression.DEFAULT_VALUE;
+		this.available = false;
+	}
+
+	public get value(): string {
+		return this._value;
+	}
+
+	public set value(value: string) {
+		this._value = massageValue(value);
+		this.valueChanged = ExpressionContainer.allValues[this.getId()] &&
+			ExpressionContainer.allValues[this.getId()] !== Expression.DEFAULT_VALUE && ExpressionContainer.allValues[this.getId()] !== value;
+		ExpressionContainer.allValues[this.getId()] = value;
+	}
+}
+
+export class Variable extends ExpressionContainer implements debug.IExpression {
+
+	public value: string;
+
+	constructor(public parent: debug.IExpressionContainer, reference: number, public name: string, value: string, public available = true) {
+		super(reference, `variable:${ parent.getId() }:${ name }`, true);
+		this.value = massageValue(value);
+		this.valueChanged = ExpressionContainer.allValues[this.getId()] && ExpressionContainer.allValues[this.getId()] !== value;
+		ExpressionContainer.allValues[this.getId()] = value;
 	}
 }
 
@@ -294,6 +282,8 @@ export class Breakpoint implements debug.IBreakpoint {
 
 	public lineNumber: number;
 	public verified: boolean;
+	public idFromAdapter: number;
+	public message: string;
 	private id: string;
 
 	constructor(public source: Source, public desiredLineNumber: number, public enabled: boolean, public condition: string) {
@@ -313,10 +303,11 @@ export class Breakpoint implements debug.IBreakpoint {
 export class FunctionBreakpoint implements debug.IFunctionBreakpoint {
 
 	private id: string;
-	public error: boolean;
+	public verified: boolean;
+	public idFromAdapter: number;
 
 	constructor(public name: string, public enabled: boolean) {
-		this.error = false;
+		this.verified = false;
 		this.id = uuid.generateUuid();
 	}
 
@@ -329,7 +320,7 @@ export class ExceptionBreakpoint implements debug.IExceptionBreakpoint {
 
 	private id: string;
 
-	constructor(public name: string, public enabled: boolean) {
+	constructor(public filter: string, public label: string, public enabled: boolean) {
 		this.id = uuid.generateUuid();
 	}
 
@@ -372,8 +363,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		} else {
 			if (removeThreads) {
 				this.threads = {};
-				Variable.allValues = {};
-				Expression.allValues = {};
+				ExpressionContainer.allValues = {};
 			} else {
 				for (let ref in this.threads) {
 					if (this.threads.hasOwnProperty(ref)) {
@@ -399,6 +389,13 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		return this.exceptionBreakpoints;
 	}
 
+	public setExceptionBreakpoints(data: [{ filter: string, label: string }]): void {
+		if (data) {
+			this.exceptionBreakpoints = data.map(d =>
+				new ExceptionBreakpoint(d.filter, d.label, this.exceptionBreakpoints.some(ebp => ebp.filter === d.filter && ebp.enabled)));
+		}
+	}
+
 	public areBreakpointsActivated(): boolean {
 		return this.breakpointsActivated;
 	}
@@ -409,7 +406,8 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	}
 
 	public addBreakpoints(rawData: debug.IRawBreakpoint[]): void {
-		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp => new Breakpoint(new Source(Source.toRawSource(rawBp.uri, this)), rawBp.lineNumber, rawBp.enabled, rawBp.condition)));
+		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp =>
+			new Breakpoint(new Source(Source.toRawSource(rawBp.uri, this)), rawBp.lineNumber, rawBp.enabled, rawBp.condition)));
 		this.breakpointsActivated = true;
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
@@ -419,12 +417,14 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
-	public updateBreakpoints(data: { [id: string]: { line: number, verified: boolean } }): void {
+	public updateBreakpoints(data: { [id: string]: DebugProtocol.Breakpoint }): void {
 		this.breakpoints.forEach(bp => {
 			const bpData = data[bp.getId()];
 			if (bpData) {
-				bp.lineNumber = bpData.line;
+				bp.lineNumber = bpData.line ? bpData.line : bp.lineNumber;
 				bp.verified = bpData.verified;
+				bp.idFromAdapter = bpData.id;
+				bp.message = bpData.message;
 			}
 		});
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
@@ -460,16 +460,21 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
-	public renameFunctionBreakpoint(id: string, newFunctionName: string): void {
-		const fbp = this.functionBreakpoints.filter(bp => bp.getId() === id).pop();
-		if (fbp) {
-			fbp.name = newFunctionName;
-			this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
-		}
+	public updateFunctionBreakpoints(data: { [id: string]: { name?: string, verified?: boolean; id?: number } }): void {
+		this.functionBreakpoints.forEach(fbp => {
+			const fbpData = data[fbp.getId()];
+			if (fbpData) {
+				fbp.name = fbpData.name || fbp.name;
+				fbp.verified = fbpData.verified;
+				fbp.idFromAdapter = fbpData.id;
+			}
+		});
+
+		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
 	public removeFunctionBreakpoints(id?: string): void {
-		this.functionBreakpoints = id ? this.functionBreakpoints.filter(fbp => fbp.getId() != id) : [];
+		this.functionBreakpoints = id ? this.functionBreakpoints.filter(fbp => fbp.getId() !== id) : [];
 		this.emit(debug.ModelEvents.BREAKPOINTS_UPDATED);
 	}
 
@@ -477,7 +482,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		return this.replElements;
 	}
 
-	public addReplExpression(session: debug.IRawDebugSession, stackFrame: debug.IStackFrame, name: string): Promise {
+	public addReplExpression(session: debug.IRawDebugSession, stackFrame: debug.IStackFrame, name: string): TPromise<void> {
 		const expression = new Expression(name, true);
 		this.replElements.push(expression);
 		return evaluateExpression(session, stackFrame, expression, 'repl').then(() =>
@@ -490,23 +495,22 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	public logToRepl(value: any, severity?: severity): void {
 		let elements:OutputElement[] = [];
 		let previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
-		let groupTogether = !!previousOutput && severity === previousOutput.severity;
 
 		// string message
 		if (typeof value === 'string') {
 			if (value && value.trim() && previousOutput && previousOutput.value === value && previousOutput.severity === severity) {
 				previousOutput.counter++; // we got the same output (but not an empty string when trimmed) so we just increment the counter
 			} else {
-				let lines = value.split('\n');
+				let lines = value.trim().split('\n');
 				lines.forEach((line, index) => {
-					elements.push(new ValueOutputElement(line, severity, groupTogether || index > 0));
+					elements.push(new ValueOutputElement(line, severity));
 				});
 			}
 		}
 
 		// key-value output
 		else {
-			elements.push(new KeyValueOutputElement(value.prototype, value, nls.localize('snapshotObj', "Only primitive values are shown for this object."), groupTogether));
+			elements.push(new KeyValueOutputElement(value.prototype, value, nls.localize('snapshotObj', "Only primitive values are shown for this object.")));
 		}
 
 		if (elements.length) {
@@ -519,15 +523,19 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		const elements: OutputElement[] = [];
 		let previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
 		let lines = value.split('\n');
-		let groupTogether = !!previousOutput && previousOutput.category === 'output' && severity === previousOutput.severity;
+		let groupTogether = !!previousOutput && (previousOutput.category === 'output' && severity === previousOutput.severity);
 
 		if (groupTogether) {
-			previousOutput.value += lines.shift(); // append to previous line if same group
+			// append to previous line if same group
+			previousOutput.value += lines.shift();
+		} else if (previousOutput && previousOutput.value === '') {
+			// remove potential empty lines between different output types
+			this.replElements.pop();
 		}
 
 		// fill in lines as output value elements
 		lines.forEach((line, index) => {
-			elements.push(new ValueOutputElement(line, severity, groupTogether || index > 0, 'output'));
+			elements.push(new ValueOutputElement(line, severity, 'output'));
 		});
 
 		this.replElements.push(...elements);
@@ -535,26 +543,28 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	}
 
 	public clearReplExpressions(): void {
-		this.replElements = [];
-		this.emit(debug.ModelEvents.REPL_ELEMENTS_UPDATED);
+		if (this.replElements.length > 0) {
+			this.replElements = [];
+			this.emit(debug.ModelEvents.REPL_ELEMENTS_UPDATED);
+		}
 	}
 
 	public getWatchExpressions(): Expression[] {
 		return this.watchExpressions;
 	}
 
-	public addWatchExpression(session: debug.IRawDebugSession, stackFrame: debug.IStackFrame, name: string): Promise {
+	public addWatchExpression(session: debug.IRawDebugSession, stackFrame: debug.IStackFrame, name: string): TPromise<void> {
 		const we = new Expression(name, false);
 		this.watchExpressions.push(we);
 		if (!name) {
 			this.emit(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, we);
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		return this.evaluateWatchExpressions(session, stackFrame, we.getId());
 	}
 
-	public renameWatchExpression(session: debug.IRawDebugSession, stackFrame: debug.IStackFrame, id: string, newName: string): Promise {
+	public renameWatchExpression(session: debug.IRawDebugSession, stackFrame: debug.IStackFrame, id: string, newName: string): TPromise<void> {
 		const filtered = this.watchExpressions.filter(we => we.getId() === id);
 		if (filtered.length === 1) {
 			filtered[0].name = newName;
@@ -563,14 +573,14 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 			});
 		}
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
-	public evaluateWatchExpressions(session: debug.IRawDebugSession, stackFrame: debug.IStackFrame, id: string = null): Promise {
+	public evaluateWatchExpressions(session: debug.IRawDebugSession, stackFrame: debug.IStackFrame, id: string = null): TPromise<void> {
 		if (id) {
 			const filtered = this.watchExpressions.filter(we => we.getId() === id);
 			if (filtered.length !== 1) {
-				return Promise.as(null);
+				return TPromise.as(null);
 			}
 
 			return evaluateExpression(session, stackFrame, filtered[0], 'watch').then(() => {
@@ -578,7 +588,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 			});
 		}
 
-		return Promise.join(this.watchExpressions.map(we => evaluateExpression(session, stackFrame, we, 'watch'))).then(() => {
+		return TPromise.join(this.watchExpressions.map(we => evaluateExpression(session, stackFrame, we, 'watch'))).then(() => {
 			this.emit(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED);
 		});
 	}

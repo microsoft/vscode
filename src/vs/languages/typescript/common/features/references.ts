@@ -7,7 +7,6 @@
 import URI from 'vs/base/common/uri';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import converter = require('vs/languages/typescript/common/features/converter');
 import ts = require('vs/languages/typescript/common/lib/typescriptServices');
 import projectService = require('vs/languages/typescript/common/project/projectService');
 

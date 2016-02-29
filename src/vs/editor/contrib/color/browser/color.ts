@@ -6,19 +6,18 @@
 'use strict';
 
 import 'vs/css!./color';
+import {RunOnceScheduler} from 'vs/base/common/async';
+import {onUnexpectedError} from 'vs/base/common/errors';
+import {IDisposable, cAll, disposeAll} from 'vs/base/common/lifecycle';
+import * as strings from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
-import lifecycle = require('vs/base/common/lifecycle');
-import schedulers = require('vs/base/common/async');
-import dom = require('vs/base/browser/dom');
-import errors = require('vs/base/common/errors');
-import strings = require('vs/base/common/strings');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import * as dom from 'vs/base/browser/dom';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
 class ColorDecoration {
-	public static createRenderingDecoration(range:EditorCommon.IRange, inlineClassName:string): EditorCommon.IModelDeltaDecoration {
+	public static createRenderingDecoration(range:editorCommon.IRange, inlineClassName:string): editorCommon.IModelDeltaDecoration {
 		return {
 			range: {
 				startLineNumber: range.startLineNumber,
@@ -28,16 +27,16 @@ class ColorDecoration {
 			},
 			options: {
 				inlineClassName: 'inline-color-decoration ' + inlineClassName,
-				stickiness: EditorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 			}
 		};
 	}
 
-	public static createTrackingDecoration(range:EditorCommon.IRange): EditorCommon.IModelDeltaDecoration {
+	public static createTrackingDecoration(range:editorCommon.IRange): editorCommon.IModelDeltaDecoration {
 		return {
 			range: range,
 			options: {
-				stickiness: EditorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+				stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 			}
 		};
 	}
@@ -51,7 +50,7 @@ class ColorDecoration {
 		this.trackingDecorationId = trackingDecorationId;
 	}
 
-	public getColorValue(model:EditorCommon.IModel): string {
+	public getColorValue(model:editorCommon.IModel): string {
 		var range = model.getDecorationRange(this.trackingDecorationId);
 		if (range) {
 			return model.getValueInRange(range);
@@ -64,41 +63,41 @@ interface IFunction {
 	(): void;
 }
 
-export class ColorContribution implements EditorCommon.IEditorContribution {
+export class ColorContribution implements editorCommon.IEditorContribution {
 
 	public static ID = 'css.editor.colorContribution';
 	private static INSTANCE_COUNT = 0;
 
 	private _instanceCount:number;
-	private _editor:EditorCommon.ICommonCodeEditor;
-	private _contentChangedScheduler:schedulers.RunOnceScheduler;
-	private _decorationsChangedScheduler:schedulers.RunOnceScheduler;
+	private _editor:editorCommon.ICommonCodeEditor;
+	private _contentChangedScheduler:RunOnceScheduler;
+	private _decorationsChangedScheduler:RunOnceScheduler;
 
-	private _callOnDispose:lifecycle.IDisposable[];
+	private _callOnDispose:IDisposable[];
 	private _callOnModelChange:IFunction[];
 
-	private _currentFindColorDeclarationsPromise:TPromise<{range:EditorCommon.IRange; value:string; }[]>;
+	private _currentFindColorDeclarationsPromise:TPromise<{range:editorCommon.IRange; value:string; }[]>;
 	private _currentDecorations:ColorDecoration[];
 	private _currentDynamicColors:string[];
 
 	private _style:HTMLStyleElement;
 
-	constructor(editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(editor:editorCommon.ICommonCodeEditor, @INullService ns) {
 		this._instanceCount = (++ColorContribution.INSTANCE_COUNT);
 		this._editor = editor;
 		this._callOnDispose = [];
 		this._callOnModelChange = [];
 		this._currentDecorations = [];
 		this._currentDynamicColors = [];
-		this._contentChangedScheduler = new schedulers.RunOnceScheduler(null, 250);
-		this._decorationsChangedScheduler = new schedulers.RunOnceScheduler(() => this.onDecorationsChanged(), 250);
+		this._contentChangedScheduler = new RunOnceScheduler(null, 250);
+		this._decorationsChangedScheduler = new RunOnceScheduler(() => this.onDecorationsChanged(), 250);
 		this._currentFindColorDeclarationsPromise = null;
 
 		this._callOnDispose.push(this._contentChangedScheduler);
 		this._callOnDispose.push(this._decorationsChangedScheduler);
-		this._callOnDispose.push(this._editor.addListener2(EditorCommon.EventType.ModelChanged, () => this.onModelChange()));
-		this._callOnDispose.push(this._editor.addListener2(EditorCommon.EventType.ModelModeChanged,() => this.onModelChange()));
-		this._callOnDispose.push(this._editor.addListener2(EditorCommon.EventType.ModelModeSupportChanged,(e: EditorCommon.IModeSupportChangedEvent) => {
+		this._callOnDispose.push(this._editor.addListener2(editorCommon.EventType.ModelChanged, () => this.onModelChange()));
+		this._callOnDispose.push(this._editor.addListener2(editorCommon.EventType.ModelModeChanged,() => this.onModelChange()));
+		this._callOnDispose.push(this._editor.addListener2(editorCommon.EventType.ModelModeSupportChanged,(e: editorCommon.IModeSupportChangedEvent) => {
 			this.onModelChange();
 		}));
 
@@ -108,7 +107,7 @@ export class ColorContribution implements EditorCommon.IEditorContribution {
 
 	public dispose(): void {
 		if (this._currentDecorations.length > 0) {
-			this._editor.changeDecorations((changeAccessor:EditorCommon.IModelDecorationsChangeAccessor) => {
+			this._editor.changeDecorations((changeAccessor:editorCommon.IModelDecorationsChangeAccessor) => {
 				let oldDecorations: string[] = [];
 				for (let i = 0, len = this._currentDecorations.length; i < len; i++) {
 					oldDecorations.push(this._currentDecorations[i].renderingDecorationId);
@@ -120,7 +119,7 @@ export class ColorContribution implements EditorCommon.IEditorContribution {
 		}
 		this._style.parentNode.removeChild(this._style);
 		this._style = null;
-		this._callOnDispose = lifecycle.disposeAll(this._callOnDispose);
+		this._callOnDispose = disposeAll(this._callOnDispose);
 	}
 
 	public getId():string {
@@ -128,9 +127,9 @@ export class ColorContribution implements EditorCommon.IEditorContribution {
 	}
 
 	private onModelChange(): void {
-		lifecycle.cAll(this._callOnModelChange);
+		cAll(this._callOnModelChange);
 
-		var model = <EditorCommon.IModel> this._editor.getModel();
+		var model = <editorCommon.IModel> this._editor.getModel();
 		if(!model) {
 			return;
 		}
@@ -154,7 +153,7 @@ export class ColorContribution implements EditorCommon.IEditorContribution {
 				}
 				this.renderAndTrackColors(result);
 			}, (error) => {
-				errors.onUnexpectedError(error);
+				onUnexpectedError(error);
 			});
 		});
 		this._contentChangedScheduler.schedule();
@@ -170,23 +169,23 @@ export class ColorContribution implements EditorCommon.IEditorContribution {
 			}
 			this._currentFindColorDeclarationsPromise = null;
 		});
-		this._callOnModelChange.push(this._editor.addListener(EditorCommon.EventType.ModelContentChanged, (event) => this._contentChangedScheduler.schedule()));
-		this._callOnModelChange.push(model.addListener(EditorCommon.EventType.ModelDecorationsChanged, (event) => this._decorationsChangedScheduler.schedule()));
+		this._callOnModelChange.push(this._editor.addListener(editorCommon.EventType.ModelContentChanged, (event) => this._contentChangedScheduler.schedule()));
+		this._callOnModelChange.push(model.addListener(editorCommon.EventType.ModelDecorationsChanged, (event) => this._decorationsChangedScheduler.schedule()));
 	}
 
-	private renderAndTrackColors(colors:{range:EditorCommon.IRange; value:string; }[]): void {
+	private renderAndTrackColors(colors:{range:editorCommon.IRange; value:string; }[]): void {
 
 		// Reduce to a maximum of 500 colors
 		colors = colors.slice(0, 500);
 
-		this._editor.changeDecorations((changeAccessor:EditorCommon.IModelDecorationsChangeAccessor) => {
+		this._editor.changeDecorations((changeAccessor:editorCommon.IModelDecorationsChangeAccessor) => {
 			let oldDecorations: string[] = [];
 			for (let i = 0, len = this._currentDecorations.length; i < len; i++) {
 				oldDecorations.push(this._currentDecorations[i].renderingDecorationId);
 				oldDecorations.push(this._currentDecorations[i].trackingDecorationId);
 			}
 
-			let newDecorations: EditorCommon.IModelDeltaDecoration[] = [];
+			let newDecorations: editorCommon.IModelDeltaDecoration[] = [];
 			for (let i = 0, len = colors.length; i < len; i++) {
 				newDecorations.push(ColorDecoration.createRenderingDecoration(colors[i].range, this.getCSSRuleName(i)));
 				newDecorations.push(ColorDecoration.createTrackingDecoration(colors[i].range));
@@ -208,13 +207,13 @@ export class ColorContribution implements EditorCommon.IEditorContribution {
 		var model = this._editor.getModel(),
 			i:number,
 			len:number,
-			range:EditorCommon.IEditorRange,
-			renderingRange:EditorCommon.IEditorRange,
-			desiredRenderingRange:EditorCommon.IRange,
+			range:editorCommon.IEditorRange,
+			renderingRange:editorCommon.IEditorRange,
+			desiredRenderingRange:editorCommon.IRange,
 			decoration: ColorDecoration,
 			desiredColors: string[] = [];
 
-		this._editor.changeDecorations((changeAccessor:EditorCommon.IModelDecorationsChangeAccessor) => {
+		this._editor.changeDecorations((changeAccessor:editorCommon.IModelDecorationsChangeAccessor) => {
 
 			for (i = 0, len = this._currentDecorations.length; i < len; i++) {
 				decoration = this._currentDecorations[i];

@@ -72,6 +72,7 @@ export class HtmlPreviewPart extends BaseEditor {
 		// Container for IFrame
 		const iFrameContainerElement = document.createElement('div');
 		iFrameContainerElement.className = 'iframe-container monaco-editor-background'; // Inherit the background color from selected theme
+		iFrameContainerElement.tabIndex = 0; // enable focus support from the editor part (do not remove)
 		iFrameContainerElement.appendChild(this._iFrameElement);
 
 		parent.getHTMLElement().appendChild(iFrameContainerElement);
@@ -113,7 +114,7 @@ export class HtmlPreviewPart extends BaseEditor {
 			} else {
 				this._modelChangeUnbind = cAll(this._modelChangeUnbind);
 			}
-		})
+		});
 	}
 
 	public changePosition(position: Position): void {
@@ -139,7 +140,7 @@ export class HtmlPreviewPart extends BaseEditor {
 
 		return this._editorService.resolveEditorModel({ resource: (<HtmlInput>input).getResource() }).then(model => {
 			if (model instanceof BaseTextEditorModel) {
-				this._model = model.textEditorModel
+				this._model = model.textEditorModel;
 			}
 
 			if (!this._model) {
@@ -183,7 +184,7 @@ export class HtmlPreviewPart extends BaseEditor {
 		if (newDocument.head.hasChildNodes()) {
 			newDocument.head.insertBefore(styleElement, newDocument.head.firstChild);
 		} else {
-			newDocument.head.appendChild(styleElement)
+			newDocument.head.appendChild(styleElement);
 		}
 
 		if (newDocument.head.innerHTML !== iFrameDocument.head.innerHTML) {
@@ -296,7 +297,7 @@ namespace Integration {
 		'::-webkit-scrollbar-thumb:active {',
 		'	background-color: rgba(85, 85, 85, 0.8);',
 		'}'
-	].join('\n')
+	].join('\n');
 
 	export function defaultStyle(element: HTMLElement, themeId: string): HTMLStyleElement {
 		const styles = window.getComputedStyle(element);

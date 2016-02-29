@@ -406,7 +406,7 @@ export interface Browsers {
 	S?:string;
 	count:number;
 	all:boolean;
-	onCodeComplete:boolean
+	onCodeComplete:boolean;
 }
 
 export interface Value {
@@ -450,7 +450,7 @@ function evalBrowserEntry(browsers: string) {
 	browserEntry.count = count;
 	browserEntry.onCodeComplete = count > 0; // to be refined
 	return browserEntry;
-};
+}
 
 
 class ValueImpl implements Value {

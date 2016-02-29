@@ -7,7 +7,7 @@
 
 import nls = require('vs/nls');
 import severity from 'vs/base/common/severity';
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Action} from 'vs/base/common/actions';
 import {ipcRenderer as ipc, shell} from 'electron';
 import {isLinux} from 'vs/base/common/platform';
@@ -28,7 +28,7 @@ export class Update {
 		nls.localize('updateNow', "Update Now"),
 		null,
 		true,
-		() => { ipc.send('vscode:update-apply'); return Promise.as(true); }
+		() => { ipc.send('vscode:update-apply'); return TPromise.as(true); }
 	);
 
 	private static NotNowAction = new Action(
@@ -36,7 +36,7 @@ export class Update {
 		nls.localize('later', "Later"),
 		null,
 		true,
-		() => Promise.as(true)
+		() => TPromise.as(true)
 	);
 
 	private static ShowReleaseNotesAction = (releaseNotesUrl: string) => new Action(
@@ -44,7 +44,7 @@ export class Update {
 		nls.localize('releaseNotes', "Release Notes"),
 		null,
 		true,
-		() => { shell.openExternal(releaseNotesUrl); return Promise.as(false); }
+		() => { shell.openExternal(releaseNotesUrl); return TPromise.as(false); }
 	);
 
 	constructor(
@@ -79,11 +79,11 @@ export class Update {
 					actions: [
 						new Action('pleaseUpdate', nls.localize('downloadLatestAction', "Download Latest"), '', true, () => {
 							shell.openExternal(env.productDownloadUrl);
-							return Promise.as(true);
+							return TPromise.as(true);
 						}),
 						new Action('releaseNotes', nls.localize('releaseNotesAction', "Release Notes"), '', true, () => {
 							shell.openExternal(env.releaseNotesUrl);
-							return Promise.as(false);
+							return TPromise.as(false);
 						})
 					]
 				});

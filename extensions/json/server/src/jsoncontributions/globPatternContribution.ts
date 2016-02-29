@@ -8,7 +8,6 @@ import {MarkedString, CompletionItemKind, CompletionItem} from 'vscode-languages
 import Strings = require('../utils/strings');
 import nls = require('../utils/nls');
 import {IJSONWorkerContribution, ISuggestionsCollector} from '../jsonContributions';
-import {IRequestService} from '../jsonSchemaService';
 import {JSONLocation} from '../jsonLocation';
 
 let globProperties:CompletionItem[] = [

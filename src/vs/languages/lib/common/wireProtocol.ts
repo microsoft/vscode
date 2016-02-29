@@ -190,7 +190,7 @@ export class Writer<T> {
 			'\r\n\r\n',
 			json,
 			'\r\n'
-		]
+		];
 		this.writable.write(buffer.join(''), 'utf8');
 	}
 }

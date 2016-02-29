@@ -5,7 +5,7 @@
 	"version": "0.0.1",
 	"license": "Apache2",
 	"repositoryURL": "https://github.com/Microsoft/TypeScript-TmLanguage",
-	"description": "The files syntaxes/JavaScriptReact.tmLanguage & syntaxes/JavaScript.tmLanguage were derived from TypeScript-TmLanguage https://github.com/Microsoft/TypeScript-TmLanguage.",
+	"description": "The file syntaxes/JavaScript.tmLanguage was derived from TypeScriptReact.tmLanguage in https://github.com/Microsoft/TypeScript-TmLanguage.",
 	"licenseDetail": [
 		// Reason: LICENSE file does not include Copyright statement
 		"Copyright (c) Microsoft Corporation.  All rights reserved.",

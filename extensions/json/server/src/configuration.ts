@@ -5,7 +5,6 @@
 'use strict';
 
 import nls = require('./utils/nls');
-import {IJSONSchema} from './json-toolbox/jsonSchema';
 
 import {ISchemaContributions} from './jsonSchemaService';
 
@@ -254,4 +253,4 @@ export var schemaContributions: ISchemaContributions = {
 			'default': {}
 		}
 	}
-}
+};

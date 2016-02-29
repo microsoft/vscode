@@ -28,7 +28,6 @@ export class FileWalker {
 	private isLimitHit: boolean;
 	private resultCount: number;
 	private isCanceled: boolean;
-	private searchInPath: boolean;
 
 	private walkedPaths: { [path: string]: boolean; };
 
@@ -229,6 +228,10 @@ export class FileWalker {
 
 		// Check for search pattern
 		if (this.filePattern) {
+			if (this.filePattern === '*') {
+				return true; // support the all-matching wildcard
+			}
+
 			return scorer.matches(path, this.normalizedFilePatternLowercase);
 		}
 

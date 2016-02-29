@@ -22,6 +22,7 @@ var editorEntryPoints = _.flatten([
 	buildfile.entrypoint('vs/editor/editor.main'),
 	buildfile.base,
 	buildfile.standaloneLanguages,
+	buildfile.standaloneLanguages2,
 	buildfile.editor,
 	buildfile.languages
 ]);
@@ -44,7 +45,7 @@ var editorOtherSources = [
 
 var BUNDLED_FILE_HEADER = [
 	'/*!-----------------------------------------------------------',
-	' * Copyright (C) Microsoft Corporation. All rights reserved.',
+	' * Copyright (c) Microsoft Corporation. All rights reserved.',
 	' * Version: ' + commit,
 	' * Released under the MIT license',
 	' * https://github.com/Microsoft/vscode/blob/master/LICENSE.txt',
@@ -57,6 +58,8 @@ function editorLoaderConfig(removeAllOSS) {
 
 	// never ship marked in editor
 	result.paths['vs/base/common/marked/marked'] = 'out-build/vs/base/common/marked/marked.mock';
+	// never ship octicons in editor
+	result.paths['vs/base/browser/ui/octiconLabel/octiconLabel'] = 'out-build/vs/base/browser/ui/octiconLabel/octiconLabel.mock';
 
 	if (removeAllOSS) {
 		result.paths['vs/languages/lib/common/beautify-html'] = 'out-build/vs/languages/lib/common/beautify-html.mock';
