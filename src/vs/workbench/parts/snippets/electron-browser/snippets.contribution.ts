@@ -132,7 +132,10 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenSn
 let schemaId = 'vscode://schemas/snippets';
 let schema : IJSONSchema = {
 	'id': schemaId,
-	'default': { '{{snippetName}}': { 'prefix': '{{prefix}}', 'body': '{{snippet}}', 'description': '{{description}}' } },
+	'defaultSnippets': [{
+		'label': nls.localize('snippetSchema.json.default', "Empty snippet"),
+		'body': { '{{snippetName}}': { 'prefix': '{{prefix}}', 'body': '{{snippet}}', 'description': '{{description}}' } }
+	}],
 	'type': 'object',
 	'description': nls.localize('snippetSchema.json', 'User snippet configuration'),
 	'additionalProperties': {

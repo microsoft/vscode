@@ -23,10 +23,10 @@ let schemaRegistry = <JSONContributionRegistry.IJSONContributionRegistry>Registr
 let configurationExtPoint = PluginsRegistry.registerExtensionPoint<IJSONValidationExtensionPoint[]>('jsonValidation', {
 	description: nls.localize('contributes.jsonValidation', 'Contributes json schema configuration.'),
 	type: 'array',
-	default: [{ fileMatch: '{{file.json}}', url: '{{url}}' }],
+	defaultSnippets: [{ body: [{ fileMatch: '{{file.json}}', url: '{{url}}' }] }],
 	items: {
 		type: 'object',
-		default: { fileMatch: '{{file.json}}', url: '{{url}}' },
+		defaultSnippets: [{ body: { fileMatch: '{{file.json}}', url: '{{url}}' } }],
 		properties: {
 			fileMatch: {
 				type: 'string',

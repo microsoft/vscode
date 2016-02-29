@@ -38,10 +38,10 @@ interface IModeConfigurationMap { [modeId: string]: any; }
 let languagesExtPoint = PluginsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', {
 	description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
 	type: 'array',
-	default: [{ id: '', aliases: [], extensions: [] }],
+	defaultSnippets: [{ body: [{ id: '', aliases: [], extensions: [] }] }],
 	items: {
 		type: 'object',
-		default: { id: '', extensions: [] },
+		defaultSnippets: [{ body: { id: '', extensions: [] } }],
 		properties: {
 			id: {
 				description: nls.localize('vscode.extension.contributes.languages.id', 'ID of the language.'),
@@ -73,7 +73,7 @@ let languagesExtPoint = PluginsRegistry.registerExtensionPoint<ILanguageExtensio
 				description: nls.localize('vscode.extension.contributes.languages.filenamePatterns', 'File name glob patterns associated to the language.'),
 				default: ['bar*foo.txt'],
 				type: 'array',
-				item: {
+				items: {
 					type: 'string'
 				}
 			},

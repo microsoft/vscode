@@ -30,10 +30,10 @@ import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickO
 export var debuggersExtPoint = pluginsRegistry.PluginsRegistry.registerExtensionPoint<debug.IRawAdapter[]>('debuggers', {
 	description: nls.localize('vscode.extension.contributes.debuggers', 'Contributes debug adapters.'),
 	type: 'array',
-	default: [{ type: '', extensions: [] }],
+	defaultSnippets: [{ body: [{ type: '', extensions: [] }] }],
 	items: {
 		type: 'object',
-		default: { type: '', program: '', runtime: '', enableBreakpointsFor: { languageIds: [ '' ] } },
+		defaultSnippets: [{ body: { type: '', program: '', runtime: '', enableBreakpointsFor: { languageIds: [ '' ] } } }],
 		properties: {
 			type: {
 				description: nls.localize('vscode.extension.contributes.debuggers.type', "Unique identifier for this debug adapter."),
@@ -205,7 +205,7 @@ export class ConfigurationManager {
 			this.adapters.forEach(adapter => {
 				const schemaAttributes = adapter.getSchemaAttributes();
 				if (schemaAttributes) {
-					schema.properties['configurations'].items.oneOf.push(...schemaAttributes);
+					(<IJSONSchema> schema.properties['configurations'].items).oneOf.push(...schemaAttributes);
 				}
 			});
 		});

@@ -23,10 +23,10 @@ export interface ITMSyntaxExtensionPoint {
 let grammarsExtPoint = PluginsRegistry.registerExtensionPoint<ITMSyntaxExtensionPoint[]>('grammars', {
 	description: nls.localize('vscode.extension.contributes.grammars', 'Contributes textmate tokenizers.'),
 	type: 'array',
-	default: [{ id: '', extensions: [] }],
+	defaultSnippets: [ { body: [{ id: '', extensions: [] }] }],
 	items: {
 		type: 'object',
-		default: { language: '{{id}}', scopeName: 'source.{{id}}', path: './syntaxes/{{id}}.tmLanguage.'},
+		defaultSnippets: [ { body: { language: '{{id}}', scopeName: 'source.{{id}}', path: './syntaxes/{{id}}.tmLanguage.'} }],
 		properties: {
 			language: {
 				description: nls.localize('vscode.extension.contributes.grammars.language', 'Language id for which this syntax is contributed to.'),

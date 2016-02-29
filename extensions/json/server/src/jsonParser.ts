@@ -103,7 +103,7 @@ export class ASTNode {
 			if ((<string[]>schema.type).indexOf(this.type) === -1) {
 				validationResult.warnings.push({
 					location: { start: this.start, end: this.end },
-					message: nls.localize('typeArrayMismatchWarning', 'Incorrect type. Expected one of {0}', schema.type.join(', '))
+					message: nls.localize('typeArrayMismatchWarning', 'Incorrect type. Expected one of {0}', (<string[]>schema.type).join(', '))
 				});
 			}
 		}
@@ -277,14 +277,14 @@ export class ArrayASTNode extends ASTNode {
 		super.validate(schema, validationResult, matchingSchemas, offset);
 
 		if (Array.isArray(schema.items)) {
-			let subSchemas: JsonSchema.IJSONSchema[] = schema.items;
+			let subSchemas = <JsonSchema.IJSONSchema[]> schema.items;
 			subSchemas.forEach((subSchema, index) => {
 				let itemValidationResult = new ValidationResult();
 				let item = this.items[index];
 				if (item) {
 					item.validate(subSchema, itemValidationResult, matchingSchemas, offset);
 					validationResult.mergePropertyMatch(itemValidationResult);
-				} else if (this.items.length >= schema.items.length) {
+				} else if (this.items.length >= subSchemas.length) {
 					validationResult.propertiesValueMatches++;
 				}
 			});
@@ -294,8 +294,8 @@ export class ArrayASTNode extends ASTNode {
 					location: { start: this.start, end: this.end },
 					message: nls.localize('additionalItemsWarning', 'Array has too many items according to schema. Expected {0} or fewer', subSchemas.length)
 				});
-			} else if (this.items.length >= schema.items.length) {
-				validationResult.propertiesValueMatches += (this.items.length - schema.items.length);
+			} else if (this.items.length >= subSchemas.length) {
+				validationResult.propertiesValueMatches += (this.items.length - subSchemas.length);
 			}
 		}
 		else if (schema.items) {

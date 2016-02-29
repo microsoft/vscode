@@ -33,10 +33,10 @@ export function snippetUpdated(modeId: string, filePath: string): TPromise<void>
 let snippetsExtensionPoint = PluginsRegistry.registerExtensionPoint<ITMSnippetsExtensionPoint[]>('snippets', {
 	description: nls.localize('vscode.extension.contributes.snippets', 'Contributes textmate snippets.'),
 	type: 'array',
-	default: [{ language: '', path: '' }],
+	defaultSnippets: [ { body: [{ language: '', path: '' }] }],
 	items: {
 		type: 'object',
-		default: { language: '{{id}}', path: './snippets/{{id}}.json.'},
+		defaultSnippets: [ { body: { language: '{{id}}', path: './snippets/{{id}}.json.'} }] ,
 		properties: {
 			language: {
 				description: nls.localize('vscode.extension.contributes.snippets-language', 'Language id for which this snippet is contributed to.'),

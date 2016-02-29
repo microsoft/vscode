@@ -39,7 +39,7 @@ export interface IConfigurationRegistry {
 export interface IConfigurationNode {
 	id?: string;
 	order?: number;
-	type?: string;
+	type?: string | string[];
 	title?: string;
 	description?: string;
 	default?: any;
@@ -96,7 +96,7 @@ platform.Registry.add(Extensions.Configuration, configurationRegistry);
 let configurationExtPoint = PluginsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', {
 	description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
 	type: 'object',
-	default: { title: '', properties: {} },
+	defaultSnippets: [{ body: { title: '', properties: {} } }],
 	properties: {
 		title: {
 			description: nls.localize('vscode.extension.contributes.configuration.title', 'A summary of the settings. This label will be used in the settings file as separating comment.'),
