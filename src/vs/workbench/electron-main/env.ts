@@ -316,6 +316,11 @@ function massagePath(path: string): string {
 	// Trim whitespaces
 	path = strings.trim(strings.trim(path, ' '), '\t');
 
+	// Trim '.' chars on Windows to prevent invalid file names
+	if (platform.isWindows) {
+		path = strings.rtrim(normalizePath(path), '.');
+	}
+
 	return path;
 }
 
