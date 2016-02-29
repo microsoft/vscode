@@ -59,8 +59,9 @@ export class ChangeIndentationSizeAction extends EditorAction {
 	}
 
 	public run(): TPromise<boolean> {
+		const autoFocusIndex = Math.min(this.editor.getIndentationOptions().tabSize - 1, 7);
 		return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() =>
-			this.quickOpenService.pick(['1', '2', '3', '4', '5', '6', '7', '8'], { placeHolder: nls.localize('selectTabWidth', "Select Tab Width")}).then(pick => {
+			this.quickOpenService.pick(['1', '2', '3', '4', '5', '6', '7', '8'], { placeHolder: nls.localize('selectTabWidth', "Select Tab Width for the Current File"), autoFocus: { autoFocusIndex } }).then(pick => {
 				this.editor.updateOptions({
 					tabSize: parseInt(pick)
 				});
@@ -73,4 +74,4 @@ export class ChangeIndentationSizeAction extends EditorAction {
 // register actions
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentationToSpacesAction, IndentationToSpacesAction.ID, nls.localize('indentationToSpaces', "Convert Indentation to Spaces")));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentationToTabsAction, IndentationToTabsAction.ID, nls.localize('indentationToTabs', "Convert Indentation to Tabs")));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ChangeIndentationSizeAction, ChangeIndentationSizeAction.ID, nls.localize('changeIndentationSize', "Change Indentation Size")));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ChangeIndentationSizeAction, ChangeIndentationSizeAction.ID, nls.localize('changeIndentationSize', "Change Indentation Size for Current File")));
