@@ -7,5 +7,5 @@ Architecture: @@ARCHITECTURE@@
 Maintainer: Microsoft Corporation <vscode-linux@microsoft.com>
 Homepage: https://code.visualstudio.com/
 Installed-Size: @@INSTALLEDSIZE@@
-Description: Code Editing. Redefined.
- Build and debug modern web and cloud applications.
+Description: Code editing. Redefined.
+ Visual Studio Code is a new choice of tool that combines the simplicity of a code editor with what developers need for the core edit-build-debug cycle.
