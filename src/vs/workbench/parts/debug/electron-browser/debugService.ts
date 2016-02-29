@@ -370,8 +370,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			result = [];
 		}
 
-		return result.length > 0 ? result : [new model.ExceptionBreakpoint('all', nls.localize('allExceptions', "All Exceptions"), false),
-			new model.ExceptionBreakpoint('uncaught', nls.localize('uncaughtExceptions', "Uncaught Exceptions"), true)];
+		return result;
 	}
 
 	private loadWatchExpressions(): model.Expression[] {
@@ -872,7 +871,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private sendExceptionBreakpoints(): TPromise<any> {
-		if (!this.session || !this.session.readyForBreakpoints) {
+		if (!this.session || !this.session.readyForBreakpoints || this.model.getExceptionBreakpoints().length === 0) {
 			return TPromise.as(null);
 		}
 
