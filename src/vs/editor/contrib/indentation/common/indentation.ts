@@ -6,6 +6,7 @@
 import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {INullService} from 'vs/platform/instantiation/common/instantiation';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
@@ -54,24 +55,39 @@ export class ChangeIndentationSizeAction extends EditorAction {
 
 	static ID = 'editor.action.changeIndentationSize';
 
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @IQuickOpenService private quickOpenService: IQuickOpenService) {
+	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
 		super(descriptor, editor);
 	}
 
 	public run(): TPromise<boolean> {
-		const autoFocusIndex = Math.min(this.editor.getIndentationOptions().tabSize - 1, 7);
-		return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() =>
-			this.quickOpenService.pick(['1', '2', '3', '4', '5', '6', '7', '8'], { placeHolder: nls.localize('selectTabWidth', "Select Tab Width for the Current File"), autoFocus: { autoFocusIndex } }).then(pick => {
-				this.editor.updateOptions({
-					tabSize: parseInt(pick)
-				});
-				return true;
-			})
-		);
+
+		return this.configurationService.loadConfiguration('editor').then(config => {
+			const picks = [1, 2, 3, 4, 5, 6, 7, 8].map(n => ({
+				id: n.toString(),
+				label: n.toString(),
+				description: n === config.tabSize ? nls.localize('configuredTabSize', "Configured Tab Size") : null
+			}));
+			const autoFocusIndex = Math.min(this.editor.getIndentationOptions().tabSize - 1, 7);
+
+			return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() =>
+				this.quickOpenService.pick(picks, { placeHolder: nls.localize('selectTabWidth', "Select Tab Size for Current File"), autoFocus: { autoFocusIndex } }).then(pick => {
+					if (pick) {
+						this.editor.updateOptions({
+							tabSize: parseInt(pick.label)
+						});
+					}
+
+					return true;
+				})
+			);
+		});
 	}
 }
 
 // register actions
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentationToSpacesAction, IndentationToSpacesAction.ID, nls.localize('indentationToSpaces', "Convert Indentation to Spaces")));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentationToTabsAction, IndentationToTabsAction.ID, nls.localize('indentationToTabs', "Convert Indentation to Tabs")));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ChangeIndentationSizeAction, ChangeIndentationSizeAction.ID, nls.localize('changeIndentationSize', "Change Indentation Size for Current File")));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ChangeIndentationSizeAction, ChangeIndentationSizeAction.ID, nls.localize('changeIndentationSize', "Change Tab Size for Current File")));
