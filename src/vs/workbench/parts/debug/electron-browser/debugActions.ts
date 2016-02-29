@@ -354,11 +354,16 @@ export class ToggleBreakpointsActivatedAction extends AbstractDebugAction {
 
 		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.BREAKPOINTS_UPDATED, () => {
 			this.updateLabel(this.debugService.getModel().areBreakpointsActivated() ? ToggleBreakpointsActivatedAction.DEACTIVATE_LABEL : ToggleBreakpointsActivatedAction.ACTIVATE_LABEL);
+			this.updateEnablement();
 		}));
 	}
 
 	public run(): TPromise<any> {
 		return this.debugService.toggleBreakpointsActivated();
+	}
+
+	protected isEnabled(): boolean {
+		return (this.debugService.getModel().getFunctionBreakpoints().length + this.debugService.getModel().getBreakpoints().length) > 0;
 	}
 }
 
@@ -376,7 +381,8 @@ export class ReapplyBreakpointsAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(): boolean {
-		return super.isEnabled() && this.debugService.getState() !== debug.State.Disabled && this.debugService.getState() !== debug.State.Inactive;
+		return super.isEnabled() && this.debugService.getState() !== debug.State.Disabled && this.debugService.getState() !== debug.State.Inactive &&
+			((this.debugService.getModel().getFunctionBreakpoints().length + this.debugService.getModel().getBreakpoints().length) > 0);
 	}
 }
 
