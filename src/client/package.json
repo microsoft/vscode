@@ -144,6 +144,7 @@
   "dependencies": {
     "named-js-regexp": "^1.3.1",
     "tmp": "0.0.28",
+    "path": "0.12.7",
     "uint64be": "^1.0.1",
     "vscode-debugadapter": "^1.0.1",
     "vscode-debugprotocol": "^1.0.1",

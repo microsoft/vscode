@@ -1,6 +1,8 @@
 'use strict';
 
 import * as vscode from 'vscode';
+import * as path from 'path';
+import * as fs from 'fs';
 
 export interface IPythonSettings {
     pythonPath: string;
@@ -49,12 +51,23 @@ export class PythonSettings implements IPythonSettings {
 
         this.initializeSettings();
     }
-
+    private getVirtualenvPath() {
+        var currentPath: string = vscode.workspace.rootPath;
+        if (process.platform == 'win32') {
+            var bin: string = "Scripts";
+            var _path: string = path.join(currentPath, bin, "python.exe");
+        }
+        else {
+            var bin: string = "bin";
+            var _path: string = path.join(currentPath, bin, "python");
+        }
+        return fs.existsSync(_path)
+            ? _path
+            : this.pythonPath;
+    }
     private initializeSettings() {
         var pythonSettings = vscode.workspace.getConfiguration("python");
-
-        this.pythonPath = pythonSettings.get<string>("pythonPath");
-
+        this.pythonPath = this.getVirtualenvPath()
         var lintingSettings = pythonSettings.get<ILintingSettings>("linting");
         if (this.linting) {
             Object.assign<ILintingSettings, ILintingSettings>(this.linting, lintingSettings);
