@@ -249,15 +249,15 @@ export class EditorStatus implements IStatusbarItem {
 		this.tabFocusModeElement.textContent = nlsTabFocusMode;
 		hide(this.tabFocusModeElement);
 
-		this.indentationElement = append(this.element, $('a.editor-status-indentation'));
-		this.indentationElement.title = nls.localize('indentation', "Indentation");
-		this.indentationElement.onclick = () => this.onIndentationClick();
-		hide(this.indentationElement);
-
 		this.selectionElement = append(this.element, $('a.editor-status-selection'));
 		this.selectionElement.title = nls.localize('gotoLine', "Go to Line");
 		this.selectionElement.onclick = () => this.onSelectionClick();
 		hide(this.selectionElement);
+
+		this.indentationElement = append(this.element, $('a.editor-status-indentation'));
+		this.indentationElement.title = nls.localize('indentation', "Indentation");
+		this.indentationElement.onclick = () => this.onIndentationClick();
+		hide(this.indentationElement);
 
 		this.encodingElement = append(this.element, $('a.editor-status-encoding'));
 		this.encodingElement.title = nls.localize('selectEncoding', "Select Encoding");
