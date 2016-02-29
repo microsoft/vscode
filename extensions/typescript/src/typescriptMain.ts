@@ -165,7 +165,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 				this.triggerAllDiagnostics();
 			}, 1500);
 		};
-		let watcher = workspace.createFileSystemWatcher('**/tsconfig.json');
+		let watcher = workspace.createFileSystemWatcher('**/[tj]sconfig.json');
 		watcher.onDidCreate(handleProjectCreateOrDelete);
 		watcher.onDidDelete(handleProjectCreateOrDelete);
 		watcher.onDidChange(handleProjectChange);
