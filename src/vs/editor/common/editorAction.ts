@@ -7,7 +7,6 @@
 import {Action} from 'vs/base/common/actions';
 import * as strings from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {Behaviour, IEnablementState, createActionEnablement} from 'vs/editor/common/editorActionEnablement';
 import {IActionDescriptor, IActionEnablement, ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution} from 'vs/editor/common/editorCommon';
 import {ILineContext} from 'vs/editor/common/modes';
@@ -151,7 +150,7 @@ export class DynamicEditorAction extends EditorAction {
 	private _tokensAtPosition:string[];
 	private _wordAtPosition:boolean;
 
-	constructor(descriptor:IActionDescriptor, editor:ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IActionDescriptor, editor:ICommonCodeEditor) {
 		var enablement: IActionEnablement = descriptor.enablement || {};
 		super({
 			id: descriptor.id,

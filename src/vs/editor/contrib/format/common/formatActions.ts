@@ -9,7 +9,6 @@ import * as arrays from 'vs/base/common/arrays';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IDisposable, cAll, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -32,7 +31,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 	private callOnDispose: IDisposable[];
 	private callOnModel: Function[];
 
-	constructor(editor: editorCommon.ICommonCodeEditor, @INullService ns: INullService) {
+	constructor(editor: editorCommon.ICommonCodeEditor) {
 		this.editor = editor;
 		this.callOnDispose = [];
 		this.callOnModel = [];
@@ -150,7 +149,7 @@ export class FormatAction extends EditorAction {
 
 	private _disposable: IDisposable;
 
-	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor) {
 		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.Writeable | Behaviour.UpdateOnModelChange | Behaviour.ShowInContextMenu);
 		this._disposable = FormatRegistry.onDidChange(() => this.resetEnablementState());
 	}

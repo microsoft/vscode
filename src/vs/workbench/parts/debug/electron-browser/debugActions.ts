@@ -14,7 +14,6 @@ import { EditorAction } from 'vs/editor/common/editorAction';
 import { Behaviour } from 'vs/editor/common/editorActionEnablement';
 import { IEventService } from 'vs/platform/event/common/event';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
-import { INullService } from 'vs/platform/instantiation/common/instantiation';
 import { EventType, CompositeEvent } from 'vs/workbench/common/events';
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
@@ -611,7 +610,7 @@ export class SelectionToReplAction extends EditorAction {
 export class ShowDebugHoverAction extends EditorAction {
 	static ID = 'editor.debug.action.showDebugHover';
 
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor) {
 		super(descriptor, editor, Behaviour.TextFocus);
 	}
 

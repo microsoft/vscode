@@ -42,8 +42,8 @@ suite('FindController', () => {
 			// The cursor is at the very top, of the file, at the first ABC
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			let findState = findController.getState();
-			let startFindAction = new StartFindAction({id:'',label:''}, editor, null);
-			let nextMatchFindAction = new NextMatchFindAction({id:'',label:''}, editor, null);
+			let startFindAction = new StartFindAction({id:'',label:''}, editor);
+			let nextMatchFindAction = new NextMatchFindAction({id:'',label:''}, editor);
 
 			// I hit Ctrl+F to show the Find dialog
 			startFindAction.run();
@@ -96,7 +96,7 @@ suite('FindController', () => {
 
 			// The cursor is at the very top, of the file, at the first ABC
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
-			let nextMatchFindAction = new NextMatchFindAction({id:'',label:''}, editor, null);
+			let nextMatchFindAction = new NextMatchFindAction({id:'',label:''}, editor);
 
 			editor.setPosition({
 				lineNumber: 1,

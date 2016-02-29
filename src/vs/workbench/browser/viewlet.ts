@@ -24,7 +24,6 @@ import {Composite, CompositeDescriptor, CompositeRegistry} from 'vs/workbench/br
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {StructuredSelection} from 'vs/platform/selection/common/selection';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 
 export abstract class Viewlet extends Composite implements IViewlet { }
 
@@ -254,7 +253,7 @@ export class ToggleViewletAction extends Action {
 // Collapse All action
 export class CollapseAction extends Action {
 
-	constructor(viewer: ITree, enabled: boolean, clazz: string, @INullService ns) {
+	constructor(viewer: ITree, enabled: boolean, clazz: string) {
 		super('workbench.action.collapse', nls.localize('collapse', "Collapse"), clazz, enabled, (context: any) => {
 			if (viewer.getHighlight()) {
 				return TPromise.as(null); // Global action disabled if user is in edit mode from another action

@@ -9,7 +9,6 @@ import 'vs/css!./gotoLine';
 import * as nls from 'vs/nls';
 import {IContext, QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {IAutoFocus, Mode} from 'vs/base/parts/quickopen/common/quickOpen';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {BaseEditorQuickOpenAction, IDecorator} from './editorQuickOpen';
@@ -150,7 +149,7 @@ export class GotoLineAction extends BaseEditorQuickOpenAction {
 
 	public static ID = 'editor.action.gotoLine';
 
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor) {
 		super(descriptor, editor, nls.localize('GotoLineAction.label', "Go to Line..."));
 	}
 

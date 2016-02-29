@@ -7,7 +7,6 @@
 import {sequence} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
@@ -279,7 +278,7 @@ class WordHighlighterContribution implements editorCommon.IEditorContribution {
 
 	private wordHighligher: WordHighlighter;
 
-	constructor(editor:editorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(editor:editorCommon.ICommonCodeEditor) {
 		this.wordHighligher = new WordHighlighter(editor);
 	}
 

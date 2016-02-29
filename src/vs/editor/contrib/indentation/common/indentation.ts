@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
@@ -16,7 +15,7 @@ import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpe
 export class IndentationToSpacesAction extends EditorAction {
 	static ID = 'editor.action.indentationToSpaces';
 
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
 		super(descriptor, editor);
 	}
 
@@ -35,7 +34,7 @@ export class IndentationToSpacesAction extends EditorAction {
 export class IndentationToTabsAction extends EditorAction {
 	static ID = 'editor.action.indentationToTabs';
 
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
 		super(descriptor, editor);
 	}
 

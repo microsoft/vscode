@@ -11,7 +11,6 @@ import {RunOnceScheduler} from 'vs/base/common/async';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
@@ -148,7 +147,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 
 	private decorations: CollapsibleRegion[];
 
-	constructor(editor:ICodeEditor, @INullService nullService) {
+	constructor(editor:ICodeEditor) {
 		this.editor = editor;
 
 		this.globalToDispose = [];
@@ -285,7 +284,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 
 		this.contentChangedScheduler = new RunOnceScheduler(() => {
 			let myToken = (++this.computeToken);
-			
+
 			this.computeCollapsibleRegions().then(regions => {
 				if (myToken !== this.computeToken) {
 					return; // A new request was made in the meantime or the model was changed
@@ -514,7 +513,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 }
 
 abstract class FoldingAction extends EditorAction {
-	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor) {
 		super(descriptor, editor);
 	}
 

@@ -10,7 +10,6 @@ import Modes = require('vs/editor/common/modes');
 import WinJS = require('vs/base/common/winjs.base');
 import nls = require('vs/nls');
 import JSONWorker = require('vs/languages/json/common/jsonWorker');
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import URI from 'vs/base/common/uri';
 import {JSONLocation} from 'vs/languages/json/common/parser/jsonLocation';
 
@@ -31,7 +30,7 @@ var globValues:Modes.ISuggestion[] = [
 
 export class GlobPatternContribution implements JSONWorker.IJSONWorkerContribution {
 
-	constructor(@INullService ns) {
+	constructor() {
 	}
 
 	private isSettingsFile(resource: URI): boolean {

@@ -7,7 +7,6 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -34,7 +33,7 @@ export class QuickOpenController implements editorCommon.IEditorContribution {
 	private editor:ICodeEditor;
 	private widget:QuickOpenEditorWidget;
 
-	constructor(editor:ICodeEditor, @INullService ns) {
+	constructor(editor:ICodeEditor) {
 		this.editor = editor;
 	}
 

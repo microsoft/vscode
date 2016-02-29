@@ -13,7 +13,6 @@ import {RunOnceScheduler} from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
 import {match} from 'vs/base/common/glob';
 import {Uri, FileSystemWatcher as _FileSystemWatcher} from 'vscode';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 
 export interface FileSystemEvents {
 	created: URI[];
@@ -103,7 +102,7 @@ export class ExtHostFileSystemEventService {
 
 	private _emitter = new Emitter<FileSystemEvents>();
 
-	constructor(@INullService ns) {
+	constructor() {
 	}
 
 	public createFileSystemWatcher(globPattern: string, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): _FileSystemWatcher {

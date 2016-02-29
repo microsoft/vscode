@@ -43,7 +43,7 @@ import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IStorageService} from 'vs/platform/storage/common/storage';
 import {IResourceInput, Position, IEditor} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService, IConstructorSignature2, INullService} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
 import {IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction} from 'vs/platform/message/common/message';
 import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -1213,7 +1213,7 @@ export class SelectResourceForCompareAction extends Action {
 	private resource: URI;
 	private tree: ITree;
 
-	constructor(resource: URI, tree: ITree, @INullService ns) {
+	constructor(resource: URI, tree: ITree) {
 		super('workbench.files.action.selectForCompare', nls.localize('compareSource', "Select for Compare"));
 
 		this.tree = tree;
@@ -1385,7 +1385,7 @@ export class CompareResourcesAction extends Action {
 // Refresh Explorer Viewer
 export class RefreshViewExplorerAction extends Action {
 
-	constructor(explorerView: ExplorerView, clazz: string, @INullService ns) {
+	constructor(explorerView: ExplorerView, clazz: string) {
 		super('workbench.files.action.refreshExplorer', nls.localize('refresh', "Refresh"), clazz, true, (context: any) => {
 			if (explorerView.getViewer().getHighlight()) {
 				return TPromise.as(null); // Global action disabled if user is in edit mode from another action

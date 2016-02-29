@@ -11,7 +11,6 @@ import URI from 'vs/base/common/uri';
 import JSONContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 
 interface IJSONValidationExtensionPoint {
 	fileMatch: string;
@@ -42,9 +41,7 @@ let configurationExtPoint = PluginsRegistry.registerExtensionPoint<IJSONValidati
 
 export class JSONValidationExtensionPoint {
 
-	constructor(
-		@INullService modeService: INullService
-	) {
+	constructor() {
 		configurationExtPoint.setHandler((extensions) => {
 			for (var i = 0; i < extensions.length; i++) {
 				var extensionValue = <IJSONValidationExtensionPoint[]>extensions[i].value;

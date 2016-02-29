@@ -12,7 +12,6 @@ import {cAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as browser from 'vs/base/browser/browser';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
 import {findFocusedEditor} from 'vs/editor/common/config/config';
 import {EditorAction} from 'vs/editor/common/editorAction';
@@ -24,7 +23,7 @@ class ClipboardWritingAction extends EditorAction {
 
 	private toUnhook:Function[];
 
-	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, condition:Behaviour, @INullService ns) {
+	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, condition:Behaviour) {
 		super(descriptor, editor, condition);
 		this.toUnhook = [];
 		this.toUnhook.push(this.editor.addListener(editorCommon.EventType.CursorSelectionChanged, (e:editorCommon.ICursorSelectionChangedEvent) => {
@@ -62,8 +61,8 @@ function editorCursorIsInEditableRange(editor:editorCommon.ICommonCodeEditor): b
 
 class ExecCommandCutAction extends ClipboardWritingAction {
 
-	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, Behaviour.Writeable | Behaviour.WidgetFocus | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange, ns);
+	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor) {
+		super(descriptor, editor, Behaviour.Writeable | Behaviour.WidgetFocus | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange);
 	}
 
 	public getGroupId(): string {
@@ -83,8 +82,8 @@ class ExecCommandCutAction extends ClipboardWritingAction {
 
 class ExecCommandCopyAction extends ClipboardWritingAction {
 
-	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.ShowInContextMenu, ns);
+	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor) {
+		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.ShowInContextMenu);
 	}
 
 	public getGroupId(): string {
@@ -100,7 +99,7 @@ class ExecCommandCopyAction extends ClipboardWritingAction {
 
 class ExecCommandPasteAction extends EditorAction {
 
-	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:editorCommon.IEditorActionDescriptorData, editor:editorCommon.ICommonCodeEditor) {
 		super(descriptor, editor, Behaviour.Writeable | Behaviour.WidgetFocus | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange);
 	}
 
