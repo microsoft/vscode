@@ -251,10 +251,6 @@
 	background: url('breakpoints-activate.svg') center center no-repeat;
 }
 
-.debug-viewlet .debug-action.refresh {
-	background: url('refresh.svg') center center no-repeat;
-}
-
 .debug-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .debug-action.remove {
 	background: url("remove-focus.svg") center center no-repeat;
 }
@@ -269,10 +265,6 @@
 
 .vs-dark .debug-viewlet .debug-action.breakpoints-activate {
 	background: url('breakpoints-activate-inverse.svg') center center no-repeat;
-}
-
-.vs-dark .debug-viewlet .debug-action.refresh {
-	background: url('refresh-inverse.svg') center center no-repeat;
 }
 
 /* No workspace view */
@@ -303,8 +295,4 @@
 
 .hc-black .debug-viewlet .debug-action.breakpoints-activate {
 	background: url('breakpoints-activate-inverse.svg') center center no-repeat;
-}
-
-.hc-black .debug-viewlet .debug-action.refresh {
-	background: url('refresh-inverse.svg') center center no-repeat;
 }

@@ -372,7 +372,7 @@ export class ReapplyBreakpointsAction extends AbstractDebugAction {
 	static LABEL = nls.localize('reapplyAllBreakpoints', "Reapply All Breakpoints");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action refresh', debugService, keybindingService);
+		super(id, label, null, debugService, keybindingService);
 		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.BREAKPOINTS_UPDATED, () => this.updateEnablement()));
 	}
 
