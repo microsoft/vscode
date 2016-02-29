@@ -921,7 +921,7 @@ export class OneCursorOp {
 
 	}
 
-	public static word(cursor:OneCursor, inSelectionMode: boolean, position: editorCommon.IPosition, preference: string, ctx: IOneCursorOperationContext): boolean {
+	public static word(cursor:OneCursor, inSelectionMode: boolean, position: editorCommon.IPosition, ctx: IOneCursorOperationContext): boolean {
 		// TODO@Alex -> select in editable range
 
 		let validatedPosition = cursor.validatePosition(position);

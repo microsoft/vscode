@@ -86,7 +86,6 @@ class EventGateKeeper<T> {
 
 export class MouseHandler extends ViewEventHandler implements IDisposable {
 
-	static CLEAR_MOUSE_DOWN_COUNT_TIME = 400; // ms
 	static MOUSE_MOVE_MINIMUM_TIME = 100; // ms
 
 	public context:editorBrowser.IViewContext;
@@ -277,16 +276,13 @@ class MouseDownOperation {
 	private _mouseDownThenMoveEventHandler: EventGateKeeper<IMouseEvent>;
 
 	private _currentSelection: editorCommon.IEditorSelection;
+	private _mouseDownCounter: MouseDownCounter;
 
 	private _onScrollTimeout: number;
 	private _isActive: boolean;
 
 	private _startTargetType:editorCommon.MouseTargetType;
 	private _lastMouseEvent: IMouseEvent;
-	private _lastMouseDownPosition: editorCommon.IEditorPosition;
-	private _lastMouseDownPositionEqualCount: number;
-	private _lastMouseDownCount: number;
-	private _lastSetMouseDownCountTime: number;
 
 	constructor(
 		context:editorBrowser.IViewContext,
@@ -300,16 +296,13 @@ class MouseDownOperation {
 		this._createMouseTarget = createMouseTarget;
 
 		this._currentSelection = Selection.createSelection(1, 1, 1, 1);
+		this._mouseDownCounter = new MouseDownCounter();
 
 		this._onScrollTimeout = -1;
 		this._isActive = false;
 
 		this._startTargetType = editorCommon.MouseTargetType.UNKNOWN;
 		this._lastMouseEvent = null;
-		this._lastMouseDownPosition = null;
-		this._lastMouseDownPositionEqualCount = 0;
-		this._lastMouseDownCount = 0;
-		this._lastSetMouseDownCountTime = 0;
 
 		this._mouseMoveMonitor = new GlobalMouseMoveMonitor<IMouseEvent>();
 		this._mouseDownThenMoveEventHandler = new EventGateKeeper<IMouseEvent>((e) => this._onMouseDownThenMove(e), () => !this._viewHelper.isDirty());
@@ -405,11 +398,7 @@ class MouseDownOperation {
 		return null;
 	}
 
-	private _updateMouse(startTargetType:editorCommon.MouseTargetType, e:IMouseEvent, inSelectionMode:boolean, setMouseDownCount:number = 0): void {
-		e = e || this._lastMouseEvent;
-		this._lastMouseEvent = e;
-
-		let editorContent = dom.getDomNodePosition(this._viewHelper.viewDomNode);
+	private _findMousePosition(editorContent:dom.IDomNodePosition, e:IMouseEvent): editorCommon.IPosition {
 		let positionOutsideEditor = this._getPositionOutsideEditor(editorContent, e);
 		let lineNumber: number, column: number;
 
@@ -426,18 +415,16 @@ class MouseDownOperation {
 
 			if (t.type === editorCommon.MouseTargetType.CONTENT_VIEW_ZONE || t.type === editorCommon.MouseTargetType.GUTTER_VIEW_ZONE) {
 				// Force position on view zones to go above or below depending on where selection started from
-				if (this._lastMouseDownCount > 0) {
-					let selectionStart = new Position(this._currentSelection.selectionStartLineNumber, this._currentSelection.selectionStartColumn);
-					let viewZoneData = <editorBrowser.IViewZoneData>t.detail;
-					let positionBefore = viewZoneData.positionBefore;
-					let positionAfter = viewZoneData.positionAfter;
+				let selectionStart = new Position(this._currentSelection.selectionStartLineNumber, this._currentSelection.selectionStartColumn);
+				let viewZoneData = <editorBrowser.IViewZoneData>t.detail;
+				let positionBefore = viewZoneData.positionBefore;
+				let positionAfter = viewZoneData.positionAfter;
 
-					if (positionBefore && positionAfter) {
-						if (positionBefore.isBefore(selectionStart)) {
-							hintedPosition = positionBefore;
-						} else {
-							hintedPosition = positionAfter;
-						}
+				if (positionBefore && positionAfter) {
+					if (positionBefore.isBefore(selectionStart)) {
+						hintedPosition = positionBefore;
+					} else {
+						hintedPosition = positionAfter;
 					}
 				}
 			}
@@ -446,105 +433,87 @@ class MouseDownOperation {
 			column = hintedPosition.column;
 		}
 
+		return {
+			lineNumber: lineNumber,
+			column: column
+		};
+	}
+
+	private _updateMouse(startTargetType:editorCommon.MouseTargetType, e:IMouseEvent, inSelectionMode:boolean, setMouseDownCount:number = 0): void {
+		e = e || this._lastMouseEvent;
+		this._lastMouseEvent = e;
+
+		let editorContent = dom.getDomNodePosition(this._viewHelper.viewDomNode);
+		let {lineNumber,column} = this._findMousePosition(editorContent, e);
+
+
 		if (setMouseDownCount) {
-
-			// a. Invalidate multiple clicking if too much time has passed (will be hit by IE because the detail field of mouse events contains garbage in IE10)
-			let currentTime = (new Date()).getTime();
-			if (currentTime - this._lastSetMouseDownCountTime > MouseHandler.CLEAR_MOUSE_DOWN_COUNT_TIME) {
-				setMouseDownCount = 1;
-			}
-			this._lastSetMouseDownCountTime = currentTime;
-
-			// b. Ensure that we don't jump from single click to triple click in one go (will be hit by IE because the detail field of mouse events contains garbage in IE10)
-			if (setMouseDownCount > this._lastMouseDownCount + 1) {
-				setMouseDownCount = this._lastMouseDownCount + 1;
-			}
-
-			// c. Invalidate multiple clicking if the logical position is different
-			let newMouseDownPosition = new Position(lineNumber, column);
-			if (this._lastMouseDownPosition && this._lastMouseDownPosition.equals(newMouseDownPosition)) {
-				this._lastMouseDownPositionEqualCount++;
-			} else {
-				this._lastMouseDownPositionEqualCount = 1;
-			}
-			this._lastMouseDownPosition = newMouseDownPosition;
-
-			// Finally set the lastMouseDownCount
-			this._lastMouseDownCount = Math.min(setMouseDownCount, this._lastMouseDownPositionEqualCount);
-
+			this._mouseDownCounter.trySetCount(setMouseDownCount, lineNumber, column);
 			// Overwrite the detail of the MouseEvent, as it will be sent out in an event and contributions might rely on it.
-			e.detail = this._lastMouseDownCount;
+			e.detail = this._mouseDownCounter.value();
 		}
 
-		if (startTargetType === editorCommon.MouseTargetType.GUTTER_LINE_NUMBERS) {
-			// If the dragging started on the gutter, then have operations work on the entire line
-			if (e.altKey) {
-				if (inSelectionMode) {
-					this._viewController.lastCursorLineSelect('mouse', lineNumber, column);
-				} else {
-					this._viewController.createCursor('mouse', lineNumber, column, true);
-				}
-			} else {
-				if (inSelectionMode) {
-					this._viewController.lineSelectDrag('mouse', lineNumber, column);
-				} else {
-					this._viewController.lineSelect('mouse', lineNumber, column);
-				}
-			}
-		} else if (this._lastMouseDownCount >= 4) {
-			this._viewController.selectAll('mouse');
-		} else if (this._lastMouseDownCount === 3) {
-			if (e.altKey) {
-				if (inSelectionMode) {
-					this._viewController.lastCursorLineSelectDrag('mouse', lineNumber, column);
-				} else {
-					this._viewController.lastCursorLineSelect('mouse', lineNumber, column);
-				}
-			} else {
-				if (inSelectionMode) {
-					this._viewController.lineSelectDrag('mouse', lineNumber, column);
-				} else {
-					this._viewController.lineSelect('mouse', lineNumber, column);
-				}
-			}
-		} else if (this._lastMouseDownCount === 2) {
-			let preference = 'none';
+		this.dispatch(startTargetType, e, this._mouseDownCounter.value(), inSelectionMode, editorContent, lineNumber, column);
+	}
 
-			let visibleRangeForPosition = this._viewHelper.visibleRangeForPosition2(lineNumber, column);
-			if (visibleRangeForPosition) {
-				let columnPosX = editorContent.left + visibleRangeForPosition.left;
-				if (e.posx > columnPosX) {
-					preference = 'right';
-				} else if (e.posx < columnPosX) {
-					preference = 'left';
-				}
-			}
-			if (e.altKey) {
-				this._viewController.lastCursorWordSelect('mouse', lineNumber, column, preference);
-			} else {
-				if (inSelectionMode) {
-					this._viewController.wordSelectDrag('mouse', lineNumber, column, preference);
-				} else {
-					this._viewController.wordSelect('mouse', lineNumber, column, preference);
-				}
-			}
+	private dispatch(startTargetType:editorCommon.MouseTargetType, e:IMouseEvent, mouseDownCount:number, inSelectionMode:boolean, editorContent:dom.IDomNodePosition, lineNumber:number, column:number): void {
+		this._viewController.dispatchMouse({
+			lineNumber: lineNumber,
+			column: column,
+			startTargetType: startTargetType,
+
+			inSelectionMode: inSelectionMode,
+			mouseDownCount: mouseDownCount,
+			altKey: e.altKey,
+			ctrlKey: e.ctrlKey,
+			metaKey: e.metaKey,
+		});
+	}
+}
+
+class MouseDownCounter {
+
+	private static CLEAR_MOUSE_DOWN_COUNT_TIME = 400; // ms
+
+	private _lastMouseDownPosition: editorCommon.IEditorPosition;
+	private _lastMouseDownPositionEqualCount: number;
+	private _lastMouseDownCount: number;
+	private _lastSetMouseDownCountTime: number;
+
+	constructor() {
+		this._lastMouseDownPosition = null;
+		this._lastMouseDownPositionEqualCount = 0;
+		this._lastMouseDownCount = 0;
+		this._lastSetMouseDownCountTime = 0;
+	}
+
+	public trySetCount(setMouseDownCount:number, lineNumber:number, column:number): void {
+		// a. Invalidate multiple clicking if too much time has passed (will be hit by IE because the detail field of mouse events contains garbage in IE10)
+		let currentTime = (new Date()).getTime();
+		if (currentTime - this._lastSetMouseDownCountTime > MouseDownCounter.CLEAR_MOUSE_DOWN_COUNT_TIME) {
+			setMouseDownCount = 1;
+		}
+		this._lastSetMouseDownCountTime = currentTime;
+
+		// b. Ensure that we don't jump from single click to triple click in one go (will be hit by IE because the detail field of mouse events contains garbage in IE10)
+		if (setMouseDownCount > this._lastMouseDownCount + 1) {
+			setMouseDownCount = this._lastMouseDownCount + 1;
+		}
+
+		// c. Invalidate multiple clicking if the logical position is different
+		let newMouseDownPosition = new Position(lineNumber, column);
+		if (this._lastMouseDownPosition && this._lastMouseDownPosition.equals(newMouseDownPosition)) {
+			this._lastMouseDownPositionEqualCount++;
 		} else {
-			if (e.altKey) {
-				if (!e.ctrlKey && !e.metaKey) {
-					// Do multi-cursor operations only when purely alt is pressed
-					if (inSelectionMode) {
-						this._viewController.lastCursorMoveToSelect('mouse', lineNumber, column);
-					} else {
-						this._viewController.createCursor('mouse', lineNumber, column, false);
-					}
-				}
-			} else {
-				if (inSelectionMode) {
-					this._viewController.moveToSelect('mouse', lineNumber, column);
-				} else {
-					this._viewController.moveTo('mouse', lineNumber, column);
-				}
-			}
+			this._lastMouseDownPositionEqualCount = 1;
 		}
+		this._lastMouseDownPosition = newMouseDownPosition;
+
+		// Finally set the lastMouseDownCount
+		this._lastMouseDownCount = Math.min(setMouseDownCount, this._lastMouseDownPositionEqualCount);
+	}
+
+	public value(): number {
+		return this._lastMouseDownCount;
 	}
 }

@@ -1251,7 +1251,7 @@ export class Cursor extends EventEmitter {
 
 	private _word(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
 		this.cursors.killSecondaryCursors();
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.word(oneCursor, inSelectionMode, ctx.eventData.position, ctx.eventData.preference || 'none', oneCtx));
+		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.word(oneCursor, inSelectionMode, ctx.eventData.position, oneCtx));
 	}
 
 	private _lastCursorWord(ctx: IMultipleCursorOperationContext): boolean {
@@ -1262,7 +1262,7 @@ export class Cursor extends EventEmitter {
 		var lastAddedCursor = this.cursors.getLastAddedCursor();
 		this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => {
 			if (oneCursor === lastAddedCursor) {
-				return OneCursorOp.word(oneCursor, true, ctx.eventData.position, ctx.eventData.preference || 'none', oneCtx);
+				return OneCursorOp.word(oneCursor, true, ctx.eventData.position, oneCtx);
 			}
 			return false;
 		});
