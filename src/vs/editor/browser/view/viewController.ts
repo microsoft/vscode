@@ -56,7 +56,7 @@ export class ViewController implements IViewController {
 	}
 
 	public dispatchMouse(data:IMouseDispatchData): void {
-		if (data.startTargetType === editorCommon.MouseTargetType.GUTTER_LINE_NUMBERS) {
+		if (data.startedOnLineNumbers) {
 			// If the dragging started on the gutter, then have operations work on the entire line
 			if (data.altKey) {
 				if (data.inSelectionMode) {

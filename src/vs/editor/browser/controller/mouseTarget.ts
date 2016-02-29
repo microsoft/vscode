@@ -8,17 +8,11 @@ import {Position} from 'vs/editor/common/core/position';
 import {Range as EditorRange} from 'vs/editor/common/core/range';
 import {IEditorLayoutInfo, IEditorPosition, IEditorRange, IPosition, MouseTargetType} from 'vs/editor/common/editorCommon';
 import {ClassNames, IMouseTarget, IPointerHandlerHelper, IViewContext, IViewZoneData} from 'vs/editor/browser/editorBrowser';
+import {IDomNodePosition} from 'vs/base/browser/dom';
 
 interface IHitTestResult {
 	position: IPosition;
 	hitTarget: Element;
-}
-
-export interface IDomNodePosition {
-	top: number;
-	left: number;
-	width: number;
-	height: number;
 }
 
 export interface ISimplifiedMouseEvent {

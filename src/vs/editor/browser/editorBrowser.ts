@@ -112,7 +112,7 @@ export interface IViewZoneData {
 
 export interface IMouseDispatchData {
 	position: editorCommon.IEditorPosition;
-	startTargetType: editorCommon.MouseTargetType;
+	startedOnLineNumbers: boolean;
 
 	inSelectionMode: boolean;
 	mouseDownCount: number;
