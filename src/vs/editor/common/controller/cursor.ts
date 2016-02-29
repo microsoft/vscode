@@ -919,6 +919,7 @@ export class Cursor extends EventEmitter {
 
 		handlersMap[H.MoveTo] = 					(ctx:IMultipleCursorOperationContext) => this._moveTo(false, ctx);
 		handlersMap[H.MoveToSelect] = 				(ctx:IMultipleCursorOperationContext) => this._moveTo(true, ctx);
+		handlersMap[H.ColumnSelect] = 				(ctx:IMultipleCursorOperationContext) => this._columnSelect(ctx);
 		handlersMap[H.AddCursorUp] = 				(ctx:IMultipleCursorOperationContext) => this._addCursorUp(ctx);
 		handlersMap[H.AddCursorDown] = 				(ctx:IMultipleCursorOperationContext) => this._addCursorDown(ctx);
 		handlersMap[H.CreateCursor] =				(ctx:IMultipleCursorOperationContext) => this._createCursor(ctx);
@@ -1078,6 +1079,21 @@ export class Cursor extends EventEmitter {
 	private _moveTo(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
 		this.cursors.killSecondaryCursors();
 		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveTo(oneCursor, inSelectionMode, ctx.eventData.position, ctx.eventData.viewPosition, ctx.eventSource, oneCtx));
+	}
+
+	private _columnSelect(ctx: IMultipleCursorOperationContext): boolean {
+		if (this.configuration.editor.readOnly || this.model.hasEditableRange()) {
+			return false;
+		}
+
+		let primary = this.cursors.getAll()[0];
+		let result = OneCursorOp.columnSelect(primary, ctx.eventData.position, ctx.eventData.viewPosition,  ctx.eventData.mouseColumn);
+
+		ctx.shouldRevealTarget = (result.reversed ? RevealTarget.TopMost : RevealTarget.BottomMost);
+		ctx.shouldReveal = true;
+
+		this.cursors.setSelections(result.selections);
+		return true;
 	}
 
 	private _createCursor(ctx: IMultipleCursorOperationContext): boolean {

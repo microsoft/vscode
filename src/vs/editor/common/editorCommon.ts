@@ -3351,6 +3351,7 @@ export var Handler = {
 	CursorUndo:					'cursorUndo',
 	MoveTo:						'moveTo',
 	MoveToSelect:				'moveToSelect',
+	ColumnSelect:				'columnSelect',
 	CreateCursor:				'createCursor',
 	LastCursorMoveToSelect:		'lastCursorMoveToSelect',
 

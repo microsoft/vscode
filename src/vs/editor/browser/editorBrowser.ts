@@ -120,10 +120,10 @@ export interface IMouseDispatchData {
 
 	inSelectionMode: boolean;
 	mouseDownCount: number;
-	startAltKey: boolean;
-	startCtrlKey: boolean;
-	startMetaKey: boolean;
-	startShiftKey: boolean;
+	altKey: boolean;
+	ctrlKey: boolean;
+	metaKey: boolean;
+	shiftKey: boolean;
 }
 
 export interface IViewController {

@@ -4,12 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IInternalIndentationOptions, IPosition} from 'vs/editor/common/editorCommon';
+import {IInternalIndentationOptions, IPosition, IEditorSelection} from 'vs/editor/common/editorCommon';
+import {Selection} from 'vs/editor/common/core/selection';
 
 export interface IMoveResult {
 	lineNumber:number;
 	column:number;
 	leftoverVisibleColumns: number;
+}
+
+export interface IColumnSelectResult {
+	selections: IEditorSelection[];
+	reversed: boolean;
 }
 
 export interface ICursorMoveHelperModel {
@@ -118,6 +124,34 @@ export class CursorMoveHelper {
 			lineNumber: lineNumber,
 			column: column,
 			leftoverVisibleColumns: leftoverVisibleColumns
+		};
+	}
+
+	public columnSelect(model:ICursorMoveHelperModel, from:IPosition, toLineNumber:number, toColumn:number): IColumnSelectResult {
+		let fromVisibleColumn = this.visibleColumnFromColumn(model, from.lineNumber, from.column);
+		let toVisibleColumn = this.visibleColumnFromColumn(model, toLineNumber, toColumn);
+
+		let result: IEditorSelection[] = [];
+		let reversed: boolean;
+		if (from.lineNumber <= toLineNumber) {
+			reversed = false;
+			for (let lineNumber = from.lineNumber; lineNumber <= toLineNumber; lineNumber++) {
+				let startColumn = this.columnFromVisibleColumn(model, lineNumber, fromVisibleColumn);
+				let endColumn = this.columnFromVisibleColumn(model, lineNumber, toVisibleColumn);
+				result.push(new Selection(lineNumber, startColumn, lineNumber, endColumn));
+			}
+		} else {
+			reversed = true;
+			for (let lineNumber = from.lineNumber; lineNumber >= toLineNumber; lineNumber--) {
+				let startColumn = this.columnFromVisibleColumn(model, lineNumber, fromVisibleColumn);
+				let endColumn = this.columnFromVisibleColumn(model, lineNumber, toVisibleColumn);
+				result.push(new Selection(lineNumber, startColumn, lineNumber, endColumn));
+			}
+		}
+
+		return {
+			selections: result,
+			reversed: reversed
 		};
 	}
 

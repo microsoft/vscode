@@ -58,7 +58,7 @@ export class ViewController implements IViewController {
 	public dispatchMouse(data:IMouseDispatchData): void {
 		if (data.startedOnLineNumbers) {
 			// If the dragging started on the gutter, then have operations work on the entire line
-			if (data.startAltKey) {
+			if (data.altKey) {
 				if (data.inSelectionMode) {
 					this.lastCursorLineSelect('mouse', data.position);
 				} else {
@@ -74,7 +74,7 @@ export class ViewController implements IViewController {
 		} else if (data.mouseDownCount >= 4) {
 			this.selectAll('mouse');
 		} else if (data.mouseDownCount === 3) {
-			if (data.startAltKey) {
+			if (data.altKey) {
 				if (data.inSelectionMode) {
 					this.lastCursorLineSelectDrag('mouse', data.position);
 				} else {
@@ -88,7 +88,7 @@ export class ViewController implements IViewController {
 				}
 			}
 		} else if (data.mouseDownCount === 2) {
-			if (data.startAltKey) {
+			if (data.altKey) {
 				this.lastCursorWordSelect('mouse', data.position);
 			} else {
 				if (data.inSelectionMode) {
@@ -98,13 +98,17 @@ export class ViewController implements IViewController {
 				}
 			}
 		} else {
-			if (data.startAltKey) {
-				if (!data.startCtrlKey && !data.startMetaKey) {
-					// Do multi-cursor operations only when purely alt is pressed
-					if (data.inSelectionMode) {
-						this.lastCursorMoveToSelect('mouse', data.position);
+			if (data.altKey) {
+				if (!data.ctrlKey && !data.metaKey) {
+					if (data.shiftKey) {
+						this.columnSelect('mouse', data.position, data.mouseColumn);
 					} else {
-						this.createCursor('mouse', data.position, false);
+						// Do multi-cursor operations only when purely alt is pressed
+						if (data.inSelectionMode) {
+							this.lastCursorMoveToSelect('mouse', data.position);
+						} else {
+							this.createCursor('mouse', data.position, false);
+						}
 					}
 				}
 			} else {
@@ -130,6 +134,15 @@ export class ViewController implements IViewController {
 		this.configuration.handlerDispatcher.trigger(source, editorCommon.Handler.MoveToSelect, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
+		});
+	}
+
+	private columnSelect(source:string, viewPosition:editorCommon.IEditorPosition, mouseColumn:number): void {
+		viewPosition = this._validateViewColumn(viewPosition);
+		this.configuration.handlerDispatcher.trigger(source, editorCommon.Handler.ColumnSelect, {
+			position: this.convertViewToModelPosition(viewPosition),
+			viewPosition: viewPosition,
+			mouseColumn: mouseColumn
 		});
 	}
 

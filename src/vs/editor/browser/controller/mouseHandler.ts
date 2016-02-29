@@ -336,6 +336,7 @@ class MouseDownOperation extends Disposable {
 
 	private _onMouseDownThenMove(e:IMouseEvent): void {
 		this._lastMouseEvent = e;
+		this._mouseState.setModifiers(e);
 
 		let position = this._findMousePosition(e, true);
 		if (!position) {
@@ -350,7 +351,7 @@ class MouseDownOperation extends Disposable {
 		this._lastMouseEvent = e;
 
 		this._mouseState.setStartedOnLineNumbers(targetType === editorCommon.MouseTargetType.GUTTER_LINE_NUMBERS);
-		this._mouseState.setStartModifiers(e);
+		this._mouseState.setModifiers(e);
 
 		let position = this._findMousePosition(e, true);
 		if (!position) {
@@ -466,10 +467,10 @@ class MouseDownOperation extends Disposable {
 
 			inSelectionMode: inSelectionMode,
 			mouseDownCount: this._mouseState.count,
-			startAltKey: this._mouseState.altKey,
-			startCtrlKey: this._mouseState.ctrlKey,
-			startMetaKey: this._mouseState.metaKey,
-			startShiftKey: this._mouseState.shiftKey,
+			altKey: this._mouseState.altKey,
+			ctrlKey: this._mouseState.ctrlKey,
+			metaKey: this._mouseState.metaKey,
+			shiftKey: this._mouseState.shiftKey,
 		});
 	}
 }
@@ -514,7 +515,7 @@ class MouseDownState {
 		return this._lastMouseDownCount;
 	}
 
-	public setStartModifiers(source:IMouseEvent) {
+	public setModifiers(source:IMouseEvent) {
 		this._altKey = source.altKey;
 		this._ctrlKey = source.ctrlKey;
 		this._metaKey = source.metaKey;

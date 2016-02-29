@@ -553,11 +553,21 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 			this.removeDecorations();
 			return;
 		}
+		let selections = this.editor.getSelections();
+		let firstSelectedText = model.getValueInRange(selections[0]);
+		for (let i = 1; i < selections.length; i++) {
+			let selectedText = model.getValueInRange(selections[i]);
+			if (firstSelectedText !== selectedText) {
+				// not all selections have the same text
+				this.removeDecorations();
+				return;
+			}
+		}
+
 
 		let allMatches = model.findMatches(r.searchText, true, false, r.matchCase, r.wholeWord);
 		allMatches.sort(Range.compareRangesUsingStarts);
 
-		let selections = this.editor.getSelections();
 		selections.sort(Range.compareRangesUsingStarts);
 
 		// do not overlap with selection (issue #64 and #512)
