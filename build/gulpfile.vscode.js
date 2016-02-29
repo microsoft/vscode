@@ -289,7 +289,20 @@ function prepareDebPackage(arch) {
 					.pipe(es.through(function (f) { that.emit('data', f); }, function () { that.emit('end'); }));
 			}));
 
-		return es.merge(control, desktop, icon, shortcut, code)
+		var all = es.merge(control, desktop, icon, shortcut, code);
+
+		// Register an apt repository if this is an official build
+		if (product.updateUrl && product.quality) {
+			var postinst = gulp.src('resources/linux/debian/postinst.template', { base: '.' })
+				.pipe(replace('@@NAME@@', product.applicationName))
+				.pipe(replace('@@UPDATEURL@@', product.updateUrl))
+				.pipe(replace('@@QUALITY@@', product.quality))
+				.pipe(replace('@@ARCHITECTURE@@', debArch))
+				.pipe(rename('DEBIAN/postinst'))
+			all = es.merge(all, postinst);
+		}
+
+		return all
 			.pipe(symdest(destination));
 	};
 }
