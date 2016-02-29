@@ -30,10 +30,16 @@ class ArgParser {
 Usage: ${ executable } [arguments] [paths...]
 
 Options:
-${ indent }-h, --help     Print usage.
-${ indent }--locale       Use a specific locale.
-${ indent }-n             Force a new instance of Code.
-${ indent }-v, --version  Print version.`;
+${ indent }--disable-extensions  Disable all installed extensions.
+${ indent }-g, --goto            Open the file at path at the line and column (add
+${ indent }                      :line[:column] to path).
+${ indent }-h, --help            Print usage.
+${ indent }--locale=LOCALE       Use a specific locale, "pseudo" can be used to test
+${ indent }                      localization.
+${ indent }-n, --new-window      Force a new instance of Code.
+${ indent }-r, --reuse-window    Force opening a file or folder in the last active
+${ indent }                      window.
+${ indent }-v, --version         Print version.`;
 	}
 }
 
