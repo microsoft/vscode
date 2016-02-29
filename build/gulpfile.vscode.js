@@ -289,7 +289,11 @@ function prepareDebPackage(arch) {
 					.pipe(es.through(function (f) { that.emit('data', f); }, function () { that.emit('end'); }));
 			}));
 
-		var all = es.merge(control, desktop, icon, shortcut, code);
+		var prerm = gulp.src('resources/linux/debian/prerm.template', { base: '.' })
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(rename('DEBIAN/prerm'))
+
+		var all = es.merge(control, prerm, desktop, icon, shortcut, code);
 
 		// Register an apt repository if this is an official build
 		if (product.updateUrl && product.quality) {
@@ -298,6 +302,11 @@ function prepareDebPackage(arch) {
 				.pipe(replace('@@UPDATEURL@@', product.updateUrl))
 				.pipe(replace('@@QUALITY@@', product.quality))
 				.pipe(replace('@@ARCHITECTURE@@', debArch))
+				.pipe(rename('DEBIAN/postinst'))
+			all = es.merge(all, postinst);
+		} else {
+			var postinst = gulp.src('resources/linux/debian/postinst.oss.template', { base: '.' })
+				.pipe(replace('@@NAME@@', product.applicationName))
 				.pipe(rename('DEBIAN/postinst'))
 			all = es.merge(all, postinst);
 		}
