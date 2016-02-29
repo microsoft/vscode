@@ -111,8 +111,7 @@ export interface IViewZoneData {
 }
 
 export interface IMouseDispatchData {
-	lineNumber: number;
-	column: number;
+	position: editorCommon.IEditorPosition;
 	startTargetType: editorCommon.MouseTargetType;
 
 	inSelectionMode: boolean;
@@ -124,6 +123,8 @@ export interface IMouseDispatchData {
 
 export interface IViewController {
 	dispatchMouse(data:IMouseDispatchData);
+
+	moveTo(source:string, position:editorCommon.IEditorPosition): void;
 
 	paste(source:string, text:string, pasteOnNewLine:boolean): void;
 	type(source: string, text: string): void;
