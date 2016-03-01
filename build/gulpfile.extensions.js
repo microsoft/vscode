@@ -26,7 +26,7 @@ var extensionsPath = path.join(path.dirname(__dirname), 'extensions');
 
 function getTSConfig(plugin) {
 	var script = (plugin.desc && plugin.desc.scripts && plugin.desc.scripts['vscode:prepublish']) || '';
-	var match = /^node \.\.\/\.\.\/node\_modules\/gulp\/bin\/gulp\.js \-\-gulpfile \.\.\/\.\.\/build\/gulpfile\.plugins\.js compile-plugin:([^ ]+) ?(.*tsconfig\.json)/.exec(script);
+	var match = /^node \.\.\/\.\.\/node\_modules\/gulp\/bin\/gulp\.js \-\-gulpfile \.\.\/\.\.\/build\/gulpfile\.extensions\.js compile-plugin:([^ ]+) ?(.*tsconfig\.json)/.exec(script);
 
 	if (!match) {
 		return;

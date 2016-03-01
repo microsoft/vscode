@@ -10,7 +10,7 @@
 	],
 	"main": "./out/jsonMain",
 	"scripts": {
-		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.plugins.js compile-plugin:json ./src/tsconfig.json",
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-plugin:json ./src/tsconfig.json",
 		"postinstall": "cd server && npm install && npm run compile && cd .."
 	},
 	"contributes": {

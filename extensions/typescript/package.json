@@ -14,7 +14,7 @@
     "vscode-extension-telemetry": "^0.0.4"
 	},
 	"scripts": {
-		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.plugins.js compile-plugin:typescript ./src/tsconfig.json"
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-plugin:typescript ./src/tsconfig.json"
 	},
 	"activationEvents": [
 		"onLanguage:javascript",

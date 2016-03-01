@@ -190,4 +190,4 @@ gulp.task('mixin', function () {
 require('./build/gulpfile.hygiene');
 require('./build/gulpfile.vscode');
 require('./build/gulpfile.editor');
-require('./build/gulpfile.plugins');
+require('./build/gulpfile.extensions');
