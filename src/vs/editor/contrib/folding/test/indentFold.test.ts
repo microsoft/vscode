@@ -129,17 +129,17 @@ suite('Indentation Folding', () => {
 	});
 
 	test('Compute indent level', () => {
-		assert.equal(computeIndentLevel("Hello", 4), 0);
-		assert.equal(computeIndentLevel(" Hello", 4), 1);
-		assert.equal(computeIndentLevel("   Hello", 4), 3);
-		assert.equal(computeIndentLevel("\tHello", 4), 4);
-		assert.equal(computeIndentLevel(" \tHello", 4), 4);
-		assert.equal(computeIndentLevel("  \tHello", 4), 4);
-		assert.equal(computeIndentLevel("   \tHello", 4), 4);
-		assert.equal(computeIndentLevel("    \tHello", 4), 8);
-		assert.equal(computeIndentLevel("     \tHello", 4), 8);
-		assert.equal(computeIndentLevel("\t Hello", 4), 5);
-		assert.equal(computeIndentLevel("\t \tHello", 4), 8);
+		assert.equal(computeIndentLevel('Hello', 4), 0);
+		assert.equal(computeIndentLevel(' Hello', 4), 1);
+		assert.equal(computeIndentLevel('   Hello', 4), 3);
+		assert.equal(computeIndentLevel('\tHello', 4), 4);
+		assert.equal(computeIndentLevel(' \tHello', 4), 4);
+		assert.equal(computeIndentLevel('  \tHello', 4), 4);
+		assert.equal(computeIndentLevel('   \tHello', 4), 4);
+		assert.equal(computeIndentLevel('    \tHello', 4), 8);
+		assert.equal(computeIndentLevel('     \tHello', 4), 8);
+		assert.equal(computeIndentLevel('\t Hello', 4), 5);
+		assert.equal(computeIndentLevel('\t \tHello', 4), 8);
 	});
 
 });
