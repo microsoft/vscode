@@ -108,7 +108,7 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		let curOrder = 10;
 		for (let i = 0; i < actions.length; i++) {
 			let action = <any>actions[i];
-			if (!action.order) { // TODO@Ben order should be a property in another place where the action gets bound to the UI
+			if (!action.order) {
 				curOrder += 10;
 				action.order = curOrder;
 			} else {

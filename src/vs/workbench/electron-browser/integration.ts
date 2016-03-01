@@ -12,10 +12,9 @@ import arrays = require('vs/base/common/arrays');
 import Severity from 'vs/base/common/severity';
 import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IAction, Action} from 'vs/base/common/actions';
-import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
-import {IMessageService, CloseAction} from 'vs/platform/message/common/message';
+import {IMessageService} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
@@ -137,29 +136,6 @@ export class ElectronIntegration {
 			if (webFrame.getZoomLevel() !== newZoomLevel) {
 				webFrame.setZoomLevel(newZoomLevel);
 			}
-		});
-
-		// Auto Save Info (TODO@Ben remove me in a couple of versions)
-		ipc.on('vscode:showAutoSaveInfo', () => {
-			this.messageService.show(
-				Severity.Info, {
-					message: nls.localize('autoSaveInfo', "The enabled **File | Auto Save** menu option has become a setting **files.autoSave** with the value **afterDelay**."),
-					actions: [
-						CloseAction,
-						this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL)
-					]
-				});
-		});
-
-		ipc.on('vscode:showAutoSaveError', () => {
-			this.messageService.show(
-				Severity.Warning, {
-					message: nls.localize('autoSaveError', "Unable to write to settings. Please add **files.autoSave: \"afterDelay\"** to settings.json."),
-					actions: [
-						CloseAction,
-						this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL)
-					]
-				});
 		});
 
 		// Context menu support in input/textarea

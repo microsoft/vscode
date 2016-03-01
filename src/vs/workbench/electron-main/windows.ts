@@ -18,7 +18,6 @@ import window = require('vs/workbench/electron-main/window');
 import lifecycle = require('vs/workbench/electron-main/lifecycle');
 import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
-import json = require('vs/base/common/json');
 import arrays = require('vs/base/common/arrays');
 import objects = require('vs/base/common/objects');
 import storage = require('vs/workbench/electron-main/storage');
@@ -169,9 +168,6 @@ export class WindowsManager {
 
 				// Event
 				eventEmitter.emit(EventTypes.READY, win);
-
-				// TODO@Ben remove me in a couple of versions
-				this.migrateAutoSave(win);
 			}
 		});
 
@@ -335,43 +331,6 @@ export class WindowsManager {
 		});
 	}
 
-	private migrateAutoSave(win: window.VSCodeWindow): void {
-		if (storage.getItem<number>('autoSaveDelay') === 1000) {
-			storage.removeItem('autoSaveDelay');
-			win.send('vscode:showAutoSaveInfo');
-
-			try {
-
-				// Initial settings file
-				if (!fs.existsSync(env.appSettingsPath)) {
-					fs.writeFileSync(env.appSettingsPath, JSON.stringify({ 'files.autoSave': 'afterDelay' }, null, '    '));
-				}
-
-				// Update existing settings file
-				else {
-					const settingsRaw = fs.readFileSync(env.appSettingsPath).toString();
-					const lastClosing = settingsRaw.lastIndexOf('}');
-					const errors = [];
-					const res = json.parse(settingsRaw, errors);
-					const hasOtherKeys = Object.getOwnPropertyNames(res).length > 0;
-
-					// We found a closing '}' and the JSON does not contain errors
-					if (lastClosing > 0 && !errors.length) {
-						fs.writeFileSync(env.appSettingsPath, settingsRaw.substring(0, lastClosing) + '\n    ' + (hasOtherKeys ? ', ' : '') + '// Migrated from previous "File | Auto Save" setting:\n    "files.autoSave": "afterDelay"\n}');
-					}
-
-					// Otherwise inform user that we cannot migrate the settings
-					else {
-						win.send('vscode:showAutoSaveError');
-					}
-				}
-			} catch (error) {
-				env.log(error);
-				win.send('vscode:showAutoSaveError');
-			}
-		}
-	}
-
 	public reload(win: window.VSCodeWindow, cli?: env.ICommandLineArguments): void {
 
 		// Only reload when the window has not vetoed this
@@ -445,11 +404,7 @@ export class WindowsManager {
 			// Let the user settings override how files are open in a new window or same window
 			let openFilesInNewWindow = openConfig.forceNewWindow;
 			if (openFilesInNewWindow && !openConfig.cli.pluginDevelopmentPath) { // can be overriden via settings (not for PDE though!)
-				if (settings.manager.getValue('window.openInNewWindow', null) !== null) {
-					openFilesInNewWindow = settings.manager.getValue('window.openInNewWindow', openFilesInNewWindow); // TODO@Ben remove legacy setting in a couple of versions
-				} else {
-					openFilesInNewWindow = settings.manager.getValue('window.openFilesInNewWindow', openFilesInNewWindow);
-				}
+				openFilesInNewWindow = settings.manager.getValue('window.openFilesInNewWindow', openFilesInNewWindow);
 			}
 
 			// Open Files in last instance if any and flag tells us so
@@ -636,7 +591,7 @@ export class WindowsManager {
 		recentPaths = arrays.distinct(recentPaths);
 
 		// Make sure it is bounded
-		return recentPaths.slice(0, 10); // TODO@Ben remove in a couple of versions, it should  be ok then because we limited storage
+		return recentPaths.slice(0, 10);
 	}
 
 	private toIPath(anyPath: string, ignoreFileNotFound?: boolean, gotoLineMode?: boolean): window.IPath {
