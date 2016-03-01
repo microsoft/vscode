@@ -162,6 +162,11 @@ function killProcess() {
     catch (ex) { }
 }
 
+function handleError(source: string, errorMessage: string) {
+    console.error(`Error (${source}) ${errorMessage}`);
+    vscode.window.showErrorMessage(`There was an error in the python extension. Error ${errorMessage}`);
+}
+
 function spawnProcess(dir: string) {
     try {
         proc = child_process.spawn(pythonSettings.pythonPath, ["-u", "completion.py"], {
@@ -169,14 +174,16 @@ function spawnProcess(dir: string) {
         });
     }
     catch (ex) {
-        var x = "";
+        return handleError("spawnProcess", ex.message);
     }
     proc.stderr.on("data", (data) => {
-        console.error("Error " + data);
+        handleError("stderr", data);
     });
-
     proc.on("end", (end) => {
         console.error("End - " + end);
+    });
+    proc.on("error", error => {
+        handleError("error", error);
     });
 
     proc.stdout.on("data", (data) => {
@@ -187,7 +194,7 @@ function spawnProcess(dir: string) {
             previousData = "";
         }
         catch (ex) {
-            console.log(ex.message);
+            handleError("stdout", ex.message);
             return;
         }
 
@@ -309,13 +316,28 @@ function spawnProcess(dir: string) {
 
 function sendCommand<T extends ICommandResult>(cmd: ICommand<T>): Promise<T> {
     return new Promise<ICommandResult>((resolve, reject) => {
+        if (!proc) {
+            return reject("Python proc not initialized");
+        }
         var exexcutionCmd = <IExecutionCommand<T>>cmd;
         var payload = createPayload(exexcutionCmd);
         exexcutionCmd.resolve = resolve;
         exexcutionCmd.reject = reject;
-        proc.stdin.write(JSON.stringify(payload) + "\n");
-        commands.set(exexcutionCmd.id, exexcutionCmd);
-        commandQueue.push(exexcutionCmd.id);
+        try {
+            proc.stdin.write(JSON.stringify(payload) + "\n");
+            commands.set(exexcutionCmd.id, exexcutionCmd);
+            commandQueue.push(exexcutionCmd.id);
+        }
+        catch (ex) {
+            //If 'This socket is closed.' that means process didn't start at all (at least not properly)
+            if (ex.message === "This socket is closed.") {
+                killProcess();
+            }
+            else {
+                handleError("sendCommand", ex.message);
+            }
+            reject(ex.message);
+        }
     });
 }
 
@@ -447,7 +469,7 @@ export class JediProxyHandler<R extends ICommandResult, T> {
         this.cancellationTokenSource = new vscode.CancellationTokenSource();
         executionCmd.token = this.cancellationTokenSource.token;
 
-        this.jediProxy.sendCommand<R>(executionCmd).then(data=> this.onResolved(data));
+        this.jediProxy.sendCommand<R>(executionCmd).then(data=> this.onResolved(data), () => { });
         this.lastCommandId = executionCmd.id;
         this.lastToken = token;
         this.promiseResolve = resolve;

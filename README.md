@@ -104,6 +104,9 @@ Works on both Windows and Mac.
 ## Change Log
 
 ### Version 0.2.8
+* Improved error handling in the extension
+
+### Version 0.2.8
 * Added support for debugging django applications
  + Debugging templates is not supported at this stage
 

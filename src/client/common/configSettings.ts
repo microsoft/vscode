@@ -12,7 +12,7 @@ export interface IPythonSettings {
 }
 export interface IUnitTestSettings {
     nosetestsEnabled: boolean;
-    nosetestPath:string;
+    nosetestPath: string;
     unittestEnabled: boolean;
 }
 export interface IPylintCategorySeverity {
@@ -51,7 +51,7 @@ export class PythonSettings implements IPythonSettings {
 
         this.initializeSettings();
     }
-    private getVirtualenvPath() {
+    private getVirtualenvPath(): string {
         var currentPath: string = vscode.workspace.rootPath;
         if (process.platform == 'win32') {
             var bin: string = "Scripts";
@@ -63,11 +63,12 @@ export class PythonSettings implements IPythonSettings {
         }
         return fs.existsSync(_path)
             ? _path
-            : this.pythonPath;
+            : null;
     }
     private initializeSettings() {
         var pythonSettings = vscode.workspace.getConfiguration("python");
-        this.pythonPath = this.getVirtualenvPath()
+        var virtualEnvPath = this.getVirtualenvPath();
+        this.pythonPath = typeof virtualEnvPath === "string" ? virtualEnvPath : pythonSettings.get<string>("pythonPath");
         var lintingSettings = pythonSettings.get<ILintingSettings>("linting");
         if (this.linting) {
             Object.assign<ILintingSettings, ILintingSettings>(this.linting, lintingSettings);
