@@ -89,6 +89,10 @@
 	margin-right: 18px;
 }
 
+.quick-open-widget .quick-open-tree .content.has-actions .results-group {
+	margin-right: 34px; /* push more to the right if we have actions */
+}
+
 .quick-open-widget .quick-open-tree .results-group-separator {
 	border-top-width: 1px;
 	border-top-style: solid;
