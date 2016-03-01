@@ -592,13 +592,14 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			this.inDebugMode.set(true);
 
 			this.telemetryService.publicLog('debugSessionStart', { type: configuration.type, breakpointCount: this.model.getBreakpoints().length, exceptionBreakpoints: this.model.getExceptionBreakpoints() });
-		}).then(undefined, (error: Error) => {
+		}).then(undefined, (error: any) => {
 			this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined });
 			if (this.session) {
 				this.session.disconnect();
 			}
 
-			return TPromise.wrapError(errors.create(error.message, { actions: [CloseAction, this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)] }));
+			const actions = error.actions ? error.actions : [CloseAction, this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)];
+			return TPromise.wrapError(errors.create(error.message, { actions }));
 		});
 	}
 

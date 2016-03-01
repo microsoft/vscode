@@ -8,6 +8,7 @@ import cp = require('child_process');
 import fs = require('fs');
 import net = require('net');
 import platform = require('vs/base/common/platform');
+import { Action } from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
 import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
@@ -16,8 +17,9 @@ import debug = require('vs/workbench/parts/debug/common/debug');
 import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import v8 = require('vs/workbench/parts/debug/node/v8Protocol');
 import stdfork = require('vs/base/node/stdFork');
-import { IMessageService } from 'vs/platform/message/common/message';
+import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { shell } from 'electron';
 
 export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSession {
 	private serverProcess: cp.ChildProcess;
@@ -63,6 +65,14 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 			if (error && error.sendTelemetry) {
 				this.telemetryService.publicLog('debugProtocolErrorResponse', { error: message });
 				this.telemtryAdapter.log('debugProtocolErrorResponse', { error: message });
+			}
+
+			if (error && error.url) {
+				const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
+				return TPromise.wrapError(errors.create(message, { actions: [CloseAction, new Action('debug.moreInfo', label, null, true, () => {
+					shell.openExternal(error.url);
+					return TPromise.as(null);
+				})]}));
 			}
 
 			return TPromise.wrapError(new Error(message));
