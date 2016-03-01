@@ -8,7 +8,7 @@ import {localize} from 'vs/nls';
 import {Action, IAction} from 'vs/base/common/actions';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {IMessageCollector, PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
+import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IActionsService} from './actions';
 
@@ -63,7 +63,7 @@ let commandType: IJSONSchema = {
 		}
 	}
 };
-let commandsExtPoint = PluginsRegistry.registerExtensionPoint<Command | Command[]>('commands', {
+let commandsExtPoint = ExtensionsRegistry.registerExtensionPoint<Command | Command[]>('commands', {
 	description: localize('vscode.extension.contributes.commands', "Contributes commands to the command palette."),
 	oneOf: [
 		commandType,
@@ -92,7 +92,7 @@ export default class ActionsService implements IActionsService {
 		});
 	}
 
-	private _onDescription(commands: Command | Command[], collector: IMessageCollector): void {
+	private _onDescription(commands: Command | Command[], collector: IExtensionMessageCollector): void {
 		if (isCommands(commands)) {
 			for (let command of commands) {
 				this._handleCommand(command, collector);
@@ -102,7 +102,7 @@ export default class ActionsService implements IActionsService {
 		}
 	}
 
-	private _handleCommand(command: Command, collector: IMessageCollector): void {
+	private _handleCommand(command: Command, collector: IExtensionMessageCollector): void {
 
 		let rejects: string[] = [];
 

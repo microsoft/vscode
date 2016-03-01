@@ -1000,7 +1000,7 @@ export class ProblemMatcherParser extends Parser {
 	}
 }
 
-// let problemMatchersExtPoint = PluginsRegistry.registerExtensionPoint<Config.NamedProblemMatcher | Config.NamedProblemMatcher[]>('problemMatchers', {
+// let problemMatchersExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.NamedProblemMatcher | Config.NamedProblemMatcher[]>('problemMatchers', {
 // TODO@Dirk: provide here JSON schema for extension point
 // });
 

@@ -13,7 +13,7 @@ import {IActivationEventListener, IMessage, IExtensionDescription, IPointListene
 import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {Registry} from 'vs/platform/platform';
 
-export interface IMessageCollector {
+export interface IExtensionMessageCollector {
 	error(message: any): void;
 	warn(message: any): void;
 	info(message: any): void;
@@ -23,10 +23,10 @@ export interface IPluginsMessageCollector {
 	error(source: string, message: any): void;
 	warn(source: string, message: any): void;
 	info(source: string, message: any): void;
-	scopeTo(source: string): IMessageCollector;
+	scopeTo(source: string): IExtensionMessageCollector;
 }
 
-class ScopedMessageCollector implements IMessageCollector {
+class ScopedMessageCollector implements IExtensionMessageCollector {
 	private _scope: string;
 	private _actual: IPluginsMessageCollector;
 
@@ -87,7 +87,7 @@ class PluginsMessageForwarder implements IPluginsMessageCollector {
 		this._pushMessage(Severity.Info, source, message);
 	}
 
-	public scopeTo(source: string): IMessageCollector {
+	public scopeTo(source: string): IExtensionMessageCollector {
 		return new ScopedMessageCollector(source, this);
 	}
 }
@@ -131,7 +131,7 @@ export class PluginsMessageCollector implements IPluginsMessageCollector {
 		this._pushMessage(Severity.Info, source, message);
 	}
 
-	public scopeTo(source: string): IMessageCollector {
+	public scopeTo(source: string): IExtensionMessageCollector {
 		return new ScopedMessageCollector(source, this);
 	}
 }
@@ -206,7 +206,7 @@ let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContr
 export interface IExtensionPointUser<T> {
 	description: IExtensionDescription;
 	value: T;
-	collector: IMessageCollector;
+	collector: IExtensionMessageCollector;
 }
 
 export interface IExtensionPointHandler<T> {
@@ -520,10 +520,10 @@ function _isStringArray(arr: string[]): boolean {
 }
 
 const PRExtensions = {
-	PluginsRegistry: 'PluginsRegistry'
+	ExtensionsRegistry: 'ExtensionsRegistry'
 };
-Registry.add(PRExtensions.PluginsRegistry, new PluginsRegistryImpl());
-export const PluginsRegistry: IPluginsRegistry = Registry.as(PRExtensions.PluginsRegistry);
+Registry.add(PRExtensions.ExtensionsRegistry, new PluginsRegistryImpl());
+export const ExtensionsRegistry: IPluginsRegistry = Registry.as(PRExtensions.ExtensionsRegistry);
 
 schemaRegistry.registerSchema(schemaId, schema);
 schemaRegistry.addSchemaFileAssociation('/package.json', schemaId);

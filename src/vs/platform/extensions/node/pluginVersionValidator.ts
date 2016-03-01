@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
-import {isValidPluginDescription as baseIsValidPluginDescription} from 'vs/platform/extensions/common/pluginsRegistry';
+import {isValidPluginDescription as baseIsValidPluginDescription} from 'vs/platform/extensions/common/extensionsRegistry';
 import {valid} from 'semver';
 
 export interface IParsedVersion {

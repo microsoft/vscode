@@ -10,7 +10,7 @@ import Paths = require('vs/base/common/paths');
 import Themes = require('vs/platform/theme/common/themes');
 import {IThemeExtensionPoint} from 'vs/platform/theme/common/themeExtensionPoint';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {PluginsRegistry, IMessageCollector} from 'vs/platform/extensions/common/pluginsRegistry';
+import {ExtensionsRegistry, IExtensionMessageCollector} from 'vs/platform/extensions/common/extensionsRegistry';
 import {IThemeService, IThemeData, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
 
 import plist = require('vs/base/node/plist');
@@ -20,7 +20,7 @@ import pfs = require('vs/base/node/pfs');
 
 let defaultBaseTheme = Themes.getBaseThemeId(DEFAULT_THEME_ID);
 
-let themesExtPoint = PluginsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('themes', {
+let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('themes', {
 	description: nls.localize('vscode.extension.contributes.themes', 'Contributes textmate color themes.'),
 	type: 'array',
 	defaultSnippets: [{ body: [{ label: '{{label}}', uiTheme: 'vs-dark', path: './themes/{{id}}.tmTheme.' }] }],
@@ -84,7 +84,7 @@ export class ThemeService implements IThemeService {
 		});
 	}
 
-	private onThemes(extensionFolderPath: string, extensionId: string, themes: IThemeExtensionPoint[], collector: IMessageCollector): void {
+	private onThemes(extensionFolderPath: string, extensionId: string, themes: IThemeExtensionPoint[], collector: IExtensionMessageCollector): void {
 		if (!Array.isArray(themes)) {
 			collector.error(nls.localize(
 				'reqarray',

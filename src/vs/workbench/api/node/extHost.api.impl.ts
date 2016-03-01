@@ -31,7 +31,7 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IExtensionService, IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {PluginHostPluginService} from 'vs/platform/extensions/common/nativePluginService';
-import {PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
+import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {CancellationTokenSource} from 'vs/base/common/cancellation';
@@ -372,13 +372,13 @@ export class ExtHostAPIImplementation {
 		//
 		this.extensions = {
 			getExtension(extensionId: string):Extension<any> {
-				let desc = PluginsRegistry.getPluginDescription(extensionId);
+				let desc = ExtensionsRegistry.getPluginDescription(extensionId);
 				if (desc) {
 					return new Extension(<PluginHostPluginService> extensionService, desc);
 				}
 			},
 			get all():Extension<any>[] {
-				return PluginsRegistry.getAllPluginDescriptions().map((desc) => new Extension(<PluginHostPluginService> extensionService, desc));
+				return ExtensionsRegistry.getAllPluginDescriptions().map((desc) => new Extension(<PluginHostPluginService> extensionService, desc));
 			}
 		};
 

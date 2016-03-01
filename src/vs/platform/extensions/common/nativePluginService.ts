@@ -11,7 +11,7 @@ import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {AbstractPluginService, ActivatedPlugin, IPluginContext, IPluginMemento} from 'vs/platform/extensions/common/abstractPluginService';
 import {IMessage, IExtensionDescription, IExtensionsStatus} from 'vs/platform/extensions/common/extensions';
-import {PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
+import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {PluginHostStorage} from 'vs/platform/storage/common/remotable.storage';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
@@ -110,7 +110,7 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 		this._proxy = this._threadService.getRemotable(PluginHostPluginService);
 		this._pluginsStatus = {};
 
-		PluginsRegistry.handleExtensionPoints((severity, source, message) => {
+		ExtensionsRegistry.handleExtensionPoints((severity, source, message) => {
 			this.showMessage(severity, source, message);
 		});
 	}
@@ -215,7 +215,7 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 	// -- called by plugin host
 
 	public $onPluginHostReady(pluginDescriptions: IExtensionDescription[], messages: IMessage[]): void {
-		PluginsRegistry.registerPlugins(pluginDescriptions);
+		ExtensionsRegistry.registerPlugins(pluginDescriptions);
 		this.registrationDone(messages);
 	}
 
@@ -331,7 +331,7 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 
 	public registrationDone(messages: IMessage[]): void {
 		super.registrationDone([]);
-		this._proxy.$onPluginHostReady(PluginsRegistry.getAllPluginDescriptions(), messages);
+		this._proxy.$onPluginHostReady(ExtensionsRegistry.getAllPluginDescriptions(), messages);
 	}
 
 	protected _loadPluginModule(pluginDescription: IExtensionDescription): TPromise<IPluginModule> {

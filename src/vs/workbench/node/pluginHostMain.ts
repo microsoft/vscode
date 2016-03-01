@@ -14,7 +14,7 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import {IExtensionService, IExtensionDescription} from 'vs/platform/extensions/common/extensions';
-import {PluginsRegistry, PluginsMessageCollector, IPluginsMessageCollector} from 'vs/platform/extensions/common/pluginsRegistry';
+import {ExtensionsRegistry, PluginsMessageCollector, IPluginsMessageCollector} from 'vs/platform/extensions/common/extensionsRegistry';
 import {ExtHostAPIImplementation} from 'vs/workbench/api/node/extHost.api.impl';
 import {IPluginsIPC} from 'vs/platform/extensions/common/ipcRemoteCom';
 import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
@@ -117,7 +117,7 @@ export class PluginHostMain {
 		this._isTerminating = true;
 
 		try {
-			let allExtensions = PluginsRegistry.getAllPluginDescriptions();
+			let allExtensions = ExtensionsRegistry.getAllPluginDescriptions();
 			let allExtensionsIds = allExtensions.map(ext => ext.id);
 			let activatedExtensions = allExtensionsIds.filter(id => this._extensionService.isActivated(id));
 
@@ -145,7 +145,7 @@ export class PluginHostMain {
 			})
 			.then(extensions => {
 				// Register & Signal done
-				PluginsRegistry.registerPlugins(extensions);
+				ExtensionsRegistry.registerPlugins(extensions);
 				this._extensionService.registrationDone(collector.getMessages());
 			})
 			.then(() => this.handleEagerPlugins())
@@ -204,7 +204,7 @@ export class PluginHostMain {
 			[filename: string]: boolean;
 		} = {};
 
-		PluginsRegistry.getAllPluginDescriptions().forEach((desc) => {
+		ExtensionsRegistry.getAllPluginDescriptions().forEach((desc) => {
 			let activationEvents = desc.activationEvents;
 			if (!activationEvents) {
 				return;

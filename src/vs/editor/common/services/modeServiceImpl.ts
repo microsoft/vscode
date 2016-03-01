@@ -13,7 +13,7 @@ import * as paths from 'vs/base/common/paths';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {createAsyncDescriptor0, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
-import {IExtensionPointUser, IMessageCollector, PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
+import {IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {IThreadService, Remotable, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import * as modes from 'vs/editor/common/modes';
 import {FrankensteinMode} from 'vs/editor/common/modes/abstractMode';
@@ -35,7 +35,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 
 interface IModeConfigurationMap { [modeId: string]: any; }
 
-let languagesExtPoint = PluginsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', {
+let languagesExtPoint = ExtensionsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', {
 	description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
 	type: 'array',
 	defaultSnippets: [{ body: [{ id: '', aliases: [], extensions: [] }] }],
@@ -106,7 +106,7 @@ function isUndefinedOrStringArray(value: string[]): boolean {
 	return value.every(item => typeof item === 'string');
 }
 
-function isValidLanguageExtensionPoint(value:ILanguageExtensionPoint, collector:IMessageCollector): boolean {
+function isValidLanguageExtensionPoint(value:ILanguageExtensionPoint, collector:IExtensionMessageCollector): boolean {
 	if (!value) {
 		collector.error(nls.localize('invalid.empty', "Empty value for `contributes.{0}`", languagesExtPoint.name));
 		return false;

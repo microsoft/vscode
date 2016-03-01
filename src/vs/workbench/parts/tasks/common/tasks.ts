@@ -244,7 +244,7 @@ export class TaskParser  extends Parser {
 	}
 }
 
-// let tasksExtPoint = PluginsRegistry.registerExtensionPoint<Config.Task | Config.Task[]>('tasks', {
+// let tasksExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.Task | Config.Task[]>('tasks', {
 	// TODO@Dirk: provide JSON schema here
 // });
 

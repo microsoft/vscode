@@ -9,7 +9,7 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IMessage, IExtensionDescription, IExtensionService, IExtensionsStatus} from 'vs/platform/extensions/common/extensions';
-import {PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
+import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 
 const hasOwnProperty = Object.hasOwnProperty;
 
@@ -93,15 +93,15 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 
 	public activateByEvent(activationEvent: string): TPromise<void> {
 		return this._onReady.then(() => {
-			PluginsRegistry.triggerActivationEventListeners(activationEvent);
-			let activatePlugins = PluginsRegistry.getPluginDescriptionsForActivationEvent(activationEvent);
+			ExtensionsRegistry.triggerActivationEventListeners(activationEvent);
+			let activatePlugins = ExtensionsRegistry.getPluginDescriptionsForActivationEvent(activationEvent);
 			return this._activatePlugins(activatePlugins, 0);
 		});
 	}
 
 	public activateById(pluginId: string): TPromise<void> {
 		return this._onReady.then(() => {
-			let desc = PluginsRegistry.getPluginDescription(pluginId);
+			let desc = ExtensionsRegistry.getPluginDescription(pluginId);
 			if (!desc) {
 				throw new Error('Plugin `' + pluginId + '` is not known');
 			}
@@ -120,7 +120,7 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 
 		for (let j = 0, lenJ = depIds.length; j < lenJ; j++) {
 			let depId = depIds[j];
-			let depDesc = PluginsRegistry.getPluginDescription(depId);
+			let depDesc = ExtensionsRegistry.getPluginDescription(depId);
 
 			if (!depDesc) {
 				// Error condition 1: unknown dependency

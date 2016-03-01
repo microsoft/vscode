@@ -12,7 +12,7 @@ import {groupBy, values} from 'vs/base/common/collections';
 import paths = require('vs/base/common/paths');
 import json = require('vs/base/common/json');
 import Types = require('vs/base/common/types');
-import {IPluginsMessageCollector, IMessageCollector} from 'vs/platform/extensions/common/pluginsRegistry';
+import {IPluginsMessageCollector, IExtensionMessageCollector} from 'vs/platform/extensions/common/extensionsRegistry';
 import {isValidPluginDescription} from 'vs/platform/extensions/node/pluginVersionValidator';
 import * as semver from 'semver';
 
@@ -69,7 +69,7 @@ export class PluginScanner {
 	 * Strings to replace are one values of a key. So for example string[] are ignored.
 	 * This is done to speed things up.
 	 */
-	private static replaceStrings<T>(literal: T, messages: { [key: string]: string; }, builder: IMessageCollector): void {
+	private static replaceStrings<T>(literal: T, messages: { [key: string]: string; }, builder: IExtensionMessageCollector): void {
 		Object.keys(literal).forEach(key => {
 			if (literal.hasOwnProperty(key)) {
 				let value = literal[key];

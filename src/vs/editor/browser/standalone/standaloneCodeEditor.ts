@@ -11,7 +11,7 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IEditorService} from 'vs/platform/editor/common/editor';
-import {PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
+import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -447,7 +447,7 @@ export function createCustomMode(language:ILanguage): TPromise<IMode> {
 export function registerStandaloneLanguage(language:ILanguageExtensionPoint, defModule:string): void {
 	ModesRegistry.registerLanguage(language);
 
-	PluginsRegistry.registerOneTimeActivationEventListener('onLanguage:' + language.id, () => {
+	ExtensionsRegistry.registerOneTimeActivationEventListener('onLanguage:' + language.id, () => {
 		require([defModule], (value:{language:ILanguage}) => {
 			if (!value.language) {
 				console.error('Expected ' + defModule + ' to export a `language`');
