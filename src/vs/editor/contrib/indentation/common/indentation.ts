@@ -86,7 +86,24 @@ export class ChangeIndentationSizeAction extends EditorAction {
 	}
 }
 
+export class ToggleRenderWhitespaceAction extends EditorAction {
+	static ID = 'editor.action.toggleRenderWhitespace';
+
+	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
+		super(descriptor, editor);
+	}
+
+	public run(): TPromise<boolean> {
+		this.editor.updateOptions({
+			renderWhitespace: !this.editor.getConfiguration().renderWhitespace
+		});
+
+		return TPromise.as(true);
+	}
+}
+
 // register actions
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentationToSpacesAction, IndentationToSpacesAction.ID, nls.localize('indentationToSpaces', "Convert Indentation to Spaces")));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(IndentationToTabsAction, IndentationToTabsAction.ID, nls.localize('indentationToTabs', "Convert Indentation to Tabs")));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ChangeIndentationSizeAction, ChangeIndentationSizeAction.ID, nls.localize('changeIndentationSize', "Change Tab Size for Current File")));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ToggleRenderWhitespaceAction, ToggleRenderWhitespaceAction.ID, nls.localize('toggleRenderWhitespace', "Toggle Render Whitespace")));
