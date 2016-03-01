@@ -431,8 +431,8 @@ export class FoldingController implements editorCommon.IEditorContribution {
 
 	private updateHiddenAreas(focusLine: number): void {
 		let model = this.editor.getModel();
-		var cursorPosition : editorCommon.IPosition = this.editor.getPosition();
-		var updateCursorPosition = false;
+		var selections : editorCommon.IEditorSelection[] = this.editor.getSelections();
+		var updateSelections = false;
 		let hiddenAreas: editorCommon.IRange[] = [];
 		this.decorations.filter(dec => dec.isCollapsed).forEach(dec => {
 			let decRange = dec.getDecorationRange(model);
@@ -442,19 +442,25 @@ export class FoldingController implements editorCommon.IEditorContribution {
 				endLineNumber: decRange.endLineNumber,
 				endColumn: 1
 			});
-			if (Range.containsPosition(decRange, cursorPosition)) {
-				cursorPosition = { lineNumber: decRange.startLineNumber, column: model.getLineMaxColumn(decRange.startLineNumber) };
-				updateCursorPosition = true;
-			}
+			selections.forEach((selection, i) => {
+				if (Range.containsPosition(decRange, selection.getStartPosition())) {
+					selections[i] = selection = selection.setStartPosition(decRange.startLineNumber, model.getLineMaxColumn(decRange.startLineNumber));
+					updateSelections = true;
+				}
+				if (Range.containsPosition(decRange, selection.getEndPosition())) {
+					selections[i] = selection.setEndPosition(decRange.startLineNumber, model.getLineMaxColumn(decRange.startLineNumber));
+					updateSelections = true;
+				}
+			});
 		});
 		let revealPosition;
 		if (focusLine) {
 			revealPosition = { lineNumber: focusLine, column: 1 };
 		} else {
-			revealPosition = cursorPosition;
+			revealPosition = selections[0].getStartPosition();
 		}
-		if (updateCursorPosition) {
-			this.editor.setPosition(cursorPosition);
+		if (updateSelections) {
+			this.editor.setSelections(selections);
 		}
 		this.editor.setHiddenAreas(hiddenAreas);
 		this.editor.revealPositionInCenterIfOutsideViewport(revealPosition);
@@ -471,23 +477,35 @@ export class FoldingController implements editorCommon.IEditorContribution {
 		});
 	}
 
-	public unfold(lineNumber: number): void {
-		let surrounding = this.findRegions(lineNumber, true);
-		if (surrounding.length > 0) {
-			this.editor.changeDecorations(changeAccessor => {
-				surrounding[0].setCollapsed(false, changeAccessor);
-			});
-			this.updateHiddenAreas(lineNumber);
+	public unfold(lineNumbers: number[]): void {
+		let hasChanges = false;
+		lineNumbers.forEach(lineNumber => {
+			let surrounding = this.findRegions(lineNumber, true);
+			if (surrounding.length > 0) {
+				this.editor.changeDecorations(changeAccessor => {
+					surrounding[0].setCollapsed(false, changeAccessor);
+					hasChanges = true;
+				});
+			}
+		});
+		if (hasChanges) {
+			this.updateHiddenAreas(lineNumbers[0]);
 		}
 	}
 
-	public fold(lineNumber: number): void {
-		let surrounding = this.findRegions(lineNumber, false);
-		if (surrounding.length > 0) {
-			this.editor.changeDecorations(changeAccessor => {
-				surrounding[surrounding.length - 1].setCollapsed(true, changeAccessor);
-			});
-			this.updateHiddenAreas(lineNumber);
+	public fold(lineNumbers: number[]): void {
+		let hasChanges = false;
+		lineNumbers.forEach(lineNumber => {
+			let surrounding = this.findRegions(lineNumber, false);
+			if (surrounding.length > 0) {
+				this.editor.changeDecorations(changeAccessor => {
+					surrounding[surrounding.length - 1].setCollapsed(true, changeAccessor);
+				});
+				this.updateHiddenAreas(lineNumber);
+			}
+		});
+		if (hasChanges) {
+			this.updateHiddenAreas(lineNumbers[0]);
 		}
 	}
 
@@ -517,14 +535,15 @@ abstract class FoldingAction extends EditorAction {
 		super(descriptor, editor);
 	}
 
-	abstract invoke(foldingController: FoldingController, lineNumber: number): void;
+	abstract invoke(foldingController: FoldingController): void;
+
+	protected getSelectedLines() {
+		return this.editor.getSelections().map(s => s.startLineNumber);
+	}
 
 	public run(): TPromise<boolean> {
 		let foldingController = FoldingController.getFoldingController(this.editor);
-		let selection = this.editor.getSelection();
-		if (selection && selection.isEmpty) {
-			this.invoke(foldingController, selection.startLineNumber);
-		}
+		this.invoke(foldingController);
 		return TPromise.as(true);
 	}
 
@@ -533,23 +552,23 @@ abstract class FoldingAction extends EditorAction {
 class UnfoldAction extends FoldingAction {
 	public static ID = 'editor.unfold';
 
-	invoke(foldingController: FoldingController, lineNumber: number): void {
-		foldingController.unfold(lineNumber);
+	invoke(foldingController: FoldingController): void {
+		foldingController.unfold(this.getSelectedLines());
 	}
 }
 
 class FoldAction extends FoldingAction {
 	public static ID = 'editor.fold';
 
-	invoke(foldingController: FoldingController, lineNumber: number): void {
-		foldingController.fold(lineNumber);
+	invoke(foldingController: FoldingController): void {
+		foldingController.fold(this.getSelectedLines());
 	}
 }
 
 class FoldAllAction extends FoldingAction {
 	public static ID = 'editor.foldAll';
 
-	invoke(foldingController: FoldingController, lineNumber: number): void {
+	invoke(foldingController: FoldingController): void {
 		foldingController.changeAll(true);
 	}
 }
@@ -557,7 +576,7 @@ class FoldAllAction extends FoldingAction {
 class UnfoldAllAction extends FoldingAction {
 	public static ID = 'editor.unfoldAll';
 
-	invoke(foldingController: FoldingController, lineNumber: number): void {
+	invoke(foldingController: FoldingController): void {
 		foldingController.changeAll(false);
 	}
 }
