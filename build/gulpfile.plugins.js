@@ -26,34 +26,17 @@ var extensionsPath = path.join(path.dirname(__dirname), 'extensions');
 
 function getTSConfig(plugin) {
 	var script = (plugin.desc && plugin.desc.scripts && plugin.desc.scripts['vscode:prepublish']) || '';
-	var match = /^node \.\.\/\.\.\/node\_modules\/gulp\/bin\/gulp\.js \-\-gulpfile \.\.\/\.\.\/gulpfile\.plugins\.js compile-plugin:([^ ]+) ?(.*tsconfig\.json)?/.exec(script);
+	var match = /^node \.\.\/\.\.\/node\_modules\/gulp\/bin\/gulp\.js \-\-gulpfile \.\.\/\.\.\/build\/gulpfile\.plugins\.js compile-plugin:([^ ]+) ?(.*tsconfig\.json)/.exec(script);
 
 	if (!match) {
 		return;
 	}
 
 	var pluginRoot = path.join(extensionsPath, plugin.desc.name);
-	var options = null;
-
-	if (match[2]) {
-		options = require(path.join(pluginRoot, match[2])).compilerOptions;
-	} else {
-		options = {
-			noLib: true,
-			target: 'ES5',
-			module: 'amd',
-			declaration: false,
-			sourceMap: true,
-			rootDir: path.join(pluginRoot, 'src'),
-			sourceRoot: util.toFileUri(path.join(pluginRoot, 'src'))
-		};
-	}
-
+	var options = require(path.join(pluginRoot, match[2])).compilerOptions;
 	options.verbose = !quiet;
 	return options;
 }
-
-function noop() {}
 
 function readAllPlugins() {
 	var PLUGINS_FOLDER = path.join(extensionsPath);

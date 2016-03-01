@@ -40,8 +40,7 @@
 			}
 		}
 	},
-	"isAMD": true,
 	"scripts": {
-		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../gulpfile.plugins.js compile-plugin:php"
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.plugins.js compile-plugin:php ./src/tsconfig.json"
 	}
 }
