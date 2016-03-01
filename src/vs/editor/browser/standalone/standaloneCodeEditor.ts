@@ -11,6 +11,7 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IEditorService} from 'vs/platform/editor/common/editor';
+import {PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -18,7 +19,6 @@ import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindi
 import {ICommandHandler, IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {Registry} from 'vs/platform/platform';
-import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import {RemoteTelemetryServiceHelper} from 'vs/platform/telemetry/common/abstractRemoteTelemetryService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';

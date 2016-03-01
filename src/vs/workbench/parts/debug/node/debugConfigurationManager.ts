@@ -12,7 +12,7 @@ import { Schemas } from 'vs/base/common/network';
 import paths = require('vs/base/common/paths');
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import editor = require('vs/editor/common/editorCommon');
-import pluginsRegistry = require('vs/platform/plugins/common/pluginsRegistry');
+import pluginsRegistry = require('vs/platform/extensions/common/pluginsRegistry');
 import platform = require('vs/platform/platform');
 import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';

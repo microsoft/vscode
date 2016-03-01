@@ -8,8 +8,8 @@ import * as nls from 'vs/nls';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IActivationEventListener, IMessage, IPluginDescription, IPluginService, IPluginStatus} from 'vs/platform/plugins/common/plugins';
-import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
+import {IActivationEventListener, IMessage, IPluginDescription, IPluginService, IPluginStatus} from 'vs/platform/extensions/common/plugins';
+import {PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
 
 const hasOwnProperty = Object.hasOwnProperty;
 

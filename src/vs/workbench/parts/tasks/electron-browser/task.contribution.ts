@@ -38,7 +38,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService, ConfigurationServiceEventTypes } from 'vs/platform/configuration/common/configuration';
 import { IFileService, FileChangesEvent, FileChangeType, EventType as FileEventType } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPluginService } from 'vs/platform/plugins/common/plugins';
+import { IPluginService } from 'vs/platform/extensions/common/plugins';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
 
 import { IModeService } from 'vs/editor/common/services/modeService';

@@ -21,7 +21,7 @@ export function activate(context: ExtensionContext): any {
 	let validator = new PHPValidationProvider();
 	validator.activate(context.subscriptions);
 
-	// need to set in the plugin host as well as the completion provider uses it.
+	// need to set in the extension host as well as the completion provider uses it.
 	languages.setLanguageConfiguration('php', {
 		wordPattern: /(-?\d*\.\d\w*)|([^\-\`\~\!\@\#\%\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
 	});

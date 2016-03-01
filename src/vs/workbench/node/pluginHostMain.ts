@@ -7,23 +7,20 @@
 
 import nls = require('vs/nls');
 
-import 'vs/base/common/async';
-import 'vs/base/node/stdFork';
-import 'vs/languages/lib/common/wireProtocol';
 
 import pfs = require('vs/base/node/pfs');
 
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
-import {IPluginService, IPluginDescription} from 'vs/platform/plugins/common/plugins';
-import {PluginsRegistry, PluginsMessageCollector, IPluginsMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
+import {IPluginService, IPluginDescription} from 'vs/platform/extensions/common/plugins';
+import {PluginsRegistry, PluginsMessageCollector, IPluginsMessageCollector} from 'vs/platform/extensions/common/pluginsRegistry';
 import {ExtHostAPIImplementation} from 'vs/workbench/api/node/extHost.api.impl';
-import {IPluginsIPC} from 'vs/platform/plugins/common/ipcRemoteCom';
+import {IPluginsIPC} from 'vs/platform/extensions/common/ipcRemoteCom';
 import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
 import {IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
-import {PluginHostPluginService} from 'vs/platform/plugins/common/nativePluginService';
+import {PluginHostPluginService} from 'vs/platform/extensions/common/nativePluginService';
 import {PluginHostThreadService} from 'vs/platform/thread/common/pluginHostThreadService';
 import {ExtHostTelemetryService} from 'vs/workbench/api/node/extHostTelemetry';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';

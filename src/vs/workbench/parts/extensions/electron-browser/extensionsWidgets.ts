@@ -11,7 +11,7 @@ import lifecycle = require('vs/base/common/lifecycle');
 import {onUnexpectedError} from 'vs/base/common/errors';
 import { Action } from 'vs/base/common/actions';
 import statusbar = require('vs/workbench/browser/parts/statusbar/statusbar');
-import { IPluginService, IPluginStatus } from 'vs/platform/plugins/common/plugins';
+import { IPluginService, IPluginStatus } from 'vs/platform/extensions/common/plugins';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';

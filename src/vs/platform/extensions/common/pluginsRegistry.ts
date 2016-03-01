@@ -9,9 +9,9 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import * as paths from 'vs/base/common/paths';
 import Severity from 'vs/base/common/severity';
+import {IActivationEventListener, IMessage, IPluginDescription, IPointListener} from 'vs/platform/extensions/common/plugins';
 import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {Registry} from 'vs/platform/platform';
-import {IActivationEventListener, IMessage, IPluginDescription, IPointListener} from 'vs/platform/plugins/common/plugins';
 
 export interface IMessageCollector {
 	error(message: any): void;

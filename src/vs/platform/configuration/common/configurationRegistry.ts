@@ -9,7 +9,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import platform = require('vs/platform/platform');
 import objects = require('vs/base/common/objects');
-import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
+import {PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
 import JSONContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 
 

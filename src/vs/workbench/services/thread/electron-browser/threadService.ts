@@ -9,7 +9,7 @@ import {Action} from 'vs/base/common/actions';
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {MainThreadService as CommonMainThreadService} from 'vs/platform/thread/common/mainThreadService';
-import pluginsIPC = require('vs/platform/plugins/common/ipcRemoteCom');
+import pluginsIPC = require('vs/platform/extensions/common/ipcRemoteCom');
 import marshalling = require('vs/base/common/marshalling');
 import strings = require('vs/base/common/strings');
 import objects = require('vs/base/common/objects');

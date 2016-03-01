@@ -9,8 +9,8 @@ import nls = require('vs/nls');
 import Paths = require('vs/base/common/paths');
 import Themes = require('vs/platform/theme/common/themes');
 import {IThemeExtensionPoint} from 'vs/platform/theme/common/themeExtensionPoint';
-import {IPluginService} from 'vs/platform/plugins/common/plugins';
-import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
+import {IPluginService} from 'vs/platform/extensions/common/plugins';
+import {PluginsRegistry, IMessageCollector} from 'vs/platform/extensions/common/pluginsRegistry';
 import {IThemeService, IThemeData, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
 
 import plist = require('vs/base/node/plist');

@@ -14,6 +14,7 @@ import {ContextViewService} from 'vs/platform/contextview/browser/contextViewSer
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {EventService} from 'vs/platform/event/common/eventService';
+import {IPluginService} from 'vs/platform/extensions/common/plugins';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
@@ -21,7 +22,6 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingServic
 import {MainProcessMarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {IPluginService} from 'vs/platform/plugins/common/plugins';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {ISearchService} from 'vs/platform/search/common/search';

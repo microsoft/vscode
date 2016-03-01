@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IPluginService} from 'vs/platform/plugins/common/plugins';
-import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {IAction, Action} from 'vs/base/common/actions';
 import {localize} from 'vs/nls';
-import {IActionsService} from './actions';
+import {Action, IAction} from 'vs/base/common/actions';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
+import {IPluginService} from 'vs/platform/extensions/common/plugins';
+import {IMessageCollector, PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IActionsService} from './actions';
 
 interface Commands {
 	commands: Command | Command[];

@@ -9,21 +9,21 @@ import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {Schemas} from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
+import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
+import {ConfigurationService, IContent, IStat} from 'vs/platform/configuration/common/configurationService';
 import {IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, ITextEditorModel, Position} from 'vs/platform/editor/common/editor';
+import {AbstractPluginService, ActivatedPlugin} from 'vs/platform/extensions/common/abstractPluginService';
+import {IPluginDescription} from 'vs/platform/extensions/common/plugins';
 import {KeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {ICommandHandler, ICommandsMap, IKeybindingItem} from 'vs/platform/keybinding/common/keybindingService';
 import {IConfirmation, IMessageService} from 'vs/platform/message/common/message';
-import {AbstractPluginService, ActivatedPlugin} from 'vs/platform/plugins/common/abstractPluginService';
-import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
-import {ConfigurationService, IContent, IStat} from 'vs/platform/configuration/common/configurationService';
-import URI from 'vs/base/common/uri';
 
 export class SimpleEditor implements IEditor {
 

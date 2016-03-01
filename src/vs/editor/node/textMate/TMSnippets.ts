@@ -9,7 +9,7 @@ import {parse} from 'vs/base/common/json';
 import * as paths from 'vs/base/common/paths';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {readFile} from 'vs/base/node/pfs';
-import {IMessageCollector, PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
+import {IMessageCollector, PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
 import {ISuggestion} from 'vs/editor/common/modes';
 import {SnippetsRegistry} from 'vs/editor/common/modes/supports';
 import {IModeService} from 'vs/editor/common/services/modeService';

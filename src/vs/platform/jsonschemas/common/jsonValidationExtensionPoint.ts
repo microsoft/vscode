@@ -5,7 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
+import {PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
 import {Registry} from 'vs/platform/platform';
 import URI from 'vs/base/common/uri';
 import JSONContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');

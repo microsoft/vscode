@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
-import {IMessageCollector, PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
+import {IMessageCollector, PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
 import {Bracket, ILineTokens, IMode, IToken, ITokenizationSupport} from 'vs/editor/common/modes';
 import {TMState} from 'vs/editor/common/modes/TMState';
 import {Token} from 'vs/editor/common/modes/supports';

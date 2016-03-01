@@ -6,14 +6,14 @@
 'use strict';
 
 import pfs = require('vs/base/node/pfs');
-import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
+import {IPluginDescription} from 'vs/platform/extensions/common/plugins';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {groupBy, values} from 'vs/base/common/collections';
 import paths = require('vs/base/common/paths');
 import json = require('vs/base/common/json');
 import Types = require('vs/base/common/types');
-import {IPluginsMessageCollector, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
-import {isValidPluginDescription} from 'vs/platform/plugins/node/pluginVersionValidator';
+import {IPluginsMessageCollector, IMessageCollector} from 'vs/platform/extensions/common/pluginsRegistry';
+import {isValidPluginDescription} from 'vs/platform/extensions/node/pluginVersionValidator';
 import * as semver from 'semver';
 
 const MANIFEST_FILE = 'package.json';

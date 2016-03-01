@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IJSONSchema} from 'vs/base/common/jsonSchema';
+import * as nls from 'vs/nls';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {Registry} from 'vs/platform/platform';
+import {IJSONSchema} from 'vs/base/common/jsonSchema';
+import {Keybinding} from 'vs/base/common/keyCodes';
+import * as platform from 'vs/base/common/platform';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {IEventService} from 'vs/platform/event/common/event';
-import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
-import {IPluginService} from 'vs/platform/plugins/common/plugins';
-import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
+import {IPluginService} from 'vs/platform/extensions/common/plugins';
+import {IMessageCollector, PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
+import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {KeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
+import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IKeybindingItem, IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybindingService';
 import {ICommandRule, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {Keybinding} from 'vs/base/common/keyCodes';
-import * as Platform from 'vs/base/common/platform';
+import {Registry} from 'vs/platform/platform';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {EventType, OptionsChangeEvent} from 'vs/workbench/common/events';
 import {getNativeLabelProvider} from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
-import {OptionsChangeEvent, EventType} from 'vs/workbench/common/events';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -193,7 +193,7 @@ export class WorkbenchKeybindingService extends KeybindingService {
 	}
 
 	public getElectronAcceleratorFor(keybinding:Keybinding): string {
-		if (Platform.isWindows) {
+		if (platform.isWindows) {
 			// electron menus always do the correct rendering on Windows
 			return super.getElectronAcceleratorFor(keybinding);
 		}
@@ -309,7 +309,7 @@ let schema : IJSONSchema = {
 	}
 };
 
-let schemaRegistry = <JSONContributionRegistry.IJSONContributionRegistry>Registry.as(JSONContributionRegistry.Extensions.JSONContribution);
+let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);
 schemaRegistry.addSchemaFileAssociation('vscode://defaultsettings/keybindings.json', schemaId);
 schemaRegistry.addSchemaFileAssociation('%APP_SETTINGS_HOME%/keybindings.json', schemaId);

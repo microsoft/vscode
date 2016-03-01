@@ -5,9 +5,9 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
-import {isValidPluginDescription as baseIsValidPluginDescription} from 'vs/platform/plugins/common/pluginsRegistry';
-import * as semver from 'semver';
+import {IPluginDescription} from 'vs/platform/extensions/common/plugins';
+import {isValidPluginDescription as baseIsValidPluginDescription} from 'vs/platform/extensions/common/pluginsRegistry';
+import {valid} from 'semver';
 
 export interface IParsedVersion {
 	hasCaret: boolean;
@@ -209,7 +209,7 @@ export function isValidPluginDescription(version: string, extensionFolderPath: s
 		return false;
 	}
 
-	if (!semver.valid(pluginDescription.version)) {
+	if (!valid(pluginDescription.version)) {
 		notices.push(nls.localize('notSemver', "Extension version is not semver compatible."));
 		return false;
 	}
