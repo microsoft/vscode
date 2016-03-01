@@ -372,13 +372,13 @@ export class ExtHostAPIImplementation {
 		//
 		this.extensions = {
 			getExtension(extensionId: string):Extension<any> {
-				let desc = ExtensionsRegistry.getPluginDescription(extensionId);
+				let desc = ExtensionsRegistry.getExtensionDescription(extensionId);
 				if (desc) {
 					return new Extension(<PluginHostPluginService> extensionService, desc);
 				}
 			},
 			get all():Extension<any>[] {
-				return ExtensionsRegistry.getAllPluginDescriptions().map((desc) => new Extension(<PluginHostPluginService> extensionService, desc));
+				return ExtensionsRegistry.getAllExtensionDescriptions().map((desc) => new Extension(<PluginHostPluginService> extensionService, desc));
 			}
 		};
 

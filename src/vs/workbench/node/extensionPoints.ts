@@ -12,7 +12,7 @@ import {groupBy, values} from 'vs/base/common/collections';
 import paths = require('vs/base/common/paths');
 import json = require('vs/base/common/json');
 import Types = require('vs/base/common/types');
-import {IPluginsMessageCollector, IExtensionMessageCollector} from 'vs/platform/extensions/common/extensionsRegistry';
+import {IExtensionsMessageCollector, IExtensionMessageCollector} from 'vs/platform/extensions/common/extensionsRegistry';
 import {isValidPluginDescription} from 'vs/platform/extensions/node/pluginVersionValidator';
 import * as semver from 'semver';
 
@@ -108,7 +108,7 @@ export class PluginScanner {
 	 */
 	public static scanPlugin(
 		version: string,
-		collector: IPluginsMessageCollector,
+		collector: IExtensionsMessageCollector,
 		absoluteFolderPath:string,
 		isBuiltin:boolean
 	) : TPromise<IExtensionDescription>
@@ -193,7 +193,7 @@ export class PluginScanner {
 	 */
 	public static scanPlugins(
 		version: string,
-		collector: IPluginsMessageCollector,
+		collector: IExtensionsMessageCollector,
 		absoluteFolderPath:string,
 		isBuiltin:boolean
 	) : TPromise<IExtensionDescription[]>
@@ -229,18 +229,18 @@ export class PluginScanner {
 	 */
 	public static scanOneOrMultiplePlugins(
 		version: string,
-		collector: IPluginsMessageCollector,
+		collector: IExtensionsMessageCollector,
 		absoluteFolderPath:string,
 		isBuiltin:boolean
 	) : TPromise<IExtensionDescription[]>
 	{
 		return pfs.fileExists(paths.join(absoluteFolderPath, MANIFEST_FILE)).then((exists) => {
 			if (exists) {
-				return this.scanPlugin(version, collector, absoluteFolderPath, isBuiltin).then((pluginDescription) => {
-					if (pluginDescription === null) {
+				return this.scanPlugin(version, collector, absoluteFolderPath, isBuiltin).then((extensionDescription) => {
+					if (extensionDescription === null) {
 						return [];
 					}
-					return [pluginDescription];
+					return [extensionDescription];
 				});
 			}
 			return this.scanPlugins(version, collector, absoluteFolderPath, isBuiltin);

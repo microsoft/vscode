@@ -19,18 +19,18 @@ export interface IExtensionMessageCollector {
 	info(message: any): void;
 }
 
-export interface IPluginsMessageCollector {
+export interface IExtensionsMessageCollector {
 	error(source: string, message: any): void;
 	warn(source: string, message: any): void;
 	info(source: string, message: any): void;
 	scopeTo(source: string): IExtensionMessageCollector;
 }
 
-class ScopedMessageCollector implements IExtensionMessageCollector {
+class ExtensionMessageCollector implements IExtensionMessageCollector {
 	private _scope: string;
-	private _actual: IPluginsMessageCollector;
+	private _actual: IExtensionsMessageCollector;
 
-	constructor(scope: string, actual: IPluginsMessageCollector) {
+	constructor(scope: string, actual: IExtensionsMessageCollector) {
 		this._scope = scope;
 		this._actual = actual;
 	}
@@ -48,15 +48,15 @@ class ScopedMessageCollector implements IExtensionMessageCollector {
 	}
 }
 
-export interface IMessageHandler {
+export interface IExtensionsMessageHandler {
 	(severity: Severity, source: string, message: string): void;
 }
 
-class PluginsMessageForwarder implements IPluginsMessageCollector {
+class ExtensionsMessageForwarder implements IExtensionsMessageCollector {
 
-	private _handler: IMessageHandler;
+	private _handler: IExtensionsMessageHandler;
 
-	constructor(handler: IMessageHandler) {
+	constructor(handler: IExtensionsMessageHandler) {
 		this._handler = handler;
 	}
 
@@ -88,11 +88,11 @@ class PluginsMessageForwarder implements IPluginsMessageCollector {
 	}
 
 	public scopeTo(source: string): IExtensionMessageCollector {
-		return new ScopedMessageCollector(source, this);
+		return new ExtensionMessageCollector(source, this);
 	}
 }
 
-export class PluginsMessageCollector implements IPluginsMessageCollector {
+export class ExtensionsMessageCollector implements IExtensionsMessageCollector {
 
 	private _messages: IMessage[];
 
@@ -132,73 +132,73 @@ export class PluginsMessageCollector implements IPluginsMessageCollector {
 	}
 
 	public scopeTo(source: string): IExtensionMessageCollector {
-		return new ScopedMessageCollector(source, this);
+		return new ExtensionMessageCollector(source, this);
 	}
 }
 
-export function isValidPluginDescription(extensionFolderPath: string, pluginDescription: IExtensionDescription, notices: string[]): boolean {
-	if (!pluginDescription) {
-		notices.push(nls.localize('pluginDescription.empty', "Got empty extension description"));
+export function isValidExtensionDescription(extensionFolderPath: string, extensionDescription: IExtensionDescription, notices: string[]): boolean {
+	if (!extensionDescription) {
+		notices.push(nls.localize('extensionDescription.empty', "Got empty extension description"));
 		return false;
 	}
-	if (typeof pluginDescription.publisher !== 'string') {
-		notices.push(nls.localize('pluginDescription.publisher', "property `{0}` is mandatory and must be of type `string`", 'publisher'));
+	if (typeof extensionDescription.publisher !== 'string') {
+		notices.push(nls.localize('extensionDescription.publisher', "property `{0}` is mandatory and must be of type `string`", 'publisher'));
 		return false;
 	}
-	if (typeof pluginDescription.name !== 'string') {
-		notices.push(nls.localize('pluginDescription.name', "property `{0}` is mandatory and must be of type `string`", 'name'));
+	if (typeof extensionDescription.name !== 'string') {
+		notices.push(nls.localize('extensionDescription.name', "property `{0}` is mandatory and must be of type `string`", 'name'));
 		return false;
 	}
-	if (typeof pluginDescription.version !== 'string') {
-		notices.push(nls.localize('pluginDescription.version', "property `{0}` is mandatory and must be of type `string`", 'version'));
+	if (typeof extensionDescription.version !== 'string') {
+		notices.push(nls.localize('extensionDescription.version', "property `{0}` is mandatory and must be of type `string`", 'version'));
 		return false;
 	}
-	if (!pluginDescription.engines) {
-		notices.push(nls.localize('pluginDescription.engines', "property `{0}` is mandatory and must be of type `object`", 'engines'));
+	if (!extensionDescription.engines) {
+		notices.push(nls.localize('extensionDescription.engines', "property `{0}` is mandatory and must be of type `object`", 'engines'));
 		return false;
 	}
-	if (typeof pluginDescription.engines.vscode !== 'string') {
-		notices.push(nls.localize('pluginDescription.engines.vscode', "property `{0}` is mandatory and must be of type `string`", 'engines.vscode'));
+	if (typeof extensionDescription.engines.vscode !== 'string') {
+		notices.push(nls.localize('extensionDescription.engines.vscode', "property `{0}` is mandatory and must be of type `string`", 'engines.vscode'));
 		return false;
 	}
-	if (typeof pluginDescription.extensionDependencies !== 'undefined') {
-		if (!_isStringArray(pluginDescription.extensionDependencies)) {
-			notices.push(nls.localize('pluginDescription.extensionDependencies', "property `{0}` can be omitted or must be of type `string[]`", 'extensionDependencies'));
+	if (typeof extensionDescription.extensionDependencies !== 'undefined') {
+		if (!_isStringArray(extensionDescription.extensionDependencies)) {
+			notices.push(nls.localize('extensionDescription.extensionDependencies', "property `{0}` can be omitted or must be of type `string[]`", 'extensionDependencies'));
 			return false;
 		}
 	}
-	if (typeof pluginDescription.activationEvents !== 'undefined') {
-		if (!_isStringArray(pluginDescription.activationEvents)) {
-			notices.push(nls.localize('pluginDescription.activationEvents1', "property `{0}` can be omitted or must be of type `string[]`", 'activationEvents'));
+	if (typeof extensionDescription.activationEvents !== 'undefined') {
+		if (!_isStringArray(extensionDescription.activationEvents)) {
+			notices.push(nls.localize('extensionDescription.activationEvents1', "property `{0}` can be omitted or must be of type `string[]`", 'activationEvents'));
 			return false;
 		}
-		if (typeof pluginDescription.main === 'undefined') {
-			notices.push(nls.localize('pluginDescription.activationEvents2', "properties `{0}` and `{1}` must both be specified or must both be omitted", 'activationEvents', 'main'));
+		if (typeof extensionDescription.main === 'undefined') {
+			notices.push(nls.localize('extensionDescription.activationEvents2', "properties `{0}` and `{1}` must both be specified or must both be omitted", 'activationEvents', 'main'));
 			return false;
 		}
 	}
-	if (typeof pluginDescription.main !== 'undefined') {
-		if (typeof pluginDescription.main !== 'string') {
-			notices.push(nls.localize('pluginDescription.main1', "property `{0}` can be omitted or must be of type `string`", 'main'));
+	if (typeof extensionDescription.main !== 'undefined') {
+		if (typeof extensionDescription.main !== 'string') {
+			notices.push(nls.localize('extensionDescription.main1', "property `{0}` can be omitted or must be of type `string`", 'main'));
 			return false;
 		} else {
-			let normalizedAbsolutePath = paths.normalize(paths.join(extensionFolderPath, pluginDescription.main));
+			let normalizedAbsolutePath = paths.normalize(paths.join(extensionFolderPath, extensionDescription.main));
 
 			if (normalizedAbsolutePath.indexOf(extensionFolderPath)) {
-				notices.push(nls.localize('pluginDescription.main2', "Expected `main` ({0}) to be included inside extension's folder ({1}). This might make the extension non-portable.", normalizedAbsolutePath, extensionFolderPath));
+				notices.push(nls.localize('extensionDescription.main2', "Expected `main` ({0}) to be included inside extension's folder ({1}). This might make the extension non-portable.", normalizedAbsolutePath, extensionFolderPath));
 				// not a failure case
 			}
 		}
-		if (typeof pluginDescription.activationEvents === 'undefined') {
-			notices.push(nls.localize('pluginDescription.main3', "properties `{0}` and `{1}` must both be specified or must both be omitted", 'activationEvents', 'main'));
+		if (typeof extensionDescription.activationEvents === 'undefined') {
+			notices.push(nls.localize('extensionDescription.main3', "properties `{0}` and `{1}` must both be specified or must both be omitted", 'activationEvents', 'main'));
 			return false;
 		}
 	}
 	return true;
 }
 
-interface IPluginDescriptionMap {
-	[pluginId: string]: IExtensionDescription;
+interface IExtensionDescriptionMap {
+	[extensionId: string]: IExtensionDescription;
 }
 const hasOwnProperty = Object.hasOwnProperty;
 let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
@@ -218,28 +218,28 @@ export interface IExtensionPoint<T> {
 	setHandler(handler: IExtensionPointHandler<T>): void;
 }
 
-export interface IPluginsRegistry {
-	registerPlugins(pluginDescriptions: IExtensionDescription[]): void;
+export interface IExtensionsRegistry {
+	registerExtensions(extensionDescriptions: IExtensionDescription[]): void;
 
-	getPluginDescriptionsForActivationEvent(activationEvent: string): IExtensionDescription[];
-	getAllPluginDescriptions(): IExtensionDescription[];
-	getPluginDescription(pluginId: string): IExtensionDescription;
+	getExtensionDescriptionsForActivationEvent(activationEvent: string): IExtensionDescription[];
+	getAllExtensionDescriptions(): IExtensionDescription[];
+	getExtensionDescription(extensionId: string): IExtensionDescription;
 
 	registerOneTimeActivationEventListener(activationEvent: string, listener: IActivationEventListener): void;
 	triggerActivationEventListeners(activationEvent: string): void;
 
 	registerExtensionPoint<T>(extensionPoint: string, jsonSchema: IJSONSchema): IExtensionPoint<T>;
-	handleExtensionPoints(messageHandler: IMessageHandler): void;
+	handleExtensionPoints(messageHandler: IExtensionsMessageHandler): void;
 }
 
 class ExtensionPoint<T> implements IExtensionPoint<T> {
 
 	public name: string;
-	private _registry: PluginsRegistryImpl;
+	private _registry: ExtensionsRegistryImpl;
 	private _handler: IExtensionPointHandler<T>;
-	private _collector: IPluginsMessageCollector;
+	private _collector: IExtensionsMessageCollector;
 
-	constructor(name: string, registry: PluginsRegistryImpl) {
+	constructor(name: string, registry: ExtensionsRegistryImpl) {
 		this.name = name;
 		this._registry = registry;
 		this._handler = null;
@@ -254,7 +254,7 @@ class ExtensionPoint<T> implements IExtensionPoint<T> {
 		this._handle();
 	}
 
-	handle(collector: IPluginsMessageCollector): void {
+	handle(collector: IExtensionsMessageCollector): void {
 		this._collector = collector;
 		this._handle();
 	}
@@ -369,9 +369,9 @@ interface IPointListenerEntry {
 	listener: IPointListener;
 }
 
-class PluginsRegistryImpl implements IPluginsRegistry {
+class ExtensionsRegistryImpl implements IExtensionsRegistry {
 
-	private _pluginsMap: IPluginDescriptionMap;
+	private _pluginsMap: IExtensionDescriptionMap;
 	private _pluginsArr: IExtensionDescription[];
 	private _activationMap: { [activationEvent: string]: IExtensionDescription[]; };
 	private _pointListeners: IPointListenerEntry[];
@@ -393,7 +393,7 @@ class PluginsRegistryImpl implements IPluginsRegistry {
 			listener: handler
 		};
 		this._pointListeners.push(entry);
-		this._triggerPointListener(entry, PluginsRegistryImpl._filterWithExtPoint(this.getAllPluginDescriptions(), point));
+		this._triggerPointListener(entry, ExtensionsRegistryImpl._filterWithExtPoint(this.getAllExtensionDescriptions(), point));
 	}
 
 	public registerExtensionPoint<T>(extensionPoint: string, jsonSchema: IJSONSchema): IExtensionPoint<T> {
@@ -409,8 +409,8 @@ class PluginsRegistryImpl implements IPluginsRegistry {
 		return result;
 	}
 
-	public handleExtensionPoints(messageHandler: IMessageHandler): void {
-		let collector = new PluginsMessageForwarder(messageHandler);
+	public handleExtensionPoints(messageHandler: IExtensionsMessageHandler): void {
+		let collector = new ExtensionsMessageForwarder(messageHandler);
 
 		Object.keys(this._extensionPoints).forEach((extensionPointName) => {
 			this._extensionPoints[extensionPointName].handle(collector);
@@ -429,31 +429,31 @@ class PluginsRegistryImpl implements IPluginsRegistry {
 		}
 	}
 
-	public registerPlugins(pluginDescriptions: IExtensionDescription[]): void {
-		for (let i = 0, len = pluginDescriptions.length; i < len; i++) {
-			let pluginDescription = pluginDescriptions[i];
+	public registerExtensions(extensionDescriptions: IExtensionDescription[]): void {
+		for (let i = 0, len = extensionDescriptions.length; i < len; i++) {
+			let extensionDescription = extensionDescriptions[i];
 
-			if (hasOwnProperty.call(this._pluginsMap, pluginDescription.id)) {
+			if (hasOwnProperty.call(this._pluginsMap, extensionDescription.id)) {
 				// No overwriting allowed!
-				console.error('Plugin `' + pluginDescription.id + '` is already registered');
+				console.error('Plugin `' + extensionDescription.id + '` is already registered');
 				continue;
 			}
 
-			this._pluginsMap[pluginDescription.id] = pluginDescription;
-			this._pluginsArr.push(pluginDescription);
+			this._pluginsMap[extensionDescription.id] = extensionDescription;
+			this._pluginsArr.push(extensionDescription);
 
-			if (Array.isArray(pluginDescription.activationEvents)) {
-				for (let j = 0, lenJ = pluginDescription.activationEvents.length; j < lenJ; j++) {
-					let activationEvent = pluginDescription.activationEvents[j];
+			if (Array.isArray(extensionDescription.activationEvents)) {
+				for (let j = 0, lenJ = extensionDescription.activationEvents.length; j < lenJ; j++) {
+					let activationEvent = extensionDescription.activationEvents[j];
 					this._activationMap[activationEvent] = this._activationMap[activationEvent] || [];
-					this._activationMap[activationEvent].push(pluginDescription);
+					this._activationMap[activationEvent].push(extensionDescription);
 				}
 			}
 		}
 
 		for (let i = 0, len = this._pointListeners.length; i < len; i++) {
 			let listenerEntry = this._pointListeners[i];
-			let descriptions = PluginsRegistryImpl._filterWithExtPoint(pluginDescriptions, listenerEntry.extensionPoint);
+			let descriptions = ExtensionsRegistryImpl._filterWithExtPoint(extensionDescriptions, listenerEntry.extensionPoint);
 			this._triggerPointListener(listenerEntry, descriptions);
 		}
 	}
@@ -464,22 +464,22 @@ class PluginsRegistryImpl implements IPluginsRegistry {
 		});
 	}
 
-	public getPluginDescriptionsForActivationEvent(activationEvent: string): IExtensionDescription[] {
+	public getExtensionDescriptionsForActivationEvent(activationEvent: string): IExtensionDescription[] {
 		if (!hasOwnProperty.call(this._activationMap, activationEvent)) {
 			return [];
 		}
 		return this._activationMap[activationEvent].slice(0);
 	}
 
-	public getAllPluginDescriptions(): IExtensionDescription[] {
+	public getAllExtensionDescriptions(): IExtensionDescription[] {
 		return this._pluginsArr.slice(0);
 	}
 
-	public getPluginDescription(pluginId: string): IExtensionDescription {
-		if (!hasOwnProperty.call(this._pluginsMap, pluginId)) {
+	public getExtensionDescription(extensionId: string): IExtensionDescription {
+		if (!hasOwnProperty.call(this._pluginsMap, extensionId)) {
 			return null;
 		}
-		return this._pluginsMap[pluginId];
+		return this._pluginsMap[extensionId];
 	}
 
 	public registerOneTimeActivationEventListener(activationEvent: string, listener: IActivationEventListener): void {
@@ -522,8 +522,8 @@ function _isStringArray(arr: string[]): boolean {
 const PRExtensions = {
 	ExtensionsRegistry: 'ExtensionsRegistry'
 };
-Registry.add(PRExtensions.ExtensionsRegistry, new PluginsRegistryImpl());
-export const ExtensionsRegistry: IPluginsRegistry = Registry.as(PRExtensions.ExtensionsRegistry);
+Registry.add(PRExtensions.ExtensionsRegistry, new ExtensionsRegistryImpl());
+export const ExtensionsRegistry: IExtensionsRegistry = Registry.as(PRExtensions.ExtensionsRegistry);
 
 schemaRegistry.registerSchema(schemaId, schema);
 schemaRegistry.addSchemaFileAssociation('/package.json', schemaId);

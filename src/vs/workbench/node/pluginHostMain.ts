@@ -14,7 +14,7 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import {IExtensionService, IExtensionDescription} from 'vs/platform/extensions/common/extensions';
-import {ExtensionsRegistry, PluginsMessageCollector, IPluginsMessageCollector} from 'vs/platform/extensions/common/extensionsRegistry';
+import {ExtensionsRegistry, ExtensionsMessageCollector, IExtensionsMessageCollector} from 'vs/platform/extensions/common/extensionsRegistry';
 import {ExtHostAPIImplementation} from 'vs/workbench/api/node/extHost.api.impl';
 import {IPluginsIPC} from 'vs/platform/extensions/common/ipcRemoteCom';
 import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
@@ -117,7 +117,7 @@ export class PluginHostMain {
 		this._isTerminating = true;
 
 		try {
-			let allExtensions = ExtensionsRegistry.getAllPluginDescriptions();
+			let allExtensions = ExtensionsRegistry.getAllExtensionDescriptions();
 			let allExtensionsIds = allExtensions.map(ext => ext.id);
 			let activatedExtensions = allExtensionsIds.filter(id => this._extensionService.isActivated(id));
 
@@ -135,7 +135,7 @@ export class PluginHostMain {
 	}
 
 	private readPlugins(): TPromise<void> {
-		let collector = new PluginsMessageCollector();
+		let collector = new ExtensionsMessageCollector();
 		let env = this._contextService.getConfiguration().env;
 
 		return PluginHostMain.scanPlugins(collector, BUILTIN_PLUGINS_PATH, !env.disablePlugins ? env.userPluginsHome : void 0, !env.disablePlugins ? env.pluginDevelopmentPath : void 0, env.version)
@@ -145,14 +145,14 @@ export class PluginHostMain {
 			})
 			.then(extensions => {
 				// Register & Signal done
-				ExtensionsRegistry.registerPlugins(extensions);
+				ExtensionsRegistry.registerExtensions(extensions);
 				this._extensionService.registrationDone(collector.getMessages());
 			})
 			.then(() => this.handleEagerPlugins())
 			.then(() => this.handlePluginTests());
 	}
 
-	private static scanPlugins(collector: IPluginsMessageCollector, builtinPluginsPath: string, userInstallPath: string, pluginDevelopmentPath: string, version: string): TPromise<IExtensionDescription[]> {
+	private static scanPlugins(collector: IExtensionsMessageCollector, builtinPluginsPath: string, userInstallPath: string, pluginDevelopmentPath: string, version: string): TPromise<IExtensionDescription[]> {
 		const builtinPlugins = PluginScanner.scanPlugins(version, collector, builtinPluginsPath, true);
 		const userPlugins = !userInstallPath ? TPromise.as([]) : PluginScanner.scanPlugins(version, collector, userInstallPath, false);
 		const developedPlugins = !pluginDevelopmentPath ? TPromise.as([]) : PluginScanner.scanOneOrMultiplePlugins(version, collector, pluginDevelopmentPath, false);
@@ -204,7 +204,7 @@ export class PluginHostMain {
 			[filename: string]: boolean;
 		} = {};
 
-		ExtensionsRegistry.getAllPluginDescriptions().forEach((desc) => {
+		ExtensionsRegistry.getAllExtensionDescriptions().forEach((desc) => {
 			let activationEvents = desc.activationEvents;
 			if (!activationEvents) {
 				return;

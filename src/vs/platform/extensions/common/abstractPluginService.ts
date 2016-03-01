@@ -35,11 +35,11 @@ export abstract class ActivatedPlugin {
 }
 
 export interface IActivatedPluginMap<T extends ActivatedPlugin> {
-	[pluginId: string]: T;
+	[extensionId: string]: T;
 }
 
 interface IActivatingPluginMap {
-	[pluginId: string]: TPromise<void>;
+	[extensionId: string]: TPromise<void>;
 }
 
 export abstract class AbstractPluginService<T extends ActivatedPlugin> implements IExtensionService {
@@ -87,23 +87,23 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 		return null;
 	}
 
-	public isActivated(pluginId: string): boolean {
-		return hasOwnProperty.call(this.activatedPlugins, pluginId);
+	public isActivated(extensionId: string): boolean {
+		return hasOwnProperty.call(this.activatedPlugins, extensionId);
 	}
 
 	public activateByEvent(activationEvent: string): TPromise<void> {
 		return this._onReady.then(() => {
 			ExtensionsRegistry.triggerActivationEventListeners(activationEvent);
-			let activatePlugins = ExtensionsRegistry.getPluginDescriptionsForActivationEvent(activationEvent);
+			let activatePlugins = ExtensionsRegistry.getExtensionDescriptionsForActivationEvent(activationEvent);
 			return this._activatePlugins(activatePlugins, 0);
 		});
 	}
 
-	public activateById(pluginId: string): TPromise<void> {
+	public activateById(extensionId: string): TPromise<void> {
 		return this._onReady.then(() => {
-			let desc = ExtensionsRegistry.getPluginDescription(pluginId);
+			let desc = ExtensionsRegistry.getExtensionDescription(extensionId);
 			if (!desc) {
-				throw new Error('Plugin `' + pluginId + '` is not known');
+				throw new Error('Plugin `' + extensionId + '` is not known');
 			}
 
 			return this._activatePlugins([desc], 0);
@@ -120,7 +120,7 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 
 		for (let j = 0, lenJ = depIds.length; j < lenJ; j++) {
 			let depId = depIds[j];
-			let depDesc = ExtensionsRegistry.getPluginDescription(depId);
+			let depDesc = ExtensionsRegistry.getExtensionDescription(depId);
 
 			if (!depDesc) {
 				// Error condition 1: unknown dependency
@@ -151,23 +151,23 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 		}
 	}
 
-	private _activatePlugins(pluginDescriptions: IExtensionDescription[], recursionLevel: number): TPromise<void> {
-		// console.log(recursionLevel, '_activatePlugins: ', pluginDescriptions.map(p => p.id));
-		if (pluginDescriptions.length === 0) {
+	private _activatePlugins(extensionDescriptions: IExtensionDescription[], recursionLevel: number): TPromise<void> {
+		// console.log(recursionLevel, '_activatePlugins: ', extensionDescriptions.map(p => p.id));
+		if (extensionDescriptions.length === 0) {
 			return TPromise.as(void 0);
 		}
 
-		pluginDescriptions = pluginDescriptions.filter((p) => !hasOwnProperty.call(this.activatedPlugins, p.id));
-		if (pluginDescriptions.length === 0) {
+		extensionDescriptions = extensionDescriptions.filter((p) => !hasOwnProperty.call(this.activatedPlugins, p.id));
+		if (extensionDescriptions.length === 0) {
 			return TPromise.as(void 0);
 		}
 
 		if (recursionLevel > 10) {
 			// More than 10 dependencies deep => most likely a dependency loop
-			for (let i = 0, len = pluginDescriptions.length; i < len; i++) {
+			for (let i = 0, len = extensionDescriptions.length; i < len; i++) {
 				// Error condition 3: dependency loop
-				this._showMessage(Severity.Error, nls.localize('failedDep2', "Extension `{0}` failed to activate. Reason: more than 10 levels of dependencies (most likely a dependency loop).", pluginDescriptions[i].id));
-				this.activatedPlugins[pluginDescriptions[i].id] = this._createFailedPlugin();
+				this._showMessage(Severity.Error, nls.localize('failedDep2', "Extension `{0}` failed to activate. Reason: more than 10 levels of dependencies (most likely a dependency loop).", extensionDescriptions[i].id));
+				this.activatedPlugins[extensionDescriptions[i].id] = this._createFailedPlugin();
 			}
 			return TPromise.as(void 0);
 		}
@@ -175,8 +175,8 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 		let greenMap: { [id: string]: IExtensionDescription; } = Object.create(null),
 			red: IExtensionDescription[] = [];
 
-		for (let i = 0, len = pluginDescriptions.length; i < len; i++) {
-			this._handleActivateRequest(pluginDescriptions[i], greenMap, red);
+		for (let i = 0, len = extensionDescriptions.length; i < len; i++) {
+			this._handleActivateRequest(extensionDescriptions[i], greenMap, red);
 		}
 
 		// Make sure no red is also green
@@ -201,30 +201,30 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 		});
 	}
 
-	protected _activatePlugin(pluginDescription: IExtensionDescription): TPromise<void> {
-		if (hasOwnProperty.call(this.activatedPlugins, pluginDescription.id)) {
+	protected _activatePlugin(extensionDescription: IExtensionDescription): TPromise<void> {
+		if (hasOwnProperty.call(this.activatedPlugins, extensionDescription.id)) {
 			return TPromise.as(void 0);
 		}
 
-		if (hasOwnProperty.call(this.activatingPlugins, pluginDescription.id)) {
-			return this.activatingPlugins[pluginDescription.id];
+		if (hasOwnProperty.call(this.activatingPlugins, extensionDescription.id)) {
+			return this.activatingPlugins[extensionDescription.id];
 		}
 
-		this.activatingPlugins[pluginDescription.id] = this._actualActivatePlugin(pluginDescription).then(null, (err) => {
-			this._showMessage(Severity.Error, nls.localize('activationError', "Activating extension `{0}` failed: {1}.", pluginDescription.id, err.message));
-			console.error('Activating extension `' + pluginDescription.id + '` failed: ', err.message);
+		this.activatingPlugins[extensionDescription.id] = this._actualActivatePlugin(extensionDescription).then(null, (err) => {
+			this._showMessage(Severity.Error, nls.localize('activationError', "Activating extension `{0}` failed: {1}.", extensionDescription.id, err.message));
+			console.error('Activating extension `' + extensionDescription.id + '` failed: ', err.message);
 			console.log('Here is the error stack: ', err.stack);
 			// Treat the plugin as being empty
 			return this._createFailedPlugin();
 		}).then((x: T) => {
-			this.activatedPlugins[pluginDescription.id] = x;
-			delete this.activatingPlugins[pluginDescription.id];
+			this.activatedPlugins[extensionDescription.id] = x;
+			delete this.activatingPlugins[extensionDescription.id];
 		});
 
-		return this.activatingPlugins[pluginDescription.id];
+		return this.activatingPlugins[extensionDescription.id];
 	}
 
 	protected abstract _createFailedPlugin(): T;
 
-	protected abstract _actualActivatePlugin(pluginDescription: IExtensionDescription): TPromise<T>;
+	protected abstract _actualActivatePlugin(extensionDescription: IExtensionDescription): TPromise<T>;
 }

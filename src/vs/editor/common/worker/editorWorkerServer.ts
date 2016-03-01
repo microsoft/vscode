@@ -71,7 +71,7 @@ class WorkerPluginService extends AbstractPluginService<ActivatedPlugin> {
 		throw new Error('unexpected');
 	}
 
-	protected _actualActivatePlugin(pluginDescription: IExtensionDescription): TPromise<ActivatedPlugin> {
+	protected _actualActivatePlugin(extensionDescription: IExtensionDescription): TPromise<ActivatedPlugin> {
 		throw new Error('unexpected');
 	}
 

@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
-import {isValidPluginDescription as baseIsValidPluginDescription} from 'vs/platform/extensions/common/extensionsRegistry';
+import {isValidExtensionDescription as baseIsValidPluginDescription} from 'vs/platform/extensions/common/extensionsRegistry';
 import {valid} from 'semver';
 
 export interface IParsedVersion {
@@ -203,16 +203,16 @@ export function isValidExtensionVersion(version: string, extensionDesc: IReduced
 	return true;
 }
 
-export function isValidPluginDescription(version: string, extensionFolderPath: string, pluginDescription: IExtensionDescription, notices: string[]): boolean {
+export function isValidPluginDescription(version: string, extensionFolderPath: string, extensionDescription: IExtensionDescription, notices: string[]): boolean {
 
-	if (!baseIsValidPluginDescription(extensionFolderPath, pluginDescription, notices)) {
+	if (!baseIsValidPluginDescription(extensionFolderPath, extensionDescription, notices)) {
 		return false;
 	}
 
-	if (!valid(pluginDescription.version)) {
+	if (!valid(extensionDescription.version)) {
 		notices.push(nls.localize('notSemver', "Extension version is not semver compatible."));
 		return false;
 	}
 
-	return isValidExtensionVersion(version, pluginDescription, notices);
+	return isValidExtensionVersion(version, extensionDescription, notices);
 }

@@ -119,16 +119,16 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 		return new MainProcessFailedPlugin();
 	}
 
-	private getTelemetryActivationEvent(pluginDescription: IExtensionDescription): any {
+	private getTelemetryActivationEvent(extensionDescription: IExtensionDescription): any {
 		let event = {
-			id: pluginDescription.id,
-			name: pluginDescription.name,
-			publisherDisplayName: pluginDescription.publisher,
-			activationEvents: pluginDescription.activationEvents ? pluginDescription.activationEvents.join(',') : null
+			id: extensionDescription.id,
+			name: extensionDescription.name,
+			publisherDisplayName: extensionDescription.publisher,
+			activationEvents: extensionDescription.activationEvents ? extensionDescription.activationEvents.join(',') : null
 		};
 
-		for (let contribution in pluginDescription.contributes) {
-			let contributionDetails = pluginDescription.contributes[contribution];
+		for (let contribution in extensionDescription.contributes) {
+			let contributionDetails = extensionDescription.contributes[contribution];
 
 			if (!contributionDetails) {
 				continue;
@@ -202,29 +202,29 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 
 	// -- overwriting AbstractPluginService
 
-	protected _actualActivatePlugin(pluginDescription: IExtensionDescription): TPromise<ActivatedPlugin> {
-		let event = this.getTelemetryActivationEvent(pluginDescription);
+	protected _actualActivatePlugin(extensionDescription: IExtensionDescription): TPromise<ActivatedPlugin> {
+		let event = this.getTelemetryActivationEvent(extensionDescription);
 		this._telemetryService.publicLog('activatePlugin', event);
 		// redirect plugin activation to the plugin host
-		return this._proxy.$activatePluginInPluginHost(pluginDescription).then(_ => {
+		return this._proxy.$activatePluginInPluginHost(extensionDescription).then(_ => {
 			// the plugin host calls $onPluginActivatedInPluginHost, where we write to `activatedPlugins`
-			return this.activatedPlugins[pluginDescription.id];
+			return this.activatedPlugins[extensionDescription.id];
 		});
 	}
 
 	// -- called by plugin host
 
-	public $onPluginHostReady(pluginDescriptions: IExtensionDescription[], messages: IMessage[]): void {
-		ExtensionsRegistry.registerPlugins(pluginDescriptions);
+	public $onPluginHostReady(extensionDescriptions: IExtensionDescription[], messages: IMessage[]): void {
+		ExtensionsRegistry.registerExtensions(extensionDescriptions);
 		this.registrationDone(messages);
 	}
 
-	public $onPluginActivatedInPluginHost(pluginId: string): void {
-		this.activatedPlugins[pluginId] = new MainProcessSuccessPlugin();
+	public $onPluginActivatedInPluginHost(extensionId: string): void {
+		this.activatedPlugins[extensionId] = new MainProcessSuccessPlugin();
 	}
 
-	public $onPluginActivationFailedInPluginHost(pluginId: string): void {
-		this.activatedPlugins[pluginId] = new MainProcessFailedPlugin();
+	public $onPluginActivationFailedInPluginHost(extensionId: string): void {
+		this.activatedPlugins[extensionId] = new MainProcessFailedPlugin();
 	}
 }
 
@@ -293,15 +293,15 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 		}
 	}
 
-	public get(pluginId: string): IPluginExports {
-		if (!hasOwnProperty.call(this.activatedPlugins, pluginId)) {
-			throw new Error('Plugin `' + pluginId + '` is not known or not activated');
+	public get(extensionId: string): IPluginExports {
+		if (!hasOwnProperty.call(this.activatedPlugins, extensionId)) {
+			throw new Error('Plugin `' + extensionId + '` is not known or not activated');
 		}
-		return this.activatedPlugins[pluginId].exports;
+		return this.activatedPlugins[extensionId].exports;
 	}
 
-	public deactivate(pluginId: string): void {
-		let plugin = this.activatedPlugins[pluginId];
+	public deactivate(extensionId: string): void {
+		let plugin = this.activatedPlugins[extensionId];
 		if (!plugin) {
 			return;
 		}
@@ -331,48 +331,48 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 
 	public registrationDone(messages: IMessage[]): void {
 		super.registrationDone([]);
-		this._proxy.$onPluginHostReady(ExtensionsRegistry.getAllPluginDescriptions(), messages);
+		this._proxy.$onPluginHostReady(ExtensionsRegistry.getAllExtensionDescriptions(), messages);
 	}
 
-	protected _loadPluginModule(pluginDescription: IExtensionDescription): TPromise<IPluginModule> {
-		return loadCommonJSModule(pluginDescription.main);
+	protected _loadPluginModule(extensionDescription: IExtensionDescription): TPromise<IPluginModule> {
+		return loadCommonJSModule(extensionDescription.main);
 	}
 
-	protected _loadPluginContext(pluginDescription: IExtensionDescription): TPromise<IPluginContext> {
+	protected _loadPluginContext(extensionDescription: IExtensionDescription): TPromise<IPluginContext> {
 
-		let globalState = new PluginMemento(pluginDescription.id, true, this._storage);
-		let workspaceState = new PluginMemento(pluginDescription.id, false, this._storage);
+		let globalState = new PluginMemento(extensionDescription.id, true, this._storage);
+		let workspaceState = new PluginMemento(extensionDescription.id, false, this._storage);
 
 		return TPromise.join([globalState.whenReady, workspaceState.whenReady]).then(() => {
 			return Object.freeze(<IPluginContext>{
 				globalState,
 				workspaceState,
 				subscriptions: [],
-				get extensionPath() { return pluginDescription.extensionFolderPath; },
-				asAbsolutePath: (relativePath: string) => { return paths.normalize(paths.join(pluginDescription.extensionFolderPath, relativePath), true); }
+				get extensionPath() { return extensionDescription.extensionFolderPath; },
+				asAbsolutePath: (relativePath: string) => { return paths.normalize(paths.join(extensionDescription.extensionFolderPath, relativePath), true); }
 			});
 		});
 	}
 
-	protected _actualActivatePlugin(pluginDescription: IExtensionDescription): TPromise<ActivatedPlugin> {
+	protected _actualActivatePlugin(extensionDescription: IExtensionDescription): TPromise<ActivatedPlugin> {
 
-		return this._superActualActivatePlugin(pluginDescription).then((activatedPlugin) => {
-			this._proxy.$onPluginActivatedInPluginHost(pluginDescription.id);
+		return this._superActualActivatePlugin(extensionDescription).then((activatedPlugin) => {
+			this._proxy.$onPluginActivatedInPluginHost(extensionDescription.id);
 			return activatedPlugin;
 		}, (err) => {
-			this._proxy.$onPluginActivationFailedInPluginHost(pluginDescription.id);
+			this._proxy.$onPluginActivationFailedInPluginHost(extensionDescription.id);
 			throw err;
 		});
 	}
 
-	private _superActualActivatePlugin(pluginDescription: IExtensionDescription): TPromise<ExtHostPlugin> {
+	private _superActualActivatePlugin(extensionDescription: IExtensionDescription): TPromise<ExtHostPlugin> {
 
-		if (!pluginDescription.main) {
+		if (!extensionDescription.main) {
 			// Treat the plugin as being empty => NOT AN ERROR CASE
 			return TPromise.as(new EmptyPlugin());
 		}
-		return this._loadPluginModule(pluginDescription).then((pluginModule) => {
-			return this._loadPluginContext(pluginDescription).then(context => {
+		return this._loadPluginModule(extensionDescription).then((pluginModule) => {
+			return this._loadPluginContext(extensionDescription).then(context => {
 				return PluginHostPluginService._callActivate(pluginModule, context);
 			});
 		});
@@ -406,8 +406,8 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 
 	// -- called by main thread
 
-	public $activatePluginInPluginHost(pluginDescription: IExtensionDescription): TPromise<void> {
-		return this._activatePlugin(pluginDescription);
+	public $activatePluginInPluginHost(extensionDescription: IExtensionDescription): TPromise<void> {
+		return this._activatePlugin(extensionDescription);
 	}
 
 }

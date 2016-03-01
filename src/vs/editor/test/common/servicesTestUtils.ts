@@ -124,7 +124,7 @@ class MockPluginService extends AbstractPluginService<ActivatedPlugin> {
 		throw new Error('not implemented');
 	}
 
-	protected _actualActivatePlugin(pluginDescription): any {
+	protected _actualActivatePlugin(extensionDescription): any {
 		throw new Error('not implemented');
 	}
 }
