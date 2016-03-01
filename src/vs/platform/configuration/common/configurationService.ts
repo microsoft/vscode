@@ -223,21 +223,3 @@ export abstract class ConfigurationService extends eventEmitter.EventEmitter imp
 		}
 	}
 }
-
-export class NullConfigurationService extends eventEmitter.EventEmitter implements IConfigurationService {
-	public serviceId = IConfigurationService;
-
-	public loadConfiguration(section?: string): winjs.TPromise<any> {
-		return winjs.TPromise.as({});
-	}
-
-	public hasWorkspaceConfiguration(): boolean {
-		return false;
-	}
-
-	public onDidUpdateConfiguration() {
-		return { dispose() { } };
-	}
-}
-
-export let nullService = new NullConfigurationService();
