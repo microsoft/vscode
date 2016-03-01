@@ -6,7 +6,7 @@
 'use strict';
 
 import pfs = require('vs/base/node/pfs');
-import {IPluginDescription} from 'vs/platform/extensions/common/plugins';
+import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {groupBy, values} from 'vs/base/common/collections';
 import paths = require('vs/base/common/paths');
@@ -111,7 +111,7 @@ export class PluginScanner {
 		collector: IPluginsMessageCollector,
 		absoluteFolderPath:string,
 		isBuiltin:boolean
-	) : TPromise<IPluginDescription>
+	) : TPromise<IExtensionDescription>
 	{
 		absoluteFolderPath = paths.normalize(absoluteFolderPath);
 		let builder = collector.scopeTo(absoluteFolderPath);
@@ -119,7 +119,7 @@ export class PluginScanner {
 
 		return pfs.readFile(absoluteManifestPath).then((manifestContents) => {
 			let errors: string[] = [];
-			let pluginDescFromFile: IPluginDescription = json.parse(manifestContents.toString(), errors);
+			let pluginDescFromFile: IExtensionDescription = json.parse(manifestContents.toString(), errors);
 			if (errors.length > 0) {
 				errors.forEach((error) => {
 					builder.error('Failed to parse ' + absoluteManifestPath + ': ' + error);
@@ -196,7 +196,7 @@ export class PluginScanner {
 		collector: IPluginsMessageCollector,
 		absoluteFolderPath:string,
 		isBuiltin:boolean
-	) : TPromise<IPluginDescription[]>
+	) : TPromise<IExtensionDescription[]>
 	{
 		let obsolete = TPromise.as({});
 
@@ -232,7 +232,7 @@ export class PluginScanner {
 		collector: IPluginsMessageCollector,
 		absoluteFolderPath:string,
 		isBuiltin:boolean
-	) : TPromise<IPluginDescription[]>
+	) : TPromise<IExtensionDescription[]>
 	{
 		return pfs.fileExists(paths.join(absoluteFolderPath, MANIFEST_FILE)).then((exists) => {
 			if (exists) {

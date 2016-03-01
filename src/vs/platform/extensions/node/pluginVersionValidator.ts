@@ -5,7 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import {IPluginDescription} from 'vs/platform/extensions/common/plugins';
+import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {isValidPluginDescription as baseIsValidPluginDescription} from 'vs/platform/extensions/common/pluginsRegistry';
 import {valid} from 'semver';
 
@@ -203,7 +203,7 @@ export function isValidExtensionVersion(version: string, extensionDesc: IReduced
 	return true;
 }
 
-export function isValidPluginDescription(version: string, extensionFolderPath: string, pluginDescription: IPluginDescription, notices: string[]): boolean {
+export function isValidPluginDescription(version: string, extensionFolderPath: string, pluginDescription: IExtensionDescription, notices: string[]): boolean {
 
 	if (!baseIsValidPluginDescription(extensionFolderPath, pluginDescription, notices)) {
 		return false;

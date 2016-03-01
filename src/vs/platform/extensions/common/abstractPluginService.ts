@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IMessage, IPluginDescription, IExtensionService, IPluginStatus} from 'vs/platform/extensions/common/plugins';
+import {IMessage, IExtensionDescription, IExtensionService, IExtensionsStatus} from 'vs/platform/extensions/common/extensions';
 import {PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
 
 const hasOwnProperty = Object.hasOwnProperty;
@@ -83,7 +83,7 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 	}
 
 
-	public getPluginsStatus(): { [id: string]: IPluginStatus } {
+	public getExtensionsStatus(): { [id: string]: IExtensionsStatus } {
 		return null;
 	}
 
@@ -114,7 +114,7 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 	 * Handle semantics related to dependencies for `currentPlugin`.
 	 * semantics: `redExtensions` must wait for `greenExtensions`.
 	 */
-	private _handleActivateRequest(currentPlugin: IPluginDescription, greenExtensions: { [id: string]: IPluginDescription; }, redExtensions: IPluginDescription[]): void {
+	private _handleActivateRequest(currentPlugin: IExtensionDescription, greenExtensions: { [id: string]: IExtensionDescription; }, redExtensions: IExtensionDescription[]): void {
 		let depIds = (typeof currentPlugin.extensionDependencies === 'undefined' ? [] : currentPlugin.extensionDependencies);
 		let currentPluginGetsGreenLight = true;
 
@@ -151,7 +151,7 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 		}
 	}
 
-	private _activatePlugins(pluginDescriptions: IPluginDescription[], recursionLevel: number): TPromise<void> {
+	private _activatePlugins(pluginDescriptions: IExtensionDescription[], recursionLevel: number): TPromise<void> {
 		// console.log(recursionLevel, '_activatePlugins: ', pluginDescriptions.map(p => p.id));
 		if (pluginDescriptions.length === 0) {
 			return TPromise.as(void 0);
@@ -172,8 +172,8 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 			return TPromise.as(void 0);
 		}
 
-		let greenMap: { [id: string]: IPluginDescription; } = Object.create(null),
-			red: IPluginDescription[] = [];
+		let greenMap: { [id: string]: IExtensionDescription; } = Object.create(null),
+			red: IExtensionDescription[] = [];
 
 		for (let i = 0, len = pluginDescriptions.length; i < len; i++) {
 			this._handleActivateRequest(pluginDescriptions[i], greenMap, red);
@@ -201,7 +201,7 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 		});
 	}
 
-	protected _activatePlugin(pluginDescription: IPluginDescription): TPromise<void> {
+	protected _activatePlugin(pluginDescription: IExtensionDescription): TPromise<void> {
 		if (hasOwnProperty.call(this.activatedPlugins, pluginDescription.id)) {
 			return TPromise.as(void 0);
 		}
@@ -226,5 +226,5 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 
 	protected abstract _createFailedPlugin(): T;
 
-	protected abstract _actualActivatePlugin(pluginDescription: IPluginDescription): TPromise<T>;
+	protected abstract _actualActivatePlugin(pluginDescription: IExtensionDescription): TPromise<T>;
 }

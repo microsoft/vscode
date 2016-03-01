@@ -10,7 +10,7 @@ import * as paths from 'vs/base/common/paths';
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {AbstractPluginService, ActivatedPlugin, IPluginContext, IPluginMemento} from 'vs/platform/extensions/common/abstractPluginService';
-import {IMessage, IPluginDescription, IPluginStatus} from 'vs/platform/extensions/common/plugins';
+import {IMessage, IExtensionDescription, IExtensionsStatus} from 'vs/platform/extensions/common/extensions';
 import {PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {PluginHostStorage} from 'vs/platform/storage/common/remotable.storage';
@@ -88,7 +88,7 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 	private _telemetryService: ITelemetryService;
 	private _proxy: PluginHostPluginService;
 	private _isDev: boolean;
-	private _pluginsStatus: { [id: string]: IPluginStatus };
+	private _pluginsStatus: { [id: string]: IExtensionsStatus };
 
 	/**
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
@@ -119,7 +119,7 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 		return new MainProcessFailedPlugin();
 	}
 
-	private getTelemetryActivationEvent(pluginDescription: IPluginDescription): any {
+	private getTelemetryActivationEvent(pluginDescription: IExtensionDescription): any {
 		let event = {
 			id: pluginDescription.id,
 			name: pluginDescription.name,
@@ -196,13 +196,13 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 		}
 	}
 
-	public getPluginsStatus(): { [id: string]: IPluginStatus } {
+	public getExtensionsStatus(): { [id: string]: IExtensionsStatus } {
 		return this._pluginsStatus;
 	}
 
 	// -- overwriting AbstractPluginService
 
-	protected _actualActivatePlugin(pluginDescription: IPluginDescription): TPromise<ActivatedPlugin> {
+	protected _actualActivatePlugin(pluginDescription: IExtensionDescription): TPromise<ActivatedPlugin> {
 		let event = this.getTelemetryActivationEvent(pluginDescription);
 		this._telemetryService.publicLog('activatePlugin', event);
 		// redirect plugin activation to the plugin host
@@ -214,7 +214,7 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 
 	// -- called by plugin host
 
-	public $onPluginHostReady(pluginDescriptions: IPluginDescription[], messages: IMessage[]): void {
+	public $onPluginHostReady(pluginDescriptions: IExtensionDescription[], messages: IMessage[]): void {
 		PluginsRegistry.registerPlugins(pluginDescriptions);
 		this.registrationDone(messages);
 	}
@@ -334,11 +334,11 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 		this._proxy.$onPluginHostReady(PluginsRegistry.getAllPluginDescriptions(), messages);
 	}
 
-	protected _loadPluginModule(pluginDescription: IPluginDescription): TPromise<IPluginModule> {
+	protected _loadPluginModule(pluginDescription: IExtensionDescription): TPromise<IPluginModule> {
 		return loadCommonJSModule(pluginDescription.main);
 	}
 
-	protected _loadPluginContext(pluginDescription: IPluginDescription): TPromise<IPluginContext> {
+	protected _loadPluginContext(pluginDescription: IExtensionDescription): TPromise<IPluginContext> {
 
 		let globalState = new PluginMemento(pluginDescription.id, true, this._storage);
 		let workspaceState = new PluginMemento(pluginDescription.id, false, this._storage);
@@ -354,7 +354,7 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 		});
 	}
 
-	protected _actualActivatePlugin(pluginDescription: IPluginDescription): TPromise<ActivatedPlugin> {
+	protected _actualActivatePlugin(pluginDescription: IExtensionDescription): TPromise<ActivatedPlugin> {
 
 		return this._superActualActivatePlugin(pluginDescription).then((activatedPlugin) => {
 			this._proxy.$onPluginActivatedInPluginHost(pluginDescription.id);
@@ -365,7 +365,7 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 		});
 	}
 
-	private _superActualActivatePlugin(pluginDescription: IPluginDescription): TPromise<ExtHostPlugin> {
+	private _superActualActivatePlugin(pluginDescription: IExtensionDescription): TPromise<ExtHostPlugin> {
 
 		if (!pluginDescription.main) {
 			// Treat the plugin as being empty => NOT AN ERROR CASE
@@ -406,7 +406,7 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 
 	// -- called by main thread
 
-	public $activatePluginInPluginHost(pluginDescription: IPluginDescription): TPromise<void> {
+	public $activatePluginInPluginHost(pluginDescription: IExtensionDescription): TPromise<void> {
 		return this._activatePlugin(pluginDescription);
 	}
 

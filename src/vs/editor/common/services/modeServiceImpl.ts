@@ -12,7 +12,7 @@ import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {createAsyncDescriptor0, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
-import {IExtensionService} from 'vs/platform/extensions/common/plugins';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IExtensionPointUser, IMessageCollector, PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
 import {IThreadService, Remotable, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import * as modes from 'vs/editor/common/modes';

@@ -59,7 +59,7 @@ import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IThreadService} from 'vs/platform/thread/common/thread';
-import {IExtensionService} from 'vs/platform/extensions/common/plugins';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {AbstractThreadService} from 'vs/platform/thread/common/abstractThreadService';
 import {IStatusbarService} from 'vs/workbench/services/statusbar/common/statusbarService';
 

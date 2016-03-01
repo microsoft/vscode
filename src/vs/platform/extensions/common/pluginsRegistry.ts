@@ -9,7 +9,7 @@ import {onUnexpectedError} from 'vs/base/common/errors';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 import * as paths from 'vs/base/common/paths';
 import Severity from 'vs/base/common/severity';
-import {IActivationEventListener, IMessage, IPluginDescription, IPointListener} from 'vs/platform/extensions/common/plugins';
+import {IActivationEventListener, IMessage, IExtensionDescription, IPointListener} from 'vs/platform/extensions/common/extensions';
 import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {Registry} from 'vs/platform/platform';
 
@@ -136,7 +136,7 @@ export class PluginsMessageCollector implements IPluginsMessageCollector {
 	}
 }
 
-export function isValidPluginDescription(extensionFolderPath: string, pluginDescription: IPluginDescription, notices: string[]): boolean {
+export function isValidPluginDescription(extensionFolderPath: string, pluginDescription: IExtensionDescription, notices: string[]): boolean {
 	if (!pluginDescription) {
 		notices.push(nls.localize('pluginDescription.empty', "Got empty extension description"));
 		return false;
@@ -198,13 +198,13 @@ export function isValidPluginDescription(extensionFolderPath: string, pluginDesc
 }
 
 interface IPluginDescriptionMap {
-	[pluginId: string]: IPluginDescription;
+	[pluginId: string]: IExtensionDescription;
 }
 const hasOwnProperty = Object.hasOwnProperty;
 let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
 
 export interface IExtensionPointUser<T> {
-	description: IPluginDescription;
+	description: IExtensionDescription;
 	value: T;
 	collector: IMessageCollector;
 }
@@ -219,11 +219,11 @@ export interface IExtensionPoint<T> {
 }
 
 export interface IPluginsRegistry {
-	registerPlugins(pluginDescriptions: IPluginDescription[]): void;
+	registerPlugins(pluginDescriptions: IExtensionDescription[]): void;
 
-	getPluginDescriptionsForActivationEvent(activationEvent: string): IPluginDescription[];
-	getAllPluginDescriptions(): IPluginDescription[];
-	getPluginDescription(pluginId: string): IPluginDescription;
+	getPluginDescriptionsForActivationEvent(activationEvent: string): IExtensionDescription[];
+	getAllPluginDescriptions(): IExtensionDescription[];
+	getPluginDescription(pluginId: string): IExtensionDescription;
 
 	registerOneTimeActivationEventListener(activationEvent: string, listener: IActivationEventListener): void;
 	triggerActivationEventListeners(activationEvent: string): void;
@@ -264,7 +264,7 @@ class ExtensionPoint<T> implements IExtensionPoint<T> {
 			return;
 		}
 
-		this._registry.registerPointListener(this.name, (descriptions: IPluginDescription[]) => {
+		this._registry.registerPointListener(this.name, (descriptions: IExtensionDescription[]) => {
 			let users = descriptions.map((desc) => {
 				return {
 					description: desc,
@@ -372,8 +372,8 @@ interface IPointListenerEntry {
 class PluginsRegistryImpl implements IPluginsRegistry {
 
 	private _pluginsMap: IPluginDescriptionMap;
-	private _pluginsArr: IPluginDescription[];
-	private _activationMap: { [activationEvent: string]: IPluginDescription[]; };
+	private _pluginsArr: IExtensionDescription[];
+	private _activationMap: { [activationEvent: string]: IExtensionDescription[]; };
 	private _pointListeners: IPointListenerEntry[];
 	private _oneTimeActivationEventListeners: { [activationEvent: string]: IActivationEventListener[]; };
 	private _extensionPoints: { [extPoint: string]: ExtensionPoint<any>; };
@@ -417,7 +417,7 @@ class PluginsRegistryImpl implements IPluginsRegistry {
 		});
 	}
 
-	private _triggerPointListener(handler: IPointListenerEntry, desc: IPluginDescription[]): void {
+	private _triggerPointListener(handler: IPointListenerEntry, desc: IExtensionDescription[]): void {
 		// console.log('_triggerPointListeners: ' + desc.length + ' OF ' + handler.extensionPoint);
 		if (!desc || desc.length === 0) {
 			return;
@@ -429,7 +429,7 @@ class PluginsRegistryImpl implements IPluginsRegistry {
 		}
 	}
 
-	public registerPlugins(pluginDescriptions: IPluginDescription[]): void {
+	public registerPlugins(pluginDescriptions: IExtensionDescription[]): void {
 		for (let i = 0, len = pluginDescriptions.length; i < len; i++) {
 			let pluginDescription = pluginDescriptions[i];
 
@@ -458,24 +458,24 @@ class PluginsRegistryImpl implements IPluginsRegistry {
 		}
 	}
 
-	private static _filterWithExtPoint(input: IPluginDescription[], point: string): IPluginDescription[] {
+	private static _filterWithExtPoint(input: IExtensionDescription[], point: string): IExtensionDescription[] {
 		return input.filter((desc) => {
 			return (desc.contributes && hasOwnProperty.call(desc.contributes, point));
 		});
 	}
 
-	public getPluginDescriptionsForActivationEvent(activationEvent: string): IPluginDescription[] {
+	public getPluginDescriptionsForActivationEvent(activationEvent: string): IExtensionDescription[] {
 		if (!hasOwnProperty.call(this._activationMap, activationEvent)) {
 			return [];
 		}
 		return this._activationMap[activationEvent].slice(0);
 	}
 
-	public getAllPluginDescriptions(): IPluginDescription[] {
+	public getAllPluginDescriptions(): IExtensionDescription[] {
 		return this._pluginsArr.slice(0);
 	}
 
-	public getPluginDescription(pluginId: string): IPluginDescription {
+	public getPluginDescription(pluginId: string): IExtensionDescription {
 		if (!hasOwnProperty.call(this._pluginsMap, pluginId)) {
 			return null;
 		}

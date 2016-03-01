@@ -13,7 +13,7 @@ import pfs = require('vs/base/node/pfs');
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
-import {IExtensionService, IPluginDescription} from 'vs/platform/extensions/common/plugins';
+import {IExtensionService, IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {PluginsRegistry, PluginsMessageCollector, IPluginsMessageCollector} from 'vs/platform/extensions/common/pluginsRegistry';
 import {ExtHostAPIImplementation} from 'vs/workbench/api/node/extHost.api.impl';
 import {IPluginsIPC} from 'vs/platform/extensions/common/ipcRemoteCom';
@@ -152,17 +152,17 @@ export class PluginHostMain {
 			.then(() => this.handlePluginTests());
 	}
 
-	private static scanPlugins(collector: IPluginsMessageCollector, builtinPluginsPath: string, userInstallPath: string, pluginDevelopmentPath: string, version: string): TPromise<IPluginDescription[]> {
+	private static scanPlugins(collector: IPluginsMessageCollector, builtinPluginsPath: string, userInstallPath: string, pluginDevelopmentPath: string, version: string): TPromise<IExtensionDescription[]> {
 		const builtinPlugins = PluginScanner.scanPlugins(version, collector, builtinPluginsPath, true);
 		const userPlugins = !userInstallPath ? TPromise.as([]) : PluginScanner.scanPlugins(version, collector, userInstallPath, false);
 		const developedPlugins = !pluginDevelopmentPath ? TPromise.as([]) : PluginScanner.scanOneOrMultiplePlugins(version, collector, pluginDevelopmentPath, false);
 
-		return TPromise.join([builtinPlugins, userPlugins, developedPlugins]).then((_: IPluginDescription[][]) => {
+		return TPromise.join([builtinPlugins, userPlugins, developedPlugins]).then((_: IExtensionDescription[][]) => {
 			let builtinPlugins = _[0];
 			let userPlugins = _[1];
 			let extensionDevPlugins = _[2];
 
-			let resultingPluginsMap: { [pluginName: string]: IPluginDescription; } = {};
+			let resultingPluginsMap: { [pluginName: string]: IExtensionDescription; } = {};
 			builtinPlugins.forEach((builtinPlugin) => {
 				resultingPluginsMap[builtinPlugin.id] = builtinPlugin;
 			});

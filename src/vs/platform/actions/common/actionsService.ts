@@ -7,7 +7,7 @@
 import {localize} from 'vs/nls';
 import {Action, IAction} from 'vs/base/common/actions';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
-import {IExtensionService} from 'vs/platform/extensions/common/plugins';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IMessageCollector, PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IActionsService} from './actions';

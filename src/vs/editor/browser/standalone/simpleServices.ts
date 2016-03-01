@@ -14,7 +14,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {ConfigurationService, IContent, IStat} from 'vs/platform/configuration/common/configurationService';
 import {IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, ITextEditorModel, Position} from 'vs/platform/editor/common/editor';
 import {AbstractPluginService, ActivatedPlugin} from 'vs/platform/extensions/common/abstractPluginService';
-import {IPluginDescription} from 'vs/platform/extensions/common/plugins';
+import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {KeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {ICommandHandler, ICommandsMap, IKeybindingItem} from 'vs/platform/keybinding/common/keybindingService';
@@ -278,7 +278,7 @@ export class SimplePluginService extends AbstractPluginService<ActivatedPlugin> 
 		throw new Error('unexpected');
 	}
 
-	protected _actualActivatePlugin(pluginDescription: IPluginDescription): TPromise<ActivatedPlugin> {
+	protected _actualActivatePlugin(pluginDescription: IExtensionDescription): TPromise<ActivatedPlugin> {
 		throw new Error('unexpected');
 	}
 

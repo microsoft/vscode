@@ -29,7 +29,7 @@ import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import EditorCommon = require('vs/editor/common/editorCommon');
-import {IExtensionService, IPluginDescription} from 'vs/platform/extensions/common/plugins';
+import {IExtensionService, IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {PluginHostPluginService} from 'vs/platform/extensions/common/nativePluginService';
 import {PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -419,7 +419,7 @@ class Extension<T> implements vscode.Extension<T> {
 	public extensionPath: string;
 	public packageJSON: any;
 
-	constructor(extensionService:PluginHostPluginService, description:IPluginDescription) {
+	constructor(extensionService:PluginHostPluginService, description:IExtensionDescription) {
 		this._extensionService = extensionService;
 		this.id = description.id;
 		this.extensionPath = paths.normalize(description.extensionFolderPath, true);

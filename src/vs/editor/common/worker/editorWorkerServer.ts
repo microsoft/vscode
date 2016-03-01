@@ -13,7 +13,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {WorkerServer} from 'vs/base/common/worker/workerServer';
 import {EventService} from 'vs/platform/event/common/eventService';
 import {AbstractPluginService, ActivatedPlugin} from 'vs/platform/extensions/common/abstractPluginService';
-import {IPluginDescription} from 'vs/platform/extensions/common/plugins';
+import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {SecondaryMarkerService} from 'vs/platform/markers/common/markerService';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
@@ -71,7 +71,7 @@ class WorkerPluginService extends AbstractPluginService<ActivatedPlugin> {
 		throw new Error('unexpected');
 	}
 
-	protected _actualActivatePlugin(pluginDescription: IPluginDescription): TPromise<ActivatedPlugin> {
+	protected _actualActivatePlugin(pluginDescription: IExtensionDescription): TPromise<ActivatedPlugin> {
 		throw new Error('unexpected');
 	}
 

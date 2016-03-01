@@ -8,7 +8,7 @@ import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
 
-export interface IPluginDescription {
+export interface IExtensionDescription {
 	id: string;
 	name: string;
 	version: string;
@@ -29,7 +29,7 @@ export interface IActivationEventListener {
 }
 
 export interface IPointListener {
-	(desc: IPluginDescription[]): void;
+	(desc: IExtensionDescription[]): void;
 }
 
 export const IExtensionService = createDecorator<IExtensionService>('extensionService');
@@ -40,7 +40,7 @@ export interface IMessage {
 	source: string;
 }
 
-export interface IPluginStatus {
+export interface IExtensionsStatus {
 	messages: IMessage[];
 }
 
@@ -60,7 +60,5 @@ export interface IExtensionService {
 	/**
 	 * Get information about extensions status.
 	 */
-	getPluginsStatus(): { [id: string]: IPluginStatus };
+	getExtensionsStatus(): { [id: string]: IExtensionsStatus };
 }
-
-export const INSTANCE: IExtensionService = null;
