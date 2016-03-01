@@ -231,7 +231,7 @@ export class WorkbenchShell {
 
 		this.windowService = new WindowService();
 
-		let disableWorkspaceStorage = this.configuration.env.pluginTestsPath || (!this.workspace && !this.configuration.env.pluginDevelopmentPath); // without workspace or in any plugin test, we use inMemory storage unless we develop a plugin where we want to preserve state
+		let disableWorkspaceStorage = this.configuration.env.extensionTestsPath || (!this.workspace && !this.configuration.env.extensionDevelopmentPath); // without workspace or in any plugin test, we use inMemory storage unless we develop a plugin where we want to preserve state
 		this.storageService = new Storage(this.contextService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 
 		let configService = new ConfigurationService(
@@ -240,7 +240,7 @@ export class WorkbenchShell {
 		);
 
 		// no telemetry in a window for plugin development!
-		let enableTelemetry = this.configuration.env.isBuilt && !this.configuration.env.pluginDevelopmentPath ? !!this.configuration.env.enableTelemetry : false;
+		let enableTelemetry = this.configuration.env.isBuilt && !this.configuration.env.extensionDevelopmentPath ? !!this.configuration.env.enableTelemetry : false;
 		this.telemetryService = new ElectronTelemetryService(configService, this.storageService, { enableTelemetry: enableTelemetry, version: this.configuration.env.version, commitHash: this.configuration.env.commitHash });
 
 		this.keybindingService = new WorkbenchKeybindingService(this.contextService, eventService, this.telemetryService, <any>window);

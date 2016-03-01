@@ -133,7 +133,7 @@
 			var mainStarted = false;
 			var args = parseURLQueryArgs();
 			var configuration = JSON.parse(args['config']);
-			var enableDeveloperTools = !configuration.isBuilt || !!configuration.pluginDevelopmentPath;
+			var enableDeveloperTools = !configuration.isBuilt || !!configuration.extensionDevelopmentPath;
 
 			process.env['VSCODE_SHARED_IPC_HOOK'] = configuration.sharedIPCHandle;
 

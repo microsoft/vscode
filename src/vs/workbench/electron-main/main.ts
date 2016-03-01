@@ -28,7 +28,7 @@ export class LaunchService {
 		env.log('Received data from other instance', args);
 
 		// Otherwise handle in windows manager
-		if (!!args.pluginDevelopmentPath) {
+		if (!!args.extensionDevelopmentPath) {
 			windows.manager.openPluginDevelopmentHostWindow({ cli: args, userEnv: userEnv });
 		} else if (args.pathArguments.length === 0 && args.openNewWindow) {
 			windows.manager.open({ cli: args, userEnv: userEnv, forceNewWindow: true, forceEmpty: true });

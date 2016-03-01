@@ -24,7 +24,7 @@ function getEnvironment(): IEnvironment {
 	configuration.appSettingsHome = env.appSettingsHome;
 	configuration.appSettingsPath = env.appSettingsPath;
 	configuration.appKeybindingsPath = env.appKeybindingsPath;
-	configuration.userPluginsHome = env.userPluginsHome;
+	configuration.userExtensionsHome = env.userExtensionsHome;
 	configuration.isBuilt = env.isBuilt;
 	configuration.updateFeedUrl = UpdateManager.feedUrl;
 	configuration.updateChannel = UpdateManager.channel;

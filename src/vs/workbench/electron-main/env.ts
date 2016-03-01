@@ -100,13 +100,13 @@ if (!fs.existsSync(userHome)) {
 	fs.mkdirSync(userHome);
 }
 
-export const userPluginsHome = cliArgs.pluginHomePath || path.join(userHome, 'extensions');
-if (!fs.existsSync(userPluginsHome)) {
-	fs.mkdirSync(userPluginsHome);
+export const userExtensionsHome = cliArgs.pluginHomePath || path.join(userHome, 'extensions');
+if (!fs.existsSync(userExtensionsHome)) {
+	fs.mkdirSync(userExtensionsHome);
 }
 
 // Helper to identify if we have plugin tests to run from the command line without debugger
-export const isTestingFromCli = cliArgs.pluginTestsPath && !cliArgs.debugBrkPluginHost;
+export const isTestingFromCli = cliArgs.extensionTestsPath && !cliArgs.debugBrkPluginHost;
 
 export function log(...a: any[]): void {
 	if (cliArgs.verboseLogging) {
@@ -123,11 +123,11 @@ export interface ICommandLineArguments {
 	debugPluginHostPort: number;
 	debugBrkPluginHost: boolean;
 	logPluginHostCommunication: boolean;
-	disablePlugins: boolean;
+	disableExtensions: boolean;
 
 	pluginHomePath: string;
-	pluginDevelopmentPath: string;
-	pluginTestsPath: string;
+	extensionDevelopmentPath: string;
+	extensionTestsPath: string;
 
 	programStart: number;
 
@@ -203,9 +203,9 @@ function parseCli(): ICommandLineArguments {
 		openInSameWindow: !!opts['r'] || !!opts['reuse-window'],
 		gotoLineMode: gotoLineMode,
 		pluginHomePath: normalizePath(parseString(args, '--extensionHomePath')),
-		pluginDevelopmentPath: normalizePath(parseString(args, '--extensionDevelopmentPath')),
-		pluginTestsPath: normalizePath(parseString(args, '--extensionTestsPath')),
-		disablePlugins: !!opts['disableExtensions'] || !!opts['disable-extensions'],
+		extensionDevelopmentPath: normalizePath(parseString(args, '--extensionDevelopmentPath')),
+		extensionTestsPath: normalizePath(parseString(args, '--extensionTestsPath')),
+		disableExtensions: !!opts['disableExtensions'] || !!opts['disable-extensions'],
 		locale: parseString(args, '--locale')
 	};
 }

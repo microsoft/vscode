@@ -34,7 +34,7 @@ import { ExtensionsService } from 'vs/workbench/parts/extensions/node/extensions
 
 const DIRNAME = URI.parse(require.toUrl('./')).fsPath;
 const BASE_PATH = paths.normalize(paths.join(DIRNAME, '../../../..'));
-const BUILTIN_PLUGINS_PATH = paths.join(BASE_PATH, 'extensions');
+const BUILTIN_EXTENSIONS_PATH = paths.join(BASE_PATH, 'extensions');
 
 export interface IInitData {
 	threadService: any;
@@ -90,7 +90,7 @@ interface ITestRunner {
 	run(testsRoot: string, clb: (error: Error, failures?: number) => void): void;
 }
 
-export class PluginHostMain {
+export class ExtensionHostMain {
 
 	private _isTerminating: boolean;
 	private _contextService: IWorkspaceContextService;
@@ -106,7 +106,7 @@ export class PluginHostMain {
 	}
 
 	public start(): TPromise<void> {
-		return this.readPlugins();
+		return this.readExtensions();
 	}
 
 	public terminate(): void {
@@ -134,11 +134,11 @@ export class PluginHostMain {
 		}, 1000);
 	}
 
-	private readPlugins(): TPromise<void> {
+	private readExtensions(): TPromise<void> {
 		let collector = new MessagesCollector();
 		let env = this._contextService.getConfiguration().env;
 
-		return PluginHostMain.scanPlugins(collector, BUILTIN_PLUGINS_PATH, !env.disablePlugins ? env.userPluginsHome : void 0, !env.disablePlugins ? env.pluginDevelopmentPath : void 0, env.version)
+		return ExtensionHostMain.scanExtensions(collector, BUILTIN_EXTENSIONS_PATH, !env.disableExtensions ? env.userExtensionsHome : void 0, !env.disableExtensions ? env.extensionDevelopmentPath : void 0, env.version)
 			.then(null, err => {
 				collector.error('', err);
 				return [];
@@ -148,51 +148,51 @@ export class PluginHostMain {
 				ExtensionsRegistry.registerExtensions(extensions);
 				this._extensionService.registrationDone(collector.getMessages());
 			})
-			.then(() => this.handleEagerPlugins())
-			.then(() => this.handlePluginTests());
+			.then(() => this.handleEagerExtensions())
+			.then(() => this.handleExtensionTests());
 	}
 
-	private static scanPlugins(collector: MessagesCollector, builtinPluginsPath: string, userInstallPath: string, pluginDevelopmentPath: string, version: string): TPromise<IExtensionDescription[]> {
-		const builtinPlugins = ExtensionScanner.scanExtensions(version, collector, builtinPluginsPath, true);
-		const userPlugins = !userInstallPath ? TPromise.as([]) : ExtensionScanner.scanExtensions(version, collector, userInstallPath, false);
-		const developedPlugins = !pluginDevelopmentPath ? TPromise.as([]) : ExtensionScanner.scanOneOrMultipleExtensions(version, collector, pluginDevelopmentPath, false);
+	private static scanExtensions(collector: MessagesCollector, builtinExtensionsPath: string, userInstallPath: string, extensionDevelopmentPath: string, version: string): TPromise<IExtensionDescription[]> {
+		const builtinExtensions = ExtensionScanner.scanExtensions(version, collector, builtinExtensionsPath, true);
+		const userExtensions = !userInstallPath ? TPromise.as([]) : ExtensionScanner.scanExtensions(version, collector, userInstallPath, false);
+		const developedExtensions = !extensionDevelopmentPath ? TPromise.as([]) : ExtensionScanner.scanOneOrMultipleExtensions(version, collector, extensionDevelopmentPath, false);
 
-		return TPromise.join([builtinPlugins, userPlugins, developedPlugins]).then((_: IExtensionDescription[][]) => {
-			let builtinPlugins = _[0];
-			let userPlugins = _[1];
-			let extensionDevPlugins = _[2];
+		return TPromise.join([builtinExtensions, userExtensions, developedExtensions]).then((_: IExtensionDescription[][]) => {
+			let builtinExtensions = _[0];
+			let userExtensions = _[1];
+			let developedExtensions = _[2];
 
-			let resultingPluginsMap: { [pluginName: string]: IExtensionDescription; } = {};
-			builtinPlugins.forEach((builtinPlugin) => {
-				resultingPluginsMap[builtinPlugin.id] = builtinPlugin;
+			let result: { [extensionId: string]: IExtensionDescription; } = {};
+			builtinExtensions.forEach((builtinExtension) => {
+				result[builtinExtension.id] = builtinExtension;
 			});
-			userPlugins.forEach((userPlugin) => {
-				if (resultingPluginsMap.hasOwnProperty(userPlugin.id)) {
-					collector.warn(userPlugin.extensionFolderPath, 'Overwriting extension ' + resultingPluginsMap[userPlugin.id].extensionFolderPath + ' with ' + userPlugin.extensionFolderPath);
+			userExtensions.forEach((userExtension) => {
+				if (result.hasOwnProperty(userExtension.id)) {
+					collector.warn(userExtension.extensionFolderPath, 'Overwriting extension ' + result[userExtension.id].extensionFolderPath + ' with ' + userExtension.extensionFolderPath);
 				}
-				resultingPluginsMap[userPlugin.id] = userPlugin;
+				result[userExtension.id] = userExtension;
 			});
-			extensionDevPlugins.forEach(extensionDevPlugin => {
-				collector.info('', 'Loading development extension at ' + extensionDevPlugin.extensionFolderPath);
-				if (resultingPluginsMap.hasOwnProperty(extensionDevPlugin.id)) {
-					collector.warn(extensionDevPlugin.extensionFolderPath, 'Overwriting extension ' + resultingPluginsMap[extensionDevPlugin.id].extensionFolderPath + ' with ' + extensionDevPlugin.extensionFolderPath);
+			developedExtensions.forEach(developedExtension => {
+				collector.info('', 'Loading development extension at ' + developedExtension.extensionFolderPath);
+				if (result.hasOwnProperty(developedExtension.id)) {
+					collector.warn(developedExtension.extensionFolderPath, 'Overwriting extension ' + result[developedExtension.id].extensionFolderPath + ' with ' + developedExtension.extensionFolderPath);
 				}
-				resultingPluginsMap[extensionDevPlugin.id] = extensionDevPlugin;
+				result[developedExtension.id] = developedExtension;
 			});
 
-			return Object.keys(resultingPluginsMap).map(name => resultingPluginsMap[name]);
+			return Object.keys(result).map(name => result[name]);
 		});
 	}
 
-	// Handle "eager" activation plugins
-	private handleEagerPlugins(): TPromise<void> {
+	// Handle "eager" activation extensions
+	private handleEagerExtensions(): TPromise<void> {
 		this._extensionService.activateByEvent('*').then(null, (err) => {
 			console.error(err);
 		});
-		return this.handleWorkspaceContainsEagerPlugins();
+		return this.handleWorkspaceContainsEagerExtensions();
 	}
 
-	private handleWorkspaceContainsEagerPlugins(): TPromise<void> {
+	private handleWorkspaceContainsEagerExtensions(): TPromise<void> {
 		let workspace = this._contextService.getWorkspace();
 		if (!workspace || !workspace.resource) {
 			return TPromise.as(null);
@@ -236,9 +236,9 @@ export class PluginHostMain {
 		});
 	}
 
-	private handlePluginTests(): TPromise<void> {
+	private handleExtensionTests(): TPromise<void> {
 		let env = this._contextService.getConfiguration().env;
-		if (!env.pluginTestsPath || !env.pluginDevelopmentPath) {
+		if (!env.extensionTestsPath || !env.extensionDevelopmentPath) {
 			return TPromise.as(null);
 		}
 
@@ -246,7 +246,7 @@ export class PluginHostMain {
 		let testRunner: ITestRunner;
 		let requireError: Error;
 		try {
-			testRunner = <any>require.__$__nodeRequire(env.pluginTestsPath);
+			testRunner = <any>require.__$__nodeRequire(env.extensionTestsPath);
 		} catch (error) {
 			requireError = error;
 		}
@@ -254,7 +254,7 @@ export class PluginHostMain {
 		// Execute the runner if it follows our spec
 		if (testRunner && typeof testRunner.run === 'function') {
 			return new TPromise<void>((c, e) => {
-				testRunner.run(env.pluginTestsPath, (error, failures) => {
+				testRunner.run(env.extensionTestsPath, (error, failures) => {
 					if (error) {
 						e(error.toString());
 					} else {
@@ -272,7 +272,7 @@ export class PluginHostMain {
 			this.gracefulExit(1 /* ERROR */);
 		}
 
-		return TPromise.wrapError<void>(requireError ? requireError.toString() : nls.localize('pluginTestError', "Path {0} does not point to a valid extension test runner.", env.pluginTestsPath));
+		return TPromise.wrapError<void>(requireError ? requireError.toString() : nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", env.extensionTestsPath));
 	}
 
 	private gracefulExit(code: number): void {

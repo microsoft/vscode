@@ -98,15 +98,15 @@ class PluginHostProcessManager {
 		this.windowService = windowService;
 
 		// handle plugin host lifecycle a bit special when we know we are developing an extension that runs inside
-		this.isPluginDevelopmentHost = !!this.contextService.getConfiguration().env.pluginDevelopmentPath;
+		this.isPluginDevelopmentHost = !!this.contextService.getConfiguration().env.extensionDevelopmentPath;
 
 		this.unsentMessages = [];
 	}
 
 	public startPluginHostProcess(onPluginHostMessage: (msg: any) => void): void {
 		let config = this.contextService.getConfiguration();
-		let isDev = !config.env.isBuilt || !!config.env.pluginDevelopmentPath;
-		let isTestingFromCli = !!config.env.pluginTestsPath && !config.env.debugBrkPluginHost;
+		let isDev = !config.env.isBuilt || !!config.env.extensionDevelopmentPath;
+		let isTestingFromCli = !!config.env.extensionTestsPath && !config.env.debugBrkPluginHost;
 
 		let opts: any = {
 			env: objects.mixin(objects.clone(process.env), { AMD_ENTRYPOINT: 'vs/workbench/node/pluginHostProcess', PIPE_LOGGING: 'true', VERBOSE_LOGGING: true })
@@ -134,13 +134,13 @@ class PluginHostProcessManager {
 				this.pluginHostProcessHandle = cp.fork(uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=pluginHost'], opts);
 
 				// Notify debugger that we are ready to attach to the process if we run a development plugin
-				if (config.env.pluginDevelopmentPath && port) {
+				if (config.env.extensionDevelopmentPath && port) {
 					this.windowService.broadcast({
 						channel: PLUGIN_ATTACH_BROADCAST_CHANNEL,
 						payload: {
 							port: port
 						}
-					}, config.env.pluginDevelopmentPath /* target */);
+					}, config.env.extensionDevelopmentPath /* target */);
 				}
 
 				// Messages from Plugin host
@@ -209,7 +209,7 @@ class PluginHostProcessManager {
 							this.windowService.broadcast({
 								channel: PLUGIN_LOG_BROADCAST_CHANNEL,
 								payload: logEntry
-							}, config.env.pluginDevelopmentPath /* target */);
+							}, config.env.extensionDevelopmentPath /* target */);
 						}
 					}
 

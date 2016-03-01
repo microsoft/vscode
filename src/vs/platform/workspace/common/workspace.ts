@@ -120,16 +120,16 @@ export interface IEnvironment {
 
 	debugPluginHostPort: number;
 	debugBrkPluginHost: boolean;
-	disablePlugins: boolean;
+	disableExtensions: boolean;
 
 	logPluginHostCommunication: boolean;
 	verboseLogging: boolean;
 	enablePerformance: boolean;
 
-	userPluginsHome: string;
+	userExtensionsHome: string;
 	sharedIPCHandle: string;
-	pluginDevelopmentPath: string;
-	pluginTestsPath: string;
+	extensionDevelopmentPath: string;
+	extensionTestsPath: string;
 
 	recentPaths: string[];
 

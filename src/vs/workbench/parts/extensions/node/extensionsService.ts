@@ -107,7 +107,7 @@ export class ExtensionsService implements IExtensionsService {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		const env = contextService.getConfiguration().env;
-		this.extensionsPath = env.userPluginsHome;
+		this.extensionsPath = env.userExtensionsHome;
 		this.obsoletePath = path.join(this.extensionsPath, '.obsolete');
 		this.obsoleteFileLimiter = new Limiter(1);
 	}

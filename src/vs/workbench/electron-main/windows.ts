@@ -403,7 +403,7 @@ export class WindowsManager {
 
 			// Let the user settings override how files are open in a new window or same window
 			let openFilesInNewWindow = openConfig.forceNewWindow;
-			if (openFilesInNewWindow && !openConfig.cli.pluginDevelopmentPath) { // can be overriden via settings (not for PDE though!)
+			if (openFilesInNewWindow && !openConfig.cli.extensionDevelopmentPath) { // can be overriden via settings (not for PDE though!)
 				openFilesInNewWindow = settings.manager.getValue('window.openFilesInNewWindow', openFilesInNewWindow);
 			}
 
@@ -504,7 +504,7 @@ export class WindowsManager {
 		// Reload an existing plugin development host window on the same path
 		// We currently do not allow more than one extension development window
 		// on the same plugin path.
-		let res = WindowsManager.WINDOWS.filter((w) => w.config && this.isPathEqual(w.config.pluginDevelopmentPath, openConfig.cli.pluginDevelopmentPath));
+		let res = WindowsManager.WINDOWS.filter((w) => w.config && this.isPathEqual(w.config.extensionDevelopmentPath, openConfig.cli.extensionDevelopmentPath));
 		if (res && res.length === 1) {
 			this.reload(res[0], openConfig.cli);
 			res[0].focus(); // make sure it gets focus and is restored
@@ -548,7 +548,7 @@ export class WindowsManager {
 		configuration.appSettingsHome = env.appSettingsHome;
 		configuration.appSettingsPath = env.appSettingsPath;
 		configuration.appKeybindingsPath = env.appKeybindingsPath;
-		configuration.userPluginsHome = env.userPluginsHome;
+		configuration.userExtensionsHome = env.userExtensionsHome;
 		configuration.sharedIPCHandle = env.sharedIPCHandle;
 		configuration.isBuilt = env.isBuilt;
 		configuration.crashReporter = env.product.crashReporter;
@@ -683,7 +683,7 @@ export class WindowsManager {
 		if (!vscodeWindow) {
 			vscodeWindow = new window.VSCodeWindow({
 				state: this.getNewWindowState(configuration),
-				isPluginDevelopmentHost: !!configuration.pluginDevelopmentPath
+				isPluginDevelopmentHost: !!configuration.extensionDevelopmentPath
 			});
 
 			WindowsManager.WINDOWS.push(vscodeWindow);
@@ -704,8 +704,8 @@ export class WindowsManager {
 			// Some configuration things get inherited if the window is being reused and we are
 			// in plugin development host mode. These options are all development related.
 			let currentWindowConfig = vscodeWindow.config;
-			if (!configuration.pluginDevelopmentPath && currentWindowConfig && !!currentWindowConfig.pluginDevelopmentPath) {
-				configuration.pluginDevelopmentPath = currentWindowConfig.pluginDevelopmentPath;
+			if (!configuration.extensionDevelopmentPath && currentWindowConfig && !!currentWindowConfig.extensionDevelopmentPath) {
+				configuration.extensionDevelopmentPath = currentWindowConfig.extensionDevelopmentPath;
 				configuration.verboseLogging = currentWindowConfig.verboseLogging;
 				configuration.logPluginHostCommunication = currentWindowConfig.logPluginHostCommunication;
 				configuration.debugBrkPluginHost = currentWindowConfig.debugBrkPluginHost;
@@ -727,7 +727,7 @@ export class WindowsManager {
 	private getNewWindowState(configuration: window.IWindowConfiguration): window.IWindowState {
 
 		// plugin development host Window - load from stored settings if any
-		if (!!configuration.pluginDevelopmentPath && this.windowsState.lastPluginDevelopmentHostWindow) {
+		if (!!configuration.extensionDevelopmentPath && this.windowsState.lastPluginDevelopmentHostWindow) {
 			return this.windowsState.lastPluginDevelopmentHostWindow.uiState;
 		}
 

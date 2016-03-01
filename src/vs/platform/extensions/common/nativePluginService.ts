@@ -60,7 +60,7 @@ export class MainProcessPluginService extends AbstractExtensionService<Activated
 	) {
 		super(false);
 		let config = contextService.getConfiguration();
-		this._isDev = !config.env.isBuilt || !!config.env.pluginDevelopmentPath;
+		this._isDev = !config.env.isBuilt || !!config.env.extensionDevelopmentPath;
 
 		this._messageService = messageService;
 		threadService.registerRemotableInstance(MainProcessPluginService, this);
