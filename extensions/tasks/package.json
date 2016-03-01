@@ -1,0 +1,21 @@
+{
+	"name": "tasks",
+	"description": "Extension to add support for tasks.json files",
+	"displayName": "Tasks.json support for VSCode",
+	"version": "0.10.1",
+	"author": "Microsoft Corporation",
+	"license": "MIT",
+	"publisher": "vscode",
+	"engines": {
+		"vscode": "*"
+	},
+	"scripts": {
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../gulpfile.plugins.js compile-plugin:tasks ./src/tsconfig.json"
+	},
+	"activationEvents": [
+		"onLanguage:json"
+	],
+	"main": "./out/tasksMain",
+	"contributes": {
+	}
+}
