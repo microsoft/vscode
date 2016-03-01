@@ -53,7 +53,7 @@ import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {EditorWorkerServiceImpl} from 'vs/editor/common/services/editorWorkerServiceImpl';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {MainProcessVSCodeAPIHelper} from 'vs/workbench/api/node/extHost.api.impl';
-import {MainProcessExtensionService} from 'vs/platform/extensions/common/nativePluginService';
+import {MainProcessExtensionService} from 'vs/platform/extensions/common/nativeExtensionService';
 import {MainThreadDocuments} from 'vs/workbench/api/node/extHostDocuments';
 import {MainProcessTextMateSyntax} from 'vs/editor/node/textMate/TMSyntax';
 import {MainProcessTextMateSnippet} from 'vs/editor/node/textMate/TMSnippets';

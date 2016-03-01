@@ -20,7 +20,7 @@ import {IPluginsIPC} from 'vs/platform/extensions/common/ipcRemoteCom';
 import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
 import {IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
-import {ExtHostExtensionService} from 'vs/platform/extensions/common/nativePluginService';
+import {ExtHostExtensionService} from 'vs/platform/extensions/common/nativeExtensionService';
 import {PluginHostThreadService} from 'vs/platform/thread/common/pluginHostThreadService';
 import {ExtHostTelemetryService} from 'vs/workbench/api/node/extHostTelemetry';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';

@@ -30,7 +30,7 @@ import Severity from 'vs/base/common/severity';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IExtensionService, IExtensionDescription} from 'vs/platform/extensions/common/extensions';
-import {ExtHostExtensionService} from 'vs/platform/extensions/common/nativePluginService';
+import {ExtHostExtensionService} from 'vs/platform/extensions/common/nativeExtensionService';
 import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
