@@ -13,7 +13,7 @@ import paths = require('vs/base/common/paths');
 import json = require('vs/base/common/json');
 import Types = require('vs/base/common/types');
 import {IExtensionsMessageCollector, IExtensionMessageCollector} from 'vs/platform/extensions/common/extensionsRegistry';
-import {isValidPluginDescription} from 'vs/platform/extensions/node/pluginVersionValidator';
+import {isValidExtensionDescription} from 'vs/platform/extensions/node/extensionValidator';
 import * as semver from 'semver';
 
 const MANIFEST_FILE = 'package.json';
@@ -159,7 +159,7 @@ export class PluginScanner {
 			pluginDescFromFile.isBuiltin = isBuiltin;
 
 			let notices: string[] = [];
-			if (!isValidPluginDescription(version, absoluteFolderPath, pluginDescFromFile, notices)) {
+			if (!isValidExtensionDescription(version, absoluteFolderPath, pluginDescFromFile, notices)) {
 				notices.forEach((error) => {
 					builder.error(error);
 				});

@@ -24,7 +24,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { UserSettings } from 'vs/workbench/node/userSettings';
 import * as semver from 'semver';
 import { groupBy, values } from 'vs/base/common/collections';
-import { isValidExtensionVersion } from 'vs/platform/extensions/node/pluginVersionValidator';
+import { isValidExtensionVersion } from 'vs/platform/extensions/node/extensionValidator';
 
 function parseManifest(raw: string): TPromise<IExtensionManifest> {
 	return new Promise((c, e) => {

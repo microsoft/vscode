@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
-import {isValidExtensionDescription as baseIsValidPluginDescription} from 'vs/platform/extensions/common/extensionsRegistry';
+import {isValidExtensionDescription as baseIsValidExtensionDescription} from 'vs/platform/extensions/common/extensionsRegistry';
 import {valid} from 'semver';
 
 export interface IParsedVersion {
@@ -203,9 +203,9 @@ export function isValidExtensionVersion(version: string, extensionDesc: IReduced
 	return true;
 }
 
-export function isValidPluginDescription(version: string, extensionFolderPath: string, extensionDescription: IExtensionDescription, notices: string[]): boolean {
+export function isValidExtensionDescription(version: string, extensionFolderPath: string, extensionDescription: IExtensionDescription, notices: string[]): boolean {
 
-	if (!baseIsValidPluginDescription(extensionFolderPath, extensionDescription, notices)) {
+	if (!baseIsValidExtensionDescription(extensionFolderPath, extensionDescription, notices)) {
 		return false;
 	}
 
