@@ -37,7 +37,7 @@ export interface ITextEditorPositionData {
 	[id: string]: EditorPosition;
 }
 
-@Remotable.PluginHostContext('ExtHostEditors')
+@Remotable.ExtHostContext('ExtHostEditors')
 export class ExtHostEditors {
 
 	public onDidChangeTextEditorSelection: Event<TextEditorSelectionChangeEvent>;

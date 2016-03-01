@@ -30,7 +30,7 @@ export class RemoteTelemetryServiceHelper {
 }
 
 /**
- * Base class for remote telemetry services (instantiated in plugin host or in web workers)
+ * Base class for remote telemetry services (instantiated in extension host or in web workers)
  */
 export class AbstractRemoteTelemetryService extends AbstractTelemetryService.AbstractTelemetryService implements ITelemetryService {
 

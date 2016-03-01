@@ -97,7 +97,7 @@ export class FileSystemWatcher implements _FileSystemWatcher {
 	}
 }
 
-@Remotable.PluginHostContext('ExtHostFileSystemEventService')
+@Remotable.ExtHostContext('ExtHostFileSystemEventService')
 export class ExtHostFileSystemEventService {
 
 	private _emitter = new Emitter<FileSystemEvents>();

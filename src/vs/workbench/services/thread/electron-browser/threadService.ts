@@ -38,7 +38,7 @@ export interface ILogEntry {
 
 export class MainThreadService extends CommonMainThreadService {
 	private pluginHostProcessManager: PluginHostProcessManager;
-	private remoteCom: pluginsIPC.IPluginsIPC;
+	private remoteCom: pluginsIPC.IMainProcessExtHostIPC;
 
 	constructor(contextService: IWorkspaceContextService, messageService: IMessageService, windowService: IWindowService) {
 		super(contextService, 'vs/editor/common/worker/editorWorkerServer', 1);
@@ -72,7 +72,7 @@ export class MainThreadService extends CommonMainThreadService {
 		this.pluginHostProcessManager.terminate();
 	}
 
-	protected _registerAndInstantiatePluginHostActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
+	protected _registerAndInstantiateExtHostActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
 		return this._getOrCreateProxyInstance(this.remoteCom, id, descriptor);
 	}
 }

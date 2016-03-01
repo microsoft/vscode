@@ -53,11 +53,11 @@ function createRPC(serializeAndSend: (obj: any) => void): IRPCFunc {
 	};
 }
 
-export interface IPluginsIPC extends remote.IRemoteCom {
+export interface IMainProcessExtHostIPC extends remote.IRemoteCom {
 	handle(msg: string[]): void;
 }
 
-export function create(send: (obj: string[]) => void): IPluginsIPC {
+export function create(send: (obj: string[]) => void): IMainProcessExtHostIPC {
 	let rpc = createRPC(marshallAndSend);
 	let bigHandler: remote.IManyHandler = null;
 	let invokedHandlers: { [req: string]: winjs.TPromise<any>; } = Object.create(null);
@@ -134,7 +134,7 @@ export function create(send: (obj: string[]) => void): IPluginsIPC {
 		});
 	};
 
-	let r: IPluginsIPC = {
+	let r: IMainProcessExtHostIPC = {
 		callOnRemote: rpc,
 		setManyHandler: (_bigHandler: remote.IManyHandler): void => {
 			bigHandler = _bigHandler;

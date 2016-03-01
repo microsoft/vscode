@@ -263,11 +263,11 @@ export class MainThreadService extends abstractThreadService.AbstractThreadServi
 		this._registerLocalInstance(id, actor);
 	}
 
-	protected _registerAndInstantiatePluginHostActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
-		throw new Error('Not supported in this runtime context: Cannot communicate to non-existant Plugin Host!');
+	protected _registerAndInstantiateExtHostActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
+		throw new Error('Not supported in this runtime context: Cannot communicate to non-existant Extension Host!');
 	}
 
-	protected _registerPluginHostActor<T>(id: string, actor: T): void {
+	protected _registerExtHostActor<T>(id: string, actor: T): void {
 		throw new Error('Not supported in this runtime context!');
 	}
 

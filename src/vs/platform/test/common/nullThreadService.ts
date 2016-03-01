@@ -48,11 +48,11 @@ export class NullThreadService extends abstractThreadService.AbstractThreadServi
 		this._registerLocalInstance(id, actor);
 	}
 
-	protected _registerAndInstantiatePluginHostActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
+	protected _registerAndInstantiateExtHostActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
 		return this._getOrCreateLocalInstance(id, descriptor);
 	}
 
-	protected _registerPluginHostActor<T>(id: string, actor: T): void {
+	protected _registerExtHostActor<T>(id: string, actor: T): void {
 		throw new Error('Not supported in this runtime context!');
 	}
 

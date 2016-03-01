@@ -49,7 +49,7 @@ export function getWordDefinitionFor(modeId: string): RegExp {
 	return _modeId2WordDefinition[modeId];
 }
 
-@Remotable.PluginHostContext('ExtHostModelService')
+@Remotable.ExtHostContext('ExtHostModelService')
 export class ExtHostModelService {
 
 	private static _handlePool: number = 0;

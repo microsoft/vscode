@@ -51,7 +51,7 @@ export class Remotable {
 
 	public static Registry = {
 		MainContext: <IRemotableCtorMap>Object.create(null),
-		PluginHostContext: <IRemotableCtorMap>Object.create(null),
+		ExtHostContext: <IRemotableCtorMap>Object.create(null),
 		WorkerContext: <IRemotableCtorAffinityMap>Object.create(null),
 	};
 
@@ -67,10 +67,10 @@ export class Remotable {
 		};
 	}
 
-	public static PluginHostContext(identifier: string) {
+	public static ExtHostContext(identifier: string) {
 		return function(target: Function) {
 			Remotable._ensureUnique(identifier);
-			Remotable.Registry.PluginHostContext[identifier] = target;
+			Remotable.Registry.ExtHostContext[identifier] = target;
 			target[Remotable.PROP_NAME] = identifier;
 		};
 	}
@@ -87,7 +87,7 @@ export class Remotable {
 	}
 
 	private static _ensureUnique(identifier: string): void {
-		if (Remotable.Registry.MainContext[identifier] || Remotable.Registry.PluginHostContext[identifier] || Remotable.Registry.WorkerContext[identifier]) {
+		if (Remotable.Registry.MainContext[identifier] || Remotable.Registry.ExtHostContext[identifier] || Remotable.Registry.WorkerContext[identifier]) {
 			throw new Error('Duplicate Remotable identifier found');
 		}
 	}

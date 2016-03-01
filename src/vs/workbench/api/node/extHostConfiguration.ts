@@ -11,7 +11,7 @@ import {IConfigurationService, ConfigurationServiceEventTypes, IConfigurationSer
 import Event, {Emitter} from 'vs/base/common/event';
 import {WorkspaceConfiguration} from 'vscode';
 
-@Remotable.PluginHostContext('ExtHostConfiguration')
+@Remotable.ExtHostContext('ExtHostConfiguration')
 export class ExtHostConfiguration {
 
 	private _config: any;

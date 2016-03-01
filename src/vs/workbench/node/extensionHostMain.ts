@@ -16,12 +16,12 @@ import paths = require('vs/base/common/paths');
 import {IExtensionService, IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {ExtHostAPIImplementation} from 'vs/workbench/api/node/extHost.api.impl';
-import {IPluginsIPC} from 'vs/platform/extensions/common/ipcRemoteCom';
+import {IMainProcessExtHostIPC} from 'vs/platform/extensions/common/ipcRemoteCom';
 import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
 import {IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
 import {ExtHostExtensionService} from 'vs/platform/extensions/common/nativeExtensionService';
-import {PluginHostThreadService} from 'vs/platform/thread/common/pluginHostThreadService';
+import {ExtHostThreadService} from 'vs/platform/thread/common/extHostThreadService';
 import {ExtHostTelemetryService} from 'vs/workbench/api/node/extHostTelemetry';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
@@ -54,10 +54,10 @@ export function exit(code?: number) {
 	nativeExit(code);
 }
 
-export function createServices(remoteCom: IPluginsIPC, initData: IInitData, sharedProcessClient: Client): IInstantiationService {
+export function createServices(remoteCom: IMainProcessExtHostIPC, initData: IInitData, sharedProcessClient: Client): IInstantiationService {
 
 	let contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
-	let threadService = new PluginHostThreadService(remoteCom);
+	let threadService = new ExtHostThreadService(remoteCom);
 	threadService.setInstantiationService(InstantiationService.createInstantiationService({ threadService: threadService }));
 	let telemetryService = new ExtHostTelemetryService(threadService);
 	let requestService = new BaseRequestService(contextService, telemetryService);

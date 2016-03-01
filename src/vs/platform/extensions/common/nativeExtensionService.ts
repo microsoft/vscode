@@ -241,7 +241,7 @@ export interface IExtensionContext {
 	asAbsolutePath(relativePath: string): string;
 }
 
-@Remotable.PluginHostContext('ExtHostExtensionService')
+@Remotable.ExtHostContext('ExtHostExtensionService')
 export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExtension> {
 
 	private _threadService: IThreadService;

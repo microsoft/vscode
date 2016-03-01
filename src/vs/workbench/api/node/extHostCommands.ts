@@ -20,7 +20,7 @@ interface CommandHandler {
 	description: ICommandHandlerDescription;
 }
 
-@Remotable.PluginHostContext('ExtHostCommands')
+@Remotable.ExtHostContext('ExtHostCommands')
 export class ExtHostCommands {
 
 	private _commands: { [n: string]: CommandHandler } = Object.create(null);

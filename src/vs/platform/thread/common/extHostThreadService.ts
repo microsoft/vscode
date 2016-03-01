@@ -11,7 +11,7 @@ import descriptors = require('vs/platform/instantiation/common/descriptors');
 import abstractThreadService = require('./abstractThreadService');
 import {IThreadService, IThreadSynchronizableObject, ThreadAffinity, IThreadServiceStatusListener} from 'vs/platform/thread/common/thread';
 
-export class PluginHostThreadService extends abstractThreadService.AbstractThreadService implements IThreadService {
+export class ExtHostThreadService extends abstractThreadService.AbstractThreadService implements IThreadService {
 	public serviceId = IThreadService;
 	protected _remoteCom: remote.IRemoteCom;
 
@@ -45,16 +45,16 @@ export class PluginHostThreadService extends abstractThreadService.AbstractThrea
 		throw new Error('Not supported in this runtime context!');
 	}
 
-	protected _registerAndInstantiatePluginHostActor<T>(id: string, descriptor: descriptors.SyncDescriptor0<T>): T {
+	protected _registerAndInstantiateExtHostActor<T>(id: string, descriptor: descriptors.SyncDescriptor0<T>): T {
 		return this._getOrCreateLocalInstance(id, descriptor);
 	}
 
-	protected _registerPluginHostActor<T>(id: string, actor: T): void {
+	protected _registerExtHostActor<T>(id: string, actor: T): void {
 		this._registerLocalInstance(id, actor);
 	}
 
 	protected _registerAndInstantiateWorkerActor<T>(id: string, descriptor: descriptors.SyncDescriptor0<T>, whichWorker: ThreadAffinity): T {
-		throw new Error('Not supported in this runtime context! Cannot communicate directly from Plugin Host to Worker!');
+		throw new Error('Not supported in this runtime context! Cannot communicate directly from Extension Host to Worker!');
 	}
 
 	protected _registerWorkerActor<T>(id: string, actor: T): void {

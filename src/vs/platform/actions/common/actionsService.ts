@@ -107,10 +107,10 @@ export default class ActionsService implements IActionsService {
 		let rejects: string[] = [];
 
 		if (isValidCommand(command, rejects)) {
-			// make sure this plugin is activated by this command
+			// make sure this extension is activated by this command
 			let activationEvent = `onCommand:${command.command}`;
 
-			// action that (1) activates the plugin and dispatches the command
+			// action that (1) activates the extension and dispatches the command
 			let label = command.category ? localize('category.label', "{0}: {1}", command.category, command.title) : command.title;
 			let action = new Action(command.command, label, undefined, true, () => {
 				return this._extensionService.activateByEvent(activationEvent).then(() => {

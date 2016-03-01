@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import {INormalizedVersion, IParsedVersion, IReducedExtensionDescription, isValidExtensionVersion, isValidVersion, isValidVersionStr, normalizeVersion, parseVersion} from 'vs/platform/extensions/node/extensionValidator';
 
-suite('Plugin Version Validator', () => {
+suite('Extension Version Validator', () => {
 
 	test('isValidVersionStr', () => {
 		assert.equal(isValidVersionStr('0.10.0-dev'), true);
