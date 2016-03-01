@@ -161,12 +161,12 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 	UpdateManager.initialize();
 
 	// Open our first window
-	if (env.cliArgs.openNewWindow) {
-		windows.manager.open({ cli: env.cliArgs, forceNewWindow: true, forceEmpty: true }); // empty window if "-n" was used
+	if (env.cliArgs.openNewWindow && env.cliArgs.pathArguments.length === 0) {
+		windows.manager.open({ cli: env.cliArgs, forceNewWindow: true, forceEmpty: true }); // new window if "-n" was used without paths
 	} else if (global.macOpenFiles && global.macOpenFiles.length && (!env.cliArgs.pathArguments || !env.cliArgs.pathArguments.length)) {
 		windows.manager.open({ cli: env.cliArgs, pathsToOpen: global.macOpenFiles }); // mac: open-file event received on startup
 	} else {
-		windows.manager.open({ cli: env.cliArgs }); // default: read paths from cli
+		windows.manager.open({ cli: env.cliArgs, forceNewWindow: env.cliArgs.openNewWindow }); // default: read paths from cli
 	}
 }
 
