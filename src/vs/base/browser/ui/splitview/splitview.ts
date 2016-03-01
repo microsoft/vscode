@@ -213,7 +213,7 @@ export class AbstractCollapsibleView extends HeaderView {
 
 		// Keyboard access
 		this.header.setAttribute('tabindex', '0');
-		this.header.setAttribute('role', 'button');
+		this.header.setAttribute('role', 'toolbar');
 		if (this.ariaHeaderLabel) {
 			this.header.setAttribute('aria-label', this.ariaHeaderLabel);
 		}
