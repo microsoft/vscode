@@ -16,6 +16,7 @@ import uri from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import {IStatusbarItem} from 'vs/workbench/browser/parts/statusbar/statusbar';
 import {Action} from 'vs/base/common/actions';
+import {IMode} from 'vs/editor/common/modes';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {IFileEditorInput, EncodingMode, IEncodingSupport, asFileEditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
 import {IDisposable, combinedDispose} from 'vs/base/common/lifecycle';
@@ -66,7 +67,7 @@ function getTextModel(editorWidget: IEditor): ITextModel {
 	return textModel;
 }
 
-function asFileOrUntitledEditorInput(input: any): UntitledEditorInput|IFileEditorInput {
+function asFileOrUntitledEditorInput(input: any): UntitledEditorInput | IFileEditorInput {
 	if (input instanceof UntitledEditorInput) {
 		return input;
 	}
@@ -117,8 +118,8 @@ class State {
 
 	private _indentation: string;
 	public get indentation(): string { return this._indentation; }
-	private _indentationHistory: { [modelId: string]: { insertSpaces: boolean, tabSize: number }};
-	public get indentationHistory(): { [modelId: string]: { insertSpaces: boolean, tabSize: number }} { return this._indentationHistory; }
+	private _indentationHistory: { [modelId: string]: { insertSpaces: boolean, tabSize: number } };
+	public get indentationHistory(): { [modelId: string]: { insertSpaces: boolean, tabSize: number } } { return this._indentationHistory; }
 
 	private _tabFocusMode: boolean;
 	public get tabFocusMode(): boolean { return this._tabFocusMode; }
@@ -132,7 +133,7 @@ class State {
 		this._indentationHistory = {};
 	}
 
-	public update(update:StateDelta): IStateChange {
+	public update(update: StateDelta): IStateChange {
 		let e = {
 			selectionStatus: false,
 			mode: false,
@@ -209,10 +210,10 @@ const nlsEOLLF = nls.localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = nls.localize('endOfLineCarriageReturnLineFeed', "CRLF");
 const nlsTabFocusMode = nls.localize('tabFocusModeEnabled', "Tab moves focus");
 
-function show(el:HTMLElement): void {
+function show(el: HTMLElement): void {
 	StyleMutator.setDisplay(el, '');
 }
-function hide(el:HTMLElement): void {
+function hide(el: HTMLElement): void {
 	StyleMutator.setDisplay(el, 'none');
 }
 
@@ -348,7 +349,7 @@ export class EditorStatus implements IStatusbarItem {
 		}
 	}
 
-	private getSelectionLabel(info:IEditorSelectionStatus): string {
+	private getSelectionLabel(info: IEditorSelectionStatus): string {
 		if (!info || !info.selections) {
 			return null;
 		}
@@ -677,17 +678,32 @@ export class ChangeModeAction extends Action {
 				activeEditor = this.editorService.getActiveEditor();
 				if (activeEditor instanceof BaseTextEditor) {
 					let editorWidget = activeEditor.getControl();
+					let models: ITextModel[] = [];
+
 					let textModel = getTextModel(editorWidget);
+					models.push(textModel);
+
+					// Support for original side of diff
+					let model = editorWidget.getModel();
+					if (model && !!(<IDiffEditorModel>model).original) {
+						models.push((<IDiffEditorModel>model).original);
+					}
+
+					// Find mode
+					let mode: TPromise<IMode>;
+					if (language === autoDetectMode) {
+						let fileResource = asFileEditorInput(activeEditor.input, true).getResource();
+						mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(fileResource.fsPath, textModel.getLineContent(1));
+					} else {
+						mode = this.modeService.getOrCreateModeByLanguageName(language.label);
+					}
 
 					// Change mode
-					if (!!(<ITokenizedModel>textModel).getMode) {
-						if (language === autoDetectMode) {
-							let fileResource = asFileEditorInput(activeEditor.input, true).getResource();
-							(<ITokenizedModel>textModel).setMode(this.modeService.getOrCreateModeByFilenameOrFirstLine(fileResource.fsPath, textModel.getLineContent(1)));
-						} else {
-							(<ITokenizedModel>textModel).setMode(this.modeService.getOrCreateModeByLanguageName(language.label));
+					models.forEach((textModel) => {
+						if (!!(<ITokenizedModel>textModel).getMode) {
+							(<ITokenizedModel>textModel).setMode(mode);
 						}
-					}
+					});
 				}
 			}
 		});
