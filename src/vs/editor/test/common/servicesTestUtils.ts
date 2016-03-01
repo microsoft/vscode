@@ -14,7 +14,7 @@ import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {EventService} from 'vs/platform/event/common/eventService';
 import {AbstractPluginService, ActivatedPlugin} from 'vs/platform/extensions/common/abstractPluginService';
-import {IPluginService} from 'vs/platform/extensions/common/plugins';
+import {IExtensionService} from 'vs/platform/extensions/common/plugins';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
@@ -39,7 +39,7 @@ import {IResourceService} from 'vs/editor/common/services/resourceService';
 
 export interface IMockPlatformServices {
 	threadService?:IThreadService;
-	pluginService?:IPluginService;
+	extensionService?:IExtensionService;
 	instantiationService?:IInstantiationService;
 	lifecycleService?: ILifecycleService;
 	messageService?:IMessageService;
@@ -62,7 +62,7 @@ export interface IMockPlatformServices {
 function createMockPlatformServices(mockPlatformServices:IMockPlatformServices = {}): any {
 	return {
 		threadService: mockPlatformServices.threadService,
-		pluginService: mockPlatformServices.pluginService,
+		extensionService: mockPlatformServices.extensionService,
 		instantiationService: mockPlatformServices.instantiationService,
 		lifecycleService: mockPlatformServices.lifecycleService,
 		messageService: mockPlatformServices.messageService,
@@ -138,11 +138,11 @@ class MockModelService extends ModelServiceImpl { }
 
 export function createMockModeService(): IModeService {
 	var threadService = NULL_THREAD_SERVICE;
-	var pluginService = new MockPluginService();
-	var modeService = new MockModeService(threadService, pluginService);
+	var extensionService = new MockPluginService();
+	var modeService = new MockModeService(threadService, extensionService);
 	var inst = createInstantiationService({
 		threadService: threadService,
-		pluginService: pluginService,
+		extensionService: extensionService,
 		modeService: modeService
 	});
 	threadService.setInstantiationService(inst);
@@ -160,12 +160,12 @@ export function createMockModelService(): IModelService {
 	let eventService = new EventService();
 	let configurationService = new MockConfigurationService(contextService, eventService);
 	var threadService = NULL_THREAD_SERVICE;
-	var pluginService = new MockPluginService();
-	var modeService = new MockModeService(threadService, pluginService);
+	var extensionService = new MockPluginService();
+	var modeService = new MockModeService(threadService, extensionService);
 	var modelService = new MockModelService(threadService, null, modeService, configurationService);
 	var inst = createInstantiationService({
 		threadService: threadService,
-		pluginService: pluginService,
+		extensionService: extensionService,
 		modeService: modeService,
 		contextService: contextService,
 		eventService: eventService,

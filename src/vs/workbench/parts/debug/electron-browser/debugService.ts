@@ -21,7 +21,7 @@ import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IPluginService } from 'vs/platform/extensions/common/plugins';
+import { IExtensionService } from 'vs/platform/extensions/common/plugins';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFileService, FileChangesEvent, FileChangeType, EventType } from 'vs/platform/files/common/files';
 import { IEventService } from 'vs/platform/event/common/event';
@@ -88,7 +88,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		@IEventService eventService: IEventService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService:IInstantiationService,
-		@IPluginService private pluginService: IPluginService,
+		@IExtensionService private extensionService: IExtensionService,
 		@IMarkerService private markerService: IMarkerService
 	) {
 		super();
@@ -509,7 +509,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	public createSession(changeViewState = !this.partService.isSideBarHidden()): TPromise<any> {
 		this.clearReplExpressions();
 
-		return this.textFileService.saveAll().then(() => this.pluginService.onReady()).then(() => this.configurationManager.setConfiguration(this.configurationManager.getConfigurationName())).then(() => {
+		return this.textFileService.saveAll().then(() => this.extensionService.onReady()).then(() => this.configurationManager.setConfiguration(this.configurationManager.getConfigurationName())).then(() => {
 
 			const configuration = this.configurationManager.getConfiguration();
 			if (!configuration) {

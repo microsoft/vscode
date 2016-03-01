@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IActivationEventListener, IMessage, IPluginDescription, IPluginService, IPluginStatus} from 'vs/platform/extensions/common/plugins';
+import {IActivationEventListener, IMessage, IPluginDescription, IExtensionService, IPluginStatus} from 'vs/platform/extensions/common/plugins';
 import {PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
 
 const hasOwnProperty = Object.hasOwnProperty;
@@ -42,8 +42,8 @@ interface IActivatingPluginMap {
 	[pluginId: string]: TPromise<void>;
 }
 
-export abstract class AbstractPluginService<T extends ActivatedPlugin> implements IPluginService {
-	public serviceId = IPluginService;
+export abstract class AbstractPluginService<T extends ActivatedPlugin> implements IExtensionService {
+	public serviceId = IExtensionService;
 
 	private activatingPlugins: IActivatingPluginMap;
 	protected activatedPlugins: IActivatedPluginMap<T>;

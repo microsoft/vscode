@@ -38,7 +38,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService, ConfigurationServiceEventTypes } from 'vs/platform/configuration/common/configuration';
 import { IFileService, FileChangesEvent, FileChangeType, EventType as FileEventType } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPluginService } from 'vs/platform/extensions/common/plugins';
+import { IExtensionService } from 'vs/platform/extensions/common/plugins';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
 
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -483,7 +483,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	private textFileService: ITextFileService;
 	private eventService: IEventService;
 	private modelService: IModelService;
-	private pluginService: IPluginService;
+	private extensionService: IExtensionService;
 	private keybindingService: IKeybindingService;
 
 	private _taskSystemPromise: TPromise<ITaskSystem>;
@@ -499,7 +499,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		@IFileService fileService:IFileService, @IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ITelemetryService telemetryService: ITelemetryService, @ITextFileService textFileService:ITextFileService,
 		@ILifecycleService lifecycleService: ILifecycleService, @IEventService eventService: IEventService,
-		@IModelService modelService: IModelService, @IPluginService pluginService: IPluginService,
+		@IModelService modelService: IModelService, @IExtensionService extensionService: IExtensionService,
 		@IKeybindingService keybindingService: IKeybindingService) {
 
 		super();
@@ -515,7 +515,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		this.textFileService = textFileService;
 		this.eventService = eventService;
 		this.modelService = modelService;
-		this.pluginService = pluginService;
+		this.extensionService = extensionService;
 		this.keybindingService = keybindingService;
 
 		this.taskSystemListeners = [];

@@ -59,7 +59,7 @@ import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IThreadService} from 'vs/platform/thread/common/thread';
-import {IPluginService} from 'vs/platform/extensions/common/plugins';
+import {IExtensionService} from 'vs/platform/extensions/common/plugins';
 import {AbstractThreadService} from 'vs/platform/thread/common/abstractThreadService';
 import {IStatusbarService} from 'vs/workbench/services/statusbar/common/statusbarService';
 
@@ -291,7 +291,7 @@ export class Workbench implements IPartService {
 			(<AbstractKeybindingService><any>this.keybindingService).setMessageService(messageService);
 		}
 		let threadService = this.instantiationService.getInstance(IThreadService);
-		this.instantiationService.getInstance(IPluginService);
+		this.instantiationService.getInstance(IExtensionService);
 		this.lifecycleService = this.instantiationService.getInstance(ILifecycleService);
 		this.toDispose.push(this.lifecycleService.onShutdown(this.shutdownComponents, this));
 		let contextMenuService = this.instantiationService.getInstance(IContextMenuService);

@@ -11,7 +11,7 @@ import lifecycle = require('vs/base/common/lifecycle');
 import {onUnexpectedError} from 'vs/base/common/errors';
 import { Action } from 'vs/base/common/actions';
 import statusbar = require('vs/workbench/browser/parts/statusbar/statusbar');
-import { IPluginService, IPluginStatus } from 'vs/platform/extensions/common/plugins';
+import { IExtensionService, IPluginStatus } from 'vs/platform/extensions/common/plugins';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -33,7 +33,7 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 	private messageCount: number;
 
 	constructor(
-		@IPluginService pluginService: IPluginService,
+		@IExtensionService extensionService: IExtensionService,
 		@IMessageService private messageService: IMessageService,
 		@IExtensionsService protected extensionsService: IExtensionsService,
 		@IInstantiationService protected instantiationService: IInstantiationService
@@ -42,8 +42,8 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 		this.toDispose = [];
 		this.messageCount = 0;
 
-		pluginService.onReady().then(() => {
-			this.status = pluginService.getPluginsStatus();
+		extensionService.onReady().then(() => {
+			this.status = extensionService.getPluginsStatus();
 			Object.keys(this.status).forEach(key => {
 				this.messageCount += this.status[key].messages.filter(message => message.type > Severity.Info).length;
 			});

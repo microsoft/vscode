@@ -90,7 +90,7 @@ export class EditorWorkerServer {
 
 	public initialize(mainThread:WorkerServer, complete:ICallback, error:ICallback, progress:ICallback, initData:IInitData):void {
 
-		var pluginService = new WorkerPluginService();
+		var extensionService = new WorkerPluginService();
 
 		var contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
 
@@ -102,13 +102,13 @@ export class EditorWorkerServer {
 		var resourceService = new ResourceService();
 		var markerService = new SecondaryMarkerService(this.threadService);
 
-		var modeService = new ModeServiceImpl(this.threadService, pluginService);
+		var modeService = new ModeServiceImpl(this.threadService, extensionService);
 
 		var requestService = new BaseRequestService(contextService, telemetryServiceInstance);
 
 		var _services : any = {
 			threadService: this.threadService,
-			pluginService: pluginService,
+			extensionService: extensionService,
 			modeService: modeService,
 			contextService: contextService,
 			eventService: new EventService(),

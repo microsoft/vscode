@@ -14,7 +14,7 @@ import {ContextViewService} from 'vs/platform/contextview/browser/contextViewSer
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {EventService} from 'vs/platform/event/common/eventService';
-import {IPluginService} from 'vs/platform/extensions/common/plugins';
+import {IExtensionService} from 'vs/platform/extensions/common/plugins';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
@@ -50,7 +50,7 @@ export interface IEditorContextViewService extends IContextViewService {
 export interface IEditorOverrideServices {
 	threadService?:IThreadService;
 	modeService?: IModeService;
-	pluginService?:IPluginService;
+	extensionService?:IExtensionService;
 	instantiationService?:IInstantiationService;
 	messageService?:IMessageService;
 	markerService?:IMarkerService;
@@ -76,7 +76,7 @@ export interface IStaticServices {
 	configurationService: IConfigurationService;
 	threadService: IThreadService;
 	modeService: IModeService;
-	pluginService: IPluginService;
+	extensionService: IExtensionService;
 	markerService: IMarkerService;
 	contextService: IWorkspaceContextService;
 	requestService: IRequestService;
@@ -107,7 +107,7 @@ export function ensureStaticPlatformServices(services: IEditorOverrideServices):
 	var statics = getOrCreateStaticServices(services);
 
 	services.threadService = services.threadService || statics.threadService;
-	services.pluginService = services.pluginService || statics.pluginService;
+	services.extensionService = services.extensionService || statics.extensionService;
 	services.modeService = services.modeService || statics.modeService;
 	services.contextService = services.contextService || statics.contextService;
 	services.telemetryService = services.telemetryService || statics.telemetryService;
@@ -183,17 +183,17 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 
 	let threadService = services.threadService || new MainThreadService(contextService, 'vs/editor/common/worker/editorWorkerServer', 2);
 	let messageService = services.messageService || new SimpleMessageService();
-	let pluginService = services.pluginService || new SimplePluginService();
+	let extensionService = services.extensionService || new SimplePluginService();
 	let markerService = services.markerService || new MainProcessMarkerService(threadService);
 	let requestService = services.requestService || new SimpleEditorRequestService(contextService, telemetryService);
-	let modeService = services.modeService || new MainThreadModeServiceImpl(threadService, pluginService);
+	let modeService = services.modeService || new MainThreadModeServiceImpl(threadService, extensionService);
 	let modelService = services.modelService || new ModelServiceImpl(threadService, markerService, modeService, configurationService);
 	let editorWorkerService = services.editorWorkerService || new EditorWorkerServiceImpl(modelService);
 	let codeEditorService = services.codeEditorService || new CodeEditorServiceImpl();
 
 	staticServices = {
 		configurationService: configurationService,
-		pluginService: pluginService,
+		extensionService: extensionService,
 		modeService: modeService,
 		threadService: threadService,
 		markerService: markerService,

@@ -7,7 +7,7 @@
 import {localize} from 'vs/nls';
 import {Action, IAction} from 'vs/base/common/actions';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
-import {IPluginService} from 'vs/platform/extensions/common/plugins';
+import {IExtensionService} from 'vs/platform/extensions/common/plugins';
 import {IMessageCollector, PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IActionsService} from './actions';
@@ -76,14 +76,14 @@ let commandsExtPoint = PluginsRegistry.registerExtensionPoint<Command | Command[
 
 export default class ActionsService implements IActionsService {
 
-	private _pluginService: IPluginService;
+	private _extensionService: IExtensionService;
 	private _keybindingsService: IKeybindingService;
 	private _extensionsActions: IAction[] = [];
 
 	serviceId: any;
 
-	constructor( @IPluginService pluginService: IPluginService, @IKeybindingService keybindingsService: IKeybindingService) {
-		this._pluginService = pluginService;
+	constructor( @IExtensionService extensionService: IExtensionService, @IKeybindingService keybindingsService: IKeybindingService) {
+		this._extensionService = extensionService;
 		this._keybindingsService = keybindingsService;
 		commandsExtPoint.setHandler((extensions) => {
 			for (let d of extensions) {
@@ -113,7 +113,7 @@ export default class ActionsService implements IActionsService {
 			// action that (1) activates the plugin and dispatches the command
 			let label = command.category ? localize('category.label', "{0}: {1}", command.category, command.title) : command.title;
 			let action = new Action(command.command, label, undefined, true, () => {
-				return this._pluginService.activateByEvent(activationEvent).then(() => {
+				return this._extensionService.activateByEvent(activationEvent).then(() => {
 					return this._keybindingsService.executeCommand(command.command);
 				});
 			});

@@ -11,7 +11,7 @@ import {Keybinding} from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IPluginService} from 'vs/platform/extensions/common/plugins';
+import {IExtensionService} from 'vs/platform/extensions/common/plugins';
 import {IMessageCollector, PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
 import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {KeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
@@ -117,7 +117,7 @@ export class WorkbenchKeybindingService extends KeybindingService {
 	private eventService: IEventService;
 	private telemetryService: ITelemetryService;
 	private toDispose: Function;
-	private _pluginService: IPluginService;
+	private _extensionService: IExtensionService;
 	private _eventService: IEventService;
 
 	constructor(contextService: IWorkspaceContextService, eventService: IEventService, telemetryService: ITelemetryService, domNode: HTMLElement) {
@@ -142,8 +142,8 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		this._beginListening(domNode);
 	}
 
-	setPluginService(pluginService: IPluginService): void {
-		this._pluginService = pluginService;
+	setPluginService(extensionService: IExtensionService): void {
+		this._extensionService = extensionService;
 	}
 
 	public customKeybindingsCount(): number {
@@ -247,8 +247,8 @@ export class WorkbenchKeybindingService extends KeybindingService {
 	}
 
 	protected _invokeHandler(commandId: string, args: any): TPromise<any> {
-		if (this._pluginService) {
-			return this._pluginService.activateByEvent('onCommand:' + commandId).then(_ => {
+		if (this._extensionService) {
+			return this._extensionService.activateByEvent('onCommand:' + commandId).then(_ => {
 				return super._invokeHandler(commandId, args);
 			});
 		}

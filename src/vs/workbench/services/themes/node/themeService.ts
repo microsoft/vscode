@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import Paths = require('vs/base/common/paths');
 import Themes = require('vs/platform/theme/common/themes');
 import {IThemeExtensionPoint} from 'vs/platform/theme/common/themeExtensionPoint';
-import {IPluginService} from 'vs/platform/extensions/common/plugins';
+import {IExtensionService} from 'vs/platform/extensions/common/plugins';
 import {PluginsRegistry, IMessageCollector} from 'vs/platform/extensions/common/pluginsRegistry';
 import {IThemeService, IThemeData, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
 
@@ -49,7 +49,7 @@ export class ThemeService implements IThemeService {
 
 	private knownThemes: IThemeData[];
 
-	constructor(private pluginService: IPluginService) {
+	constructor(private extensionService: IExtensionService) {
 		this.knownThemes = [];
 
 		themesExtPoint.setHandler((extensions) => {
@@ -79,7 +79,7 @@ export class ThemeService implements IThemeService {
 	}
 
 	public getThemes(): TPromise<IThemeData[]> {
-		return this.pluginService.onReady().then(isReady => {
+		return this.extensionService.onReady().then(isReady => {
 			return this.knownThemes;
 		});
 	}

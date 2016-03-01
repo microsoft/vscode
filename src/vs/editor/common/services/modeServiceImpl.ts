@@ -12,7 +12,7 @@ import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {createAsyncDescriptor0, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
-import {IPluginService} from 'vs/platform/extensions/common/plugins';
+import {IExtensionService} from 'vs/platform/extensions/common/plugins';
 import {IExtensionPointUser, IMessageCollector, PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
 import {IThreadService, Remotable, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import * as modes from 'vs/editor/common/modes';
@@ -146,7 +146,7 @@ export class ModeServiceImpl implements IModeService {
 	public serviceId = IModeService;
 
 	protected _threadService: IThreadService;
-	private _pluginService: IPluginService;
+	private _extensionService: IExtensionService;
 	private _activationPromises: { [modeId: string]: TPromise<modes.IMode>; };
 	private _instantiatedModes: { [modeId: string]: modes.IMode; };
 	private _config: IModeConfigurationMap;
@@ -159,9 +159,9 @@ export class ModeServiceImpl implements IModeService {
 	private _onDidCreateMode: Emitter<modes.IMode> = new Emitter<modes.IMode>();
 	public onDidCreateMode: Event<modes.IMode> = this._onDidCreateMode.event;
 
-	constructor(threadService:IThreadService, pluginService:IPluginService) {
+	constructor(threadService:IThreadService, extensionService:IExtensionService) {
 		this._threadService = threadService;
-		this._pluginService = pluginService;
+		this._extensionService = extensionService;
 		this._activationPromises = {};
 		this._instantiatedModes = {};
 		this._config = {};
@@ -316,7 +316,7 @@ export class ModeServiceImpl implements IModeService {
 	}
 
 	public getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<modes.IMode> {
-		return this._pluginService.onReady().then(() => {
+		return this._extensionService.onReady().then(() => {
 			var modeId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
 			// Fall back to plain text if no mode was found
 			return this._getOrCreateMode(modeId || 'plaintext');
@@ -324,7 +324,7 @@ export class ModeServiceImpl implements IModeService {
 	}
 
 	public getOrCreateModeByLanguageName(languageName: string): TPromise<modes.IMode> {
-		return this._pluginService.onReady().then(() => {
+		return this._extensionService.onReady().then(() => {
 			var modeId = this.getModeIdByLanguageName(languageName);
 			// Fall back to plain text if no mode was found
 			return this._getOrCreateMode(modeId || 'plaintext');
@@ -332,7 +332,7 @@ export class ModeServiceImpl implements IModeService {
 	}
 
 	public getOrCreateModeByFilenameOrFirstLine(filename: string, firstLine?:string): TPromise<modes.IMode> {
-		return this._pluginService.onReady().then(() => {
+		return this._extensionService.onReady().then(() => {
 			var modeId = this.getModeIdByFilenameOrFirstLine(filename, firstLine);
 			// Fall back to plain text if no mode was found
 			return this._getOrCreateMode(modeId || 'plaintext');
@@ -357,7 +357,7 @@ export class ModeServiceImpl implements IModeService {
 
 			this._onDidCreateMode.fire(mode);
 
-			this._pluginService.activateByEvent(`onLanguage:${modeId}`).done(null, onUnexpectedError);
+			this._extensionService.activateByEvent(`onLanguage:${modeId}`).done(null, onUnexpectedError);
 
 			return this._instantiatedModes[modeId];
 		}).then(c, e);
@@ -501,9 +501,9 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 
 	constructor(
 		threadService:IThreadService,
-		pluginService:IPluginService
+		extensionService:IExtensionService
 	) {
-		super(threadService, pluginService);
+		super(threadService, extensionService);
 		this._hasInitialized = false;
 
 		languagesExtPoint.setHandler((extensions:IExtensionPointUser<ILanguageExtensionPoint[]>[]) => {

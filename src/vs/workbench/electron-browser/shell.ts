@@ -91,7 +91,7 @@ import {IRequestService} from 'vs/platform/request/common/request';
 import {ISearchService} from 'vs/platform/search/common/search';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IWorkspaceContextService, IConfiguration, IWorkspace} from 'vs/platform/workspace/common/workspace';
-import {IPluginService} from 'vs/platform/extensions/common/plugins';
+import {IExtensionService} from 'vs/platform/extensions/common/plugins';
 import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -271,15 +271,15 @@ export class WorkbenchShell {
 
 		let markerService = new MainProcessMarkerService(this.threadService);
 
-		let pluginService = new MainProcessPluginService(this.contextService, this.threadService, this.messageService, this.telemetryService);
-		this.keybindingService.setPluginService(pluginService);
+		let extensionService = new MainProcessPluginService(this.contextService, this.threadService, this.messageService, this.telemetryService);
+		this.keybindingService.setPluginService(extensionService);
 
-		let modeService = new MainThreadModeServiceImpl(this.threadService, pluginService);
+		let modeService = new MainThreadModeServiceImpl(this.threadService, extensionService);
 		let modelService = new ModelServiceImpl(this.threadService, markerService, modeService, configService);
 		let editorWorkerService = new EditorWorkerServiceImpl(modelService);
 
 		let untitledEditorService = new UntitledEditorService();
-		this.themeService = new ThemeService(pluginService);
+		this.themeService = new ThemeService(extensionService);
 
 		let result = createInstantiationService();
 		result.addSingleton(ITelemetryService, this.telemetryService);
@@ -292,7 +292,7 @@ export class WorkbenchShell {
 		result.addSingleton(IStorageService, this.storageService);
 		result.addSingleton(ILifecycleService, lifecycleService);
 		result.addSingleton(IThreadService, this.threadService);
-		result.addSingleton(IPluginService, pluginService);
+		result.addSingleton(IExtensionService, extensionService);
 		result.addSingleton(IModeService, modeService);
 		result.addSingleton(IFileService, fileService);
 		result.addSingleton(IUntitledEditorService, untitledEditorService);
@@ -305,7 +305,7 @@ export class WorkbenchShell {
 		result.addSingleton(ICodeEditorService, new CodeEditorServiceImpl());
 		result.addSingleton(IEditorWorkerService, editorWorkerService);
 		result.addSingleton(IThemeService, this.themeService);
-		result.addSingleton(IActionsService, new ActionsService(pluginService, this.keybindingService));
+		result.addSingleton(IActionsService, new ActionsService(extensionService, this.keybindingService));
 
 
 		return result;

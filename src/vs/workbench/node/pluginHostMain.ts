@@ -13,7 +13,7 @@ import pfs = require('vs/base/node/pfs');
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
-import {IPluginService, IPluginDescription} from 'vs/platform/extensions/common/plugins';
+import {IExtensionService, IPluginDescription} from 'vs/platform/extensions/common/plugins';
 import {PluginsRegistry, PluginsMessageCollector, IPluginsMessageCollector} from 'vs/platform/extensions/common/pluginsRegistry';
 import {ExtHostAPIImplementation} from 'vs/workbench/api/node/extHost.api.impl';
 import {IPluginsIPC} from 'vs/platform/extensions/common/ipcRemoteCom';
@@ -63,15 +63,15 @@ export function createServices(remoteCom: IPluginsIPC, initData: IInitData, shar
 	let requestService = new BaseRequestService(contextService, telemetryService);
 	let modelService = threadService.getRemotable(ExtHostModelService);
 
-	let pluginService = new PluginHostPluginService(threadService);
-	let modeService = new ModeServiceImpl(threadService, pluginService);
+	let extensionService = new PluginHostPluginService(threadService);
+	let modeService = new ModeServiceImpl(threadService, extensionService);
 	let _services: any = {
 		contextService: contextService,
 		requestService: requestService,
 		modelService: modelService,
 		threadService: threadService,
 		modeService: modeService,
-		pluginService: pluginService,
+		extensionService: extensionService,
 		telemetryService: telemetryService
 	};
 	let instantiationService = InstantiationService.createInstantiationService(_services);
@@ -96,7 +96,7 @@ export class PluginHostMain {
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IPluginService private pluginService: IPluginService,
+		@IExtensionService private extensionService: IExtensionService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this._isTerminating = false;
@@ -116,10 +116,10 @@ export class PluginHostMain {
 		try {
 			let allExtensions = PluginsRegistry.getAllPluginDescriptions();
 			let allExtensionsIds = allExtensions.map(ext => ext.id);
-			let activatedExtensions = allExtensionsIds.filter(id => this.pluginService.isActivated(id));
+			let activatedExtensions = allExtensionsIds.filter(id => this.extensionService.isActivated(id));
 
 			activatedExtensions.forEach((extensionId) => {
-				this.pluginService.deactivate(extensionId);
+				this.extensionService.deactivate(extensionId);
 			});
 		} catch (err) {
 			// TODO: write to log once we have one
@@ -143,7 +143,7 @@ export class PluginHostMain {
 			.then(extensions => {
 				// Register & Signal done
 				PluginsRegistry.registerPlugins(extensions);
-				this.pluginService.registrationDone(collector.getMessages());
+				this.extensionService.registrationDone(collector.getMessages());
 			})
 			.then(() => this.handleEagerPlugins())
 			.then(() => this.handlePluginTests());
@@ -183,7 +183,7 @@ export class PluginHostMain {
 
 	// Handle "eager" activation plugins
 	private handleEagerPlugins(): TPromise<void> {
-		this.pluginService.activateByEvent('*').then(null, (err) => {
+		this.extensionService.activateByEvent('*').then(null, (err) => {
 			console.error(err);
 		});
 		return this.handleWorkspaceContainsEagerPlugins();
@@ -226,7 +226,7 @@ export class PluginHostMain {
 				}
 
 				let activationEvent = 'workspaceContains:' + existingFileName;
-				this.pluginService.activateByEvent(activationEvent).then(null, (err) => {
+				this.extensionService.activateByEvent(activationEvent).then(null, (err) => {
 					console.error(err);
 				});
 			});

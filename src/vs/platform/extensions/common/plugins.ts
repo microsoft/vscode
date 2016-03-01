@@ -32,7 +32,7 @@ export interface IPointListener {
 	(desc: IPluginDescription[]): void;
 }
 
-export const IPluginService = createDecorator<IPluginService>('pluginService');
+export const IExtensionService = createDecorator<IExtensionService>('extensionService');
 
 export interface IMessage {
 	type: Severity;
@@ -44,7 +44,7 @@ export interface IPluginStatus {
 	messages: IMessage[];
 }
 
-export interface IPluginService {
+export interface IExtensionService {
 	serviceId: ServiceIdentifier<any>;
 
 	activateByEvent(activationEvent: string): TPromise<void>;
@@ -71,4 +71,4 @@ export interface IPluginService {
 	getPluginsStatus(): { [id: string]: IPluginStatus };
 }
 
-export const INSTANCE: IPluginService = null;
+export const INSTANCE: IExtensionService = null;
