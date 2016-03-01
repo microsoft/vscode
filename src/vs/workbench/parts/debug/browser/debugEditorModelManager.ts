@@ -151,7 +151,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 					range: createRange(sf.lineNumber, sf.column, sf.lineNumber, sf.column + 1)
 				});
 
-				if (thread.stoppedReason === 'exception') {
+				if (thread.stoppedDetails.reason === 'exception') {
 					result.push({
 						options: DebugEditorModelManager.TOP_STACK_FRAME_EXCEPTION_DECORATION,
 						range: wholeLineRange

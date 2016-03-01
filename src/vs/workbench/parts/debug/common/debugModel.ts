@@ -90,10 +90,10 @@ export function getFullExpressionName(expression: debug.IExpression, sessionType
 
 export class Thread implements debug.IThread {
 
-	public stoppedReason: string;
+	public stoppedDetails: debug.IRawStoppedDetails;
 
 	constructor(public name: string, public threadId, public callStack: debug.IStackFrame[]) {
-		this.stoppedReason = undefined;
+		this.stoppedDetails = undefined;
 	}
 
 	public getId(): string {
@@ -358,7 +358,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 				delete this.threads[reference];
 			} else {
 				this.threads[reference].callStack = [];
-				this.threads[reference].stoppedReason = undefined;
+				this.threads[reference].stoppedDetails = undefined;
 			}
 		} else {
 			if (removeThreads) {
@@ -368,7 +368,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 				for (let ref in this.threads) {
 					if (this.threads.hasOwnProperty(ref)) {
 						this.threads[ref].callStack = [];
-						this.threads[ref].stoppedReason = undefined;
+						this.threads[ref].stoppedDetails = undefined;
 					}
 				}
 			}
@@ -636,7 +636,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 					return new StackFrame(data.threadId, rsf.id, rsf.source ? new Source(rsf.source) : new Source({ name: 'unknown' }), rsf.name, rsf.line, rsf.column);
 				});
 
-			this.threads[data.threadId].stoppedReason = data.stoppedReason;
+			this.threads[data.threadId].stoppedDetails = data.stoppedDetails;
 		}
 
 		this.emit(debug.ModelEvents.CALLSTACK_UPDATED);

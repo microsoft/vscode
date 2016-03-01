@@ -24,7 +24,13 @@ export interface IRawModelUpdate {
 	threadId: number;
 	thread?: DebugProtocol.Thread;
 	callStack?: DebugProtocol.StackFrame[];
-	stoppedReason?: string;
+	stoppedDetails?: IRawStoppedDetails;
+}
+
+export interface IRawStoppedDetails {
+	reason: string;
+	threadId?: number;
+	text?: string;
 }
 
 // model
@@ -48,7 +54,7 @@ export interface IThread extends ITreeElement {
 	threadId: number;
 	name: string;
 	callStack: IStackFrame[];
-	stoppedReason: string;
+	stoppedDetails: IRawStoppedDetails;
 }
 
 export interface IScope extends IExpressionContainer {

@@ -240,7 +240,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			this.getThreadData(threadId).then(() => {
 				this.session.stackTrace({ threadId: threadId, levels: 20 }).done((result) => {
 
-					this.model.rawUpdate({ threadId: threadId, callStack: result.body.stackFrames, stoppedReason: event.body.reason });
+					this.model.rawUpdate({ threadId: threadId, callStack: result.body.stackFrames, stoppedDetails: event.body });
 					this.windowService.getWindow().focus();
 					const callStack = this.model.getThreads()[threadId].callStack;
 					if (callStack.length > 0) {
