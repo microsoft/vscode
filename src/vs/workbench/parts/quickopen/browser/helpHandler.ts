@@ -135,8 +135,8 @@ export class HelpHandler extends QuickOpenHandler {
 		let workbenchScoped: HelpEntry[] = [];
 		let editorScoped: HelpEntry[] = [];
 		let entry: HelpEntry;
-		for (let i = 0; i < handlerDescriptors.length; i++) {
-			let handlerDescriptor = handlerDescriptors[i];
+
+		handlerDescriptors.sort((h1, h2) => h1.prefix.localeCompare(h2.prefix)).forEach((handlerDescriptor) => {
 			if (handlerDescriptor.prefix !== HELP_PREFIX) {
 
 				// Descriptor has multiple help entries
@@ -161,7 +161,7 @@ export class HelpHandler extends QuickOpenHandler {
 					workbenchScoped.push(entry);
 				}
 			}
-		}
+		});
 
 		// Add separator for workbench scoped handlers
 		if (workbenchScoped.length > 0) {
