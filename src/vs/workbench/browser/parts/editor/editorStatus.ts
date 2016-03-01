@@ -23,7 +23,7 @@ import {IDisposable, combinedDispose} from 'vs/base/common/lifecycle';
 import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {EndOfLineSequence, ITokenizedModel, EditorType, IEditorSelection, ITextModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
-import {ChangeIndentationSizeAction, IndentationToSpacesAction, IndentationToTabsAction, ToggleRenderWhitespaceAction} from 'vs/editor/contrib/indentation/common/indentation';
+import {ChangeIndentationSizeAction, IndentationToSpacesAction, IndentationToTabsAction} from 'vs/editor/contrib/indentation/common/indentation';
 import {EventType, ResourceEvent, EditorEvent, TextEditorSelectionEvent} from 'vs/workbench/common/events';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
@@ -738,7 +738,7 @@ class ChangeIndentationAction extends Action {
 		}
 		const control = <ICommonCodeEditor>activeEditor.getControl();
 
-		return this.quickOpenService.pick([control.getAction(ChangeIndentationSizeAction.ID), control.getAction(IndentationToSpacesAction.ID), control.getAction(IndentationToTabsAction.ID), control.getAction(ToggleRenderWhitespaceAction.ID)], {
+		return this.quickOpenService.pick([control.getAction(ChangeIndentationSizeAction.ID), control.getAction(IndentationToSpacesAction.ID), control.getAction(IndentationToTabsAction.ID)], {
 			placeHolder: nls.localize('pickAction', "Select Action")
 		}).then(action => action && action.run());
 	}

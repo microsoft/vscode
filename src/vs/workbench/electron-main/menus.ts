@@ -505,6 +505,8 @@ export class VSCodeMenu {
 		let togglePanel = this.createMenuItem(nls.localize('miTogglePanel', "Toggle &&Panel"), 'workbench.action.togglePanel');
 
 		const toggleWordWrap = this.createMenuItem(nls.localize('miToggleWordWrap', "Toggle &&Word Wrap"), 'editor.action.toggleWordWrap');
+		const toggleRenderWhitespace = this.createMenuItem(nls.localize('miToggleRenderWhitespace', "Toggle &&Render Whitespace"), 'editor.action.toggleRenderWhitespace');
+
 
 		let zoomIn = this.createMenuItem(nls.localize('miZoomIn', "&&Zoom in"), 'workbench.action.zoomIn');
 		let zoomOut = this.createMenuItem(nls.localize('miZoomOut', "Zoom o&&ut"), 'workbench.action.zoomOut');
@@ -530,6 +532,7 @@ export class VSCodeMenu {
 			togglePanel,
 			__separator__(),
 			toggleWordWrap,
+			toggleRenderWhitespace,
 			__separator__(),
 			zoomIn,
 			zoomOut
