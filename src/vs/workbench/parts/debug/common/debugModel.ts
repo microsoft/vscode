@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
+import strings = require('vs/base/common/strings');
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import ee = require('vs/base/common/eventEmitter');
@@ -498,6 +499,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 
 		// string message
 		if (typeof value === 'string') {
+			value = strings.removeAnsiEscapeCodes(value);
 			if (value && value.trim() && previousOutput && previousOutput.value === value && previousOutput.severity === severity) {
 				previousOutput.counter++; // we got the same output (but not an empty string when trimmed) so we just increment the counter
 			} else {
@@ -520,6 +522,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	}
 
 	public appendReplOutput(value: string, severity?: severity): void {
+		value = strings.removeAnsiEscapeCodes(value);
 		const elements: OutputElement[] = [];
 		let previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
 		let lines = value.split('\n');
