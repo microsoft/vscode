@@ -66,7 +66,7 @@ class ExecCommandCutAction extends ClipboardWritingAction {
 	}
 
 	public getGroupId(): string {
-		return '3_edit/2_cut';
+		return '3_edit/1_cut';
 	}
 
 	public getEnablementState(): boolean {
@@ -87,7 +87,7 @@ class ExecCommandCopyAction extends ClipboardWritingAction {
 	}
 
 	public getGroupId(): string {
-		return '3_edit/1_copy';
+		return '3_edit/2_copy';
 	}
 
 	public run(): TPromise<boolean> {
