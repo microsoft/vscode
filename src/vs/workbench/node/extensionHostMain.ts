@@ -20,7 +20,7 @@ import {IPluginsIPC} from 'vs/platform/extensions/common/ipcRemoteCom';
 import {ExtHostModelService} from 'vs/workbench/api/node/extHostDocuments';
 import {IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
-import {PluginHostPluginService} from 'vs/platform/extensions/common/nativePluginService';
+import {ExtHostExtensionService} from 'vs/platform/extensions/common/nativePluginService';
 import {PluginHostThreadService} from 'vs/platform/thread/common/pluginHostThreadService';
 import {ExtHostTelemetryService} from 'vs/workbench/api/node/extHostTelemetry';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
@@ -63,7 +63,7 @@ export function createServices(remoteCom: IPluginsIPC, initData: IInitData, shar
 	let requestService = new BaseRequestService(contextService, telemetryService);
 	let modelService = threadService.getRemotable(ExtHostModelService);
 
-	let extensionService = new PluginHostPluginService(threadService);
+	let extensionService = new ExtHostExtensionService(threadService);
 	let modeService = new ModeServiceImpl(threadService, extensionService);
 	let _services: any = {
 		contextService: contextService,
@@ -94,7 +94,7 @@ export class ExtensionHostMain {
 
 	private _isTerminating: boolean;
 	private _contextService: IWorkspaceContextService;
-	private _extensionService: PluginHostPluginService;
+	private _extensionService: ExtHostExtensionService;
 
 	constructor(
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -102,7 +102,7 @@ export class ExtensionHostMain {
 	) {
 		this._isTerminating = false;
 		this._contextService = contextService;
-		this._extensionService = <PluginHostPluginService>extensionService;
+		this._extensionService = <ExtHostExtensionService>extensionService;
 	}
 
 	public start(): TPromise<void> {

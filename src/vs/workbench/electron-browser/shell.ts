@@ -53,7 +53,7 @@ import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {EditorWorkerServiceImpl} from 'vs/editor/common/services/editorWorkerServiceImpl';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {MainProcessVSCodeAPIHelper} from 'vs/workbench/api/node/extHost.api.impl';
-import {MainProcessPluginService} from 'vs/platform/extensions/common/nativePluginService';
+import {MainProcessExtensionService} from 'vs/platform/extensions/common/nativePluginService';
 import {MainThreadDocuments} from 'vs/workbench/api/node/extHostDocuments';
 import {MainProcessTextMateSyntax} from 'vs/editor/node/textMate/TMSyntax';
 import {MainProcessTextMateSnippet} from 'vs/editor/node/textMate/TMSnippets';
@@ -271,7 +271,7 @@ export class WorkbenchShell {
 
 		let markerService = new MainProcessMarkerService(this.threadService);
 
-		let extensionService = new MainProcessPluginService(this.contextService, this.threadService, this.messageService, this.telemetryService);
+		let extensionService = new MainProcessExtensionService(this.contextService, this.threadService, this.messageService, this.telemetryService);
 		this.keybindingService.setPluginService(extensionService);
 
 		let modeService = new MainThreadModeServiceImpl(this.threadService, extensionService);

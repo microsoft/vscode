@@ -42,7 +42,7 @@ export class MainThreadStorage {
 	}
 }
 
-export class PluginHostStorage {
+export class ExtHostStorage {
 
 	private _proxy: MainThreadStorage;
 

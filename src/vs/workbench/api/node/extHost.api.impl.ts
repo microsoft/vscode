@@ -30,7 +30,7 @@ import Severity from 'vs/base/common/severity';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import EditorCommon = require('vs/editor/common/editorCommon');
 import {IExtensionService, IExtensionDescription} from 'vs/platform/extensions/common/extensions';
-import {PluginHostPluginService} from 'vs/platform/extensions/common/nativePluginService';
+import {ExtHostExtensionService} from 'vs/platform/extensions/common/nativePluginService';
 import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -374,11 +374,11 @@ export class ExtHostAPIImplementation {
 			getExtension(extensionId: string):Extension<any> {
 				let desc = ExtensionsRegistry.getExtensionDescription(extensionId);
 				if (desc) {
-					return new Extension(<PluginHostPluginService> extensionService, desc);
+					return new Extension(<ExtHostExtensionService> extensionService, desc);
 				}
 			},
 			get all():Extension<any>[] {
-				return ExtensionsRegistry.getAllExtensionDescriptions().map((desc) => new Extension(<PluginHostPluginService> extensionService, desc));
+				return ExtensionsRegistry.getAllExtensionDescriptions().map((desc) => new Extension(<ExtHostExtensionService> extensionService, desc));
 			}
 		};
 
@@ -413,13 +413,13 @@ export class ExtHostAPIImplementation {
 
 class Extension<T> implements vscode.Extension<T> {
 
-	private _extensionService: PluginHostPluginService;
+	private _extensionService: ExtHostExtensionService;
 
 	public id: string;
 	public extensionPath: string;
 	public packageJSON: any;
 
-	constructor(extensionService:PluginHostPluginService, description:IExtensionDescription) {
+	constructor(extensionService:ExtHostExtensionService, description:IExtensionDescription) {
 		this._extensionService = extensionService;
 		this.id = description.id;
 		this.extensionPath = paths.normalize(description.extensionFolderPath, true);
