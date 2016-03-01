@@ -47,27 +47,19 @@ export interface IPluginStatus {
 export interface IExtensionService {
 	serviceId: ServiceIdentifier<any>;
 
+	/**
+	 * Send an activation event and activate interested extensions.
+	 */
 	activateByEvent(activationEvent: string): TPromise<void>;
-	activateAndGet(pluginId: string): TPromise<void>;
-	isActivated(pluginId: string): boolean;
-
-	/**
-	 * This method should be called only on shutdown!
-	 * More work is needed for this to be called any time!
-	 */
-	deactivate(pluginId: string): void;
-
-	/**
-	 * To be used only by the platform once on startup.
-	 */
-	registrationDone(errors?: IMessage[]): void;
-
-	registerOneTimeActivationEventListener(activationEvent: string, listener: IActivationEventListener): void;
 
 	/**
 	 * Block on this signal any interactions with extensions.
 	 */
 	onReady(): TPromise<boolean>;
+
+	/**
+	 * Get information about extensions status.
+	 */
 	getPluginsStatus(): { [id: string]: IPluginStatus };
 }
 

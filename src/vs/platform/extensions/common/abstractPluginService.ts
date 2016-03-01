@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IActivationEventListener, IMessage, IPluginDescription, IExtensionService, IPluginStatus} from 'vs/platform/extensions/common/plugins';
+import {IMessage, IPluginDescription, IExtensionService, IPluginStatus} from 'vs/platform/extensions/common/plugins';
 import {PluginsRegistry} from 'vs/platform/extensions/common/pluginsRegistry';
 
 const hasOwnProperty = Object.hasOwnProperty;
@@ -65,7 +65,6 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 		this.activatedPlugins = {};
 	}
 
-	public abstract deactivate(pluginId: string): void;
 	protected abstract _showMessage(severity: Severity, message: string): void;
 
 	protected showMessage(severity: Severity, source: string, message: string): void {
@@ -77,10 +76,6 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 			this.showMessage(entry.type, entry.source, entry.message);
 		});
 		this._onReadyC(true);
-	}
-
-	public registerOneTimeActivationEventListener(activationEvent: string, listener: IActivationEventListener): void {
-		PluginsRegistry.registerOneTimeActivationEventListener(activationEvent, listener);
 	}
 
 	public onReady(): TPromise<boolean> {
@@ -104,7 +99,7 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 		});
 	}
 
-	public activateAndGet(pluginId: string): TPromise<void> {
+	public activateById(pluginId: string): TPromise<void> {
 		return this._onReady.then(() => {
 			let desc = PluginsRegistry.getPluginDescription(pluginId);
 			if (!desc) {

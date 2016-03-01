@@ -200,10 +200,6 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 		return this._pluginsStatus;
 	}
 
-	public deactivate(pluginId: string): void {
-		this._proxy.deactivate(pluginId);
-	}
-
 	// -- overwriting AbstractPluginService
 
 	protected _actualActivatePlugin(pluginDescription: IPluginDescription): TPromise<ActivatedPlugin> {

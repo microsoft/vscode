@@ -120,11 +120,6 @@ class MockPluginService extends AbstractPluginService<ActivatedPlugin> {
 		}
 	}
 
-	public deactivate(pluginId: string): void {
-		// nothing to do
-	}
-
-
 	protected _createFailedPlugin(): any {
 		throw new Error('not implemented');
 	}

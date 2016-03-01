@@ -435,7 +435,7 @@ class Extension<T> implements vscode.Extension<T> {
 	}
 
 	activate(): Thenable<T> {
-		return this._extensionService.activateAndGet(this.id).then(() => this.exports);
+		return this._extensionService.activateById(this.id).then(() => this.exports);
 	}
 }
 

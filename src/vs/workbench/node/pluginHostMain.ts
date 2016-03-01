@@ -93,13 +93,16 @@ interface ITestRunner {
 export class PluginHostMain {
 
 	private _isTerminating: boolean;
+	private _contextService: IWorkspaceContextService;
+	private _extensionService: PluginHostPluginService;
 
 	constructor(
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IExtensionService private extensionService: IExtensionService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IExtensionService extensionService: IExtensionService
 	) {
 		this._isTerminating = false;
+		this._contextService = contextService;
+		this._extensionService = <PluginHostPluginService>extensionService;
 	}
 
 	public start(): TPromise<void> {
@@ -116,10 +119,10 @@ export class PluginHostMain {
 		try {
 			let allExtensions = PluginsRegistry.getAllPluginDescriptions();
 			let allExtensionsIds = allExtensions.map(ext => ext.id);
-			let activatedExtensions = allExtensionsIds.filter(id => this.extensionService.isActivated(id));
+			let activatedExtensions = allExtensionsIds.filter(id => this._extensionService.isActivated(id));
 
 			activatedExtensions.forEach((extensionId) => {
-				this.extensionService.deactivate(extensionId);
+				this._extensionService.deactivate(extensionId);
 			});
 		} catch (err) {
 			// TODO: write to log once we have one
@@ -133,7 +136,7 @@ export class PluginHostMain {
 
 	private readPlugins(): TPromise<void> {
 		let collector = new PluginsMessageCollector();
-		let env = this.contextService.getConfiguration().env;
+		let env = this._contextService.getConfiguration().env;
 
 		return PluginHostMain.scanPlugins(collector, BUILTIN_PLUGINS_PATH, !env.disablePlugins ? env.userPluginsHome : void 0, !env.disablePlugins ? env.pluginDevelopmentPath : void 0, env.version)
 			.then(null, err => {
@@ -143,7 +146,7 @@ export class PluginHostMain {
 			.then(extensions => {
 				// Register & Signal done
 				PluginsRegistry.registerPlugins(extensions);
-				this.extensionService.registrationDone(collector.getMessages());
+				this._extensionService.registrationDone(collector.getMessages());
 			})
 			.then(() => this.handleEagerPlugins())
 			.then(() => this.handlePluginTests());
@@ -183,14 +186,14 @@ export class PluginHostMain {
 
 	// Handle "eager" activation plugins
 	private handleEagerPlugins(): TPromise<void> {
-		this.extensionService.activateByEvent('*').then(null, (err) => {
+		this._extensionService.activateByEvent('*').then(null, (err) => {
 			console.error(err);
 		});
 		return this.handleWorkspaceContainsEagerPlugins();
 	}
 
 	private handleWorkspaceContainsEagerPlugins(): TPromise<void> {
-		let workspace = this.contextService.getWorkspace();
+		let workspace = this._contextService.getWorkspace();
 		if (!workspace || !workspace.resource) {
 			return TPromise.as(null);
 		}
@@ -226,7 +229,7 @@ export class PluginHostMain {
 				}
 
 				let activationEvent = 'workspaceContains:' + existingFileName;
-				this.extensionService.activateByEvent(activationEvent).then(null, (err) => {
+				this._extensionService.activateByEvent(activationEvent).then(null, (err) => {
 					console.error(err);
 				});
 			});
@@ -234,7 +237,7 @@ export class PluginHostMain {
 	}
 
 	private handlePluginTests(): TPromise<void> {
-		let env = this.contextService.getConfiguration().env;
+		let env = this._contextService.getConfiguration().env;
 		if (!env.pluginTestsPath || !env.pluginDevelopmentPath) {
 			return TPromise.as(null);
 		}

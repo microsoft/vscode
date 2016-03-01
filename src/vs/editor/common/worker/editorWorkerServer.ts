@@ -67,10 +67,6 @@ class WorkerPluginService extends AbstractPluginService<ActivatedPlugin> {
 		}
 	}
 
-	public deactivate(pluginId:string): void {
-		// nothing to do
-	}
-
 	protected _createFailedPlugin(): ActivatedPlugin {
 		throw new Error('unexpected');
 	}
