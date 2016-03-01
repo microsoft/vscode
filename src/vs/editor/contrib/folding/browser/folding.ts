@@ -509,7 +509,6 @@ export class FoldingController implements editorCommon.IEditorContribution {
 		}
 	}
 
-
 	public changeAll(collapse: boolean): void {
 		if (this.decorations.length > 0) {
 			let hasChanges = true;
@@ -527,7 +526,30 @@ export class FoldingController implements editorCommon.IEditorContribution {
 		}
 	}
 
+	public foldLevel(foldLevel: number, selectedLineNumbers: number[]): void {
+		let model = this.editor.getModel();
+		let foldingRegionStack: editorCommon.IEditorRange[] = [ model.getFullModelRange() ]; // sentinel
 
+		let hasChanges = false;
+		this.editor.changeDecorations(changeAccessor => {
+			this.decorations.forEach(dec => {
+				let decRange = dec.getDecorationRange(model);
+				if (decRange) {
+					while (!Range.containsRange(foldingRegionStack[foldingRegionStack.length - 1], decRange)) {
+						foldingRegionStack.pop();
+					}
+					foldingRegionStack.push(decRange);
+					if (foldingRegionStack.length === foldLevel + 1 && !dec.isCollapsed && !selectedLineNumbers.some(lineNumber => decRange.startLineNumber < lineNumber && lineNumber <= decRange.endLineNumber)) {
+						dec.setCollapsed(true, changeAccessor);
+						hasChanges = true;
+					}
+				}
+			});
+		});
+		if (hasChanges) {
+			this.updateHiddenAreas(selectedLineNumbers[0]);
+		}
+	}
 }
 
 abstract class FoldingAction extends EditorAction {
@@ -581,6 +603,20 @@ class UnfoldAllAction extends FoldingAction {
 	}
 }
 
+class FoldLevelAction extends FoldingAction {
+	private static ID_PREFIX = 'editor.foldLevel';
+	public static ID = (level:number) => FoldLevelAction.ID_PREFIX + level;
+
+	private getFoldingLevel() {
+		return parseInt(this.id.substr(FoldLevelAction.ID_PREFIX.length));
+	}
+
+	invoke(foldingController: FoldingController): void {
+		foldingController.foldLevel(this.getFoldingLevel(), this.getSelectedLines());
+	}
+}
+
+
 EditorBrowserRegistry.registerEditorContribution(FoldingController);
 
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(UnfoldAction, UnfoldAction.ID, nls.localize('unfoldAction.label', "Unfold"), {
@@ -597,5 +633,26 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldAllActi
 }));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(UnfoldAllAction, UnfoldAllAction.ID, nls.localize('unfoldAllAction.label', "Unfold All"), {
 	context: ContextKey.EditorFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET,
+	secondary: [ KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_J) ]
+}));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldLevelAction, FoldLevelAction.ID(1), nls.localize('foldLevel1Action.label', "Fold Level 1"), {
+	context: ContextKey.EditorFocus,
+	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_1)
+}));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldLevelAction, FoldLevelAction.ID(2), nls.localize('foldLevel2Action.label', "Fold Level 2"), {
+	context: ContextKey.EditorFocus,
+	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_2)
+}));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldLevelAction, FoldLevelAction.ID(3), nls.localize('foldLevel3Action.label', "Fold Level 3"), {
+	context: ContextKey.EditorFocus,
+	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_3)
+}));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldLevelAction, FoldLevelAction.ID(4), nls.localize('foldLevel4Action.label', "Fold Level 4"), {
+	context: ContextKey.EditorFocus,
+	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_4)
+}));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(FoldLevelAction, FoldLevelAction.ID(5), nls.localize('foldLevel5Action.label', "Fold Level 5"), {
+	context: ContextKey.EditorFocus,
+	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_5)
 }));
