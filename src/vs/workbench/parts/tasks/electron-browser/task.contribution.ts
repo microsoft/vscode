@@ -1104,6 +1104,9 @@ if (Env.enableTasks) {
 								},
 								'env': {
 									'type': 'object',
+									'additionalProperties': {
+										'type': 'string'
+									},
 									'description': nls.localize('JsonSchema.options.env', 'The environment of the executed program or shell. If omitted the parent process\' environment is used.')
 								}
 							},
