@@ -26,7 +26,7 @@ var extensionsPath = path.join(path.dirname(__dirname), 'extensions');
 
 function getTSConfig(plugin) {
 	var script = (plugin.desc && plugin.desc.scripts && plugin.desc.scripts['vscode:prepublish']) || '';
-	var match = /^node \.\.\/\.\.\/node\_modules\/gulp\/bin\/gulp\.js \-\-gulpfile \.\.\/\.\.\/build\/gulpfile\.extensions\.js compile-plugin:([^ ]+) ?(.*tsconfig\.json)/.exec(script);
+	var match = /^node \.\.\/\.\.\/node\_modules\/gulp\/bin\/gulp\.js \-\-gulpfile \.\.\/\.\.\/build\/gulpfile\.extensions\.js compile-extension:([^ ]+) ?(.*tsconfig\.json)/.exec(script);
 
 	if (!match) {
 		return;
@@ -72,9 +72,9 @@ var tasks = readAllPlugins()
 
 		var name = plugin.desc.name;
 		var pluginRoot = path.join(extensionsPath, name);
-		var clean = 'clean-plugin:' + name;
-		var compile = 'compile-plugin:' + name;
-		var watch = 'watch-plugin:' + name;
+		var clean = 'clean-extension:' + name;
+		var compile = 'compile-extension:' + name;
+		var watch = 'watch-extension:' + name;
 
 		var sources = 'extensions/' + name + '/src/**';
 		var deps = [
@@ -136,6 +136,6 @@ var tasks = readAllPlugins()
 	})
 	.filter(function(task) { return !!task; });
 
-gulp.task('clean-plugins', tasks.map(function (t) { return t.clean; }));
-gulp.task('compile-plugins', tasks.map(function (t) { return t.compile; }));
-gulp.task('watch-plugins', tasks.map(function (t) { return t.watch; }));
+gulp.task('clean-extensions', tasks.map(function (t) { return t.clean; }));
+gulp.task('compile-extensions', tasks.map(function (t) { return t.compile; }));
+gulp.task('watch-extensions', tasks.map(function (t) { return t.watch; }));

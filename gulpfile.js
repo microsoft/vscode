@@ -114,9 +114,9 @@ gulp.task('watch-build', ['clean-build'], watchTask('out-build', true));
 gulp.task('default', ['compile']);
 
 // All
-gulp.task('clean', ['clean-client', 'clean-plugins']);
-gulp.task('compile', ['compile-client', 'compile-plugins']);
-gulp.task('watch', ['watch-client', 'watch-plugins']);
+gulp.task('clean', ['clean-client', 'clean-extensions']);
+gulp.task('compile', ['compile-client', 'compile-extensions']);
+gulp.task('watch', ['watch-client', 'watch-extensions']);
 
 gulp.task('test', function () {
 	return gulp.src('test/all.js')
