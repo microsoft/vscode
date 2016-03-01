@@ -12,7 +12,7 @@ import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {WorkerServer} from 'vs/base/common/worker/workerServer';
 import {EventService} from 'vs/platform/event/common/eventService';
-import {AbstractPluginService, ActivatedPlugin} from 'vs/platform/extensions/common/abstractPluginService';
+import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
 import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {SecondaryMarkerService} from 'vs/platform/markers/common/markerService';
@@ -45,7 +45,7 @@ export interface ICallback {
 	(something:any):void;
 }
 
-class WorkerPluginService extends AbstractPluginService<ActivatedPlugin> {
+class WorkerPluginService extends AbstractExtensionService<ActivatedExtension> {
 
 	constructor() {
 		super(true);
@@ -67,11 +67,11 @@ class WorkerPluginService extends AbstractPluginService<ActivatedPlugin> {
 		}
 	}
 
-	protected _createFailedPlugin(): ActivatedPlugin {
+	protected _createFailedExtension(): ActivatedExtension {
 		throw new Error('unexpected');
 	}
 
-	protected _actualActivatePlugin(extensionDescription: IExtensionDescription): TPromise<ActivatedPlugin> {
+	protected _actualActivateExtension(extensionDescription: IExtensionDescription): TPromise<ActivatedExtension> {
 		throw new Error('unexpected');
 	}
 

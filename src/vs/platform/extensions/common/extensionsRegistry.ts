@@ -371,16 +371,16 @@ interface IPointListenerEntry {
 
 class ExtensionsRegistryImpl implements IExtensionsRegistry {
 
-	private _pluginsMap: IExtensionDescriptionMap;
-	private _pluginsArr: IExtensionDescription[];
+	private _extensionsMap: IExtensionDescriptionMap;
+	private _extensionsArr: IExtensionDescription[];
 	private _activationMap: { [activationEvent: string]: IExtensionDescription[]; };
 	private _pointListeners: IPointListenerEntry[];
 	private _oneTimeActivationEventListeners: { [activationEvent: string]: IActivationEventListener[]; };
 	private _extensionPoints: { [extPoint: string]: ExtensionPoint<any>; };
 
 	constructor() {
-		this._pluginsMap = {};
-		this._pluginsArr = [];
+		this._extensionsMap = {};
+		this._extensionsArr = [];
 		this._activationMap = {};
 		this._pointListeners = [];
 		this._extensionPoints = {};
@@ -433,14 +433,14 @@ class ExtensionsRegistryImpl implements IExtensionsRegistry {
 		for (let i = 0, len = extensionDescriptions.length; i < len; i++) {
 			let extensionDescription = extensionDescriptions[i];
 
-			if (hasOwnProperty.call(this._pluginsMap, extensionDescription.id)) {
+			if (hasOwnProperty.call(this._extensionsMap, extensionDescription.id)) {
 				// No overwriting allowed!
-				console.error('Plugin `' + extensionDescription.id + '` is already registered');
+				console.error('Extension `' + extensionDescription.id + '` is already registered');
 				continue;
 			}
 
-			this._pluginsMap[extensionDescription.id] = extensionDescription;
-			this._pluginsArr.push(extensionDescription);
+			this._extensionsMap[extensionDescription.id] = extensionDescription;
+			this._extensionsArr.push(extensionDescription);
 
 			if (Array.isArray(extensionDescription.activationEvents)) {
 				for (let j = 0, lenJ = extensionDescription.activationEvents.length; j < lenJ; j++) {
@@ -472,14 +472,14 @@ class ExtensionsRegistryImpl implements IExtensionsRegistry {
 	}
 
 	public getAllExtensionDescriptions(): IExtensionDescription[] {
-		return this._pluginsArr.slice(0);
+		return this._extensionsArr.slice(0);
 	}
 
 	public getExtensionDescription(extensionId: string): IExtensionDescription {
-		if (!hasOwnProperty.call(this._pluginsMap, extensionId)) {
+		if (!hasOwnProperty.call(this._extensionsMap, extensionId)) {
 			return null;
 		}
-		return this._pluginsMap[extensionId];
+		return this._extensionsMap[extensionId];
 	}
 
 	public registerOneTimeActivationEventListener(activationEvent: string, listener: IActivationEventListener): void {

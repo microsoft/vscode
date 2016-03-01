@@ -13,7 +13,7 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ConfigurationService, IContent, IStat} from 'vs/platform/configuration/common/configurationService';
 import {IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, ITextEditorModel, Position} from 'vs/platform/editor/common/editor';
-import {AbstractPluginService, ActivatedPlugin} from 'vs/platform/extensions/common/abstractPluginService';
+import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
 import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {KeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
@@ -252,7 +252,7 @@ export class StandaloneKeybindingService extends KeybindingService {
 	}
 }
 
-export class SimplePluginService extends AbstractPluginService<ActivatedPlugin> {
+export class SimplePluginService extends AbstractExtensionService<ActivatedExtension> {
 
 	constructor() {
 		super(true);
@@ -274,11 +274,11 @@ export class SimplePluginService extends AbstractPluginService<ActivatedPlugin> 
 		}
 	}
 
-	protected _createFailedPlugin(): ActivatedPlugin {
+	protected _createFailedExtension(): ActivatedExtension {
 		throw new Error('unexpected');
 	}
 
-	protected _actualActivatePlugin(extensionDescription: IExtensionDescription): TPromise<ActivatedPlugin> {
+	protected _actualActivateExtension(extensionDescription: IExtensionDescription): TPromise<ActivatedExtension> {
 		throw new Error('unexpected');
 	}
 

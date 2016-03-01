@@ -9,7 +9,7 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/paths';
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {AbstractPluginService, ActivatedPlugin, IPluginContext, IPluginMemento} from 'vs/platform/extensions/common/abstractPluginService';
+import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
 import {IMessage, IExtensionDescription, IExtensionsStatus} from 'vs/platform/extensions/common/extensions';
 import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {IMessageService} from 'vs/platform/message/common/message';
@@ -19,6 +19,19 @@ import {IThreadService, Remotable} from 'vs/platform/thread/common/thread';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 const hasOwnProperty = Object.hasOwnProperty;
+
+export interface IPluginContext {
+	subscriptions: IDisposable[];
+	workspaceState: IPluginMemento;
+	globalState: IPluginMemento;
+	extensionPath: string;
+	asAbsolutePath(relativePath: string): string;
+}
+
+export interface IPluginMemento {
+	get<T>(key: string, defaultValue: T): T;
+	update(key: string, value: any): Thenable<boolean>;
+}
 
 class PluginMemento implements IPluginMemento {
 
@@ -63,7 +76,7 @@ class PluginMemento implements IPluginMemento {
 /**
  * Represents a failed extension in the ext host.
  */
-export class MainProcessFailedPlugin extends ActivatedPlugin {
+export class MainProcessFailedPlugin extends ActivatedExtension {
 	constructor() {
 		super(true);
 	}
@@ -73,7 +86,7 @@ export class MainProcessFailedPlugin extends ActivatedPlugin {
  * Represents an extension that was successfully loaded or an
  * empty extension in the ext host.
  */
-export class MainProcessSuccessPlugin extends ActivatedPlugin {
+export class MainProcessSuccessPlugin extends ActivatedExtension {
 	constructor() {
 		super(false);
 	}
@@ -81,7 +94,7 @@ export class MainProcessSuccessPlugin extends ActivatedPlugin {
 
 
 @Remotable.MainContext('MainProcessPluginService')
-export class MainProcessPluginService extends AbstractPluginService<ActivatedPlugin> {
+export class MainProcessPluginService extends AbstractExtensionService<ActivatedExtension> {
 
 	private _threadService: IThreadService;
 	private _messageService: IMessageService;
@@ -115,7 +128,7 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 		});
 	}
 
-	protected _createFailedPlugin() {
+	protected _createFailedExtension() {
 		return new MainProcessFailedPlugin();
 	}
 
@@ -202,13 +215,13 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 
 	// -- overwriting AbstractPluginService
 
-	protected _actualActivatePlugin(extensionDescription: IExtensionDescription): TPromise<ActivatedPlugin> {
+	protected _actualActivateExtension(extensionDescription: IExtensionDescription): TPromise<ActivatedExtension> {
 		let event = this.getTelemetryActivationEvent(extensionDescription);
 		this._telemetryService.publicLog('activatePlugin', event);
 		// redirect plugin activation to the plugin host
 		return this._proxy.$activatePluginInPluginHost(extensionDescription).then(_ => {
 			// the plugin host calls $onPluginActivatedInPluginHost, where we write to `activatedPlugins`
-			return this.activatedPlugins[extensionDescription.id];
+			return this._activatedExtensions[extensionDescription.id];
 		});
 	}
 
@@ -220,11 +233,11 @@ export class MainProcessPluginService extends AbstractPluginService<ActivatedPlu
 	}
 
 	public $onPluginActivatedInPluginHost(extensionId: string): void {
-		this.activatedPlugins[extensionId] = new MainProcessSuccessPlugin();
+		this._activatedExtensions[extensionId] = new MainProcessSuccessPlugin();
 	}
 
 	public $onPluginActivationFailedInPluginHost(extensionId: string): void {
-		this.activatedPlugins[extensionId] = new MainProcessFailedPlugin();
+		this._activatedExtensions[extensionId] = new MainProcessFailedPlugin();
 	}
 }
 
@@ -237,7 +250,7 @@ export interface IPluginExports {
 	// _pluginExportsBrand: any;
 }
 
-export class ExtHostPlugin extends ActivatedPlugin {
+export class ExtHostPlugin extends ActivatedExtension {
 
 	module: IPluginModule;
 	exports: IPluginExports;
@@ -258,7 +271,7 @@ export class EmptyPlugin extends ExtHostPlugin {
 }
 
 @Remotable.PluginHostContext('PluginHostPluginService')
-export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin> {
+export class PluginHostPluginService extends AbstractExtensionService<ExtHostPlugin> {
 
 	private _threadService: IThreadService;
 	private _storage: PluginHostStorage;
@@ -294,14 +307,14 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 	}
 
 	public get(extensionId: string): IPluginExports {
-		if (!hasOwnProperty.call(this.activatedPlugins, extensionId)) {
+		if (!hasOwnProperty.call(this._activatedExtensions, extensionId)) {
 			throw new Error('Plugin `' + extensionId + '` is not known or not activated');
 		}
-		return this.activatedPlugins[extensionId].exports;
+		return this._activatedExtensions[extensionId].exports;
 	}
 
 	public deactivate(extensionId: string): void {
-		let plugin = this.activatedPlugins[extensionId];
+		let plugin = this._activatedExtensions[extensionId];
 		if (!plugin) {
 			return;
 		}
@@ -323,7 +336,7 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 		}
 	}
 
-	protected _createFailedPlugin() {
+	protected _createFailedExtension() {
 		return new ExtHostPlugin(true, { activate: undefined, deactivate: undefined }, undefined, []);
 	}
 
@@ -354,7 +367,7 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 		});
 	}
 
-	protected _actualActivatePlugin(extensionDescription: IExtensionDescription): TPromise<ActivatedPlugin> {
+	protected _actualActivateExtension(extensionDescription: IExtensionDescription): TPromise<ActivatedExtension> {
 
 		return this._superActualActivatePlugin(extensionDescription).then((activatedPlugin) => {
 			this._proxy.$onPluginActivatedInPluginHost(extensionDescription.id);
@@ -407,7 +420,7 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 	// -- called by main thread
 
 	public $activatePluginInPluginHost(extensionDescription: IExtensionDescription): TPromise<void> {
-		return this._activatePlugin(extensionDescription);
+		return this._activateExtension(extensionDescription);
 	}
 
 }

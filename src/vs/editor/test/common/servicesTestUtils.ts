@@ -13,7 +13,7 @@ import {IContextMenuService, IContextViewService} from 'vs/platform/contextview/
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {EventService} from 'vs/platform/event/common/eventService';
-import {AbstractPluginService, ActivatedPlugin} from 'vs/platform/extensions/common/abstractPluginService';
+import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -99,7 +99,7 @@ export function createMockEditorWorkerServices(mockEditorWorkerServices: IMockEd
 }
 
 class MockModeService extends ModeServiceImpl {}
-class MockPluginService extends AbstractPluginService<ActivatedPlugin> {
+class MockPluginService extends AbstractExtensionService<ActivatedExtension> {
 	constructor() {
 		super(true);
 	}
@@ -120,11 +120,11 @@ class MockPluginService extends AbstractPluginService<ActivatedPlugin> {
 		}
 	}
 
-	protected _createFailedPlugin(): any {
+	protected _createFailedExtension(): any {
 		throw new Error('not implemented');
 	}
 
-	protected _actualActivatePlugin(extensionDescription): any {
+	protected _actualActivateExtension(extensionDescription): any {
 		throw new Error('not implemented');
 	}
 }
