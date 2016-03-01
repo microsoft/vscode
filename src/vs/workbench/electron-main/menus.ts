@@ -374,7 +374,7 @@ export class VSCodeMenu {
 
 	private quit(): void {
 
-		// If the user selected to exit from a plugin development host window, do not quit, but just
+		// If the user selected to exit from an extension development host window, do not quit, but just
 		// close the window unless this is the last window that is opened.
 		let vscodeWindow = windows.manager.getFocusedWindow();
 		if (vscodeWindow && vscodeWindow.isPluginDevelopmentHost && windows.manager.getWindowCount() > 1) {

@@ -34,7 +34,7 @@ function getEnvironment(): IEnvironment {
 }
 
 function _spawnSharedProcess(): cp.ChildProcess {
-	// Make sure the nls configuration travels to the plugin host.
+	// Make sure the nls configuration travels to the shared process.
 	const opts = {
 		env: assign(assign({}, process.env), {
 			AMD_ENTRYPOINT: 'vs/workbench/electron-main/sharedProcessMain'

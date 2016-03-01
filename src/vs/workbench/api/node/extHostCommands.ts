@@ -25,10 +25,10 @@ export class ExtHostCommands {
 
 	private _commands: { [n: string]: CommandHandler } = Object.create(null);
 	private _proxy: MainThreadCommands;
-	private _pluginHostEditors: ExtHostEditors;
+	private _extHostEditors: ExtHostEditors;
 
 	constructor(@IThreadService threadService: IThreadService) {
-		this._pluginHostEditors = threadService.getRemotable(ExtHostEditors);
+		this._extHostEditors = threadService.getRemotable(ExtHostEditors);
 		this._proxy = threadService.getRemotable(MainThreadCommands);
 	}
 

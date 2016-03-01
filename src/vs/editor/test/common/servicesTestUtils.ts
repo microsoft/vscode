@@ -99,7 +99,7 @@ export function createMockEditorWorkerServices(mockEditorWorkerServices: IMockEd
 }
 
 class MockModeService extends ModeServiceImpl {}
-class MockPluginService extends AbstractExtensionService<ActivatedExtension> {
+class MockExtensionService extends AbstractExtensionService<ActivatedExtension> {
 	constructor() {
 		super(true);
 	}
@@ -133,7 +133,7 @@ class MockModelService extends ModelServiceImpl { }
 
 export function createMockModeService(): IModeService {
 	var threadService = NULL_THREAD_SERVICE;
-	var extensionService = new MockPluginService();
+	var extensionService = new MockExtensionService();
 	var modeService = new MockModeService(threadService, extensionService);
 	var inst = createInstantiationService({
 		threadService: threadService,
@@ -155,7 +155,7 @@ export function createMockModelService(): IModelService {
 	let eventService = new EventService();
 	let configurationService = new MockConfigurationService(contextService, eventService);
 	var threadService = NULL_THREAD_SERVICE;
-	var extensionService = new MockPluginService();
+	var extensionService = new MockExtensionService();
 	var modeService = new MockModeService(threadService, extensionService);
 	var modelService = new MockModelService(threadService, null, modeService, configurationService);
 	var inst = createInstantiationService({

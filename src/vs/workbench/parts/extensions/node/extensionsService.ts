@@ -203,8 +203,8 @@ export class ExtensionsService implements IExtensionsService {
 			return all;
 		}
 
-		return all.then(plugins => {
-			const byId = values(groupBy(plugins, p => `${ p.publisher }.${ p.name }`));
+		return all.then(extensions => {
+			const byId = values(groupBy(extensions, p => `${ p.publisher }.${ p.name }`));
 			return byId.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);
 		});
 	}

@@ -40,7 +40,7 @@ import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceIm
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
-import {SimpleConfigurationService, SimpleEditorRequestService, SimpleMessageService, SimplePluginService, StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
+import {SimpleConfigurationService, SimpleEditorRequestService, SimpleMessageService, SimpleExtensionService, StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
 
 export interface IEditorContextViewService extends IContextViewService {
 	dispose(): void;
@@ -183,7 +183,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 
 	let threadService = services.threadService || new MainThreadService(contextService, 'vs/editor/common/worker/editorWorkerServer', 2);
 	let messageService = services.messageService || new SimpleMessageService();
-	let extensionService = services.extensionService || new SimplePluginService();
+	let extensionService = services.extensionService || new SimpleExtensionService();
 	let markerService = services.markerService || new MainProcessMarkerService(threadService);
 	let requestService = services.requestService || new SimpleEditorRequestService(contextService, telemetryService);
 	let modeService = services.modeService || new MainThreadModeServiceImpl(threadService, extensionService);

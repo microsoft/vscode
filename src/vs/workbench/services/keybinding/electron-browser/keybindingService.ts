@@ -142,7 +142,7 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		this._beginListening(domNode);
 	}
 
-	setPluginService(extensionService: IExtensionService): void {
+	setExtensionService(extensionService: IExtensionService): void {
 		this._extensionService = extensionService;
 	}
 

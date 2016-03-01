@@ -270,7 +270,7 @@ export class TaskRegistry {
 		*/
 	}
 
-	// private onDescriptions(descriptions: IPluginDescription[]) {
+	// private onDescriptions(descriptions: IExtensionDescription[]) {
 	// 	descriptions.forEach(description => {
 	// 		let extensions = description.contributes[extensionPoint];
 	// 		if (Types.isArray(extensions)) {

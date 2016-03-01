@@ -45,7 +45,7 @@ export interface ICallback {
 	(something:any):void;
 }
 
-class WorkerPluginService extends AbstractExtensionService<ActivatedExtension> {
+class WorkerExtensionService extends AbstractExtensionService<ActivatedExtension> {
 
 	constructor() {
 		super(true);
@@ -86,7 +86,7 @@ export class EditorWorkerServer {
 
 	public initialize(mainThread:WorkerServer, complete:ICallback, error:ICallback, progress:ICallback, initData:IInitData):void {
 
-		var extensionService = new WorkerPluginService();
+		var extensionService = new WorkerExtensionService();
 
 		var contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
 

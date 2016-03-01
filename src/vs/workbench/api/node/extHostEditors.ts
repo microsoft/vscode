@@ -603,7 +603,7 @@ export class MainThreadEditors {
 		return result;
 	}
 
-	// --- from plugin host process
+	// --- from extension host process
 
 	_tryShowTextDocument(resource: URI, position: EditorPosition, preserveFocus: boolean): TPromise<string> {
 

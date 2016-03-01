@@ -572,7 +572,7 @@ export class MainThreadDocuments {
 		}
 	}
 
-	// --- from plugin host process
+	// --- from extension host process
 
 	_trySaveDocument(uri: URI): TPromise<boolean> {
 		return this._textFileService.save(uri);

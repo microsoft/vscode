@@ -334,7 +334,7 @@ export class MainThreadEditorsTracker {
 
 	private _doUpdateMapping(): void {
 		let allModels = this._modelService.getModels();
-		// Same filter as in pluginHostDocuments
+		// Same filter as in extHostDocuments
 		allModels.filter((model) => !model.isTooLargeForHavingARichMode());
 		let allModelsMap: { [modelUri:string]: EditorCommon.IModel; } = Object.create(null);
 		allModels.forEach((model) => {

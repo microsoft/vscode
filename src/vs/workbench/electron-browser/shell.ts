@@ -176,7 +176,7 @@ export class WorkbenchShell {
 		this.workbench = new Workbench(workbenchContainer.getHTMLElement(), this.workspace, this.configuration, this.options, instantiationService);
 		this.workbench.startup({
 			onServicesCreated: () => {
-				this.initPluginSystem();
+				this.initExtensionSystem();
 			},
 			onWorkbenchStarted: () => {
 				this.onWorkbenchStarted();
@@ -231,7 +231,7 @@ export class WorkbenchShell {
 
 		this.windowService = new WindowService();
 
-		let disableWorkspaceStorage = this.configuration.env.extensionTestsPath || (!this.workspace && !this.configuration.env.extensionDevelopmentPath); // without workspace or in any plugin test, we use inMemory storage unless we develop a plugin where we want to preserve state
+		let disableWorkspaceStorage = this.configuration.env.extensionTestsPath || (!this.workspace && !this.configuration.env.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
 		this.storageService = new Storage(this.contextService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 
 		let configService = new ConfigurationService(
@@ -239,7 +239,7 @@ export class WorkbenchShell {
 			eventService
 		);
 
-		// no telemetry in a window for plugin development!
+		// no telemetry in a window for extension development!
 		let enableTelemetry = this.configuration.env.isBuilt && !this.configuration.env.extensionDevelopmentPath ? !!this.configuration.env.enableTelemetry : false;
 		this.telemetryService = new ElectronTelemetryService(configService, this.storageService, { enableTelemetry: enableTelemetry, version: this.configuration.env.version, commitHash: this.configuration.env.commitHash });
 
@@ -272,7 +272,7 @@ export class WorkbenchShell {
 		let markerService = new MainProcessMarkerService(this.threadService);
 
 		let extensionService = new MainProcessExtensionService(this.contextService, this.threadService, this.messageService, this.telemetryService);
-		this.keybindingService.setPluginService(extensionService);
+		this.keybindingService.setExtensionService(extensionService);
 
 		let modeService = new MainThreadModeServiceImpl(this.threadService, extensionService);
 		let modelService = new ModelServiceImpl(this.threadService, markerService, modeService, configService);
@@ -312,7 +312,7 @@ export class WorkbenchShell {
 	}
 
 	// TODO@Alex, TODO@Joh move this out of here?
-	private initPluginSystem(): void {
+	private initExtensionSystem(): void {
 		this.threadService.getRemotable(MainProcessVSCodeAPIHelper);
 		this.threadService.getRemotable(MainThreadDocuments);
 		this.threadService.getRemotable(RemoteTelemetryServiceHelper);

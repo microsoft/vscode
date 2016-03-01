@@ -18,7 +18,7 @@ interface IRendererConnection {
 }
 
 // This calls exit directly in case the initialization is not finished and we need to exit
-// Otherwise, if initialization completed we go to pluginHostMain.terminate()
+// Otherwise, if initialization completed we go to extensionHostMain.terminate()
 let onTerminate = function() {
 	exit();
 };

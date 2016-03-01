@@ -252,7 +252,7 @@ export class StandaloneKeybindingService extends KeybindingService {
 	}
 }
 
-export class SimplePluginService extends AbstractExtensionService<ActivatedExtension> {
+export class SimpleExtensionService extends AbstractExtensionService<ActivatedExtension> {
 
 	constructor() {
 		super(true);
