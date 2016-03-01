@@ -233,11 +233,3 @@ export abstract class AbstractPluginService<T extends ActivatedPlugin> implement
 
 	protected abstract _actualActivatePlugin(pluginDescription: IPluginDescription): TPromise<T>;
 }
-
-export function loadAMDModule<T>(moduleId: string): TPromise<T> {
-	return new TPromise<T>((c, e, p) => {
-		require([moduleId], (r: T) => {
-			c(r);
-		}, e);
-	});
-}

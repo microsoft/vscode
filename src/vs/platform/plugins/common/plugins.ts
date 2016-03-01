@@ -22,7 +22,6 @@ export interface IPluginDescription {
 	};
 	main?: string;
 	contributes?: { [point: string]: any; };
-	isAMD: boolean;
 }
 
 export interface IActivationEventListener {

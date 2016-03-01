@@ -360,10 +360,6 @@ const schema: IJSONSchema = {
 				// extensions will fill in
 			},
 			default: {}
-		},
-		isAMD: {
-			description: nls.localize('vscode.extension.isAMD', 'Indicated whether VS Code should load your code as AMD or CommonJS. Default: false.'),
-			type: 'boolean'
 		}
 	}
 };

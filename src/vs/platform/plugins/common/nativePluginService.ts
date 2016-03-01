@@ -10,7 +10,7 @@ import * as paths from 'vs/base/common/paths';
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {AbstractPluginService, ActivatedPlugin, IPluginContext, IPluginMemento, loadAMDModule} from 'vs/platform/plugins/common/abstractPluginService';
+import {AbstractPluginService, ActivatedPlugin, IPluginContext, IPluginMemento} from 'vs/platform/plugins/common/abstractPluginService';
 import {IMessage, IPluginDescription, IPluginStatus} from 'vs/platform/plugins/common/plugins';
 import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
 import {PluginHostStorage} from 'vs/platform/storage/common/remotable.storage';
@@ -339,10 +339,6 @@ export class PluginHostPluginService extends AbstractPluginService<ExtHostPlugin
 	}
 
 	protected _loadPluginModule(pluginDescription: IPluginDescription): TPromise<IPluginModule> {
-		if (pluginDescription.isAMD) {
-			return loadAMDModule(uriFromPath(pluginDescription.main));
-		}
-
 		return loadCommonJSModule(pluginDescription.main);
 	}
 
@@ -428,19 +424,4 @@ function loadCommonJSModule<T>(modulePath: string): TPromise<T> {
 		return TPromise.wrapError(e);
 	}
 	return TPromise.as(r);
-}
-
-
-// TODO@Alex: Duplicated in:
-// * src\bootstrap.js
-// * src\vs\workbench\electron-main\bootstrap.js
-// * src\vs\platform\plugins\common\nativePluginService.ts
-function uriFromPath(_path) {
-	let pathName = _path.replace(/\\/g, '/');
-
-	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
-		pathName = '/' + pathName;
-	}
-
-	return encodeURI('file://' + pathName);
 }
