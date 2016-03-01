@@ -174,6 +174,7 @@ class ConfigureTaskRunnerAction extends Action {
 	public run(event?:any): Promise {
 		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
 		let autoDetectFailed = false;
+		let useTaskSampleConfig = false;
 		let fileCreated = false;
 		return this.fileService.resolveFile(this.contextService.toResource('.vscode/tasks.json')).then((success) => {
 			return success;
@@ -195,6 +196,7 @@ class ConfigureTaskRunnerAction extends Action {
 					// TODO@Dirk: Converting double time here to get a wrong uri that is compatible with the rest of the system
 					let configSampleUri = URI.parse(require.toUrl('vs/workbench/parts/tasks/common/taskSampleConfig.json'));
 					contentPromise = this.fileService.resolveContent(configSampleUri, { encoding: 'utf8' /* make sure to keep sample file encoding as we stored it! */}).then(content => {
+						useTaskSampleConfig = true;
 						return content.value;
 					}, (err:any) => {
 						let config: FileConfig.ExternalTaskRunnerConfiguration = {
@@ -221,7 +223,7 @@ class ConfigureTaskRunnerAction extends Action {
 					forceOpen: true
 				}
 			}, sideBySide).then((editor) => {
-				if (fileCreated) {
+				if (useTaskSampleConfig && fileCreated) {
 					let codeEditor: ICodeEditor = editor.getControl() as ICodeEditor;
 					let position = { lineNumber: 5, column: 2 };
 					codeEditor.revealPosition(position);
