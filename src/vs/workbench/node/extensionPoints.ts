@@ -69,7 +69,74 @@ export class MessagesCollector {
 	}
 }
 
-export class PluginScanner {
+abstract class ExtensionManifestHandler {
+
+	protected _ourVersion: string;
+	protected _collector: MessagesCollector;
+	protected _absoluteFolderPath: string;
+	protected _isBuiltin: boolean;
+	protected _absoluteManifestPath: string;
+
+	constructor(ourVersion: string, collector: MessagesCollector, absoluteFolderPath:string, isBuiltin:boolean) {
+		this._ourVersion = ourVersion;
+		this._collector = collector;
+		this._absoluteFolderPath = absoluteFolderPath;
+		this._isBuiltin = isBuiltin;
+		this._absoluteManifestPath = paths.join(absoluteFolderPath, MANIFEST_FILE);
+	}
+}
+
+class ExtensionManifestParser extends ExtensionManifestHandler {
+	public parse(): TPromise<IExtensionDescription> {
+		return pfs.readFile(this._absoluteManifestPath).then((manifestContents) => {
+			let errors: string[] = [];
+			let extensionDescription: IExtensionDescription = json.parse(manifestContents.toString(), errors);
+			if (errors.length > 0) {
+				errors.forEach((error) => {
+					this._collector.error(this._absoluteFolderPath, 'Failed to parse ' + this._absoluteManifestPath + ': ' + error);
+				});
+				return null;
+			}
+			return extensionDescription;
+		}, (err) => {
+			this._collector.error(this._absoluteFolderPath, 'Cannot read file ' + this._absoluteManifestPath + ': ' + err.message);
+			return null;
+		});
+	}
+}
+
+class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
+
+	public replaceNLS(extensionDescription:IExtensionDescription): TPromise<IExtensionDescription> {
+		let extension = paths.extname(this._absoluteManifestPath);
+		let basename = this._absoluteManifestPath.substr(0, this._absoluteManifestPath.length - extension.length);
+
+		return pfs.fileExists(basename + '.nls' + extension).then(exists => {
+			if (!exists) {
+				return extensionDescription;
+			}
+			return ExtensionManifestNLSReplacer.findMessageBundle(basename).then(messageBundle => {
+				if (!messageBundle) {
+					return extensionDescription;
+				}
+				return pfs.readFile(messageBundle).then(messageBundleContent => {
+					let errors: string[] = [];
+					let messages: { [key: string]: string; } = json.parse(messageBundleContent.toString(), errors);
+					if (errors.length > 0) {
+						errors.forEach((error) => {
+							this._collector.error(this._absoluteFolderPath, 'Failed to parse ' + messageBundle + ': ' + error);
+						});
+						return extensionDescription;
+					}
+					ExtensionManifestNLSReplacer._replaceNLStrings(extensionDescription, messages, this._collector, this._absoluteFolderPath);
+					return extensionDescription;
+				}, (err) => {
+					this._collector.error(this._absoluteFolderPath, 'Cannot read file ' + messageBundle + ': ' + err.message);
+					return null;
+				});
+			});
+		});
+	}
 
 	private static findMessageBundle(basename: string): TPromise<string> {
 		return new TPromise<string>((c ,e, p) => {
@@ -123,23 +190,56 @@ export class PluginScanner {
 						}
 					}
 				} else if (Types.isObject(value)) {
-					PluginScanner._replaceNLStrings(value, messages, collector, messageScope);
+					ExtensionManifestNLSReplacer._replaceNLStrings(value, messages, collector, messageScope);
 				} else if (Types.isArray(value)) {
 					(<any[]>value).forEach(element => {
 						if (Types.isObject(element)) {
-							PluginScanner._replaceNLStrings(element, messages, collector, messageScope);
+							ExtensionManifestNLSReplacer._replaceNLStrings(element, messages, collector, messageScope);
 						}
 					});
 				}
 			}
 		});
 	}
+}
 
+class ExtensionManifestValidator extends ExtensionManifestHandler {
+	validate(extensionDescription:IExtensionDescription): IExtensionDescription {
+		extensionDescription.isBuiltin = this._isBuiltin;
+
+		let notices: string[] = [];
+		if (!isValidExtensionDescription(this._ourVersion, this._absoluteFolderPath, extensionDescription, notices)) {
+			notices.forEach((error) => {
+				this._collector.error(this._absoluteFolderPath, error);
+			});
+			return null;
+		}
+
+		// in this case the notices are warnings
+		notices.forEach((error) => {
+			this._collector.warn(this._absoluteFolderPath, error);
+		});
+
+		// id := `publisher.name`
+		extensionDescription.id = `${ extensionDescription.publisher }.${ extensionDescription.name }`;
+
+		// main := absolutePath(`main`)
+		if (extensionDescription.main) {
+			extensionDescription.main = paths.normalize(paths.join(this._absoluteFolderPath, extensionDescription.main));
+		}
+
+		extensionDescription.extensionFolderPath = this._absoluteFolderPath;
+
+		return extensionDescription;
+	}
+}
+
+export class ExtensionScanner {
 
 	/**
-	 * Scan the plugin defined in `absoluteFolderPath`
+	 * Read the extension defined in `absoluteFolderPath`
 	 */
-	public static scanPlugin(
+	public static scanExtension(
 		version: string,
 		collector: MessagesCollector,
 		absoluteFolderPath:string,
@@ -147,97 +247,29 @@ export class PluginScanner {
 	) : TPromise<IExtensionDescription>
 	{
 		absoluteFolderPath = paths.normalize(absoluteFolderPath);
-		let absoluteManifestPath = paths.join(absoluteFolderPath, MANIFEST_FILE);
 
-		let parseJSONManifest = (manifestContents:string): IExtensionDescription => {
-			let errors: string[] = [];
-			let pluginDescFromFile: IExtensionDescription = json.parse(manifestContents, errors);
-			if (errors.length > 0) {
-				errors.forEach((error) => {
-					collector.error(absoluteFolderPath, 'Failed to parse ' + absoluteManifestPath + ': ' + error);
-				});
-				return null;
-			}
-			return pluginDescFromFile;
-		};
-
-		let replaceNLStrings = (pluginDescFromFile:IExtensionDescription): TPromise<IExtensionDescription> => {
-			let extension = paths.extname(absoluteManifestPath);
-			let basename = absoluteManifestPath.substr(0, absoluteManifestPath.length - extension.length);
-
-			return pfs.fileExists(basename + '.nls' + extension).then(exists => {
-				if (!exists) {
-					return pluginDescFromFile;
-				}
-				return PluginScanner.findMessageBundle(basename).then(messageBundle => {
-					if (!messageBundle) {
-						return pluginDescFromFile;
-					}
-					return pfs.readFile(messageBundle).then(messageBundleContent => {
-						let errors: string[] = [];
-						let messages: { [key: string]: string; } = json.parse(messageBundleContent.toString(), errors);
-						if (errors.length > 0) {
-							errors.forEach((error) => {
-								collector.error(absoluteFolderPath, 'Failed to parse ' + messageBundle + ': ' + error);
-							});
-							return pluginDescFromFile;
-						}
-						PluginScanner._replaceNLStrings(pluginDescFromFile, messages, collector, absoluteFolderPath);
-						return pluginDescFromFile;
-					});
-				});
-			});
-		};
-
-		return pfs.readFile(absoluteManifestPath).then((manifestContents) => {
-			let pluginDescFromFile = parseJSONManifest(manifestContents.toString());
-			if (pluginDescFromFile === null) {
+		let parser = new ExtensionManifestParser(version, collector, absoluteFolderPath, isBuiltin);
+		return parser.parse().then((extensionDescription) => {
+			if (extensionDescription === null) {
 				return null;
 			}
 
-			return replaceNLStrings(pluginDescFromFile);
-
-		}).then((pluginDescFromFile) => {
-			if (pluginDescFromFile === null) {
+			let nlsReplacer = new ExtensionManifestNLSReplacer(version, collector, absoluteFolderPath, isBuiltin);
+			return nlsReplacer.replaceNLS(extensionDescription);
+		}).then((extensionDescription) => {
+			if (extensionDescription === null) {
 				return null;
 			}
 
-			pluginDescFromFile.isBuiltin = isBuiltin;
-
-			let notices: string[] = [];
-			if (!isValidExtensionDescription(version, absoluteFolderPath, pluginDescFromFile, notices)) {
-				notices.forEach((error) => {
-					collector.error(absoluteFolderPath, error);
-				});
-				return null;
-			}
-
-			// in this case the notices are warnings
-			notices.forEach((error) => {
-				collector.warn(absoluteFolderPath, error);
-			});
-
-			// id := `publisher.name`
-			pluginDescFromFile.id = `${ pluginDescFromFile.publisher }.${ pluginDescFromFile.name }`;
-
-			// main := absolutePath(`main`)
-			if (pluginDescFromFile.main) {
-				pluginDescFromFile.main = paths.normalize(paths.join(absoluteFolderPath, pluginDescFromFile.main));
-			}
-
-			pluginDescFromFile.extensionFolderPath = absoluteFolderPath;
-
-			return pluginDescFromFile;
-		}, (err) => {
-			collector.error(absoluteFolderPath, 'Cannot read file ' + absoluteManifestPath + ': ' + err.message);
-			return null;
+			let validator = new ExtensionManifestValidator(version, collector, absoluteFolderPath, isBuiltin);
+			return validator.validate(extensionDescription);
 		});
 	}
 
 	/**
 	 * Scan a list of extensions defined in `absoluteFolderPath`
 	 */
-	public static scanPlugins(
+	public static scanExtensions(
 		version: string,
 		collector: MessagesCollector,
 		absoluteFolderPath:string,
@@ -254,13 +286,13 @@ export class PluginScanner {
 
 		return obsolete.then(obsolete => {
 			return pfs.readDirsInDir(absoluteFolderPath)
-				.then(folders => TPromise.join(folders.map(f => this.scanPlugin(version, collector, paths.join(absoluteFolderPath, f), isBuiltin))))
-				.then(plugins => plugins.filter(item => item !== null))
+				.then(folders => TPromise.join(folders.map(f => this.scanExtension(version, collector, paths.join(absoluteFolderPath, f), isBuiltin))))
+				.then(extensionDescriptions => extensionDescriptions.filter(item => item !== null))
 				// TODO: align with extensionsService
-				.then(plugins => plugins.filter(p => !obsolete[`${ p.publisher }.${ p.name }-${ p.version }`]))
-				.then(plugins => {
-					const pluginsById = values(groupBy(plugins, p => p.id));
-					return pluginsById.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);
+				.then(extensionDescriptions => extensionDescriptions.filter(p => !obsolete[`${ p.publisher }.${ p.name }-${ p.version }`]))
+				.then(extensionDescriptions => {
+					const extensionDescriptionsById = values(groupBy(extensionDescriptions, p => p.id));
+					return extensionDescriptionsById.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);
 				})
 				.then(null, err => {
 					collector.error(absoluteFolderPath, err);
@@ -270,10 +302,10 @@ export class PluginScanner {
 	}
 
 	/**
-	 * Combination of scanPlugin and scanPlugins: If a plugin manifest is found at root, we load just this plugin, otherwise we assume
-	 * the folder contains multiple extensions.
+	 * Combination of scanExtension and scanExtensions: If an extension manifest is found at root, we load just this extension,
+	 * otherwise we assume the folder contains multiple extensions.
 	 */
-	public static scanOneOrMultiplePlugins(
+	public static scanOneOrMultipleExtensions(
 		version: string,
 		collector: MessagesCollector,
 		absoluteFolderPath:string,
@@ -282,14 +314,14 @@ export class PluginScanner {
 	{
 		return pfs.fileExists(paths.join(absoluteFolderPath, MANIFEST_FILE)).then((exists) => {
 			if (exists) {
-				return this.scanPlugin(version, collector, absoluteFolderPath, isBuiltin).then((extensionDescription) => {
+				return this.scanExtension(version, collector, absoluteFolderPath, isBuiltin).then((extensionDescription) => {
 					if (extensionDescription === null) {
 						return [];
 					}
 					return [extensionDescription];
 				});
 			}
-			return this.scanPlugins(version, collector, absoluteFolderPath, isBuiltin);
+			return this.scanExtensions(version, collector, absoluteFolderPath, isBuiltin);
 		}, (err) => {
 			collector.error(absoluteFolderPath, err);
 			return [];

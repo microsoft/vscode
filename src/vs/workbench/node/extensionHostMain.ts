@@ -26,7 +26,7 @@ import {ExtHostTelemetryService} from 'vs/workbench/api/node/extHostTelemetry';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 import {ModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
-import {PluginScanner, MessagesCollector} from 'vs/workbench/node/extensionPoints';
+import {ExtensionScanner, MessagesCollector} from 'vs/workbench/node/extensionPoints';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Client } from 'vs/base/node/service.net';
 import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
@@ -153,9 +153,9 @@ export class PluginHostMain {
 	}
 
 	private static scanPlugins(collector: MessagesCollector, builtinPluginsPath: string, userInstallPath: string, pluginDevelopmentPath: string, version: string): TPromise<IExtensionDescription[]> {
-		const builtinPlugins = PluginScanner.scanPlugins(version, collector, builtinPluginsPath, true);
-		const userPlugins = !userInstallPath ? TPromise.as([]) : PluginScanner.scanPlugins(version, collector, userInstallPath, false);
-		const developedPlugins = !pluginDevelopmentPath ? TPromise.as([]) : PluginScanner.scanOneOrMultiplePlugins(version, collector, pluginDevelopmentPath, false);
+		const builtinPlugins = ExtensionScanner.scanExtensions(version, collector, builtinPluginsPath, true);
+		const userPlugins = !userInstallPath ? TPromise.as([]) : ExtensionScanner.scanExtensions(version, collector, userInstallPath, false);
+		const developedPlugins = !pluginDevelopmentPath ? TPromise.as([]) : ExtensionScanner.scanOneOrMultipleExtensions(version, collector, pluginDevelopmentPath, false);
 
 		return TPromise.join([builtinPlugins, userPlugins, developedPlugins]).then((_: IExtensionDescription[][]) => {
 			let builtinPlugins = _[0];
