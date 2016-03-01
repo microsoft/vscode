@@ -14,126 +14,41 @@ import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/com
 import {Registry} from 'vs/platform/platform';
 
 export interface IExtensionMessageCollector {
-	error(message: any): void;
-	warn(message: any): void;
-	info(message: any): void;
-}
-
-export interface IExtensionsMessageCollector {
-	error(source: string, message: any): void;
-	warn(source: string, message: any): void;
-	info(source: string, message: any): void;
-	scopeTo(source: string): IExtensionMessageCollector;
+	error(message: string): void;
+	warn(message: string): void;
+	info(message: string): void;
 }
 
 class ExtensionMessageCollector implements IExtensionMessageCollector {
-	private _scope: string;
-	private _actual: IExtensionsMessageCollector;
 
-	constructor(scope: string, actual: IExtensionsMessageCollector) {
-		this._scope = scope;
-		this._actual = actual;
+	private _messageHandler: (msg:IMessage)=>void;
+	private _source: string;
+
+	constructor(messageHandler: (msg:IMessage)=>void, source:string) {
+		this._messageHandler = messageHandler;
+		this._source = source;
 	}
 
-	public error(message: any): void {
-		this._actual.error(this._scope, message);
-	}
-
-	public warn(message: any): void {
-		this._actual.warn(this._scope, message);
-	}
-
-	public info(message: any): void {
-		this._actual.info(this._scope, message);
-	}
-}
-
-export interface IExtensionsMessageHandler {
-	(severity: Severity, source: string, message: string): void;
-}
-
-class ExtensionsMessageForwarder implements IExtensionsMessageCollector {
-
-	private _handler: IExtensionsMessageHandler;
-
-	constructor(handler: IExtensionsMessageHandler) {
-		this._handler = handler;
-	}
-
-	private _pushMessage(type: Severity, source: string, message: any): void {
-		this._handler(
-			type,
-			source,
-			this._ensureString(message)
-		);
-	}
-
-	private _ensureString(e: any): string {
-		if (e && e.message && e.stack) {
-			return e.message + '\n\n' + e.stack;
-		}
-		return String(e);
-	}
-
-	public error(source: string, message: any): void {
-		this._pushMessage(Severity.Error, source, message);
-	}
-
-	public warn(source: string, message: any): void {
-		this._pushMessage(Severity.Warning, source, message);
-	}
-
-	public info(source: string, message: any): void {
-		this._pushMessage(Severity.Info, source, message);
-	}
-
-	public scopeTo(source: string): IExtensionMessageCollector {
-		return new ExtensionMessageCollector(source, this);
-	}
-}
-
-export class ExtensionsMessageCollector implements IExtensionsMessageCollector {
-
-	private _messages: IMessage[];
-
-	constructor() {
-		this._messages = [];
-	}
-
-	public getMessages(): IMessage[] {
-		return this._messages;
-	}
-
-	private _pushMessage(type: Severity, source: string, message: any): void {
-		this._messages.push({
+	private _msg(type:Severity, message:string): void {
+		this._messageHandler({
 			type: type,
-			message: this._ensureString(message),
-			source: source
+			message: message,
+			source: this._source
 		});
 	}
 
-	private _ensureString(e: any): string {
-		if (e && e.message && e.stack) {
-			return e.message + '\n\n' + e.stack;
-		}
-		return String(e);
+	public error(message: string): void {
+		this._msg(Severity.Error, message);
 	}
 
-	public error(source: string, message: any): void {
-		this._pushMessage(Severity.Error, source, message);
+	public warn(message: string): void {
+		this._msg(Severity.Warning, message);
 	}
 
-	public warn(source: string, message: any): void {
-		this._pushMessage(Severity.Warning, source, message);
+	public info(message: string): void {
+		this._msg(Severity.Info, message);
 	}
 
-	public info(source: string, message: any): void {
-		this._pushMessage(Severity.Info, source, message);
-	}
-
-	public scopeTo(source: string): IExtensionMessageCollector {
-		return new ExtensionMessageCollector(source, this);
-	}
 }
 
 export function isValidExtensionDescription(extensionFolderPath: string, extensionDescription: IExtensionDescription, notices: string[]): boolean {
@@ -229,7 +144,7 @@ export interface IExtensionsRegistry {
 	triggerActivationEventListeners(activationEvent: string): void;
 
 	registerExtensionPoint<T>(extensionPoint: string, jsonSchema: IJSONSchema): IExtensionPoint<T>;
-	handleExtensionPoints(messageHandler: IExtensionsMessageHandler): void;
+	handleExtensionPoints(messageHandler: (msg:IMessage)=>void): void;
 }
 
 class ExtensionPoint<T> implements IExtensionPoint<T> {
@@ -237,13 +152,13 @@ class ExtensionPoint<T> implements IExtensionPoint<T> {
 	public name: string;
 	private _registry: ExtensionsRegistryImpl;
 	private _handler: IExtensionPointHandler<T>;
-	private _collector: IExtensionsMessageCollector;
+	private _messageHandler: (msg:IMessage)=>void;
 
 	constructor(name: string, registry: ExtensionsRegistryImpl) {
 		this.name = name;
 		this._registry = registry;
 		this._handler = null;
-		this._collector = null;
+		this._messageHandler = null;
 	}
 
 	setHandler(handler: IExtensionPointHandler<T>): void {
@@ -254,13 +169,13 @@ class ExtensionPoint<T> implements IExtensionPoint<T> {
 		this._handle();
 	}
 
-	handle(collector: IExtensionsMessageCollector): void {
-		this._collector = collector;
+	handle(messageHandler: (msg:IMessage)=>void): void {
+		this._messageHandler = messageHandler;
 		this._handle();
 	}
 
 	private _handle(): void {
-		if (!this._handler || !this._collector) {
+		if (!this._handler || !this._messageHandler) {
 			return;
 		}
 
@@ -269,7 +184,7 @@ class ExtensionPoint<T> implements IExtensionPoint<T> {
 				return {
 					description: desc,
 					value: desc.contributes[this.name],
-					collector: this._collector.scopeTo(desc.extensionFolderPath)
+					collector: new ExtensionMessageCollector(this._messageHandler, desc.extensionFolderPath)
 				};
 			});
 			this._handler(users);
@@ -409,11 +324,9 @@ class ExtensionsRegistryImpl implements IExtensionsRegistry {
 		return result;
 	}
 
-	public handleExtensionPoints(messageHandler: IExtensionsMessageHandler): void {
-		let collector = new ExtensionsMessageForwarder(messageHandler);
-
+	public handleExtensionPoints(messageHandler: (msg:IMessage)=>void): void {
 		Object.keys(this._extensionPoints).forEach((extensionPointName) => {
-			this._extensionPoints[extensionPointName].handle(collector);
+			this._extensionPoints[extensionPointName].handle(messageHandler);
 		});
 	}
 

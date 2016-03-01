@@ -20,12 +20,162 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 const hasOwnProperty = Object.hasOwnProperty;
 
-export interface IPluginContext {
+/**
+ * Represents a failed extension in the ext host.
+ */
+class MainProcessFailedPlugin extends ActivatedExtension {
+	constructor() {
+		super(true);
+	}
+}
+
+/**
+ * Represents an extension that was successfully loaded or an
+ * empty extension in the ext host.
+ */
+class MainProcessSuccessPlugin extends ActivatedExtension {
+	constructor() {
+		super(false);
+	}
+}
+
+@Remotable.MainContext('MainProcessPluginService')
+export class MainProcessPluginService extends AbstractExtensionService<ActivatedExtension> {
+
+	private _threadService: IThreadService;
+	private _messageService: IMessageService;
+	private _telemetryService: ITelemetryService;
+	private _proxy: PluginHostPluginService;
+	private _isDev: boolean;
+	private _pluginsStatus: { [id: string]: IExtensionsStatus };
+
+	/**
+	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
+	 */
+	constructor(
+		contextService: IWorkspaceContextService,
+		threadService: IThreadService,
+		messageService: IMessageService,
+		telemetryService: ITelemetryService
+	) {
+		super(false);
+		let config = contextService.getConfiguration();
+		this._isDev = !config.env.isBuilt || !!config.env.pluginDevelopmentPath;
+
+		this._messageService = messageService;
+		threadService.registerRemotableInstance(MainProcessPluginService, this);
+		this._threadService = threadService;
+		this._telemetryService = telemetryService;
+		this._proxy = this._threadService.getRemotable(PluginHostPluginService);
+		this._pluginsStatus = {};
+
+		ExtensionsRegistry.handleExtensionPoints((msg) => this._handleMessage(msg));
+	}
+
+	private _handleMessage(msg: IMessage) {
+		this._showMessage(msg.type, (msg.source ? '[' + msg.source + ']: ' : '') + msg.message);
+
+		if (!this._pluginsStatus[msg.source]) {
+			this._pluginsStatus[msg.source] = { messages: [] };
+		}
+		this._pluginsStatus[msg.source].messages.push(msg);
+	}
+
+	public $localShowMessage(severity: Severity, msg: string): void {
+		let messageShown = false;
+		if (severity === Severity.Error || severity === Severity.Warning) {
+			if (this._isDev) {
+				// Only show nasty intrusive messages if doing extension development.
+				this._messageService.show(severity, msg);
+				messageShown = true;
+			}
+		}
+
+		if (!messageShown) {
+			switch (severity) {
+				case Severity.Error:
+					console.error(msg);
+					break;
+				case Severity.Warning:
+					console.warn(msg);
+					break;
+				default:
+					console.log(msg);
+			}
+		}
+	}
+
+	// -- overwriting AbstractExtensionService
+
+	public getExtensionsStatus(): { [id: string]: IExtensionsStatus } {
+		return this._pluginsStatus;
+	}
+
+	protected _showMessage(severity: Severity, msg: string): void {
+		this._proxy.$localShowMessage(severity, msg);
+		this.$localShowMessage(severity, msg);
+	}
+
+	protected _createFailedExtension(): ActivatedExtension {
+		return new MainProcessFailedPlugin();
+	}
+
+	protected _actualActivateExtension(extensionDescription: IExtensionDescription): TPromise<ActivatedExtension> {
+		let event = getTelemetryActivationEvent(extensionDescription);
+		this._telemetryService.publicLog('activatePlugin', event);
+
+		// redirect plugin activation to the plugin host
+		return this._proxy.$activatePluginInPluginHost(extensionDescription).then(_ => {
+
+			// the plugin host calls $onPluginActivatedInPluginHost, where we write to `activatedPlugins`
+			return this._activatedExtensions[extensionDescription.id];
+		});
+	}
+
+	// -- called by extension host
+
+	public $onPluginHostReady(extensionDescriptions: IExtensionDescription[], messages: IMessage[]): void {
+		ExtensionsRegistry.registerExtensions(extensionDescriptions);
+		messages.forEach((entry) => this._handleMessage(entry));
+		this._triggerOnReady();
+	}
+
+	public $onPluginActivatedInPluginHost(extensionId: string): void {
+		this._activatedExtensions[extensionId] = new MainProcessSuccessPlugin();
+	}
+
+	public $onPluginActivationFailedInPluginHost(extensionId: string): void {
+		this._activatedExtensions[extensionId] = new MainProcessFailedPlugin();
+	}
+}
+
+export interface IPluginModule {
+	activate(ctx: IExtensionContext): TPromise<IPluginExports>;
+	deactivate(): void;
+}
+
+export interface IPluginExports {
+	// _pluginExportsBrand: any;
+}
+
+export class ExtHostPlugin extends ActivatedExtension {
+
+	module: IPluginModule;
+	exports: IPluginExports;
 	subscriptions: IDisposable[];
-	workspaceState: IPluginMemento;
-	globalState: IPluginMemento;
-	extensionPath: string;
-	asAbsolutePath(relativePath: string): string;
+
+	constructor(activationFailed: boolean, module: IPluginModule, exports: IPluginExports, subscriptions: IDisposable[]) {
+		super(activationFailed);
+		this.module = module;
+		this.exports = exports;
+		this.subscriptions = subscriptions;
+	}
+}
+
+export class EmptyPlugin extends ExtHostPlugin {
+	constructor() {
+		super(false, { activate: undefined, deactivate: undefined }, undefined, []);
+	}
 }
 
 export interface IPluginMemento {
@@ -73,201 +223,12 @@ class PluginMemento implements IPluginMemento {
 	}
 }
 
-/**
- * Represents a failed extension in the ext host.
- */
-export class MainProcessFailedPlugin extends ActivatedExtension {
-	constructor() {
-		super(true);
-	}
-}
-
-/**
- * Represents an extension that was successfully loaded or an
- * empty extension in the ext host.
- */
-export class MainProcessSuccessPlugin extends ActivatedExtension {
-	constructor() {
-		super(false);
-	}
-}
-
-
-@Remotable.MainContext('MainProcessPluginService')
-export class MainProcessPluginService extends AbstractExtensionService<ActivatedExtension> {
-
-	private _threadService: IThreadService;
-	private _messageService: IMessageService;
-	private _telemetryService: ITelemetryService;
-	private _proxy: PluginHostPluginService;
-	private _isDev: boolean;
-	private _pluginsStatus: { [id: string]: IExtensionsStatus };
-
-	/**
-	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
-	 */
-	constructor(
-		contextService: IWorkspaceContextService,
-		threadService: IThreadService,
-		messageService: IMessageService,
-		telemetryService: ITelemetryService
-	) {
-		super(false);
-		let config = contextService.getConfiguration();
-		this._isDev = !config.env.isBuilt || !!config.env.pluginDevelopmentPath;
-
-		this._messageService = messageService;
-		threadService.registerRemotableInstance(MainProcessPluginService, this);
-		this._threadService = threadService;
-		this._telemetryService = telemetryService;
-		this._proxy = this._threadService.getRemotable(PluginHostPluginService);
-		this._pluginsStatus = {};
-
-		ExtensionsRegistry.handleExtensionPoints((severity, source, message) => {
-			this.showMessage(severity, source, message);
-		});
-	}
-
-	protected _createFailedExtension() {
-		return new MainProcessFailedPlugin();
-	}
-
-	private getTelemetryActivationEvent(extensionDescription: IExtensionDescription): any {
-		let event = {
-			id: extensionDescription.id,
-			name: extensionDescription.name,
-			publisherDisplayName: extensionDescription.publisher,
-			activationEvents: extensionDescription.activationEvents ? extensionDescription.activationEvents.join(',') : null
-		};
-
-		for (let contribution in extensionDescription.contributes) {
-			let contributionDetails = extensionDescription.contributes[contribution];
-
-			if (!contributionDetails) {
-				continue;
-			}
-
-			switch (contribution) {
-				case 'debuggers':
-					let types = contributionDetails.reduce((p, c) => p ? p + ',' + c['type'] : c['type'], '');
-					event['contribution.debuggers'] = types;
-					break;
-				case 'grammars':
-					let grammers = contributionDetails.reduce((p, c) => p ? p + ',' + c['language'] : c['language'], '');
-					event['contribution.grammars'] = grammers;
-					break;
-				case 'languages':
-					let languages = contributionDetails.reduce((p, c) => p ? p + ',' + c['id'] : c['id'], '');
-					event['contribution.languages'] = languages;
-					break;
-				case 'tmSnippets':
-					let tmSnippets = contributionDetails.reduce((p, c) => p ? p + ',' + c['languageId'] : c['languageId'], '');
-					event['contribution.tmSnippets'] = tmSnippets;
-					break;
-				default:
-					event[`contribution.${contribution}`] = true;
-			}
-		}
-
-		return event;
-	}
-
-	protected _showMessage(severity: Severity, msg: string): void {
-		this._proxy.$doShowMessage(severity, msg);
-		this.$doShowMessage(severity, msg);
-	}
-
-	public showMessage(severity: Severity, source: string, message: string) {
-		super.showMessage(severity, source, message);
-		if (!this._pluginsStatus[source]) {
-			this._pluginsStatus[source] = { messages: [] };
-		}
-		this._pluginsStatus[source].messages.push({ type: severity, source, message });
-	}
-
-	public $doShowMessage(severity: Severity, msg: string): void {
-		let messageShown = false;
-		if (severity === Severity.Error || severity === Severity.Warning) {
-			if (this._isDev) {
-				// Only show nasty intrusive messages if doing extension development.
-				this._messageService.show(severity, msg);
-				messageShown = true;
-			}
-		}
-
-		if (!messageShown) {
-			switch (severity) {
-				case Severity.Error:
-					console.error(msg);
-					break;
-				case Severity.Warning:
-					console.warn(msg);
-					break;
-				default:
-					console.log(msg);
-			}
-		}
-	}
-
-	public getExtensionsStatus(): { [id: string]: IExtensionsStatus } {
-		return this._pluginsStatus;
-	}
-
-	// -- overwriting AbstractPluginService
-
-	protected _actualActivateExtension(extensionDescription: IExtensionDescription): TPromise<ActivatedExtension> {
-		let event = this.getTelemetryActivationEvent(extensionDescription);
-		this._telemetryService.publicLog('activatePlugin', event);
-		// redirect plugin activation to the plugin host
-		return this._proxy.$activatePluginInPluginHost(extensionDescription).then(_ => {
-			// the plugin host calls $onPluginActivatedInPluginHost, where we write to `activatedPlugins`
-			return this._activatedExtensions[extensionDescription.id];
-		});
-	}
-
-	// -- called by plugin host
-
-	public $onPluginHostReady(extensionDescriptions: IExtensionDescription[], messages: IMessage[]): void {
-		ExtensionsRegistry.registerExtensions(extensionDescriptions);
-		this.registrationDone(messages);
-	}
-
-	public $onPluginActivatedInPluginHost(extensionId: string): void {
-		this._activatedExtensions[extensionId] = new MainProcessSuccessPlugin();
-	}
-
-	public $onPluginActivationFailedInPluginHost(extensionId: string): void {
-		this._activatedExtensions[extensionId] = new MainProcessFailedPlugin();
-	}
-}
-
-export interface IPluginModule {
-	activate(ctx: IPluginContext): TPromise<IPluginExports>;
-	deactivate(): void;
-}
-
-export interface IPluginExports {
-	// _pluginExportsBrand: any;
-}
-
-export class ExtHostPlugin extends ActivatedExtension {
-
-	module: IPluginModule;
-	exports: IPluginExports;
+export interface IExtensionContext {
 	subscriptions: IDisposable[];
-
-	constructor(activationFailed: boolean, module: IPluginModule, exports: IPluginExports, subscriptions: IDisposable[]) {
-		super(activationFailed);
-		this.module = module;
-		this.exports = exports;
-		this.subscriptions = subscriptions;
-	}
-}
-
-export class EmptyPlugin extends ExtHostPlugin {
-	constructor() {
-		super(false, { activate: undefined, deactivate: undefined }, undefined, []);
-	}
+	workspaceState: IPluginMemento;
+	globalState: IPluginMemento;
+	extensionPath: string;
+	asAbsolutePath(relativePath: string): string;
 }
 
 @Remotable.PluginHostContext('PluginHostPluginService')
@@ -289,11 +250,11 @@ export class PluginHostPluginService extends AbstractExtensionService<ExtHostPlu
 	}
 
 	protected _showMessage(severity: Severity, msg: string): void {
-		this._proxy.$doShowMessage(severity, msg);
-		this.$doShowMessage(severity, msg);
+		this._proxy.$localShowMessage(severity, msg);
+		this.$localShowMessage(severity, msg);
 	}
 
-	public $doShowMessage(severity: Severity, msg: string): void {
+	public $localShowMessage(severity: Severity, msg: string): void {
 		switch (severity) {
 			case Severity.Error:
 				console.error(msg);
@@ -342,8 +303,19 @@ export class PluginHostPluginService extends AbstractExtensionService<ExtHostPlu
 
 	// -- overwriting AbstractPluginService
 
+	protected showMessage(severity: Severity, source: string, message: string): void {
+		this._showMessage(severity, (source ? '[' + source + ']: ' : '') + message);
+	}
+
+	public super_registrationDone(messages: IMessage[]): void {
+		messages.forEach((entry) => {
+			this.showMessage(entry.type, entry.source, entry.message);
+		});
+		this._triggerOnReady();
+	}
+
 	public registrationDone(messages: IMessage[]): void {
-		super.registrationDone([]);
+		this.super_registrationDone([]);
 		this._proxy.$onPluginHostReady(ExtensionsRegistry.getAllExtensionDescriptions(), messages);
 	}
 
@@ -351,13 +323,13 @@ export class PluginHostPluginService extends AbstractExtensionService<ExtHostPlu
 		return loadCommonJSModule(extensionDescription.main);
 	}
 
-	protected _loadPluginContext(extensionDescription: IExtensionDescription): TPromise<IPluginContext> {
+	protected _loadPluginContext(extensionDescription: IExtensionDescription): TPromise<IExtensionContext> {
 
 		let globalState = new PluginMemento(extensionDescription.id, true, this._storage);
 		let workspaceState = new PluginMemento(extensionDescription.id, false, this._storage);
 
 		return TPromise.join([globalState.whenReady, workspaceState.whenReady]).then(() => {
-			return Object.freeze(<IPluginContext>{
+			return Object.freeze(<IExtensionContext>{
 				globalState,
 				workspaceState,
 				subscriptions: [],
@@ -391,7 +363,7 @@ export class PluginHostPluginService extends AbstractExtensionService<ExtHostPlu
 		});
 	}
 
-	private static _callActivate(pluginModule: IPluginModule, context: IPluginContext): TPromise<ExtHostPlugin> {
+	private static _callActivate(pluginModule: IPluginModule, context: IExtensionContext): TPromise<ExtHostPlugin> {
 		// Make sure the plugin's surface is not undefined
 		pluginModule = pluginModule || {
 			activate: undefined,
@@ -404,7 +376,7 @@ export class PluginHostPluginService extends AbstractExtensionService<ExtHostPlu
 		});
 	}
 
-	private static _callActivateOptional(pluginModule: IPluginModule, context: IPluginContext): TPromise<IPluginExports> {
+	private static _callActivateOptional(pluginModule: IPluginModule, context: IExtensionContext): TPromise<IPluginExports> {
 		if (typeof pluginModule.activate === 'function') {
 			try {
 				return TPromise.as(pluginModule.activate.apply(global, [context]));
@@ -433,4 +405,44 @@ function loadCommonJSModule<T>(modulePath: string): TPromise<T> {
 		return TPromise.wrapError(e);
 	}
 	return TPromise.as(r);
+}
+
+function getTelemetryActivationEvent(extensionDescription: IExtensionDescription): any {
+	let event = {
+		id: extensionDescription.id,
+		name: extensionDescription.name,
+		publisherDisplayName: extensionDescription.publisher,
+		activationEvents: extensionDescription.activationEvents ? extensionDescription.activationEvents.join(',') : null
+	};
+
+	for (let contribution in extensionDescription.contributes) {
+		let contributionDetails = extensionDescription.contributes[contribution];
+
+		if (!contributionDetails) {
+			continue;
+		}
+
+		switch (contribution) {
+			case 'debuggers':
+				let types = contributionDetails.reduce((p, c) => p ? p + ',' + c['type'] : c['type'], '');
+				event['contribution.debuggers'] = types;
+				break;
+			case 'grammars':
+				let grammers = contributionDetails.reduce((p, c) => p ? p + ',' + c['language'] : c['language'], '');
+				event['contribution.grammars'] = grammers;
+				break;
+			case 'languages':
+				let languages = contributionDetails.reduce((p, c) => p ? p + ',' + c['id'] : c['id'], '');
+				event['contribution.languages'] = languages;
+				break;
+			case 'tmSnippets':
+				let tmSnippets = contributionDetails.reduce((p, c) => p ? p + ',' + c['languageId'] : c['languageId'], '');
+				event['contribution.tmSnippets'] = tmSnippets;
+				break;
+			default:
+				event[`contribution.${contribution}`] = true;
+		}
+	}
+
+	return event;
 }

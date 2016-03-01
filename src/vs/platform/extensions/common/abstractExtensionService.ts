@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IMessage, IExtensionDescription, IExtensionService, IExtensionsStatus} from 'vs/platform/extensions/common/extensions';
+import {IExtensionDescription, IExtensionService, IExtensionsStatus} from 'vs/platform/extensions/common/extensions';
 import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 
 const hasOwnProperty = Object.hasOwnProperty;
@@ -51,14 +51,7 @@ export abstract class AbstractExtensionService<T extends ActivatedExtension> imp
 		this._activatedExtensions = {};
 	}
 
-	protected showMessage(severity: Severity, source: string, message: string): void {
-		this._showMessage(severity, (source ? '[' + source + ']: ' : '') + message);
-	}
-
-	public registrationDone(messages: IMessage[]): void {
-		messages.forEach((entry) => {
-			this.showMessage(entry.type, entry.source, entry.message);
-		});
+	protected _triggerOnReady(): void {
 		this._onReadyC(true);
 	}
 

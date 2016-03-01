@@ -6,13 +6,13 @@
 'use strict';
 
 import pfs = require('vs/base/node/pfs');
-import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
+import {IExtensionDescription, IMessage} from 'vs/platform/extensions/common/extensions';
+import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {groupBy, values} from 'vs/base/common/collections';
 import paths = require('vs/base/common/paths');
 import json = require('vs/base/common/json');
 import Types = require('vs/base/common/types');
-import {IExtensionsMessageCollector, IExtensionMessageCollector} from 'vs/platform/extensions/common/extensionsRegistry';
 import {isValidExtensionDescription} from 'vs/platform/extensions/node/extensionValidator';
 import * as semver from 'semver';
 
@@ -35,6 +35,39 @@ const nlsConfig = function(): NlsConfiguration {
 		}
 	}
 }();
+
+export class MessagesCollector {
+
+	private _messages: IMessage[];
+
+	constructor() {
+		this._messages = [];
+	}
+
+	public getMessages(): IMessage[] {
+		return this._messages;
+	}
+
+	private _msg(source:string, type:Severity, message:string): void {
+		this._messages.push({
+			type: type,
+			message: message,
+			source: source
+		});
+	}
+
+	public error(source:string, message: string): void {
+		this._msg(source, Severity.Error, message);
+	}
+
+	public warn(source:string, message: string): void {
+		this._msg(source, Severity.Warning, message);
+	}
+
+	public info(source:string, message: string): void {
+		this._msg(source, Severity.Info, message);
+	}
+}
 
 export class PluginScanner {
 
@@ -69,7 +102,7 @@ export class PluginScanner {
 	 * Strings to replace are one values of a key. So for example string[] are ignored.
 	 * This is done to speed things up.
 	 */
-	private static replaceStrings<T>(literal: T, messages: { [key: string]: string; }, builder: IExtensionMessageCollector): void {
+	private static _replaceNLStrings<T>(literal: T, messages: { [key: string]: string; }, collector: MessagesCollector, messageScope:string): void {
 		Object.keys(literal).forEach(key => {
 			if (literal.hasOwnProperty(key)) {
 				let value = literal[key];
@@ -86,49 +119,52 @@ export class PluginScanner {
 							}
 							literal[key] = message;
 						} else {
-							builder.warn(`Couldn't find message for key ${messageKey}.`);
+							collector.warn(messageScope, `Couldn't find message for key ${messageKey}.`);
 						}
 					}
 				} else if (Types.isObject(value)) {
-					PluginScanner.replaceStrings(value, messages, builder);
+					PluginScanner._replaceNLStrings(value, messages, collector, messageScope);
 				} else if (Types.isArray(value)) {
 					(<any[]>value).forEach(element => {
 						if (Types.isObject(element)) {
-							PluginScanner.replaceStrings(element, messages, builder);
+							PluginScanner._replaceNLStrings(element, messages, collector, messageScope);
 						}
 					});
 				}
 			}
 		});
-		return;
 	}
+
 
 	/**
 	 * Scan the plugin defined in `absoluteFolderPath`
 	 */
 	public static scanPlugin(
 		version: string,
-		collector: IExtensionsMessageCollector,
+		collector: MessagesCollector,
 		absoluteFolderPath:string,
 		isBuiltin:boolean
 	) : TPromise<IExtensionDescription>
 	{
 		absoluteFolderPath = paths.normalize(absoluteFolderPath);
-		let builder = collector.scopeTo(absoluteFolderPath);
 		let absoluteManifestPath = paths.join(absoluteFolderPath, MANIFEST_FILE);
 
-		return pfs.readFile(absoluteManifestPath).then((manifestContents) => {
+		let parseJSONManifest = (manifestContents:string): IExtensionDescription => {
 			let errors: string[] = [];
-			let pluginDescFromFile: IExtensionDescription = json.parse(manifestContents.toString(), errors);
+			let pluginDescFromFile: IExtensionDescription = json.parse(manifestContents, errors);
 			if (errors.length > 0) {
 				errors.forEach((error) => {
-					builder.error('Failed to parse ' + absoluteManifestPath + ': ' + error);
+					collector.error(absoluteFolderPath, 'Failed to parse ' + absoluteManifestPath + ': ' + error);
 				});
 				return null;
 			}
+			return pluginDescFromFile;
+		};
 
+		let replaceNLStrings = (pluginDescFromFile:IExtensionDescription): TPromise<IExtensionDescription> => {
 			let extension = paths.extname(absoluteManifestPath);
 			let basename = absoluteManifestPath.substr(0, absoluteManifestPath.length - extension.length);
+
 			return pfs.fileExists(basename + '.nls' + extension).then(exists => {
 				if (!exists) {
 					return pluginDescFromFile;
@@ -142,15 +178,25 @@ export class PluginScanner {
 						let messages: { [key: string]: string; } = json.parse(messageBundleContent.toString(), errors);
 						if (errors.length > 0) {
 							errors.forEach((error) => {
-								builder.error('Failed to parse ' + messageBundle + ': ' + error);
+								collector.error(absoluteFolderPath, 'Failed to parse ' + messageBundle + ': ' + error);
 							});
 							return pluginDescFromFile;
 						}
-						PluginScanner.replaceStrings(pluginDescFromFile, messages, builder);
+						PluginScanner._replaceNLStrings(pluginDescFromFile, messages, collector, absoluteFolderPath);
 						return pluginDescFromFile;
 					});
 				});
 			});
+		};
+
+		return pfs.readFile(absoluteManifestPath).then((manifestContents) => {
+			let pluginDescFromFile = parseJSONManifest(manifestContents.toString());
+			if (pluginDescFromFile === null) {
+				return null;
+			}
+
+			return replaceNLStrings(pluginDescFromFile);
+
 		}).then((pluginDescFromFile) => {
 			if (pluginDescFromFile === null) {
 				return null;
@@ -161,14 +207,14 @@ export class PluginScanner {
 			let notices: string[] = [];
 			if (!isValidExtensionDescription(version, absoluteFolderPath, pluginDescFromFile, notices)) {
 				notices.forEach((error) => {
-					builder.error(error);
+					collector.error(absoluteFolderPath, error);
 				});
 				return null;
 			}
 
 			// in this case the notices are warnings
 			notices.forEach((error) => {
-				builder.warn(error);
+				collector.warn(absoluteFolderPath, error);
 			});
 
 			// id := `publisher.name`
@@ -183,7 +229,7 @@ export class PluginScanner {
 
 			return pluginDescFromFile;
 		}, (err) => {
-			builder.error('Cannot read file ' + absoluteManifestPath + ': ' + err.message);
+			collector.error(absoluteFolderPath, 'Cannot read file ' + absoluteManifestPath + ': ' + err.message);
 			return null;
 		});
 	}
@@ -193,7 +239,7 @@ export class PluginScanner {
 	 */
 	public static scanPlugins(
 		version: string,
-		collector: IExtensionsMessageCollector,
+		collector: MessagesCollector,
 		absoluteFolderPath:string,
 		isBuiltin:boolean
 	) : TPromise<IExtensionDescription[]>
@@ -229,7 +275,7 @@ export class PluginScanner {
 	 */
 	public static scanOneOrMultiplePlugins(
 		version: string,
-		collector: IExtensionsMessageCollector,
+		collector: MessagesCollector,
 		absoluteFolderPath:string,
 		isBuiltin:boolean
 	) : TPromise<IExtensionDescription[]>
