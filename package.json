@@ -27,7 +27,7 @@
     "native-keymap": "^0.1.2",
     "sax": "^1.1.1",
     "semver": "^4.2.0",
-    "vscode-debugprotocol": "^1.5.0",
+    "vscode-debugprotocol": "^1.6.1",
     "vscode-textmate": "^1.0.11",
     "weak": "^1.0.1",
     "winreg": "0.0.12",

@@ -53,7 +53,8 @@ declare module DebugProtocol {
 		The sequence of events/requests is as follows:
 		- adapters sends InitializedEvent (at any time)
 		- frontend sends zero or more SetBreakpointsRequest
-		- frontend sends one SetExceptionBreakpointsRequest (in the future 'zero or one')
+		- frontend sends one SetFunctionBreakpointsRequest
+		- frontend sends a SetExceptionBreakpointsRequest if one or more exceptionBreakpointFilters have been defined (or if supportsConfigurationDoneRequest is not defined or false)
 		- frontend sends other configuration requests that are added in the future
 		- frontend sends one ConfigurationDoneRequest
 	*/
@@ -62,7 +63,7 @@ declare module DebugProtocol {
 
 	/** Event message for "stopped" event type.
 		The event indicates that the execution of the debugee has stopped due to a break condition.
-		This can be caused by by a break point previously set, a stepping action has completed or by executing a debugger statement.
+		This can be caused by a break point previously set, a stepping action has completed or by executing a debugger statement.
 	*/
 	export interface StoppedEvent extends Event {
 		body: {
@@ -238,10 +239,12 @@ declare module DebugProtocol {
 	/** Response to "setBreakpoints" request.
 		Returned is information about each breakpoint created by this request.
 		This includes the actual code location and whether the breakpoint could be verified.
+		The breakpoints returned are in the same order as the elements of the 'breakpoints'
+		(or the deprecated 'lines') in the SetBreakpointsArguments.
 	*/
 	export interface SetBreakpointsResponse extends Response {
 		body: {
-			/** Information about the breakpoints. The array elements correspond to the elements of the 'breakpoints' (or the deprecated 'lines) array. */
+			/** Information about the breakpoints. The array elements are in the same order as the elements of the 'breakpoints' (or the deprecated 'lines') in the SetBreakpointsArguments. */
 			breakpoints: Breakpoint[];
 		};
 	}
@@ -516,6 +519,10 @@ declare module DebugProtocol {
 		sendTelemetry?: boolean;
 		/** if true show user */
 		showUser?: boolean;
+		/** An optional url where additional information about this message can be found. */
+		url?: string;
+		/** An optional label that is presented to the user as the UI for opening the url. */
+		urlLabel?: string;
 	}
 
 	/** A Thread */

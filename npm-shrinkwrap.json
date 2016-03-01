@@ -416,9 +416,9 @@
       "resolved": "https://registry.npmjs.org/semver/-/semver-4.3.6.tgz"
     },
     "vscode-debugprotocol": {
-      "version": "1.5.0",
-      "from": "vscode-debugprotocol@>=1.5.0",
-      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.5.0.tgz"
+      "version": "1.6.1",
+      "from": "vscode-debugprotocol@>=1.6.1",
+      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.6.1.tgz"
     },
     "vscode-textmate": {
       "version": "1.0.11",
