@@ -2504,16 +2504,10 @@ export interface IWhitespaceManager {
 	addWhitespace(afterLineNumber:number, ordinal:number, height:number): number;
 
 	/**
-	 * Change the height of a whitespace.
+	 * Change the properties of a whitespace.
 	 * @param height is specified in pixels.
 	 */
-	changeWhitespace(id:number, newHeight:number): boolean;
-
-	/**
-	 * Change the `afterLineNumber` of a whitespace.
-	 * @return a boolean indicating if something has actually changed
-	 */
-	changeAfterLineNumberForWhitespace(id:number, newAfterLineNumber:number): boolean;
+	changeWhitespace(id:number, newAfterLineNumber:number, newHeight:number): boolean;
 
 	/**
 	 * Remove rendering space
@@ -2553,6 +2547,7 @@ export interface IViewModel extends IEventEmitter, IDisposable {
 	convertViewRangeToModelRange(viewRange:IRange): IEditorRange;
 	convertModelPositionToViewPosition(modelLineNumber:number, modelColumn:number): IEditorPosition;
 	convertModelSelectionToViewSelection(modelSelection:IEditorSelection): IEditorSelection;
+	modelPositionIsVisible(position:IPosition): boolean;
 }
 
 export interface IViewEventNames {

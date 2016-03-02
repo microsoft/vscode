@@ -40,26 +40,8 @@ export class LinesLayout {
 		return this.verticalObjects.insertWhitespace(afterLineNumber, ordinal, height);
 	}
 
-	/**
-	 * Change the height of an existing whitespace
-	 *
-	 * @param id The whitespace to change
-	 * @param newHeightInPx The new height of the whitespace, in pixels
-	 * @return Returns true if the whitespace is found and if the new height is different than the old height
-	 */
-	public changeWhitespace(id:number, newHeight:number): boolean {
-		return this.verticalObjects.changeWhitespace(id, newHeight);
-	}
-
-	/**
-	 * Change the line number after which an existing whitespace flows.
-	 *
-	 * @param id The whitespace to change
-	 * @param newAfterLineNumber The new line number the whitespace will follow
-	 * @return Returns true if the whitespace is found and if the new line number is different than the old line number
-	 */
-	public changeAfterLineNumberForWhitespace(id:number, newAfterLineNumber:number): boolean {
-		return this.verticalObjects.changeAfterLineNumberForWhitespace(id, newAfterLineNumber);
+	public changeWhitespace(id:number, newAfterLineNumber:number, newHeight:number): boolean {
+		return this.verticalObjects.changeWhitespace(id, newAfterLineNumber, newHeight);
 	}
 
 	/**
