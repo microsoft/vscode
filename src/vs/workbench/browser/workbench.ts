@@ -258,7 +258,7 @@ export class Workbench implements IPartService {
 			}));
 
 			// Flag workbench as created once done
-			TPromise.join(compositeAndEditorPromises).then(() => {
+			const workbenchDone = (error?: Error) => {
 				this.workbenchCreated = true;
 				this.eventService.emit(EventType.WORKBENCH_CREATED);
 				this.creationPromiseComplete(true);
@@ -266,7 +266,13 @@ export class Workbench implements IPartService {
 				if (this.callbacks && this.callbacks.onWorkbenchStarted) {
 					this.callbacks.onWorkbenchStarted();
 				}
-			}, errors.onUnexpectedError);
+
+				if (error) {
+					errors.onUnexpectedError(error);
+				}
+			};
+
+			TPromise.join(compositeAndEditorPromises).then(() => workbenchDone(), (error) => workbenchDone(error));
 		} catch (error) {
 
 			// Print out error
