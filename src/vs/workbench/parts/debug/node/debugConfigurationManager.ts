@@ -194,9 +194,11 @@ export class ConfigurationManager {
 						this.adapters.push(adapter);
 					}
 
-					adapter.enableBreakpointsFor.languageIds.forEach(modeId => {
-						this.allModeIdsForBreakpoints[modeId] = true;
-					});
+					if (adapter.enableBreakpointsFor) {
+						adapter.enableBreakpointsFor.languageIds.forEach(modeId => {
+							this.allModeIdsForBreakpoints[modeId] = true;
+						});
+					}
 				});
 			});
 
