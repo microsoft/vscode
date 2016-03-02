@@ -21,3 +21,7 @@ The more information you can provide, the more likely someone will be successful
 * Errors in the Dev Tools Console (Help | Toggle Developer Tools)
 * When you have extensions installed, can you reproduce the issue when starting vscode without extensions by using the `--disable-extensions` command line argument? 
 
+## Contributing Fixes
+If you are interested in fixing issues and contributing directly to the code base,
+please see the document [How to Contribute](https://github.com/Microsoft/vscode/wiki/How-to-Contribute).
+
