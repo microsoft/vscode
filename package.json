@@ -11,7 +11,7 @@
     "node": ">= 0.10.0 < 0.11.0"
   },
   "scripts": {
-    "test": "node node_modules/mocha/bin/_mocha",
+    "test": "mocha",
     "preinstall": "node build/npm/preinstall.js",
     "postinstall": "npm --prefix extensions/vscode-api-tests/ install extensions/vscode-api-tests/ && npm --prefix extensions/json/ install extensions/json/ && npm --prefix extensions/typescript/ install extensions/typescript/"
   },
