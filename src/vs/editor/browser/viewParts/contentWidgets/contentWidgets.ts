@@ -297,11 +297,14 @@ export class ViewContentWidgets extends ViewPart {
 		}
 
 		// Do not trust that widgets have a valid position
-		let validModelPosition = this._context.model.validateModelPosition(widgetData.position),
-			position = this._context.model.convertModelPositionToViewPosition(validModelPosition.lineNumber, validModelPosition.column),
-			pref:ContentWidgetPositionPreference,
-			pass:number,
-			i:number;
+		let validModelPosition = this._context.model.validateModelPosition(widgetData.position);
+
+		if (!this._context.model.modelPositionIsVisible(validModelPosition)) {
+			// this position is hidden by the view model
+			return null;
+		}
+
+		let	position = this._context.model.convertModelPositionToViewPosition(validModelPosition.lineNumber, validModelPosition.column);
 
 		let placement: IBoxLayoutResult = null;
 		let fetchPlacement = () => {
@@ -318,9 +321,9 @@ export class ViewContentWidgets extends ViewPart {
 		};
 
 		// Do two passes, first for perfect fit, second picks first option
-		for (pass = 1; pass <= 2; pass++) {
-			for (i = 0; i < widgetData.preference.length; i++) {
-				pref = widgetData.preference[i];
+		for (let pass = 1; pass <= 2; pass++) {
+			for (let i = 0; i < widgetData.preference.length; i++) {
+				let pref = widgetData.preference[i];
 				if (pref === ContentWidgetPositionPreference.ABOVE) {
 					fetchPlacement();
 					if (!placement) {

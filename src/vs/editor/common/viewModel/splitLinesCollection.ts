@@ -362,7 +362,7 @@ export class SplitLinesCollection implements ILinesCollection {
 		return result;
 	}
 
-	public setHiddenAreas(_ranges:editorCommon.IRange[], emit:(evenType:string, payload:any)=>void): void {
+	public setHiddenAreas(_ranges:editorCommon.IRange[], emit:(evenType:string, payload:any)=>void): boolean {
 
 		let newRanges = this._reduceRanges(_ranges);
 
@@ -378,7 +378,7 @@ export class SplitLinesCollection implements ILinesCollection {
 				}
 			}
 			if (!hasDifference) {
-				return;
+				return false;
 			}
 		}
 		// END TODO@Martin: Please stop calling this method on each model change!
@@ -430,6 +430,15 @@ export class SplitLinesCollection implements ILinesCollection {
 		}
 
 		emit(editorCommon.ViewEventNames.ModelFlushedEvent, null);
+		return true;
+	}
+
+	public inputPositionIsVisible(inputLineNumber:number, inputColumn:number): boolean {
+		if (inputLineNumber < 1 || inputLineNumber > this.lines.length) {
+			// invalid arguments
+			return false;
+		}
+		return this.lines[inputLineNumber - 1].isVisible();
 	}
 
 	public setTabSize(newTabSize:number, emit:(evenType:string, payload:any)=>void): boolean {

@@ -145,7 +145,7 @@ suite('Editor ViewLayout - VerticalObjects', () => {
 		// Change whitespace height
 		// 10 lines
 		// whitespace: - a(2,10)
-		verticalObjects.changeWhitespace(a, 10);
+		verticalObjects.changeWhitespace(a, 2, 10);
 		assert.equal(verticalObjects.getTotalHeight(1), 20);
 		assert.equal(verticalObjects.getVerticalOffsetForLineNumber( 1, 1), 0);
 		assert.equal(verticalObjects.getVerticalOffsetForLineNumber( 2, 1), 1);
@@ -161,7 +161,7 @@ suite('Editor ViewLayout - VerticalObjects', () => {
 		// Change whitespace position
 		// 10 lines
 		// whitespace: - a(5,10)
-		verticalObjects.changeAfterLineNumberForWhitespace(a, 5);
+		verticalObjects.changeWhitespace(a, 5, 10);
 		assert.equal(verticalObjects.getTotalHeight(1), 20);
 		assert.equal(verticalObjects.getVerticalOffsetForLineNumber( 1, 1), 0);
 		assert.equal(verticalObjects.getVerticalOffsetForLineNumber( 2, 1), 1);

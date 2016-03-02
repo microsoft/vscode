@@ -31,6 +31,7 @@ export interface ILinesCollection {
 	convertOutputPositionToInputPosition(viewLineNumber:number, viewColumn:number): editorCommon.IEditorPosition;
 	convertInputPositionToOutputPosition(inputLineNumber:number, inputColumn:number): editorCommon.IEditorPosition;
 	setHiddenAreas(ranges:editorCommon.IRange[], emit:(evenType:string, payload:any)=>void): void;
+	inputPositionIsVisible(inputLineNumber:number, inputColumn:number): boolean;
 	dispose(): void;
 }
 
@@ -82,10 +83,18 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 
 	public setHiddenAreas(ranges:editorCommon.IRange[]): void {
 		this.deferredEmit(() => {
-			this.lines.setHiddenAreas(ranges, (eventType:string, payload:any) => this.emit(eventType, payload));
-			this.decorations.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
-			this.cursors.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
+			let lineMappingChanged = this.lines.setHiddenAreas(ranges, (eventType:string, payload:any) => this.emit(eventType, payload));
+			if (lineMappingChanged) {
+				this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
+				this.decorations.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
+				this.cursors.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
+				this._updateShouldForceTokenization();
+			}
 		});
+	}
+
+	public modelPositionIsVisible(position:editorCommon.IPosition): boolean {
+		return this.lines.inputPositionIsVisible(position.lineNumber, position.column);
 	}
 
 	public dispose(): void {

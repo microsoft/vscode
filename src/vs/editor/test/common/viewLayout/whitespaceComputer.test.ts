@@ -43,7 +43,7 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 		assert.equal(whitespaceComputer.getAccumulatedHeightBeforeLineNumber(4), 30);
 
 		// Change last inserted whitespace height to 30
-		whitespaceComputer.changeWhitespace(b, 30);
+		whitespaceComputer.changeWhitespaceHeight(b, 30);
 		// whitespaces: a(2, 10), b(2, 30)
 		assert.equal(whitespaceComputer.getCount(), 2);
 		assert.equal(whitespaceComputer.getAfterLineNumberForWhitespaceIndex(0), 2);
@@ -131,7 +131,7 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 		assert.equal(whitespaceComputer.getAccumulatedHeightBeforeLineNumber(5), 110);
 
 		// Change whitespace after line 2 to height of 100
-		whitespaceComputer.changeWhitespace(a, 100);
+		whitespaceComputer.changeWhitespaceHeight(a, 100);
 		// whitespaces: b(0, 50), a(2, 100), d(3, 30), c(4, 20)
 		assert.equal(whitespaceComputer.getCount(), 4);
 		assert.equal(whitespaceComputer.getAfterLineNumberForWhitespaceIndex(0), 0);
@@ -376,7 +376,7 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 		assert.equal(WhitespaceComputer.findInsertionIndex(arr, 16, ordinals, 0), 8);
 	});
 
-	test('WhitespaceComputer changeAfterLineNumberForWhitespace & getFirstWhitespaceIndexAfterLineNumber', () => {
+	test('WhitespaceComputer changeWhitespaceAfterLineNumber & getFirstWhitespaceIndexAfterLineNumber', () => {
 		var whitespaceComputer = new WhitespaceComputer();
 
 		var a = whitespaceComputer.insertWhitespace(0, 0, 1);
@@ -400,7 +400,7 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 		assert.equal(whitespaceComputer.getFirstWhitespaceIndexAfterLineNumber(8), -1); // --
 
 		// Do not really move a
-		whitespaceComputer.changeAfterLineNumberForWhitespace(a, 1);
+		whitespaceComputer.changeWhitespaceAfterLineNumber(a, 1);
 
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(0), a); // 1
 		assert.equal(whitespaceComputer.getAfterLineNumberForWhitespaceIndex(0), 1);
@@ -420,7 +420,7 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 
 
 		// Do not really move a
-		whitespaceComputer.changeAfterLineNumberForWhitespace(a, 2);
+		whitespaceComputer.changeWhitespaceAfterLineNumber(a, 2);
 
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(0), a); // 2
 		assert.equal(whitespaceComputer.getAfterLineNumberForWhitespaceIndex(0), 2);
@@ -440,7 +440,7 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 
 
 		// Change a to conflict with c => a gets placed after c
-		whitespaceComputer.changeAfterLineNumberForWhitespace(a, 3);
+		whitespaceComputer.changeWhitespaceAfterLineNumber(a, 3);
 
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(0), c); // 3
 		assert.equal(whitespaceComputer.getAfterLineNumberForWhitespaceIndex(0), 3);
@@ -460,7 +460,7 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 
 
 		// Make a no-op
-		whitespaceComputer.changeAfterLineNumberForWhitespace(c, 3);
+		whitespaceComputer.changeWhitespaceAfterLineNumber(c, 3);
 
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(0), c); // 3
 		assert.equal(whitespaceComputer.getAfterLineNumberForWhitespaceIndex(0), 3);
@@ -481,7 +481,7 @@ suite('Editor ViewLayout - WhitespaceComputer', () => {
 
 
 		// Conflict c with b => c gets placed after b
-		whitespaceComputer.changeAfterLineNumberForWhitespace(c, 7);
+		whitespaceComputer.changeWhitespaceAfterLineNumber(c, 7);
 
 		assert.equal(whitespaceComputer.getIdForWhitespaceIndex(0), a); // 3
 		assert.equal(whitespaceComputer.getAfterLineNumberForWhitespaceIndex(0), 3);
