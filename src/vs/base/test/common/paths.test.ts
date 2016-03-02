@@ -6,7 +6,6 @@
 
 import * as assert from 'assert';
 import paths = require('vs/base/common/paths');
-import uri from 'vs/base/common/uri';
 import platform = require('vs/base/common/platform');
 
 suite('Paths', () => {
@@ -41,7 +40,7 @@ suite('Paths', () => {
 		assert.equal(next.value, undefined);
 		assert.equal(next.done, true);
 
-		var iter = paths.dirnames('/foo/bar');
+		iter = paths.dirnames('/foo/bar');
 		next = iter.next();
 		assert.equal(next.value, '/foo');
 		assert.equal(next.done, false);
@@ -52,7 +51,7 @@ suite('Paths', () => {
 		assert.equal(next.value, undefined);
 		assert.equal(next.done, true);
 
-		var iter = paths.dirnames('c:\\far\\boo');
+		iter = paths.dirnames('c:\\far\\boo');
 		next = iter.next();
 		assert.equal(next.value, 'c:\\far');
 		assert.equal(next.done, false);
