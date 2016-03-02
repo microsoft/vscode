@@ -16,11 +16,11 @@
 			var electron = require('electron');
 			var remote = electron.remote;
 			var ipc = electron.ipcRenderer;
+			var windowId = remote.getCurrentWindow().id;
 
 			function onError(error, enableDeveloperTools) {
 				if (enableDeveloperTools) {
-					remote.getCurrentWindow().webContents.openDevTools();
-					remote.getCurrentWindow().show();
+					ipc.send('vscode:openDevTools', windowId);
 				}
 
 				console.error('[uncaught exception]: ' + error);
@@ -88,9 +88,9 @@
 					window.addEventListener('keydown', function(e) {
 						var key = extractKey(e);
 						if (key === TOGGLE_DEV_TOOLS_KB) {
-							remote.getCurrentWindow().toggleDevTools();
+							ipc.send('vscode:toggleDevTools', windowId);
 						} else if (key === RELOAD_KB) {
-							ipc.send('vscode:reloadWindow', remote.getCurrentWindow().id);
+							ipc.send('vscode:reloadWindow', windowId);
 						}
 					});
 				}
@@ -186,20 +186,25 @@
 					'enableTypeScriptServiceModeForJS': !!process.env['CODE_TSJS'] || !!process.env['VSCODE_TSJS']
 				};
 
-				var programStart = remote.getGlobal('programStart');
-				var vscodeStart = remote.getGlobal('vscodeStart');
-
 				var timers = window.MonacoEnvironment.timers = {
-					start: new Date(programStart || vscodeStart),
+					start: new Date()
 				};
 
-				if (programStart) {
-					timers.beforeProgram = new Date(programStart);
-					timers.afterProgram = new Date(vscodeStart);
+				if (configuration.enablePerformance) {
+					var programStart = remote.getGlobal('programStart');
+					var vscodeStart = remote.getGlobal('vscodeStart');
+
+					if (programStart) {
+						timers.beforeProgram = new Date(programStart);
+						timers.afterProgram = new Date(vscodeStart);
+					}
+
+					timers.vscodeStart = new Date(vscodeStart);
+					timers.start = new Date(programStart || vscodeStart);
 				}
 
-				timers.vscodeStart = new Date(vscodeStart);
 				timers.beforeLoad = new Date();
+
 				require([
 					'vs/workbench/workbench.main',
 					'vs/nls!vs/workbench/workbench.main',

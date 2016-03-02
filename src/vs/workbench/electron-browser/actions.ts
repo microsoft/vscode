@@ -145,12 +145,12 @@ export class ToggleDevToolsAction extends Action {
 	public static ID = 'workbench.action.toggleDevTools';
 	public static LABEL = nls.localize('toggleDevTools', "Toggle Developer Tools");
 
-	constructor(id: string, label: string) {
+	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
 		super(id, label);
 	}
 
 	public run(): TPromise<boolean> {
-		remote.getCurrentWindow().webContents.toggleDevTools();
+		ipc.send('vscode:toggleDevTools', this.windowService.getWindowId());
 
 		return TPromise.as(true);
 	}

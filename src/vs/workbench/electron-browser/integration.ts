@@ -28,6 +28,8 @@ import win = require('vs/workbench/electron-browser/window');
 
 import {ipcRenderer as ipc, webFrame, remote} from 'electron';
 
+const currentWindow = remote.getCurrentWindow();
+
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && TPromise.as(true)),
 	new Action('redo', nls.localize('redo', "Redo"), null, true, () => document.execCommand('redo') && TPromise.as(true)),
@@ -58,7 +60,7 @@ export class ElectronIntegration {
 	public integrate(shellContainer: HTMLElement): void {
 
 		// Register the active window
-		let activeWindow = this.instantiationService.createInstance(win.ElectronWindow, remote.getCurrentWindow(), shellContainer);
+		let activeWindow = this.instantiationService.createInstance(win.ElectronWindow, currentWindow, shellContainer);
 		this.windowService.registerWindow(activeWindow);
 
 		// Support runAction event

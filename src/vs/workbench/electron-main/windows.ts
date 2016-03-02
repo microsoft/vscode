@@ -222,6 +222,79 @@ export class WindowsManager {
 			}
 		});
 
+		ipc.on('vscode:setFullScreen', (event, windowId: number, fullscreen: boolean) => {
+			env.log('IPC#vscode:setFullScreen');
+
+			let vscodeWindow = this.getWindowById(windowId);
+			if (vscodeWindow) {
+				vscodeWindow.win.setFullScreen(fullscreen);
+			}
+		});
+
+		ipc.on('vscode:toggleDevTools', (event, windowId: number) => {
+			env.log('IPC#vscode:toggleDevTools');
+
+			let vscodeWindow = this.getWindowById(windowId);
+			if (vscodeWindow) {
+				vscodeWindow.win.webContents.toggleDevTools();
+			}
+		});
+
+		ipc.on('vscode:openDevTools', (event, windowId: number) => {
+			env.log('IPC#vscode:openDevTools');
+
+			let vscodeWindow = this.getWindowById(windowId);
+			if (vscodeWindow) {
+				vscodeWindow.win.webContents.openDevTools();
+				vscodeWindow.win.show();
+			}
+		});
+
+		ipc.on('vscode:setRepresentedFilename', (event, windowId: number, fileName: string) => {
+			env.log('IPC#vscode:setRepresentedFilename');
+
+			let vscodeWindow = this.getWindowById(windowId);
+			if (vscodeWindow) {
+				vscodeWindow.win.setRepresentedFilename(fileName);
+			}
+		});
+
+		ipc.on('vscode:setMenuBarVisibility', (event, windowId: number, visibility: boolean) => {
+			env.log('IPC#vscode:setMenuBarVisibility');
+
+			let vscodeWindow = this.getWindowById(windowId);
+			if (vscodeWindow) {
+				vscodeWindow.win.setMenuBarVisibility(visibility);
+			}
+		});
+
+		ipc.on('vscode:flashFrame', (event, windowId: number) => {
+			env.log('IPC#vscode:flashFrame');
+
+			let vscodeWindow = this.getWindowById(windowId);
+			if (vscodeWindow) {
+				vscodeWindow.win.flashFrame(!vscodeWindow.win.isFocused());
+			}
+		});
+
+		ipc.on('vscode:focusWindow', (event, windowId: number) => {
+			env.log('IPC#vscode:focusWindow');
+
+			let vscodeWindow = this.getWindowById(windowId);
+			if (vscodeWindow) {
+				vscodeWindow.win.focus();
+			}
+		});
+
+		ipc.on('vscode:setDocumentEdited', (event, windowId: number, edited: boolean) => {
+			env.log('IPC#vscode:setDocumentEdited');
+
+			let vscodeWindow = this.getWindowById(windowId);
+			if (vscodeWindow && vscodeWindow.win.isDocumentEdited() !== edited) {
+				vscodeWindow.win.setDocumentEdited(edited);
+			}
+		});
+
 		ipc.on('vscode:toggleMenuBar', (event, windowId: number) => {
 			env.log('IPC#vscode:toggleMenuBar');
 

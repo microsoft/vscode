@@ -20,6 +20,8 @@ import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 
 import {ipcRenderer as ipc, shell, remote} from 'electron';
 
+const dialog = remote.dialog;
+
 export interface IWindowConfiguration {
 	window: {
 		openFilesInNewWindow: boolean;
@@ -30,6 +32,7 @@ export interface IWindowConfiguration {
 
 export class ElectronWindow {
 	private win: Electron.BrowserWindow;
+	private windowId: number;
 
 	constructor(
 		win: Electron.BrowserWindow,
@@ -41,6 +44,7 @@ export class ElectronWindow {
 		@IViewletService private viewletService: IViewletService
 	) {
 		this.win = win;
+		this.windowId = win.id;
 		this.registerListeners();
 	}
 
@@ -49,18 +53,13 @@ export class ElectronWindow {
 		// React to editor input changes (Mac only)
 		if (platform.platform === platform.Platform.Mac) {
 			this.eventService.addListener(EventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => {
-				// if we dont use setTimeout() here for some reason there is an issue when switching between 2 files side by side
-				// with the mac trackpad where the editor would think the user wants to select. to reproduce, have 2 files, click
-				// into the non-focussed one and move the mouse down and see the editor starts to select lines.
-				setTimeout(() => {
-					let fileInput = workbenchEditorCommon.asFileEditorInput(e.editorInput, true);
-					if (fileInput) {
-						this.win.setRepresentedFilename(fileInput.getResource().fsPath);
-					} else {
-						this.win.setRepresentedFilename('');
-					}
-				}, 0);
+				let fileInput = workbenchEditorCommon.asFileEditorInput(e.editorInput, true);
+				let representedFilename = '';
+				if (fileInput) {
+					representedFilename = fileInput.getResource().fsPath;
+				}
 
+				ipc.send('vscode:setRepresentedFilename', this.windowId, representedFilename);
 			});
 		}
 
@@ -155,36 +154,34 @@ export class ElectronWindow {
 	}
 
 	public reload(): void {
-		ipc.send('vscode:reloadWindow', this.win.id);
+		ipc.send('vscode:reloadWindow', this.windowId);
 	}
 
 	public showMessageBox(options: Electron.Dialog.ShowMessageBoxOptions): number {
-		return remote.dialog.showMessageBox(this.win, options);
+		return dialog.showMessageBox(this.win, options);
+	}
+
+	public showSaveDialog(options: Electron.Dialog.SaveDialogOptions, callback?: (fileName: string) => void): string {
+		return dialog.showSaveDialog(this.win, options, callback);
 	}
 
 	public setFullScreen(fullscreen: boolean): void {
-		this.win.setFullScreen(fullscreen);
+		ipc.send('vscode:setFullScreen', this.windowId, fullscreen); // handled from browser process
 	}
 
 	public openDevTools(): void {
-		this.win.webContents.openDevTools();
-	}
-
-	public isFullScreen(): boolean {
-		return this.win.isFullScreen();
+		ipc.send('vscode:openDevTools', this.windowId); // handled from browser process
 	}
 
 	public setMenuBarVisibility(visible: boolean): void {
-		this.win.setMenuBarVisibility(visible);
+		ipc.send('vscode:setMenuBarVisibility', this.windowId, visible); // handled from browser process
 	}
 
 	public focus(): void {
-		if (!this.win.isFocused()) {
-			this.win.focus();
-		}
+		ipc.send('vscode:focusWindow', this.windowId); // handled from browser process
 	}
 
 	public flashFrame(): void {
-		this.win.flashFrame(!this.win.isFocused());
+		ipc.send('vscode:flashFrame', this.windowId); // handled from browser process
 	}
 }

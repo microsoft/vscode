@@ -11,6 +11,8 @@ import Event, {Emitter} from 'vs/base/common/event';
 
 import {ipcRenderer as ipc, remote} from 'electron';
 
+const windowId = remote.getCurrentWindow().id;
+
 export var IWindowService = createDecorator<IWindowService>('windowService');
 
 export interface IWindowServices {
@@ -40,10 +42,12 @@ export class WindowService implements IWindowService {
 	public serviceId = IWindowService;
 
 	private win: ElectronWindow;
+	private windowId: number;
 	private _onBroadcast: Emitter<IBroadcast>;
 
 	constructor() {
 		this._onBroadcast = new Emitter<IBroadcast>();
+		this.windowId = windowId;
 
 		this.registerListeners();
 	}
@@ -59,7 +63,7 @@ export class WindowService implements IWindowService {
 	}
 
 	public getWindowId(): number {
-		return remote.getCurrentWindow().id;
+		return this.windowId;
 	}
 
 	public getWindow(): ElectronWindow {

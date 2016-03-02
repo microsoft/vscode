@@ -14,6 +14,7 @@ import {asFileEditorInput} from 'vs/workbench/common/editor';
 import errors = require('vs/base/common/errors');
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import URI from 'vs/base/common/uri';
+import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
@@ -23,7 +24,7 @@ import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 
-import {ipcRenderer as ipc, remote} from 'electron';
+import {ipcRenderer as ipc} from 'electron';
 
 export interface IPath {
 	filePath: string;
@@ -51,7 +52,8 @@ export class FileTracker implements IWorkbenchContribution {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IWindowService private windowService: IWindowService
 	) {
 		this.toUnbind = [];
 		this.isDocumentedEdited = false;
@@ -59,8 +61,7 @@ export class FileTracker implements IWorkbenchContribution {
 
 		// Make sure to reset any previous state
 		if (plat.platform === plat.Platform.Mac) {
-			let win = remote.getCurrentWindow();
-			win.setDocumentEdited(false);
+			ipc.send('vscode:setDocumentEdited', this.windowService.getWindowId(), false); // handled from browser process
 		}
 
 		this.registerListeners();
@@ -185,16 +186,10 @@ export class FileTracker implements IWorkbenchContribution {
 
 	private updateDocumentEdited(): void {
 		if (plat.platform === plat.Platform.Mac) {
-			process.nextTick(() => {
-				let win = remote.getCurrentWindow();
-				let isDirtyIndicated = win.isDocumentEdited();
-				let hasDirtyFiles = this.textFileService.isDirty();
-				this.isDocumentedEdited = hasDirtyFiles;
+			let hasDirtyFiles = this.textFileService.isDirty();
+			this.isDocumentedEdited = hasDirtyFiles;
 
-				if (hasDirtyFiles !== isDirtyIndicated) {
-					win.setDocumentEdited(hasDirtyFiles);
-				}
-			});
+			ipc.send('vscode:setDocumentEdited', this.windowService.getWindowId(), hasDirtyFiles); // handled from browser process
 		}
 	}
 
