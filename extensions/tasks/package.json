@@ -10,7 +10,7 @@
 		"vscode": "*"
 	},
 	"scripts": {
-		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../gulpfile.plugins.js compile-plugin:tasks ./src/tsconfig.json"
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:tasks ./src/tsconfig.json"
 	},
 	"activationEvents": [
 		"onLanguage:json"
