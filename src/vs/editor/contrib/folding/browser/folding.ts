@@ -191,17 +191,21 @@ export class FoldingController implements editorCommon.IEditorContribution {
 				}
 			}
 		});
-		return collapsedRegions;
+		return { collapsedRegions: collapsedRegions, lineCount: model.getLineCount() };
 	}
 
 	/**
 	 * Restore view state.
 	 */
 	public restoreViewState(state: any): void {
-		if (!Array.isArray(state)) {
+		let model = this.editor.getModel();
+		if (!model) {
 			return;
 		}
-		this.applyRegions(<IFoldingRange[]> state);
+		if (!state || !Array.isArray(state.collapsedRegions) || state.collapsedRegions.length === 0 || state.lineCount !== model.getLineCount()) {
+			return;
+		}
+		this.applyRegions(<IFoldingRange[]> state.collapsedRegions);
 	}
 
 	private cleanState(): void {
