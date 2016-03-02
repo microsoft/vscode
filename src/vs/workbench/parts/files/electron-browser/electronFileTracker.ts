@@ -6,11 +6,13 @@
 'use strict';
 
 import {IWorkbenchContribution} from 'vs/workbench/common/contributions';
-import {LocalFileChangeEvent, IWorkingFileModelChangeEvent, EventType as FileEventType, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent, EventType as FileEventType, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {IFileService} from 'vs/platform/files/common/files';
 import {OpenResourcesAction} from 'vs/workbench/parts/files/browser/fileActions';
 import plat = require('vs/base/common/platform');
+import {asFileEditorInput} from 'vs/workbench/common/editor';
 import errors = require('vs/base/common/errors');
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import URI from 'vs/base/common/uri';
 import {EventType as WorkbenchEventType} from 'vs/workbench/common/events';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -46,6 +48,7 @@ export class FileTracker implements IWorkbenchContribution {
 		@IPartService private partService: IPartService,
 		@IFileService private fileService: IFileService,
 		@ITextFileService private textFileService: ITextFileService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@ILifecycleService private lifecycleService: ILifecycleService
@@ -61,9 +64,6 @@ export class FileTracker implements IWorkbenchContribution {
 		}
 
 		this.registerListeners();
-
-		// Listen to out of workspace file changes
-		this.updateOutOfWorkspaceFileListeners({ added: this.textFileService.getWorkingFilesModel().getEntries() });
 	}
 
 	private registerListeners(): void {
@@ -75,10 +75,6 @@ export class FileTracker implements IWorkbenchContribution {
 		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_SAVED, (e: LocalFileChangeEvent) => this.onTextFileSaved(e)));
 		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_SAVE_ERROR, (e: LocalFileChangeEvent) => this.onTextFileSaveError(e)));
 		this.toUnbind.push(this.eventService.addListener(FileEventType.FILE_REVERTED, (e: LocalFileChangeEvent) => this.onTextFileReverted(e)));
-
-		// Working Files Model Change
-		const disposable = this.textFileService.getWorkingFilesModel().onModelChange(this.onWorkingFilesModelChange, this);
-		this.toUnbind.push(() => disposable.dispose());
 
 		// Support openFiles event for existing and new files
 		ipc.on('vscode:openFiles', (event, request: IOpenFileRequest) => {
@@ -99,6 +95,10 @@ export class FileTracker implements IWorkbenchContribution {
 			}
 		});
 
+		// Editor input changes
+		this.toUnbind.push(this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_CHANGED, () => this.onEditorInputChanged()));
+
+		// Lifecycle
 		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
@@ -121,29 +121,30 @@ export class FileTracker implements IWorkbenchContribution {
 		});
 	}
 
-	private updateOutOfWorkspaceFileListeners(event: IWorkingFileModelChangeEvent): void {
-		let added = event.added ? event.added.map((e) => e.resource).filter((r) => r.scheme === 'file' && !this.contextService.isInsideWorkspace(r)) : [];
-		let removed = event.removed ? event.removed.map((e) => e.resource).filter((r) => r.scheme === 'file' && !this.contextService.isInsideWorkspace(r)) : [];
+	private onEditorInputChanged(): void {
+		let visibleOutOfWorkspaceResources = this.editorService.getVisibleEditors().map((editor) => {
+			return asFileEditorInput(editor.input, true);
+		}).filter((input) => {
+			return !!input && !this.contextService.isInsideWorkspace(input.getResource());
+		}).map((input) => {
+			return input.getResource().toString();
+		});
 
-		// Handle added
-		added.forEach((resource) => {
-			if (!this.activeOutOfWorkspaceWatchers[resource.toString()]) {
-				this.fileService.watchFileChanges(resource);
-				this.activeOutOfWorkspaceWatchers[resource.toString()] = true;
+		// Handle no longer visible out of workspace resources
+		Object.keys(this.activeOutOfWorkspaceWatchers).forEach((watchedResource) => {
+			if (visibleOutOfWorkspaceResources.indexOf(watchedResource) < 0) {
+				this.fileService.unwatchFileChanges(watchedResource);
+				delete this.activeOutOfWorkspaceWatchers[watchedResource];
 			}
 		});
 
-		// Handle removed
-		removed.forEach((resource) => {
-			if (this.activeOutOfWorkspaceWatchers[resource.toString()]) {
-				this.fileService.unwatchFileChanges(resource);
-				delete this.activeOutOfWorkspaceWatchers[resource.toString()];
+		// Handle newly visible out of workspace resources
+		visibleOutOfWorkspaceResources.forEach((resourceToWatch) => {
+			if (!this.activeOutOfWorkspaceWatchers[resourceToWatch]) {
+				this.fileService.watchFileChanges(URI.parse(resourceToWatch));
+				this.activeOutOfWorkspaceWatchers[resourceToWatch] = true;
 			}
 		});
-	}
-
-	private onWorkingFilesModelChange(event: IWorkingFileModelChangeEvent): void {
-		this.updateOutOfWorkspaceFileListeners(event);
 	}
 
 	private onUntitledDirtyEvent(): void {
