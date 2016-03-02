@@ -203,4 +203,18 @@ suite('Paths', () => {
 			assert.ok(!paths.isValidBasename('tes"t.txt'));
 		}
 	});
+
+	test('isAbsolute', () => {
+		assert.equal(paths.isAbsolute('/a/b/c'), true);
+		assert.equal(paths.isAbsolute('a/b/'), false);
+		assert.equal(paths.isAbsolute('a/b/cde/f'), false);
+		assert.equal(paths.isAbsolute('/A/a/b/cde/f'), true);
+
+		assert.equal(paths.isAbsolute('c:\\a\\b\\c'), true);
+		assert.equal(paths.isAbsolute('D:\\a\\b\\'), true);
+		assert.equal(paths.isAbsolute('a\\b\\c'), false);
+		assert.equal(paths.isAbsolute('\\a\\b\\c'), false);
+		assert.equal(paths.isAbsolute('F\\a\\b\\c'), false);
+		assert.equal(paths.isAbsolute('F:\\a'), true);
+	});
 });
