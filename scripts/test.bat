@@ -5,6 +5,9 @@ set ELECTRON_NO_ATTACH_CONSOLE=1
 
 pushd %~dp0\..
 .\.build\electron\electron.exe .\node_modules\mocha\bin\_mocha %*
+set RESULT=%errorlevel%
 popd
 
 endlocal
+
+exit /b %RESULT%
