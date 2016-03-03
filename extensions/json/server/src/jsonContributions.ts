@@ -7,7 +7,7 @@
 import {JSONLocation} from './jsonLocation';
 import {ISuggestionsCollector} from './jsonCompletion';
 
-import {MarkedString} from 'vscode-languageserver';
+import {MarkedString, CompletionItem} from 'vscode-languageserver';
 
 export {ISuggestionsCollector} from './jsonCompletion';
 
@@ -17,4 +17,5 @@ export interface IJSONWorkerContribution {
 	collectPropertySuggestions(resource: string, location: JSONLocation, currentWord: string, addValue: boolean, isLast:boolean, result: ISuggestionsCollector) : Thenable<any>;
 	collectValueSuggestions(resource: string, location: JSONLocation, propertyKey: string, result: ISuggestionsCollector): Thenable<any>;
 	collectDefaultSuggestions(resource: string, result: ISuggestionsCollector): Thenable<any>;
+	resolveSuggestion?(item: CompletionItem): Thenable<CompletionItem>;
 }
