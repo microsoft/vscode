@@ -16,16 +16,16 @@ export interface IHTMLTagProvider {
 	collectValues(tag: string, attribute: string, collector: (value: string) => void): void;
 }
 
+export interface ITagSet {
+	[tag: string]: HTMLTagSpecification;
+}
+
 export class HTMLTagSpecification {
 	constructor(public label: string, public attributes: string[] = []) { }
 }
 
-interface ITagSet {
-	[tag: string]: HTMLTagSpecification
-}
-
 interface IValueSets {
-	[tag: string]: string[]
+	[tag: string]: string[];
 }
 
 // HTML tag information sourced from http://www.w3.org/TR/2015/WD-html51-20151008/
@@ -320,7 +320,7 @@ export const HTML_TAGS: ITagSet = {
 
 export const IONIC_TAGS: ITagSet = {
 	'ion-checkbox': new HTMLTagSpecification('',
-		['name', 'ng-change', 'ng-false-value', 'ng-model', 'ng-true-value']),
+		['name', 'ng-false-value', 'ng-model', 'ng-true-value']),
 	'ion-content': new HTMLTagSpecification('',
 		['delegate-handle', 'direction:scrolldir', 'has-bouncing:b', 'locking:b', 'on-scroll', 'on-scroll-complete', 'overflow-scroll:b', 'padding:b', 'scroll:b', 'scrollbar-x:b', 'scrollbar-y:b', 'start-x', 'start-y']),
 	'ion-delete-button': new HTMLTagSpecification('',
@@ -356,7 +356,7 @@ export const IONIC_TAGS: ITagSet = {
 	'ion-popover-view': new HTMLTagSpecification('',
 		[]),
 	'ion-radio': new HTMLTagSpecification('',
-		['disabled:b', 'icon', 'name', 'ng-change', 'ng-disabled:b', 'ng-model', 'ng-value', 'value']),
+		['disabled:b', 'icon', 'name', 'ng-disabled:b', 'ng-model', 'ng-value', 'value']),
 	'ion-refresher': new HTMLTagSpecification('',
 		['disable-pulling-rotation:b', 'on-pulling', 'on-refresh', 'pulling-icon', 'pulling-text', 'refreshing-icon', 'spinner']),
 	'ion-reorder-button': new HTMLTagSpecification('',
@@ -382,7 +382,7 @@ export const IONIC_TAGS: ITagSet = {
 	'ion-title': new HTMLTagSpecification('',
 		[]),
 	'ion-toggle': new HTMLTagSpecification('',
-		['name', 'ng-change', 'ng-false-value', 'ng-model', 'ng-true-value', 'toggle-class']),
+		['name', 'ng-false-value', 'ng-model', 'ng-true-value', 'toggle-class']),
 	'ion-view ': new HTMLTagSpecification('',
 		['cache-view:b', 'can-swipe-back:b', 'hide-back-button:b', 'hide-nav-bar:b', 'view-title'])
 };
@@ -521,7 +521,8 @@ export function getIonicTagProvider(): IHTMLTagProvider {
 				var attributes = customTags[tag];
 				if (attributes) {
 					attributes.forEach((a) => {
-						collector(a, null);
+						var segments = a.split(':');
+						collector(segments[0], segments[1]);
 					});
 				}
 			}
