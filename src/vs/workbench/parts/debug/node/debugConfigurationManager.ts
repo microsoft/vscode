@@ -277,7 +277,7 @@ export class ConfigurationManager {
 	}
 
 	private getInitialConfigFileContent(): TPromise<string> {
-		return this.quickOpenService.pick(this.adapters, { placeHolder: nls.localize('selectDebug', "Select Debug Environment") })
+		return this.quickOpenService.pick(this.adapters, { placeHolder: nls.localize('selectDebug', "Select Environment") })
 		.then(adapter => {
 			if (!adapter) {
 				return null;

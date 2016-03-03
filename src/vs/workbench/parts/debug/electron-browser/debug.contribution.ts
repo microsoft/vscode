@@ -104,6 +104,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.ConfigureAc
 registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.ToggleReplAction, dbgactions.ToggleReplAction.ID, dbgactions.ToggleReplAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Y,}), debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.AddFunctionBreakpointAction, dbgactions.AddFunctionBreakpointAction.ID, dbgactions.AddFunctionBreakpointAction.LABEL), debugCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.ReapplyBreakpointsAction, dbgactions.ReapplyBreakpointsAction.ID, dbgactions.ReapplyBreakpointsAction.LABEL), debugCategory);
+registry.registerWorkbenchAction(new SyncActionDescriptor(dbgactions.RunAction, dbgactions.RunAction.ID, dbgactions.RunAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.F5 }, KbExpr.not(debug.CONTEXT_IN_DEBUG_MODE)));
 
 // register service
 registerSingleton(IDebugService, service.DebugService);
