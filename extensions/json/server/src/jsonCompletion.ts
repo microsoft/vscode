@@ -8,10 +8,12 @@
 import Parser = require('./jsonParser');
 import SchemaService = require('./jsonSchemaService');
 import JsonSchema = require('./json-toolbox/jsonSchema');
-import nls = require('./utils/nls');
 import {IJSONWorkerContribution} from './jsonContributions';
 
 import {CompletionItem, CompletionItemKind, CompletionList, ITextDocument, TextDocumentPosition, Range, TextEdit, RemoteConsole} from 'vscode-languageserver';
+
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
 
 export interface ISuggestionsCollector {
 	add(suggestion: CompletionItem): void;
@@ -31,7 +33,7 @@ export class JSONCompletion {
 		this.contributions = contributions;
 		this.console = console;
 	}
-	
+
 	public doResolve(item: CompletionItem) : Thenable<CompletionItem> {
 		for (let i = this.contributions.length - 1; i >= 0; i--) {
 			if (this.contributions[i].resolveSuggestion) {
@@ -362,7 +364,7 @@ export class JSONCompletion {
 				kind: this.getSuggestionKind(schema.type),
 				label: this.getLabelForValue(schema.default),
 				insertText: this.getTextForValue(schema.default),
-				detail: nls.localize('json.suggest.default', 'Default value'),
+				detail: localize('json.suggest.default', 'Default value'),
 			});
 		}
 		if (Array.isArray(schema.defaultSnippets)) {

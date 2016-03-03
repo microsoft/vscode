@@ -31,6 +31,9 @@ import {PackageJSONContribution} from './jsoncontributions/packageJSONContributi
 import {ProjectJSONContribution} from './jsoncontributions/projectJSONContribution';
 import {GlobPatternContribution} from './jsoncontributions/globPatternContribution';
 
+import * as nls from 'vscode-nls';
+nls.config(process.env['VSCODE_NLS_CONFIG']);
+
 namespace TelemetryNotification {
 	export const type: NotificationType<{ key: string, data: any }> = { get method() { return 'telemetry'; } };
 }

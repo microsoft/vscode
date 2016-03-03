@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-export function localize(key: string, message: string, ...formatArgs: any[]) {
+export function localize2(key: string, message: string, ...formatArgs: any[]) {
 	if (formatArgs.length > 0) {
 		return message.replace(/\{(\d+)\}/g, function(match, rest) {
 			var index = rest[0];

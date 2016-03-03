@@ -6,11 +6,14 @@
 
 import {MarkedString, CompletionItemKind, CompletionItem} from 'vscode-languageserver';
 import Strings = require('../utils/strings');
-import nls = require('../utils/nls');
 import {IXHRResponse, getErrorStatusDescription} from '../utils/httpRequest';
 import {IJSONWorkerContribution, ISuggestionsCollector} from '../jsonContributions';
 import {IRequestService} from '../jsonSchemaService';
 import {JSONLocation} from '../jsonLocation';
+
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
+
 
 const FEED_INDEX_URL = 'https://api.nuget.org/v3/index.json';
 const LIMIT = 30;
@@ -31,7 +34,7 @@ export class ProjectJSONContribution implements IJSONWorkerContribution {
 	private cachedProjects: { [id: string]: { version: string, description: string, time: number }} = {};
 	private cacheSize: number = 0;
 	private nugetIndexPromise: Thenable<NugetServices>;
-	
+
 	public constructor(requestService: IRequestService) {
 		this.requestService = requestService;
 	}
@@ -39,7 +42,7 @@ export class ProjectJSONContribution implements IJSONWorkerContribution {
 	private isProjectJSONFile(resource: string): boolean {
 		return Strings.endsWith(resource, '/project.json');
 	}
-	
+
 	private completeWithCache(id: string, item: CompletionItem) : boolean {
 		let entry = this.cachedProjects[id];
 		if (entry) {
@@ -61,7 +64,7 @@ export class ProjectJSONContribution implements IJSONWorkerContribution {
 		this.cacheSize++;
 		if (this.cacheSize > 50) {
 			let currentTime = new Date().getTime() ;
-			for (var id in this.cachedProjects) {
+			for (let id in this.cachedProjects) {
 				let entry = this.cachedProjects[id];
 				if (currentTime - entry.time > CACHE_EXPIRY) {
 					delete this.cachedProjects[id];
@@ -70,7 +73,7 @@ export class ProjectJSONContribution implements IJSONWorkerContribution {
 			}
 		}
 	}
-	
+
 	private getNugetIndex() : Thenable<NugetServices> {
 		if (!this.nugetIndexPromise) {
 			this.nugetIndexPromise = this.makeJSONRequest<any>(FEED_INDEX_URL).then(indexContent => {
@@ -95,7 +98,7 @@ export class ProjectJSONContribution implements IJSONWorkerContribution {
 		return this.getNugetIndex().then(services => {
 			let serviceURL = services[serviceType];
 			if (!serviceURL) {
-				return Promise.reject<string>(nls.localize('json.nugget.error.missingservice', 'NuGet index document is missing service {0}', serviceType));
+				return Promise.reject<string>(localize('json.nugget.error.missingservice', 'NuGet index document is missing service {0}', serviceType));
 			}
 			return serviceURL;
 		});
@@ -111,7 +114,7 @@ export class ProjectJSONContribution implements IJSONWorkerContribution {
 					'dnxcore50': {}
 				}
 			};
-			result.add({ kind: CompletionItemKind.Class, label: nls.localize('json.project.default', 'Default project.json'), insertText: JSON.stringify(defaultValue, null, '\t'), documentation: '' });
+			result.add({ kind: CompletionItemKind.Class, label: localize('json.project.default', 'Default project.json'), insertText: JSON.stringify(defaultValue, null, '\t'), documentation: '' });
 		}
 		return null;
 	}
@@ -124,12 +127,12 @@ export class ProjectJSONContribution implements IJSONWorkerContribution {
 				try {
 					return <T> JSON.parse(success.responseText);
 				} catch (e) {
-					return Promise.reject<T>(nls.localize('json.nugget.error.invalidformat', '{0} is not a valid JSON document', url));
+					return Promise.reject<T>(localize('json.nugget.error.invalidformat', '{0} is not a valid JSON document', url));
 				}
 			}
-			return Promise.reject<T>(nls.localize('json.nugget.error.indexaccess', 'Request to {0} failed: {1}', url, success.responseText));
+			return Promise.reject<T>(localize('json.nugget.error.indexaccess', 'Request to {0} failed: {1}', url, success.responseText));
 		}, (error: IXHRResponse) => {
-			return Promise.reject<T>(nls.localize('json.nugget.error.access', 'Request to {0} failed: {1}', url, getErrorStatusDescription(error.status)));
+			return Promise.reject<T>(localize('json.nugget.error.access', 'Request to {0} failed: {1}', url, getErrorStatusDescription(error.status)));
 		});
 	}
 
@@ -211,7 +214,7 @@ export class ProjectJSONContribution implements IJSONWorkerContribution {
 				let queryUrl = service + '?q=' + encodeURIComponent(pack) +'&take=' + 5;
 				return this.makeJSONRequest<any>(queryUrl).then(resultObj => {
 					let htmlContent : MarkedString[] = [];
-					htmlContent.push(nls.localize('json.nugget.package.hover', '{0}', pack));
+					htmlContent.push(localize('json.nugget.package.hover', '{0}', pack));
 					if (Array.isArray(resultObj.data)) {
 						let results = <any[]> resultObj.data;
 						for (let i = 0; i < results.length; i++) {
@@ -222,7 +225,7 @@ export class ProjectJSONContribution implements IJSONWorkerContribution {
 									htmlContent.push(res.description);
 								}
 								if (res.version) {
-									htmlContent.push(nls.localize('json.nugget.version.hover', 'Latest version: {0}', res.version));
+									htmlContent.push(localize('json.nugget.version.hover', 'Latest version: {0}', res.version));
 								}
 								break;
 							}
@@ -238,7 +241,7 @@ export class ProjectJSONContribution implements IJSONWorkerContribution {
 		}
 		return null;
 	}
-		
+
 	public resolveSuggestion(item: CompletionItem) : Thenable<CompletionItem> {
 		if (item.data && Strings.startsWith(item.data, RESOLVE_ID)) {
 			let pack = item.data.substring(RESOLVE_ID.length);
