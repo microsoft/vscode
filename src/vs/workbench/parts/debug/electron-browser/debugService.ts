@@ -638,9 +638,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 			if (filteredTasks[0].isWatching) {
 				return new TPromise((c, e) => {
-					this.taskService.addOneTimeListener(TaskServiceEvents.Inactive, () => {
-						c(null);
-					});
+					this.taskService.addOneTimeListener(TaskServiceEvents.Inactive, () => c(taskPromise));
 				});
 			}
 

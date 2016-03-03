@@ -327,7 +327,7 @@ export function formatPII(value:string, excludePII: boolean, args: {[key: string
 			return match;
 		}
 
-		return args.hasOwnProperty(group) ?
+		return args && args.hasOwnProperty(group) ?
 			args[group] :
 			match;
 	});
