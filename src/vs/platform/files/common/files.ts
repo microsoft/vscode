@@ -304,7 +304,7 @@ export interface IFileStat extends IBaseStat {
 
 	/**
 	 * The resource is a directory. Iff {{true}}
-	 * {{mime}} and {{charset}} have no meaning.
+	 * {{mime}} and {{encoding}} have no meaning.
 	 */
 	isDirectory: boolean;
 
@@ -336,9 +336,9 @@ export interface IContent extends IBaseStat {
 	value: string;
 
 	/**
-	 * The charset of the content if known.
+	 * The encoding of the content if known.
 	 */
-	charset: string;
+	encoding: string;
 }
 
 export interface IResolveContentOptions {
@@ -366,12 +366,12 @@ export interface IResolveContentOptions {
 export interface IUpdateContentOptions {
 
 	/**
-	 * The charset to use when updating a file.
+	 * The encoding to use when updating a file.
 	 */
-	charset?: string;
+	encoding?: string;
 
 	/**
-	 * If set to true, will enforce the selected charset and not perform any detection using BOMs.
+	 * If set to true, will enforce the selected encoding and not perform any detection using BOMs.
 	 */
 	overwriteEncoding?: boolean;
 

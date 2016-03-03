@@ -231,7 +231,7 @@ export class FileService implements files.IFileService {
 
 			// 2.) create parents as needed
 			return createParentsPromise.then(() => {
-				let encodingToWrite = this.getEncoding(resource, options.charset);
+				let encodingToWrite = this.getEncoding(resource, options.encoding);
 				let addBomPromise: TPromise<boolean> = TPromise.as(false);
 
 				// UTF_16 BE and LE as well as UTF_8 with BOM always have a BOM
@@ -449,7 +449,7 @@ export class FileService implements files.IFileService {
 				reader.on('end', () => {
 					let content: files.IContent = <any>model;
 					content.value = chunks.join('');
-					content.charset = fileEncoding; // make sure to store the charset in the model to restore it later when writing
+					content.encoding = fileEncoding; // make sure to store the encoding in the model to restore it later when writing
 
 					if (!done) {
 						done = true;

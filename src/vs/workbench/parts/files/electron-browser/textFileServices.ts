@@ -328,7 +328,7 @@ export class TextFileService extends AbstractTextFileService {
 
 			// We have a model: Use it (can be null e.g. if this file is binary and not a text file or was never opened before)
 			if (model) {
-				return this.fileService.updateContent(target, model.getValue(), { charset: model.getEncoding() });
+				return this.fileService.updateContent(target, model.getValue(), { encoding: model.getEncoding() });
 			}
 
 			// Otherwise we can only copy

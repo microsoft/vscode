@@ -241,9 +241,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 			};
 			this.updateVersionOnDiskStat(resolvedStat);
 
-			// Keep the original charset to not loose it when saving
+			// Keep the original encoding to not loose it when saving
 			let oldEncoding = this.contentEncoding;
-			this.contentEncoding = content.charset;
+			this.contentEncoding = content.encoding;
 
 			// Handle events if encoding changed
 			if (this.preferredEncoding) {
@@ -469,7 +469,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 			overwriteReadonly: overwriteReadonly,
 			overwriteEncoding: overwriteEncoding,
 			mtime: this.versionOnDiskStat.mtime,
-			charset: this.getEncoding(),
+			encoding: this.getEncoding(),
 			etag: this.versionOnDiskStat.etag
 		}).then((stat: IFileStat) => {
 			diag('doSave(' + versionId + ') - after updateContent()', this.resource, new Date());
