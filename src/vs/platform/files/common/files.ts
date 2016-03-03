@@ -371,6 +371,11 @@ export interface IUpdateContentOptions {
 	charset?: string;
 
 	/**
+	 * If set to true, will enforce the selected charset and not perform any detection using BOMs.
+	 */
+	overwriteEncoding?: boolean;
+
+	/**
 	 * Whether to overwrite a file even if it is readonly.
 	 */
 	overwriteReadonly?: boolean;
@@ -418,12 +423,6 @@ export const AutoSaveConfiguration = {
 	ON_FOCUS_CHANGE: 'onFocusChange'
 };
 
-export const BOMConfiguration = {
-	PRESERVE: 'preserve',
-	REMOVE: 'remove',
-	INSERT: 'insert'
-};
-
 export interface IFilesConfiguration {
 	files: {
 		exclude: glob.IExpression;
@@ -432,6 +431,5 @@ export interface IFilesConfiguration {
 		autoSave: string;
 		autoSaveDelay: number;
 		eol: string;
-		bom: string;
 	};
 }

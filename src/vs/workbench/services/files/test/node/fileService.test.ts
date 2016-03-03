@@ -11,7 +11,7 @@ import os = require('os');
 import assert = require('assert');
 
 import {FileService, IEncodingOverride} from 'vs/workbench/services/files/node/fileService';
-import {EventType, FileChangesEvent, FileOperationResult, IFileOperationResult, BOMConfiguration} from 'vs/platform/files/common/files';
+import {EventType, FileChangesEvent, FileOperationResult, IFileOperationResult} from 'vs/platform/files/common/files';
 import {nfcall} from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
 import uuid = require('vs/base/common/uuid');
@@ -468,7 +468,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('options - bom', function(done: () => void) {
+	test('UTF 8 BOMs', function(done: () => void) {
 
 		// setup
 		let _id = uuid.generateUuid();
@@ -476,50 +476,31 @@ suite('FileService', () => {
 		let _sourceDir = require.toUrl('./fixtures/service');
 		let resource = uri.file(path.join(testDir, 'index.html'));
 
-		extfs.copy(_sourceDir, _testDir, () => {
-			let _service = new FileService(_testDir, null, {
-				bom: BOMConfiguration.INSERT,
-				disableWatcher: true
-			});
+		let _service = new FileService(_testDir, null, {
+			disableWatcher: true
+		});
 
+		extfs.copy(_sourceDir, _testDir, () => {
 			fs.readFile(resource.fsPath, (error, data) => {
 				assert.equal(encoding.detectEncodingByBOMFromBuffer(data, 512), null);
 
-				// Update content: BOM => INSERT
-				_service.updateContent(resource, 'Hello Bom').done(() => {
+				// Update content: UTF_8 => UTF_8_BOM
+				_service.updateContent(resource, 'Hello Bom', { charset: encoding.UTF8_with_bom }).done(() => {
 					fs.readFile(resource.fsPath, (error, data) => {
 						assert.equal(encoding.detectEncodingByBOMFromBuffer(data, 512), encoding.UTF8);
 
-						_service.dispose();
-						_service = new FileService(_testDir, null, {
-							bom: BOMConfiguration.PRESERVE,
-							disableWatcher: true
-						});
-
-						// Update content: BOM => PRESERVE
-						_service.updateContent(resource, 'Hello Bom').done(() => {
+						// Update content: PRESERVE BOM when using UTF-8
+						_service.updateContent(resource, 'Please stay Bom', { charset: encoding.UTF8 }).done(() => {
 							fs.readFile(resource.fsPath, (error, data) => {
 								assert.equal(encoding.detectEncodingByBOMFromBuffer(data, 512), encoding.UTF8);
 
-								_service.dispose();
-								_service = new FileService(_testDir, null, {
-									bom: BOMConfiguration.REMOVE,
-									disableWatcher: true
-								});
-
-								// Update content: BOM => REMOVE
-								_service.updateContent(resource, 'Hello Bom').done(() => {
+								// Update content: REMOVE BOM
+								_service.updateContent(resource, 'Go away Bom', { charset: encoding.UTF8, overwriteEncoding: true }).done(() => {
 									fs.readFile(resource.fsPath, (error, data) => {
 										assert.equal(encoding.detectEncodingByBOMFromBuffer(data, 512), null);
 
-										_service.dispose();
-										_service = new FileService(_testDir, null, {
-											bom: BOMConfiguration.PRESERVE,
-											disableWatcher: true
-										});
-
-										// Update content: BOM => PRESERVE
-										_service.updateContent(resource, 'Hello Bom').done(() => {
+										// Update content: BOM comes not back
+										_service.updateContent(resource, 'Do not come back Bom', { charset: encoding.UTF8 }).done(() => {
 											fs.readFile(resource.fsPath, (error, data) => {
 												assert.equal(encoding.detectEncodingByBOMFromBuffer(data, 512), null);
 

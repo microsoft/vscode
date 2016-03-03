@@ -9,7 +9,7 @@ import 'vs/css!./media/editorstatus';
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import { emmet as $, append } from 'vs/base/browser/dom';
-import encoding = require('vs/base/common/bits/encoding');
+import encoding = require('vs/base/common/encoding');
 import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
 import uri from 'vs/base/common/uri';
@@ -852,6 +852,9 @@ export class ChangeEncodingAction extends Action {
 							}
 
 							return encoding.SUPPORTED_ENCODINGS[k1].order - encoding.SUPPORTED_ENCODINGS[k2].order;
+						})
+						.filter(k => {
+							return !isReopenWithEncoding || !encoding.SUPPORTED_ENCODINGS[k].encodeOnly; // hide those that can only be used for encoding if we are about to decode
 						})
 						.map((key, index) => {
 							if (key === encodingSupport.getEncoding()) {

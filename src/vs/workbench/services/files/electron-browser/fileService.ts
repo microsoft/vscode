@@ -8,7 +8,7 @@ import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import platform = require('vs/base/common/platform');
-import encoding = require('vs/base/common/bits/encoding');
+import encoding = require('vs/base/node/encoding');
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
 import uri from 'vs/base/common/uri';
@@ -53,7 +53,6 @@ export class FileService implements files.IFileService {
 			let fileServiceConfig: IFileServiceOptions = {
 				errorLogger: (msg: string) => errors.onUnexpectedError(msg),
 				encoding: configuration.files && configuration.files.encoding,
-				bom: configuration.files && configuration.files.bom,
 				encodingOverride: encodingOverride,
 				watcherIgnoredPatterns: doNotWatch,
 				verboseLogging: this.contextService.getConfiguration().env.verboseLogging

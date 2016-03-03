@@ -8,7 +8,7 @@
 import 'vs/css!./media/files.contribution';
 
 import URI from 'vs/base/common/uri';
-import {SUPPORTED_ENCODINGS} from 'vs/base/common/bits/encoding';
+import {SUPPORTED_ENCODINGS} from 'vs/base/common/encoding';
 import {ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction} from 'vs/workbench/browser/viewlet';
 import nls = require('vs/nls');
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
@@ -22,7 +22,7 @@ import {IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory} fr
 import {EditorInput, IFileEditorInput} from 'vs/workbench/common/editor';
 import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions} from 'vs/workbench/browser/quickopen';
 import {FileEditorDescriptor} from 'vs/workbench/parts/files/browser/files';
-import {AutoSaveConfiguration, BOMConfiguration} from 'vs/platform/files/common/files';
+import {AutoSaveConfiguration} from 'vs/platform/files/common/files';
 import {FILE_EDITOR_INPUT_ID, VIEWLET_ID} from 'vs/workbench/parts/files/common/files';
 import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
 import {SaveParticipant} from 'vs/workbench/parts/files/common/editors/saveParticipant';
@@ -200,12 +200,6 @@ configurationRegistry.registerConfiguration({
 			'enum': Object.keys(SUPPORTED_ENCODINGS),
 			'default': 'utf8',
 			'description': nls.localize('encoding', "The default character set encoding to use when reading and writing files."),
-		},
-		'files.bom': {
-			'type': 'string',
-			'default': BOMConfiguration.PRESERVE,
-			'enum': [BOMConfiguration.PRESERVE, BOMConfiguration.REMOVE, BOMConfiguration.INSERT],
-			'description': nls.localize('bom', "Controls the BOM (Byte Order Mark) for UTF-8 files. By default, a UTF-8 BOM will be preserved if found but not inserted if not found. Set to \"{0}\" to remove the BOM if found or \"{1}\" to always insert a BOM.", BOMConfiguration.REMOVE, BOMConfiguration.INSERT)
 		},
 		'files.eol': {
 			'type': 'string',

@@ -10,7 +10,6 @@ import fs = require('fs');
 import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
-import iconv = require('iconv-lite');
 
 import files = require('vs/platform/files/common/files');
 import strings = require('vs/base/common/strings');
@@ -158,8 +157,13 @@ export class FileService implements files.IFileService {
 			let etag = options && options.etag;
 			let enc = options && options.encoding;
 
+			let detectedEncoding = detected.encoding;
+			if (detectedEncoding === encoding.UTF8) {
+				detectedEncoding = encoding.UTF8_with_bom; // if we detected UTF-8, it can only be because of a BOM
+			}
+
 			// 2.) get content
-			return this.resolveFileContent(resource, etag, enc /* give user choice precedence */ || detected.encoding).then((content) => {
+			return this.resolveFileContent(resource, etag, enc /* give user choice precedence */ || detectedEncoding).then((content) => {
 
 				// set our knowledge about the mime on the content obj
 				content.mime = detected.mimes.join(', ');
@@ -228,21 +232,19 @@ export class FileService implements files.IFileService {
 			// 2.) create parents as needed
 			return createParentsPromise.then(() => {
 				let encodingToWrite = this.getEncoding(resource, options.charset);
-
-				// UTF16 without BOM makes no sense so always add it
 				let addBomPromise: TPromise<boolean> = TPromise.as(false);
-				if (encodingToWrite === encoding.UTF16be || encodingToWrite === encoding.UTF16le) {
+
+				// UTF_16 BE and LE as well as UTF_8 with BOM always have a BOM
+				if (encodingToWrite === encoding.UTF16be || encodingToWrite === encoding.UTF16le || encodingToWrite === encoding.UTF8_with_bom) {
 					addBomPromise = TPromise.as(true);
 				}
 
-				// UTF8 only gets a BOM if the file had it already or we are configured to add BOMs
-				else if (encodingToWrite === encoding.UTF8) {
-					if (this.options.bom === files.BOMConfiguration.INSERT) {
-						addBomPromise = TPromise.as(true);
-					} else if (this.options.bom === files.BOMConfiguration.REMOVE) {
-						addBomPromise = TPromise.as(false);
-					} else if (exists) {
-						addBomPromise = nfcall(encoding.detectEncodingByBOM, absolutePath).then((enc) => enc === encoding.UTF8); // only for UTF8 we need to check if we have to preserve a BOM
+				// Existing UTF-8 file: check for options regarding BOM
+				else if (exists && encodingToWrite === encoding.UTF8) {
+					if (options.overwriteEncoding) {
+						addBomPromise = TPromise.as(false); // if we are to overwrite the encoding, we do not preserve it if found
+					} else {
+						addBomPromise = nfcall(encoding.detectEncodingByBOM, absolutePath).then((enc) => enc === encoding.UTF8); // otherwise preserve it if found
 					}
 				}
 
@@ -255,9 +257,9 @@ export class FileService implements files.IFileService {
 						writeFilePromise = pfs.writeFile(absolutePath, value, encoding.UTF8);
 					}
 
-					// Otherwise use Iconv-Lite for encoding
+					// Otherwise use encoding lib
 					else {
-						let encoded = iconv.encode(value, encodingToWrite, { addBOM: addBom });
+						let encoded = encoding.encode(value, encodingToWrite, { addBOM: addBom });
 						writeFilePromise = pfs.writeFile(absolutePath, encoded);
 					}
 
@@ -431,7 +433,7 @@ export class FileService implements files.IFileService {
 				let chunks: NodeBuffer[] = [];
 				let fileEncoding = this.getEncoding(model.resource, enc);
 
-				const reader = fs.createReadStream(absolutePath).pipe(iconv.decodeStream(fileEncoding)); // decode takes care of stripping any BOMs from the file content
+				const reader = fs.createReadStream(absolutePath).pipe(encoding.decodeStream(fileEncoding)); // decode takes care of stripping any BOMs from the file content
 
 				reader.on('data', (buf) => {
 					chunks.push(buf);
@@ -470,7 +472,7 @@ export class FileService implements files.IFileService {
 			fileEncoding = this.options.encoding;
 		}
 
-		if (!fileEncoding || !iconv.encodingExists(fileEncoding)) {
+		if (!fileEncoding || !encoding.encodingExists(fileEncoding)) {
 			fileEncoding = encoding.UTF8; // the default is UTF 8
 		}
 
