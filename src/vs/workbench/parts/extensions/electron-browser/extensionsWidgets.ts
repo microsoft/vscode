@@ -94,6 +94,7 @@ export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
 	private static _dontSuggestAgainTimeout = 1000 * 60 * 60 * 24 * 28; // 4 wks
 
 	private _domNode: HTMLElement;
+	private _container: HTMLElement;
 	private _label: OcticonLabel;
 	private _previousTips: { [id: string]: number };
 
@@ -136,7 +137,7 @@ export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
 		}
 
 		if (tips.length === 0) {
-			dom.addClass(this._domNode, 'disabled');
+			dom.addClass(this._container, 'disabled');
 			return;
 		}
 
@@ -154,15 +155,18 @@ export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
 			}
 		}
 		if (hasNewTips) {
-			dom.removeClass(this._domNode, 'disabled');
+			dom.removeClass(this._container, 'disabled');
 			this._telemetryService.publicLog('extensionGallery:tips', { hintingTips: true });
 		}
 	}
 
 	public render(container: HTMLElement): lifecycle.IDisposable {
+		this._container = container;
+		dom.addClass(this._container, 'extensions-suggestions-container');
+		dom.addClass(this._container, 'disabled');
 
 		this._domNode = document.createElement('a');
-		this._domNode.className = 'extensions-suggestions disabled';
+		this._domNode.className = 'extensions-suggestions';
 		this._label = new OcticonLabel(this._domNode);
 		this._label.text = '$(light-bulb) extension tips';
 		container.appendChild(this._domNode);
@@ -173,6 +177,6 @@ export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
 	private _onClick(event: MouseEvent): void {
 		this._storageService.store('extensionsAssistant/tips', JSON.stringify(this._previousTips), StorageScope.GLOBAL);
 		this._telemetryService.publicLog('extensionGallery:tips', { revealingTips: true });
-		this._quickOpenService.show('ext tips ').then(() => dom.addClass(this._domNode, 'disabled'));
+		this._quickOpenService.show('ext tips ').then(() => dom.addClass(this._container, 'disabled'));
 	}
 }
