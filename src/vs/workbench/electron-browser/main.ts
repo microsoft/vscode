@@ -50,7 +50,15 @@ export function startup(environment: IMainEnvironment, globalSettings: IGlobalSe
 	};
 
 	// Inherit navigator language
-	environment.language = navigator.language;
+	let language = navigator.language;
+	try {
+		var config = process.env['VSCODE_NLS_CONFIG'];
+		if (config) {
+			language = JSON.parse(config).locale;
+		}
+	} catch (e) {
+	}
+	environment.language = language;
 
 	// Shell Options
 	let filesToOpen = environment.filesToOpen && environment.filesToOpen.length ? toInputs(environment.filesToOpen) : null;
