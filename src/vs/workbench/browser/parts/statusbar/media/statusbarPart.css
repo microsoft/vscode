@@ -35,10 +35,6 @@
 	margin-left: 5px;
 }
 
-.monaco-workbench > .part.statusbar > .statusbar-item:empty {
-	display: none;
-}
-
 .monaco-workbench > .part.statusbar > .statusbar-item a:not([disabled]):not(.disabled) {
 	cursor: pointer;
 	display: inline-block;
