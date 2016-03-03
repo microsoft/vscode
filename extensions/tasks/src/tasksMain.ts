@@ -6,7 +6,10 @@
 
 import * as path from 'path';
 
-import { languages, workspace, ExtensionContext, TextDocument, Position, CancellationToken, CompletionItem, CompletionItemKind, DocumentFilter } from 'vscode';
+import { env, languages, workspace, ExtensionContext, TextDocument, Position, CancellationToken, CompletionItem, CompletionItemKind, DocumentFilter } from 'vscode';
+
+import * as nls from 'vscode-nls';
+let localize = nls.config({ locale: env.language })();
 
 export function activate(context: ExtensionContext): void {
 	// We can't use a pattern here since it disables the normal json code complete
@@ -32,7 +35,7 @@ function createCompletionItems(): CompletionItem[] {
 
 	item = new CompletionItem('tsc - specific file');
 	item.kind = CompletionItemKind.Snippet;
-	item.detail = 'Use the tsc compiler on a specific file.';
+	item.detail = localize('tscFile','Use the tsc compiler on a specific file.');
 	item.insertText = [
 		'"version": "0.1.0",',
 		'"command": "tsc",',
@@ -45,7 +48,7 @@ function createCompletionItems(): CompletionItem[] {
 
 	item = new CompletionItem('tsc - tsconfig.json');
 	item.kind = CompletionItemKind.Snippet;
-	item.detail = 'Use the tsc compiler with a tsconfig.json file.';
+	item.detail = localize('tscConfig', 'Use the tsc compiler with a tsconfig.json file.');
 	item.insertText = [
 		'"version": "0.1.0",',
 		'"command": "tsc",',
@@ -58,7 +61,7 @@ function createCompletionItems(): CompletionItem[] {
 
 	item = new CompletionItem('tsc - watch');
 	item.kind = CompletionItemKind.Snippet;
-	item.detail = 'Use the tsc compiler in watch mode.';
+	item.detail = localize('tscWatch', 'Use the tsc compiler in watch mode.');
 	item.insertText = [
 		'"version": "0.1.0",',
 		'"command": "tsc",',
@@ -71,7 +74,7 @@ function createCompletionItems(): CompletionItem[] {
 
 	item = new CompletionItem('tsc - open file');
 	item.kind = CompletionItemKind.Snippet;
-	item.detail = 'Use the tsc compiler on the currently opened file.';
+	item.detail = localize('tscOpenFile', 'Use the tsc compiler on the currently opened file.');
 	item.insertText = [
 		'"version": "0.1.0",',
 		'"command": "tsc",',
@@ -87,7 +90,7 @@ function createCompletionItems(): CompletionItem[] {
 
 	item = new CompletionItem('dotnet build');
 	item.kind = CompletionItemKind.Snippet;
-	item.detail = 'Use dotnet build.';
+	item.detail = localize('dotnet', 'Use dotnet build.');
 	item.insertText = [
 		'"version": "0.1.0",',
 		'"command": "dotnet build",',
@@ -97,7 +100,7 @@ function createCompletionItems(): CompletionItem[] {
 
 	item = new CompletionItem('msbuild');
 	item.kind = CompletionItemKind.Snippet;
-	item.detail = 'Use msbuild to compile your project.';
+	item.detail = localize('msbuild', 'Use msbuild to compile your project.');
 	item.insertText = [
 		'"version": "0.1.0",',
 		'"command": "msbuild",',
