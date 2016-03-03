@@ -160,7 +160,6 @@ export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
 	}
 
 	public render(container: HTMLElement): lifecycle.IDisposable {
-
 		this._domNode = document.createElement('a');
 		this._domNode.className = 'extensions-suggestions disabled';
 		this._label = new OcticonLabel(this._domNode);
