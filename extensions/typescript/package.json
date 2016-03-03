@@ -21,7 +21,8 @@
 		"onLanguage:javascriptreact",
 		"onLanguage:typescript",
 		"onLanguage:typescriptreact",
-		"onCommand:typescript.reloadProjects"
+		"onCommand:typescript.reloadProjects",
+		"onCommand:javascript.reloadProjects"
 	],
 	"main": "./out/typescriptMain",
 	"contributes": {
