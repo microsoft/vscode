@@ -103,7 +103,7 @@ export class Throttler<T> {
 export class Delayer<T> {
 
 	public defaultDelay: number;
-	private timeout: number;
+	private timeout: NodeJS.Timer;
 	private completionPromise: Promise<T>;
 	private onResolve: (value: T | Thenable<T>) => void;
 	private task: ITask<T>;

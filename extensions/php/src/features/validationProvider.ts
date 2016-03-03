@@ -11,6 +11,9 @@ import * as vscode from 'vscode';
 
 import { ThrottledDelayer } from './utils/async';
 
+import * as nls from 'vscode-nls';
+let localize = nls.loadMessageBundle();
+
 export class LineDecoder {
 	private stringDecoder: NodeStringDecoder;
 	private remaining: string;
@@ -223,9 +226,9 @@ export default class PHPValidationProvider {
 	private showError(error: any, executable: string): void {
 		let message: string = null;
 		if (error.code === 'ENOENT') {
-			message = `Cannot validate the php file. The php program was not found. Use the 'php.validate.executablePath' setting to configure the location of 'php'`;
+			message = localize('noPHP', 'Cannot validate the php file. The php program was not found. Use the \'php.validate.executablePath\' setting to configure the location of \'php\'');
 		} else {
-			message = error.message ? error.message : `Failed to run php using path: ${executable}. Reason is unknown.`;
+			message = error.message ? error.message : localize('unknownReason', 'Failed to run php using path: {0}. Reason is unknown.', executable);
 		}
 		vscode.window.showInformationMessage(message);
 	}

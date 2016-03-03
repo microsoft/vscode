@@ -5,6 +5,9 @@
 	"engines": { "vscode": "*" },
 	"activationEvents": ["onLanguage:php"],
 	"main": "./out/phpMain",
+	"dependencies": {
+		"vscode-nls": "^1.0.4"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "php",
