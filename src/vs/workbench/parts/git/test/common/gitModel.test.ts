@@ -29,7 +29,7 @@ suite('Git - StatusModel', () => {
 		var workingTree = model.getWorkingTreeStatus().all();
 		var merge = model.getMergeStatus().all();
 
-		assert.equal(index.length, 1);
+		assert.equal(index.length, 0);
 		assert.equal(workingTree.length, 1);
 		assert.equal(merge.length, 0);
 	});
