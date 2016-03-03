@@ -9,6 +9,9 @@
 	"engines": {
 		"vscode": "*"
 	},
+	"dependencies": {
+		"vscode-nls": "^1.0.4"
+	},
 	"scripts": {
 		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:tasks ./src/tsconfig.json"
 	},

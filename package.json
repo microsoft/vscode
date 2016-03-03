@@ -13,7 +13,7 @@
   "scripts": {
     "test": "mocha",
     "preinstall": "node build/npm/preinstall.js",
-    "postinstall": "npm --prefix extensions/vscode-api-tests/ install extensions/vscode-api-tests/ && npm --prefix extensions/json/ install extensions/json/ && npm --prefix extensions/typescript/ install extensions/typescript/",
+    "postinstall": "npm --prefix extensions/vscode-api-tests/ install extensions/vscode-api-tests/ && npm --prefix extensions/json/ install extensions/json/ && npm --prefix extensions/typescript/ install extensions/typescript/ && npm --prefix extensions/php/ install extensions/php/ && npm --prefix extensions/tasks/ install extensions/tasks/",
     "watch": "gulp watch"
   },
   "dependencies": {
@@ -86,7 +86,8 @@
     "typescript": "^1.8.0",
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",
-    "vinyl": "^0.4.5"
+    "vinyl": "^0.4.5",
+	"vscode-nls-dev": "^1.0.0"
   },
   "repository": {
     "type": "git",
