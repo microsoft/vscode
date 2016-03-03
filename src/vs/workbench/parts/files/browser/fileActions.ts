@@ -1806,7 +1806,7 @@ export abstract class BaseCloseWorkingFileAction extends Action {
 		model: WorkingFilesModel,
 		elements: WorkingFileEntry[],
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IMessageService private messageService: IMessageService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
@@ -1921,6 +1921,10 @@ export class CloseAllWorkingFilesAction extends BaseCloseWorkingFileAction {
 		this.listenerToDispose = model.onModelChange(this.onModelChange, this);
 	}
 
+	public run(): TPromise<boolean> {
+		return super.run().then(() => closeNonFileEditors(this.editorService)); // close non file editors too
+	}
+
 	private onModelChange(event: Files.IWorkingFileModelChangeEvent): void {
 		this.enabled = (this.model.count() > 0);
 	}
@@ -1948,7 +1952,7 @@ export class CloseOneWorkingFileAction extends BaseCloseWorkingFileAction {
 		@IMessageService messageService: IMessageService,
 		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
-		super(CloseAllWorkingFilesAction.ID, nls.localize('closeLabel', "Close File"), element.dirty ? 'action-close-dirty-file' : 'action-close-file', model, [element], untitledEditorService, editorService, textFileService, messageService, quickOpenService);
+		super(CloseOneWorkingFileAction.ID, nls.localize('closeLabel', "Close File"), element.dirty ? 'action-close-dirty-file' : 'action-close-file', model, [element], untitledEditorService, editorService, textFileService, messageService, quickOpenService);
 	}
 }
 
@@ -1965,7 +1969,11 @@ export class CloseOtherWorkingFilesAction extends BaseCloseWorkingFileAction {
 		@IMessageService messageService: IMessageService,
 		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
-		super(CloseAllWorkingFilesAction.ID, nls.localize('closeOtherLabel', "Close Other Files"), 'action-close-file', model, model.getEntries().filter(e => e !== element), untitledEditorService, editorService, textFileService, messageService, quickOpenService);
+		super(CloseOtherWorkingFilesAction.ID, nls.localize('closeOtherLabel', "Close Other Files"), 'action-close-file', model, model.getEntries().filter(e => e !== element), untitledEditorService, editorService, textFileService, messageService, quickOpenService);
+	}
+
+	public run(): TPromise<boolean> {
+		return super.run().then(() => closeNonFileEditors(this.editorService)); // close non file editors too
 	}
 }
 
@@ -1986,6 +1994,12 @@ function disposeNonDirtyFileInputs(editorService: IWorkbenchEditorService, quick
 			}
 		});
 	});
+}
+
+function closeNonFileEditors(editorService: IWorkbenchEditorService): TPromise<boolean> {
+	let nonFileEditors = editorService.getVisibleEditors().filter(e => !workbenchEditorCommon.getUntitledOrFileResource(e.input, true));
+
+	return TPromise.join(nonFileEditors.map(e => editorService.closeEditor(e))).then(() => true, errors.onUnexpectedError);
 }
 
 function fileEditorInputsForResource(resource: URI, editorService: IWorkbenchEditorService, quickopenService: IQuickOpenService): FileEditorInput[] {
