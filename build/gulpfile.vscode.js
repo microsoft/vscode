@@ -319,9 +319,10 @@ function prepareDebPackage(arch) {
 function buildDebPackage(arch) {
 	var debArch = getDebPackageArch(arch);
 	return shell.task([
-		'fakeroot dpkg-deb -b ' + debArch + '/vscode-' + debArch,
-		'dpkg-scanpackages ' + debArch + ' /dev/null > ' + debArch + '/Packages'
-	], { cwd: '.build/linux'});
+		'mkdir -p deb',
+		'fakeroot dpkg-deb -b vscode-' + debArch + ' deb/vscode-amd64.deb',
+		'dpkg-scanpackages deb /dev/null > Packages'
+	], { cwd: '.build/linux/' + debArch});
 }
 
 gulp.task('clean-vscode-win32', util.rimraf(path.join(path.dirname(root), 'VSCode-win32')));
