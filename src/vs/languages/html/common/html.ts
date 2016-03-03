@@ -97,7 +97,7 @@ export class State extends AbstractState {
 
 				} else if(stream.advanceIfString2('-->')) {
 					this.kind = States.Content;
-					return { type: htmlTokenTypes.DELIM_COMMENT, bracket: Modes.Bracket.Close };
+					return { type: htmlTokenTypes.DELIM_COMMENT, dontMergeWithPrev: true };
 				}
 				break;
 
@@ -106,7 +106,7 @@ export class State extends AbstractState {
 					return { type: htmlTokenTypes.DOCTYPE};
 				} else if(stream.advanceIfString2('>')) {
 					this.kind = States.Content;
-					return { type: htmlTokenTypes.DELIM_DOCTYPE, bracket: Modes.Bracket.Close };
+					return { type: htmlTokenTypes.DELIM_DOCTYPE, dontMergeWithPrev: true };
 				}
 			break;
 
@@ -115,19 +115,19 @@ export class State extends AbstractState {
 					if (!stream.eos() && stream.peek() === '!') {
 						if (stream.advanceIfString2('!--')) {
 							this.kind = States.WithinComment;
-							return { type: htmlTokenTypes.DELIM_COMMENT, bracket: Modes.Bracket.Open };
+							return { type: htmlTokenTypes.DELIM_COMMENT, dontMergeWithPrev: true };
 						}
 						if (stream.advanceIfStringCaseInsensitive2('!DOCTYPE')) {
 							this.kind = States.WithinDoctype;
-							return { type: htmlTokenTypes.DELIM_DOCTYPE, bracket: Modes.Bracket.Open };
+							return { type: htmlTokenTypes.DELIM_DOCTYPE, dontMergeWithPrev: true };
 						}
 					}
 					if (stream.advanceIfCharCode2('/'.charCodeAt(0))) {
 						this.kind = States.OpeningEndTag;
-						return { type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Open };
+						return { type: htmlTokenTypes.DELIM_END, dontMergeWithPrev: true };
 					}
 					this.kind = States.OpeningStartTag;
-					return { type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open };
+					return { type: htmlTokenTypes.DELIM_START, dontMergeWithPrev: true };
 				}
 				break;
 
@@ -140,7 +140,7 @@ export class State extends AbstractState {
 
 				} else if (stream.advanceIfString2('>')) {
 					this.kind = States.Content;
-					return { type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Close };
+					return { type: htmlTokenTypes.DELIM_END, dontMergeWithPrev: true };
 
 				} else {
 					stream.advanceUntilString2('>', false);
@@ -174,14 +174,14 @@ export class State extends AbstractState {
 
 					} else if (stream.advanceIfString2('/>')) {
 							this.kind = States.Content;
-							return { type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close };
+							return { type: htmlTokenTypes.DELIM_START, dontMergeWithPrev: true };
 					} if (stream.advanceIfCharCode2('>'.charCodeAt(0))) {
 						if (tagsEmbeddingContent.indexOf(this.lastTagName) !== -1) {
 							this.kind = States.WithinEmbeddedContent;
-							return { type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close };
+							return { type: htmlTokenTypes.DELIM_START, dontMergeWithPrev: true };
 						} else {
 							this.kind = States.Content;
-							return { type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close };
+							return { type: htmlTokenTypes.DELIM_START, dontMergeWithPrev: true };
 						}
 					} else {
 						stream.next2();

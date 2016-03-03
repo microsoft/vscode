@@ -218,7 +218,7 @@ export class TokenizationSupport implements modes.ITokenizationSupport, IDisposa
 				}
 			} while (!tokenResult.type && tokenResult.type !== '');
 
-			if (previousType !== tokenResult.type || tokenResult.bracket || previousType === null) {
+			if (previousType !== tokenResult.type || tokenResult.dontMergeWithPrev || previousType === null) {
 				prependTokens.push(new Token(beforeTokenizeStreamPos + deltaOffset, tokenResult.type));
 			}
 

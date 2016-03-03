@@ -698,8 +698,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 					// Treat the rest of the line (if above limit) as one default token
 					r.tokens.push({
 						startIndex: r.actualStopOffset,
-						type: '',
-						bracket: 0
+						type: ''
 					});
 
 					// Use as end state the starting state
