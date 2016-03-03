@@ -35,7 +35,7 @@ testTokenization('cpp', language, [
 		{ startIndex: 27, type: 'delimiter.cpp' },
 		{ startIndex: 28, type: '' },
 		{ startIndex: 29, type: 'identifier.cpp' },
-		{ startIndex: 33, type: 'delimiter.square.cpp' }
+		{ startIndex: 33, type: 'delimiter.square.cpp' },
 		{ startIndex: 35, type: 'delimiter.parenthesis.cpp' }
 	]}],
 
