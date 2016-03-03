@@ -54,7 +54,7 @@ export class LocalDebugClient extends DebugClient {
             if (typeof this.args.pythonPath === "string" && this.args.pythonPath.trim().length > 0) {
                 pythonPath = this.args.pythonPath;
             }
-
+            var environmentVariables = this.args.env ? this.args.env : {};
             //GUID is hardcoded for now, will have to be fixed  
             var currentFileName = module.filename;
             var ptVSToolsFilePath = path.join(path.dirname(currentFileName), "..", "..", "..", "..", "pythonFiles", "PythonTools", "visualstudio_py_launcher.py");
@@ -63,7 +63,7 @@ export class LocalDebugClient extends DebugClient {
             var args = [ptVSToolsFilePath, fileDir, dbgServer.port.toString(), "34806ad9-833a-4524-8cd6-18ca4aa74f14"].concat(launcherArgs);
             console.log(pythonPath + " " + args.join(" "));
             if (this.args.externalConsole === true) {
-                open({ wait: false, app: [pythonPath].concat(args), cwd:processCwd }).then(proc=> {
+                open({ wait: false, app: [pythonPath].concat(args), cwd: processCwd, env: environmentVariables }).then(proc=> {
                     this.pyProc = proc;
                     resolve();
                 }, error=> {
@@ -80,7 +80,7 @@ export class LocalDebugClient extends DebugClient {
                 return;
             }
 
-            this.pyProc = child_process.spawn(pythonPath, args, { cwd: processCwd });
+            this.pyProc = child_process.spawn(pythonPath, args, { cwd: processCwd, env: environmentVariables });
             this.pyProc.on("error", error=> {
                 if (!this.debugServer && this.debugServer.IsRunning) {
                     return;

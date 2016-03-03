@@ -19,6 +19,9 @@ export function open(opts: any): Promise<childProcess.ChildProcess> {
     if (opts.cwd) {
         cpOpts.cwd = opts.cwd;
     }
+    if (opts.env) {
+        cpOpts.env = opts.env;
+    }
 
     if (Array.isArray(opts.app)) {
         appArgs = opts.app.slice(1);
