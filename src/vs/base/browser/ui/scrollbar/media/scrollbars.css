@@ -89,7 +89,8 @@
 
 .hc-black .monaco-scrollable-element > .scrollbar > .slider {
 	background: none;
-	border: 20px solid #6FC3DF;
+	outline: 20px solid #6FC3DF; /* IE and Edge render no backgrounds, so we must use borders/outlines */
+	outline-offset: -20px;
 	opacity: .4;
 }
 
