@@ -136,13 +136,13 @@ export class State extends AbstractState {
 		switch (this.kind) {
 			case States.ValuePostUrl:
 				if (ch === '(') {
-					return this.nextState(States.ValueInUrlFunction, { type: 'punctuation.parenthesis.css', bracket: Modes.Bracket.Open });
+					return this.nextState(States.ValueInUrlFunction, { type: 'punctuation.parenthesis.css' });
 				}
 				this.kind = States.Value;
 				break;
 			case States.MetaPostUrl:
 				if (ch === '(') {
-					return this.nextState(States.MetaInUrlFunction, { type: 'punctuation.parenthesis.css', bracket: Modes.Bracket.Open });
+					return this.nextState(States.MetaInUrlFunction, { type: 'punctuation.parenthesis.css' });
 				}
 				this.kind = States.Meta;
 				break;
@@ -160,10 +160,10 @@ export class State extends AbstractState {
 		switch (this.kind) {
 			case States.Selector:
 				if (ch === '{') {
-					return this.nextState(States.Rule, { type: 'punctuation.bracket.css', bracket: Modes.Bracket.Open });
+					return this.nextState(States.Rule, { type: 'punctuation.bracket.css' });
 				}
 				if (ch === '(' || ch === ')') {
-					return { type: 'punctuation.parenthesis.css', bracket: ch === '(' ? Modes.Bracket.Open : Modes.Bracket.Close };
+					return { type: 'punctuation.parenthesis.css' };
 				}
 				if (ch === '@' && !this.inMeta) {  //@import, @media, @key-word-animation
 					stream.advanceIfRegExp2(identRegEx);
@@ -171,7 +171,7 @@ export class State extends AbstractState {
 				}
 				if (ch === '}' && this.inMeta) {  //@import, @media, @key-word-animation
 					this.inMeta = false;
-					return this.nextState(States.Selector, { type: 'punctuation.bracket.css', bracket: Modes.Bracket.Close });
+					return this.nextState(States.Selector, { type: 'punctuation.bracket.css' });
 				}
 				if (/[\*\(\)\[\]\+>=\~\|;]/.test(ch)) {
 					return { type: 'punctuation.css' };
@@ -193,10 +193,10 @@ export class State extends AbstractState {
 					if (this.inMeta) {
 						nextState = States.Selector;
 					}
-					return this.nextState(nextState, { type: 'punctuation.bracket.css', bracket: Modes.Bracket.Open });
+					return this.nextState(nextState, { type: 'punctuation.bracket.css' });
 				}
 				if (ch === '(' || ch === ')') {
-					return { type: 'punctuation.parenthesis.css', bracket: ch === '(' ? Modes.Bracket.Open : Modes.Bracket.Close };
+					return { type: 'punctuation.parenthesis.css' };
 				}
 				if (ch === ';') {
 					if (this.metaBraceCount === 0) {
@@ -217,20 +217,20 @@ export class State extends AbstractState {
 
 			case States.Rule:
 				if (ch === '}') {
-					return this.nextState(States.Selector, { type: 'punctuation.bracket.css', bracket: Modes.Bracket.Close });
+					return this.nextState(States.Selector, { type: 'punctuation.bracket.css' });
 				}
 				if (ch === ':') {
 					return this.nextState(States.Value, { type: 'punctuation.css' });
 				}
 				if (ch === '(' || ch === ')') {
-					return { type: 'punctuation.parenthesis.css', bracket: ch === '(' ? Modes.Bracket.Open : Modes.Bracket.Close };
+					return { type: 'punctuation.parenthesis.css' };
 				}
 				this.consumeIdent(stream);
 				return { type: cssTokenTypes.TOKEN_PROPERTY + '.css' };
 
 			case States.Value:
 				if (ch === '}') {
-					return this.nextState(States.Selector, { type: 'punctuation.bracket.css', bracket: Modes.Bracket.Close });
+					return this.nextState(States.Selector, { type: 'punctuation.bracket.css' });
 				}
 				if (ch === ';') {
 					return this.nextState(States.Rule, { type: 'punctuation.css' });
@@ -240,7 +240,7 @@ export class State extends AbstractState {
 				}
 
 				if (ch === '(' || ch === ')') {
-					return { type: 'punctuation.parenthesis.css', bracket: ch === '(' ? Modes.Bracket.Open : Modes.Bracket.Close };
+					return { type: 'punctuation.parenthesis.css' };
 				}
 				if (ch === ',') {
 					return { type: 'punctuation.css' };
