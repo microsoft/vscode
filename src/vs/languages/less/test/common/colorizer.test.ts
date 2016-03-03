@@ -631,7 +631,6 @@ suite('LESS-tokenization', () => {
 				{ startIndex:16, type: '' },
 				{ startIndex:17, type: 'identifier.js' },
 				{ startIndex:24, type: 'delimiter.parenthesis.js' },
-				{ startIndex:25, type: 'delimiter.parenthesis.js' },
 				{ startIndex:26, type: 'punctuation.backtick.less' },
 				{ startIndex:27, type: '' },
 				{ startIndex:28, type: 'comment.less' }
