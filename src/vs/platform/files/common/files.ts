@@ -418,6 +418,12 @@ export const AutoSaveConfiguration = {
 	ON_FOCUS_CHANGE: 'onFocusChange'
 };
 
+export const BOMConfiguration = {
+	PRESERVE: 'preserve',
+	REMOVE: 'remove',
+	INSERT: 'insert'
+};
+
 export interface IFilesConfiguration {
 	files: {
 		exclude: glob.IExpression;
@@ -425,5 +431,7 @@ export interface IFilesConfiguration {
 		trimTrailingWhitespace: boolean;
 		autoSave: string;
 		autoSaveDelay: number;
+		eol: string;
+		bom: string;
 	};
 }

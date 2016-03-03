@@ -11,7 +11,7 @@ import os = require('os');
 import assert = require('assert');
 
 import {FileService, IEncodingOverride} from 'vs/workbench/services/files/node/fileService';
-import {EventType, FileChangesEvent, FileOperationResult, IFileOperationResult} from 'vs/platform/files/common/files';
+import {EventType, FileChangesEvent, FileOperationResult, IFileOperationResult, BOMConfiguration} from 'vs/platform/files/common/files';
 import {nfcall} from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
 import uuid = require('vs/base/common/uuid');
@@ -25,7 +25,7 @@ suite('FileService', () => {
 	let parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
 	let testDir: string;
 
-	setup(function (done) {
+	setup(function(done) {
 		let id = uuid.generateUuid();
 		testDir = path.join(parentDir, id);
 		let sourceDir = require.toUrl('./fixtures/service');
@@ -125,7 +125,7 @@ suite('FileService', () => {
 
 	test('move - FILE_MOVE_CONFLICT', function(done: () => void) {
 		service.resolveFile(uri.file(path.join(testDir, 'index.html'))).done(source => {
-			return service.moveFile(source.resource, uri.file(path.join(testDir, 'binary.txt'))).then(null, (e:IFileOperationResult) => {
+			return service.moveFile(source.resource, uri.file(path.join(testDir, 'binary.txt'))).then(null, (e: IFileOperationResult) => {
 				assert.equal(e.fileOperationResult, FileOperationResult.FILE_MOVE_CONFLICT);
 
 				done();
@@ -246,7 +246,7 @@ suite('FileService', () => {
 	});
 
 	test('resolveFile', function(done: () => void) {
-		service.resolveFile(uri.file(testDir), { resolveTo: [uri.file(path.join(testDir, 'deep'))]}).done(r => {
+		service.resolveFile(uri.file(testDir), { resolveTo: [uri.file(path.join(testDir, 'deep'))] }).done(r => {
 			assert.equal(r.children.length, 6);
 
 			let deep = utils.getByName(r, 'deep');
@@ -319,7 +319,7 @@ suite('FileService', () => {
 	test('resolveContent - FILE_IS_BINARY', function(done: () => void) {
 		let resource = uri.file(path.join(testDir, 'binary.txt'));
 
-		service.resolveContent(resource, { acceptTextOnly: true }).done(null, (e:IFileOperationResult) => {
+		service.resolveContent(resource, { acceptTextOnly: true }).done(null, (e: IFileOperationResult) => {
 			assert.equal(e.fileOperationResult, FileOperationResult.FILE_IS_BINARY);
 
 			return service.resolveContent(uri.file(path.join(testDir, 'small.txt')), { acceptTextOnly: true }).then(r => {
@@ -333,7 +333,7 @@ suite('FileService', () => {
 	test('resolveContent - FILE_IS_DIRECTORY', function(done: () => void) {
 		let resource = uri.file(path.join(testDir, 'deep'));
 
-		service.resolveContent(resource).done(null, (e:IFileOperationResult) => {
+		service.resolveContent(resource).done(null, (e: IFileOperationResult) => {
 			assert.equal(e.fileOperationResult, FileOperationResult.FILE_IS_DIRECTORY);
 
 			done();
@@ -343,7 +343,7 @@ suite('FileService', () => {
 	test('resolveContent - FILE_NOT_FOUND', function(done: () => void) {
 		let resource = uri.file(path.join(testDir, '404.html'));
 
-		service.resolveContent(resource).done(null, (e:IFileOperationResult) => {
+		service.resolveContent(resource).done(null, (e: IFileOperationResult) => {
 			assert.equal(e.fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
 
 			done();
@@ -354,7 +354,7 @@ suite('FileService', () => {
 		let resource = uri.file(path.join(testDir, 'index.html'));
 
 		service.resolveContent(resource).done(c => {
-			return service.resolveContent(resource, { etag: c.etag }).then(null, (e:IFileOperationResult) => {
+			return service.resolveContent(resource, { etag: c.etag }).then(null, (e: IFileOperationResult) => {
 				assert.equal(e.fileOperationResult, FileOperationResult.FILE_NOT_MODIFIED_SINCE);
 
 				done();
@@ -368,7 +368,7 @@ suite('FileService', () => {
 		service.resolveContent(resource).done(c => {
 			fs.writeFileSync(resource.fsPath, 'Updates Incoming!');
 
-			return service.updateContent(resource, c.value, { etag: c.etag, mtime: c.mtime - 1000 }).then(null, (e:IFileOperationResult) => {
+			return service.updateContent(resource, c.value, { etag: c.etag, mtime: c.mtime - 1000 }).then(null, (e: IFileOperationResult) => {
 				assert.equal(e.fileOperationResult, FileOperationResult.FILE_MODIFIED_SINCE);
 
 				done();
@@ -422,7 +422,7 @@ suite('FileService', () => {
 
 		service.watchFileChanges(toWatch);
 
-		events.on(EventType.FILE_CHANGES, (e:FileChangesEvent) => {
+		events.on(EventType.FILE_CHANGES, (e: FileChangesEvent) => {
 			assert.ok(e);
 
 			service.unwatchFileChanges(toWatch);
@@ -434,7 +434,7 @@ suite('FileService', () => {
 		}, 100);
 	});
 
-	test('options', function(done: () => void) {
+	test('options - encoding', function(done: () => void) {
 
 		// setup
 		let _id = uuid.generateUuid();
@@ -463,6 +463,75 @@ suite('FileService', () => {
 					// teardown
 					_service.dispose();
 					done();
+				});
+			});
+		});
+	});
+
+	test('options - bom', function(done: () => void) {
+
+		// setup
+		let _id = uuid.generateUuid();
+		let _testDir = path.join(parentDir, _id);
+		let _sourceDir = require.toUrl('./fixtures/service');
+		let resource = uri.file(path.join(testDir, 'index.html'));
+
+		extfs.copy(_sourceDir, _testDir, () => {
+			let _service = new FileService(_testDir, null, {
+				bom: BOMConfiguration.INSERT,
+				disableWatcher: true
+			});
+
+			fs.readFile(resource.fsPath, (error, data) => {
+				assert.equal(encoding.detectEncodingByBOMFromBuffer(data, 512), null);
+
+				// Update content: BOM => INSERT
+				_service.updateContent(resource, 'Hello Bom').done(() => {
+					fs.readFile(resource.fsPath, (error, data) => {
+						assert.equal(encoding.detectEncodingByBOMFromBuffer(data, 512), encoding.UTF8);
+
+						_service.dispose();
+						_service = new FileService(_testDir, null, {
+							bom: BOMConfiguration.PRESERVE,
+							disableWatcher: true
+						});
+
+						// Update content: BOM => PRESERVE
+						_service.updateContent(resource, 'Hello Bom').done(() => {
+							fs.readFile(resource.fsPath, (error, data) => {
+								assert.equal(encoding.detectEncodingByBOMFromBuffer(data, 512), encoding.UTF8);
+
+								_service.dispose();
+								_service = new FileService(_testDir, null, {
+									bom: BOMConfiguration.REMOVE,
+									disableWatcher: true
+								});
+
+								// Update content: BOM => REMOVE
+								_service.updateContent(resource, 'Hello Bom').done(() => {
+									fs.readFile(resource.fsPath, (error, data) => {
+										assert.equal(encoding.detectEncodingByBOMFromBuffer(data, 512), null);
+
+										_service.dispose();
+										_service = new FileService(_testDir, null, {
+											bom: BOMConfiguration.PRESERVE,
+											disableWatcher: true
+										});
+
+										// Update content: BOM => PRESERVE
+										_service.updateContent(resource, 'Hello Bom').done(() => {
+											fs.readFile(resource.fsPath, (error, data) => {
+												assert.equal(encoding.detectEncodingByBOMFromBuffer(data, 512), null);
+
+												_service.dispose();
+												done();
+											});
+										});
+									});
+								});
+							});
+						});
+					});
 				});
 			});
 		});

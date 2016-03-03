@@ -53,6 +53,7 @@ export class FileService implements files.IFileService {
 			let fileServiceConfig: IFileServiceOptions = {
 				errorLogger: (msg: string) => errors.onUnexpectedError(msg),
 				encoding: configuration.files && configuration.files.encoding,
+				bom: configuration.files && configuration.files.bom,
 				encodingOverride: encodingOverride,
 				watcherIgnoredPatterns: doNotWatch,
 				verboseLogging: this.contextService.getConfiguration().env.verboseLogging

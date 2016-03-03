@@ -43,6 +43,7 @@ export interface IFileServiceOptions {
 	tmpDir?: string;
 	errorLogger?: (msg: string) => void;
 	encoding?: string;
+	bom?: string;
 	encodingOverride?: IEncodingOverride[];
 	watcherIgnoredPatterns?: string[];
 	disableWatcher?: boolean;
@@ -234,9 +235,15 @@ export class FileService implements files.IFileService {
 					addBomPromise = TPromise.as(true);
 				}
 
-				// UTF8 only gets a BOM if the file had it alredy
-				else if (exists && encodingToWrite === encoding.UTF8) {
-					addBomPromise = nfcall(encoding.detectEncodingByBOM, absolutePath).then((enc) => enc === encoding.UTF8); // only for UTF8 we need to check if we have to preserve a BOM
+				// UTF8 only gets a BOM if the file had it already or we are configured to add BOMs
+				else if (encodingToWrite === encoding.UTF8) {
+					if (this.options.bom === files.BOMConfiguration.INSERT) {
+						addBomPromise = TPromise.as(true);
+					} else if (this.options.bom === files.BOMConfiguration.REMOVE) {
+						addBomPromise = TPromise.as(false);
+					} else if (exists) {
+						addBomPromise = nfcall(encoding.detectEncodingByBOM, absolutePath).then((enc) => enc === encoding.UTF8); // only for UTF8 we need to check if we have to preserve a BOM
+					}
 				}
 
 				// 3.) check to add UTF BOM
