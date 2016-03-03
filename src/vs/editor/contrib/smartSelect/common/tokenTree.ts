@@ -7,9 +7,15 @@
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {ILineTokens, IModel, IPosition, IRange, IRichEditBracket} from 'vs/editor/common/editorCommon';
-import {Bracket, IModeTransition, IRichEditBrackets} from 'vs/editor/common/modes';
+import {IModeTransition, IRichEditBrackets} from 'vs/editor/common/modes';
 import {ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
 import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
+
+export enum TokenTreeBracket {
+	None = 0,
+	Open = 1,
+	Close = -1
+}
 
 export class Node {
 
@@ -91,7 +97,7 @@ export class Block extends Node {
 
 interface Token {
 	range: IRange;
-	bracket: Bracket;
+	bracket: TokenTreeBracket;
 	type: string;
 	__debugContent?: string;
 }
@@ -181,7 +187,7 @@ class TokenScanner {
 		if (!bracketData) {
 			let token: Token = {
 				type: tokenType,
-				bracket: Bracket.None,
+				bracket: TokenTreeBracket.None,
 				range: {
 					startLineNumber: this._currentLineNumber,
 					startColumn: 1 + this._currentTokenStart,
@@ -199,7 +205,7 @@ class TokenScanner {
 		let type = `${bracketData.modeId};${bracketData.open};${bracketData.close}`;
 		let token: Token = {
 			type: type,
-			bracket: bracketIsOpen ? Bracket.Open : Bracket.Close,
+			bracket: bracketIsOpen ? TokenTreeBracket.Open : TokenTreeBracket.Close,
 			range: {
 				startLineNumber: this._currentLineNumber,
 				startColumn: 1 + this._currentTokenStart,
@@ -289,7 +295,7 @@ class TokenTreeBuilder {
 	}
 
 	private _token(): Node {
-		if (!this._accept(token => token.bracket === Bracket.None)) {
+		if (!this._accept(token => token.bracket === TokenTreeBracket.None)) {
 			return null;
 		}
 		return newNode(this._currentToken);
@@ -302,7 +308,7 @@ class TokenTreeBuilder {
 
 		accepted = this._accept(token => {
 			bracketType = token.type;
-			return token.bracket === Bracket.Open;
+			return token.bracket === TokenTreeBracket.Open;
 		});
 		if (!accepted) {
 			return null;
@@ -314,7 +320,7 @@ class TokenTreeBuilder {
 			// inside brackets
 		}
 
-		if (!this._accept(token => token.bracket === Bracket.Close && token.type === bracketType)) {
+		if (!this._accept(token => token.bracket === TokenTreeBracket.Close && token.type === bracketType)) {
 			// missing closing bracket -> return just a node list
 			var nodelist = new NodeList();
 			nodelist.append(bracket.open);

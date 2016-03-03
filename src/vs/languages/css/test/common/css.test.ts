@@ -487,7 +487,7 @@ suite('CSS Colorizing', () => {
 		]);
 	});
 
-	test('Bracket Matching', () => {
+	test('bracket Matching', () => {
 		modesUtil.assertTokenization(tokenizationSupport, [{
 			line: 'p{}',
 			tokens: [
@@ -497,7 +497,7 @@ suite('CSS Colorizing', () => {
 		]);
 	});
 
-	test('Bracket Matching #2', () => {
+	test('bracket Matching #2', () => {
 		modesUtil.assertTokenization(tokenizationSupport, [{
 			line: 'p:nth() {}',
 			tokens: [

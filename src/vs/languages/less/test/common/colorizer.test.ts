@@ -245,7 +245,6 @@ suite('LESS-tokenization', () => {
 				{ startIndex:0, type: lessTokenTypes.TOKEN_VALUE + '.rgb-value.less' }
 			]}],
 
-			// Bracket Matching
 			[{
 			line: '[1,2,3]',
 			tokens: [
@@ -268,7 +267,6 @@ suite('LESS-tokenization', () => {
 				{ startIndex:8, type: 'punctuation.less' }
 			]}],
 
-			// No Bracket Matching inside strings
 			[{
 			line: '@test: \'[{()}]\'',
 			tokens: [
@@ -1193,7 +1191,6 @@ suite('LESS-tokenization', () => {
 				{ startIndex:1, type: 'string.less' }
 			]}],
 
-			// EG: Bracket Matching
 			[{
 			line: 'p{}',
 			tokens: [

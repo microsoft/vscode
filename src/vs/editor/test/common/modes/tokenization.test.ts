@@ -167,7 +167,6 @@ export class SwitchingMode implements modes.IMode {
 interface ITestToken {
 	startIndex:number;
 	type:string;
-	bracket?:modes.Bracket;
 }
 function assertTokens(actual:modes.IToken[], expected:ITestToken[], message?:string) {
 	assert.equal(actual.length, expected.length, 'Lengths mismatch');

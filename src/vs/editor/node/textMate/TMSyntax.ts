@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
 import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {Bracket, ILineTokens, IMode, IToken, ITokenizationSupport} from 'vs/editor/common/modes';
+import {ILineTokens, IMode, IToken, ITokenizationSupport} from 'vs/editor/common/modes';
 import {TMState} from 'vs/editor/common/modes/TMState';
 import {Token} from 'vs/editor/common/modes/supports';
 import {IModeService} from 'vs/editor/common/services/modeService';
@@ -142,8 +142,7 @@ class Tokenizer {
 			return {
 				tokens: <IToken[]>[{
 					startIndex: offsetDelta,
-					type: '',
-					bracket: Bracket.None
+					type: ''
 				}],
 				actualStopOffset: offsetDelta,
 				endState: state,

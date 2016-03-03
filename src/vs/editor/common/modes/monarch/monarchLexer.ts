@@ -352,7 +352,7 @@ export class MonarchLexer extends AbstractState {
 				var bracket = findBracket(this.lexer, matched);
 				if (!bracket) {
 					monarchCommon.throwError(this.lexer, '@brackets token returned but no bracket defined as: ' + matched);
-					bracket = { token: '', bracketType: modes.Bracket.None };
+					bracket = { token: '', bracketType: monarchCommon.MonarchBracket.None };
 				}
 				return { type: monarchCommon.sanitize(bracket.token + rest) };
 			}
@@ -377,10 +377,10 @@ function findBracket(lexer: monarchCommon.ILexer, matched: string) {
 	for (var i = 0; i < brackets.length; i++) {
 		var bracket = brackets[i];
 		if (bracket.open === matched) {
-			return { token: bracket.token, bracketType: modes.Bracket.Open };
+			return { token: bracket.token, bracketType: monarchCommon.MonarchBracket.Open };
 		}
 		else if (bracket.close === matched) {
-			return { token: bracket.token, bracketType: modes.Bracket.Close };
+			return { token: bracket.token, bracketType: monarchCommon.MonarchBracket.Close };
 		}
 	}
 	return null;

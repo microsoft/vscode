@@ -137,7 +137,7 @@
 	box-shadow: none;
 }
 
-/* Bracket Match */
+/* bracket Match */
 .monaco-editor.hc-black .bracket-match { box-shadow:	inset 0 0 0 1px #fff; }
 
 /* Linked Editing */

@@ -1520,7 +1520,6 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:10, type: 'metatag.php' }
 			]}],
 
-			// Bracket Matching
 			[{
 			line: '<?php { } ?>',
 			tokens: [
@@ -1560,7 +1559,6 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:14, type: 'delimiter.php' }
 			]}],
 
-			// No Bracket Matching inside strings
 			[{
 			line: '<?php $x = "[{()}]" ?>',
 			tokens: [
