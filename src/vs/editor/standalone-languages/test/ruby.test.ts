@@ -8,11 +8,6 @@
 import {language} from 'vs/editor/standalone-languages/ruby';
 import {testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
-var Bracket = {
-	Open: 1,
-	Close: -1
-};
-
 testTokenization('ruby', language, [
 	// Keywords
 	[{
@@ -26,7 +21,6 @@ testTokenization('ruby', language, [
 		{ startIndex: 15, type: '' },
 		{ startIndex: 16, type: 'identifier.ruby' },
 		{ startIndex: 20, type: 'delimiter.parenthesis.ruby' },
-		{ startIndex: 21, type: 'delimiter.parenthesis.ruby' },
 		{ startIndex: 22, type: '' },
 		{ startIndex: 23, type: 'keyword.def.ruby' }
 	]}],
@@ -62,16 +56,16 @@ testTokenization('ruby', language, [
 		{ startIndex: 0, type: 'identifier.ruby' },
 		{ startIndex: 4, type: '' },
 		{ startIndex: 5, type: 'identifier.ruby' },
-		{ startIndex: 9, type: 'delimiter.parenthesis.ruby', bracket: Bracket.Open },
-		{ startIndex: 10, type: 'regexp.delim.ruby', bracket: Bracket.Open },
+		{ startIndex: 9, type: 'delimiter.parenthesis.ruby' },
+		{ startIndex: 10, type: 'regexp.delim.ruby' },
 		{ startIndex: 11, type: 'regexp.ruby' },
-		{ startIndex: 15, type: 'regexp.delim.ruby', bracket: Bracket.Close },
+		{ startIndex: 15, type: 'regexp.delim.ruby' },
 		{ startIndex: 16, type: 'delimiter.ruby' },
 		{ startIndex: 17, type: '' },
-		{ startIndex: 18, type: 'string.d.delim.ruby', bracket: Bracket.Open },
+		{ startIndex: 18, type: 'string.d.delim.ruby' },
 		{ startIndex: 19, type: 'string.$S2.ruby' },
-		{ startIndex: 23, type: 'string.d.delim.ruby', bracket: Bracket.Close },
-		{ startIndex: 24, type: 'delimiter.parenthesis.ruby', bracket: Bracket.Close }
+		{ startIndex: 23, type: 'string.d.delim.ruby' },
+		{ startIndex: 24, type: 'delimiter.parenthesis.ruby' }
 	]}],
 
 	// make sure that division does not match regex
@@ -89,7 +83,7 @@ testTokenization('ruby', language, [
 	[{
 	line: '<<HERE',
 	tokens: [
-		{ startIndex: 0, type: 'string.heredoc.delimiter.ruby', bracket: Bracket.Open }
+		{ startIndex: 0, type: 'string.heredoc.delimiter.ruby' }
 	]}, {
 	line: 'do some string',
 	tokens: [
@@ -97,14 +91,14 @@ testTokenization('ruby', language, [
 	]}, {
 	line: 'HERE',
 	tokens: [
-		{ startIndex: 0, type: 'string.heredoc.delimiter.ruby', bracket: Bracket.Close }
+		{ startIndex: 0, type: 'string.heredoc.delimiter.ruby' }
 	]}],
 
 	[{
 	line: 'x <<HERE',
 	tokens: [
 		{ startIndex: 0, type: 'identifier.ruby' },
-		{ startIndex: 1, type: 'string.heredoc.delimiter.ruby', bracket: Bracket.Open }
+		{ startIndex: 1, type: 'string.heredoc.delimiter.ruby' }
 	]}, {
 	line: 'do some string',
 	tokens: [
@@ -112,7 +106,7 @@ testTokenization('ruby', language, [
 	]}, {
 	line: 'HERE',
 	tokens: [
-		{ startIndex: 0, type: 'string.heredoc.delimiter.ruby', bracket: Bracket.Close }
+		{ startIndex: 0, type: 'string.heredoc.delimiter.ruby' }
 	]}],
 
 	[{

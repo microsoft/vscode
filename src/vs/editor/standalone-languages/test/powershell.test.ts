@@ -9,11 +9,6 @@ import * as assert from 'assert';
 import {language} from 'vs/editor/standalone-languages/powershell';
 import {testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
-var Bracket = {
-	Open: 1,
-	Close: -1
-};
-
 testTokenization('powershell', language, [
 	// Comments - single line
 	[{
@@ -162,23 +157,23 @@ testTokenization('powershell', language, [
 	line: 'foreach($i in $b) {if (7) continue}',
 	tokens: [
 		{ startIndex: 0, type: 'keyword.foreach.ps1' },
-		{ startIndex: 7, type: 'delimiter.parenthesis.ps1', bracket: Bracket.Open },
+		{ startIndex: 7, type: 'delimiter.parenthesis.ps1' },
 		{ startIndex: 8, type: 'variable.ps1' },
 		{ startIndex: 10, type: '' },
 		{ startIndex: 11, type: 'keyword.in.ps1' },
 		{ startIndex: 13, type: '' },
 		{ startIndex: 14, type: 'variable.ps1' },
-		{ startIndex: 16, type: 'delimiter.parenthesis.ps1', bracket: Bracket.Close },
+		{ startIndex: 16, type: 'delimiter.parenthesis.ps1' },
 		{ startIndex: 17, type: '' },
-		{ startIndex: 18, type: 'delimiter.curly.ps1', bracket: Bracket.Open },
+		{ startIndex: 18, type: 'delimiter.curly.ps1' },
 		{ startIndex: 19, type: 'keyword.if.ps1' },
 		{ startIndex: 21, type: '' },
-		{ startIndex: 22, type: 'delimiter.parenthesis.ps1', bracket: Bracket.Open },
+		{ startIndex: 22, type: 'delimiter.parenthesis.ps1' },
 		{ startIndex: 23, type: 'number.ps1' },
-		{ startIndex: 24, type: 'delimiter.parenthesis.ps1', bracket: Bracket.Close },
+		{ startIndex: 24, type: 'delimiter.parenthesis.ps1' },
 		{ startIndex: 25, type: '' },
 		{ startIndex: 26, type: 'keyword.continue.ps1' },
-		{ startIndex: 34, type: 'delimiter.curly.ps1', bracket: Bracket.Close }
+		{ startIndex: 34, type: 'delimiter.curly.ps1' }
 	]}],
 
 	// Redirect operand
@@ -390,8 +385,7 @@ testTokenization('powershell', language, [
 		{ startIndex: 0, type: 'variable.ps1' },
 		{ startIndex: 20, type: 'delimiter.ps1' },
 		{ startIndex: 21, type: '' },
-		{ startIndex: 22, type: 'delimiter.parenthesis.ps1', bracket: Bracket.Open },
-		{ startIndex: 23, type: 'delimiter.parenthesis.ps1', bracket: Bracket.Close },
+		{ startIndex: 22, type: 'delimiter.parenthesis.ps1' },
 		{ startIndex: 24, type: 'delimiter.ps1' }
 	]}, {
 	line: '$XenCenterNodeSelected = 0;',
@@ -410,38 +404,38 @@ testTokenization('powershell', language, [
 	line: 'foreach($parameterSet in $ObjInfoArray)',
 	tokens: [
 		{ startIndex: 0, type: 'keyword.foreach.ps1' },
-		{ startIndex: 7, type: 'delimiter.parenthesis.ps1', bracket: Bracket.Open },
+		{ startIndex: 7, type: 'delimiter.parenthesis.ps1' },
 		{ startIndex: 8, type: 'variable.ps1' },
 		{ startIndex: 21, type: '' },
 		{ startIndex: 22, type: 'keyword.in.ps1' },
 		{ startIndex: 24, type: '' },
 		{ startIndex: 25, type: 'variable.ps1' },
-		{ startIndex: 38, type: 'delimiter.parenthesis.ps1', bracket: Bracket.Close }
+		{ startIndex: 38, type: 'delimiter.parenthesis.ps1' }
 	]}, {
 	line: '{',
 	tokens: [
-		{ startIndex: 0, type: 'delimiter.curly.ps1', bracket: Bracket.Open }
+		{ startIndex: 0, type: 'delimiter.curly.ps1' }
 	]}, {
 	line: '	if ($parameterSet["class"] -eq "blank")',
 	tokens: [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 1, type: 'keyword.if.ps1' },
 		{ startIndex: 3, type: '' },
-		{ startIndex: 4, type: 'delimiter.parenthesis.ps1', bracket: Bracket.Open },
+		{ startIndex: 4, type: 'delimiter.parenthesis.ps1' },
 		{ startIndex: 5, type: 'variable.ps1' },
-		{ startIndex: 18, type: 'delimiter.square.ps1', bracket: Bracket.Open },
+		{ startIndex: 18, type: 'delimiter.square.ps1' },
 		{ startIndex: 19, type: 'string.ps1' },
-		{ startIndex: 26, type: 'delimiter.square.ps1', bracket: Bracket.Close },
+		{ startIndex: 26, type: 'delimiter.square.ps1' },
 		{ startIndex: 27, type: '' },
 		{ startIndex: 28, type: 'delimiter.ps1' },
 		{ startIndex: 29, type: '' },
 		{ startIndex: 32, type: 'string.ps1' },
-		{ startIndex: 39, type: 'delimiter.parenthesis.ps1', bracket: Bracket.Close }
+		{ startIndex: 39, type: 'delimiter.parenthesis.ps1' }
 	]}, {
 	line: '	{',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 1, type: 'delimiter.curly.ps1', bracket: Bracket.Open }
+		{ startIndex: 1, type: 'delimiter.curly.ps1' }
 	]}, {
 	line: '		#When the XenCenter node is selected a parameter set is created for each of your connected servers with the class and objUuid keys marked as blank',
 	tokens: [
@@ -453,14 +447,14 @@ testTokenization('powershell', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 2, type: 'keyword.if.ps1' },
 		{ startIndex: 4, type: '' },
-		{ startIndex: 5, type: 'delimiter.parenthesis.ps1', bracket: Bracket.Open },
+		{ startIndex: 5, type: 'delimiter.parenthesis.ps1' },
 		{ startIndex: 6, type: 'variable.ps1' },
-		{ startIndex: 28, type: 'delimiter.parenthesis.ps1', bracket: Bracket.Close }
+		{ startIndex: 28, type: 'delimiter.parenthesis.ps1' }
 	]}, {
 	line: '		{',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 2, type: 'delimiter.curly.ps1', bracket: Bracket.Open }
+		{ startIndex: 2, type: 'delimiter.curly.ps1' }
 	]}, {
 	line: '			continue',
 	tokens: [
@@ -470,7 +464,7 @@ testTokenization('powershell', language, [
 	line: '		}',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 2, type: 'delimiter.curly.ps1', bracket: Bracket.Close }
+		{ startIndex: 2, type: 'delimiter.curly.ps1' }
 	]}, {
 	line: '		$XenCenterNodeSelected = 1;',
 	tokens: [
@@ -494,28 +488,28 @@ testTokenization('powershell', language, [
 	line: '	}',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 1, type: 'delimiter.curly.ps1', bracket: Bracket.Close }
+		{ startIndex: 1, type: 'delimiter.curly.ps1' }
 	]}, {
 	line: '	elseif ($parameterSet["sessionRef"] -eq "null")',
 	tokens: [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 1, type: 'keyword.elseif.ps1' },
 		{ startIndex: 7, type: '' },
-		{ startIndex: 8, type: 'delimiter.parenthesis.ps1', bracket: Bracket.Open },
+		{ startIndex: 8, type: 'delimiter.parenthesis.ps1' },
 		{ startIndex: 9, type: 'variable.ps1' },
-		{ startIndex: 22, type: 'delimiter.square.ps1', bracket: Bracket.Open },
+		{ startIndex: 22, type: 'delimiter.square.ps1' },
 		{ startIndex: 23, type: 'string.ps1' },
-		{ startIndex: 35, type: 'delimiter.square.ps1', bracket: Bracket.Close },
+		{ startIndex: 35, type: 'delimiter.square.ps1' },
 		{ startIndex: 36, type: '' },
 		{ startIndex: 37, type: 'delimiter.ps1' },
 		{ startIndex: 38, type: '' },
 		{ startIndex: 41, type: 'string.ps1' },
-		{ startIndex: 47, type: 'delimiter.parenthesis.ps1', bracket: Bracket.Close }
+		{ startIndex: 47, type: 'delimiter.parenthesis.ps1' }
 	]}, {
 	line: '	{',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 1, type: 'delimiter.curly.ps1', bracket: Bracket.Open }
+		{ startIndex: 1, type: 'delimiter.curly.ps1' }
 	]}, {
 	line: '		#When a disconnected server is selected there is no session information, we get null for everything except class',
 	tokens: [
@@ -525,7 +519,7 @@ testTokenization('powershell', language, [
 	line: '	}',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 1, type: 'delimiter.curly.ps1', bracket: Bracket.Close }
+		{ startIndex: 1, type: 'delimiter.curly.ps1' }
 	]}, {
 	line: '		$SelectedObjectNames += "a disconnected server"',
 	tokens: [
@@ -544,7 +538,7 @@ testTokenization('powershell', language, [
 	line: '	{',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 1, type: 'delimiter.curly.ps1', bracket: Bracket.Open }
+		{ startIndex: 1, type: 'delimiter.curly.ps1' }
 	]}, {
 	line: '		Connect-XenServer -url $parameterSet["url"] -opaqueref $parameterSet["sessionRef"]',
 	tokens: [
@@ -552,16 +546,16 @@ testTokenization('powershell', language, [
 		{ startIndex: 20, type: 'delimiter.ps1' },
 		{ startIndex: 21, type: '' },
 		{ startIndex: 25, type: 'variable.ps1' },
-		{ startIndex: 38, type: 'delimiter.square.ps1', bracket: Bracket.Open },
+		{ startIndex: 38, type: 'delimiter.square.ps1' },
 		{ startIndex: 39, type: 'string.ps1' },
-		{ startIndex: 44, type: 'delimiter.square.ps1', bracket: Bracket.Close },
+		{ startIndex: 44, type: 'delimiter.square.ps1' },
 		{ startIndex: 45, type: '' },
 		{ startIndex: 46, type: 'delimiter.ps1' },
 		{ startIndex: 47, type: '' },
 		{ startIndex: 57, type: 'variable.ps1' },
-		{ startIndex: 70, type: 'delimiter.square.ps1', bracket: Bracket.Open },
+		{ startIndex: 70, type: 'delimiter.square.ps1' },
 		{ startIndex: 71, type: 'string.ps1' },
-		{ startIndex: 83, type: 'delimiter.square.ps1', bracket: Bracket.Close }
+		{ startIndex: 83, type: 'delimiter.square.ps1' }
 	]}, {
 	line: '		#Use $class to determine which server objects to get',
 	tokens: [
@@ -585,15 +579,15 @@ testTokenization('powershell', language, [
 		{ startIndex: 57, type: 'delimiter.ps1' },
 		{ startIndex: 58, type: '' },
 		{ startIndex: 60, type: 'variable.ps1' },
-		{ startIndex: 73, type: 'delimiter.square.ps1', bracket: Bracket.Open },
+		{ startIndex: 73, type: 'delimiter.square.ps1' },
 		{ startIndex: 74, type: 'string.ps1' },
-		{ startIndex: 81, type: 'delimiter.square.ps1', bracket: Bracket.Close },
+		{ startIndex: 81, type: 'delimiter.square.ps1' },
 		{ startIndex: 82, type: 'delimiter.ps1' },
 		{ startIndex: 83, type: '' },
 		{ startIndex: 84, type: 'variable.ps1' },
-		{ startIndex: 97, type: 'delimiter.square.ps1', bracket: Bracket.Open },
+		{ startIndex: 97, type: 'delimiter.square.ps1' },
 		{ startIndex: 98, type: 'string.ps1' },
-		{ startIndex: 107, type: 'delimiter.square.ps1', bracket: Bracket.Close }
+		{ startIndex: 107, type: 'delimiter.square.ps1' }
 	]}, {
 	line: '		$obj = Invoke-Expression $exp',
 	tokens: [
@@ -619,12 +613,12 @@ testTokenization('powershell', language, [
 	line: '	} ',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 1, type: 'delimiter.curly.ps1', bracket: Bracket.Close },
+		{ startIndex: 1, type: 'delimiter.curly.ps1' },
 		{ startIndex: 2, type: '' }
 	]}, {
 	line: '}',
 	tokens: [
-		{ startIndex: 0, type: 'delimiter.curly.ps1', bracket: Bracket.Close }
+		{ startIndex: 0, type: 'delimiter.curly.ps1' }
 	]}, {
 	line: '',
 	tokens: [

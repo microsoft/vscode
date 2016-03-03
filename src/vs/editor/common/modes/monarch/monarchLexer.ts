@@ -354,11 +354,11 @@ export class MonarchLexer extends AbstractState {
 					monarchCommon.throwError(this.lexer, '@brackets token returned but no bracket defined as: ' + matched);
 					bracket = { token: '', bracketType: modes.Bracket.None };
 				}
-				return { type: monarchCommon.sanitize(bracket.token + rest), bracket: bracket.bracketType };
+				return { type: monarchCommon.sanitize(bracket.token + rest) };
 			}
 			else {
 				var token = (result === '' ? '' : result + this.lexer.tokenPostfix);
-				return { type: monarchCommon.sanitize(token), bracket: action.bracket };
+				return { type: monarchCommon.sanitize(token) };
 			}
 		}
 	}

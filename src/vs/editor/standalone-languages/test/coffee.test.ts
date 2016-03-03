@@ -8,11 +8,6 @@
 import {language} from 'vs/editor/standalone-languages/coffee';
 import {testOnEnter, testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
-var Bracket = {
-	Open: 1,
-	Close: -1
-};
-
 testOnEnter('coffeescript', language, (assertOnEnter) => {
 	assertOnEnter.nothing('', ' a', '');
 	assertOnEnter.indents('', ' {', '');
@@ -90,8 +85,7 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 6, type: 'delimiter.coffee' },
 		{ startIndex: 7, type: '' },
 		{ startIndex: 8, type: 'keyword.switch.coffee' },
-		{ startIndex: 14, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
-		{ startIndex: 15, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close }
+		{ startIndex: 14, type: 'delimiter.parenthesis.coffee' }
 	]}],
 
 	[{
@@ -217,18 +211,18 @@ testTokenization('coffeescript', language, [
 	line: 'b(\'\'\'asdads\'\'\')',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 1, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
+		{ startIndex: 1, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 2, type: 'string.coffee' },
-		{ startIndex: 14, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close }
+		{ startIndex: 14, type: 'delimiter.parenthesis.coffee' }
 	]}],
 
 	[{
 	line: 'foo(""" var i = \'foo\'; """)',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 3, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
+		{ startIndex: 3, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 4, type: 'string.coffee' },
-		{ startIndex: 26, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close }
+		{ startIndex: 26, type: 'delimiter.parenthesis.coffee' }
 	]}],
 
 	// Strings
@@ -402,45 +396,41 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 0, type: 'number.hex.coffee' }
 	]}],
 
-	// Bracket Matching
 	[{
 	line: '[1,2,3]',
 	tokens: [
-		{ startIndex: 0, type: 'delimiter.square.coffee', bracket: Bracket.Open },
+		{ startIndex: 0, type: 'delimiter.square.coffee' },
 		{ startIndex: 1, type: 'number.coffee' },
 		{ startIndex: 2, type: 'delimiter.coffee' },
 		{ startIndex: 3, type: 'number.coffee' },
 		{ startIndex: 4, type: 'delimiter.coffee' },
 		{ startIndex: 5, type: 'number.coffee' },
-		{ startIndex: 6, type: 'delimiter.square.coffee', bracket: Bracket.Close }
+		{ startIndex: 6, type: 'delimiter.square.coffee' }
 	]}],
 
 	[{
 	line: 'foo(123);',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 3, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
+		{ startIndex: 3, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 4, type: 'number.coffee' },
-		{ startIndex: 7, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close },
+		{ startIndex: 7, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 8, type: '' }
 	]}],
 
 	[{
 	line: '(a:(b:[]))',
 	tokens: [
-		{ startIndex: 0, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
+		{ startIndex: 0, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 1, type: '' },
 		{ startIndex: 2, type: 'delimiter.coffee' },
-		{ startIndex: 3, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
+		{ startIndex: 3, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 4, type: '' },
 		{ startIndex: 5, type: 'delimiter.coffee' },
-		{ startIndex: 6, type: 'delimiter.square.coffee', bracket: Bracket.Open },
-		{ startIndex: 7, type: 'delimiter.square.coffee', bracket: Bracket.Close },
-		{ startIndex: 8, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close },
-		{ startIndex: 9, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close }
+		{ startIndex: 6, type: 'delimiter.square.coffee' },
+		{ startIndex: 8, type: 'delimiter.parenthesis.coffee' }
 	]}],
 
-	// No Bracket Matching inside strings
 	[{
 	line: 'x = \'[{()}]\'',
 	tokens: [
@@ -613,57 +603,53 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 11, type: '' }
 	]}],
 
-	// Bracket Matching
 	[{
 	line: '{ key: 123 }',
 	tokens: [
-		{ startIndex: 0, type: 'delimiter.curly.coffee', bracket: Bracket.Open },
+		{ startIndex: 0, type: 'delimiter.curly.coffee' },
 		{ startIndex: 1, type: '' },
 		{ startIndex: 5, type: 'delimiter.coffee' },
 		{ startIndex: 6, type: '' },
 		{ startIndex: 7, type: 'number.coffee' },
 		{ startIndex: 10, type: '' },
-		{ startIndex: 11, type: 'delimiter.curly.coffee', bracket: Bracket.Close }
+		{ startIndex: 11, type: 'delimiter.curly.coffee' }
 	]}],
 
 	[{
 	line: '[1,2,3]',
 	tokens: [
-		{ startIndex: 0, type: 'delimiter.square.coffee', bracket: Bracket.Open },
+		{ startIndex: 0, type: 'delimiter.square.coffee' },
 		{ startIndex: 1, type: 'number.coffee' },
 		{ startIndex: 2, type: 'delimiter.coffee' },
 		{ startIndex: 3, type: 'number.coffee' },
 		{ startIndex: 4, type: 'delimiter.coffee' },
 		{ startIndex: 5, type: 'number.coffee' },
-		{ startIndex: 6, type: 'delimiter.square.coffee', bracket: Bracket.Close }
+		{ startIndex: 6, type: 'delimiter.square.coffee' }
 	]}],
 
 	[{
 	line: 'foo(123);',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 3, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
+		{ startIndex: 3, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 4, type: 'number.coffee' },
-		{ startIndex: 7, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close },
+		{ startIndex: 7, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 8, type: '' }
 	]}],
 
 	[{
 	line: '{a:{b:[]}}',
 	tokens: [
-		{ startIndex: 0, type: 'delimiter.curly.coffee', bracket: Bracket.Open },
+		{ startIndex: 0, type: 'delimiter.curly.coffee' },
 		{ startIndex: 1, type: '' },
 		{ startIndex: 2, type: 'delimiter.coffee' },
-		{ startIndex: 3, type: 'delimiter.curly.coffee', bracket: Bracket.Open },
+		{ startIndex: 3, type: 'delimiter.curly.coffee' },
 		{ startIndex: 4, type: '' },
 		{ startIndex: 5, type: 'delimiter.coffee' },
-		{ startIndex: 6, type: 'delimiter.square.coffee', bracket: Bracket.Open },
-		{ startIndex: 7, type: 'delimiter.square.coffee', bracket: Bracket.Close },
-		{ startIndex: 8, type: 'delimiter.curly.coffee', bracket: Bracket.Close },
-		{ startIndex: 9, type: 'delimiter.curly.coffee', bracket: Bracket.Close }
+		{ startIndex: 6, type: 'delimiter.square.coffee' },
+		{ startIndex: 8, type: 'delimiter.curly.coffee' }
 	]}],
 
-	// No Bracket Matching inside strings
 	[{
 	line: 'x = \'[{()}]\'',
 	tokens: [
@@ -741,9 +727,9 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 7, type: 'delimiter.coffee' },
 		{ startIndex: 8, type: '' },
-		{ startIndex: 9, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
+		{ startIndex: 9, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 10, type: '' },
-		{ startIndex: 11, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close },
+		{ startIndex: 11, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 12, type: '' },
 		{ startIndex: 13, type: 'delimiter.coffee' },
 		{ startIndex: 15, type: '' },
@@ -763,7 +749,7 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 5, type: 'delimiter.coffee' },
 		{ startIndex: 6, type: '' },
-		{ startIndex: 7, type: 'delimiter.square.coffee', bracket: Bracket.Open },
+		{ startIndex: 7, type: 'delimiter.square.coffee' },
 		{ startIndex: 8, type: 'number.coffee' },
 		{ startIndex: 9, type: 'delimiter.coffee' },
 		{ startIndex: 10, type: '' },
@@ -777,7 +763,7 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 18, type: 'delimiter.coffee' },
 		{ startIndex: 19, type: '' },
 		{ startIndex: 20, type: 'number.coffee' },
-		{ startIndex: 21, type: 'delimiter.square.coffee', bracket: Bracket.Close }
+		{ startIndex: 21, type: 'delimiter.square.coffee' }
 	]}, {
 	line: '',
 	tokens: [
@@ -811,9 +797,9 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 6, type: 'delimiter.coffee' },
 		{ startIndex: 7, type: '' },
-		{ startIndex: 10, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
+		{ startIndex: 10, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 11, type: '' },
-		{ startIndex: 12, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close },
+		{ startIndex: 12, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 13, type: '' },
 		{ startIndex: 14, type: 'delimiter.coffee' },
 		{ startIndex: 16, type: '' },
@@ -833,12 +819,12 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 5, type: 'delimiter.coffee' },
 		{ startIndex: 6, type: '' },
-		{ startIndex: 7, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
+		{ startIndex: 7, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 8, type: '' },
 		{ startIndex: 14, type: 'delimiter.coffee' },
 		{ startIndex: 15, type: '' },
 		{ startIndex: 23, type: 'delimiter.coffee' },
-		{ startIndex: 26, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close },
+		{ startIndex: 26, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 27, type: '' },
 		{ startIndex: 28, type: 'delimiter.coffee' }
 	]}, {
@@ -878,7 +864,7 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 6, type: 'delimiter.coffee' },
 		{ startIndex: 7, type: '' },
-		{ startIndex: 8, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
+		{ startIndex: 8, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 9, type: '' },
 		{ startIndex: 13, type: 'delimiter.coffee' },
 		{ startIndex: 14, type: '' },
@@ -886,7 +872,7 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 26, type: '' },
 		{ startIndex: 31, type: 'keyword.in.coffee' },
 		{ startIndex: 33, type: '' },
-		{ startIndex: 38, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close }
+		{ startIndex: 38, type: 'delimiter.parenthesis.coffee' }
 	]}, {
 	line: '',
 	tokens: [
@@ -897,14 +883,14 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 5, type: 'delimiter.coffee' },
 		{ startIndex: 6, type: '' },
-		{ startIndex: 7, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
+		{ startIndex: 7, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 8, type: '' },
 		{ startIndex: 17, type: 'delimiter.coffee' },
 		{ startIndex: 18, type: '' },
 		{ startIndex: 26, type: 'delimiter.coffee' },
 		{ startIndex: 27, type: '' },
 		{ startIndex: 28, type: 'string.coffee' },
-		{ startIndex: 36, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close },
+		{ startIndex: 36, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 37, type: '' },
 		{ startIndex: 38, type: 'delimiter.coffee' }
 	]}, {
@@ -926,7 +912,7 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 4, type: 'delimiter.coffee' },
 		{ startIndex: 5, type: '' },
-		{ startIndex: 6, type: 'delimiter.square.coffee', bracket: Bracket.Open },
+		{ startIndex: 6, type: 'delimiter.square.coffee' },
 		{ startIndex: 7, type: 'string.coffee' },
 		{ startIndex: 11, type: 'delimiter.coffee' },
 		{ startIndex: 12, type: '' },
@@ -940,7 +926,7 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 29, type: 'delimiter.coffee' },
 		{ startIndex: 30, type: '' },
 		{ startIndex: 31, type: 'string.coffee' },
-		{ startIndex: 35, type: 'delimiter.square.coffee', bracket: Bracket.Close }
+		{ startIndex: 35, type: 'delimiter.square.coffee' }
 	]}, {
 	line: '',
 	tokens: [
@@ -951,7 +937,7 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 8, type: 'delimiter.coffee' },
 		{ startIndex: 9, type: '' },
-		{ startIndex: 10, type: 'delimiter.curly.coffee', bracket: Bracket.Open },
+		{ startIndex: 10, type: 'delimiter.curly.coffee' },
 		{ startIndex: 11, type: '' },
 		{ startIndex: 17, type: 'delimiter.coffee' },
 		{ startIndex: 18, type: '' },
@@ -961,7 +947,7 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 32, type: 'delimiter.coffee' },
 		{ startIndex: 33, type: '' },
 		{ startIndex: 34, type: 'string.coffee' },
-		{ startIndex: 40, type: 'delimiter.curly.coffee', bracket: Bracket.Close }
+		{ startIndex: 40, type: 'delimiter.curly.coffee' }
 	]}, {
 	line: '',
 	tokens: [
@@ -972,7 +958,7 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 8, type: 'delimiter.coffee' },
 		{ startIndex: 9, type: '' },
-		{ startIndex: 10, type: 'delimiter.square.coffee', bracket: Bracket.Open }
+		{ startIndex: 10, type: 'delimiter.square.coffee' }
 	]}, {
 	line: '  1, 0, 1',
 	tokens: [
@@ -1009,7 +995,7 @@ testTokenization('coffeescript', language, [
 	]}, {
 	line: ']',
 	tokens: [
-		{ startIndex: 0, type: 'delimiter.square.coffee', bracket: Bracket.Close }
+		{ startIndex: 0, type: 'delimiter.square.coffee' }
 	]}, {
 	line: '',
 	tokens: [
@@ -1065,9 +1051,9 @@ testTokenization('coffeescript', language, [
 	line: '$(\'.account\').attr class: \'active\'',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 1, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
+		{ startIndex: 1, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 2, type: 'string.coffee' },
-		{ startIndex: 12, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close },
+		{ startIndex: 12, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 13, type: 'delimiter.coffee' },
 		{ startIndex: 14, type: '' },
 		{ startIndex: 19, type: 'keyword.class.coffee' },
@@ -1119,8 +1105,7 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 6, type: 'delimiter.coffee' },
 		{ startIndex: 7, type: '' },
-		{ startIndex: 21, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
-		{ startIndex: 22, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close }
+		{ startIndex: 21, type: 'delimiter.parenthesis.coffee' }
 	]}, {
 	line: '',
 	tokens: [
@@ -1148,14 +1133,12 @@ testTokenization('coffeescript', language, [
 	line: '  clapsHands()',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 12, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
-		{ startIndex: 13, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close }
+		{ startIndex: 12, type: 'delimiter.parenthesis.coffee' }
 	]}, {
 	line: '  chaChaCha()',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 11, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
-		{ startIndex: 12, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close }
+		{ startIndex: 11, type: 'delimiter.parenthesis.coffee' }
 	]}, {
 	line: 'else',
 	tokens: [
@@ -1164,8 +1147,7 @@ testTokenization('coffeescript', language, [
 	line: '  showIt()',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 8, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
-		{ startIndex: 9, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close }
+		{ startIndex: 8, type: 'delimiter.parenthesis.coffee' }
 	]}, {
 	line: '',
 	tokens: [
@@ -1209,7 +1191,7 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 12, type: '' },
 		{ startIndex: 18, type: 'keyword.in.coffee' },
 		{ startIndex: 20, type: '' },
-		{ startIndex: 21, type: 'delimiter.square.coffee', bracket: Bracket.Open },
+		{ startIndex: 21, type: 'delimiter.square.coffee' },
 		{ startIndex: 22, type: 'string.coffee' },
 		{ startIndex: 29, type: 'delimiter.coffee' },
 		{ startIndex: 30, type: '' },
@@ -1217,7 +1199,7 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 39, type: 'delimiter.coffee' },
 		{ startIndex: 40, type: '' },
 		{ startIndex: 41, type: 'string.coffee' },
-		{ startIndex: 47, type: 'delimiter.square.coffee', bracket: Bracket.Close }
+		{ startIndex: 47, type: 'delimiter.square.coffee' }
 	]}, {
 	line: '',
 	tokens: [
@@ -1232,7 +1214,7 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 8, type: 'delimiter.coffee' },
 		{ startIndex: 9, type: '' },
-		{ startIndex: 10, type: 'delimiter.square.coffee', bracket: Bracket.Open },
+		{ startIndex: 10, type: 'delimiter.square.coffee' },
 		{ startIndex: 11, type: 'string.coffee' },
 		{ startIndex: 19, type: 'delimiter.coffee' },
 		{ startIndex: 20, type: '' },
@@ -1246,7 +1228,7 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 50, type: 'delimiter.coffee' },
 		{ startIndex: 51, type: '' },
 		{ startIndex: 52, type: 'string.coffee' },
-		{ startIndex: 58, type: 'delimiter.square.coffee', bracket: Bracket.Close }
+		{ startIndex: 58, type: 'delimiter.square.coffee' }
 	]}, {
 	line: 'menu i + 1, dish for dish, i in courses',
 	tokens: [
@@ -1276,7 +1258,7 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 6, type: 'delimiter.coffee' },
 		{ startIndex: 7, type: '' },
-		{ startIndex: 8, type: 'delimiter.square.coffee', bracket: Bracket.Open },
+		{ startIndex: 8, type: 'delimiter.square.coffee' },
 		{ startIndex: 9, type: 'string.coffee' },
 		{ startIndex: 19, type: 'delimiter.coffee' },
 		{ startIndex: 20, type: '' },
@@ -1284,7 +1266,7 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 30, type: 'delimiter.coffee' },
 		{ startIndex: 31, type: '' },
 		{ startIndex: 32, type: 'string.coffee' },
-		{ startIndex: 43, type: 'delimiter.square.coffee', bracket: Bracket.Close }
+		{ startIndex: 43, type: 'delimiter.square.coffee' }
 	]}, {
 	line: 'eat food for food in foods when food isnt \'chocolate\'',
 	tokens: [
@@ -1308,18 +1290,18 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 10, type: 'delimiter.coffee' },
 		{ startIndex: 11, type: '' },
-		{ startIndex: 12, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
+		{ startIndex: 12, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 13, type: '' },
 		{ startIndex: 17, type: 'keyword.for.coffee' },
 		{ startIndex: 20, type: '' },
 		{ startIndex: 25, type: 'keyword.in.coffee' },
 		{ startIndex: 27, type: '' },
-		{ startIndex: 28, type: 'delimiter.square.coffee', bracket: Bracket.Open },
+		{ startIndex: 28, type: 'delimiter.square.coffee' },
 		{ startIndex: 29, type: 'number.coffee' },
 		{ startIndex: 31, type: 'delimiter.coffee' },
 		{ startIndex: 33, type: 'number.coffee' },
-		{ startIndex: 34, type: 'delimiter.square.coffee', bracket: Bracket.Close },
-		{ startIndex: 35, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close }
+		{ startIndex: 34, type: 'delimiter.square.coffee' },
+		{ startIndex: 35, type: 'delimiter.parenthesis.coffee' }
 	]}, {
 	line: '',
 	tokens: [
@@ -1388,8 +1370,7 @@ testTokenization('coffeescript', language, [
 	line: '  buy()  while supply > demand',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 5, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
-		{ startIndex: 6, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close },
+		{ startIndex: 5, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 7, type: '' },
 		{ startIndex: 9, type: 'keyword.while.coffee' },
 		{ startIndex: 14, type: '' },
@@ -1399,8 +1380,7 @@ testTokenization('coffeescript', language, [
 	line: '  sell() until supply > demand',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 6, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
-		{ startIndex: 7, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close },
+		{ startIndex: 6, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 8, type: '' },
 		{ startIndex: 9, type: 'keyword.until.coffee' },
 		{ startIndex: 14, type: '' },
@@ -1457,9 +1437,9 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 6, type: 'delimiter.coffee' },
 		{ startIndex: 7, type: '' },
-		{ startIndex: 8, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
+		{ startIndex: 8, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 9, type: '' },
-		{ startIndex: 16, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close },
+		{ startIndex: 16, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 17, type: '' },
 		{ startIndex: 18, type: 'delimiter.coffee' }
 	]}, {
@@ -1554,9 +1534,9 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 13, type: 'delimiter.coffee' },
 		{ startIndex: 14, type: '' },
-		{ startIndex: 15, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
+		{ startIndex: 15, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 16, type: 'variable.predefined.coffee' },
-		{ startIndex: 21, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close },
+		{ startIndex: 21, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 22, type: '' },
 		{ startIndex: 23, type: 'delimiter.coffee' }
 	]}, {
@@ -1569,9 +1549,9 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 6, type: 'delimiter.coffee' },
 		{ startIndex: 7, type: '' },
-		{ startIndex: 8, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
+		{ startIndex: 8, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 9, type: '' },
-		{ startIndex: 15, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close },
+		{ startIndex: 15, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 16, type: '' },
 		{ startIndex: 17, type: 'delimiter.coffee' }
 	]}, {
@@ -1677,16 +1657,14 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 3, type: 'delimiter.coffee' },
 		{ startIndex: 4, type: '' },
-		{ startIndex: 8, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
-		{ startIndex: 9, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close }
+		{ startIndex: 8, type: 'delimiter.parenthesis.coffee' }
 	]}, {
 	line: 'tom.move()',
 	tokens: [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 3, type: 'delimiter.coffee' },
 		{ startIndex: 4, type: '' },
-		{ startIndex: 8, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
-		{ startIndex: 9, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close }
+		{ startIndex: 8, type: 'delimiter.parenthesis.coffee' }
 	]}, {
 	line: '',
 	tokens: [
@@ -1701,11 +1679,11 @@ testTokenization('coffeescript', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 8, type: 'delimiter.coffee' },
 		{ startIndex: 9, type: '' },
-		{ startIndex: 10, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
+		{ startIndex: 10, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 11, type: '' },
 		{ startIndex: 19, type: 'delimiter.coffee' },
 		{ startIndex: 20, type: '' },
-		{ startIndex: 25, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close },
+		{ startIndex: 25, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 26, type: '' },
 		{ startIndex: 27, type: 'delimiter.coffee' }
 	]}, {
@@ -1732,17 +1710,17 @@ testTokenization('coffeescript', language, [
 	line: '  $(\'.shopping_cart\').bind \'click\', (event) =>',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 3, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
+		{ startIndex: 3, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 4, type: 'string.coffee' },
-		{ startIndex: 20, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close },
+		{ startIndex: 20, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 21, type: 'delimiter.coffee' },
 		{ startIndex: 22, type: '' },
 		{ startIndex: 27, type: 'string.coffee' },
 		{ startIndex: 34, type: 'delimiter.coffee' },
 		{ startIndex: 35, type: '' },
-		{ startIndex: 36, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
+		{ startIndex: 36, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 37, type: '' },
-		{ startIndex: 42, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close },
+		{ startIndex: 42, type: 'delimiter.parenthesis.coffee' },
 		{ startIndex: 43, type: '' },
 		{ startIndex: 44, type: 'delimiter.coffee' }
 	]}, {
@@ -1854,14 +1832,12 @@ testTokenization('coffeescript', language, [
 	line: '  allHellBreaksLoose()',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 20, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
-		{ startIndex: 21, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close }
+		{ startIndex: 20, type: 'delimiter.parenthesis.coffee' }
 	]}, {
 	line: '  catsAndDogsLivingTogether()',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 27, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
-		{ startIndex: 28, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close }
+		{ startIndex: 27, type: 'delimiter.parenthesis.coffee' }
 	]}, {
 	line: 'catch error',
 	tokens: [
@@ -1879,8 +1855,7 @@ testTokenization('coffeescript', language, [
 	line: '  cleanUp()',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 9, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Open },
-		{ startIndex: 10, type: 'delimiter.parenthesis.coffee', bracket: Bracket.Close }
+		{ startIndex: 9, type: 'delimiter.parenthesis.coffee' }
 	]}, {
 	line: '',
 	tokens: [

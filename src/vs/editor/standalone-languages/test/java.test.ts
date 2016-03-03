@@ -9,11 +9,6 @@ import * as assert from 'assert';
 import {language} from 'vs/editor/standalone-languages/java';
 import {testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
-var Bracket = {
-	Open: 1,
-	Close: -1
-};
-
 testTokenization('java', language, [
 	// Comments - single line
 	[{
@@ -222,17 +217,15 @@ testTokenization('java', language, [
 		{ startIndex: 46, type: 'delimiter.parenthesis.java' },
 		{ startIndex: 47, type: 'identifier.java' },
 		{ startIndex: 53, type: 'delimiter.square.java' },
-		{ startIndex: 54, type: 'delimiter.square.java' },
 		{ startIndex: 55, type: '' },
 		{ startIndex: 56, type: 'identifier.java' },
 		{ startIndex: 60, type: 'delimiter.parenthesis.java' },
 		{ startIndex: 61, type: '' },
-		{ startIndex: 62, type: 'delimiter.curly.java', bracket: Bracket.Open },
-		{ startIndex: 63, type: 'delimiter.curly.java', bracket: Bracket.Close },
+		{ startIndex: 62, type: 'delimiter.curly.java' },
 		{ startIndex: 64, type: '' },
-		{ startIndex: 65, type: 'delimiter.curly.java', bracket: Bracket.Close },
+		{ startIndex: 65, type: 'delimiter.curly.java' },
 		{ startIndex: 66, type: '' },
-		{ startIndex: 67, type: 'delimiter.curly.java', bracket: Bracket.Close }
+		{ startIndex: 67, type: 'delimiter.curly.java' }
 	]}],
 
 	// Numbers

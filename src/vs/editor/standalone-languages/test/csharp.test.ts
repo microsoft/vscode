@@ -8,11 +8,6 @@
 import {language} from 'vs/editor/standalone-languages/csharp';
 import {testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
-var Bracket = {
-	Open: 1,
-	Close: -1
-};
-
 testTokenization('csharp', language, [
 
 	// Generated from sample
@@ -85,7 +80,7 @@ testTokenization('csharp', language, [
 	]}, {
 	line: '{',
 	tokens: [
-		{ startIndex: 0, type: 'delimiter.curly.cs', bracket: Bracket.Open }
+		{ startIndex: 0, type: 'delimiter.curly.cs' }
 	]}, {
 	line: '	class Program',
 	tokens: [
@@ -97,7 +92,7 @@ testTokenization('csharp', language, [
 	line: '	{',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 1, type: 'delimiter.curly.cs', bracket: Bracket.Open }
+		{ startIndex: 1, type: 'delimiter.curly.cs' }
 	]}, {
 	line: '		static void Main(string[] args)',
 	tokens: [
@@ -107,18 +102,17 @@ testTokenization('csharp', language, [
 		{ startIndex: 9, type: 'keyword.void.cs' },
 		{ startIndex: 13, type: '' },
 		{ startIndex: 14, type: 'identifier.cs' },
-		{ startIndex: 18, type: 'delimiter.parenthesis.cs', bracket: Bracket.Open },
+		{ startIndex: 18, type: 'delimiter.parenthesis.cs' },
 		{ startIndex: 19, type: 'keyword.string.cs' },
-		{ startIndex: 25, type: 'delimiter.square.cs', bracket: Bracket.Open },
-		{ startIndex: 26, type: 'delimiter.square.cs', bracket: Bracket.Close },
+		{ startIndex: 25, type: 'delimiter.square.cs' },
 		{ startIndex: 27, type: '' },
 		{ startIndex: 28, type: 'identifier.cs' },
-		{ startIndex: 32, type: 'delimiter.parenthesis.cs', bracket: Bracket.Close }
+		{ startIndex: 32, type: 'delimiter.parenthesis.cs' }
 	]}, {
 	line: '		{',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 2, type: 'delimiter.curly.cs', bracket: Bracket.Open }
+		{ startIndex: 2, type: 'delimiter.curly.cs' }
 	]}, {
 	line: '			ProcessStartInfo si = new ProcessStartInfo();',
 	tokens: [
@@ -132,8 +126,7 @@ testTokenization('csharp', language, [
 		{ startIndex: 25, type: 'keyword.new.cs' },
 		{ startIndex: 28, type: '' },
 		{ startIndex: 29, type: 'identifier.cs' },
-		{ startIndex: 45, type: 'delimiter.parenthesis.cs', bracket: Bracket.Open },
-		{ startIndex: 46, type: 'delimiter.parenthesis.cs', bracket: Bracket.Close },
+		{ startIndex: 45, type: 'delimiter.parenthesis.cs' },
 		{ startIndex: 47, type: 'delimiter.cs' }
 	]}, {
 	line: '			float load= 3.2e02f;',
@@ -160,9 +153,9 @@ testTokenization('csharp', language, [
 		{ startIndex: 14, type: '' },
 		{ startIndex: 15, type: 'delimiter.cs' },
 		{ startIndex: 16, type: '' },
-		{ startIndex: 17, type: 'string.quote.cs', bracket: Bracket.Open },
+		{ startIndex: 17, type: 'string.quote.cs' },
 		{ startIndex: 19, type: 'string.cs' },
-		{ startIndex: 34, type: 'string.quote.cs', bracket: Bracket.Close },
+		{ startIndex: 34, type: 'string.quote.cs' },
 		{ startIndex: 35, type: 'delimiter.cs' }
 	]}, {
 	line: '			si.Arguments = "tools\\\\simpl3server.js";',
@@ -174,11 +167,11 @@ testTokenization('csharp', language, [
 		{ startIndex: 15, type: '' },
 		{ startIndex: 16, type: 'delimiter.cs' },
 		{ startIndex: 17, type: '' },
-		{ startIndex: 18, type: 'string.quote.cs', bracket: Bracket.Open },
+		{ startIndex: 18, type: 'string.quote.cs' },
 		{ startIndex: 19, type: 'string.cs' },
 		{ startIndex: 24, type: 'string.escape.cs' },
 		{ startIndex: 26, type: 'string.cs' },
-		{ startIndex: 41, type: 'string.quote.cs', bracket: Bracket.Close },
+		{ startIndex: 41, type: 'string.quote.cs' },
 		{ startIndex: 42, type: 'delimiter.cs' }
 	]}, {
 	line: '			',
@@ -194,17 +187,17 @@ testTokenization('csharp', language, [
 		{ startIndex: 20, type: '' },
 		{ startIndex: 21, type: 'delimiter.cs' },
 		{ startIndex: 22, type: '' },
-		{ startIndex: 23, type: 'string.quote.cs', bracket: Bracket.Open },
+		{ startIndex: 23, type: 'string.quote.cs' },
 		{ startIndex: 25, type: 'string.cs' },
-		{ startIndex: 30, type: 'string.quote.cs', bracket: Bracket.Open },
+		{ startIndex: 30, type: 'string.quote.cs' },
 		{ startIndex: 31, type: 'identifier.cs' },
 		{ startIndex: 38, type: 'delimiter.cs' },
 		{ startIndex: 39, type: 'identifier.cs' },
-		{ startIndex: 47, type: 'string.quote.cs', bracket: Bracket.Close },
+		{ startIndex: 47, type: 'string.quote.cs' },
 		{ startIndex: 48, type: 'string.cs' },
 		{ startIndex: 65, type: 'string.escape.cs' },
 		{ startIndex: 67, type: 'string.cs' },
-		{ startIndex: 75, type: 'string.quote.cs', bracket: Bracket.Close },
+		{ startIndex: 75, type: 'string.quote.cs' },
 		{ startIndex: 76, type: 'delimiter.cs' }
 	]}, {
 	line: '			var @string = 5;',
@@ -228,25 +221,25 @@ testTokenization('csharp', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 3, type: 'keyword.if.cs' },
 		{ startIndex: 5, type: '' },
-		{ startIndex: 6, type: 'delimiter.parenthesis.cs', bracket: Bracket.Open },
+		{ startIndex: 6, type: 'delimiter.parenthesis.cs' },
 		{ startIndex: 7, type: 'identifier.cs' },
 		{ startIndex: 8, type: '' },
 		{ startIndex: 9, type: 'delimiter.cs' },
 		{ startIndex: 11, type: '' },
 		{ startIndex: 12, type: 'number.cs' },
-		{ startIndex: 13, type: 'delimiter.parenthesis.cs', bracket: Bracket.Close }
+		{ startIndex: 13, type: 'delimiter.parenthesis.cs' }
 	]}, {
 	line: '			{',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 3, type: 'delimiter.curly.cs', bracket: Bracket.Open }
+		{ startIndex: 3, type: 'delimiter.curly.cs' }
 	]}, {
 	line: '				for (int i = 4; i<10; i++)',
 	tokens: [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 4, type: 'keyword.for.cs' },
 		{ startIndex: 7, type: '' },
-		{ startIndex: 8, type: 'delimiter.parenthesis.cs', bracket: Bracket.Open },
+		{ startIndex: 8, type: 'delimiter.parenthesis.cs' },
 		{ startIndex: 9, type: 'keyword.int.cs' },
 		{ startIndex: 12, type: '' },
 		{ startIndex: 13, type: 'identifier.cs' },
@@ -257,18 +250,18 @@ testTokenization('csharp', language, [
 		{ startIndex: 18, type: 'delimiter.cs' },
 		{ startIndex: 19, type: '' },
 		{ startIndex: 20, type: 'identifier.cs' },
-		{ startIndex: 21, type: 'delimiter.angle.cs', bracket: Bracket.Open },
+		{ startIndex: 21, type: 'delimiter.angle.cs' },
 		{ startIndex: 22, type: 'number.cs' },
 		{ startIndex: 24, type: 'delimiter.cs' },
 		{ startIndex: 25, type: '' },
 		{ startIndex: 26, type: 'identifier.cs' },
 		{ startIndex: 27, type: 'delimiter.cs' },
-		{ startIndex: 29, type: 'delimiter.parenthesis.cs', bracket: Bracket.Close }
+		{ startIndex: 29, type: 'delimiter.parenthesis.cs' }
 	]}, {
 	line: '				{',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 4, type: 'delimiter.curly.cs', bracket: Bracket.Open }
+		{ startIndex: 4, type: 'delimiter.curly.cs' }
 	]}, {
 	line: '					var d = i;',
 	tokens: [
@@ -285,12 +278,12 @@ testTokenization('csharp', language, [
 	line: '				}',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 4, type: 'delimiter.curly.cs', bracket: Bracket.Close }
+		{ startIndex: 4, type: 'delimiter.curly.cs' }
 	]}, {
 	line: '			}',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 3, type: 'delimiter.curly.cs', bracket: Bracket.Close }
+		{ startIndex: 3, type: 'delimiter.curly.cs' }
 	]}, {
 	line: '			else',
 	tokens: [
@@ -300,7 +293,7 @@ testTokenization('csharp', language, [
 	line: '			{',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 3, type: 'delimiter.curly.cs', bracket: Bracket.Open }
+		{ startIndex: 3, type: 'delimiter.curly.cs' }
 	]}, {
 	line: '				return;',
 	tokens: [
@@ -311,7 +304,7 @@ testTokenization('csharp', language, [
 	line: '			}',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 3, type: 'delimiter.curly.cs', bracket: Bracket.Close }
+		{ startIndex: 3, type: 'delimiter.curly.cs' }
 	]}, {
 	line: '			',
 	tokens: [
@@ -327,24 +320,24 @@ testTokenization('csharp', language, [
 		{ startIndex: 3, type: 'identifier.cs' },
 		{ startIndex: 10, type: 'delimiter.cs' },
 		{ startIndex: 11, type: 'identifier.cs' },
-		{ startIndex: 16, type: 'delimiter.parenthesis.cs', bracket: Bracket.Open },
+		{ startIndex: 16, type: 'delimiter.parenthesis.cs' },
 		{ startIndex: 17, type: 'identifier.cs' },
-		{ startIndex: 19, type: 'delimiter.parenthesis.cs', bracket: Bracket.Close },
+		{ startIndex: 19, type: 'delimiter.parenthesis.cs' },
 		{ startIndex: 20, type: 'delimiter.cs' }
 	]}, {
 	line: '		}',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 2, type: 'delimiter.curly.cs', bracket: Bracket.Close }
+		{ startIndex: 2, type: 'delimiter.curly.cs' }
 	]}, {
 	line: '	}',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 1, type: 'delimiter.curly.cs', bracket: Bracket.Close }
+		{ startIndex: 1, type: 'delimiter.curly.cs' }
 	]}, {
 	line: '}',
 	tokens: [
-		{ startIndex: 0, type: 'delimiter.curly.cs', bracket: Bracket.Close }
+		{ startIndex: 0, type: 'delimiter.curly.cs' }
 	]}, {
 	line: '',
 	tokens: [
@@ -360,8 +353,7 @@ testTokenization('csharp', language, [
 		{ startIndex: 9, type: '' },
 		{ startIndex: 10, type: 'namespace.cs' },
 		{ startIndex: 29, type: '' },
-		{ startIndex: 30, type: 'delimiter.curly.cs', bracket: Bracket.Open },
-		{ startIndex: 31, type: 'delimiter.curly.cs', bracket: Bracket.Close }
+		{ startIndex: 30, type: 'delimiter.curly.cs' }
 	]}, {
 	line: '#pragma endregion Region_1',
 	tokens: [
@@ -392,13 +384,11 @@ testTokenization('csharp', language, [
 		{ startIndex: 47, type: 'delimiter.parenthesis.cs' },
 		{ startIndex: 48, type: 'keyword.string.cs' },
 		{ startIndex: 54, type: 'delimiter.square.cs' },
-		{ startIndex: 55, type: 'delimiter.square.cs' },
 		{ startIndex: 56, type: '' },
 		{ startIndex: 57, type: 'identifier.cs' },
 		{ startIndex: 61, type: 'delimiter.parenthesis.cs' },
 		{ startIndex: 62, type: '' },
 		{ startIndex: 63, type: 'delimiter.curly.cs' },
-		{ startIndex: 64, type: 'delimiter.curly.cs' },
 		{ startIndex: 65, type: '' },
 		{ startIndex: 66, type: 'delimiter.curly.cs' },
 		{ startIndex: 67, type: '' },

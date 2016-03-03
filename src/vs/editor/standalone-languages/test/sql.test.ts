@@ -8,11 +8,6 @@
 import {language} from 'vs/editor/standalone-languages/sql';
 import {testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
-var Bracket = {
-	Open: 1,
-	Close: -1
-};
-
 testTokenization('sql', language, [
 	// Comments
 	[{
@@ -41,9 +36,9 @@ testTokenization('sql', language, [
 	[{
 	line: '/* a full line comment */',
 	tokens: [
-		{ startIndex: 0, type: 'comment.quote.sql', bracket: Bracket.Open },
+		{ startIndex: 0, type: 'comment.quote.sql' },
 		{ startIndex: 2, type: 'comment.sql' },
-		{ startIndex: 23, type: 'comment.quote.sql', bracket: Bracket.Close }
+		{ startIndex: 23, type: 'comment.quote.sql' }
 	]}],
 
 	[{
@@ -80,9 +75,9 @@ testTokenization('sql', language, [
 	tokens: [
 		{ startIndex: 0, type: 'identifier.sql' },
 		{ startIndex: 2, type: 'operator.sql' },
-		{ startIndex: 3, type: 'comment.quote.sql', bracket: Bracket.Open },
+		{ startIndex: 3, type: 'comment.quote.sql' },
 		{ startIndex: 5, type: 'comment.sql' },
-		{ startIndex: 28, type: 'comment.quote.sql', bracket: Bracket.Close },
+		{ startIndex: 28, type: 'comment.quote.sql' },
 		{ startIndex: 30, type: 'delimiter.sql' }
 	]}],
 
@@ -358,9 +353,9 @@ testTokenization('sql', language, [
 	tokens: [
 		{ startIndex: 0, type: 'keyword.sql' },
 		{ startIndex: 7, type: 'white.sql' },
-		{ startIndex: 8, type: 'identifier.quote.sql', bracket: Bracket.Open },
+		{ startIndex: 8, type: 'identifier.quote.sql' },
 		{ startIndex: 9, type: 'identifier.sql' },
-		{ startIndex: 16, type: 'identifier.quote.sql', bracket: Bracket.Close },
+		{ startIndex: 16, type: 'identifier.quote.sql' },
 		{ startIndex: 17, type: 'delimiter.sql' }
 	]}],
 
@@ -384,9 +379,9 @@ testTokenization('sql', language, [
 	tokens: [
 		{ startIndex: 0, type: 'keyword.sql' },
 		{ startIndex: 7, type: 'white.sql' },
-		{ startIndex: 8, type: 'identifier.quote.sql', bracket: Bracket.Open },
+		{ startIndex: 8, type: 'identifier.quote.sql' },
 		{ startIndex: 9, type: 'identifier.sql' },
-		{ startIndex: 16, type: 'identifier.quote.sql', bracket: Bracket.Close },
+		{ startIndex: 16, type: 'identifier.quote.sql' },
 		{ startIndex: 17, type: 'delimiter.sql' }
 	]}],
 
@@ -427,9 +422,9 @@ testTokenization('sql', language, [
 		{ startIndex: 7, type: 'white.sql' },
 		{ startIndex: 8, type: 'identifier.sql' },
 		{ startIndex: 10, type: 'operator.sql' },
-		{ startIndex: 11, type: 'string.quote.sql', bracket: Bracket.Open },
+		{ startIndex: 11, type: 'string.quote.sql' },
 		{ startIndex: 12, type: 'string.sql' },
-		{ startIndex: 20, type: 'string.quote.sql', bracket: Bracket.Close },
+		{ startIndex: 20, type: 'string.quote.sql' },
 		{ startIndex: 21, type: 'delimiter.sql' }
 	]}],
 
@@ -460,9 +455,9 @@ testTokenization('sql', language, [
 	[{
 	line: 'N\'a unicode string\'',
 	tokens: [
-		{ startIndex: 0, type: 'string.quote.sql', bracket: Bracket.Open },
+		{ startIndex: 0, type: 'string.quote.sql' },
 		{ startIndex: 2, type: 'string.sql' },
-		{ startIndex: 18, type: 'string.quote.sql', bracket: Bracket.Close }
+		{ startIndex: 18, type: 'string.quote.sql' }
 	]}],
 
 	[{
@@ -538,12 +533,11 @@ testTokenization('sql', language, [
 	line: 'WHILE() BEGIN END',
 	tokens: [
 		{ startIndex: 0, type: 'keyword.sql' },
-		{ startIndex: 5, type: 'delimiter.parenthesis.sql', bracket: Bracket.Open },
-		{ startIndex: 6, type: 'delimiter.parenthesis.sql', bracket: Bracket.Close },
+		{ startIndex: 5, type: 'delimiter.parenthesis.sql' },
 		{ startIndex: 7, type: 'white.sql' },
-		{ startIndex: 8, type: 'keyword.block.sql', bracket: Bracket.Open },
+		{ startIndex: 8, type: 'keyword.block.sql' },
 		{ startIndex: 13, type: 'white.sql' },
-		{ startIndex: 14, type: 'keyword.block.sql', bracket: Bracket.Close }
+		{ startIndex: 14, type: 'keyword.block.sql' }
 	]}],
 
 	[{
@@ -551,7 +545,7 @@ testTokenization('sql', language, [
 	tokens: [
 		{ startIndex: 0, type: 'keyword.sql' },
 		{ startIndex: 10, type: 'white.sql' },
-		{ startIndex: 11, type: 'keyword.try.sql', bracket: Bracket.Open },
+		{ startIndex: 11, type: 'keyword.try.sql' },
 		{ startIndex: 20, type: 'white.sql' },
 		{ startIndex: 21, type: 'keyword.sql' },
 		{ startIndex: 27, type: 'white.sql' },
@@ -559,13 +553,13 @@ testTokenization('sql', language, [
 		{ startIndex: 29, type: 'white.sql' },
 		{ startIndex: 30, type: 'keyword.sql' },
 		{ startIndex: 36, type: 'white.sql' },
-		{ startIndex: 37, type: 'keyword.try.sql', bracket: Bracket.Close },
+		{ startIndex: 37, type: 'keyword.try.sql' },
 		{ startIndex: 44, type: 'white.sql' },
-		{ startIndex: 45, type: 'keyword.catch.sql', bracket: Bracket.Open },
+		{ startIndex: 45, type: 'keyword.catch.sql' },
 		{ startIndex: 56, type: 'white.sql' },
 		{ startIndex: 57, type: 'keyword.sql' },
 		{ startIndex: 65, type: 'white.sql' },
-		{ startIndex: 66, type: 'keyword.catch.sql', bracket: Bracket.Close }
+		{ startIndex: 66, type: 'keyword.catch.sql' }
 	]}],
 
 	[{
@@ -573,15 +567,15 @@ testTokenization('sql', language, [
 	tokens: [
 		{ startIndex: 0, type: 'keyword.sql' },
 		{ startIndex: 6, type: 'white.sql' },
-		{ startIndex: 7, type: 'keyword.block.sql', bracket: Bracket.Open },
+		{ startIndex: 7, type: 'keyword.block.sql' },
 		{ startIndex: 11, type: 'white.sql' },
 		{ startIndex: 12, type: 'number.sql' },
 		{ startIndex: 13, type: 'white.sql' },
-		{ startIndex: 14, type: 'keyword.choice.sql', bracket: Bracket.Open },
+		{ startIndex: 14, type: 'keyword.choice.sql' },
 		{ startIndex: 18, type: 'white.sql' },
 		{ startIndex: 19, type: 'number.sql' },
 		{ startIndex: 20, type: 'white.sql' },
-		{ startIndex: 21, type: 'keyword.choice.sql', bracket: Bracket.Close },
+		{ startIndex: 21, type: 'keyword.choice.sql' },
 		{ startIndex: 25, type: 'white.sql' },
 		{ startIndex: 26, type: 'number.sql' },
 		{ startIndex: 27, type: 'white.sql' },
@@ -589,6 +583,6 @@ testTokenization('sql', language, [
 		{ startIndex: 32, type: 'white.sql' },
 		{ startIndex: 33, type: 'number.sql' },
 		{ startIndex: 34, type: 'white.sql' },
-		{ startIndex: 35, type: 'keyword.block.sql', bracket: Bracket.Close }
+		{ startIndex: 35, type: 'keyword.block.sql' }
 	]}]
 ]);
