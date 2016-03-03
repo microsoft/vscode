@@ -31,25 +31,25 @@ suite('JSON - tokenization', () => {
 			[{
 			line: '{',
 			tokens: [
-				{ startIndex:0, type: jsonTokenTypes.TOKEN_DELIM_OBJECT, bracket: Modes.Bracket.Open }
+				{ startIndex:0, type: jsonTokenTypes.TOKEN_DELIM_OBJECT }
 			]}],
 
 			[{
 			line: '[',
 			tokens: [
-				{ startIndex:0, type: jsonTokenTypes.TOKEN_DELIM_ARRAY, bracket: Modes.Bracket.Open }
+				{ startIndex:0, type: jsonTokenTypes.TOKEN_DELIM_ARRAY }
 			]}],
 
 			[{
 			line: '}',
 			tokens: [
-				{ startIndex:0, type: jsonTokenTypes.TOKEN_DELIM_OBJECT, bracket: Modes.Bracket.Close }
+				{ startIndex:0, type: jsonTokenTypes.TOKEN_DELIM_OBJECT }
 			]}],
 
 			[{
 			line: ']',
 			tokens: [
-				{ startIndex:0, type: jsonTokenTypes.TOKEN_DELIM_ARRAY, bracket: Modes.Bracket.Close }
+				{ startIndex:0, type: jsonTokenTypes.TOKEN_DELIM_ARRAY }
 			]}],
 
 			[{
@@ -145,21 +145,21 @@ suite('JSON - tokenization', () => {
 			[{
 			line: '{ "foo": "bar" }',
 			tokens: [
-				{ startIndex:0, type: jsonTokenTypes.TOKEN_DELIM_OBJECT, bracket: Modes.Bracket.Open },
+				{ startIndex:0, type: jsonTokenTypes.TOKEN_DELIM_OBJECT },
 				{ startIndex:1, type: '' },
 				{ startIndex:2, type: jsonTokenTypes.TOKEN_PROPERTY_NAME },
 				{ startIndex:7, type: jsonTokenTypes.TOKEN_DELIM_COLON },
 				{ startIndex:8, type: '' },
 				{ startIndex:9, type: jsonTokenTypes.TOKEN_VALUE_STRING },
 				{ startIndex:14, type: '' },
-				{ startIndex:15, type: jsonTokenTypes.TOKEN_DELIM_OBJECT, bracket: Modes.Bracket.Close }
+				{ startIndex:15, type: jsonTokenTypes.TOKEN_DELIM_OBJECT }
 			]}],
 
 			// Arrays, keywords, and numbers
 			[{
 			line: '[-1.5e+4, true, false, null]',
 			tokens: [
-				{ startIndex:0, type: jsonTokenTypes.TOKEN_DELIM_ARRAY, bracket: Modes.Bracket.Open },
+				{ startIndex:0, type: jsonTokenTypes.TOKEN_DELIM_ARRAY },
 				{ startIndex:1, type: jsonTokenTypes.TOKEN_VALUE_NUMBER },
 				{ startIndex:8, type: jsonTokenTypes.TOKEN_DELIM_COMMA },
 				{ startIndex:9, type: '' },
@@ -170,7 +170,7 @@ suite('JSON - tokenization', () => {
 				{ startIndex:21, type: jsonTokenTypes.TOKEN_DELIM_COMMA },
 				{ startIndex:22, type: '' },
 				{ startIndex:23, type: jsonTokenTypes.TOKEN_VALUE_NULL },
-				{ startIndex:27, type: jsonTokenTypes.TOKEN_DELIM_ARRAY, bracket: Modes.Bracket.Close }
+				{ startIndex:27, type: jsonTokenTypes.TOKEN_DELIM_ARRAY }
 			]}]
 		]);
 	});

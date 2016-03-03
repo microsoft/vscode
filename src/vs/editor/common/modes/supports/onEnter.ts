@@ -137,7 +137,7 @@ export class OnEnterSupport implements IRichEditOnEnter {
 			}
 		}
 
-		// (4): Open Bracket based logic
+		// (4): Open bracket based logic
 		if (beforeEnterText.length > 0) {
 			for (let i = 0, len = this._brackets.length; i < len; i++) {
 				let bracket = this._brackets[i];

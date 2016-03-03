@@ -27,19 +27,16 @@ var brackets = (function() {
 	let MAP: {
 		[text:string]:{
 			tokenType: string;
-			bracketType: Modes.Bracket
 		}
 	} = Object.create(null);
 
 	for (let i = 0; i < bracketsSource.length; i++) {
 		let bracket = bracketsSource[i];
 		MAP[bracket.open] = {
-			tokenType: bracket.tokenType,
-			bracketType: Modes.Bracket.Open
+			tokenType: bracket.tokenType
 		};
 		MAP[bracket.close] = {
-			tokenType: bracket.tokenType,
-			bracketType: Modes.Bracket.Close
+			tokenType: bracket.tokenType
 		};
 	}
 
@@ -49,9 +46,6 @@ var brackets = (function() {
 		},
 		tokenTypeFromString: (text:string): string => {
 			return MAP[text].tokenType;
-		},
-		bracketTypeFromString: (text:string): Modes.Bracket => {
-			return MAP[text].bracketType;
 		}
 	};
 })();
@@ -364,7 +358,7 @@ export class PHPStatement extends PHPState {
 			return { nextState: new PHPNumber(this.getMode(), this, stream.next()) };
 		}
 		if (stream.advanceIfString('?>').length) {
-			return { type: 'metatag.php', nextState: this.parent, bracket: Modes.Bracket.Close };
+			return { type: 'metatag.php', nextState: this.parent };
 		}
 
 		var token = stream.nextToken();
@@ -392,7 +386,6 @@ export class PHPStatement extends PHPState {
 			return { nextState: new PHPString(this.getMode(), this, token) };
 		} else if (brackets.stringIsBracket(token)) {
 			return {
-				bracket: brackets.bracketTypeFromString(token),
 				type: brackets.tokenTypeFromString(token)
 			};
 		} else if (isDelimiter(token)) {
@@ -427,8 +420,7 @@ export class PHPPlain extends PHPState {
 		stream.advanceIfString('<?').length || stream.advanceIfString('<%').length) {
 			return {
 				type: 'metatag.php',
-				nextState: new PHPStatement(this.getMode(), new PHPEnterHTMLState(this.getMode(), this.parent)),
-				bracket: Modes.Bracket.Open
+				nextState: new PHPStatement(this.getMode(), new PHPEnterHTMLState(this.getMode(), this.parent))
 			};
 		}
 		stream.next();
