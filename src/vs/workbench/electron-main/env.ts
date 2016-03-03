@@ -318,7 +318,7 @@ function massagePath(path: string): string {
 
 	// Trim '.' chars on Windows to prevent invalid file names
 	if (platform.isWindows) {
-		path = strings.rtrim(normalizePath(path), '.');
+		path = strings.rtrim(resolvePath(path), '.');
 	}
 
 	return path;
@@ -326,6 +326,10 @@ function massagePath(path: string): string {
 
 function normalizePath(p?: string): string {
 	return p ? path.normalize(p) : p;
+}
+
+function resolvePath(p?: string): string {
+	return p ? path.resolve(p): p;
 }
 
 function parseNumber(argv: string[], key: string, defaultValue?: number, fallbackValue?: number): number {
