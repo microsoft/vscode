@@ -622,8 +622,20 @@ export class SplitLinesCollection implements ILinesCollection {
 		return this.prefixSumComputer.getTotalValue();
 	}
 
+	private _toValidOutputLineNumber(outputLineNumber: number): number {
+		if (outputLineNumber < 1) {
+			return 1;
+		}
+		let outputLineCount = this.getOutputLineCount();
+		if (outputLineNumber > outputLineCount) {
+			return outputLineCount;
+		}
+		return outputLineNumber;
+	}
+
 	public getOutputLineContent(outputLineNumber: number): string {
 		this._ensureValidState();
+		outputLineNumber = this._toValidOutputLineNumber(outputLineNumber);
 		this.prefixSumComputer.getIndexOf(outputLineNumber - 1, this.tmpIndexOfResult);
 		var lineIndex = this.tmpIndexOfResult.index;
 		var remainder = this.tmpIndexOfResult.remainder;
@@ -633,6 +645,7 @@ export class SplitLinesCollection implements ILinesCollection {
 
 	public getOutputLineMinColumn(outputLineNumber:number): number {
 		this._ensureValidState();
+		outputLineNumber = this._toValidOutputLineNumber(outputLineNumber);
 		this.prefixSumComputer.getIndexOf(outputLineNumber - 1, this.tmpIndexOfResult);
 		var lineIndex = this.tmpIndexOfResult.index;
 		var remainder = this.tmpIndexOfResult.remainder;
@@ -642,6 +655,7 @@ export class SplitLinesCollection implements ILinesCollection {
 
 	public getOutputLineMaxColumn(outputLineNumber: number): number {
 		this._ensureValidState();
+		outputLineNumber = this._toValidOutputLineNumber(outputLineNumber);
 		this.prefixSumComputer.getIndexOf(outputLineNumber - 1, this.tmpIndexOfResult);
 		var lineIndex = this.tmpIndexOfResult.index;
 		var remainder = this.tmpIndexOfResult.remainder;
@@ -651,6 +665,7 @@ export class SplitLinesCollection implements ILinesCollection {
 
 	public getOutputLineTokens(outputLineNumber: number, inaccurateTokensAcceptable: boolean): editorCommon.IViewLineTokens {
 		this._ensureValidState();
+		outputLineNumber = this._toValidOutputLineNumber(outputLineNumber);
 		this.prefixSumComputer.getIndexOf(outputLineNumber - 1, this.tmpIndexOfResult);
 		var lineIndex = this.tmpIndexOfResult.index;
 		var remainder = this.tmpIndexOfResult.remainder;
@@ -660,20 +675,23 @@ export class SplitLinesCollection implements ILinesCollection {
 
 	public convertOutputPositionToInputPosition(viewLineNumber: number, viewColumn: number): editorCommon.IEditorPosition {
 		this._ensureValidState();
+		viewLineNumber = this._toValidOutputLineNumber(viewLineNumber);
+
 		this.prefixSumComputer.getIndexOf(viewLineNumber - 1, this.tmpIndexOfResult);
 		var lineIndex = this.tmpIndexOfResult.index;
 		var remainder = this.tmpIndexOfResult.remainder;
 
 		var inputColumn = this.lines[lineIndex].getInputColumnOfOutputPosition(remainder, viewColumn);
-//		console.log('out -> in ' + viewLineNumber + ',' + viewColumn + ' ===> ' + (lineIndex+1) + ',' + inputColumn);
-		return new Position(lineIndex+1, inputColumn);
+		// console.log('out -> in ' + viewLineNumber + ',' + viewColumn + ' ===> ' + (lineIndex+1) + ',' + inputColumn);
+		return this.model.validatePosition(new Position(lineIndex+1, inputColumn));
 	}
 
-	public convertInputPositionToOutputPosition(inputLineNumber: number, inputColumn: number): editorCommon.IEditorPosition {
+	public convertInputPositionToOutputPosition(_inputLineNumber: number, _inputColumn: number): editorCommon.IEditorPosition {
 		this._ensureValidState();
-		if (inputLineNumber > this.lines.length) {
-			inputLineNumber = this.lines.length;
-		}
+
+		let validPosition = this.model.validatePosition(new Position(_inputLineNumber, _inputColumn));
+		let inputLineNumber = validPosition.lineNumber;
+		let inputColumn = validPosition.column;
 
 		let lineIndex = inputLineNumber - 1, lineIndexChanged = false;
 		while (lineIndex > 0 && !this.lines[lineIndex].isVisible()) {
@@ -682,6 +700,7 @@ export class SplitLinesCollection implements ILinesCollection {
 		}
 		if (lineIndex === 0 && !this.lines[lineIndex].isVisible()) {
 			// Could not reach a real line
+			// console.log('in -> out ' + inputLineNumber + ',' + inputColumn + ' ===> ' + 1 + ',' + 1);
 			return new Position(1, 1);
 		}
 		var deltaLineNumber = 1 + (lineIndex === 0 ? 0 : this.prefixSumComputer.getAccumulatedValue(lineIndex - 1));
@@ -693,7 +712,7 @@ export class SplitLinesCollection implements ILinesCollection {
 			r = this.lines[inputLineNumber - 1].getOutputPositionOfInputPosition(deltaLineNumber, inputColumn);
 		}
 
-//		console.log('in -> out ' + inputLineNumber + ',' + inputColumn + ' ===> ' + r.lineNumber + ',' + r.column);
+		// console.log('in -> out ' + inputLineNumber + ',' + inputColumn + ' ===> ' + r.lineNumber + ',' + r);
 		return r;
 	}
 }
