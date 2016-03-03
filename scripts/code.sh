@@ -14,10 +14,10 @@ function code() {
 	test -d node_modules || ./scripts/npm.sh install
 
 	# Get electron
-	node node_modules/gulp/bin/gulp.js electron
+	./node_modules/.bin/gulp electron
 
 	# Build
-	test -d out || gulp compile
+	test -d out || ./node_modules/.bin/gulp compile
 
 	# Configuration
 	export NODE_ENV=development
