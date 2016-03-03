@@ -27,6 +27,7 @@ export interface LaunchRequestArguments extends DebugProtocol.LaunchRequestArgum
     externalConsole?: boolean;
     cwd?: string;
     debugOptions?: string[];
+    env?: Object;
 }
 // 
 // export interface LaunchDjangoRequestArguments extends LaunchRequestArguments {
