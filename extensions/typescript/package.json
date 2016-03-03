@@ -11,7 +11,8 @@
 		"vscode": "*"
 	},
 	"dependencies": {
-    "vscode-extension-telemetry": "^0.0.4"
+		"vscode-extension-telemetry": "^0.0.4",
+		"vscode-nls": "^1.0.4"
 	},
 	"scripts": {
 		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./src/tsconfig.json"

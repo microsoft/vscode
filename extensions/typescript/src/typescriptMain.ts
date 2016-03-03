@@ -9,7 +9,7 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { languages, commands, workspace, window, Uri, ExtensionContext, IndentAction, Diagnostic, DiagnosticCollection, Range } from 'vscode';
+import { env, languages, commands, workspace, window, Uri, ExtensionContext, IndentAction, Diagnostic, DiagnosticCollection, Range } from 'vscode';
 
 import * as Proto from './protocol';
 import TypeScriptServiceClient from './typescriptServiceClient';
@@ -31,7 +31,10 @@ import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 
 import * as VersionStatus from './utils/versionStatus';
 
+import * as nls from 'vscode-nls';
+
 export function activate(context: ExtensionContext): void {
+	nls.config({locale: env.language});
 
 	let MODE_ID_TS = 'typescript';
 	let MODE_ID_TSX = 'typescriptreact';

@@ -20,6 +20,9 @@ import * as VersionStatus from './utils/versionStatus';
 
 import TelemetryReporter from 'vscode-extension-telemetry';
 
+import * as nls from 'vscode-nls';
+let localize = nls.loadMessageBundle();
+
 interface CallbackItem {
 	c: (value: any) => void;
 	e: (err: any) => void;
@@ -157,7 +160,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 
 		if (!fs.existsSync(modulePath)) {
-			window.showErrorMessage(`The path ${path.dirname(modulePath)} doesn't point to a valid tsserver install. TypeScript language features will be disabled.`);
+			window.showErrorMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. TypeScript language features will be disabled.', path.dirname(modulePath)));
 			return;
 		}
 
@@ -180,7 +183,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				electron.fork(modulePath, [], options, (err: any, childProcess: cp.ChildProcess) => {
 					if (err) {
 						this.lastError = err;
-						window.showErrorMessage(`TypeScript language server couldn\'t be started. Error message is: ${err.message}`);
+						window.showErrorMessage(localize('serverCouldNotBeStarted', 'TypeScript language server couldn\'t be started. Error message is: {0}'), err.message);
 						this.logTelemetry('error', {message: err.message});
 						return;
 					}
@@ -249,10 +252,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			let startService = true;
 			if (this.numberRestarts > 5) {
 				if (diff < 60 * 1000 /* 1 Minutes */) {
-					window.showWarningMessage('The Typescript language service died unexpectedly 5 times in the last 5 Minutes. Please consider to open a bug report.');
+					window.showWarningMessage(localize('serverDied','The Typescript language service died unexpectedly 5 times in the last 5 Minutes. Please consider to open a bug report.'));
 				} else if (diff < 2 * 1000 /* 2 seconds */) {
 					startService = false;
-					window.showErrorMessage('The Typesrript language service died 5 times right after it got started. The service will not be restarted. Please open a bug report.');
+					window.showErrorMessage(localize('serverDiedAfterStart', 'The Typesrript language service died 5 times right after it got started. The service will not be restarted. Please open a bug report.'));
 					this.logTelemetry('serviceExited');
 				}
 			}
