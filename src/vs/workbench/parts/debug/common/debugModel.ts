@@ -23,7 +23,7 @@ function resolveChildren(debugService: debug.IDebugService, parent: debug.IExpre
 	}
 
 	return session.variables({ variablesReference: parent.reference }).then(response => {
-		return arrays.distinct(response.body.variables, v => v.name).map(
+		return arrays.distinct(response.body.variables.filter(v => !!v), v => v.name).map(
 			v => new Variable(parent, v.variablesReference, v.name, v.value)
 		);
 	}, (e: Error) => [new Variable(parent, 0, null, e.message, false)]);
