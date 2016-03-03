@@ -2032,10 +2032,11 @@ export class CloseFileAction extends Action {
 	}
 
 	public run(): TPromise<any> {
+		let editor = this.editorService.getActiveEditor();
 		let input = this.editorService.getActiveEditorInput();
 		let resource = workbenchEditorCommon.getUntitledOrFileResource(input, true);
 
-		// Only works if we have a file or untitled input
+		// For a file or untitled
 		if (resource) {
 			let model = this.textFileService.getWorkingFilesModel();
 			let entry = model.findEntry(resource);
@@ -2066,6 +2067,11 @@ export class CloseFileAction extends Action {
 					input.dispose();
 				}
 			}
+		}
+
+		// Any other editor just closes
+		else if (editor) {
+			this.editorService.closeEditor(editor).done(null, errors.onUnexpectedError);;
 		}
 
 		// Otherwise tell the user
