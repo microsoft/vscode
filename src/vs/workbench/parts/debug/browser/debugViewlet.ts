@@ -59,7 +59,8 @@ class VariablesView extends viewlet.CollapsibleViewletView {
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super(actionRunner, !!settings[VariablesView.MEMENTO], nls.localize('variablesSection', "Variables Section"), messageService, contextMenuService);
 	}
@@ -91,6 +92,14 @@ class VariablesView extends viewlet.CollapsibleViewletView {
 		this.toDispose.push(viewModel.addListener2(debug.ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => this.onFocusedStackFrameUpdated()));
 		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => {
 			collapseAction.enabled = this.debugService.getState() === debug.State.Running || this.debugService.getState() === debug.State.Stopped;
+		}));
+		this.toDispose.push(this.tree.addListener2(events.EventType.FOCUS, (e: tree.IFocusEvent) => {
+			const isMouseClick = (e.payload.origin === 'mouse');
+			const isVariableType = (e.focus instanceof model.Variable);
+
+			if(isMouseClick && isVariableType) {
+				this.telemetryService.publicLog('debuggerService/variables/selected');
+			}
 		}));
 	}
 
@@ -196,7 +205,8 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super(actionRunner, !!settings[CallStackView.MEMENTO], nls.localize('callstackSection', "Call Stack Section"), messageService, contextMenuService);
 	}
@@ -247,6 +257,14 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 
 			const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
 			this.debugService.openOrRevealEditor(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+		}));
+		this.toDispose.push(this.tree.addListener2(events.EventType.FOCUS, (e: tree.IFocusEvent) => {
+			const isMouseClick = (e.payload.origin === 'mouse');
+			const isStackFrameType = (e.focus instanceof model.StackFrame);
+
+			if (isMouseClick && isStackFrameType) {
+				this.telemetryService.publicLog('debuggerService/callStack/selected');
+			}
 		}));
 
 		this.toDispose.push(debugModel.addListener2(debug.ModelEvents.CALLSTACK_UPDATED, () => {
