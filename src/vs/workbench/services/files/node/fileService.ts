@@ -154,16 +154,25 @@ export class FileService implements files.IFileService {
 				});
 			}
 
-			let etag = options && options.etag;
-			let enc = options && options.encoding;
-
-			let detectedEncoding = detected.encoding;
-			if (detectedEncoding === encoding.UTF8) {
-				detectedEncoding = encoding.UTF8_with_bom; // if we detected UTF-8, it can only be because of a BOM
+			let preferredEncoding: string;
+			if (options && options.encoding) {
+				if (detected.encoding === encoding.UTF8 && options.encoding === encoding.UTF8) {
+					preferredEncoding = encoding.UTF8_with_bom; // indicate the file has BOM if we are to resolve with UTF 8
+				} else {
+					preferredEncoding = options.encoding; // give passed in encoding highest priority
+				}
+			} else if (detected.encoding) {
+				if (detected.encoding === encoding.UTF8) {
+					preferredEncoding = encoding.UTF8_with_bom; // if we detected UTF-8, it can only be because of a BOM
+				} else {
+					preferredEncoding = detected.encoding;
+				}
+			} else if (this.options.encoding === encoding.UTF8_with_bom) {
+				preferredEncoding = encoding.UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
 			}
 
 			// 2.) get content
-			return this.resolveFileContent(resource, etag, enc /* give user choice precedence */ || detectedEncoding).then((content) => {
+			return this.resolveFileContent(resource, options && options.etag, preferredEncoding).then((content) => {
 
 				// set our knowledge about the mime on the content obj
 				content.mime = detected.mimes.join(', ');
@@ -460,20 +469,16 @@ export class FileService implements files.IFileService {
 		});
 	}
 
-	private getEncoding(resource: uri, candidate?: string): string {
+	private getEncoding(resource: uri, preferredEncoding?: string): string {
 		let fileEncoding: string;
 
 		let override = this.getEncodingOverride(resource);
 		if (override) {
 			fileEncoding = override;
-		} else if (candidate) {
-			fileEncoding = candidate;
+		} else if (preferredEncoding) {
+			fileEncoding = preferredEncoding;
 		} else {
-			if (this.options.encoding === encoding.UTF8_with_bom) {
-				fileEncoding = encoding.UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
-			} else {
-				fileEncoding = this.options.encoding;
-			}
+			fileEncoding = this.options.encoding;
 		}
 
 		if (!fileEncoding || !encoding.encodingExists(fileEncoding)) {
