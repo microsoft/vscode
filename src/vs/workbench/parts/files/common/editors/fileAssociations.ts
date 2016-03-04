@@ -39,6 +39,11 @@ export class FileAssociations implements IWorkbenchContribution {
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
+
+		// Clear user configured mime associations
+		mime.clearTextMimes(true /* user configured */);
+
+		// Register based on settings
 		if (configuration.files && configuration.files.associations) {
 			Object.keys(configuration.files.associations).forEach(pattern => {
 				mime.registerTextMime({ mime: this.modeService.getMimeForMode(configuration.files.associations[pattern]), filepattern: pattern, userConfigured: true });

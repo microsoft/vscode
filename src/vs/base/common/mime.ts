@@ -22,10 +22,10 @@ export interface ITextMimeAssociation {
 	userConfigured?: boolean;
 }
 
-const registeredAssociations: ITextMimeAssociation[] = [];
+let registeredAssociations: ITextMimeAssociation[] = [];
 
 /**
- * Associate a text mime to the registry
+ * Associate a text mime to the registry.
  */
 export function registerTextMime(association: ITextMimeAssociation): void {
 
@@ -55,6 +55,17 @@ export function registerTextMime(association: ITextMimeAssociation): void {
 				console.warn(`Overwriting firstline <<${association.firstline}>> to now point to mime <<${association.mime}>>`);
 			}
 		});
+	}
+}
+
+/**
+ * Clear text mimes from the registry.
+ */
+export function clearTextMimes(onlyUserConfigured?: boolean): void {
+	if (!onlyUserConfigured) {
+		registeredAssociations = [];
+	} else {
+		registeredAssociations = registeredAssociations.filter(a => !a.userConfigured);
 	}
 }
 
