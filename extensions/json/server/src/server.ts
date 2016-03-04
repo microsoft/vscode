@@ -30,6 +30,7 @@ import {BowerJSONContribution} from './jsoncontributions/bowerJSONContribution';
 import {PackageJSONContribution} from './jsoncontributions/packageJSONContribution';
 import {ProjectJSONContribution} from './jsoncontributions/projectJSONContribution';
 import {GlobPatternContribution} from './jsoncontributions/globPatternContribution';
+import {FileAssociationContribution} from './jsoncontributions/fileAssociationContribution';
 
 import * as nls from 'vscode-nls';
 nls.config(process.env['VSCODE_NLS_CONFIG']);
@@ -118,7 +119,8 @@ let contributions = [
 	new ProjectJSONContribution(request),
 	new PackageJSONContribution(request),
 	new BowerJSONContribution(request),
-	new GlobPatternContribution()
+	new GlobPatternContribution(),
+	new FileAssociationContribution()
 ];
 
 let jsonSchemaService = new JSONSchemaService(request, workspaceContext, telemetry);

@@ -26,6 +26,7 @@ import {AutoSaveConfiguration} from 'vs/platform/files/common/files';
 import {FILE_EDITOR_INPUT_ID, VIEWLET_ID} from 'vs/workbench/parts/files/common/files';
 import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
 import {SaveParticipant} from 'vs/workbench/parts/files/common/editors/saveParticipant';
+import {FileAssociations} from 'vs/workbench/parts/files/common/editors/fileAssociations';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {TextFileEditor} from 'vs/workbench/parts/files/browser/editors/textFileEditor';
 import {BinaryFileEditor} from 'vs/workbench/parts/files/browser/editors/binaryFileEditor';
@@ -161,6 +162,11 @@ class FileEditorInputFactory implements IEditorInputFactory {
 	SaveParticipant
 );
 
+// Register File Associations
+(<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(
+	FileAssociations
+);
+
 // Configuration
 let configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
 
@@ -171,7 +177,6 @@ configurationRegistry.registerConfiguration({
 	'type': 'object',
 	'properties': {
 		'files.exclude': {
-			'id': 'glob-pattern',
 			'type': 'object',
 			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders."),
 			'default': { '**/.git': true, '**/.DS_Store': true },
@@ -194,6 +199,10 @@ configurationRegistry.registerConfiguration({
 					}
 				]
 			}
+		},
+		'files.association': {
+			'type': 'object',
+			'description': nls.localize('association', "Configure file associations to languages (e.g. \"*.extension\": \"html\"). These have precedence over the default associations of the languages installed."),
 		},
 		'files.encoding': {
 			'type': 'string',
