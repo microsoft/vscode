@@ -58,10 +58,11 @@ class VariablesView extends viewlet.CollapsibleViewletView {
 	constructor(actionRunner: actions.IActionRunner, private settings: any,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(actionRunner, !!settings[VariablesView.MEMENTO], nls.localize('variablesSection', "Variables Section"), messageService, contextMenuService);
+		super(actionRunner, !!settings[VariablesView.MEMENTO], nls.localize('variablesSection', "Variables Section"), messageService, contextMenuService, telemetryService);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -92,6 +93,14 @@ class VariablesView extends viewlet.CollapsibleViewletView {
 		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => {
 			collapseAction.enabled = this.debugService.getState() === debug.State.Running || this.debugService.getState() === debug.State.Stopped;
 		}));
+		this.toDispose.push(this.tree.addListener2(events.EventType.FOCUS, (e: tree.IFocusEvent) => {
+			const isMouseClick = (e.payload.origin === 'mouse');
+			const isVariableType = (e.focus instanceof model.Variable);
+
+			if(isMouseClick && isVariableType) {
+				this.telemetryService.publicLog('debuggerService/variables/selected');
+			}
+		}));
 	}
 
 	private onFocusedStackFrameUpdated(): void {
@@ -120,10 +129,11 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 	constructor(actionRunner: actions.IActionRunner, private settings: any,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(actionRunner, !!settings[WatchExpressionsView.MEMENTO], nls.localize('expressionsSection', "Expressions Section"), messageService, contextMenuService);
+		super(actionRunner, !!settings[WatchExpressionsView.MEMENTO], nls.localize('expressionsSection', "Expressions Section"), messageService, contextMenuService, telemetryService);
 		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, (we) => {
 			// only expand when a new watch expression is added.
 			if (we instanceof model.Expression) {
@@ -195,10 +205,11 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 	constructor(actionRunner: actions.IActionRunner, private settings: any,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(actionRunner, !!settings[CallStackView.MEMENTO], nls.localize('callstackSection', "Call Stack Section"), messageService, contextMenuService);
+		super(actionRunner, !!settings[CallStackView.MEMENTO], nls.localize('callstackSection', "Call Stack Section"), messageService, contextMenuService, telemetryService);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -247,6 +258,14 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 
 			const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
 			this.debugService.openOrRevealEditor(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+		}));
+		this.toDispose.push(this.tree.addListener2(events.EventType.FOCUS, (e: tree.IFocusEvent) => {
+			const isMouseClick = (e.payload.origin === 'mouse');
+			const isStackFrameType = (e.focus instanceof model.StackFrame);
+
+			if (isMouseClick && isStackFrameType) {
+				this.telemetryService.publicLog('debuggerService/callStack/selected');
+			}
 		}));
 
 		this.toDispose.push(debugModel.addListener2(debug.ModelEvents.CALLSTACK_UPDATED, () => {

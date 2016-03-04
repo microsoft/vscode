@@ -10,13 +10,14 @@ import errors = require('vs/base/common/errors');
 import {Registry} from 'vs/platform/platform';
 import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import {IAction, IActionRunner, Action} from 'vs/base/common/actions';
+import {EventType} from 'vs/base/common/events';
 import {IActionItem, ActionsOrientation} from 'vs/base/browser/ui/actionbar/actionbar';
 import {ITree, IFocusEvent, ISelectionEvent} from 'vs/base/parts/tree/browser/tree';
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {DelayedDragHandler} from 'vs/base/browser/dnd';
 import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
-import {CollapsibleView, CollapsibleState, FixedCollapsibleView} from 'vs/base/browser/ui/splitview/splitview';
+import {CollapsibleView, CollapsibleState, FixedCollapsibleView, Orientation} from 'vs/base/browser/ui/splitview/splitview';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IViewlet} from 'vs/workbench/common/viewlet';
@@ -24,6 +25,7 @@ import {Composite, CompositeDescriptor, CompositeRegistry} from 'vs/workbench/br
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {StructuredSelection} from 'vs/platform/selection/common/selection';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 
 export abstract class Viewlet extends Composite implements IViewlet { }
 
@@ -428,7 +430,8 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 		collapsed: boolean,
 		private viewName: string,
 		@IMessageService protected messageService: IMessageService,
-		@IContextMenuService protected contextMenuService: IContextMenuService
+		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@ITelemetryService protected telemetryService: ITelemetryService
 	) {
 		super({
 			minimumSize: 2 * 22,
@@ -448,6 +451,16 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 
 	public create(): TPromise<void> {
 		return TPromise.as(null);
+	}
+
+	public render(container: HTMLElement, orientation: Orientation): void {
+		super.render(container, orientation);
+		this.toDispose.push(this.tree.addListener2(EventType.FOCUS, (e: IFocusEvent) => {
+			const isMouseClick = e.payload !== null && e.payload.origin === 'mouse';
+			if(isMouseClick && this.tree.getInput() === e.focus) {
+				this.telemetryService.publicLog(this.viewName + '/treeItemClicked', { isMouseClick: e.payload.origin === 'mouse', type: e.focus.constructor.type });
+			}
+		}));
 	}
 
 	public renderHeader(container: HTMLElement): void {

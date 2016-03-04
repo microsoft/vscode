@@ -477,6 +477,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	public addReplExpression(name: string): TPromise<void> {
+		this.telemetryService.publicLog('debugService/addReplExpression');
 		return this.model.addReplExpression(this.session, this.viewModel.getFocusedStackFrame(), name);
 	}
 
@@ -593,7 +594,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			});
 			this.inDebugMode.set(true);
 
-			this.telemetryService.publicLog('debugSessionStart', { type: configuration.type, breakpointCount: this.model.getBreakpoints().length, exceptionBreakpoints: this.model.getExceptionBreakpoints() });
+			this.telemetryService.publicLog('debugSessionStart', { type: configuration.type, breakpointCount: this.model.getBreakpoints().length, exceptionBreakpoints: this.model.getExceptionBreakpoints(), watchExpressionsCount: this.model.getWatchExpressions().length });
 		}).then(undefined, (error: any) => {
 			this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined });
 			if (this.session) {
@@ -690,7 +691,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 		if (this.session) {
 			const bpsExist = this.model.getBreakpoints().length > 0;
-			this.telemetryService.publicLog('debugSessionStop', { type: this.session.getType(), success: this.session.emittedStopped || !bpsExist, sessionLengthInSeconds: this.session.getLengthInSeconds(), breakpointCount: this.model.getBreakpoints().length });
+			this.telemetryService.publicLog('debugSessionStop', { type: this.session.getType(), success: this.session.emittedStopped || !bpsExist, sessionLengthInSeconds: this.session.getLengthInSeconds(), breakpointCount: this.model.getBreakpoints().length, watchExpressionsCount: this.model.getWatchExpressions().length });
 		}
 		this.session = null;
 		this.partService.removeClass('debugging');
