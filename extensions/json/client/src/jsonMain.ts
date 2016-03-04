@@ -27,6 +27,8 @@ namespace SchemaAssociationNotification {
 
 export function activate(context: ExtensionContext) {
 
+	console.log('JSON activated');
+
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'server.js'));
 	// The debug options for the server

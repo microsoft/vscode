@@ -18,8 +18,7 @@
 		"typescript": "^1.6.2"
 	},
 	"scripts": {
-		"compile": "tsc -p .",
-		"watch": "tsc --watch -p .",
-		"postinstall": "tsc -p ."
+		"compile": "gulp compile-extension:json-server",
+		"watch": "gulp watch-extension:json-server"
 	}
 }
