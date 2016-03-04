@@ -274,7 +274,7 @@ export class WorkbenchShell {
 		let extensionService = new MainProcessExtensionService(this.contextService, this.threadService, this.messageService, this.telemetryService);
 		this.keybindingService.setExtensionService(extensionService);
 
-		let modeService = new MainThreadModeServiceImpl(this.threadService, extensionService);
+		let modeService = new MainThreadModeServiceImpl(this.threadService, extensionService, configService);
 		let modelService = new ModelServiceImpl(this.threadService, markerService, modeService, configService);
 		let editorWorkerService = new EditorWorkerServiceImpl(modelService);
 

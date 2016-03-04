@@ -186,7 +186,7 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 	let extensionService = services.extensionService || new SimpleExtensionService();
 	let markerService = services.markerService || new MainProcessMarkerService(threadService);
 	let requestService = services.requestService || new SimpleEditorRequestService(contextService, telemetryService);
-	let modeService = services.modeService || new MainThreadModeServiceImpl(threadService, extensionService);
+	let modeService = services.modeService || new MainThreadModeServiceImpl(threadService, extensionService, configurationService);
 	let modelService = services.modelService || new ModelServiceImpl(threadService, markerService, modeService, configurationService);
 	let editorWorkerService = services.editorWorkerService || new EditorWorkerServiceImpl(modelService);
 	let codeEditorService = services.codeEditorService || new CodeEditorServiceImpl();

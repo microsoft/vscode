@@ -11,6 +11,8 @@ import {IDisposable, combinedDispose, empty as EmptyDisposable} from 'vs/base/co
 import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
 import {TPromise} from 'vs/base/common/winjs.base';
+import mime = require('vs/base/common/mime');
+import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {createAsyncDescriptor0, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
@@ -32,6 +34,7 @@ import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerServic
 import {LanguagesRegistry} from 'vs/editor/common/services/languagesRegistry';
 import {ILanguageExtensionPoint, IModeLookupResult, IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 
 interface IModeConfigurationMap { [modeId: string]: any; }
 
@@ -146,7 +149,8 @@ export class ModeServiceImpl implements IModeService {
 	public serviceId = IModeService;
 
 	protected _threadService: IThreadService;
-	private _extensionService: IExtensionService;
+	protected _extensionService: IExtensionService;
+
 	private _activationPromises: { [modeId: string]: TPromise<modes.IMode>; };
 	private _instantiatedModes: { [modeId: string]: modes.IMode; };
 	private _config: IModeConfigurationMap;
@@ -162,6 +166,7 @@ export class ModeServiceImpl implements IModeService {
 	constructor(threadService:IThreadService, extensionService:IExtensionService) {
 		this._threadService = threadService;
 		this._extensionService = extensionService;
+
 		this._activationPromises = {};
 		this._instantiatedModes = {};
 		this._config = {};
@@ -315,8 +320,12 @@ export class ModeServiceImpl implements IModeService {
 		return null;
 	}
 
+	public onReady(): TPromise<boolean> {
+		return this._extensionService.onReady();
+	}
+
 	public getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<modes.IMode> {
-		return this._extensionService.onReady().then(() => {
+		return this.onReady().then(() => {
 			var modeId = this.getModeId(commaSeparatedMimetypesOrCommaSeparatedIds);
 			// Fall back to plain text if no mode was found
 			return this._getOrCreateMode(modeId || 'plaintext');
@@ -324,7 +333,7 @@ export class ModeServiceImpl implements IModeService {
 	}
 
 	public getOrCreateModeByLanguageName(languageName: string): TPromise<modes.IMode> {
-		return this._extensionService.onReady().then(() => {
+		return this.onReady().then(() => {
 			var modeId = this.getModeIdByLanguageName(languageName);
 			// Fall back to plain text if no mode was found
 			return this._getOrCreateMode(modeId || 'plaintext');
@@ -332,7 +341,7 @@ export class ModeServiceImpl implements IModeService {
 	}
 
 	public getOrCreateModeByFilenameOrFirstLine(filename: string, firstLine?:string): TPromise<modes.IMode> {
-		return this._extensionService.onReady().then(() => {
+		return this.onReady().then(() => {
 			var modeId = this.getModeIdByFilenameOrFirstLine(filename, firstLine);
 			// Fall back to plain text if no mode was found
 			return this._getOrCreateMode(modeId || 'plaintext');
@@ -498,12 +507,16 @@ export class ModeServiceImpl implements IModeService {
 
 export class MainThreadModeServiceImpl extends ModeServiceImpl {
 	private _hasInitialized: boolean;
+	private _configurationService: IConfigurationService;
+	private _onReadyPromise: TPromise<boolean>;
 
 	constructor(
 		threadService:IThreadService,
-		extensionService:IExtensionService
+		extensionService:IExtensionService,
+		configurationService: IConfigurationService
 	) {
 		super(threadService, extensionService);
+		this._configurationService = configurationService;
 		this._hasInitialized = false;
 
 		languagesExtPoint.setHandler((extensions:IExtensionPointUser<ILanguageExtensionPoint[]>[]) => {
@@ -535,6 +548,35 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 			ModesRegistry.registerLanguages(allValidLanguages);
 
 		});
+
+		this._configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.onConfigurationChange(e.config));
+	}
+
+	public onReady(): TPromise<boolean> {
+		if (!this._onReadyPromise) {
+			this._onReadyPromise = this._configurationService.loadConfiguration().then((configuration: IFilesConfiguration) => {
+				return this._extensionService.onReady().then(() => {
+					this.onConfigurationChange(configuration);
+
+					return true;
+				});
+			});
+		}
+
+		return this._onReadyPromise;
+	}
+
+	private onConfigurationChange(configuration: IFilesConfiguration): void {
+
+		// Clear user configured mime associations
+		mime.clearTextMimes(true /* user configured */);
+
+		// Register based on settings
+		if (configuration.files && configuration.files.associations) {
+			Object.keys(configuration.files.associations).forEach(pattern => {
+				mime.registerTextMime({ mime: this.getMimeForMode(configuration.files.associations[pattern]), filepattern: pattern, userConfigured: true });
+			});
+		}
 	}
 
 	private _getModeServiceWorkerHelper(): ModeServiceWorkerHelper {
