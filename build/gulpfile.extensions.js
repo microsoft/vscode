@@ -83,11 +83,11 @@ var tasks = compilations.map(function(tsconfigFile) {
 	})();
 
 	var root = path.join('extensions', globRelativeDirname);
-	var sources = path.join(root, '**');
-	var base = path.join(root, 'src');
+	var srcBase = path.join(root, 'src');
+	var src = path.join(srcBase, '**');
 	var out = path.join(root, 'out');
 
-	var sourcesOpts = { cwd: path.dirname(__dirname), base: base };
+	var srcOpts = { cwd: path.dirname(__dirname), base: srcBase };
 	var depsOpts = { cwd: path.dirname(__dirname)	};
 
 	gulp.task(clean, function (cb) {
@@ -95,27 +95,27 @@ var tasks = compilations.map(function(tsconfigFile) {
 	});
 
 	gulp.task(compile, [clean], function () {
-		var src = es.merge(gulp.src(sources, sourcesOpts), gulp.src(deps, depsOpts));
+		var input = es.merge(gulp.src(src, srcOpts), gulp.src(deps, depsOpts));
 
-		return src
+		return input
 			.pipe(pipeline(false))
 			.pipe(gulp.dest(out));
 	});
 
 	gulp.task(compileBuild, [clean], function () {
-		var src = es.merge(gulp.src(sources, sourcesOpts), gulp.src(deps, depsOpts));
+		var input = es.merge(gulp.src(src, srcOpts), gulp.src(deps, depsOpts));
 
-		return src
+		return input
 			.pipe(pipeline(true))
 			.pipe(gulp.dest(out));
 	});
 
 	gulp.task(watch, [clean], function () {
-		var src = es.merge(gulp.src(sources, sourcesOpts), gulp.src(deps, depsOpts));
-		var watchSrc = es.merge(watcher(sources, sourcesOpts), watcher(deps, depsOpts));
+		var input = es.merge(gulp.src(src, srcOpts), gulp.src(deps, depsOpts));
+		var watchInput = es.merge(watcher(src, srcOpts), watcher(deps, depsOpts));
 
-		return watchSrc
-			.pipe(util.incremental(pipeline, src))
+		return watchInput
+			.pipe(util.incremental(pipeline, input))
 			.pipe(gulp.dest(out));
 	});
 
