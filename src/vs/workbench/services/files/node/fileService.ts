@@ -468,8 +468,12 @@ export class FileService implements files.IFileService {
 			fileEncoding = override;
 		} else if (candidate) {
 			fileEncoding = candidate;
-		} else if (this.options) {
-			fileEncoding = this.options.encoding;
+		} else {
+			if (this.options.encoding === encoding.UTF8_with_bom) {
+				fileEncoding = encoding.UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
+			} else {
+				fileEncoding = this.options.encoding;
+			}
 		}
 
 		if (!fileEncoding || !encoding.encodingExists(fileEncoding)) {
