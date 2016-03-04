@@ -13,10 +13,6 @@
 		"vscode-languageserver": "^1.3.0",
 		"vscode-nls": "^1.0.4"
 	},
-	"devDependencies": {
-		"mocha": "^2.2.5",
-		"typescript": "^1.6.2"
-	},
 	"scripts": {
 		"compile": "gulp compile-extension:json-server",
 		"watch": "gulp watch-extension:json-server"
