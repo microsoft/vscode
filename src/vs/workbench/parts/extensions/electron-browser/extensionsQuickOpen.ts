@@ -579,14 +579,15 @@ class SuggestedExtensionsModel implements IModel<IExtensionEntry> {
 					highlights,
 					state: ExtensionState.Uninstalled
 				};
-			});
+			})
+			.sort(extensionEntryCompare);
 	}
 }
 
 
 export class SuggestedExtensionHandler extends QuickOpenHandler {
 
-	private model: SuggestedExtensionsModel;
+	private modelPromise: TPromise<SuggestedExtensionsModel>;
 
 	constructor(
 		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
@@ -598,20 +599,20 @@ export class SuggestedExtensionHandler extends QuickOpenHandler {
 	}
 
 	getResults(input: string): TPromise<IModel<IExtensionEntry>> {
-		return this.extensionsService.getInstalled().then(localExtensions => {
-			const model = this.instantiationService.createInstance(
-				SuggestedExtensionsModel,
-				this.extensionTipsService.tips,
-				localExtensions
-			);
+		if (!this.modelPromise) {
+			this.telemetryService.publicLog('extensionRecommendations:open');
+			this.modelPromise = TPromise.join<any>([this.extensionTipsService.getRecommendations(), this.extensionsService.getInstalled()])
+				.then(result => this.instantiationService.createInstance(SuggestedExtensionsModel, result[0], result[1]));
+		}
 
+		return this.modelPromise.then(model => {
 			model.input = input;
 			return model;
 		});
 	}
 
 	onClose(canceled: boolean): void {
-		this.model = null;
+		this.modelPromise = null;
 	}
 
 	getEmptyLabel(input: string): string {
