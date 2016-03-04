@@ -320,7 +320,7 @@ function buildDebPackage(arch) {
 	var debArch = getDebPackageArch(arch);
 	return shell.task([
 		'mkdir -p deb',
-		'fakeroot dpkg-deb -b vscode-' + debArch + ' deb/vscode-amd64.deb',
+		'fakeroot dpkg-deb -b vscode-' + debArch + ' deb/vscode-' + debArch + '.deb',
 		'dpkg-scanpackages deb /dev/null > Packages'
 	], { cwd: '.build/linux/' + debArch});
 }
