@@ -14,38 +14,47 @@ export let MIME_BINARY = 'application/octet-stream';
 export let MIME_UNKNOWN = 'application/unknown';
 
 export interface ITextMimeAssociation {
-	pattern?: string;
-	firstLineRegExp?: RegExp;
+	mime: string;
+	filename?: string;
+	extension?: string;
+	filepattern?: string;
+	firstline?: RegExp;
 	userConfigured?: boolean;
 }
 
-const registeredTextMimesByFilename: { [str: string]: string; } = Object.create(null);
-const userConfiguredTextMimesByFilename: { [str: string]: string; } = Object.create(null);
-const registeredTextMimesByFirstLine: { regexp: RegExp; mime: string; }[] = [];
+const registeredAssociations: ITextMimeAssociation[] = [];
 
 /**
  * Associate a text mime to the registry
  */
-export function registerTextMime(mime: string, association: ITextMimeAssociation): void {
-	if (mime && association) {
+export function registerTextMime(association: ITextMimeAssociation): void {
 
-		// Firstline pattern
-		if (association.firstLineRegExp) {
-			registeredTextMimesByFirstLine.push({ regexp: association.firstLineRegExp, mime: mime });
-		}
+	// Register
+	registeredAssociations.push(association);
 
-		// User configured
-		if (association.userConfigured && association.pattern) {
-			userConfiguredTextMimesByFilename[association.pattern] = mime;
-		}
-
-		// Built in or via Extension
-		else if (association.pattern) {
-			if (registeredTextMimesByFilename[association.pattern] && registeredTextMimesByFilename[association.pattern] !== mime) {
-				console.warn('Overwriting filename <<' + association.pattern + '>> to now point to mime <<' + mime + '>>');
+	// Check for conflicts unless this is a user configured association
+	if (!association.userConfigured) {
+		registeredAssociations.forEach(a => {
+			if (a.mime === association.mime || a.userConfigured) {
+				return; // same mime or userConfigured is ok
 			}
-			registeredTextMimesByFilename[association.pattern] = mime;
-		}
+
+			if (association.extension && a.extension === association.extension) {
+				console.warn(`Overwriting extension <<${association.extension}>> to now point to mime <<${association.mime}>>`);
+			}
+
+			if (association.filename && a.filename === association.filename) {
+				console.warn(`Overwriting filename <<${association.filename}>> to now point to mime <<${association.mime}>>`);
+			}
+
+			if (association.filepattern && a.filepattern === association.filepattern) {
+				console.warn(`Overwriting filepattern <<${association.filepattern}>> to now point to mime <<${association.mime}>>`);
+			}
+
+			if (association.firstline && a.firstline === association.firstline) {
+				console.warn(`Overwriting firstline <<${association.firstline}>> to now point to mime <<${association.mime}>>`);
+			}
+		});
 	}
 }
 
@@ -58,15 +67,20 @@ export function guessMimeTypes(path: string, firstLine?: string): string[] {
 	}
 
 	path = path.toLowerCase();
-	let filename = paths.basename(path);
 
-	// 1.) Configured mappings have highest priority
-	let configuredMime = guessMimeTypeByFilename(filename, userConfiguredTextMimesByFilename);
+	// 1.) User configured mappings have highest priority
+	let configuredMime = guessMimeTypeByPath(path, registeredAssociations.filter(a => a.userConfigured));
 	if (configuredMime) {
 		return [configuredMime, MIME_TEXT];
 	}
 
-	// 2.) Firstline has high priority over registered mappings
+	// 2.) Registered mappings have middle priority
+	let registeredMime = guessMimeTypeByPath(path, registeredAssociations.filter(a => !a.userConfigured));
+	if (registeredMime) {
+		return [registeredMime, MIME_TEXT];
+	}
+
+	// 3.) Firstline has lowest priority
 	if (firstLine) {
 		let firstlineMime = guessMimeTypeByFirstline(firstLine);
 		if (firstlineMime) {
@@ -74,58 +88,58 @@ export function guessMimeTypes(path: string, firstLine?: string): string[] {
 		}
 	}
 
-	// 3.) Registered mappings have lowest priority
-	let registeredMime = guessMimeTypeByFilename(filename, registeredTextMimesByFilename);
-	if (registeredMime) {
-		return [registeredMime, MIME_TEXT];
-	}
-
 	return [MIME_UNKNOWN];
 }
 
-function guessMimeTypeByFilename(filename: string, map: { [str: string]: string; }): string {
-	let exactNameMatch: string;
-	let extensionMatch: string;
-	let patternNameMatch: string;
+function guessMimeTypeByPath(path: string, associations: ITextMimeAssociation[]): string {
+	let filename = paths.basename(path).toLowerCase();
 
-	// Check for dynamically registered match based on filename and extension
-	for (let nameOrPatternOrPrefix in map) {
-		let nameOrPatternOrExtensionLower: string = nameOrPatternOrPrefix.toLowerCase();
+	let filenameMatch: ITextMimeAssociation;
+	let patternMatch: ITextMimeAssociation;
+	let extensionMatch: ITextMimeAssociation;
+
+	for (var i = 0; i < associations.length; i++) {
+		let association = associations[i];
 
 		// First exact name match
-		if (!exactNameMatch && filename === nameOrPatternOrExtensionLower) {
-			exactNameMatch = nameOrPatternOrPrefix;
+		if (association.filename && filename === association.filename.toLowerCase()) {
+			filenameMatch = association;
 			break; // take it!
 		}
 
 		// Longest pattern match
-		if (match(nameOrPatternOrExtensionLower, filename)) {
-			if (!patternNameMatch || nameOrPatternOrExtensionLower.length > patternNameMatch.length) {
-				patternNameMatch = nameOrPatternOrPrefix;
+		if (association.filepattern) {
+			let target = association.filepattern.indexOf(paths.sep) >= 0 ? path : filename; // match on full path if pattern contains path separator
+			if (match(association.filepattern.toLowerCase(), target)) {
+				if (!patternMatch || association.filepattern.length > patternMatch.filepattern.length) {
+					patternMatch = association;
+				}
 			}
 		}
 
 		// Longest extension match
-		if (nameOrPatternOrPrefix[0] === '.' && strings.endsWith(filename, nameOrPatternOrExtensionLower)) {
-			if (!extensionMatch || nameOrPatternOrExtensionLower.length > extensionMatch.length) {
-				extensionMatch = nameOrPatternOrPrefix;
+		if (association.extension) {
+			if (association.extension[0] === '.' && strings.endsWith(filename, association.extension.toLowerCase())) {
+				if (!extensionMatch || association.extension.length > extensionMatch.extension.length) {
+					extensionMatch = association;
+				}
 			}
 		}
 	}
 
-	// 2.) Exact name match has second highest prio
-	if (exactNameMatch) {
-		return map[exactNameMatch];
+	// 1.) Exact name match has second highest prio
+	if (filenameMatch) {
+		return filenameMatch.mime;
 	}
 
-	// 3.) Match on pattern
-	if (patternNameMatch) {
-		return map[patternNameMatch];
+	// 2.) Match on pattern
+	if (patternMatch) {
+		return patternMatch.mime;
 	}
 
-	// 4.) Match on extension comes next
+	// 3.) Match on extension comes next
 	if (extensionMatch) {
-		return map[extensionMatch];
+		return extensionMatch.mime;
 	}
 
 	return null;
@@ -137,12 +151,16 @@ function guessMimeTypeByFirstline(firstLine: string): string {
 	}
 
 	if (firstLine.length > 0) {
-		for (let i = 0; i < registeredTextMimesByFirstLine.length; ++i) {
+		for (let i = 0; i < registeredAssociations.length; ++i) {
+			let association = registeredAssociations[i];
+			if (!association.firstline) {
+				continue;
+			}
 
 			// Make sure the entire line matches, not just a subpart.
-			let matches = firstLine.match(registeredTextMimesByFirstLine[i].regexp);
+			let matches = firstLine.match(association.firstline);
 			if (matches && matches.length > 0 && matches[0].length === firstLine.length) {
-				return registeredTextMimesByFirstLine[i].mime;
+				return association.mime;
 			}
 		}
 	}
@@ -180,10 +198,14 @@ export function isUnspecific(mime: string[] | string): boolean {
 }
 
 export function suggestFilename(theMime: string, prefix: string): string {
-	for (let fileExtension in registeredTextMimesByFilename) {
-		let mime = registeredTextMimesByFilename[fileExtension];
-		if (mime === theMime) {
-			return prefix + fileExtension;
+	for (var i = 0; i < registeredAssociations.length; i++) {
+		let association = registeredAssociations[i];
+		if (association.userConfigured) {
+			continue; // only support registered ones
+		}
+
+		if (association.mime === theMime && association.extension) {
+			return prefix + association.extension;
 		}
 	}
 
