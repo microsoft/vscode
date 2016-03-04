@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/*global process,require,console,exports,module*/
+
 var gulp = require('gulp');
 var filter = require('gulp-filter');
 var es = require('event-stream');
-var path = require('path');
 var gulptslint = require('gulp-tslint');
 var tslint = require('tslint');
 
@@ -161,7 +162,7 @@ var hygiene = exports.hygiene = function (some) {
 	});
 
 	var tsl = es.through(function(file) {
-		configuration = tslint.findConfiguration(null, '.');
+		var configuration = tslint.findConfiguration(null, '.');
 		var options = {
 			formatter: 'json',
 			configuration: configuration,

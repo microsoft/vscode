@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/*global process,require,__dirname*/
+
 // Increase max listeners for event emitters
 require('events').EventEmitter.defaultMaxListeners = 100;
 
@@ -10,9 +12,7 @@ var gulp = require('gulp');
 var path = require('path');
 var tsb = require('gulp-tsb');
 var es = require('event-stream');
-var cp = require('child_process');
 var filter = require('gulp-filter');
-var rename = require('gulp-rename');
 var rimraf = require('rimraf');
 var util = require('./lib/util');
 var watcher = require('./lib/watch');

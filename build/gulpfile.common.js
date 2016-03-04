@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/*global require,exports,__dirname,Buffer,setTimeout*/
+
 var path = require('path');
 var gulp = require('gulp');
 var sourcemaps = require('gulp-sourcemaps');
@@ -12,7 +14,6 @@ var uglify = require('gulp-uglify');
 var es = require('event-stream');
 var concat = require('gulp-concat');
 var File = require('vinyl');
-var underscore = require('underscore');
 var bundle = require('./lib/bundle');
 var util = require('./lib/util');
 var root = path.dirname(__dirname);
