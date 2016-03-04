@@ -98,7 +98,7 @@ class VariablesView extends viewlet.CollapsibleViewletView {
 			const isVariableType = (e.focus instanceof model.Variable);
 
 			if(isMouseClick && isVariableType) {
-				this.telemetryService.publicLog('debuggerService/variables/selected');
+				this.telemetryService.publicLog('debug/variables/selected');
 			}
 		}));
 	}
@@ -263,7 +263,7 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 			const isStackFrameType = (e.focus instanceof model.StackFrame);
 
 			if (isMouseClick && isStackFrameType) {
-				this.telemetryService.publicLog('debuggerService/callStack/selected');
+				this.telemetryService.publicLog('debug/callStack/selected');
 			}
 		}));
 
