@@ -103,19 +103,19 @@ export class LanguagesRegistry {
 
 		if (Array.isArray(lang.extensions)) {
 			for (let extension of lang.extensions) {
-				mime.registerTextMimeByFilename(extension, primaryMime);
+				mime.registerTextMime(primaryMime, { pattern: extension });
 			}
 		}
 
 		if (Array.isArray(lang.filenames)) {
 			for (let filename of lang.filenames) {
-				mime.registerTextMimeByFilename(filename, primaryMime);
+				mime.registerTextMime(primaryMime, { pattern: filename });
 			}
 		}
 
 		if (Array.isArray(lang.filenamePatterns)) {
 			for (let filenamePattern of lang.filenamePatterns) {
-				mime.registerTextMimeByFilename(filenamePattern, primaryMime);
+				mime.registerTextMime(primaryMime, { pattern: filenamePattern });
 			}
 		}
 
@@ -127,7 +127,7 @@ export class LanguagesRegistry {
 			try {
 				var firstLineRegex = new RegExp(firstLineRegexStr);
 				if (!strings.regExpLeadsToEndlessLoop(firstLineRegex)) {
-					mime.registerTextMimeByFirstLine(firstLineRegex, primaryMime);
+					mime.registerTextMime(primaryMime, { firstLineRegExp: firstLineRegex });
 				}
 			} catch (err) {
 				// Most likely, the regex was bad

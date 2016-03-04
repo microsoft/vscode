@@ -13,140 +13,83 @@ export let MIME_TEXT = 'text/plain';
 export let MIME_BINARY = 'application/octet-stream';
 export let MIME_UNKNOWN = 'application/unknown';
 
+export interface ITextMimeAssociation {
+	pattern?: string;
+	firstLineRegExp?: RegExp;
+	userConfigured?: boolean;
+}
+
 const registeredTextMimesByFilename: { [str: string]: string; } = Object.create(null);
+const userConfiguredTextMimesByFilename: { [str: string]: string; } = Object.create(null);
 const registeredTextMimesByFirstLine: { regexp: RegExp; mime: string; }[] = [];
 
-// This is for automatic generation at native.guplfile.js#41 => darwinBundleDocumentTypes.extensions
-export function generateKnownFilenames(onlyExtensions: boolean = true): any {
-	let filter = (ext: string) => {
-		if (onlyExtensions) {
-			return /^\./.test(ext);
-		}
-		return true;
-	};
-	let removeLeadingDot = (ext: string) => {
-		return ext.replace(/^\./, '');
-	};
-
-	let list: string[] = [];
-	list = list.concat(Object.keys(registeredTextMimesByFilename));
-
-	list = list.filter(filter).map(removeLeadingDot);
-	list.sort();
-
-	let result: string[] = [];
-	let currentLetter: string = null;
-	let previousItem: string = null;
-	let currentRow: string[] = [];
-
-	let pushCurrentRow = () => {
-		if (currentRow.length > 0) {
-			result.push('\'' + currentRow.join('\', \'') + '\'');
-		}
-	};
-
-	for (let i = 0, len = list.length; i < len; i++) {
-		let item = list[i];
-		if (item.length === 0) {
-			continue;
-		}
-		if (item === previousItem) {
-			continue;
-		}
-		let letter = item.charAt(0);
-
-		if (currentLetter !== letter) {
-			pushCurrentRow();
-			currentLetter = letter;
-			currentRow = [];
-		}
-
-		currentRow.push(item);
-		previousItem = item;
-	}
-	pushCurrentRow();
-
-	return result.join(',\n');
-}
-
 /**
- * Allow to register extra text mimes dynamically based on filename
+ * Associate a text mime to the registry
  */
-export function registerTextMimeByFilename(nameOrPatternOrPrefix: string, mime: string): void {
-	if (nameOrPatternOrPrefix && mime) {
-		if (registeredTextMimesByFilename[nameOrPatternOrPrefix] && registeredTextMimesByFilename[nameOrPatternOrPrefix] !== mime) {
-			console.warn('Overwriting filename <<' + nameOrPatternOrPrefix + '>> to now point to mime <<' + mime + '>>');
+export function registerTextMime(mime: string, association: ITextMimeAssociation): void {
+	if (mime && association) {
+
+		// Firstline pattern
+		if (association.firstLineRegExp) {
+			registeredTextMimesByFirstLine.push({ regexp: association.firstLineRegExp, mime: mime });
 		}
-		registeredTextMimesByFilename[nameOrPatternOrPrefix] = mime;
+
+		// User configured
+		if (association.userConfigured && association.pattern) {
+			userConfiguredTextMimesByFilename[association.pattern] = mime;
+		}
+
+		// Built in or via Extension
+		else if (association.pattern) {
+			if (registeredTextMimesByFilename[association.pattern] && registeredTextMimesByFilename[association.pattern] !== mime) {
+				console.warn('Overwriting filename <<' + association.pattern + '>> to now point to mime <<' + mime + '>>');
+			}
+			registeredTextMimesByFilename[association.pattern] = mime;
+		}
 	}
 }
 
 /**
- * Allow to register extra text mimes dynamically based on firstline
- */
-export function registerTextMimeByFirstLine(firstLineRegexp: RegExp, mime: string): void {
-	if (firstLineRegexp && mime) {
-		registeredTextMimesByFirstLine.push({ regexp: firstLineRegexp, mime: mime });
-	}
-}
-
-/**
- * Given a comma separated list of mimes in order of priority, find if the list describes a binary
- * or textual resource.
- */
-export function isBinaryMime(mimes: string): boolean;
-export function isBinaryMime(mimes: string[]): boolean;
-export function isBinaryMime(mimes: any): boolean {
-	if (!mimes) {
-		return false;
-	}
-
-	let mimeVals: string[];
-	if (types.isArray(mimes)) {
-		mimeVals = (<string[]>mimes);
-	} else {
-		mimeVals = (<string>mimes).split(',').map((mime) => mime.trim());
-	}
-
-	return mimeVals.indexOf(MIME_BINARY) >= 0;
-}
-
-/**
- * New function for mime type detection supporting application/unknown as concept.
+ * Given a file, return the best matching mime type for it
  */
 export function guessMimeTypes(path: string, firstLine?: string): string[] {
 	if (!path) {
 		return [MIME_UNKNOWN];
 	}
 
-	// 1.) Firstline gets highest priority
-	if (firstLine) {
-		if (strings.startsWithUTF8BOM(firstLine)) {
-			firstLine = firstLine.substr(1);
-		}
-
-		if (firstLine.length > 0) {
-			for (let i = 0; i < registeredTextMimesByFirstLine.length; ++i) {
-
-				// Make sure the entire line matches, not just a subpart.
-				let matches = firstLine.match(registeredTextMimesByFirstLine[i].regexp);
-				if (matches && matches.length > 0 && matches[0].length === firstLine.length) {
-					return [registeredTextMimesByFirstLine[i].mime, MIME_TEXT];
-				}
-			}
-		}
-	}
-
-	// Check with file name and extension
 	path = path.toLowerCase();
 	let filename = paths.basename(path);
 
+	// 1.) Configured mappings have highest priority
+	let configuredMime = guessMimeTypeByFilename(filename, userConfiguredTextMimesByFilename);
+	if (configuredMime) {
+		return [configuredMime, MIME_TEXT];
+	}
+
+	// 2.) Firstline has high priority over registered mappings
+	if (firstLine) {
+		let firstlineMime = guessMimeTypeByFirstline(firstLine);
+		if (firstlineMime) {
+			return [firstlineMime, MIME_TEXT];
+		}
+	}
+
+	// 3.) Registered mappings have lowest priority
+	let registeredMime = guessMimeTypeByFilename(filename, registeredTextMimesByFilename);
+	if (registeredMime) {
+		return [registeredMime, MIME_TEXT];
+	}
+
+	return [MIME_UNKNOWN];
+}
+
+function guessMimeTypeByFilename(filename: string, map: { [str: string]: string; }): string {
 	let exactNameMatch: string;
 	let extensionMatch: string;
 	let patternNameMatch: string;
 
 	// Check for dynamically registered match based on filename and extension
-	for (let nameOrPatternOrPrefix in registeredTextMimesByFilename) {
+	for (let nameOrPatternOrPrefix in map) {
 		let nameOrPatternOrExtensionLower: string = nameOrPatternOrPrefix.toLowerCase();
 
 		// First exact name match
@@ -172,20 +115,56 @@ export function guessMimeTypes(path: string, firstLine?: string): string[] {
 
 	// 2.) Exact name match has second highest prio
 	if (exactNameMatch) {
-		return [registeredTextMimesByFilename[exactNameMatch], MIME_TEXT];
+		return map[exactNameMatch];
 	}
 
 	// 3.) Match on pattern
 	if (patternNameMatch) {
-		return [registeredTextMimesByFilename[patternNameMatch], MIME_TEXT];
+		return map[patternNameMatch];
 	}
 
 	// 4.) Match on extension comes next
 	if (extensionMatch) {
-		return [registeredTextMimesByFilename[extensionMatch], MIME_TEXT];
+		return map[extensionMatch];
 	}
 
-	return [MIME_UNKNOWN];
+	return null;
+}
+
+function guessMimeTypeByFirstline(firstLine: string): string {
+	if (strings.startsWithUTF8BOM(firstLine)) {
+		firstLine = firstLine.substr(1);
+	}
+
+	if (firstLine.length > 0) {
+		for (let i = 0; i < registeredTextMimesByFirstLine.length; ++i) {
+
+			// Make sure the entire line matches, not just a subpart.
+			let matches = firstLine.match(registeredTextMimesByFirstLine[i].regexp);
+			if (matches && matches.length > 0 && matches[0].length === firstLine.length) {
+				return registeredTextMimesByFirstLine[i].mime;
+			}
+		}
+	}
+
+	return null;
+}
+
+export function isBinaryMime(mimes: string): boolean;
+export function isBinaryMime(mimes: string[]): boolean;
+export function isBinaryMime(mimes: any): boolean {
+	if (!mimes) {
+		return false;
+	}
+
+	let mimeVals: string[];
+	if (types.isArray(mimes)) {
+		mimeVals = (<string[]>mimes);
+	} else {
+		mimeVals = (<string>mimes).split(',').map((mime) => mime.trim());
+	}
+
+	return mimeVals.indexOf(MIME_BINARY) >= 0;
 }
 
 export function isUnspecific(mime: string[] | string): boolean {
