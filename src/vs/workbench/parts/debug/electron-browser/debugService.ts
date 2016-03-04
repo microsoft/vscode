@@ -512,7 +512,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.textFileService.saveAll().then(() => this.extensionService.onReady()).then(() => this.configurationManager.setConfiguration(this.configurationManager.getConfigurationName())).then(() => {
 
 			const configuration = this.configurationManager.getConfiguration();
-			configuration.noDebug = noDebug;
 			if (!configuration) {
 				return this.configurationManager.openConfigFile(false).then(openend => {
 					if (openend) {
@@ -520,6 +519,8 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 					}
 				});
 			}
+			
+			configuration.noDebug = noDebug;
 			if (!this.configurationManager.getAdapter()) {
 				this.emit(debug.ServiceEvents.TYPE_NOT_SUPPORTED, configuration.type);
 				return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
