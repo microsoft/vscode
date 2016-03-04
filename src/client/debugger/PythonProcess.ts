@@ -121,20 +121,20 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
         this.callbackHandler = new PythonProcessCallbackHandler(this, this.stream, this._idDispenser);
         this.callbackHandler.on("detach", () => this.emit("detach"));
         this.callbackHandler.on("last", () => this.emit("last"));
-        this.callbackHandler.on("moduleLoaded", arg=> this.emit("moduleLoaded", arg));
-        this.callbackHandler.on("asyncBreakCompleted", arg=> this.emit("asyncBreakCompleted", arg));
-        this.callbackHandler.on("threadCreated", arg=> this.emit("threadCreated", arg));
-        this.callbackHandler.on("threadExited", arg=> this.emit("threadExited", arg));
-        this.callbackHandler.on("stepCompleted", arg=> this.onPythonStepCompleted(arg));
-        this.callbackHandler.on("breakpointSet", arg=> this.onBreakpointSet(arg, true));
-        this.callbackHandler.on("breakpointNotSet", arg=> this.onBreakpointSet(arg, false));
+        this.callbackHandler.on("moduleLoaded", arg => this.emit("moduleLoaded", arg));
+        this.callbackHandler.on("asyncBreakCompleted", arg => this.emit("asyncBreakCompleted", arg));
+        this.callbackHandler.on("threadCreated", arg => this.emit("threadCreated", arg));
+        this.callbackHandler.on("threadExited", arg => this.emit("threadExited", arg));
+        this.callbackHandler.on("stepCompleted", arg => this.onPythonStepCompleted(arg));
+        this.callbackHandler.on("breakpointSet", arg => this.onBreakpointSet(arg, true));
+        this.callbackHandler.on("breakpointNotSet", arg => this.onBreakpointSet(arg, false));
         this.callbackHandler.on("output", (pyThread, output) => this.emit("output", pyThread, output));
         this.callbackHandler.on("exceptionRaised", (pyThread, ex, brkType) => {
             this._lastExecutedThread = pyThread;
             this.emit("exceptionRaised", pyThread, ex, brkType);
         });
         this.callbackHandler.on("breakpointHit", (pyThread, breakpointId) => this.onBreakpointHit(pyThread, breakpointId));
-        this.callbackHandler.on("processLoaded", arg=> {
+        this.callbackHandler.on("processLoaded", arg => {
             this._mainThread = <IPythonThread>arg;
             this._lastExecutedThread = this._mainThread;
             this.emit("processLoaded", arg);
@@ -182,7 +182,7 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
 
         this.callbackHandler.HandleIncomingData();
     }
-    
+
     //#region Step Commands
     private onPythonStepCompleted(pyThread: IPythonThread) {
         this._lastExecutedThread = pyThread;
@@ -224,7 +224,7 @@ export class PythonProcess extends EventEmitter implements IPythonProcess {
     }
     private onBreakpointSet(breakpointId: number, success: boolean) {
         //Find the last breakpoint command associated with this breakpoint
-        var index = this.breakpointCommands.findIndex(cmd=> cmd.Id === breakpointId);
+        var index = this.breakpointCommands.findIndex(cmd => cmd.Id === breakpointId);
         if (index === -1) {
             //Hmm this is not possible, log this exception and carry on
             this.emit("error", "command.breakpoint.hit", `Uknown Breakpoit Id ${breakpointId}`);

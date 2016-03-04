@@ -10,8 +10,7 @@ Works on both Windows and Mac.
 * View signature and similar by hovering over a function or method
 * Debugging with support for local variables, arguments, expressions, watch window, stack information, break points
 * Debugging Multiple threads (Web Applications - Flask, etc) and expanding values (on Windows and Mac)
-* Debugging remote processes (attaching to local and remote process)
-* Debugging with support for shebang
+* Debugging with support for shebang (on Windows)
 * Debugging with custom environment variables
 * Unit testing (unittests and nosetests, with config files)
 * Sorting imports
@@ -20,9 +19,9 @@ Works on both Windows and Mac.
 ##[Wiki](https://github.com/DonJayamanne/pythonVSCode/wiki)
 
 ##[Issues and Feature Requests](https://github.com/DonJayamanne/pythonVSCode/issues)
-* Support of shebang (testing)
-* Remote Debugging (testing)
+* Remote Debugging (testing, ironing out a few kinks)
 * Support for Virtual Environments (in development)
+* Support of shebang (mac)
 * More features on the way
 
 ## Feature Details (with confiuration)
@@ -106,8 +105,7 @@ Works on both Windows and Mac.
 
 ## Change Log
 
-### Version 0.3.0
-* Remote debugging (attaching to local and remote processes)
+### Version 0.2.10
 * Debugging with support for shebang
 * Support for passing environment variables to debug program
 * Improved error handling in the extension

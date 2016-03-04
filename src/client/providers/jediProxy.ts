@@ -44,7 +44,7 @@ var mappings = {
     "statement": vscode.CompletionItemKind.Keyword
 };
 
-Object.keys(mappings).forEach(key=> {
+Object.keys(mappings).forEach(key => {
     pythonVSCodeTypeMappings.set(key, mappings[key]);
 });
 
@@ -90,7 +90,7 @@ var symbolMappings = {
     "list": vscode.SymbolKind.Array
 };
 
-Object.keys(symbolMappings).forEach(key=> {
+Object.keys(symbolMappings).forEach(key => {
     pythonVSCodeSymbolMappings.set(key, symbolMappings[key]);
 });
 
@@ -177,24 +177,26 @@ function spawnProcess(dir: string) {
         return handleError("spawnProcess", ex.message);
     }
     proc.stderr.on("data", (data) => {
-        handleError("stderr", data);
+        //handleError("stderr", data);
+        console.error("error data - " + data);
     });
     proc.on("end", (end) => {
         console.error("End - " + end);
     });
     proc.on("error", error => {
-        handleError("error", error);
+        //handleError("error", error);
+        console.error("error error - " + error);
     });
 
     proc.stdout.on("data", (data) => {
         var dataStr = previousData = previousData + data + ""
         var responses: any[];
         try {
-            responses = dataStr.split("\n").filter(line=> line.length > 0).map(resp=> JSON.parse(resp));
+            responses = dataStr.split("\n").filter(line => line.length > 0).map(resp => JSON.parse(resp));
             previousData = "";
         }
         catch (ex) {
-            handleError("stdout", ex.message);
+            //handleError("stdout", ex.message);
             return;
         }
 
@@ -222,7 +224,7 @@ function spawnProcess(dir: string) {
                     case CommandType.Completions: {
                         var results = <IAutoCompleteItem[]>response['results'];
                         if (results.length > 0) {
-                            results.forEach(item=> {
+                            results.forEach(item => {
                                 item.type = getMappedVSCodeType(<string><any>item.type);
                                 item.kind = getMappedVSCodeSymbol(<string><any>item.type);
                             });
@@ -262,7 +264,7 @@ function spawnProcess(dir: string) {
                                 requestId: cmd.id,
                                 definitions: []
                             }
-                            defResults.definitions = defs.map(def=> {
+                            defResults.definitions = defs.map(def => {
                                 return <IDefinition>{
                                     columnIndex: <number>def.column,
                                     fileName: <string>def.fileName,
@@ -282,7 +284,7 @@ function spawnProcess(dir: string) {
                         if (defs.length > 0) {
                             var refResult: IReferenceResult = {
                                 requestId: cmd.id,
-                                references: defs.map(item=> {
+                                references: defs.map(item => {
                                     return {
                                         columnIndex: item.column,
                                         fileName: item.fileName,
@@ -300,11 +302,11 @@ function spawnProcess(dir: string) {
                     }
                 }
             }
-            
+
             //Ok, check if too many pending requets
             if (commandQueue.length > 10) {
                 var items = commandQueue.splice(0, commandQueue.length - 10);
-                items.forEach(id=> {
+                items.forEach(id => {
                     if (commands.has(id)) {
                         commands.delete(id);
                     }
@@ -363,7 +365,7 @@ function createPayload<T extends ICommandResult>(cmd: IExecutionCommand<T>): any
 
 function getConfig() {
     //Add support for paths relative to workspace
-    var extraPaths = pythonSettings.autoComplete.extraPaths.map(extraPath=> {
+    var extraPaths = pythonSettings.autoComplete.extraPaths.map(extraPath => {
         if (path.isAbsolute(extraPath)) {
             return extraPath;
         }
@@ -469,7 +471,7 @@ export class JediProxyHandler<R extends ICommandResult, T> {
         this.cancellationTokenSource = new vscode.CancellationTokenSource();
         executionCmd.token = this.cancellationTokenSource.token;
 
-        this.jediProxy.sendCommand<R>(executionCmd).then(data=> this.onResolved(data), () => { });
+        this.jediProxy.sendCommand<R>(executionCmd).then(data => this.onResolved(data), () => { });
         this.lastCommandId = executionCmd.id;
         this.lastToken = token;
         this.promiseResolve = resolve;
