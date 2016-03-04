@@ -103,6 +103,7 @@ export class OpenChangeAction extends GitAction {
 	constructor(@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IGitService gitService: IGitService) {
 		super(OpenChangeAction.ID, nls.localize('openChange', "Open Change"), 'git-action open-change', gitService);
 		this.editorService = editorService;
+		this.onGitServiceChange();
 	}
 
 	protected isEnabled():boolean {
@@ -136,6 +137,7 @@ export class OpenFileAction extends GitAction {
 		this.fileService = fileService;
 		this.editorService = editorService;
 		this.contextService = contextService;
+		this.onGitServiceChange();
 	}
 
 	protected isEnabled():boolean {
@@ -318,6 +320,7 @@ export abstract class BaseUndoAction extends GitAction {
 		this.messageService = messageService;
 		this.fileService = fileService;
 		this.contextService = contextService;
+		this.onGitServiceChange();
 	}
 
 	protected isEnabled():boolean {
@@ -487,6 +490,7 @@ export abstract class BaseUnstageAction extends GitAction {
 	constructor(id: string, label: string, className: string, gitService: IGitService, editorService: IWorkbenchEditorService) {
 		super(id, label, className, gitService);
 		this.editorService = editorService;
+		this.onGitServiceChange();
 	}
 
 	protected isEnabled():boolean {
@@ -602,6 +606,7 @@ export class CheckoutAction extends GitAction {
 		this.HEAD = null;
 		this.state = LifecycleState.Alive;
 		this.runPromises = [];
+		this.onGitServiceChange();
 	}
 
 	protected onGitServiceChange(): void {
@@ -698,6 +703,8 @@ export abstract class BaseCommitAction extends GitAction {
 		this.toDispose.push(commitState.addListener2('change/commitInputBox', () => {
 			this.updateEnablement();
 		}));
+
+		this.onGitServiceChange();
 	}
 
 	protected isEnabled():boolean {
@@ -768,6 +775,7 @@ export class SmartCommitAction extends BaseCommitAction {
 	constructor(commitState: ICommitState, @IGitService gitService: IGitService, @IMessageService messageService: IMessageService) {
 		super(commitState, SmartCommitAction.ID, SmartCommitAction.ALL, 'git-action smart-commit', gitService);
 		this.messageService = messageService;
+		this.onGitServiceChange();
 	}
 
 	protected onGitServiceChange(): void {
