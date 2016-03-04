@@ -10,6 +10,9 @@ Works on both Windows and Mac.
 * View signature and similar by hovering over a function or method
 * Debugging with support for local variables, arguments, expressions, watch window, stack information, break points
 * Debugging Multiple threads (Web Applications - Flask, etc) and expanding values (on Windows and Mac)
+* Debugging remote processes (attaching to local and remote process)
+* Debugging with support for shebang
+* Debugging with custom environment variables
 * Unit testing (unittests and nosetests, with config files)
 * Sorting imports
 * Snippets
@@ -103,10 +106,13 @@ Works on both Windows and Mac.
 
 ## Change Log
 
-### Version 0.2.8
+### Version 0.3.0
+* Remote debugging (attaching to local and remote processes)
+* Debugging with support for shebang
+* Support for passing environment variables to debug program
 * Improved error handling in the extension
 
-### Version 0.2.8
+### Version 0.2.9
 * Added support for debugging django applications
  + Debugging templates is not supported at this stage
 
