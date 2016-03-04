@@ -87,34 +87,31 @@ export class LocalDebugClient extends DebugClient {
         }
     }
     private getShebangLines(program: string): Promise<string[]> {
+        const MAX_SHEBANG_LINES = 2;
         return new Promise<string[]>((resolve, reject) => {
             var lr = new LineByLineReader(program);
-            var lineNumber = 0;
             var shebangLines: string[] = [];
 
             lr.on('error', err=> {
-                resolve(shebangLines);
+                reject(err);
             });
             lr.on('line', (line: string) => {
-                lineNumber++;
+                if (shebangLines.length >= MAX_SHEBANG_LINES) {
+                    lr.close();
+                    return false;
+                }
                 var trimmedLine = line.trim();
                 if (trimmedLine.startsWith("#")) {
                     shebangLines.push(line);
                 }
-                if (lineNumber >= 2) {
-                    //Ensure we always have two lines, even if no shebangLines
-                    //This way if ever we get lines numbers in errors for the python file, we have a consistency
-                    while (shebangLines.length <= 2) {
-                        shebangLines.push("#");
-                    }
-                    resolve(shebangLines);
-                    lr.close();
+                else {
+                    shebangLines.push("#");
                 }
             });
             lr.on('end', function() {
                 //Ensure we always have two lines, even if no shebangLines
                 //This way if ever we get lines numbers in errors for the python file, we have a consistency
-                while (shebangLines.length <= 2) {
+                while (shebangLines.length < MAX_SHEBANG_LINES) {
                     shebangLines.push("#");
                 }
                 resolve(shebangLines);

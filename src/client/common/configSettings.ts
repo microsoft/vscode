@@ -51,24 +51,9 @@ export class PythonSettings implements IPythonSettings {
 
         this.initializeSettings();
     }
-    private getVirtualenvPath(): string {
-        var currentPath: string = vscode.workspace.rootPath;
-        if (process.platform == 'win32') {
-            var bin: string = "Scripts";
-            var _path: string = path.join(currentPath, bin, "python.exe");
-        }
-        else {
-            var bin: string = "bin";
-            var _path: string = path.join(currentPath, bin, "python");
-        }
-        return fs.existsSync(_path)
-            ? _path
-            : null;
-    }
     private initializeSettings() {
         var pythonSettings = vscode.workspace.getConfiguration("python");
-        var virtualEnvPath = this.getVirtualenvPath();
-        this.pythonPath = typeof virtualEnvPath === "string" ? virtualEnvPath : pythonSettings.get<string>("pythonPath");
+        this.pythonPath = pythonSettings.get<string>("pythonPath");
         var lintingSettings = pythonSettings.get<ILintingSettings>("linting");
         if (this.linting) {
             Object.assign<ILintingSettings, ILintingSettings>(this.linting, lintingSettings);
