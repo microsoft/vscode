@@ -106,7 +106,6 @@ export class Repl extends Panel {
 			let trimmedValue = this.replInput.value.trim();
 
 			if (e.equals(CommonKeybindings.ENTER) && trimmedValue) {
-				this.telemetryService.publicLog('debugConsole/expressionEntered');
 				this.debugService.addReplExpression(trimmedValue);
 				Repl.HISTORY.evaluated(trimmedValue);
 				this.replInput.value = '';

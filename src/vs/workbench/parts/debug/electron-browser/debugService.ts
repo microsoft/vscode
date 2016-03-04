@@ -477,6 +477,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	public addReplExpression(name: string): TPromise<void> {
+		this.telemetryService.publicLog('debugService/addReplExpression');
 		return this.model.addReplExpression(this.session, this.viewModel.getFocusedStackFrame(), name);
 	}
 
