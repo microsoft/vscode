@@ -17,7 +17,6 @@ import {DefaultEndOfLine} from 'vs/editor/common/editorCommon';
 export interface IRelaxedToken {
 	startIndex:number;
 	type:string;
-	bracket?:modes.Bracket;
 }
 
 export interface ITestItem {

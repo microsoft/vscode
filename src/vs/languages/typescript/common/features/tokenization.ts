@@ -95,8 +95,8 @@ function tokenize(bracketTypeTable: { [i: number]: string }, tokenTypeTable: { [
 		modeTransitions: [{ startIndex: offsetDelta, mode: state.getMode() }],
 	};
 
-	function appendFn(startIndex:number, type:string, bracket:Modes.Bracket):void {
-		if(ret.tokens.length === 0 || bracket !== void 0 || arrays.tail(ret.tokens).type !== type) {
+	function appendFn(startIndex:number, type:string):void {
+		if(ret.tokens.length === 0 || arrays.tail(ret.tokens).type !== type) {
 			ret.tokens.push(new supports.Token(startIndex, type));
 		}
 	}
@@ -116,28 +116,25 @@ function tokenize(bracketTypeTable: { [i: number]: string }, tokenTypeTable: { [
 
 	for (let entry of result.entries) {
 
-		var bracket = Modes.Bracket.None,
-			type: string;
+		var type: string;
 
 		if (entry.classification === ts.TokenClass.Punctuation) {
 			// punctions: check for brackets: (){}[]
 			var ch = text.charCodeAt(offset);
-			bracket = characterToBracket[ch] || Modes.Bracket.None;
 			type = bracketTypeTable[ch] || tokenTypeTable[entry.classification];
-			appendFn(offset + offsetDelta, type, bracket);
+			appendFn(offset + offsetDelta, type);
 
 		} else if (entry.classification === ts.TokenClass.Comment) {
 			// comments: check for JSDoc, block, and line comments
 			if (ret.endState.inJsDocComment || /\/\*\*.*\*\//.test(text.substr(offset, entry.length))) {
-				appendFn(offset + offsetDelta, isTypeScript ? 'comment.doc.ts' : 'comment.doc.js', Modes.Bracket.None);
+				appendFn(offset + offsetDelta, isTypeScript ? 'comment.doc.ts' : 'comment.doc.js');
 			} else {
-				appendFn(offset + offsetDelta, isTypeScript ? 'comment.ts' : 'comment.js', Modes.Bracket.None);
+				appendFn(offset + offsetDelta, isTypeScript ? 'comment.ts' : 'comment.js');
 			}
 		} else {
 			// everything else
 			appendFn(offset + offsetDelta,
-				tokenTypeTable[entry.classification] || strings.empty,
-				void 0);
+				tokenTypeTable[entry.classification] || strings.empty);
 		}
 
 		offset += entry.length;
@@ -145,14 +142,6 @@ function tokenize(bracketTypeTable: { [i: number]: string }, tokenTypeTable: { [
 
 	return ret;
 }
-
-var characterToBracket = collections.createNumberDictionary<number>();
-characterToBracket['('.charCodeAt(0)] = Modes.Bracket.Open;
-characterToBracket[')'.charCodeAt(0)] = Modes.Bracket.Close;
-characterToBracket['{'.charCodeAt(0)] = Modes.Bracket.Open;
-characterToBracket['}'.charCodeAt(0)] = Modes.Bracket.Close;
-characterToBracket['['.charCodeAt(0)] = Modes.Bracket.Open;
-characterToBracket[']'.charCodeAt(0)] = Modes.Bracket.Close;
 
 var tsBracketTypeTable = collections.createNumberDictionary<string>();
 tsBracketTypeTable['('.charCodeAt(0)] = 'delimiter.parenthesis.ts';
@@ -189,9 +178,9 @@ jsTokenTypeTable[ts.TokenClass.RegExpLiteral] = 'regexp.js';
 jsTokenTypeTable[ts.TokenClass.StringLiteral] = 'string.js';
 
 
-function checkSheBang(state: State, deltaOffset: number, line: string, appendFn: (startIndex: number, type: string, bracket: Modes.Bracket) => void): boolean {
+function checkSheBang(state: State, deltaOffset: number, line: string, appendFn: (startIndex: number, type: string) => void): boolean {
 	if (line.indexOf('#!') === 0) {
-		appendFn(deltaOffset, 'comment.shebang', Modes.Bracket.None);
+		appendFn(deltaOffset, 'comment.shebang');
 		return true;
 	}
 }

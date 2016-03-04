@@ -185,7 +185,6 @@ export class BracketState extends AbstractState {
 		} else {
 			return {
 				type: '',
-				bracket: modes.Bracket.None,
 				nextState: state
 			};
 		}
@@ -207,12 +206,10 @@ export class BracketState extends AbstractState {
 		for (var x in brackets) {
 			this.allResults[x]= {
 				type: 'bracket' + type,
-				bracket: modes.Bracket.Open,
 				nextState: state
 			};
 			this.allResults[brackets[x]] = {
 				type: 'bracket' + type,
-				bracket: modes.Bracket.Close,
 				nextState: state
 			};
 			type++;

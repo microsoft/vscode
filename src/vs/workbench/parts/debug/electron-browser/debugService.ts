@@ -258,7 +258,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			aria.alert(nls.localize('debuggingContinued', "Debugging continued."));
 			this.model.clearThreads(false);
 			this.setFocusedStackFrameAndEvaluate(null);
-			this.setStateAndEmit(debug.State.Running);
+			this.setStateAndEmit(this.configurationManager.getConfiguration().noDebug ? debug.State.RunningNoDebug : debug.State.Running);
 		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.THREAD, (event: DebugProtocol.ThreadEvent) => {
@@ -506,7 +506,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.model.clearWatchExpressions(id);
 	}
 
-	public createSession(changeViewState = !this.partService.isSideBarHidden()): TPromise<any> {
+	public createSession(noDebug: boolean, changeViewState = !this.partService.isSideBarHidden() && !noDebug): TPromise<any> {
 		this.clearReplExpressions();
 
 		return this.textFileService.saveAll().then(() => this.extensionService.onReady()).then(() => this.configurationManager.setConfiguration(this.configurationManager.getConfigurationName())).then(() => {
@@ -515,10 +515,12 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			if (!configuration) {
 				return this.configurationManager.openConfigFile(false).then(openend => {
 					if (openend) {
-						this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file to debug your application."));
+						this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application."));
 					}
 				});
 			}
+			
+			configuration.noDebug = noDebug;
 			if (!this.configurationManager.getAdapter()) {
 				this.emit(debug.ServiceEvents.TYPE_NOT_SUPPORTED, configuration.type);
 				return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
@@ -637,9 +639,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 			if (filteredTasks[0].isWatching) {
 				return new TPromise((c, e) => {
-					this.taskService.addOneTimeListener(TaskServiceEvents.Inactive, () => {
-						c(null);
-					});
+					this.taskService.addOneTimeListener(TaskServiceEvents.Inactive, () => c(taskPromise));
 				});
 			}
 
@@ -671,10 +671,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.session ? this.session.disconnect(true).then(() =>
 			new TPromise<void>((c, e) => {
 				setTimeout(() => {
-					this.createSession(false).then(() => c(null), err => e(err));
+					this.createSession(false, false).then(() => c(null), err => e(err));
 				}, 300);
 			})
-		) : this.createSession(false);
+		) : this.createSession(false, false);
 	}
 
 	public getActiveSession(): debug.IRawDebugSession {

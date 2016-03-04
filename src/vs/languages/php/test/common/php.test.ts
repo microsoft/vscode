@@ -152,12 +152,11 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:5, type: '' },
 				{ startIndex:6, type: 'keyword.php' },
 				{ startIndex:14, type: '' },
-				{ startIndex:21, type: 'delimiter.parenthesis.php', bracket: Modes.Bracket.Open },
-				{ startIndex:22, type: 'delimiter.parenthesis.php', bracket: Modes.Bracket.Close },
+				{ startIndex:21, type: 'delimiter.parenthesis.php' },
 				{ startIndex:23, type: '' },
-				{ startIndex:24, type: 'delimiter.bracket.php', bracket: Modes.Bracket.Open },
+				{ startIndex:24, type: 'delimiter.bracket.php' },
 				{ startIndex:25, type: '' },
-				{ startIndex:26, type: 'delimiter.bracket.php', bracket: Modes.Bracket.Close },
+				{ startIndex:26, type: 'delimiter.bracket.php' },
 				{ startIndex:27, type: '' },
 				{ startIndex:28, type: 'metatag.php' }
 			]}],
@@ -1521,15 +1520,14 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:10, type: 'metatag.php' }
 			]}],
 
-			// Bracket Matching
 			[{
 			line: '<?php { } ?>',
 			tokens: [
 				{ startIndex:0, type: 'metatag.php' },
 				{ startIndex:5, type: '' },
-				{ startIndex:6, type: 'delimiter.bracket.php', bracket: Modes.Bracket.Open },
+				{ startIndex:6, type: 'delimiter.bracket.php' },
 				{ startIndex:7, type: '' },
-				{ startIndex:8, type: 'delimiter.bracket.php', bracket: Modes.Bracket.Close },
+				{ startIndex:8, type: 'delimiter.bracket.php' },
 				{ startIndex:9, type: '' },
 				{ startIndex:10, type: 'metatag.php' }
 			]}],
@@ -1539,13 +1537,13 @@ suite('Syntax Highlighting - PHP', () => {
 			tokens: [
 				{ startIndex:0, type: 'metatag.php' },
 				{ startIndex:5, type: '' },
-				{ startIndex:6, type: 'delimiter.array.php', bracket: Modes.Bracket.Open },
+				{ startIndex:6, type: 'delimiter.array.php' },
 				{ startIndex:7, type: 'number.php' },
 				{ startIndex:8, type: 'delimiter.php' },
 				{ startIndex:9, type: 'number.php' },
 				{ startIndex:10, type: 'delimiter.php' },
 				{ startIndex:11, type: 'number.php' },
-				{ startIndex:12, type: 'delimiter.array.php', bracket: Modes.Bracket.Close },
+				{ startIndex:12, type: 'delimiter.array.php' },
 				{ startIndex:13, type: '' },
 				{ startIndex:14, type: 'metatag.php' }
 			]}],
@@ -1555,13 +1553,12 @@ suite('Syntax Highlighting - PHP', () => {
 			tokens: [
 				{ startIndex:0, type: 'metatag.php' },
 				{ startIndex:5, type: '' },
-				{ startIndex:9, type: 'delimiter.parenthesis.php', bracket: Modes.Bracket.Open },
+				{ startIndex:9, type: 'delimiter.parenthesis.php' },
 				{ startIndex:10, type: 'number.php' },
-				{ startIndex:13, type: 'delimiter.parenthesis.php', bracket: Modes.Bracket.Close },
+				{ startIndex:13, type: 'delimiter.parenthesis.php' },
 				{ startIndex:14, type: 'delimiter.php' }
 			]}],
 
-			// No Bracket Matching inside strings
 			[{
 			line: '<?php $x = "[{()}]" ?>',
 			tokens: [
@@ -1653,9 +1650,9 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:6, type: 'delimiter.php' },
 				{ startIndex:7, type: 'number.php' },
 				{ startIndex:8, type: 'metatag.php' },
-				{ startIndex:10, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open },
+				{ startIndex:10, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:11, type: htmlTokenTypes.getTag('abc') },
-				{ startIndex:14, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close },
+				{ startIndex:14, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:15, type: 'metatag.php' },
 				{ startIndex:18, type: 'number.php' },
 				{ startIndex:19, type: 'metatag.php' }
@@ -1665,29 +1662,29 @@ suite('Syntax Highlighting - PHP', () => {
 			[{
 			line: '<abc><?php5+3?><abc>',
 			tokens: [
-				{ startIndex:0, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open },
+				{ startIndex:0, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:1, type: htmlTokenTypes.getTag('abc') },
-				{ startIndex:4, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close },
+				{ startIndex:4, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:5, type: 'metatag.php' },
 				{ startIndex:10, type: 'number.php' },
 				{ startIndex:11, type: 'delimiter.php' },
 				{ startIndex:12, type: 'number.php' },
 				{ startIndex:13, type: 'metatag.php' },
-				{ startIndex:15, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open },
+				{ startIndex:15, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:16, type: htmlTokenTypes.getTag('abc') },
-				{ startIndex:19, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close }
+				{ startIndex:19, type: htmlTokenTypes.DELIM_START }
 			]}],
 
 			// html/js/php/html
 			[{
 			line: '<abc><script>var i= 10;</script><?php5+3?><abc>',
 			tokens: [
-				{ startIndex:0, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open },
+				{ startIndex:0, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:1, type: htmlTokenTypes.getTag('abc') },
-				{ startIndex:4, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close },
-				{ startIndex:5, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open },
+				{ startIndex:4, type: htmlTokenTypes.DELIM_START },
+				{ startIndex:5, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:6, type: htmlTokenTypes.getTag('script') },
-				{ startIndex:12, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close },
+				{ startIndex:12, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:13, type: 'keyword.js' },
 				{ startIndex:16, type: '' },
 				{ startIndex:17, type: 'identifier.js' },
@@ -1695,29 +1692,29 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:19, type: '' },
 				{ startIndex:20, type: 'number.js' },
 				{ startIndex:22, type: 'delimiter.js' },
-				{ startIndex:23, type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Open },
+				{ startIndex:23, type: htmlTokenTypes.DELIM_END },
 				{ startIndex:25, type: htmlTokenTypes.getTag('script') },
-				{ startIndex:31, type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Close },
+				{ startIndex:31, type: htmlTokenTypes.DELIM_END },
 				{ startIndex:32, type: 'metatag.php' },
 				{ startIndex:37, type: 'number.php' },
 				{ startIndex:38, type: 'delimiter.php' },
 				{ startIndex:39, type: 'number.php' },
 				{ startIndex:40, type: 'metatag.php' },
-				{ startIndex:42, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open },
+				{ startIndex:42, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:43, type: htmlTokenTypes.getTag('abc') },
-				{ startIndex:46, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close }
+				{ startIndex:46, type: htmlTokenTypes.DELIM_START }
 			]}],
 
 			// html/js/php/js/
 			[{
 			line: '<abc><script>var i= 10;</script><?php5+3?><script>var x= 15;</script>',
 			tokens: [
-				{ startIndex:0, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open },
+				{ startIndex:0, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:1, type: htmlTokenTypes.getTag('abc') },
-				{ startIndex:4, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close },
-				{ startIndex:5, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open },
+				{ startIndex:4, type: htmlTokenTypes.DELIM_START },
+				{ startIndex:5, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:6, type: htmlTokenTypes.getTag('script') },
-				{ startIndex:12, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close },
+				{ startIndex:12, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:13, type: 'keyword.js' },
 				{ startIndex:16, type: '' },
 				{ startIndex:17, type: 'identifier.js' },
@@ -1725,17 +1722,17 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:19, type: '' },
 				{ startIndex:20, type: 'number.js' },
 				{ startIndex:22, type: 'delimiter.js' },
-				{ startIndex:23, type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Open },
+				{ startIndex:23, type: htmlTokenTypes.DELIM_END },
 				{ startIndex:25, type: htmlTokenTypes.getTag('script') },
-				{ startIndex:31, type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Close },
+				{ startIndex:31, type: htmlTokenTypes.DELIM_END },
 				{ startIndex:32, type: 'metatag.php' },
 				{ startIndex:37, type: 'number.php' },
 				{ startIndex:38, type: 'delimiter.php' },
 				{ startIndex:39, type: 'number.php' },
 				{ startIndex:40, type: 'metatag.php' },
-				{ startIndex:42, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open },
+				{ startIndex:42, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:43, type: htmlTokenTypes.getTag('script') },
-				{ startIndex:49, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close },
+				{ startIndex:49, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:50, type: 'keyword.js' },
 				{ startIndex:53, type: '' },
 				{ startIndex:54, type: 'identifier.js' },
@@ -1743,24 +1740,24 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:56, type: '' },
 				{ startIndex:57, type: 'number.js' },
 				{ startIndex:59, type: 'delimiter.js' },
-				{ startIndex:60, type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Open },
+				{ startIndex:60, type: htmlTokenTypes.DELIM_END },
 				{ startIndex:62, type: htmlTokenTypes.getTag('script') },
-				{ startIndex:68, type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Close }
+				{ startIndex:68, type: htmlTokenTypes.DELIM_END }
 			]}],
 
 			// Multiline test
 			[{
 			line: '<html>',
 			tokens: [
-				{ startIndex:0, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open },
+				{ startIndex:0, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:1, type: htmlTokenTypes.getTag('html') },
-				{ startIndex:5, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close }
+				{ startIndex:5, type: htmlTokenTypes.DELIM_START }
 			]}, {
 			line: '<style><?="div"?>{ color:blue; }</style>',
 			tokens: [
-				{ startIndex:0, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open },
+				{ startIndex:0, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:1, type: htmlTokenTypes.getTag('style') },
-				{ startIndex:6, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close },
+				{ startIndex:6, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:7, type: 'metatag.php' },
 				{ startIndex:10, type: 'string.php' },
 				{ startIndex:15, type: 'metatag.php' },
@@ -1772,15 +1769,15 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:29, type: 'punctuation.css' },
 				{ startIndex:30, type: '' },
 				{ startIndex:31, type: 'punctuation.bracket.css' },
-				{ startIndex:32, type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Open },
+				{ startIndex:32, type: htmlTokenTypes.DELIM_END },
 				{ startIndex:34, type: htmlTokenTypes.getTag('style') },
-				{ startIndex:39, type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Close }
+				{ startIndex:39, type: htmlTokenTypes.DELIM_END }
 			]}, {
 			line: '<style><?="div"?>{ color:blue; }</style>',
 			tokens: [
-				{ startIndex:0, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open },
+				{ startIndex:0, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:1, type: htmlTokenTypes.getTag('style') },
-				{ startIndex:6, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close },
+				{ startIndex:6, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:7, type: 'metatag.php' },
 				{ startIndex:10, type: 'string.php' },
 				{ startIndex:15, type: 'metatag.php' },
@@ -1792,21 +1789,21 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:29, type: 'punctuation.css' },
 				{ startIndex:30, type: '' },
 				{ startIndex:31, type: 'punctuation.bracket.css' },
-				{ startIndex:32, type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Open },
+				{ startIndex:32, type: htmlTokenTypes.DELIM_END },
 				{ startIndex:34, type: htmlTokenTypes.getTag('style') },
-				{ startIndex:39, type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Close }
+				{ startIndex:39, type: htmlTokenTypes.DELIM_END }
 			]}],
 
 			// HTML (CSS (PHP)), HTML ( PHP, JS (PHP), PHP)
 			[{
 			line: '<html><style><?="div"?> { color:blue; }</style><!--<?="HTML Comment"?>--><script>var x = 3;/* <?="JS Comment"/*</script>*/?> */var y = 4;</script></html><? $x = 3;?>',
 			tokens: [
-				{ startIndex:0, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open },
+				{ startIndex:0, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:1, type: htmlTokenTypes.getTag('html') },
-				{ startIndex:5, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close },
-				{ startIndex:6, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open },
+				{ startIndex:5, type: htmlTokenTypes.DELIM_START },
+				{ startIndex:6, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:7, type: htmlTokenTypes.getTag('style') },
-				{ startIndex:12, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close },
+				{ startIndex:12, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:13, type: 'metatag.php' },
 				{ startIndex:16, type: 'string.php' },
 				{ startIndex:21, type: 'metatag.php' },
@@ -1819,17 +1816,17 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:36, type: 'punctuation.css' },
 				{ startIndex:37, type: '' },
 				{ startIndex:38, type: 'punctuation.bracket.css' },
-				{ startIndex:39, type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Open },
+				{ startIndex:39, type: htmlTokenTypes.DELIM_END },
 				{ startIndex:41, type: htmlTokenTypes.getTag('style') },
-				{ startIndex:46, type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Close },
-				{ startIndex:47, type: htmlTokenTypes.DELIM_COMMENT, bracket: Modes.Bracket.Open },
+				{ startIndex:46, type: htmlTokenTypes.DELIM_END },
+				{ startIndex:47, type: htmlTokenTypes.DELIM_COMMENT },
 				{ startIndex:51, type: 'metatag.php' },
 				{ startIndex:54, type: 'string.php' },
 				{ startIndex:68, type: 'metatag.php' },
-				{ startIndex:70, type: htmlTokenTypes.DELIM_COMMENT, bracket: Modes.Bracket.Close },
-				{ startIndex:73, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open },
+				{ startIndex:70, type: htmlTokenTypes.DELIM_COMMENT },
+				{ startIndex:73, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:74, type: htmlTokenTypes.getTag('script') },
-				{ startIndex:80, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close },
+				{ startIndex:80, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:81, type: 'keyword.js' },
 				{ startIndex:84, type: '' },
 				{ startIndex:85, type: 'identifier.js' },
@@ -1852,12 +1849,12 @@ suite('Syntax Highlighting - PHP', () => {
 				{ startIndex:134, type: '' },
 				{ startIndex:135, type: 'number.js' },
 				{ startIndex:136, type: 'delimiter.js' },
-				{ startIndex:137, type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Open },
+				{ startIndex:137, type: htmlTokenTypes.DELIM_END },
 				{ startIndex:139, type: htmlTokenTypes.getTag('script') },
-				{ startIndex:145, type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Close },
-				{ startIndex:146, type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Open },
+				{ startIndex:145, type: htmlTokenTypes.DELIM_END },
+				{ startIndex:146, type: htmlTokenTypes.DELIM_END },
 				{ startIndex:148, type: htmlTokenTypes.getTag('html') },
-				{ startIndex:152, type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Close },
+				{ startIndex:152, type: htmlTokenTypes.DELIM_END },
 				{ startIndex:153, type: 'metatag.php' },
 				{ startIndex:155, type: '' },
 				{ startIndex:156, type: 'variable.php' },
@@ -1873,18 +1870,18 @@ suite('Syntax Highlighting - PHP', () => {
 			[{
 			line: '<!--c--><?',
 			tokens: [
-				{ startIndex:0, type: htmlTokenTypes.DELIM_COMMENT, bracket: Modes.Bracket.Open },
+				{ startIndex:0, type: htmlTokenTypes.DELIM_COMMENT },
 				{ startIndex:4, type: htmlTokenTypes.COMMENT },
-				{ startIndex:5, type: htmlTokenTypes.DELIM_COMMENT, bracket: Modes.Bracket.Close },
+				{ startIndex:5, type: htmlTokenTypes.DELIM_COMMENT },
 				{ startIndex:8, type: 'metatag.php' }
 			]}],
 
 			[{
 			line: '<script>//<?',
 			tokens: [
-				{ startIndex:0, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open },
+				{ startIndex:0, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:1, type: htmlTokenTypes.getTag('script') },
-				{ startIndex:7, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close },
+				{ startIndex:7, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:8, type: 'comment.js' },
 				{ startIndex:10, type: 'metatag.php' }
 			]}],
@@ -1892,9 +1889,9 @@ suite('Syntax Highlighting - PHP', () => {
 			[{
 			line: '<script>"<?php5+3?>"',
 			tokens: [
-				{ startIndex:0, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open },
+				{ startIndex:0, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:1, type: htmlTokenTypes.getTag('script') },
-				{ startIndex:7, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close },
+				{ startIndex:7, type: htmlTokenTypes.DELIM_START },
 				{ startIndex:8, type: 'string.js' },
 				{ startIndex:9, type: 'metatag.php' },
 				{ startIndex:14, type: 'number.php' },
@@ -1907,13 +1904,12 @@ suite('Syntax Highlighting - PHP', () => {
 			[{
 			line: '<?php toString(); ?>',
 			tokens: [
-				{ startIndex:0, type: 'metatag.php', bracket: Modes.Bracket.Open },
+				{ startIndex:0, type: 'metatag.php' },
 				{ startIndex:5, type: '' },
-				{ startIndex:14, type: 'delimiter.parenthesis.php', bracket: Modes.Bracket.Open },
-				{ startIndex:15, type: 'delimiter.parenthesis.php', bracket: Modes.Bracket.Close },
+				{ startIndex:14, type: 'delimiter.parenthesis.php' },
 				{ startIndex:16, type: 'delimiter.php' },
 				{ startIndex:17, type: '' },
-				{ startIndex:18, type: 'metatag.php', bracket: Modes.Bracket.Close }
+				{ startIndex:18, type: 'metatag.php' }
 			]}]
 		]);
 	});

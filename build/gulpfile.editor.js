@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/*global require,__dirname*/
+
 var gulp = require('gulp');
 var path = require('path');
-var rename = require('gulp-rename');
 var filter = require('gulp-filter');
 var _ = require('underscore');
 var es = require('event-stream');

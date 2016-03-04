@@ -11,16 +11,9 @@ import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {createOnEnterAsserter, executeMonarchTokenizationTests} from 'vs/editor/test/common/modesUtil';
 import {ILanguage} from '../types';
 
-export enum Bracket {
-	None = 0,
-	Open = 1,
-	Close = -1
-}
-
 export interface IRelaxedToken {
 	startIndex: number;
 	type: string;
-	bracket?: Bracket;
 }
 export interface ITestItem {
 	line: string;

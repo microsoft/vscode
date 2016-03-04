@@ -52,7 +52,7 @@ suite('CSS Colorizing', () => {
 			tokens: [
 				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.css' },
 				{ startIndex:4, type: '' },
-				{ startIndex:5, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Open }
+				{ startIndex:5, type: 'punctuation.bracket.css' }
 			]}, {
 			line: '  margin: 0;',
 			tokens: [
@@ -113,7 +113,7 @@ suite('CSS Colorizing', () => {
 			line: '  }',
 			tokens: [
 				{ startIndex:0, type: '' },
-				{ startIndex:2, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Close }
+				{ startIndex:2, type: 'punctuation.bracket.css' }
 			]}
 		]);
 	});
@@ -169,7 +169,7 @@ suite('CSS Colorizing', () => {
 				{ startIndex:14, type: '' },
 				{ startIndex:15, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.css' },
 				{ startIndex:16, type: '' },
-				{ startIndex:17, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Open }
+				{ startIndex:17, type: 'punctuation.bracket.css' }
 			]}
 		]);
 	});
@@ -197,7 +197,7 @@ suite('CSS Colorizing', () => {
 			tokens: [
 				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.id.css' },
 				{ startIndex:5, type: '' },
-				{ startIndex:6, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Open }
+				{ startIndex:6, type: 'punctuation.bracket.css' }
 			]}
 		]);
 	});
@@ -208,7 +208,7 @@ suite('CSS Colorizing', () => {
 			tokens: [
 				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.css' },
 				{ startIndex:5, type: '' },
-				{ startIndex:6, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Open }
+				{ startIndex:6, type: 'punctuation.bracket.css' }
 			]}
 		]);
 	});
@@ -220,9 +220,9 @@ suite('CSS Colorizing', () => {
 				{ startIndex:0, type: cssTokenTypes.TOKEN_AT_KEYWORD + '.css' },
 				{ startIndex:7, type: '' },
 				{ startIndex:8, type: cssTokenTypes.TOKEN_VALUE + '.css' },
-				{ startIndex:11, type: 'punctuation.parenthesis.css', bracket: Modes.Bracket.Open },
+				{ startIndex:11, type: 'punctuation.parenthesis.css' },
 				{ startIndex:12, type: 'string.css' },
-				{ startIndex:27, type: 'punctuation.parenthesis.css', bracket: Modes.Bracket.Close },
+				{ startIndex:27, type: 'punctuation.parenthesis.css' },
 				{ startIndex:28, type: 'punctuation.css' }
 			]}
 		]);
@@ -250,7 +250,7 @@ suite('CSS Colorizing', () => {
 			tokens: [
 				{ startIndex:0, type: cssTokenTypes.TOKEN_AT_KEYWORD + '.css' },
 				{ startIndex:10, type: '' },
-				{ startIndex:11, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Open }
+				{ startIndex:11, type: 'punctuation.bracket.css' }
 			]}, {
 			line: '  font-family: "Opificio";',
 			tokens: [
@@ -282,7 +282,7 @@ suite('CSS Colorizing', () => {
 				{ startIndex:18, type: '' },
 				{ startIndex:19, type: cssTokenTypes.TOKEN_VALUE + '.css' },
 				{ startIndex:36, type: '' },
-				{ startIndex:37, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Open }
+				{ startIndex:37, type: 'punctuation.bracket.css' }
 			]}, {
 			line: '  from {',
 			tokens: [
@@ -348,22 +348,20 @@ suite('CSS Colorizing', () => {
 				{ startIndex:0, type: cssTokenTypes.TOKEN_AT_KEYWORD + '.css' },
 				{ startIndex:7, type: '' },
 				{ startIndex:8, type: cssTokenTypes.TOKEN_VALUE + '.css' },
-				{ startIndex:11, type: 'punctuation.parenthesis.css', bracket: Modes.Bracket.Open },
+				{ startIndex:11, type: 'punctuation.parenthesis.css' },
 				{ startIndex:12, type: 'string.css' },
-				{ startIndex:27, type: 'punctuation.parenthesis.css', bracket: Modes.Bracket.Close },
+				{ startIndex:27, type: 'punctuation.parenthesis.css' },
 				{ startIndex:28, type: 'punctuation.css' }
 			]}, {
 			line: '.rule1{}',
 			tokens: [
 				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.css' },
-				{ startIndex:6, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Open },
-				{ startIndex:7, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Close }
+				{ startIndex:6, type: 'punctuation.bracket.css' }
 			]}, {
 			line: '.rule2{}',
 			tokens: [
 				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.css' },
-				{ startIndex:6, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Open },
-				{ startIndex:7, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Close }
+				{ startIndex:6, type: 'punctuation.bracket.css' }
 			]}
 		]);
 	});
@@ -397,16 +395,16 @@ suite('CSS Colorizing', () => {
 				{ startIndex:0, type: cssTokenTypes.TOKEN_AT_KEYWORD + '.css' },
 				{ startIndex:7, type: '' },
 				{ startIndex:8, type: cssTokenTypes.TOKEN_VALUE + '.css' },
-				{ startIndex:11, type: 'punctuation.parenthesis.css', bracket: Modes.Bracket.Open },
+				{ startIndex:11, type: 'punctuation.parenthesis.css' },
 				{ startIndex:12, type: 'string.css' },
-				{ startIndex:27, type: 'punctuation.parenthesis.css', bracket: Modes.Bracket.Close },
+				{ startIndex:27, type: 'punctuation.parenthesis.css' },
 				{ startIndex:28, type: 'punctuation.css' },
 				{ startIndex:29, type: cssTokenTypes.TOKEN_AT_KEYWORD + '.css' },
 				{ startIndex:36, type: '' },
 				{ startIndex:37, type: cssTokenTypes.TOKEN_VALUE + '.css' },
-				{ startIndex:40, type: 'punctuation.parenthesis.css', bracket: Modes.Bracket.Open },
+				{ startIndex:40, type: 'punctuation.parenthesis.css' },
 				{ startIndex:41, type: 'string.css' },
-				{ startIndex:56, type: 'punctuation.parenthesis.css', bracket: Modes.Bracket.Close },
+				{ startIndex:56, type: 'punctuation.parenthesis.css' },
 				{ startIndex:57, type: 'punctuation.css' }
 			]}
 		]);
@@ -418,15 +416,15 @@ suite('CSS Colorizing', () => {
 			line: '.a{background:#f5f9fc !important}.b{font-family:"Helvetica Neue", Helvetica;height:31px;}',
 			tokens: [
 				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.css' },
-				{ startIndex:2, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Open },
+				{ startIndex:2, type: 'punctuation.bracket.css' },
 				{ startIndex:3, type: cssTokenTypes.TOKEN_PROPERTY + '.css' },
 				{ startIndex:13, type: 'punctuation.css' },
 				{ startIndex:14, type: cssTokenTypes.TOKEN_VALUE + '.hex.css' },
 				{ startIndex:21, type: '' },
 				{ startIndex:22, type: cssTokenTypes.TOKEN_VALUE + '.keyword.css' },
-				{ startIndex:32, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Close },
+				{ startIndex:32, type: 'punctuation.bracket.css' },
 				{ startIndex:33, type: cssTokenTypes.TOKEN_SELECTOR + '.class.css' },
-				{ startIndex:35, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Open },
+				{ startIndex:35, type: 'punctuation.bracket.css' },
 				{ startIndex:36, type: cssTokenTypes.TOKEN_PROPERTY + '.css' },
 				{ startIndex:47, type: 'punctuation.css' },
 				{ startIndex:48, type: 'string.css' },
@@ -439,7 +437,7 @@ suite('CSS Colorizing', () => {
 				{ startIndex:83, type: cssTokenTypes.TOKEN_VALUE + '.numeric.css' },
 				{ startIndex:85, type: cssTokenTypes.TOKEN_VALUE + '.unit.css' },
 				{ startIndex:87, type: 'punctuation.css' },
-				{ startIndex:88, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Close }
+				{ startIndex:88, type: 'punctuation.bracket.css' }
 			]}
 		]);
 	});
@@ -451,7 +449,7 @@ suite('CSS Colorizing', () => {
 			tokens: [
 				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.css' },
 				{ startIndex:5, type: '' },
-				{ startIndex:6, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Open },
+				{ startIndex:6, type: 'punctuation.bracket.css' },
 				{ startIndex:7, type: '' },
 				{ startIndex:8, type: cssTokenTypes.TOKEN_PROPERTY + '.css' },
 				{ startIndex:18, type: 'punctuation.css' },
@@ -459,14 +457,14 @@ suite('CSS Colorizing', () => {
 				{ startIndex:20, type: cssTokenTypes.TOKEN_VALUE + '.hex.css' },
 				{ startIndex:24, type: '' },
 				{ startIndex:25, type: cssTokenTypes.TOKEN_VALUE + '.css' },
-				{ startIndex:28, type: 'punctuation.parenthesis.css', bracket: Modes.Bracket.Open },
+				{ startIndex:28, type: 'punctuation.parenthesis.css' },
 				{ startIndex:29, type: 'string.css' },
-				{ startIndex:215, type: 'punctuation.parenthesis.css', bracket: Modes.Bracket.Close },
+				{ startIndex:215, type: 'punctuation.parenthesis.css' },
 				{ startIndex:216, type: '' },
 				{ startIndex:217, type: cssTokenTypes.TOKEN_VALUE + '.css' },
 				{ startIndex:225, type: '' },
 				{ startIndex:226, type: cssTokenTypes.TOKEN_VALUE + '.css' },
-				{ startIndex:232, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Close }
+				{ startIndex:232, type: 'punctuation.bracket.css' }
 			]}
 		]);
 	});
@@ -477,39 +475,36 @@ suite('CSS Colorizing', () => {
 			line: '.a{background:url(/a.jpg)}',
 			tokens: [
 				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.css' },
-				{ startIndex:2, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Open },
+				{ startIndex:2, type: 'punctuation.bracket.css' },
 				{ startIndex:3, type: cssTokenTypes.TOKEN_PROPERTY + '.css' },
 				{ startIndex:13, type: 'punctuation.css' },
 				{ startIndex:14, type: cssTokenTypes.TOKEN_VALUE + '.css' },
-				{ startIndex:17, type: 'punctuation.parenthesis.css', bracket: Modes.Bracket.Open },
+				{ startIndex:17, type: 'punctuation.parenthesis.css' },
 				{ startIndex:18, type: 'string.css' },
-				{ startIndex:24, type: 'punctuation.parenthesis.css', bracket: Modes.Bracket.Close },
-				{ startIndex:25, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Close }
+				{ startIndex:24, type: 'punctuation.parenthesis.css' },
+				{ startIndex:25, type: 'punctuation.bracket.css' }
 			]}
 		]);
 	});
 
-	test('Bracket Matching', () => {
+	test('bracket Matching', () => {
 		modesUtil.assertTokenization(tokenizationSupport, [{
 			line: 'p{}',
 			tokens: [
 				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.css' },
-				{ startIndex:1, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Open },
-				{ startIndex:2, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Close }
+				{ startIndex:1, type: 'punctuation.bracket.css' }
 			]}
 		]);
 	});
 
-	test('Bracket Matching #2', () => {
+	test('bracket Matching #2', () => {
 		modesUtil.assertTokenization(tokenizationSupport, [{
 			line: 'p:nth() {}',
 			tokens: [
 				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR_TAG + '.css' },
-				{ startIndex:5, type: 'punctuation.parenthesis.css', bracket: Modes.Bracket.Open },
-				{ startIndex:6, type: 'punctuation.parenthesis.css', bracket: Modes.Bracket.Close },
+				{ startIndex:5, type: 'punctuation.parenthesis.css' },
 				{ startIndex:7, type: '' },
-				{ startIndex:8, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Open },
-				{ startIndex:9, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Close }
+				{ startIndex:8, type: 'punctuation.bracket.css' }
 			]}
 		]);
 	});
@@ -555,7 +550,7 @@ suite('CSS Colorizing', () => {
 			tokens: [
 				{ startIndex:0, type: cssTokenTypes.TOKEN_SELECTOR + '.class.css' },
 				{ startIndex:5, type: ''},
-				{ startIndex:6, type: 'punctuation.bracket.css', bracket: Modes.Bracket.Open },
+				{ startIndex:6, type: 'punctuation.bracket.css' },
 				{ startIndex:7, type: cssTokenTypes.TOKEN_PROPERTY + '.css'}
 			]}
 		]);

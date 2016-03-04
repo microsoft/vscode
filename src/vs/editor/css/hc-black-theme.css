@@ -137,7 +137,7 @@
 	box-shadow: none;
 }
 
-/* Bracket Match */
+/* bracket Match */
 .monaco-editor.hc-black .bracket-match { box-shadow:	inset 0 0 0 1px #fff; }
 
 /* Linked Editing */
@@ -148,20 +148,7 @@
 .monaco-editor.hc-black .snippet-placeholder		{ background-color: rgba(124, 124, 124, 0.1); }
 .monaco-editor.hc-black .finish-snippet-placeholder	{ outline: #525252 solid 1px; }
 
-/* Scrollbar */    /* TODO: many of these are not doing anything, not specific enough.  Clean up */
-.hc-black.monaco-scrollable-element .slider {
-	background: none;
-	border: 20px solid #6FC3DF;
-	opacity: .3;
-}
-
-.hc-black.monaco-scrollable-element .slider:hover {
-	opacity: .35;
-}
-
-.hc-black.monaco-scrollable-element .slider.active {
-	opacity: .4;
-}
+/* Scrollbar */
 
 .hc-black.monaco-scrollable-element.modified-in-monaco-diff-editor > .scrollbar > .slider {
 	border-width: 100px;

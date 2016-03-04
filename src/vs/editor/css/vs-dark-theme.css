@@ -127,7 +127,7 @@
 @-ms-keyframes monaco-editor-dark-word-highlight-strong		{ from { background-color: inherit; } to { background-color: rgba(0, 73, 114, 0.72); } }
 @keyframes monaco-editor-dark-word-highlight-strong			{ from { background-color: inherit; } to { background-color: rgba(0, 73, 114, 0.72); } }
 
-/* Bracket Match */
+/* bracket Match */
 .monaco-editor.vs-dark .bracket-match { box-shadow:	inset 0 0 0 1px #555; }
 
 /* Linked Editing */

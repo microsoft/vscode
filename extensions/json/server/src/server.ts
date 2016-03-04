@@ -9,7 +9,7 @@ import {
 	createConnection, IConnection,
 	TextDocuments, ITextDocument, Diagnostic, DiagnosticSeverity,
 	InitializeParams, InitializeResult, TextDocumentIdentifier, TextDocumentPosition, CompletionList,
-	Hover, SymbolInformation, DocumentFormattingParams,
+	CompletionItem, Hover, SymbolInformation, DocumentFormattingParams,
 	DocumentRangeFormattingParams, NotificationType, RequestType
 } from 'vscode-languageserver';
 
@@ -30,6 +30,9 @@ import {BowerJSONContribution} from './jsoncontributions/bowerJSONContribution';
 import {PackageJSONContribution} from './jsoncontributions/packageJSONContribution';
 import {ProjectJSONContribution} from './jsoncontributions/projectJSONContribution';
 import {GlobPatternContribution} from './jsoncontributions/globPatternContribution';
+
+import * as nls from 'vscode-nls';
+nls.config(process.env['VSCODE_NLS_CONFIG']);
 
 namespace TelemetryNotification {
 	export const type: NotificationType<{ key: string, data: any }> = { get method() { return 'telemetry'; } };
@@ -63,7 +66,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
 			textDocumentSync: documents.syncKind,
-			completionProvider: { resolveProvider: false },
+			completionProvider: { resolveProvider: true },
 			hoverProvider: true,
 			documentSymbolProvider: true,
 			documentRangeFormattingProvider: true,
@@ -121,7 +124,7 @@ let contributions = [
 let jsonSchemaService = new JSONSchemaService(request, workspaceContext, telemetry);
 jsonSchemaService.setSchemaContributions(schemaContributions);
 
-let jsonCompletion = new JSONCompletion(jsonSchemaService, contributions);
+let jsonCompletion = new JSONCompletion(jsonSchemaService, connection.console, contributions);
 let jsonHover = new JSONHover(jsonSchemaService, contributions);
 let jsonDocumentSymbols = new JSONDocumentSymbols();
 
@@ -267,6 +270,10 @@ connection.onCompletion((textDocumentPosition: TextDocumentPosition): Thenable<C
 	let document = documents.get(textDocumentPosition.uri);
 	let jsonDocument = getJSONDocument(document);
 	return jsonCompletion.doSuggest(document, textDocumentPosition, jsonDocument);
+});
+
+connection.onCompletionResolve((item: CompletionItem) : Thenable<CompletionItem> => {
+	return jsonCompletion.doResolve(item);
 });
 
 connection.onHover((textDocumentPosition: TextDocumentPosition): Thenable<Hover> => {

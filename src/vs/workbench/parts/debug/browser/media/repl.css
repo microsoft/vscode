@@ -130,6 +130,10 @@
 	box-sizing: border-box;
 }
 
+.monaco-workbench.hc-black .repl .repl-input-wrapper {
+	border-top-color: #6FC3DF;
+}
+
 .monaco-workbench .repl .repl-input-wrapper:before {
 	left: 8px;
 	position: absolute;

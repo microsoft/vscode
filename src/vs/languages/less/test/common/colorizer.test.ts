@@ -245,30 +245,28 @@ suite('LESS-tokenization', () => {
 				{ startIndex:0, type: lessTokenTypes.TOKEN_VALUE + '.rgb-value.less' }
 			]}],
 
-			// Bracket Matching
 			[{
 			line: '[1,2,3]',
 			tokens: [
-				{ startIndex:0, type: 'punctuation.bracket.less', bracket: Modes.Bracket.Open },
+				{ startIndex:0, type: 'punctuation.bracket.less' },
 				{ startIndex:1, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:2, type: 'punctuation.less' },
 				{ startIndex:3, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:4, type: 'punctuation.less' },
 				{ startIndex:5, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
-				{ startIndex:6, type: 'punctuation.bracket.less', bracket: Modes.Bracket.Close }
+				{ startIndex:6, type: 'punctuation.bracket.less' }
 			]}],
 
 			[{
 			line: 'foo(123);',
 			tokens: [
 				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
-				{ startIndex:3, type: 'punctuation.parenthesis.less', bracket: Modes.Bracket.Open },
+				{ startIndex:3, type: 'punctuation.parenthesis.less' },
 				{ startIndex:4, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
-				{ startIndex:7, type: 'punctuation.parenthesis.less', bracket: Modes.Bracket.Close },
+				{ startIndex:7, type: 'punctuation.parenthesis.less' },
 				{ startIndex:8, type: 'punctuation.less' }
 			]}],
 
-			// No Bracket Matching inside strings
 			[{
 			line: '@test: \'[{()}]\'',
 			tokens: [
@@ -337,7 +335,6 @@ suite('LESS-tokenization', () => {
 				{ startIndex:39, type: 'punctuation.parenthesis.less' },
 				{ startIndex:40, type: 'variable.less' },
 				{ startIndex:46, type: 'punctuation.parenthesis.less' },
-				{ startIndex:47, type: 'punctuation.parenthesis.less' },
 				{ startIndex:48, type: '' },
 				{ startIndex:49, type: 'punctuation.curly.less' },
 				{ startIndex:50, type: '' },
@@ -583,7 +580,6 @@ suite('LESS-tokenization', () => {
 				{ startIndex:33, type: 'punctuation.parenthesis.less' },
 				{ startIndex:34, type: 'variable.less' },
 				{ startIndex:36, type: 'punctuation.parenthesis.less' },
-				{ startIndex:37, type: 'punctuation.parenthesis.less' },
 				{ startIndex:38, type: '' },
 				{ startIndex:39, type: 'punctuation.curly.less' },
 				{ startIndex:40, type: '' },
@@ -612,7 +608,6 @@ suite('LESS-tokenization', () => {
 				{ startIndex:36, type: 'punctuation.parenthesis.less' },
 				{ startIndex:37, type: 'variable.less' },
 				{ startIndex:39, type: 'punctuation.parenthesis.less' },
-				{ startIndex:40, type: 'punctuation.parenthesis.less' },
 				{ startIndex:41, type: '' },
 				{ startIndex:42, type: 'punctuation.curly.less' },
 				{ startIndex:43, type: '' },
@@ -631,7 +626,6 @@ suite('LESS-tokenization', () => {
 				{ startIndex:16, type: '' },
 				{ startIndex:17, type: 'identifier.js' },
 				{ startIndex:24, type: 'delimiter.parenthesis.js' },
-				{ startIndex:25, type: 'delimiter.parenthesis.js' },
 				{ startIndex:26, type: 'punctuation.backtick.less' },
 				{ startIndex:27, type: '' },
 				{ startIndex:28, type: 'comment.less' }
@@ -682,7 +676,6 @@ suite('LESS-tokenization', () => {
 				{ startIndex:69, type: 'punctuation.less' },
 				{ startIndex:70, type: lessTokenTypes.TOKEN_VALUE + '.numeric.less' },
 				{ startIndex:72, type: 'punctuation.parenthesis.less' },
-				{ startIndex:73, type: 'punctuation.parenthesis.less' },
 				{ startIndex:74, type: 'punctuation.less' }
 			]}],
 
@@ -910,7 +903,6 @@ suite('LESS-tokenization', () => {
 				{ startIndex:115, type: 'punctuation.less' },
 				{ startIndex:116, type: 'variable.less' },
 				{ startIndex:122, type: 'punctuation.parenthesis.less' },
-				{ startIndex:123, type: 'punctuation.parenthesis.less' },
 				{ startIndex:124, type: 'punctuation.less' },
 				{ startIndex:125, type: '' },
 				{ startIndex:126, type: lessTokenTypes.TOKEN_VALUE + '.less' },
@@ -926,8 +918,6 @@ suite('LESS-tokenization', () => {
 				{ startIndex:155, type: 'punctuation.less' },
 				{ startIndex:156, type: 'variable.less' },
 				{ startIndex:161, type: 'punctuation.parenthesis.less' },
-				{ startIndex:162, type: 'punctuation.parenthesis.less' },
-				{ startIndex:163, type: 'punctuation.parenthesis.less' },
 				{ startIndex:164, type: 'punctuation.less' },
 				{ startIndex:165, type: '' },
 				{ startIndex:166, type: 'punctuation.curly.less' }
@@ -955,7 +945,7 @@ suite('LESS-tokenization', () => {
 			tokens: [
 				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:4, type: '' },
-				{ startIndex:5, type: 'punctuation.curly.less', bracket: Modes.Bracket.Open }
+				{ startIndex:5, type: 'punctuation.curly.less' }
 			]}, {
 			line: '  margin: 0;',
 			tokens: [
@@ -1017,7 +1007,7 @@ suite('LESS-tokenization', () => {
 			line: '  }',
 			tokens: [
 				{ startIndex:0, type: '' },
-				{ startIndex:2, type: 'punctuation.curly.less', bracket: Modes.Bracket.Close }
+				{ startIndex:2, type: 'punctuation.curly.less' }
 			]}],
 
 			// CSS units and numbers
@@ -1057,7 +1047,7 @@ suite('LESS-tokenization', () => {
 				{ startIndex:14, type: '' },
 				{ startIndex:15, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:16, type: '' },
-				{ startIndex:17, type: 'punctuation.curly.less', bracket: Modes.Bracket.Open }
+				{ startIndex:17, type: 'punctuation.curly.less' }
 			]}],
 
 			// CSS multi line comment
@@ -1087,7 +1077,7 @@ suite('LESS-tokenization', () => {
 			tokens: [
 				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.id.less' },
 				{ startIndex:5, type: '' },
-				{ startIndex:6, type: 'punctuation.curly.less', bracket: Modes.Bracket.Open }
+				{ startIndex:6, type: 'punctuation.curly.less' }
 			]}],
 
 			// CSS Class rules
@@ -1098,7 +1088,7 @@ suite('LESS-tokenization', () => {
 			tokens: [
 				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.class.less' },
 				{ startIndex:5, type: '' },
-				{ startIndex:6, type: 'punctuation.curly.less', bracket: Modes.Bracket.Open }
+				{ startIndex:6, type: 'punctuation.curly.less' }
 			]}],
 
 			// CSS @import etc
@@ -1108,11 +1098,11 @@ suite('LESS-tokenization', () => {
 			tokens: [
 				{ startIndex:0, type: 'keyword.less' },
 				{ startIndex:7, type: '' },
-				{ startIndex:8, type: 'function.less', bracket: Modes.Bracket.Open },
-				{ startIndex:12, type: 'string.punctuation.less', bracket: Modes.Bracket.Open },
+				{ startIndex:8, type: 'function.less' },
+				{ startIndex:12, type: 'string.punctuation.less' },
 				{ startIndex:13, type: 'string.less' },
-				{ startIndex:27, type: 'string.punctuation.less', bracket: Modes.Bracket.Close },
-				{ startIndex:28, type: 'punctuation.parenthesis.less', bracket: Modes.Bracket.Close },
+				{ startIndex:27, type: 'string.punctuation.less' },
+				{ startIndex:28, type: 'punctuation.parenthesis.less' },
 				{ startIndex:29, type: 'punctuation.less' }
 			]}],
 
@@ -1129,13 +1119,13 @@ suite('LESS-tokenization', () => {
 				{ startIndex:2, type: lessTokenTypes.TOKEN_PROPERTY + '.less' },
 				{ startIndex:9, type: 'punctuation.less' },
 				{ startIndex:10, type: '' },
-				{ startIndex:11, type: 'string.punctuation.less', bracket: Modes.Bracket.Open },
+				{ startIndex:11, type: 'string.punctuation.less' },
 				{ startIndex:12, type: 'string.less' }
 			]}, {
 			line: 'tent";',
 			tokens: [
 				{ startIndex:0, type: 'string.less' },
-				{ startIndex:4, type: 'string.punctuation.less', bracket: Modes.Bracket.Close },
+				{ startIndex:4, type: 'string.punctuation.less' },
 				{ startIndex:5, type: 'punctuation.less' }
 			]}],
 
@@ -1151,8 +1141,7 @@ suite('LESS-tokenization', () => {
 				{ startIndex:2, type: lessTokenTypes.TOKEN_PROPERTY + '.less' },
 				{ startIndex:9, type: 'punctuation.less' },
 				{ startIndex:10, type: '' },
-				{ startIndex:11, type: 'string.punctuation.less', bracket: Modes.Bracket.Open },
-				{ startIndex:12, type: 'string.punctuation.less', bracket: Modes.Bracket.Close },
+				{ startIndex:11, type: 'string.punctuation.less' },
 				{ startIndex:13, type: 'punctuation.less' }
 			]}],
 
@@ -1166,8 +1155,7 @@ suite('LESS-tokenization', () => {
 				{ startIndex:2, type: lessTokenTypes.TOKEN_PROPERTY + '.less' },
 				{ startIndex:10, type: 'punctuation.less' },
 				{ startIndex:11, type: '' },
-				{ startIndex:12, type: 'string.punctuation.less', bracket: Modes.Bracket.Open },
-				{ startIndex:13, type: 'string.punctuation.less', bracket: Modes.Bracket.Close },
+				{ startIndex:12, type: 'string.punctuation.less' },
 				{ startIndex:14, type: 'punctuation.less' }
 			]}],
 
@@ -1180,7 +1168,7 @@ suite('LESS-tokenization', () => {
 			tokens: [
 				{ startIndex:0, type: 'variable.less' },
 				{ startIndex:10, type: '' },
-				{ startIndex:11, type: 'punctuation.curly.less', bracket: Modes.Bracket.Open }
+				{ startIndex:11, type: 'punctuation.curly.less' }
 			]}, {
 			line: '  font-family: "Opificio";',
 			tokens: [
@@ -1188,9 +1176,9 @@ suite('LESS-tokenization', () => {
 				{ startIndex:2, type: lessTokenTypes.TOKEN_PROPERTY + '.less' },
 				{ startIndex:13, type: 'punctuation.less' },
 				{ startIndex:14, type: '' },
-				{ startIndex:15, type: 'string.punctuation.less', bracket: Modes.Bracket.Open },
+				{ startIndex:15, type: 'string.punctuation.less' },
 				{ startIndex:16, type: 'string.less' },
-				{ startIndex:24, type: 'string.punctuation.less', bracket: Modes.Bracket.Close },
+				{ startIndex:24, type: 'string.punctuation.less' },
 				{ startIndex:25, type: 'punctuation.less' }
 			]}],
 
@@ -1199,28 +1187,24 @@ suite('LESS-tokenization', () => {
 			[{
 			line: '"s\\"tr\\"sadsad',
 			tokens: [
-				{ startIndex:0, type: 'string.punctuation.less', bracket: Modes.Bracket.Open },
+				{ startIndex:0, type: 'string.punctuation.less' },
 				{ startIndex:1, type: 'string.less' }
 			]}],
 
-			// EG: Bracket Matching
 			[{
 			line: 'p{}',
 			tokens: [
 				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
-				{ startIndex:1, type: 'punctuation.curly.less', bracket: Modes.Bracket.Open },
-				{ startIndex:2, type: 'punctuation.curly.less', bracket: Modes.Bracket.Close }
+				{ startIndex:1, type: 'punctuation.curly.less' }
 			]}],
 
 			[{
 			line: 'p:nth() {}',
 			tokens: [
 				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
-				{ startIndex:5, type: 'punctuation.parenthesis.less', bracket: Modes.Bracket.Open },
-				{ startIndex:6, type: 'punctuation.parenthesis.less', bracket: Modes.Bracket.Close },
+				{ startIndex:5, type: 'punctuation.parenthesis.less' },
 				{ startIndex:7, type: '' },
-				{ startIndex:8, type: 'punctuation.curly.less', bracket: Modes.Bracket.Open },
-				{ startIndex:9, type: 'punctuation.curly.less', bracket: Modes.Bracket.Close }
+				{ startIndex:8, type: 'punctuation.curly.less' }
 			]}],
 
 			// EG: import statement - bug #10308
@@ -1230,19 +1214,19 @@ suite('LESS-tokenization', () => {
 			tokens: [
 				{ startIndex:0, type: 'keyword.less' },
 				{ startIndex:7, type: '' },
-				{ startIndex:8, type: 'function.less', bracket: Modes.Bracket.Open },
-				{ startIndex:12, type: 'string.punctuation.less', bracket: Modes.Bracket.Open },
+				{ startIndex:8, type: 'function.less' },
+				{ startIndex:12, type: 'string.punctuation.less' },
 				{ startIndex:13, type: 'string.less' },
-				{ startIndex:26, type: 'string.punctuation.less', bracket: Modes.Bracket.Close },
-				{ startIndex:27, type: 'punctuation.parenthesis.less', bracket: Modes.Bracket.Close },
+				{ startIndex:26, type: 'string.punctuation.less' },
+				{ startIndex:27, type: 'punctuation.parenthesis.less' },
 				{ startIndex:28, type: 'punctuation.less' },
 				{ startIndex:29, type: 'keyword.less' },
 				{ startIndex:36, type: '' },
-				{ startIndex:37, type: 'function.less', bracket: Modes.Bracket.Open },
+				{ startIndex:37, type: 'function.less' },
 				{ startIndex:41, type: 'string.punctuation.less' },
 				{ startIndex:42, type: 'string.less' },
 				{ startIndex:55, type: 'string.punctuation.less' },
-				{ startIndex:56, type: 'punctuation.parenthesis.less', bracket: Modes.Bracket.Close },
+				{ startIndex:56, type: 'punctuation.parenthesis.less' },
 				{ startIndex:57, type: 'punctuation.less' }
 			]}],
 
@@ -1250,10 +1234,7 @@ suite('LESS-tokenization', () => {
 			[{
 			line: '""""',
 			tokens: [
-				{ startIndex:0, type: 'string.punctuation.less' },
-				{ startIndex:1, type: 'string.punctuation.less' },
-				{ startIndex:2, type: 'string.punctuation.less' },
-				{ startIndex:3, type: 'string.punctuation.less' }
+				{ startIndex:0, type: 'string.punctuation.less' }
 			]}],
 
 			// EG: CSS @import related coloring bug 9553
@@ -1262,24 +1243,22 @@ suite('LESS-tokenization', () => {
 			tokens: [
 				{ startIndex:0, type: 'keyword.less' },
 				{ startIndex:7, type: '' },
-				{ startIndex:8, type: 'function.less', bracket: Modes.Bracket.Open },
+				{ startIndex:8, type: 'function.less' },
 				{ startIndex:12, type: 'string.punctuation.less' },
 				{ startIndex:13, type: 'string.less' },
 				{ startIndex:26, type: 'string.punctuation.less' },
-				{ startIndex:27, type: 'punctuation.parenthesis.less', bracket: Modes.Bracket.Close },
+				{ startIndex:27, type: 'punctuation.parenthesis.less' },
 				{ startIndex:28, type: 'punctuation.less' }
 			]}, {
 			line: '.rule1{}',
 			tokens: [
 				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.class.less' },
-				{ startIndex:6, type: 'punctuation.curly.less', bracket: Modes.Bracket.Open },
-				{ startIndex:7, type: 'punctuation.curly.less', bracket: Modes.Bracket.Close }
+				{ startIndex:6, type: 'punctuation.curly.less' }
 			]}, {
 			line: '.rule2{}',
 			tokens: [
 				{ startIndex:0, type: lessTokenTypes.TOKEN_SELECTOR + '.class.less' },
-				{ startIndex:6, type: 'punctuation.curly.less', bracket: Modes.Bracket.Open },
-				{ startIndex:7, type: 'punctuation.curly.less', bracket: Modes.Bracket.Close }
+				{ startIndex:6, type: 'punctuation.curly.less' }
 			]}],
 
 			// EG: CSS key frame animation syntax
@@ -1290,7 +1269,7 @@ suite('LESS-tokenization', () => {
 				{ startIndex:18, type: '' },
 				{ startIndex:19, type: lessTokenTypes.TOKEN_SELECTOR_TAG + '.less' },
 				{ startIndex:36, type: '' },
-				{ startIndex:37, type: 'punctuation.curly.less', bracket: Modes.Bracket.Open }
+				{ startIndex:37, type: 'punctuation.curly.less' }
 			]}, {
 			line: '  from {',
 			tokens: [

@@ -23,15 +23,9 @@ export interface IWorkerParticipant {
 
 }
 
-export enum Bracket {
-	None = 0,
-	Open = 1,
-	Close = -1
-}
-
 export interface ITokenizationResult {
 	type?:string;
-	bracket?:Bracket;
+	dontMergeWithPrev?:boolean;
 	nextState?:IState;
 }
 
@@ -304,7 +298,6 @@ export interface IMode {
 export interface IToken {
 	startIndex:number;
 	type:string;
-	bracket?:Bracket;
 }
 
 export interface IModeTransition {

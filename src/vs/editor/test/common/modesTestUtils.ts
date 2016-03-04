@@ -37,7 +37,6 @@ export function createMockMode(id:string, wordRegExp:RegExp = null):modes.IMode 
 export interface TokenText {
 	text: string;
 	type: string;
-	bracket?: modes.Bracket;
 }
 
 export function createLineContextFromTokenText(tokens: TokenText[]): modes.ILineContext {

@@ -115,7 +115,7 @@ export class StartDebugAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.createSession();
+		return this.debugService.createSession(false);
 	}
 
 	protected isEnabled(): boolean {
@@ -743,5 +743,22 @@ export class ToggleReplAction extends AbstractDebugAction {
 	private isReplVisible(): boolean {
 		const panel = this.panelService.getActivePanel();
 		return panel && panel.getId() === debug.REPL_ID;
+	}
+}
+
+export class RunAction extends AbstractDebugAction {
+	static ID = 'workbench.action.debug.run';
+	static LABEL = nls.localize('run', "Run");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, null, debugService, keybindingService);
+	}
+
+	public run(): TPromise<any> {
+		return this.debugService.createSession(true);
+	}
+
+	protected isEnabled(): boolean {
+		return super.isEnabled() && this.debugService.getState() === debug.State.Inactive;
 	}
 }

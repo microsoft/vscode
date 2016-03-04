@@ -95,7 +95,6 @@ function tokenize(mode:Modes.IMode, comments:boolean, line:string, state:JSONSta
 	while(true) {
 
 		var offset = offsetDelta + scanner.getPosition(),
-			bracket = Modes.Bracket.None,
 			type = '';
 
 		kind = scanner.scan();
@@ -119,22 +118,18 @@ function tokenize(mode:Modes.IMode, comments:boolean, line:string, state:JSONSta
 		// brackets and type
 		switch(kind) {
 			case json.SyntaxKind.OpenBraceToken:
-				bracket = Modes.Bracket.Open;
 				type = jsonTokenTypes.TOKEN_DELIM_OBJECT;
 				lastWasColon = false;
 				break;
 			case json.SyntaxKind.CloseBraceToken:
-				bracket = Modes.Bracket.Close;
 				type = jsonTokenTypes.TOKEN_DELIM_OBJECT;
 				lastWasColon = false;
 				break;
 			case json.SyntaxKind.OpenBracketToken:
-				bracket = Modes.Bracket.Open;
 				type = jsonTokenTypes.TOKEN_DELIM_ARRAY;
 				lastWasColon = false;
 				break;
 			case json.SyntaxKind.CloseBracketToken:
-				bracket = Modes.Bracket.Close;
 				type = jsonTokenTypes.TOKEN_DELIM_ARRAY;
 				lastWasColon = false;
 				break;

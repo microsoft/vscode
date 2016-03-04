@@ -8,14 +8,17 @@
 import Parser = require('./jsonParser');
 import SchemaService = require('./jsonSchemaService');
 import JsonSchema = require('./json-toolbox/jsonSchema');
-import nls = require('./utils/nls');
 import {IJSONWorkerContribution} from './jsonContributions';
 
-import {CompletionItem, CompletionItemKind, CompletionList, ITextDocument, TextDocumentPosition, Range, TextEdit} from 'vscode-languageserver';
+import {CompletionItem, CompletionItemKind, CompletionList, ITextDocument, TextDocumentPosition, Range, TextEdit, RemoteConsole} from 'vscode-languageserver';
+
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
 
 export interface ISuggestionsCollector {
 	add(suggestion: CompletionItem): void;
 	error(message:string): void;
+	log(message:string): void;
 	setAsIncomplete(): void;
 }
 
@@ -23,10 +26,24 @@ export class JSONCompletion {
 
 	private schemaService: SchemaService.IJSONSchemaService;
 	private contributions: IJSONWorkerContribution[];
+	private console: RemoteConsole;
 
-	constructor(schemaService: SchemaService.IJSONSchemaService, contributions: IJSONWorkerContribution[] = []) {
+	constructor(schemaService: SchemaService.IJSONSchemaService, console: RemoteConsole, contributions: IJSONWorkerContribution[] = []) {
 		this.schemaService = schemaService;
 		this.contributions = contributions;
+		this.console = console;
+	}
+
+	public doResolve(item: CompletionItem) : Thenable<CompletionItem> {
+		for (let i = this.contributions.length - 1; i >= 0; i--) {
+			if (this.contributions[i].resolveSuggestion) {
+				let resolver = this.contributions[i].resolveSuggestion(item);
+				if (resolver) {
+					return resolver;
+				}
+			}
+		}
+		return Promise.resolve(item);
 	}
 
 	public doSuggest(document: ITextDocument, textDocumentPosition: TextDocumentPosition, doc: Parser.JSONDocument): Thenable<CompletionList> {
@@ -63,7 +80,10 @@ export class JSONCompletion {
 				result.isIncomplete = true;
 			},
 			error: (message: string) => {
-				console.log(message);
+				this.console.error(message);
+			},
+			log: (message: string) => {
+				this.console.log(message);
 			}
 		};
 
@@ -344,7 +364,7 @@ export class JSONCompletion {
 				kind: this.getSuggestionKind(schema.type),
 				label: this.getLabelForValue(schema.default),
 				insertText: this.getTextForValue(schema.default),
-				detail: nls.localize('json.suggest.default', 'Default value'),
+				detail: localize('json.suggest.default', 'Default value'),
 			});
 		}
 		if (Array.isArray(schema.defaultSnippets)) {

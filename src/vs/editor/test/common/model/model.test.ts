@@ -385,9 +385,9 @@ suite('Editor Model - Model Line Separators', () => {
 });
 
 
-// --------- Bracket matching
+// --------- bracket matching
 
-suite('Editor Model - Bracket Matching', () => {
+suite('Editor Model - bracket Matching', () => {
 
 	var thisModel: Model;
 	var bracketMode = new BracketMode();
@@ -406,7 +406,7 @@ suite('Editor Model - Bracket Matching', () => {
 		thisModel.destroy();
 	});
 
-	test('Model Bracket matching 1', () => {
+	test('Model bracket matching 1', () => {
 
 		var brackets = [
 			[1, 11, 12, 5, 4, 5],
@@ -455,7 +455,7 @@ suite('Editor Model - Bracket Matching', () => {
 });
 
 
-suite('Editor Model - Bracket Matching 2', () => {
+suite('Editor Model - bracket Matching 2', () => {
 
 	var thisModel: Model;
 	var bracketMode = new BracketMode();
@@ -471,7 +471,7 @@ suite('Editor Model - Bracket Matching 2', () => {
 		thisModel.destroy();
 	});
 
-	test('Model Bracket matching', () => {
+	test('Model bracket matching', () => {
 		isNotABracket(thisModel, 1, 1);
 		isNotABracket(thisModel, 1, 2);
 		isNotABracket(thisModel, 1, 3);

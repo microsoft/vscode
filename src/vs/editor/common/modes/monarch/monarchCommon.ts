@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {CharacterPair, Bracket, IAutoClosingPairConditional, ISuggestion} from 'vs/editor/common/modes';
+import {CharacterPair, IAutoClosingPairConditional, ISuggestion} from 'vs/editor/common/modes';
 
 /*
  * This module exports common types and functionality shared between
@@ -16,6 +16,12 @@ import {CharacterPair, Bracket, IAutoClosingPairConditional, ISuggestion} from '
  * Type definitions to be used internally to Monarch.
  * Inside monarch we use fully typed definitions and compiled versions of the more abstract JSON descriptions.
  */
+
+export enum MonarchBracket {
+	None = 0,
+	Open = 1,
+	Close = -1
+}
 
 export interface ILexerMin {
 	noThrow: boolean;
@@ -88,7 +94,7 @@ export interface IAction {
 	tokenSubst?: boolean;
 	next?: string;
 	nextEmbedded?: string;
-	bracket?: Bracket;
+	bracket?: MonarchBracket;
 	log?: string;
 	switchTo?: string;
 	goBack?: number;

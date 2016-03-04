@@ -8,11 +8,6 @@
 import {language} from 'vs/editor/standalone-languages/go';
 import {testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
-var Bracket = {
-	Open: 1,
-	Close: -1
-};
-
 testTokenization('go', language, [
 	// Tests
 	[{
@@ -46,7 +41,7 @@ testTokenization('go', language, [
 	tokens: [
 		{ startIndex: 0, type: 'keyword.import.go' },
 		{ startIndex: 6, type: '' },
-		{ startIndex: 7, type: 'delimiter.curly.go', bracket: Bracket.Open }
+		{ startIndex: 7, type: 'delimiter.curly.go' }
 	]}],
 
 	[{
@@ -59,7 +54,7 @@ testTokenization('go', language, [
 	[{
 	line: '}',
 	tokens: [
-		{ startIndex: 0, type: 'delimiter.curly.go', bracket: Bracket.Close }
+		{ startIndex: 0, type: 'delimiter.curly.go' }
 	]}],
 
 	[{
@@ -77,7 +72,7 @@ testTokenization('go', language, [
 		{ startIndex: 9, type: '' },
 		{ startIndex: 10, type: 'keyword.struct.go' },
 		{ startIndex: 16, type: '' },
-		{ startIndex: 17, type: 'delimiter.curly.go', bracket: Bracket.Open }
+		{ startIndex: 17, type: 'delimiter.curly.go' }
 	]}],
 
 	[{
@@ -101,7 +96,7 @@ testTokenization('go', language, [
 	[{
 	line: '}',
 	tokens: [
-		{ startIndex: 0, type: 'delimiter.curly.go', bracket: Bracket.Close }
+		{ startIndex: 0, type: 'delimiter.curly.go' }
 	]}],
 
 	[{
@@ -116,10 +111,9 @@ testTokenization('go', language, [
 		{ startIndex: 0, type: 'keyword.func.go' },
 		{ startIndex: 4, type: '' },
 		{ startIndex: 5, type: 'identifier.go' },
-		{ startIndex: 14, type: 'delimiter.parenthesis.go', bracket: Bracket.Open },
-		{ startIndex: 15, type: 'delimiter.parenthesis.go', bracket: Bracket.Close },
+		{ startIndex: 14, type: 'delimiter.parenthesis.go' },
 		{ startIndex: 16, type: '' },
-		{ startIndex: 17, type: 'delimiter.curly.go', bracket: Bracket.Open }
+		{ startIndex: 17, type: 'delimiter.curly.go' }
 	]}],
 
 	[{
@@ -305,7 +299,7 @@ testTokenization('go', language, [
 	[{
 	line: '}',
 	tokens: [
-		{ startIndex: 0, type: 'delimiter.curly.go', bracket: Bracket.Close }
+		{ startIndex: 0, type: 'delimiter.curly.go' }
 	]}],
 
 	[{
@@ -320,10 +314,9 @@ testTokenization('go', language, [
 		{ startIndex: 0, type: 'keyword.func.go' },
 		{ startIndex: 4, type: '' },
 		{ startIndex: 5, type: 'identifier.go' },
-		{ startIndex: 18, type: 'delimiter.parenthesis.go', bracket: Bracket.Open },
-		{ startIndex: 19, type: 'delimiter.parenthesis.go', bracket: Bracket.Close },
+		{ startIndex: 18, type: 'delimiter.parenthesis.go' },
 		{ startIndex: 20, type: '' },
-		{ startIndex: 21, type: 'delimiter.curly.go', bracket: Bracket.Open }
+		{ startIndex: 21, type: 'delimiter.curly.go' }
 	]}],
 
 	[{
@@ -692,7 +685,7 @@ testTokenization('go', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 2, type: 'identifier.go' },
 		{ startIndex: 3, type: '' },
-		{ startIndex: 4, type: 'delimiter.angle.go', bracket: Bracket.Open },
+		{ startIndex: 4, type: 'delimiter.angle.go' },
 		{ startIndex: 5, type: '' },
 		{ startIndex: 6, type: 'identifier.go' },
 		{ startIndex: 7, type: 'delimiter.go' }
@@ -704,7 +697,7 @@ testTokenization('go', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 2, type: 'identifier.go' },
 		{ startIndex: 3, type: '' },
-		{ startIndex: 4, type: 'delimiter.angle.go', bracket: Bracket.Close },
+		{ startIndex: 4, type: 'delimiter.angle.go' },
 		{ startIndex: 5, type: '' },
 		{ startIndex: 6, type: 'identifier.go' },
 		{ startIndex: 7, type: 'delimiter.go' }
@@ -792,18 +785,18 @@ testTokenization('go', language, [
 	line: '  (a)',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 2, type: 'delimiter.parenthesis.go', bracket: Bracket.Open },
+		{ startIndex: 2, type: 'delimiter.parenthesis.go' },
 		{ startIndex: 3, type: 'identifier.go' },
-		{ startIndex: 4, type: 'delimiter.parenthesis.go', bracket: Bracket.Close }
+		{ startIndex: 4, type: 'delimiter.parenthesis.go' }
 	]}],
 
 	[{
 	line: '  [a]',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 2, type: 'delimiter.square.go', bracket: Bracket.Open },
+		{ startIndex: 2, type: 'delimiter.square.go' },
 		{ startIndex: 3, type: 'identifier.go' },
-		{ startIndex: 4, type: 'delimiter.square.go', bracket: Bracket.Close }
+		{ startIndex: 4, type: 'delimiter.square.go' }
 	]}],
 
 	[{
@@ -843,7 +836,7 @@ testTokenization('go', language, [
 	[{
 	line: '}',
 	tokens: [
-		{ startIndex: 0, type: 'delimiter.curly.go', bracket: Bracket.Close }
+		{ startIndex: 0, type: 'delimiter.curly.go' }
 	]}],
 
 	[{
@@ -858,10 +851,9 @@ testTokenization('go', language, [
 		{ startIndex: 0, type: 'keyword.func.go' },
 		{ startIndex: 4, type: '' },
 		{ startIndex: 5, type: 'identifier.go' },
-		{ startIndex: 13, type: 'delimiter.parenthesis.go', bracket: Bracket.Open },
-		{ startIndex: 14, type: 'delimiter.parenthesis.go', bracket: Bracket.Close },
+		{ startIndex: 13, type: 'delimiter.parenthesis.go' },
 		{ startIndex: 15, type: '' },
-		{ startIndex: 16, type: 'delimiter.curly.go', bracket: Bracket.Open }
+		{ startIndex: 16, type: 'delimiter.curly.go' }
 	]}],
 
 	[{
@@ -893,11 +885,11 @@ testTokenization('go', language, [
 	tokens: [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 2, type: 'keyword.switch.go' },
-		{ startIndex: 8, type: 'delimiter.parenthesis.go', bracket: Bracket.Open },
+		{ startIndex: 8, type: 'delimiter.parenthesis.go' },
 		{ startIndex: 9, type: 'identifier.go' },
-		{ startIndex: 10, type: 'delimiter.parenthesis.go', bracket: Bracket.Close },
+		{ startIndex: 10, type: 'delimiter.parenthesis.go' },
 		{ startIndex: 11, type: '' },
-		{ startIndex: 12, type: 'delimiter.curly.go', bracket: Bracket.Open }
+		{ startIndex: 12, type: 'delimiter.curly.go' }
 	]}],
 
 	[{
@@ -938,7 +930,7 @@ testTokenization('go', language, [
 	line: '  }',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 2, type: 'delimiter.curly.go', bracket: Bracket.Close }
+		{ startIndex: 2, type: 'delimiter.curly.go' }
 	]}],
 
 	[{
@@ -985,9 +977,9 @@ testTokenization('go', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 2, type: 'keyword.if.go' },
 		{ startIndex: 4, type: '' },
-		{ startIndex: 5, type: 'delimiter.parenthesis.go', bracket: Bracket.Open },
+		{ startIndex: 5, type: 'delimiter.parenthesis.go' },
 		{ startIndex: 6, type: 'identifier.go' },
-		{ startIndex: 7, type: 'delimiter.parenthesis.go', bracket: Bracket.Close }
+		{ startIndex: 7, type: 'delimiter.parenthesis.go' }
 	]}],
 
 	[{
@@ -1019,7 +1011,7 @@ testTokenization('go', language, [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 3, type: 'keyword.for.go' },
 		{ startIndex: 6, type: '' },
-		{ startIndex: 7, type: 'delimiter.parenthesis.go', bracket: Bracket.Open },
+		{ startIndex: 7, type: 'delimiter.parenthesis.go' },
 		{ startIndex: 8, type: 'identifier.go' },
 		{ startIndex: 9, type: '' },
 		{ startIndex: 10, type: 'delimiter.go' },
@@ -1029,14 +1021,14 @@ testTokenization('go', language, [
 		{ startIndex: 14, type: '' },
 		{ startIndex: 15, type: 'identifier.go' },
 		{ startIndex: 16, type: '' },
-		{ startIndex: 17, type: 'delimiter.angle.go', bracket: Bracket.Open },
+		{ startIndex: 17, type: 'delimiter.angle.go' },
 		{ startIndex: 18, type: '' },
 		{ startIndex: 19, type: 'number.go' },
 		{ startIndex: 21, type: 'delimiter.go' },
 		{ startIndex: 22, type: '' },
 		{ startIndex: 23, type: 'identifier.go' },
 		{ startIndex: 24, type: 'delimiter.go' },
-		{ startIndex: 26, type: 'delimiter.parenthesis.go', bracket: Bracket.Close },
+		{ startIndex: 26, type: 'delimiter.parenthesis.go' },
 		{ startIndex: 27, type: 'delimiter.go' }
 	]}],
 
@@ -1171,6 +1163,6 @@ testTokenization('go', language, [
 	[{
 	line: '}',
 	tokens: [
-		{ startIndex: 0, type: 'delimiter.curly.go', bracket: Bracket.Close }
+		{ startIndex: 0, type: 'delimiter.curly.go' }
 	]}]
 ]);

@@ -8,11 +8,6 @@
 import {language} from 'vs/editor/standalone-languages/cpp';
 import {testOnEnter, testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
-var Bracket = {
-	Open: 1,
-	Close: -1
-};
-
 testOnEnter('cpp', language, (assertOnEnter) => {
 	assertOnEnter.nothing('', ' a', '');
 	assertOnEnter.indents('', ' <', '');
@@ -30,7 +25,7 @@ testTokenization('cpp', language, [
 		{ startIndex: 0, type: 'keyword.int.cpp' },
 		{ startIndex: 3, type: '' },
 		{ startIndex: 4, type: 'identifier.cpp' },
-		{ startIndex: 10, type: 'delimiter.parenthesis.cpp', bracket: Bracket.Open },
+		{ startIndex: 10, type: 'delimiter.parenthesis.cpp' },
 		{ startIndex: 11, type: 'keyword.int.cpp' },
 		{ startIndex: 14, type: '' },
 		{ startIndex: 15, type: 'identifier.cpp' },
@@ -40,9 +35,8 @@ testTokenization('cpp', language, [
 		{ startIndex: 27, type: 'delimiter.cpp' },
 		{ startIndex: 28, type: '' },
 		{ startIndex: 29, type: 'identifier.cpp' },
-		{ startIndex: 33, type: 'delimiter.square.cpp', bracket: Bracket.Open },
-		{ startIndex: 34, type: 'delimiter.square.cpp', bracket: Bracket.Close },
-		{ startIndex: 35, type: 'delimiter.parenthesis.cpp', bracket: Bracket.Close }
+		{ startIndex: 33, type: 'delimiter.square.cpp' },
+		{ startIndex: 35, type: 'delimiter.parenthesis.cpp' }
 	]}],
 
 	// Comments - single line
@@ -541,7 +535,6 @@ testTokenization('cpp', language, [
 		{ startIndex: 5, type: '' },
 		{ startIndex: 6, type: 'identifier.cpp' },
 		{ startIndex: 12, type: 'delimiter.parenthesis.cpp' },
-		{ startIndex: 13, type: 'delimiter.parenthesis.cpp' },
 		{ startIndex: 14, type: '' },
 		{ startIndex: 15, type: 'keyword.const.cpp' },
 		{ startIndex: 20, type: '' },
@@ -565,7 +558,6 @@ testTokenization('cpp', language, [
 		{ startIndex: 15, type: '' },
 		{ startIndex: 16, type: 'identifier.cpp' },
 		{ startIndex: 19, type: 'delimiter.parenthesis.cpp' },
-		{ startIndex: 20, type: 'delimiter.parenthesis.cpp' },
 		{ startIndex: 21, type: 'delimiter.cpp' }
 	]}, {
 	line: '			',
