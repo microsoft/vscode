@@ -61,6 +61,7 @@ export class HTMLWorker {
 
 	protected addCustomTagProviders(providers: htmlTags.IHTMLTagProvider[]): void {
 		providers.push(htmlTags.getAngularTagProvider());
+		providers.push(htmlTags.getIonicTagProvider());
 	}
 
 	public format(resource: URI, range: EditorCommon.IRange, options: Modes.IFormattingOptions): winjs.TPromise<EditorCommon.ISingleEditOperation[]> {

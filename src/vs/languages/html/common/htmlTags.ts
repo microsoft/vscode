@@ -11,17 +11,25 @@ import strings = require('vs/base/common/strings');
 import nls = require('vs/nls');
 
 export interface IHTMLTagProvider {
-	collectTags(collector: (tag:string, label:string) => void): void;
+	collectTags(collector: (tag: string, label: string) => void): void;
 	collectAttributes(tag: string, collector: (attribute: string, type: string) => void): void;
 	collectValues(tag: string, attribute: string, collector: (value: string) => void): void;
 }
 
+export interface ITagSet {
+	[tag: string]: HTMLTagSpecification;
+}
+
 export class HTMLTagSpecification {
-	constructor(public label: string, public attributes: string[] = []) {}
+	constructor(public label: string, public attributes: string[] = []) { }
+}
+
+interface IValueSets {
+	[tag: string]: string[];
 }
 
 // HTML tag information sourced from http://www.w3.org/TR/2015/WD-html51-20151008/
-export const HTML_TAGS : { [tag:string]: HTMLTagSpecification } = {
+export const HTML_TAGS: ITagSet = {
 	// The root element
 	html: new HTMLTagSpecification(
 		nls.localize('tags.html', 'The html element represents the root of an HTML document.'),
@@ -205,7 +213,7 @@ export const HTML_TAGS : { [tag:string]: HTMLTagSpecification } = {
 		['src', 'crossorigin:xo', 'preload:pl', 'autoplay:v', 'mediagroup', 'loop:v', 'muted:v', 'controls:v']),
 	source: new HTMLTagSpecification(
 		nls.localize('tags.source', 'The source element allows authors to specify multiple alternative media resources for media elements. It does not represent anything on its own.'),
-	// 'When the source element has a parent that is a picture element, the source element allows authors to specify multiple alternative source sets for img elements.'
+		// 'When the source element has a parent that is a picture element, the source element allows authors to specify multiple alternative source sets for img elements.'
 		['src', 'type']),
 	track: new HTMLTagSpecification(
 		nls.localize('tags.track', 'The track element allows authors to specify explicit external timed text tracks for media elements. It does not represent anything on its own.'),
@@ -310,12 +318,81 @@ export const HTML_TAGS : { [tag:string]: HTMLTagSpecification } = {
 		['width', 'height'])
 };
 
+export const IONIC_TAGS: ITagSet = {
+	'ion-checkbox': new HTMLTagSpecification('',
+		['name', 'ng-false-value', 'ng-model', 'ng-true-value']),
+	'ion-content': new HTMLTagSpecification('',
+		['delegate-handle', 'direction:scrolldir', 'has-bouncing:b', 'locking:b', 'on-scroll', 'on-scroll-complete', 'overflow-scroll:b', 'padding:b', 'scroll:b', 'scrollbar-x:b', 'scrollbar-y:b', 'start-x', 'start-y']),
+	'ion-delete-button': new HTMLTagSpecification('',
+		[]),
+	'ion-footer-bar': new HTMLTagSpecification('',
+		['align-title:align', 'keyboard-attach:v']),
+	'ion-header-bar': new HTMLTagSpecification('',
+		['align-title:align', 'no-tap-scroll:b']),
+	'ion-infinite-scroll': new HTMLTagSpecification('',
+		['distance', 'icon', 'immediate-check:b', 'on-infinite', 'spinner']),
+	'ion-input': new HTMLTagSpecification('',
+		['type:inputtype', 'clearInput:v']),
+	'ion-item': new HTMLTagSpecification('',
+		[]),
+	'ion-list': new HTMLTagSpecification('',
+		['can-swipe:b', 'delegate-handle', 'show-delete:b', 'show-reorder:b', 'type:listtype']),
+	'ion-modal-view': new HTMLTagSpecification('',
+		[]),
+	'ion-nav-back-button': new HTMLTagSpecification('',
+		[]),
+	'ion-nav-bar': new HTMLTagSpecification('',
+		['align-title:align', 'delegate-handle', 'no-tap-scroll:b']),
+	'ion-nav-buttons': new HTMLTagSpecification('',
+		['side:navsides']),
+	'ion-nav-title': new HTMLTagSpecification('',
+		[]),
+	'ion-nav-view': new HTMLTagSpecification('',
+		['name']),
+	'ion-option-button': new HTMLTagSpecification('',
+		[]),
+	'ion-pane': new HTMLTagSpecification('',
+		[]),
+	'ion-popover-view': new HTMLTagSpecification('',
+		[]),
+	'ion-radio': new HTMLTagSpecification('',
+		['disabled:b', 'icon', 'name', 'ng-disabled:b', 'ng-model', 'ng-value', 'value']),
+	'ion-refresher': new HTMLTagSpecification('',
+		['disable-pulling-rotation:b', 'on-pulling', 'on-refresh', 'pulling-icon', 'pulling-text', 'refreshing-icon', 'spinner']),
+	'ion-reorder-button': new HTMLTagSpecification('',
+		['on-reorder']),
+	'ion-scroll': new HTMLTagSpecification('',
+		['delegate-handle', 'direction:scrolldir', 'has-bouncing:b', 'locking:b', 'max-zoom', 'min-zoom', 'on-refresh', 'on-scroll', 'paging:b', 'scrollbar-x:b', 'scrollbar-y:b', 'zooming:b']),
+	'ion-side-menu': new HTMLTagSpecification('',
+		['is-enabled:b', 'expose-aside-when', 'side:navsides', 'width']),
+	'ion-side-menu-content': new HTMLTagSpecification('',
+		['drag-content:b', 'edge-drag-threshold']),
+	'ion-side-menus': new HTMLTagSpecification('',
+		['delegate-handle', 'enable-menu-with-back-views:b']),
+	'ion-slide': new HTMLTagSpecification('',
+		[]),
+	'ion-slide-box': new HTMLTagSpecification('',
+		['active-slide', 'auto-play:b', 'delegate-handle', 'does-continue:b', 'on-slide-changed', 'pager-click', 'show-pager:b', 'slide-interval']),
+	'ion-spinner': new HTMLTagSpecification('',
+		['icon']),
+	'ion-tab': new HTMLTagSpecification('',
+		['badge', 'badge-style', 'disabled', 'hidden', 'href', 'icon', 'icon-off', 'icon-on', 'ng-click', 'on-deselect', 'on-select', 'title']),
+	'ion-tabs': new HTMLTagSpecification('',
+		['delegate-handle']),
+	'ion-title': new HTMLTagSpecification('',
+		[]),
+	'ion-toggle': new HTMLTagSpecification('',
+		['name', 'ng-false-value', 'ng-model', 'ng-true-value', 'toggle-class']),
+	'ion-view ': new HTMLTagSpecification('',
+		['cache-view:b', 'can-swipe-back:b', 'hide-back-button:b', 'hide-nav-bar:b', 'view-title'])
+};
+
 export function getHTML5TagProvider(): IHTMLTagProvider {
 	var globalAttributes = [
 		'aria-activedescendant', 'aria-atomic:b', 'aria-autocomplete:autocomplete', 'aria-busy:b', 'aria-checked:tristate', 'aria-colcount', 'aria-colindex', 'aria-colspan', 'aria-controls', 'aria-current:current', 'aria-describedat',
 		'aria-describedby', 'aria-disabled:b', 'aria-dropeffect:dropeffect', 'aria-errormessage', 'aria-expanded:u', 'aria-flowto', 'aria-grabbed:u', 'aria-haspopup:b', 'aria-hidden:b', 'aria-invalid:invalid', 'aria-kbdshortcuts',
 		'aria-label', 'aria-labelledby', 'aria-level', 'aria-live:live', 'aria-modal:b', 'aria-multiline:b', 'aria-multiselectable:b', 'aria-orientation:orientation', 'aria-owns', 'aria-placeholder', 'aria-posinset', 'aria-pressed:tristate',
-		'aria-readonly:b','aria-relevant:relevant', 'aria-required:b', 'aria-roledescription', 'aria-rowcount', 'aria-rowindex', 'aria-rowspan', 'aria-selected:u', 'aria-setsize', 'aria-sort:sort', 'aria-valuemax', 'aria-valuemin', 'aria-valuenow', 'aria-valuetext',
+		'aria-readonly:b', 'aria-relevant:relevant', 'aria-required:b', 'aria-roledescription', 'aria-rowcount', 'aria-rowindex', 'aria-rowspan', 'aria-selected:u', 'aria-setsize', 'aria-sort:sort', 'aria-valuemax', 'aria-valuemin', 'aria-valuenow', 'aria-valuetext',
 		'accesskey', 'class', 'contenteditable:b', 'contextmenu', 'dir:d', 'draggable:b', 'dropzone', 'hidden:v', 'id', 'itemid', 'itemprop', 'itemref', 'itemscope:v', 'itemtype', 'lang', 'role:roles', 'spellcheck:b', 'style', 'tabindex',
 		'title', 'translate:y'];
 
@@ -324,7 +401,7 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 		'onloadstart', 'onmousedown', 'onmousemove', 'onmouseout', 'onmouseover', 'onmouseup', 'onmousewheel', 'onpause', 'onplay', 'onplaying', 'onprogress', 'onratechange', 'onreset', 'onresize', 'onreadystatechange', 'onscroll',
 		'onseeked', 'onseeking', 'onselect', 'onshow', 'onstalled', 'onsubmit', 'onsuspend', 'ontimeupdate', 'onvolumechange', 'onwaiting'];
 
-	var valueSets : { [tag:string]: string[]} = {
+	var valueSets: IValueSets = {
 		b: ['true', 'false'],
 		u: ['true', 'false', 'undefined'],
 		o: ['on', 'off'],
@@ -363,72 +440,26 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 	};
 
 	return {
-		collectTags: (collector: (tag: string, label: string) => void) => {
-			for (var tag in HTML_TAGS) {
-				collector(tag, HTML_TAGS[tag].label);
-			}
-		},
+		collectTags: (collector: (tag: string, label: string) => void) => collectTagsDefault(collector, HTML_TAGS),
 		collectAttributes: (tag: string, collector: (attribute: string, type: string) => void) => {
-			globalAttributes.forEach(attr => {
-				var segments = attr.split(':');
-				collector(segments[0], segments[1]);
-			});
+			collectAttributesDefault(tag, collector, HTML_TAGS, globalAttributes);
 			eventHandlers.forEach(handler => {
 				collector(handler, 'event');
 			});
-			if (tag) {
-				var tags = HTML_TAGS[tag];
-				if (tags) {
-					var attributes = tags.attributes;
-					if (attributes) {
-						attributes.forEach(attr => {
-							var segments = attr.split(':');
-							collector(segments[0], segments[1]);
-						});
-					}
-				}
-			}
 		},
-		collectValues: (tag: string, attribute: string, collector: (value: string) => void) => {
-			var prefix = attribute + ':';
-			var processAttributes = (attributes: string[]) => {
-				attributes.forEach((attr) => {
-					if (attr.length > prefix.length && strings.startsWith(attr, prefix)) {
-						var typeInfo = attr.substr(prefix.length);
-						if (typeInfo === 'v') {
-							collector(attribute);
-						} else {
-							var values = valueSets[typeInfo];
-							if (values) {
-								values.forEach(collector);
-							}
-						}
-					}
-				});
-			};
-			if (tag) {
-				var tags = HTML_TAGS[tag];
-				if (tags) {
-					var attributes = tags.attributes;
-					if (attributes) {
-						processAttributes(attributes);
-					}
-				}
-			}
-			processAttributes(globalAttributes); // no need to look in event handlers
-		}
+		collectValues: (tag: string, attribute: string, collector: (value: string) => void) => collectValuesDefault(tag, attribute, collector, HTML_TAGS, globalAttributes, valueSets)
 	};
 }
 
 
-export function getAngularTagProvider() : IHTMLTagProvider {
-	var customTags : { [tag:string]: string[]} = {
+export function getAngularTagProvider(): IHTMLTagProvider {
+	var customTags: { [tag: string]: string[] } = {
 		input: ['ng-model', 'ng-required', 'ng-minlength', 'ng-maxlength', 'ng-pattern', 'ng-trim'],
 		select: ['ng-model'],
 		textarea: ['ng-model', 'ng-required', 'ng-minlength', 'ng-maxlength', 'ng-pattern', 'ng-trim']
 	};
 
-	var globalAttributes = 	['ng-app', 'ng-bind', 'ng-bind-html', 'ng-bind-template', 'ng-blur', 'ng-change', 'ng-checked', 'ng-class', 'ng-class-even', 'ng-class-odd',
+	var globalAttributes = ['ng-app', 'ng-bind', 'ng-bind-html', 'ng-bind-template', 'ng-blur', 'ng-change', 'ng-checked', 'ng-class', 'ng-class-even', 'ng-class-odd',
 		'ng-click', 'ng-cloak', 'ng-controller', 'ng-copy', 'ng-csp', 'ng-cut', 'ng-dblclick', 'ng-disabled', 'ng-focus', 'ng-form', 'ng-hide', 'ng-href', 'ng-if',
 		'ng-include', 'ng-init', 'ng-jq', 'ng-keydown', 'ng-keypress', 'ng-keyup', 'ng-list', 'ng-model-options', 'ng-mousedown', 'ng-mouseenter', 'ng-mouseleave',
 		'ng-mousemove', 'ng-mouseover', 'ng-mouseup', 'ng-non-bindable', 'ng-open', 'ng-options', 'ng-paste', 'ng-pluralize', 'ng-readonly', 'ng-repeat', 'ng-selected',
@@ -458,4 +489,104 @@ export function getAngularTagProvider() : IHTMLTagProvider {
 			// no values
 		}
 	};
+}
+
+export function getIonicTagProvider(): IHTMLTagProvider {
+	var customTags: { [tag: string]: string[] } = {
+		a: ['nav-direction:navdir', 'nav-transition:trans'],
+		button: ['menu-toggle:menusides']
+	};
+
+	var globalAttributes = ['collection-repeat', 'force-refresh-images:b', 'ion-stop-event', 'item-height', 'item-render-buffer', 'item-width', 'menu-close:v',
+		'on-double-tap', 'on-drag', 'on-drag-down', 'on-drag-left', 'on-drag-right', 'on-drag-up', 'on-hold', 'on-release', 'on-swipe', 'on-swipe-down', 'on-swipe-left',
+		'on-swipe-right', 'on-swipe-up', 'on-tap', 'on-touch'];
+
+	var valueSets: IValueSets = {
+		align: ['center', 'left', 'right'],
+		b: ['true', 'false'],
+		inputtype: ['email', 'number', 'password', 'search', 'tel', 'text', 'url'],
+		listtype: ['card', 'list-inset'],
+		menusides: ['left', 'right'],
+		navdir: ['back', 'enter', 'exit', 'forward', 'swap'],
+		navsides: ['left', 'primary', 'right', 'secondary'],
+		scrolldir: ['x', 'xy', 'y'],
+		trans: ['android', 'ios', 'none']
+	};
+
+	return {
+		collectTags: (collector: (tag: string, label: string) => void) => collectTagsDefault(collector, IONIC_TAGS),
+		collectAttributes: (tag: string, collector: (attribute: string, type: string) => void) => {
+			collectAttributesDefault(tag, collector, IONIC_TAGS, globalAttributes);
+			if (tag) {
+				var attributes = customTags[tag];
+				if (attributes) {
+					attributes.forEach((a) => {
+						var segments = a.split(':');
+						collector(segments[0], segments[1]);
+					});
+				}
+			}
+		},
+		collectValues: (tag: string, attribute: string, collector: (value: string) => void) => collectValuesDefault(tag, attribute, collector, IONIC_TAGS, globalAttributes, valueSets, customTags)
+	};
+}
+
+function collectTagsDefault(collector: (tag: string, label: string) => void, tagSet: ITagSet): void {
+	for (var tag in tagSet) {
+		collector(tag, tagSet[tag].label);
+	}
+}
+
+function collectAttributesDefault(tag: string, collector: (attribute: string, type: string) => void, tagSet: ITagSet, globalAttributes: string[]): void {
+	globalAttributes.forEach(attr => {
+		var segments = attr.split(':');
+		collector(segments[0], segments[1]);
+	});
+	if (tag) {
+		var tags = tagSet[tag];
+		if (tags) {
+			var attributes = tags.attributes;
+			if (attributes) {
+				attributes.forEach(attr => {
+					var segments = attr.split(':');
+					collector(segments[0], segments[1]);
+				});
+			}
+		}
+	}
+}
+
+function collectValuesDefault(tag: string, attribute: string, collector: (value: string) => void, tagSet: ITagSet, globalAttributes: string[], valueSets: IValueSets, customTags?: { [tag: string]: string[] }): void {
+	var prefix = attribute + ':';
+	var processAttributes = (attributes: string[]) => {
+		attributes.forEach((attr) => {
+			if (attr.length > prefix.length && strings.startsWith(attr, prefix)) {
+				var typeInfo = attr.substr(prefix.length);
+				if (typeInfo === 'v') {
+					collector(attribute);
+				} else {
+					var values = valueSets[typeInfo];
+					if (values) {
+						values.forEach(collector);
+					}
+				}
+			}
+		});
+	};
+	if (tag) {
+		var tags = tagSet[tag];
+		if (tags) {
+			var attributes = tags.attributes;
+			if (attributes) {
+				processAttributes(attributes);
+			}
+		}
+	}
+	processAttributes(globalAttributes);
+	if (customTags) {
+		var customTagAttributes = customTags[tag];
+		if (customTagAttributes) {
+			processAttributes(customTagAttributes);
+		}
+	}
 }
