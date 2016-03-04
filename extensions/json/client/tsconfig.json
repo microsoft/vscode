@@ -3,8 +3,9 @@
 		"noLib": true,
 		"target": "es5",
 		"module": "commonjs",
-		"sourceMap": false,
-		"outDir": "../out"
+		"sourceMap": true,
+		"sourceRoot": "../src",
+		"outDir": "./out"
 	},
 	"exclude": [
 		"node_modules"

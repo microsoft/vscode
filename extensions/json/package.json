@@ -8,10 +8,9 @@
 	"activationEvents": [
 		"onLanguage:json"
 	],
-	"main": "./out/jsonMain",
+	"main": "./client/out/jsonMain",
 	"scripts": {
-		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:json ./src/tsconfig.json",
-		"postinstall": "cd server && npm install && npm run compile && cd .."
+		"compile": "gulp compile-extension:json-client && gulp compile-extension:json-server"
 	},
 	"contributes": {
 		"languages": [

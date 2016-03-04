@@ -70,7 +70,6 @@
     "innosetup-compiler": "^5.5.60",
     "istanbul": "^0.3.17",
     "jsdom-no-contextify": "^3.1.0",
-    "json-comments": "^0.2.1",
     "lazy.js": "^0.4.2",
     "mime": "1.2.11",
     "minimatch": "^2.0.10",

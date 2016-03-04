@@ -4,7 +4,7 @@
 		"target": "es5",
 		"module": "commonjs",
 		"sourceMap": false,
-		"outDir": "../out"
+		"outDir": "out"
 	},
 	"exclude": [
 		"node_modules"
