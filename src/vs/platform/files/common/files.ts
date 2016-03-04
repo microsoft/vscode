@@ -425,7 +425,7 @@ export const AutoSaveConfiguration = {
 
 export interface IFilesConfiguration {
 	files: {
-		association: { [filePattern: string]: string };
+		associations: { [filePattern: string]: string };
 		exclude: glob.IExpression;
 		encoding: string;
 		trimTrailingWhitespace: boolean;

@@ -34,7 +34,7 @@ export class FileAssociationContribution implements IJSONWorkerContribution {
 	}
 
 	public collectPropertySuggestions(resource: string, location: JSONLocation, currentWord: string, addValue: boolean, isLast: boolean, result: ISuggestionsCollector): Thenable<any> {
-		if (this.isSettingsFile(resource) && location.matches(['files.association'])) {
+		if (this.isSettingsFile(resource) && location.matches(['files.associations'])) {
 			globProperties.forEach((e) => result.add(e));
 		}
 
@@ -42,7 +42,7 @@ export class FileAssociationContribution implements IJSONWorkerContribution {
 	}
 
 	public collectValueSuggestions(resource: string, location: JSONLocation, currentKey: string, result: ISuggestionsCollector): Thenable<any> {
-		if (this.isSettingsFile(resource) && location.matches(['files.association'])) {
+		if (this.isSettingsFile(resource) && location.matches(['files.associations'])) {
 			globValues.forEach((e) => result.add(e));
 		}
 

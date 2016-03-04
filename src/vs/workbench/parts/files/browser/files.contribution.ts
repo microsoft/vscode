@@ -200,9 +200,9 @@ configurationRegistry.registerConfiguration({
 				]
 			}
 		},
-		'files.association': {
+		'files.associations': {
 			'type': 'object',
-			'description': nls.localize('association', "Configure file associations to languages (e.g. \"*.extension\": \"html\"). These have precedence over the default associations of the languages installed."),
+			'description': nls.localize('associations', "Configure file associations to languages (e.g. \"*.extension\": \"html\"). These have precedence over the default associations of the languages installed."),
 		},
 		'files.encoding': {
 			'type': 'string',

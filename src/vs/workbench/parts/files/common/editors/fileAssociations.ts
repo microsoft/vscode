@@ -39,9 +39,9 @@ export class FileAssociations implements IWorkbenchContribution {
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
-		if (configuration.files && configuration.files.association) {
-			Object.keys(configuration.files.association).forEach(pattern => {
-				mime.registerTextMimeByFilename(pattern, this.modeService.getMimeForMode(configuration.files.association[pattern]));
+		if (configuration.files && configuration.files.associations) {
+			Object.keys(configuration.files.associations).forEach(pattern => {
+				mime.registerTextMimeByFilename(pattern, this.modeService.getMimeForMode(configuration.files.associations[pattern]));
 			});
 		}
 	}
