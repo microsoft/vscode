@@ -58,11 +58,11 @@ class VariablesView extends viewlet.CollapsibleViewletView {
 	constructor(actionRunner: actions.IActionRunner, private settings: any,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(actionRunner, !!settings[VariablesView.MEMENTO], nls.localize('variablesSection', "Variables Section"), messageService, contextMenuService, telemetryService);
+		super(actionRunner, !!settings[VariablesView.MEMENTO], nls.localize('variablesSection', "Variables Section"), messageService, contextMenuService);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -129,11 +129,10 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 	constructor(actionRunner: actions.IActionRunner, private settings: any,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(actionRunner, !!settings[WatchExpressionsView.MEMENTO], nls.localize('expressionsSection', "Expressions Section"), messageService, contextMenuService, telemetryService);
+		super(actionRunner, !!settings[WatchExpressionsView.MEMENTO], nls.localize('expressionsSection', "Expressions Section"), messageService, contextMenuService);
 		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, (we) => {
 			// only expand when a new watch expression is added.
 			if (we instanceof model.Expression) {
@@ -205,11 +204,11 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 	constructor(actionRunner: actions.IActionRunner, private settings: any,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(actionRunner, !!settings[CallStackView.MEMENTO], nls.localize('callstackSection', "Call Stack Section"), messageService, contextMenuService, telemetryService);
+		super(actionRunner, !!settings[CallStackView.MEMENTO], nls.localize('callstackSection', "Call Stack Section"), messageService, contextMenuService);
 	}
 
 	public renderHeader(container: HTMLElement): void {
