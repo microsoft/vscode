@@ -58,11 +58,14 @@ let documents: TextDocuments = new TextDocuments();
 // for open, change and close text document events
 documents.listen(connection);
 
+const filesAssociationContribution = new FileAssociationContribution();
+
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilites.
 let workspaceRoot: URI;
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 	workspaceRoot = URI.parse(params.rootPath);
+	filesAssociationContribution.setLanguageIds(params.initializationOptions.languageIds);
 	return {
 		capabilities: {
 			// Tell the client that the server works in FULL text document sync mode
@@ -120,7 +123,7 @@ let contributions = [
 	new PackageJSONContribution(request),
 	new BowerJSONContribution(request),
 	new GlobPatternContribution(),
-	new FileAssociationContribution()
+	filesAssociationContribution
 ];
 
 let jsonSchemaService = new JSONSchemaService(request, workspaceContext, telemetry);

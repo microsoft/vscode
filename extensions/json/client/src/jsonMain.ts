@@ -26,66 +26,72 @@ namespace SchemaAssociationNotification {
 }
 
 export function activate(context: ExtensionContext) {
+	// Resolve language ids to pass around as initialization data
+	languages.getLanguages().then(languageIds => {
 
-	// The server is implemented in node
-	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'server.js'));
-	// The debug options for the server
-	let debugOptions = { execArgv: ['--nolazy', '--debug=6004'] };
+		// The server is implemented in node
+		let serverModule = context.asAbsolutePath(path.join('server', 'out', 'server.js'));
+		// The debug options for the server
+		let debugOptions = { execArgv: ['--nolazy', '--debug=6004'] };
 
-	// If the extension is launch in debug mode the debug server options are use
-	// Otherwise the run options are used
-	let serverOptions: ServerOptions = {
-		run: { module: serverModule, transport: TransportKind.ipc },
-		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
-	};
+		// If the extension is launch in debug mode the debug server options are use
+		// Otherwise the run options are used
+		let serverOptions: ServerOptions = {
+			run: { module: serverModule, transport: TransportKind.ipc },
+			debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
+		};
 
-	// Options to control the language client
-	let clientOptions: LanguageClientOptions = {
-		// Register the server for json documents
-		documentSelector: ['json'],
-		synchronize: {
-			// Synchronize the setting section 'json' to the server
-			configurationSection: ['json.schemas', 'http.proxy', 'http.proxyStrictSSL'],
-			fileEvents: workspace.createFileSystemWatcher('**/.json')
-		}
-	};
+		// Options to control the language client
+		let clientOptions: LanguageClientOptions = {
+			// Register the server for json documents
+			documentSelector: ['json'],
+			synchronize: {
+				// Synchronize the setting section 'json' to the server
+				configurationSection: ['json.schemas', 'http.proxy', 'http.proxyStrictSSL'],
+				fileEvents: workspace.createFileSystemWatcher('**/.json')
+			},
+			initializationOptions: {
+				languageIds
+			}
+		};
 
-	// Create the language client and start the client.
-	let client = new LanguageClient('JSON Server', serverOptions, clientOptions);
-	client.onNotification(TelemetryNotification.type, (e) => {
-		// to be done
-	});
-
-	// handle content request
-	client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
-		let uri = Uri.parse(uriPath);
-		return workspace.openTextDocument(uri).then(doc => {
-			return doc.getText();
-		}, error => {
-			return Promise.reject(error);
+		// Create the language client and start the client.
+		let client = new LanguageClient('JSON Server', serverOptions, clientOptions);
+		client.onNotification(TelemetryNotification.type, (e) => {
+			// to be done
 		});
-	});
 
-	let disposable = client.start();
+		// handle content request
+		client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
+			let uri = Uri.parse(uriPath);
+			return workspace.openTextDocument(uri).then(doc => {
+				return doc.getText();
+			}, error => {
+				return Promise.reject(error);
+			});
+		});
 
-	client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
+		let disposable = client.start();
 
-	// Push the disposable to the context's subscriptions so that the
-	// client can be deactivated on extension deactivation
-	context.subscriptions.push(disposable);
+		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 
-	languages.setLanguageConfiguration('json', {
-		wordPattern: /(-?\d*\.\d\w*)|([^\[\{\]\}\:\"\,\s]+)/g,
-		__characterPairSupport: {
-			autoClosingPairs: [
-				{ open: '{', close: '}' },
-				{ open: '[', close: ']' },
-				{ open: '(', close: ')' },
-				{ open: '"', close: '"', notIn: ['string'] },
-				{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
-				{ open: '`', close: '`', notIn: ['string', 'comment'] }
-			]
-		}
+		// Push the disposable to the context's subscriptions so that the
+		// client can be deactivated on extension deactivation
+		context.subscriptions.push(disposable);
+
+		languages.setLanguageConfiguration('json', {
+			wordPattern: /(-?\d*\.\d\w*)|([^\[\{\]\}\:\"\,\s]+)/g,
+			__characterPairSupport: {
+				autoClosingPairs: [
+					{ open: '{', close: '}' },
+					{ open: '[', close: ']' },
+					{ open: '(', close: ')' },
+					{ open: '"', close: '"', notIn: ['string'] },
+					{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+					{ open: '`', close: '`', notIn: ['string', 'comment'] }
+				]
+			}
+		});
 	});
 }
 
