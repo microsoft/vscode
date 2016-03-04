@@ -170,7 +170,10 @@ log('ATOM_SHELL_INTERNAL_RUN_AS_NODE: ' + process.env['ATOM_SHELL_INTERNAL_RUN_A
 			// 	' ' + stream.listeners('error').length
 			// );
 		}, 1000);
-		timer.unref();
+
+		if ((<any>timer).unref) {
+			(<any>timer).unref();
+		}
 	});
 
 

@@ -20,7 +20,7 @@
 	"showOutput": "silent",
 
 	// we run the custom script "compile" as defined in package.json
-	"args": ["run", "vscode:prepublish"],
+	"args": ["run", "compile"],
 
 	// The tsc compiler is started in watching mode
 	"isWatching": true,

@@ -390,10 +390,12 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		return this.exceptionBreakpoints;
 	}
 
-	public setExceptionBreakpoints(data: [{ filter: string, label: string }]): void {
+	public setExceptionBreakpoints(data: [{ filter: string, label: string, default?: boolean }]): void {
 		if (data) {
-			this.exceptionBreakpoints = data.map(d =>
-				new ExceptionBreakpoint(d.filter, d.label, this.exceptionBreakpoints.some(ebp => ebp.filter === d.filter && ebp.enabled)));
+			this.exceptionBreakpoints = data.map(d => {
+				const ebp = this.exceptionBreakpoints.filter(ebp => ebp.filter === d.filter).pop();
+				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : d.default);
+			});
 		}
 	}
 
