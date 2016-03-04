@@ -15,7 +15,7 @@ import { IRawFileStatus, IHead, ITag, IBranch, IRemote, GitErrorCodes, IPushOpti
 import { detectMimesFromStream } from 'vs/base/node/mime';
 import files = require('vs/platform/files/common/files');
 import { spawn, ChildProcess } from 'child_process';
-import { decode, encodingExists, toNodeEncoding } from 'vs/base/node/encoding';
+import { decode, encodingExists } from 'vs/base/node/encoding';
 
 export interface IExecutionResult {
 	exitCode: number;
@@ -339,7 +339,7 @@ export class Repository {
 	private doBuffer(object: string): TPromise<string> {
 		const child = this.show(object);
 
-		return exec(child, toNodeEncoding(this.defaultEncoding)).then(({ exitCode, stdout }) => {
+		return exec(child, this.defaultEncoding).then(({ exitCode, stdout }) => {
 			if (exitCode) {
 				return TPromise.wrapError<string>(new GitError({
 					message: 'Could not buffer object.',

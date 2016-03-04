@@ -33,7 +33,7 @@ export function encodeStream(encoding: string): NodeJS.ReadWriteStream {
 	return iconv.encodeStream(toNodeEncoding(encoding));
 }
 
-export function toNodeEncoding(enc: string): string {
+function toNodeEncoding(enc: string): string {
 	if (enc === UTF8_with_bom) {
 		return UTF8; // iconv does not distinguish UTF 8 with or without BOM, so we need to help it
 	}
