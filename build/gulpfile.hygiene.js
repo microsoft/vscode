@@ -121,6 +121,7 @@ gulp.task('tslint', function () {
 });
 
 var hygiene = exports.hygiene = function (some, options) {
+	options = options || {};
 	var errorCount = 0;
 
 	var eol = es.through(function (file) {

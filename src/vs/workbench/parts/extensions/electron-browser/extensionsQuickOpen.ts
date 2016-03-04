@@ -18,7 +18,6 @@ import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { IHighlight } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IExtensionsService, IGalleryService, IExtensionTipsService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
 import { InstallAction, UninstallAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -559,6 +558,7 @@ class SuggestedExtensionsModel implements IModel<IExtensionEntry> {
 
 	constructor(
 		private suggestedExtensions: IExtension[],
+		private localExtensions: IExtension[],
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.renderer = instantiationService.createInstance(Renderer);
@@ -569,9 +569,11 @@ class SuggestedExtensionsModel implements IModel<IExtensionEntry> {
 	public set input(input: string) {
 		this.entries = this.suggestedExtensions
 			.map(extension => ({ extension, highlights: getHighlights(input.trim(), extension) }))
-			.filter(({ highlights }) => !!highlights)
+			.filter(({ extension, highlights }) => {
+				const local = this.localExtensions.filter(local => extensionEquals(local, extension))[0];
+				return !local && !!highlights;
+			})
 			.map(({ extension, highlights }: { extension: IExtension, highlights: IHighlights }) => {
-
 				return {
 					extension,
 					highlights,
@@ -590,30 +592,22 @@ export class SuggestedExtensionHandler extends QuickOpenHandler {
 		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IExtensionsService extensionService: IExtensionsService,
-		@ILifecycleService lifecycleService:ILifecycleService
+		@IExtensionsService private extensionsService: IExtensionsService
 	) {
 		super();
-
-		const subscription = extensionService.onInstallExtension(manifest => {
-			if (this.model) { // indicates that tips currently show
-				this.telemetryService.publicLog('extensionGallery:tips', { installed: true });
-			}
-		});
-
-		lifecycleService.onShutdown(() => subscription.dispose());
 	}
 
 	getResults(input: string): TPromise<IModel<IExtensionEntry>> {
-		if (!this.model) {
-			const {tips} = this.extensionTipsService;
-			this.telemetryService.publicLog('extensionGallery:tips', { count: tips.length });
-			this.model = this.instantiationService.createInstance(
+		return this.extensionsService.getInstalled().then(localExtensions => {
+			const model = this.instantiationService.createInstance(
 				SuggestedExtensionsModel,
-				tips);
-		}
-		this.model.input = input;
-		return TPromise.as(this.model);
+				this.extensionTipsService.tips,
+				localExtensions
+			);
+
+			model.input = input;
+			return model;
+		});
 	}
 
 	onClose(canceled: boolean): void {
@@ -621,7 +615,7 @@ export class SuggestedExtensionHandler extends QuickOpenHandler {
 	}
 
 	getEmptyLabel(input: string): string {
-		return nls.localize('noSuggestedExtensions', "No suggested extensions");
+		return nls.localize('noRecommendedExtensions', "No recommended extensions");
 	}
 
 	getAutoFocus(searchValue: string): IAutoFocus {

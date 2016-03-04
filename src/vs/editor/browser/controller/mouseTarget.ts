@@ -269,6 +269,14 @@ export class MouseTargetFactory {
 			} else if (hitTestResult.hitTarget) {
 				t = hitTestResult.hitTarget;
 				path = this.getClassNamePathTo(t, this.viewHelper.viewDomNode);
+
+				// TODO@Alex: try again with this different target, but guard against recursion.
+				// Is it a cursor ?
+				var lineNumberAttribute = t.hasAttribute && t.hasAttribute('lineNumber') ? t.getAttribute('lineNumber') : null;
+				var columnAttribute = t.hasAttribute && t.hasAttribute('column') ? t.getAttribute('column') : null;
+				if (lineNumberAttribute && columnAttribute) {
+					return this.createMouseTargetFromViewCursor(t, parseInt(lineNumberAttribute, 10), parseInt(columnAttribute, 10), mouseColumn);
+				}
 			}
 		}
 
@@ -376,6 +384,7 @@ export class MouseTargetFactory {
 
 		// Chrome always hits a TEXT_NODE, while Edge sometimes hits a token span
 		let startContainer = range.startContainer;
+		let hitTarget: HTMLElement;
 
 		if (startContainer.nodeType === startContainer.TEXT_NODE) {
 			// startContainer is expected to be the token text
@@ -389,6 +398,8 @@ export class MouseTargetFactory {
 					position: this.viewHelper.getPositionFromDOMInfo(<HTMLElement>parent1, range.startOffset),
 					hitTarget: null
 				};
+			} else {
+				hitTarget = <HTMLElement>startContainer.parentNode;
 			}
 		} else if (startContainer.nodeType === startContainer.ELEMENT_NODE) {
 			// startContainer is expected to be the token span
@@ -401,12 +412,14 @@ export class MouseTargetFactory {
 					position: this.viewHelper.getPositionFromDOMInfo(<HTMLElement>startContainer, (<HTMLElement>startContainer).textContent.length),
 					hitTarget: null
 				};
+			} else {
+				hitTarget = <HTMLElement>startContainer;
 			}
 		}
 
 		return {
 			position: null,
-			hitTarget: <HTMLElement>range.startContainer.parentNode
+			hitTarget: hitTarget
 		};
 	}
 
