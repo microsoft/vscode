@@ -10,7 +10,8 @@
 	],
 	"main": "./client/out/jsonMain",
 	"scripts": {
-		"compile": "gulp compile-extension:json-client && gulp compile-extension:json-server"
+		"compile": "gulp compile-extension:json-client && gulp compile-extension:json-server",
+		"postinstall": "npm --prefix server install server"
 	},
 	"contributes": {
 		"languages": [
