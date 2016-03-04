@@ -98,7 +98,7 @@ export class ListSuggestedExtensionsAction extends Action {
 	}
 
 	public run(): Promise {
-		return this.quickOpenService.show('ext tips ');
+		return this.quickOpenService.show('ext recommend ');
 	}
 
 	protected isEnabled(): boolean {
