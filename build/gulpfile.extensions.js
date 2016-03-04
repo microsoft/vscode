@@ -41,14 +41,6 @@ var tasks = compilations.map(function(tsconfigFile) {
 	var compileBuild = 'compile-build-extension:' + name;
 	var watch = 'watch-extension:' + name;
 
-	var deps = [
-		'src/vs/vscode.d.ts',
-		'src/typings/mocha.d.ts',
-		'extensions/declares.d.ts',
-		'extensions/node.d.ts',
-		'extensions/lib.core.d.ts'
-	];
-
 	var pipeline = (function () {
 		var reporter = quiet ? null : createReporter();
 		var compilation = tsb.create(options, null, null, quiet ? null : function (err) { reporter(err.toString()); });
@@ -88,14 +80,13 @@ var tasks = compilations.map(function(tsconfigFile) {
 	var out = path.join(root, 'out');
 
 	var srcOpts = { cwd: path.dirname(__dirname), base: srcBase };
-	var depsOpts = { cwd: path.dirname(__dirname)	};
 
 	gulp.task(clean, function (cb) {
 		rimraf(out, cb);
 	});
 
 	gulp.task(compile, [clean], function () {
-		var input = es.merge(gulp.src(src, srcOpts), gulp.src(deps, depsOpts));
+		var input = gulp.src(src, srcOpts);
 
 		return input
 			.pipe(pipeline(false))
@@ -103,7 +94,7 @@ var tasks = compilations.map(function(tsconfigFile) {
 	});
 
 	gulp.task(compileBuild, [clean], function () {
-		var input = es.merge(gulp.src(src, srcOpts), gulp.src(deps, depsOpts));
+		var input = gulp.src(src, srcOpts);
 
 		return input
 			.pipe(pipeline(true))
@@ -111,8 +102,8 @@ var tasks = compilations.map(function(tsconfigFile) {
 	});
 
 	gulp.task(watch, [clean], function () {
-		var input = es.merge(gulp.src(src, srcOpts), gulp.src(deps, depsOpts));
-		var watchInput = es.merge(watcher(src, srcOpts), watcher(deps, depsOpts));
+		var input = gulp.src(src, srcOpts);
+		var watchInput = watcher(src, srcOpts);
 
 		return watchInput
 			.pipe(util.incremental(pipeline, input))
