@@ -10,10 +10,10 @@ import {Registry} from 'vs/platform/platform';
 import {IAction} from 'vs/base/common/actions';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
-import {FileEditorInputActionContributor} from 'vs/workbench/parts/files/browser/files';
-import {asFileResource} from 'vs/workbench/parts/files/common/files';
+import {asFileResource, FileEditorInput} from 'vs/workbench/parts/files/common/files';
+import mime = require('vs/base/common/mime');
 import strings = require('vs/base/common/strings');
-import {IEditorInputActionContext, IEditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {IEditorInputActionContext, IEditorInputAction, EditorInputActionContributor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {OpenPreviewToSideAction, GlobalTogglePreviewMarkdownAction, PreviewMarkdownEditorInputAction, PreviewMarkdownAction} from 'vs/workbench/parts/markdown/browser/markdownActions';
 import {MARKDOWN_MIME, MARKDOWN_FILES} from 'vs/workbench/parts/markdown/common/markdown';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
@@ -22,7 +22,7 @@ import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
 class ExplorerViewerActionContributor extends ActionBarContributor {
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 	}
 
@@ -35,7 +35,7 @@ class ExplorerViewerActionContributor extends ActionBarContributor {
 			return false;
 		}
 
-		return !fileResource.isDirectory && (MARKDOWN_FILES.some((extension) => strings.endsWith(fileResource.resource.fsPath, extension)));
+		return !fileResource.isDirectory && ((MARKDOWN_FILES.some((extension) => strings.endsWith(fileResource.resource.fsPath, extension))) || mime.guessMimeTypes(fileResource.resource.fsPath).indexOf(MARKDOWN_MIME) >= 0);
 	}
 
 	public getSecondaryActions(context: any): IAction[] {
@@ -54,20 +54,31 @@ class ExplorerViewerActionContributor extends ActionBarContributor {
 	}
 }
 
-class MarkdownFilesActionContributor extends FileEditorInputActionContributor {
+class MarkdownFilesActionContributor extends EditorInputActionContributor {
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
-		super([MARKDOWN_MIME]);
+	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
+		super();
 	}
 
 	public hasActionsForEditorInput(context: IEditorInputActionContext): boolean {
-		return true;
+		const input = context.input;
+		if (input instanceof FileEditorInput) {
+			const fileResource = input.getResource();
+
+			return ((MARKDOWN_FILES.some((extension) => strings.endsWith(fileResource.fsPath, extension))) || mime.guessMimeTypes(fileResource.fsPath).indexOf(MARKDOWN_MIME) >= 0);
+		}
+
+		return false;
 	}
 
 	public getActionsForEditorInput(context: IEditorInputActionContext): IEditorInputAction[] {
-		return [
-			this.instantiationService.createInstance(PreviewMarkdownEditorInputAction)
-		];
+		if (this.hasActionsForEditorInput(context)) {
+			return [
+				this.instantiationService.createInstance(PreviewMarkdownEditorInputAction)
+			];
+		}
+
+		return [];
 	}
 }
 
