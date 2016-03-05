@@ -93,8 +93,9 @@ class VariablesView extends viewlet.CollapsibleViewletView {
 		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => {
 			collapseAction.enabled = this.debugService.getState() === debug.State.Running || this.debugService.getState() === debug.State.Stopped;
 		}));
+        
 		this.toDispose.push(this.tree.addListener2(events.EventType.FOCUS, (e: tree.IFocusEvent) => {
-			const isMouseClick = (e.payload.origin === 'mouse');
+			const isMouseClick = (e.payload && e.payload.origin === 'mouse');
 			const isVariableType = (e.focus instanceof model.Variable);
 
 			if(isMouseClick && isVariableType) {
@@ -258,8 +259,9 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 			const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
 			this.debugService.openOrRevealEditor(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
 		}));
+
 		this.toDispose.push(this.tree.addListener2(events.EventType.FOCUS, (e: tree.IFocusEvent) => {
-			const isMouseClick = (e.payload.origin === 'mouse');
+			const isMouseClick = (e.payload && e.payload.origin === 'mouse');
 			const isStackFrameType = (e.focus instanceof model.StackFrame);
 
 			if (isMouseClick && isStackFrameType) {

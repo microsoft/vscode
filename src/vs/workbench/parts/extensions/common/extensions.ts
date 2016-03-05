@@ -66,6 +66,5 @@ export var IExtensionTipsService = createDecorator<IExtensionTipsService>('exten
 
 export interface IExtensionTipsService {
 	serviceId: ServiceIdentifier<any>;
-	tips: IExtension[];
-	onDidChangeTips: Event<IExtension[]>;
+	getRecommendations(): TPromise<IExtension[]>;
 }

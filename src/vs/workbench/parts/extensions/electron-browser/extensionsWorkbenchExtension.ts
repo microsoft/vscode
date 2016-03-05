@@ -91,7 +91,7 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 				new QuickOpenHandlerDescriptor(
 					'vs/workbench/parts/extensions/electron-browser/extensionsQuickOpen',
 					'SuggestedExtensionHandler',
-					'ext tips ',
+					'ext recommend ',
 					nls.localize('suggestedExtensionsCommands', "Show Extension Recommendations")
 				)
 			);
