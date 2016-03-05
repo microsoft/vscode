@@ -103,7 +103,7 @@ export function guessMimeTypes(path: string, firstLine?: string): string[] {
 }
 
 function guessMimeTypeByPath(path: string, associations: ITextMimeAssociation[]): string {
-	let filename = paths.basename(path).toLowerCase();
+	let filename = paths.basename(path);
 
 	let filenameMatch: ITextMimeAssociation;
 	let patternMatch: ITextMimeAssociation;
@@ -130,7 +130,7 @@ function guessMimeTypeByPath(path: string, associations: ITextMimeAssociation[])
 
 		// Longest extension match
 		if (association.extension) {
-			if (association.extension[0] === '.' && strings.endsWith(filename, association.extension.toLowerCase())) {
+			if (strings.endsWith(filename, association.extension.toLowerCase())) {
 				if (!extensionMatch || association.extension.length > extensionMatch.extension.length) {
 					extensionMatch = association;
 				}
