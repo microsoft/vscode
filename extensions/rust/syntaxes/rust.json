@@ -419,19 +419,6 @@
           "include": "$self"
         }
       ]
-    },
-    {
-      "comment": "Variable declaration",
-      "begin": ":",
-      "end": "[=;,\\)\\|]",
-      "patterns": [
-        {
-          "include": "#type_params"
-        },
-        {
-          "include": "$self"
-        }
-      ]
     }
   ]
 }
