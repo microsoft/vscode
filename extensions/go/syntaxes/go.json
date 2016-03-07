@@ -227,29 +227,6 @@
       }
     },
     {
-      "comment": "Multiline variable declarations/assignments",
-      "begin": "(\\bvar\\b)\\s+(\\()",
-      "beginCaptures": {
-        "1": {
-          "name": "keyword.var.go"
-        },
-        "2": {
-          "name": "punctuation.other.bracket.round.go"
-        }
-      },
-      "end": "\\)",
-      "endCaptures": {
-        "0": {
-          "name": "punctuation.other.bracket.round.go"
-        }
-      },
-      "patterns": [
-        {
-          "include": "#variables"
-        }
-      ]
-    },
-    {
       "comment": "Terminators",
       "match": ";",
       "name": "punctuation.terminator.go"
