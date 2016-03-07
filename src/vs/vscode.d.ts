@@ -2871,7 +2871,7 @@ declare namespace vscode {
 		export const onDidChangeTextEditorOptions: Event<TextEditorOptionsChangeEvent>;
 
 		/**
-		 * An [event](#Event) which fires when the view column of an editor das changed.
+		 * An [event](#Event) which fires when the view column of an editor has changed.
 		 */
 		export const onDidChangeTextEditorViewColumn: Event<TextEditorViewColumnChangeEvent>;
 
