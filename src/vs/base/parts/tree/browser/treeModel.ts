@@ -5,6 +5,7 @@
 'use strict';
 
 import Assert = require('vs/base/common/assert');
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, combinedDispose } from 'vs/base/common/lifecycle';
 import arrays = require('vs/base/common/arrays');
 import { INavigator } from 'vs/base/common/iterator';
@@ -427,7 +428,7 @@ export class Item extends Events.EventEmitter {
 			});
 
 			return result
-				.then(null, err => console.error(err))
+				.then(null, onUnexpectedError)
 				.then(() => this.emit('item:childrenRefreshed', eventData));
 		};
 
