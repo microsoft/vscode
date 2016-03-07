@@ -7,9 +7,6 @@
 
 import 'vs/css!./media/shell';
 
-import 'vs/css!vs/editor/css/vs-theme';
-import 'vs/css!vs/editor/css/vs-dark-theme';
-import 'vs/css!vs/editor/css/hc-black-theme';
 import 'vs/css!vs/workbench/browser/media/vs-theme';
 import 'vs/css!vs/workbench/browser/media/vs-dark-theme';
 import 'vs/css!vs/workbench/browser/media/hc-black-theme';
