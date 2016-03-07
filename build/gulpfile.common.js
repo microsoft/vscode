@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*global require,exports,__dirname,Buffer,setTimeout*/
-
 var path = require('path');
 var gulp = require('gulp');
 var sourcemaps = require('gulp-sourcemaps');

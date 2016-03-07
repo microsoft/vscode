@@ -3,13 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*global require,__dirname*/
-
 var gulp = require('gulp');
 var path = require('path');
-var filter = require('gulp-filter');
 var _ = require('underscore');
-var es = require('event-stream');
 var buildfile = require('../src/buildfile');
 var util = require('./lib/util');
 var common = require('./gulpfile.common');
@@ -80,19 +76,4 @@ gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-build'], common
 
 gulp.task('clean-minified-editor', util.rimraf('out-editor-min'));
 gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor', true));
-
-// Package
-
-var root = path.dirname(__dirname);
-
-function copyTask(src, dest, FILTER) {
-	return function () {
-		return (
-			gulp.src(src + '/**', { base: src })
-			.pipe(FILTER ? filter(FILTER) : es.through())
-			.pipe(gulp.dest(dest))
-		);
-	};
-}
-
 gulp.task('editor-distro', ['minify-editor', 'optimize-editor']);

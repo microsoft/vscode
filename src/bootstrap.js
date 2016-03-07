@@ -94,7 +94,7 @@ if (!!process.send && process.env.PIPE_LOGGING === 'true') {
 // error when we are inside a forked process and this process tries to access those channels.
 var stream = require('stream');
 var writable = new stream.Writable({
-	write: function (chunk, encoding, next) { /* No OP */ }
+	write: function () { /* No OP */ }
 });
 
 process.__defineGetter__('stdout', function() { return writable; });

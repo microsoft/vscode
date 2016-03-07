@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*global require,exports,process,Buffer*/
-
 var es = require('event-stream');
 var debounce = require('debounce');
 var filter = require('gulp-filter');

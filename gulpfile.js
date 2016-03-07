@@ -18,7 +18,6 @@ var nls = require('./build/lib/nls');
 var util = require('./build/lib/util');
 var reporter = require('./build/lib/reporter')();
 var remote = require('gulp-remote-src');
-var rename = require('gulp-rename');
 var zip = require('gulp-vinyl-zip');
 var path = require('path');
 var bom = require('gulp-bom');

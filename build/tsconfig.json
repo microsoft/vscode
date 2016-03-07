@@ -4,9 +4,10 @@
 		"noImplicitAny": false,
 		"removeComments": false,
 		"preserveConstEnums": true,
-		"target": "ES5",
+		"target": "es5",
 		"sourceMap": false,
 		"experimentalDecorators": true,
-		"noLib": true
+		"noLib": true,
+		"newLine": "LF"
 	}
 }

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*global process,require,__dirname*/
-
 // Increase max listeners for event emitters
 require('events').EventEmitter.defaultMaxListeners = 100;
 

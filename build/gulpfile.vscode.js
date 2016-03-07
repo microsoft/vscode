@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*global process,__dirname,Buffer,require*/
-
 var gulp = require('gulp');
 var fs = require('fs');
 var path = require('path');
