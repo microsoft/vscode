@@ -9,7 +9,6 @@ import 'vs/css!./media/editorstatus';
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import { emmet as $, append } from 'vs/base/browser/dom';
-import encoding = require('vs/base/common/encoding');
 import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
 import uri from 'vs/base/common/uri';
@@ -31,7 +30,7 @@ import {IWorkbenchEditorService}  from 'vs/workbench/services/editor/common/edit
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IFilesConfiguration} from 'vs/platform/files/common/files';
+import {IFilesConfiguration, SUPPORTED_ENCODINGS} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
@@ -550,7 +549,7 @@ export class EditorStatus implements IStatusbarItem {
 			let encodingSupport: IEncodingSupport = <any>asFileOrUntitledEditorInput(e.input);
 			if (encodingSupport && types.isFunction(encodingSupport.getEncoding)) {
 				let rawEncoding = encodingSupport.getEncoding();
-				let encodingInfo = encoding.SUPPORTED_ENCODINGS[rawEncoding];
+				let encodingInfo = SUPPORTED_ENCODINGS[rawEncoding];
 				if (encodingInfo) {
 					info.encoding = encodingInfo.labelShort; // if we have a label, take it from there
 				} else {
@@ -843,7 +842,7 @@ export class ChangeEncodingAction extends Action {
 					let selectedIndex: number;
 
 					// All encodings are valid picks
-					let picks: IPickOpenEntry[] = Object.keys(encoding.SUPPORTED_ENCODINGS)
+					let picks: IPickOpenEntry[] = Object.keys(SUPPORTED_ENCODINGS)
 						.sort((k1, k2) => {
 							if (k1 === defaultEncoding) {
 								return -1;
@@ -851,17 +850,17 @@ export class ChangeEncodingAction extends Action {
 								return 1;
 							}
 
-							return encoding.SUPPORTED_ENCODINGS[k1].order - encoding.SUPPORTED_ENCODINGS[k2].order;
+							return SUPPORTED_ENCODINGS[k1].order - SUPPORTED_ENCODINGS[k2].order;
 						})
 						.filter(k => {
-							return !isReopenWithEncoding || !encoding.SUPPORTED_ENCODINGS[k].encodeOnly; // hide those that can only be used for encoding if we are about to decode
+							return !isReopenWithEncoding || !SUPPORTED_ENCODINGS[k].encodeOnly; // hide those that can only be used for encoding if we are about to decode
 						})
 						.map((key, index) => {
-							if (key === encodingSupport.getEncoding()) {
+							if (key === encodingSupport.getEncoding() || SUPPORTED_ENCODINGS[key].alias === encodingSupport.getEncoding()) {
 								selectedIndex = index;
 							}
 
-							return { id: key, label: encoding.SUPPORTED_ENCODINGS[key].labelLong, description: key === defaultEncoding ? nls.localize('defaultEncoding', "Default Encoding") : void 0 };
+							return { id: key, label: SUPPORTED_ENCODINGS[key].labelLong, description: key === defaultEncoding ? nls.localize('defaultEncoding', "Default Encoding") : void 0 };
 						});
 
 					return this.quickOpenService.pick(picks, {
