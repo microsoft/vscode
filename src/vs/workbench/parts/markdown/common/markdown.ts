@@ -4,6 +4,5 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-export const MARKDOWN_FILES = ['.md', '.markdown', '.mdown', '.mkdn', '.mkd', '.mdwn', '.mdtxt', '.mdtext'];
 export const MARKDOWN_MIME = 'text/x-web-markdown';
 export const MARKDOWN_MODE_ID = 'markdown';

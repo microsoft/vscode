@@ -12,10 +12,9 @@ import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
 import {asFileResource, FileEditorInput} from 'vs/workbench/parts/files/common/files';
 import mime = require('vs/base/common/mime');
-import strings = require('vs/base/common/strings');
 import {IEditorInputActionContext, IEditorInputAction, EditorInputActionContributor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {OpenPreviewToSideAction, GlobalTogglePreviewMarkdownAction, PreviewMarkdownEditorInputAction, PreviewMarkdownAction} from 'vs/workbench/parts/markdown/browser/markdownActions';
-import {MARKDOWN_MIME, MARKDOWN_FILES} from 'vs/workbench/parts/markdown/common/markdown';
+import {MARKDOWN_MIME} from 'vs/workbench/parts/markdown/common/markdown';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
@@ -35,7 +34,7 @@ class ExplorerViewerActionContributor extends ActionBarContributor {
 			return false;
 		}
 
-		return !fileResource.isDirectory && ((MARKDOWN_FILES.some((extension) => strings.endsWith(fileResource.resource.fsPath, extension))) || mime.guessMimeTypes(fileResource.resource.fsPath).indexOf(MARKDOWN_MIME) >= 0);
+		return !fileResource.isDirectory && mime.guessMimeTypes(fileResource.resource.fsPath).indexOf(MARKDOWN_MIME) >= 0;
 	}
 
 	public getSecondaryActions(context: any): IAction[] {
@@ -65,7 +64,7 @@ class MarkdownFilesActionContributor extends EditorInputActionContributor {
 		if (input instanceof FileEditorInput) {
 			const fileResource = input.getResource();
 
-			return ((MARKDOWN_FILES.some((extension) => strings.endsWith(fileResource.fsPath, extension))) || mime.guessMimeTypes(fileResource.fsPath).indexOf(MARKDOWN_MIME) >= 0);
+			return mime.guessMimeTypes(fileResource.fsPath).indexOf(MARKDOWN_MIME) >= 0;
 		}
 
 		return false;
