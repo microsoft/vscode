@@ -2,19 +2,33 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------------------------
+ *  This file is based on or incorporates material from the projects listed below (Third Party IP).
+ *  The original copyright notice and the license under which Microsoft received such Third Party IP,
+ *  are set forth below. Such licenses and notices are provided for informational purposes only.
+ *  Microsoft licenses the Third Party IP to you under the licensing terms for the Microsoft product.
+ *  Microsoft reserves all other rights not expressly granted under this agreement, whether by implication,
+ *  estoppel or otherwise.
+ *--------------------------------------------------------------------------------------------*/
 /*---------------------------------------------------------------------------------------------
  *  Copyright © 2015 W3C® (MIT, ERCIM, Keio, Beihang). This software or document includes includes material copied
  *  from or derived from HTML 5.1 W3C Working Draft (http://www.w3.org/TR/2015/WD-html51-20151008/.)"
  *--------------------------------------------------------------------------------------------*/
 /*---------------------------------------------------------------------------------------------
- * Copyright 2015 Drifty Co. http://drifty.com/.
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
- * except in compliance with the License. You may obtain a copy of the License at
- * http://www.apache.org/licenses/LICENSE-2.0
- * Unless required by applicable law or agreed to in writing, software distributed under the
- * License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
- * either express or implied. See the License for the specific language governing permissions
- * and limitations under the License.
+ *  Ionic Main Site (https://github.com/driftyco/ionic-site).
+ *  Copyright 2015 Drifty Co. http://drifty.com/.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
+ *  except in compliance with the License. You may obtain a copy of the License at
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ *  KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY IMPLIED
+ *  WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+ *  MERCHANTABLITY OR NON-INFRINGEMENT.
+ *
+ *  See the Apache Version 2.0 License for specific language governing permissions
+ *  and limitations under the License.
  *--------------------------------------------------------------------------------------------*/
 
 import strings = require('vs/base/common/strings');
@@ -328,6 +342,7 @@ export const HTML_TAGS: ITagSet = {
 		['width', 'height'])
 };
 
+// Ionic tag information sourced from Ionic main website (https://github.com/driftyco/ionic-site)
 export const IONIC_TAGS: ITagSet = {
 	'ion-checkbox': new HTMLTagSpecification(nls.localize('tags.ion.checkbox', 'The checkbox is no different than the HTML checkbox input, except it\'s styled differently. The checkbox behaves like any AngularJS checkbox.'),
 		['name', 'ng-false-value', 'ng-model', 'ng-true-value']),
