@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*global process,require,console,exports,module*/
-
 var gulp = require('gulp');
 var filter = require('gulp-filter');
 var es = require('event-stream');
@@ -57,6 +55,7 @@ var indentationFilter = [
 	'!extensions/**/snippets/**',
 	'!extensions/**/syntaxes/**',
 	'!extensions/**/themes/**',
+	'!build/{lib,tslintRules}/**/*.js'
 ];
 
 var copyrightFilter = [
