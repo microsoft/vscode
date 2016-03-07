@@ -389,7 +389,7 @@ export class Item extends Events.EventEmitter {
 				childrenPromise = WinJS.TPromise.as([]);
 			}
 
-			return childrenPromise.then((elements: any[]) => {
+			const result = childrenPromise.then((elements: any[]) => {
 				elements = !elements ? [] : elements.slice(0);
 				elements = this.sort(elements);
 
@@ -424,9 +424,11 @@ export class Item extends Events.EventEmitter {
 				} else {
 					return WinJS.TPromise.as(null);
 				}
-			}).then(() => {
-				this.emit('item:childrenRefreshed', eventData);
 			});
+
+			return result
+				.then(null, err => console.error(err))
+				.then(() => this.emit('item:childrenRefreshed', eventData));
 		};
 
 		return safe ? doRefresh() : this.lock.run(this, doRefresh);
