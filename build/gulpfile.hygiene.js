@@ -207,7 +207,7 @@ if (require.main === module) {
 	cp.exec('git config core.autocrlf', function (err, out) {
 		var skipEOL = out.trim() === 'true';
 
-		cp.exec('git diff --cached --name-only', function (err, out) {
+		cp.exec('git diff --cached --name-only', { maxBuffer: 2000 * 1024 }, function (err, out) {
 			if (err) {
 				console.error();
 				console.error(err);
