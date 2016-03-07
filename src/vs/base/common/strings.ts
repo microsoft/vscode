@@ -66,13 +66,6 @@ export function escapeRegExpCharacters(value: string): string {
 }
 
 /**
- * Searches for all occurrences of needle in haystack and replaces them with replacement.
- */
-export function replaceAll(haystack: string, needle: string, replacement: string): string {
-	return haystack.replace(new RegExp(escapeRegExpCharacters(needle.toString()), 'g'), replacement);
-}
-
-/**
  * Removes all occurrences of needle from the beginning and end of haystack.
  * @param haystack string to trim
  * @param needle the thing to trim (default is a blank)
@@ -145,7 +138,7 @@ export function convertSimple2RegExpPattern(pattern: string): string {
 }
 
 export function stripWildcards(pattern: string): string {
-	return replaceAll(pattern, '*', '');
+	return pattern.replace(/\*/g, '');
 }
 
 /**

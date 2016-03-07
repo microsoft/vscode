@@ -45,7 +45,7 @@ export class FileWalker {
 		this.isLimitHit = false;
 
 		if (this.filePattern) {
-			this.filePattern = strings.replaceAll(this.filePattern, '\\', '/'); // Normalize file patterns to forward slashes
+			this.filePattern = this.filePattern.replace(/\\/g, '/'); // Normalize file patterns to forward slashes
 			this.normalizedFilePatternLowercase = strings.stripWildcards(this.filePattern).toLowerCase();
 		}
 	}

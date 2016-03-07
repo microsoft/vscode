@@ -105,7 +105,7 @@ export class OutputWorker {
 			while ((match = pattern.exec(line)) !== null) {
 
 				// Convert the relative path information to a resource that we can use in links
-				let workspaceRelativePath = strings.replaceAll(strings.rtrim(match[1], '.'), '\\', '/'); // remove trailing "." that likely indicate end of sentence
+				let workspaceRelativePath = strings.rtrim(match[1], '.').replace(/\\/g, '/'); // remove trailing "." that likely indicate end of sentence
 				let resource:string;
 				try {
 					resource = contextService.toResource(workspaceRelativePath).toString();

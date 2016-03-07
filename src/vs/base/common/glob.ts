@@ -299,7 +299,7 @@ function matchExpression(expression: IExpression, path: string, siblings?: strin
 				}
 
 				let clause = <SiblingClause>value;
-				let clausePattern = strings.replaceAll(clause.when, '$(basename)', basename);
+				let clausePattern = clause.when.replace('$(basename)', basename);
 				if (siblings.some((sibling) => sibling === clausePattern)) {
 					return pattern;
 				} else {
