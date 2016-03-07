@@ -255,16 +255,16 @@ function prepareDebPackage(arch) {
 	var packageRevision = getEpochTime();
 
 	return function () {
-		var shortcut = gulp.src('resources/linux/bin/code.sh')
+		var shortcut = gulp.src('resources/linux/bin/code.sh', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('usr/bin/' + product.applicationName));
 
-		var desktop = gulp.src('resources/linux/debian/code.desktop')
+		var desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('usr/share/applications/' + product.applicationName + '.desktop'));
 
-		var icon = gulp.src('resources/linux/code.png')
+		var icon = gulp.src('resources/linux/code.png', { base: '.' })
 			.pipe(rename('usr/share/pixmaps/' + product.applicationName + '.png'));
 
 		var code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
@@ -306,8 +306,7 @@ function prepareDebPackage(arch) {
 			all = es.merge(all, postinst);
 		}
 
-		return all
-			.pipe(symdest(destination));
+		return all.pipe(symdest(destination));
 	};
 }
 
@@ -320,6 +319,49 @@ function buildDebPackage(arch) {
 	], { cwd: '.build/linux/' + debArch});
 }
 
+function getRpmBuildPath() {
+	return path.join(process.env['HOME'], 'rpmbuild');
+}
+
+function prepareRpmPackage(arch) {
+	var binaryDir = '../VSCode-linux-' + arch;
+	var destination = process.env['HOME'] + '/rpmbuild';
+	var packageRevision = getEpochTime();
+
+	return function () {
+		var shortcut = gulp.src('resources/linux/bin/code.sh', { base: '.' })
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(rename('BUILD/usr/bin/' + product.applicationName));
+
+		var desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
+			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(rename('BUILD/usr/share/applications/' + product.applicationName + '.desktop'));
+
+		var icon = gulp.src('resources/linux/code.png', { base: '.' })
+			.pipe(rename('BUILD/usr/share/pixmaps/' + product.applicationName + '.png'));
+
+		var code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
+			.pipe(rename(function (p) { p.dirname = 'BUILD/usr/share/' + product.applicationName + '/' + p.dirname; }));
+
+		var spec = gulp.src('resources/linux/rpm/code.spec.template', { base: '.' })
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@VERSION@@', packageJson.version))
+			.pipe(replace('@@RELEASE@@', packageRevision))
+			.pipe(rename('SPECS/' + product.applicationName + '.spec'));
+
+		var all = es.merge(code, desktop, icon, shortcut, spec);
+
+		return all.pipe(symdest(destination));
+	}
+}
+
+function buildRpmPackage() {
+	return shell.task([
+		'fakeroot rpmbuild -ba ' + getRpmBuildPath() + '/SPECS/' + product.applicationName + '.spec',
+	]);
+}
+
 gulp.task('clean-vscode-win32', util.rimraf(path.join(path.dirname(root), 'VSCode-win32')));
 gulp.task('clean-vscode-darwin', util.rimraf(path.join(path.dirname(root), 'VSCode-darwin')));
 gulp.task('clean-vscode-linux-ia32', util.rimraf(path.join(path.dirname(root), 'VSCode-linux-ia32')));
@@ -327,6 +369,9 @@ gulp.task('clean-vscode-linux-x64', util.rimraf(path.join(path.dirname(root), 'V
 gulp.task('clean-vscode-linux-arm', util.rimraf(path.join(path.dirname(root), 'VSCode-linux-arm')));
 gulp.task('clean-vscode-linux-ia32-deb', util.rimraf('.build/linux/i386'));
 gulp.task('clean-vscode-linux-x64-deb', util.rimraf('.build/linux/amd64'));
+gulp.task('clean-vscode-linux-ia32-rpm', util.rimraf('.build/linux/rpm/i386'));
+gulp.task('clean-vscode-linux-x64-rpm', util.rimraf('.build/linux/rpm/x86_64'));
+gulp.task('clean-rpmbuild', util.rimraf(getRpmBuildPath()));
 
 gulp.task('vscode-win32', ['optimize-vscode', 'clean-vscode-win32'], packageTask('win32'));
 gulp.task('vscode-darwin', ['optimize-vscode', 'clean-vscode-darwin'], packageTask('darwin'));
@@ -344,6 +389,11 @@ gulp.task('vscode-linux-ia32-prepare-deb', ['clean-vscode-linux-ia32-deb', 'vsco
 gulp.task('vscode-linux-x64-prepare-deb', ['clean-vscode-linux-x64-deb', 'vscode-linux-x64-min'], prepareDebPackage('x64'));
 gulp.task('vscode-linux-ia32-build-deb', ['vscode-linux-ia32-prepare-deb'], buildDebPackage('ia32'));
 gulp.task('vscode-linux-x64-build-deb', ['vscode-linux-x64-prepare-deb'], buildDebPackage('x64'));
+
+gulp.task('vscode-linux-ia32-prepare-rpm', ['clean-rpmbuild', 'clean-vscode-linux-ia32-rpm', 'vscode-linux-ia32-min'], prepareRpmPackage('ia32'));
+gulp.task('vscode-linux-x64-prepare-rpm', ['clean-rpmbuild', 'clean-vscode-linux-x64-rpm', 'vscode-linux-x64-min'], prepareRpmPackage('x64'));
+gulp.task('vscode-linux-ia32-build-rpm', ['vscode-linux-ia32-prepare-rpm'], buildRpmPackage());
+gulp.task('vscode-linux-x64-build-rpm', ['vscode-linux-x64-prepare-rpm'], buildRpmPackage());
 
 // Sourcemaps
 

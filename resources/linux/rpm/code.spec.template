@@ -1,0 +1,29 @@
+Name:     @@NAME@@
+Version:  @@VERSION@@
+Release:  @@RELEASE@@
+Summary:  Code editing. Redefined.
+License:  MIT
+URL:      https://code.visualstudio.com/
+Requires: git
+AutoReq:  0
+
+%description
+Visual Studio Code is a new choice of tool that combines the simplicity of a code editor with what developers need for the core edit-build-debug cycle.
+
+%install
+mkdir -p %{buildroot}/usr/bin
+cp -r usr/bin/@@NAME@@ %{buildroot}/usr/bin
+mkdir -p %{buildroot}/usr/share/@@NAME@@
+cp -r usr/share/@@NAME@@/* %{buildroot}/usr/share/@@NAME@@
+mkdir -p %{buildroot}/usr/share/applications
+cp -r usr/share/applications/@@NAME@@.desktop %{buildroot}/usr/share/applications
+mkdir -p %{buildroot}/usr/share/pixmaps
+cp -r usr/share/pixmaps/@@NAME@@.png %{buildroot}/usr/share/pixmaps
+
+%files
+%defattr(-,root,root)
+
+/usr/bin/@@NAME@@
+/usr/share/@@NAME@@/
+/usr/share/applications/@@NAME@@.desktop
+/usr/share/pixmaps/@@NAME@@.png
