@@ -26,6 +26,7 @@ var eolFilter = [
 	'!**/node_modules/**',
 	'!**/fixtures/**',
 	'!**/*.{svg,exe,png,scpt,bat,cmd,cur,ttf,woff,eot}',
+	'!build/{lib,tslintRules}/**/*.js'
 ];
 
 var indentationFilter = [
@@ -54,8 +55,7 @@ var indentationFilter = [
 	'!**/vs/loader.js',
 	'!extensions/**/snippets/**',
 	'!extensions/**/syntaxes/**',
-	'!extensions/**/themes/**',
-	'!build/{lib,tslintRules}/**/*.js'
+	'!extensions/**/themes/**'
 ];
 
 var copyrightFilter = [
