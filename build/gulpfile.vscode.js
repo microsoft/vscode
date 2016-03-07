@@ -251,7 +251,7 @@ function getEpochTime() {
 function prepareDebPackage(arch) {
 	var binaryDir = '../VSCode-linux-' + arch;
 	var debArch = getDebPackageArch(arch);
-	var destination = '.build/linux/' + debArch + '/vscode-' + debArch;
+	var destination = '.build/linux/deb/' + debArch + '/vscode-' + debArch;
 	var packageRevision = getEpochTime();
 
 	return function () {
@@ -316,7 +316,7 @@ function buildDebPackage(arch) {
 		'mkdir -p deb',
 		'fakeroot dpkg-deb -b vscode-' + debArch + ' deb/vscode-' + debArch + '.deb',
 		'dpkg-scanpackages deb /dev/null > Packages'
-	], { cwd: '.build/linux/' + debArch});
+	], { cwd: '.build/linux/deb/' + debArch});
 }
 
 function getRpmBuildPath() {
@@ -367,8 +367,8 @@ gulp.task('clean-vscode-darwin', util.rimraf(path.join(path.dirname(root), 'VSCo
 gulp.task('clean-vscode-linux-ia32', util.rimraf(path.join(path.dirname(root), 'VSCode-linux-ia32')));
 gulp.task('clean-vscode-linux-x64', util.rimraf(path.join(path.dirname(root), 'VSCode-linux-x64')));
 gulp.task('clean-vscode-linux-arm', util.rimraf(path.join(path.dirname(root), 'VSCode-linux-arm')));
-gulp.task('clean-vscode-linux-ia32-deb', util.rimraf('.build/linux/i386'));
-gulp.task('clean-vscode-linux-x64-deb', util.rimraf('.build/linux/amd64'));
+gulp.task('clean-vscode-linux-ia32-deb', util.rimraf('.build/linux/deb/i386'));
+gulp.task('clean-vscode-linux-x64-deb', util.rimraf('.build/linux/deb/amd64'));
 gulp.task('clean-vscode-linux-ia32-rpm', util.rimraf('.build/linux/rpm/i386'));
 gulp.task('clean-vscode-linux-x64-rpm', util.rimraf('.build/linux/rpm/x86_64'));
 gulp.task('clean-rpmbuild', util.rimraf(getRpmBuildPath()));
