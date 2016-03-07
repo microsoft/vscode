@@ -305,6 +305,14 @@ export class WindowsManager {
 
 			// Update across windows
 			WindowsManager.WINDOWS.forEach(w => w.setMenuBarVisibility(!newMenuBarHidden));
+
+			// Inform user if menu bar is now hidden
+			if (newMenuBarHidden) {
+				let vscodeWindow = this.getWindowById(windowId);
+				if (vscodeWindow) {
+					vscodeWindow.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the **Alt** key."));
+				}
+			}
 		});
 
 		ipc.on('vscode:changeTheme', (event, theme: string) => {

@@ -118,6 +118,11 @@ export class ElectronIntegration {
 			this.storageService.store('workbench.theme', theme, StorageScope.GLOBAL);
 		});
 
+		// Message support
+		ipc.on('vscode:showInfoMessage', (event, message: string) => {
+			this.messageService.show(Severity.Info, message);
+		});
+
 		// Configuration changes
 		let previousConfiguredZoomLevel: number;
 		this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
