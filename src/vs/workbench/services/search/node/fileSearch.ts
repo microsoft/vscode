@@ -11,6 +11,7 @@ import paths = require('path');
 import scorer = require('vs/base/common/scorer');
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
+import types = require('vs/base/common/types');
 import glob = require('vs/base/common/glob');
 import {IProgress} from 'vs/platform/search/common/search';
 
@@ -25,6 +26,7 @@ export class FileWalker {
 	private excludePattern: glob.IExpression;
 	private includePattern: glob.IExpression;
 	private maxResults: number;
+	private maxFilesize: number;
 	private isLimitHit: boolean;
 	private resultCount: number;
 	private isCanceled: boolean;
@@ -37,6 +39,7 @@ export class FileWalker {
 		this.excludePattern = config.excludePattern;
 		this.includePattern = config.includePattern;
 		this.maxResults = config.maxResults || null;
+		this.maxFilesize = config.maxFilesize || null;
 		this.walkedPaths = Object.create(null);
 		this.resultCount = 0;
 		this.isLimitHit = false;
@@ -201,6 +204,10 @@ export class FileWalker {
 							return clb(null); // ignore file if its path matches with the file pattern because checkFilePatternRelativeMatch() takes care of those
 						}
 
+						if (this.maxFilesize && types.isNumber(stat.size) && stat.size > this.maxFilesize) {
+							return clb(null); // ignore file if max file size is hit
+						}
+
 						this.matchFile(onResult, currentAbsolutePath, currentRelativePathWithSlashes);
 					}
 
@@ -248,7 +255,7 @@ export class FileWalker {
 		return true;
 	}
 
-	private statLinkIfNeeded(path: string, lstat: fs.Stats, clb: (error:Error, stat: fs.Stats) => void): void {
+	private statLinkIfNeeded(path: string, lstat: fs.Stats, clb: (error: Error, stat: fs.Stats) => void): void {
 		if (lstat.isSymbolicLink()) {
 			return fs.stat(path, clb); // stat the target the link points to
 		}

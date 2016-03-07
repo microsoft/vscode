@@ -70,7 +70,6 @@ export class FileService implements files.IFileService {
 	public serviceId = files.IFileService;
 
 	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
-	private static MAX_FILE_SIZE = 50 * 1024 * 1024;  // do not try to load larger files than that
 	private static MAX_DEGREE_OF_PARALLEL_FS_OPS = 10; // degree of parallel fs calls that we accept at the same time
 
 	private basePath: string;
@@ -430,7 +429,7 @@ export class FileService implements files.IFileService {
 			}
 
 			// Return early if file is too large to load
-			if (types.isNumber(model.size) && model.size > FileService.MAX_FILE_SIZE) {
+			if (types.isNumber(model.size) && model.size > files.MAX_FILE_SIZE) {
 				return TPromise.wrapError(<files.IFileOperationResult>{
 					fileOperationResult: files.FileOperationResult.FILE_TOO_LARGE
 				});

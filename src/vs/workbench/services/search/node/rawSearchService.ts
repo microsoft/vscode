@@ -12,6 +12,7 @@ gracefulFs.gracefulify(fs);
 
 import {PPromise} from 'vs/base/common/winjs.base';
 import glob = require('vs/base/common/glob');
+import {MAX_FILE_SIZE} from 'vs/platform/files/common/files';
 import {IProgress, ILineMatch, IPatternInfo} from 'vs/platform/search/common/search';
 import {FileWalker, Engine as FileSearchEngine} from 'vs/workbench/services/search/node/fileSearch';
 import {Engine as TextSearchEngine} from 'vs/workbench/services/search/node/textSearch';
@@ -24,6 +25,7 @@ export interface IRawSearch {
 	includePattern?: glob.IExpression;
 	contentPattern?: IPatternInfo;
 	maxResults?: number;
+	maxFilesize?: number;
 	fileEncoding?: string;
 }
 
@@ -64,7 +66,8 @@ export class SearchService implements IRawSearchService {
 			extraFiles: config.extraFiles,
 			includePattern: config.includePattern,
 			excludePattern: config.excludePattern,
-			filePattern: config.filePattern
+			filePattern: config.filePattern,
+			maxFilesize: MAX_FILE_SIZE
 		}));
 
 		return this.doSearch(engine);
