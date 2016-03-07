@@ -5,9 +5,10 @@
 
 var es = require('event-stream');
 
+/** Ugly hack for gulp-tsb */
 function handleDeletions() {
 	return es.mapSync(function (f) {
-		if (!f.contents) {
+		if (/\.ts$/.test(f.relative) && !f.contents) {
 			f.contents = new Buffer('');
 			f.stat = { mtime: new Date() };
 		}
