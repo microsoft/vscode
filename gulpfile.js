@@ -124,13 +124,6 @@ gulp.task('test', function () {
 		.once('end', function () { process.exit(); });
 });
 
-function rebase(count) {
-	return rename(function (f) {
-		var parts = f.dirname.split(/[\/\\]/);
-		f.dirname = parts.slice(count).join(path.sep);
-	});
-}
-
 gulp.task('mixin', function () {
 	var repo = process.env['VSCODE_MIXIN_REPO'];
 
@@ -159,7 +152,7 @@ gulp.task('mixin', function () {
 
 	var all = remote(url, opts)
 		.pipe(zip.src())
-		.pipe(rebase(1));
+		.pipe(util.rebase(1));
 
 	if (quality) {
 		var build = all.pipe(filter('build/**'));
@@ -167,7 +160,7 @@ gulp.task('mixin', function () {
 
 		var mixin = all
 			.pipe(filter('quality/' + quality + '/**'))
-			.pipe(rebase(2))
+			.pipe(util.rebase(2))
 			.pipe(productJsonFilter)
 			.pipe(buffer())
 			.pipe(json(function (patch) {

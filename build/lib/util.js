@@ -267,3 +267,10 @@ exports.getVersion = function (root) {
 
 	return version;
 };
+
+exports.rebase = function (count) {
+	return rename(function (f) {
+		var parts = f.dirname.split(/[\/\\]/);
+		f.dirname = parts.slice(count).join(path.sep);
+	});
+};
