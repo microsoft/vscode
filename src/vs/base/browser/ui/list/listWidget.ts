@@ -23,7 +23,7 @@ interface ITraitChangeEvent {
 class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData<D>>
 {
 	constructor(
-		private controller: Trait,
+		private controller: Trait<T>,
 		private renderer: IRenderer<T,D>
 	) {}
 
@@ -37,7 +37,8 @@ class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData<D>>
 	}
 
 	renderElement(element: T, index: number, templateData: ITraitTemplateData<D>): void {
-		DOM.toggleClass(templateData.container, this.controller.trait, this.controller.contains(index));
+		this.controller.renderElement(element, index, templateData.container);
+
 		this.renderer.renderElement(element, index, templateData.data);
 	}
 
@@ -46,7 +47,7 @@ class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData<D>>
 	}
 }
 
-class Trait implements IDisposable {
+class Trait<T> implements IDisposable {
 
 	private indexes: number[];
 
@@ -74,8 +75,8 @@ class Trait implements IDisposable {
 		this._onChange.fire({ indexes });
 	}
 
-	get trait(): string {
-		return this._trait;
+	renderElement(element: T, index: number, container:HTMLElement): void {
+		DOM.toggleClass(container, this._trait, this.contains(index));
 	}
 
 	set(...indexes: number[]): number[] {
@@ -93,13 +94,29 @@ class Trait implements IDisposable {
 		return this.indexes.some(i => i === index);
 	}
 
-	wrapRenderer<T, D>(renderer: IRenderer<T, D>): IRenderer<T, ITraitTemplateData<D>> {
+	wrapRenderer<D>(renderer: IRenderer<T, D>): IRenderer<T, ITraitTemplateData<D>> {
 		return new TraitRenderer<T, D>(this, renderer);
 	}
 
 	dispose() {
 		this.indexes = null;
 		this._onChange = dispose(this._onChange);
+	}
+}
+
+class FocusTrait<T> extends Trait<T> {
+
+	private _idPrefix:string;
+
+	constructor(idPrefix:string) {
+		super('focused');
+		this._idPrefix = idPrefix;
+	}
+
+	renderElement(element: T, index: number, container:HTMLElement): void {
+		super.renderElement(element, index, container);
+		container.setAttribute('role', 'option');
+		container.setAttribute('id', idForIndex(this._idPrefix, index));
 	}
 }
 
@@ -124,10 +141,17 @@ class Controller<T> implements IDisposable {
 	}
 }
 
+function idForIndex(idPrefix:string, index:number): string {
+	return idPrefix + '_' + index;
+}
+
 export class List<T> implements IDisposable {
 
-	private focus: Trait;
-	private selection: Trait;
+	private static LIST_INSTANCE_CNT = 0;
+	private _idPrefix:string;
+
+	private focus: Trait<T>;
+	private selection: Trait<T>;
 	private eventBufferer: EventBufferer;
 	private view: ListView<T>;
 	private controller: Controller<T>;
@@ -145,7 +169,8 @@ export class List<T> implements IDisposable {
 		delegate: IDelegate<T>,
 		renderers: IRenderer<T, any>[]
 	) {
-		this.focus = new Trait('focused');
+		this._idPrefix = 'list_id_' + (++List.LIST_INSTANCE_CNT);
+		this.focus = new FocusTrait(this._idPrefix);
 		this.selection = new Trait('selected');
 		this.eventBufferer = new EventBufferer();
 
@@ -156,7 +181,12 @@ export class List<T> implements IDisposable {
 		});
 
 		this.view = new ListView(container, delegate, renderers);
+		this.view.domNode.setAttribute('role', 'listbox');
 		this.controller = new Controller(this, this.view);
+	}
+
+	idForIndex(index:number): string {
+		return idForIndex(this._idPrefix, index);
 	}
 
 	splice(start: number, deleteCount: number, ...elements: T[]): void {

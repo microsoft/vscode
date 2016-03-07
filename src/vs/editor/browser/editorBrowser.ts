@@ -86,6 +86,7 @@ export interface IView extends IDisposable {
 	renderOnce(callback:() => any): any;
 
 	render(now:boolean): void;
+	setAriaActiveDescendant(id:string): void;
 
 	focus(): void;
 	isFocused(): boolean;
@@ -607,6 +608,8 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	 * Set the model ranges that will be hidden in the view.
 	 */
 	setHiddenAreas(ranges:editorCommon.IRange[]): void;
+
+	setAriaActiveDescendant(id:string): void;
 }
 
 /**

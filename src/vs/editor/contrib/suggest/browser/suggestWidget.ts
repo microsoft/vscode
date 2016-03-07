@@ -75,12 +75,11 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 		const data = <ISuggestionTemplateData>templateData;
 		const suggestion = (<CompletionItem>element).suggestion;
 
+		data.root.setAttribute('aria-label', suggestion.label);
 		if (suggestion.type && suggestion.type.charAt(0) === '#') {
-			data.root.setAttribute('aria-label', 'color');
 			data.icon.className = 'icon customcolor';
 			data.colorspan.style.backgroundColor = suggestion.type.substring(1);
 		} else {
-			data.root.setAttribute('aria-label', suggestion.type);
 			data.icon.className = 'icon ' + suggestion.type;
 			data.colorspan.style.backgroundColor = '';
 		}
@@ -375,10 +374,15 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 
 		if (!e.elements.length) {
+			this.editor.setAriaActiveDescendant(null);
 			return;
 		}
 
 		const item = e.elements[0];
+		// TODO@Alex: the list is not done rendering...
+		setTimeout(() => {
+			this.editor.setAriaActiveDescendant(this.list.idForIndex(e.indexes[0]));
+		}, 100);
 
 		if (item === this.focusedItem) {
 			return;

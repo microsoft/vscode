@@ -386,6 +386,13 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		}
 	}
 
+	public setAriaActiveDescendant(id:string): void {
+		if (!this.hasView) {
+			return;
+		}
+		this._view.setAriaActiveDescendant(id);
+	}
+
 	_attachModel(model:editorCommon.IModel): void {
 		this._view = null;
 

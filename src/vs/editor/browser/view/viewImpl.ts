@@ -171,6 +171,9 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.textArea.setAttribute('aria-label', this.context.configuration.editor.ariaLabel);
 		this.textArea.setAttribute('role', 'textbox');
 		this.textArea.setAttribute('aria-multiline', 'true');
+		this.textArea.setAttribute('aria-haspopup', 'false');
+		this.textArea.setAttribute('aria-autocomplete', 'both');
+
 		StyleMutator.setTop(this.textArea, 0);
 		StyleMutator.setLeft(this.textArea, 0);
 		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
@@ -398,6 +401,20 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 				return visibleRanges[0];
 			}
 		};
+	}
+
+	public setAriaActiveDescendant(id:string): void {
+		if (id) {
+			this.textArea.setAttribute('role', 'combobox');
+			if (this.textArea.getAttribute('aria-activedescendant') !== id) {
+				this.textArea.setAttribute('aria-haspopup', 'true');
+				this.textArea.setAttribute('aria-activedescendant', id);
+			}
+		} else {
+			this.textArea.setAttribute('role', 'textbox');
+			this.textArea.removeAttribute('aria-activedescendant');
+			this.textArea.removeAttribute('aria-haspopup');
+		}
 	}
 
 	// --- begin event handlers
