@@ -32,7 +32,7 @@ import {IRichEditConfiguration, RichEditSupport} from 'vs/editor/common/modes/su
 import {ISuggestContribution, SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {LanguagesRegistry} from 'vs/editor/common/services/languagesRegistry';
-import {ILanguageExtensionPoint, IModeLookupResult, IModeService} from 'vs/editor/common/services/modeService';
+import {ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult, IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 
@@ -520,7 +520,7 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 		this._hasInitialized = false;
 
 		languagesExtPoint.setHandler((extensions:IExtensionPointUser<ILanguageExtensionPoint[]>[]) => {
-			let allValidLanguages: ILanguageExtensionPoint[] = [];
+			let allValidLanguages: IValidLanguageExtensionPoint[] = [];
 
 			for (let i = 0, len = extensions.length; i < len; i++) {
 				let extension = extensions[i];
@@ -531,15 +531,18 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 				}
 
 				for (let j = 0, lenJ = extension.value.length; j < lenJ; j++) {
-					if (isValidLanguageExtensionPoint(extension.value[j], extension.collector)) {
+					let ext = extension.value[j];
+					if (isValidLanguageExtensionPoint(ext, extension.collector)) {
+						let configuration = (ext.configuration ? paths.join(extension.description.extensionFolderPath, ext.configuration) : ext.configuration);
 						allValidLanguages.push({
-							id: extension.value[j].id,
-							extensions: extension.value[j].extensions,
-							filenames: extension.value[j].filenames,
-							firstLine: extension.value[j].firstLine,
-							aliases: extension.value[j].aliases,
-							mimetypes: extension.value[j].mimetypes,
-							configuration: extension.value[j].configuration ? paths.join(extension.description.extensionFolderPath, extension.value[j].configuration) : extension.value[j].configuration
+							id: ext.id,
+							extensions: ext.extensions,
+							filenames: ext.filenames,
+							filenamePatterns: ext.filenamePatterns,
+							firstLine: ext.firstLine,
+							aliases: ext.aliases,
+							mimetypes: ext.mimetypes,
+							configuration: configuration
 						});
 					}
 				}
