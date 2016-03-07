@@ -10,7 +10,7 @@ import paths = require('vs/base/common/paths');
 const CACHE: { [glob: string]: RegExp } = Object.create(null);
 
 export interface IExpression {
-	[pattern: string]: boolean|SiblingClause|any;
+	[pattern: string]: boolean | SiblingClause | any;
 }
 
 export interface SiblingClause {
@@ -254,7 +254,7 @@ function globToRegExp(pattern: string): RegExp {
  */
 export function match(pattern: string, path: string): boolean;
 export function match(expression: IExpression, path: string, siblings?: string[]): string /* the matching pattern */;
-export function match(arg1: string|IExpression, path: string, siblings?: string[]): any {
+export function match(arg1: string | IExpression, path: string, siblings?: string[]): any {
 	if (!arg1 || !path) {
 		return false;
 	}
@@ -271,6 +271,7 @@ export function match(arg1: string|IExpression, path: string, siblings?: string[
 
 function matchExpression(expression: IExpression, path: string, siblings?: string[]): string /* the matching pattern */ {
 	let patterns = Object.getOwnPropertyNames(expression);
+	let basename: string;
 	for (let i = 0; i < patterns.length; i++) {
 		let pattern = patterns[i];
 
@@ -293,9 +294,12 @@ function matchExpression(expression: IExpression, path: string, siblings?: strin
 					continue; // pattern is malformed or we don't have siblings
 				}
 
+				if (!basename) {
+					basename = strings.rtrim(paths.basename(path), paths.extname(path));
+				}
+
 				let clause = <SiblingClause>value;
-				let basename = strings.rtrim(paths.basename(path), paths.extname(path));
-				var clausePattern = strings.replaceAll(clause.when, '$(basename)', basename);
+				let clausePattern = strings.replaceAll(clause.when, '$(basename)', basename);
 				if (siblings.some((sibling) => sibling === clausePattern)) {
 					return pattern;
 				} else {
