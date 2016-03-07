@@ -115,7 +115,7 @@ gulp.task('tslint', function () {
 
 	return gulp.src(all, { base: '.' })
 		.pipe(filter(tslintFilter))
-		.pipe(gulptslint({ rulesDirectory: 'build/tslintRules' }))
+		.pipe(gulptslint({ rulesDirectory: 'build/lib/tslint' }))
 		.pipe(gulptslint.report(reporter, options));
 });
 
@@ -166,7 +166,7 @@ var hygiene = exports.hygiene = function (some, options) {
 		var options = {
 			formatter: 'json',
 			configuration: configuration,
-			rulesDirectory: 'build/tslintRules',
+			rulesDirectory: 'build/lib/tslint',
 		}
 		var contents = file.contents.toString('utf8');
 		var linter = new tslint(file.relative, contents, options);
