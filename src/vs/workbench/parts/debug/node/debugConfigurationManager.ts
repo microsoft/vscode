@@ -315,7 +315,7 @@ export class ConfigurationManager {
 			adapter.initialConfigurations.forEach(config => {
 				if (program && config.program) {
 					if (!path.isAbsolute(program)) {
-						program = path.join('${workspaceRoot}', program);
+						program = paths.join('${workspaceRoot}', program);
 					}
 
 					config.program = program;
