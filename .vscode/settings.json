@@ -14,5 +14,5 @@
 		"extensions/**/out/**": true
 	},
 	"tslint.enable": true,
-	"tslint.rulesDirectory": "build/tslintRules"
+	"tslint.rulesDirectory": "build/lib/tslint"
 }
