@@ -44,7 +44,7 @@
 }
 
 .monaco-workbench.hc-black .debug-action.toggle-repl {
-	content: url('repl-inverse.svg') center center no-repeat;;
+	background: url('repl-inverse.svg') center center no-repeat;
 }
 
 /* Debug viewlet trees */
