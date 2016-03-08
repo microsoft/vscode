@@ -736,11 +736,12 @@ class ChangeIndentationAction extends Action {
 		if (!isWritableCodeEditor(<BaseTextEditor>activeEditor)) {
 			return this.quickOpenService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 		}
-		const control = <ICommonCodeEditor>activeEditor.getControl();
 
-		return this.quickOpenService.pick([control.getAction(IndentUsingSpaces.ID), control.getAction(IndentUsingTabs.ID), control.getAction(IndentationToSpacesAction.ID), control.getAction(IndentationToTabsAction.ID)], {
-			placeHolder: nls.localize('pickAction', "Select Action")
-		}).then(action => action && action.run());
+		const control = <ICommonCodeEditor>activeEditor.getControl();
+		const picks = [control.getAction(IndentUsingSpaces.ID), control.getAction(IndentUsingTabs.ID), control.getAction(IndentationToSpacesAction.ID), control.getAction(IndentationToTabsAction.ID)];
+		(<IPickOpenEntry>picks[2]).separate = true;
+
+		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickAction', "Select Action") }).then(action => action && action.run());
 	}
 }
 
