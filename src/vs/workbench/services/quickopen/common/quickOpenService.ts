@@ -15,6 +15,7 @@ export interface IPickOpenEntry {
 	label: string;
 	description?: string;
 	detail?: string;
+	separate?: boolean;
 }
 
 export interface IPickOptions {

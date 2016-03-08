@@ -352,7 +352,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 						return new PickOpenItem(entry.label, entry.description, entry.height, entry.render.bind(entry), () => progress(e));
 					}
 
-					return new PickOpenEntry(entry.label, entry.description, entry.detail, () => progress(e));
+					return new PickOpenEntry(entry.label, entry.description, entry.detail, () => progress(e), entry.separate);
 				});
 
 				if (picks.length === 0) {
@@ -897,7 +897,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 	}
 }
 
-class PlaceholderQuickOpenEntry extends QuickOpenEntry {
+class PlaceholderQuickOpenEntry extends QuickOpenEntryGroup {
 	private placeHolderLabel: string;
 
 	constructor(placeHolderLabel: string) {
@@ -916,7 +916,7 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 	private description: string;
 	private detail: string;
 
-	constructor(label: string, description?: string, detail?: string, private onPreview?: () => void) {
+	constructor(label: string, description?: string, detail?: string, private onPreview?: () => void, private hasBorder?: boolean) {
 		super(label);
 
 		this.description = description;
@@ -933,6 +933,10 @@ class PickOpenEntry extends PlaceholderQuickOpenEntry {
 
 	public getDetail(): string {
 		return this.detail;
+	}
+
+	public showBorder(): boolean {
+		return this.hasBorder;
 	}
 
 	public run(mode: Mode, context: IContext): boolean {
