@@ -38,7 +38,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	private _BOM:string;
 
 	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText) {
-		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged);
+		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged, editorCommon.EventType.ModelOptionsChanged);
 		super(allowedEventTypes);
 
 		this._options = rawText.options;
@@ -54,6 +54,42 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 
 		return this._options;
+	}
+
+	public updateOptions(newOpts:editorCommon.ITextModelUpdateOptions): void {
+		let somethingChanged = false;
+		let changed:editorCommon.IModelOptionsChangedEvent = {
+			tabSize: false,
+			insertSpaces: false
+		};
+
+		if (typeof newOpts.insertSpaces !== 'undefined') {
+			if (this._options.insertSpaces !== newOpts.insertSpaces) {
+				somethingChanged = true;
+				changed.insertSpaces = true;
+				this._options.insertSpaces = newOpts.insertSpaces;
+			}
+		}
+		if (typeof newOpts.tabSize !== 'undefined') {
+			if (this._options.tabSize !== newOpts.tabSize) {
+				somethingChanged = true;
+				changed.tabSize = true;
+				this._options.tabSize = newOpts.tabSize;
+			}
+		}
+
+		if (somethingChanged) {
+			this.emit(editorCommon.EventType.ModelOptionsChanged, changed);
+		}
+	}
+
+	public detectIndentation(defaultInsertSpaces:boolean, defaultTabSize:number): void {
+		let lines = this._lines.map(line => line.text);
+		let guessedIndentation = guessIndentation(lines, defaultTabSize, defaultInsertSpaces);
+		this.updateOptions({
+			insertSpaces: guessedIndentation.insertSpaces,
+			tabSize: guessedIndentation.tabSize
+		});
 	}
 
 	private _normalizeIndentationFromWhitespace(str:string): string {

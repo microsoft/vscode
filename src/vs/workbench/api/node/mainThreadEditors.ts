@@ -19,7 +19,6 @@ export interface ITextEditorConfigurationUpdate {
 	insertSpaces?: boolean | string;
 }
 export interface IResolvedTextEditorConfiguration {
-	IResolvedTextEditorConfiguration: any; // TODO@Alex TODO@indent
 	tabSize: number;
 	insertSpaces: boolean;
 }
@@ -199,7 +198,6 @@ export class MainThreadTextEditor {
 	private static _readConfiguration(model:EditorCommon.IModel): IResolvedTextEditorConfiguration {
 		let indent = model.getOptions();
 		return {
-			IResolvedTextEditorConfiguration: null, // TODO@Alex TODO@indent
 			insertSpaces: indent.insertSpaces,
 			tabSize: indent.tabSize
 		};

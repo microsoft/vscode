@@ -1255,8 +1255,14 @@ export interface ITextModelCreationOptions {
 	defaultEOL: DefaultEndOfLine;
 }
 
+export interface ITextModelUpdateOptions {
+	tabSize?: number;
+	insertSpaces?: boolean;
+}
+
 export interface IModelOptionsChangedEvent {
-	// TODO@Alex TODO@indent
+	tabSize: boolean;
+	insertSpaces: boolean;
 }
 
 /**
@@ -1709,6 +1715,10 @@ export interface IEditableTextModel extends ITextModelWithMarkers {
 	normalizeIndentation(str:string): string;
 
 	getOneIndent(): string;
+
+	updateOptions(newOpts:ITextModelUpdateOptions): void;
+
+	detectIndentation(defaultInsertSpaces:boolean, defaultTabSize:number): void;
 
 	/**
 	 * Push a stack element onto the undo stack. This acts as an undo/redo point.

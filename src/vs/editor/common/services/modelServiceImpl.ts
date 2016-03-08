@@ -170,6 +170,17 @@ class ModelMarkerHandler {
 	}
 }
 
+interface IRawConfig {
+	files?: {
+		eol?: any;
+	};
+	editor?: {
+		tabSize?: any;
+		insertSpaces?: any;
+		detectIndentation?: any;
+	};
+}
+
 export class ModelServiceImpl implements IModelService {
 	public serviceId = IModelService;
 
@@ -210,20 +221,20 @@ export class ModelServiceImpl implements IModelService {
 		this._workerHelper = this._threadService.getRemotable(ModelServiceWorkerHelper);
 		this._configurationService = configurationService;
 
-		let readDefaultEOL = (config:any) => {
+		let readConfig = (config:IRawConfig) => {
 			const eol = config.files && config.files.eol;
 
-			let newTabSize = DEFAULT_INDENTATION.tabSize;
+			let tabSize = DEFAULT_INDENTATION.tabSize;
 			if (config.editor && typeof config.editor.tabSize !== 'undefined') {
 				let parsedTabSize = parseInt(config.editor.tabSize, 10);
 				if (!isNaN(parsedTabSize)) {
-					newTabSize = parsedTabSize;
+					tabSize = parsedTabSize;
 				}
 			}
 
-			let newInsertSpaces = DEFAULT_INDENTATION.insertSpaces;
+			let insertSpaces = DEFAULT_INDENTATION.insertSpaces;
 			if (config.editor && typeof config.editor.insertSpaces !== 'undefined') {
-				newInsertSpaces = (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
+				insertSpaces = (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
 			}
 
 			let newDefaultEOL = this._modelCreationOptions.defaultEOL;
@@ -234,19 +245,23 @@ export class ModelServiceImpl implements IModelService {
 			}
 
 			let detectIndentation = DEFAULT_INDENTATION.detectIndentation;
+			if (config.editor && typeof config.editor.detectIndentation !== 'undefined') {
+				detectIndentation = (config.editor.detectIndentation === 'false' ? false : Boolean(config.editor.detectIndentation));
+			}
 
-			this._modelCreationOptions = {
-				tabSize: newTabSize,
-				insertSpaces: newInsertSpaces,
+			this._setModelOptions({
+				tabSize: tabSize,
+				insertSpaces: insertSpaces,
 				detectIndentation: detectIndentation,
 				defaultEOL: newDefaultEOL
-			};
+			});
+
 		};
 		this._configurationServiceSubscription = this._configurationService.addListener2(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
-			readDefaultEOL(e.config);
+			readConfig(e.config);
 		});
 		this._configurationService.loadConfiguration().then((config) => {
-			readDefaultEOL(config);
+			readConfig(config);
 		});
 
 		this._models = {};
@@ -258,6 +273,26 @@ export class ModelServiceImpl implements IModelService {
 		if(this._markerService) {
 			this._markerServiceSubscription = this._markerService.onMarkerChanged(this._handleMarkerChange, this);
 		}
+	}
+
+	public getCreationOptions(): editorCommon.ITextModelCreationOptions {
+		return this._modelCreationOptions;
+	}
+
+	private _setModelOptions(newOpts: editorCommon.ITextModelCreationOptions): void {
+		if (
+			(this._modelCreationOptions.detectIndentation === newOpts.detectIndentation)
+			&& (this._modelCreationOptions.insertSpaces === newOpts.insertSpaces)
+			&& (this._modelCreationOptions.tabSize === newOpts.tabSize)
+		) {
+			// Same indent opts, no need to touch created models
+			this._modelCreationOptions = newOpts;
+			return;
+		}
+		this._modelCreationOptions = newOpts;
+
+		// TODO@Alex TODO@indent
+		// console.log('I NEED TO UPDATE EXISTING MODELS!!!');
 	}
 
 	public dispose(): void {

@@ -24,7 +24,7 @@ import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {EndOfLineSequence, ITokenizedModel, EditorType, IEditorSelection, ITextModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
-import {IndentUsingSpaces, IndentUsingTabs, IndentationToSpacesAction, IndentationToTabsAction} from 'vs/editor/contrib/indentation/common/indentation';
+import {IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction} from 'vs/editor/contrib/indentation/common/indentation';
 import {EventType, ResourceEvent, EditorEvent, TextEditorSelectionEvent} from 'vs/workbench/common/events';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
@@ -732,9 +732,9 @@ class ChangeIndentationAction extends Action {
 		}
 
 		const control = <ICommonCodeEditor>activeEditor.getControl();
-		const picks = [control.getAction(IndentUsingSpaces.ID), control.getAction(IndentUsingTabs.ID), control.getAction(IndentationToSpacesAction.ID), control.getAction(IndentationToTabsAction.ID)];
+		const picks = [control.getAction(IndentUsingSpaces.ID), control.getAction(IndentUsingTabs.ID), control.getAction(DetectIndentation.ID), control.getAction(IndentationToSpacesAction.ID), control.getAction(IndentationToTabsAction.ID)];
 		(<IPickOpenEntry>picks[0]).separator = { label: nls.localize('indentView', "change view") };
-		(<IPickOpenEntry>picks[2]).separator = { label: nls.localize('indentConvert', "convert file"), border: true };
+		(<IPickOpenEntry>picks[3]).separator = { label: nls.localize('indentConvert', "convert file"), border: true };
 
 		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickAction', "Select Action") }).then(action => action && action.run());
 	}
