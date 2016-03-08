@@ -669,7 +669,7 @@ export class ChangeModeAction extends Action {
 
 		if (asFileEditorInput(activeEditor.input, true)) {
 			picks.unshift(autoDetectMode); // first entry
-			picks[1].separate = true;
+			picks[1].separator = { border: true };
 			selectedIndex++; // pushes selected index down
 		}
 
@@ -739,7 +739,8 @@ class ChangeIndentationAction extends Action {
 
 		const control = <ICommonCodeEditor>activeEditor.getControl();
 		const picks = [control.getAction(IndentUsingSpaces.ID), control.getAction(IndentUsingTabs.ID), control.getAction(IndentationToSpacesAction.ID), control.getAction(IndentationToTabsAction.ID)];
-		(<IPickOpenEntry>picks[2]).separate = true;
+		(<IPickOpenEntry>picks[0]).separator = { label: nls.localize('indentView', "change view") };
+		(<IPickOpenEntry>picks[2]).separator = { label: nls.localize('indentConvert', "convert file"), border: true };
 
 		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickAction', "Select Action") }).then(action => action && action.run());
 	}
