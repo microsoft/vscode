@@ -15,8 +15,8 @@ const __tab = '\t'.charCodeAt(0);
 function spacesDiff(a:string, aLength:number, b:string, bLength:number): number {
 
 	// This can go both ways (e.g.):
-	//  - previousLineIndentation: "\t\t"
-	//  - currentLineIndentation: "\t    "
+	//  - a: "\t\t"
+	//  - b: "\t    "
 	//  => This should count 1 tab and 4 spaces
 
 	let result = 0;
@@ -54,11 +54,6 @@ function spacesDiff(a:string, aLength:number, b:string, bLength:number): number 
 			result++;
 		}
 	}
-
-	// // Ignore space if it occurs exactly once
-	// if (result === 1) {
-	// 	result = 0;
-	// }
 
 	return result;
 }

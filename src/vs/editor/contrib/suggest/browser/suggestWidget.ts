@@ -25,6 +25,7 @@ import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWi
 import {CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY, SuggestRegistry} from '../common/suggest';
 import {CompletionItem, CompletionModel} from './completionModel';
 import {ICancelEvent, ISuggestEvent, ITriggerEvent, SuggestModel} from './suggestModel';
+import {alert} from 'vs/base/browser/ui/aria/aria';
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
@@ -75,7 +76,7 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 		const data = <ISuggestionTemplateData>templateData;
 		const suggestion = (<CompletionItem>element).suggestion;
 
-		data.root.setAttribute('aria-label', suggestion.label);
+		data.root.setAttribute('aria-label', nls.localize('suggestionAriaLabel', "{0}, suggestion", suggestion.label));
 		if (suggestion.type && suggestion.type.charAt(0) === '#') {
 			data.icon.className = 'icon customcolor';
 			data.colorspan.style.backgroundColor = suggestion.type.substring(1);
@@ -362,6 +363,8 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			const overwriteBefore = (typeof item.suggestion.overwriteBefore === 'undefined') ? container.currentWord.length : item.suggestion.overwriteBefore;
 			const overwriteAfter = (typeof item.suggestion.overwriteAfter === 'undefined') ? 0 : Math.max(0, item.suggestion.overwriteAfter);
 			this.model.accept(item.suggestion, overwriteBefore, overwriteAfter);
+
+			alert(nls.localize('suggestionAriaAccepted', "{0}, suggestion accepted", item.suggestion.label));
 
 			this.editor.focus();
 		}, 0);
