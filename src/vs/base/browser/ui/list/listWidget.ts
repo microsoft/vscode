@@ -106,17 +106,14 @@ class Trait<T> implements IDisposable {
 
 class FocusTrait<T> extends Trait<T> {
 
-	private _idPrefix:string;
-
-	constructor(idPrefix:string) {
+	constructor(private getElementId:(number) => string) {
 		super('focused');
-		this._idPrefix = idPrefix;
 	}
 
 	renderElement(element: T, index: number, container:HTMLElement): void {
 		super.renderElement(element, index, container);
 		container.setAttribute('role', 'option');
-		container.setAttribute('id', idForIndex(this._idPrefix, index));
+		container.setAttribute('id', this.getElementId(index));
 	}
 }
 
@@ -141,14 +138,10 @@ class Controller<T> implements IDisposable {
 	}
 }
 
-function idForIndex(idPrefix:string, index:number): string {
-	return idPrefix + '_' + index;
-}
-
 export class List<T> implements IDisposable {
 
-	private static LIST_INSTANCE_CNT = 0;
-	private _idPrefix:string;
+	private static InstanceCount = 0;
+	private idPrefix = `list_id_${ ++List.InstanceCount }`;
 
 	private focus: Trait<T>;
 	private selection: Trait<T>;
@@ -169,8 +162,7 @@ export class List<T> implements IDisposable {
 		delegate: IDelegate<T>,
 		renderers: IRenderer<T, any>[]
 	) {
-		this._idPrefix = 'list_id_' + (++List.LIST_INSTANCE_CNT);
-		this.focus = new FocusTrait(this._idPrefix);
+		this.focus = new FocusTrait(i => this.getElementId(i));
 		this.selection = new Trait('selected');
 		this.eventBufferer = new EventBufferer();
 
@@ -183,10 +175,6 @@ export class List<T> implements IDisposable {
 		this.view = new ListView(container, delegate, renderers);
 		this.view.domNode.setAttribute('role', 'listbox');
 		this.controller = new Controller(this, this.view);
-	}
-
-	idForIndex(index:number): string {
-		return idForIndex(this._idPrefix, index);
 	}
 
 	splice(start: number, deleteCount: number, ...elements: T[]): void {
@@ -326,6 +314,10 @@ export class List<T> implements IDisposable {
 				this.view.setScrollTop(viewItemBottom - this.view.renderHeight);
 			}
 		}
+	}
+
+	getElementId(index:number): string {
+		return `${ this.idPrefix }_${ index }`;
 	}
 
 	private toListEvent<T>({ indexes }: ITraitChangeEvent) {

@@ -381,7 +381,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		const item = e.elements[0];
 		// TODO@Alex: the list is not done rendering...
 		setTimeout(() => {
-			this.editor.setAriaActiveDescendant(this.list.idForIndex(e.indexes[0]));
+			this.editor.setAriaActiveDescendant(this.list.getElementId(e.indexes[0]));
 		}, 100);
 
 		if (item === this.focusedItem) {
