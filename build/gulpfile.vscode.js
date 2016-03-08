@@ -6,6 +6,7 @@
 var gulp = require('gulp');
 var fs = require('fs');
 var path = require('path');
+var os = require('os');
 var es = require('event-stream');
 var azure = require('gulp-azure-storage');
 var electron = require('gulp-atom-electron');
@@ -319,13 +320,12 @@ function buildDebPackage(arch) {
 	], { cwd: '.build/linux/deb/' + debArch});
 }
 
-function getRpmBuildPath() {
-	return path.join(process.env['HOME'], 'rpmbuild');
-}
+// TODO@Tyriar: we don't want any globals, why is this scoped to the user's homedir?
+var rpmBuildPath = path.join(os.homedir(), 'rpmbuild');
 
 function prepareRpmPackage(arch) {
 	var binaryDir = '../VSCode-linux-' + arch;
-	var destination = process.env['HOME'] + '/rpmbuild';
+	var destination = rpmBuildPath;
 	var packageRevision = getEpochTime();
 
 	return function () {
@@ -358,7 +358,7 @@ function prepareRpmPackage(arch) {
 
 function buildRpmPackage() {
 	return shell.task([
-		'fakeroot rpmbuild -ba ' + getRpmBuildPath() + '/SPECS/' + product.applicationName + '.spec',
+		'fakeroot rpmbuild -ba ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec',
 	]);
 }
 
@@ -371,7 +371,7 @@ gulp.task('clean-vscode-linux-ia32-deb', util.rimraf('.build/linux/deb/i386'));
 gulp.task('clean-vscode-linux-x64-deb', util.rimraf('.build/linux/deb/amd64'));
 gulp.task('clean-vscode-linux-ia32-rpm', util.rimraf('.build/linux/rpm/i386'));
 gulp.task('clean-vscode-linux-x64-rpm', util.rimraf('.build/linux/rpm/x86_64'));
-gulp.task('clean-rpmbuild', util.rimraf(getRpmBuildPath()));
+gulp.task('clean-rpmbuild', util.rimraf(rpmBuildPath));
 
 gulp.task('vscode-win32', ['optimize-vscode', 'clean-vscode-win32'], packageTask('win32'));
 gulp.task('vscode-darwin', ['optimize-vscode', 'clean-vscode-darwin'], packageTask('darwin'));
