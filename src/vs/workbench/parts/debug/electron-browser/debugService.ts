@@ -225,7 +225,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 	private registerSessionListeners(): void {
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.INITIALIZED, (event: DebugProtocol.InitializedEvent) => {
-			aria.alert(nls.localize('debuggingStarted', "Debugging started."));
+			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			this.sendAllBreakpoints().then(() => {
 				if (this.session.capabilities.supportsConfigurationDoneRequest) {
 					this.session.configurationDone().done(null, errors.onUnexpectedError);
@@ -255,7 +255,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.CONTINUED, () => {
-			aria.alert(nls.localize('debuggingContinued', "Debugging continued."));
+			aria.status(nls.localize('debuggingContinued', "Debugging continued."));
 			this.model.clearThreads(false);
 			this.setFocusedStackFrameAndEvaluate(null);
 			this.setStateAndEmit(this.configurationManager.getConfiguration().noDebug ? debug.State.RunningNoDebug : debug.State.Running);
@@ -278,7 +278,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.DEBUGEE_TERMINATED, (event: DebugProtocol.TerminatedEvent) => {
-			aria.alert(nls.localize('debuggingStopped', "Debugging stopped."));
+			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (this.session && this.session.getId() === (<any>event).sessionId) {
 				if (event.body && typeof event.body.restart === 'boolean' && event.body.restart) {
 					this.restartSession().done(null, err => this.messageService.show(severity.Error, err.message));
@@ -520,7 +520,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 					}
 				});
 			}
-			
+
 			configuration.noDebug = noDebug;
 			if (!this.configurationManager.getAdapter()) {
 				this.emit(debug.ServiceEvents.TYPE_NOT_SUPPORTED, configuration.type);
