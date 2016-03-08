@@ -692,6 +692,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		if (this.session) {
 			const bpsExist = this.model.getBreakpoints().length > 0;
 			this.telemetryService.publicLog('debugSessionStop', { type: this.session.getType(), success: this.session.emittedStopped || !bpsExist, sessionLengthInSeconds: this.session.getLengthInSeconds(), breakpointCount: this.model.getBreakpoints().length, watchExpressionsCount: this.model.getWatchExpressions().length });
+			const panel = this.panelService.getActivePanel();
+			if (!this.session.restarted && panel && panel.getId() === debug.REPL_ID) {
+				this.partService.setPanelHidden(true);
+			}
 		}
 		this.session = null;
 		this.partService.removeClass('debugging');

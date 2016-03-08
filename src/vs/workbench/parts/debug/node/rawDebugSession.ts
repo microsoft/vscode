@@ -28,6 +28,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	private startTime: number;
 	private stopServerPending: boolean;
 	public isAttach: boolean;
+	public restarted: boolean;
 	public capabilities: DebugProtocol.Capabilites;
 
 	constructor(
@@ -140,6 +141,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		if ((this.serverProcess || this.socket) && !this.stopServerPending) {
 			// point of no return: from now on don't report any errors
 			this.stopServerPending = true;
+			this.restarted = restart;
 			return this.send('disconnect', { restart: restart }).then(() => this.stopServer(), () => this.stopServer());
 		}
 
