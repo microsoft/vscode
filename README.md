@@ -1,6 +1,5 @@
 # Python
-Linting, Debugging (multi threaded, web apps), Intellisense, auto-completion, code formatting, snippets, unit testing, and more.
-Works on both Windows and Mac.
+Linting, Debugging (multi-threaded, web apps, remote), Intellisense, auto-completion, code formatting, snippets, unit testing, and more.
  
 ##Features
 * Linting (PyLint, Pep8, Flake8 with config files and plugins)
@@ -20,10 +19,7 @@ Works on both Windows and Mac.
 ##[Wiki](https://github.com/DonJayamanne/pythonVSCode/wiki)
 
 ##[Issues and Feature Requests](https://github.com/DonJayamanne/pythonVSCode/issues)
-* Support of shebang (testing)
-* Remote Debugging (testing)
 * Support for Virtual Environments (in development)
-* More features on the way
 
 ## Feature Details (with confiuration)
 * IDE Features
@@ -67,6 +63,7 @@ Works on both Windows and Mac.
  + Multiple Threads and Web Applications (such as Flask) (Windows and Mac)
  + Expanding values (viewing children, properties, etc) (Windows and Mac)
  + Conditional breakpoints
+ + Remote debugging
 * Unit Testing
  + unittests (default is on)
  + nosetests (default is off)
@@ -105,6 +102,9 @@ Works on both Windows and Mac.
  + pip install nose
 
 ## Change Log
+
+### Version 0.3.1
+* Remote debugging (updated documentation and fixed minor issues)
 
 ### Version 0.3.0
 * Remote debugging (attaching to local and remote processes)

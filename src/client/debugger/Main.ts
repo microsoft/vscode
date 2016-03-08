@@ -238,7 +238,7 @@ export class PythonDebugger extends DebugSession {
                         breakpoint.Enabled = true;
                     }
                     else {
-                        breakpoint = this.buildBreakpointDetails(args.source.path, bk.line, bk.condition);
+                        breakpoint = this.buildBreakpointDetails(this.convertClientPathToDebugger(args.source.path), bk.line, bk.condition);
                     }
 
                     this.pythonProcess.BindBreakpoint(breakpoint).then(() => {
@@ -288,7 +288,28 @@ export class PythonDebugger extends DebugSession {
         };
         this.sendResponse(response);
     }
-
+    /** converts the remote path to local path */
+    protected convertDebuggerPathToClient(remotePath: string): string {
+        if (this.attachArgs && this.attachArgs.localRoot && this.attachArgs.remoteRoot) {
+            // get the part of the path that is relative to the source root
+            const pathRelativeToSourceRoot = path.relative(this.attachArgs.remoteRoot, remotePath);
+            // resolve from the local source root
+            return path.resolve(this.attachArgs.localRoot, pathRelativeToSourceRoot);
+        } else {
+            return remotePath;
+        }
+    }
+    /** converts the local path to remote path */
+    protected convertClientPathToDebugger(clientPath: string): string {
+        if (this.attachArgs && this.attachArgs.localRoot && this.attachArgs.remoteRoot) {
+            // get the part of the path that is relative to the client root
+            const pathRelativeToClientRoot = path.relative(this.attachArgs.localRoot, clientPath);
+            // resolve from the remote source root
+            return path.resolve(this.attachArgs.remoteRoot, pathRelativeToClientRoot);
+        } else {
+            return clientPath;
+        }
+    }
     protected stackTraceRequest(response: DebugProtocol.StackTraceResponse, args: DebugProtocol.StackTraceArguments): void {
         this.debuggerLoaded.then(() => {
             if (!this.pythonProcess.Threads.has(args.threadId)) {
