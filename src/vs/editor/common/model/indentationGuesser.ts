@@ -6,54 +6,89 @@
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
 
-export interface IIndentationFactors {
-	/**
-	 * The number of lines that are indented with tabs
-	 */
-	linesIndentedWithTabs:number;
-	/**
-	 * relativeSpaceCounts[i] contains the number of times (i spaces) have been encountered in a relative indentation
-	 */
-	relativeSpaceCounts:number[];
-	/**
-	 * absoluteSpaceCounts[i] contains the number of times (i spaces) have been encounted in an indentation
-	 */
-	absoluteSpaceCounts:number[];
-}
-
 const __space = ' '.charCodeAt(0);
 const __tab = '\t'.charCodeAt(0);
 
-function _extractIndentationFactors(lines:string[]): IIndentationFactors {
-	let previousLineTextWithContent = '';		// The content of the previous line that had non whitespace characters
-	let previousLineIndentation = 0;			// The char index at which `previousLineTextWithContent` has a non whitespace character
-	/**
-	 * relativeSpaceCounts[i] contains the number of times (i spaces) have been encountered in a relative indentation
-	 */
-	let relativeSpaceCounts:number[] = [];
-	/**
-	 * The total number of tabs that appear in indentations
-	 */
-	let linesIndentedWithTabs:number = 0;
-	/**
-	 * absoluteSpaceCounts[i] contains the number of times (i spaces) have been encounted in an indentation
-	 */
-	let absoluteSpaceCounts:number[] = [];
+/**
+ * Compute the diff in spaces between two line's indentation.
+ */
+function spacesDiff(a:string, aLength:number, b:string, bLength:number): number {
+
+	// This can go both ways (e.g.):
+	//  - previousLineIndentation: "\t\t"
+	//  - currentLineIndentation: "\t    "
+	//  => This should count 1 tab and 4 spaces
+
+	let result = 0;
+	let stillMatching = true;
+	let j:number;
+
+	for (j = 0; j < aLength && j < bLength; j++) {
+		let aCharCode = a.charCodeAt(j);
+		let bCharCode = b.charCodeAt(j);
+
+		if (stillMatching && aCharCode !== bCharCode) {
+			stillMatching = false;
+		}
+
+		if (!stillMatching) {
+			if (aCharCode === __space) {
+				result++;
+			}
+			if (bCharCode === __space) {
+				result++;
+			}
+		}
+	}
+
+	for (;j < aLength; j++) {
+		let aCharCode = a.charCodeAt(j);
+		if (aCharCode === __space) {
+			result++;
+		}
+	}
+
+	for (;j < bLength; j++) {
+		let bCharCode = b.charCodeAt(j);
+		if (bCharCode === __space) {
+			result++;
+		}
+	}
+
+	// // Ignore space if it occurs exactly once
+	// if (result === 1) {
+	// 	result = 0;
+	// }
+
+	return result;
+}
+
+export function guessIndentation(lines:string[], defaultTabSize:number): editorCommon.IGuessedIndentation {
+	let linesIndentedWithTabsCount = 0;				// number of lines that contain at least one tab in indentation
+	let linesIndentedWithSpacesCount = 0;			// number of lines that contain only spaces in indentation
+
+	let previousLineText = '';						// previous line that actually had content
+	let previousLineIndentation = 0;				// previous line that actually had content indentation end index
+
+	const ALLOWED_GUESSES = [2, 4, 6, 8];			// limit guesses for `tabSize` to 2, 4, 6 or 8.
+	const MAX_ALLOWED_GUESS = 8;					// max(2,4,6,8) = 8
+
+	let spacesDiffCount = [0,0,0,0,0,0,0,0,0];		// `tabSize` scores
 
 	for (let i = 0, len = lines.length; i < len; i++) {
 		let currentLineText = lines[i];
 
 		let currentLineHasContent = false;
 		let currentLineIndentation = 0;
-		let tmpSpaceCounts = 0;
-		let tmpTabCounts = 0;
+		let currentLineSpacesCount = 0;
+		let currentLineTabsCount = 0;
 		for (let j = 0, lenJ = currentLineText.length; j < lenJ; j++) {
 			let charCode = currentLineText.charCodeAt(j);
 
 			if (charCode === __tab) {
-				tmpTabCounts++;
+				currentLineTabsCount++;
 			} else if (charCode === __space) {
-				tmpSpaceCounts++;
+				currentLineSpacesCount++;
 			} else {
 				// Hit non whitespace character on this line
 				currentLineHasContent = true;
@@ -62,151 +97,49 @@ function _extractIndentationFactors(lines:string[]): IIndentationFactors {
 			}
 		}
 
-		// Ignore `space` if it occurs exactly once in the indentation
-		if (tmpSpaceCounts === 1) {
-			tmpSpaceCounts = 0;
-		}
-
-		if (currentLineHasContent && (tmpTabCounts > 0 || tmpSpaceCounts > 0)) {
-			if (tmpTabCounts > 0) {
-				linesIndentedWithTabs++;
-			}
-			if (tmpSpaceCounts > 0) {
-				absoluteSpaceCounts[tmpSpaceCounts] = (absoluteSpaceCounts[tmpSpaceCounts] || 0) + 1;
-			}
-		}
-
-		if (currentLineHasContent) {
-			// Only considering lines with content, look at the relative indentation between previous line's indentation and current line's indentation
-
-			// This can go both ways (e.g.):
-			//  - previousLineIndentation: "\t\t"
-			//  - currentLineIndentation: "\t    "
-			//  => This should count 1 tab and 4 spaces
-			tmpSpaceCounts = 0;
-
-			let stillMatchingIndentation = true;
-			let j:number;
-			for (j = 0; j < previousLineIndentation && j < currentLineIndentation; j++) {
-				let prevLineCharCode = previousLineTextWithContent.charCodeAt(j);
-				let charCode = currentLineText.charCodeAt(j);
-
-				if (stillMatchingIndentation && prevLineCharCode !== charCode) {
-					stillMatchingIndentation = false;
-				}
-
-				if (!stillMatchingIndentation) {
-					if (prevLineCharCode === __space) {
-						tmpSpaceCounts++;
-					}
-					if (charCode === __space) {
-						tmpSpaceCounts++;
-					}
-				}
-			}
-
-			for (;j < previousLineIndentation; j++) {
-				let prevLineCharCode = previousLineTextWithContent.charCodeAt(j);
-				if (prevLineCharCode === __space) {
-					tmpSpaceCounts++;
-				}
-			}
-
-			for (;j < currentLineIndentation; j++) {
-				let charCode = currentLineText.charCodeAt(j);
-				if (charCode === __space) {
-					tmpSpaceCounts++;
-				}
-			}
-
-			// Ignore `space` if it occurs exactly once in the indentation
-			if (tmpSpaceCounts === 1) {
-				tmpSpaceCounts = 0;
-			}
-
-			if (tmpSpaceCounts > 0) {
-				relativeSpaceCounts[tmpSpaceCounts] = (relativeSpaceCounts[tmpSpaceCounts] || 0) + 1;
-			}
-
-			previousLineIndentation = currentLineIndentation;
-			previousLineTextWithContent = currentLineText;
-		}
-	}
-
-	return {
-		linesIndentedWithTabs: linesIndentedWithTabs,
-		relativeSpaceCounts: relativeSpaceCounts,
-		absoluteSpaceCounts: absoluteSpaceCounts
-	};
-}
-
-export function guessIndentation(lines:string[], defaultTabSize:number): editorCommon.IGuessedIndentation {
-
-	let factors = _extractIndentationFactors(lines);
-	let linesIndentedWithTabs = factors.linesIndentedWithTabs;
-	let absoluteSpaceCounts = factors.absoluteSpaceCounts;
-	let relativeSpaceCounts = factors.relativeSpaceCounts;
-
-	// Count the absolute number of times tabs or spaces have been used as indentation
-	let linesIndentedWithSpaces = 0;
-	for (let i = 1, len = absoluteSpaceCounts.length; i < len; i++) {
-		linesIndentedWithSpaces += (absoluteSpaceCounts[i] || 0);
-	}
-
-	// let candidate:number,
-	// 	candidateScore:number,
-	// 	penalization:number,
-	// 	m:number,
-	let scores:number[] = [];
-
-	for (let candidate = 2, len = absoluteSpaceCounts.length; candidate < len; candidate++) {
-		if (!absoluteSpaceCounts[candidate]) {
+		// Ignore empty or only whitespace lines
+		if (!currentLineHasContent) {
 			continue;
 		}
 
-		// Try to compute a score that `candidate` is the `tabSize`
-		let candidateScore = 0;
-		let penalization = 0;
-		for (let m = candidate; m < len; m += candidate) {
-			if (absoluteSpaceCounts[m]) {
-				candidateScore += absoluteSpaceCounts[m];
-			} else {
-				// Penalize this candidate, but penalize less with every mutliple..
-				penalization += candidate / m;
-			}
+		if (currentLineTabsCount > 0) {
+			linesIndentedWithTabsCount++;
+		} else if (currentLineSpacesCount > 1) {
+			linesIndentedWithSpacesCount++;
 		}
-		scores[candidate] = candidateScore / (1 + penalization);
+
+		let currentSpacesDiff = spacesDiff(previousLineText, previousLineIndentation, currentLineText, currentLineIndentation);
+		if (currentSpacesDiff <= MAX_ALLOWED_GUESS) {
+			spacesDiffCount[currentSpacesDiff]++;
+		}
+
+		previousLineText = currentLineText;
+		previousLineIndentation = currentLineIndentation;
 	}
 
-	// console.log('----------');
-	// console.log('linesIndentedWithTabs: ', linesIndentedWithTabs);
-	// console.log('absoluteSpaceCounts: ', absoluteSpaceCounts);
-	// console.log('relativeSpaceCounts: ', relativeSpaceCounts);
-	// console.log('=> linesIndentedWithSpaces: ', linesIndentedWithSpaces);
-	// console.log('=> scores: ', scores);
+	// Take into account the last line as well
+	let deltaSpacesCount = spacesDiff(previousLineText, previousLineIndentation, '', 0);
+	if (deltaSpacesCount <= MAX_ALLOWED_GUESS) {
+		spacesDiffCount[deltaSpacesCount]++;
+	}
 
-	let bestCandidate = defaultTabSize,
-		bestCandidateScore = 0;
-
-	let allowedGuesses = [2, 4, 6, 8];
-
-	for (let i = 0; i < allowedGuesses.length; i++) {
-		let candidate = allowedGuesses[i];
-		let candidateScore = (scores[candidate] || 0) + (relativeSpaceCounts[candidate] || 0);
+	let bestCandidate = defaultTabSize;
+	let bestCandidateScore = 0;
+	ALLOWED_GUESSES.forEach((candidate) => {
+		let candidateScore = spacesDiffCount[candidate];
 		if (candidateScore > bestCandidateScore) {
-			bestCandidate = candidate;
 			bestCandidateScore = candidateScore;
+			bestCandidate = candidate;
 		}
-	}
+	});
 
-	let insertSpaces = true;
-	if (linesIndentedWithTabs > linesIndentedWithSpaces) {
-		// More lines indented with tabs
-		insertSpaces = false;
-	}
+	// console.log('--------------------------');
+	// console.log('linesIndentedWithTabsCount: ' + linesIndentedWithTabsCount + ', linesIndentedWithSpacesCount: ' + linesIndentedWithSpacesCount);
+	// console.log('spacesDiffCount: ' + spacesDiffCount);
+	// console.log('bestCandidate: ' + bestCandidate + ', bestCandidateScore: ' + bestCandidateScore);
 
 	return {
-		insertSpaces: insertSpaces,
+		insertSpaces: linesIndentedWithTabsCount <= linesIndentedWithSpacesCount,
 		tabSize: bestCandidate
 	};
 }
