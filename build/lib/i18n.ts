@@ -278,7 +278,7 @@ function processCoreBundleFormat(json: BundledFormat, emitter: any) {
 				contents.push(index < modules.length - 1 ? '\t],' : '\t]');
 			});
 			contents.push('});');
-			emitter.emit('data', new File( { path: bundle + '.nls.' + language.iso639_2 + '.js', contents: new Buffer(contents.join('\r\n'), 'utf-8') }));
+			emitter.emit('data', new File( { path: bundle + '.nls.' + language.iso639_2 + '.js', contents: new Buffer(contents.join('\n'), 'utf-8') }));
 		});
 	});
 	log(`Statistics (total ${total}):`);

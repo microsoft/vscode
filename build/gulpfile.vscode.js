@@ -22,6 +22,7 @@ var packageJson = require('../package.json');
 var util = require('./lib/util');
 var buildfile = require('../src/buildfile');
 var common = require('./gulpfile.common');
+var nlsDev = require('vscode-nls-dev');
 var root = path.dirname(__dirname);
 var build = path.join(root, '.build');
 var commit = util.getVersion(root);
@@ -141,6 +142,7 @@ function mixinProduct() {
 		date: new Date().toISOString()
 	}));
 }
+var languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
 
 function packageTask(platform, arch, opts) {
 	opts = opts || {};
@@ -170,6 +172,7 @@ function packageTask(platform, arch, opts) {
 		], { base: '.' });
 
 		var sources = es.merge(src, extensions)
+			.pipe(nlsDev.createAdditionalLanguageFiles(languages, path.join(__dirname, '..', 'i18n')))
 			.pipe(filter(['**', '!**/*.js.map']))
 			.pipe(util.handleAzureJson({ platform: platform }));
 
