@@ -14,6 +14,8 @@ var concat = require('gulp-concat');
 var File = require('vinyl');
 var bundle = require('./lib/bundle');
 var util = require('./lib/util');
+var i18n = require('./lib/i18n');
+
 var root = path.dirname(__dirname);
 var commit = util.getVersion(root);
 
@@ -172,6 +174,7 @@ exports.optimizeTask = function(opts) {
 				addComment: true,
 				includeContent: true
 			}))
+			.pipe(i18n.processNlsFiles())
 			.pipe(gulp.dest(out));
 	};
 };
