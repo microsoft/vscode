@@ -644,8 +644,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 		let resolvedOpts: editorCommon.ITextModelResolvedOptions;
 		if (opts.detectIndentation) {
-			// TODO@Alex TODO@indent: use opts.insertSpaces as the fallback value
-			let guessedIndentation = guessIndentation(lines, opts.tabSize);
+			let guessedIndentation = guessIndentation(lines, opts.tabSize, opts.insertSpaces);
 			resolvedOpts = {
 				tabSize: guessedIndentation.tabSize,
 				insertSpaces: guessedIndentation.insertSpaces,

@@ -58,25 +58,25 @@ function spacesDiff(a:string, aLength:number, b:string, bLength:number): number 
 	return result;
 }
 
-export function guessIndentation(lines:string[], defaultTabSize:number): editorCommon.IGuessedIndentation {
+export function guessIndentation(lines:string[], defaultTabSize:number, defaultInsertSpaces:boolean): editorCommon.IGuessedIndentation {
 	let linesIndentedWithTabsCount = 0;				// number of lines that contain at least one tab in indentation
 	let linesIndentedWithSpacesCount = 0;			// number of lines that contain only spaces in indentation
 
-	let previousLineText = '';						// previous line that actually had content
-	let previousLineIndentation = 0;				// previous line that actually had content indentation end index
+	let previousLineText = '';						// content of latest line that contained non-whitespace chars
+	let previousLineIndentation = 0;				// index at which latest line contained the first non-whitespace char
 
-	const ALLOWED_GUESSES = [2, 4, 6, 8];			// limit guesses for `tabSize` to 2, 4, 6 or 8.
-	const MAX_ALLOWED_GUESS = 8;					// max(2,4,6,8) = 8
+	const ALLOWED_TAB_SIZE_GUESSES = [2, 4, 6, 8];	// limit guesses for `tabSize` to 2, 4, 6 or 8.
+	const MAX_ALLOWED_TAB_SIZE_GUESS = 8;			// max(2,4,6,8) = 8
 
 	let spacesDiffCount = [0,0,0,0,0,0,0,0,0];		// `tabSize` scores
 
 	for (let i = 0, len = lines.length; i < len; i++) {
 		let currentLineText = lines[i];
 
-		let currentLineHasContent = false;
-		let currentLineIndentation = 0;
-		let currentLineSpacesCount = 0;
-		let currentLineTabsCount = 0;
+		let currentLineHasContent = false;			// does `currentLineText` contain non-whitespace chars
+		let currentLineIndentation = 0;				// index at which `currentLineText` contains the first non-whitespace char
+		let currentLineSpacesCount = 0;				// count of spaces found in `currentLineText` indentation
+		let currentLineTabsCount = 0;				// count of tabs found in `currentLineText` indentation
 		for (let j = 0, lenJ = currentLineText.length; j < lenJ; j++) {
 			let charCode = currentLineText.charCodeAt(j);
 
@@ -104,7 +104,7 @@ export function guessIndentation(lines:string[], defaultTabSize:number): editorC
 		}
 
 		let currentSpacesDiff = spacesDiff(previousLineText, previousLineIndentation, currentLineText, currentLineIndentation);
-		if (currentSpacesDiff <= MAX_ALLOWED_GUESS) {
+		if (currentSpacesDiff <= MAX_ALLOWED_TAB_SIZE_GUESS) {
 			spacesDiffCount[currentSpacesDiff]++;
 		}
 
@@ -114,19 +114,26 @@ export function guessIndentation(lines:string[], defaultTabSize:number): editorC
 
 	// Take into account the last line as well
 	let deltaSpacesCount = spacesDiff(previousLineText, previousLineIndentation, '', 0);
-	if (deltaSpacesCount <= MAX_ALLOWED_GUESS) {
+	if (deltaSpacesCount <= MAX_ALLOWED_TAB_SIZE_GUESS) {
 		spacesDiffCount[deltaSpacesCount]++;
 	}
 
-	let bestCandidate = defaultTabSize;
-	let bestCandidateScore = 0;
-	ALLOWED_GUESSES.forEach((candidate) => {
-		let candidateScore = spacesDiffCount[candidate];
-		if (candidateScore > bestCandidateScore) {
-			bestCandidateScore = candidateScore;
-			bestCandidate = candidate;
+	let tabSize = defaultTabSize;
+	let tabSizeScore = 0;
+	ALLOWED_TAB_SIZE_GUESSES.forEach((possibleTabSize) => {
+		let possibleTabSizeScore = spacesDiffCount[possibleTabSize];
+		if (possibleTabSizeScore > tabSizeScore) {
+			tabSizeScore = possibleTabSizeScore;
+			tabSize = possibleTabSize;
 		}
 	});
+
+	let insertSpaces = defaultInsertSpaces;
+	if (linesIndentedWithTabsCount !== linesIndentedWithSpacesCount) {
+		insertSpaces = (linesIndentedWithTabsCount < linesIndentedWithSpacesCount);
+	}
+
+	// let bestInsertS
 
 	// console.log('--------------------------');
 	// console.log('linesIndentedWithTabsCount: ' + linesIndentedWithTabsCount + ', linesIndentedWithSpacesCount: ' + linesIndentedWithSpacesCount);
@@ -134,7 +141,7 @@ export function guessIndentation(lines:string[], defaultTabSize:number): editorC
 	// console.log('bestCandidate: ' + bestCandidate + ', bestCandidateScore: ' + bestCandidateScore);
 
 	return {
-		insertSpaces: linesIndentedWithTabsCount <= linesIndentedWithSpacesCount,
-		tabSize: bestCandidate
+		insertSpaces: insertSpaces,
+		tabSize: tabSize
 	};
 }

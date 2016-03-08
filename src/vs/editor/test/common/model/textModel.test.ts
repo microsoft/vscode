@@ -10,10 +10,10 @@ import {Range} from 'vs/editor/common/core/range';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {DefaultEndOfLine} from 'vs/editor/common/editorCommon';
 
-function testGuessIndentation(expectedInsertSpaces:boolean, expectedTabSize:number, text:string[], msg?:string): void {
+function testGuessIndentation(defaultInsertSpaces:boolean, defaultTabSize:number, expectedInsertSpaces:boolean, expectedTabSize:number, text:string[], msg?:string): void {
 	var m = new TextModel([], TextModel.toRawText(text.join('\n'), {
-		tabSize: 1337,
-		insertSpaces: true,
+		tabSize: defaultTabSize,
+		insertSpaces: defaultInsertSpaces,
 		detectIndentation: true,
 		defaultEOL: DefaultEndOfLine.LF
 	}));
@@ -24,12 +24,30 @@ function testGuessIndentation(expectedInsertSpaces:boolean, expectedTabSize:numb
 	assert.equal(r.tabSize, expectedTabSize, msg);
 }
 
-function guessesTabs(expectedTabSize:number, text:string[], msg?:string): void {
-	testGuessIndentation(false, expectedTabSize, text, msg);
-}
-
-function guessesSpaces(expectedTabSize:number, text:string[], msg?:string): void {
-	testGuessIndentation(true, expectedTabSize, text, msg);
+function assertGuess(expectedInsertSpaces:boolean, expectedTabSize:number, text:string[], msg?:string): void {
+	if (typeof expectedInsertSpaces === 'undefined') {
+		// cannot guess insertSpaces
+		if (typeof expectedTabSize === 'undefined') {
+			// cannot guess tabSize
+			testGuessIndentation(true, 13370, true, 13370, text, msg);
+			testGuessIndentation(false, 13371, false, 13371, text, msg);
+		} else {
+			// can guess tabSize
+			testGuessIndentation(true, 13370, true, expectedTabSize, text, msg);
+			testGuessIndentation(false, 13371, false, expectedTabSize, text, msg);
+		}
+	} else {
+		// can guess insertSpaces
+		if (typeof expectedTabSize === 'undefined') {
+			// cannot guess tabSize
+			testGuessIndentation(true, 13370, expectedInsertSpaces, 13370, text, msg);
+			testGuessIndentation(false, 13371, expectedInsertSpaces, 13371, text, msg);
+		} else {
+			// can guess tabSize
+			testGuessIndentation(true, 13370, expectedInsertSpaces, expectedTabSize, text, msg);
+			testGuessIndentation(false, 13371, expectedInsertSpaces, expectedTabSize, text, msg);
+		}
+	}
 }
 
 suite('Editor Model - TextModel', () => {
@@ -65,7 +83,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('guess indentation 1', () => {
 
-		guessesSpaces(1337, [
+		assertGuess(undefined, undefined, [
 			'x',
 			'x',
 			'x',
@@ -75,7 +93,7 @@ suite('Editor Model - TextModel', () => {
 			'x'
 		], 'no clues');
 
-		guessesTabs(1337, [
+		assertGuess(false, undefined, [
 			'\tx',
 			'x',
 			'x',
@@ -85,7 +103,7 @@ suite('Editor Model - TextModel', () => {
 			'x'
 		], 'no spaces, 1xTAB');
 
-		guessesSpaces(2, [
+		assertGuess(true, 2, [
 			'  x',
 			'x',
 			'x',
@@ -95,7 +113,7 @@ suite('Editor Model - TextModel', () => {
 			'x'
 		], '1x2');
 
-		guessesTabs(1337, [
+		assertGuess(false, undefined, [
 			'\tx',
 			'\tx',
 			'\tx',
@@ -105,7 +123,7 @@ suite('Editor Model - TextModel', () => {
 			'\tx'
 		], '7xTAB');
 
-		guessesSpaces(2, [
+		assertGuess(undefined, 2, [
 			'\tx',
 			'  x',
 			'\tx',
@@ -115,7 +133,7 @@ suite('Editor Model - TextModel', () => {
 			'\tx',
 			'  x',
 		], '4x2, 4xTAB');
-		guessesTabs(1337, [
+		assertGuess(false, undefined, [
 			'\tx',
 			' x',
 			'\tx',
@@ -125,7 +143,7 @@ suite('Editor Model - TextModel', () => {
 			'\tx',
 			' x'
 		], '4x1, 4xTAB');
-		guessesTabs(2, [
+		assertGuess(false, 2, [
 			'\tx',
 			'\tx',
 			'  x',
@@ -136,7 +154,7 @@ suite('Editor Model - TextModel', () => {
 			'\tx',
 			'  x',
 		], '4x2, 5xTAB');
-		guessesTabs(2, [
+		assertGuess(false, 2, [
 			'\tx',
 			'\tx',
 			'x',
@@ -147,7 +165,7 @@ suite('Editor Model - TextModel', () => {
 			'\tx',
 			'  x',
 		], '1x2, 5xTAB');
-		guessesTabs(4, [
+		assertGuess(false, 4, [
 			'\tx',
 			'\tx',
 			'x',
@@ -158,7 +176,7 @@ suite('Editor Model - TextModel', () => {
 			'\tx',
 			'    x',
 		], '1x4, 5xTAB');
-		guessesTabs(2, [
+		assertGuess(false, 2, [
 			'\tx',
 			'\tx',
 			'x',
@@ -170,7 +188,7 @@ suite('Editor Model - TextModel', () => {
 			'    x',
 		], '1x2, 1x4, 5xTAB');
 
-		guessesSpaces(1337, [
+		assertGuess(undefined, undefined, [
 			'x',
 			' x',
 			' x',
@@ -180,7 +198,17 @@ suite('Editor Model - TextModel', () => {
 			' x',
 			' x'
 		], '7x1 - 1 space is never guessed as an indentation');
-		guessesSpaces(1337, [
+		assertGuess(true, undefined, [
+			'x',
+			'          x',
+			' x',
+			' x',
+			' x',
+			' x',
+			' x',
+			' x'
+		], '1x10, 6x1');
+		assertGuess(undefined, undefined, [
 			'',
 			'  ',
 			'    ',
@@ -190,7 +218,7 @@ suite('Editor Model - TextModel', () => {
 			'            ',
 			'              ',
 		], 'whitespace lines don\'t count');
-		guessesSpaces(4, [
+		assertGuess(true, 4, [
 			'x',
 			'   x',
 			'   x',
@@ -204,7 +232,7 @@ suite('Editor Model - TextModel', () => {
 			'   x',
 			'    x',
 		], 'odd number is not allowed: 6x3, 3x4');
-		guessesSpaces(4, [
+		assertGuess(true, 4, [
 			'x',
 			'     x',
 			'     x',
@@ -218,7 +246,7 @@ suite('Editor Model - TextModel', () => {
 			'     x',
 			'    x',
 		], 'odd number is not allowed: 6x5, 3x4');
-		guessesSpaces(4, [
+		assertGuess(true, 4, [
 			'x',
 			'       x',
 			'       x',
@@ -232,7 +260,7 @@ suite('Editor Model - TextModel', () => {
 			'       x',
 			'    x',
 		], 'odd number is not allowed: 6x7, 3x4');
-		guessesSpaces(2, [
+		assertGuess(true, 2, [
 			'x',
 			'  x',
 			'  x',
@@ -245,7 +273,7 @@ suite('Editor Model - TextModel', () => {
 			'  x',
 		], '8x2');
 
-		guessesSpaces(2, [
+		assertGuess(true, 2, [
 			'x',
 			'  x',
 			'  x',
@@ -259,7 +287,7 @@ suite('Editor Model - TextModel', () => {
 			'  x',
 			'  x',
 		], '8x2');
-		guessesSpaces(2, [
+		assertGuess(true, 2, [
 			'x',
 			'  x',
 			'    x',
@@ -273,7 +301,7 @@ suite('Editor Model - TextModel', () => {
 			'  x',
 			'    x',
 		], '4x2, 4x4');
-		guessesSpaces(2, [
+		assertGuess(true, 2, [
 			'x',
 			'  x',
 			'  x',
@@ -287,7 +315,7 @@ suite('Editor Model - TextModel', () => {
 			'  x',
 			'    x',
 		], '6x2, 3x4');
-		guessesSpaces(2, [
+		assertGuess(true, 2, [
 			'x',
 			'  x',
 			'  x',
@@ -299,7 +327,7 @@ suite('Editor Model - TextModel', () => {
 			'    x',
 			'    x',
 		], '4x2, 4x4');
-		guessesSpaces(2, [
+		assertGuess(true, 2, [
 			'x',
 			'  x',
 			'    x',
@@ -309,7 +337,7 @@ suite('Editor Model - TextModel', () => {
 			'    x',
 			'    x',
 		], '2x2, 4x4');
-		guessesSpaces(4, [
+		assertGuess(true, 4, [
 			'x',
 			'    x',
 			'    x',
@@ -323,7 +351,7 @@ suite('Editor Model - TextModel', () => {
 			'    x',
 			'    x',
 		], '8x4');
-		guessesSpaces(2, [
+		assertGuess(true, 2, [
 			'x',
 			'  x',
 			'    x',
@@ -335,7 +363,7 @@ suite('Editor Model - TextModel', () => {
 			'    x',
 			'      x',
 		], '2x2, 4x4, 2x6');
-		guessesSpaces(2, [
+		assertGuess(true, 2, [
 			'x',
 			'  x',
 			'    x',
@@ -344,7 +372,7 @@ suite('Editor Model - TextModel', () => {
 			'      x',
 			'        x',
 		], '1x2, 2x4, 2x6, 1x8');
-		guessesSpaces(4, [
+		assertGuess(true, 4, [
 			'x',
 			'    x',
 			'    x',
@@ -358,7 +386,7 @@ suite('Editor Model - TextModel', () => {
 			'     x',
 			'        x',
 		], '6x4, 2x5, 2x8');
-		guessesSpaces(4, [
+		assertGuess(true, 4, [
 			'x',
 			'    x',
 			'    x',
@@ -367,7 +395,7 @@ suite('Editor Model - TextModel', () => {
 			'        x',
 			'        x',
 		], '3x4, 1x5, 2x8');
-		guessesSpaces(4, [
+		assertGuess(true, 4, [
 			'x',
 			'x',
 			'    x',
@@ -383,7 +411,7 @@ suite('Editor Model - TextModel', () => {
 			'        x',
 			'        x',
 		], '6x4, 2x5, 4x8');
-		guessesSpaces(4, [
+		assertGuess(true, 4, [
 			'x',
 			' x',
 			' x',
