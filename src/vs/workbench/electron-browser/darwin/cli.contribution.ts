@@ -59,7 +59,8 @@ class InstallAction extends Action {
 				if (files.length > 0) {
 					const file = files[0];
 					const resource = URI.create('file', null, file);
-					const message = nls.localize('exists', "Please remove the '{0}' alias in '{1}' and retry this action.", this.applicationName, file);
+					const env = this.contextService.getConfiguration().env;
+					const message = nls.localize('exists', "Please remove the alias referencing '{0}' in '{1}' and retry this action.", env.darwinBundleIdentifier, file);
 					const input = { resource, mime: 'text/x-shellscript' };
 					const actions = [
 						new Action('inlineEdit', nls.localize('editFile', "Edit '{0}'", file), '', true, () => {
