@@ -320,8 +320,11 @@ function buildDebPackage(arch) {
 	], { cwd: '.build/linux/deb/' + debArch});
 }
 
-// TODO@Tyriar: we don't want any globals, why is this scoped to the user's homedir?
 var rpmBuildPath = path.join(os.homedir(), 'rpmbuild');
+
+function getRpmPackageArch(arch) {
+	return { x64: 'x86_64', ia32: 'i386' }[arch];
+}
 
 function prepareRpmPackage(arch) {
 	var binaryDir = '../VSCode-linux-' + arch;
@@ -356,9 +359,10 @@ function prepareRpmPackage(arch) {
 	}
 }
 
-function buildRpmPackage() {
+function buildRpmPackage(arch) {
+	var rpmArch = getRpmPackageArch(arch);
 	return shell.task([
-		'fakeroot rpmbuild -ba ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec',
+		'fakeroot rpmbuild -ba ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
 	]);
 }
 
@@ -392,8 +396,8 @@ gulp.task('vscode-linux-x64-build-deb', ['vscode-linux-x64-prepare-deb'], buildD
 
 gulp.task('vscode-linux-ia32-prepare-rpm', ['clean-rpmbuild', 'clean-vscode-linux-ia32-rpm', 'vscode-linux-ia32-min'], prepareRpmPackage('ia32'));
 gulp.task('vscode-linux-x64-prepare-rpm', ['clean-rpmbuild', 'clean-vscode-linux-x64-rpm', 'vscode-linux-x64-min'], prepareRpmPackage('x64'));
-gulp.task('vscode-linux-ia32-build-rpm', ['vscode-linux-ia32-prepare-rpm'], buildRpmPackage());
-gulp.task('vscode-linux-x64-build-rpm', ['vscode-linux-x64-prepare-rpm'], buildRpmPackage());
+gulp.task('vscode-linux-ia32-build-rpm', ['vscode-linux-ia32-prepare-rpm'], buildRpmPackage('ia32'));
+gulp.task('vscode-linux-x64-build-rpm', ['vscode-linux-x64-prepare-rpm'], buildRpmPackage('x64'));
 
 // Sourcemaps
 
