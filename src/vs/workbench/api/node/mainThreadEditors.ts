@@ -55,6 +55,7 @@ export class MainThreadTextEditor {
 
 	private _id: string;
 	private _model: EditorCommon.IModel;
+	private _modelService: IModelService;
 	private _modelListeners: IDisposable[];
 	private _codeEditor: EditorCommon.ICommonCodeEditor;
 	private _focusTracker: IFocusTracker;
@@ -66,11 +67,18 @@ export class MainThreadTextEditor {
 	private _onSelectionChanged: Emitter<EditorCommon.IEditorSelection[]>;
 	private _onConfigurationChanged: Emitter<IResolvedTextEditorConfiguration>;
 
-	constructor(id: string, model:EditorCommon.IModel, codeEditor:EditorCommon.ICommonCodeEditor, focusTracker:IFocusTracker) {
+	constructor(
+		id: string,
+		model:EditorCommon.IModel,
+		codeEditor:EditorCommon.ICommonCodeEditor,
+		focusTracker:IFocusTracker,
+		modelService: IModelService
+	) {
 		this._id = id;
 		this._model = model;
 		this._codeEditor = null;
 		this._focusTracker = focusTracker;
+		this._modelService = modelService;
 		this._codeEditorListeners = [];
 
 		this._onSelectionChanged = new Emitter<EditorCommon.IEditorSelection[]>();
@@ -165,10 +173,42 @@ export class MainThreadTextEditor {
 	}
 
 	public setConfiguration(newConfiguration:ITextEditorConfigurationUpdate): void {
-		console.log('TODO!!!!'); // TODO@Alex TODO@indent
-		// this._lastConfiguration.tabSize = typeof newConfiguration.tabSize !== 'undefined' ? newConfiguration.tabSize : this._lastConfiguration.tabSize;
-		// this._lastConfiguration.insertSpaces = typeof newConfiguration.insertSpaces !== 'undefined' ? newConfiguration.insertSpaces : this._lastConfiguration.insertSpaces;
-		// console.warn('setConfiguration on invisible editor');
+		if (newConfiguration.tabSize === 'auto' || newConfiguration.insertSpaces === 'auto') {
+			// one of the options was set to 'auto' => detect indentation
+
+			let creationOpts = this._modelService.getCreationOptions();
+			let insertSpaces = creationOpts.insertSpaces;
+			let tabSize = creationOpts.tabSize;
+
+			if (newConfiguration.insertSpaces !== 'auto') {
+				if (typeof newConfiguration.insertSpaces !== 'undefined') {
+					insertSpaces = (newConfiguration.insertSpaces === 'false' ? false : Boolean(newConfiguration.insertSpaces));
+				}
+			}
+			if (newConfiguration.tabSize !== 'auto') {
+				if (typeof newConfiguration.tabSize !== 'undefined') {
+					let parsedTabSize = parseInt(<string>newConfiguration.tabSize, 10);
+					if (!isNaN(parsedTabSize)) {
+						tabSize = parsedTabSize;
+					}
+				}
+			}
+
+			this._model.detectIndentation(insertSpaces, tabSize);
+			return;
+		}
+
+		let newOpts: EditorCommon.ITextModelUpdateOptions = {};
+		if (typeof newConfiguration.insertSpaces !== 'undefined') {
+			newOpts.insertSpaces = (newConfiguration.insertSpaces === 'false' ? false : Boolean(newConfiguration.insertSpaces));
+		}
+		if (typeof newConfiguration.tabSize !== 'undefined') {
+			let parsedTabSize = parseInt(<string>newConfiguration.tabSize, 10);
+			if (!isNaN(parsedTabSize)) {
+				newOpts.tabSize = parsedTabSize;
+			}
+		}
+		this._model.updateOptions(newOpts);
 	}
 
 	public setDecorations(key: string, ranges:EditorCommon.IRangeWithMessage[]): void {
@@ -378,7 +418,7 @@ export class MainThreadEditorsTracker {
 
 			// Create new editors as needed
 			for (let i = existingTextEditors.length; i < codeEditors.length; i++) {
-				let newTextEditor = new MainThreadTextEditor(this._nextId(), model, codeEditors[i], this._focusTracker);
+				let newTextEditor = new MainThreadTextEditor(this._nextId(), model, codeEditors[i], this._focusTracker, this._modelService);
 				existingTextEditors.push(newTextEditor);
 				this._onTextEditorAdd.fire(newTextEditor);
 			}
@@ -407,7 +447,7 @@ export class MainThreadEditorsTracker {
 
 			// Create new editor if needed or adjust it
 			if (existingTextEditors.length === 0) {
-				let newTextEditor = new MainThreadTextEditor(this._nextId(), model, null, this._focusTracker);
+				let newTextEditor = new MainThreadTextEditor(this._nextId(), model, null, this._focusTracker, this._modelService);
 				existingTextEditors.push(newTextEditor);
 				this._onTextEditorAdd.fire(newTextEditor);
 			} else {
