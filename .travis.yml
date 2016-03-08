@@ -40,3 +40,4 @@ script:
   - gulp electron
   - gulp compile
   - ./scripts/test.sh
+  - ./scripts/test-integration.sh
