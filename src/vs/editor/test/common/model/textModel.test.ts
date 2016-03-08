@@ -454,4 +454,69 @@ suite('Editor Model - TextModel', () => {
 		assert.throws(() => m.modifyPosition(new Position(2, 2), -100));
 		assert.throws(() => m.modifyPosition(new Position(2, 9), -18));
 	});
+
+	test('normalizeIndentation 1', () => {
+		let model = new TextModel([], {
+			length: 0,
+			lines: [],
+			BOM: '',
+			EOL: '\n',
+			options: {
+				tabSize: 4,
+				insertSpaces: false,
+				defaultEOL: DefaultEndOfLine.LF
+			}
+		});
+
+		assert.equal(model.normalizeIndentation('\t'), '\t');
+		assert.equal(model.normalizeIndentation('    '), '\t');
+		assert.equal(model.normalizeIndentation('   '), '   ');
+		assert.equal(model.normalizeIndentation('  '), '  ');
+		assert.equal(model.normalizeIndentation(' '), ' ');
+		assert.equal(model.normalizeIndentation(''), '');
+		assert.equal(model.normalizeIndentation(' \t   '), '\t\t');
+		assert.equal(model.normalizeIndentation(' \t  '), '\t   ');
+		assert.equal(model.normalizeIndentation(' \t '), '\t  ');
+		assert.equal(model.normalizeIndentation(' \t'), '\t ');
+
+		assert.equal(model.normalizeIndentation('\ta'), '\ta');
+		assert.equal(model.normalizeIndentation('    a'), '\ta');
+		assert.equal(model.normalizeIndentation('   a'), '   a');
+		assert.equal(model.normalizeIndentation('  a'), '  a');
+		assert.equal(model.normalizeIndentation(' a'), ' a');
+		assert.equal(model.normalizeIndentation('a'), 'a');
+		assert.equal(model.normalizeIndentation(' \t   a'), '\t\ta');
+		assert.equal(model.normalizeIndentation(' \t  a'), '\t   a');
+		assert.equal(model.normalizeIndentation(' \t a'), '\t  a');
+		assert.equal(model.normalizeIndentation(' \ta'), '\t a');
+
+		model.dispose();
+	});
+
+	test('normalizeIndentation 2', () => {
+		let model = new TextModel([], {
+			length: 0,
+			lines: [],
+			BOM: '',
+			EOL: '\n',
+			options: {
+				tabSize: 4,
+				insertSpaces: true,
+				defaultEOL: DefaultEndOfLine.LF
+			}
+		});
+
+		assert.equal(model.normalizeIndentation('\ta'), '    a');
+		assert.equal(model.normalizeIndentation('    a'), '    a');
+		assert.equal(model.normalizeIndentation('   a'), '   a');
+		assert.equal(model.normalizeIndentation('  a'), '  a');
+		assert.equal(model.normalizeIndentation(' a'), ' a');
+		assert.equal(model.normalizeIndentation('a'), 'a');
+		assert.equal(model.normalizeIndentation(' \t   a'), '        a');
+		assert.equal(model.normalizeIndentation(' \t  a'), '       a');
+		assert.equal(model.normalizeIndentation(' \t a'), '      a');
+		assert.equal(model.normalizeIndentation(' \ta'), '     a');
+
+		model.dispose();
+	});
 });

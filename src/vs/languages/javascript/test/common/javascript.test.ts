@@ -10,7 +10,7 @@ import javascriptMode = require('vs/languages/javascript/common/javascript');
 import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import modesUtil = require('vs/editor/test/common/modesUtil');
-import {createLineContext} from 'vs/editor/test/common/modesTestUtils';
+import {createMockLineContext} from 'vs/editor/test/common/modesTestUtils';
 
 suite('JS - Auto Indent', () => {
 
@@ -63,7 +63,7 @@ suite('JS - Auto Indent', () => {
 		function testElectricCharacter(line:string, offset:number, expected:Modes.IElectricAction): void {
 			let state = _mode.tokenizationSupport.getInitialState();
 			var lineTokens = _mode.tokenizationSupport.tokenize(line, state);
-			let actual = _mode.richEditSupport.electricCharacter.onElectricCharacter(createLineContext(line, lineTokens), offset);
+			let actual = _mode.richEditSupport.electricCharacter.onElectricCharacter(createMockLineContext(line, lineTokens), offset);
 
 			assert.deepEqual(actual, expected, 'LINE <<<' + line + '>>>, OFFSET: <<<' + offset + '>>>');
 		}
