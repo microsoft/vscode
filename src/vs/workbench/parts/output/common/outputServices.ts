@@ -24,13 +24,8 @@ export class OutputService implements IOutputService {
 	public serviceId = IOutputService;
 
 	private static MAX_OUTPUT = 10000 /* Lines */ * 100 /* Guestimated chars per line */;
-	private static OUTPUT_DELAY = 300; // delay in ms to accumulate output before emitting an event about it
-
 	private receivedOutput: { [channel: string]: string; };
 
-	private sendOutputEventsTimerId: number;
-	private lastSentOutputEventsTime: number;
-	private bufferedOutput: { [channel: string]: string; };
 	private activeChannel: string;
 
 	private _onOutput: Emitter<IOutputEvent>;
@@ -47,14 +42,9 @@ export class OutputService implements IOutputService {
 		this._onOutputChannel = new Emitter<string>();
 
 		this.receivedOutput = Object.create(null);
-		this.bufferedOutput = Object.create(null);
-		this.sendOutputEventsTimerId = -1;
-		this.lastSentOutputEventsTime = -1;
 
 		const channels = (<IOutputChannelRegistry>Registry.as(Extensions.OutputChannels)).getChannels();
 		this.activeChannel = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, channels && channels.length > 0 ? channels[0] : null);
-
-		this.registerListeners();
 	}
 
 	public get onOutput(): Event<IOutputEvent> {
@@ -63,10 +53,6 @@ export class OutputService implements IOutputService {
 
 	public get onOutputChannel(): Event<string> {
 		return this._onOutputChannel.event;
-	}
-
-	private registerListeners(): void {
-		this.lifecycleService.onShutdown(this.dispose, this);
 	}
 
 	public append(channel: string, output: string): void {
@@ -102,46 +88,9 @@ export class OutputService implements IOutputService {
 					this.receivedOutput[channel] = '...' + this.receivedOutput[channel].substr(curLength - diff) + output;
 				}
 			}
-
-			// Buffer
-			let buffer = this.bufferedOutput[channel];
-			if (!buffer) {
-				buffer = output;
-			} else {
-				buffer += output;
-			}
-
-			this.bufferedOutput[channel] = buffer;
 		}
 
-		// Schedule emit delayed to prevent spam
-		this.scheduleSendOutputEvent();
-	}
-
-	private scheduleSendOutputEvent(): void {
-		if (this.sendOutputEventsTimerId !== -1) {
-			return; // sending model events already scheduled
-		}
-
-		let elapsed = Date.now() - this.lastSentOutputEventsTime;
-		if (elapsed >= OutputService.OUTPUT_DELAY) {
-			this.sendOutputEvents(); // more than 300ms have passed since last events have been sent => send events now
-		} else {
-			this.sendOutputEventsTimerId = setTimeout(() => {
-				this.sendOutputEventsTimerId = -1;
-				this.sendOutputEvents();
-			}, OutputService.OUTPUT_DELAY - elapsed);
-		}
-	}
-
-	private sendOutputEvents(): void {
-		this.lastSentOutputEventsTime = Date.now();
-
-		for (let channel in this.bufferedOutput) {
-			this._onOutput.fire({ output: this.bufferedOutput[channel], channel });
-		}
-
-		this.bufferedOutput = Object.create(null);
+		this._onOutput.fire({ output: output, channel });
 	}
 
 	public getOutput(channel: string): string {
@@ -170,12 +119,5 @@ export class OutputService implements IOutputService {
 			return outputPanel && outputPanel.setInput(OutputEditorInput.getInstance(this.instantiationService, channel), EditorOptions.create({ preserveFocus: preserveFocus })).
 				then(() => outputPanel);
 		});
-	}
-
-	public dispose(): void {
-		if (this.sendOutputEventsTimerId !== -1) {
-			clearTimeout(this.sendOutputEventsTimerId);
-			this.sendOutputEventsTimerId = -1;
-		}
 	}
 }
