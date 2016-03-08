@@ -16,7 +16,7 @@
  *--------------------------------------------------------------------------------------------*/
 /*---------------------------------------------------------------------------------------------
  *  Ionic Main Site (https://github.com/driftyco/ionic-site).
- *  Copyright 2015 Drifty Co. http://drifty.com/.
+ *  Copyright Drifty Co. http://drifty.com/.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
  *  except in compliance with the License. You may obtain a copy of the License at
