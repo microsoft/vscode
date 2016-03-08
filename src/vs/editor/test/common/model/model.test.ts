@@ -55,7 +55,12 @@ suite('Editor Model - Model', () => {
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = new Model(text, DefaultEndOfLine.LF, null);
+		thisModel = new Model(text, {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}, null);
 	});
 
 	teardown(() => {
@@ -361,7 +366,12 @@ suite('Editor Model - Model Line Separators', () => {
 			LINE3 + '\u2028' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = new Model(text, DefaultEndOfLine.LF, null);
+		thisModel = new Model(text, {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}, null);
 	});
 
 	teardown(() => {
@@ -377,7 +387,12 @@ suite('Editor Model - Model Line Separators', () => {
 	});
 
 	test('Bug 13333:Model should line break on lonely CR too', () => {
-		var model = new Model('Hello\rWorld!\r\nAnother line', DefaultEndOfLine.LF, null);
+		var model = new Model('Hello\rWorld!\r\nAnother line', {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}, null);
 		assert.equal(model.getLineCount(), 3);
 		assert.equal(model.getValue(), 'Hello\r\nWorld!\r\nAnother line');
 		model.dispose();
@@ -399,7 +414,12 @@ suite('Editor Model - bracket Matching', () => {
 			'}, bar: {hallo: [{' + '\n' +
 			'}, {' + '\n' +
 			'}]}}';
-		thisModel = new Model(text, DefaultEndOfLine.LF, bracketMode);
+		thisModel = new Model(text, {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}, bracketMode);
 	});
 
 	teardown(() => {
@@ -464,7 +484,12 @@ suite('Editor Model - bracket Matching 2', () => {
 		var text =
 			')]}{[(' + '\n' +
 			')]}{[(';
-		thisModel = new Model(text, DefaultEndOfLine.LF, bracketMode);
+		thisModel = new Model(text, {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}, bracketMode);
 	});
 
 	teardown(() => {
@@ -499,7 +524,12 @@ suite('Editor Model - Words', () => {
 
 	setup(() => {
 		var text = [ 'This text has some  words. ' ];
-		thisModel = new Model(text.join('\n'), DefaultEndOfLine.LF, null);
+		thisModel = new Model(text.join('\n'), {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}, null);
 	});
 
 	teardown(() => {
@@ -552,7 +582,12 @@ suite('Editor Model - Find', () => {
 			'It is also interesting if it\'s part of a word like amazingFooBar',
 			'Again nothing interesting here'
 		];
-		thisModel = new Model(text.join('\n'), DefaultEndOfLine.LF, null);
+		thisModel = new Model(text.join('\n'), {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}, null);
 	});
 
 	teardown(() => {
@@ -638,7 +673,12 @@ suite('Editor Model - Find', () => {
 			'',
 			'Again nothing interesting here'
 		];
-		var model = new Model(text.join('\n'), DefaultEndOfLine.LF, null);
+		var model = new Model(text.join('\n'), {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}, null);
 
 		var ranges = [
 			[2, 1, 2, 1],

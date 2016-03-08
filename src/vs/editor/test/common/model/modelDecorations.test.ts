@@ -87,7 +87,12 @@ suite('Editor Model - Model Decorations', () => {
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = new Model(text, DefaultEndOfLine.LF, null);
+		thisModel = new Model(text, {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}, null);
 	});
 
 	teardown(() => {
@@ -445,7 +450,12 @@ suite('deltaDecorations', () => {
 
 	function testDeltaDecorations(text:string[], decorations:ILightWeightDecoration[], newDecorations:ILightWeightDecoration[]): void {
 
-		var model = new Model(text.join('\n'), DefaultEndOfLine.LF, null);
+		var model = new Model(text.join('\n'), {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}, null);
 
 		// Add initial decorations & assert they are added
 		var initialIds = model.deltaDecorations([], decorations.map(toModelDeltaDecoration));
@@ -481,7 +491,12 @@ suite('deltaDecorations', () => {
 		var model = new Model([
 			'Hello world,',
 			'How are you?'
-		].join('\n'), DefaultEndOfLine.LF, null);
+		].join('\n'), {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}, null);
 
 		var ids = model.deltaDecorations([], [
 			toModelDeltaDecoration(decoration('a', 1, 1, 1, 12)),
@@ -568,7 +583,12 @@ suite('deltaDecorations', () => {
 		var model = new Model([
 			'Hello world,',
 			'How are you?'
-		].join('\n'), DefaultEndOfLine.LF, null);
+		].join('\n'), {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}, null);
 
 		var trackedRangeId = model.addTrackedRange({
 			startLineNumber: 1,

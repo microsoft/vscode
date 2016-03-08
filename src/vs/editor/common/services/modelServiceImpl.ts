@@ -25,6 +25,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import * as platform from 'vs/base/common/platform';
 import {IConfigurationService, ConfigurationServiceEventTypes, IConfigurationServiceEvent} from 'vs/platform/configuration/common/configuration';
+import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 
 export interface IRawModelData {
 	url:URI;
@@ -183,7 +184,8 @@ export class ModelServiceImpl implements IModelService {
 	private _onModelAdded: Emitter<editorCommon.IModel>;
 	private _onModelRemoved: Emitter<editorCommon.IModel>;
 	private _onModelModeChanged: Emitter<{ model: editorCommon.IModel; oldModeId: string; }>;
-	private _defaultEOL: editorCommon.DefaultEndOfLine;
+
+	private _modelCreationOptions: editorCommon.ITextModelCreationOptions;
 
 	/**
 	 * All the models known in the system.
@@ -196,7 +198,12 @@ export class ModelServiceImpl implements IModelService {
 		modeService: IModeService,
 		configurationService: IConfigurationService
 	) {
-		this._defaultEOL = (platform.isLinux || platform.isMacintosh) ? editorCommon.DefaultEndOfLine.LF : editorCommon.DefaultEndOfLine.CRLF;
+		this._modelCreationOptions = {
+			tabSize: DefaultConfig.editor.tabSize,
+			insertSpaces: DefaultConfig.editor.insertSpaces,
+			guessIndentation: true, // TODO@Alex TODO@indent
+			defaultEOL: (platform.isLinux || platform.isMacintosh) ? editorCommon.DefaultEndOfLine.LF : editorCommon.DefaultEndOfLine.CRLF
+		};
 		this._threadService = threadService;
 		this._markerService = markerService;
 		this._modeService = modeService;
@@ -206,11 +213,34 @@ export class ModelServiceImpl implements IModelService {
 		let readDefaultEOL = (config:any) => {
 			const eol = config.files && config.files.eol;
 
-			if (eol === '\r\n') {
-				this._defaultEOL = editorCommon.DefaultEndOfLine.CRLF;
-			} else if (eol === '\n') {
-				this._defaultEOL = editorCommon.DefaultEndOfLine.LF;
+			let newTabSize = DefaultConfig.editor.tabSize;
+			if (config.editor && typeof config.editor.tabSize !== 'undefined') {
+				let parsedTabSize = parseInt(config.editor.tabSize, 10);
+				if (!isNaN(parsedTabSize)) {
+					newTabSize = parsedTabSize;
+				}
 			}
+
+			let newInsertSpaces = DefaultConfig.editor.insertSpaces;
+			if (config.editor && typeof config.editor.insertSpaces !== 'undefined') {
+				newInsertSpaces = (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
+			}
+
+			let newDefaultEOL = this._modelCreationOptions.defaultEOL;
+			if (eol === '\r\n') {
+				newDefaultEOL = editorCommon.DefaultEndOfLine.CRLF;
+			} else if (eol === '\n') {
+				newDefaultEOL = editorCommon.DefaultEndOfLine.LF;
+			}
+
+			let newGuessIndentation = true; // TODO@Alex TODO@indent
+
+			this._modelCreationOptions = {
+				tabSize: newTabSize,
+				insertSpaces: newInsertSpaces,
+				guessIndentation: newGuessIndentation,
+				defaultEOL: newDefaultEOL
+			};
 		};
 		this._configurationServiceSubscription = this._configurationService.addListener2(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
 			readDefaultEOL(e.config);
@@ -260,7 +290,7 @@ export class ModelServiceImpl implements IModelService {
 
 	private _createModelData(value:string, modeOrPromise:TPromise<IMode>|IMode, resource: URI): ModelData {
 		// create & save the model
-		let model = new Model(value, this._defaultEOL, modeOrPromise, resource);
+		let model = new Model(value, this._modelCreationOptions, modeOrPromise, resource);
 		let modelId = MODEL_ID(model.getAssociatedResource());
 
 		if (this._models[modelId]) {

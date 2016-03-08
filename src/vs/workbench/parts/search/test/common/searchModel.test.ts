@@ -26,7 +26,12 @@ suite('Search - Model', () => {
 	setup(() => {
 		let emitter = new Emitter<any>();
 
-		oneModel = new model.Model('line1\nline2\nline3', DefaultEndOfLine.LF, null, URI.parse('file:///folder/file.txt'));
+		oneModel = new model.Model('line1\nline2\nline3', {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}, null, URI.parse('file:///folder/file.txt'));
 		instantiation = createInstantiationService({
 			modelService: {
 				getModel: () => oneModel,

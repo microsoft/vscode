@@ -11,7 +11,12 @@ import {TextModel} from 'vs/editor/common/model/textModel';
 import {DefaultEndOfLine} from 'vs/editor/common/editorCommon';
 
 function testGuessIndentation(expectedInsertSpaces:boolean, expectedTabSize:number, text:string[], msg?:string): void {
-	var m = new TextModel([], TextModel.toRawText(text.join('\n'), DefaultEndOfLine.LF));
+	var m = new TextModel([], TextModel.toRawText(text.join('\n'), {
+		tabSize: 4,
+		insertSpaces: true,
+		guessIndentation: false,
+		defaultEOL: DefaultEndOfLine.LF
+	}));
 	var r = m.guessIndentation(1337);
 	m.dispose();
 
@@ -31,7 +36,12 @@ suite('Editor Model - TextModel', () => {
 
 	test('getValueLengthInRange', () => {
 
-		var m = new TextModel([], TextModel.toRawText('My First Line\r\nMy Second Line\r\nMy Third Line', DefaultEndOfLine.LF));
+		var m = new TextModel([], TextModel.toRawText('My First Line\r\nMy Second Line\r\nMy Third Line', {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}));
 		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 1)), ''.length);
 		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 2)), 'M'.length);
 		assert.equal(m.getValueLengthInRange(new Range(1, 2, 1, 3)), 'y'.length);
@@ -44,7 +54,12 @@ suite('Editor Model - TextModel', () => {
 		assert.equal(m.getValueLengthInRange(new Range(1, 2, 3, 1000)), 'y First Line\r\nMy Second Line\r\nMy Third Line'.length);
 		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1000, 1000)), 'My First Line\r\nMy Second Line\r\nMy Third Line'.length);
 
-		m = new TextModel([], TextModel.toRawText('My First Line\nMy Second Line\nMy Third Line', DefaultEndOfLine.LF));
+		m = new TextModel([], TextModel.toRawText('My First Line\nMy Second Line\nMy Third Line', {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}));
 		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 1)), ''.length);
 		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 2)), 'M'.length);
 		assert.equal(m.getValueLengthInRange(new Range(1, 2, 1, 3)), 'y'.length);
@@ -394,7 +409,12 @@ suite('Editor Model - TextModel', () => {
 
 	test('modifyPosition', () => {
 
-		var m = new TextModel([], TextModel.toRawText('line one\nline two', DefaultEndOfLine.LF));
+		var m = new TextModel([], TextModel.toRawText('line one\nline two', {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}));
 		assert.deepEqual(m.modifyPosition(new Position(1,1), 0), new Position(1, 1));
 		assert.deepEqual(m.modifyPosition(new Position(0,0), 0), new Position(1, 1));
 		assert.deepEqual(m.modifyPosition(new Position(30, 1), 0), new Position(2, 1));

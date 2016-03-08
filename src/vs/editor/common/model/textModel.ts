@@ -20,7 +20,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	_EOL:string;
 	_isDisposed:boolean;
 	_isDisposing:boolean;
-	private _defaultEOL:editorCommon.DefaultEndOfLine;
+	private _options: editorCommon.ITextModelResolvedOptions;
 
 	private _versionId:number;
 	/**
@@ -33,11 +33,19 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged);
 		super(allowedEventTypes);
 
-		this._defaultEOL = rawText.defaultEOL;
+		this._options = rawText.options;
 		this._constructLines(rawText);
 		this._setVersionId(1);
 		this._isDisposed = false;
 		this._isDisposing = false;
+	}
+
+	public getOptions(): editorCommon.ITextModelResolvedOptions {
+		if (this._isDisposed) {
+			throw new Error('TextModel.getOptions: Model is disposed');
+		}
+
+		return this._options;
 	}
 
 	public getVersionId(): number {
@@ -114,7 +122,12 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	_resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:string): void {
-		this._constructLines(TextModel.toRawText(newValue, this._defaultEOL));
+		this._constructLines(TextModel.toRawText(newValue, {
+			tabSize: this._options.tabSize,
+			insertSpaces: this._options.insertSpaces,
+			guessIndentation: false,
+			defaultEOL: this._options.defaultEOL
+		}));
 		this._increaseVersionId();
 
 		e.detail = this.toRawText();
@@ -127,7 +140,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			EOL: this._EOL,
 			lines: this.getLinesContent(),
 			length: this.getValueLength(),
-			defaultEOL: this._defaultEOL
+			options: this._options
 		};
 	}
 
@@ -547,7 +560,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 	}
 
-	public static toRawText(rawText:string, defaultEOL:editorCommon.DefaultEndOfLine): editorCommon.IRawText {
+	public static toRawText(rawText:string, opts:editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
 		// Count the number of lines that end with \r\n
 		var carriageReturnCnt = 0,
 			lastCarriageReturnIndex = -1;
@@ -569,7 +582,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		var EOL = '';
 		if (lineFeedCnt === 0) {
 			// This is an empty file or a file with precisely one line
-			EOL = (defaultEOL === editorCommon.DefaultEndOfLine.LF ? '\n' : '\r\n');
+			EOL = (opts.defaultEOL === editorCommon.DefaultEndOfLine.LF ? '\n' : '\r\n');
 		} else if (carriageReturnCnt > lineFeedCnt / 2) {
 			// More than half of the file contains \r\n ending lines
 			EOL = '\r\n';
@@ -578,12 +591,29 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			EOL = '\n';
 		}
 
+		let resolvedOpts: editorCommon.ITextModelResolvedOptions;
+		if (opts.guessIndentation) {
+			// TODO@Alex TODO@indent: use opts.insertSpaces as the fallback value
+			let guessedIndentation = guessIndentation(lines, opts.tabSize);
+			resolvedOpts = {
+				tabSize: guessedIndentation.tabSize,
+				insertSpaces: guessedIndentation.insertSpaces,
+				defaultEOL: opts.defaultEOL
+			};
+		} else {
+			resolvedOpts = {
+				tabSize: opts.tabSize,
+				insertSpaces: opts.insertSpaces,
+				defaultEOL: opts.defaultEOL
+			};
+		}
+
 		return {
 			BOM: BOM,
 			EOL: EOL,
 			lines: lines,
 			length: rawText.length,
-			defaultEOL: defaultEOL
+			options: resolvedOpts
 		};
 	}
 

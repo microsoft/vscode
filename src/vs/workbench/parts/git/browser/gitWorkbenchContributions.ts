@@ -236,7 +236,12 @@ class DirtyDiffModelDecorator {
 				let originalModel = this.modelService.getModel(this._originalContentsURI);
 				if (originalModel) {
 					let originalRawText = originalModel.toRawText();
-					let contentsRawText = TextModel.toRawText(contents, originalRawText.defaultEOL);
+					let contentsRawText = TextModel.toRawText(contents, {
+						tabSize: originalRawText.options.tabSize,
+						insertSpaces: originalRawText.options.insertSpaces,
+						guessIndentation: false,
+						defaultEOL: originalRawText.options.defaultEOL
+					});
 
 					// return early if nothing has changed
 					if (DirtyDiffModelDecorator._equals(originalRawText, contentsRawText)) {

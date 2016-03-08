@@ -17,10 +17,20 @@ suite('Editor Services - ResourceService', () => {
 
 		var service = new ResourceService();
 
-		service.insert(URI.parse('test://1'), createMirrorModelFromString(null, 1, 'hi', DefaultEndOfLine.LF, null));
+		service.insert(URI.parse('test://1'), createMirrorModelFromString(null, 1, 'hi', {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}, null));
 		assert.equal(service.all().length, 1);
 
-		service.insert(URI.parse('test://2'), createMirrorModelFromString(null, 1, 'hi', DefaultEndOfLine.LF, null));
+		service.insert(URI.parse('test://2'), createMirrorModelFromString(null, 1, 'hi', {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}, null));
 		assert.equal(service.all().length, 2);
 
 		assert.ok(service.contains(URI.parse('test://1')));
@@ -38,7 +48,12 @@ suite('Editor Services - ResourceService', () => {
 		var eventCnt = 0;
 
 		var url = URI.parse('far');
-		var element = createMirrorModelFromString(null, 1, 'hi', DefaultEndOfLine.LF, null);
+		var element = createMirrorModelFromString(null, 1, 'hi', {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}, null);
 		var service = new ResourceService();
 		service.addListener(ResourceEvents.ADDED, () => {
 			eventCnt++;
@@ -59,7 +74,12 @@ suite('Editor Services - ResourceService', () => {
 		var eventCnt = 0;
 
 		var url = URI.parse('far');
-		var element = createMirrorModelFromString(null, 1, 'hi', DefaultEndOfLine.LF, null);
+		var element = createMirrorModelFromString(null, 1, 'hi', {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}, null);
 		var event = {};
 
 		var service = new ResourceService();

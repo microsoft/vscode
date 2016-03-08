@@ -22,7 +22,12 @@ export function testCommand(
 	expectedSelection: Selection
 ): void {
 
-	let model = new Model(lines.join('\n'), editorCommon.DefaultEndOfLine.LF, mode);
+	let model = new Model(lines.join('\n'), {
+		tabSize: 4,
+		insertSpaces: true,
+		guessIndentation: false,
+		defaultEOL: editorCommon.DefaultEndOfLine.LF
+	}, mode);
 	let config = new MockConfiguration(null);
 	let cursor = new Cursor(0, config, model, null, false);
 

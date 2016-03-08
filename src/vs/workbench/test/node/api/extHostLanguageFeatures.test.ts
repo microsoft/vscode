@@ -41,7 +41,12 @@ const model: EditorCommon.IModel = new EditorModel(
 		'This is the second line',
 		'This is the third line',
 	].join('\n'),
-	EditorCommon.DefaultEndOfLine.LF,
+	{
+		tabSize: 4,
+		insertSpaces: true,
+		guessIndentation: false,
+		defaultEOL: EditorCommon.DefaultEndOfLine.LF
+	},
 	undefined,
 	URI.parse('far://testing/file.a'));
 
@@ -73,7 +78,11 @@ suite('ExtHostLanguageFeatures', function() {
 				lines: model.getValue().split(model.getEOL()),
 				BOM: '',
 				length: -1,
-				defaultEOL: EditorCommon.DefaultEndOfLine.LF
+				options: {
+					tabSize: 4,
+					insertSpaces: true,
+					defaultEOL: EditorCommon.DefaultEndOfLine.LF
+				}
 			},
 		});
 

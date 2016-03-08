@@ -25,7 +25,12 @@ suite('Editor Model - Model Edit Operation', () => {
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		model = new Model(text, DefaultEndOfLine.LF, null);
+		model = new Model(text, {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}, null);
 	});
 
 	teardown(() => {

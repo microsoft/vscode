@@ -136,7 +136,12 @@ suite('Editor Controller - Cursor', () => {
 			LINE4 + '\r\n' +
 			LINE5;
 
-		thisModel = new Model(text, DefaultEndOfLine.LF, null);
+		thisModel = new Model(text, {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}, null);
 		thisConfiguration = new MockConfiguration(null);
 		thisCursor = new Cursor(1, thisConfiguration, thisModel, null, false);
 	});
@@ -980,7 +985,12 @@ suite('Editor Controller - Regression tests', () => {
 			'asdasd',
 			'qwerty'
 		];
-		let model = new Model(text.join('\n'), DefaultEndOfLine.LF, null);
+		let model = new Model(text.join('\n'), {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}, null);
 		let cursor = new Cursor(1, new MockConfiguration({ insertSpaces: false, tabSize: 4 }), model, null, true);
 
 		moveTo(cursor, 2, 1, false);
@@ -998,7 +1008,12 @@ suite('Editor Controller - Regression tests', () => {
 			'asdasd',
 			''
 		];
-		model = new Model(text.join('\n'), DefaultEndOfLine.LF, null);
+		model = new Model(text.join('\n'), {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: DefaultEndOfLine.LF
+		}, null);
 		cursor = new Cursor(1, new MockConfiguration({ insertSpaces: false, tabSize: 4 }), model, null, true);
 
 		moveTo(cursor, 2, 1, false);
@@ -1570,7 +1585,12 @@ interface ICursorOpts {
 }
 
 function usingCursor(opts:ICursorOpts, callback:(model:Model, cursor:Cursor)=>void): void {
-	let model = new Model(opts.text.join('\n'), DefaultEndOfLine.LF, opts.mode);
+	let model = new Model(opts.text.join('\n'), {
+		tabSize: 4,
+		insertSpaces: true,
+		guessIndentation: false,
+		defaultEOL: DefaultEndOfLine.LF
+	}, opts.mode);
 	let config = new MockConfiguration(opts.config);
 	let cursor = new Cursor(1, config, model, null, false);
 

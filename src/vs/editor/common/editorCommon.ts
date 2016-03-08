@@ -1257,10 +1257,25 @@ export interface IGuessedIndentation {
 	insertSpaces: boolean;
 }
 
+export interface ITextModelResolvedOptions {
+	tabSize: number;
+	insertSpaces: boolean;
+	defaultEOL: DefaultEndOfLine;
+}
+
+export interface ITextModelCreationOptions {
+	tabSize: number;
+	insertSpaces: boolean;
+	guessIndentation: boolean;
+	defaultEOL: DefaultEndOfLine;
+}
+
 /**
  * A textual read-only model.
  */
 export interface ITextModel {
+
+	getOptions(): ITextModelResolvedOptions;
 
 	/**
 	 * Get the current version id of the model.
@@ -1947,7 +1962,7 @@ export interface IRawText {
 	lines: string[];
 	BOM: string;
 	EOL: string;
-	defaultEOL: DefaultEndOfLine;
+	options: ITextModelResolvedOptions;
 }
 /**
  * An event describing that a model has been reset to a new value.
@@ -3262,6 +3277,7 @@ export var EventType = {
 	ModelTokensChanged: 'modelTokensChanged',
 	ModelModeChanged: 'modelsModeChanged',
 	ModelModeSupportChanged: 'modelsModeSupportChanged',
+	ModelOptionsChanged: 'modelOptionsChanged',
 	ModelContentChanged: 'contentChanged',
 	ModelContentChanged2: 'contentChanged2',
 	ModelContentChangedFlush: 'flush',

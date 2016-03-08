@@ -81,7 +81,12 @@ export function createOnEnterAsserter(modeId:string, richEditSupport: modes.IRic
 	var assertOne = (oneLineAboveText:string, beforeText:string, afterText:string, expected: modes.IndentAction) => {
 		var model = new Model(
 			[ oneLineAboveText, beforeText + afterText ].join('\n'),
-			DefaultEndOfLine.LF,
+			{
+				tabSize: 4,
+				insertSpaces: true,
+				guessIndentation: false,
+				defaultEOL: DefaultEndOfLine.LF
+			},
 			new SimpleMode(modeId)
 		);
 		var actual = richEditSupport.onEnter.onEnter(model, { lineNumber: 2, column: beforeText.length + 1 });

@@ -96,7 +96,12 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			'int main() {',
 			'\tprintf("Hello world!");',
 			'}',
-		].join('\n'), editorCommon.DefaultEndOfLine.LF, null);
+		].join('\n'), {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: editorCommon.DefaultEndOfLine.LF
+		}, null);
 
 		let linesCollection = new SplitLinesCollection(
 			model,

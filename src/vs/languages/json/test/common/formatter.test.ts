@@ -18,7 +18,12 @@ suite('JSON - formatter', () => {
 		var range : EditorCommon.IRange = null;
 
 		var mockMode = ModesTestUtils.createMockMode('mock.mode.id');
-		var mirrorModel = MirrorModel.createMirrorModelFromString(null, 1, unformatted, EditorCommon.DefaultEndOfLine.LF, mockMode);
+		var mirrorModel = MirrorModel.createMirrorModelFromString(null, 1, unformatted, {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: EditorCommon.DefaultEndOfLine.LF
+		}, mockMode);
 
 		var rangeStart = unformatted.indexOf('|');
 		var rangeEnd = unformatted.lastIndexOf('|');
@@ -28,12 +33,22 @@ suite('JSON - formatter', () => {
 			var startPos = mirrorModel.getPositionFromOffset(rangeStart);
 			var endPos = mirrorModel.getPositionFromOffset(rangeEnd);
 			range = { startLineNumber: startPos.lineNumber, startColumn: startPos.column, endLineNumber: endPos.lineNumber, endColumn: endPos.column };
-			mirrorModel = MirrorModel.createMirrorModelFromString(null, 1, unformatted, EditorCommon.DefaultEndOfLine.LF, mockMode);
+			mirrorModel = MirrorModel.createMirrorModelFromString(null, 1, unformatted, {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: EditorCommon.DefaultEndOfLine.LF
+		}, mockMode);
 		}
 
 		var operations = Formatter.format(mirrorModel, range, { tabSize: 2, insertSpaces: insertSpaces });
 
-		var model = new Model(unformatted, EditorCommon.DefaultEndOfLine.LF, mockMode);
+		var model = new Model(unformatted, {
+			tabSize: 4,
+			insertSpaces: true,
+			guessIndentation: false,
+			defaultEOL: EditorCommon.DefaultEndOfLine.LF
+		}, mockMode);
 		model.pushEditOperations([], operations.map(o => {
 			return {
 				range: Range.lift(o.range),

@@ -15,7 +15,12 @@ import {ILineEdit, ModelLine} from 'vs/editor/common/model/modelLine';
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 
 function testCommand(lines:string[], selection:Selection, edits:IIdentifiedSingleEditOperation[], expectedLines:string[], expectedSelection:Selection): void {
-	let model = new Model(lines.join('\n'), DefaultEndOfLine.LF, null);
+	let model = new Model(lines.join('\n'), {
+		tabSize: 4,
+		insertSpaces: true,
+		guessIndentation: false,
+		defaultEOL: DefaultEndOfLine.LF
+	}, null);
 	let config = new MockConfiguration(null);
 	let cursor = new Cursor(0, config, model, null, false);
 

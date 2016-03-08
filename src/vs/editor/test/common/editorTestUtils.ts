@@ -15,7 +15,12 @@ export function pos(lineNumber:number, column:number): IPosition {
 }
 
 export function withEditorModel(text:string[], callback:(model:Model) => void): void {
-	var model = new Model(text.join('\n'), DefaultEndOfLine.LF, null);
+	var model = new Model(text.join('\n'), {
+		tabSize: 4,
+		insertSpaces: true,
+		guessIndentation: false,
+		defaultEOL: DefaultEndOfLine.LF
+	}, null);
 	callback(model);
 	model.dispose();
 }
