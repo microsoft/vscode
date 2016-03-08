@@ -17,3 +17,7 @@
 .monaco-workbench.vs input:disabled {
 	background-color: #E1E1E1;
 }
+.monaco-workbench.vs .margin-view-overlays {
+	border-right: 1px solid #D3D3D3;
+	z-index: 1;
+}
