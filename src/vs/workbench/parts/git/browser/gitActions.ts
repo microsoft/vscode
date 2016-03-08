@@ -128,9 +128,9 @@ export class OpenFileAction extends GitAction {
 	private static DELETED_STATES = [Status.BOTH_DELETED, Status.DELETED, Status.DELETED_BY_US, Status.INDEX_DELETED];
 	static ID = 'workbench.action.openFile';
 
-	private fileService: IFileService;
-	private editorService: IWorkbenchEditorService;
-	private contextService: IWorkspaceContextService;
+	protected fileService: IFileService;
+	protected editorService: IWorkbenchEditorService;
+	protected contextService: IWorkspaceContextService;
 
 	constructor(@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService, @IGitService gitService: IGitService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
 		super(OpenFileAction.ID, nls.localize('openFile', "Open File"), 'git-action open-file', gitService);
