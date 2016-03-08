@@ -11,10 +11,18 @@ import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModelLine} from 'vs/editor/common/model/modelLine';
 import {guessIndentation} from 'vs/editor/common/model/indentationGuesser';
+import {DEFAULT_INDENTATION} from 'vs/editor/common/config/defaultConfig';
 
 var LIMIT_FIND_COUNT = 999;
 
 export class TextModel extends OrderGuaranteeEventEmitter implements editorCommon.ITextModel {
+
+	public static DEFAULT_CREATION_OPTIONS: editorCommon.ITextModelCreationOptions = {
+		tabSize: DEFAULT_INDENTATION.tabSize,
+		insertSpaces: DEFAULT_INDENTATION.insertSpaces,
+		detectIndentation: false,
+		defaultEOL: editorCommon.DefaultEndOfLine.LF
+	};
 
 	_lines:ModelLine[];
 	_EOL:string;
@@ -46,6 +54,58 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 
 		return this._options;
+	}
+
+	private _normalizeIndentationFromWhitespace(str:string): string {
+		let tabSize = this._options.tabSize;
+		let insertSpaces = this._options.insertSpaces;
+
+		let spacesCnt = 0;
+		for (let i = 0; i < str.length; i++) {
+			if (str.charAt(i) === '\t') {
+				spacesCnt += tabSize;
+			} else {
+				spacesCnt++;
+			}
+		}
+
+		let result = '';
+		if (!insertSpaces) {
+			let tabsCnt = Math.floor(spacesCnt / tabSize);
+			spacesCnt = spacesCnt % tabSize;
+			for (let i = 0; i < tabsCnt; i++) {
+				result += '\t';
+			}
+		}
+
+		for (let i = 0; i < spacesCnt; i++) {
+			result += ' ';
+		}
+
+		return result;
+	}
+
+	public normalizeIndentation(str:string): string {
+		let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(str);
+		if (firstNonWhitespaceIndex === -1) {
+			firstNonWhitespaceIndex = str.length;
+		}
+		return this._normalizeIndentationFromWhitespace(str.substring(0, firstNonWhitespaceIndex)) + str.substring(firstNonWhitespaceIndex);
+	}
+
+	public getOneIndent(): string {
+		let tabSize = this._options.tabSize;
+		let insertSpaces = this._options.insertSpaces;
+
+		if (insertSpaces) {
+			let result = '';
+			for (let i = 0; i < tabSize; i++) {
+				result += ' ';
+			}
+			return result;
+		} else {
+			return '\t';
+		}
 	}
 
 	public getVersionId(): number {
@@ -125,7 +185,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		this._constructLines(TextModel.toRawText(newValue, {
 			tabSize: this._options.tabSize,
 			insertSpaces: this._options.insertSpaces,
-			guessIndentation: false,
+			detectIndentation: false,
 			defaultEOL: this._options.defaultEOL
 		}));
 		this._increaseVersionId();
@@ -311,15 +371,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 		return (longLineCharCount > smallLineCharCount);
 	}
-
-	public guessIndentation(defaultTabSize:number): editorCommon.IGuessedIndentation {
-		if (this._isDisposed) {
-			throw new Error('TextModel.guessIndentation: Model is disposed');
-		}
-
-		return guessIndentation(this._lines.map(line => line.text), defaultTabSize);
-	}
-
 
 	public getLineCount(): number {
 		if (this._isDisposed) {
@@ -592,7 +643,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 
 		let resolvedOpts: editorCommon.ITextModelResolvedOptions;
-		if (opts.guessIndentation) {
+		if (opts.detectIndentation) {
 			// TODO@Alex TODO@indent: use opts.insertSpaces as the fallback value
 			let guessedIndentation = guessIndentation(lines, opts.tabSize);
 			resolvedOpts = {

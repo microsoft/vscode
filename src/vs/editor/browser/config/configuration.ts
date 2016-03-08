@@ -10,7 +10,7 @@ import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import {CommonEditorConfiguration, ICSSConfig} from 'vs/editor/common/config/commonEditorConfig';
-import {IDimension, IEditorStyling, IGuessedIndentation} from 'vs/editor/common/editorCommon';
+import {IDimension, IEditorStyling} from 'vs/editor/common/editorCommon';
 import {ElementSizeObserver} from 'vs/editor/browser/config/elementSizeObserver';
 
 class CSSBasedConfigurationCache {
@@ -269,8 +269,8 @@ export class Configuration extends CommonEditorConfiguration {
 		}
 	}
 
-	constructor(options:any, referenceDomElement:HTMLElement = null, indentationGuesser:(tabSize:number)=>IGuessedIndentation = null) {
-		super(options, new ElementSizeObserver(referenceDomElement, () => this._onReferenceDomElementSizeChanged()), indentationGuesser);
+	constructor(options:any, referenceDomElement:HTMLElement = null) {
+		super(options, new ElementSizeObserver(referenceDomElement, () => this._onReferenceDomElementSizeChanged()));
 
 		this._register(CSSBasedConfiguration.INSTANCE.onDidChange(() => () => this._onCSSBasedConfigurationChanged()));
 

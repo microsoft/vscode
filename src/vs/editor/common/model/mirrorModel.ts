@@ -263,7 +263,7 @@ export class MirrorModelEmbedded extends AbstractMirrorModel implements editorCo
 		return TextModel.toRawText(resultingText, {
 			tabSize: actualModelOptions.tabSize,
 			insertSpaces: actualModelOptions.insertSpaces,
-			guessIndentation: false,
+			detectIndentation: false,
 			defaultEOL: actualModelOptions.defaultEOL
 		});
 	}
@@ -293,8 +293,9 @@ class EmbeddedModeRange {
 	}
 }
 
-export function createMirrorModelFromString(resourceService:IResourceService, versionId:number, value:string, opts: editorCommon.ITextModelCreationOptions, mode:IMode, associatedResource?:URI): MirrorModel {
-	return new MirrorModel(resourceService, versionId, TextModel.toRawText(value, opts), mode, associatedResource);
+// TODO@Alex TODO@indent - move this to the /test/ folder
+export function createTestMirrorModelFromString(resourceService:IResourceService, versionId:number, value:string, mode:IMode, associatedResource?:URI): MirrorModel {
+	return new MirrorModel(resourceService, versionId, TextModel.toRawText(value, TextModel.DEFAULT_CREATION_OPTIONS), mode, associatedResource);
 }
 
 export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMirrorModel {

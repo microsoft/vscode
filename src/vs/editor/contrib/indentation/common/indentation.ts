@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
@@ -20,12 +19,17 @@ export class IndentationToSpacesAction extends EditorAction {
 	}
 
 	public run(): TPromise<boolean> {
-
-		const command = new IndentationToSpacesCommand(this.editor.getSelection(), this.editor.getIndentationOptions().tabSize);
+		let model = this.editor.getModel();
+		if (!model) {
+			return;
+		}
+		let modelOpts = model.getOptions();
+		const command = new IndentationToSpacesCommand(this.editor.getSelection(), modelOpts.tabSize);
 		this.editor.executeCommands(this.id, [command]);
-		this.editor.updateOptions({
-			insertSpaces: true
-		});
+		// TODO@Alex TODO@indent
+		// model.updateOptions({
+		// 	insertSpaces: true
+		// });
 
 		return TPromise.as(true);
 	}
@@ -39,12 +43,17 @@ export class IndentationToTabsAction extends EditorAction {
 	}
 
 	public run(): TPromise<boolean> {
-
-		const command = new IndentationToTabsCommand(this.editor.getSelection(), this.editor.getIndentationOptions().tabSize);
+		let model = this.editor.getModel();
+		if (!model) {
+			return;
+		}
+		let modelOpts = model.getOptions();
+		const command = new IndentationToTabsCommand(this.editor.getSelection(), modelOpts.tabSize);
 		this.editor.executeCommands(this.id, [command]);
-		this.editor.updateOptions({
-			insertSpaces: false
-		});
+		// TODO@Alex TODO@indent
+		// model.updateOptions({
+		// 	insertSpaces: false
+		// });
 
 		return TPromise.as(true);
 	}
@@ -54,35 +63,37 @@ export class ChangeIndentationSizeAction extends EditorAction {
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor,
 		private insertSpaces: boolean,
-		private quickOpenService: IQuickOpenService,
-		private configurationService: IConfigurationService
+		private quickOpenService: IQuickOpenService
 	) {
 		super(descriptor, editor);
 	}
 
 	public run(): TPromise<boolean> {
+		let model = this.editor.getModel();
+		if (!model) {
+			return;
+		}
+		let modelOpts = model.getOptions();
+		const picks = [1, 2, 3, 4, 5, 6, 7, 8].map(n => ({
+			id: n.toString(),
+			label: n.toString(),
+			description: n === modelOpts.tabSize ? nls.localize('configuredTabSize', "Configured Tab Size") : null
+		}));
+		const autoFocusIndex = Math.min(modelOpts.tabSize - 1, 7);
 
-		return this.configurationService.loadConfiguration('editor').then(config => {
-			const picks = [1, 2, 3, 4, 5, 6, 7, 8].map(n => ({
-				id: n.toString(),
-				label: n.toString(),
-				description: n === config.tabSize ? nls.localize('configuredIndentationSize', "Configured Indentation Size") : null
-			}));
-			const autoFocusIndex = Math.min(this.editor.getIndentationOptions().tabSize - 1, 7);
+		return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() =>
+			this.quickOpenService.pick(picks, { placeHolder: nls.localize('selectTabWidth', "Select Tab Size for Current File"), autoFocus: { autoFocusIndex } }).then(pick => {
+				if (pick) {
+					// TODO@Alex TODO@indent
+					// model.updateOptions({
+					// 	tabSize: parseInt(pick.label)
+					//  insertSpaces: this.insertSpaces
+					// });
+				}
 
-			return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() =>
-				this.quickOpenService.pick(picks, { placeHolder: nls.localize('selectIndentationSize', "Select Indentation Size for Current File"), autoFocus: { autoFocusIndex } }).then(pick => {
-					if (pick) {
-						this.editor.updateOptions({
-							tabSize: parseInt(pick.label),
-							insertSpaces: this.insertSpaces
-						});
-					}
-
-					return true;
-				})
-			);
-		});
+				return true;
+			})
+		);
 	}
 }
 
@@ -91,10 +102,9 @@ export class IndentUsingTabs extends ChangeIndentationSizeAction {
 	static ID = 'editor.action.indentUsingTabs';
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
-		super(descriptor, editor, false, quickOpenService, configurationService);
+		super(descriptor, editor, false, quickOpenService);
 	}
 }
 
@@ -103,10 +113,9 @@ export class IndentUsingSpaces extends ChangeIndentationSizeAction {
 	static ID = 'editor.action.indentUsingSpaces';
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
-		super(descriptor, editor, true, quickOpenService, configurationService);
+		super(descriptor, editor, true, quickOpenService);
 	}
 }
 

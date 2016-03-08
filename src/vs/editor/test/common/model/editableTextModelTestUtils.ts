@@ -38,12 +38,7 @@ export function testApplyEditsWithSyncedModels(original:string[], edits:editorCo
 }
 
 export  function assertSyncedModels(text:string, callback:(model:EditableTextModel, assertMirrorModels:()=>void)=>void, setup:(model:EditableTextModel)=>void = null): void {
-	var model = new EditableTextModel([], TextModel.toRawText(text, {
-		tabSize: 4,
-		insertSpaces: false,
-		guessIndentation: false,
-		defaultEOL: editorCommon.DefaultEndOfLine.LF
-	}), null);
+	var model = new EditableTextModel([], TextModel.toRawText(text, TextModel.DEFAULT_CREATION_OPTIONS), null);
 	model.setEOL(editorCommon.EndOfLineSequence.LF);
 
 	if (setup) {

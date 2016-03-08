@@ -399,7 +399,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		let htmlMessage: IHTMLContentElement = {
 			tagName: 'div',
 			className: 'goto-definition-link-hover',
-			style: `tab-size: ${this.editor.getIndentationOptions().tabSize}`
+			style: `tab-size: ${model.getOptions().tabSize}`
 		};
 
 		if (text && text.trim().length > 0) {

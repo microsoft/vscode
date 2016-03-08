@@ -25,7 +25,7 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import * as platform from 'vs/base/common/platform';
 import {IConfigurationService, ConfigurationServiceEventTypes, IConfigurationServiceEvent} from 'vs/platform/configuration/common/configuration';
-import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
+import {DEFAULT_INDENTATION} from 'vs/editor/common/config/defaultConfig';
 
 export interface IRawModelData {
 	url:URI;
@@ -199,9 +199,9 @@ export class ModelServiceImpl implements IModelService {
 		configurationService: IConfigurationService
 	) {
 		this._modelCreationOptions = {
-			tabSize: DefaultConfig.editor.tabSize,
-			insertSpaces: DefaultConfig.editor.insertSpaces,
-			guessIndentation: true, // TODO@Alex TODO@indent
+			tabSize: DEFAULT_INDENTATION.tabSize,
+			insertSpaces: DEFAULT_INDENTATION.insertSpaces,
+			detectIndentation: DEFAULT_INDENTATION.detectIndentation,
 			defaultEOL: (platform.isLinux || platform.isMacintosh) ? editorCommon.DefaultEndOfLine.LF : editorCommon.DefaultEndOfLine.CRLF
 		};
 		this._threadService = threadService;
@@ -213,7 +213,7 @@ export class ModelServiceImpl implements IModelService {
 		let readDefaultEOL = (config:any) => {
 			const eol = config.files && config.files.eol;
 
-			let newTabSize = DefaultConfig.editor.tabSize;
+			let newTabSize = DEFAULT_INDENTATION.tabSize;
 			if (config.editor && typeof config.editor.tabSize !== 'undefined') {
 				let parsedTabSize = parseInt(config.editor.tabSize, 10);
 				if (!isNaN(parsedTabSize)) {
@@ -221,7 +221,7 @@ export class ModelServiceImpl implements IModelService {
 				}
 			}
 
-			let newInsertSpaces = DefaultConfig.editor.insertSpaces;
+			let newInsertSpaces = DEFAULT_INDENTATION.insertSpaces;
 			if (config.editor && typeof config.editor.insertSpaces !== 'undefined') {
 				newInsertSpaces = (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
 			}
@@ -233,12 +233,12 @@ export class ModelServiceImpl implements IModelService {
 				newDefaultEOL = editorCommon.DefaultEndOfLine.LF;
 			}
 
-			let newGuessIndentation = true; // TODO@Alex TODO@indent
+			let detectIndentation = DEFAULT_INDENTATION.detectIndentation;
 
 			this._modelCreationOptions = {
 				tabSize: newTabSize,
 				insertSpaces: newInsertSpaces,
-				guessIndentation: newGuessIndentation,
+				detectIndentation: detectIndentation,
 				defaultEOL: newDefaultEOL
 			};
 		};

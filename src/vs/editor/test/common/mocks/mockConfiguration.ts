@@ -5,10 +5,11 @@
 'use strict';
 
 import {CommonEditorConfiguration, ICSSConfig} from 'vs/editor/common/config/commonEditorConfig';
+import {IEditorOptions} from 'vs/editor/common/editorCommon';
 
 export class MockConfiguration extends CommonEditorConfiguration {
 
-	constructor(opts:any) {
+	constructor(opts:IEditorOptions) {
 		super(opts);
 	}
 

@@ -20,12 +20,7 @@ import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
 import {IMarker} from 'vs/platform/markers/common/markers';
 
 export function mockMirrorModel(content:string, url:URI = null) : mm.MirrorModel {
-	return mm.createMirrorModelFromString(null, 0, content, {
-		tabSize: 4,
-		insertSpaces: true,
-		guessIndentation: false,
-		defaultEOL: EditorCommon.DefaultEndOfLine.LF
-	}, modesUtil.createMockMode('mock.mode.id', /(#?-?\d*\.\d\w*%?)|([@#.:!]?[\w-?]+%?)|[@#.!]/g), url);
+	return mm.createTestMirrorModelFromString(null, 0, content, modesUtil.createMockMode('mock.mode.id', /(#?-?\d*\.\d\w*%?)|([@#.:!]?[\w-?]+%?)|[@#.!]/g), url);
 }
 
 suite('Validation - CSS', () => {

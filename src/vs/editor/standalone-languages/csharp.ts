@@ -35,8 +35,6 @@ export var language = <ILanguage> {
 		{ open: '<', close: '>', token: 'delimiter.angle' }
 	],
 
-	editorOptions: { tabSize: 4, insertSpaces: true },
-
 	keywords: [
 		'extern', 'alias', 'using', 'bool', 'decimal', 'sbyte', 'byte', 'short',
 		'ushort', 'int', 'uint', 'long', 'ulong', 'char', 'float', 'double',

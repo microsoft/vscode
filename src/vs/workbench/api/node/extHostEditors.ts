@@ -16,7 +16,7 @@ import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {MainThreadEditorsTracker, TextEditorRevealType, MainThreadTextEditor, ITextEditorConfigurationUpdate, ITextEditorConfiguration} from 'vs/workbench/api/node/mainThreadEditors';
+import {MainThreadEditorsTracker, TextEditorRevealType, MainThreadTextEditor, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration} from 'vs/workbench/api/node/mainThreadEditors';
 import * as TypeConverters from './extHostTypeConverters';
 import {TextDocument, TextEditorSelectionChangeEvent, TextEditorOptionsChangeEvent, TextEditorOptions, TextEditorViewColumnChangeEvent, ViewColumn} from 'vscode';
 import {EventType} from 'vs/workbench/common/events';
@@ -28,7 +28,7 @@ import {equals as objectEquals} from 'vs/base/common/objects';
 export interface ITextEditorAddData {
 	id: string;
 	document: URI;
-	options: ITextEditorConfiguration;
+	options: IResolvedTextEditorConfiguration;
 	selections: ISelection[];
 	editorPosition: EditorPosition;
 }
@@ -111,7 +111,7 @@ export class ExtHostEditors {
 		this._editors[data.id] = newEditor;
 	}
 
-	_acceptOptionsChanged(id: string, opts: ITextEditorConfiguration): void {
+	_acceptOptionsChanged(id: string, opts: IResolvedTextEditorConfiguration): void {
 		let editor = this._editors[id];
 		editor._acceptOptions(opts);
 		this._onDidChangeTextEditorOptions.fire({

@@ -31,6 +31,8 @@ var aliveModels:{[modelId:string]:boolean;} = {};
 
 export class Model extends EditableTextModel implements IModel {
 
+	public static DEFAULT_CREATION_OPTIONS: ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS;
+
 	public id:string;
 
 	private _associatedResource:URI;

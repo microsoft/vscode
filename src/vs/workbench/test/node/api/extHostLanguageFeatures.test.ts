@@ -41,12 +41,7 @@ const model: EditorCommon.IModel = new EditorModel(
 		'This is the second line',
 		'This is the third line',
 	].join('\n'),
-	{
-		tabSize: 4,
-		insertSpaces: true,
-		guessIndentation: false,
-		defaultEOL: EditorCommon.DefaultEndOfLine.LF
-	},
+	EditorModel.DEFAULT_CREATION_OPTIONS,
 	undefined,
 	URI.parse('far://testing/file.a'));
 

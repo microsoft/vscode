@@ -1084,16 +1084,16 @@ export class OneCursorOp {
 
 		if (enterAction.indentAction === IndentAction.None) {
 			// Nothing special
-			this.actualType(cursor, '\n' + cursor.configuration.normalizeIndentation(indentation + enterAction.appendText), keepPosition, ctx, range);
+			this.actualType(cursor, '\n' + cursor.model.normalizeIndentation(indentation + enterAction.appendText), keepPosition, ctx, range);
 
 		} else if (enterAction.indentAction === IndentAction.Indent) {
 			// Indent once
-			this.actualType(cursor, '\n' + cursor.configuration.normalizeIndentation(indentation + enterAction.appendText), keepPosition, ctx, range);
+			this.actualType(cursor, '\n' + cursor.model.normalizeIndentation(indentation + enterAction.appendText), keepPosition, ctx, range);
 
 		} else if (enterAction.indentAction === IndentAction.IndentOutdent) {
 			// Ultra special
-			let normalIndent = cursor.configuration.normalizeIndentation(indentation);
-			let increasedIndent = cursor.configuration.normalizeIndentation(indentation + enterAction.appendText);
+			let normalIndent = cursor.model.normalizeIndentation(indentation);
+			let increasedIndent = cursor.model.normalizeIndentation(indentation + enterAction.appendText);
 
 			let typeText = '\n' + increasedIndent + '\n' + normalIndent;
 
@@ -1103,12 +1103,12 @@ export class OneCursorOp {
 				ctx.executeCommand = new ReplaceCommandWithOffsetCursorState(range, typeText, -1, increasedIndent.length - normalIndent.length);
 			}
 		} else if (enterAction.indentAction === IndentAction.Outdent) {
-			let desiredIndentCount = ShiftCommand.unshiftIndentCount(indentation, indentation.length + 1, cursor.configuration.getIndentationOptions().tabSize);
+			let desiredIndentCount = ShiftCommand.unshiftIndentCount(indentation, indentation.length + 1, cursor.model.getOptions().tabSize);
 			let actualIndentation = '';
 			for (let i = 0; i < desiredIndentCount; i++) {
 				actualIndentation += '\t';
 			}
-			this.actualType(cursor, '\n' + cursor.configuration.normalizeIndentation(actualIndentation + enterAction.appendText), keepPosition, ctx, range);
+			this.actualType(cursor, '\n' + cursor.model.normalizeIndentation(actualIndentation + enterAction.appendText), keepPosition, ctx, range);
 		}
 
 		return true;
@@ -1282,7 +1282,7 @@ export class OneCursorOp {
 					var matchLineNumber = match.startLineNumber;
 					var matchLine = cursor.model.getLineContent(matchLineNumber);
 					var matchLineIndentation = strings.getLeadingWhitespace(matchLine);
-					var newIndentation = cursor.configuration.normalizeIndentation(matchLineIndentation);
+					var newIndentation = cursor.model.normalizeIndentation(matchLineIndentation);
 
 					var lineFirstNonBlankColumn = cursor.model.getLineFirstNonWhitespaceColumn(position.lineNumber) || position.column;
 					var oldIndentation = lineText.substring(0, lineFirstNonBlankColumn - 1);
@@ -1373,12 +1373,13 @@ export class OneCursorOp {
 
 		var indentation: string;
 		if (r.enterAction.indentAction === IndentAction.Outdent) {
-			let desiredIndentCount = ShiftCommand.unshiftIndentCount(r.indentation, r.indentation.length, cursor.configuration.getIndentationOptions().tabSize);
+			let modelOpts = cursor.model.getOptions();
+			let desiredIndentCount = ShiftCommand.unshiftIndentCount(r.indentation, r.indentation.length, modelOpts.tabSize);
 			indentation = '';
 			for (let i = 0; i < desiredIndentCount; i++) {
 				indentation += '\t';
 			}
-			indentation = cursor.configuration.normalizeIndentation(indentation);
+			indentation = cursor.model.normalizeIndentation(indentation);
 		} else {
 			indentation = r.indentation;
 		}
@@ -1400,12 +1401,13 @@ export class OneCursorOp {
 
 			if (cursor.model.getLineMaxColumn(selection.startLineNumber) === 1) {
 				// Line is empty => indent straight to the right place
-				typeText = cursor.configuration.normalizeIndentation(this._goodIndentForLine(cursor, selection.startLineNumber));
+				typeText = cursor.model.normalizeIndentation(this._goodIndentForLine(cursor, selection.startLineNumber));
 			} else {
 				let position = cursor.getPosition();
-				if (cursor.configuration.getIndentationOptions().insertSpaces) {
+				let modelOpts = cursor.model.getOptions();
+				if (modelOpts.insertSpaces) {
 					let visibleColumnFromColumn = cursor.getVisibleColumnFromColumn(position.lineNumber, position.column);
-					let tabSize = cursor.configuration.getIndentationOptions().tabSize;
+					let tabSize = modelOpts.tabSize;
 					let spacesCnt = tabSize - (visibleColumnFromColumn % tabSize);
 					for (let i = 0; i < spacesCnt; i++) {
 						typeText += ' ';
@@ -1429,8 +1431,8 @@ export class OneCursorOp {
 		ctx.shouldPushStackElementAfter = true;
 		ctx.executeCommand = new ShiftCommand(selection, {
 			isUnshift: false,
-			tabSize: cursor.configuration.getIndentationOptions().tabSize,
-			oneIndent: cursor.configuration.getOneIndent()
+			tabSize: cursor.model.getOptions().tabSize,
+			oneIndent: cursor.model.getOneIndent()
 		});
 		ctx.shouldRevealHorizontal = false;
 
@@ -1444,8 +1446,8 @@ export class OneCursorOp {
 		ctx.shouldPushStackElementAfter = true;
 		ctx.executeCommand = new ShiftCommand(selection, {
 			isUnshift: true,
-			tabSize: cursor.configuration.getIndentationOptions().tabSize,
-			oneIndent: cursor.configuration.getOneIndent()
+			tabSize: cursor.model.getOptions().tabSize,
+			oneIndent: cursor.model.getOneIndent()
 		});
 		ctx.shouldRevealHorizontal = false;
 
@@ -1816,7 +1818,11 @@ class CursorHelper {
 	constructor (model:editorCommon.IModel, configuration:editorCommon.IConfiguration) {
 		this.model = model;
 		this.configuration = configuration;
-		this.moveHelper = new CursorMoveHelper(this.configuration);
+		this.moveHelper = new CursorMoveHelper({
+			getIndentationOptions: () => {
+				return this.model.getOptions();
+			}
+		});
 	}
 
 	public getLeftOfPosition(model:ICursorMoveHelperModel, lineNumber:number, column:number): editorCommon.IPosition {

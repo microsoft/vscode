@@ -15,7 +15,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingContextKey, IKeybindingScopeLocation, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {CommonEditorConfiguration, IIndentationGuesser} from 'vs/editor/common/config/commonEditorConfig';
+import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {Cursor} from 'vs/editor/common/controller/cursor';
 import {CursorMoveHelper} from 'vs/editor/common/controller/cursorMoveHelper';
@@ -105,12 +105,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		}
 		options.ariaLabel += this._ariaLabelAppendMessage();
 
-		this._configuration = this._createConfiguration(options, (tabSize:number) => {
-			if (this.model) {
-				return this.model.guessIndentation(tabSize);
-			}
-			return null;
-		});
+		this._configuration = this._createConfiguration(options);
 		if (this._configuration.editor.tabFocusMode) {
 			this._editorTabMovesFocusKey.set(true);
 		}
@@ -134,7 +129,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		this._codeEditorService.addCodeEditor(this);
 	}
 
-	protected abstract _createConfiguration(options:editorCommon.ICodeEditorWidgetCreationOptions, indentationGuesser:IIndentationGuesser): CommonEditorConfiguration;
+	protected abstract _createConfiguration(options:editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration;
 
 	public getId(): string {
 		return this.getEditorType() + ':' + this.id;
@@ -199,18 +194,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		return this._configuration.getRawOptions();
 	}
 
-	public getIndentationOptions(): editorCommon.IInternalIndentationOptions {
-		let r = this._configuration.getIndentationOptions();
-		return {
-			tabSize: r.tabSize,
-			insertSpaces: r.insertSpaces
-		};
-	}
-
-	public normalizeIndentation(str:string): string {
-		return this._configuration.normalizeIndentation(str);
-	}
-
 	public getValue(options:{ preserveBOM:boolean; lineEnding:string; }=null): string {
 		if (this.model) {
 			var preserveBOM:boolean = (options && options.preserveBOM) ? true : false;
@@ -273,9 +256,10 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 			return rawPosition.column;
 		}
 
-		var position = this.model.validatePosition(rawPosition);
+		let position = this.model.validatePosition(rawPosition);
+		let tabSize = this.model.getOptions().tabSize;
 
-		return CursorMoveHelper.visibleColumnFromColumn(this.model, position.lineNumber, position.column, this._configuration.getIndentationOptions().tabSize) + 1;
+		return CursorMoveHelper.visibleColumnFromColumn(this.model, position.lineNumber, position.column, tabSize) + 1;
 	}
 
 	public getPosition(): editorCommon.IEditorPosition {
@@ -686,7 +670,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		this.cursor = null;
 
 		if (this.model) {
-			this._configuration.resetIndentationOptions();
 			this.domElement.setAttribute('data-mode-id', this.model.getMode().getId());
 			this._langIdKey.set(this.model.getMode().getId());
 			this.model.setStopLineTokenizationAfter(this._configuration.editor.stopLineTokenizationAfter);
@@ -703,7 +686,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 			var linesCollection = new SplitLinesCollection(
 				this.model,
 				hardWrappingLineMapperFactory,
-				this._configuration.getIndentationOptions().tabSize,
+				this.model.getOptions().tabSize,
 				this._configuration.editor.wrappingInfo.wrappingColumn,
 				this._configuration.editor.typicalFullwidthCharacterWidth / this._configuration.editor.typicalHalfwidthCharacterWidth,
 				editorCommon.wrappingIndentFromString(this._configuration.editor.wrappingIndent)
@@ -834,6 +817,10 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 							// TODO@Alex
 							this.emit(editorCommon.EventType.ModelContentChanged, e);
 							this.emit('change', {});
+							break;
+
+						case editorCommon.EventType.ModelOptionsChanged:
+							this.emit(editorCommon.EventType.ModelOptionsChanged, e);
 							break;
 
 						case editorCommon.EventType.ModelDispose:

@@ -12,6 +12,11 @@ export interface IConfiguration {
 }
 
 export const USUAL_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?';
+export const DEFAULT_INDENTATION = {
+	tabSize: 4,
+	insertSpaces: false,
+	detectIndentation: true
+};
 
 class ConfigClass implements IConfiguration {
 
@@ -73,8 +78,6 @@ class ConfigClass implements IConfiguration {
 			folding: true,
 			renderWhitespace: false,
 
-			tabSize: 4,
-			insertSpaces: true,
 			fontFamily: '',
 			fontSize: 0,
 			lineHeight: 0

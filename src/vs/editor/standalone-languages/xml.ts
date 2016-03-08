@@ -13,7 +13,6 @@ export var language = <ILanguage> {
 	defaultToken: '',
 
 	ignoreCase: true,
-	editorOptions: { tabSize: 2, insertSpaces: true },
 
 	lineComment: '', // no line comment in xml
 	blockCommentStart: '<!--',

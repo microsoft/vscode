@@ -9,7 +9,7 @@ import {Cursor} from 'vs/editor/common/controller/cursor';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import {EndOfLinePreference, EventType, Handler, IPosition, ISelection, DefaultEndOfLine} from 'vs/editor/common/editorCommon';
+import {EndOfLinePreference, EventType, Handler, IPosition, ISelection, DefaultEndOfLine, ITextModelCreationOptions} from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
 import {IMode, IRichEditSupport, IndentAction} from 'vs/editor/common/modes';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
@@ -136,12 +136,7 @@ suite('Editor Controller - Cursor', () => {
 			LINE4 + '\r\n' +
 			LINE5;
 
-		thisModel = new Model(text, {
-			tabSize: 4,
-			insertSpaces: true,
-			guessIndentation: false,
-			defaultEOL: DefaultEndOfLine.LF
-		}, null);
+		thisModel = new Model(text, Model.DEFAULT_CREATION_OPTIONS, null);
 		thisConfiguration = new MockConfiguration(null);
 		thisCursor = new Cursor(1, thisConfiguration, thisModel, null, false);
 	});
@@ -807,8 +802,6 @@ suite('Editor Controller - Regression tests', () => {
 			text: [
 				''
 			],
-			mode: null,
-			config: { insertSpaces: false, tabSize: 4 }
 		}, (model, cursor) => {
 			cursorCommand(cursor, H.Type, { text: '\n' }, null, 'keyboard');
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n', 'assert1');
@@ -862,8 +855,7 @@ suite('Editor Controller - Regression tests', () => {
 			text: [
 				'var x = (3 + (5-7));'
 			],
-			mode: new BracketMode(),
-			config: null
+			mode: new BracketMode()
 		}, (model, cursor) => {
 			// ensure is tokenized
 			model.getLineContext(1);
@@ -892,7 +884,6 @@ suite('Editor Controller - Regression tests', () => {
 				'}'
 			],
 			mode: new OnEnterMode(IndentAction.Indent),
-			config: { insertSpaces: false, tabSize: 4 }
 		}, (model, cursor) => {
 			moveTo(cursor, 4, 1, false);
 			cursorEqual(cursor, 4, 1, 4, 1);
@@ -907,8 +898,6 @@ suite('Editor Controller - Regression tests', () => {
 			text: [
 				'function baz() {'
 			],
-			mode: null,
-			config: { insertSpaces: false, tabSize: 4 }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 2, false);
 			cursorEqual(cursor, 1, 2, 1, 2);
@@ -928,7 +917,7 @@ suite('Editor Controller - Regression tests', () => {
 				'     function baz() {'
 			],
 			mode: new OnEnterMode(IndentAction.IndentOutdent),
-			config: { insertSpaces: true, tabSize: 4 }
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 6, false);
 			cursorEqual(cursor, 1, 6, 1, 6);
@@ -944,8 +933,7 @@ suite('Editor Controller - Regression tests', () => {
 			text: [
 				'      '
 			],
-			mode: null,
-			config: { insertSpaces: true, tabSize: 4 }
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 7, false);
 			cursorEqual(cursor, 1, 7, 1, 7);
@@ -967,8 +955,6 @@ suite('Editor Controller - Regression tests', () => {
 				'}',
 				''
 			],
-			mode: null,
-			config: { insertSpaces: false, tabSize: 4 }
 		}, (model, cursor) => {
 			moveTo(cursor, 7, 1, false);
 			cursorEqual(cursor, 7, 1, 7, 1);
@@ -985,13 +971,8 @@ suite('Editor Controller - Regression tests', () => {
 			'asdasd',
 			'qwerty'
 		];
-		let model = new Model(text.join('\n'), {
-			tabSize: 4,
-			insertSpaces: true,
-			guessIndentation: false,
-			defaultEOL: DefaultEndOfLine.LF
-		}, null);
-		let cursor = new Cursor(1, new MockConfiguration({ insertSpaces: false, tabSize: 4 }), model, null, true);
+		let model = new Model(text.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
+		let cursor = new Cursor(1, new MockConfiguration(null), model, null, true);
 
 		moveTo(cursor, 2, 1, false);
 		cursorEqual(cursor, 2, 1, 2, 1);
@@ -1008,13 +989,8 @@ suite('Editor Controller - Regression tests', () => {
 			'asdasd',
 			''
 		];
-		model = new Model(text.join('\n'), {
-			tabSize: 4,
-			insertSpaces: true,
-			guessIndentation: false,
-			defaultEOL: DefaultEndOfLine.LF
-		}, null);
-		cursor = new Cursor(1, new MockConfiguration({ insertSpaces: false, tabSize: 4 }), model, null, true);
+		model = new Model(text.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
+		cursor = new Cursor(1, new MockConfiguration(null), model, null, true);
 
 		moveTo(cursor, 2, 1, false);
 		cursorEqual(cursor, 2, 1, 2, 1);
@@ -1037,7 +1013,7 @@ suite('Editor Controller - Regression tests', () => {
 				'hello'
 			],
 			mode: new SurroundingMode(),
-			config: { insertSpaces: true }
+			modelOpts: { tabSize: 4, insertSpaces: true, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 3, false);
 			moveTo(cursor, 1, 5, true);
@@ -1059,7 +1035,7 @@ suite('Editor Controller - Regression tests', () => {
 				'};'
 			],
 			mode: new SurroundingMode(),
-			config: { insertSpaces: true }
+			modelOpts: { tabSize: 4, insertSpaces: true, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF }
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 2, false);
 			moveTo(cursor, 1, 14, true);
@@ -1077,8 +1053,6 @@ suite('Editor Controller - Regression tests', () => {
 			text: [
 				'abc'
 			],
-			mode: null,
-			config: null
 		}, (model, cursor) => {
 			cursorCommand(cursor, H.AddCursorDown);
 			assert.equal(cursor.getSelections().length, 1);
@@ -1091,8 +1065,6 @@ suite('Editor Controller - Regression tests', () => {
 				'abc',
 				'def'
 			],
-			mode: null,
-			config: null
 		}, (model, cursor) => {
 			moveTo(cursor, 2, 1, false);
 			cursorCommand(cursor, H.AddCursorUp);
@@ -1112,7 +1084,7 @@ suite('Editor Controller - Regression tests', () => {
 				'just some text',
 			],
 			mode: null,
-			config: null
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 1, false);
 			moveTo(cursor, 3, 4, true);
@@ -1155,11 +1127,7 @@ suite('Editor Controller - Regression tests', () => {
 				'\t};',
 				'}',
 			],
-			mode: null,
-			config: {
-				insertSpaces: true,
-				tabSize: 4
-			}
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF	}
 		}, (model, cursor) => {
 			moveTo(cursor, 3, 2, false);
 			cursorCommand(cursor, H.Tab);
@@ -1172,8 +1140,6 @@ suite('Editor Controller - Regression tests', () => {
 			text: [
 				'   /* Just some text a+= 3 +5 */  '
 			],
-			mode: null,
-			config: null
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 37, false);
 			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +5 */', '001');
@@ -1196,8 +1162,6 @@ suite('Editor Controller - Regression tests', () => {
 			text: [
 				'   /* Just some text a+= 3 +5-3 */  '
 			],
-			mode: null,
-			config: null
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 1, false);
 			deleteWordRight(cursor); assert.equal(model.getLineContent(1), '/* Just some text a+= 3 +5-3 */  ', '001');
@@ -1221,8 +1185,6 @@ suite('Editor Controller - Regression tests', () => {
 			text: [
 				'   /* Just some   more   text a+= 3 +5-3 + 7 */  '
 			],
-			mode: null,
-			config: null
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 50, false);
 
@@ -1249,8 +1211,6 @@ suite('Editor Controller - Regression tests', () => {
 			text: [
 				'   /* Just some   more   text a+= 3 +5-3 + 7 */  '
 			],
-			mode: null,
-			config: null
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 1, false);
 
@@ -1280,8 +1240,6 @@ suite('Editor Controller - Regression tests', () => {
 			text: [
 				'   /* Just some   more   text a+= 3 +5-3 + 7 */  '
 			],
-			mode: null,
-			config: null
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 1, false);
 
@@ -1363,8 +1321,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'',
 				'1'
 			],
-			mode: null,
-			config: { insertSpaces: true, tabSize: 4 }
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF }
 		}, (model, cursor) => {
 			cursorCommand(cursor, H.MoveTo, { position: new Position(1, 21) }, null, 'keyboard');
 			cursorCommand(cursor, H.Type, { text: '\n' }, null, 'keyboard');
@@ -1382,8 +1339,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'',
 				'1'
 			],
-			mode: null,
-			config: { insertSpaces: true, tabSize: 13 }
+			modelOpts: { insertSpaces: true, tabSize: 13, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF }
 		}, (model, cursor) => {
 			// Tab on column 1
 			cursorCommand(cursor, H.MoveTo, { position: new Position(2, 1) }, null, 'keyboard');
@@ -1447,7 +1403,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'\thello'
 			],
 			mode: new OnEnterMode(IndentAction.Indent),
-			config: { insertSpaces: true, tabSize: 4 }
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 7, false);
 			cursorEqual(cursor, 1, 7, 1, 7);
@@ -1463,7 +1419,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'\thello'
 			],
 			mode: new OnEnterMode(IndentAction.None),
-			config: { insertSpaces: true, tabSize: 4 }
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 7, false);
 			cursorEqual(cursor, 1, 7, 1, 7);
@@ -1479,7 +1435,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'\thell()'
 			],
 			mode: new OnEnterMode(IndentAction.IndentOutdent),
-			config: { insertSpaces: true, tabSize: 4 }
+			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF }
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 7, false);
 			cursorEqual(cursor, 1, 7, 1, 7);
@@ -1497,8 +1453,6 @@ suite('Editor Controller - Cursor Configuration', () => {
 					'Second line',
 					'Third line'
 				],
-				mode: null,
-				config: null
 			}, (model, cursor) => {
 				moveTo(cursor, lineNumber, column, false);
 				cursorEqual(cursor, lineNumber, column, lineNumber, column);
@@ -1541,8 +1495,6 @@ suite('Editor Controller - Cursor Configuration', () => {
 					'Second line',
 					'Third line'
 				],
-				mode: null,
-				config: null
 			}, (model, cursor) => {
 				moveTo(cursor, lineNumber, column, false);
 				cursorEqual(cursor, lineNumber, column, lineNumber, column);
@@ -1581,17 +1533,12 @@ suite('Editor Controller - Cursor Configuration', () => {
 interface ICursorOpts {
 	text: string[];
 	mode?: IMode;
-	config?: any;
+	modelOpts?: ITextModelCreationOptions;
 }
 
 function usingCursor(opts:ICursorOpts, callback:(model:Model, cursor:Cursor)=>void): void {
-	let model = new Model(opts.text.join('\n'), {
-		tabSize: 4,
-		insertSpaces: true,
-		guessIndentation: false,
-		defaultEOL: DefaultEndOfLine.LF
-	}, opts.mode);
-	let config = new MockConfiguration(opts.config);
+	let model = new Model(opts.text.join('\n'), opts.modelOpts || Model.DEFAULT_CREATION_OPTIONS, opts.mode);
+	let config = new MockConfiguration(null);
 	let cursor = new Cursor(1, config, model, null, false);
 
 	callback(model, cursor);

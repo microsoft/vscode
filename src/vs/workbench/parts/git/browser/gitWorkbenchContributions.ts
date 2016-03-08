@@ -239,7 +239,7 @@ class DirtyDiffModelDecorator {
 					let contentsRawText = TextModel.toRawText(contents, {
 						tabSize: originalRawText.options.tabSize,
 						insertSpaces: originalRawText.options.insertSpaces,
-						guessIndentation: false,
+						detectIndentation: false,
 						defaultEOL: originalRawText.options.defaultEOL
 					});
 

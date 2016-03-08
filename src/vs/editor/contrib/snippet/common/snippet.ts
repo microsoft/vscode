@@ -772,8 +772,8 @@ class SnippetController implements ISnippetController {
 		return typeRange;
 	}
 
-	private static _getAdaptedSnippet(editor:editorCommon.ICommonCodeEditor, model:editorCommon.IModel, snippet:CodeSnippet, typeRange:editorCommon.IEditorRange): ICodeSnippet {
-		return snippet.bind(model.getLineContent(typeRange.startLineNumber), typeRange.startLineNumber - 1, typeRange.startColumn - 1, editor);
+	private static _getAdaptedSnippet(model:editorCommon.IModel, snippet:CodeSnippet, typeRange:editorCommon.IEditorRange): ICodeSnippet {
+		return snippet.bind(model.getLineContent(typeRange.startLineNumber), typeRange.startLineNumber - 1, typeRange.startColumn - 1, model);
 	}
 
 	private static _addCommandForSnippet(model:editorCommon.ITextModel, adaptedSnippet:ICodeSnippet, typeRange:editorCommon.IEditorRange, out:editorCommon.IIdentifiedSingleEditOperation[]): void {
@@ -839,7 +839,7 @@ class SnippetController implements ISnippetController {
 			}
 		}
 
-		var adaptedSnippet = SnippetController._getAdaptedSnippet(editor, model, snippet, typeRange);
+		var adaptedSnippet = SnippetController._getAdaptedSnippet(model, snippet, typeRange);
 		return {
 			typeRange: typeRange,
 			adaptedSnippet: adaptedSnippet

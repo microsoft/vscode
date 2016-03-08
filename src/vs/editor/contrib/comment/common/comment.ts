@@ -25,10 +25,14 @@ class CommentLineAction extends EditorAction {
 	}
 
 	public run(): TPromise<void> {
+		let model = this.editor.getModel();
+		if (!model) {
+			return;
+		}
 
 		var commands: ICommand[] = [];
 		var selections = this.editor.getSelections();
-		var opts = this.editor.getIndentationOptions();
+		var opts = model.getOptions();
 
 		for (var i = 0; i < selections.length; i++) {
 			commands.push(new LineCommentCommand(selections[i], opts.tabSize, this._type));

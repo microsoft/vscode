@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import {Range} from 'vs/editor/common/core/range';
-import {IIdentifiedSingleEditOperation, DefaultEndOfLine} from 'vs/editor/common/editorCommon';
+import {IIdentifiedSingleEditOperation} from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
 
 suite('Editor Model - Model Edit Operation', () => {
@@ -25,12 +25,7 @@ suite('Editor Model - Model Edit Operation', () => {
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		model = new Model(text, {
-			tabSize: 4,
-			insertSpaces: true,
-			guessIndentation: false,
-			defaultEOL: DefaultEndOfLine.LF
-		}, null);
+		model = new Model(text, Model.DEFAULT_CREATION_OPTIONS, null);
 	});
 
 	teardown(() => {

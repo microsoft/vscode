@@ -96,17 +96,12 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			'int main() {',
 			'\tprintf("Hello world!");',
 			'}',
-		].join('\n'), {
-			tabSize: 4,
-			insertSpaces: true,
-			guessIndentation: false,
-			defaultEOL: editorCommon.DefaultEndOfLine.LF
-		}, null);
+		].join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
 
 		let linesCollection = new SplitLinesCollection(
 			model,
 			hardWrappingLineMapperFactory,
-			config.getIndentationOptions().tabSize,
+			model.getOptions().tabSize,
 			config.editor.wrappingInfo.wrappingColumn,
 			config.editor.typicalFullwidthCharacterWidth / config.editor.typicalHalfwidthCharacterWidth,
 			editorCommon.wrappingIndentFromString(config.editor.wrappingIndent)

@@ -324,12 +324,12 @@ export class FoldingController implements editorCommon.IEditorContribution {
 	}
 
 	private computeCollapsibleRegions(): TPromise<IFoldingRange[]> {
-		let tabSize = this.editor.getIndentationOptions().tabSize;
 		let model = this.editor.getModel();
 		if (!model) {
 			return TPromise.as([]);
 		}
 
+		let tabSize = model.getOptions().tabSize;
 		let ranges = computeRanges(model, tabSize);
 		return TPromise.as(ranges);
 	}

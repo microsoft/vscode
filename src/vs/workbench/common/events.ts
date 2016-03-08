@@ -88,6 +88,11 @@ export class EventType {
 	static TEXT_EDITOR_CONTENT_CHANGED = 'textEditorContentChanged';
 
 	/**
+	 * An event type that fires when a text editor content options changed.
+	 */
+	static TEXT_EDITOR_CONTENT_OPTIONS_CHANGED = 'textEditorContentOptionsChanged';
+
+	/**
 	 * An event type that fires when a text editor's configuration changes.
 	 */
 	static TEXT_EDITOR_CONFIGURATION_CHANGED = 'textEditorOptionsChanged';

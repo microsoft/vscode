@@ -237,6 +237,12 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 						// Ignore
 						break;
 
+					case editorCommon.EventType.ModelOptionsChanged:
+						revealPreviousCenteredModelRange = this._onTabSizeChange(this.model.getOptions().tabSize) || revealPreviousCenteredModelRange;
+						// TODO@Alex TODO@indent -> emit view event!
+
+						break;
+
 					case editorCommon.EventType.ModelDecorationsChanged:
 						this.onModelDecorationsChanged(<editorCommon.IModelDecorationsChangedEvent>data);
 						break;
@@ -262,7 +268,6 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 						break;
 
 					case editorCommon.EventType.ConfigurationChanged:
-						revealPreviousCenteredModelRange = this._onTabSizeChange(this.configuration.getIndentationOptions().tabSize) || revealPreviousCenteredModelRange;
 						revealPreviousCenteredModelRange = this._onWrappingIndentChange(this.configuration.editor.wrappingIndent) || revealPreviousCenteredModelRange;
 						revealPreviousCenteredModelRange = this._onWrappingColumnChange(this.configuration.editor.wrappingInfo.wrappingColumn, this.configuration.editor.typicalFullwidthCharacterWidth / this.configuration.editor.typicalHalfwidthCharacterWidth) || revealPreviousCenteredModelRange;
 						if ((<editorCommon.IConfigurationChangedEvent>data).readOnly) {
@@ -380,6 +385,10 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 		this.cursors.onCursorScrollRequest(e, (eventType:string, payload:any) => this.emit(eventType, payload));
 	}
 	// --- end inbound event conversion
+
+	public getTabSize(): number {
+		return this.model.getOptions().tabSize;
+	}
 
 	public getLineCount(): number {
 		return this.lines.getOutputLineCount();

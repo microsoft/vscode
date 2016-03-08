@@ -16,7 +16,6 @@ import WinJS = require('vs/base/common/winjs.base');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import servicesUtil2 = require('vs/editor/test/common/servicesTestUtils');
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
-import {DefaultEndOfLine} from 'vs/editor/common/editorCommon';
 
 suite('HTML - worker', () => {
 
@@ -32,12 +31,7 @@ suite('HTML - worker', () => {
 	var mockHtmlWorkerEnv = function (url: URI, content: string): { worker: htmlWorker.HTMLWorker; model: mm.MirrorModel; } {
 		var resourceService = new ResourceService.ResourceService();
 
-		var model = mm.createMirrorModelFromString(null, 0, content, {
-			tabSize: 4,
-			insertSpaces: true,
-			guessIndentation: false,
-			defaultEOL: DefaultEndOfLine.LF
-		}, mode, url);
+		var model = mm.createTestMirrorModelFromString(null, 0, content, mode, url);
 		resourceService.insert(url, model);
 
 		var markerService = new MarkerService.MainProcessMarkerService(NULL_THREAD_SERVICE);

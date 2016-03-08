@@ -606,12 +606,7 @@ suite('Colorizing - HTML', () => {
 	});
 
 	test('onEnter', function() {
-		var model = new Model('<script type=\"text/javascript\">function f() { foo(); }', {
-			tabSize: 4,
-			insertSpaces: true,
-			guessIndentation: false,
-			defaultEOL: EditorCommon.DefaultEndOfLine.LF
-		}, _mode);
+		var model = new Model('<script type=\"text/javascript\">function f() { foo(); }', Model.DEFAULT_CREATION_OPTIONS, _mode);
 
 		var actual = _mode.richEditSupport.onEnter.onEnter(model, {
 			lineNumber: 1,
@@ -625,12 +620,7 @@ suite('Colorizing - HTML', () => {
 
 	test('onEnter', function() {
 		function onEnter(line:string, offset:number): Modes.IEnterAction {
-			let model = new TextModelWithTokens([], TextModel.toRawText(line, {
-				tabSize: 4,
-				insertSpaces: true,
-				guessIndentation: false,
-				defaultEOL: EditorCommon.DefaultEndOfLine.LF
-			}), false, _mode);
+			let model = new TextModelWithTokens([], TextModel.toRawText(line, Model.DEFAULT_CREATION_OPTIONS), false, _mode);
 			let result = getRawEnterActionAtPosition(model, 1, offset + 1);
 			model.dispose();
 			return result;
@@ -673,12 +663,7 @@ suite('Colorizing - HTML', () => {
 		}
 
 		function assertBracket(lines:string[], lineNumber:number, column:number, expected:EditorCommon.IEditorRange[]): void {
-			let model = new TextModelWithTokens([], TextModel.toRawText(lines.join('\n'), {
-				tabSize: 4,
-				insertSpaces: true,
-				guessIndentation: false,
-				defaultEOL: EditorCommon.DefaultEndOfLine.LF
-			}), false, _mode);
+			let model = new TextModelWithTokens([], TextModel.toRawText(lines.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS), false, _mode);
 			// force tokenization
 			model.getLineContext(model.getLineCount());
 			let actual = model.matchBracket({

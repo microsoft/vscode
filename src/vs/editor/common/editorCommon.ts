@@ -510,18 +510,6 @@ export interface IEditorOptions {
 	 */
 	renderWhitespace?: boolean;
 	/**
-	 * Tab size in spaces. This is used for rendering and for editing.
-	 * 'auto' means the model attached to the editor will be scanned and this property will be guessed.
-	 * Defaults to 4.
-	 */
-	tabSize?:any;
-	/**
-	 * Insert spaces instead of tabs when indenting or when auto-indenting.
-	 * 'auto' means the model attached to the editor will be scanned and this property will be guessed.
-	 * Defaults to true.
-	 */
-	insertSpaces?:any;
-	/**
 	 * The font family
 	 */
 	fontFamily?: string;
@@ -647,8 +635,6 @@ export interface IInternalEditorOptions {
 
 	wrappingInfo: IEditorWrappingInfo;
 
-	indentInfo: IInternalIndentationOptions;
-
 	/**
 	 * Computed width of the container of the editor in px.
 	 */
@@ -732,7 +718,6 @@ export interface IConfigurationChangedEvent {
 	layoutInfo: boolean;
 	stylingInfo: boolean;
 	wrappingInfo: boolean;
-	indentInfo: boolean;
 	observedOuterWidth: boolean;
 	observedOuterHeight: boolean;
 	lineHeight: boolean;
@@ -1266,8 +1251,12 @@ export interface ITextModelResolvedOptions {
 export interface ITextModelCreationOptions {
 	tabSize: number;
 	insertSpaces: boolean;
-	guessIndentation: boolean;
+	detectIndentation: boolean;
 	defaultEOL: DefaultEndOfLine;
+}
+
+export interface IModelOptionsChangedEvent {
+	// TODO@Alex TODO@indent
 }
 
 /**
@@ -1330,14 +1319,6 @@ export interface ITextModel {
 	 * If count(B) > count(A) return true. Returns false otherwise.
 	 */
 	isDominatedByLongLines(longLineBoundary:number): boolean;
-
-	/**
-	 * Guess the text indentation.
-	 * @param defaultTabSize The tab size to use if `insertSpaces` is false.
-	 * If `insertSpaces` is true, then `tabSize` is relevant.
-	 * If `insertSpaces` is false, then `tabSize` is `defaultTabSize`.
-	 */
-	guessIndentation(defaultTabSize:number): IGuessedIndentation;
 
 	/**
 	 * Get the number of lines in the model.
@@ -1724,6 +1705,11 @@ export interface ITextModelWithDecorations {
  * An editable text model.
  */
 export interface IEditableTextModel extends ITextModelWithMarkers {
+
+	normalizeIndentation(str:string): string;
+
+	getOneIndent(): string;
+
 	/**
 	 * Push a stack element onto the undo stack. This acts as an undo/redo point.
 	 * The idea is to use `pushEditOperations` to edit the model and then to
@@ -2485,10 +2471,6 @@ export interface IConfiguration {
 	setLineCount(lineCount:number): void;
 
 	handlerDispatcher: IHandlerDispatcher;
-
-	getIndentationOptions(): IInternalIndentationOptions;
-	getOneIndent(): string;
-	normalizeIndentation(str:string): string;
 }
 
 // --- view
@@ -2538,6 +2520,8 @@ export interface IWhitespaceManager {
 }
 
 export interface IViewModel extends IEventEmitter, IDisposable {
+
+	getTabSize(): number;
 
 	getLineCount(): number;
 	getLineContent(lineNumber:number): string;
@@ -3095,18 +3079,6 @@ export interface ICommonCodeEditor extends IEditor {
 	 * Returns the 'raw' editor's configuration, as it was applied over the defaults, but without any computed members.
 	 */
 	getRawConfiguration(): IEditorOptions;
-
-	/**
-	 * Computed indentation options.
-	 * If either one of the `tabSize` and `insertSpaces` options is set to 'auto', this is computed based on the current attached model.
-	 * Otherwise, they are equal to `tabSize` and `insertSpaces`.
-	 */
-	getIndentationOptions(): IInternalIndentationOptions;
-
-	/**
-	 * Normalize whitespace using the editor's whitespace specific settings
-	 */
-	normalizeIndentation(str: string): string;
 
 	/**
 	 * Get value of the current model attached to this editor.
