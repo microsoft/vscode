@@ -862,7 +862,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private sendFunctionBreakpoints(): TPromise<void> {
-		if (!this.session || !this.session.readyForBreakpoints) {
+		if (!this.session || !this.session.readyForBreakpoints || !this.session.capabilities.supportsFunctionBreakpoints) {
 			return TPromise.as(null);
 		}
 
