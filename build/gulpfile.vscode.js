@@ -362,7 +362,7 @@ function prepareRpmPackage(arch) {
 function buildRpmPackage(arch) {
 	var rpmArch = getRpmPackageArch(arch);
 	return shell.task([
-		'fakeroot rpmbuild -ba ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
+		'fakeroot rpmbuild -bb ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
 	]);
 }
 
