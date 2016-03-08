@@ -129,6 +129,11 @@ export class GalleryService implements IGalleryService {
 
 	private queryCache(): TPromise<IXHRResponse> {
 		const url = this.extensionsCacheUrl;
+
+		if (!url) {
+			return TPromise.wrapError(new Error('No cache configured.'));
+		}
+
 		return this.requestService.makeRequest({ url });
 	}
 
