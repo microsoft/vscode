@@ -291,8 +291,21 @@ export class ModelServiceImpl implements IModelService {
 		}
 		this._modelCreationOptions = newOpts;
 
-		// TODO@Alex TODO@indent
-		// console.log('I NEED TO UPDATE EXISTING MODELS!!!');
+		// Update options on all models
+		for (let modelId in this._models) {
+			if (this._models.hasOwnProperty(modelId)) {
+				let modelData = this._models[modelId];
+
+				if (this._modelCreationOptions.detectIndentation) {
+					modelData.model.detectIndentation(this._modelCreationOptions.insertSpaces, this._modelCreationOptions.tabSize);
+				} else {
+					modelData.model.updateOptions({
+						insertSpaces: this._modelCreationOptions.insertSpaces,
+						tabSize:  this._modelCreationOptions.tabSize
+					});
+				}
+			}
+		}
 	}
 
 	public dispose(): void {
