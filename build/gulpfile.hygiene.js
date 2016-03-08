@@ -8,6 +8,7 @@ var filter = require('gulp-filter');
 var es = require('event-stream');
 var gulptslint = require('gulp-tslint');
 var tslint = require('tslint');
+var os = require('os');
 
 var all = [
 	'*',
@@ -90,7 +91,7 @@ var copyrightHeader = [
 	' *  Copyright (c) Microsoft Corporation. All rights reserved.',
 	' *  Licensed under the MIT License. See License.txt in the project root for license information.',
 	' *--------------------------------------------------------------------------------------------*/'
-].join('\n');
+].join(os.EOL);
 
 function failureReporter(failure) {
 	var name = failure.name || failure.fileName;
