@@ -252,7 +252,9 @@ exports.loadSourcemaps = function () {
 
 exports.rimraf = function(dir) {
 	return function (cb) {
-		rimraf(dir, cb);
+		rimraf(dir, {
+			maxBusyTries: 1
+		}, cb);
 	};
 };
 

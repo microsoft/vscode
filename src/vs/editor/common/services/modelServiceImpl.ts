@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IEmitterEvent} from 'vs/base/common/eventEmitter';
@@ -26,6 +27,7 @@ import {IResourceService} from 'vs/editor/common/services/resourceService';
 import * as platform from 'vs/base/common/platform';
 import {IConfigurationService, ConfigurationServiceEventTypes, IConfigurationServiceEvent} from 'vs/platform/configuration/common/configuration';
 import {DEFAULT_INDENTATION} from 'vs/editor/common/config/defaultConfig';
+import {IMessageService} from 'vs/platform/message/common/message';
 
 export interface IRawModelData {
 	url:URI;
@@ -188,6 +190,7 @@ export class ModelServiceImpl implements IModelService {
 	private _markerServiceSubscription: IDisposable;
 	private _threadService: IThreadService;
 	private _modeService: IModeService;
+	private _messageService: IMessageService;
 	private _configurationService: IConfigurationService;
 	private _configurationServiceSubscription: IDisposable;
 	private _workerHelper: ModelServiceWorkerHelper;
@@ -198,6 +201,8 @@ export class ModelServiceImpl implements IModelService {
 
 	private _modelCreationOptions: editorCommon.ITextModelCreationOptions;
 
+	private _hasShownMigrationMessage: boolean;
+
 	/**
 	 * All the models known in the system.
 	 */
@@ -207,7 +212,8 @@ export class ModelServiceImpl implements IModelService {
 		threadService: IThreadService,
 		markerService: IMarkerService,
 		modeService: IModeService,
-		configurationService: IConfigurationService
+		configurationService: IConfigurationService,
+		messageService: IMessageService
 	) {
 		this._modelCreationOptions = {
 			tabSize: DEFAULT_INDENTATION.tabSize,
@@ -220,9 +226,13 @@ export class ModelServiceImpl implements IModelService {
 		this._modeService = modeService;
 		this._workerHelper = this._threadService.getRemotable(ModelServiceWorkerHelper);
 		this._configurationService = configurationService;
+		this._messageService = messageService;
+		this._hasShownMigrationMessage = false;
 
 		let readConfig = (config:IRawConfig) => {
 			const eol = config.files && config.files.eol;
+
+			let shouldShowMigrationMessage = false;
 
 			let tabSize = DEFAULT_INDENTATION.tabSize;
 			if (config.editor && typeof config.editor.tabSize !== 'undefined') {
@@ -230,11 +240,13 @@ export class ModelServiceImpl implements IModelService {
 				if (!isNaN(parsedTabSize)) {
 					tabSize = parsedTabSize;
 				}
+				shouldShowMigrationMessage = shouldShowMigrationMessage || (config.editor.tabSize === 'auto');
 			}
 
 			let insertSpaces = DEFAULT_INDENTATION.insertSpaces;
 			if (config.editor && typeof config.editor.insertSpaces !== 'undefined') {
 				insertSpaces = (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
+				shouldShowMigrationMessage = shouldShowMigrationMessage || (config.editor.insertSpaces === 'auto');
 			}
 
 			let newDefaultEOL = this._modelCreationOptions.defaultEOL;
@@ -256,6 +268,11 @@ export class ModelServiceImpl implements IModelService {
 				defaultEOL: newDefaultEOL
 			});
 
+
+			if (shouldShowMigrationMessage && !this._hasShownMigrationMessage) {
+				this._hasShownMigrationMessage = true;
+				this._messageService.show(Severity.Info, nls.localize('indentAutoMigrate', "Please update your settings: `editor.detectIndentation` replaces `editor.tabSize`: \"auto\" or `editor.insertSpaces`: \"auto\""));
+			}
 		};
 		this._configurationServiceSubscription = this._configurationService.addListener2(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
 			readConfig(e.config);

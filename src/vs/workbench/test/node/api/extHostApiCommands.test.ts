@@ -71,7 +71,8 @@ suite('ExtHostLanguageFeatureCommands', function() {
 			getModels(): any { throw new Error(); },
 			onModelAdded: undefined,
 			onModelModeChanged: undefined,
-			onModelRemoved: undefined
+			onModelRemoved: undefined,
+			getCreationOptions(): any { throw new Error(); }
 		});
 
 		threadService.getRemotable(ExtHostModelService)._acceptModelAdd({
