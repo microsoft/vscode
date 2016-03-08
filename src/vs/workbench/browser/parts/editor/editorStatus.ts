@@ -19,7 +19,9 @@ import {IMode} from 'vs/editor/common/modes';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {IFileEditorInput, EncodingMode, IEncodingSupport, asFileEditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
 import {IDisposable, combinedDispose} from 'vs/base/common/lifecycle';
+import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {EndOfLineSequence, ITokenizedModel, EditorType, IEditorSelection, ITextModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
 import {IndentUsingSpaces, IndentUsingTabs, IndentationToSpacesAction, IndentationToTabsAction} from 'vs/editor/contrib/indentation/common/indentation';
@@ -626,6 +628,8 @@ export class ChangeModeAction extends Action {
 		actionLabel: string,
 		@IModeService private modeService: IModeService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IMessageService private messageService: IMessageService,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super(actionId, actionLabel);
@@ -667,11 +671,23 @@ export class ChangeModeAction extends Action {
 			label: nls.localize('autoDetect', "Auto Detect")
 		};
 
+		// Offer action to configure via settings
+		let configureModeAssociations: IPickOpenEntry = {
+			label: nls.localize('configureAssociations', "Configure in Settings...")
+		};
+		picks.unshift(configureModeAssociations);
+		selectedIndex++;
+
+		let separatorIndex = 1;
+
 		if (asFileEditorInput(activeEditor.input, true)) {
 			picks.unshift(autoDetectMode); // first entry
-			picks[1].separator = { border: true };
-			selectedIndex++; // pushes selected index down
+
+			selectedIndex++;
+			separatorIndex++;
 		}
+
+		picks[separatorIndex].separator = { border: true, label: nls.localize('languagesPicks', "languages") };
 
 		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode"), autoFocus: { autoFocusIndex: selectedIndex } }).then((language) => {
 			if (language) {
@@ -694,6 +710,11 @@ export class ChangeModeAction extends Action {
 					if (language === autoDetectMode) {
 						let fileResource = asFileEditorInput(activeEditor.input, true).getResource();
 						mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(fileResource.fsPath, textModel.getLineContent(1));
+					} else if (language === configureModeAssociations) {
+						const action = this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL);
+						action.run().done(() => action.dispose(), errors.onUnexpectedError);
+
+						this.messageService.show(Severity.Info, nls.localize('persistFileAssociations', "You can configure filename to language associations from the **files.associations** section"));
 					} else {
 						mode = this.modeService.getOrCreateModeByLanguageName(language.label);
 					}
