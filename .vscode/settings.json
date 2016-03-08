@@ -11,6 +11,7 @@
 		"**/bower_components": true,
 		".build/**": true,
 		"out*/**": true,
+		"i18n/**": true,
 		"extensions/**/out/**": true
 	},
 	"tslint.enable": true,
