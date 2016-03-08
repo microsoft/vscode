@@ -750,20 +750,17 @@ configurationRegistry.registerConfiguration({
 			'type': 'number',
 			'default': DEFAULT_INDENTATION.tabSize,
 			'minimum': 1,
-			// TODO@Alex TODO@indent
-			'description': nls.localize('tabSize', "Controls the rendering size of tabs in characters. Accepted values: 2, 4, 6, etc. If set to \"auto\", the value will be guessed when a file is opened.")
+			'description': nls.localize('tabSize', "The number of spaces a tab is equal to.")
 		},
 		'editor.insertSpaces' : {
 			'type': 'boolean',
 			'default': DEFAULT_INDENTATION.insertSpaces,
-			// TODO@Alex TODO@indent
-			'description': nls.localize('insertSpaces', "Controls if the editor will insert spaces for tabs. Accepted values:  \"auto\", true, false. If set to \"auto\", the value will be guessed when a file is opened.")
+			'description': nls.localize('insertSpaces', "Insert spaces when pressing Tab.")
 		},
 		'editor.detectIndentation' : {
 			'type': 'boolean',
 			'default': DEFAULT_INDENTATION.detectIndentation,
-			// TODO@Alex TODO@indent
-			'description': nls.localize('detectIndentation', "Controls if the editor will insert spaces for tabs. Accepted values:  \"auto\", true, false. If set to \"auto\", the value will be guessed when a file is opened.")
+			'description': nls.localize('detectIndentation', "When opening a file, `editor.tabSize` and `editor.insertSpaces` will be detected based on the file contents.")
 		},
 		'editor.roundedSelection' : {
 			'type': 'boolean',
