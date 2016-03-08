@@ -808,7 +808,7 @@ export class TreeModel extends Events.EventEmitter {
 			this.addEmitter2(this.registry),
 			this.registry.addListener2('item:dispose', (event: IItemDisposeEvent) => {
 				event.item.getAllTraits()
-					.forEach(trait => delete this.traitsToItems[trait][event.item.id]);
+					.forEach(trait => this.removeTraits(trait, [event.item]));
 			})
 		);
 
@@ -1126,8 +1126,6 @@ export class TreeModel extends Events.EventEmitter {
 
 	public setFocus(element?: any, eventPayload?: any): void {
 		this.setTraits('focused', element ? [element] : []);
-		var eventData: _.IFocusEvent = { focus: this.getFocus(), payload: eventPayload };
-		this.emit('focus', eventData);
 	}
 
 	public isFocused(element: any): boolean {
