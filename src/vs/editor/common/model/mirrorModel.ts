@@ -293,9 +293,8 @@ class EmbeddedModeRange {
 	}
 }
 
-// TODO@Alex TODO@indent - move this to the /test/ folder
-export function createTestMirrorModelFromString(resourceService:IResourceService, versionId:number, value:string, mode:IMode, associatedResource?:URI): MirrorModel {
-	return new MirrorModel(resourceService, versionId, TextModel.toRawText(value, TextModel.DEFAULT_CREATION_OPTIONS), mode, associatedResource);
+export function createTestMirrorModelFromString(value:string, mode:IMode = null, associatedResource?:URI): MirrorModel {
+	return new MirrorModel(null, 0, TextModel.toRawText(value, TextModel.DEFAULT_CREATION_OPTIONS), mode, associatedResource);
 }
 
 export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMirrorModel {

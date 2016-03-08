@@ -31,7 +31,7 @@ suite('HTML - worker', () => {
 	var mockHtmlWorkerEnv = function (url: URI, content: string): { worker: htmlWorker.HTMLWorker; model: mm.MirrorModel; } {
 		var resourceService = new ResourceService.ResourceService();
 
-		var model = mm.createTestMirrorModelFromString(null, 0, content, mode, url);
+		var model = mm.createTestMirrorModelFromString(content, mode, url);
 		resourceService.insert(url, model);
 
 		var markerService = new MarkerService.MainProcessMarkerService(NULL_THREAD_SERVICE);

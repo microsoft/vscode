@@ -33,7 +33,7 @@ suite('JSON - Worker', () => {
 	};
 
 	function mockWorkerEnv(url: URI, content: string): { worker: jsonworker.JSONWorker; model: EditorCommon.IMirrorModel; } {
-		var mm = mirrorModel.createTestMirrorModelFromString(null, 1, content, modesUtil.createMockMode('mock.mode.id'), url);
+		var mm = mirrorModel.createTestMirrorModelFromString(content, null, url);
 
 		var resourceModelMock: IResourceService = new resourceService.ResourceService();
 		resourceModelMock.insert(url, mm);
