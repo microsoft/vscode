@@ -38,8 +38,9 @@ ${ indent }--locale=LOCALE       Use a specific locale, "pseudo" can be used to 
 ${ indent }                      localization.
 ${ indent }-n, --new-window      Force a new instance of Code.
 ${ indent }-r, --reuse-window    Force opening a file or folder in the last active
-${ indent }                      window.
-${ indent }-v, --version         Print version.`;
+${ indent }                      window.2
+${ indent }-v, --version         Print version.
+${ indent }-w, --wait            Wait for the window to be closed before returning.`;
 	}
 }
 
@@ -52,7 +53,11 @@ export function main(argv: string[]) {
 		console.log(packageJson.version);
 	} else {
 		delete process.env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
-		spawn(process.execPath, process.argv.slice(2), { detached: true, stdio: 'ignore' });
+		if (argParser.hasFlag('wait', 'w')) {
+			spawn(process.execPath, process.argv.slice(2), { stdio: 'ignore' });
+		} else {
+			spawn(process.execPath, process.argv.slice(2), { detached: true, stdio: 'ignore' });
+		}
 	}
 
 	process.exit(0);
