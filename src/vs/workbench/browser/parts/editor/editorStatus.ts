@@ -669,6 +669,7 @@ export class ChangeModeAction extends Action {
 
 		if (asFileEditorInput(activeEditor.input, true)) {
 			picks.unshift(autoDetectMode); // first entry
+			picks[1].separate = true;
 			selectedIndex++; // pushes selected index down
 		}
 
