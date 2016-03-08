@@ -1007,7 +1007,7 @@ if (Env.enableTasks) {
 						'severity': {
 							'type': 'string',
 							'enum': ['error', 'warning', 'info'],
-							'description': nls.localize('JsonSchema.problemMatcher.severity', 'The default severity for captures problems. Is used if the pattern doesn\' define a match group for severity.')
+							'description': nls.localize('JsonSchema.problemMatcher.severity', 'The default severity for captures problems. Is used if the pattern doesn\'t define a match group for severity.')
 						},
 						'applyTo': {
 							'type': 'string',
