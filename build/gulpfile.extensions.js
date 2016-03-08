@@ -34,10 +34,16 @@ var tasks = compilations.map(function(tsconfigFile) {
 
 	var globRelativeDirname = path.dirname(tsconfigFile);
 	var name = globRelativeDirname.replace(/\//g, '-');
+
+	// Tasks
 	var clean = 'clean-extension:' + name;
 	var compile = 'compile-extension:' + name;
-	var compileBuild = 'compile-build-extension:' + name;
 	var watch = 'watch-extension:' + name;
+
+	// Build Tasks
+	var cleanBuild = 'clean-extension-build:' + name;
+	var compileBuild = 'compile-extension-build:' + name;
+	var watchBuild = 'watch-extension-build:' + name;
 
 	var pipeline = (function () {
 		var reporter = quiet ? null : createReporter();
@@ -91,14 +97,6 @@ var tasks = compilations.map(function(tsconfigFile) {
 			.pipe(gulp.dest(out));
 	});
 
-	gulp.task(compileBuild, [clean], function () {
-		var input = gulp.src(src, srcOpts);
-
-		return input
-			.pipe(pipeline(true))
-			.pipe(gulp.dest(out));
-	});
-
 	gulp.task(watch, [clean], function () {
 		var input = gulp.src(src, srcOpts);
 		var watchInput = watcher(src, srcOpts);
@@ -108,15 +106,41 @@ var tasks = compilations.map(function(tsconfigFile) {
 			.pipe(gulp.dest(out));
 	});
 
+	gulp.task(cleanBuild, function (cb) {
+		rimraf(out, cb);
+	});
+
+	gulp.task(compileBuild, [clean], function () {
+		var input = gulp.src(src, srcOpts);
+
+		return input
+			.pipe(pipeline(true))
+			.pipe(gulp.dest(out));
+	});
+
+	gulp.task(watchBuild, [clean], function () {
+		var input = gulp.src(src, srcOpts);
+		var watchInput = watcher(src, srcOpts);
+
+		return watchInput
+			.pipe(util.incremental(function () { return pipeline(true); }, input))
+			.pipe(gulp.dest(out));
+	});
+
 	return {
 		clean: clean,
 		compile: compile,
+		watch: watch,
+		cleanBuild: cleanBuild,
 		compileBuild: compileBuild,
-		watch: watch
+		watchBuild: watchBuild
 	};
 });
 
 gulp.task('clean-extensions', tasks.map(function (t) { return t.clean; }));
 gulp.task('compile-extensions', tasks.map(function (t) { return t.compile; }));
-gulp.task('compile-build-extensions', tasks.map(function (t) { return t.compileBuild; }));
 gulp.task('watch-extensions', tasks.map(function (t) { return t.watch; }));
+
+gulp.task('clean-extensions-build', tasks.map(function (t) { return t.cleanBuild; }));
+gulp.task('compile-extensions-build', tasks.map(function (t) { return t.compileBuild; }));
+gulp.task('watch-extensions-build', tasks.map(function (t) { return t.watchBuild; }));

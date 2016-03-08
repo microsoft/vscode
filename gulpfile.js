@@ -105,9 +105,9 @@ gulp.task('compile-client', ['clean-client'], compileTask('out', false));
 gulp.task('watch-client', ['clean-client'], watchTask('out', false));
 
 // Full compile, including nls and inline sources in sourcemaps, for build
-gulp.task('clean-build', util.rimraf('out-build'));
-gulp.task('compile-build', ['clean-build'], compileTask('out-build', true));
-gulp.task('watch-build', ['clean-build'], watchTask('out-build', true));
+gulp.task('clean-client-build', util.rimraf('out-build'));
+gulp.task('compile-client-build', ['clean-client-build'], compileTask('out-build', true));
+gulp.task('watch-client-build', ['clean-client-build'], watchTask('out-build', true));
 
 // Default
 gulp.task('default', ['compile']);
@@ -116,6 +116,11 @@ gulp.task('default', ['compile']);
 gulp.task('clean', ['clean-client', 'clean-extensions']);
 gulp.task('compile', ['compile-client', 'compile-extensions']);
 gulp.task('watch', ['watch-client', 'watch-extensions']);
+
+// All Build
+gulp.task('clean-build', ['clean-client-build', 'clean-extensions-build']);
+gulp.task('compile-build', ['compile-client-build', 'compile-extensions-build']);
+gulp.task('watch-build', ['watch-client-build', 'watch-extensions-build']);
 
 gulp.task('test', function () {
 	return gulp.src('test/all.js')
