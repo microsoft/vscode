@@ -11,7 +11,7 @@
 		"vscode": "*"
 	},
 	"dependencies": {
-		"vscode-extension-telemetry": "^0.0.4",
+		"vscode-extension-telemetry": "^0.0.5",
 		"vscode-nls": "^1.0.4"
 	},
 	"scripts": {
