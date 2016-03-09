@@ -106,7 +106,7 @@ export class ASTNode {
 			if ((<string[]>schema.type).indexOf(this.type) === -1) {
 				validationResult.warnings.push({
 					location: { start: this.start, end: this.end },
-					message: localize('typeArrayMismatchWarning', 'Incorrect type. Expected one of {0}', (<string[]>schema.type).join(', '))
+					message: schema.errorMessage || localize('typeArrayMismatchWarning', 'Incorrect type. Expected one of {0}', (<string[]>schema.type).join(', '))
 				});
 			}
 		}
@@ -114,7 +114,7 @@ export class ASTNode {
 			if (this.type !== schema.type) {
 				validationResult.warnings.push({
 					location: { start: this.start, end: this.end },
-					message: localize('typeMismatchWarning', 'Incorrect type. Expected "{0}"', schema.type)
+					message: schema.errorMessage || localize('typeMismatchWarning', 'Incorrect type. Expected "{0}"', schema.type)
 				});
 			}
 		}

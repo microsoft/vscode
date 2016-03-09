@@ -105,7 +105,7 @@ export class ASTNode {
 			if (Arrays.contains(<string[]> schema.type, this.type) === false) {
 				validationResult.warnings.push({
 					location: { start: this.start, end: this.end },
-					message: nls.localize('typeArrayMismatchWarning', 'Incorrect type. Expected one of {0}', (<string[]> schema.type).join())
+					message: schema.errorMessage || nls.localize('typeArrayMismatchWarning', 'Incorrect type. Expected one of {0}', (<string[]> schema.type).join())
 				});
 			}
 		}
@@ -113,7 +113,7 @@ export class ASTNode {
 			if (this.type !== schema.type) {
 				validationResult.warnings.push({
 					location: { start: this.start, end: this.end },
-					message: nls.localize('typeMismatchWarning', 'Incorrect type. Expected "{0}"', schema.type)
+					message: schema.errorMessage || nls.localize('typeMismatchWarning', 'Incorrect type. Expected "{0}"', schema.type)
 				});
 			}
 		}

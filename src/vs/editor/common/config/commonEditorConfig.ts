@@ -752,12 +752,14 @@ configurationRegistry.registerConfiguration({
 			'type': 'number',
 			'default': DEFAULT_INDENTATION.tabSize,
 			'minimum': 1,
-			'description': nls.localize('tabSize', "The number of spaces a tab is equal to.")
+			'description': nls.localize('tabSize', "The number of spaces a tab is equal to."),
+			'errorMessage': nls.localize('tabSize.errorMessage', "Expected 'number'. Note that the value \"auto\" has been replaced by the `editor.detectIndentation` setting.")
 		},
 		'editor.insertSpaces' : {
 			'type': 'boolean',
 			'default': DEFAULT_INDENTATION.insertSpaces,
-			'description': nls.localize('insertSpaces', "Insert spaces when pressing Tab.")
+			'description': nls.localize('insertSpaces', "Insert spaces when pressing Tab."),
+			'errorMessage': nls.localize('insertSpaces.errorMessage', "Expected 'boolean'. Note that the value \"auto\" has been replaced by the `editor.detectIndentation` setting.")
 		},
 		'editor.detectIndentation' : {
 			'type': 'boolean',
