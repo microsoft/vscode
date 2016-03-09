@@ -8,7 +8,7 @@ import 'vs/css!./keybindings';
 import * as nls from 'vs/nls';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {KeyCode, Keybinding} from 'vs/base/common/keyCodes';
-import {IDisposable} from 'vs/base/common/lifecycle';
+import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
@@ -18,6 +18,7 @@ import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolv
 import {ICommandHandler, IKeybindingContextKey, IKeybindingItem, IKeybindingScopeLocation, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IMessageService} from 'vs/platform/message/common/message';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 
 let KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
@@ -43,12 +44,56 @@ export class KeybindingContext {
 		delete this._value[key];
 	}
 
-	public getValue(): any {
-		let r = this._parent ? this._parent.getValue() : Object.create(null);
-		for (let key in this._value) {
-			r[key] = this._value[key];
+	public fillInContext(bucket: any): void {
+		if (this._parent) {
+			this._parent.fillInContext(bucket);
 		}
-		return r;
+		for (let key in this._value) {
+			bucket[key] = this._value[key];
+		}
+	}
+}
+
+export class ConfigurationContext {
+
+	private _subscription: IDisposable;
+	private _values: any;
+
+	constructor(configurationService: IConfigurationService) {
+		this._subscription = configurationService.onDidUpdateConfiguration(e => this._updateConfigurationContext(e.config));
+		configurationService.loadConfiguration().then(config => this._updateConfigurationContext(config));
+	}
+
+	public dispose() {
+		this._subscription.dispose();
+	}
+
+	private _updateConfigurationContext(config: any) {
+		this._values = Object.create(null);
+		const walk = (obj: any, keys: string[]) => {
+			for (let key in obj) {
+				if (Object.prototype.hasOwnProperty.call(obj, key)) {
+					keys.push(key);
+					let value = obj[key];
+					if (typeof value === 'boolean') {
+						this._values[keys.join('.')] = value;
+					} else if (typeof value === 'object') {
+						walk(value, keys);
+					}
+					keys.pop();
+				}
+			}
+		};
+		walk(config, ['config']);
+	}
+
+
+	public fillInContext(bucket: any): void {
+		if (this._values) {
+			for (let key in this._values) {
+				bucket[key] = this._values[key];
+			}
+		}
 	}
 }
 
@@ -137,13 +182,14 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 		[contextId: string]: KeybindingContext;
 	};
 
-	private _toDispose: IDisposable;
+	private _toDispose: IDisposable[] = [];
+	private _configurationContext: ConfigurationContext;
 	private _cachedResolver: KeybindingResolver;
 	private _firstTimeComputingResolver: boolean;
 	private _currentChord: number;
 	private _currentChordStatusMessage: IDisposable;
 
-	constructor() {
+	constructor(configurationService: IConfigurationService) {
 		super(0);
 		this._lastContextId = 0;
 		this._contexts = Object.create(null);
@@ -152,13 +198,15 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 		this._firstTimeComputingResolver = true;
 		this._currentChord = 0;
 		this._currentChordStatusMessage = null;
+		this._configurationContext = new ConfigurationContext(configurationService);
+		this._toDispose.push(this._configurationContext);
 	}
 
 	protected _beginListening(domNode: HTMLElement): void {
-		this._toDispose = dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		this._toDispose.push(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let keyEvent = new StandardKeyboardEvent(e);
 			this._dispatch(keyEvent);
-		});
+		}));
 	}
 
 	private _getResolver(): KeybindingResolver {
@@ -170,10 +218,7 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 	}
 
 	public dispose(): void {
-		if (this._toDispose) {
-			this._toDispose.dispose();
-			this._toDispose = null;
-		}
+		this._toDispose = disposeAll(this._toDispose);
 	}
 
 	public getLabelFor(keybinding: Keybinding): string {
@@ -231,10 +276,10 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 			return;
 		}
 
-		let contextId = this._findContextAttr(e.target);
-		let context = this.getContext(contextId);
-		let contextValue = context.getValue();
-		//		console.log(JSON.stringify(contextValue, null, '\t'));
+		let contextValue = Object.create(null);
+		this.getContext(this._findContextAttr(e.target)).fillInContext(contextValue);
+		this._configurationContext.fillInContext(contextValue);
+		// console.log(JSON.stringify(contextValue, null, '\t'));
 
 		let resolveResult = this._getResolver().resolve(contextValue, this._currentChord, e.asKeybinding());
 
@@ -313,11 +358,9 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 
 	public executeCommand(commandId: string, args: any = {}): TPromise<any> {
 		if (!args.context) {
-			let contextId = this._findContextAttr(<HTMLElement>document.activeElement);
-			let context = this.getContext(contextId);
-			let contextValue = context.getValue();
-
-			args.context = contextValue;
+			args.context = Object.create(null);
+			this.getContext(this._findContextAttr(<HTMLElement>document.activeElement)).fillInContext(args.context);
+			this._configurationContext.fillInContext(args.context);
 		}
 
 		return this._invokeHandler(commandId, args);

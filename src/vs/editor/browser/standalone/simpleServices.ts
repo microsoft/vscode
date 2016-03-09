@@ -11,6 +11,7 @@ import {Schemas} from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {ConfigurationService, IContent, IStat} from 'vs/platform/configuration/common/configurationService';
 import {IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, ITextEditorModel, Position} from 'vs/platform/editor/common/editor';
 import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
@@ -217,8 +218,8 @@ export class StandaloneKeybindingService extends KeybindingService {
 	private _dynamicKeybindings: IKeybindingItem[];
 	private _dynamicCommands: ICommandsMap;
 
-	constructor(domNode: HTMLElement) {
-		super();
+	constructor(configurationService: IConfigurationService, domNode: HTMLElement) {
+		super(configurationService);
 
 		this._dynamicKeybindings = [];
 		this._dynamicCommands = Object.create(null);

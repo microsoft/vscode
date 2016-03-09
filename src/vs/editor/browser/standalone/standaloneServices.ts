@@ -127,7 +127,7 @@ export function ensureDynamicPlatformServices(domElement:HTMLElement, services: 
 	var r:IDisposable[] = [];
 
 	if (typeof services.keybindingService === 'undefined') {
-		var keybindingService = new StandaloneKeybindingService(domElement);
+		var keybindingService = new StandaloneKeybindingService(services.configurationService, domElement);
 		r.push(keybindingService);
 		services.keybindingService = keybindingService;
 	}

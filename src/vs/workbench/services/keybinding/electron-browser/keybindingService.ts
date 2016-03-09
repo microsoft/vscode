@@ -20,6 +20,7 @@ import {IKeybindingItem, IUserFriendlyKeybinding} from 'vs/platform/keybinding/c
 import {ICommandRule, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {Registry} from 'vs/platform/platform';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {EventType, OptionsChangeEvent} from 'vs/workbench/common/events';
 import {getNativeLabelProvider, getNativeAriaLabelProvider} from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
@@ -120,8 +121,8 @@ export class WorkbenchKeybindingService extends KeybindingService {
 	private _extensionService: IExtensionService;
 	private _eventService: IEventService;
 
-	constructor(contextService: IWorkspaceContextService, eventService: IEventService, telemetryService: ITelemetryService, domNode: HTMLElement) {
-		super();
+	constructor(configurationService: IConfigurationService, contextService: IWorkspaceContextService, eventService: IEventService, telemetryService: ITelemetryService, domNode: HTMLElement) {
+		super(configurationService);
 		this.contextService = contextService;
 		this.eventService = eventService;
 		this.telemetryService = telemetryService;
