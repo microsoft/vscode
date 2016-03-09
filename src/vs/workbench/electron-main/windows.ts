@@ -353,6 +353,13 @@ export class WindowsManager {
 			process.exit(code);
 		});
 
+		ipc.on('vscode:closeExtensionHostWindow', (event, extensionDevelopmentPath: string) => {
+			const windowOnExtension = this.findWindow(null, null, extensionDevelopmentPath);
+			if (windowOnExtension) {
+				windowOnExtension.win.close();
+			}
+		});
+
 		UpdateManager.on('update-downloaded', (update: IUpdate) => {
 			this.sendToFocused('vscode:telemetry', { eventName: 'update:downloaded', data: { version: update.version } });
 
@@ -764,7 +771,7 @@ export class WindowsManager {
 		if (!vscodeWindow) {
 			vscodeWindow = new window.VSCodeWindow({
 				state: this.getNewWindowState(configuration),
-				isPluginDevelopmentHost: !!configuration.extensionDevelopmentPath
+				extensionDevelopmentPath: configuration.extensionDevelopmentPath
 			});
 
 			WindowsManager.WINDOWS.push(vscodeWindow);
@@ -949,7 +956,7 @@ export class WindowsManager {
 		return null;
 	}
 
-	public findWindow(workspacePath: string, filePath?: string): window.VSCodeWindow {
+	public findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): window.VSCodeWindow {
 		if (WindowsManager.WINDOWS.length) {
 
 			// Sort the last active window to the front of the array of windows to test
@@ -975,6 +982,11 @@ export class WindowsManager {
 
 				// match on file path
 				if (typeof w.openedWorkspacePath === 'string' && filePath && paths.isEqualOrParent(filePath, w.openedWorkspacePath)) {
+					return true;
+				}
+
+				// match on extension development path
+				if (typeof extensionDevelopmentPath === 'string' && w.extensionDevelopmentPath === extensionDevelopmentPath) {
 					return true;
 				}
 
