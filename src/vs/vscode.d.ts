@@ -848,7 +848,7 @@ declare namespace vscode {
 		 *
 		 * @param endOfLine The new end of line for the [document](#Document).
 		 */
-		setEndOfLine(endOfLine:EndOfLine): void;
+		setEndOfLine(endOfLine: EndOfLine): void;
 	}
 
 	/**
