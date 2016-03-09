@@ -724,7 +724,7 @@ export class SelectActionItem extends BaseActionItem {
 	private select: HTMLSelectElement;
 	private options: string[];
 	private selected: number;
-	private toDispose: lifecycle.IDisposable[];
+	protected toDispose: lifecycle.IDisposable[];
 
 	constructor(ctx: any, action: IAction, options: string[], selected: number) {
 		super(ctx, action);

@@ -99,6 +99,11 @@ export interface IOutputService {
 	 * Allows to register on a new Output channel getting filled with output
 	 */
 	onOutputChannel: Event<string>;
+
+	/**
+	 * Allows to register on active output channel change
+	 */
+	onActiveOutputChannel: Event<string>;
 }
 
 export interface IOutputChannelRegistry {

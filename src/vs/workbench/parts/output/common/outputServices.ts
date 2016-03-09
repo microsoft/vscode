@@ -30,6 +30,7 @@ export class OutputService implements IOutputService {
 
 	private _onOutput: Emitter<IOutputEvent>;
 	private _onOutputChannel: Emitter<string>;
+	private _onActiveOutputChannel: Emitter<string>;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -40,6 +41,7 @@ export class OutputService implements IOutputService {
 	) {
 		this._onOutput = new Emitter<IOutputEvent>();
 		this._onOutputChannel = new Emitter<string>();
+		this._onActiveOutputChannel = new Emitter<string>();
 
 		this.receivedOutput = Object.create(null);
 
@@ -53,6 +55,10 @@ export class OutputService implements IOutputService {
 
 	public get onOutputChannel(): Event<string> {
 		return this._onOutputChannel.event;
+	}
+
+	public get onActiveOutputChannel(): Event<string> {
+		return this._onActiveOutputChannel.event;
 	}
 
 	public append(channel: string, output: string): void {
@@ -114,6 +120,7 @@ export class OutputService implements IOutputService {
 	public showOutput(channel: string, preserveFocus?: boolean): TPromise<IEditor> {
 		this.activeChannel = channel;
 		this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel, StorageScope.WORKSPACE);
+		this._onActiveOutputChannel.fire(channel); // emit event that we a new channel is active
 
 		return this.panelService.openPanel(OUTPUT_PANEL_ID, !preserveFocus).then((outputPanel: OutputPanel) => {
 			return outputPanel && outputPanel.setInput(OutputEditorInput.getInstance(this.instantiationService, channel), EditorOptions.create({ preserveFocus: preserveFocus })).
