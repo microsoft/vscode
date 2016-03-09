@@ -202,6 +202,9 @@ export class FoldingController implements editorCommon.IEditorContribution {
 		if (!model) {
 			return;
 		}
+		if (!this.editor.getConfiguration().folding) {
+			return;
+		}
 		if (!state || !Array.isArray(state.collapsedRegions) || state.collapsedRegions.length === 0 || state.lineCount !== model.getLineCount()) {
 			return;
 		}
