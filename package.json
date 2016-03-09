@@ -60,7 +60,7 @@
             "python"
           ]
         },
-        "program": "./out/client/debugger/main.js",
+        "program": "./out/client/debugger/Main.js",
         "runtime": "node",
         "configurationAttributes": {
           "launch": {
