@@ -797,6 +797,20 @@ declare namespace vscode {
 	}
 
 	/**
+	 * Represents an end of line character sequence in a [document](#Document).
+	 */
+	export enum EndOfLine {
+		/**
+		 * The line feed `\n` character.
+		 */
+		LF = 1,
+		/**
+		 * The carriage return line feed `\r\n` sequence.
+		 */
+		CRLF = 2
+	}
+
+	/**
 	 * A complex edit that will be applied in one transaction on a TextEditor.
 	 * This holds a description of the edits and if the edits are valid (i.e. no overlapping regions, document was not changed in the meantime, etc.)
 	 * they can be applied on a [document](#Document) associated with a [text editor](#TextEditor).
@@ -828,6 +842,13 @@ declare namespace vscode {
 		 * @param location The range this operation should remove.
 		 */
 		delete(location: Range | Selection): void;
+
+		/**
+		 * Set the end of line sequence.
+		 *
+		 * @param endOfLine The new end of line for the [document](#Document).
+		 */
+		setEndOfLine(endOfLine:EndOfLine): void;
 	}
 
 	/**

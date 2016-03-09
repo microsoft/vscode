@@ -13,6 +13,7 @@ import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
+import {EndOfLine} from 'vs/workbench/api/node/extHostTypes';
 
 export interface ITextEditorConfigurationUpdate {
 	tabSize?: number | string;
@@ -262,7 +263,7 @@ export class MainThreadTextEditor {
 		return editor.getControl() === this._codeEditor;
 	}
 
-	public applyEdits(versionIdCheck:number, edits:EditorCommon.ISingleEditOperation[]): boolean {
+	public applyEdits(versionIdCheck:number, edits:EditorCommon.ISingleEditOperation[], setEndOfLine:EndOfLine): boolean {
 		if (this._model.getVersionId() !== versionIdCheck) {
 			console.warn('Model has changed in the meantime!');
 			// throw new Error('Model has changed in the meantime!');
@@ -271,6 +272,12 @@ export class MainThreadTextEditor {
 		}
 
 		if (this._codeEditor) {
+			if (setEndOfLine === EndOfLine.CRLF) {
+				this._model.setEOL(EditorCommon.EndOfLineSequence.CRLF);
+			} else if (setEndOfLine === EndOfLine.LF) {
+				this._model.setEOL(EditorCommon.EndOfLineSequence.LF);
+			}
+
 			let transformedEdits = edits.map((edit): EditorCommon.IIdentifiedSingleEditOperation => {
 				return {
 					identifier: null,

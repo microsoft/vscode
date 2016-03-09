@@ -10,7 +10,7 @@ import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import {ExtHostModelService, ExtHostDocumentData} from 'vs/workbench/api/node/extHostDocuments';
-import {Selection, Range, Position, EditorOptions} from './extHostTypes';
+import {Selection, Range, Position, EditorOptions, EndOfLine} from './extHostTypes';
 import {ISingleEditOperation, ISelection, IRange, IEditor, EditorType, ICommonCodeEditor, ICommonDiffEditor, IDecorationRenderOptions, IRangeWithMessage} from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -196,22 +196,26 @@ export interface ITextEditOperation {
 export interface IEditData {
 	documentVersionId: number;
 	edits: ITextEditOperation[];
+	setEndOfLine: EndOfLine;
 }
 
 export class TextEditorEdit {
 
 	private _documentVersionId: number;
 	private _collectedEdits: ITextEditOperation[];
+	private _setEndOfLine: EndOfLine;
 
 	constructor(document: vscode.TextDocument) {
 		this._documentVersionId = document.version;
 		this._collectedEdits = [];
+		this._setEndOfLine = 0;
 	}
 
 	finalize(): IEditData {
 		return {
 			documentVersionId: this._documentVersionId,
-			edits: this._collectedEdits
+			edits: this._collectedEdits,
+			setEndOfLine: this._setEndOfLine
 		};
 	}
 
@@ -259,6 +263,14 @@ export class TextEditorEdit {
 			text: null,
 			forceMoveMarkers: true
 		});
+	}
+
+	setEndOfLine(endOfLine:EndOfLine): void {
+		if (endOfLine !== EndOfLine.LF && endOfLine !== EndOfLine.CRLF) {
+			throw illegalArg('endOfLine');
+		}
+
+		this._setEndOfLine = endOfLine;
 	}
 }
 
@@ -435,7 +447,7 @@ class ExtHostTextEditor implements vscode.TextEditor {
 			};
 		});
 
-		return this._proxy._tryApplyEdits(this._id, editData.documentVersionId, edits);
+		return this._proxy._tryApplyEdits(this._id, editData.documentVersionId, edits, editData.setEndOfLine);
 	}
 
 	// ---- util
@@ -705,11 +717,11 @@ export class MainThreadEditors {
 		return TPromise.as(null);
 	}
 
-	_tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[]): TPromise<boolean> {
+	_tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], setEndOfLine:EndOfLine): TPromise<boolean> {
 		if (!this._textEditorsMap[id]) {
 			return TPromise.wrapError('TextEditor disposed');
 		}
-		return TPromise.as(this._textEditorsMap[id].applyEdits(modelVersionId, edits));
+		return TPromise.as(this._textEditorsMap[id].applyEdits(modelVersionId, edits, setEndOfLine));
 	}
 
 	_registerTextEditorDecorationType(key: string, options: IDecorationRenderOptions): void {

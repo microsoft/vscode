@@ -85,6 +85,7 @@ export class ExtHostAPIImplementation {
 	IndentAction: typeof vscode.IndentAction;
 	OverviewRulerLane: typeof vscode.OverviewRulerLane;
 	TextEditorRevealType: typeof vscode.TextEditorRevealType;
+	EndOfLine: typeof vscode.EndOfLine;
 	commands: typeof vscode.commands;
 	window: typeof vscode.window;
 	workspace: typeof vscode.workspace;
@@ -103,8 +104,8 @@ export class ExtHostAPIImplementation {
 		this.version = contextService.getConfiguration().env.version;
 		this.Uri = URI;
 		this.Location = extHostTypes.Location;
-		this.Diagnostic = <any> extHostTypes.Diagnostic;
-		this.DiagnosticSeverity = <any>extHostTypes.DiagnosticSeverity;
+		this.Diagnostic = extHostTypes.Diagnostic;
+		this.DiagnosticSeverity = extHostTypes.DiagnosticSeverity;
 		this.EventEmitter = Emitter;
 		this.Disposable = extHostTypes.Disposable;
 		this.TextEdit = extHostTypes.TextEdit;
@@ -114,22 +115,23 @@ export class ExtHostAPIImplementation {
 		this.Selection = extHostTypes.Selection;
 		this.CancellationTokenSource = CancellationTokenSource;
 		this.Hover = extHostTypes.Hover;
-		this.SymbolKind = <any>extHostTypes.SymbolKind;
-		this.SymbolInformation = <any>extHostTypes.SymbolInformation;
-		this.DocumentHighlightKind = <any>extHostTypes.DocumentHighlightKind;
-		this.DocumentHighlight = <any>extHostTypes.DocumentHighlight;
+		this.SymbolKind = extHostTypes.SymbolKind;
+		this.SymbolInformation = extHostTypes.SymbolInformation;
+		this.DocumentHighlightKind = extHostTypes.DocumentHighlightKind;
+		this.DocumentHighlight = extHostTypes.DocumentHighlight;
 		this.CodeLens = extHostTypes.CodeLens;
 		this.ParameterInformation = extHostTypes.ParameterInformation;
 		this.SignatureInformation = extHostTypes.SignatureInformation;
 		this.SignatureHelp = extHostTypes.SignatureHelp;
-		this.CompletionItem = <any>extHostTypes.CompletionItem;
-		this.CompletionItemKind = <any>extHostTypes.CompletionItemKind;
+		this.CompletionItem = extHostTypes.CompletionItem;
+		this.CompletionItemKind = extHostTypes.CompletionItemKind;
 		this.CompletionList = extHostTypes.CompletionList;
-		this.ViewColumn = <any>extHostTypes.ViewColumn;
-		this.StatusBarAlignment = <any>extHostTypes.StatusBarAlignment;
-		this.IndentAction = <any>Modes.IndentAction;
-		this.OverviewRulerLane = <any>EditorCommon.OverviewRulerLane;
-		this.TextEditorRevealType = <any>TextEditorRevealType;
+		this.ViewColumn = extHostTypes.ViewColumn;
+		this.StatusBarAlignment = extHostTypes.StatusBarAlignment;
+		this.IndentAction = Modes.IndentAction;
+		this.OverviewRulerLane = EditorCommon.OverviewRulerLane;
+		this.TextEditorRevealType = TextEditorRevealType;
+		this.EndOfLine = extHostTypes.EndOfLine;
 
 		errors.setUnexpectedErrorHandler((err) => {
 			this._proxy.onUnexpectedExtHostError(errors.transformErrorForSerialization(err));
