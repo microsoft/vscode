@@ -10,7 +10,7 @@ import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IDisposable, cAll, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {EventType, ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
@@ -19,6 +19,8 @@ import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {getSnippetController} from 'vs/editor/contrib/snippet/common/snippet';
 import {ACCEPT_SELECTED_SUGGESTION_CMD, CONTEXT_SUGGEST_WIDGET_VISIBLE, SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
+import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {withCodeEditorFromCommandHandler} from 'vs/editor/common/config/config';
 import {SuggestModel} from './suggestModel';
 import {SuggestWidget} from './suggestWidget';
 
@@ -219,9 +221,21 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(TriggerSugg
 	primary: KeyMod.CtrlCmd | KeyCode.Space,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
 }));
-CommonEditorRegistry.registerEditorCommand(ACCEPT_SELECTED_SUGGESTION_CMD, weight, { primary: KeyCode.Enter, secondary: [KeyCode.Tab] }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
+CommonEditorRegistry.registerEditorCommand(ACCEPT_SELECTED_SUGGESTION_CMD, weight, { primary: KeyCode.Tab }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
 	const controller = SuggestController.getSuggestController(editor);
 	controller.acceptSelectedSuggestion();
+});
+KeybindingsRegistry.registerCommandDesc({
+	id: ACCEPT_SELECTED_SUGGESTION_CMD,
+	handler(accessor, args) {
+		withCodeEditorFromCommandHandler(ACCEPT_SELECTED_SUGGESTION_CMD, accessor, args, (editor) => {
+			const controller = SuggestController.getSuggestController(editor);
+			controller.acceptSelectedSuggestion();
+		});
+	},
+	weight,
+	context: KbExpr.and(KbExpr.has(CONTEXT_SUGGEST_WIDGET_VISIBLE), KbExpr.has('config.editor.acceptSuggestionOnEnter')),
+	primary: KeyCode.Enter,
 });
 CommonEditorRegistry.registerEditorCommand('hideSuggestWidget', weight, { primary: KeyCode.Escape }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
 	const controller = SuggestController.getSuggestController(editor);

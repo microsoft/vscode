@@ -72,6 +72,7 @@ class ConfigClass implements IConfiguration {
 			autoClosingBrackets: true,
 			formatOnType: false,
 			suggestOnTriggerCharacters: true,
+			acceptSuggestionOnEnter: true,
 			selectionHighlight: true,
 			outlineMarkers: false,
 			referenceInfos: true,

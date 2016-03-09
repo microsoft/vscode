@@ -111,6 +111,7 @@ function cloneInternalEditorOptions(opts: editorCommon.IInternalEditorOptions): 
 		autoClosingBrackets: opts.autoClosingBrackets,
 		formatOnType: opts.formatOnType,
 		suggestOnTriggerCharacters: opts.suggestOnTriggerCharacters,
+		acceptSuggestionOnEnter: opts.acceptSuggestionOnEnter,
 		selectionHighlight: opts.selectionHighlight,
 		outlineMarkers: opts.outlineMarkers,
 		referenceInfos: opts.referenceInfos,
@@ -298,6 +299,7 @@ class InternalEditorOptionsHelper {
 			autoClosingBrackets: toBoolean(opts.autoClosingBrackets),
 			formatOnType: toBoolean(opts.formatOnType),
 			suggestOnTriggerCharacters: toBoolean(opts.suggestOnTriggerCharacters),
+			acceptSuggestionOnEnter: toBoolean(opts.acceptSuggestionOnEnter),
 			selectionHighlight: toBoolean(opts.selectionHighlight),
 			outlineMarkers: toBoolean(opts.outlineMarkers),
 			referenceInfos: toBoolean(opts.referenceInfos),
@@ -814,6 +816,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': DefaultConfig.editor.suggestOnTriggerCharacters,
 			'description': nls.localize('suggestOnTriggerCharacters', "Controls if suggestions should automatically show up when typing trigger characters")
+		},
+		'editor.acceptSuggestionOnEnter' : {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.acceptSuggestionOnEnter,
+			'description': nls.localize('acceptSuggestionOnEnter', "Controls if suggestions should be accepted 'Enter' - in addition to 'Tab'. Helps to avoid ambiguity between inserting new lines or accepting suggestions.")
 		},
 		'editor.selectionHighlight' : {
 			'type': 'boolean',

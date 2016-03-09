@@ -483,7 +483,12 @@ export interface IEditorOptions {
 	 * Enable the suggestion box to pop-up on trigger characters.
 	 * Defaults to true.
 	 */
-	suggestOnTriggerCharacters?:boolean;
+	suggestOnTriggerCharacters?: boolean;
+	/**
+	 * Accept suggestions on ENTER.
+	 * Defaults to true.
+	 */
+	acceptSuggestionOnEnter?: boolean;
 	/**
 	 * Enable selection highlight.
 	 * Defaults to true.
@@ -620,7 +625,8 @@ export interface IInternalEditorOptions {
 	iconsInSuggestions:boolean;
 	autoClosingBrackets:boolean;
 	formatOnType:boolean;
-	suggestOnTriggerCharacters:boolean;
+	suggestOnTriggerCharacters: boolean;
+	acceptSuggestionOnEnter: boolean;
 	selectionHighlight:boolean;
 	outlineMarkers: boolean;
 	referenceInfos: boolean;
