@@ -14,10 +14,6 @@ import {ISuggestResult, ISuggestSupport, ISuggestion, ISuggestionFilter} from 'v
 import {DefaultFilter, IMatch} from 'vs/editor/common/modes/modesFilters';
 import {ISuggestResult2} from '../common/suggest';
 
-function completionGroupCompare(one: CompletionGroup, other: CompletionGroup): number {
-	return one.index - other.index;
-}
-
 function completionItemCompare(item: CompletionItem, otherItem: CompletionItem): number {
 	const suggestion = item.suggestion;
 	const otherSuggestion = otherItem.suggestion;
@@ -38,16 +34,12 @@ function completionItemCompare(item: CompletionItem, otherItem: CompletionItem):
 
 export class CompletionItem {
 
-	private static _idPool: number = 0;
-
-	id: string;
 	suggestion: ISuggestion;
 	highlights: IMatch[];
 	support: ISuggestSupport;
 	container: ISuggestResult;
 
 	constructor(public group: CompletionGroup, suggestion: ISuggestion, container: ISuggestResult2) {
-		this.id = String(CompletionItem._idPool++);
 		this.support = container.support;
 		this.suggestion = suggestion;
 		this.container = container;
@@ -73,7 +65,7 @@ export class CompletionGroup {
 	private cacheCurrentWord: string;
 	filter: ISuggestionFilter;
 
-	constructor(public model: CompletionModel, public index: number, raw: ISuggestResult2[]) {
+	constructor(public model: CompletionModel, raw: ISuggestResult2[]) {
 
 		this._items = raw.reduce<CompletionItem[]>((items, result) => {
 			return items.concat(
@@ -132,10 +124,7 @@ export class CompletionModel {
 
 		this.groups = raw
 			.filter(s => !!s)
-			.map((suggestResults, index) => {
-				return new CompletionGroup(this, index, suggestResults);
-			})
-			.sort(completionGroupCompare);
+			.map(suggestResults => new CompletionGroup(this, suggestResults));
 	}
 
 	get items(): CompletionItem[] {
