@@ -27,6 +27,8 @@ var compilations = glob.sync('**/tsconfig.json', {
 	ignore: '**/out/**'
 });
 
+var languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
+
 var tasks = compilations.map(function(tsconfigFile) {
 	var absolutePath = path.join(extensionsPath, tsconfigFile);
 	var options = require(absolutePath).compilerOptions;
@@ -64,6 +66,7 @@ var tasks = compilations.map(function(tsconfigFile) {
 						includeContent: false
 					}))
 					.pipe(tsFilter.restore)
+					.pipe(nlsDev.createAdditionalLanguageFiles(languages, path.join(__dirname, '..', 'i18n'), path.join('extensions', name)))
 					.pipe(quiet ? es.through() : reporter.end());
 
 			} else {
