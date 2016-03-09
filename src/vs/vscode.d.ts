@@ -144,7 +144,8 @@ declare namespace vscode {
 		 * Save the underlying file.
 		 *
 		 * @return A promise that will resolve to true when the file
-		 * has been saved.
+		 * has been saved. If the file was not dirty or the save failed,
+		 * will return false.
 		 */
 		save(): Thenable<boolean>;
 
