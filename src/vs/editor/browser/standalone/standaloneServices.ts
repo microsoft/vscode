@@ -106,19 +106,13 @@ export function ensureStaticPlatformServices(services: IEditorOverrideServices):
 
 	var statics = getOrCreateStaticServices(services);
 
-	services.threadService = services.threadService || statics.threadService;
-	services.extensionService = services.extensionService || statics.extensionService;
-	services.modeService = services.modeService || statics.modeService;
-	services.contextService = services.contextService || statics.contextService;
-	services.telemetryService = services.telemetryService || statics.telemetryService;
-	services.requestService = services.requestService || statics.requestService;
-	services.messageService = services.messageService || statics.messageService;
-	services.modelService = services.modelService || statics.modelService;
-	services.codeEditorService = services.codeEditorService || statics.codeEditorService;
-	services.editorWorkerService = services.editorWorkerService || statics.editorWorkerService;
-	services.eventService = services.eventService || statics.eventService;
-	services.markerService = services.markerService || statics.markerService;
-	services.instantiationService = statics.instantiationService;
+	for (var serviceId in statics) {
+		if (statics.hasOwnProperty(serviceId)) {
+			if (!services.hasOwnProperty(serviceId)) {
+				services[serviceId] = statics[serviceId];
+			}
+		}
+	}
 
 	return services;
 }
