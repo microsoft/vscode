@@ -278,7 +278,7 @@ export class RemoveAllBreakpointsAction extends AbstractDebugAction {
 	static LABEL = nls.localize('removeAllBreakpoints', "Remove All Breakpoints");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action remove', debugService, keybindingService);
+		super(id, label, 'debug-action remove-all', debugService, keybindingService);
 		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.BREAKPOINTS_UPDATED,() => this.updateEnablement()));
 	}
 
@@ -672,7 +672,7 @@ export class RemoveAllWatchExpressionsAction extends AbstractDebugAction {
 	static LABEL = nls.localize('removeAllWatchExpressions', "Remove All Expressions");
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action remove', debugService, keybindingService);
+		super(id, label, 'debug-action remove-all', debugService, keybindingService);
 		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, () => this.updateEnablement()));
 	}
 

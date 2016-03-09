@@ -247,6 +247,10 @@
 	background: url('remove.svg') center center no-repeat;
 }
 
+.debug-viewlet .debug-action.remove-all {
+	background: url('remove-all.svg') center center no-repeat;
+}
+
 .debug-viewlet .debug-action.breakpoints-activate {
 	background: url('breakpoints-activate.svg') center center no-repeat;
 }
@@ -257,6 +261,10 @@
 
 .vs-dark .debug-viewlet .debug-action.remove {
 	background: url('remove-inverse.svg') center center no-repeat;
+}
+
+.vs-dark .debug-viewlet .debug-action.remove-all {
+	background: url('remove-all-inverse.svg') center center no-repeat;
 }
 
 .vs-dark .debug-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .debug-action.remove {
