@@ -267,7 +267,7 @@ export class EditorStatus implements IStatusbarItem {
 			this.eventService.addListener2(EventType.TEXT_EDITOR_MODE_CHANGED, (e: EditorEvent) => this.onModeChange(e.editor)),
 			this.eventService.addListener2(EventType.TEXT_EDITOR_CONTENT_CHANGED, (e: EditorEvent) => this.onEOLChange(e.editor)),
 			this.eventService.addListener2(EventType.TEXT_EDITOR_CONFIGURATION_CHANGED, (e: EditorEvent) => this.onTabFocusModeChange(e.editor)),
-			this.eventService.addListener2(EventType.TEXT_EDITOR_CONTENT_OPTIONS_CHANGED, (e: EditorEvent) => this.onIndentationChange(e.editor, false))
+			this.eventService.addListener2(EventType.TEXT_EDITOR_CONTENT_OPTIONS_CHANGED, (e: EditorEvent) => this.onIndentationChange(e.editor))
 		);
 
 		return combinedDispose(...this.toDispose);
@@ -398,7 +398,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.onEOLChange(e);
 		this.onEncodingChange(e);
 		this.onTabFocusModeChange(e);
-		this.onIndentationChange(e, true);
+		this.onIndentationChange(e);
 	}
 
 	private onModeChange(e: IBaseEditor): void {
@@ -426,7 +426,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState(info);
 	}
 
-	private onIndentationChange(e: IBaseEditor, inputChanged: boolean): void {
+	private onIndentationChange(e: IBaseEditor): void {
 		if (e && !this.isActiveEditor(e)) {
 			return;
 		}
@@ -440,16 +440,14 @@ export class EditorStatus implements IStatusbarItem {
 					editorWidget = (<IDiffEditor>editorWidget).getModifiedEditor();
 				}
 
-				let model = (<ICommonCodeEditor>editorWidget).getModel();
+				const model = (<ICommonCodeEditor>editorWidget).getModel();
 				if (model) {
-					let modelOpts = model.getOptions();
-					let indentationLabel = (
+					const modelOpts = model.getOptions();
+					update.indentation = (
 						modelOpts.insertSpaces
 						? nls.localize('spacesSize', "Spaces: {0}", modelOpts.tabSize)
 						: nls.localize('tabSize', "Tab Size: {0}", modelOpts.tabSize)
 					);
-
-					update.indentation = indentationLabel;
 				}
 			}
 		}
