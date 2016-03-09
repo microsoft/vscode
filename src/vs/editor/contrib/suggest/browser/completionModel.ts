@@ -99,18 +99,23 @@ export class CompletionGroup {
 			set = this._items;
 		}
 
-		const result = set.filter(item => {
-			item.highlights = this.filter(currentWord, item.suggestion);
-			return !isFalsyOrEmpty(item.highlights);
-		});
+		const highlights = set.map(item => this.filter(currentWord, item.suggestion));
+		const count = highlights.filter(h => !isFalsyOrEmpty(h)).length;
 
-		// let's only cache stuff that actually has results
-		if (result.length > 0) {
-			this.cacheCurrentWord = currentWord;
-			this.cache = result;
+		if (count === 0) {
+			return [];
 		}
 
-		return result;
+		this.cacheCurrentWord = currentWord;
+		this.cache = set
+			.map((item, index) => assign(item, { highlights: highlights[index] }))
+			.filter(item => !isFalsyOrEmpty(item.highlights));
+
+		return this.cache;
+	}
+
+	invalidateCache(): void {
+		this.cacheCurrentWord = null;
 	}
 }
 
