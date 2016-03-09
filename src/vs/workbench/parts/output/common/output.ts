@@ -36,6 +36,8 @@ export const Extensions = {
 
 export const OUTPUT_SERVICE_ID = 'outputService';
 
+export const MAX_OUTPUT_LENGTH = 10000 /* Max. number of output lines to show in output */ * 100 /* Guestimated chars per line */;
+
 /**
  * The output event informs when new output got received.
  */

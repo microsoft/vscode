@@ -13,7 +13,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {Registry} from 'vs/platform/platform';
 import {EditorOptions} from 'vs/workbench/common/editor';
-import {IOutputEvent, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry} from 'vs/workbench/parts/output/common/output';
+import {IOutputEvent, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, MAX_OUTPUT_LENGTH} from 'vs/workbench/parts/output/common/output';
 import {OutputEditorInput} from 'vs/workbench/parts/output/common/outputEditorInput';
 import {OutputPanel} from 'vs/workbench/parts/output/browser/outputPanel';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
@@ -23,7 +23,6 @@ const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 export class OutputService implements IOutputService {
 	public serviceId = IOutputService;
 
-	private static MAX_OUTPUT = 10000 /* Lines */ * 100 /* Guestimated chars per line */;
 	private receivedOutput: { [channel: string]: string; };
 
 	private activeChannel: string;
@@ -79,18 +78,18 @@ export class OutputService implements IOutputService {
 			let addLength = output.length;
 
 			// Still below MAX_OUTPUT, so just add
-			if (addLength + curLength <= OutputService.MAX_OUTPUT) {
+			if (addLength + curLength <= MAX_OUTPUT_LENGTH) {
 				this.receivedOutput[channel] += output;
 			} else {
 
 				// New output exceeds MAX_OUTPUT, so trim beginning and use as received output
-				if (addLength > OutputService.MAX_OUTPUT) {
-					this.receivedOutput[channel] = '...' + output.substr(addLength - OutputService.MAX_OUTPUT);
+				if (addLength > MAX_OUTPUT_LENGTH) {
+					this.receivedOutput[channel] = '...' + output.substr(addLength - MAX_OUTPUT_LENGTH);
 				}
 
 				// New output + existing output exceeds MAX_OUTPUT, so trim existing output that it fits new output
 				else {
-					let diff = OutputService.MAX_OUTPUT - addLength;
+					let diff = MAX_OUTPUT_LENGTH - addLength;
 					this.receivedOutput[channel] = '...' + this.receivedOutput[channel].substr(curLength - diff) + output;
 				}
 			}
