@@ -331,6 +331,7 @@ export interface IKeybindingService {
 	customKeybindingsCount(): number;
 
 	getLabelFor(keybinding: Keybinding): string;
+	getAriaLabelFor(keybinding: Keybinding): string;
 	getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[];
 	getElectronAcceleratorFor(keybinding: Keybinding): string;
 

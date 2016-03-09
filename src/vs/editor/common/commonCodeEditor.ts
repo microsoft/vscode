@@ -169,7 +169,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 	private _ariaLabelAppendMessage(): string {
 		let keybindings = this._keybindingService.lookupKeybindings(editorCommon.SHOW_ACCESSIBILITY_HELP_ACTION_ID);
 		if (keybindings.length > 0) {
-			return nls.localize('showAccessibilityHelp', "Press {0} if you are using a screen reader.", this._keybindingService.getLabelFor(keybindings[0]));
+			return nls.localize('showAccessibilityHelp', "Press {0} if you are using a screen reader.", this._keybindingService.getAriaLabelFor(keybindings[0]));
 		}
 		return '';
 	}

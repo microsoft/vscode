@@ -119,6 +119,7 @@ export abstract class AbstractKeybindingService {
 
 	public abstract getLabelFor(keybinding: Keybinding): string;
 	public abstract getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[];
+	public abstract getAriaLabelFor(keybinding: Keybinding): string;
 	public abstract getElectronAcceleratorFor(keybinding: Keybinding): string;
 	public abstract customKeybindingsCount(): number;
 	public abstract getContext(contextId: number): KeybindingContext;
@@ -181,6 +182,10 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 
 	public getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[] {
 		return keybinding._toUSHTMLLabel();
+	}
+
+	public getAriaLabelFor(keybinding: Keybinding): string {
+		return keybinding._toUSAriaLabel();
 	}
 
 	public getElectronAcceleratorFor(keybinding: Keybinding): string {
@@ -342,6 +347,10 @@ class ScopedKeybindingService extends AbstractKeybindingService {
 
 	public getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[] {
 		return this._parent.getHTMLLabelFor(keybinding);
+	}
+
+	public getAriaLabelFor(keybinding: Keybinding): string {
+		return this._parent.getAriaLabelFor(keybinding);
 	}
 
 	public getElectronAcceleratorFor(keybinding: Keybinding): string {

@@ -526,6 +526,13 @@ export class Keybinding {
 	}
 
 	/**
+	 * Format the binding to a format appropiate for placing in an aria-label.
+	 */
+	private static _toUSAriaLabel(value:number, Platform:ISimplifiedPlatform): string {
+		return _asString(value, AriaKeyLabelProvider.INSTANCE, Platform);
+	}
+
+	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
 	private static _toUSHTMLLabel(value:number, Platform:ISimplifiedPlatform): IHTMLContentElement[] {
@@ -708,6 +715,13 @@ export class Keybinding {
 	}
 
 	/**
+	 * Format the binding to a format appropiate for placing in an aria-label.
+	 */
+	public _toUSAriaLabel(Platform:ISimplifiedPlatform = defaultPlatform): string {
+		return Keybinding._toUSAriaLabel(this.value, Platform);
+	}
+
+	/**
 	 * Format the binding to a format appropiate for rendering in the UI
 	 */
 	public _toUSHTMLLabel(Platform:ISimplifiedPlatform = defaultPlatform): IHTMLContentElement[] {
@@ -814,6 +828,24 @@ export class MacUIKeyLabelProvider implements IKeyBindingLabelProvider {
 				return MacUIKeyLabelProvider.downArrowUnicodeLabel;
 		}
 
+		return KeyCode.toString(keyCode);
+	}
+}
+
+/**
+ * Aria label provider for Mac.
+ */
+export class AriaKeyLabelProvider implements IKeyBindingLabelProvider {
+	public static INSTANCE = new MacUIKeyLabelProvider();
+
+	public ctrlKeyLabel = nls.localize('ctrlKey.long', "Control");
+	public shiftKeyLabel = nls.localize('shiftKey.long', "Shift");
+	public altKeyLabel = nls.localize('altKey.long', "Alt");
+	public cmdKeyLabel = nls.localize('cmdKey.long', "Command");
+	public windowsKeyLabel = nls.localize('windowsKey.long', "Windows");
+	public modifierSeparator = '+';
+
+	public getLabelForKey(keyCode:KeyCode): string {
 		return KeyCode.toString(keyCode);
 	}
 }

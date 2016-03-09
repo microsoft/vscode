@@ -22,7 +22,7 @@ import {Registry} from 'vs/platform/platform';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {EventType, OptionsChangeEvent} from 'vs/workbench/common/events';
-import {getNativeLabelProvider} from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
+import {getNativeLabelProvider, getNativeAriaLabelProvider} from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -190,6 +190,10 @@ export class WorkbenchKeybindingService extends KeybindingService {
 
 	public getHTMLLabelFor(keybinding:Keybinding): IHTMLContentElement[] {
 		return keybinding.toCustomHTMLLabel(getNativeLabelProvider());
+	}
+
+	public getAriaLabelFor(keybinding: Keybinding): string {
+		return keybinding.toCustomLabel(getNativeAriaLabelProvider());
 	}
 
 	public getElectronAcceleratorFor(keybinding:Keybinding): string {
