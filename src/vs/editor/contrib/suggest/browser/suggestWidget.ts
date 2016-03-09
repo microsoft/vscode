@@ -329,6 +329,20 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.onModelModeChanged();
 		this.editor.addContentWidget(this);
 		this.setState(State.Hidden);
+
+		// TODO@Alex: this is useful, but spammy
+		// var isVisible = false;
+		// this.onDidVisibilityChange((newIsVisible) => {
+		// 	if (isVisible === newIsVisible) {
+		// 		return;
+		// 	}
+		// 	isVisible = newIsVisible;
+		// 	if (isVisible) {
+		// 		alert(nls.localize('suggestWidgetAriaVisible', "Suggestions opened"));
+		// 	} else {
+		// 		alert(nls.localize('suggestWidgetAriaInvisible', "Suggestions closed"));
+		// 	}
+		// });
 	}
 
 	private onCursorSelectionChanged(): void {
@@ -370,6 +384,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}, 0);
 	}
 
+	private _lastSuggestionLabel: string;
 	private onListFocus(e: IFocusChangeEvent<CompletionItem>): void {
 		if (this.currentSuggestionDetails) {
 			this.currentSuggestionDetails.cancel();
@@ -377,15 +392,25 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 
 		if (!e.elements.length) {
-			this.editor.setAriaActiveDescendant(null);
+			this._lastSuggestionLabel = null;
+
+			// TODO@Alex: Chromium bug
+			// this.editor.setAriaActiveDescendant(null);
+
 			return;
 		}
 
 		const item = e.elements[0];
-		// TODO@Alex: the list is not done rendering...
-		setTimeout(() => {
-			this.editor.setAriaActiveDescendant(this.list.getElementId(e.indexes[0]));
-		}, 100);
+		if (item.suggestion.label !== this._lastSuggestionLabel) {
+			this._lastSuggestionLabel = item.suggestion.label;
+			alert(nls.localize('ariaCurrentSuggestion',"{0}, suggestion", this._lastSuggestionLabel));
+		}
+
+		// TODO@Alex: Chromium bug
+		// // TODO@Alex: the list is not done rendering...
+		// setTimeout(() => {
+		// 	this.editor.setAriaActiveDescendant(this.list.getElementId(e.indexes[0]));
+		// }, 100);
 
 		if (item === this.focusedItem) {
 			return;
