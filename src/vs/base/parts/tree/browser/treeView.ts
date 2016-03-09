@@ -330,10 +330,6 @@ export class ViewItem implements IViewItem {
 		this.row = null;
 	}
 
-	hasDOMFocus(): boolean {
-		return this.row && this.row.element && DOM.isAncestor(document.activeElement, this.row.element);
-	}
-
 	public dispose(): void {
 		this.row = null;
 		this.model = null;
@@ -728,6 +724,9 @@ export class TreeView extends HeightMap implements IScrollable {
 				case 'item:removeTrait':
 					this.onItemRemoveTrait(data);
 					break;
+				case 'focus':
+					this.onModelFocusChange();
+					break;
 			}
 		}
 
@@ -1072,10 +1071,6 @@ export class TreeView extends HeightMap implements IScrollable {
 				}
 			}
 		}
-
-		if (e.trait === 'focused') {
-			setTimeout(() => this.onModelFocusChange());
-		}
 	}
 
 	private onItemRemoveTrait(e:Model.IItemTraitEvent): void {
@@ -1093,10 +1088,6 @@ export class TreeView extends HeightMap implements IScrollable {
 				viewItem.draggable = true;
 			}
 			delete this.highlightedItemWasDraggable;
-		}
-
-		if (e.trait === 'focused') {
-			setTimeout(() => this.onModelFocusChange());
 		}
 	}
 
@@ -1610,10 +1601,6 @@ export class TreeView extends HeightMap implements IScrollable {
 	}
 
 	private removeItemFromDOM(item: ViewItem): void {
-		if (item.hasDOMFocus()) {
-			this.focus();
-		}
-
 		item.removeFromDOM();
 	}
 
