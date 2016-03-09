@@ -117,9 +117,14 @@ export class OutputService implements IOutputService {
 	}
 
 	public showOutput(channel: string, preserveFocus?: boolean): TPromise<IEditor> {
+		const panel = this.panelService.getActivePanel();
+		if (this.activeChannel === channel && panel && panel.getId() === OUTPUT_PANEL_ID) {
+			return TPromise.as(<OutputPanel>panel);
+		}
+		
 		this.activeChannel = channel;
 		this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel, StorageScope.WORKSPACE);
-		this._onActiveOutputChannel.fire(channel); // emit event that we a new channel is active
+		this._onActiveOutputChannel.fire(channel); // emit event that a new channel is active
 
 		return this.panelService.openPanel(OUTPUT_PANEL_ID, !preserveFocus).then((outputPanel: OutputPanel) => {
 			return outputPanel && outputPanel.setInput(OutputEditorInput.getInstance(this.instantiationService, channel), EditorOptions.create({ preserveFocus: preserveFocus })).
