@@ -135,26 +135,21 @@
 
 /* Status bar */
 .monaco-shell .extensions-statusbar {
-	padding: 0 4px;
-}
-
-.monaco-shell .extensions-statusbar span:not(:first-child) {
-	padding-left: 4px;
-}
-
-.monaco-shell .extensions-statusbar > .octicon {
 	position: relative;
-	font-size: 14px;
+	padding: 0 5px;
+	width: 14px;
+	background: url('extensions-status.svg') center center no-repeat;
+	background-size: 14px;
 }
 
-.monaco-shell .extensions-statusbar.has-errors > .octicon::after {
+.monaco-shell .extensions-statusbar.has-errors::after {
 	content: '';
 	width: 6px;
 	height: 6px;
 	background-color: #CC6633;
 	position: absolute;
-	top: 0;
-	right: 0;
+	top: 2px;
+	right: 3px;
 	border-radius: 10px;
 	border: 1px solid white;
 }

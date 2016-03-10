@@ -39,8 +39,6 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 		this.domNode = append(container, $('a.extensions-statusbar'));
 		this.domNode.onclick = () => this.onClick();
 
-		append(this.domNode, $('span.octicon.octicon-package'));
-
 		_(this.extensionService.onReady()).done(() => {
 			const status = this.extensionService.getExtensionsStatus();
 			const errors = Object.keys(status)

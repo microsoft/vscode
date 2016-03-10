@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./extensions';
+import 'vs/css!./media/extensions';
 import platform = require('vs/platform/platform');
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import statusbar = require('vs/workbench/browser/parts/statusbar/statusbar');
@@ -25,5 +25,5 @@ registerSingleton(IGalleryService, GalleryService);
 (<statusbar.IStatusbarRegistry>platform.Registry.as(statusbar.Extensions.Statusbar)).registerStatusbarItem(new statusbar.StatusbarItemDescriptor(
 	ExtensionsStatusbarItem,
 	statusbar.StatusbarAlignment.LEFT,
-	10 /* Low Priority */
+	10000
 ));
