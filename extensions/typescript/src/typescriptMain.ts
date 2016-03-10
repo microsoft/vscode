@@ -34,6 +34,7 @@ import * as nls from 'vscode-nls';
 
 interface LanguageDescription {
 	id: string;
+	diagnosticSource: string;
 	modeIds: string[];
 }
 
@@ -48,10 +49,12 @@ export function activate(context: ExtensionContext): void {
 	let clientHost = new TypeScriptServiceClientHost([
 		{
 			id: 'typescript',
+			diagnosticSource: 'ts',
 			modeIds: [MODE_ID_TS, MODE_ID_TSX]
 		},
 		{
 			id: 'javascript',
+			diagnosticSource: 'js',
 			modeIds: [MODE_ID_JS, MODE_ID_JSX]
 		}
 	]);
@@ -214,6 +217,10 @@ class LanguageProvider {
 		return this.description.id;
 	}
 
+	public get diagnosticSource(): string {
+		return this.description.diagnosticSource;
+	}
+
 	private updateValidate(value: boolean) {
 		if (this._validate === value) {
 			return;
@@ -319,7 +326,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		if (body.diagnostics) {
 			let language = this.findLanguage(body.file);
 			if (language) {
-				language.syntaxDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics));
+				language.syntaxDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
 			}
 		}
 	}
@@ -329,17 +336,19 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		if (body.diagnostics) {
 			let language = this.findLanguage(body.file);
 			if (language) {
-				language.semanticDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics));
+				language.semanticDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
 			}
 		}
 	}
 
-	private createMarkerDatas(diagnostics: Proto.Diagnostic[]): Diagnostic[] {
+	private createMarkerDatas(diagnostics: Proto.Diagnostic[], source: string): Diagnostic[] {
 		let result: Diagnostic[] = [];
 		for (let diagnostic of diagnostics) {
 			let { start, end, text } = diagnostic;
 			let range = new Range(start.line - 1, start.offset - 1, end.line - 1, end.offset - 1);
-			result.push(new Diagnostic(range, text));
+			let converted = new Diagnostic(range, text);
+			converted.source = source;
+			result.push(converted);
 		}
 		return result;
 	}
