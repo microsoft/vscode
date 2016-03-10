@@ -31,7 +31,7 @@ export class FileWatcher {
 		this.isDisposed = false;
 	}
 
-	public startWatching(): () => void /* dispose */ {
+	public startWatching(): () => void {
 		const client = new Client(
 			uri.parse(require.toUrl('bootstrap')).fsPath,
 			{
