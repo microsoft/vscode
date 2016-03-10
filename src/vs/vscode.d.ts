@@ -521,6 +521,20 @@ declare namespace vscode {
 	}
 
 	/**
+	 * Rendering style of the cursor.
+	 */
+	export enum TextEditorCursorStyle {
+		/**
+		 * Render the cursor as a vertical line.
+		 */
+		Line = 1,
+		/**
+		 * Render the cursor as a block.
+		 */
+		Block = 2
+	}
+
+	/**
 	 * Represents a [text editor](#TextEditor)'s [options](#TextEditor.options).
 	 */
 	export interface TextEditorOptions {
@@ -540,6 +554,13 @@ declare namespace vscode {
 		 * When setting a text editor's options, this property is optional and it can be a boolean or `"auto"`.
 		 */
 		insertSpaces?: boolean | string;
+
+		/**
+		 * The rendering style of the cursor in this editor.
+		 * When getting a text editor's options, this property will always be present.
+		 * When setting a text editor's options, this property is optional.
+		 */
+		cursorStyle?: TextEditorCursorStyle;
 	}
 
 	/**
