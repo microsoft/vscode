@@ -12,6 +12,8 @@ import {ICommandDescriptor, KeybindingsRegistry} from 'vs/platform/keybinding/co
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 
+const H = editorCommon.Handler;
+
 export function findFocusedEditor(commandId: string, accessor: ServicesAccessor, args: any, complain: boolean): editorCommon.ICommonCodeEditor {
 	var codeEditorService = accessor.get(ICodeEditorService);
 	var editorId = args.context.editorId;
@@ -60,7 +62,7 @@ function triggerEditorHandler(handlerId: string, accessor: ServicesAccessor, arg
 	});
 }
 
-function registerCoreCommand(handlerId: string, kb: IKeybindings, weight: number = KeybindingsRegistry.WEIGHT.editorCore(), context?: KbExpr) {
+function registerCoreCommand(handlerId: string, kb: IKeybindings, weight: number = KeybindingsRegistry.WEIGHT.editorCore(), context?: KbExpr): void {
 	var desc: ICommandDescriptor = {
 		id: handlerId,
 		handler: triggerEditorHandler.bind(null, handlerId),
@@ -74,6 +76,21 @@ function registerCoreCommand(handlerId: string, kb: IKeybindings, weight: number
 	};
 	KeybindingsRegistry.registerCommandDesc(desc);
 }
+
+function registerCoreDispatchCommand(dispatchId: string, handlerId: string) {
+	var desc: ICommandDescriptor = {
+		id: dispatchId,
+		handler: triggerEditorHandler.bind(null, handlerId),
+		weight: KeybindingsRegistry.WEIGHT.editorCore(),
+		context: null,
+		primary: 0
+	};
+	KeybindingsRegistry.registerCommandDesc(desc);
+}
+registerCoreDispatchCommand(H.DispatchType, H.Type);
+registerCoreDispatchCommand(H.DispatchReplacePreviousChar, H.ReplacePreviousChar);
+registerCoreDispatchCommand(H.DispatchPaste, H.Paste);
+registerCoreDispatchCommand(H.DispatchCut, H.Cut);
 
 function getMacWordNavigationKB(shift:boolean, key:KeyCode): number {
 	// For macs, word navigation is based on the alt modifier
@@ -92,8 +109,6 @@ function getWordNavigationKB(shift:boolean, key:KeyCode): number {
 		return KeyMod.CtrlCmd | key;
 	}
 }
-
-var H = editorCommon.Handler;
 
 // https://support.apple.com/en-gb/HT201236
 // [ADDED] Control-H					Delete the character to the left of the insertion point. Or use Delete.

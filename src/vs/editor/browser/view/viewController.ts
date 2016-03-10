@@ -10,41 +10,49 @@ import {Position} from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Configuration} from 'vs/editor/browser/config/configuration';
 import {IEditorMouseEvent, IViewController, IMouseDispatchData} from 'vs/editor/browser/editorBrowser';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 
 export class ViewController implements IViewController {
 
 	private viewModel:editorCommon.IViewModel;
 	private configuration:Configuration;
 	private outgoingEventBus:IEventEmitter;
+	private keybindingService:IKeybindingService;
 
-	constructor(viewModel:editorCommon.IViewModel, configuration:Configuration, outgoingEventBus:IEventEmitter) {
+	constructor(
+		viewModel:editorCommon.IViewModel,
+		configuration:Configuration,
+		outgoingEventBus:IEventEmitter,
+		keybindingService:IKeybindingService
+	) {
 		this.viewModel = viewModel;
 		this.configuration = configuration;
 		this.outgoingEventBus = outgoingEventBus;
+		this.keybindingService = keybindingService;
 	}
 
 	public paste(source:string, text:string, pasteOnNewLine:boolean): void {
-		this.configuration.handlerDispatcher.trigger(source, editorCommon.Handler.Paste, {
+		this.keybindingService.executeCommand(editorCommon.Handler.DispatchPaste, {
 			text: text,
 			pasteOnNewLine: pasteOnNewLine,
 		});
 	}
 
 	public type(source:string, text:string): void {
-		this.configuration.handlerDispatcher.trigger(source, editorCommon.Handler.Type, {
+		this.keybindingService.executeCommand(editorCommon.Handler.DispatchType, {
 			text: text
 		});
 	}
 
 	public replacePreviousChar(source: string, text: string, replaceCharCnt:number): void {
-		this.configuration.handlerDispatcher.trigger(source, editorCommon.Handler.ReplacePreviousChar, {
+		this.keybindingService.executeCommand(editorCommon.Handler.DispatchReplacePreviousChar, {
 			text: text,
 			replaceCharCnt: replaceCharCnt
 		});
 	}
 
 	public cut(source:string): void {
-		this.configuration.handlerDispatcher.trigger(source, editorCommon.Handler.Cut, null);
+		this.keybindingService.executeCommand(editorCommon.Handler.DispatchCut, {});
 	}
 
 	private _validateViewColumn(viewPosition:editorCommon.IEditorPosition): editorCommon.IEditorPosition {
