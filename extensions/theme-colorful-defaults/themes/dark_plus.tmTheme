@@ -8,6 +8,19 @@
 	<array>
 		<dict>
 			<key>name</key>
+			<string>Types declaration and references</string>
+			<key>scope</key>
+			<string>meta.type.name, meta.return.type, meta.return-type, meta.cast, meta.type.annotation, support.type, entity.name.class, entity.name.type,
+			storage.type.cs, storage.type.java
+			</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#4EC9B0</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>name</key>
 			<string>Function declarations</string>
 			<key>scope</key>
 			<string>entity.name.function, entity.method.name</string>
@@ -19,35 +32,9 @@
 		</dict>
 		<dict>
 			<key>name</key>
-			<string>Types declaration and references</string>
-			<key>scope</key>
-			<string>meta.parameter.type, name.class, storage.type, meta.return.type, meta.object.type, return-type, meta.cast,
-				new.storage.type.ts, cast.storage.type.ts, heritage.storage.type.ts, annotation.storage.type.ts, var.annotation.type.ts, field.storage.type.ts,
-				new.storage.type.js, cast.storage.type.js, heritage.storage.type.js, annotation.storage.type.js, var.annotation.type.js, field.storage.type.js,
-				new.storage.type.tsx, cast.storage.type.tsx, heritage.storage.type.tsx, annotation.storage.type.tsx, var.annotation.type.tsx, field.storage.type.tsx
-			</string>
-			<key>settings</key>
-			<dict>
-				<key>foreground</key>
-				<string>#4EC9B0</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>name</key>
-			<string>TS storage type workaround</string>
-			<key>scope</key>
-			<string>storage.type.ts, storage.type.js, storage.type.tsx</string>
-			<key>settings</key>
-			<dict>
-				<key>foreground</key>
-				<string>#569CD6</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>name</key>
 			<string>Control flow keywords</string>
 			<key>scope</key>
-			<string>keyword.control, meta.preprocessor</string>
+			<string>keyword.control</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
@@ -67,6 +54,18 @@
 		</dict>
 		<dict>
 			<key>name</key>
+			<string>C includes</string>
+			<key>scope</key>
+			<string>keyword.control.import</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#569CD6</string>
+			</dict>
+		</dict>
+
+		<dict>
+			<key>name</key>
 			<string>CSS property value</string>
 			<key>scope</key>
 			<string>css.support.property-value, css.constant.rgb-value</string>
@@ -74,6 +73,28 @@
 			<dict>
 				<key>foreground</key>
 				<string>#CE9178</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>JSON keys</string>
+			<key>scope</key>
+			<string>support.type.property-name</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#9CDCFE</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>LESS workaround</string>
+			<key>scope</key>
+			<string>keyword.control.less</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#D7BA7D</string>
 			</dict>
 		</dict>
 	</array>
