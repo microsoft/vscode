@@ -23,9 +23,9 @@ interface Hint {
 
 export function create(client: ITypescriptServiceClient) {
 
-	const fileLimit = 10;
+	const fileLimit = 1000;
 	const toDispose: vscode.Disposable[] = [];
-	const projectHinted = new Set<string>();
+	const projectHinted: { [k: string]:any} = Object.create(null);
 
 	let currentHint: Hint;
 	let item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
@@ -40,7 +40,7 @@ export function create(client: ITypescriptServiceClient) {
 	}));
 
 	toDispose.push(vscode.workspace.onDidChangeTextDocument(e => {
-		projectHinted.delete(e.document.fileName);
+		delete projectHinted[e.document.fileName];
 	}));
 
 	function onEditor(editor: vscode.TextEditor): void {
@@ -55,7 +55,7 @@ export function create(client: ITypescriptServiceClient) {
 
 			let {configFileName, fileNames} = res.body;
 
-			if (projectHinted.has(configFileName)) {
+			if (projectHinted[configFileName] === true) {
 				return;
 			}
 
@@ -65,7 +65,7 @@ export function create(client: ITypescriptServiceClient) {
 					option: {
 						title: localize('cmdCreate', "Create jsconfig.json-file..."),
 						execute: () => {
-							projectHinted.add(configFileName);
+							projectHinted[configFileName] = true;
 							item.hide();
 
 							return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled://' + vscode.workspace.rootPath + '/jsconfig.json'))
@@ -85,7 +85,7 @@ export function create(client: ITypescriptServiceClient) {
 					option: {
 						title: localize('open', "Edit excludes..."),
 						execute: () => {
-							projectHinted.add(configFileName);
+							projectHinted[configFileName] = true;
 							item.hide();
 
 							return vscode.workspace.openTextDocument(configFileName)
