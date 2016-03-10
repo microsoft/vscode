@@ -63,7 +63,7 @@ export function createServices(remoteCom: IMainProcessExtHostIPC, initData: IIni
 	let requestService = new BaseRequestService(contextService, telemetryService);
 	let modelService = threadService.getRemotable(ExtHostModelService);
 
-	let extensionService = new ExtHostExtensionService(threadService);
+	let extensionService = new ExtHostExtensionService(threadService, telemetryService);
 	let modeService = new ModeServiceImpl(threadService, extensionService);
 	let _services: any = {
 		contextService: contextService,
