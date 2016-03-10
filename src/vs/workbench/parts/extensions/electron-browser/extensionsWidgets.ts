@@ -15,7 +15,8 @@ import { IExtensionService, IMessage } from 'vs/platform/extensions/common/exten
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { UninstallAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
-import { IExtensionsService } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionsService, commandCategory } from 'vs/workbench/parts/extensions/common/extensions';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 interface IState {
 	errors: IMessage[];
@@ -30,7 +31,8 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 		@IExtensionService private extensionService: IExtensionService,
 		@IMessageService private messageService: IMessageService,
 		@IExtensionsService protected extensionsService: IExtensionsService,
-		@IInstantiationService protected instantiationService: IInstantiationService
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IQuickOpenService protected quickOpenService: IQuickOpenService
 	) {}
 
 	render(container: HTMLElement): lifecycle.IDisposable {
@@ -73,6 +75,8 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 		if (this.state.errors.length > 0) {
 			this.showErrors(this.state.errors);
 			this.updateState({ errors: [] });
+		} else {
+			this.quickOpenService.show(`>${commandCategory}: `);
 		}
 	}
 

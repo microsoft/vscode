@@ -5,6 +5,7 @@
 
 'use strict';
 
+import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
@@ -68,3 +69,5 @@ export interface IExtensionTipsService {
 	serviceId: ServiceIdentifier<any>;
 	getRecommendations(): TPromise<IExtension[]>;
 }
+
+export var commandCategory = nls.localize('extensionsCategory', "Extensions");
