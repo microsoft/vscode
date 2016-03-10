@@ -30,6 +30,7 @@ import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 
 import * as VersionStatus from './utils/versionStatus';
+import * as ProjectStatus from './utils/projectStatus';
 
 import * as nls from 'vscode-nls';
 
@@ -71,6 +72,9 @@ export function activate(context: ExtensionContext): void {
 
 	// Register the supports for both TS and TSX so that we can have separate grammars but share the mode
 	client.onReady().then(() => {
+
+		context.subscriptions.push(ProjectStatus.create(client));
+
 		registerSupports(MODE_ID_TS, clientHost, client);
 		registerSupports(MODE_ID_TSX, clientHost, client);
 		registerSupports(MODE_ID_JS, clientHost, client);
