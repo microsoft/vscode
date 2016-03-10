@@ -20,7 +20,7 @@ import { download, json, IRequestOptions } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { Limiter } from 'vs/base/common/async';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { UserSettings } from 'vs/workbench/node/userSettings';
 import * as semver from 'semver';
 import { groupBy, values } from 'vs/base/common/collections';
@@ -92,16 +92,16 @@ export class ExtensionsService implements IExtensionsService {
 	private obsoleteFileLimiter: Limiter<void>;
 
 	private _onInstallExtension = new Emitter<IExtensionManifest>();
-	@ServiceEvent onInstallExtension: Event<IExtension> = this._onInstallExtension.event;
+	@ServiceEvent onInstallExtension = this._onInstallExtension.event;
 
-	private _onDidInstallExtension = new Emitter<IExtension>();
-	@ServiceEvent onDidInstallExtension: Event<IExtension> = this._onDidInstallExtension.event;
+	private _onDidInstallExtension = new Emitter<{ extension: IExtension; error?: Error; }>();
+	@ServiceEvent onDidInstallExtension = this._onDidInstallExtension.event;
 
 	private _onUninstallExtension = new Emitter<IExtension>();
-	@ServiceEvent onUninstallExtension: Event<IExtension> = this._onUninstallExtension.event;
+	@ServiceEvent onUninstallExtension = this._onUninstallExtension.event;
 
 	private _onDidUninstallExtension = new Emitter<IExtension>();
-	@ServiceEvent onDidUninstallExtension: Event<IExtension> = this._onDidUninstallExtension.event;
+	@ServiceEvent onDidUninstallExtension = this._onDidUninstallExtension.event;
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
@@ -129,6 +129,8 @@ export class ExtensionsService implements IExtensionsService {
 			return TPromise.wrapError(new Error(nls.localize('missingGalleryInformation', "Gallery information is missing")));
 		}
 
+		this._onInstallExtension.fire(extension);
+
 		return this.getLastValidExtensionVersion(extension, extension.galleryInformation.versions).then(versionInfo => {
 			const version = versionInfo.version;
 			const url = versionInfo.downloadUrl;
@@ -139,11 +141,11 @@ export class ExtensionsService implements IExtensionsService {
 			return this.request(url)
 				.then(opts => download(zipPath, opts))
 				.then(() => validate(zipPath, extension, version))
-				.then(manifest => { this._onInstallExtension.fire(manifest); return manifest; })
 				.then(manifest => extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true }).then(() => manifest))
 				.then(manifest => assign({ __metadata: galleryInformation }, manifest))
 				.then(manifest => pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t')))
-				.then(() => { this._onDidInstallExtension.fire(extension); return extension; });
+				.then(() => { this._onDidInstallExtension.fire({ extension }); return extension; })
+				.then(null, error => { this._onDidInstallExtension.fire({ extension, error }); return TPromise.wrapError(error); });
 		});
 	}
 

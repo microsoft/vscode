@@ -153,3 +153,13 @@
 	border-radius: 10px;
 	border: 1px solid white;
 }
+
+@keyframes fade {
+	from { opacity: 0.8; }
+	50% { opacity: 0.5; }
+	to { opacity: 0.8; }
+}
+
+.monaco-shell .extensions-statusbar.is-installing {
+	animation: 1.5s ease-in-out infinite fade;
+}

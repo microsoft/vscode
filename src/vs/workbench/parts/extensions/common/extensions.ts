@@ -53,7 +53,7 @@ export interface IGalleryService {
 export interface IExtensionsService {
 	serviceId: ServiceIdentifier<any>;
 	onInstallExtension: Event<IExtensionManifest>;
-	onDidInstallExtension: Event<IExtension>;
+	onDidInstallExtension: Event<{ extension: IExtension; error?: Error; }>;
 	onUninstallExtension: Event<IExtension>;
 	onDidUninstallExtension: Event<IExtension>;
 
