@@ -26,7 +26,7 @@ import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/
 import Files = require('vs/workbench/parts/files/common/files');
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
 import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
-import workbenchEditorCommon = require('vs/workbench/common/editor');
+import {asFileEditorInput, getUntitledOrFileResource, TextEditorOptions, EditorOptions, EditorInput} from 'vs/workbench/common/editor';
 import {IEditorSelection} from 'vs/editor/common/editorCommon';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {FileStat, NewStatPlaceholder} from 'vs/workbench/parts/files/common/explorerViewModel';
@@ -1255,7 +1255,7 @@ export class GlobalCompareResourcesAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let fileInput = workbenchEditorCommon.asFileEditorInput(this.editorService.getActiveEditorInput());
+		let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput());
 		if (fileInput) {
 
 			// Keep as resource to compare
@@ -1265,7 +1265,7 @@ export class GlobalCompareResourcesAction extends Action {
 			let unbind = this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_OPENING, (e: EditorEvent) => {
 				unbind(); // listen once
 
-				let otherFileInput = workbenchEditorCommon.asFileEditorInput(e.editorInput);
+				let otherFileInput = asFileEditorInput(e.editorInput);
 				if (otherFileInput) {
 					let compareAction = this.instantiationService.createInstance(CompareResourcesAction, otherFileInput.getResource(), null);
 					if (compareAction._isEnabled()) {
@@ -1441,7 +1441,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 		if (this.resource) {
 			source = this.resource;
 		} else {
-			source = workbenchEditorCommon.getUntitledOrFileResource(this.editorService.getActiveEditorInput(), true);
+			source = getUntitledOrFileResource(this.editorService.getActiveEditorInput(), true);
 		}
 
 		if (source) {
@@ -1501,9 +1501,9 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 					if (target.toString() !== source.toString() && positionsOfSource.length) {
 						let targetInput = this.instantiationService.createInstance(FileEditorInput, target, mimeOfSource, encodingOfSource);
 
-						let options: workbenchEditorCommon.TextEditorOptions;
+						let options: TextEditorOptions;
 						if (selectionOfSource) {
-							options = new workbenchEditorCommon.TextEditorOptions();
+							options = new TextEditorOptions();
 							options.selection(selectionOfSource.startLineNumber, selectionOfSource.startColumn, selectionOfSource.endLineNumber, selectionOfSource.endColumn);
 						}
 
@@ -1629,7 +1629,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 
 						let targetInput = this.instantiationService.createInstance(FileEditorInput, res.target, mimeOfSource, encodingOfSource);
 
-						let options = new workbenchEditorCommon.EditorOptions();
+						let options = new EditorOptions();
 						options.preserveFocus = true;
 
 						positions.forEach((position) => {
@@ -1674,7 +1674,7 @@ function findSaveAsPositions(editorService: IWorkbenchEditorService, outerResour
 			return false; // skip non active if this is about a file; for untitled respect them all
 		}
 
-		let innerResource = workbenchEditorCommon.getUntitledOrFileResource(editor.input);
+		let innerResource = getUntitledOrFileResource(editor.input);
 
 		return innerResource && innerResource.toString() === outerResource.toString();
 	}).map((editor) => editor.position);
@@ -1731,7 +1731,7 @@ export class RevertFileAction extends Action {
 		if (this.resource) {
 			resource = this.resource;
 		} else {
-			let activeFileInput = workbenchEditorCommon.asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+			let activeFileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 			if (activeFileInput) {
 				resource = activeFileInput.getResource();
 			}
@@ -1785,7 +1785,7 @@ export class OpenResourcesAction extends Action {
 
 				// In diffMode we open 2 resources as diff
 				if (this.diffMode) {
-					return TPromise.join(this.resources.map(f => this.editorService.inputToType(f))).then((inputs: workbenchEditorCommon.EditorInput[]) => {
+					return TPromise.join(this.resources.map(f => this.editorService.inputToType(f))).then((inputs: EditorInput[]) => {
 						return this.editorService.openEditor(new DiffEditorInput(toDiffLabel(this.resources[0].resource, this.resources[1].resource, this.contextService), null, inputs[0], inputs[1]));
 					});
 				}
@@ -1985,7 +1985,7 @@ export class CloseOtherWorkingFilesAction extends BaseCloseWorkingFileAction {
 }
 
 function disposeNonDirtyFileInputs(editorService: IWorkbenchEditorService, quickopenService: IQuickOpenService, textFileService: ITextFileService, exclude?: URI): void {
-	let activeFileInputs = editorService.getVisibleEditors().map(e => workbenchEditorCommon.asFileEditorInput(e.input, true)).filter(i => i instanceof FileEditorInput);
+	let activeFileInputs = editorService.getVisibleEditors().map(e => asFileEditorInput(e.input, true)).filter(i => i instanceof FileEditorInput);
 	activeFileInputs.forEach((f: FileEditorInput) => {
 		if (exclude && exclude.toString() === f.getResource().toString()) {
 			return; // excluded
@@ -2004,7 +2004,7 @@ function disposeNonDirtyFileInputs(editorService: IWorkbenchEditorService, quick
 }
 
 function closeNonFileEditors(editorService: IWorkbenchEditorService): TPromise<boolean> {
-	let nonFileEditors = editorService.getVisibleEditors().filter(e => !workbenchEditorCommon.getUntitledOrFileResource(e.input, true));
+	let nonFileEditors = editorService.getVisibleEditors().filter(e => !getUntitledOrFileResource(e.input, true));
 
 	return TPromise.join(nonFileEditors.map(e => editorService.closeEditor(e))).then(() => true, errors.onUnexpectedError);
 }
@@ -2055,7 +2055,7 @@ export class CloseFileAction extends Action {
 	public run(): TPromise<any> {
 		let editor = this.editorService.getActiveEditor();
 		let input = this.editorService.getActiveEditorInput();
-		let resource = workbenchEditorCommon.getUntitledOrFileResource(input, true);
+		let resource = getUntitledOrFileResource(input, true);
 
 		// For a file or untitled
 		if (resource) {
@@ -2124,7 +2124,7 @@ export class CloseOtherFilesAction extends Action {
 	public run(): TPromise<any> {
 		const workingFilesModel = this.textFileService.getWorkingFilesModel();
 
-		let activeResource = workbenchEditorCommon.getUntitledOrFileResource(this.editorService.getActiveEditorInput(), true);
+		let activeResource = getUntitledOrFileResource(this.editorService.getActiveEditorInput(), true);
 		let actionToRun: IAction;
 
 		// Close all but active resource
@@ -2201,7 +2201,7 @@ export class OpenNextWorkingFile extends Action {
 
 		// If entry found, open next one
 		else {
-			let resource = workbenchEditorCommon.getUntitledOrFileResource(this.editorService.getActiveEditorInput(), true);
+			let resource = getUntitledOrFileResource(this.editorService.getActiveEditorInput(), true);
 			return this.editorService.openEditor({ resource: model.next(resource).resource });
 		}
 
@@ -2234,7 +2234,7 @@ export class OpenPreviousWorkingFile extends Action {
 
 		// If entry found, open previous one
 		else {
-			let resource = workbenchEditorCommon.getUntitledOrFileResource(this.editorService.getActiveEditorInput(), true);
+			let resource = getUntitledOrFileResource(this.editorService.getActiveEditorInput(), true);
 			return this.editorService.openEditor({ resource: model.previous(resource).resource });
 		}
 
@@ -2258,7 +2258,7 @@ export class AddToWorkingFiles extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let fileInput = workbenchEditorCommon.asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+		let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
 		if (fileInput) {
 			this.textFileService.getWorkingFilesModel().addEntry(fileInput.getResource());
 		} else {
