@@ -125,8 +125,6 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 	}
 
 	protected _actualActivateExtension(extensionDescription: IExtensionDescription): TPromise<ActivatedExtension> {
-		let event = getTelemetryActivationEvent(extensionDescription);
-		this._telemetryService.publicLog('activatePlugin', event);
 
 		// redirect extension activation to the extension host
 		return this._proxy.$activateExtension(extensionDescription).then(_ => {
@@ -247,16 +245,18 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 	private _threadService: IThreadService;
 	private _storage: ExtHostStorage;
 	private _proxy: MainProcessExtensionService;
+	private _telemetryService: ITelemetryService;
 
 	/**
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
-	constructor(threadService: IThreadService) {
+	constructor(threadService: IThreadService, telemetryService: ITelemetryService) {
 		super(true);
 		threadService.registerRemotableInstance(ExtHostExtensionService, this);
 		this._threadService = threadService;
 		this._storage = new ExtHostStorage(threadService);
 		this._proxy = this._threadService.getRemotable(MainProcessExtensionService);
+		this._telemetryService = telemetryService;
 	}
 
 	public $localShowMessage(severity: Severity, msg: string): void {
@@ -345,6 +345,8 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 	}
 
 	private _doActualActivateExtension(extensionDescription: IExtensionDescription): TPromise<ExtHostExtension> {
+		let event = getTelemetryActivationEvent(extensionDescription);
+		this._telemetryService.publicLog('activatePlugin', event);
 		if (!extensionDescription.main) {
 			// Treat the extension as being empty => NOT AN ERROR CASE
 			return TPromise.as(new ExtHostEmptyExtension());
