@@ -71,16 +71,17 @@ export default class BufferSyncSupport {
 
 	private client: ITypescriptServiceClient;
 
-	private modeId: string;
+	private modeIds: Map<boolean>;
 	private disposables: Disposable[] = [];
 	private syncedBuffers: { [key: string]: SyncedBuffer };
 
 	private pendingDiagnostics: { [key: string]: number; };
 	private diagnosticDelayer: Delayer<any>;
 
-	constructor(client: ITypescriptServiceClient, modeId: string) {
+	constructor(client: ITypescriptServiceClient, modeIds: string[]) {
 		this.client = client;
-		this.modeId = modeId;
+		this.modeIds = Object.create(null);
+		modeIds.forEach(modeId => this.modeIds[modeId] = true);
 
 		this.pendingDiagnostics = Object.create(null);
 		this.diagnosticDelayer = new Delayer<any>(100);
@@ -90,6 +91,10 @@ export default class BufferSyncSupport {
 		workspace.onDidCloseTextDocument(this.onDidRemoveDocument, this, this.disposables);
 		workspace.onDidChangeTextDocument(this.onDidChangeDocument, this, this.disposables);
 		workspace.textDocuments.forEach(this.onDidAddDocument, this);
+	}
+
+	public handles(file: string): boolean {
+		return !!this.syncedBuffers[file];
 	}
 
 	public reOpenDocuments(): void {
@@ -105,7 +110,7 @@ export default class BufferSyncSupport {
 	}
 
 	private onDidAddDocument(document: TextDocument): void {
-		if (document.languageId !== this.modeId) {
+		if (!this.modeIds[document.languageId]) {
 			return;
 		}
 		if (document.isUntitled) {

@@ -75,6 +75,11 @@
 					"type": ["string", "null"],
 					"default": null,
 					"description": "%typescript.tsdk.desc%"
+				},
+				"javascript.validate.enable": {
+					"type": "boolean",
+					"default": true,
+					"description": "%javascript.validate.enable%"
 				}
 			}
 		},

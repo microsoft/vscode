@@ -3,10 +3,11 @@
 		"noLib": true,
 		"target": "es5",
 		"module": "commonjs",
-		"sourceMap": false,
+		"sourceMap": true,
 		"outDir": "../out"
 	},
 	"exclude": [
-		"node_modules"
+		"node_modules",
+		"server"
 	]
 }

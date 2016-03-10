@@ -33,6 +33,11 @@ import * as VersionStatus from './utils/versionStatus';
 
 import * as nls from 'vscode-nls';
 
+interface LanguageDescription {
+	id: string;
+	modeIds: string[];
+}
+
 export function activate(context: ExtensionContext): void {
 	nls.config({locale: env.language});
 
@@ -41,7 +46,17 @@ export function activate(context: ExtensionContext): void {
 	let MODE_ID_JS = 'javascript';
 	let MODE_ID_JSX = 'javascriptreact';
 
-	let clientHost = new TypeScriptServiceClientHost();
+	let clientHost = new TypeScriptServiceClientHost([
+		{
+			id: 'typescript',
+			modeIds: [MODE_ID_TS, MODE_ID_TSX]
+		},
+		{
+			id: 'javascript',
+			modeIds: [MODE_ID_JS, MODE_ID_JSX]
+		}
+	]);
+
 	let client = clientHost.serviceClient;
 
 	context.subscriptions.push(commands.registerCommand('typescript.reloadProjects', () => {
@@ -135,8 +150,6 @@ function registerSupports(modeID: string, host: TypeScriptServiceClientHost, cli
 		}
 	});
 
-	host.addBufferSyncSupport(new BufferSyncSupport(client, modeID));
-
 	// Register suggest support as soon as possible and load configuration lazily
 	let completionItemProvider = new CompletionItemProvider(client);
 	languages.registerCompletionItemProvider(modeID, completionItemProvider, '.');
@@ -149,16 +162,76 @@ function registerSupports(modeID: string, host: TypeScriptServiceClientHost, cli
 	reloadConfig();
 }
 
+class LanguageManager {
+
+	private description: LanguageDescription;
+	private syntaxDiagnostics: Map<Diagnostic[]>;
+	private currentDiagnostics: DiagnosticCollection;
+	private bufferSyncSupport: BufferSyncSupport;
+
+	private _validate: boolean;
+
+	constructor(client: TypeScriptServiceClient, description: LanguageDescription, validate: boolean = true) {
+		this.description = description;
+		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds);
+		this.syntaxDiagnostics = Object.create(null);
+		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
+		this._validate = validate;
+	}
+
+	public handles(file: string): boolean {
+		return this.bufferSyncSupport.handles(file);
+	}
+
+	public get validate(): boolean {
+		return this._validate;
+	}
+
+	public set validate(value: boolean) {
+		this._validate = value;
+		if (value) {
+			this.triggerAllDiagnostics();
+		} else {
+			this.syntaxDiagnostics = Object.create(null);
+			this.currentDiagnostics.clear();
+		}
+	}
+
+	public reInitialize(): void {
+		this.currentDiagnostics.clear();
+		this.syntaxDiagnostics = Object.create(null);
+		this.bufferSyncSupport.reOpenDocuments();
+		this.bufferSyncSupport.requestAllDiagnostics();
+
+	}
+
+	public triggerAllDiagnostics(): void {
+		if (!this._validate) {
+			return;
+		}
+		this.bufferSyncSupport.requestAllDiagnostics();
+	}
+
+	public syntaxDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
+		this.syntaxDiagnostics[file] = diagnostics;
+	}
+
+	public semanticDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
+		let syntaxMarkers = this.syntaxDiagnostics[file];
+		if (syntaxMarkers) {
+			delete this.syntaxDiagnostics[file];
+			diagnostics = syntaxMarkers.concat(diagnostics);
+		}
+		this.currentDiagnostics.set(Uri.file(file), diagnostics);
+	}
+}
+
 class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private client: TypeScriptServiceClient;
+	private languages: LanguageManager[];
+	private languagePerId: Map<LanguageManager>;
 
-	private syntaxDiagnostics: { [key: string]: Diagnostic[] };
-	private currentDiagnostics: DiagnosticCollection;
-	private bufferSyncSupports: BufferSyncSupport[];
-
-	constructor() {
-		this.bufferSyncSupports = [];
-		this.currentDiagnostics = languages.createDiagnosticCollection('typescript');
+	constructor(descriptions: LanguageDescription[]) {
 		let handleProjectCreateOrDelete = () => {
 			this.client.execute('reloadProjects', null, false);
 			this.triggerAllDiagnostics();
@@ -174,7 +247,13 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		watcher.onDidChange(handleProjectChange);
 
 		this.client = new TypeScriptServiceClient(this);
-		this.syntaxDiagnostics = Object.create(null);
+		this.languages = [];
+		this.languagePerId = Object.create(null);
+		descriptions.forEach(description => {
+			let manager = new LanguageManager(this.client, description);
+			this.languages.push(manager);
+			this.languagePerId[description.id] = manager;
+		});
 	}
 
 	public get serviceClient(): TypeScriptServiceClient {
@@ -186,51 +265,51 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		this.triggerAllDiagnostics();
 	}
 
-	public addBufferSyncSupport(support: BufferSyncSupport): void {
-		this.bufferSyncSupports.push(support);
+	private findLanguage(file: string): LanguageManager {
+		for (let i = 0; i < this.languages.length; i++) {
+			let language = this.languages[i];
+			if (language.handles(file)) {
+				return language;
+			}
+		}
+		return null;
 	}
 
 	private triggerAllDiagnostics() {
-		this.bufferSyncSupports.forEach(support => support.requestAllDiagnostics());
+		Object.keys(this.languagePerId).forEach(key => this.languagePerId[key].triggerAllDiagnostics());
 	}
 
 	/* internal */ populateService(): void {
-		this.currentDiagnostics.clear();
-		this.syntaxDiagnostics = Object.create(null);
 		// See https://github.com/Microsoft/TypeScript/issues/5530
 		workspace.saveAll(false).then((value) => {
-			this.bufferSyncSupports.forEach(support => {
-				support.reOpenDocuments();
-				support.requestAllDiagnostics();
-			});
+			Object.keys(this.languagePerId).forEach(key => this.languagePerId[key].reInitialize());
 		});
 	}
 
 	/* internal */ syntaxDiagnosticsReceived(event: Proto.DiagnosticEvent): void {
 		let body = event.body;
 		if (body.diagnostics) {
-			let markers = this.createMarkerDatas(body.diagnostics);
-			this.syntaxDiagnostics[body.file] = markers;
+			let language = this.findLanguage(body.file);
+			if (language) {
+				language.syntaxDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics));
+			}
 		}
 	}
 
 	/* internal */ semanticDiagnosticsReceived(event: Proto.DiagnosticEvent): void {
 		let body = event.body;
 		if (body.diagnostics) {
-			let diagnostics = this.createMarkerDatas(body.diagnostics);
-			let syntaxMarkers = this.syntaxDiagnostics[body.file];
-			if (syntaxMarkers) {
-				delete this.syntaxDiagnostics[body.file];
-				diagnostics = syntaxMarkers.concat(diagnostics);
+			let language = this.findLanguage(body.file);
+			if (language) {
+				language.semanticDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics));
 			}
-			this.currentDiagnostics.set(Uri.file(body.file), diagnostics);
 		}
 	}
 
 	private createMarkerDatas(diagnostics: Proto.Diagnostic[]): Diagnostic[] {
 		let result: Diagnostic[] = [];
 		for (let diagnostic of diagnostics) {
-			let {start, end, text} = diagnostic;
+			let { start, end, text } = diagnostic;
 			let range = new Range(start.line - 1, start.offset - 1, end.line - 1, end.offset - 1);
 			result.push(new Diagnostic(range, text));
 		}
