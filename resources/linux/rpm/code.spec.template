@@ -2,6 +2,9 @@ Name:     @@NAME@@
 Version:  @@VERSION@@
 Release:  @@RELEASE@@
 Summary:  Code editing. Redefined.
+Group:    Development/Tools
+Vendor:   Microsoft Corporation
+Packager: Visual Studio Code Team <vscode-linux@microsoft.com>
 License:  MIT
 URL:      https://code.visualstudio.com/
 Requires: git
