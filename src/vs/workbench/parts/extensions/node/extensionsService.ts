@@ -20,7 +20,7 @@ import { download, json, IRequestOptions } from 'vs/base/node/request';
 import { getProxyAgent } from 'vs/base/node/proxy';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { Limiter } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import { UserSettings } from 'vs/workbench/node/userSettings';
 import * as semver from 'semver';
 import { groupBy, values } from 'vs/base/common/collections';
@@ -92,16 +92,16 @@ export class ExtensionsService implements IExtensionsService {
 	private obsoleteFileLimiter: Limiter<void>;
 
 	private _onInstallExtension = new Emitter<IExtensionManifest>();
-	@ServiceEvent onInstallExtension = this._onInstallExtension.event;
+	@ServiceEvent onInstallExtension: Event<IExtensionManifest> = this._onInstallExtension.event;
 
 	private _onDidInstallExtension = new Emitter<{ extension: IExtension; error?: Error; }>();
-	@ServiceEvent onDidInstallExtension = this._onDidInstallExtension.event;
+	@ServiceEvent onDidInstallExtension: Event<{ extension: IExtension; error?: Error; }> = this._onDidInstallExtension.event;
 
 	private _onUninstallExtension = new Emitter<IExtension>();
-	@ServiceEvent onUninstallExtension = this._onUninstallExtension.event;
+	@ServiceEvent onUninstallExtension: Event<IExtension> = this._onUninstallExtension.event;
 
 	private _onDidUninstallExtension = new Emitter<IExtension>();
-	@ServiceEvent onDidUninstallExtension = this._onDidUninstallExtension.event;
+	@ServiceEvent onDidUninstallExtension: Event<IExtension> = this._onDidUninstallExtension.event;
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
