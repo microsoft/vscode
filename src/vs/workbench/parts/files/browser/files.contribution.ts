@@ -227,6 +227,14 @@ configurationRegistry.registerConfiguration({
 			'type': 'number',
 			'default': 1000,
 			'description': nls.localize('autoSaveDelay', "Controls the delay in ms after which a dirty file is saved automatically. Only applies when \"files.autoSave\" is set to \"{0}\"", AutoSaveConfiguration.AFTER_DELAY)
+		},
+		'files.watcherExclude': {
+			'type': 'array',
+			'items': {
+				'type': 'string'
+			},
+			'default': platform.isLinux ? ['**/.git/objects/**', '**/node_modules/**'] : ['**/.git/objects/**'],
+			'description': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Changing this setting requires a restart. When you experience Code consuming lots of cpu time on startup, you can exclude large folders to reduce the initial load.")
 		}
 	}
 });
