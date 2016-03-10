@@ -141,10 +141,8 @@ export class ExtensionsService implements IExtensionsService {
 				.then(() => validate(zipPath, extension, version))
 				.then(manifest => { this._onInstallExtension.fire(manifest); return manifest; })
 				.then(manifest => extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true }).then(() => manifest))
-				.then(manifest => {
-					manifest = assign({ __metadata: galleryInformation }, manifest);
-					return pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t'));
-				})
+				.then(manifest => assign({ __metadata: galleryInformation }, manifest))
+				.then(manifest => pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t')))
 				.then(() => { this._onDidInstallExtension.fire(extension); return extension; });
 		});
 	}
