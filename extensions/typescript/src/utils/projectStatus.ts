@@ -63,7 +63,7 @@ export function create(client: ITypescriptServiceClient) {
 
 			if (!configFileName) {
 				currentHint = {
-					message: localize('hintCreate', "Create a project and experience better IntelliSense and code navigation."),
+					message: localize('hintCreate', "Have a project and experience better IntelliSense and code navigation."),
 					option: {
 						title: localize('cmdCreate', "Create jsconfig.json-file..."),
 						execute: () => {
@@ -77,7 +77,7 @@ export function create(client: ITypescriptServiceClient) {
 					}
 				};
 				item.text = '$(light-bulb)';
-				item.tooltip = localize('hint.tooltip', "Create a project and have better IntelliSense, better symbol search, and much more.");
+				item.tooltip = localize('hint.tooltip', "Have a project and have better IntelliSense, better symbol search, and much more.");
 				item.color = 'lime';
 				item.show();
 
@@ -101,9 +101,9 @@ export function create(client: ITypescriptServiceClient) {
 					}
 				};
 				item.tooltip = currentHint.message;
-				item.text = localize('large.label', "+{0} files", fileLimit);
+				item.text = localize('large.label', "configure excludes");
 				item.tooltip = localize('large.tooltip', "Too many files in a project might result in bad performance. Exclude folders with many files, like: {0}...", largeRoots);
-				item.color = 'orange';
+				item.color = '#0CFF00';
 				item.show();
 
 			} else {
