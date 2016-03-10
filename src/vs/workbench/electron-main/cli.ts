@@ -33,12 +33,13 @@ Options:
 ${ indent }--disable-extensions  Disable all installed extensions.
 ${ indent }-g, --goto            Open the file at path at the line and column (add
 ${ indent }                      :line[:column] to path).
+${ indent }-d, --diff            Open a diff editor on two files.
 ${ indent }-h, --help            Print usage.
 ${ indent }--locale=LOCALE       Use a specific locale, "pseudo" can be used to test
 ${ indent }                      localization.
 ${ indent }-n, --new-window      Force a new instance of Code.
 ${ indent }-r, --reuse-window    Force opening a file or folder in the last active
-${ indent }                      window.2
+${ indent }                      window.
 ${ indent }-v, --version         Print version.
 ${ indent }-w, --wait            Wait for the window to be closed before returning.`;
 	}

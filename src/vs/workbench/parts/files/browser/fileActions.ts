@@ -25,7 +25,7 @@ import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
 import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
 import Files = require('vs/workbench/parts/files/common/files');
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
-import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
+import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
 import workbenchEditorCommon = require('vs/workbench/common/editor');
 import {IEditorSelection} from 'vs/editor/common/editorCommon';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
@@ -1375,10 +1375,7 @@ export class CompareResourcesAction extends Action {
 		let leftInput = this.instantiationService.createInstance(FileEditorInput, globalResourceToCompare, void 0, void 0);
 		let rightInput = this.instantiationService.createInstance(FileEditorInput, this.resource, void 0, void 0);
 
-		let leftName = getPathLabel(globalResourceToCompare.fsPath, this.contextService);
-		let rightName = getPathLabel(this.resource.fsPath, this.contextService);
-
-		return this.editorService.openEditor(new DiffEditorInput(nls.localize('compareLabels', "{0} ↔ {1}", leftName, rightName), null, leftInput, rightInput));
+		return this.editorService.openEditor(new DiffEditorInput(toDiffLabel(globalResourceToCompare, this.resource, this.contextService), null, leftInput, rightInput));
 	}
 }
 
@@ -1749,10 +1746,12 @@ export class RevertFileAction extends Action {
 }
 
 export class OpenResourcesAction extends Action {
-	private filesToOpen: IResourceInput[];
+	private resources: IResourceInput[];
+	private diffMode: boolean;
 
 	constructor(
-		filesToOpen: IResourceInput[],
+		resources: IResourceInput[],
+		diffMode: boolean,
 		@IPartService private partService: IPartService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IViewletService private viewletService: IViewletService,
@@ -1761,7 +1760,8 @@ export class OpenResourcesAction extends Action {
 	) {
 		super('workbench.files.action.openResourcesAction');
 
-		this.filesToOpen = filesToOpen;
+		this.resources = resources;
+		this.diffMode = diffMode;
 	}
 
 	public run(): TPromise<any> {
@@ -1774,7 +1774,7 @@ export class OpenResourcesAction extends Action {
 			return viewletPromise.then(() => {
 
 				// Out of workspace files get added right away to working files model
-				this.filesToOpen.forEach((fileToOpen) => {
+				this.resources.forEach((fileToOpen) => {
 					let resource = fileToOpen.resource;
 					let workspace = this.contextService.getWorkspace();
 
@@ -1783,13 +1783,20 @@ export class OpenResourcesAction extends Action {
 					}
 				});
 
+				// In diffMode we open 2 resources as diff
+				if (this.diffMode) {
+					return TPromise.join(this.resources.map(f => this.editorService.inputToType(f))).then((inputs: workbenchEditorCommon.EditorInput[]) => {
+						return this.editorService.openEditor(new DiffEditorInput(toDiffLabel(this.resources[0].resource, this.resources[1].resource, this.contextService), null, inputs[0], inputs[1]));
+					});
+				}
+
 				// For one file, just put it into the current active editor
-				if (this.filesToOpen.length === 1) {
-					return this.editorService.openEditor(this.filesToOpen[0]);
+				if (this.resources.length === 1) {
+					return this.editorService.openEditor(this.resources[0]);
 				}
 
 				// Otherwise replace all
-				return this.editorService.setEditors(this.filesToOpen);
+				return this.editorService.setEditors(this.resources);
 			});
 		});
 	}

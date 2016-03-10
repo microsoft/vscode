@@ -478,7 +478,15 @@ export class WindowsManager {
 			iPathsToOpen = this.cliToPaths(openConfig.cli, ignoreFileNotFound);
 		}
 
-		let filesToOpen = iPathsToOpen.filter((iPath) => !!iPath.filePath && !iPath.createFilePath && !iPath.installExtensionPath);
+		let filesToOpen:window.IPath[] = [];
+		let filesToDiff:window.IPath[] = [];
+		let candidates = iPathsToOpen.filter((iPath) => !!iPath.filePath && !iPath.createFilePath && !iPath.installExtensionPath);
+		if (openConfig.cli.diffMode && candidates.length === 2) {
+			filesToDiff = candidates;
+		} else {
+			filesToOpen = candidates;
+		}
+
 		let filesToCreate = iPathsToOpen.filter((iPath) => !!iPath.filePath && iPath.createFilePath && !iPath.installExtensionPath);
 		let foldersToOpen = iPathsToOpen.filter((iPath) => iPath.workspacePath && !iPath.filePath && !iPath.installExtensionPath);
 		let emptyToOpen = iPathsToOpen.filter((iPath) => !iPath.workspacePath && !iPath.filePath && !iPath.installExtensionPath);
@@ -486,8 +494,8 @@ export class WindowsManager {
 
 		let configuration: window.IWindowConfiguration;
 
-		// Handle files to open or to create when we dont open a folder
-		if (!foldersToOpen.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || extensionsToInstall.length > 0)) {
+		// Handle files to open/diff or to create when we dont open a folder
+		if (!foldersToOpen.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0 || extensionsToInstall.length > 0)) {
 
 			// Let the user settings override how files are open in a new window or same window
 			let openFilesInNewWindow = openConfig.forceNewWindow;
@@ -502,7 +510,8 @@ export class WindowsManager {
 				lastActiveWindow.ready().then((readyWindow) => {
 					readyWindow.send('vscode:openFiles', {
 						filesToOpen: filesToOpen,
-						filesToCreate: filesToCreate
+						filesToCreate: filesToCreate,
+						filesToDiff: filesToDiff
 					});
 
 					if (extensionsToInstall.length) {
@@ -513,7 +522,7 @@ export class WindowsManager {
 
 			// Otherwise open instance with files
 			else {
-				configuration = this.toConfiguration(openConfig.userEnv || this.initialUserEnv, openConfig.cli, null, filesToOpen, filesToCreate, extensionsToInstall);
+				configuration = this.toConfiguration(openConfig.userEnv || this.initialUserEnv, openConfig.cli, null, filesToOpen, filesToCreate, filesToDiff, extensionsToInstall);
 				this.openInBrowserWindow(configuration, true /* new window */);
 
 				openConfig.forceNewWindow = true; // any other folders to open must open in new window then
@@ -530,7 +539,8 @@ export class WindowsManager {
 				windowsOnWorkspacePath[0].ready().then((readyWindow) => {
 					readyWindow.send('vscode:openFiles', {
 						filesToOpen: filesToOpen,
-						filesToCreate: filesToCreate
+						filesToCreate: filesToCreate,
+						filesToDiff: filesToDiff
 					});
 
 					if (extensionsToInstall.length) {
@@ -541,6 +551,7 @@ export class WindowsManager {
 				// Reset these because we handled them
 				filesToOpen = [];
 				filesToCreate = [];
+				filesToDiff = [];
 				extensionsToInstall = [];
 
 				openConfig.forceNewWindow = true; // any other folders to open must open in new window then
@@ -552,12 +563,13 @@ export class WindowsManager {
 					return; // ignore folders that are already open
 				}
 
-				configuration = this.toConfiguration(openConfig.userEnv || this.initialUserEnv, openConfig.cli, folderToOpen.workspacePath, filesToOpen, filesToCreate, extensionsToInstall);
+				configuration = this.toConfiguration(openConfig.userEnv || this.initialUserEnv, openConfig.cli, folderToOpen.workspacePath, filesToOpen, filesToCreate, filesToDiff, extensionsToInstall);
 				this.openInBrowserWindow(configuration, openConfig.forceNewWindow, openConfig.forceNewWindow ? void 0 : openConfig.windowToUse);
 
 				// Reset these because we handled them
 				filesToOpen = [];
 				filesToCreate = [];
+				filesToDiff = [];
 				extensionsToInstall = [];
 
 				openConfig.forceNewWindow = true; // any other folders to open must open in new window then
@@ -620,12 +632,13 @@ export class WindowsManager {
 		this.open({ cli: openConfig.cli, forceNewWindow: true, forceEmpty: openConfig.cli.pathArguments.length === 0 });
 	}
 
-	private toConfiguration(userEnv: env.IProcessEnvironment, cli: env.ICommandLineArguments, workspacePath?: string, filesToOpen?: window.IPath[], filesToCreate?: window.IPath[], extensionsToInstall?: string[]): window.IWindowConfiguration {
+	private toConfiguration(userEnv: env.IProcessEnvironment, cli: env.ICommandLineArguments, workspacePath?: string, filesToOpen?: window.IPath[], filesToCreate?: window.IPath[], filesToDiff?: window.IPath[], extensionsToInstall?: string[]): window.IWindowConfiguration {
 		let configuration: window.IWindowConfiguration = objects.mixin({}, cli); // inherit all properties from CLI
 		configuration.execPath = process.execPath;
 		configuration.workspacePath = workspacePath;
 		configuration.filesToOpen = filesToOpen;
 		configuration.filesToCreate = filesToCreate;
+		configuration.filesToDiff = filesToDiff;
 		configuration.extensionsToInstall = extensionsToInstall;
 		configuration.appName = env.product.nameLong;
 		configuration.applicationName = env.product.applicationName;
@@ -646,7 +659,7 @@ export class WindowsManager {
 		configuration.releaseNotesUrl = env.product.releaseNotesUrl;
 		configuration.updateFeedUrl = UpdateManager.feedUrl;
 		configuration.updateChannel = UpdateManager.channel;
-		configuration.recentPaths = this.getRecentlyOpenedPaths(workspacePath, filesToOpen);
+		configuration.recentPaths = this.getRecentlyOpenedPaths(workspacePath, filesToOpen, filesToDiff);
 		configuration.aiConfig = env.product.aiConfig;
 		configuration.sendASmile = env.product.sendASmile;
 		configuration.enableTelemetry = env.product.enableTelemetry;
@@ -655,7 +668,7 @@ export class WindowsManager {
 		return configuration;
 	}
 
-	private getRecentlyOpenedPaths(workspacePath?: string, filesToOpen?: window.IPath[]): string[] {
+	private getRecentlyOpenedPaths(workspacePath?: string, filesToOpen?: window.IPath[], filesToDiff?: window.IPath[]): string[] {
 
 		// Get from storage
 		let openedPathsList = storage.getItem<IOpenedPathsList>(WindowsManager.openedPathsListStorageKey);
@@ -668,6 +681,10 @@ export class WindowsManager {
 		// Add currently files to open to the beginning if any
 		if (filesToOpen) {
 			recentPaths.unshift(...filesToOpen.map(f => f.filePath));
+		}
+
+		if (filesToDiff) {
+			recentPaths.unshift(...filesToDiff.map(f => f.filePath));
 		}
 
 		// Add current workspace path to beginning if set

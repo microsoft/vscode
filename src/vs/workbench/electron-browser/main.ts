@@ -35,6 +35,7 @@ export interface IMainEnvironment extends IEnvironment {
 	workspacePath?: string;
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
+	filesToDiff?: IPath[];
 	extensionsToInstall?: string[];
 	userEnv: IEnv;
 }
@@ -63,10 +64,12 @@ export function startup(environment: IMainEnvironment, globalSettings: IGlobalSe
 	// Shell Options
 	let filesToOpen = environment.filesToOpen && environment.filesToOpen.length ? toInputs(environment.filesToOpen) : null;
 	let filesToCreate = environment.filesToCreate && environment.filesToCreate.length ? toInputs(environment.filesToCreate) : null;
+	let filesToDiff = environment.filesToDiff && environment.filesToDiff.length ? toInputs(environment.filesToDiff) : null;
 	let shellOptions: IOptions = {
 		singleFileMode: !environment.workspacePath,
 		filesToOpen: filesToOpen,
 		filesToCreate: filesToCreate,
+		filesToDiff: filesToDiff,
 		extensionsToInstall: environment.extensionsToInstall,
 		globalSettings: globalSettings
 	};

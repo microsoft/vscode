@@ -107,6 +107,7 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 	workspacePath?: string;
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
+	filesToDiff?: IPath[];
 	extensionsToInstall: string[];
 	crashReporter: Electron.CrashReporterStartOptions;
 	extensionsGallery: {
@@ -393,6 +394,7 @@ export class VSCodeWindow {
 		let configuration: IWindowConfiguration = objects.mixin({}, this.currentConfig);
 		delete configuration.filesToOpen;
 		delete configuration.filesToCreate;
+		delete configuration.filesToDiff;
 		delete configuration.extensionsToInstall;
 
 		// Some configuration things get inherited if the window is being reloaded and we are

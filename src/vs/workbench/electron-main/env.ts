@@ -143,6 +143,7 @@ export interface ICommandLineArguments {
 	openInSameWindow?: boolean;
 
 	gotoLineMode?: boolean;
+	diffMode?: boolean;
 
 	locale?: string;
 }
@@ -189,8 +190,10 @@ function parseCli(): ICommandLineArguments {
 		debugPluginHostPort = parseNumber(args, '--debugPluginHost', 5870, isBuilt ? void 0 : 5870);
 	}
 
+	let pathArguments = parsePathArguments(args, gotoLineMode);
+
 	return {
-		pathArguments: parsePathArguments(args, gotoLineMode),
+		pathArguments: pathArguments,
 		programStart: parseNumber(args, '--timestamp', 0, 0),
 		workers: parseNumber(args, '--workers', -1, -1),
 		enablePerformance: !!opts['p'],
@@ -202,6 +205,7 @@ function parseCli(): ICommandLineArguments {
 		openNewWindow: !!opts['n'] || !!opts['new-window'],
 		openInSameWindow: !!opts['r'] || !!opts['reuse-window'],
 		gotoLineMode: gotoLineMode,
+		diffMode: (!!opts['d'] || !!opts['diff']) && pathArguments.length === 2,
 		pluginHomePath: normalizePath(parseString(args, '--extensionHomePath')),
 		extensionDevelopmentPath: normalizePath(parseString(args, '--extensionDevelopmentPath')),
 		extensionTestsPath: normalizePath(parseString(args, '--extensionTestsPath')),

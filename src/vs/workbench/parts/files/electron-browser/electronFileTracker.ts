@@ -33,8 +33,9 @@ export interface IPath {
 }
 
 export interface IOpenFileRequest {
-	filesToOpen: IPath[];
-	filesToCreate: IPath[];
+	filesToOpen?: IPath[];
+	filesToCreate?: IPath[];
+	filesToDiff?: IPath[];
 }
 
 // This extension decorates the window as dirty when auto save is disabled and a file is dirty (mac only) and handles opening of files in the instance.
@@ -80,16 +81,22 @@ export class FileTracker implements IWorkbenchContribution {
 		// Support openFiles event for existing and new files
 		ipc.on('vscode:openFiles', (event, request: IOpenFileRequest) => {
 			let inputs: IResourceInput[] = [];
-			if (request.filesToOpen) {
+			let diffMode = (request.filesToDiff.length === 2);
+
+			if (!diffMode && request.filesToOpen) {
 				inputs.push(...this.toInputs(request.filesToOpen, false));
 			}
 
-			if (request.filesToCreate) {
+			if (!diffMode && request.filesToCreate) {
 				inputs.push(...this.toInputs(request.filesToCreate, true));
 			}
 
+			if (diffMode) {
+				inputs.push(...this.toInputs(request.filesToDiff, false));
+			}
+
 			if (inputs.length) {
-				let action = this.instantiationService.createInstance(OpenResourcesAction, inputs);
+				let action = this.instantiationService.createInstance(OpenResourcesAction, inputs, diffMode);
 
 				action.run().done(null, errors.onUnexpectedError);
 				action.dispose();

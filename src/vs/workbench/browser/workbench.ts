@@ -35,6 +35,7 @@ import {IActionBarRegistry, Extensions as ActionBarExtensions} from 'vs/workbenc
 import {ViewletRegistry, Extensions as ViewletExtensions} from 'vs/workbench/browser/viewlet';
 import {PanelRegistry, Extensions as PanelExtensions} from 'vs/workbench/browser/panel';
 import {QuickOpenController} from 'vs/workbench/browser/parts/quickopen/quickOpenController';
+import {DiffEditorInput, toDiffLabel} from 'vs/workbench/common/editor/diffEditorInput';
 import {getServices} from 'vs/platform/instantiation/common/extensions';
 import {AbstractKeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
 import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -225,23 +226,36 @@ export class Workbench implements IPartService {
 			let resolveEditorInputsPromise: TPromise<EditorInput[]> = TPromise.as(null);
 			let options: EditorOptions[] = [];
 
-			// Files to open or create
-			if ((this.workbenchParams.options.filesToCreate && this.workbenchParams.options.filesToCreate.length) || (this.workbenchParams.options.filesToOpen && this.workbenchParams.options.filesToOpen.length)) {
-				let inputs: EditorInput[] = [];
-				let filesToCreate = this.workbenchParams.options.filesToCreate || [];
-				let filesToOpen = this.workbenchParams.options.filesToOpen || [];
+			// Files to open, diff or create
+			const wbopt = this.workbenchParams.options;
+			if ((wbopt.filesToCreate && wbopt.filesToCreate.length) || (wbopt.filesToOpen && wbopt.filesToOpen.length) || (wbopt.filesToDiff && wbopt.filesToDiff.length)) {
+				let filesToCreate = wbopt.filesToCreate || [];
+				let filesToOpen = wbopt.filesToOpen || [];
+				let filesToDiff = wbopt.filesToDiff;
 
-				// Files to create
-				inputs.push(...filesToCreate.map((resourceInput) => this.untitledEditorService.createOrGet(resourceInput.resource)));
-				options.push(...filesToCreate.map(r => null)); // fill empty options for files to create because we dont have options there
+				// Files to diff is exclusive
+				if (filesToDiff && filesToDiff.length) {
+					resolveEditorInputsPromise = TPromise.join<EditorInput>(filesToDiff.map((resourceInput) => this.editorService.inputToType(resourceInput))).then((inputsToDiff) => {
+						return [new DiffEditorInput(toDiffLabel(filesToDiff[0].resource, filesToDiff[1].resource, this.contextService), null, inputsToDiff[0], inputsToDiff[1])];
+					});
+				}
 
-				// Files to open
-				resolveEditorInputsPromise = TPromise.join<EditorInput>(filesToOpen.map((resourceInput) => this.editorService.inputToType(resourceInput))).then((inputsToOpen) => {
-					inputs.push(...inputsToOpen);
-					options.push(...filesToOpen.map(resourceInput => TextEditorOptions.from(resourceInput)));
+				// Otherwise: Open/Create files
+				else {
+					let inputs: EditorInput[] = [];
 
-					return inputs;
-				});
+					// Files to create
+					inputs.push(...filesToCreate.map((resourceInput) => this.untitledEditorService.createOrGet(resourceInput.resource)));
+					options.push(...filesToCreate.map(r => null)); // fill empty options for files to create because we dont have options there
+
+					// Files to open
+					resolveEditorInputsPromise = TPromise.join<EditorInput>(filesToOpen.map((resourceInput) => this.editorService.inputToType(resourceInput))).then((inputsToOpen) => {
+						inputs.push(...inputsToOpen);
+						options.push(...filesToOpen.map(resourceInput => TextEditorOptions.from(resourceInput)));
+
+						return inputs;
+					});
+				}
 			}
 
 			// Empty workbench
