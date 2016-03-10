@@ -15,7 +15,7 @@
 		"vscode-nls": "^1.0.4"
 	},
 	"scripts": {
-		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./src/tsconfig.json"
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript ./tsconfig.json"
 	},
 	"activationEvents": [
 		"onLanguage:javascript",
@@ -66,25 +66,115 @@
 			"type": "object",
 			"title": "%configuration.typescript%",
 			"properties": {
-				"typescript.useCodeSnippetsOnMethodSuggest": {
-					"type": "boolean",
-					"default": false,
-					"description": "%typescript.useCodeSnippetsOnMethodSuggest.dec%"
-				},
 				"typescript.tsdk": {
 					"type": ["string", "null"],
 					"default": null,
 					"description": "%typescript.tsdk.desc%"
+				},
+				"typescript.useCodeSnippetsOnMethodSuggest": {
+					"type": "boolean",
+					"default": false,
+					"description": "%typescript.useCodeSnippetsOnMethodSuggest.dec%"
 				},
 				"typescript.validate.enable": {
 					"type": "boolean",
 					"default": true,
 					"description": "%typescript.validate.enable%"
 				},
+				"typescript.format.insertSpaceAfterCommaDelimiter": {
+					"type": "boolean",
+					"default": true,
+					"description": "%format.insertSpaceAfterCommaDelimiter%"
+				},
+				"typescript.format.insertSpaceAfterSemicolonInForStatements": {
+					"type": "boolean",
+					"default": true,
+					"description": "%format.insertSpaceAfterSemicolonInForStatements%"
+				},
+				"typescript.format.insertSpaceBeforeAndAfterBinaryOperators": {
+					"type": "boolean",
+					"default": true,
+					"description": "%format.insertSpaceBeforeAndAfterBinaryOperators%"
+				},
+				"typescript.format.insertSpaceAfterKeywordsInControlFlowStatements": {
+					"type": "boolean",
+					"default": true,
+					"description": "%format.insertSpaceAfterKeywordsInControlFlowStatements%"
+				},
+				"typescript.format.insertSpaceAfterFunctionKeywordForAnonymousFunctions": {
+					"type": "boolean",
+					"default": true,
+					"description": "%format.insertSpaceAfterFunctionKeywordForAnonymousFunctions%"
+				},
+				"typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": {
+					"type": "boolean",
+					"default": true,
+					"description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis%"
+				},
+				"typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": {
+					"type": "boolean",
+					"default": true,
+					"description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets%"
+				},
+				"typescript.format.placeOpenBraceOnNewLineForFunctions": {
+					"type": "boolean",
+					"default": true,
+					"description": "%format.placeOpenBraceOnNewLineForFunctions%"
+				},
+				"typescript.format.placeOpenBraceOnNewLineForControlBlocks": {
+					"type": "boolean",
+					"default": true,
+					"description": "%format.placeOpenBraceOnNewLineForControlBlocks%"
+				},
 				"javascript.validate.enable": {
 					"type": "boolean",
 					"default": true,
 					"description": "%javascript.validate.enable%"
+				},
+				"javascript.format.insertSpaceAfterCommaDelimiter": {
+					"type": "boolean",
+					"default": true,
+					"description": "%format.insertSpaceAfterCommaDelimiter%"
+				},
+				"javascript.format.insertSpaceAfterSemicolonInForStatements": {
+					"type": "boolean",
+					"default": true,
+					"description": "%format.insertSpaceAfterSemicolonInForStatements%"
+				},
+				"javascript.format.insertSpaceBeforeAndAfterBinaryOperators": {
+					"type": "boolean",
+					"default": true,
+					"description": "%format.insertSpaceBeforeAndAfterBinaryOperators%"
+				},
+				"javascript.format.insertSpaceAfterKeywordsInControlFlowStatements": {
+					"type": "boolean",
+					"default": true,
+					"description": "%format.insertSpaceAfterKeywordsInControlFlowStatements%"
+				},
+				"javascript.format.insertSpaceAfterFunctionKeywordForAnonymousFunctions": {
+					"type": "boolean",
+					"default": true,
+					"description": "%format.insertSpaceAfterFunctionKeywordForAnonymousFunctions%"
+				},
+				"javascript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": {
+					"type": "boolean",
+					"default": true,
+					"description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis%"
+				},
+				"javascript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": {
+					"type": "boolean",
+					"default": true,
+					"description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets%"
+				},
+				"javascript.format.placeOpenBraceOnNewLineForFunctions": {
+					"type": "boolean",
+					"default": true,
+					"description": "%format.placeOpenBraceOnNewLineForFunctions%"
+				},
+				"javascript.format.placeOpenBraceOnNewLineForControlBlocks": {
+					"type": "boolean",
+					"default": true,
+					"description": "%format.placeOpenBraceOnNewLineForControlBlocks%"
 				}
 			}
 		},

@@ -15,8 +15,6 @@ import * as Proto from './protocol';
 import TypeScriptServiceClient from './typescriptServiceClient';
 import { ITypescriptServiceClientHost } from './typescriptService';
 
-import * as Configuration from './features/configuration';
-
 import HoverProvider from './features/hoverProvider';
 import DefinitionProvider from './features/definitionProvider';
 import DocumentHighlightProvider from './features/documentHighlightProvider';
@@ -69,118 +67,143 @@ export function activate(context: ExtensionContext): void {
 	}));
 
 	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
-
-	// Register the supports for both TS and TSX so that we can have separate grammars but share the mode
 	client.onReady().then(() => {
-
 		context.subscriptions.push(ProjectStatus.create(client));
-
-		registerSupports(MODE_ID_TS, clientHost, client);
-		registerSupports(MODE_ID_TSX, clientHost, client);
-		registerSupports(MODE_ID_JS, clientHost, client);
-		registerSupports(MODE_ID_JSX, clientHost, client);
 	}, () => {
 		// Nothing to do here. The client did show a message;
 	});
 }
 
-function registerSupports(modeID: string, host: TypeScriptServiceClientHost, client: TypeScriptServiceClient) {
+const validateSetting = 'validate.enable';
 
-	languages.registerHoverProvider(modeID, new HoverProvider(client));
-	languages.registerDefinitionProvider(modeID, new DefinitionProvider(client));
-	languages.registerDocumentHighlightProvider(modeID, new DocumentHighlightProvider(client));
-	languages.registerReferenceProvider(modeID, new ReferenceProvider(client));
-	languages.registerDocumentSymbolProvider(modeID, new DocumentSymbolProvider(client));
-	languages.registerSignatureHelpProvider(modeID, new SignatureHelpProvider(client), '(', ',');
-	languages.registerRenameProvider(modeID, new RenameProvider(client));
-	languages.registerDocumentRangeFormattingEditProvider(modeID, new FormattingProvider(client));
-	languages.registerOnTypeFormattingEditProvider(modeID, new FormattingProvider(client), ';', '}', '\n');
-	languages.registerWorkspaceSymbolProvider(new WorkspaceSymbolProvider(client, modeID));
-
-	languages.setLanguageConfiguration(modeID, {
-		indentationRules: {
-			// ^(.*\*/)?\s*\}.*$
-			decreaseIndentPattern: /^(.*\*\/)?\s*\}.*$/,
-			// ^.*\{[^}"']*$
-			increaseIndentPattern: /^.*\{[^}"']*$/
-		},
-		wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
-		comments: {
-			lineComment: '//',
-			blockComment: ['/*', '*/']
-		},
-		brackets: [
-			['{', '}'],
-			['[', ']'],
-			['(', ')'],
-		],
-		onEnterRules: [
-			{
-				// e.g. /** | */
-				beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-				afterText: /^\s*\*\/$/,
-				action: { indentAction: IndentAction.IndentOutdent, appendText: ' * ' }
-			},
-			{
-				// e.g. /** ...|
-				beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-				action: { indentAction: IndentAction.None, appendText: ' * ' }
-			},
-			{
-				// e.g.  * ...|
-				beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
-				action: { indentAction: IndentAction.None, appendText: '* ' }
-			},
-			{
-				// e.g.  */|
-				beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
-				action: { indentAction: IndentAction.None, removeText: 1 }
-			}
-		],
-
-		__electricCharacterSupport: {
-			docComment: { scope: 'comment.documentation', open: '/**', lineStart: ' * ', close: ' */' }
-		},
-
-		__characterPairSupport: {
-			autoClosingPairs: [
-				{ open: '{', close: '}' },
-				{ open: '[', close: ']' },
-				{ open: '(', close: ')' },
-				{ open: '"', close: '"', notIn: ['string'] },
-				{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
-				{ open: '`', close: '`', notIn: ['string', 'comment'] }
-			]
-		}
-	});
-
-	// Register suggest support as soon as possible and load configuration lazily
-	let completionItemProvider = new CompletionItemProvider(client);
-	languages.registerCompletionItemProvider(modeID, completionItemProvider, '.');
-	let reloadConfig = () => {
-		completionItemProvider.setConfiguration(Configuration.load(modeID));
-	};
-	workspace.onDidChangeConfiguration(() => {
-		reloadConfig();
-	});
-	reloadConfig();
-}
-
-class LanguageManager {
+class LanguageProvider {
 
 	private description: LanguageDescription;
 	private syntaxDiagnostics: Map<Diagnostic[]>;
 	private currentDiagnostics: DiagnosticCollection;
 	private bufferSyncSupport: BufferSyncSupport;
 
+	private completionItemProvider: CompletionItemProvider;
+	private formattingProvider: FormattingProvider;
+
 	private _validate: boolean;
 
-	constructor(client: TypeScriptServiceClient, description: LanguageDescription, validate: boolean = true) {
+	constructor(client: TypeScriptServiceClient, description: LanguageDescription) {
 		this.description = description;
-		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, validate);
+		this._validate = true;
+
+		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds);
 		this.syntaxDiagnostics = Object.create(null);
 		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
-		this._validate = validate;
+
+		workspace.onDidChangeConfiguration(this.configurationChanged, this);
+		this.configurationChanged();
+
+		client.onReady().then(() => {
+			this.registerProviders(client);
+		}, () => {
+			// Nothing to do here. The client did show a message;
+		});
+	}
+
+	private registerProviders(client: TypeScriptServiceClient): void {
+		let config = workspace.getConfiguration(this.id);
+
+		this.completionItemProvider = new CompletionItemProvider(client);
+		this.completionItemProvider.updateConfiguration(config);
+
+		let hoverProvider = new HoverProvider(client);
+		let definitionProvider = new DefinitionProvider(client);
+		let documentHighlightProvider = new DocumentHighlightProvider(client);
+		let referenceProvider = new ReferenceProvider(client);
+		let documentSymbolProvider = new DocumentSymbolProvider(client);
+		let signatureHelpProvider = new SignatureHelpProvider(client);
+		let renameProvider = new RenameProvider(client);
+		this.formattingProvider = new FormattingProvider(client);
+		this.formattingProvider.updateConfiguration(config);
+
+		this.description.modeIds.forEach(modeId => {
+			languages.registerCompletionItemProvider(modeId, this.completionItemProvider, '.');
+			languages.registerHoverProvider(modeId, hoverProvider);
+			languages.registerDefinitionProvider(modeId, definitionProvider);
+			languages.registerDocumentHighlightProvider(modeId, documentHighlightProvider);
+			languages.registerReferenceProvider(modeId, referenceProvider);
+			languages.registerDocumentSymbolProvider(modeId, documentSymbolProvider);
+			languages.registerSignatureHelpProvider(modeId, signatureHelpProvider, '(', ',');
+			languages.registerRenameProvider(modeId, renameProvider);
+			languages.registerDocumentRangeFormattingEditProvider(modeId, this.formattingProvider);
+			languages.registerOnTypeFormattingEditProvider(modeId, this.formattingProvider, ';', '}', '\n');
+			languages.registerWorkspaceSymbolProvider(new WorkspaceSymbolProvider(client, modeId));
+			languages.setLanguageConfiguration(modeId, {
+				indentationRules: {
+					// ^(.*\*/)?\s*\}.*$
+					decreaseIndentPattern: /^(.*\*\/)?\s*\}.*$/,
+					// ^.*\{[^}"']*$
+					increaseIndentPattern: /^.*\{[^}"']*$/
+				},
+				wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
+				comments: {
+					lineComment: '//',
+					blockComment: ['/*', '*/']
+				},
+				brackets: [
+					['{', '}'],
+					['[', ']'],
+					['(', ')'],
+				],
+				onEnterRules: [
+					{
+						// e.g. /** | */
+						beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+						afterText: /^\s*\*\/$/,
+						action: { indentAction: IndentAction.IndentOutdent, appendText: ' * ' }
+					},
+					{
+						// e.g. /** ...|
+						beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+						action: { indentAction: IndentAction.None, appendText: ' * ' }
+					},
+					{
+						// e.g.  * ...|
+						beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
+						action: { indentAction: IndentAction.None, appendText: '* ' }
+					},
+					{
+						// e.g.  */|
+						beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
+						action: { indentAction: IndentAction.None, removeText: 1 }
+					}
+				],
+
+				__electricCharacterSupport: {
+					docComment: { scope: 'comment.documentation', open: '/**', lineStart: ' * ', close: ' */' }
+				},
+
+				__characterPairSupport: {
+					autoClosingPairs: [
+						{ open: '{', close: '}' },
+						{ open: '[', close: ']' },
+						{ open: '(', close: ')' },
+						{ open: '"', close: '"', notIn: ['string'] },
+						{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: '`', close: '`', notIn: ['string', 'comment'] }
+					]
+				}
+			});
+		});
+	}
+
+	private configurationChanged(): void {
+		let config = workspace.getConfiguration(this.id);
+		this.updateValidate(config.get(validateSetting, true));
+		if (this.completionItemProvider) {
+			this.completionItemProvider.updateConfiguration(config);
+		}
+		if (this.formattingProvider) {
+			let formatConfig = config.get('format', {});
+			console.log(formatConfig);
+			this.formattingProvider.updateConfiguration(config);
+		}
 	}
 
 	public handles(file: string): boolean {
@@ -191,11 +214,7 @@ class LanguageManager {
 		return this.description.id;
 	}
 
-	public get validate(): boolean {
-		return this._validate;
-	}
-
-	public set validate(value: boolean) {
+	private updateValidate(value: boolean) {
 		if (this._validate === value) {
 			return;
 		}
@@ -235,11 +254,10 @@ class LanguageManager {
 	}
 }
 
-const validateSetting = 'validate.enable';
 class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private client: TypeScriptServiceClient;
-	private languages: LanguageManager[];
-	private languagePerId: Map<LanguageManager>;
+	private languages: LanguageProvider[];
+	private languagePerId: Map<LanguageProvider>;
 
 	constructor(descriptions: LanguageDescription[]) {
 		let handleProjectCreateOrDelete = () => {
@@ -260,12 +278,10 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		this.languages = [];
 		this.languagePerId = Object.create(null);
 		descriptions.forEach(description => {
-			let config = workspace.getConfiguration(description.id);
-			let manager = new LanguageManager(this.client, description, config.get(validateSetting, true));
+			let manager = new LanguageProvider(this.client, description);
 			this.languages.push(manager);
 			this.languagePerId[description.id] = manager;
 		});
-		workspace.onDidChangeConfiguration(this.configurationChanged, this);
 	}
 
 	public get serviceClient(): TypeScriptServiceClient {
@@ -277,7 +293,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		this.triggerAllDiagnostics();
 	}
 
-	private findLanguage(file: string): LanguageManager {
+	private findLanguage(file: string): LanguageProvider {
 		for (let i = 0; i < this.languages.length; i++) {
 			let language = this.languages[i];
 			if (language.handles(file)) {
@@ -285,13 +301,6 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			}
 		}
 		return null;
-	}
-
-	private configurationChanged(): void {
-		this.languages.forEach(language => {
-			let config = workspace.getConfiguration(language.id);
-			language.validate = config.get(validateSetting, true);
-		});
 	}
 
 	private triggerAllDiagnostics() {

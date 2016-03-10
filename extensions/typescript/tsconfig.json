@@ -4,10 +4,12 @@
 		"target": "es5",
 		"module": "commonjs",
 		"sourceMap": true,
-		"outDir": "../out"
+		"sourceRoot": "../src",
+		"outDir": "./out"
 	},
 	"exclude": [
 		"node_modules",
-		"server"
+		"server",
+		"out"
 	]
 }
