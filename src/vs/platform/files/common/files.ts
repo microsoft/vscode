@@ -429,7 +429,7 @@ export interface IFilesConfiguration {
 	files: {
 		associations: { [filepattern: string]: string };
 		exclude: glob.IExpression;
-		watcherExclude: string[];
+		watcherExclude: { [filepattern: string]: boolean };
 		encoding: string;
 		trimTrailingWhitespace: boolean;
 		autoSave: string;

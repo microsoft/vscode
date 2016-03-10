@@ -43,12 +43,17 @@ export class FileService implements files.IFileService {
 				encodingOverride.push({ resource: uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '.vscode')), encoding: encoding.UTF8 });
 			}
 
+			let watcherIgnoredPatterns:string[] = [];
+			if (configuration.files && configuration.files.watcherExclude) {
+				watcherIgnoredPatterns = Object.keys(configuration.files.watcherExclude).filter(k => !!configuration.files.watcherExclude[k]);
+			}
+
 			// build config
 			let fileServiceConfig: IFileServiceOptions = {
 				errorLogger: (msg: string) => errors.onUnexpectedError(msg),
 				encoding: configuration.files && configuration.files.encoding,
 				encodingOverride: encodingOverride,
-				watcherIgnoredPatterns: configuration.files && configuration.files.watcherExclude || [],
+				watcherIgnoredPatterns: watcherIgnoredPatterns,
 				verboseLogging: this.contextService.getConfiguration().env.verboseLogging
 			};
 
