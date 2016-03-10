@@ -4,5 +4,6 @@
 	"configuration.typescript": "TypeScript configuration",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Complete functions with their parameter signature.",
 	"typescript.tsdk.desc": "Specifies the folder path containing the tsserver and lib*.d.ts files to use.",
+	"typescript.validate.enable": "Enable / disable TypeScript validation",
 	"javascript.validate.enable": "Enable / disable JavaScript validation"
 }

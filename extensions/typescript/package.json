@@ -76,6 +76,11 @@
 					"default": null,
 					"description": "%typescript.tsdk.desc%"
 				},
+				"typescript.validate.enable": {
+					"type": "boolean",
+					"default": true,
+					"description": "%typescript.validate.enable%"
+				},
 				"javascript.validate.enable": {
 					"type": "boolean",
 					"default": true,

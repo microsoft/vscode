@@ -173,7 +173,7 @@ class LanguageManager {
 
 	constructor(client: TypeScriptServiceClient, description: LanguageDescription, validate: boolean = true) {
 		this.description = description;
-		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds);
+		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, validate);
 		this.syntaxDiagnostics = Object.create(null);
 		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
 		this._validate = validate;
@@ -183,12 +183,20 @@ class LanguageManager {
 		return this.bufferSyncSupport.handles(file);
 	}
 
+	public get id(): string {
+		return this.description.id;
+	}
+
 	public get validate(): boolean {
 		return this._validate;
 	}
 
 	public set validate(value: boolean) {
+		if (this._validate === value) {
+			return;
+		}
 		this._validate = value;
+		this.bufferSyncSupport.validate = value;
 		if (value) {
 			this.triggerAllDiagnostics();
 		} else {
@@ -206,9 +214,6 @@ class LanguageManager {
 	}
 
 	public triggerAllDiagnostics(): void {
-		if (!this._validate) {
-			return;
-		}
 		this.bufferSyncSupport.requestAllDiagnostics();
 	}
 
@@ -226,6 +231,7 @@ class LanguageManager {
 	}
 }
 
+const validateSetting = 'validate.enable';
 class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private client: TypeScriptServiceClient;
 	private languages: LanguageManager[];
@@ -250,10 +256,12 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		this.languages = [];
 		this.languagePerId = Object.create(null);
 		descriptions.forEach(description => {
-			let manager = new LanguageManager(this.client, description);
+			let config = workspace.getConfiguration(description.id);
+			let manager = new LanguageManager(this.client, description, config.get(validateSetting, true));
 			this.languages.push(manager);
 			this.languagePerId[description.id] = manager;
 		});
+		workspace.onDidChangeConfiguration(this.configurationChanged, this);
 	}
 
 	public get serviceClient(): TypeScriptServiceClient {
@@ -273,6 +281,13 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			}
 		}
 		return null;
+	}
+
+	private configurationChanged(): void {
+		this.languages.forEach(language => {
+			let config = workspace.getConfiguration(language.id);
+			language.validate = config.get(validateSetting, true);
+		});
 	}
 
 	private triggerAllDiagnostics() {
