@@ -8,6 +8,7 @@
 import * as vscode from 'vscode';
 import {ITypescriptServiceClient} from '../typescriptService';
 import {loadMessageBundle} from 'vscode-nls';
+import {dirname} from 'path';
 
 const localize = loadMessageBundle();
 const selector = ['javascript', 'javascriptreact'];
@@ -21,9 +22,10 @@ interface Hint {
 	option: Option;
 }
 
+const fileLimit = 500;
+
 export function create(client: ITypescriptServiceClient) {
 
-	const fileLimit = 1000;
 	const toDispose: vscode.Disposable[] = [];
 	const projectHinted: { [k: string]:any} = Object.create(null);
 
@@ -80,8 +82,13 @@ export function create(client: ITypescriptServiceClient) {
 				item.show();
 
 			} else if (fileNames.length > fileLimit) {
+
+				let largeRoots = computeLargeRoots(configFileName, fileNames).map(f => `'/${f}/'`).join(', ');
+
 				currentHint = {
-					message: localize('hintExclude', "'{0}' is a large project. For better performance exclude library files like 'node_modules'.", vscode.workspace.asRelativePath(configFileName)),
+					message: localize('hintExclude', "'{0}' is a large project. For better performance exclude folders with many files, like: {1}...",
+						vscode.workspace.asRelativePath(configFileName),
+						largeRoots),
 					option: {
 						title: localize('open', "Edit excludes..."),
 						execute: () => {
@@ -95,7 +102,7 @@ export function create(client: ITypescriptServiceClient) {
 				};
 				item.tooltip = currentHint.message;
 				item.text = localize('large.label', "+{0} files", fileLimit);
-				item.tooltip = localize('large.tooltip', "Too many files in a project might result in bad performance. Exclude library files like 'node_modules'.");
+				item.tooltip = localize('large.tooltip', "Too many files in a project might result in bad performance. Exclude folders with many files, like: {0}...", largeRoots);
 				item.color = 'orange';
 				item.show();
 
@@ -111,6 +118,42 @@ export function create(client: ITypescriptServiceClient) {
 	onEditor(vscode.window.activeTextEditor);
 
 	return vscode.Disposable.from(...toDispose);
+}
+
+function computeLargeRoots(configFileName:string, fileNames: string[]): string[] {
+
+	let roots: { [first: string]: number } = Object.create(null);
+	let dir = dirname(configFileName);
+
+	// console.log(dir, fileNames);
+
+	for (let fileName of fileNames) {
+		if (fileName.indexOf(dir) === 0) {
+			let first = fileName.substring(dir.length + 1);
+			first = first.substring(0, first.indexOf('/'));
+			if (first) {
+				roots[first] = (roots[first] || 0) + 1;
+			}
+		}
+	}
+
+	let data: { root: string; count: number }[] = [];
+	for (let key in roots) {
+		data.push({ root: key, count: roots[key] });
+	}
+	data.sort((a, b) => b.count - a.count);
+
+	let result: string[] = [];
+	let sum = 0;
+	for (let e of data) {
+		sum += e.count;
+		result.push(e.root);
+		if (fileNames.length - sum < fileLimit) {
+			break;
+		}
+	}
+
+	return result;
 }
 
 const defaultConfig = `{
