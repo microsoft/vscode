@@ -3356,11 +3356,8 @@ export var Handler = {
 
 	JumpToBracket:				'jumpToBracket',
 
-	DispatchType:				'dispatchType',
 	Type:						'type',
-	DispatchReplacePreviousChar:'dispatchReplacePreviousChar',
 	ReplacePreviousChar:		'replacePreviousChar',
-	DispatchPaste:				'dispatchPaste',
 	Paste:						'paste',
 
 	Tab:						'tab',
@@ -3378,7 +3375,6 @@ export var Handler = {
 	RemoveSecondaryCursors: 	'removeSecondaryCursors',
 	CancelSelection:			'cancelSelection',
 
-	DispatchCut:				'dispatchCut',
 	Cut:						'cut',
 
 	Undo:						'undo',

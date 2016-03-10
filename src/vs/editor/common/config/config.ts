@@ -15,15 +15,15 @@ import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 const H = editorCommon.Handler;
 
 export function findFocusedEditor(commandId: string, accessor: ServicesAccessor, args: any, complain: boolean): editorCommon.ICommonCodeEditor {
-	var codeEditorService = accessor.get(ICodeEditorService);
-	var editorId = args.context.editorId;
+	let codeEditorService = accessor.get(ICodeEditorService);
+	let editorId = args.context.editorId;
 	if (!editorId) {
 		if (complain) {
 			console.warn('Cannot execute ' + commandId + ' because no editor is focused.');
 		}
 		return null;
 	}
-	var editor = codeEditorService.getCodeEditor(editorId);
+	let editor = codeEditorService.getCodeEditor(editorId);
 	if (!editor) {
 		if (complain) {
 			console.warn('Cannot execute ' + commandId + ' because editor `' + editorId + '` could not be found.');
@@ -34,21 +34,21 @@ export function findFocusedEditor(commandId: string, accessor: ServicesAccessor,
 }
 
 export function withCodeEditorFromCommandHandler(commandId: string, accessor: ServicesAccessor, args: any, callback: (editor:editorCommon.ICommonCodeEditor) => void): void {
-	var editor = findFocusedEditor(commandId, accessor, args, true);
+	let editor = findFocusedEditor(commandId, accessor, args, true);
 	if (editor) {
 		callback(editor);
 	}
 }
 
 export function getActiveEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
-	var editorService = accessor.get(IEditorService);
-	var activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
+	let editorService = accessor.get(IEditorService);
+	let activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
 	if (activeEditor) {
-		var editor = <editorCommon.IEditor>activeEditor.getControl();
+		let editor = <editorCommon.IEditor>activeEditor.getControl();
 
 		// Substitute for (editor instanceof ICodeEditor)
 		if (editor && typeof editor.getEditorType === 'function') {
-			var codeEditor = <editorCommon.ICommonCodeEditor>editor;
+			let codeEditor = <editorCommon.ICommonCodeEditor>editor;
 			return codeEditor;
 		}
 	}
@@ -63,7 +63,7 @@ function triggerEditorHandler(handlerId: string, accessor: ServicesAccessor, arg
 }
 
 function registerCoreCommand(handlerId: string, kb: IKeybindings, weight: number = KeybindingsRegistry.WEIGHT.editorCore(), context?: KbExpr): void {
-	var desc: ICommandDescriptor = {
+	let desc: ICommandDescriptor = {
 		id: handlerId,
 		handler: triggerEditorHandler.bind(null, handlerId),
 		weight: weight,
@@ -77,20 +77,33 @@ function registerCoreCommand(handlerId: string, kb: IKeybindings, weight: number
 	KeybindingsRegistry.registerCommandDesc(desc);
 }
 
-function registerCoreDispatchCommand(dispatchId: string, handlerId: string) {
-	var desc: ICommandDescriptor = {
-		id: dispatchId,
+function registerCoreDispatchCommand2(handlerId: string) {
+	let desc: ICommandDescriptor = {
+		id: handlerId,
 		handler: triggerEditorHandler.bind(null, handlerId),
 		weight: KeybindingsRegistry.WEIGHT.editorCore(),
 		context: null,
 		primary: 0
 	};
 	KeybindingsRegistry.registerCommandDesc(desc);
+
+	let desc2: ICommandDescriptor = {
+		id: 'default:' + handlerId,
+		handler: (accessor: ServicesAccessor, args: any) => {
+			withCodeEditorFromCommandHandler(handlerId, accessor, args, (editor) => {
+				editor.trigger('keyboard', handlerId, args[0]);
+			});
+		},
+		weight: KeybindingsRegistry.WEIGHT.editorCore(),
+		context: null,
+		primary: 0
+	};
+	KeybindingsRegistry.registerCommandDesc(desc2);
 }
-registerCoreDispatchCommand(H.DispatchType, H.Type);
-registerCoreDispatchCommand(H.DispatchReplacePreviousChar, H.ReplacePreviousChar);
-registerCoreDispatchCommand(H.DispatchPaste, H.Paste);
-registerCoreDispatchCommand(H.DispatchCut, H.Cut);
+registerCoreDispatchCommand2(H.Type);
+registerCoreDispatchCommand2(H.ReplacePreviousChar);
+registerCoreDispatchCommand2(H.Paste);
+registerCoreDispatchCommand2(H.Cut);
 
 function getMacWordNavigationKB(shift:boolean, key:KeyCode): number {
 	// For macs, word navigation is based on the alt modifier
@@ -325,11 +338,11 @@ registerCoreCommand(H.Redo, {
 
 
 function selectAll(accessor: ServicesAccessor, args: any): void {
-	var HANDLER = editorCommon.Handler.SelectAll;
+	let HANDLER = editorCommon.Handler.SelectAll;
 
 	// If editor text focus
 	if (args.context[editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS]) {
-		var focusedEditor = findFocusedEditor(HANDLER, accessor, args, false);
+		let focusedEditor = findFocusedEditor(HANDLER, accessor, args, false);
 		if (focusedEditor) {
 			focusedEditor.trigger('keyboard', HANDLER, args);
 			return;
@@ -337,14 +350,14 @@ function selectAll(accessor: ServicesAccessor, args: any): void {
 	}
 
 	// Ignore this action when user is focussed on an element that allows for entering text
-	var activeElement = <HTMLElement>document.activeElement;
+	let activeElement = <HTMLElement>document.activeElement;
 	if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
 		(<any>activeElement).select();
 		return;
 	}
 
 	// Redirecting to last active editor
-	var activeEditor = getActiveEditor(accessor);
+	let activeEditor = getActiveEditor(accessor);
 	if (activeEditor) {
 		activeEditor.trigger('keyboard', HANDLER, args);
 		return;

@@ -32,27 +32,27 @@ export class ViewController implements IViewController {
 	}
 
 	public paste(source:string, text:string, pasteOnNewLine:boolean): void {
-		this.keybindingService.executeCommand(editorCommon.Handler.DispatchPaste, {
+		this.keybindingService.executeCommand(editorCommon.Handler.Paste, {
 			text: text,
 			pasteOnNewLine: pasteOnNewLine,
 		});
 	}
 
 	public type(source:string, text:string): void {
-		this.keybindingService.executeCommand(editorCommon.Handler.DispatchType, {
+		this.keybindingService.executeCommand(editorCommon.Handler.Type, {
 			text: text
 		});
 	}
 
 	public replacePreviousChar(source: string, text: string, replaceCharCnt:number): void {
-		this.keybindingService.executeCommand(editorCommon.Handler.DispatchReplacePreviousChar, {
+		this.keybindingService.executeCommand(editorCommon.Handler.ReplacePreviousChar, {
 			text: text,
 			replaceCharCnt: replaceCharCnt
 		});
 	}
 
 	public cut(source:string): void {
-		this.keybindingService.executeCommand(editorCommon.Handler.DispatchCut, {});
+		this.keybindingService.executeCommand(editorCommon.Handler.Cut, {});
 	}
 
 	private _validateViewColumn(viewPosition:editorCommon.IEditorPosition): editorCommon.IEditorPosition {
