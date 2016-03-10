@@ -3671,10 +3671,10 @@ interface PromiseConstructor {
 	reject<T>(reason: any): Promise<T>;
 
 	/**
-	  * Creates a new resolved promise for the provided value.
-	  * @param value A promise.
-	  * @returns A promise whose internal state matches the provided promise.
-	  */
+	 * Creates a new resolved promise for the provided value.
+	 * @param value A promise.
+	 * @returns A promise whose internal state matches the provided promise.
+	 */
 	resolve<T>(value: T | Thenable<T>): Promise<T>;
 
 	/**
