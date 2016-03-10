@@ -8,7 +8,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import statusbar = require('vs/workbench/browser/parts/statusbar/statusbar');
 import { ExtensionsStatusbarItem } from 'vs/workbench/parts/extensions/electron-browser/extensionsWidgets';
 import { IGalleryService } from 'vs/workbench/parts/extensions/common/extensions';
-import { GalleryService } from 'vs/workbench/parts/extensions/node/vsoGalleryService';
+import { GalleryService } from 'vs/workbench/parts/extensions/common/vsoGalleryService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ExtensionsWorkbenchExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsWorkbenchExtension';
 
