@@ -547,7 +547,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 				});
 			}, (err: TaskError) => {
 				if (err.code !== TaskErrors.NotConfigured) {
-					return err;
+					throw err;
 				}
 
 				this.messageService.show(err.severity, {
@@ -616,8 +616,13 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.taskService.tasks().then(descriptions => {
 			const filteredTasks = descriptions.filter(task => task.name === taskName);
 			if (filteredTasks.length !== 1) {
-				this.messageService.show(severity.Error, nls.localize('DebugTaskNotFound', "Could not find the preLaunchTask \'{0}\'.", taskName));
-				return TPromise.as(null);
+				return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFound', "Could not find the preLaunchTask \'{0}\'.", taskName), {
+					actions: [
+						CloseAction,
+						this.taskService.configureAction(),
+						this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)
+					]
+				}));
 			}
 
 			// task is already running - nothing to do.
