@@ -394,7 +394,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			const overwriteAfter = (typeof item.suggestion.overwriteAfter === 'undefined') ? 0 : Math.max(0, item.suggestion.overwriteAfter);
 			this.model.accept(item.suggestion, overwriteBefore, overwriteAfter);
 
-			alert(nls.localize('suggestionAriaAccepted', "{0}, suggestion accepted", item.suggestion.label));
+			alert(nls.localize('suggestionAriaAccepted', "{0}, accepted", item.suggestion.label));
 
 			this.editor.focus();
 		}, 0);
