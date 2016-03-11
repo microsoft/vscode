@@ -23,14 +23,14 @@
 			<key>match</key>
 			<string>\b(public|protected|private)\b</string>
 			<key>name</key>
-			<string>storage.modifier.js</string>
+			<string>storage.modifier.js.ts</string>
 		</dict>
 		<key>arithmetic-operator</key>
 		<dict>
 			<key>match</key>
 			<string>\*|/|\-\-|\-|\+\+|\+|%</string>
 			<key>name</key>
-			<string>keyword.operator.arithmetic.js</string>
+			<string>keyword.operator.arithmetic.js.ts</string>
 		</dict>
 		<key>array-literal</key>
 		<dict>
@@ -41,7 +41,7 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>meta.brace.square.js</string>
+					<string>meta.brace.square.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -51,11 +51,11 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>meta.brace.square.js</string>
+					<string>meta.brace.square.js.ts</string>
 				</dict>
 			</dict>
 			<key>name</key>
-			<string>meta.array.literal.js</string>
+			<string>meta.array.literal.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -69,14 +69,14 @@
 			<key>match</key>
 			<string>&lt;&lt;=|&gt;&gt;=|&gt;&gt;&gt;=|\*=|(?&lt;!\()/=|%=|\+=|\-=|&amp;=|\^=</string>
 			<key>name</key>
-			<string>keyword.operator.assignment.js</string>
+			<string>keyword.operator.assignment.js.ts</string>
 		</dict>
 		<key>await-modifier</key>
 		<dict>
 			<key>match</key>
 			<string>\bawait\b</string>
 			<key>name</key>
-			<string>storage.modifier.js</string>
+			<string>storage.modifier.js.ts</string>
 		</dict>
 		<key>block</key>
 		<dict>
@@ -87,7 +87,7 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>meta.brace.curly.js</string>
+					<string>meta.brace.curly.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -97,11 +97,11 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>meta.brace.curly.js</string>
+					<string>meta.brace.curly.js.ts</string>
 				</dict>
 			</dict>
 			<key>name</key>
-			<string>meta.block.js</string>
+			<string>meta.block.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -119,7 +119,7 @@
 			<key>match</key>
 			<string>\b(false|true)\b</string>
 			<key>name</key>
-			<string>constant.language.boolean.js</string>
+			<string>constant.language.boolean.js.ts</string>
 		</dict>
 		<key>case-clause</key>
 		<dict>
@@ -130,13 +130,13 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.control.js</string>
+					<string>keyword.control.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
 			<string>:</string>
 			<key>name</key>
-			<string>case-clause.expr.js</string>
+			<string>case-clause.expr.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -148,7 +148,7 @@
 		<key>comment</key>
 		<dict>
 			<key>name</key>
-			<string>comment.js</string>
+			<string>comment.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -172,7 +172,7 @@
 			<key>end</key>
 			<string>\*/</string>
 			<key>name</key>
-			<string>comment.block.js</string>
+			<string>comment.block.js.ts</string>
 		</dict>
 		<key>comment-block-doc</key>
 		<dict>
@@ -181,21 +181,21 @@
 			<key>end</key>
 			<string>\*/</string>
 			<key>name</key>
-			<string>comment.block.documentation.js</string>
+			<string>comment.block.documentation.js.ts</string>
 		</dict>
 		<key>comment-line</key>
 		<dict>
 			<key>match</key>
 			<string>(//).*$\n?</string>
 			<key>name</key>
-			<string>comment.line.js</string>
+			<string>comment.line.js.ts</string>
 		</dict>
 		<key>control-statement</key>
 		<dict>
 			<key>match</key>
 			<string>(?&lt;!\.)\b(break|catch|continue|debugger|declare|do|else|finally|for|if|return|switch|throw|try|while|with|super|case|default)\b</string>
 			<key>name</key>
-			<string>keyword.control.js</string>
+			<string>keyword.control.js.ts</string>
 		</dict>
 		<key>decl-block</key>
 		<dict>
@@ -206,7 +206,7 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>meta.brace.curly.js</string>
+					<string>meta.brace.curly.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -216,11 +216,11 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>meta.brace.curly.js</string>
+					<string>meta.brace.curly.js.ts</string>
 				</dict>
 			</dict>
 			<key>name</key>
-			<string>meta.decl.block.js</string>
+			<string>meta.decl.block.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -232,7 +232,7 @@
 		<key>declaration</key>
 		<dict>
 			<key>name</key>
-			<string>meta.declaration.js</string>
+			<string>meta.declaration.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -260,28 +260,28 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>storage.modifier.js</string>
+					<string>storage.modifier.js.ts</string>
 				</dict>
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>storage.type.js</string>
+					<string>storage.type.js.ts</string>
 				</dict>
 				<key>3</key>
 				<dict>
 					<key>name</key>
-					<string>entity.name.class.js</string>
+					<string>entity.name.class.js.ts</string>
 				</dict>
 			</dict>
 			<key>match</key>
 			<string>(?:\b(const)\s+)?\b(enum)\s+([a-zA-Z_$][\w$]*)</string>
 			<key>name</key>
-			<string>meta.enum.declaration.js</string>
+			<string>meta.enum.declaration.js.ts</string>
 		</dict>
 		<key>expression</key>
 		<dict>
 			<key>name</key>
-			<string>meta.expression.js</string>
+			<string>meta.expression.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -379,7 +379,7 @@
 			<key>match</key>
 			<string>=&gt;|\b(delete|export|import|from|in|instanceof|new|typeof|void|as)\b</string>
 			<key>name</key>
-			<string>keyword.operator.js</string>
+			<string>keyword.operator.js.ts</string>
 		</dict>
 		<key>field-declaration</key>
 		<dict>
@@ -390,18 +390,18 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>variable.js</string>
+					<string>variable.js.ts</string>
 				</dict>
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.operator.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
 			<string>(?=\}|;|,|$)|(?&lt;=\})</string>
 			<key>name</key>
-			<string>meta.field.declaration.js</string>
+			<string>meta.field.declaration.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -417,23 +417,23 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>storage.type.js</string>
+					<string>storage.type.js.ts</string>
 				</dict>
 				<key>3</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.operator.js.ts</string>
 				</dict>
 			</dict>
 			<key>match</key>
 			<string>(?&lt;=\()\s*\b(var|let|const)\s+([a-zA-Z_$][\w$]*)\s+(in|of)\b</string>
 			<key>name</key>
-			<string>forin.expr.js</string>
+			<string>forin.expr.js.ts</string>
 		</dict>
 		<key>function-call</key>
 		<dict>
 			<key>name</key>
-			<string>functioncall.expr.js</string>
+			<string>functioncall.expr.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -459,28 +459,28 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>storage.modifier.js</string>
+					<string>storage.modifier.js.ts</string>
 				</dict>
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>storage.modifier.js</string>
+					<string>storage.modifier.js.ts</string>
 				</dict>
 				<key>3</key>
 				<dict>
 					<key>name</key>
-					<string>storage.type.function.js</string>
+					<string>storage.type.function.js.ts</string>
 				</dict>
 				<key>4</key>
 				<dict>
 					<key>name</key>
-					<string>entity.name.function.js</string>
+					<string>entity.name.function.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
 			<string>(?=;|\})|(?&lt;=\})</string>
 			<key>name</key>
-			<string>meta.function.js</string>
+			<string>meta.function.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -516,23 +516,23 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>storage.modifier.js</string>
+					<string>storage.modifier.js.ts</string>
 				</dict>
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>storage.type.function.js</string>
+					<string>storage.type.function.js.ts</string>
 				</dict>
 				<key>3</key>
 				<dict>
 					<key>name</key>
-					<string>entity.name.function.js</string>
+					<string>entity.name.function.js.ts</string>
 				</dict>
 			</dict>
 			<key>match</key>
 			<string>\b(?:(export)\s+)?(function\b)(?:\s+([a-zA-Z_$][\w$]*))?\s*</string>
 			<key>name</key>
-			<string>meta.function.overload.js</string>
+			<string>meta.function.overload.js.ts</string>
 		</dict>
 		<key>function-type-parameters</key>
 		<dict>
@@ -543,7 +543,7 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>meta.brace.round.js</string>
+					<string>meta.brace.round.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -553,11 +553,11 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>meta.brace.round.js</string>
+					<string>meta.brace.round.js.ts</string>
 				</dict>
 			</dict>
 			<key>name</key>
-			<string>meta.function.type.parameter.js</string>
+			<string>meta.function.type.parameter.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -587,7 +587,7 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>meta.brace.square.js</string>
+					<string>meta.brace.square.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -597,16 +597,16 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>meta.brace.square.js</string>
+					<string>meta.brace.square.js.ts</string>
 				</dict>
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.operator.js.ts</string>
 				</dict>
 			</dict>
 			<key>name</key>
-			<string>meta.indexer.declaration.js</string>
+			<string>meta.indexer.declaration.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -630,18 +630,18 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>variable.parameter.js</string>
+					<string>variable.parameter.js.ts</string>
 				</dict>
 			</dict>
 			<key>match</key>
 			<string>([a-zA-Z_$][\w$]*)(?=\:)</string>
 			<key>name</key>
-			<string>meta.indexer.parameter.js</string>
+			<string>meta.indexer.parameter.js.ts</string>
 		</dict>
 		<key>jsx</key>
 		<dict>
 			<key>name</key>
-			<string>meta.jsx.js</string>
+			<string>meta.js.tsx.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -666,7 +666,7 @@
 					<key>end</key>
 					<string>(?=&lt;/)</string>
 					<key>name</key>
-					<string>meta.jsx.children.js</string>
+					<string>meta.js.tsx.children.js.ts</string>
 					<key>patterns</key>
 					<array>
 						<dict>
@@ -717,24 +717,24 @@
 						<key>1</key>
 						<dict>
 							<key>name</key>
-							<string>punctuation.definition.entity.js</string>
+							<string>punctuation.definition.entity.js.ts</string>
 						</dict>
 						<key>3</key>
 						<dict>
 							<key>name</key>
-							<string>punctuation.definition.entity.js</string>
+							<string>punctuation.definition.entity.js.ts</string>
 						</dict>
 					</dict>
 					<key>match</key>
 					<string>(&amp;)([a-zA-Z0-9]+|#[0-9]+|#x[0-9a-fA-F]+)(;)</string>
 					<key>name</key>
-					<string>constant.character.entity.js</string>
+					<string>constant.character.entity.js.ts</string>
 				</dict>
 				<dict>
 					<key>match</key>
 					<string>&amp;</string>
 					<key>name</key>
-					<string>invalid.illegal.bad-ampersand.js</string>
+					<string>invalid.illegal.bad-ampersand.js.ts</string>
 				</dict>
 			</array>
 		</dict>
@@ -747,7 +747,7 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>punctuation.definition.brace.curly.start.js</string>
+					<string>punctuation.definition.brace.curly.start.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -757,11 +757,11 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>punctuation.definition.brace.curly.end.js</string>
+					<string>punctuation.definition.brace.curly.end.js.ts</string>
 				</dict>
 			</dict>
 			<key>name</key>
-			<string>meta.brace.curly.js</string>
+			<string>meta.brace.curly.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -779,7 +779,7 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>punctuation.definition.string.begin.js</string>
+					<string>punctuation.definition.string.begin.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -789,11 +789,11 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>punctuation.definition.string.end.js</string>
+					<string>punctuation.definition.string.end.js.ts</string>
 				</dict>
 			</dict>
 			<key>name</key>
-			<string>string.quoted.double.js</string>
+			<string>string.quoted.double.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -811,7 +811,7 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>punctuation.definition.string.begin.js</string>
+					<string>punctuation.definition.string.begin.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -821,11 +821,11 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>punctuation.definition.string.end.js</string>
+					<string>punctuation.definition.string.end.js.ts</string>
 				</dict>
 			</dict>
 			<key>name</key>
-			<string>string.quoted.single.js</string>
+			<string>string.quoted.single.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -839,7 +839,7 @@
 			<key>match</key>
 			<string>=(?=\s*(?:'|"|{|/\*|//|\n))</string>
 			<key>name</key>
-			<string>keyword.operator.assignment.js</string>
+			<string>keyword.operator.assignment.js.ts</string>
 		</dict>
 		<key>jsx-tag-attribute-name</key>
 		<dict>
@@ -848,7 +848,7 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>entity.other.attribute-name.js</string>
+					<string>entity.other.attribute-name.js.ts</string>
 				</dict>
 			</dict>
 			<key>match</key>
@@ -857,7 +857,7 @@
   ([_$a-zA-Z][-$\w]*)
   (?=\s|=|/?&gt;|/\*|//)</string>
 			<key>name</key>
-			<string>meta.tag.attribute-name.js</string>
+			<string>meta.tag.attribute-name.js.ts</string>
 		</dict>
 		<key>jsx-tag-attributes</key>
 		<dict>
@@ -890,7 +890,7 @@
 			<key>match</key>
 			<string>\S+</string>
 			<key>name</key>
-			<string>invalid.illegal.attribute.js</string>
+			<string>invalid.illegal.attribute.js.ts</string>
 		</dict>
 		<key>jsx-tag-close</key>
 		<dict>
@@ -901,12 +901,12 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>punctuation.definition.tag.begin.js</string>
+					<string>punctuation.definition.tag.begin.js.ts</string>
 				</dict>
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>entity.name.tag.js</string>
+					<string>entity.name.tag.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -916,11 +916,11 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>punctuation.definition.tag.end.js</string>
+					<string>punctuation.definition.tag.end.js.ts</string>
 				</dict>
 			</dict>
 			<key>name</key>
-			<string>tag.close.js</string>
+			<string>tag.close.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -934,7 +934,7 @@
 			<key>match</key>
 			<string>&lt;\s*&gt;</string>
 			<key>name</key>
-			<string>invalid.illegal.tag.incomplete.js</string>
+			<string>invalid.illegal.tag.incomplete.js.ts</string>
 		</dict>
 		<key>jsx-tag-open</key>
 		<dict>
@@ -948,12 +948,12 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>punctuation.definition.tag.begin.js</string>
+					<string>punctuation.definition.tag.begin.js.ts</string>
 				</dict>
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>entity.name.tag.js</string>
+					<string>entity.name.tag.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -963,11 +963,11 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>punctuation.definition.tag.end.js</string>
+					<string>punctuation.definition.tag.end.js.ts</string>
 				</dict>
 			</dict>
 			<key>name</key>
-			<string>tag.open.js</string>
+			<string>tag.open.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -993,17 +993,17 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>punctuation.definition.tag.begin.js</string>
+					<string>punctuation.definition.tag.begin.js.ts</string>
 				</dict>
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>entity.name.tag.js</string>
+					<string>entity.name.tag.js.ts</string>
 				</dict>
 				<key>3</key>
 				<dict>
 					<key>name</key>
-					<string>punctuation.definition.tag.end.js</string>
+					<string>punctuation.definition.tag.end.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -1013,21 +1013,21 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>punctuation.definition.tag.begin.js</string>
+					<string>punctuation.definition.tag.begin.js.ts</string>
 				</dict>
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>entity.name.tag.js</string>
+					<string>entity.name.tag.js.ts</string>
 				</dict>
 				<key>3</key>
 				<dict>
 					<key>name</key>
-					<string>punctuation.definition.tag.end.js</string>
+					<string>punctuation.definition.tag.end.js.ts</string>
 				</dict>
 			</dict>
 			<key>name</key>
-			<string>tag.without-attributes.js</string>
+			<string>tag.without-attributes.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1039,7 +1039,7 @@
 		<key>literal</key>
 		<dict>
 			<key>name</key>
-			<string>literal.js</string>
+			<string>literal.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1073,7 +1073,7 @@
 			<key>match</key>
 			<string>\!|&amp;|~|\||&amp;&amp;|\|\|</string>
 			<key>name</key>
-			<string>keyword.operator.arithmetic.js</string>
+			<string>keyword.operator.arithmetic.js.ts</string>
 		</dict>
 		<key>method-declaration</key>
 		<dict>
@@ -1084,43 +1084,43 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>storage.modifier.js</string>
+					<string>storage.modifier.js.ts</string>
 				</dict>
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>storage.modifier.js</string>
+					<string>storage.modifier.js.ts</string>
 				</dict>
 				<key>3</key>
 				<dict>
 					<key>name</key>
-					<string>storage.modifier.js</string>
+					<string>storage.modifier.js.ts</string>
 				</dict>
 				<key>4</key>
 				<dict>
 					<key>name</key>
-					<string>storage.type.property.js</string>
+					<string>storage.type.property.js.ts</string>
 				</dict>
 				<key>5</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.operator.js.ts</string>
 				</dict>
 				<key>6</key>
 				<dict>
 					<key>name</key>
-					<string>entity.name.function.js</string>
+					<string>entity.name.function.js.ts</string>
 				</dict>
 				<key>7</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.operator.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
 			<string>(?=\}|;|,)|(?&lt;=\})</string>
 			<key>name</key>
-			<string>meta.method.declaration.js</string>
+			<string>meta.method.declaration.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1156,43 +1156,43 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>storage.modifier.js</string>
+					<string>storage.modifier.js.ts</string>
 				</dict>
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>storage.modifier.js</string>
+					<string>storage.modifier.js.ts</string>
 				</dict>
 				<key>3</key>
 				<dict>
 					<key>name</key>
-					<string>storage.modifier.js</string>
+					<string>storage.modifier.js.ts</string>
 				</dict>
 				<key>4</key>
 				<dict>
 					<key>name</key>
-					<string>storage.type.property.js</string>
+					<string>storage.type.property.js.ts</string>
 				</dict>
 				<key>5</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.operator.js.ts</string>
 				</dict>
 				<key>6</key>
 				<dict>
 					<key>name</key>
-					<string>entity.name.function.js</string>
+					<string>entity.name.function.js.ts</string>
 				</dict>
 				<key>7</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.operator.js.ts</string>
 				</dict>
 			</dict>
 			<key>match</key>
 			<string>\b(?:(abstract)\s+)?\b(?:(public|private|protected)\s+)?\b(?:(async)\s+)?(?:(get|set)\s+)?(?:(new)|(?:([a-zA-Z_$][\.\w$]*)\s*(\??)))?\s*(?=\(|\&lt;)</string>
 			<key>name</key>
-			<string>meta.method.overload.declaration.js</string>
+			<string>meta.method.overload.declaration.js.ts</string>
 		</dict>
 		<key>new-expr</key>
 		<dict>
@@ -1203,13 +1203,13 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.operator.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
 			<string>(?=[(;]|$)</string>
 			<key>name</key>
-			<string>new.expr.js</string>
+			<string>new.expr.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1227,14 +1227,14 @@
 			<key>match</key>
 			<string>\b(null)\b</string>
 			<key>name</key>
-			<string>constant.language.null.js</string>
+			<string>constant.language.null.js.ts</string>
 		</dict>
 		<key>numeric-literal</key>
 		<dict>
 			<key>match</key>
 			<string>\b(?&lt;=[^$])((0(x|X)[0-9a-fA-F]+)|([0-9]+(\.[0-9]+)?))\b</string>
 			<key>name</key>
-			<string>constant.numeric.js</string>
+			<string>constant.numeric.js.ts</string>
 		</dict>
 		<key>object-body</key>
 		<dict>
@@ -1245,7 +1245,7 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>meta.brace.curly.js</string>
+					<string>meta.brace.curly.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -1255,11 +1255,11 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>meta.brace.curly.js</string>
+					<string>meta.brace.curly.js.ts</string>
 				</dict>
 			</dict>
 			<key>name</key>
-			<string>meta.object.body.js</string>
+			<string>meta.object.body.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1313,17 +1313,17 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>storage.modifier.js</string>
+					<string>storage.modifier.js.ts</string>
 				</dict>
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>storage.modifier.js</string>
+					<string>storage.modifier.js.ts</string>
 				</dict>
 				<key>3</key>
 				<dict>
 					<key>name</key>
-					<string>storage.type.js</string>
+					<string>storage.type.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -1333,11 +1333,11 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>brace.curly.js</string>
+					<string>brace.curly.js.ts</string>
 				</dict>
 			</dict>
 			<key>name</key>
-			<string>meta.declaration.object.js</string>
+			<string>meta.declaration.object.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1371,7 +1371,7 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.other.js</string>
+					<string>keyword.other.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -1381,11 +1381,11 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>brace.curly.js</string>
+					<string>brace.curly.js.ts</string>
 				</dict>
 			</dict>
 			<key>name</key>
-			<string>meta.object.heritage.js</string>
+			<string>meta.object.heritage.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1413,13 +1413,13 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>storage.type.js</string>
+					<string>storage.type.js.ts</string>
 				</dict>
 			</dict>
 			<key>match</key>
 			<string>(?:\s*([a-zA-Z_$][\w$]*))</string>
 			<key>name</key>
-			<string>meta.object.heritage.parent.js</string>
+			<string>meta.object.heritage.parent.js.ts</string>
 		</dict>
 		<key>object-member</key>
 		<dict>
@@ -1428,7 +1428,7 @@
 			<key>end</key>
 			<string>(?=,|\})</string>
 			<key>name</key>
-			<string>meta.object.member.js</string>
+			<string>meta.object.member.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1444,13 +1444,13 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>entity.name.class.js</string>
+					<string>entity.name.class.js.ts</string>
 				</dict>
 			</dict>
 			<key>match</key>
 			<string>[a-zA-Z_$][\w$]*</string>
 			<key>name</key>
-			<string>meta.object.name.js</string>
+			<string>meta.object.name.js.ts</string>
 		</dict>
 		<key>parameter-name</key>
 		<dict>
@@ -1459,28 +1459,28 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>storage.modifier.js</string>
+					<string>storage.modifier.js.ts</string>
 				</dict>
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.operator.js.ts</string>
 				</dict>
 				<key>3</key>
 				<dict>
 					<key>name</key>
-					<string>variable.parameter.js</string>
+					<string>variable.parameter.js.ts</string>
 				</dict>
 				<key>4</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.operator.js.ts</string>
 				</dict>
 			</dict>
 			<key>match</key>
 			<string>(?:\s*\b(public|private|protected)\b\s+)?(\.\.\.)?\s*([a-zA-Z_$][\w$]*)\s*(\??)</string>
 			<key>name</key>
-			<string>parameter.name.js</string>
+			<string>parameter.name.js.ts</string>
 		</dict>
 		<key>paren-expression</key>
 		<dict>
@@ -1491,7 +1491,7 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>meta.brace.paren.js</string>
+					<string>meta.brace.paren.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -1501,7 +1501,7 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>meta.brace.paren.js</string>
+					<string>meta.brace.paren.js.ts</string>
 				</dict>
 			</dict>
 			<key>patterns</key>
@@ -1517,7 +1517,7 @@
 			<key>match</key>
 			<string>\b(get|set)\b</string>
 			<key>name</key>
-			<string>storage.type.property.js</string>
+			<string>storage.type.property.js.ts</string>
 		</dict>
 		<key>qstring-double</key>
 		<dict>
@@ -1526,7 +1526,7 @@
 			<key>end</key>
 			<string>"|(?=$)</string>
 			<key>name</key>
-			<string>string.double.js</string>
+			<string>string.double.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1542,7 +1542,7 @@
 			<key>end</key>
 			<string>'|(?=$)</string>
 			<key>name</key>
-			<string>string.single.js</string>
+			<string>string.single.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1558,20 +1558,20 @@
 			<key>end</key>
 			<string>$|(/)[igm]*</string>
 			<key>name</key>
-			<string>string.regex.js</string>
+			<string>string.regex.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
 					<key>match</key>
 					<string>\\.</string>
 					<key>name</key>
-					<string>constant.character.escape.js</string>
+					<string>constant.character.escape.js.ts</string>
 				</dict>
 				<dict>
 					<key>match</key>
 					<string>\[(\\\]|[^\]])*\]</string>
 					<key>name</key>
-					<string>constant.character.class.js</string>
+					<string>constant.character.class.js.ts</string>
 				</dict>
 			</array>
 		</dict>
@@ -1580,7 +1580,7 @@
 			<key>match</key>
 			<string>===|==|=|!=|!==|&lt;=|&gt;=|&lt;&gt;|&lt;|&gt;</string>
 			<key>name</key>
-			<string>keyword.operator.comparison.js</string>
+			<string>keyword.operator.comparison.js.ts</string>
 		</dict>
 		<key>return-type</key>
 		<dict>
@@ -1589,7 +1589,7 @@
 			<key>end</key>
 			<string>(?=$)|(?=\{|;|//)</string>
 			<key>name</key>
-			<string>meta.return.type.js</string>
+			<string>meta.return.type.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1603,19 +1603,19 @@
 			<key>match</key>
 			<string>\b(static)\b</string>
 			<key>name</key>
-			<string>keyword.other.js</string>
+			<string>keyword.other.js.ts</string>
 		</dict>
 		<key>storage-keyword</key>
 		<dict>
 			<key>match</key>
 			<string>\b(number|boolean|string|any|var|let|function|const|module|namespace)\b</string>
 			<key>name</key>
-			<string>storage.type.js</string>
+			<string>storage.type.js.ts</string>
 		</dict>
 		<key>string</key>
 		<dict>
 			<key>name</key>
-			<string>string.js</string>
+			<string>string.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1642,7 +1642,7 @@
 			<key>end</key>
 			<string>(?=\})</string>
 			<key>name</key>
-			<string>switch-block.expr.js</string>
+			<string>switch-block.expr.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1660,13 +1660,13 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.operator.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
 			<string>\)</string>
 			<key>name</key>
-			<string>switch-expression.expr.js</string>
+			<string>switch-expression.expr.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1682,7 +1682,7 @@
 			<key>end</key>
 			<string>}</string>
 			<key>name</key>
-			<string>switch-statement.expr.js</string>
+			<string>switch-statement.expr.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1704,7 +1704,7 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>string.template.js</string>
+					<string>string.template.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -1714,11 +1714,11 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>string.template.js</string>
+					<string>string.template.js.ts</string>
 				</dict>
 			</dict>
 			<key>name</key>
-			<string>meta.template.js</string>
+			<string>meta.template.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1738,7 +1738,7 @@
 			<key>end</key>
 			<string>(?=(\$\{|`))</string>
 			<key>name</key>
-			<string>string.template.js</string>
+			<string>string.template.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1756,7 +1756,7 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.operator.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -1766,11 +1766,11 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.operator.js.ts</string>
 				</dict>
 			</dict>
 			<key>name</key>
-			<string>template.element.js</string>
+			<string>template.element.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1784,12 +1784,12 @@
 			<key>match</key>
 			<string>\b(this)\b</string>
 			<key>name</key>
-			<string>constant.language.this.js</string>
+			<string>constant.language.this.js.ts</string>
 		</dict>
 		<key>type</key>
 		<dict>
 			<key>name</key>
-			<string>meta.type.js</string>
+			<string>meta.type.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1833,7 +1833,7 @@
 			<key>end</key>
 			<string>(?=$|[,);\}\]]|//)|(?==[^&gt;])|(?&lt;=[\}&gt;\]\)]|[a-zA-Z_$])\s*(?=\{)</string>
 			<key>name</key>
-			<string>meta.type.annotation.js</string>
+			<string>meta.type.annotation.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1859,18 +1859,18 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.other.js</string>
+					<string>keyword.other.js.ts</string>
 				</dict>
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>storage.type.js</string>
+					<string>storage.type.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
 			<string>(?=$|[,);&gt;]|var|type|function|class|interface)</string>
 			<key>name</key>
-			<string>meta.type.declaration.js</string>
+			<string>meta.type.declaration.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1888,13 +1888,13 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.operator.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
 			<string>(?=\s*[,\)\{=;&gt;]|//|$)</string>
 			<key>name</key>
-			<string>meta.type.function.return.js</string>
+			<string>meta.type.function.return.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1910,13 +1910,13 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>entity.name.type.js</string>
+					<string>entity.name.type.js.ts</string>
 				</dict>
 			</dict>
 			<key>match</key>
 			<string>[a-zA-Z_$][.\w$]*</string>
 			<key>name</key>
-			<string>meta.type.name.js</string>
+			<string>meta.type.name.js.ts</string>
 		</dict>
 		<key>type-object</key>
 		<dict>
@@ -1927,7 +1927,7 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>meta.brace.curly.js</string>
+					<string>meta.brace.curly.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -1937,11 +1937,11 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>meta.brace.curly.js</string>
+					<string>meta.brace.curly.js.ts</string>
 				</dict>
 			</dict>
 			<key>name</key>
-			<string>meta.object.type.js</string>
+			<string>meta.object.type.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -1971,7 +1971,7 @@
 			<key>match</key>
 			<string>[.|]</string>
 			<key>name</key>
-			<string>keyword.operator.type.js</string>
+			<string>keyword.operator.type.js.ts</string>
 		</dict>
 		<key>type-parameters</key>
 		<dict>
@@ -1982,12 +1982,12 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>entity.name.type.js</string>
+					<string>entity.name.type.js.ts</string>
 				</dict>
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>meta.brace.angle.js</string>
+					<string>meta.brace.angle.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -1997,18 +1997,18 @@
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>meta.brace.angle.js</string>
+					<string>meta.brace.angle.js.ts</string>
 				</dict>
 			</dict>
 			<key>name</key>
-			<string>meta.type.parameters.js</string>
+			<string>meta.type.parameters.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
 					<key>match</key>
 					<string>\b(extends)\b</string>
 					<key>name</key>
-					<string>keyword.other.js</string>
+					<string>keyword.other.js.ts</string>
 				</dict>
 				<dict>
 					<key>include</key>
@@ -2029,13 +2029,13 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.control.js</string>
+					<string>keyword.control.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
 			<string>\)</string>
 			<key>name</key>
-			<string>meta.type.paren.cover.js</string>
+			<string>meta.type.paren.cover.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -2059,13 +2059,13 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>storage.type.js</string>
+					<string>storage.type.js.ts</string>
 				</dict>
 			</dict>
 			<key>match</key>
 			<string>\b(string|number|boolean|symbol|any|void)\b</string>
 			<key>name</key>
-			<string>meta.type.primitive.js</string>
+			<string>meta.type.primitive.js.ts</string>
 		</dict>
 		<key>type-tuple</key>
 		<dict>
@@ -2076,7 +2076,7 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>meta.brace.square.js</string>
+					<string>meta.brace.square.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -2086,11 +2086,11 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>meta.brace.square.js</string>
+					<string>meta.brace.square.js.ts</string>
 				</dict>
 			</dict>
 			<key>name</key>
-			<string>meta.type.tuple.js</string>
+			<string>meta.type.tuple.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -2108,7 +2108,7 @@
 			<key>match</key>
 			<string>\b(undefined)\b</string>
 			<key>name</key>
-			<string>constant.language.js</string>
+			<string>constant.language.js.ts</string>
 		</dict>
 		<key>var-expr</key>
 		<dict>
@@ -2119,13 +2119,13 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>storage.type.js</string>
+					<string>storage.type.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
 			<string>(?=$|;)</string>
 			<key>name</key>
-			<string>meta.var.expr.js</string>
+			<string>meta.var.expr.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -2147,13 +2147,13 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>variable.js</string>
+					<string>variable.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
 			<string>(?=$|[;,])</string>
 			<key>name</key>
-			<string>meta.var-single-variable.expr.js</string>
+			<string>meta.var-single-variable.expr.js.ts</string>
 			<key>patterns</key>
 			<array>
 				<dict>
@@ -2183,7 +2183,7 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.operator.js.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
