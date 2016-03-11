@@ -6,5 +6,6 @@
 {
 	"httpConfigurationTitle": "HTTP 構成",
 	"localFileNotFound": "ファイルが見つかりません。",
-	"proxy": "使用するプロキシ設定。これを設定しない場合、環境変数 http_proxy および https_proxy から取得されます。"
+	"proxy": "使用するプロキシ設定。設定されていない場合、環境変数 http_proxy および https_proxy から取得されます。",
+	"strictSSL": "提供された CA の一覧と照らしてプロキシ サーバーの証明書を確認するかどうか。"
 }

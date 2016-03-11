@@ -7,5 +7,10 @@
 	"openSnippet.errorOnCreate": "\"{0}\" kann nicht erstellt werden.",
 	"openSnippet.label": "Codeausschnitte",
 	"openSnippet.pickLanguage": "Sprache für Codeausschnitt auswählen",
-	"preferences": "Einstellungen"
+	"preferences": "Einstellungen",
+	"snippetSchema.json": "Benutzerkonfiguration des Codeausschnitts",
+	"snippetSchema.json.body": "Der Inhalt des Codeausschnitts. Verwenden Sie \"${id}\", \"${id:label}\", \"${1:label}\" für Variablen und \"$0\", \"$1\" für die Cursorpositionen.",
+	"snippetSchema.json.default": "Leerer Codeausschnitt",
+	"snippetSchema.json.description": "Die Beschreibung des Codeausschnitts.",
+	"snippetSchema.json.prefix": "Das Präfix, das beim Auswählen des Codeausschnitts in IntelliSense verwendet werden soll."
 }

@@ -6,5 +6,6 @@
 {
 	"httpConfigurationTitle": "HTTP-Konfiguration",
 	"localFileNotFound": "Die Datei wurde nicht gefunden.",
-	"proxy": "Die zu verwendende Proxyeinstellung. Wenn diese Option nicht festgelegt wird, wird der Wert aus den Umgebungsvariablen \"http_proxy\" und \"https_proxy\" übernommen."
+	"proxy": "Die zu verwendende Proxyeinstellung. Wenn diese Option nicht festgelegt wird, wird der Wert aus den Umgebungsvariablen \"http_proxy\" und \"https_proxy\" übernommen.",
+	"strictSSL": "Gibt an, ob das Proxyserverzertifikat anhand der Liste der bereitgestellten Zertifizierungsstellen überprüft werden soll."
 }
