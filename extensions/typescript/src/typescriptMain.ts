@@ -203,8 +203,6 @@ class LanguageProvider {
 			this.completionItemProvider.updateConfiguration(config);
 		}
 		if (this.formattingProvider) {
-			let formatConfig = config.get('format', {});
-			console.log(formatConfig);
 			this.formattingProvider.updateConfiguration(config);
 		}
 	}
