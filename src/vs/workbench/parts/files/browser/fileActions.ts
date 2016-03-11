@@ -749,7 +749,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 				// Allow to retry
 				let extraAction: Action;
 				if (this.useTrash) {
-					extraAction = new Action('permanentDelete', nls.localize('permDelete', "Delete Permanently"), null, true, () => { this.useTrash = this.skipConfirm = true; return this.run(); });
+					extraAction = new Action('permanentDelete', nls.localize('permDelete', "Delete Permanently"), null, true, () => { this.useTrash = false; this.skipConfirm = true; return this.run(); });
 				}
 
 				this.onErrorWithRetry(error, () => this.run(), extraAction);
