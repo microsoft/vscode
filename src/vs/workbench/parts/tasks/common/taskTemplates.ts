@@ -191,4 +191,23 @@ const msbuild: TaskEntry = {
 	].join('\n')
 };
 
-export const templates: TaskEntry[] = [gulp, jake, grunt, tscConfig, tscSpecificFile, tscOpenFile, tscWatch, dotnetBuild, msbuild];
+const command: TaskEntry = {
+	id: 'externalCommand',
+	label: 'External Command',
+	autoDetect: false,
+	description: nls.localize('externalCommand', 'Creates a tasks.json for an external command to run.'),
+	content: [
+		'{',
+			'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
+			'\t// for the documentation about the tasks.json format',
+			'\t"version": "0.1.0",',
+			'\t"command": "echo",',
+			'\t"isShellCommand": true,',
+			'\t"args": ["Hello World"],',
+			'\t"showOutput": "always"',
+		'}'
+	].join('\n')
+};
+
+
+export const templates: TaskEntry[] = [gulp, jake, grunt, tscConfig, tscSpecificFile, tscOpenFile, tscWatch, dotnetBuild, msbuild, command];
