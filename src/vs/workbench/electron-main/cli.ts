@@ -30,7 +30,8 @@ class ArgParser {
 Usage: ${ executable } [arguments] [paths...]
 
 Options:
-${ indent }-d, --diff            Open a diff editor on two files.
+${ indent }-d, --diff            Open a diff editor. Requires to pass two file paths
+${ indent }                      as arguments.
 ${ indent }--disable-extensions  Disable all installed extensions.
 ${ indent }-g, --goto            Open the file at path at the line and column (add
 ${ indent }                      :line[:column] to path).
