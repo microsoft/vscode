@@ -17,20 +17,25 @@ import { IMessageService, CloseAction } from 'vs/platform/message/common/message
 import { UninstallAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IExtensionsService, commandCategory, IExtension, IExtensionManifest } from 'vs/workbench/parts/extensions/common/extensions';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import { getOutdatedExtensions } from 'vs/workbench/parts/extensions/common/extensionsUtil';
 
 interface IState {
 	errors: IMessage[];
-	installingExtensions: IExtensionManifest[];
+	installing: IExtensionManifest[];
+	outdated: IExtension[];
 }
 
 const InitialState: IState = {
 	errors: [],
-	installingExtensions: []
+	installing: [],
+	outdated: []
 };
 
 function extensionEquals(one: IExtensionManifest, other: IExtensionManifest): boolean {
 	return one.publisher === other.publisher && one.name === other.name;
 }
+
+const OutdatedPeriod = 5 * 60 * 1000; // every 5 minutes
 
 export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 
@@ -50,16 +55,8 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 		append(this.domNode, $('.icon'));
 		this.domNode.onclick = () => this.onClick();
 
-		const promise = onUnexpectedPromiseError(this.extensionService.onReady());
-		promise.done(() => {
-			const status = this.extensionService.getExtensionsStatus();
-			const errors = Object.keys(status)
-				.map(k => status[k].messages)
-				.reduce((r, m) => r.concat(m), [])
-				.filter(m => m.type > Severity.Info);
-
-			this.updateState({ errors });
-		});
+		this.checkErrors();
+		this.checkOutdated();
 
 		const disposables = [];
 		this.extensionsService.onInstallExtension(this.onInstallExtension, this, disposables);
@@ -73,28 +70,36 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 		this.onStateChange();
 	}
 
+	private get hasErrors() { return this.state.errors.length > 0; }
+	private get isInstalling() { return this.state.installing.length > 0; }
+	private get hasUpdates() { return this.state.outdated.length > 0; }
+
 	private onStateChange(): void {
-		const hasErrors = this.state.errors.length > 0;
-		const isInstalling = this.state.installingExtensions.length > 0;
+		toggleClass(this.domNode, 'has-errors', this.hasErrors);
+		toggleClass(this.domNode, 'is-installing', !this.hasErrors && this.isInstalling);
+		toggleClass(this.domNode, 'has-updates', !this.hasErrors && !this.isInstalling && this.hasUpdates);
 
-		toggleClass(this.domNode, 'has-errors', hasErrors);
-		toggleClass(this.domNode, 'is-installing', !hasErrors && isInstalling);
-
-		if (hasErrors) {
+		if (this.hasErrors) {
 			const singular = nls.localize('oneIssue', "Extensions (1 issue)");
 			const plural = nls.localize('multipleIssues', "Extensions ({0} issues)", this.state.errors.length);
 			this.domNode.title = this.state.errors.length > 1 ? plural : singular;
-		} else if (isInstalling) {
-			this.domNode.title = nls.localize('extensionsInstalling', "Extensions ({0} installing...)", this.state.installingExtensions.length);
+		} else if (this.isInstalling) {
+			this.domNode.title = nls.localize('extensionsInstalling', "Extensions ({0} installing...)", this.state.installing.length);
+		} else if (this.hasUpdates) {
+			const singular = nls.localize('oneUpdate', "Extensions (1 update available)");
+			const plural = nls.localize('multipleUpdates', "Extensions ({0} updates available)", this.state.outdated.length);
+			this.domNode.title = this.state.outdated.length > 1 ? plural : singular;
 		} else {
 			this.domNode.title = nls.localize('extensions', "Extensions");
 		}
 	}
 
 	private onClick(): void {
-		if (this.state.errors.length > 0) {
+		if (this.hasErrors) {
 			this.showErrors(this.state.errors);
 			this.updateState({ errors: [] });
+		} else if (this.hasUpdates) {
+			this.quickOpenService.show(`ext update `);
 		} else {
 			this.quickOpenService.show(`>${commandCategory}: `);
 		}
@@ -120,13 +125,35 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 	}
 
 	private onInstallExtension(manifest: IExtensionManifest): void {
-		const installingExtensions = [...this.state.installingExtensions, manifest];
-		this.updateState({ installingExtensions });
+		const installing = [...this.state.installing, manifest];
+		this.updateState({ installing });
 	}
 
 	private onDidInstallExtension({ extension }: { extension: IExtension; }): void {
-		const installingExtensions = this.state.installingExtensions
+		const installing = this.state.installing
 			.filter(e => !extensionEquals(extension, e));
-		this.updateState({ installingExtensions });
+		this.updateState({ installing });
+	}
+
+	private checkErrors(): void {
+		const promise = onUnexpectedPromiseError(this.extensionService.onReady());
+		promise.done(() => {
+			const status = this.extensionService.getExtensionsStatus();
+			const errors = Object.keys(status)
+				.map(k => status[k].messages)
+				.reduce((r, m) => r.concat(m), [])
+				.filter(m => m.type > Severity.Info);
+
+			this.updateState({ errors });
+		});
+	}
+
+	private checkOutdated(): void {
+		this.instantiationService.invokeFunction(getOutdatedExtensions)
+			.then(null, _ => []) // ignore errors
+			.done(outdated => {
+				this.updateState({ outdated });
+				setTimeout(() => this.checkOutdated, OutdatedPeriod);
+			});
 	}
 }

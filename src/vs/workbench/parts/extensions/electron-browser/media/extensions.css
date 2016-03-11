@@ -147,6 +147,18 @@
 	height: 100%;
 }
 
+.monaco-shell .extensions-statusbar.has-updates::after {
+	content: '';
+	width: 6px;
+	height: 6px;
+	background-color: #39A71E;
+	position: absolute;
+	top: 2px;
+	right: 3px;
+	border-radius: 10px;
+	border: 1px solid white;
+}
+
 .monaco-shell .extensions-statusbar.has-errors::after {
 	content: '';
 	width: 6px;
