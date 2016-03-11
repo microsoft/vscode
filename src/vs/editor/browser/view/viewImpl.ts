@@ -90,7 +90,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this._renderAnimationFrame = null;
 		this.outgoingEventBus = new EventEmitter();
 
-		var viewController = new ViewController(model, configuration, this.outgoingEventBus);
+		var viewController = new ViewController(model, configuration, this.outgoingEventBus, keybindingService);
 
 		this.listenersToRemove = [];
 		this.listenersToDispose = [];

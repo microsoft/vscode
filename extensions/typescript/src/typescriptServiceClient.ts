@@ -131,7 +131,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return this._packageInfo;
 	}
 
-	private logTelemetry(eventName: string, properties?: {[prop: string]: string}) {
+	public logTelemetry(eventName: string, properties?: {[prop: string]: string}) {
 		if (this.telemetryReporter) {
 			this.telemetryReporter.sendTelemetryEvent(eventName, properties);
 		}

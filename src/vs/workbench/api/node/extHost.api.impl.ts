@@ -86,6 +86,7 @@ export class ExtHostAPIImplementation {
 	OverviewRulerLane: typeof vscode.OverviewRulerLane;
 	TextEditorRevealType: typeof vscode.TextEditorRevealType;
 	EndOfLine: typeof vscode.EndOfLine;
+	TextEditorCursorStyle: typeof vscode.TextEditorCursorStyle;
 	commands: typeof vscode.commands;
 	window: typeof vscode.window;
 	workspace: typeof vscode.workspace;
@@ -132,6 +133,7 @@ export class ExtHostAPIImplementation {
 		this.OverviewRulerLane = EditorCommon.OverviewRulerLane;
 		this.TextEditorRevealType = TextEditorRevealType;
 		this.EndOfLine = extHostTypes.EndOfLine;
+		this.TextEditorCursorStyle = extHostTypes.TextEditorCursorStyle;
 
 		errors.setUnexpectedErrorHandler((err) => {
 			this._proxy.onUnexpectedExtHostError(errors.transformErrorForSerialization(err));

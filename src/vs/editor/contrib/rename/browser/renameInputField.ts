@@ -6,6 +6,7 @@
 'use strict';
 
 import 'vs/css!./rename';
+import {localize} from 'vs/nls';
 import {canceled} from 'vs/base/common/errors';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -42,6 +43,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 			this._inputField = document.createElement('input');
 			this._inputField.className = 'rename-input';
 			this._inputField.type = 'text';
+			this._inputField.setAttribute('aria-label', localize('renameAriaLabel', "Rename input. Type new name and press Enter to commit."));
 			this._domNode = document.createElement('div');
 			this._domNode.style.height = `${this._editor.getConfiguration().lineHeight}px`;
 			this._domNode.className = 'monaco-editor rename-box';

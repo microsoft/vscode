@@ -693,3 +693,7 @@ export enum EndOfLine {
 	LF = 1,
 	CRLF = 2
 }
+export enum TextEditorCursorStyle {
+	Line = 1,
+	Block = 2
+}
