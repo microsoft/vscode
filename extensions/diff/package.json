@@ -1,0 +1,23 @@
+{
+	"name": "diff",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"languages": [
+			{
+				"id": "diff",
+				"aliases": ["Diff", "diff" ],
+				"extensions": [".patch", ".diff", ".rej"],
+				"configuration": "./diff.configuration.json"
+			}
+		],
+		"grammars": [
+			{
+				"language": "diff",
+				"scopeName": "source.diff",
+				"path": "./syntaxes/diff.tmLanguage"
+			}
+		]
+	}
+}
