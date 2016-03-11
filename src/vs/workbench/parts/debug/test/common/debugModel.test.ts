@@ -7,6 +7,11 @@ import assert = require('assert');
 import uri from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
 import debugmodel = require('vs/workbench/parts/debug/common/debugModel');
+import debug = require('vs/workbench/parts/debug/common/debug');
+import { TPromise } from 'vs/base/common/winjs.base';
+import { DebugService } from 'vs/workbench/parts/debug/electron-browser/debugService';
+import * as sinon from 'sinon';
+import { MockDebugService } from 'vs/workbench/parts/debug/test/common/mockDebugService';
 
 suite('Debug - Model', () => {
 	var model: debugmodel.Model;
@@ -89,6 +94,183 @@ suite('Debug - Model', () => {
 
 		model.clearThreads(true);
 		assert.equal(model.getThreads[threadId], null);
+	});
+
+	test('threads multiple wtih allThreadsStopped', () => {
+		const mockDebugService = new MockDebugService();
+		const sessionStub = sinon.spy(mockDebugService.getActiveSession(), 'stackTrace');
+
+		const threadId1 = 1;
+		const threadName1 = "firstThread";
+		const threadId2 = 2;
+		const threadName2 = "secondThread";
+		const stoppedReason = "breakpoint";
+
+		// Add the threads
+		model.rawUpdate({
+			threadId: threadId1,
+			thread: {
+				id: threadId1,
+				name: threadName1
+			}
+		});
+
+		model.rawUpdate({
+			threadId: threadId2,
+			thread: {
+				id: threadId2,
+				name: threadName2
+			}
+		});
+
+		// Stopped event with all threads stopped
+		model.rawUpdate({
+			threadId: threadId1,
+			stoppedDetails: {
+				reason: stoppedReason,
+				threadId: 1
+			},
+			allThreadsStopped: true
+		});
+
+		const thread1 = model.getThreads()[threadId1];
+		const thread2 = model.getThreads()[threadId2];
+
+		// at the beginning, callstacks are obtainable but not available
+		assert.equal(thread1.name, threadName1);
+		assert.equal(thread1.stopped, true);
+		assert.equal(thread1.getCachedCallStack(), undefined);
+		assert.equal(thread1.stoppedDetails.reason, stoppedReason);
+		assert.equal(thread2.name, threadName2);
+		assert.equal(thread2.stopped, true);
+		assert.equal(thread2.getCachedCallStack(), undefined);
+		assert.equal(thread2.stoppedDetails.reason, stoppedReason);
+
+		// after calling getCallStack, the callstack becomes available
+		// and results in a request for the callstack in the debug adapter
+		thread1.getCallStack(mockDebugService).then(() => {
+			assert.notEqual(thread1.getCachedCallStack(), undefined);
+			assert.equal(thread2.getCachedCallStack(), undefined);
+			assert.equal(sessionStub.callCount, 1);
+		});
+
+		thread2.getCallStack(mockDebugService).then(() => {
+			assert.notEqual(thread1.getCachedCallStack(), undefined);
+			assert.notEqual(thread2.getCachedCallStack(), undefined);
+			assert.equal(sessionStub.callCount, 2);
+		});
+
+		// calling multiple times getCallStack doesn't result in multiple calls
+		// to the debug adapter
+		thread1.getCallStack(mockDebugService).then(() => {
+			return thread2.getCallStack(mockDebugService);
+		}).then(() => {
+			assert.equal(sessionStub.callCount, 2);
+		});
+
+		// clearing the callstack results in the callstack not being available
+		thread1.clearCallStack();
+		assert.equal(thread1.stopped, true);
+		assert.equal(thread1.getCachedCallStack(), undefined);
+
+		thread2.clearCallStack();
+		assert.equal(thread2.stopped, true);
+		assert.equal(thread2.getCachedCallStack(), undefined);
+
+		model.continueThreads();
+		assert.equal(thread1.stopped, false);
+		assert.equal(thread2.stopped, false);
+
+		model.clearThreads(true);
+		assert.equal(model.getThreads[threadId1], null);
+		assert.equal(model.getThreads[threadId2], null);
+	});
+
+	test('threads mutltiple without allThreadsStopped', () => {
+		const mockDebugService = new MockDebugService();
+		const sessionStub = sinon.spy(mockDebugService.getActiveSession(), 'stackTrace');
+
+		const stoppedThreadId = 1;
+		const stoppedThreadName = "stoppedThread";
+		const runningThreadId = 2;
+		const runningThreadName = "runningThread";
+		const stoppedReason = "breakpoint";
+
+		// Add the threads
+		model.rawUpdate({
+			threadId: stoppedThreadId,
+			thread: {
+				id: stoppedThreadId,
+				name: stoppedThreadName
+			}
+		});
+
+		model.rawUpdate({
+			threadId: runningThreadId,
+			thread: {
+				id: runningThreadId,
+				name: runningThreadName
+			}
+		});
+
+		// Stopped event with only one thread stopped
+		model.rawUpdate({
+			threadId: stoppedThreadId,
+			stoppedDetails: {
+				reason: stoppedReason,
+				threadId: 1
+			},
+			allThreadsStopped: false
+		});
+
+		const stoppedThread = model.getThreads()[stoppedThreadId];
+		const runningThread = model.getThreads()[runningThreadId];
+
+		// the callstack for the stopped thread is obtainable but not available
+		// the callstack for the running thread is not obtainable nor available
+		assert.equal(stoppedThread.name, stoppedThreadName);
+		assert.equal(stoppedThread.stopped, true);
+		assert.equal(stoppedThread.getCachedCallStack(), undefined);
+		assert.equal(stoppedThread.stoppedDetails.reason, stoppedReason);
+		assert.equal(runningThread.name, runningThreadName);
+		assert.equal(runningThread.stopped, false);
+		assert.equal(runningThread.getCachedCallStack(), undefined);
+		assert.equal(runningThread.stoppedDetails, undefined);
+
+		// after calling getCallStack, the callstack becomes available
+		// and results in a request for the callstack in the debug adapter
+		stoppedThread.getCallStack(mockDebugService).then(() => {
+			assert.notEqual(stoppedThread.getCachedCallStack(), undefined);
+			assert.equal(runningThread.getCachedCallStack(), undefined);
+			assert.equal(sessionStub.callCount, 1);
+		});
+
+		// calling getCallStack on the running thread returns empty array
+		// and does not return in a request for the callstack in the debug
+		// adapter
+		runningThread.getCallStack(mockDebugService).then(callStack => {
+			assert.deepEqual(callStack, []);
+			assert.equal(sessionStub.callCount, 1);
+		});
+
+		// calling multiple times getCallStack doesn't result in multiple calls
+		// to the debug adapter
+		stoppedThread.getCallStack(mockDebugService).then(() => {
+			assert.equal(sessionStub.callCount, 1);
+		});
+
+		// clearing the callstack results in the callstack not being available
+		stoppedThread.clearCallStack();
+		assert.equal(stoppedThread.stopped, true);
+		assert.equal(stoppedThread.getCachedCallStack(), undefined);
+
+		model.continueThreads();
+		assert.equal(runningThread.stopped, false);
+		assert.equal(stoppedThread.stopped, false);
+
+		model.clearThreads(true);
+		assert.equal(model.getThreads[stoppedThreadId], null);
+		assert.equal(model.getThreads[runningThreadId], null);
 	});
 
 	// Expressions

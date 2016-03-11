@@ -189,6 +189,10 @@ export class BaseDebugController extends treedefaults.DefaultController {
 
 export class CallStackDataSource implements tree.IDataSource {
 
+	constructor(@debug.IDebugService private debugService: debug.IDebugService) {
+		// noop
+	}
+
 	public getId(tree: tree.ITree, element: any): string {
 		return element.getId();
 	}
@@ -199,7 +203,7 @@ export class CallStackDataSource implements tree.IDataSource {
 
 	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
 		if (element instanceof model.Thread) {
-			return TPromise.as((<model.Thread> element).callStack);
+			return (<model.Thread> element).getCallStack(this.debugService);
 		}
 
 		const threads = (<model.Model> element).getThreads();
@@ -209,7 +213,7 @@ export class CallStackDataSource implements tree.IDataSource {
 		});
 
 		if (threadsArray.length === 1) {
-			return TPromise.as(threadsArray[0].callStack);
+			return threadsArray[0].getCallStack(this.debugService);
 		} else {
 			return TPromise.as(threadsArray);
 		}

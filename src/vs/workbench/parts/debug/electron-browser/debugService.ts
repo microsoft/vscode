@@ -240,13 +240,17 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			this.setStateAndEmit(debug.State.Stopped);
 			const threadId = event.body.threadId;
 
-			this.getThreadData(threadId).then(() => {
-				this.session.stackTrace({ threadId: threadId, levels: 20 }).done((result) => {
+			this.getThreadData(threadId).done(() => {
+				let thread = this.model.getThreads()[threadId];
 
-					this.model.rawUpdate({ threadId: threadId, callStack: result.body.stackFrames, stoppedDetails: event.body });
+				this.model.rawUpdate({
+					threadId: threadId,
+					stoppedDetails: event.body,
+					allThreadsStopped: event.body.allThreadsStopped
+				});
+
+				thread.getCallStack(this).then(callStack => {
 					this.windowService.getWindow().focus();
-					const callStack = this.model.getThreads()[threadId].callStack;
-
 					if (callStack.length > 0) {
 						// focus first stack frame from top that has source location
 						const stackFrameToFocus = arrays.first(callStack, sf => !!sf.source, callStack[0]);
@@ -263,7 +267,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 		this.toDisposeOnSessionEnd.push(this.session.addListener2(debug.SessionEvents.CONTINUED, () => {
 			aria.status(nls.localize('debuggingContinued', "Debugging continued."));
-			this.model.clearThreads(false);
+			this.model.continueThreads();
 			this.setFocusedStackFrameAndEvaluate(null);
 			this.setStateAndEmit(this.configurationManager.getConfiguration().noDebug ? debug.State.RunningNoDebug : debug.State.Running);
 		}));
