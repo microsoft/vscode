@@ -46384,6 +46384,7 @@ var ts;
                 else {
                     var defaultOpts = ts.getDefaultCompilerOptions();
                     defaultOpts.allowNonTsExtensions = true;
+                    defaultOpts.allowJs = true;
                     this.setCompilerOptions(defaultOpts);
                 }
                 this.languageService = ts.createLanguageService(this.host, this.documentRegistry);
