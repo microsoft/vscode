@@ -59,6 +59,7 @@ export interface IOpenConfiguration {
 	cli: env.ICommandLineArguments;
 	userEnv?: env.IProcessEnvironment;
 	pathsToOpen?: string[];
+	preferNewWindow?: boolean;
 	forceNewWindow?: boolean;
 	forceEmpty?: boolean;
 	windowToUse?: window.VSCodeWindow;
@@ -137,7 +138,7 @@ export class WindowsManager {
 
 			// Handle paths delayed in case more are coming!
 			runningTimeout = setTimeout(() => {
-				this.open({ cli: env.cliArgs, pathsToOpen: macOpenFiles, forceNewWindow: true /* dropping on the dock should force open in a new window */ });
+				this.open({ cli: env.cliArgs, pathsToOpen: macOpenFiles, preferNewWindow: true /* dropping on the dock prefers to open in a new window */ });
 				macOpenFiles = [];
 				runningTimeout = null;
 			}, 100);
@@ -498,10 +499,15 @@ export class WindowsManager {
 		// Handle files to open/diff or to create when we dont open a folder
 		if (!foldersToOpen.length && (filesToOpen.length > 0 || filesToCreate.length > 0 || filesToDiff.length > 0 || extensionsToInstall.length > 0)) {
 
-			// Let the user settings override how files are open in a new window or same window
-			let openFilesInNewWindow = openConfig.forceNewWindow;
-			if (openFilesInNewWindow && !openConfig.cli.extensionDevelopmentPath) { // can be overriden via settings (not for PDE though!)
-				openFilesInNewWindow = settings.manager.getValue('window.openFilesInNewWindow', openFilesInNewWindow);
+			// Let the user settings override how files are open in a new window or same window unless we are forced
+			let openFilesInNewWindow: boolean;
+			if (openConfig.forceNewWindow) {
+				openFilesInNewWindow = true;
+			} else {
+				openFilesInNewWindow = openConfig.preferNewWindow;
+				if (openFilesInNewWindow && !openConfig.cli.extensionDevelopmentPath) { // can be overriden via settings (not for PDE though!)
+					openFilesInNewWindow = settings.manager.getValue('window.openFilesInNewWindow', openFilesInNewWindow);
+				}
 			}
 
 			// Open Files in last instance if any and flag tells us so

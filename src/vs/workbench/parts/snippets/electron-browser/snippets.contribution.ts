@@ -39,7 +39,7 @@ class OpenSnippetsAction extends actions.Action {
 	}
 
 	private openFile(filePath: string): void {
-		ipc.send('vscode:windowOpen', [filePath], false /* force new window */); // handled from browser process
+		ipc.send('vscode:windowOpen', [filePath]); // handled from browser process
 	}
 
 	public run(): winjs.Promise {
