@@ -105,6 +105,7 @@ Linting, Debugging (multi-threaded, web apps, remote), Intellisense, auto-comple
 
 ### Version 0.3.1
 * Remote debugging (updated documentation and fixed minor issues)
+* Fixed issues with formatting of files when path contains spaces
 
 ### Version 0.3.0
 * Remote debugging (attaching to local and remote processes)
