@@ -138,8 +138,13 @@
 	position: relative;
 	padding: 0 5px;
 	width: 14px;
+}
+
+.monaco-shell .extensions-statusbar > .icon {
 	background: url('extensions-status.svg') center center no-repeat;
 	background-size: 14px;
+	width: 14px;
+	height: 100%;
 }
 
 .monaco-shell .extensions-statusbar.has-errors::after {
@@ -154,12 +159,18 @@
 	border: 1px solid white;
 }
 
-@keyframes fade {
-	from { opacity: 0.8; }
-	50% { opacity: 0.5; }
-	to { opacity: 0.8; }
+@keyframes shake {
+	from { transform: rotate(0deg); }
+	30% { transform: rotate(0deg); }
+	40% { transform: rotate(-20deg); }
+	48% { transform: rotate(10deg); }
+	52% { transform: rotate(-10deg); }
+	60% { transform: rotate(20deg); }
+	70% { transform: rotate(0deg); }
+	to { transform: rotate(0deg); }
 }
 
-.monaco-shell .extensions-statusbar.is-installing {
-	animation: 1.5s ease-in-out infinite fade;
+.monaco-shell .extensions-statusbar.is-installing .icon {
+	animation: 2s ease-in-out infinite shake;
+	opacity: 0.7;
 }

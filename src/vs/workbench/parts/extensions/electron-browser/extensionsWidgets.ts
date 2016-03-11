@@ -7,7 +7,7 @@ import nls = require('vs/nls');
 import Severity from 'vs/base/common/severity';
 import { emmet as $, append, toggleClass } from 'vs/base/browser/dom';
 import { IDisposable, combinedDispose } from 'vs/base/common/lifecycle';
-import { onUnexpectedPromiseError as _ } from 'vs/base/common/errors';
+import { onUnexpectedPromiseError } from 'vs/base/common/errors';
 import { assign } from 'vs/base/common/objects';
 import { Action } from 'vs/base/common/actions';
 import statusbar = require('vs/workbench/browser/parts/statusbar/statusbar');
@@ -47,9 +47,11 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 
 	render(container: HTMLElement): IDisposable {
 		this.domNode = append(container, $('a.extensions-statusbar'));
+		append(this.domNode, $('.icon'));
 		this.domNode.onclick = () => this.onClick();
 
-		_(this.extensionService.onReady()).done(() => {
+		const promise = onUnexpectedPromiseError(this.extensionService.onReady());
+		promise.done(() => {
 			const status = this.extensionService.getExtensionsStatus();
 			const errors = Object.keys(status)
 				.map(k => status[k].messages)
@@ -99,7 +101,8 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 	}
 
 	private showErrors(errors: IMessage[]): void {
-		_(this.extensionsService.getInstalled()).done(installed => {
+		const promise = onUnexpectedPromiseError(this.extensionsService.getInstalled());
+		promise.done(installed => {
 			errors.forEach(m => {
 				const extension = installed.filter(ext => ext.path === m.source).pop();
 				const actions = [CloseAction];
