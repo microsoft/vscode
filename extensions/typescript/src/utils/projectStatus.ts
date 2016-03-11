@@ -79,7 +79,7 @@ export function create(client: ITypescriptServiceClient) {
 				};
 				item.text = '$(light-bulb)';
 				item.tooltip = localize('hint.tooltip', "Have a project and have better IntelliSense, better symbol search, and much more.");
-				item.color = 'lime';
+				item.color = 'white';
 				item.show();
 				client.logTelemetry('js.hintProjectCreation');
 
@@ -92,7 +92,7 @@ export function create(client: ITypescriptServiceClient) {
 						vscode.workspace.asRelativePath(configFileName),
 						largeRoots),
 					option: {
-						title: localize('open', "Edit excludes..."),
+						title: localize('open', "Configure excludes..."),
 						execute: () => {
 							client.logTelemetry('js.hintProjectExcludes.accepted');
 							projectHinted[configFileName] = true;
@@ -104,7 +104,7 @@ export function create(client: ITypescriptServiceClient) {
 					}
 				};
 				item.tooltip = currentHint.message;
-				item.text = localize('large.label', "configure excludes");
+				item.text = localize('large.label', "Configure Excludes");
 				item.tooltip = localize('large.tooltip', "Too many files in a project might result in bad performance. Exclude folders with many files, like: {0}...", largeRoots);
 				item.color = '#0CFF00';
 				item.show();
