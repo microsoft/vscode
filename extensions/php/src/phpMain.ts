@@ -17,7 +17,7 @@ export function activate(context: ExtensionContext): any {
 	nls.config({locale: env.language});
 
 	// add providers
-	context.subscriptions.push(languages.registerCompletionItemProvider('php', new PHPCompletionItemProvider(), '.', ':', '$'));
+	context.subscriptions.push(languages.registerCompletionItemProvider('php', new PHPCompletionItemProvider(), '.', '$'));
 	context.subscriptions.push(languages.registerHoverProvider('php', new PHPHoverProvider()));
 	context.subscriptions.push(languages.registerSignatureHelpProvider('php', new PHPSignatureHelpProvider(), '(', ','));
 
