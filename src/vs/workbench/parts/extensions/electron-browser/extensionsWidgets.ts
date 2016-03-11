@@ -115,8 +115,8 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 			errors.forEach(m => {
 				const extension = installed.filter(ext => ext.path === m.source).pop();
 				const actions = [CloseAction];
-				const name = (extension && extension.name) || m.source;
-				const message = `${ name }: ${ m.message }`;
+				const name = extension && extension.name;
+				const message = name ? `${ name }: ${ m.message }` : m.message;
 
 				if (extension) {
 					const actionLabel = nls.localize('uninstall', "Uninstall");
