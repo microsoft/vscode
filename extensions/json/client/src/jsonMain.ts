@@ -8,6 +8,7 @@ import * as path from 'path';
 
 import {workspace, languages, ExtensionContext, extensions, Uri} from 'vscode';
 import {LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType} from 'vscode-languageclient';
+import TelemetryReporter from 'vscode-extension-telemetry';
 
 namespace TelemetryNotification {
 	export const type: NotificationType<{ key: string, data: any }> = { get method() { return 'telemetry'; } };
@@ -25,7 +26,20 @@ namespace SchemaAssociationNotification {
 	export const type: NotificationType<ISchemaAssociations> = { get method() { return 'json/schemaAssociations'; } };
 }
 
+interface IPackageInfo {
+	name: string;
+	version: string;
+	aiKey: string;
+}
+
 export function activate(context: ExtensionContext) {
+
+	let telemetryReporter: TelemetryReporter = null;
+	let packageInfo: IPackageInfo = null;
+	if (packageInfo = getPackageInfo()){
+		telemetryReporter = new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
+	}
+
 	// Resolve language ids to pass around as initialization data
 	languages.getLanguages().then(languageIds => {
 
@@ -59,6 +73,9 @@ export function activate(context: ExtensionContext) {
 		let client = new LanguageClient('JSON Server', serverOptions, clientOptions);
 		client.onNotification(TelemetryNotification.type, (e) => {
 			// to be done
+			if (telemetryReporter) {
+				//telemetryReporter.sendTelemetryEvent(e.key /* e.data */);
+			}
 		});
 
 		// handle content request
@@ -125,4 +142,18 @@ function getSchemaAssociation(context: ExtensionContext) : ISchemaAssociations {
 		}
 	});
 	return associations;
+}
+
+function getPackageInfo(): IPackageInfo {
+	let packagePath = path.join(__dirname, './../../package.json');
+	let extensionPackage = require(packagePath);
+	if (extensionPackage) {
+		return {
+			name: extensionPackage.name,
+			version: extensionPackage.version,
+			aiKey: extensionPackage.aiKey
+		};
+	} else {
+		return null;
+	}
 }
