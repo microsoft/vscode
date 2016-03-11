@@ -540,6 +540,7 @@ export class WindowsManager {
 		}
 
 		// Handle folders to open
+		let openInNewWindow = openConfig.preferNewWindow || openConfig.forceNewWindow;
 		if (foldersToOpen.length > 0) {
 
 			// Check for existing instances
@@ -567,7 +568,7 @@ export class WindowsManager {
 				filesToDiff = [];
 				extensionsToInstall = [];
 
-				openConfig.forceNewWindow = true; // any other folders to open must open in new window then
+				openInNewWindow = true; // any other folders to open must open in new window then
 			}
 
 			// Open remaining ones
@@ -577,7 +578,7 @@ export class WindowsManager {
 				}
 
 				configuration = this.toConfiguration(openConfig.userEnv || this.initialUserEnv, openConfig.cli, folderToOpen.workspacePath, filesToOpen, filesToCreate, filesToDiff, extensionsToInstall);
-				let browserWindow = this.openInBrowserWindow(configuration, openConfig.forceNewWindow, openConfig.forceNewWindow ? void 0 : openConfig.windowToUse);
+				let browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
 
 				// Reset these because we handled them
@@ -586,7 +587,7 @@ export class WindowsManager {
 				filesToDiff = [];
 				extensionsToInstall = [];
 
-				openConfig.forceNewWindow = true; // any other folders to open must open in new window then
+				openInNewWindow = true; // any other folders to open must open in new window then
 			});
 		}
 
@@ -594,10 +595,10 @@ export class WindowsManager {
 		if (emptyToOpen.length > 0) {
 			emptyToOpen.forEach(() => {
 				let configuration = this.toConfiguration(openConfig.userEnv || this.initialUserEnv, openConfig.cli);
-				let browserWindow = this.openInBrowserWindow(configuration, openConfig.forceNewWindow, openConfig.forceNewWindow ? void 0 : openConfig.windowToUse);
+				let browserWindow = this.openInBrowserWindow(configuration, openInNewWindow, openInNewWindow ? void 0 : openConfig.windowToUse);
 				usedWindows.push(browserWindow);
 
-				openConfig.forceNewWindow = true; // any other folders to open must open in new window then
+				openInNewWindow = true; // any other folders to open must open in new window then
 			});
 		}
 
