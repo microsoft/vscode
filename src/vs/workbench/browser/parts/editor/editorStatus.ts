@@ -637,12 +637,12 @@ export class ChangeModeAction extends Action {
 		picks[0].separator = { border: true, label: nls.localize('languagesPicks', "languages") };
 
 		// Offer action to configure via settings
-		let configureLabel = nls.localize('configureAssociations', "Configure in Settings");
+		let configureLabel = nls.localize('configureAssociations', "Configure File Associations...");
 		if (fileinput) {
 			const resource = fileinput.getResource();
 			const ext = paths.extname(resource.fsPath) || paths.basename(resource.fsPath);
 			if (ext) {
-				configureLabel = nls.localize('configureAssociationsExt', "Configure Default for '{0}'", ext);
+				configureLabel = nls.localize('configureAssociationsExt', "Configure File Association for '{0}'...", ext);
 			}
 		}
 
