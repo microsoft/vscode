@@ -5,7 +5,7 @@
 - Operating System:
 - (Node version when doing Node development:)
 
-## Steps to Reproduce
+### Steps to Reproduce
 1. 
 2. 
 
