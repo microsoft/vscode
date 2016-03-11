@@ -29,6 +29,7 @@ export interface IRegistry {
 	 * @param id an extension idenifier
 	 */
 	as(id: string): any;
+	as<T>(id: string): T;
 }
 
 class RegistryImpl implements IRegistry {
