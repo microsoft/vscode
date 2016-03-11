@@ -44,11 +44,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(vscode.languages.registerDocumentFormattingEditProvider(PYTHON, new PythonFormattingEditProvider(context, pythonSettings, outChannel)));
 
-    // var isWin = /^win/.test(process.platform);
-    // if (!isWin) {
-    context.subscriptions.push(new LintProvider(context, pythonSettings, outChannel));//).register(rootDir);
-    //disposables.forEach(d=> context.subscriptions.push(d));
-    // }
+    context.subscriptions.push(new LintProvider(context, pythonSettings, outChannel));
 }
 
 // this method is called when your extension is deactivated

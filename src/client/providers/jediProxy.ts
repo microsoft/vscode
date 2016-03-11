@@ -6,6 +6,7 @@ import * as child_process from 'child_process';
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as settings from './../common/configSettings';
+import * as logger from './../common/logger';
 
 var proc: child_process.ChildProcess;
 var pythonSettings = new settings.PythonSettings();
@@ -163,12 +164,13 @@ function killProcess() {
 }
 
 function handleError(source: string, errorMessage: string) {
-    console.error(`Error (${source}) ${errorMessage}`);
+    logger.error(source + ' jediProxy', `Error (${source}) ${errorMessage}`);
     vscode.window.showErrorMessage(`There was an error in the python extension. Error ${errorMessage}`);
 }
 
 function spawnProcess(dir: string) {
     try {
+        logger.log('child_process.spawn in jediProxy', 'Value of pythonSettings.pythonPath is :' + pythonSettings.pythonPath);
         proc = child_process.spawn(pythonSettings.pythonPath, ["-u", "completion.py"], {
             cwd: dir
         });
@@ -180,13 +182,15 @@ function spawnProcess(dir: string) {
         handleError("stderr", data);
     });
     proc.on("end", (end) => {
-        console.error("End - " + end);
+        logger.error('spawnProcess.end', "End - " + end);
     });
     proc.on("error", error => {
         handleError("error", error);
     });
 
     proc.stdout.on("data", (data) => {
+        //Possible there was an exception in parsing the data returned
+        //So append the data then parse it
         var dataStr = previousData = previousData + data + ""
         var responses: any[];
         try {
@@ -194,6 +198,7 @@ function spawnProcess(dir: string) {
             previousData = "";
         }
         catch (ex) {
+            //Possible we've only received part of the data, hence don't clear previousData
             handleError("stdout", ex.message);
             return;
         }

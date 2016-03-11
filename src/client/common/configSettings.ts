@@ -6,6 +6,7 @@ import * as fs from 'fs';
 
 export interface IPythonSettings {
     pythonPath: string;
+    devOptions: any[];
     linting: ILintingSettings;
     formatting: IFormattingSettings;
     unitTest: IUnitTestSettings;
@@ -54,6 +55,8 @@ export class PythonSettings implements IPythonSettings {
     private initializeSettings() {
         var pythonSettings = vscode.workspace.getConfiguration("python");
         this.pythonPath = pythonSettings.get<string>("pythonPath");
+        this.devOptions = pythonSettings.get<any[]>("devOptions");
+        this.devOptions = Array.isArray(this.devOptions) ? this.devOptions : [];
         var lintingSettings = pythonSettings.get<ILintingSettings>("linting");
         if (this.linting) {
             Object.assign<ILintingSettings, ILintingSettings>(this.linting, lintingSettings);
@@ -88,6 +91,7 @@ export class PythonSettings implements IPythonSettings {
     }
 
     public pythonPath: string;
+    public devOptions: any[];
     public linting: ILintingSettings;
     public formatting: IFormattingSettings;
     public autoComplete: IAutoCompeteSettings;
