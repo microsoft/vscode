@@ -2286,6 +2286,12 @@ declare namespace vscode {
 		 * @deprecated Will be replaced by a better API soon.
 		 */
 		__electricCharacterSupport?: {
+			/**
+			 * This property is deprecated and will be **ignored** from
+			 * the editor.
+			 * @deprecated
+			 */
+			brackets?: any;
 			docComment?: {
 				scope: string;
 				open: string;
