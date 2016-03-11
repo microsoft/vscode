@@ -49,6 +49,7 @@ import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWindowService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ILogEntry, PLUGIN_LOG_BROADCAST_CHANNEL, PLUGIN_ATTACH_BROADCAST_CHANNEL } from 'vs/workbench/services/thread/electron-browser/threadService';
+import { ipcRenderer as ipc } from 'electron';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -314,6 +315,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.SERVER_EXIT, event => {
+			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
+			if (this.session.getType() === 'extensionHost' && this.state === debug.State.RunningNoDebug) {
+				ipc.send('vscode:closeExtensionHostWindow', this.contextService.getWorkspace().resource.fsPath);
+			}
 			if (this.session && this.session.getId() === event.sessionId) {
 				this.onSessionEnd();
 			}
