@@ -22,9 +22,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { Action } from 'vs/base/common/actions';
-import * as semver from 'semver';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { shell } from 'electron';
+import { extensionEquals, getOutdatedExtensions } from 'vs/workbench/parts/extensions/common/extensionsUtil';
 
 const $ = dom.emmet;
 
@@ -72,10 +72,6 @@ function getHighlights(input: string, extension: IExtension): IHighlights {
 	}
 
 	return { id, name, displayName, description };
-}
-
-function extensionEquals(one: IExtension, other: IExtension): boolean {
-	return one.publisher === other.publisher && one.name === other.name;
 }
 
 function extensionEntryCompare(one: IExtensionEntry, other: IExtensionEntry): number {
@@ -478,8 +474,7 @@ class OutdatedExtensionsModel implements IModel<IExtensionEntry> {
 	public entries: IExtensionEntry[];
 
 	constructor(
-		private galleryExtensions: IExtension[],
-		private localExtensions: IExtension[],
+		private outdatedExtensions: IExtension[],
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.renderer = instantiationService.createInstance(Renderer);
@@ -488,12 +483,9 @@ class OutdatedExtensionsModel implements IModel<IExtensionEntry> {
 	}
 
 	public set input(input: string) {
-		this.entries = this.galleryExtensions
+		this.entries = this.outdatedExtensions
 			.map(extension => ({ extension, highlights: getHighlights(input.trim(), extension) }))
-			.filter(({ extension, highlights }) => {
-				const local = this.localExtensions.filter(local => extensionEquals(local, extension))[0];
-				return local && semver.lt(local.version, extension.version) && !!highlights;
-			})
+			.filter(({ highlights }) => !!highlights)
 			.map(({ extension, highlights }: { extension: IExtension, highlights: IHighlights }) => ({
 				extension,
 				highlights,
@@ -523,8 +515,8 @@ export class OutdatedExtensionsHandler extends QuickOpenHandler {
 	getResults(input: string): TPromise<IModel<IExtensionEntry>> {
 		if (!this.modelPromise) {
 			this.telemetryService.publicLog('extensionGallery:open');
-			this.modelPromise = TPromise.join<any>([this.galleryService.query(), this.extensionsService.getInstalled()])
-				.then(result => this.instantiationService.createInstance(OutdatedExtensionsModel, result[0], result[1]));
+			this.modelPromise = this.instantiationService.invokeFunction(getOutdatedExtensions)
+				.then(outdated => this.instantiationService.createInstance(OutdatedExtensionsModel, outdated));
 		}
 
 		return this.modelPromise.then(model => {
