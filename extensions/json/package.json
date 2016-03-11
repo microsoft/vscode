@@ -2,6 +2,7 @@
 	"name": "json",
 	"version": "0.1.0",
 	"publisher": "vscode",
+	"aiKey":"AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
 	"engines": {
 		"vscode": "0.10.x"
 	},
@@ -122,6 +123,7 @@
 		}
 	},
 	"dependencies": {
-		"vscode-languageclient": "^1.3.1"
+		"vscode-languageclient": "^1.3.1",
+		"vscode-extension-telemetry": "^0.0.5"
 	}
 }
