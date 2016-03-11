@@ -15,47 +15,58 @@ const __tab = '\t'.charCodeAt(0);
 function spacesDiff(a:string, aLength:number, b:string, bLength:number): number {
 
 	// This can go both ways (e.g.):
-	//  - a: "\t\t"
+	//  - a: "\t"
 	//  - b: "\t    "
 	//  => This should count 1 tab and 4 spaces
 
-	let result = 0;
-	let stillMatching = true;
-	let j:number;
+	let i:number;
 
-	for (j = 0; j < aLength && j < bLength; j++) {
-		let aCharCode = a.charCodeAt(j);
-		let bCharCode = b.charCodeAt(j);
+	for (i = 0; i < aLength && i < bLength; i++) {
+		let aCharCode = a.charCodeAt(i);
+		let bCharCode = b.charCodeAt(i);
 
-		if (stillMatching && aCharCode !== bCharCode) {
-			stillMatching = false;
-		}
-
-		if (!stillMatching) {
-			if (aCharCode === __space) {
-				result++;
-			}
-			if (bCharCode === __space) {
-				result++;
-			}
+		if (aCharCode !== bCharCode) {
+			break;
 		}
 	}
 
-	for (;j < aLength; j++) {
+	let aSpacesCnt = 0, aTabsCount = 0;
+	for (let j = i; j < aLength; j++) {
 		let aCharCode = a.charCodeAt(j);
 		if (aCharCode === __space) {
-			result++;
+			aSpacesCnt++;
+		} else {
+			aTabsCount++;
 		}
 	}
 
-	for (;j < bLength; j++) {
+	let bSpacesCnt = 0, bTabsCount = 0;
+	for (let j = i; j < bLength; j++) {
 		let bCharCode = b.charCodeAt(j);
 		if (bCharCode === __space) {
-			result++;
+			bSpacesCnt++;
+		} else {
+			bTabsCount++;
 		}
 	}
 
-	return result;
+	if (aSpacesCnt > 0 && aTabsCount > 0) {
+		return 0;
+	}
+	if (bSpacesCnt > 0 && bTabsCount > 0) {
+		return 0;
+	}
+
+	let tabsDiff = Math.abs(aTabsCount - bTabsCount);
+	let spacesDiff = Math.abs(aSpacesCnt - bSpacesCnt);
+
+	if (tabsDiff === 0) {
+		return spacesDiff;
+	}
+	if (spacesDiff % tabsDiff === 0) {
+		return spacesDiff / tabsDiff;
+	}
+	return 0;
 }
 
 export function guessIndentation(lines:string[], defaultTabSize:number, defaultInsertSpaces:boolean): editorCommon.IGuessedIndentation {
@@ -118,8 +129,16 @@ export function guessIndentation(lines:string[], defaultTabSize:number, defaultI
 		spacesDiffCount[deltaSpacesCount]++;
 	}
 
+	let insertSpaces = defaultInsertSpaces;
+	if (linesIndentedWithTabsCount !== linesIndentedWithSpacesCount) {
+		insertSpaces = (linesIndentedWithTabsCount < linesIndentedWithSpacesCount);
+	}
+
 	let tabSize = defaultTabSize;
-	let tabSizeScore = 0;
+	let tabSizeScore = (insertSpaces ? 0 : 0.1 * lines.length);
+
+	// console.log("score threshold: " + tabSizeScore);
+
 	ALLOWED_TAB_SIZE_GUESSES.forEach((possibleTabSize) => {
 		let possibleTabSizeScore = spacesDiffCount[possibleTabSize];
 		if (possibleTabSizeScore > tabSizeScore) {
@@ -128,17 +147,11 @@ export function guessIndentation(lines:string[], defaultTabSize:number, defaultI
 		}
 	});
 
-	let insertSpaces = defaultInsertSpaces;
-	if (linesIndentedWithTabsCount !== linesIndentedWithSpacesCount) {
-		insertSpaces = (linesIndentedWithTabsCount < linesIndentedWithSpacesCount);
-	}
-
-	// let bestInsertS
 
 	// console.log('--------------------------');
 	// console.log('linesIndentedWithTabsCount: ' + linesIndentedWithTabsCount + ', linesIndentedWithSpacesCount: ' + linesIndentedWithSpacesCount);
 	// console.log('spacesDiffCount: ' + spacesDiffCount);
-	// console.log('bestCandidate: ' + bestCandidate + ', bestCandidateScore: ' + bestCandidateScore);
+	// console.log('bestCandidate: ' + tabSizeScore + ', bestCandidateScore: ' + tabSize);
 
 	return {
 		insertSpaces: insertSpaces,

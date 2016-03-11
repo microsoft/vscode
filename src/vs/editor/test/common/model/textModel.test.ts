@@ -423,6 +423,15 @@ suite('Editor Model - TextModel', () => {
 			'    x',
 			'    x',
 		], '5x1, 2x0, 1x3, 2x4');
+		assertGuess(false, undefined, [
+			'\t x',
+			' \t x',
+			'\tx'
+		], 'mixed whitespace 1');
+		assertGuess(false, 4, [
+			'\tx',
+			'\t    x'
+		], 'mixed whitespace 2');
 	});
 
 	test('modifyPosition', () => {
