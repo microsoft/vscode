@@ -30,10 +30,10 @@ class ArgParser {
 Usage: ${ executable } [arguments] [paths...]
 
 Options:
+${ indent }-d, --diff            Open a diff editor on two files.
 ${ indent }--disable-extensions  Disable all installed extensions.
 ${ indent }-g, --goto            Open the file at path at the line and column (add
 ${ indent }                      :line[:column] to path).
-${ indent }-d, --diff            Open a diff editor on two files.
 ${ indent }-h, --help            Print usage.
 ${ indent }--locale=LOCALE       Use a specific locale, "pseudo" can be used to test
 ${ indent }                      localization.
