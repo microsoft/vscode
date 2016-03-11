@@ -674,7 +674,7 @@ export class WindowsManager {
 		configuration.releaseNotesUrl = env.product.releaseNotesUrl;
 		configuration.updateFeedUrl = UpdateManager.feedUrl;
 		configuration.updateChannel = UpdateManager.channel;
-		configuration.recentPaths = this.getRecentlyOpenedPaths(workspacePath, filesToOpen, filesToDiff);
+		configuration.recentPaths = this.getRecentlyOpenedPaths(workspacePath, filesToOpen);
 		configuration.aiConfig = env.product.aiConfig;
 		configuration.sendASmile = env.product.sendASmile;
 		configuration.enableTelemetry = env.product.enableTelemetry;
@@ -683,7 +683,7 @@ export class WindowsManager {
 		return configuration;
 	}
 
-	private getRecentlyOpenedPaths(workspacePath?: string, filesToOpen?: window.IPath[], filesToDiff?: window.IPath[]): string[] {
+	private getRecentlyOpenedPaths(workspacePath?: string, filesToOpen?: window.IPath[]): string[] {
 
 		// Get from storage
 		let openedPathsList = storage.getItem<IOpenedPathsList>(WindowsManager.openedPathsListStorageKey);
@@ -696,10 +696,6 @@ export class WindowsManager {
 		// Add currently files to open to the beginning if any
 		if (filesToOpen) {
 			recentPaths.unshift(...filesToOpen.map(f => f.filePath));
-		}
-
-		if (filesToDiff) {
-			recentPaths.unshift(...filesToDiff.map(f => f.filePath));
 		}
 
 		// Add current workspace path to beginning if set
