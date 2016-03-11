@@ -342,7 +342,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 	}
 
 	public loadSchema(url: string): Thenable<UnresolvedSchema> {
-		if (this.telemetryService && Strings.startsWith(url, 'https://schema.management.azure.com')) {
+		if (this.telemetryService && url.indexOf('//schema.management.azure.com/') !== -1) {
 			this.telemetryService.log('json.schema', {
 				schemaURL: url
 			});

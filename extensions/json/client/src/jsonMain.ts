@@ -34,11 +34,8 @@ interface IPackageInfo {
 
 export function activate(context: ExtensionContext) {
 
-	let telemetryReporter: TelemetryReporter = null;
-	let packageInfo: IPackageInfo = null;
-	if (packageInfo = getPackageInfo()){
-		telemetryReporter = new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
-	}
+	let packageInfo = getPackageInfo(context);
+	let telemetryReporter: TelemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 
 	// Resolve language ids to pass around as initialization data
 	languages.getLanguages().then(languageIds => {
@@ -71,10 +68,9 @@ export function activate(context: ExtensionContext) {
 
 		// Create the language client and start the client.
 		let client = new LanguageClient('JSON Server', serverOptions, clientOptions);
-		client.onNotification(TelemetryNotification.type, (e) => {
-			// to be done
+		client.onNotification(TelemetryNotification.type, e => {
 			if (telemetryReporter) {
-				//telemetryReporter.sendTelemetryEvent(e.key /* e.data */);
+				telemetryReporter.sendTelemetryEvent(e.key, e.data);
 			}
 		});
 
@@ -144,16 +140,14 @@ function getSchemaAssociation(context: ExtensionContext) : ISchemaAssociations {
 	return associations;
 }
 
-function getPackageInfo(): IPackageInfo {
-	let packagePath = path.join(__dirname, './../../package.json');
-	let extensionPackage = require(packagePath);
+function getPackageInfo(context: ExtensionContext): IPackageInfo {
+	let extensionPackage = require(context.asAbsolutePath('./package.json'));
 	if (extensionPackage) {
 		return {
 			name: extensionPackage.name,
 			version: extensionPackage.version,
 			aiKey: extensionPackage.aiKey
 		};
-	} else {
-		return null;
 	}
+	return null;
 }
