@@ -11,7 +11,7 @@ import Modes = require('vs/editor/common/modes');
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import { AbstractMode, createWordRegExp, ModeWorkerManager } from 'vs/editor/common/modes/abstractMode';
 import { AbstractState } from 'vs/editor/common/modes/abstractState';
-import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
+import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import * as htmlTokenTypes from 'vs/languages/html/common/htmlTokenTypes';
@@ -22,6 +22,7 @@ import {TokenizationSupport, IEnteringNestedModeData, ILeavingNestedModeData, IT
 import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
 import {ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
 import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
+import {IThreadService} from 'vs/platform/thread/common/thread';
 
 export { htmlTokenTypes }; // export to be used by Razor. We are the main module, so Razor should get ot from use.
 export { EMPTY_ELEMENTS }; // export to be used by Razor. We are the main module, so Razor should get ot from use.
@@ -280,22 +281,27 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 	public formattingSupport: Modes.IFormattingSupport;
 	public parameterHintsSupport: Modes.IParameterHintsSupport;
 	public suggestSupport: Modes.ISuggestSupport;
+	public configSupport: Modes.IConfigurationSupport;
 
 	private modeService:IModeService;
+	private threadService:IThreadService;
 	private _modeWorkerManager: ModeWorkerManager<W>;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IModeService modeService: IModeService
+		@IModeService modeService: IModeService,
+		@IThreadService threadService: IThreadService
 	) {
 		super(descriptor.id);
 		this._modeWorkerManager = this._createModeWorkerManager(descriptor, instantiationService);
 
 		this.modeService = modeService;
+		this.threadService = threadService;
 
 		this.tokenizationSupport = new TokenizationSupport(this, this, true, true);
 		this.linkSupport = this;
+		this.configSupport = this;
 		this.formattingSupport = this;
 		this.extraInfoSupport = this;
 		this.occurrencesSupport = this;
@@ -437,6 +443,19 @@ export class HTMLMode<W extends htmlWorker.HTMLWorker> extends AbstractMode impl
 			};
 		}
 		return null;
+	}
+
+	public configure(options:any): winjs.TPromise<void> {
+		if (this.threadService.isInMainThread) {
+			return this._configureWorkers(options);
+		} else {
+			return this._worker((w) => w._doConfigure(options));
+		}
+	}
+
+	static $_configureWorkers = AllWorkersAttr(HTMLMode, HTMLMode.prototype._configureWorkers);
+	private _configureWorkers(options:any): winjs.TPromise<void> {
+		return this._worker((w) => w._doConfigure(options));
 	}
 
 	static $computeLinks = OneWorkerAttr(HTMLMode, HTMLMode.prototype.computeLinks);

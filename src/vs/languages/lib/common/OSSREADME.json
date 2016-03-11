@@ -3,7 +3,7 @@
 
 [{
 	"name": "js-beautify",
-	"version": "1.5.10",
+	"version": "1.6.2",
 	"license": "MIT",
 	"repositoryURL": "https://github.com/beautify-web/js-beautify"
 }]

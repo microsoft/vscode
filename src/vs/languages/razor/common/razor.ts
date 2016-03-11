@@ -14,6 +14,7 @@ import {IInstantiationService} from 'vs/platform/instantiation/common/instantiat
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
+import {IThreadService} from 'vs/platform/thread/common/thread';
 
 // for a brief description of the razor syntax see http://www.mikesdotnetting.com/Article/153/Inline-Razor-Syntax-Overview
 
@@ -57,9 +58,10 @@ export class RAZORMode extends htmlMode.HTMLMode<RAZORWorker> {
 	constructor(
 		descriptor:Modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IModeService modeService: IModeService
+		@IModeService modeService: IModeService,
+		@IThreadService threadService: IThreadService
 	) {
-		super(descriptor, instantiationService, modeService);
+		super(descriptor, instantiationService, modeService, threadService);
 
 		this.formattingSupport = null;
 	}

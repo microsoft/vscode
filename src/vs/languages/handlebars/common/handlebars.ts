@@ -13,6 +13,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
+import {IThreadService} from 'vs/platform/thread/common/thread';
 
 export enum States {
 	HTML,
@@ -108,9 +109,10 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 	constructor(
 		descriptor:Modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IModeService modeService: IModeService
+		@IModeService modeService: IModeService,
+		@IThreadService threadService: IThreadService
 	) {
-		super(descriptor, instantiationService, modeService);
+		super(descriptor, instantiationService, modeService, threadService);
 
 		this.formattingSupport = null;
 	}

@@ -4,19 +4,78 @@
  *--------------------------------------------------------------------------------------------*/
 
 export interface IBeautifyHTMLOptions {
-    indent_inner_html?: boolean; // indent <head> and <body> sections,
+    /**
+     * indent <head> and <body> sections
+     * default false
+     */
+    indent_inner_html?: boolean;
+
+    /**
+     * indentation size
+     * default 4
+     */
     indent_size?: number; // indentation size,
+
+    /**
+     * character to indent with
+     * default space
+     */
     indent_char?: string; // character to indent with,
-    wrap_line_length?: number; // (default 250) maximum amount of characters per line (0 = disable)
-    brace_style?: string; // (default "collapse") - "collapse" | "expand" | "end-expand" | "none"
-            			 // put braces on the same line as control statements (default), or put braces on own line (Allman / ANSI style), or just put end braces on own line, or attempt to keep them where they are.
-    unformatted?: string[]; // (defaults to inline tags) - list of tags, that shouldn't be reformatted
-    indent_scripts?: string; //  (default normal)  - "keep"|"separate"|"normal"
-    preserve_newlines?: boolean; // (default true) - whether existing line breaks before elements should be preserved. Only works before elements, not inside tags or for text.
-    max_preserve_newlines?: number; // (default unlimited) - maximum number of line breaks to be preserved in one chunk
-    indent_handlebars?: boolean; // (default false) - format and indent {{#foo}} and {{/foo}}
-    end_with_newline?: boolean; // (false)          - end with a newline
-    extra_liners?: string[]; // (default [head,body,/html]) -List of tags that should have an extra newline before them.
+
+    /**
+     * maximum amount of characters per line (0 = disable)
+     * default 250
+     */
+    wrap_line_length?: number;
+
+    /**
+     * put braces on the same line as control statements (default), or put braces on own line (Allman / ANSI style), or just put end braces on own line, or attempt to keep them where they are.
+     * "collapse" | "expand" | "end-expand" | "none"
+     * default "collapse"
+     */
+    brace_style?: string;
+
+    /**
+     * list of tags, that shouldn't be reformatted
+     * defaults to inline tags
+     */
+    unformatted?: string[];
+
+    /**
+     * "keep"|"separate"|"normal"
+     * default normal
+     */
+    indent_scripts?: string;
+
+    /**
+     * whether existing line breaks before elements should be preserved. Only works before elements, not inside tags or for text.
+     * default true
+     */
+    preserve_newlines?: boolean;
+
+    /**
+     * maximum number of line breaks to be preserved in one chunk
+     * default unlimited
+     */
+    max_preserve_newlines?: number;
+
+    /**
+     * format and indent {{#foo}} and {{/foo}}
+     * default false
+     */
+    indent_handlebars?: boolean;
+
+    /**
+     * end with a newline
+     * default false
+     */
+    end_with_newline?: boolean;
+
+    /**
+     * List of tags that should have an extra newline before them.
+     * default [head,body,/html]
+     */
+    extra_liners?: string[];
 }
 
 export interface IBeautifyHTML {
