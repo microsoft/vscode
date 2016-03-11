@@ -48,6 +48,7 @@ ${ indent }-w, --wait            Wait for the window to be closed before returni
 
 export function main(argv: string[]) {
 	const argParser = new ArgParser(argv);
+	let exit = true;
 
 	if (argParser.hasFlag('help', 'h')) {
 		console.log(argParser.help());
@@ -56,13 +57,18 @@ export function main(argv: string[]) {
 	} else {
 		delete process.env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
 		if (argParser.hasFlag('wait', 'w')) {
-			spawn(process.execPath, process.argv.slice(2), { stdio: 'ignore' });
+			exit = false;
+
+			let child = spawn(process.execPath, process.argv.slice(2), { stdio: 'ignore' });
+			child.on('exit', process.exit);
 		} else {
 			spawn(process.execPath, process.argv.slice(2), { detached: true, stdio: 'ignore' });
 		}
 	}
 
-	process.exit(0);
+	if (exit) {
+		process.exit(0);
+	}
 }
 
 main(process.argv.slice(2));
