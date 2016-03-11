@@ -5,6 +5,8 @@
 
 import nls = require('vs/nls');
 import Severity from 'vs/base/common/severity';
+import { ThrottledDelayer } from 'vs/base/common/async';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { emmet as $, append, toggleClass } from 'vs/base/browser/dom';
 import { IDisposable, combinedDispose } from 'vs/base/common/lifecycle';
 import { onUnexpectedPromiseError } from 'vs/base/common/errors';
@@ -41,6 +43,7 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 
 	private domNode: HTMLElement;
 	private state: IState = InitialState;
+	private outdatedDelayer = new ThrottledDelayer<void>(OutdatedPeriod);
 
 	constructor(
 		@IExtensionService private extensionService: IExtensionService,
@@ -61,6 +64,7 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 		const disposables = [];
 		this.extensionsService.onInstallExtension(this.onInstallExtension, this, disposables);
 		this.extensionsService.onDidInstallExtension(this.onDidInstallExtension, this, disposables);
+		this.extensionsService.onDidUninstallExtension(this.onDidUninstallExtension, this, disposables);
 
 		return combinedDispose(...disposables);
 	}
@@ -133,6 +137,11 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 		const installing = this.state.installing
 			.filter(e => !extensionEquals(extension, e));
 		this.updateState({ installing });
+		this.outdatedDelayer.trigger(() => this.checkOutdated(), 0);
+	}
+
+	private onDidUninstallExtension(): void {
+		this.outdatedDelayer.trigger(() => this.checkOutdated(), 0);
 	}
 
 	private checkErrors(): void {
@@ -148,12 +157,14 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 		});
 	}
 
-	private checkOutdated(): void {
-		this.instantiationService.invokeFunction(getOutdatedExtensions)
+	private checkOutdated(): TPromise<void> {
+		return this.instantiationService.invokeFunction(getOutdatedExtensions)
 			.then(null, _ => []) // ignore errors
-			.done(outdated => {
+			.then(outdated => {
 				this.updateState({ outdated });
-				setTimeout(() => this.checkOutdated, OutdatedPeriod);
+
+				// repeat this later
+				this.outdatedDelayer.trigger(() => this.checkOutdated());
 			});
 	}
 }
