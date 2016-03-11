@@ -37,7 +37,7 @@ function generatePipeName(): string {
 	return path.join(os.tmpdir(), randomName + '.sock');
 }
 
-function generatePatchedEnv(env:any, stdInPipeName:string, stdOutPipeName:string): any {
+function generatePatchedEnv(env:any, stdInPipeName:string, stdOutPipeName:string, stdErrPipeName:string): any {
 	// Set the two unique pipe names and the electron flag as process env
 
 	var newEnv:any = {};
@@ -47,6 +47,7 @@ function generatePatchedEnv(env:any, stdInPipeName:string, stdOutPipeName:string
 
 	newEnv['STDIN_PIPE_NAME'] = stdInPipeName;
 	newEnv['STDOUT_PIPE_NAME'] = stdOutPipeName;
+	newEnv['STDERR_PIPE_NAME'] = stdErrPipeName;
 	newEnv['ATOM_SHELL_INTERNAL_RUN_AS_NODE'] = '1';
 
 	return newEnv;
@@ -70,29 +71,38 @@ export function fork(modulePath: string, args: string[], options: IForkOptions, 
 		callback(err, null);
 	};
 
-	// Generate two unique pipe names
+	// Generate three unique pipe names
 	var stdInPipeName = generatePipeName();
 	var stdOutPipeName = generatePipeName();
+	let stdErrPipeName = generatePipeName();
 
-	var newEnv = generatePatchedEnv(options.env || process.env, stdInPipeName, stdOutPipeName);
+
+	var newEnv = generatePatchedEnv(options.env || process.env, stdInPipeName, stdOutPipeName, stdErrPipeName);
 
 	var childProcess: cp.ChildProcess;
 
+	// Begin listening to stderr pipe
+	let stdErrServer = net.createServer((stdErrStream) => {
+		// From now on the childProcess.stderr is available for reading
+		childProcess.stderr = stdErrStream;
+	});
+	stdErrServer.listen(stdErrPipeName);
+
 	// Begin listening to stdout pipe
-	var server = net.createServer((stream) => {
+	let stdOutServer = net.createServer((stdOutStream) => {
 		// The child process will write exactly one chunk with content `ready` when it has installed a listener to the stdin pipe
 
-		stream.once('data', (chunk:Buffer) => {
+		stdOutStream.once('data', (chunk:Buffer) => {
 			// The child process is sending me the `ready` chunk, time to connect to the stdin pipe
 			childProcess.stdin = <any>net.connect(stdInPipeName);
 
 			// From now on the childProcess.stdout is available for reading
-			childProcess.stdout = stream;
+			childProcess.stdout = stdOutStream;
 
 			resolve(childProcess);
 		});
 	});
-	server.listen(stdOutPipeName);
+	stdOutServer.listen(stdOutPipeName);
 
 	var serverClosed = false;
 	var closeServer = () => {
@@ -100,7 +110,8 @@ export function fork(modulePath: string, args: string[], options: IForkOptions, 
 			return;
 		}
 		serverClosed = true;
-		server.close();
+		stdOutServer.close();
+		stdErrServer.close();
 	};
 
 	// Create the process
