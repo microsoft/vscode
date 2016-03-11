@@ -202,6 +202,9 @@ export class FoldingController implements editorCommon.IEditorContribution {
 		if (!Array.isArray(state)) {
 			return;
 		}
+		if (!this.editor.getConfiguration().folding) {
+			return;
+		}
 		this.applyRegions(<IFoldingRange[]> state);
 	}
 
@@ -285,7 +288,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 
 		this.contentChangedScheduler = new RunOnceScheduler(() => {
 			let myToken = (++this.computeToken);
-			
+
 			this.computeCollapsibleRegions().then(regions => {
 				if (myToken !== this.computeToken) {
 					return; // A new request was made in the meantime or the model was changed
