@@ -10,6 +10,7 @@ import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import { emmet as $, append } from 'vs/base/browser/dom';
 import strings = require('vs/base/common/strings');
+import paths = require('vs/base/common/paths');
 import types = require('vs/base/common/types');
 import uri from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
@@ -445,8 +446,8 @@ export class EditorStatus implements IStatusbarItem {
 					const modelOpts = model.getOptions();
 					update.indentation = (
 						modelOpts.insertSpaces
-						? nls.localize('spacesSize', "Spaces: {0}", modelOpts.tabSize)
-						: nls.localize('tabSize', "Tab Size: {0}", modelOpts.tabSize)
+							? nls.localize('spacesSize', "Spaces: {0}", modelOpts.tabSize)
+							: nls.localize('tabSize', "Tab Size: {0}", modelOpts.tabSize)
 					);
 				}
 			}
@@ -615,6 +616,7 @@ export class ChangeModeAction extends Action {
 
 		let editorWidget = (<BaseTextEditor>activeEditor).getControl();
 		let textModel = getTextModel(editorWidget);
+		let fileinput = asFileEditorInput(activeEditor.input, true);
 
 		// Compute mode
 		let currentModeId: string;
@@ -626,41 +628,36 @@ export class ChangeModeAction extends Action {
 		}
 
 		// All languages are valid picks
-		let selectedIndex: number;
 		let picks: IPickOpenEntry[] = languages.sort().map((lang, index) => {
-			if (currentModeId === lang) {
-				selectedIndex = index;
-			}
-
 			return {
-				label: lang
+				label: lang,
+				description: currentModeId === lang ? nls.localize('configuredLanguage', "Configured Language") : void 0
 			};
 		});
+		picks[0].separator = { border: true, label: nls.localize('languagesPicks', "languages") };
 
-		// Offer to "Auto Detect" if we have a file open
+		// Offer action to configure via settings
+		let configureLabel = nls.localize('configureAssociations', "Configure in Settings...");
+		if (fileinput) {
+			const resource = fileinput.getResource();
+			const ext = paths.extname(resource.fsPath) || paths.basename(resource.fsPath);
+			if (ext) {
+				configureLabel = nls.localize('configureAssociationsExt', "Configure default for '{0}'", ext);
+			}
+		}
+
+		let configureModeAssociations: IPickOpenEntry = {
+			label: configureLabel
+		};
+		picks.unshift(configureModeAssociations);
+
+		// Offer to "Auto Detect"
 		let autoDetectMode: IPickOpenEntry = {
 			label: nls.localize('autoDetect', "Auto Detect")
 		};
+		picks.unshift(autoDetectMode);
 
-		// Offer action to configure via settings
-		let configureModeAssociations: IPickOpenEntry = {
-			label: nls.localize('configureAssociations', "Configure in Settings...")
-		};
-		picks.unshift(configureModeAssociations);
-		selectedIndex++;
-
-		let separatorIndex = 1;
-
-		if (asFileEditorInput(activeEditor.input, true)) {
-			picks.unshift(autoDetectMode); // first entry
-
-			selectedIndex++;
-			separatorIndex++;
-		}
-
-		picks[separatorIndex].separator = { border: true, label: nls.localize('languagesPicks', "languages") };
-
-		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode"), autoFocus: { autoFocusIndex: selectedIndex } }).then((language) => {
+		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode") }).then((language) => {
 			if (language) {
 				activeEditor = this.editorService.getActiveEditor();
 				if (activeEditor instanceof BaseTextEditor) {
@@ -679,8 +676,7 @@ export class ChangeModeAction extends Action {
 					// Find mode
 					let mode: TPromise<IMode>;
 					if (language === autoDetectMode) {
-						let fileResource = asFileEditorInput(activeEditor.input, true).getResource();
-						mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(fileResource.fsPath, textModel.getLineContent(1));
+						mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(getUntitledOrFileResource(activeEditor.input, true).fsPath, textModel.getLineContent(1));
 					} else if (language === configureModeAssociations) {
 						const action = this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL);
 						action.run().done(() => action.dispose(), errors.onUnexpectedError);
@@ -833,15 +829,16 @@ export class ChangeEncodingAction extends Action {
 				let isReopenWithEncoding = (action === reopenWithEncodingPick);
 
 				return this.configurationService.loadConfiguration().then((configuration: IFilesConfiguration) => {
-					let defaultEncoding = configuration && configuration.files && configuration.files.encoding;
-					let selectedIndex: number;
+					let configuredEncoding = configuration && configuration.files && configuration.files.encoding;
+					let directMatchIndex: number;
+					let aliasMatchIndex: number;
 
 					// All encodings are valid picks
 					let picks: IPickOpenEntry[] = Object.keys(SUPPORTED_ENCODINGS)
 						.sort((k1, k2) => {
-							if (k1 === defaultEncoding) {
+							if (k1 === configuredEncoding) {
 								return -1;
-							} else if (k2 === defaultEncoding) {
+							} else if (k2 === configuredEncoding) {
 								return 1;
 							}
 
@@ -851,16 +848,18 @@ export class ChangeEncodingAction extends Action {
 							return !isReopenWithEncoding || !SUPPORTED_ENCODINGS[k].encodeOnly; // hide those that can only be used for encoding if we are about to decode
 						})
 						.map((key, index) => {
-							if (key === encodingSupport.getEncoding() || SUPPORTED_ENCODINGS[key].alias === encodingSupport.getEncoding()) {
-								selectedIndex = index;
+							if (key === encodingSupport.getEncoding()) {
+								directMatchIndex = index;
+							} else if (SUPPORTED_ENCODINGS[key].alias === encodingSupport.getEncoding()) {
+								aliasMatchIndex = index;
 							}
 
-							return { id: key, label: SUPPORTED_ENCODINGS[key].labelLong, description: key === defaultEncoding ? nls.localize('defaultEncoding', "Default Encoding") : void 0 };
+							return { id: key, label: SUPPORTED_ENCODINGS[key].labelLong, description: key === configuredEncoding ? nls.localize('defaultEncoding', "Configured Encoding") : void 0 };
 						});
 
 					return this.quickOpenService.pick(picks, {
 						placeHolder: isReopenWithEncoding ? nls.localize('pickEncodingForReopen', "Select File Encoding to Reopen File") : nls.localize('pickEncodingForSave', "Select File Encoding to Save with"),
-						autoFocus: { autoFocusIndex: selectedIndex }
+						autoFocus: { autoFocusIndex: typeof directMatchIndex === 'number' ? directMatchIndex : typeof aliasMatchIndex === 'number' ? aliasMatchIndex : void 0 }
 					}).then((encoding) => {
 						if (encoding) {
 							activeEditor = this.editorService.getActiveEditor();
