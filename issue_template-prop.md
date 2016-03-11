@@ -6,6 +6,6 @@
 - (Node version when doing Node development:)
 
 ## Steps to Reproduce
-1.
-2.
+1. 
+2. 
 
