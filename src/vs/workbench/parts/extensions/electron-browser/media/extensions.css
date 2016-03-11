@@ -135,23 +135,54 @@
 
 /* Status bar */
 .monaco-shell .extensions-statusbar {
-	padding: 0 5px 0 25px;
-	line-height: 22px;
+	position: relative;
+	padding: 0 5px;
+	width: 14px;
+}
+
+.monaco-shell .extensions-statusbar > .icon {
 	background: url('extensions-status.svg') center center no-repeat;
 	background-size: 14px;
-	background-position: 4px 50%;
+	width: 14px;
+	height: 100%;
 }
 
-.monaco-shell .extensions-suggestions {
-	padding: 0 5px 0 5px;
-	-webkit-transition: visibility 250ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
-	transition: visibility 250ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
+.monaco-shell .extensions-statusbar.has-updates::after {
+	content: '';
+	width: 6px;
+	height: 6px;
+	background-color: #39A71E;
+	position: absolute;
+	top: 2px;
+	right: 3px;
+	border-radius: 10px;
+	border: 1px solid white;
 }
 
-.monaco-shell .extensions-suggestions > .octicon {
-	font-size: 14px;
+.monaco-shell .extensions-statusbar.has-errors::after {
+	content: '';
+	width: 6px;
+	height: 6px;
+	background-color: #CC6633;
+	position: absolute;
+	top: 2px;
+	right: 3px;
+	border-radius: 10px;
+	border: 1px solid white;
 }
 
-.monaco-shell .extensions-suggestions.disabled {
-	display: none;
+@keyframes shake {
+	from { transform: rotate(0deg); }
+	30% { transform: rotate(0deg); }
+	40% { transform: rotate(-20deg); }
+	48% { transform: rotate(10deg); }
+	52% { transform: rotate(-10deg); }
+	60% { transform: rotate(20deg); }
+	70% { transform: rotate(0deg); }
+	to { transform: rotate(0deg); }
+}
+
+.monaco-shell .extensions-statusbar.is-installing .icon {
+	animation: 2s ease-in-out infinite shake;
+	opacity: 0.7;
 }
