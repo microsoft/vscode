@@ -93,9 +93,9 @@ export class ExtHostCommands {
 			let result = callback.apply(thisArg, args);
 			return Promise.resolve(result);
 		} catch (err) {
+			console.log(err);
 			// try {
 			// 	console.log(toErrorMessage(err));
-			// 	console.log(err);
 			// } catch (err) {
 			// 	//
 			// }

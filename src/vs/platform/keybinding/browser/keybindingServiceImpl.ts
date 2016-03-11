@@ -15,7 +15,7 @@ import * as dom from 'vs/base/browser/dom';
 import {IKeyboardEvent, StandardKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {KeybindingResolver} from 'vs/platform/keybinding/common/keybindingResolver';
-import {ICommandHandler, IKeybindingContextKey, IKeybindingItem, IKeybindingScopeLocation, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {ICommandHandler, IKeybindingContextKey, IKeybindingItem, IKeybindingScopeLocation, IKeybindingService, SET_CONTEXT_COMMAND_ID} from 'vs/platform/keybinding/common/keybindingService';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
@@ -361,6 +361,14 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 			args.context = Object.create(null);
 			this.getContext(this._findContextAttr(<HTMLElement>document.activeElement)).fillInContext(args.context);
 			this._configurationContext.fillInContext(args.context);
+		}
+
+		if (commandId === SET_CONTEXT_COMMAND_ID) {
+			var contextKey = String(args[0]);
+			var contextValue = args[1];
+
+			this.setContext(contextKey, contextValue);
+			return TPromise.as(null);
 		}
 
 		return this._invokeHandler(commandId, args);
