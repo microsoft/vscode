@@ -67,6 +67,7 @@ export function create(client: ITypescriptServiceClient) {
 					option: {
 						title: localize('cmdCreate', "Create jsconfig.json-file..."),
 						execute: () => {
+							client.logTelemetry('js.hintProjectCreation.accepted');
 							projectHinted[configFileName] = true;
 							item.hide();
 
@@ -80,6 +81,7 @@ export function create(client: ITypescriptServiceClient) {
 				item.tooltip = localize('hint.tooltip', "Have a project and have better IntelliSense, better symbol search, and much more.");
 				item.color = 'lime';
 				item.show();
+				client.logTelemetry('js.hintProjectCreation');
 
 			} else if (fileNames.length > fileLimit) {
 
@@ -92,6 +94,7 @@ export function create(client: ITypescriptServiceClient) {
 					option: {
 						title: localize('open', "Edit excludes..."),
 						execute: () => {
+							client.logTelemetry('js.hintProjectExcludes.accepted');
 							projectHinted[configFileName] = true;
 							item.hide();
 
@@ -105,6 +108,7 @@ export function create(client: ITypescriptServiceClient) {
 				item.tooltip = localize('large.tooltip', "Too many files in a project might result in bad performance. Exclude folders with many files, like: {0}...", largeRoots);
 				item.color = '#0CFF00';
 				item.show();
+				client.logTelemetry('js.hintProjectExcludes');
 
 			} else {
 				item.hide();
