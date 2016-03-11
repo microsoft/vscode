@@ -96,6 +96,10 @@ class MirrorModel extends MirrorModel2 {
 		var result:editorCommon.IWordRange[] = [];
 		var match:RegExpExecArray;
 		while (match = wordDefinition.exec(content)) {
+			if (match[0].length === 0) {
+				// it did match the empty string
+				break;
+			}
 			result.push({ start: match.index, end: match.index + match[0].length });
 		}
 		return result;

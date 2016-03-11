@@ -6,6 +6,7 @@
 
 import {Emitter} from 'vs/base/common/event';
 import {score} from 'vs/editor/common/modes/languageSelector';
+import {regExpLeadsToEndlessLoop} from 'vs/base/common/strings';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import * as errors from 'vs/base/common/errors';
 import {ExtHostFileSystemEventService} from 'vs/workbench/api/node/extHostFileSystemEventService';
@@ -397,6 +398,11 @@ export class ExtHostAPIImplementation {
 	private _setLanguageConfiguration(modeId: string, configuration: vscode.LanguageConfiguration): vscode.Disposable {
 
 		let {wordPattern} = configuration;
+
+		// check for a valid word pattern
+		if (wordPattern && regExpLeadsToEndlessLoop(wordPattern)) {
+			throw new Error(`Invalid language configuration: wordPattern '${wordPattern}' is not allowed to match the empty string.`);
+		}
 
 		// word definition
 		if (wordPattern) {
