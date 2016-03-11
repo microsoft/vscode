@@ -133,8 +133,6 @@ export interface ICommandLineArguments {
 
 	pathArguments?: string[];
 
-	workers?: number;
-
 	enablePerformance?: boolean;
 
 	firstrun?: boolean;
@@ -146,6 +144,8 @@ export interface ICommandLineArguments {
 	diffMode?: boolean;
 
 	locale?: string;
+
+	waitForWindowClose?: boolean;
 }
 
 function parseCli(): ICommandLineArguments {
@@ -195,7 +195,6 @@ function parseCli(): ICommandLineArguments {
 	return {
 		pathArguments: pathArguments,
 		programStart: parseNumber(args, '--timestamp', 0, 0),
-		workers: parseNumber(args, '--workers', -1, -1),
 		enablePerformance: !!opts['p'],
 		verboseLogging: !!opts['verbose'],
 		debugPluginHostPort: debugPluginHostPort,
@@ -210,7 +209,8 @@ function parseCli(): ICommandLineArguments {
 		extensionDevelopmentPath: normalizePath(parseString(args, '--extensionDevelopmentPath')),
 		extensionTestsPath: normalizePath(parseString(args, '--extensionTestsPath')),
 		disableExtensions: !!opts['disableExtensions'] || !!opts['disable-extensions'],
-		locale: parseString(args, '--locale')
+		locale: parseString(args, '--locale'),
+		waitForWindowClose: !!opts['w'] || !!opts['wait']
 	};
 }
 

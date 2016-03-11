@@ -24,8 +24,10 @@ import {spawnSharedProcess} from 'vs/workbench/electron-main/sharedProcess';
 import {Mutex} from 'windows-mutex';
 
 export class LaunchService {
-	public start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): TPromise<void> {
+	public start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment, otherInstancePid: number): TPromise<void> {
 		env.log('Received data from other instance', args);
+
+		let killOtherInstance = args.waitForWindowClose;
 
 		// Otherwise handle in windows manager
 		if (!!args.extensionDevelopmentPath) {
@@ -35,7 +37,25 @@ export class LaunchService {
 		} else if (args.pathArguments.length === 0) {
 			windows.manager.focusLastActive(args);
 		} else {
-			windows.manager.open({ cli: args, userEnv: userEnv, forceNewWindow: !args.openInSameWindow });
+			let usedWindows = windows.manager.open({ cli: args, userEnv: userEnv, forceNewWindow: args.waitForWindowClose || !args.openInSameWindow });
+
+			// If the other instance is waiting to be killed, we hook up a window listener if one window
+			// is being used and kill the other instance when that window is being closed
+			if (args.waitForWindowClose && usedWindows && usedWindows.length === 1) {
+				let windowToObserve = usedWindows[0];
+				killOtherInstance = false; // only scenario where the "-w" switch is supported and makes sense
+
+				let unbind = windows.onClose(id => {
+					if (id === windowToObserve.id) {
+						unbind();
+						process.kill(otherInstancePid);
+					}
+				});
+			}
+		}
+
+		if (killOtherInstance) {
+			process.kill(otherInstancePid);
 		}
 
 		return TPromise.as(null);
@@ -77,7 +97,10 @@ function quit(arg?: any) {
 		}
 	}
 
-	process.exit(exitCode);
+	// If not in wait mode or seeing an error: exit directly
+	if (!env.cliArgs.waitForWindowClose || exitCode) {
+		process.exit(exitCode);
+	}
 }
 
 function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
@@ -200,23 +223,27 @@ function setupIPC(): TPromise<Server> {
 				return TPromise.wrapError(err);
 			}
 
+			// Since we are the second instance, we do not want to show the dock
+			if (platform.isMacintosh) {
+				app.dock.hide();
+			}
+
+			// Tests from CLI require to be the only instance currently (TODO@Ben support multiple instances and output)
+			if (env.isTestingFromCli) {
+				const errorMsg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
+				console.error(errorMsg);
+
+				return TPromise.wrapError(errorMsg);
+			}
+
 			// there's a running instance, let's connect to it
 			return connect(env.mainIPCHandle).then(
 				client => {
-
-					// Tests from CLI require to be the only instance currently (TODO@Ben support multiple instances and output)
-					if (env.isTestingFromCli) {
-						const errorMsg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
-						console.error(errorMsg);
-
-						return TPromise.wrapError(errorMsg);
-					}
-
 					env.log('Sending env to running instance...');
 
 					const service = client.getService<LaunchService>('LaunchService', LaunchService);
 
-					return service.start(env.cliArgs, process.env)
+					return service.start(env.cliArgs, process.env, process.pid)
 						.then(() => client.dispose())
 						.then(() => TPromise.wrapError('Sent env to running instance. Terminating...'));
 				},

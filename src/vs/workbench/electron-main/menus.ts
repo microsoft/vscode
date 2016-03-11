@@ -60,7 +60,7 @@ export class VSCodeMenu {
 
 		// Listen to "open" & "close" event from window manager
 		windows.onOpen((paths) => this.onOpen(paths));
-		windows.onClose((remainingWindowCount) => this.onClose(remainingWindowCount));
+		windows.onClose(_ => this.onClose(windows.manager.getWindowCount()));
 
 		// Resolve keybindings when any first workbench is loaded
 		windows.onReady((win) => this.resolveKeybindings(win));
@@ -422,7 +422,7 @@ export class VSCodeMenu {
 
 	private createOpenRecentMenuItem(path:string): Electron.MenuItem {
 		return new MenuItem({ label: path, click: () => {
-			let success = windows.manager.open({ cli: env.cliArgs, pathsToOpen: [path] });
+			let success = !!windows.manager.open({ cli: env.cliArgs, pathsToOpen: [path] });
 			if (!success) {
 				this.removeFromOpenedPathsList(path);
 				this.updateMenu();
