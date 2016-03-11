@@ -210,7 +210,7 @@ function processCoreBundleFormat(json, emitter) {
                 messages = JSON.parse(content);
             }
             else {
-                // log(`No localized messages found for module ${module}. Using default messages.`);
+                log("No localized messages found for module " + module + ". Using default messages.");
                 messages = defaultMessages[module];
                 statistics[language.iso639_2] = statistics[language.iso639_2] + Object.keys(messages).length;
             }
@@ -225,7 +225,7 @@ function processCoreBundleFormat(json, emitter) {
                 }
                 var message = messages[key];
                 if (!message) {
-                    // log(`No localized message found for key ${key} in module ${module}. Using default message.`);
+                    log("No localized message found for key " + key + " in module " + module + ". Using default message.");
                     message = defaultMessages[module][key];
                     statistics[language.iso639_2] = statistics[language.iso639_2] + 1;
                 }
