@@ -2290,6 +2290,30 @@ export class FocusWorkingFiles extends Action {
 	}
 }
 
+export class FocusFilesExplorer extends Action {
+
+	public static ID = 'workbench.files.action.focusFilesExplorer';
+	public static LABEL = nls.localize('focusFilesExplorer', "Focus on Files Explorer");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.viewletService.openViewlet(Files.VIEWLET_ID, true).then((viewlet: ExplorerViewlet) => {
+			const view = viewlet.getExplorerView();
+			if (view) {
+				view.expand();
+				view.getViewer().DOMFocus();
+			}
+		});
+	}
+}
+
 export function keybindingForAction(id: string): Keybinding {
 	switch (id) {
 		case GlobalNewFileAction.ID:
