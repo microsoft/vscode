@@ -10,7 +10,7 @@ Linting, Debugging (multi-threaded, web apps, remote), Intellisense, auto-comple
 * Debugging with support for local variables, arguments, expressions, watch window, stack information, break points
 * Debugging Multiple threads (Web Applications - Flask, etc) and expanding values (on Windows and Mac)
 * Debugging remote processes (attaching to local and remote process)
-* Debugging with support for shebang
+* Debugging with support for shebang (windows)
 * Debugging with custom environment variables
 * Unit testing (unittests and nosetests, with config files)
 * Sorting imports
