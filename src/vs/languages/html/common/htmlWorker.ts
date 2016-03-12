@@ -237,7 +237,7 @@ export class HTMLWorker {
 		let contentAfter = model.getLineContent(position.lineNumber).substr(position.column - 1);
 		let closeTag = isWhiteSpace(contentAfter) || strings.startsWith(contentAfter, '<') ? '>' : '';
 
-		let collectClosingTagSuggestion = (correctIndent:boolean, overwriteBefore: number) => {
+		let collectClosingTagSuggestion = (overwriteBefore: number) => {
 			let endPosition = scanner.getTokenPosition();
 			let matchingTag = this.findMatchingOpenTag(scanner);
 			if (matchingTag) {
@@ -250,15 +250,13 @@ export class HTMLWorker {
 				suggestions.suggestions.push(suggestion);
 
 				// use indent from start tag
-				if (correctIndent) {
-					let startPosition = scanner.getTokenPosition();
-					if (endPosition.lineNumber !== startPosition.lineNumber) {
-						let startIndent = model.getLineContent(startPosition.lineNumber).substring(0, startPosition.column - 1);
-						let endIndent = model.getLineContent(endPosition.lineNumber).substring(0, endPosition.column - 1);
-						if (isWhiteSpace(startIndent) && isWhiteSpace(endIndent)) {
-							suggestion.overwriteBefore = position.column - 1; // replace from start of line
-							suggestion.codeSnippet = startIndent + '</' + matchingTag + closeTag;
-						}
+				let startPosition = scanner.getTokenPosition();
+				if (endPosition.lineNumber !== startPosition.lineNumber) {
+					let startIndent = model.getLineContent(startPosition.lineNumber).substring(0, startPosition.column - 1);
+					let endIndent = model.getLineContent(endPosition.lineNumber).substring(0, endPosition.column - 1);
+					if (isWhiteSpace(startIndent) && isWhiteSpace(endIndent)) {
+						suggestion.overwriteBefore = position.column - 1; // replace from start of line
+						suggestion.codeSnippet = startIndent + '</' + matchingTag + closeTag;
 					}
 				}
 				return true;
@@ -268,7 +266,7 @@ export class HTMLWorker {
 
 
 		if (scanner.getTokenType() === DELIM_END) {
-			let hasClose = collectClosingTagSuggestion(true, suggestions.currentWord.length + 1);
+			let hasClose = collectClosingTagSuggestion(suggestions.currentWord.length + 1);
 			if (!hasClose) {
 				this._tagProviders.forEach((provider) => {
 					provider.collectTags((tag, label) => {
@@ -283,7 +281,7 @@ export class HTMLWorker {
 				});
 			}
 		} else {
-			collectClosingTagSuggestion(false, suggestions.currentWord.length);
+			collectClosingTagSuggestion(suggestions.currentWord.length);
 
 			this._tagProviders.forEach((provider) => {
 				provider.collectTags((tag, label) => {
