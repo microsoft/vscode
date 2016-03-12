@@ -603,7 +603,7 @@ export interface IInternalEditorOptions {
 	scrollbar:IInternalEditorScrollbarOptions;
 	overviewRulerLanes:number;
 	cursorBlinking:string;
-	cursorStyle:string;
+	cursorStyle:TextEditorCursorStyle;
 	fontLigatures:boolean;
 	hideCursorInOverviewRuler:boolean;
 	scrollBeyondLastLine:boolean;
@@ -3411,6 +3411,30 @@ export class VisibleRange {
 		this.top = top;
 		this.left = left;
 		this.width = width;
+	}
+}
+
+export enum TextEditorCursorStyle {
+	Line = 1,
+	Block = 2
+}
+
+export function cursorStyleFromString(cursorStyle:string): TextEditorCursorStyle {
+	if (cursorStyle === 'line') {
+		return TextEditorCursorStyle.Line;
+	} else if (cursorStyle === 'block') {
+		return TextEditorCursorStyle.Block;
+	}
+	return TextEditorCursorStyle.Line;
+}
+
+export function cursorStyleToString(cursorStyle:TextEditorCursorStyle): string {
+	if (cursorStyle === TextEditorCursorStyle.Line) {
+		return 'line';
+	} else if (cursorStyle === TextEditorCursorStyle.Block) {
+		return 'block';
+	} else {
+		throw new Error('cursorStyleToString: Unknown cursorStyle');
 	}
 }
 

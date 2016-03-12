@@ -13,17 +13,17 @@ import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
-import {EndOfLine, TextEditorCursorStyle} from 'vs/workbench/api/node/extHostTypes';
+import {EndOfLine} from 'vs/workbench/api/node/extHostTypes';
 
 export interface ITextEditorConfigurationUpdate {
 	tabSize?: number | string;
 	insertSpaces?: boolean | string;
-	cursorStyle?: TextEditorCursorStyle;
+	cursorStyle?: EditorCommon.TextEditorCursorStyle;
 }
 export interface IResolvedTextEditorConfiguration {
 	tabSize: number;
 	insertSpaces: boolean;
-	cursorStyle: TextEditorCursorStyle;
+	cursorStyle: EditorCommon.TextEditorCursorStyle;
 }
 
 function configurationsEqual(a:IResolvedTextEditorConfiguration, b:IResolvedTextEditorConfiguration) {
@@ -222,7 +222,7 @@ export class MainThreadTextEditor {
 		this._setIndentConfiguration(newConfiguration);
 
 		if (newConfiguration.cursorStyle) {
-			let newCursorStyle = cursorStyleToString(newConfiguration.cursorStyle);
+			let newCursorStyle = EditorCommon.cursorStyleToString(newConfiguration.cursorStyle);
 
 			if (!this._codeEditor) {
 				console.warn('setConfiguration on invisible editor');
@@ -260,10 +260,10 @@ export class MainThreadTextEditor {
 	}
 
 	private _readConfiguration(model:EditorCommon.IModel, codeEditor:EditorCommon.ICommonCodeEditor): IResolvedTextEditorConfiguration {
-		let cursorStyle = this._configuration ? this._configuration.cursorStyle : TextEditorCursorStyle.Line;
+		let cursorStyle = this._configuration ? this._configuration.cursorStyle : EditorCommon.TextEditorCursorStyle.Line;
 		if (codeEditor) {
 			let codeEditorOpts = codeEditor.getConfiguration();
-			cursorStyle = cursorStyleFromString(codeEditorOpts.cursorStyle);
+			cursorStyle = codeEditorOpts.cursorStyle;
 		}
 
 		let indent = model.getOptions();
@@ -647,22 +647,3 @@ function strcmp(a:string, b:string): number {
 	return 0;
 }
 
-function cursorStyleToString(cursorStyle:TextEditorCursorStyle): string {
-	if (cursorStyle === TextEditorCursorStyle.Line) {
-		return 'line';
-	} else if (cursorStyle === TextEditorCursorStyle.Block) {
-		return 'block';
-	} else {
-		throw new Error('cursorStyleToString: Unknown cursorStyle');
-	}
-}
-
-function cursorStyleFromString(cursorStyle:string): TextEditorCursorStyle {
-	if (cursorStyle === 'line') {
-		return TextEditorCursorStyle.Line;
-	} else if (cursorStyle === 'block') {
-		return TextEditorCursorStyle.Block;
-	} else {
-		throw new Error('cursorStyleFromString: Unknown cursorStyle');
-	}
-}

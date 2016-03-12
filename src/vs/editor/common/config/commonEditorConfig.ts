@@ -277,7 +277,7 @@ class InternalEditorOptionsHelper {
 			rulers: toSortedIntegerArray(opts.rulers),
 			wordSeparators: String(opts.wordSeparators),
 			ariaLabel: String(opts.ariaLabel),
-			cursorStyle: opts.cursorStyle,
+			cursorStyle: editorCommon.cursorStyleFromString(opts.cursorStyle),
 			fontLigatures: toBoolean(opts.fontLigatures),
 			hideCursorInOverviewRuler: toBoolean(opts.hideCursorInOverviewRuler),
 			scrollBeyondLastLine: toBoolean(opts.scrollBeyondLastLine),

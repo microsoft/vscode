@@ -219,10 +219,10 @@ export class ViewCursors extends ViewPart {
 		let result = ClassNames.VIEW_CURSORS_LAYER;
 		let extraClassName: string;
 		switch (this._context.configuration.editor.cursorStyle) {
-			case 'line':
+			case editorCommon.TextEditorCursorStyle.Line:
 				extraClassName = 'cursor-line-style';
 				break;
-			case 'block':
+			case editorCommon.TextEditorCursorStyle.Block:
 				extraClassName = 'cursor-block-style';
 				break;
 			default:
