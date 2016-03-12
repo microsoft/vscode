@@ -113,7 +113,7 @@ export class HTMLWorker {
 	private getFormatListOption(key: string, dflt: string[]): string[] {
 		let list = this.getFormatOption(key, null);
 		if (list) {
-			return list.split(',');
+			return list.split(',').map(t => t.trim());
 		}
 		return dflt;
 	}
