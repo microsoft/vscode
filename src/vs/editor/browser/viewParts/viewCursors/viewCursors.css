@@ -27,3 +27,12 @@
 .monaco-editor .cursors-layer.cursor-block-style > .cursor {
 	width: 1ch;
 }
+
+/* -- under-line-style -- */
+.monaco-editor .cursors-layer.cursor-underline-style > .cursor {
+	width: 1ch;
+	border-bottom-width: 2px;
+	border-bottom-style: solid;
+	background: transparent !important;
+	box-sizing: border-box;
+}

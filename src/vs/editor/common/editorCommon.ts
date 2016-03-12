@@ -3416,7 +3416,8 @@ export class VisibleRange {
 
 export enum TextEditorCursorStyle {
 	Line = 1,
-	Block = 2
+	Block = 2,
+	Underline = 3
 }
 
 export function cursorStyleFromString(cursorStyle:string): TextEditorCursorStyle {
@@ -3424,6 +3425,8 @@ export function cursorStyleFromString(cursorStyle:string): TextEditorCursorStyle
 		return TextEditorCursorStyle.Line;
 	} else if (cursorStyle === 'block') {
 		return TextEditorCursorStyle.Block;
+	} else if (cursorStyle === 'underline') {
+		return TextEditorCursorStyle.Underline;
 	}
 	return TextEditorCursorStyle.Line;
 }
@@ -3433,6 +3436,8 @@ export function cursorStyleToString(cursorStyle:TextEditorCursorStyle): string {
 		return 'line';
 	} else if (cursorStyle === TextEditorCursorStyle.Block) {
 		return 'block';
+	} else if (cursorStyle === TextEditorCursorStyle.Underline) {
+		return 'underline';
 	} else {
 		throw new Error('cursorStyleToString: Unknown cursorStyle');
 	}

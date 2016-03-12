@@ -531,7 +531,11 @@ declare namespace vscode {
 		/**
 		 * Render the cursor as a block.
 		 */
-		Block = 2
+		Block = 2,
+		/**
+		 * Render the cursor as a horizontal line under the character.
+		 */
+		Underline = 3
 	}
 
 	/**

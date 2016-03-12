@@ -201,7 +201,7 @@ function _processThemeObject(themeId: string, themeDocument: any): string {
 	}
 	if (editorSettings.caret) {
 		let caret = new Color(editorSettings.caret);
-		cssRules.push(`.monaco-editor.${themeSelector} .cursor { background-color: ${caret}; }`);
+		cssRules.push(`.monaco-editor.${themeSelector} .cursor { background-color: ${caret}; border-color: ${caret}; }`);
 	}
 	if (editorSettings.invisibles) {
 		let invisibles = new Color(editorSettings.invisibles);

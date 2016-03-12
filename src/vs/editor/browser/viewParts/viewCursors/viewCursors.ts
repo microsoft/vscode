@@ -225,6 +225,9 @@ export class ViewCursors extends ViewPart {
 			case editorCommon.TextEditorCursorStyle.Block:
 				extraClassName = 'cursor-block-style';
 				break;
+			case editorCommon.TextEditorCursorStyle.Underline:
+				extraClassName = 'cursor-underline-style';
+				break;
 			default:
 				extraClassName = 'cursor-line-style';
 		}
