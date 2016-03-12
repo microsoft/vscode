@@ -283,7 +283,7 @@ export class HTMLWorker {
 				});
 			}
 		} else {
-			collectClosingTagSuggestion(false, suggestions.currentWord.length);
+			collectClosingTagSuggestion(true, suggestions.currentWord.length);
 
 			this._tagProviders.forEach((provider) => {
 				provider.collectTags((tag, label) => {
