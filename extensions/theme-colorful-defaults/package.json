@@ -11,12 +11,12 @@
 			{
 				"label": "Dark+ (default dark)",
 				"uiTheme": "vs-dark",
-				"path": "./themes/dark_plus.tmTheme"
+				"path": "./themes/dark_plus.json"
 			},
 			{
 				"label": "Light+ (default light)",
 				"uiTheme": "vs",
-				"path": "./themes/light_plus.tmTheme"
+				"path": "./themes/light_plus.json"
 			}
 		]
 	}

@@ -7,6 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import Paths = require('vs/base/common/paths');
+import Json = require('vs/base/common/json');
 import Themes = require('vs/platform/theme/common/themes');
 import {IThemeExtensionPoint} from 'vs/platform/theme/common/themeExtensionPoint';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
@@ -130,11 +131,21 @@ function applyTheme(theme: IThemeData): TPromise<boolean> {
 	}
 
 	return pfs.readFile(theme.path).then(content => {
-		let parseResult = plist.parse(content.toString());
-		if (parseResult.errors && parseResult.errors.length) {
-			return TPromise.wrapError(new Error(nls.localize('error.cannotparse', "Problems parsing plist file: {0}", parseResult.errors.join(', '))));
+		let contentValue: any;
+		if (Paths.extname(theme.path) === '.json') {
+			let errors: string[] = [];
+			contentValue = Json.parse(content.toString(), errors);
+			if (errors.length > 0) {
+				return TPromise.wrapError(new Error(nls.localize('error.cannotparsejson', "Problems parsing json file: {0}", errors.join(', '))));
+			}
+		} else {
+			let parseResult = plist.parse(content.toString());
+			if (parseResult.errors && parseResult.errors.length) {
+				return TPromise.wrapError(new Error(nls.localize('error.cannotparse', "Problems parsing plist file: {0}", parseResult.errors.join(', '))));
+			}
+			contentValue = parseResult.value;
 		}
-		let styleSheetContent = _processThemeObject(theme.id, parseResult.value);
+		let styleSheetContent = _processThemeObject(theme.id, contentValue);
 		theme.styleSheetContent = styleSheetContent;
 		_applyRules(styleSheetContent);
 		return true;
@@ -163,10 +174,10 @@ function _processThemeObject(themeId: string, themeDocument: any): string {
 			if (index === 0 && !s.scope) {
 				editorSettings = s.settings;
 			} else {
-				let scope: string = s.scope;
+				let scope: string | string[] = s.scope;
 				let settings: string = s.settings;
 				if (scope && settings) {
-					let rules = scope.split(',');
+					let rules = Array.isArray(scope) ? <string[]> scope : scope.split(',');
 					let statements = _settingsToStatements(settings);
 					rules.forEach(rule => {
 						rule = rule.trim().replace(/ /g, '.'); // until we have scope hierarchy in the editor dom: replace spaces with .
