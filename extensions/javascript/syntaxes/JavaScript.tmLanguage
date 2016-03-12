@@ -338,6 +338,10 @@
 				</dict>
 				<dict>
 					<key>include</key>
+					<string>#import-operator</string>
+				</dict>
+				<dict>
+					<key>include</key>
 					<string>#expression-operator</string>
 				</dict>
 				<dict>
@@ -381,9 +385,9 @@
 		<key>expression-operator</key>
 		<dict>
 			<key>match</key>
-			<string>=&gt;|\b(delete|export|import|from|in|instanceof|new|typeof|void|as)\b</string>
+			<string>=&gt;|\b(delete|in|instanceof|new|typeof|as|is|of)\b</string>
 			<key>name</key>
-			<string>keyword.operator.js</string>
+			<string>keyword.others.js</string>
 		</dict>
 		<key>field-declaration</key>
 		<dict>
@@ -399,7 +403,7 @@
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.others.js</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -426,7 +430,7 @@
 				<key>3</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.others.js</string>
 				</dict>
 			</dict>
 			<key>match</key>
@@ -463,7 +467,7 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>storage.modifier.js</string>
+					<string>storage.type.js</string>
 				</dict>
 				<key>2</key>
 				<dict>
@@ -520,7 +524,7 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>storage.modifier.js</string>
+					<string>storage.type.js</string>
 				</dict>
 				<key>2</key>
 				<dict>
@@ -582,6 +586,13 @@
 				</dict>
 			</array>
 		</dict>
+		<key>import-operator</key>
+		<dict>
+			<key>match</key>
+			<string>\b(import|from)\b</string>
+			<key>name</key>
+			<string>keyword.control.import.include.js</string>
+		</dict>
 		<key>indexer-declaration</key>
 		<dict>
 			<key>begin</key>
@@ -606,7 +617,7 @@
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.others.js</string>
 				</dict>
 			</dict>
 			<key>name</key>
@@ -1113,7 +1124,7 @@
 				<key>6</key>
 				<dict>
 					<key>name</key>
-					<string>support.type.js</string>
+					<string>storage.type.js</string>
 				</dict>
 				<key>7</key>
 				<dict>
@@ -1190,7 +1201,7 @@
 				<key>6</key>
 				<dict>
 					<key>name</key>
-					<string>support.type.js</string>
+					<string>storage.type.js</string>
 				</dict>
 				<key>7</key>
 				<dict>
@@ -1217,7 +1228,7 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.others.js</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -1327,7 +1338,7 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>storage.modifier.js</string>
+					<string>storage.type.js</string>
 				</dict>
 				<key>2</key>
 				<dict>
@@ -1478,7 +1489,7 @@
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.others.js</string>
 				</dict>
 				<key>3</key>
 				<dict>
@@ -1488,7 +1499,7 @@
 				<key>4</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.others.js</string>
 				</dict>
 			</dict>
 			<key>match</key>
@@ -1622,7 +1633,7 @@
 		<key>storage-keyword</key>
 		<dict>
 			<key>match</key>
-			<string>\b(var|let|function|const|module|namespace)\b</string>
+			<string>\b(var|let|function|const|module|namespace|void|export)\b</string>
 			<key>name</key>
 			<string>storage.type.js</string>
 		</dict>
@@ -1674,7 +1685,7 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.control.js</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -1770,7 +1781,7 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.others.js</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -1780,7 +1791,7 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.others.js</string>
 				</dict>
 			</dict>
 			<key>name</key>
@@ -1852,6 +1863,10 @@
 			<array>
 				<dict>
 					<key>include</key>
+					<string>#expression-operator</string>
+				</dict>
+				<dict>
+					<key>include</key>
 					<string>#type</string>
 				</dict>
 				<dict>
@@ -1899,7 +1914,7 @@
 					<key>match</key>
 					<string>=\s*</string>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.operator.comparison.js</string>
 				</dict>
 			</array>
 		</dict>
@@ -1912,7 +1927,7 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.others.js</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -2207,7 +2222,7 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.operator.js</string>
+					<string>keyword.others.js</string>
 				</dict>
 			</dict>
 			<key>end</key>
