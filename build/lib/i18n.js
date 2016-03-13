@@ -210,7 +210,7 @@ function processCoreBundleFormat(json, emitter) {
                 messages = JSON.parse(content);
             }
             else {
-                log("No localized messages found for module " + module + ". Using default messages.");
+                // log(`No localized messages found for module ${module}. Using default messages.`);
                 messages = defaultMessages[module];
                 statistics[language.iso639_2] = statistics[language.iso639_2] + Object.keys(messages).length;
             }

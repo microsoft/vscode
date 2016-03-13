@@ -66,7 +66,7 @@ var tasks = compilations.map(function(tsconfigFile) {
 						includeContent: false
 					}))
 					.pipe(tsFilter.restore)
-					.pipe(nlsDev.createAdditionalLanguageFiles(languages, path.join(__dirname, '..', 'i18n'), path.join('extensions', name)))
+					.pipe(nlsDev.createAdditionalLanguageFiles(languages, path.join(__dirname, '..', 'i18n'), path.join('extensions', globRelativeDirname, 'out')))
 					.pipe(quiet ? es.through() : reporter.end());
 
 			} else {
