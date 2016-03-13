@@ -45,6 +45,28 @@ let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPo
 	}
 });
 
+interface ThemeSettingStyle {
+	background?: string;
+	foreground?: string;
+	fontStyle?: string;
+	caret?: string;
+	invisibles?: string;
+	lineHighlight?: string;
+	selection?: string;
+}
+
+interface ThemeSetting {
+	name?: string,
+	scope?: string | string[],
+	settings: ThemeSettingStyle[];
+}
+
+interface ThemeDocument {
+	name: string;
+	include: string;
+	settings: ThemeSetting[];
+}
+
 export class ThemeService implements IThemeService {
 	serviceId = IThemeService;
 
@@ -121,6 +143,7 @@ export class ThemeService implements IThemeService {
 	}
 }
 
+
 function toCssSelector(str: string) {
 	return str.replace(/[^_\-a-zA-Z0-9]/g, '-');
 }
@@ -129,23 +152,8 @@ function applyTheme(theme: IThemeData): TPromise<boolean> {
 	if (theme.styleSheetContent) {
 		_applyRules(theme.styleSheetContent);
 	}
-
-	return pfs.readFile(theme.path).then(content => {
-		let contentValue: any;
-		if (Paths.extname(theme.path) === '.json') {
-			let errors: string[] = [];
-			contentValue = Json.parse(content.toString(), errors);
-			if (errors.length > 0) {
-				return TPromise.wrapError(new Error(nls.localize('error.cannotparsejson', "Problems parsing json file: {0}", errors.join(', '))));
-			}
-		} else {
-			let parseResult = plist.parse(content.toString());
-			if (parseResult.errors && parseResult.errors.length) {
-				return TPromise.wrapError(new Error(nls.localize('error.cannotparse', "Problems parsing plist file: {0}", parseResult.errors.join(', '))));
-			}
-			contentValue = parseResult.value;
-		}
-		let styleSheetContent = _processThemeObject(theme.id, contentValue);
+	return _loadThemeDocument(theme.path).then(themeDocument => {
+		let styleSheetContent = _processThemeObject(theme.id, themeDocument);
 		theme.styleSheetContent = styleSheetContent;
 		_applyRules(styleSheetContent);
 		return true;
@@ -154,11 +162,37 @@ function applyTheme(theme: IThemeData): TPromise<boolean> {
 	});
 }
 
-function _processThemeObject(themeId: string, themeDocument: any): string {
+function _loadThemeDocument(themePath: string) : TPromise<ThemeDocument> {
+	return pfs.readFile(themePath).then(content => {
+		let contentValue: any;
+		if (Paths.extname(themePath) === '.json') {
+			let errors: string[] = [];
+			let contentValue = <ThemeDocument> Json.parse(content.toString(), errors);
+			if (errors.length > 0) {
+				return TPromise.wrapError(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.join(', '))));
+			}
+			if (contentValue.include) {
+				return _loadThemeDocument(Paths.join(Paths.dirname(themePath), contentValue.include)).then(includedValue => {
+					contentValue.settings = includedValue.settings.concat(contentValue.settings);
+					return TPromise.as(contentValue);
+				});
+			}
+			return TPromise.as(contentValue);
+		} else {
+			let parseResult = plist.parse(content.toString());
+			if (parseResult.errors && parseResult.errors.length) {
+				return TPromise.wrapError(new Error(nls.localize('error.cannotparse', "Problems parsing plist file: {0}", parseResult.errors.join(', '))));
+			}
+			return TPromise.as(parseResult.value);
+		}
+	});
+}
+
+function _processThemeObject(themeId: string, themeDocument: ThemeDocument): string {
 	let cssRules: string[] = [];
 
-	let themeSettings = themeDocument.settings;
-	let editorSettings = {
+	let themeSettings : ThemeSetting[] = themeDocument.settings;
+	let editorSettings : ThemeSettingStyle = {
 		background: void 0,
 		foreground: void 0,
 		caret: void 0,
@@ -170,12 +204,12 @@ function _processThemeObject(themeId: string, themeDocument: any): string {
 	let themeSelector = `${Themes.getBaseThemeId(themeId)}.${Themes.getSyntaxThemeId(themeId)}`;
 
 	if (Array.isArray(themeSettings)) {
-		themeSettings.forEach((s, index, arr) => {
+		themeSettings.forEach((s : ThemeSetting, index, arr) => {
 			if (index === 0 && !s.scope) {
 				editorSettings = s.settings;
 			} else {
 				let scope: string | string[] = s.scope;
-				let settings: string = s.settings;
+				let settings = s.settings;
 				if (scope && settings) {
 					let rules = Array.isArray(scope) ? <string[]> scope : scope.split(',');
 					let statements = _settingsToStatements(settings);
@@ -222,7 +256,7 @@ function _processThemeObject(themeId: string, themeDocument: any): string {
 	return cssRules.join('\n');
 }
 
-function _settingsToStatements(settings: any): string {
+function _settingsToStatements(settings: ThemeSettingStyle): string {
 	let statements: string[] = [];
 
 	for (let settingName in settings) {

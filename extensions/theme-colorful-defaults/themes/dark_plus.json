@@ -1,17 +1,31 @@
 {
 	"name": "Dark+",
+	"include": "./dark_vs.json",
 	"settings": [
 		{
 			"name": "Types declaration and references",
-			"scope": ["meta.type.name", "meta.return.type", "meta.return-type", "meta.cast", "meta.type.annotation",
-						"support.type", "entity.name.class", "entity.name.type", "storage.type.cs", "storage.type.java"],
+			"scope": [
+				"meta.type.name",
+				"meta.return.type",
+				"meta.return-type",
+				"meta.cast",
+				"meta.type.annotation",
+				"support.type",
+				"entity.name.class",
+				"entity.name.type",
+				"storage.type.cs",
+				"storage.type.java"
+			],
 			"settings": {
 				"foreground": "#4EC9B0"
 			}
 		},
 		{
 			"name": "Function declarations",
-			"scope": ["entity.name.function", "entity.method.name"],
+			"scope": [
+				"entity.name.function",
+				"entity.method.name"
+			],
 			"settings": {
 				"foreground": "#DCDCAA"
 			}
@@ -25,7 +39,12 @@
 		},
 		{
 			"name": "Variable and parameter name",
-			"scope": ["meta.parameter.type.variable", "variable.parameter", "variable", "variable.name"],
+			"scope": [
+				"meta.parameter.type.variable",
+				"variable.parameter",
+				"variable",
+				"variable.name"
+			],
 			"settings": {
 				"foreground": "#9CDCFE"
 			}
@@ -39,7 +58,10 @@
 		},
 		{
 			"name": "CSS property value",
-			"scope": ["css.support.property-value", "css.constant.rgb-value"],
+			"scope": [
+				"css.support.property-value",
+				"css.constant.rgb-value"
+			],
 			"settings": {
 				"foreground": "#CE9178"
 			}

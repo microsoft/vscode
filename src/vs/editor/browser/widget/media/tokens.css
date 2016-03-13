@@ -65,18 +65,6 @@
 /* TypeScript */
 .monaco-editor.vs .token.entity.ts					{ color: black; }
 
-/* VSXML */
-.monaco-editor.vs .token.vs							{ color: #006400; }
-.monaco-editor.vs .token.tag.vs						{ color: #aeb9ae; }
-.monaco-editor.vs .token.attribute.name.vs			{ color: #aeb9ae; }
-.monaco-editor.vs .token.attribute.value.vs			{ color: #2c51cc; }
-.monaco-editor.vs .token.delimiter.vs				{ color: #708870; }
-
-/* Jade */
-.monaco-editor.vs .token.tag.id.jade,
-.monaco-editor.vs .token.tag.class.jade					{ color: #4F76AC; }
-.monaco-editor.vs .token.interpolation.jade 			{ color: magenta; }
-.monaco-editor.vs .token.interpolation.delimiter.jade 	{ color: magenta; }
 
 
 /* -------------------------------- End vs tokens -------------------------------- */
@@ -84,8 +72,6 @@
 /* -------------------------------- Begin vs-dark tokens -------------------------------- */
 .monaco-editor.vs-dark .token							{ color: #D4D4D4; }
 .monaco-editor.vs-dark .token.whitespace				{ color: rgba(227, 228, 226, 0.16) !important; }
-.monaco-editor.vs-dark .token.terminal					{ color: #BD5050; }
-.monaco-editor.vs-dark .token.terminal.code1			{ font-weight: bold; }
 
 .monaco-editor.vs-dark .token.string					{ color: #CE9178; }
 .monaco-editor.vs-dark .token.string.escape			    { color: #CE9178; }
@@ -368,7 +354,6 @@
 
 .monaco-editor.vs-dark .token.constant.language					{ color: #569CD6; } /* null, true, false... */
 .monaco-editor.vs-dark .token.constant.numeric					{ color: #B5CEA8; }
-.monaco-editor.vs-dark .token.constant.language					{ color: #569CD6; }
 .monaco-editor.vs-dark .token.constant.regexp					{ color: #646695; }
 .monaco-editor.vs-dark .token.constant.rgb-value				{ color: #D4D4D4; }
 
