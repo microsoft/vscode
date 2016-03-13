@@ -5,7 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import WinJS = require('vs/base/common/winjs.base');
+import { TPromise } from 'vs/base/common/winjs.base';
 import Strings = require('vs/base/common/strings');
 import Collections = require('vs/base/common/collections');
 
@@ -148,7 +148,7 @@ export class ProcessRunnerDetector {
 		return this._stderr;
 	}
 
-	public detect(list: boolean = false): WinJS.TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
+	public detect(list: boolean = false, detectSpecific?: string): TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
 		if (this.taskConfiguration && this.taskConfiguration.command && ProcessRunnerDetector.supports(this.taskConfiguration.command)) {
 			let config = ProcessRunnerDetector.detectorConfig(this.taskConfiguration.command);
 			let args = (this.taskConfiguration.args || []).concat(config.arg);
@@ -158,26 +158,44 @@ export class ProcessRunnerDetector {
 				new LineProcess(this.taskConfiguration.command, this.variables.resolve(args), isShellCommand, options),
 				this.taskConfiguration.command, isShellCommand, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
 		} else {
-			return this.tryDetectGulp(list).then((value) => {
-				if (value) {
-					return value;
+			if (detectSpecific) {
+				let detectorPromise: TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }>;
+				if ('gulp' === detectSpecific) {
+					detectorPromise = this.tryDetectGulp(list);
+				} else if ('jake' === detectSpecific) {
+					detectorPromise = this.tryDetectJake(list);
+				} else if ('grunt' === detectSpecific) {
+					detectorPromise = this.tryDetectGrunt(list);
 				}
-				return this.tryDetectJake(list).then((value) => {
+				return detectorPromise.then((value) => {
+					if (value) {
+						return value;
+					} else {
+						return { config: null, stderr: this.stderr };
+					}
+				});
+			} else {
+				return this.tryDetectGulp(list).then((value) => {
 					if (value) {
 						return value;
 					}
-					return this.tryDetectGrunt(list).then((value) => {
+					return this.tryDetectJake(list).then((value) => {
 						if (value) {
 							return value;
 						}
-						return { config: null, stderr: this.stderr };
+						return this.tryDetectGrunt(list).then((value) => {
+							if (value) {
+								return value;
+							}
+							return { config: null, stderr: this.stderr };
+						});
 					});
 				});
-			});
+			}
 		}
 	}
 
-	private tryDetectGulp(list:boolean):WinJS.TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
+	private tryDetectGulp(list:boolean): TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
 		return this.fileService.resolveFile(this.contextService.toResource('gulpfile.js')).then((stat) => {
 			let config = ProcessRunnerDetector.detectorConfig('gulp');
 			let process = new LineProcess('gulp', [config.arg, '--no-color'], true, {cwd: this.variables.workspaceRoot});
@@ -187,7 +205,7 @@ export class ProcessRunnerDetector {
 		});
 	}
 
-	private tryDetectGrunt(list:boolean):WinJS.TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
+	private tryDetectGrunt(list:boolean): TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
 		return this.fileService.resolveFile(this.contextService.toResource('Gruntfile.js')).then((stat) => {
 			let config = ProcessRunnerDetector.detectorConfig('grunt');
 			let process = new LineProcess('grunt', [config.arg, '--no-color'], true, {cwd: this.variables.workspaceRoot});
@@ -197,17 +215,24 @@ export class ProcessRunnerDetector {
 		});
 	}
 
-	private tryDetectJake(list:boolean):WinJS.TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
-		return this.fileService.resolveFile(this.contextService.toResource('Jakefile')).then((stat) => {
+	private tryDetectJake(list:boolean): TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
+		let run = () => {
 			let config = ProcessRunnerDetector.detectorConfig('jake');
 			let process = new LineProcess('jake', [config.arg], true, {cwd: this.variables.workspaceRoot});
 			return this.runDetection(process, 'jake', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
-		}, (err: any): FileConfig.ExternalTaskRunnerConfiguration => {
-			return null;
+		};
+		return this.fileService.resolveFile(this.contextService.toResource('Jakefile')).then((stat) => {
+			return run();
+		}, (err: any) => {
+			return this.fileService.resolveFile(this.contextService.toResource('Jakefile.js')).then((stat) => {
+				return run();
+			}, (err: any): FileConfig.ExternalTaskRunnerConfiguration => {
+				return null;
+			});
 		});
 	}
 
-	private runDetection(process: LineProcess, command: string, isShellCommand: boolean, matcher: TaskDetectorMatcher, problemMatchers: string[], list: boolean):WinJS.TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
+	private runDetection(process: LineProcess, command: string, isShellCommand: boolean, matcher: TaskDetectorMatcher, problemMatchers: string[], list: boolean): TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
 		let tasks:string[] = [];
 		matcher.init();
 		return process.start().then((success) => {

@@ -20,7 +20,6 @@ import * as Dom from 'vs/base/browser/dom';
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { EventEmitter, ListenerUnbind } from 'vs/base/common/eventEmitter';
 import * as Builder from 'vs/base/browser/builder';
-import URI from 'vs/base/common/uri';
 import * as Types from 'vs/base/common/types';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { match } from 'vs/base/common/glob';
@@ -39,15 +38,9 @@ import { IConfigurationService, ConfigurationServiceEventTypes } from 'vs/platfo
 import { IFileService, FileChangesEvent, FileChangeType, EventType as FileEventType } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
 
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ISuggestSupport } from 'vs/editor/common/modes';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggest';
-import { SuggestRegistry } from 'vs/editor/contrib/suggest/common/suggest';
 
 import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -68,6 +61,7 @@ import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt } from 
 
 import { ITaskSystem, ITaskSummary, ITaskRunResult, TaskError, TaskErrors, TaskConfiguration, TaskDescription, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { ITaskService, TaskServiceEvents } from 'vs/workbench/parts/tasks/common/taskService';
+import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
 import { LanguageServiceTaskSystem, LanguageServiceTaskConfiguration }  from 'vs/workbench/parts/tasks/common/languageServiceTaskSystem';
 import * as FileConfig  from 'vs/workbench/parts/tasks/node/processRunnerConfiguration';
@@ -154,12 +148,12 @@ class ConfigureTaskRunnerAction extends Action {
 	private contextService: IWorkspaceContextService;
 	private outputService: IOutputService;
 	private messageService: IMessageService;
-	private keybindingService: IKeybindingService;
+	private quickOpenService: IQuickOpenService;
 
 	constructor(id: string, label: string, @IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
-		@IMessageService messageService: IMessageService, @IKeybindingService keybindingService: IKeybindingService) {
+		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService) {
 
 		super(id, label);
 		this.configurationService = configurationService;
@@ -168,81 +162,59 @@ class ConfigureTaskRunnerAction extends Action {
 		this.contextService = contextService;
 		this.outputService = outputService;
 		this.messageService = messageService;
-		this.keybindingService = keybindingService;
+		this.quickOpenService = quickOpenService;
 	}
 
 	public run(event?:any): Promise {
 		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-		let autoDetectFailed = false;
-		let useTaskSampleConfig = false;
-		let fileCreated = false;
 		return this.fileService.resolveFile(this.contextService.toResource('.vscode/tasks.json')).then((success) => {
 			return success;
 		}, (err:any) => {
-			let detector = new ProcessRunnerDetector(this.fileService, this.contextService, new SystemVariables(this.editorService, this.contextService));
-			return detector.detect(false).then((value) => {
-				let config = value.config;
-				if (value.stderr && value.stderr.length > 0) {
-					value.stderr.forEach((line) => {
-						this.outputService.append(TaskService.OutputChannel, line + '\n');
-					});
-					autoDetectFailed = true;
-					this.messageService.show(Severity.Error, nls.localize('ConfigureTaskRunnerAction.autoDetect', 'Auto detecting the task system failed. Consult the task output for details'));
+			return this.quickOpenService.pick(taskTemplates, { placeHolder: 'Pick a task template'}).then(selection => {
+				if (!selection) {
+					return undefined;
 				}
 				let contentPromise: TPromise<string>;
-				if (config) {
-					contentPromise = TPromise.as<string>(JSON.stringify(config, null, 4));
+				if (selection.autoDetect) {
+					let detector = new ProcessRunnerDetector(this.fileService, this.contextService, new SystemVariables(this.editorService, this.contextService));
+					contentPromise = detector.detect(false, selection.id).then((value) => {
+						let config = value.config;
+						if (value.stderr && value.stderr.length > 0) {
+							value.stderr.forEach((line) => {
+								this.outputService.append(TaskService.OutputChannel, line + '\n');
+							});
+							this.messageService.show(Severity.Error, nls.localize('ConfigureTaskRunnerAction.autoDetect', 'Auto detecting the task system failed. Using default template. Consult the task output for details.'));
+							return selection.content;
+						} else if (config) {
+							let content = JSON.stringify(config, null, '\t');
+							content = [
+								'{',
+									'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
+									'\t// for the documentation about the tasks.json format',
+							].join('\n') + content.substr(1);
+							return content;
+						} else {
+							return selection.content;
+						}
+					});
 				} else {
-					// TODO@Dirk: Converting double time here to get a wrong uri that is compatible with the rest of the system
-					let configSampleUri = URI.parse(require.toUrl('vs/workbench/parts/tasks/common/taskSampleConfig.json'));
-					contentPromise = this.fileService.resolveContent(configSampleUri, { encoding: 'utf8' /* make sure to keep sample file encoding as we stored it! */}).then(content => {
-						useTaskSampleConfig = true;
-						return content.value;
-					}, (err:any) => {
-						let config: FileConfig.ExternalTaskRunnerConfiguration = {
-							version: '0.1.0',
-							command: 'msbuild.exe',
-							args: [ '/property:GenerateFullPaths=true' ],
-							problemMatcher : '$msCompile'
-						};
-						return JSON.stringify(config, null, 4);
-					});
+					contentPromise = TPromise.as(selection.content);
 				}
-				return contentPromise.then((content) => {
-					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content).then((value) => {
-						fileCreated = true;
-						return value;
-					});
+				return contentPromise.then(content => {
+					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content);
 				});
 			});
 		}).then((stat) => {
-			// (2) Open editor with configuration file
+			if (!stat) {
+				return undefined;
+			}
+			// // (2) Open editor with configuration file
 			return this.editorService.openEditor({
 				resource: stat.resource,
 				options: {
 					forceOpen: true
 				}
-			}, sideBySide).then((editor) => {
-				if (useTaskSampleConfig && fileCreated) {
-					let codeEditor: ICodeEditor = editor.getControl() as ICodeEditor;
-					let position = { lineNumber: 5, column: 2 };
-					codeEditor.revealPosition(position);
-					codeEditor.setPosition(position);
-					// Workaround for: https://github.com/Microsoft/vscode/issues/3121
-					setTimeout(() => {
-						let groups: ISuggestSupport[][] = SuggestRegistry.orderedGroups(codeEditor.getModel());
-						let newGroups: ISuggestSupport[][];
-						if (groups.length > 1 && groups[0].length > 1) {
-							newGroups = [[groups[0][1]], groups[1]];
-						} else {
-							newGroups = groups;
-						}
-						SuggestController.getSuggestController(codeEditor).triggerSuggest(undefined, newGroups);
-					}, 300);
-				}
-				this.outputService.showOutput(TaskService.OutputChannel, true);
-				return editor;
-			});
+			}, sideBySide);
 		}, (error) => {
 			throw new Error(nls.localize('ConfigureTaskRunnerAction.failed', "Unable to create the 'tasks.json' file inside the '.vscode' folder. Consult the task output for details."));
 		});
@@ -484,7 +456,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	private eventService: IEventService;
 	private modelService: IModelService;
 	private extensionService: IExtensionService;
-	private keybindingService: IKeybindingService;
+	private quickOpenService: IQuickOpenService;
 
 	private _taskSystemPromise: TPromise<ITaskSystem>;
 	private _taskSystem: ITaskSystem;
@@ -500,7 +472,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		@ITelemetryService telemetryService: ITelemetryService, @ITextFileService textFileService:ITextFileService,
 		@ILifecycleService lifecycleService: ILifecycleService, @IEventService eventService: IEventService,
 		@IModelService modelService: IModelService, @IExtensionService extensionService: IExtensionService,
-		@IKeybindingService keybindingService: IKeybindingService) {
+		@IQuickOpenService quickOpenService: IQuickOpenService) {
 
 		super();
 		this.modeService = modeService;
@@ -516,7 +488,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		this.eventService = eventService;
 		this.modelService = modelService;
 		this.extensionService = extensionService;
-		this.keybindingService = keybindingService;
+		this.quickOpenService = quickOpenService;
 
 		this.taskSystemListeners = [];
 		this.clearTaskSystemPromise = false;
@@ -655,7 +627,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	public configureAction(): Action {
 		return new ConfigureTaskRunnerAction(ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT,
 			this.configurationService, this.editorService, this.fileService, this.contextService,
-			this.outputService, this.messageService, this.keybindingService);
+			this.outputService, this.messageService, this.quickOpenService);
 	}
 
 	public build(): TPromise<ITaskSummary> {
@@ -1205,7 +1177,15 @@ if (Env.enableTasks) {
 							'$ref': '#/definitions/problemMatcherType',
 							'description': nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
 						}
-					}
+					},
+					'defaultSnippets': [
+						{
+							'label': 'Empty task',
+							'body': {
+								'taskName': '{{taskName}}'
+							}
+						}
+					]
 				}
 			},
 			'allOf': [
