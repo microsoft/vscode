@@ -1,81 +1,223 @@
 {
-    "class": {
-        "prefix": "class",
-        "body": [
-            "class ${name}${bases}:",
-            "\t${selected}"
-        ],
-        "description": "Code snippet for a class definition"
-    },
-    "def": {
-        "prefix": "def",
-        "body": [
-            "def ${name}(${args}):",
-            "\t${selected}"
-        ],
-        "description": "Code snippet for a function definition"
-    },
-    "except (try/except)": {
-        "prefix": "except",
-        "body": [
-            "try:",
-            "\tpass",
-            "except ${exception}:",
-            "\t${selected}"
-        ],
-        "description": "Code snippet for a try statement"
-    },
-    "for": {
-        "prefix": "for",
-        "body": [
-            "for ${var} in ${expr}:",
-            "\t${selected}"
-        ],
-        "description": "Code snippet for a for loop"
-    },
     "if": {
         "prefix": "if",
         "body": [
-            "if ${condition}:",
-            "\t${selected}"
+            "if ${expression}:",
+            "\t${suite}"
         ],
         "description": "Code snippet for an if statement"
     },
-    "main function": {
-        "prefix": "main",
+    "if/else": {
+        "prefix": "if/else",
         "body": [
-            "def main():",
-            "\t${selected}",
-            "",
-            "if __name__ == \"__main__\":",
-            "\tsys.exit(int(main() or 0))"
+            "if ${condition}:",
+            "\t${1:suite}",
+            "else:"
+            "\t${2:suite}"
         ],
-        "description": "Code snippet for a main function"
+        "description": "Code snippet for an if statement with else"
     },
-    "try": {
-        "prefix": "try",
+    "elif": {
+        "prefix": "elif",
         "body": [
-            "try:",
-            "\t${selected}",
-            "except ${exception}:",
-            "\t$0pass"
+            "elif ${expression}:",
+            "\t${suite}"
         ],
-        "description": "Code snippet for a try statement"
+        "description": "Code snippet for an elif"
+    },
+    "else": {
+        "prefix": "else",
+        "body": [
+            "else:",
+            "\t${suite}"
+        ],
+        "description": "Code snippet for an else"
     },
     "while": {
         "prefix": "while",
         "body": [
-            "while ${condition}:",
-            "\t${selected}"
+            "while ${expression}:",
+            "\t${suite}"
         ],
         "description": "Code snippet for a while loop"
+    },
+    "while/else": {
+        "prefix": "while/else",
+        "body": [
+            "while ${expression}:",
+            "\t${1:suite}"
+            "else:",
+            "\t${2:suite}"
+        ],
+        "description": "Code snippet for a while loop with else"
+    },
+    "for": {
+        "prefix": "for",
+        "body": [
+            "for ${target_list} in ${expression_list}:",
+            "\t${suite}"
+        ],
+        "description": "Code snippet for a for loop"
+    },
+    "for/else": {
+        "prefix": "for/else",
+        "body": [
+            "for ${target_list} in ${expression_list}:",
+            "\t${1:suite}",
+            "else:",
+            "\t${2:suite}"
+        ],
+        "description": "Code snippet for a for loop with else"
+    },
+    "try/except": {
+        "prefix": "try/except",
+        "body": [
+            "try:",
+            "\t${1:suite}",
+            "except ${expression} as ${identifier}:",
+            "\t${2:suite}"
+        ],
+        "description": "Code snippet for a try/except statement"
+    },
+    "try/finally": {
+        "prefix": "try/finally",
+        "body": [
+            "try:",
+            "\t${1:suite}",
+            "finally:",
+            "\t${2:suite}"
+        ],
+        "description": "Code snippet for a try/finally statement"
+    },
+    "try/except/else": {
+        "prefix": "try/except/else",
+        "body": [
+            "try:",
+            "\t${1:suite}",
+            "except ${expression} as ${identifier}:",
+            "\t${2:suite}",
+            "else:",
+            "\t${3:suite}"
+        ],
+        "description": "Code snippet for a try/except/else statement"
+    },
+    "try/except/finally": {
+        "prefix": "try/except/finally",
+        "body": [
+            "try:",
+            "\t${1:suite}",
+            "except ${expression} as ${identifier}:",
+            "\t${2:suite}",
+            "finally:",
+            "\t${3:suite}"
+        ],
+        "description": "Code snippet for a try/except/finally statement"
+    },
+    "try/except/else/finally": {
+        "prefix": "try/except/else/finally",
+        "body": [
+            "try:",
+            "\t${1:suite}",
+            "except ${expression} as ${identifier}:",
+            "\t${2:suite}",
+            "else:",
+            "\t${3:suite}",
+            "finally:",
+            "\t${4:suite}"
+        ],
+        "description": "Code snippet for a try/except/else/finally statement"
     },
     "with": {
         "prefix": "with",
         "body": [
-            "with ${ctx}:",
-            "\t${selected}"
+            "with ${expression} as ${target}:",
+            "\t${suite}"
         ],
         "description": "Code snippet for a with statement"
+    },
+    "def": {
+        "prefix": "def",
+        "body": [
+            "def ${funcname}(${parameter_list}):",
+            "\t${suite}"
+        ],
+        "description": "Code snippet for a function definition"
+    },
+    "def(class method)": {
+        "prefix": "def(class method)",
+        "body": [
+            "def ${funcname}(self, ${parameter_list}):",
+            "\t${suite}"
+        ],
+        "description": "Code snippet for a class method"
+    },
+    "def(static class method)": {
+        "prefix": "def(static class method)",
+        "body": [
+            "@staticmethod",
+            "def ${funcname}(${parameter_list}):",
+            "\t${suite}"
+        ],
+        "description": "Code snippet for a static class method"
+    },
+    "class": {
+        "prefix": "class",
+        "body": [
+            "class ${classname}(${object}):",
+            "\t${suite}"
+        ],
+        "description": "Code snippet for a class definition"
+    },
+    "lambda": {
+        "prefix": "lambda",
+        "body": [
+            "lambda ${parameter_list}: ${expression}"
+        ],
+        "description": "Code snippet for a lambda statement"
+    },
+    "if(main)": {
+        "prefix": "if(main)",
+        "body": [
+            "def main():",
+            "\t${suite}",
+            "",
+            "if __name__ == '__main__':",
+            "\tsys.exit(int(main() or 0))"
+        ],
+        "description": "Code snippet for a main function"
+    },
+    "async/def": {
+        "prefix": "async/def",
+        "body": [
+            "async def ${funcname}(${parameter_list}):",
+            "\t${suite}"
+        ],
+        "description": "Code snippet for a async statement"
+    },
+    "async/for": {
+        "prefix": "async/for",
+        "body": [
+            "async for ${target} in ${iter}:",
+            "\t${block}"
+        ],
+        "description": "Code snippet for a async for statement"
+    },
+    "async/for/else": {
+        "prefix": "async/for/else",
+        "body": [
+            "async for ${target} in ${iter}:",
+            "\t${1:block}",
+            "else:",
+            "\t${2:block}"
+        ],
+        "description": "Code snippet for a async for statement with else"
+    },
+    "async/with": {
+        "prefix": "async/with",
+        "body": [
+            "async with ${expr} in ${var}:",
+            "\t${block}"
+        ],
+        "description": "Code snippet for a async with statement"
     }
 }
