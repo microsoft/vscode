@@ -9,7 +9,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import platform = require('vs/platform/platform');
 import objects = require('vs/base/common/objects');
-import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
+import {ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import JSONContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 
 
@@ -39,7 +39,7 @@ export interface IConfigurationRegistry {
 export interface IConfigurationNode {
 	id?: string;
 	order?: number;
-	type?: string;
+	type?: string | string[];
 	title?: string;
 	description?: string;
 	default?: any;
@@ -93,10 +93,10 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 const configurationRegistry = new ConfigurationRegistry();
 platform.Registry.add(Extensions.Configuration, configurationRegistry);
 
-let configurationExtPoint = PluginsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', {
+let configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', {
 	description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
 	type: 'object',
-	default: { title: '', properties: {} },
+	defaultSnippets: [{ body: { title: '', properties: {} } }],
 	properties: {
 		title: {
 			description: nls.localize('vscode.extension.contributes.configuration.title', 'A summary of the settings. This label will be used in the settings file as separating comment.'),

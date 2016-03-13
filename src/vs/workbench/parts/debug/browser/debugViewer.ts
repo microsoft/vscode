@@ -947,6 +947,15 @@ export class BreakpointsController extends BaseDebugController {
 		return super.onLeftClick(tree, element, event);
 	}
 
+	protected onSpace(tree: tree.ITree, event: IKeyboardEvent): boolean {
+		super.onSpace(tree, event);
+		const element = <debug.IEnablement>tree.getFocus();
+		this.debugService.toggleEnablement(element).done(null, errors.onUnexpectedError);
+
+		return true;
+	}
+
+
 	protected onDelete(tree: tree.ITree, event: IKeyboardEvent): boolean {
 		const element = tree.getFocus();
 		if (element instanceof model.Breakpoint) {

@@ -9,6 +9,7 @@ import {IMode, IStream, ITokenizationResult, ITokenizationSupport} from 'vs/edit
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {TokenizationSupport} from 'vs/editor/common/modes/supports/tokenizationSupport';
 import {tokenizeToHtmlContent} from 'vs/editor/common/modes/textToHtmlTokenizer';
+import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 
 suite('Editor Modes - textToHtmlTokenizer', () => {
 	test('TextToHtmlTokenizer', () => {
@@ -71,21 +72,14 @@ class State extends AbstractState {
 	}
 }
 
-class Mode implements IMode {
+class Mode extends MockMode {
 
 	public tokenizationSupport: ITokenizationSupport;
 
 	constructor() {
+		super();
 		this.tokenizationSupport = new TokenizationSupport(this, {
 			getInitialState: () => new State(this)
 		}, false, false);
-	}
-
-	public getId(): string {
-		return 'testMode';
-	}
-
-	public toSimplifiedMode(): IMode {
-		return this;
 	}
 }

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
 import {IEmitterEvent} from 'vs/base/common/eventEmitter';
@@ -25,6 +26,8 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 import * as platform from 'vs/base/common/platform';
 import {IConfigurationService, ConfigurationServiceEventTypes, IConfigurationServiceEvent} from 'vs/platform/configuration/common/configuration';
+import {DEFAULT_INDENTATION} from 'vs/editor/common/config/defaultConfig';
+import {IMessageService} from 'vs/platform/message/common/message';
 
 export interface IRawModelData {
 	url:URI;
@@ -169,6 +172,17 @@ class ModelMarkerHandler {
 	}
 }
 
+interface IRawConfig {
+	files?: {
+		eol?: any;
+	};
+	editor?: {
+		tabSize?: any;
+		insertSpaces?: any;
+		detectIndentation?: any;
+	};
+}
+
 export class ModelServiceImpl implements IModelService {
 	public serviceId = IModelService;
 
@@ -176,6 +190,7 @@ export class ModelServiceImpl implements IModelService {
 	private _markerServiceSubscription: IDisposable;
 	private _threadService: IThreadService;
 	private _modeService: IModeService;
+	private _messageService: IMessageService;
 	private _configurationService: IConfigurationService;
 	private _configurationServiceSubscription: IDisposable;
 	private _workerHelper: ModelServiceWorkerHelper;
@@ -183,7 +198,10 @@ export class ModelServiceImpl implements IModelService {
 	private _onModelAdded: Emitter<editorCommon.IModel>;
 	private _onModelRemoved: Emitter<editorCommon.IModel>;
 	private _onModelModeChanged: Emitter<{ model: editorCommon.IModel; oldModeId: string; }>;
-	private _defaultEOL: editorCommon.DefaultEndOfLine;
+
+	private _modelCreationOptions: editorCommon.ITextModelCreationOptions;
+
+	private _hasShownMigrationMessage: boolean;
 
 	/**
 	 * All the models known in the system.
@@ -194,29 +212,73 @@ export class ModelServiceImpl implements IModelService {
 		threadService: IThreadService,
 		markerService: IMarkerService,
 		modeService: IModeService,
-		configurationService: IConfigurationService
+		configurationService: IConfigurationService,
+		messageService: IMessageService
 	) {
-		this._defaultEOL = (platform.isLinux || platform.isMacintosh) ? editorCommon.DefaultEndOfLine.LF : editorCommon.DefaultEndOfLine.CRLF;
+		this._modelCreationOptions = {
+			tabSize: DEFAULT_INDENTATION.tabSize,
+			insertSpaces: DEFAULT_INDENTATION.insertSpaces,
+			detectIndentation: DEFAULT_INDENTATION.detectIndentation,
+			defaultEOL: (platform.isLinux || platform.isMacintosh) ? editorCommon.DefaultEndOfLine.LF : editorCommon.DefaultEndOfLine.CRLF
+		};
 		this._threadService = threadService;
 		this._markerService = markerService;
 		this._modeService = modeService;
 		this._workerHelper = this._threadService.getRemotable(ModelServiceWorkerHelper);
 		this._configurationService = configurationService;
+		this._messageService = messageService;
+		this._hasShownMigrationMessage = false;
 
-		let readDefaultEOL = (config:any) => {
+		let readConfig = (config:IRawConfig) => {
 			const eol = config.files && config.files.eol;
 
+			let shouldShowMigrationMessage = false;
+
+			let tabSize = DEFAULT_INDENTATION.tabSize;
+			if (config.editor && typeof config.editor.tabSize !== 'undefined') {
+				let parsedTabSize = parseInt(config.editor.tabSize, 10);
+				if (!isNaN(parsedTabSize)) {
+					tabSize = parsedTabSize;
+				}
+				shouldShowMigrationMessage = shouldShowMigrationMessage || (config.editor.tabSize === 'auto');
+			}
+
+			let insertSpaces = DEFAULT_INDENTATION.insertSpaces;
+			if (config.editor && typeof config.editor.insertSpaces !== 'undefined') {
+				insertSpaces = (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
+				shouldShowMigrationMessage = shouldShowMigrationMessage || (config.editor.insertSpaces === 'auto');
+			}
+
+			let newDefaultEOL = this._modelCreationOptions.defaultEOL;
 			if (eol === '\r\n') {
-				this._defaultEOL = editorCommon.DefaultEndOfLine.CRLF;
+				newDefaultEOL = editorCommon.DefaultEndOfLine.CRLF;
 			} else if (eol === '\n') {
-				this._defaultEOL = editorCommon.DefaultEndOfLine.LF;
+				newDefaultEOL = editorCommon.DefaultEndOfLine.LF;
+			}
+
+			let detectIndentation = DEFAULT_INDENTATION.detectIndentation;
+			if (config.editor && typeof config.editor.detectIndentation !== 'undefined') {
+				detectIndentation = (config.editor.detectIndentation === 'false' ? false : Boolean(config.editor.detectIndentation));
+			}
+
+			this._setModelOptions({
+				tabSize: tabSize,
+				insertSpaces: insertSpaces,
+				detectIndentation: detectIndentation,
+				defaultEOL: newDefaultEOL
+			});
+
+
+			if (shouldShowMigrationMessage && !this._hasShownMigrationMessage) {
+				this._hasShownMigrationMessage = true;
+				this._messageService.show(Severity.Info, nls.localize('indentAutoMigrate', "Please update your settings: `editor.detectIndentation` replaces `editor.tabSize`: \"auto\" or `editor.insertSpaces`: \"auto\""));
 			}
 		};
 		this._configurationServiceSubscription = this._configurationService.addListener2(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
-			readDefaultEOL(e.config);
+			readConfig(e.config);
 		});
 		this._configurationService.loadConfiguration().then((config) => {
-			readDefaultEOL(config);
+			readConfig(config);
 		});
 
 		this._models = {};
@@ -227,6 +289,39 @@ export class ModelServiceImpl implements IModelService {
 
 		if(this._markerService) {
 			this._markerServiceSubscription = this._markerService.onMarkerChanged(this._handleMarkerChange, this);
+		}
+	}
+
+	public getCreationOptions(): editorCommon.ITextModelCreationOptions {
+		return this._modelCreationOptions;
+	}
+
+	private _setModelOptions(newOpts: editorCommon.ITextModelCreationOptions): void {
+		if (
+			(this._modelCreationOptions.detectIndentation === newOpts.detectIndentation)
+			&& (this._modelCreationOptions.insertSpaces === newOpts.insertSpaces)
+			&& (this._modelCreationOptions.tabSize === newOpts.tabSize)
+		) {
+			// Same indent opts, no need to touch created models
+			this._modelCreationOptions = newOpts;
+			return;
+		}
+		this._modelCreationOptions = newOpts;
+
+		// Update options on all models
+		for (let modelId in this._models) {
+			if (this._models.hasOwnProperty(modelId)) {
+				let modelData = this._models[modelId];
+
+				if (this._modelCreationOptions.detectIndentation) {
+					modelData.model.detectIndentation(this._modelCreationOptions.insertSpaces, this._modelCreationOptions.tabSize);
+				} else {
+					modelData.model.updateOptions({
+						insertSpaces: this._modelCreationOptions.insertSpaces,
+						tabSize:  this._modelCreationOptions.tabSize
+					});
+				}
+			}
 		}
 	}
 
@@ -260,7 +355,7 @@ export class ModelServiceImpl implements IModelService {
 
 	private _createModelData(value:string, modeOrPromise:TPromise<IMode>|IMode, resource: URI): ModelData {
 		// create & save the model
-		let model = new Model(value, this._defaultEOL, modeOrPromise, resource);
+		let model = new Model(value, this._modelCreationOptions, modeOrPromise, resource);
 		let modelId = MODEL_ID(model.getAssociatedResource());
 
 		if (this._models[modelId]) {

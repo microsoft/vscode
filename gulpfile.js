@@ -18,7 +18,6 @@ var nls = require('./build/lib/nls');
 var util = require('./build/lib/util');
 var reporter = require('./build/lib/reporter')();
 var remote = require('gulp-remote-src');
-var rename = require('gulp-rename');
 var zip = require('gulp-vinyl-zip');
 var path = require('path');
 var bom = require('gulp-bom');
@@ -106,30 +105,28 @@ gulp.task('compile-client', ['clean-client'], compileTask('out', false));
 gulp.task('watch-client', ['clean-client'], watchTask('out', false));
 
 // Full compile, including nls and inline sources in sourcemaps, for build
-gulp.task('clean-build', util.rimraf('out-build'));
-gulp.task('compile-build', ['clean-build'], compileTask('out-build', true));
-gulp.task('watch-build', ['clean-build'], watchTask('out-build', true));
+gulp.task('clean-client-build', util.rimraf('out-build'));
+gulp.task('compile-client-build', ['clean-client-build'], compileTask('out-build', true));
+gulp.task('watch-client-build', ['clean-client-build'], watchTask('out-build', true));
 
 // Default
 gulp.task('default', ['compile']);
 
 // All
-gulp.task('clean', ['clean-client', 'clean-plugins']);
-gulp.task('compile', ['compile-client', 'compile-plugins']);
-gulp.task('watch', ['watch-client', 'watch-plugins']);
+gulp.task('clean', ['clean-client', 'clean-extensions']);
+gulp.task('compile', ['compile-client', 'compile-extensions']);
+gulp.task('watch', ['watch-client', 'watch-extensions']);
+
+// All Build
+gulp.task('clean-build', ['clean-client-build', 'clean-extensions-build']);
+gulp.task('compile-build', ['compile-client-build', 'compile-extensions-build']);
+gulp.task('watch-build', ['watch-client-build', 'watch-extensions-build']);
 
 gulp.task('test', function () {
 	return gulp.src('test/all.js')
 		.pipe(mocha({ ui: 'tdd', delay: true }))
 		.once('end', function () { process.exit(); });
 });
-
-function rebase(count) {
-	return rename(function (f) {
-		var parts = f.dirname.split(/[\/\\]/);
-		f.dirname = parts.slice(count).join(path.sep);
-	});
-}
 
 gulp.task('mixin', function () {
 	var repo = process.env['VSCODE_MIXIN_REPO'];
@@ -159,7 +156,7 @@ gulp.task('mixin', function () {
 
 	var all = remote(url, opts)
 		.pipe(zip.src())
-		.pipe(rebase(1));
+		.pipe(util.rebase(1));
 
 	if (quality) {
 		var build = all.pipe(filter('build/**'));
@@ -167,7 +164,7 @@ gulp.task('mixin', function () {
 
 		var mixin = all
 			.pipe(filter('quality/' + quality + '/**'))
-			.pipe(rebase(2))
+			.pipe(util.rebase(2))
 			.pipe(productJsonFilter)
 			.pipe(buffer())
 			.pipe(json(function (patch) {
@@ -190,4 +187,4 @@ gulp.task('mixin', function () {
 require('./build/gulpfile.hygiene');
 require('./build/gulpfile.vscode');
 require('./build/gulpfile.editor');
-require('./build/gulpfile.plugins');
+require('./build/gulpfile.extensions');

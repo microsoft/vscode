@@ -94,7 +94,7 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 		this.clear();
 	}
 
-	public processRequest(range: editorCommon.IEditorRange, referencesPromise: TPromise<IReference[]>) : ReferenceWidget {
+	public processRequest(range: editorCommon.IEditorRange, referencesPromise: TPromise<IReference[]>, metaTitleFn:(references:IReference[])=>string) : ReferenceWidget {
 		var widgetPosition = !this.widget ? null : this.widget.position;
 
 		// clean up from previous invocation
@@ -198,6 +198,7 @@ export class FindReferencesController implements editorCommon.IEditorContributio
 			// show widget
 			this._startTime = Date.now();
 			if (this.widget) {
+				this.widget.setMetaTitle(metaTitleFn(references));
 				this.widget.setModel(this.model);
 			}
 			timer.stop();
@@ -288,10 +289,15 @@ export class ReferenceAction extends EditorAction {
 		let model = this.editor.getModel();
 		let request = findReferences(model, range.getStartPosition());
 		let controller = FindReferencesController.getController(this.editor);
-		return TPromise.as(controller.processRequest(range, request)).then(() => true);
+		return TPromise.as(controller.processRequest(range, request, metaTitle)).then(() => true);
 	}
 }
 
+function metaTitle(references: IReference[]): string {
+	if (references.length > 1) {
+		return nls.localize('meta.titleReference', " – {0} references", references.length);
+	}
+}
 
 let findReferencesCommand: ICommandHandler = (accessor, args) => {
 
@@ -315,7 +321,7 @@ let findReferencesCommand: ICommandHandler = (accessor, args) => {
 		let request = findReferences(control.getModel(), position);
 		let controller = FindReferencesController.getController(control);
 		let range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		return TPromise.as(controller.processRequest(range, request));
+		return TPromise.as(controller.processRequest(range, request, metaTitle));
 	});
 };
 
@@ -333,7 +339,7 @@ let showReferencesCommand: ICommandHandler = (accessor, args:[URI, editorCommon.
 
 		let controller = FindReferencesController.getController(control);
 		let range = Position.asEmptyRange(args[1]);
-		return TPromise.as(controller.processRequest(Range.lift(range), TPromise.as(args[2]))).then(() => true);
+		return TPromise.as(controller.processRequest(Range.lift(range), TPromise.as(args[2]), metaTitle)).then(() => true);
 	});
 };
 

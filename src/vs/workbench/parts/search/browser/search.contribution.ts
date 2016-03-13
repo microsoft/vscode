@@ -171,7 +171,6 @@ configurationRegistry.registerConfiguration({
 	'type': 'object',
 	'properties': {
 		'search.exclude': {
-			'id': 'glob-pattern',
 			'type': 'object',
 			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders in searches. Inherits all glob patterns from the file.exclude setting."),
 			'default': { '**/node_modules': true, '**/bower_components': true },

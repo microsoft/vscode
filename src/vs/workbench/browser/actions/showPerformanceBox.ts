@@ -7,13 +7,12 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {TimeKeeperRenderer} from 'vs/base/browser/ui/timer/timer';
 import {Action} from 'vs/base/common/actions';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 
 let timeKeeperRenderer: TimeKeeperRenderer = null;
 
 export class ShowPerformanceBox extends Action {
 
-	constructor(id: string, label: string, @INullService ns: any) {
+	constructor(id: string, label: string) {
 		super(id, label, null, true);
 	}
 

@@ -174,11 +174,8 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 	public addWhitespace(afterLineNumber:number, ordinal:number, height:number): number {
 		return this.linesLayout.insertWhitespace(afterLineNumber, ordinal, height);
 	}
-	public changeWhitespace(id:number, newHeight:number): boolean {
-		return this.linesLayout.changeWhitespace(id, newHeight);
-	}
-	public changeAfterLineNumberForWhitespace(id:number, newAfterLineNumber:number): boolean {
-		return this.linesLayout.changeAfterLineNumberForWhitespace(id, newAfterLineNumber);
+	public changeWhitespace(id:number, newAfterLineNumber:number, newHeight:number): boolean {
+		return this.linesLayout.changeWhitespace(id, newAfterLineNumber, newHeight);
 	}
 	public removeWhitespace(id:number): boolean {
 		return this.linesLayout.removeWhitespace(id);

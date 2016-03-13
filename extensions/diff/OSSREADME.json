@@ -1,0 +1,13 @@
+// ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
+[{
+	"name": "textmate/diff.tmbundle",
+	"version": "0.0.0",
+	"license": "TextMate Bundle License",
+	"repositoryURL": "https://github.com/textmate/diff.tmbundle",
+	"licenseDetail": [
+		"Permission to copy, use, modify, sell and distribute this",
+		"software is granted. This software is provided \"as is\" without",
+		"express or implied warranty, and with no claim as to its",
+		"suitability for any purpose."
+	]
+}]

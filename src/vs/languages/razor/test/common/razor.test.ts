@@ -27,22 +27,21 @@ suite('Syntax Highlighting - Razor', () => {
 			line: '@{ var x; <b>x</b> }',
 			tokens: [
 				{ startIndex: 0, type: razorTokenTypes.EMBED_CS },
-				{ startIndex: 1, type: razorTokenTypes.EMBED_CS, bracket: Modes.Bracket.Open },
 				{ startIndex: 2, type: '' },
 				{ startIndex: 3, type: 'keyword.cs' },
 				{ startIndex: 6, type: '' },
 				{ startIndex: 7, type: 'ident.cs' },
 				{ startIndex: 8, type: 'punctuation.cs' },
 				{ startIndex: 9, type: '' },
-				{ startIndex: 10, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open },
+				{ startIndex: 10, type: htmlTokenTypes.DELIM_START },
 				{ startIndex: 11, type: htmlTokenTypes.getTag('b') },
-				{ startIndex: 12, type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close },
+				{ startIndex: 12, type: htmlTokenTypes.DELIM_START },
 				{ startIndex: 13, type: 'ident.cs' },
-				{ startIndex: 14, type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Open },
+				{ startIndex: 14, type: htmlTokenTypes.DELIM_END },
 				{ startIndex: 16, type: htmlTokenTypes.getTag('b') },
-				{ startIndex: 17, type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Close },
+				{ startIndex: 17, type: htmlTokenTypes.DELIM_END },
 				{ startIndex: 18, type: '' },
-				{ startIndex: 19, type: razorTokenTypes.EMBED_CS, bracket: Modes.Bracket.Close }
+				{ startIndex: 19, type: razorTokenTypes.EMBED_CS }
 			]}],
 
 			// Comments - razor comment inside csharp
@@ -50,7 +49,6 @@ suite('Syntax Highlighting - Razor', () => {
 			line: '@{ var x; @* comment *@ x= 0; }',
 			tokens: [
 				{ startIndex: 0, type: razorTokenTypes.EMBED_CS },
-				{ startIndex: 1, type: razorTokenTypes.EMBED_CS, bracket: Modes.Bracket.Open },
 				{ startIndex: 2, type: '' },
 				{ startIndex: 3, type: 'keyword.cs' },
 				{ startIndex: 6, type: '' },
@@ -65,7 +63,7 @@ suite('Syntax Highlighting - Razor', () => {
 				{ startIndex: 27, type: 'number.cs' },
 				{ startIndex: 28, type: 'punctuation.cs' },
 				{ startIndex: 29, type: '' },
-				{ startIndex: 30, type: razorTokenTypes.EMBED_CS, bracket: Modes.Bracket.Close }
+				{ startIndex: 30, type: razorTokenTypes.EMBED_CS }
 			]}],
 
 			// Blocks - simple
@@ -73,7 +71,6 @@ suite('Syntax Highlighting - Razor', () => {
 			line: '@{ var total = 0; }',
 			tokens: [
 				{ startIndex: 0, type: razorTokenTypes.EMBED_CS },
-				{ startIndex: 1, type: razorTokenTypes.EMBED_CS, bracket: Modes.Bracket.Open },
 				{ startIndex: 2, type: '' },
 				{ startIndex: 3, type: 'keyword.cs' },
 				{ startIndex: 6, type: '' },
@@ -84,7 +81,7 @@ suite('Syntax Highlighting - Razor', () => {
 				{ startIndex: 15, type: 'number.cs' },
 				{ startIndex: 16, type: 'punctuation.cs' },
 				{ startIndex: 17, type: '' },
-				{ startIndex: 18, type: razorTokenTypes.EMBED_CS, bracket: Modes.Bracket.Close }
+				{ startIndex: 18, type: razorTokenTypes.EMBED_CS }
 			]}],
 
 			[{
@@ -92,10 +89,10 @@ suite('Syntax Highlighting - Razor', () => {
 			tokens: [
 				{ startIndex: 0, type: razorTokenTypes.EMBED_CS },
 				{ startIndex: 1, type: 'keyword.cs' },
-				{ startIndex: 3, type: 'punctuation.parenthesis.cs', bracket: Modes.Bracket.Open },
+				{ startIndex: 3, type: 'punctuation.parenthesis.cs' },
 				{ startIndex: 4, type: 'keyword.cs' },
-				{ startIndex: 8, type: 'punctuation.parenthesis.cs', bracket: Modes.Bracket.Close },
-				{ startIndex: 9, type: razorTokenTypes.EMBED_CS, bracket: Modes.Bracket.Open },
+				{ startIndex: 8, type: 'punctuation.parenthesis.cs' },
+				{ startIndex: 9, type: razorTokenTypes.EMBED_CS },
 				{ startIndex: 10, type: '' },
 				{ startIndex: 11, type: 'keyword.cs' },
 				{ startIndex: 14, type: '' },
@@ -106,7 +103,7 @@ suite('Syntax Highlighting - Razor', () => {
 				{ startIndex: 23, type: 'number.cs' },
 				{ startIndex: 24, type: 'punctuation.cs' },
 				{ startIndex: 25, type: '' },
-				{ startIndex: 26, type: razorTokenTypes.EMBED_CS, bracket: Modes.Bracket.Close }
+				{ startIndex: 26, type: razorTokenTypes.EMBED_CS }
 			]}],
 
 			// Expressions - csharp expressions in html
@@ -143,7 +140,6 @@ suite('Syntax Highlighting - Razor', () => {
 			tokens: [
 				{ startIndex:0, type: '' },
 				{ startIndex:5, type: razorTokenTypes.EMBED_CS },
-				{ startIndex:6, type: razorTokenTypes.EMBED_CS },
 				{ startIndex:7, type: 'ident.cs' },
 				{ startIndex:10, type: razorTokenTypes.EMBED_CS },
 				{ startIndex:11, type: '' }
@@ -154,7 +150,6 @@ suite('Syntax Highlighting - Razor', () => {
 			tokens: [
 				{ startIndex:0, type: '' },
 				{ startIndex:5, type: razorTokenTypes.EMBED_CS },
-				{ startIndex:6, type: razorTokenTypes.EMBED_CS },
 				{ startIndex:7, type: 'ident.cs' },
 				{ startIndex:10, type: 'punctuation.parenthesis.cs' },
 				{ startIndex:11, type: 'string.cs' },

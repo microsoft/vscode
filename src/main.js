@@ -34,7 +34,7 @@ function getNLSConfiguration() {
 	// We have a built version so we have extracted nls file. Try to find
 	// the right file to use.
 	while (locale) {
-		var candidate = path.join(__dirname, 'main.nls.') + locale + '.js';
+		var candidate = path.join(__dirname, 'vs', 'workbench', 'electron-main', 'main.nls.') + locale + '.js';
 		if (fs.existsSync(candidate)) {
 			return { locale: initialLocale, availableLanguages: { '*': locale } };
 		} else {

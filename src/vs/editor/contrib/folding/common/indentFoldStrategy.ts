@@ -43,7 +43,7 @@ export function computeRanges(model: IModel, tabSize: number, minimumRangeSize: 
 			previousRegions.push({ indent, line });
 		}
 	}
-	return result;
+	return result.reverse();
 }
 
 

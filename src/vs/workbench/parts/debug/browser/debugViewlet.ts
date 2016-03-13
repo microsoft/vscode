@@ -58,6 +58,7 @@ class VariablesView extends viewlet.CollapsibleViewletView {
 	constructor(actionRunner: actions.IActionRunner, private settings: any,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -91,6 +92,15 @@ class VariablesView extends viewlet.CollapsibleViewletView {
 		this.toDispose.push(viewModel.addListener2(debug.ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => this.onFocusedStackFrameUpdated()));
 		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => {
 			collapseAction.enabled = this.debugService.getState() === debug.State.Running || this.debugService.getState() === debug.State.Stopped;
+		}));
+        
+		this.toDispose.push(this.tree.addListener2(events.EventType.FOCUS, (e: tree.IFocusEvent) => {
+			const isMouseClick = (e.payload && e.payload.origin === 'mouse');
+			const isVariableType = (e.focus instanceof model.Variable);
+
+			if(isMouseClick && isVariableType) {
+				this.telemetryService.publicLog('debug/variables/selected');
+			}
 		}));
 	}
 
@@ -195,6 +205,7 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 	constructor(actionRunner: actions.IActionRunner, private settings: any,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
@@ -249,14 +260,27 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 			this.debugService.openOrRevealEditor(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
 		}));
 
+		this.toDispose.push(this.tree.addListener2(events.EventType.FOCUS, (e: tree.IFocusEvent) => {
+			const isMouseClick = (e.payload && e.payload.origin === 'mouse');
+			const isStackFrameType = (e.focus instanceof model.StackFrame);
+
+			if (isMouseClick && isStackFrameType) {
+				this.telemetryService.publicLog('debug/callStack/selected');
+			}
+		}));
+
 		this.toDispose.push(debugModel.addListener2(debug.ModelEvents.CALLSTACK_UPDATED, () => {
 			this.tree.refresh().done(null, errors.onUnexpectedError);
 		}));
+
 		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => {
 			const focussedThread = this.debugService.getModel().getThreads()[this.debugService.getViewModel().getFocusedThreadId()];
-			if (focussedThread && focussedThread.stoppedReason && focussedThread.stoppedReason !== 'step') {
-				this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", focussedThread.stoppedReason));
-				focussedThread.stoppedReason === 'exception' ? this.pauseMessageLabel.addClass('exception') : this.pauseMessageLabel.removeClass('exception');
+			if (focussedThread && focussedThread.stoppedDetails && focussedThread.stoppedDetails.reason !== 'step') {
+				this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", focussedThread.stoppedDetails.reason));
+				if (focussedThread.stoppedDetails.text) {
+					this.pauseMessageLabel.title(focussedThread.stoppedDetails.text);
+				}
+				focussedThread.stoppedDetails.reason === 'exception' ? this.pauseMessageLabel.addClass('exception') : this.pauseMessageLabel.removeClass('exception');
 				this.pauseMessage.show();
 			} else {
 				this.pauseMessage.hide();
@@ -391,7 +415,6 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 	public getActions(): actions.IAction[] {
 		return [
 			this.instantiationService.createInstance(debugactions.AddFunctionBreakpointAction, debugactions.AddFunctionBreakpointAction.ID, debugactions.AddFunctionBreakpointAction.LABEL),
-			this.instantiationService.createInstance(debugactions.ReapplyBreakpointsAction, debugactions.ReapplyBreakpointsAction.ID, debugactions.ReapplyBreakpointsAction.LABEL),
 			this.instantiationService.createInstance(debugactions.ToggleBreakpointsActivatedAction, debugactions.ToggleBreakpointsActivatedAction.ID, debugactions.ToggleBreakpointsActivatedAction.LABEL),
 			this.instantiationService.createInstance(debugactions.RemoveAllBreakpointsAction, debugactions.RemoveAllBreakpointsAction.ID, debugactions.RemoveAllBreakpointsAction.LABEL)
 		];

@@ -15,6 +15,12 @@ export interface IPickOpenEntry {
 	label: string;
 	description?: string;
 	detail?: string;
+	separator?: ISeparator;
+}
+
+export interface ISeparator {
+	border?: boolean;
+	label?: string;
 }
 
 export interface IPickOptions {

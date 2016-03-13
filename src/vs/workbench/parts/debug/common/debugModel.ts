@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
+import strings = require('vs/base/common/strings');
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import ee = require('vs/base/common/eventEmitter');
@@ -22,7 +23,7 @@ function resolveChildren(debugService: debug.IDebugService, parent: debug.IExpre
 	}
 
 	return session.variables({ variablesReference: parent.reference }).then(response => {
-		return arrays.distinct(response.body.variables, v => v.name).map(
+		return arrays.distinct(response.body.variables.filter(v => !!v), v => v.name).map(
 			v => new Variable(parent, v.variablesReference, v.name, v.value)
 		);
 	}, (e: Error) => [new Variable(parent, 0, null, e.message, false)]);
@@ -90,10 +91,10 @@ export function getFullExpressionName(expression: debug.IExpression, sessionType
 
 export class Thread implements debug.IThread {
 
-	public stoppedReason: string;
+	public stoppedDetails: debug.IRawStoppedDetails;
 
 	constructor(public name: string, public threadId, public callStack: debug.IStackFrame[]) {
-		this.stoppedReason = undefined;
+		this.stoppedDetails = undefined;
 	}
 
 	public getId(): string {
@@ -358,7 +359,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 				delete this.threads[reference];
 			} else {
 				this.threads[reference].callStack = [];
-				this.threads[reference].stoppedReason = undefined;
+				this.threads[reference].stoppedDetails = undefined;
 			}
 		} else {
 			if (removeThreads) {
@@ -368,7 +369,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 				for (let ref in this.threads) {
 					if (this.threads.hasOwnProperty(ref)) {
 						this.threads[ref].callStack = [];
-						this.threads[ref].stoppedReason = undefined;
+						this.threads[ref].stoppedDetails = undefined;
 					}
 				}
 			}
@@ -389,10 +390,12 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		return this.exceptionBreakpoints;
 	}
 
-	public setExceptionBreakpoints(data: [{ filter: string, label: string }]): void {
+	public setExceptionBreakpoints(data: [{ filter: string, label: string, default?: boolean }]): void {
 		if (data) {
-			this.exceptionBreakpoints = data.map(d =>
-				new ExceptionBreakpoint(d.filter, d.label, this.exceptionBreakpoints.some(ebp => ebp.filter === d.filter && ebp.enabled)));
+			this.exceptionBreakpoints = data.map(d => {
+				const ebp = this.exceptionBreakpoints.filter(ebp => ebp.filter === d.filter).pop();
+				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : d.default);
+			});
 		}
 	}
 
@@ -498,6 +501,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 
 		// string message
 		if (typeof value === 'string') {
+			value = strings.removeAnsiEscapeCodes(value);
 			if (value && value.trim() && previousOutput && previousOutput.value === value && previousOutput.severity === severity) {
 				previousOutput.counter++; // we got the same output (but not an empty string when trimmed) so we just increment the counter
 			} else {
@@ -520,6 +524,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 	}
 
 	public appendReplOutput(value: string, severity?: severity): void {
+		value = strings.removeAnsiEscapeCodes(value);
 		const elements: OutputElement[] = [];
 		let previousOutput = this.replElements.length && (<ValueOutputElement>this.replElements[this.replElements.length - 1]);
 		let lines = value.split('\n');
@@ -636,7 +641,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 					return new StackFrame(data.threadId, rsf.id, rsf.source ? new Source(rsf.source) : new Source({ name: 'unknown' }), rsf.name, rsf.line, rsf.column);
 				});
 
-			this.threads[data.threadId].stoppedReason = data.stoppedReason;
+			this.threads[data.threadId].stoppedDetails = data.stoppedDetails;
 		}
 
 		this.emit(debug.ModelEvents.CALLSTACK_UPDATED);

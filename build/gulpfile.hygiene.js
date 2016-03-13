@@ -6,7 +6,6 @@
 var gulp = require('gulp');
 var filter = require('gulp-filter');
 var es = require('event-stream');
-var path = require('path');
 var gulptslint = require('gulp-tslint');
 var tslint = require('tslint');
 
@@ -27,6 +26,7 @@ var eolFilter = [
 	'!**/node_modules/**',
 	'!**/fixtures/**',
 	'!**/*.{svg,exe,png,scpt,bat,cmd,cur,ttf,woff,eot}',
+	'!build/{lib,tslintRules}/**/*.js'
 ];
 
 var indentationFilter = [
@@ -55,7 +55,7 @@ var indentationFilter = [
 	'!**/vs/loader.js',
 	'!extensions/**/snippets/**',
 	'!extensions/**/syntaxes/**',
-	'!extensions/**/themes/**',
+	'!extensions/**/themes/**'
 ];
 
 var copyrightFilter = [
@@ -115,11 +115,12 @@ gulp.task('tslint', function () {
 
 	return gulp.src(all, { base: '.' })
 		.pipe(filter(tslintFilter))
-		.pipe(gulptslint({ rulesDirectory: 'build/tslintRules' }))
+		.pipe(gulptslint({ rulesDirectory: 'build/lib/tslint' }))
 		.pipe(gulptslint.report(reporter, options));
 });
 
-var hygiene = exports.hygiene = function (some) {
+var hygiene = exports.hygiene = function (some, options) {
+	options = options || {};
 	var errorCount = 0;
 
 	var eol = es.through(function (file) {
@@ -161,11 +162,11 @@ var hygiene = exports.hygiene = function (some) {
 	});
 
 	var tsl = es.through(function(file) {
-		configuration = tslint.findConfiguration(null, '.');
+		var configuration = tslint.findConfiguration(null, '.');
 		var options = {
 			formatter: 'json',
 			configuration: configuration,
-			rulesDirectory: 'build/tslintRules',
+			rulesDirectory: 'build/lib/tslint',
 		}
 		var contents = file.contents.toString('utf8');
 		var linter = new tslint(file.relative, contents, options);
@@ -180,7 +181,7 @@ var hygiene = exports.hygiene = function (some) {
 	return gulp.src(some || all, { base: '.' })
 		.pipe(filter(function (f) { return !f.stat.isDirectory(); }))
 		.pipe(filter(eolFilter))
-		.pipe(eol)
+		.pipe(options.skipEOL ? es.through() : eol)
 		.pipe(filter(indentationFilter))
 		.pipe(indentation)
 		.pipe(filter(copyrightFilter))
@@ -203,21 +204,25 @@ gulp.task('hygiene', function () {
 // this allows us to run this as a git pre-commit hook
 if (require.main === module) {
 	var cp = require('child_process');
-	cp.exec('git diff --cached --name-only', function (err, out) {
-		if (err) {
-			console.error();
-			console.error(err);
-			process.exit(1);
-		}
+	cp.exec('git config core.autocrlf', function (err, out) {
+		var skipEOL = out.trim() === 'true';
 
-		var some = out
-			.split(/\r?\n/)
-			.filter(function (l) { return !!l; });
+		cp.exec('git diff --cached --name-only', { maxBuffer: 2000 * 1024 }, function (err, out) {
+			if (err) {
+				console.error();
+				console.error(err);
+				process.exit(1);
+			}
 
-		hygiene(some).on('error', function (err) {
-			console.error();
-			console.error(err);
-			process.exit(1);
+			var some = out
+				.split(/\r?\n/)
+				.filter(function (l) { return !!l; });
+
+			hygiene(some, { skipEOL: skipEOL }).on('error', function (err) {
+				console.error();
+				console.error(err);
+				process.exit(1);
+			});
 		});
 	});
 }

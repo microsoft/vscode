@@ -133,6 +133,13 @@ export class WhitespaceComputer {
 		this.prefixSumValidIndex = Math.min(this.prefixSumValidIndex, insertIndex - 1);
 	}
 
+	public changeWhitespace(id:number, newAfterLineNumber:number, newHeight:number): boolean {
+		let hasChanges = false;
+		hasChanges = this.changeWhitespaceHeight(id, newHeight) || hasChanges;
+		hasChanges = this.changeWhitespaceAfterLineNumber(id, newAfterLineNumber) || hasChanges;
+		return hasChanges;
+	}
+
 	/**
 	 * Change the height of an existing whitespace
 	 *
@@ -140,7 +147,7 @@ export class WhitespaceComputer {
 	 * @param newHeightInPx The new height of the whitespace, in pixels
 	 * @return Returns true if the whitespace is found and if the new height is different than the old height
 	 */
-	public changeWhitespace(id:number, newHeightInPx:number): boolean {
+	public changeWhitespaceHeight(id:number, newHeightInPx:number): boolean {
 		var sid = id.toString();
 		if (this.whitespaceId2Index.hasOwnProperty(sid)) {
 			var index = this.whitespaceId2Index[sid];
@@ -160,7 +167,7 @@ export class WhitespaceComputer {
 	 * @param newAfterLineNumber The new line number the whitespace will follow
 	 * @return Returns true if the whitespace is found and if the new line number is different than the old line number
 	 */
-	public changeAfterLineNumberForWhitespace(id:number, newAfterLineNumber:number): boolean {
+	public changeWhitespaceAfterLineNumber(id:number, newAfterLineNumber:number): boolean {
 		var sid = id.toString();
 		if (this.whitespaceId2Index.hasOwnProperty(sid)) {
 			var index = this.whitespaceId2Index[sid];

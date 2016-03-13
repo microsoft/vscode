@@ -19,7 +19,7 @@ suite('SASS - Worker', () => {
 
 	var mockSASSWorkerEnv = function (url:URI, content: string) : { worker: sassWorker.SassWorker; model: mm.MirrorModel } {
 		var resourceService = new ResourceService.ResourceService();
-		var model = mm.createMirrorModelFromString(null, 0, content, EditorCommon.DefaultEndOfLine.LF, modesUtil.createMockMode('mock.mode.id', /(#?-?\d*\.\d\w*%?)|([$@#!]?[\w-?]+%?)|[$@#!]/g), url);
+		var model = mm.createTestMirrorModelFromString(content, modesUtil.createMockMode('mock.mode.id', /(#?-?\d*\.\d\w*%?)|([$@#!]?[\w-?]+%?)|[$@#!]/g), url);
 		resourceService.insert(url, model);
 
 		let services = servicesUtil2.createMockEditorWorkerServices({

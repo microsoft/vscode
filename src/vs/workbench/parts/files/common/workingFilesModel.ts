@@ -371,9 +371,13 @@ export class WorkingFilesModel implements IWorkingFilesModel {
 
 		// Add those that are set to open on startup
 		let options = this.contextService.getOptions();
-		let filesToOpen = (options && options.filesToOpen) || [];
+		let files = (options && options.filesToOpen) || [];
+		if (options && options.filesToDiff) {
+			files.push(...options.filesToDiff);
+		}
+		
 		arrays
-			.distinct(filesToOpen, (r) => r.resource.toString())					// no duplicates
+			.distinct(files, (r) => r.resource.toString())							// no duplicates
 			.map((f) => f.resource)													// just the resource
 			.filter((r) => r.scheme === 'untitled' || this.isOutOfWorkspace(r))		// untitled or out of workspace
 			.forEach((r) => {

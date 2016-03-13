@@ -5,6 +5,7 @@
 'use strict';
 
 import Assert = require('vs/base/common/assert');
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, combinedDispose } from 'vs/base/common/lifecycle';
 import arrays = require('vs/base/common/arrays');
 import { INavigator } from 'vs/base/common/iterator';
@@ -389,7 +390,7 @@ export class Item extends Events.EventEmitter {
 				childrenPromise = WinJS.TPromise.as([]);
 			}
 
-			return childrenPromise.then((elements: any[]) => {
+			const result = childrenPromise.then((elements: any[]) => {
 				elements = !elements ? [] : elements.slice(0);
 				elements = this.sort(elements);
 
@@ -424,9 +425,11 @@ export class Item extends Events.EventEmitter {
 				} else {
 					return WinJS.TPromise.as(null);
 				}
-			}).then(() => {
-				this.emit('item:childrenRefreshed', eventData);
 			});
+
+			return result
+				.then(null, onUnexpectedError)
+				.then(() => this.emit('item:childrenRefreshed', eventData));
 		};
 
 		return safe ? doRefresh() : this.lock.run(this, doRefresh);

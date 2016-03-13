@@ -79,10 +79,12 @@ if (!!process.send && process.env.PIPE_LOGGING === 'true') {
 	// Pass console logging to the outside so that we have it in the main side if told so
 	if (process.env.VERBOSE_LOGGING === 'true') {
 		console.log = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeStringify(arguments) }); };
+		console.info = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeStringify(arguments) }); };
 		console.warn = function () { safeSend({ type: '__$console', severity: 'warn', arguments: safeStringify(arguments) }); };
 	} else {
 		console.log = function () { /* ignore */ };
 		console.warn = function () { /* ignore */ };
+		console.info = function () { /* ignore */ };
 	}
 
 	console.error = function () { safeSend({ type: '__$console', severity: 'error', arguments: safeStringify(arguments) }); };
@@ -92,7 +94,7 @@ if (!!process.send && process.env.PIPE_LOGGING === 'true') {
 // error when we are inside a forked process and this process tries to access those channels.
 var stream = require('stream');
 var writable = new stream.Writable({
-	write: function (chunk, encoding, next) { /* No OP */ }
+	write: function () { /* No OP */ }
 });
 
 process.__defineGetter__('stdout', function() { return writable; });

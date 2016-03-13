@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {Disposable, IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import {IframeUtils} from 'vs/base/browser/iframe';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
@@ -37,7 +37,7 @@ export function standardMouseMoveMerger(lastEvent:IStandardMouseMoveEventData, c
 	};
 }
 
-export class GlobalMouseMoveMonitor<R> implements IDisposable {
+export class GlobalMouseMoveMonitor<R> extends Disposable {
 
 	private hooks:IDisposable[];
 	private mouseMoveEventMerger:IEventMerger<R>;
@@ -45,6 +45,7 @@ export class GlobalMouseMoveMonitor<R> implements IDisposable {
 	private onStopCallback:IOnStopCallback;
 
 	constructor() {
+		super();
 		this.hooks = [];
 		this.mouseMoveEventMerger = null;
 		this.mouseMoveCallback = null;
@@ -53,6 +54,7 @@ export class GlobalMouseMoveMonitor<R> implements IDisposable {
 
 	public dispose(): void {
 		this.stopMonitoring(false);
+		super.dispose();
 	}
 
 	public stopMonitoring(invokeStopCallback:boolean): void {

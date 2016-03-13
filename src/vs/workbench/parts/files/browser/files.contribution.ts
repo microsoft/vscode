@@ -8,7 +8,6 @@
 import 'vs/css!./media/files.contribution';
 
 import URI from 'vs/base/common/uri';
-import {SUPPORTED_ENCODINGS} from 'vs/base/common/bits/encoding';
 import {ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction} from 'vs/workbench/browser/viewlet';
 import nls = require('vs/nls');
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
@@ -22,14 +21,14 @@ import {IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory} fr
 import {EditorInput, IFileEditorInput} from 'vs/workbench/common/editor';
 import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions} from 'vs/workbench/browser/quickopen';
 import {FileEditorDescriptor} from 'vs/workbench/parts/files/browser/files';
-import {AutoSaveConfiguration} from 'vs/platform/files/common/files';
+import {AutoSaveConfiguration, SUPPORTED_ENCODINGS} from 'vs/platform/files/common/files';
 import {FILE_EDITOR_INPUT_ID, VIEWLET_ID} from 'vs/workbench/parts/files/common/files';
 import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
 import {SaveParticipant} from 'vs/workbench/parts/files/common/editors/saveParticipant';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {TextFileEditor} from 'vs/workbench/parts/files/browser/editors/textFileEditor';
 import {BinaryFileEditor} from 'vs/workbench/parts/files/browser/editors/binaryFileEditor';
-import {IInstantiationService, INullService} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {SyncDescriptor, AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
@@ -130,7 +129,7 @@ interface ISerializedFileInput {
 // Register Editor Input Factory
 class FileEditorInputFactory implements IEditorInputFactory {
 
-	constructor(@INullService ns) { }
+	constructor() { }
 
 	public serialize(editorInput: EditorInput): string {
 		let fileEditorInput = <FileEditorInput>editorInput;
@@ -171,7 +170,6 @@ configurationRegistry.registerConfiguration({
 	'type': 'object',
 	'properties': {
 		'files.exclude': {
-			'id': 'glob-pattern',
 			'type': 'object',
 			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders."),
 			'default': { '**/.git': true, '**/.DS_Store': true },
@@ -194,6 +192,10 @@ configurationRegistry.registerConfiguration({
 					}
 				]
 			}
+		},
+		'files.associations': {
+			'type': 'object',
+			'description': nls.localize('associations', "Configure file associations to languages (e.g. \"*.extension\": \"html\"). These have precedence over the default associations of the languages installed."),
 		},
 		'files.encoding': {
 			'type': 'string',
@@ -225,6 +227,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'number',
 			'default': 1000,
 			'description': nls.localize('autoSaveDelay', "Controls the delay in ms after which a dirty file is saved automatically. Only applies when \"files.autoSave\" is set to \"{0}\"", AutoSaveConfiguration.AFTER_DELAY)
+		},
+		'files.watcherExclude': {
+			'type': 'object',
+			'default': (platform.isLinux || platform.isMacintosh) ? { '**/.git/objects/**': true, '**/node_modules/**': true } : { '**/.git/objects/**': true },
+			'description': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Changing this setting requires a restart. When you experience Code consuming lots of cpu time on startup, you can exclude large folders to reduce the initial load.")
 		}
 	}
 });

@@ -9,8 +9,8 @@
 	},
 	"scripts": {
 		"compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
-		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../gulpfile.plugins.js compile-plugin:vscode-api-tests ./tsconfig.json",
-        "postinstall": "node ./node_modules/vscode/bin/install"
+		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-api-tests ./tsconfig.json",
+		"postinstall": "node ./node_modules/vscode/bin/install"
 	},
 	"devDependencies": {
 		"typescript": "^1.6.2",

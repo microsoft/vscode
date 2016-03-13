@@ -135,7 +135,7 @@ export class ViewLine implements IVisibleLineData {
 
 		let r = renderLine({
 			lineContent: this._context.model.getLineContent(lineNumber),
-			tabSize: this._context.configuration.getIndentationOptions().tabSize,
+			tabSize: this._context.model.getTabSize(),
 			stopRenderingLineAfter: this._context.configuration.editor.stopRenderingLineAfter,
 			renderWhitespace: this._context.configuration.editor.renderWhitespace,
 			parts: lineParts.getParts()

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*global require,exports,process,Buffer*/
-
 var es = require('event-stream');
 var debounce = require('debounce');
 var filter = require('gulp-filter');
@@ -254,7 +252,9 @@ exports.loadSourcemaps = function () {
 
 exports.rimraf = function(dir) {
 	return function (cb) {
-		rimraf(dir, cb);
+		rimraf(dir, {
+			maxBusyTries: 1
+		}, cb);
 	};
 };
 
@@ -266,4 +266,11 @@ exports.getVersion = function (root) {
 	}
 
 	return version;
+};
+
+exports.rebase = function (count) {
+	return rename(function (f) {
+		var parts = f.dirname.split(/[\/\\]/);
+		f.dirname = parts.slice(count).join(path.sep);
+	});
 };

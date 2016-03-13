@@ -223,12 +223,12 @@ export function isUNC(path: string): boolean {
 	return path[0] === nativeSep && path[1] === nativeSep;
 }
 
-export function isAbsolute(path: string): boolean {
+function isPosixAbsolute(path: string): boolean {
 	return path && path[0] === '/';
 }
 
 export function makeAbsolute(path: string, isPathNormalized?: boolean): string {
-	return isAbsolute(!isPathNormalized ? normalize(path) : path) ? path : sep + path;
+	return isPosixAbsolute(!isPathNormalized ? normalize(path) : path) ? path : sep + path;
 }
 
 export function isRelative(path: string): boolean {
@@ -305,4 +305,14 @@ export function isValidBasename(name: string): boolean {
 	}
 
 	return true;
+}
+
+export const isAbsoluteRegex = /^((\/|[a-zA-Z]:\\)[^\(\)<>\\'\"\[\]]+)/;
+
+/**
+ * If you have access to node, it is recommended to use node's path.isAbsolute().
+ * This is a simple regex based approach.
+ */
+export function isAbsolute(path: string): boolean {
+	return isAbsoluteRegex.test(path);
 }

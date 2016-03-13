@@ -5,10 +5,16 @@
 'use strict';
 
 import Severity from 'vs/base/common/severity';
+import URI from 'vs/base/common/uri';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {ConfigurationService, IContent, IStat} from 'vs/platform/configuration/common/configurationService';
 import {IContextMenuService, IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
+import {EventService} from 'vs/platform/event/common/eventService';
+import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
@@ -16,8 +22,6 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingServic
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {AbstractPluginService, ActivatedPlugin} from 'vs/platform/plugins/common/abstractPluginService';
-import {IPluginService} from 'vs/platform/plugins/common/plugins';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {ISearchService} from 'vs/platform/search/common/search';
@@ -25,21 +29,17 @@ import {IStorageService} from 'vs/platform/storage/common/storage';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
 import {IThreadService} from 'vs/platform/thread/common/thread';
+import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {ModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
-import {TPromise} from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
-import {ConfigurationService, IContent, IStat} from 'vs/platform/configuration/common/configurationService';
-import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
-import {EventService} from 'vs/platform/event/common/eventService';
 
 export interface IMockPlatformServices {
 	threadService?:IThreadService;
-	pluginService?:IPluginService;
+	extensionService?:IExtensionService;
 	instantiationService?:IInstantiationService;
 	lifecycleService?: ILifecycleService;
 	messageService?:IMessageService;
@@ -62,7 +62,7 @@ export interface IMockPlatformServices {
 function createMockPlatformServices(mockPlatformServices:IMockPlatformServices = {}): any {
 	return {
 		threadService: mockPlatformServices.threadService,
-		pluginService: mockPlatformServices.pluginService,
+		extensionService: mockPlatformServices.extensionService,
 		instantiationService: mockPlatformServices.instantiationService,
 		lifecycleService: mockPlatformServices.lifecycleService,
 		messageService: mockPlatformServices.messageService,
@@ -99,7 +99,7 @@ export function createMockEditorWorkerServices(mockEditorWorkerServices: IMockEd
 }
 
 class MockModeService extends ModeServiceImpl {}
-class MockPluginService extends AbstractPluginService<ActivatedPlugin> {
+class MockExtensionService extends AbstractExtensionService<ActivatedExtension> {
 	constructor() {
 		super(true);
 	}
@@ -120,16 +120,11 @@ class MockPluginService extends AbstractPluginService<ActivatedPlugin> {
 		}
 	}
 
-	public deactivate(pluginId: string): void {
-		// nothing to do
-	}
-
-
-	protected _createFailedPlugin(): any {
+	protected _createFailedExtension(): any {
 		throw new Error('not implemented');
 	}
 
-	protected _actualActivatePlugin(pluginDescription): any {
+	protected _actualActivateExtension(extensionDescription): any {
 		throw new Error('not implemented');
 	}
 }
@@ -138,11 +133,11 @@ class MockModelService extends ModelServiceImpl { }
 
 export function createMockModeService(): IModeService {
 	var threadService = NULL_THREAD_SERVICE;
-	var pluginService = new MockPluginService();
-	var modeService = new MockModeService(threadService, pluginService);
+	var extensionService = new MockExtensionService();
+	var modeService = new MockModeService(threadService, extensionService);
 	var inst = createInstantiationService({
 		threadService: threadService,
-		pluginService: pluginService,
+		extensionService: extensionService,
 		modeService: modeService
 	});
 	threadService.setInstantiationService(inst);
@@ -160,12 +155,12 @@ export function createMockModelService(): IModelService {
 	let eventService = new EventService();
 	let configurationService = new MockConfigurationService(contextService, eventService);
 	var threadService = NULL_THREAD_SERVICE;
-	var pluginService = new MockPluginService();
-	var modeService = new MockModeService(threadService, pluginService);
-	var modelService = new MockModelService(threadService, null, modeService, configurationService);
+	var extensionService = new MockExtensionService();
+	var modeService = new MockModeService(threadService, extensionService);
+	var modelService = new MockModelService(threadService, null, modeService, configurationService, null);
 	var inst = createInstantiationService({
 		threadService: threadService,
-		pluginService: pluginService,
+		extensionService: extensionService,
 		modeService: modeService,
 		contextService: contextService,
 		eventService: eventService,

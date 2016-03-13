@@ -17,7 +17,6 @@ testTokenization('python', language, [
 		{ startIndex: 3, type: 'white.python' },
 		{ startIndex: 4, type: 'identifier.python' },
 		{ startIndex: 8, type: 'delimiter.parenthesis.python' },
-		{ startIndex: 9, type: 'delimiter.parenthesis.python' },
 		{ startIndex: 10, type: 'delimiter.python' }
 	]}],
 

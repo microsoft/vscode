@@ -13,7 +13,7 @@ import {Range as CodeEditorRange} from 'vs/editor/common/core/range';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 
 
-suite("PluginHostDocument", () => {
+suite("ExtHostDocument", () => {
 
 	let data: ExtHostDocumentData;
 
@@ -192,7 +192,7 @@ enum AssertDocumentLineMappingDirection {
 	PositionToOffset
 }
 
-suite("PluginHostDocument updates line mapping", () => {
+suite("ExtHostDocument updates line mapping", () => {
 
 	function positionToStr(position: { line: number; character: number;}): string {
 		return '(' + position.line + ',' + position.character + ')';

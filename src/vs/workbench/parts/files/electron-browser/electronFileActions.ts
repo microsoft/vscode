@@ -16,14 +16,13 @@ import severity from 'vs/base/common/severity';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {asFileEditorInput} from 'vs/workbench/common/editor';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 
 import {ipcRenderer as ipc, shell, clipboard} from 'electron';
 
 export class RevealInOSAction extends Action {
 	private resource: uri;
 
-	constructor(resource: uri, @INullService ns) {
+	constructor(resource: uri) {
 		super('workbench.action.files.revealInWindows', platform.isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : (platform.isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder")));
 
 		this.resource = resource;
@@ -67,7 +66,7 @@ export class GlobalRevealInOSAction extends Action {
 export class CopyPathAction extends Action {
 	private resource: uri;
 
-	constructor(resource: uri, @INullService ns) {
+	constructor(resource: uri) {
 		super('workbench.action.files.copyPath', nls.localize('copyPath', "Copy Path"));
 
 		this.resource = resource;
@@ -131,7 +130,7 @@ export const OPEN_FILE_LABEL = nls.localize('openFile', "Open File...");
 
 export class OpenFileAction extends BaseOpenAction {
 
-	constructor(id: string, label: string, @INullService ns) {
+	constructor(id: string, label: string) {
 		super(id, label, 'vscode:openFilePicker');
 	}
 }
@@ -141,7 +140,7 @@ export const OPEN_FOLDER_LABEL = nls.localize('openFolder', "Open Folder...");
 
 export class OpenFolderAction extends BaseOpenAction {
 
-	constructor(id: string, label: string, @INullService ns) {
+	constructor(id: string, label: string) {
 		super(id, label, 'vscode:openFolderPicker');
 	}
 
@@ -152,7 +151,7 @@ export const OPEN_FILE_FOLDER_LABEL = nls.localize('openFileFolder', "Open...");
 
 export class OpenFileFolderAction extends BaseOpenAction {
 
-	constructor(id: string, label: string, @INullService ns) {
+	constructor(id: string, label: string) {
 		super(id, label, 'vscode:openFileFolderPicker');
 	}
 }

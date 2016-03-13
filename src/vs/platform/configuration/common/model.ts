@@ -221,8 +221,9 @@ function addIndent(str: string): string {
 	return str.split('\n').join('\n\t');
 }
 
-function getDefaultValue(type: string): any {
-	switch (type) {
+function getDefaultValue(type: string | string[]): any {
+	let t = Array.isArray(type) ? (<string[]> type)[0] : <string> type;
+	switch (t) {
 		case 'boolean':
 			return false;
 		case 'integer':

@@ -51,6 +51,7 @@ export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 	_headElement:HTMLDivElement;
 	_primaryHeading:HTMLElement;
 	_secondaryHeading:HTMLElement;
+	_metaHeading:HTMLElement;
 	_actionbarWidget:ActionBar;
 	_bodyElement:HTMLDivElement;
 
@@ -99,6 +100,7 @@ export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 
 		this._primaryHeading = $('span.filename').appendTo(titleElement).getHTMLElement();
 		this._secondaryHeading = $('span.dirname').appendTo(titleElement).getHTMLElement();
+		this._metaHeading = $('span.meta').appendTo(titleElement).getHTMLElement();
 
 		this._actionbarWidget = new ActionBar(
 			$('.peekview-actions').
@@ -122,6 +124,14 @@ export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 			$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
 		} else {
 			dom.clearNode(this._secondaryHeading);
+		}
+	}
+
+	public setMetaTitle(value: string): void {
+		if (value) {
+			$(this._metaHeading).safeInnerHtml(value);
+		} else {
+			dom.clearNode(this._metaHeading);
 		}
 	}
 

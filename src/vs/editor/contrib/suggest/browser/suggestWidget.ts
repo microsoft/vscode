@@ -7,6 +7,7 @@
 
 import 'vs/css!./suggest';
 import * as nls from 'vs/nls';
+import * as strings from 'vs/base/common/strings';
 import {isPromiseCanceledError, onUnexpectedError} from 'vs/base/common/errors';
 import Event, { Emitter } from 'vs/base/common/event';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
@@ -25,6 +26,7 @@ import {ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWi
 import {CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY, SuggestRegistry} from '../common/suggest';
 import {CompletionItem, CompletionModel} from './completionModel';
 import {ICancelEvent, ISuggestEvent, ITriggerEvent, SuggestModel} from './suggestModel';
+import {alert} from 'vs/base/browser/ui/aria/aria';
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
@@ -75,12 +77,16 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 		const data = <ISuggestionTemplateData>templateData;
 		const suggestion = (<CompletionItem>element).suggestion;
 
+		if (suggestion.documentationLabel) {
+			data.root.setAttribute('aria-label', nls.localize('suggestionWithDetailsAriaLabel', "{0}, suggestion, has details", suggestion.label));
+		} else {
+			data.root.setAttribute('aria-label', nls.localize('suggestionAriaLabel', "{0}, suggestion", suggestion.label));
+		}
+
 		if (suggestion.type && suggestion.type.charAt(0) === '#') {
-			data.root.setAttribute('aria-label', 'color');
 			data.icon.className = 'icon customcolor';
 			data.colorspan.style.backgroundColor = suggestion.type.substring(1);
 		} else {
-			data.root.setAttribute('aria-label', suggestion.type);
 			data.icon.className = 'icon ' + suggestion.type;
 			data.colorspan.style.backgroundColor = '';
 		}
@@ -178,6 +184,7 @@ class SuggestionDetails {
 	private body: HTMLElement;
 	private type: HTMLElement;
 	private docs: HTMLElement;
+	private ariaLabel:string;
 
 	constructor(container: HTMLElement, private widget: SuggestWidget) {
 		this.el = append(container, $('.details'));
@@ -190,6 +197,8 @@ class SuggestionDetails {
 		append(this.el, this.scrollable.getDomNode());
 		this.type = append(this.body, $('p.type'));
 		this.docs = append(this.body, $('p.docs'));
+
+		this.ariaLabel = null;
 	}
 
 	get element() {
@@ -201,6 +210,7 @@ class SuggestionDetails {
 			this.title.textContent = '';
 			this.type.textContent = '';
 			this.docs.textContent = '';
+			this.ariaLabel = null;
 			return;
 		}
 
@@ -219,6 +229,12 @@ class SuggestionDetails {
 
 		this.scrollable.onElementDimensions();
 		this.scrollable.onElementInternalDimensions();
+
+		this.ariaLabel = strings.format('{0}\n{1}\n{2}', item.suggestion.label, item.suggestion.typeLabel, item.suggestion.documentationLabel);
+	}
+
+	getAriaLabel(): string {
+		return this.ariaLabel;
 	}
 
 	scrollDown(much = 8): void {
@@ -329,6 +345,20 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.onModelModeChanged();
 		this.editor.addContentWidget(this);
 		this.setState(State.Hidden);
+
+		// TODO@Alex: this is useful, but spammy
+		// var isVisible = false;
+		// this.onDidVisibilityChange((newIsVisible) => {
+		// 	if (isVisible === newIsVisible) {
+		// 		return;
+		// 	}
+		// 	isVisible = newIsVisible;
+		// 	if (isVisible) {
+		// 		alert(nls.localize('suggestWidgetAriaVisible', "Suggestions opened"));
+		// 	} else {
+		// 		alert(nls.localize('suggestWidgetAriaInvisible', "Suggestions closed"));
+		// 	}
+		// });
 	}
 
 	private onCursorSelectionChanged(): void {
@@ -364,8 +394,29 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			const overwriteAfter = (typeof item.suggestion.overwriteAfter === 'undefined') ? 0 : Math.max(0, item.suggestion.overwriteAfter);
 			this.model.accept(item.suggestion, overwriteBefore, overwriteAfter);
 
+			alert(nls.localize('suggestionAriaAccepted', "{0}, accepted", item.suggestion.label));
+
 			this.editor.focus();
 		}, 0);
+	}
+
+	private _getSuggestionAriaAlertLabel(item:CompletionItem): string {
+		if (item.suggestion.documentationLabel) {
+			return nls.localize('ariaCurrentSuggestionWithDetails',"{0}, suggestion, has details", item.suggestion.label);
+		} else {
+			return nls.localize('ariaCurrentSuggestion',"{0}, suggestion", item.suggestion.label);
+		}
+	}
+
+	private _lastAriaAlertLabel: string;
+	private _ariaAlert(newAriaAlertLabel:string): void {
+		if (this._lastAriaAlertLabel === newAriaAlertLabel) {
+			return;
+		}
+		this._lastAriaAlertLabel = newAriaAlertLabel;
+		if (this._lastAriaAlertLabel) {
+			alert(this._lastAriaAlertLabel);
+		}
 	}
 
 	private onListFocus(e: IFocusChangeEvent<CompletionItem>): void {
@@ -375,10 +426,22 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		}
 
 		if (!e.elements.length) {
+			this._ariaAlert(null);
+
+			// TODO@Alex: Chromium bug
+			// this.editor.setAriaActiveDescendant(null);
+
 			return;
 		}
 
 		const item = e.elements[0];
+		this._ariaAlert(this._getSuggestionAriaAlertLabel(item));
+
+		// TODO@Alex: Chromium bug
+		// // TODO@Alex: the list is not done rendering...
+		// setTimeout(() => {
+		// 	this.editor.setAriaActiveDescendant(this.list.getElementId(e.indexes[0]));
+		// }, 100);
 
 		if (item === this.focusedItem) {
 			return;
@@ -401,6 +464,8 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 				this.list.setFocus(index);
 				this.updateWidgetHeight();
 				this.list.reveal(index);
+
+				this._ariaAlert(this._getSuggestionAriaAlertLabel(item));
 			})
 			.then(null, err => !isPromiseCanceledError(err) && onUnexpectedError(err))
 			.then(() => this.currentSuggestionDetails = null);
@@ -453,6 +518,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 				hide(this.messageElement, this.listElement);
 				show(this.details.element);
 				this.show();
+				this._ariaAlert(this.details.getAriaLabel());
 				break;
 		}
 

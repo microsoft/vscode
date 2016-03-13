@@ -259,7 +259,13 @@ export class MirrorModelEmbedded extends AbstractMirrorModel implements editorCo
 			endColumn: lastColumn
 		}, ' ');
 
-		return TextModel.toRawText(resultingText, actualModel.toRawText().defaultEOL);
+		let actualModelOptions = actualModel.getOptions();
+		return TextModel.toRawText(resultingText, {
+			tabSize: actualModelOptions.tabSize,
+			insertSpaces: actualModelOptions.insertSpaces,
+			detectIndentation: false,
+			defaultEOL: actualModelOptions.defaultEOL
+		});
 	}
 
 	public setIncludedRanges(newIncludedRanges:editorCommon.IRange[]): void {
@@ -287,8 +293,8 @@ class EmbeddedModeRange {
 	}
 }
 
-export function createMirrorModelFromString(resourceService:IResourceService, versionId:number, value:string, defaultEOL: editorCommon.DefaultEndOfLine, mode:IMode, associatedResource?:URI): MirrorModel {
-	return new MirrorModel(resourceService, versionId, TextModel.toRawText(value, defaultEOL), mode, associatedResource);
+export function createTestMirrorModelFromString(value:string, mode:IMode = null, associatedResource?:URI): MirrorModel {
+	return new MirrorModel(null, 0, TextModel.toRawText(value, TextModel.DEFAULT_CREATION_OPTIONS), mode, associatedResource);
 }
 
 export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMirrorModel {

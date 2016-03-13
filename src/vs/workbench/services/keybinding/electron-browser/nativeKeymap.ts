@@ -5,7 +5,7 @@
 'use strict';
 
 import * as nativeKeymap from 'native-keymap';
-import {KeyCode, IKeyBindingLabelProvider, MacUIKeyLabelProvider, ClassicUIKeyLabelProvider} from 'vs/base/common/keyCodes';
+import {KeyCode, IKeyBindingLabelProvider, MacUIKeyLabelProvider, ClassicUIKeyLabelProvider, AriaKeyLabelProvider} from 'vs/base/common/keyCodes';
 import {lookupKeyCode, setExtractKeyCode} from 'vs/base/browser/keyboardEvent';
 import Platform = require('vs/base/common/platform');
 
@@ -331,9 +331,32 @@ setExtractKeyCode((e:KeyboardEvent) => {
 	return lookupKeyCode(e);
 });
 
+let nativeAriaLabelProvider:IKeyBindingLabelProvider = null;
+export function getNativeAriaLabelProvider(): IKeyBindingLabelProvider {
+	if (!nativeAriaLabelProvider) {
+		let remaps = getNativeLabelProviderRemaps();
+		nativeAriaLabelProvider = new NativeAriaKeyLabelProvider(remaps);
+	}
+	return nativeAriaLabelProvider;
+}
+
 let nativeLabelProvider:IKeyBindingLabelProvider = null;
 export function getNativeLabelProvider(): IKeyBindingLabelProvider {
 	if (!nativeLabelProvider) {
+		let remaps = getNativeLabelProviderRemaps();
+
+		if (Platform.isMacintosh) {
+			nativeLabelProvider = new NativeMacUIKeyLabelProvider(remaps);
+		} else {
+			nativeLabelProvider = new NativeClassicUIKeyLabelProvider(remaps);
+		}
+	}
+	return nativeLabelProvider;
+}
+
+let nativeLabelRemaps: string[] = null;
+function getNativeLabelProviderRemaps(): string[] {
+	if (!nativeLabelRemaps) {
 		// See https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
 		// See https://github.com/Microsoft/node-native-keymap/blob/master/deps/chromium/keyboard_codes_win.h
 		let interestingKeyCodes:{[vkeyCode:string]:boolean;} = {
@@ -352,9 +375,9 @@ export function getNativeLabelProvider(): IKeyBindingLabelProvider {
 			VKEY_OEM_102: true,
 		};
 
-		let remaps:string[] = [];
+		nativeLabelRemaps = [];
 		for (let i = 0, len = KeyCode.MAX_VALUE; i < len; i++) {
-			remaps[i] = null;
+			nativeLabelRemaps[i] = null;
 		}
 
 		let nativeMappings = getNativeKeymap();
@@ -366,7 +389,7 @@ export function getNativeLabelProvider(): IKeyBindingLabelProvider {
 				let newValue = nativeMapping.value || nativeMapping.withShift;
 				if (newValue.length > 0) {
 					hadRemap = true;
-					remaps[NATIVE_KEY_CODE_TO_KEY_CODE[nativeMapping.key_code]] = newValue;
+					nativeLabelRemaps[NATIVE_KEY_CODE_TO_KEY_CODE[nativeMapping.key_code]] = newValue;
 				} else {
 					// console.warn('invalid remap for ', nativeMapping);
 				}
@@ -377,18 +400,13 @@ export function getNativeLabelProvider(): IKeyBindingLabelProvider {
 			for (let interestingKeyCode in interestingKeyCodes) {
 				if (interestingKeyCodes.hasOwnProperty(interestingKeyCode)) {
 					let keyCode = NATIVE_KEY_CODE_TO_KEY_CODE[interestingKeyCode];
-					remaps[keyCode] = remaps[keyCode] || '';
+					nativeLabelRemaps[keyCode] = nativeLabelRemaps[keyCode] || '';
 				}
 			}
 		}
-
-		if (Platform.isMacintosh) {
-			nativeLabelProvider = new NativeMacUIKeyLabelProvider(remaps);
-		} else {
-			nativeLabelProvider = new NativeClassicUIKeyLabelProvider(remaps);
-		}
 	}
-	return nativeLabelProvider;
+	return nativeLabelRemaps;
+
 }
 
 class NativeMacUIKeyLabelProvider extends MacUIKeyLabelProvider {
@@ -405,6 +423,19 @@ class NativeMacUIKeyLabelProvider extends MacUIKeyLabelProvider {
 }
 
 class NativeClassicUIKeyLabelProvider extends ClassicUIKeyLabelProvider {
+	constructor(private remaps:string[]) {
+		super();
+	}
+
+	public getLabelForKey(keyCode:KeyCode): string {
+		if (this.remaps[keyCode] !== null) {
+			return this.remaps[keyCode];
+		}
+		return super.getLabelForKey(keyCode);
+	}
+}
+
+class NativeAriaKeyLabelProvider extends AriaKeyLabelProvider {
 	constructor(private remaps:string[]) {
 		super();
 	}

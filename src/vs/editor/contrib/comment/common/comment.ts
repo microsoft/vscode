@@ -7,7 +7,6 @@
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {ICommand, ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
@@ -20,16 +19,20 @@ class CommentLineAction extends EditorAction {
 
 	private _type: Type;
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, type: Type, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, type: Type) {
 		super(descriptor, editor);
 		this._type = type;
 	}
 
 	public run(): TPromise<void> {
+		let model = this.editor.getModel();
+		if (!model) {
+			return;
+		}
 
 		var commands: ICommand[] = [];
 		var selections = this.editor.getSelections();
-		var opts = this.editor.getIndentationOptions();
+		var opts = model.getOptions();
 
 		for (var i = 0; i < selections.length; i++) {
 			commands.push(new LineCommentCommand(selections[i], opts.tabSize, this._type));
@@ -45,8 +48,8 @@ class ToggleCommentLineAction extends CommentLineAction {
 
 	static ID = 'editor.action.commentLine';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, Type.Toggle, ns);
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
+		super(descriptor, editor, Type.Toggle);
 	}
 }
 
@@ -54,8 +57,8 @@ class AddLineCommentAction extends CommentLineAction {
 
 	static ID = 'editor.action.addCommentLine';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, Type.ForceAdd, ns);
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
+		super(descriptor, editor, Type.ForceAdd);
 	}
 
 }
@@ -64,8 +67,8 @@ class RemoveLineCommentAction extends CommentLineAction {
 
 	static ID = 'editor.action.removeCommentLine';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, Type.ForceRemove, ns);
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
+		super(descriptor, editor, Type.ForceRemove);
 	}
 
 }
@@ -74,7 +77,7 @@ class BlockCommentAction extends EditorAction {
 
 	static ID = 'editor.action.blockComment';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor);
 	}
 

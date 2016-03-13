@@ -7,9 +7,6 @@
 
 import 'vs/css!./media/shell';
 
-import 'vs/css!vs/editor/css/vs-theme';
-import 'vs/css!vs/editor/css/vs-dark-theme';
-import 'vs/css!vs/editor/css/hc-black-theme';
 import 'vs/css!vs/workbench/browser/media/vs-theme';
 import 'vs/css!vs/workbench/browser/media/vs-dark-theme';
 import 'vs/css!vs/workbench/browser/media/hc-black-theme';
@@ -53,7 +50,7 @@ import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {EditorWorkerServiceImpl} from 'vs/editor/common/services/editorWorkerServiceImpl';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {MainProcessVSCodeAPIHelper} from 'vs/workbench/api/node/extHost.api.impl';
-import {MainProcessPluginService} from 'vs/platform/plugins/common/nativePluginService';
+import {MainProcessExtensionService} from 'vs/platform/extensions/common/nativeExtensionService';
 import {MainThreadDocuments} from 'vs/workbench/api/node/extHostDocuments';
 import {MainProcessTextMateSyntax} from 'vs/editor/node/textMate/TMSyntax';
 import {MainProcessTextMateSnippet} from 'vs/editor/node/textMate/TMSnippets';
@@ -91,7 +88,7 @@ import {IRequestService} from 'vs/platform/request/common/request';
 import {ISearchService} from 'vs/platform/search/common/search';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IWorkspaceContextService, IConfiguration, IWorkspace} from 'vs/platform/workspace/common/workspace';
-import {IPluginService} from 'vs/platform/plugins/common/plugins';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceImpl';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -176,7 +173,7 @@ export class WorkbenchShell {
 		this.workbench = new Workbench(workbenchContainer.getHTMLElement(), this.workspace, this.configuration, this.options, instantiationService);
 		this.workbench.startup({
 			onServicesCreated: () => {
-				this.initPluginSystem();
+				this.initExtensionSystem();
 			},
 			onWorkbenchStarted: () => {
 				this.onWorkbenchStarted();
@@ -231,7 +228,7 @@ export class WorkbenchShell {
 
 		this.windowService = new WindowService();
 
-		let disableWorkspaceStorage = this.configuration.env.pluginTestsPath || (!this.workspace && !this.configuration.env.pluginDevelopmentPath); // without workspace or in any plugin test, we use inMemory storage unless we develop a plugin where we want to preserve state
+		let disableWorkspaceStorage = this.configuration.env.extensionTestsPath || (!this.workspace && !this.configuration.env.extensionDevelopmentPath); // without workspace or in any extension test, we use inMemory storage unless we develop an extension where we want to preserve state
 		this.storageService = new Storage(this.contextService, window.localStorage, disableWorkspaceStorage ? inMemoryLocalStorageInstance : window.localStorage);
 
 		let configService = new ConfigurationService(
@@ -239,11 +236,11 @@ export class WorkbenchShell {
 			eventService
 		);
 
-		// no telemetry in a window for plugin development!
-		let enableTelemetry = this.configuration.env.isBuilt && !this.configuration.env.pluginDevelopmentPath ? !!this.configuration.env.enableTelemetry : false;
+		// no telemetry in a window for extension development!
+		let enableTelemetry = this.configuration.env.isBuilt && !this.configuration.env.extensionDevelopmentPath ? !!this.configuration.env.enableTelemetry : false;
 		this.telemetryService = new ElectronTelemetryService(configService, this.storageService, { enableTelemetry: enableTelemetry, version: this.configuration.env.version, commitHash: this.configuration.env.commitHash });
 
-		this.keybindingService = new WorkbenchKeybindingService(this.contextService, eventService, this.telemetryService, <any>window);
+		this.keybindingService = new WorkbenchKeybindingService(configService, this.contextService, eventService, this.telemetryService, <any>window);
 
 		this.messageService = new MessageService(this.contextService, this.windowService, this.telemetryService, this.keybindingService);
 		this.keybindingService.setMessageService(this.messageService);
@@ -271,15 +268,15 @@ export class WorkbenchShell {
 
 		let markerService = new MainProcessMarkerService(this.threadService);
 
-		let pluginService = new MainProcessPluginService(this.contextService, this.threadService, this.messageService, this.telemetryService);
-		this.keybindingService.setPluginService(pluginService);
+		let extensionService = new MainProcessExtensionService(this.contextService, this.threadService, this.messageService, this.telemetryService);
+		this.keybindingService.setExtensionService(extensionService);
 
-		let modeService = new MainThreadModeServiceImpl(this.threadService, pluginService);
-		let modelService = new ModelServiceImpl(this.threadService, markerService, modeService, configService);
+		let modeService = new MainThreadModeServiceImpl(this.threadService, extensionService, configService);
+		let modelService = new ModelServiceImpl(this.threadService, markerService, modeService, configService, this.messageService);
 		let editorWorkerService = new EditorWorkerServiceImpl(modelService);
 
 		let untitledEditorService = new UntitledEditorService();
-		this.themeService = new ThemeService(pluginService);
+		this.themeService = new ThemeService(extensionService);
 
 		let result = createInstantiationService();
 		result.addSingleton(ITelemetryService, this.telemetryService);
@@ -292,7 +289,7 @@ export class WorkbenchShell {
 		result.addSingleton(IStorageService, this.storageService);
 		result.addSingleton(ILifecycleService, lifecycleService);
 		result.addSingleton(IThreadService, this.threadService);
-		result.addSingleton(IPluginService, pluginService);
+		result.addSingleton(IExtensionService, extensionService);
 		result.addSingleton(IModeService, modeService);
 		result.addSingleton(IFileService, fileService);
 		result.addSingleton(IUntitledEditorService, untitledEditorService);
@@ -305,14 +302,14 @@ export class WorkbenchShell {
 		result.addSingleton(ICodeEditorService, new CodeEditorServiceImpl());
 		result.addSingleton(IEditorWorkerService, editorWorkerService);
 		result.addSingleton(IThemeService, this.themeService);
-		result.addSingleton(IActionsService, new ActionsService(pluginService, this.keybindingService));
+		result.addSingleton(IActionsService, new ActionsService(extensionService, this.keybindingService));
 
 
 		return result;
 	}
 
 	// TODO@Alex, TODO@Joh move this out of here?
-	private initPluginSystem(): void {
+	private initExtensionSystem(): void {
 		this.threadService.getRemotable(MainProcessVSCodeAPIHelper);
 		this.threadService.getRemotable(MainThreadDocuments);
 		this.threadService.getRemotable(RemoteTelemetryServiceHelper);

@@ -5,174 +5,166 @@
 
 import nls = require('vs/nls');
 import Severity from 'vs/base/common/severity';
-import {forEach} from 'vs/base/common/collections';
-import dom = require('vs/base/browser/dom');
-import lifecycle = require('vs/base/common/lifecycle');
-import {onUnexpectedError} from 'vs/base/common/errors';
+import { ThrottledDelayer } from 'vs/base/common/async';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { emmet as $, append, toggleClass } from 'vs/base/browser/dom';
+import { IDisposable, combinedDispose } from 'vs/base/common/lifecycle';
+import { onUnexpectedPromiseError } from 'vs/base/common/errors';
+import { assign } from 'vs/base/common/objects';
 import { Action } from 'vs/base/common/actions';
 import statusbar = require('vs/workbench/browser/parts/statusbar/statusbar');
-import { IPluginService, IPluginStatus } from 'vs/platform/plugins/common/plugins';
+import { IExtensionService, IMessage } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { UninstallAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
+import { IExtensionsService, commandCategory, IExtension, IExtensionManifest } from 'vs/workbench/parts/extensions/common/extensions';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
-import { IExtensionsService, IExtension, IExtensionTipsService } from 'vs/workbench/parts/extensions/common/extensions';
-import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { getOutdatedExtensions } from 'vs/workbench/parts/extensions/common/extensionsUtil';
 
-var $ = dom.emmet;
+interface IState {
+	errors: IMessage[];
+	installing: IExtensionManifest[];
+	outdated: IExtension[];
+}
+
+const InitialState: IState = {
+	errors: [],
+	installing: [],
+	outdated: []
+};
+
+function extensionEquals(one: IExtensionManifest, other: IExtensionManifest): boolean {
+	return one.publisher === other.publisher && one.name === other.name;
+}
+
+const OutdatedPeriod = 5 * 60 * 1000; // every 5 minutes
 
 export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 
-	private toDispose: lifecycle.IDisposable[];
 	private domNode: HTMLElement;
-	private status: { [id: string]: IPluginStatus };
-	private container: HTMLElement;
-	private messageCount: number;
+	private state: IState = InitialState;
+	private outdatedDelayer = new ThrottledDelayer<void>(OutdatedPeriod);
 
 	constructor(
-		@IPluginService pluginService: IPluginService,
+		@IExtensionService private extensionService: IExtensionService,
 		@IMessageService private messageService: IMessageService,
 		@IExtensionsService protected extensionsService: IExtensionsService,
-		@IInstantiationService protected instantiationService: IInstantiationService
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IQuickOpenService protected quickOpenService: IQuickOpenService
+	) {}
 
-	) {
-		this.toDispose = [];
-		this.messageCount = 0;
+	render(container: HTMLElement): IDisposable {
+		this.domNode = append(container, $('a.extensions-statusbar'));
+		append(this.domNode, $('.icon'));
+		this.domNode.onclick = () => this.onClick();
 
-		pluginService.onReady().then(() => {
-			this.status = pluginService.getPluginsStatus();
-			Object.keys(this.status).forEach(key => {
-				this.messageCount += this.status[key].messages.filter(message => message.type > Severity.Info).length;
-			});
-			this.render(this.container);
-		});
+		this.checkErrors();
+		this.checkOutdated();
+
+		const disposables = [];
+		this.extensionsService.onInstallExtension(this.onInstallExtension, this, disposables);
+		this.extensionsService.onDidInstallExtension(this.onDidInstallExtension, this, disposables);
+		this.extensionsService.onDidUninstallExtension(this.onDidUninstallExtension, this, disposables);
+
+		return combinedDispose(...disposables);
 	}
 
-	public render(container: HTMLElement): lifecycle.IDisposable {
-		this.container = container;
-		if (this.messageCount > 0) {
-			this.domNode = dom.append(container, $('a.extensions-statusbar'));
-			const issueLabel = this.messageCount > 1 ? nls.localize('issues', "issues") : nls.localize('issue', "issue");
-			const extensionLabel = nls.localize('extension', "extension");
-			this.domNode.title = `${ this.messageCount } ${ extensionLabel } ${ issueLabel }`;
-			this.domNode.textContent = `${ this.messageCount } ${ issueLabel }`;
+	private updateState(obj: any): void {
+		this.state = assign(this.state, obj);
+		this.onStateChange();
+	}
 
-			this.toDispose.push(dom.addDisposableListener(this.domNode, 'click', () => {
-				this.extensionsService.getInstalled().done(installed => {
-					Object.keys(this.status).forEach(key => {
-						this.status[key].messages.forEach(m => {
-							if (m.type > Severity.Info) {
-								const extension = installed.filter(ext => ext.path === m.source).pop();
-								const actions = [CloseAction];
-								const name = (extension && extension.name) || m.source;
-								const message = `${ name }: ${ m.message }`;
+	private get hasErrors() { return this.state.errors.length > 0; }
+	private get isInstalling() { return this.state.installing.length > 0; }
+	private get hasUpdates() { return this.state.outdated.length > 0; }
 
-								if (extension) {
-									const actionLabel = nls.localize('uninstall', "Uninstall");
-									actions.push(new Action('extensions.uninstall2', actionLabel, null, true, () => this.instantiationService.createInstance(UninstallAction).run(extension)));
-								}
+	private onStateChange(): void {
+		toggleClass(this.domNode, 'has-errors', this.hasErrors);
+		toggleClass(this.domNode, 'is-installing', !this.hasErrors && this.isInstalling);
+		toggleClass(this.domNode, 'has-updates', !this.hasErrors && !this.isInstalling && this.hasUpdates);
 
-								this.messageService.show(m.type, { message, actions });
-							}
-						});
-					});
-				}, onUnexpectedError);
-			}));
+		if (this.hasErrors) {
+			const singular = nls.localize('oneIssue', "Extensions (1 issue)");
+			const plural = nls.localize('multipleIssues', "Extensions ({0} issues)", this.state.errors.length);
+			this.domNode.title = this.state.errors.length > 1 ? plural : singular;
+		} else if (this.isInstalling) {
+			this.domNode.title = nls.localize('extensionsInstalling', "Extensions ({0} installing...)", this.state.installing.length);
+		} else if (this.hasUpdates) {
+			const singular = nls.localize('oneUpdate', "Extensions (1 update available)");
+			const plural = nls.localize('multipleUpdates', "Extensions ({0} updates available)", this.state.outdated.length);
+			this.domNode.title = this.state.outdated.length > 1 ? plural : singular;
+		} else {
+			this.domNode.title = nls.localize('extensions', "Extensions");
 		}
-
-		return {
-			dispose: () => lifecycle.disposeAll(this.toDispose)
-		};
 	}
-}
 
-export class ExtensionTipsStatusbarItem implements statusbar.IStatusbarItem {
+	private onClick(): void {
+		if (this.hasErrors) {
+			this.showErrors(this.state.errors);
+			this.updateState({ errors: [] });
+		} else if (this.hasUpdates) {
+			this.quickOpenService.show(`ext update `);
+		} else {
+			this.quickOpenService.show(`>${commandCategory}: `);
+		}
+	}
 
-	private static _dontSuggestAgainTimeout = 1000 * 60 * 60 * 24 * 28; // 4 wks
+	private showErrors(errors: IMessage[]): void {
+		const promise = onUnexpectedPromiseError(this.extensionsService.getInstalled());
+		promise.done(installed => {
+			errors.forEach(m => {
+				const extension = installed.filter(ext => ext.path === m.source).pop();
+				const actions = [CloseAction];
+				const name = extension && extension.name;
+				const message = name ? `${ name }: ${ m.message }` : m.message;
 
-	private _domNode: HTMLElement;
-	private _label: OcticonLabel;
-	private _previousTips: { [id: string]: number };
-
-	constructor(
-		@IQuickOpenService private _quickOpenService: IQuickOpenService,
-		@IExtensionTipsService private _extensionTipsService: IExtensionTipsService,
-		@IStorageService private _storageService: IStorageService,
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@ITelemetryService private _telemetryService: ITelemetryService
-	) {
-		// previously shown tips, not older than 28 days
-		this._previousTips = JSON.parse(this._storageService.get('extensionsAssistant/tips', StorageScope.GLOBAL, '{}'));
-		const now = Date.now();
-		forEach(this._previousTips, (entry, rm) => {
-			if (now - entry.value > ExtensionTipsStatusbarItem._dontSuggestAgainTimeout) {
-				rm();
-			}
-		});
-
-		// show/hide tips depending on configuration
-		let localDispose: lifecycle.Disposable[] = [];
-		let update = () => {
-			localDispose = lifecycle.disposeAll(localDispose);
-			this._configurationService.loadConfiguration('extensions').then(value => {
-				if (value && value.showTips === true) {
-					this._extensionTipsService.onDidChangeTips(this._onTips, this, localDispose);
-					this._onTips(this._extensionTipsService.tips);
-				} else {
-					this._onTips([]);
+				if (extension) {
+					const actionLabel = nls.localize('uninstall', "Uninstall");
+					actions.push(new Action('extensions.uninstall2', actionLabel, null, true, () => this.instantiationService.createInstance(UninstallAction).run(extension)));
 				}
-			}, onUnexpectedError);
-			this._configurationService.onDidUpdateConfiguration(update, this, localDispose);
-		};
-		update();
+
+				this.messageService.show(m.type, { message, actions });
+			});
+		});
 	}
 
-	private _onTips(tips: IExtension[]): void {
-		if (!this._domNode) {
-			return;
-		}
-
-		if (tips.length === 0) {
-			dom.addClass(this._domNode, 'disabled');
-			return;
-		}
-
-		function extid(ext: IExtension): string {
-			return `${ext.publisher}.${ext.name}@${ext.version}`;
-		}
-
-		// check for new tips
-		let hasNewTips = false;
-		for (let tip of tips) {
-			const id = extid(tip);
-			if (!this._previousTips[id]) {
-				this._previousTips[id] = Date.now();
-				hasNewTips = true;
-			}
-		}
-		if (hasNewTips) {
-			dom.removeClass(this._domNode, 'disabled');
-			this._telemetryService.publicLog('extensionGallery:tips', { hintingTips: true });
-		}
+	private onInstallExtension(manifest: IExtensionManifest): void {
+		const installing = [...this.state.installing, manifest];
+		this.updateState({ installing });
 	}
 
-	public render(container: HTMLElement): lifecycle.IDisposable {
-
-		this._domNode = document.createElement('a');
-		this._domNode.className = 'extensions-suggestions disabled';
-		this._label = new OcticonLabel(this._domNode);
-		this._label.text = '$(light-bulb) extension tips';
-		container.appendChild(this._domNode);
-
-		return dom.addDisposableListener(this._domNode, 'click', event => this._onClick(event));
+	private onDidInstallExtension({ extension }: { extension: IExtension; }): void {
+		const installing = this.state.installing
+			.filter(e => !extensionEquals(extension, e));
+		this.updateState({ installing });
+		this.outdatedDelayer.trigger(() => this.checkOutdated(), 0);
 	}
 
-	private _onClick(event: MouseEvent): void {
-		this._storageService.store('extensionsAssistant/tips', JSON.stringify(this._previousTips), StorageScope.GLOBAL);
-		this._telemetryService.publicLog('extensionGallery:tips', { revealingTips: true });
-		this._quickOpenService.show('ext tips ').then(() => dom.addClass(this._domNode, 'disabled'));
+	private onDidUninstallExtension(): void {
+		this.outdatedDelayer.trigger(() => this.checkOutdated(), 0);
+	}
+
+	private checkErrors(): void {
+		const promise = onUnexpectedPromiseError(this.extensionService.onReady());
+		promise.done(() => {
+			const status = this.extensionService.getExtensionsStatus();
+			const errors = Object.keys(status)
+				.map(k => status[k].messages)
+				.reduce((r, m) => r.concat(m), [])
+				.filter(m => m.type > Severity.Info);
+
+			this.updateState({ errors });
+		});
+	}
+
+	private checkOutdated(): TPromise<void> {
+		return this.instantiationService.invokeFunction(getOutdatedExtensions)
+			.then(null, _ => []) // ignore errors
+			.then(outdated => {
+				this.updateState({ outdated });
+
+				// repeat this later
+				this.outdatedDelayer.trigger(() => this.checkOutdated());
+			});
 	}
 }

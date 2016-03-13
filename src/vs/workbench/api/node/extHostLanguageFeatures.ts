@@ -629,7 +629,7 @@ type Adapter = OutlineAdapter | CodeLensAdapter | DeclarationAdapter | ExtraInfo
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | ParameterHintsAdapter;
 
-@Remotable.PluginHostContext('ExtHostLanguageFeatures')
+@Remotable.ExtHostContext('ExtHostLanguageFeatures')
 export class ExtHostLanguageFeatures {
 
 	private static _handlePool: number = 0;

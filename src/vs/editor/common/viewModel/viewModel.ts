@@ -31,6 +31,7 @@ export interface ILinesCollection {
 	convertOutputPositionToInputPosition(viewLineNumber:number, viewColumn:number): editorCommon.IEditorPosition;
 	convertInputPositionToOutputPosition(inputLineNumber:number, inputColumn:number): editorCommon.IEditorPosition;
 	setHiddenAreas(ranges:editorCommon.IRange[], emit:(evenType:string, payload:any)=>void): void;
+	inputPositionIsVisible(inputLineNumber:number, inputColumn:number): boolean;
 	dispose(): void;
 }
 
@@ -82,10 +83,18 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 
 	public setHiddenAreas(ranges:editorCommon.IRange[]): void {
 		this.deferredEmit(() => {
-			this.lines.setHiddenAreas(ranges, (eventType:string, payload:any) => this.emit(eventType, payload));
-			this.decorations.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
-			this.cursors.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
+			let lineMappingChanged = this.lines.setHiddenAreas(ranges, (eventType:string, payload:any) => this.emit(eventType, payload));
+			if (lineMappingChanged) {
+				this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
+				this.decorations.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
+				this.cursors.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
+				this._updateShouldForceTokenization();
+			}
 		});
+	}
+
+	public modelPositionIsVisible(position:editorCommon.IPosition): boolean {
+		return this.lines.inputPositionIsVisible(position.lineNumber, position.column);
 	}
 
 	public dispose(): void {
@@ -228,6 +237,12 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 						// Ignore
 						break;
 
+					case editorCommon.EventType.ModelOptionsChanged:
+						// A tab size change causes a line mapping changed event => all view parts will repaint OK, no further event needed here
+						revealPreviousCenteredModelRange = this._onTabSizeChange(this.model.getOptions().tabSize) || revealPreviousCenteredModelRange;
+
+						break;
+
 					case editorCommon.EventType.ModelDecorationsChanged:
 						this.onModelDecorationsChanged(<editorCommon.IModelDecorationsChangedEvent>data);
 						break;
@@ -253,7 +268,6 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 						break;
 
 					case editorCommon.EventType.ConfigurationChanged:
-						revealPreviousCenteredModelRange = this._onTabSizeChange(this.configuration.getIndentationOptions().tabSize) || revealPreviousCenteredModelRange;
 						revealPreviousCenteredModelRange = this._onWrappingIndentChange(this.configuration.editor.wrappingIndent) || revealPreviousCenteredModelRange;
 						revealPreviousCenteredModelRange = this._onWrappingColumnChange(this.configuration.editor.wrappingInfo.wrappingColumn, this.configuration.editor.typicalFullwidthCharacterWidth / this.configuration.editor.typicalHalfwidthCharacterWidth) || revealPreviousCenteredModelRange;
 						if ((<editorCommon.IConfigurationChangedEvent>data).readOnly) {
@@ -371,6 +385,10 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 		this.cursors.onCursorScrollRequest(e, (eventType:string, payload:any) => this.emit(eventType, payload));
 	}
 	// --- end inbound event conversion
+
+	public getTabSize(): number {
+		return this.model.getOptions().tabSize;
+	}
 
 	public getLineCount(): number {
 		return this.lines.getOutputLineCount();

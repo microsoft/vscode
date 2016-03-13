@@ -26,7 +26,7 @@ export interface IWindowState {
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
-	isPluginDevelopmentHost: boolean;
+	extensionDevelopmentPath?: string;
 }
 
 export enum WindowMode {
@@ -96,7 +96,7 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 	appSettingsHome: string;
 	appSettingsPath: string;
 	appKeybindingsPath: string;
-	userPluginsHome: string;
+	userExtensionsHome: string;
 	sharedIPCHandle: string;
 	appRoot: string;
 	isBuilt: boolean;
@@ -107,6 +107,7 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 	workspacePath?: string;
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
+	filesToDiff?: IPath[];
 	extensionsToInstall: string[];
 	crashReporter: Electron.CrashReporterStartOptions;
 	extensionsGallery: {
@@ -142,7 +143,7 @@ export class VSCodeWindow {
 	private _win: Electron.BrowserWindow;
 	private _lastFocusTime: number;
 	private _readyState: ReadyState;
-	private _isPluginDevelopmentHost: boolean;
+	private _extensionDevelopmentPath: string;
 	private windowState: IWindowState;
 	private currentWindowMode: WindowMode;
 
@@ -154,7 +155,7 @@ export class VSCodeWindow {
 	constructor(config: IWindowCreationOptions) {
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
-		this._isPluginDevelopmentHost = config.isPluginDevelopmentHost;
+		this._extensionDevelopmentPath = config.extensionDevelopmentPath;
 		this.whenReadyCallbacks = [];
 
 		// Load window state
@@ -208,7 +209,11 @@ export class VSCodeWindow {
 	}
 
 	public get isPluginDevelopmentHost(): boolean {
-		return this._isPluginDevelopmentHost;
+		return !!this._extensionDevelopmentPath;
+	}
+
+	public get extensionDevelopmentPath(): string {
+		return this._extensionDevelopmentPath;
 	}
 
 	public get config(): IWindowConfiguration {
@@ -389,6 +394,7 @@ export class VSCodeWindow {
 		let configuration: IWindowConfiguration = objects.mixin({}, this.currentConfig);
 		delete configuration.filesToOpen;
 		delete configuration.filesToCreate;
+		delete configuration.filesToDiff;
 		delete configuration.extensionsToInstall;
 
 		// Some configuration things get inherited if the window is being reloaded and we are

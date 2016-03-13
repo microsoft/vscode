@@ -8,11 +8,6 @@
 import {language} from 'vs/editor/standalone-languages/jade';
 import {testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
-var Bracket = {
-	Open: 1,
-	Close: -1
-};
-
 testTokenization('jade', language, [
 	// Tags [Jade]
 	[{
@@ -64,11 +59,11 @@ testTokenization('jade', language, [
 	line: 'input(type="checkbox")',
 	tokens: [
 		{ startIndex: 0, type: 'tag.jade' },
-		{ startIndex: 5, type: 'delimiter.parenthesis.jade', bracket: Bracket.Open },
+		{ startIndex: 5, type: 'delimiter.parenthesis.jade' },
 		{ startIndex: 6, type: 'attribute.name.jade' },
 		{ startIndex: 10, type: 'delimiter.jade' },
 		{ startIndex: 11, type: 'attribute.value.jade' },
-		{ startIndex: 21, type: 'delimiter.parenthesis.jade', bracket: Bracket.Close }
+		{ startIndex: 21, type: 'delimiter.parenthesis.jade' }
 	]}],
 
 	[{
@@ -82,7 +77,7 @@ testTokenization('jade', language, [
 	line: 'input(type="checkbox",name="agreement",checked)',
 	tokens: [
 		{ startIndex: 0, type: 'tag.jade' },
-		{ startIndex: 5, type: 'delimiter.parenthesis.jade', bracket: Bracket.Open },
+		{ startIndex: 5, type: 'delimiter.parenthesis.jade' },
 		{ startIndex: 6, type: 'attribute.name.jade' },
 		{ startIndex: 10, type: 'delimiter.jade' },
 		{ startIndex: 11, type: 'attribute.value.jade' },
@@ -92,14 +87,14 @@ testTokenization('jade', language, [
 		{ startIndex: 27, type: 'attribute.value.jade' },
 		{ startIndex: 38, type: 'attribute.delimiter.jade' },
 		{ startIndex: 39, type: 'attribute.name.jade' },
-		{ startIndex: 46, type: 'delimiter.parenthesis.jade', bracket: Bracket.Close }
+		{ startIndex: 46, type: 'delimiter.parenthesis.jade' }
 	]}],
 
 	[{
 	line: 'input(type="checkbox"',
 	tokens: [
 		{ startIndex: 0, type: 'tag.jade' },
-		{ startIndex: 5, type: 'delimiter.parenthesis.jade', bracket: Bracket.Open },
+		{ startIndex: 5, type: 'delimiter.parenthesis.jade' },
 		{ startIndex: 6, type: 'attribute.name.jade' },
 		{ startIndex: 10, type: 'delimiter.jade' },
 		{ startIndex: 11, type: 'attribute.value.jade' }
@@ -125,7 +120,7 @@ testTokenization('jade', language, [
 	line: 'input(type="checkbox"',
 	tokens: [
 		{ startIndex: 0, type: 'tag.jade' },
-		{ startIndex: 5, type: 'delimiter.parenthesis.jade', bracket: Bracket.Open },
+		{ startIndex: 5, type: 'delimiter.parenthesis.jade' },
 		{ startIndex: 6, type: 'attribute.name.jade' },
 		{ startIndex: 10, type: 'delimiter.jade' },
 		{ startIndex: 11, type: 'attribute.value.jade' }
@@ -167,17 +162,16 @@ testTokenization('jade', language, [
 		{ startIndex: 17, type: '' }
 	]}],
 
-	// Bracket Matching [Jade]
 	[{
 	line: '{ key: 123 }',
 	tokens: [
-		{ startIndex: 0, type: 'delimiter.curly.jade', bracket: Bracket.Open },
+		{ startIndex: 0, type: 'delimiter.curly.jade' },
 		{ startIndex: 1, type: '' },
 		{ startIndex: 5, type: 'delimiter.jade' },
 		{ startIndex: 6, type: '' },
 		{ startIndex: 7, type: 'number.jade' },
 		{ startIndex: 10, type: '' },
-		{ startIndex: 11, type: 'delimiter.curly.jade', bracket: Bracket.Close }
+		{ startIndex: 11, type: 'delimiter.curly.jade' }
 	]}],
 
 	// Comments - Single Line [Jade]
@@ -257,11 +251,11 @@ testTokenization('jade', language, [
 	line: 'html(lang="en")',
 	tokens: [
 		{ startIndex: 0, type: 'tag.jade' },
-		{ startIndex: 4, type: 'delimiter.parenthesis.jade', bracket: Bracket.Open },
+		{ startIndex: 4, type: 'delimiter.parenthesis.jade' },
 		{ startIndex: 5, type: 'attribute.name.jade' },
 		{ startIndex: 9, type: 'delimiter.jade' },
 		{ startIndex: 10, type: 'attribute.value.jade' },
-		{ startIndex: 14, type: 'delimiter.parenthesis.jade', bracket: Bracket.Close }
+		{ startIndex: 14, type: 'delimiter.parenthesis.jade' }
 	]}, {
 	line: '    head',
 	tokens: [
@@ -278,33 +272,32 @@ testTokenization('jade', language, [
 	tokens: [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 8, type: 'tag.jade' },
-		{ startIndex: 14, type: 'delimiter.parenthesis.jade', bracket: Bracket.Open },
+		{ startIndex: 14, type: 'delimiter.parenthesis.jade' },
 		{ startIndex: 15, type: 'attribute.name.jade' },
 		{ startIndex: 19, type: 'delimiter.jade' },
 		{ startIndex: 20, type: 'attribute.value.jade' },
-		{ startIndex: 37, type: 'delimiter.parenthesis.jade', bracket: Bracket.Close }
+		{ startIndex: 37, type: 'delimiter.parenthesis.jade' }
 	]}, {
 	line: '            if (foo) {',
 	tokens: [
 		{ startIndex: 0, type: '' },
 		{ startIndex: 12, type: 'keyword.if.jade' },
 		{ startIndex: 14, type: '' },
-		{ startIndex: 15, type: 'delimiter.parenthesis.jade', bracket: Bracket.Open },
+		{ startIndex: 15, type: 'delimiter.parenthesis.jade' },
 		{ startIndex: 16, type: '' },
-		{ startIndex: 19, type: 'delimiter.parenthesis.jade', bracket: Bracket.Close },
+		{ startIndex: 19, type: 'delimiter.parenthesis.jade' },
 		{ startIndex: 20, type: '' },
-		{ startIndex: 21, type: 'delimiter.curly.jade', bracket: Bracket.Open }
+		{ startIndex: 21, type: 'delimiter.curly.jade' }
 	]}, {
 	line: '                bar()',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 19, type: 'delimiter.parenthesis.jade', bracket: Bracket.Open },
-		{ startIndex: 20, type: 'delimiter.parenthesis.jade', bracket: Bracket.Close }
+		{ startIndex: 19, type: 'delimiter.parenthesis.jade' }
 	]}, {
 	line: '            }',
 	tokens: [
 		{ startIndex: 0, type: '' },
-		{ startIndex: 12, type: 'delimiter.curly.jade', bracket: Bracket.Close }
+		{ startIndex: 12, type: 'delimiter.curly.jade' }
 	]}, {
 	line: '    body',
 	tokens: [

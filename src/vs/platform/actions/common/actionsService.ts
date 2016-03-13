@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IPluginService} from 'vs/platform/plugins/common/plugins';
-import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {IAction, Action} from 'vs/base/common/actions';
 import {localize} from 'vs/nls';
-import {IActionsService} from './actions';
+import {Action, IAction} from 'vs/base/common/actions';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
+import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {IActionsService} from './actions';
 
 interface Commands {
 	commands: Command | Command[];
@@ -63,7 +63,7 @@ let commandType: IJSONSchema = {
 		}
 	}
 };
-let commandsExtPoint = PluginsRegistry.registerExtensionPoint<Command | Command[]>('commands', {
+let commandsExtPoint = ExtensionsRegistry.registerExtensionPoint<Command | Command[]>('commands', {
 	description: localize('vscode.extension.contributes.commands', "Contributes commands to the command palette."),
 	oneOf: [
 		commandType,
@@ -76,14 +76,14 @@ let commandsExtPoint = PluginsRegistry.registerExtensionPoint<Command | Command[
 
 export default class ActionsService implements IActionsService {
 
-	private _pluginService: IPluginService;
+	private _extensionService: IExtensionService;
 	private _keybindingsService: IKeybindingService;
 	private _extensionsActions: IAction[] = [];
 
 	serviceId: any;
 
-	constructor( @IPluginService pluginService: IPluginService, @IKeybindingService keybindingsService: IKeybindingService) {
-		this._pluginService = pluginService;
+	constructor( @IExtensionService extensionService: IExtensionService, @IKeybindingService keybindingsService: IKeybindingService) {
+		this._extensionService = extensionService;
 		this._keybindingsService = keybindingsService;
 		commandsExtPoint.setHandler((extensions) => {
 			for (let d of extensions) {
@@ -92,7 +92,7 @@ export default class ActionsService implements IActionsService {
 		});
 	}
 
-	private _onDescription(commands: Command | Command[], collector: IMessageCollector): void {
+	private _onDescription(commands: Command | Command[], collector: IExtensionMessageCollector): void {
 		if (isCommands(commands)) {
 			for (let command of commands) {
 				this._handleCommand(command, collector);
@@ -102,18 +102,18 @@ export default class ActionsService implements IActionsService {
 		}
 	}
 
-	private _handleCommand(command: Command, collector: IMessageCollector): void {
+	private _handleCommand(command: Command, collector: IExtensionMessageCollector): void {
 
 		let rejects: string[] = [];
 
 		if (isValidCommand(command, rejects)) {
-			// make sure this plugin is activated by this command
+			// make sure this extension is activated by this command
 			let activationEvent = `onCommand:${command.command}`;
 
-			// action that (1) activates the plugin and dispatches the command
+			// action that (1) activates the extension and dispatches the command
 			let label = command.category ? localize('category.label', "{0}: {1}", command.category, command.title) : command.title;
 			let action = new Action(command.command, label, undefined, true, () => {
-				return this._pluginService.activateByEvent(activationEvent).then(() => {
+				return this._extensionService.activateByEvent(activationEvent).then(() => {
 					return this._keybindingsService.executeCommand(command.command);
 				});
 			});

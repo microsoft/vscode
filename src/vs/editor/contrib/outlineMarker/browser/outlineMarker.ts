@@ -10,7 +10,6 @@ import {RunOnceScheduler} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IOutlineEntry} from 'vs/editor/common/modes';
@@ -121,7 +120,7 @@ export class OutlineMarkerContribution implements editorCommon.IEditorContributi
 
 	private _markers:OutlineMarker[];
 
-	constructor(editor:ICodeEditor, @INullService ns) {
+	constructor(editor:ICodeEditor) {
 		this._editor = editor;
 
 		this._globalToDispose = [];

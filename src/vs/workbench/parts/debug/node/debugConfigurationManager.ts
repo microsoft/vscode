@@ -12,7 +12,7 @@ import { Schemas } from 'vs/base/common/network';
 import paths = require('vs/base/common/paths');
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import editor = require('vs/editor/common/editorCommon');
-import pluginsRegistry = require('vs/platform/plugins/common/pluginsRegistry');
+import extensionsRegistry = require('vs/platform/extensions/common/extensionsRegistry');
 import platform = require('vs/platform/platform');
 import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -27,13 +27,13 @@ import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickO
 
 // debuggers extension point
 
-export var debuggersExtPoint = pluginsRegistry.PluginsRegistry.registerExtensionPoint<debug.IRawAdapter[]>('debuggers', {
+export var debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<debug.IRawAdapter[]>('debuggers', {
 	description: nls.localize('vscode.extension.contributes.debuggers', 'Contributes debug adapters.'),
 	type: 'array',
-	default: [{ type: '', extensions: [] }],
+	defaultSnippets: [{ body: [{ type: '', extensions: [] }] }],
 	items: {
 		type: 'object',
-		default: { type: '', program: '', runtime: '', enableBreakpointsFor: { languageIds: [ '' ] } },
+		defaultSnippets: [{ body: { type: '', program: '', runtime: '', enableBreakpointsFor: { languageIds: [ '' ] } } }],
 		properties: {
 			type: {
 				description: nls.localize('vscode.extension.contributes.debuggers.type', "Unique identifier for this debug adapter."),
@@ -194,9 +194,11 @@ export class ConfigurationManager {
 						this.adapters.push(adapter);
 					}
 
-					adapter.enableBreakpointsFor.languageIds.forEach(modeId => {
-						this.allModeIdsForBreakpoints[modeId] = true;
-					});
+					if (adapter.enableBreakpointsFor) {
+						adapter.enableBreakpointsFor.languageIds.forEach(modeId => {
+							this.allModeIdsForBreakpoints[modeId] = true;
+						});
+					}
 				});
 			});
 
@@ -205,7 +207,7 @@ export class ConfigurationManager {
 			this.adapters.forEach(adapter => {
 				const schemaAttributes = adapter.getSchemaAttributes();
 				if (schemaAttributes) {
-					schema.properties['configurations'].items.oneOf.push(...schemaAttributes);
+					(<IJSONSchema> schema.properties['configurations'].items).oneOf.push(...schemaAttributes);
 				}
 			});
 		});
@@ -275,7 +277,7 @@ export class ConfigurationManager {
 	}
 
 	private getInitialConfigFileContent(): TPromise<string> {
-		return this.quickOpenService.pick(this.adapters, { placeHolder: nls.localize('selectDebug', "Select Debug Environment") })
+		return this.quickOpenService.pick(this.adapters, { placeHolder: nls.localize('selectDebug', "Select Environment") })
 		.then(adapter => {
 			if (!adapter) {
 				return null;
@@ -313,7 +315,7 @@ export class ConfigurationManager {
 			adapter.initialConfigurations.forEach(config => {
 				if (program && config.program) {
 					if (!path.isAbsolute(program)) {
-						program = path.join('${workspaceRoot}', program);
+						program = paths.join('${workspaceRoot}', program);
 					}
 
 					config.program = program;

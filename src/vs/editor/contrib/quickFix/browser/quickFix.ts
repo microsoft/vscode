@@ -11,7 +11,6 @@ import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
@@ -145,7 +144,7 @@ export class QuickFixAction extends EditorAction {
 
 	static ID = 'editor.action.quickFix';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor);
 	}
 

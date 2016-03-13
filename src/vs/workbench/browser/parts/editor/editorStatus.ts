@@ -9,20 +9,23 @@ import 'vs/css!./media/editorstatus';
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import { emmet as $, append } from 'vs/base/browser/dom';
-import encoding = require('vs/base/common/bits/encoding');
 import strings = require('vs/base/common/strings');
+import paths = require('vs/base/common/paths');
 import types = require('vs/base/common/types');
 import uri from 'vs/base/common/uri';
 import errors = require('vs/base/common/errors');
 import {IStatusbarItem} from 'vs/workbench/browser/parts/statusbar/statusbar';
 import {Action} from 'vs/base/common/actions';
+import {IMode} from 'vs/editor/common/modes';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {IFileEditorInput, EncodingMode, IEncodingSupport, asFileEditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
 import {IDisposable, combinedDispose} from 'vs/base/common/lifecycle';
+import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
+import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
 import {EndOfLineSequence, ITokenizedModel, EditorType, IEditorSelection, ITextModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
-import {ChangeIndentationSizeAction, IndentationToSpacesAction, IndentationToTabsAction} from 'vs/editor/contrib/indentation/common/indentation';
+import {IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction} from 'vs/editor/contrib/indentation/common/indentation';
 import {EventType, ResourceEvent, EditorEvent, TextEditorSelectionEvent} from 'vs/workbench/common/events';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
 import {IEditor as IBaseEditor} from 'vs/platform/editor/common/editor';
@@ -30,7 +33,7 @@ import {IWorkbenchEditorService}  from 'vs/workbench/services/editor/common/edit
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
-import {IFilesConfiguration} from 'vs/platform/files/common/files';
+import {IFilesConfiguration, SUPPORTED_ENCODINGS} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
@@ -66,7 +69,7 @@ function getTextModel(editorWidget: IEditor): ITextModel {
 	return textModel;
 }
 
-function asFileOrUntitledEditorInput(input: any): UntitledEditorInput|IFileEditorInput {
+function asFileOrUntitledEditorInput(input: any): UntitledEditorInput | IFileEditorInput {
 	if (input instanceof UntitledEditorInput) {
 		return input;
 	}
@@ -93,12 +96,7 @@ interface StateDelta {
 	mode?: string;
 	encoding?: string;
 	EOL?: string;
-	indentation?: {
-		modelId: string;
-		insertSpaces: boolean;
-		tabSize: number;
-		storeInHistory: boolean;
-	};
+	indentation?: string;
 	tabFocusMode?: boolean;
 }
 
@@ -117,8 +115,6 @@ class State {
 
 	private _indentation: string;
 	public get indentation(): string { return this._indentation; }
-	private _indentationHistory: { [modelId: string]: { insertSpaces: boolean, tabSize: number }};
-	public get indentationHistory(): { [modelId: string]: { insertSpaces: boolean, tabSize: number }} { return this._indentationHistory; }
 
 	private _tabFocusMode: boolean;
 	public get tabFocusMode(): boolean { return this._tabFocusMode; }
@@ -129,10 +125,9 @@ class State {
 		this._encoding = null;
 		this._EOL = null;
 		this._tabFocusMode = false;
-		this._indentationHistory = {};
 	}
 
-	public update(update:StateDelta): IStateChange {
+	public update(update: StateDelta): IStateChange {
 		let e = {
 			selectionStatus: false,
 			mode: false,
@@ -151,16 +146,8 @@ class State {
 			}
 		}
 		if (typeof update.indentation !== 'undefined') {
-			let indentationLabel = null;
-			if (update.indentation) {
-				indentationLabel = update.indentation.insertSpaces ? nls.localize('spacesSize', "Spaces: {0}", update.indentation.tabSize) :
-					nls.localize('tabSize', "Tab Size: {0}", update.indentation.tabSize);
-				if (update.indentation.storeInHistory) {
-					this._indentationHistory[update.indentation.modelId] = update.indentation;
-				}
-			}
-			if (this._indentation !== indentationLabel) {
-				this._indentation = indentationLabel;
+			if (this._indentation !== update.indentation) {
+				this._indentation = update.indentation;
 				somethingChanged = true;
 				e.indentation = true;
 			}
@@ -209,10 +196,10 @@ const nlsEOLLF = nls.localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = nls.localize('endOfLineCarriageReturnLineFeed', "CRLF");
 const nlsTabFocusMode = nls.localize('tabFocusModeEnabled', "Tab moves focus");
 
-function show(el:HTMLElement): void {
+function show(el: HTMLElement): void {
 	StyleMutator.setDisplay(el, '');
 }
-function hide(el:HTMLElement): void {
+function hide(el: HTMLElement): void {
 	StyleMutator.setDisplay(el, 'none');
 }
 
@@ -249,15 +236,15 @@ export class EditorStatus implements IStatusbarItem {
 		this.tabFocusModeElement.textContent = nlsTabFocusMode;
 		hide(this.tabFocusModeElement);
 
-		this.indentationElement = append(this.element, $('a.editor-status-indentation'));
-		this.indentationElement.title = nls.localize('indentation', "Indentation");
-		this.indentationElement.onclick = () => this.onIndentationClick();
-		hide(this.indentationElement);
-
 		this.selectionElement = append(this.element, $('a.editor-status-selection'));
 		this.selectionElement.title = nls.localize('gotoLine', "Go to Line");
 		this.selectionElement.onclick = () => this.onSelectionClick();
 		hide(this.selectionElement);
+
+		this.indentationElement = append(this.element, $('a.editor-status-indentation'));
+		this.indentationElement.title = nls.localize('indentation', "Indentation");
+		this.indentationElement.onclick = () => this.onIndentationClick();
+		hide(this.indentationElement);
 
 		this.encodingElement = append(this.element, $('a.editor-status-encoding'));
 		this.encodingElement.title = nls.localize('selectEncoding', "Select Encoding");
@@ -281,7 +268,7 @@ export class EditorStatus implements IStatusbarItem {
 			this.eventService.addListener2(EventType.TEXT_EDITOR_MODE_CHANGED, (e: EditorEvent) => this.onModeChange(e.editor)),
 			this.eventService.addListener2(EventType.TEXT_EDITOR_CONTENT_CHANGED, (e: EditorEvent) => this.onEOLChange(e.editor)),
 			this.eventService.addListener2(EventType.TEXT_EDITOR_CONFIGURATION_CHANGED, (e: EditorEvent) => this.onTabFocusModeChange(e.editor)),
-			this.eventService.addListener2(EventType.TEXT_EDITOR_CONFIGURATION_CHANGED, (e: EditorEvent) => this.onIndentationChange(e.editor, false))
+			this.eventService.addListener2(EventType.TEXT_EDITOR_CONTENT_OPTIONS_CHANGED, (e: EditorEvent) => this.onIndentationChange(e.editor))
 		);
 
 		return combinedDispose(...this.toDispose);
@@ -348,7 +335,7 @@ export class EditorStatus implements IStatusbarItem {
 		}
 	}
 
-	private getSelectionLabel(info:IEditorSelectionStatus): string {
+	private getSelectionLabel(info: IEditorSelectionStatus): string {
 		if (!info || !info.selections) {
 			return null;
 		}
@@ -412,7 +399,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.onEOLChange(e);
 		this.onEncodingChange(e);
 		this.onTabFocusModeChange(e);
-		this.onIndentationChange(e, true);
+		this.onIndentationChange(e);
 	}
 
 	private onModeChange(e: IBaseEditor): void {
@@ -440,12 +427,13 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState(info);
 	}
 
-	private onIndentationChange(e: IBaseEditor, inputChanged: boolean): void {
+	private onIndentationChange(e: IBaseEditor): void {
 		if (e && !this.isActiveEditor(e)) {
 			return;
 		}
 
 		const update: StateDelta = { indentation: null };
+
 		if (e instanceof BaseTextEditor) {
 			let editorWidget = e.getControl();
 			if (editorWidget) {
@@ -455,26 +443,12 @@ export class EditorStatus implements IStatusbarItem {
 
 				const model = (<ICommonCodeEditor>editorWidget).getModel();
 				if (model) {
-					const modelId = model.getAssociatedResource().toString();
-					if (inputChanged) {
-						if (this.state.indentationHistory[modelId]) {
-							editorWidget.updateOptions(this.state.indentationHistory[modelId]);
-						} else {
-							this.configurationService.loadConfiguration('editor').done(config => {
-								editorWidget.updateOptions({
-									tabSize: config.tabSize,
-									insertSpaces: config.insertSpaces
-								});
-							}, errors.onUnexpectedError);
-						}
-					}
-
-					update.indentation = {
-						insertSpaces: (<ICommonCodeEditor>editorWidget).getIndentationOptions().insertSpaces,
-						tabSize: (<ICommonCodeEditor>editorWidget).getIndentationOptions().tabSize,
-						modelId,
-						storeInHistory: !inputChanged
-					};
+					const modelOpts = model.getOptions();
+					update.indentation = (
+						modelOpts.insertSpaces
+							? nls.localize('spacesSize', "Spaces: {0}", modelOpts.tabSize)
+							: nls.localize('tabSize', "Tab Size: {0}", modelOpts.tabSize)
+					);
 				}
 			}
 		}
@@ -549,7 +523,7 @@ export class EditorStatus implements IStatusbarItem {
 			let encodingSupport: IEncodingSupport = <any>asFileOrUntitledEditorInput(e.input);
 			if (encodingSupport && types.isFunction(encodingSupport.getEncoding)) {
 				let rawEncoding = encodingSupport.getEncoding();
-				let encodingInfo = encoding.SUPPORTED_ENCODINGS[rawEncoding];
+				let encodingInfo = SUPPORTED_ENCODINGS[rawEncoding];
 				if (encodingInfo) {
 					info.encoding = encodingInfo.labelShort; // if we have a label, take it from there
 				} else {
@@ -626,6 +600,8 @@ export class ChangeModeAction extends Action {
 		actionLabel: string,
 		@IModeService private modeService: IModeService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IMessageService private messageService: IMessageService,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super(actionId, actionLabel);
@@ -640,6 +616,7 @@ export class ChangeModeAction extends Action {
 
 		let editorWidget = (<BaseTextEditor>activeEditor).getControl();
 		let textModel = getTextModel(editorWidget);
+		let fileinput = asFileEditorInput(activeEditor.input, true);
 
 		// Compute mode
 		let currentModeId: string;
@@ -651,43 +628,70 @@ export class ChangeModeAction extends Action {
 		}
 
 		// All languages are valid picks
-		let selectedIndex: number;
 		let picks: IPickOpenEntry[] = languages.sort().map((lang, index) => {
-			if (currentModeId === lang) {
-				selectedIndex = index;
-			}
-
 			return {
-				label: lang
+				label: lang,
+				description: currentModeId === lang ? nls.localize('configuredLanguage', "Configured Language") : void 0
 			};
 		});
+		picks[0].separator = { border: true, label: nls.localize('languagesPicks', "languages") };
 
-		// Offer to "Auto Detect" if we have a file open
+		// Offer action to configure via settings
+		let configureLabel = nls.localize('configureAssociations', "Configure File Associations...");
+		if (fileinput) {
+			const resource = fileinput.getResource();
+			const ext = paths.extname(resource.fsPath) || paths.basename(resource.fsPath);
+			if (ext) {
+				configureLabel = nls.localize('configureAssociationsExt', "Configure File Association for '{0}'...", ext);
+			}
+		}
+
+		let configureModeAssociations: IPickOpenEntry = {
+			label: configureLabel
+		};
+		picks.unshift(configureModeAssociations);
+
+		// Offer to "Auto Detect"
 		let autoDetectMode: IPickOpenEntry = {
 			label: nls.localize('autoDetect', "Auto Detect")
 		};
+		picks.unshift(autoDetectMode);
 
-		if (asFileEditorInput(activeEditor.input, true)) {
-			picks.unshift(autoDetectMode); // first entry
-			selectedIndex++; // pushes selected index down
-		}
-
-		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode"), autoFocus: { autoFocusIndex: selectedIndex } }).then((language) => {
+		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode") }).then((language) => {
 			if (language) {
 				activeEditor = this.editorService.getActiveEditor();
 				if (activeEditor instanceof BaseTextEditor) {
 					let editorWidget = activeEditor.getControl();
+					let models: ITextModel[] = [];
+
 					let textModel = getTextModel(editorWidget);
+					models.push(textModel);
+
+					// Support for original side of diff
+					let model = editorWidget.getModel();
+					if (model && !!(<IDiffEditorModel>model).original) {
+						models.push((<IDiffEditorModel>model).original);
+					}
+
+					// Find mode
+					let mode: TPromise<IMode>;
+					if (language === autoDetectMode) {
+						mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(getUntitledOrFileResource(activeEditor.input, true).fsPath, textModel.getLineContent(1));
+					} else if (language === configureModeAssociations) {
+						const action = this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL);
+						action.run().done(() => action.dispose(), errors.onUnexpectedError);
+
+						this.messageService.show(Severity.Info, nls.localize('persistFileAssociations', "You can configure filename to language associations from the **files.associations** section"));
+					} else {
+						mode = this.modeService.getOrCreateModeByLanguageName(language.label);
+					}
 
 					// Change mode
-					if (!!(<ITokenizedModel>textModel).getMode) {
-						if (language === autoDetectMode) {
-							let fileResource = asFileEditorInput(activeEditor.input, true).getResource();
-							(<ITokenizedModel>textModel).setMode(this.modeService.getOrCreateModeByFilenameOrFirstLine(fileResource.fsPath, textModel.getLineContent(1)));
-						} else {
-							(<ITokenizedModel>textModel).setMode(this.modeService.getOrCreateModeByLanguageName(language.label));
+					models.forEach((textModel) => {
+						if (!!(<ITokenizedModel>textModel).getMode) {
+							(<ITokenizedModel>textModel).setMode(mode);
 						}
-					}
+					});
 				}
 			}
 		});
@@ -698,7 +702,7 @@ export interface IChangeEOLEntry extends IPickOpenEntry {
 	eol: EndOfLineSequence;
 }
 
-export class ChangeIndentationAction extends Action {
+class ChangeIndentationAction extends Action {
 
 	public static ID = 'workbench.action.editor.changeIndentation';
 	public static LABEL = nls.localize('changeIndentation', "Change Indentation");
@@ -720,11 +724,13 @@ export class ChangeIndentationAction extends Action {
 		if (!isWritableCodeEditor(<BaseTextEditor>activeEditor)) {
 			return this.quickOpenService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 		}
-		const control = <ICommonCodeEditor>activeEditor.getControl();
 
-		return this.quickOpenService.pick([control.getAction(ChangeIndentationSizeAction.ID), control.getAction(IndentationToSpacesAction.ID), control.getAction(IndentationToTabsAction.ID)], {
-			placeHolder: nls.localize('pickAction', "Select Action")
-		}).then(action => action && action.run());
+		const control = <ICommonCodeEditor>activeEditor.getControl();
+		const picks = [control.getAction(IndentUsingSpaces.ID), control.getAction(IndentUsingTabs.ID), control.getAction(DetectIndentation.ID), control.getAction(IndentationToSpacesAction.ID), control.getAction(IndentationToTabsAction.ID)];
+		(<IPickOpenEntry>picks[0]).separator = { label: nls.localize('indentView', "change view") };
+		(<IPickOpenEntry>picks[3]).separator = { label: nls.localize('indentConvert', "convert file"), border: true };
+
+		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickAction', "Select Action") }).then(action => action && action.run());
 	}
 }
 
@@ -823,31 +829,37 @@ export class ChangeEncodingAction extends Action {
 				let isReopenWithEncoding = (action === reopenWithEncodingPick);
 
 				return this.configurationService.loadConfiguration().then((configuration: IFilesConfiguration) => {
-					let defaultEncoding = configuration && configuration.files && configuration.files.encoding;
-					let selectedIndex: number;
+					let configuredEncoding = configuration && configuration.files && configuration.files.encoding;
+					let directMatchIndex: number;
+					let aliasMatchIndex: number;
 
 					// All encodings are valid picks
-					let picks: IPickOpenEntry[] = Object.keys(encoding.SUPPORTED_ENCODINGS)
+					let picks: IPickOpenEntry[] = Object.keys(SUPPORTED_ENCODINGS)
 						.sort((k1, k2) => {
-							if (k1 === defaultEncoding) {
+							if (k1 === configuredEncoding) {
 								return -1;
-							} else if (k2 === defaultEncoding) {
+							} else if (k2 === configuredEncoding) {
 								return 1;
 							}
 
-							return encoding.SUPPORTED_ENCODINGS[k1].order - encoding.SUPPORTED_ENCODINGS[k2].order;
+							return SUPPORTED_ENCODINGS[k1].order - SUPPORTED_ENCODINGS[k2].order;
+						})
+						.filter(k => {
+							return !isReopenWithEncoding || !SUPPORTED_ENCODINGS[k].encodeOnly; // hide those that can only be used for encoding if we are about to decode
 						})
 						.map((key, index) => {
 							if (key === encodingSupport.getEncoding()) {
-								selectedIndex = index;
+								directMatchIndex = index;
+							} else if (SUPPORTED_ENCODINGS[key].alias === encodingSupport.getEncoding()) {
+								aliasMatchIndex = index;
 							}
 
-							return { id: key, label: encoding.SUPPORTED_ENCODINGS[key].labelLong, description: key === defaultEncoding ? nls.localize('defaultEncoding', "Default Encoding") : void 0 };
+							return { id: key, label: SUPPORTED_ENCODINGS[key].labelLong, description: key === configuredEncoding ? nls.localize('defaultEncoding', "Configured Encoding") : void 0 };
 						});
 
 					return this.quickOpenService.pick(picks, {
 						placeHolder: isReopenWithEncoding ? nls.localize('pickEncodingForReopen', "Select File Encoding to Reopen File") : nls.localize('pickEncodingForSave', "Select File Encoding to Save with"),
-						autoFocus: { autoFocusIndex: selectedIndex }
+						autoFocus: { autoFocusIndex: typeof directMatchIndex === 'number' ? directMatchIndex : typeof aliasMatchIndex === 'number' ? aliasMatchIndex : void 0 }
 					}).then((encoding) => {
 						if (encoding) {
 							activeEditor = this.editorService.getActiveEditor();

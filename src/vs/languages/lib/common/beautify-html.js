@@ -64,7 +64,6 @@
       'indent_char': ' ',
       'wrap_line_length': 78,
       'brace_style': 'expand',
-      'unformatted': ['a', 'sub', 'sup', 'b', 'i', 'u'],
       'preserve_newlines': true,
       'max_preserve_newlines': 5,
       'indent_handlebars': false,
@@ -118,16 +117,26 @@
         indent_character = (options.indent_char === undefined) ? ' ' : options.indent_char;
         brace_style = (options.brace_style === undefined) ? 'collapse' : options.brace_style;
         wrap_line_length =  parseInt(options.wrap_line_length, 10) === 0 ? 32786 : parseInt(options.wrap_line_length || 250, 10);
-        unformatted = options.unformatted || ['a', 'span', 'img', 'bdo', 'em', 'strong', 'dfn', 'code', 'samp', 'kbd',
-            'var', 'cite', 'abbr', 'acronym', 'q', 'sub', 'sup', 'tt', 'i', 'b', 'big', 'small', 'u', 's', 'strike',
-            'font', 'ins', 'del', 'pre', 'address', 'dt', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+        unformatted = options.unformatted || [
+            // https://www.w3.org/TR/html5/dom.html#phrasing-content
+            'a', 'abbr', 'area', 'audio', 'b', 'bdi', 'bdo', 'br', 'button', 'canvas', 'cite',
+            'code', 'data', 'datalist', 'del', 'dfn', 'em', 'embed', 'i', 'iframe', 'img',
+            'input', 'ins', 'kbd', 'keygen', 'label', 'map', 'mark', 'math', 'meter', 'noscript',
+            'object', 'output', 'progress', 'q', 'ruby', 's', 'samp', /* 'script', */ 'select', 'small',
+            'span', 'strong', 'sub', 'sup', 'svg', 'template', 'textarea', 'time', 'u', 'var',
+            'video', 'wbr', 'text',
+            // prexisting - not sure of full effect of removing, leaving in
+            'acronym', 'address', 'big', 'dt', 'ins', 'small', 'strike', 'tt',
+            'pre',
+            'h1', 'h2', 'h3', 'h4', 'h5', 'h6'
+        ];
         preserve_newlines = (options.preserve_newlines === undefined) ? true : options.preserve_newlines;
         max_preserve_newlines = preserve_newlines ?
             (isNaN(parseInt(options.max_preserve_newlines, 10)) ? 32786 : parseInt(options.max_preserve_newlines, 10))
             : 0;
         indent_handlebars = (options.indent_handlebars === undefined) ? false : options.indent_handlebars;
         wrap_attributes = (options.wrap_attributes === undefined) ? 'auto' : options.wrap_attributes;
-        wrap_attributes_indent_size = (options.wrap_attributes_indent_size === undefined) ? indent_size : parseInt(options.wrap_attributes_indent_size, 10) || indent_size;
+        wrap_attributes_indent_size = (isNaN(parseInt(options.wrap_attributes_indent_size, 10))) ? indent_size : parseInt(options.wrap_attributes_indent_size, 10);
         end_with_newline = (options.end_with_newline === undefined) ? false : options.end_with_newline;
         extra_liners = (typeof options.extra_liners == 'object') && options.extra_liners ?
             options.extra_liners.concat() : (typeof options.extra_liners === 'string') ?
@@ -158,7 +167,25 @@
 
             this.Utils = { //Uilities made available to the various functions
                 whitespace: "\n\r\t ".split(''),
-                single_token: 'br,input,link,meta,source,!doctype,basefont,base,area,hr,wbr,param,img,isindex,embed'.split(','), //all the single tags for HTML
+
+                single_token: [
+                    // HTLM void elements - aka self-closing tags - aka singletons
+                    // https://www.w3.org/html/wg/drafts/html/master/syntax.html#void-elements
+                    'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'keygen',
+                    'link', 'menuitem', 'meta', 'param', 'source', 'track', 'wbr',
+                    // NOTE: Optional tags - are not understood.
+                    // https://www.w3.org/TR/html5/syntax.html#optional-tags
+                    // The rules for optional tags are too complex for a simple list
+                    // Also, the content of these tags should still be indented in many cases.
+                    // 'li' is a good exmple.
+
+                    // Doctype and xml elements
+                    '!doctype', '?xml',
+                    // ?php tag
+                    '?php',
+                    // other tags that were in this list, keeping just in case
+                    'basefont', 'isindex'
+                ],
                 extra_liners: extra_liners, //for tags that need a line of whitespace before them
                 in_array: function(what, arr) {
                     for (var i = 0; i < arr.length; i++) {
@@ -201,13 +228,16 @@
 
             // Append a space to the given content (string array) or, if we are
             // at the wrap_line_length, append a newline/indentation.
+            // return true if a newline was added, false if a space was added
             this.space_or_wrap = function(content) {
                 if (this.line_char_count >= this.wrap_line_length) { //insert a line when the wrap_line_length is reached
                     this.print_newline(false, content);
                     this.print_indentation(content);
+                    return true;
                 } else {
                     this.line_char_count++;
                     content.push(' ');
+                    return false;
                 }
             };
 
@@ -363,11 +393,16 @@
 
                     if (content.length && content[content.length - 1] !== '=' && input_char !== '>' && space) {
                         //no space after = or before >
-                        this.space_or_wrap(content);
+                        var wrapped = this.space_or_wrap(content);
+                        var indentAttrs = wrapped && input_char !== '/' && wrap_attributes !== 'force';
                         space = false;
                         if (!first_attr && wrap_attributes === 'force' &&  input_char !== '/') {
-                            this.print_newline(true, content);
+                            this.print_newline(false, content);
                             this.print_indentation(content);
+                            indentAttrs = true;
+                        }
+                        if (indentAttrs) {
+                            //indent attributes an auto or forced line-wrap
                             for (var count = 0; count < wrap_attributes_indent_size; count++) {
                                 content.push(indent_character);
                             }

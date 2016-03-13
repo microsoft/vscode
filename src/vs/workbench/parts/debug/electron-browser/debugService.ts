@@ -21,7 +21,7 @@ import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IPluginService } from 'vs/platform/plugins/common/plugins';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFileService, FileChangesEvent, FileChangeType, EventType } from 'vs/platform/files/common/files';
 import { IEventService } from 'vs/platform/event/common/event';
@@ -49,6 +49,7 @@ import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWindowService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ILogEntry, PLUGIN_LOG_BROADCAST_CHANNEL, PLUGIN_ATTACH_BROADCAST_CHANNEL } from 'vs/workbench/services/thread/electron-browser/threadService';
+import { ipcRenderer as ipc } from 'electron';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -56,6 +57,7 @@ const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
 const DEBUG_EXCEPTION_BREAKPOINTS_KEY = 'debug.exceptionbreakpoint';
 const DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
 const DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
+const HIDE_REPL_TIMEOUT = 1000;
 
 export class DebugService extends ee.EventEmitter implements debug.IDebugService {
 	public serviceId = debug.IDebugService;
@@ -88,7 +90,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		@IEventService eventService: IEventService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService:IInstantiationService,
-		@IPluginService private pluginService: IPluginService,
+		@IExtensionService private extensionService: IExtensionService,
 		@IMarkerService private markerService: IMarkerService
 	) {
 		super();
@@ -225,7 +227,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 	private registerSessionListeners(): void {
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.INITIALIZED, (event: DebugProtocol.InitializedEvent) => {
-			aria.alert(nls.localize('debuggingStarted', "Debugging started."));
+			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			this.sendAllBreakpoints().then(() => {
 				if (this.session.capabilities.supportsConfigurationDoneRequest) {
 					this.session.configurationDone().done(null, errors.onUnexpectedError);
@@ -240,7 +242,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			this.getThreadData(threadId).then(() => {
 				this.session.stackTrace({ threadId: threadId, levels: 20 }).done((result) => {
 
-					this.model.rawUpdate({ threadId: threadId, callStack: result.body.stackFrames, stoppedReason: event.body.reason });
+					this.model.rawUpdate({ threadId: threadId, callStack: result.body.stackFrames, stoppedDetails: event.body });
 					this.windowService.getWindow().focus();
 					const callStack = this.model.getThreads()[threadId].callStack;
 					if (callStack.length > 0) {
@@ -255,10 +257,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.CONTINUED, () => {
-			aria.alert(nls.localize('debuggingContinued', "Debugging continued."));
+			aria.status(nls.localize('debuggingContinued', "Debugging continued."));
 			this.model.clearThreads(false);
 			this.setFocusedStackFrameAndEvaluate(null);
-			this.setStateAndEmit(debug.State.Running);
+			this.setStateAndEmit(this.configurationManager.getConfiguration().noDebug ? debug.State.RunningNoDebug : debug.State.Running);
 		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.THREAD, (event: DebugProtocol.ThreadEvent) => {
@@ -278,7 +280,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.DEBUGEE_TERMINATED, (event: DebugProtocol.TerminatedEvent) => {
-			aria.alert(nls.localize('debuggingStopped', "Debugging stopped."));
+			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (this.session && this.session.getId() === (<any>event).sessionId) {
 				if (event.body && typeof event.body.restart === 'boolean' && event.body.restart) {
 					this.restartSession().done(null, err => this.messageService.show(severity.Error, err.message));
@@ -313,6 +315,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}));
 
 		this.toDispose.push(this.session.addListener2(debug.SessionEvents.SERVER_EXIT, event => {
+			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
+			if (this.session.getType() === 'extensionHost' && this.state === debug.State.RunningNoDebug) {
+				ipc.send('vscode:closeExtensionHostWindow', this.contextService.getWorkspace().resource.fsPath);
+			}
 			if (this.session && this.session.getId() === event.sessionId) {
 				this.onSessionEnd();
 			}
@@ -370,8 +376,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			result = [];
 		}
 
-		return result.length > 0 ? result : [new model.ExceptionBreakpoint('all', nls.localize('allExceptions', "All Exceptions"), false),
-			new model.ExceptionBreakpoint('uncaught', nls.localize('uncaughtExceptions', "Uncaught Exceptions"), true)];
+		return result;
 	}
 
 	private loadWatchExpressions(): model.Expression[] {
@@ -478,6 +483,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	public addReplExpression(name: string): TPromise<void> {
+		this.telemetryService.publicLog('debugService/addReplExpression');
 		return this.model.addReplExpression(this.session, this.viewModel.getFocusedStackFrame(), name);
 	}
 
@@ -507,22 +513,26 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.model.clearWatchExpressions(id);
 	}
 
-	public createSession(changeViewState = !this.partService.isSideBarHidden()): TPromise<any> {
+	public createSession(noDebug: boolean, changeViewState = !this.partService.isSideBarHidden() && !noDebug): TPromise<any> {
 		this.clearReplExpressions();
 
-		return this.textFileService.saveAll().then(() => this.pluginService.onReady()).then(() => this.configurationManager.setConfiguration(this.configurationManager.getConfigurationName())).then(() => {
+		return this.textFileService.saveAll().then(() => this.extensionService.onReady()).then(() => this.configurationManager.setConfiguration(this.configurationManager.getConfigurationName())).then(() => {
 
 			const configuration = this.configurationManager.getConfiguration();
 			if (!configuration) {
 				return this.configurationManager.openConfigFile(false).then(openend => {
 					if (openend) {
-						this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file to debug your application."));
+						this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application."));
 					}
 				});
 			}
+
+			configuration.noDebug = noDebug;
 			if (!this.configurationManager.getAdapter()) {
 				this.emit(debug.ServiceEvents.TYPE_NOT_SUPPORTED, configuration.type);
-				return TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)));
+				return configuration.type ? TPromise.wrapError(new Error(nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", configuration.type)))
+					: TPromise.wrapError(errors.create(nls.localize('debugTypeMissing', "Missing property 'type' for the selected configuration in launch.json."),
+						{ actions: [CloseAction, this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)] }));
 			}
 
 			return this.runPreLaunchTask(configuration.preLaunchTask).then((taskSummary: ITaskSummary) => {
@@ -543,7 +553,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 				});
 			}, (err: TaskError) => {
 				if (err.code !== TaskErrors.NotConfigured) {
-					return err;
+					throw err;
 				}
 
 				this.messageService.show(err.severity, {
@@ -590,14 +600,16 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			});
 			this.inDebugMode.set(true);
 
-			this.telemetryService.publicLog('debugSessionStart', { type: configuration.type, breakpointCount: this.model.getBreakpoints().length, exceptionBreakpoints: this.model.getExceptionBreakpoints() });
-		}).then(undefined, (error: Error) => {
+			this.telemetryService.publicLog('debugSessionStart', { type: configuration.type, breakpointCount: this.model.getBreakpoints().length, exceptionBreakpoints: this.model.getExceptionBreakpoints(), watchExpressionsCount: this.model.getWatchExpressions().length });
+		}).then(undefined, (error: any) => {
 			this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined });
 			if (this.session) {
 				this.session.disconnect();
 			}
 
-			return TPromise.wrapError(errors.create(error.message, { actions: [CloseAction, this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)] }));
+			const configureAction = this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL);
+			const actions = (error.actions && error.actions.length) ? error.actions.concat([configureAction]) : [CloseAction, configureAction];
+			return TPromise.wrapError(errors.create(error.message, { actions }));
 		});
 	}
 
@@ -610,8 +622,13 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.taskService.tasks().then(descriptions => {
 			const filteredTasks = descriptions.filter(task => task.name === taskName);
 			if (filteredTasks.length !== 1) {
-				this.messageService.show(severity.Error, nls.localize('DebugTaskNotFound', "Could not find the preLaunchTask \'{0}\'.", taskName));
-				return TPromise.as(null);
+				return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFound', "Could not find the preLaunchTask \'{0}\'.", taskName), {
+					actions: [
+						CloseAction,
+						this.taskService.configureAction(),
+						this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL)
+					]
+				}));
 			}
 
 			// task is already running - nothing to do.
@@ -634,9 +651,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 			if (filteredTasks[0].isWatching) {
 				return new TPromise((c, e) => {
-					this.taskService.addOneTimeListener(TaskServiceEvents.Inactive, () => {
-						c(null);
-					});
+					this.taskService.addOneTimeListener(TaskServiceEvents.Inactive, () => c(taskPromise));
 				});
 			}
 
@@ -668,10 +683,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		return this.session ? this.session.disconnect(true).then(() =>
 			new TPromise<void>((c, e) => {
 				setTimeout(() => {
-					this.createSession(false).then(() => c(null), err => e(err));
+					this.createSession(false, false).then(() => c(null), err => e(err));
 				}, 300);
 			})
-		) : this.createSession(false);
+		) : this.createSession(false, false);
 	}
 
 	public getActiveSession(): debug.IRawDebugSession {
@@ -687,7 +702,15 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 		if (this.session) {
 			const bpsExist = this.model.getBreakpoints().length > 0;
-			this.telemetryService.publicLog('debugSessionStop', { type: this.session.getType(), success: this.session.emittedStopped || !bpsExist, sessionLengthInSeconds: this.session.getLengthInSeconds(), breakpointCount: this.model.getBreakpoints().length });
+			this.telemetryService.publicLog('debugSessionStop', { type: this.session.getType(), success: this.session.emittedStopped || !bpsExist, sessionLengthInSeconds: this.session.getLengthInSeconds(), breakpointCount: this.model.getBreakpoints().length, watchExpressionsCount: this.model.getWatchExpressions().length });
+			if (!this.session.restarted) {
+				setTimeout(() => {
+					const panel = this.panelService.getActivePanel();
+					if (panel && panel.getId() === debug.REPL_ID) {
+						this.partService.setPanelHidden(true);
+					}
+				}, HIDE_REPL_TIMEOUT);
+			}
 		}
 		this.session = null;
 		this.partService.removeClass('debugging');
@@ -854,7 +877,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private sendFunctionBreakpoints(): TPromise<void> {
-		if (!this.session || !this.session.readyForBreakpoints) {
+		if (!this.session || !this.session.readyForBreakpoints || !this.session.capabilities.supportsFunctionBreakpoints) {
 			return TPromise.as(null);
 		}
 
@@ -870,7 +893,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private sendExceptionBreakpoints(): TPromise<any> {
-		if (!this.session || !this.session.readyForBreakpoints) {
+		if (!this.session || !this.session.readyForBreakpoints || this.model.getExceptionBreakpoints().length === 0) {
 			return TPromise.as(null);
 		}
 

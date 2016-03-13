@@ -475,7 +475,7 @@ export const TestFileService = {
 			value: 'Hello Html',
 			etag: 'index.txt',
 			mime: 'text/plain',
-			charset: 'utf8',
+			encoding: 'utf8',
 			mtime: new Date().getTime(),
 			name: Paths.basename(resource.fsPath)
 		});
@@ -487,7 +487,7 @@ export const TestFileService = {
 				resource: res,
 				etag: 'index.txt',
 				mime: 'text/plain',
-				charset: 'utf8',
+				encoding: 'utf8',
 				mtime: new Date().getTime(),
 				name: Paths.basename(res.fsPath)
 			};

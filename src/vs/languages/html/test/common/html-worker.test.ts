@@ -16,7 +16,6 @@ import WinJS = require('vs/base/common/winjs.base');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import servicesUtil2 = require('vs/editor/test/common/servicesTestUtils');
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
-import {DefaultEndOfLine} from 'vs/editor/common/editorCommon';
 
 suite('HTML - worker', () => {
 
@@ -32,7 +31,7 @@ suite('HTML - worker', () => {
 	var mockHtmlWorkerEnv = function (url: URI, content: string): { worker: htmlWorker.HTMLWorker; model: mm.MirrorModel; } {
 		var resourceService = new ResourceService.ResourceService();
 
-		var model = mm.createMirrorModelFromString(null, 0, content, DefaultEndOfLine.LF, mode, url);
+		var model = mm.createTestMirrorModelFromString(content, mode, url);
 		resourceService.insert(url, model);
 
 		var markerService = new MarkerService.MainProcessMarkerService(NULL_THREAD_SERVICE);
@@ -316,6 +315,67 @@ suite('HTML - worker', () => {
 				assert.equal(completion.currentWord, '');
 				assertSuggestion(completion, 'ng-model');
 				assertSuggestion(completion, 'data-ng-model');
+			})
+		]).done(() => testDone(), (errors:any[]) => {
+			testDone(errors.reduce((e1, e2) => e1 || e2));
+		});
+	});
+
+	test('Intellisense Ionic', function(testDone): any {
+		WinJS.Promise.join([
+			// Try some Ionic tags
+			testSuggestionsFor('<|').then((completion) => {
+				assert.equal(completion.currentWord, '');
+				assertSuggestion(completion, 'ion-checkbox');
+				assertSuggestion(completion, 'ion-content');
+				assertSuggestion(completion, 'ion-nav-title');
+			}),
+			testSuggestionsFor('<ion-re|').then((completion) => {
+				assert.equal(completion.currentWord, 'ion-re');
+				assertSuggestion(completion, 'ion-refresher');
+				assertSuggestion(completion, 'ion-reorder-button');
+			}),
+			// Try some global attributes (1 with value suggestions, 1 without value suggestions, 1 void)
+			testSuggestionsFor('<ion-checkbox |').then((completion) => {
+				assert.equal(completion.currentWord, '');
+				assertSuggestion(completion, 'force-refresh-images');
+				assertSuggestion(completion, 'collection-repeat');
+				assertSuggestion(completion, 'menu-close');
+			}),
+			// Try some tag-specific attributes (1 with value suggestions, 1 void)
+			testSuggestionsFor('<ion-footer-bar |').then((completion) => {
+				assert.equal(completion.currentWord, '');
+				assertSuggestion(completion, 'align-title');
+				assertSuggestion(completion, 'keyboard-attach');
+			}),
+			// Try the extended attributes of an existing HTML 5 tag
+			testSuggestionsFor('<a |').then((completion) => {
+				assert.equal(completion.currentWord, '');
+				assertSuggestion(completion, 'nav-direction');
+				assertSuggestion(completion, 'nav-transition');
+				assertSuggestion(completion, 'href');
+				assertSuggestion(completion, 'hreflang');
+			}),
+			// Try value suggestion for a tag-specific attribute
+			testSuggestionsFor('<ion-side-menu side="|').then((completion) => {
+				assert.equal(completion.currentWord, '');
+				assertSuggestion(completion, 'left');
+				assertSuggestion(completion, 'primary');
+				assertSuggestion(completion, 'right');
+				assertSuggestion(completion, 'secondary');
+			}),
+			// Try a value suggestion for a global attribute
+			testSuggestionsFor('<img force-refresh-images="|').then((completion) => {
+				assert.equal(completion.currentWord, '');
+				assertSuggestion(completion, 'false');
+				assertSuggestion(completion, 'true');
+			}),
+			// Try a value suggestion for an extended attribute of an existing HTML 5 tag
+			testSuggestionsFor('<a nav-transition="|').then((completion) => {
+				assert.equal(completion.currentWord, '');
+				assertSuggestion(completion, 'android');
+				assertSuggestion(completion, 'ios');
+				assertSuggestion(completion, 'none');
 			})
 		]).done(() => testDone(), (errors:any[]) => {
 			testDone(errors.reduce((e1, e2) => e1 || e2));

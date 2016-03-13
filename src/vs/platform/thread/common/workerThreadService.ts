@@ -72,11 +72,11 @@ export class WorkerThreadService extends abstractThreadService.AbstractThreadSer
 		throw new Error('Not supported in this runtime context!');
 	}
 
-	protected _registerAndInstantiatePluginHostActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
-		throw new Error('Not supported in this runtime context: Cannot communicate from Worker directly to Plugin Host!');
+	protected _registerAndInstantiateExtHostActor<T>(id: string, descriptor: SyncDescriptor0<T>): T {
+		throw new Error('Not supported in this runtime context: Cannot communicate from Worker directly to Extension Host!');
 	}
 
-	protected _registerPluginHostActor<T>(id: string, actor: T): void {
+	protected _registerExtHostActor<T>(id: string, actor: T): void {
 		throw new Error('Not supported in this runtime context!');
 	}
 

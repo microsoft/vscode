@@ -162,55 +162,44 @@ class ServicesMap {
 
 	public createInstance<T>(descriptor: descriptors.SyncDescriptor<T>, args: any[]): T {
 		let allArguments: any[] = [];
-		let serviceInjections = instantiation._util.getServiceDependencies(descriptor.ctor) ;
-		if (Array.isArray(serviceInjections)) {
-			let fixedArguments = descriptor.staticArguments().concat(args);
-			let expectedFirstServiceIndex = fixedArguments.length;
-			let actualFirstServiceIndex = Number.MAX_VALUE;
-			serviceInjections.forEach(si => {
-				// @IServiceName
-				let {serviceId, index} = si;
-				let service = this._lock.runUnlocked(() => this[serviceId]);
-				allArguments[index] = service;
-				actualFirstServiceIndex = Math.min(actualFirstServiceIndex, si.index);
-			});
+		let serviceInjections = instantiation._util.getServiceDependencies(descriptor.ctor) || [];
+		let fixedArguments = descriptor.staticArguments().concat(args);
+		let expectedFirstServiceIndex = fixedArguments.length;
+		let actualFirstServiceIndex = Number.MAX_VALUE;
+		serviceInjections.forEach(si => {
+			// @IServiceName
+			let {serviceId, index} = si;
+			let service = this._lock.runUnlocked(() => this[serviceId]);
+			allArguments[index] = service;
+			actualFirstServiceIndex = Math.min(actualFirstServiceIndex, si.index);
+		});
 
-			// insert the fixed arguments into the array of all ctor
-			// arguments. don't overwrite existing values tho it indicates
-			// something is off
-			let i = 0;
-			for (let arg of fixedArguments) {
-				let hasValue = allArguments[i] !== void 0;
-				if (!hasValue) {
-					allArguments[i] = arg;
-				}
-				i += 1;
+		// insert the fixed arguments into the array of all ctor
+		// arguments. don't overwrite existing values tho it indicates
+		// something is off
+		let i = 0;
+		for (let arg of fixedArguments) {
+			let hasValue = allArguments[i] !== void 0;
+			if (!hasValue) {
+				allArguments[i] = arg;
 			}
+			i += 1;
+		}
 
-			allArguments.unshift(descriptor.ctor); // ctor is first arg
+		allArguments.unshift(descriptor.ctor); // ctor is first arg
 
-			// services are the last arguments of ctor-calls. We check if static ctor arguments
-			// (like those from a [sync|async] desriptor) or args that are passed by createInstance
-			// don't override positions of those arguments
-			if (actualFirstServiceIndex !== Number.MAX_VALUE
-				&& actualFirstServiceIndex !== expectedFirstServiceIndex) {
+		// services are the last arguments of ctor-calls. We check if static ctor arguments
+		// (like those from a [sync|async] desriptor) or args that are passed by createInstance
+		// don't override positions of those arguments
+		if (actualFirstServiceIndex !== Number.MAX_VALUE
+			&& actualFirstServiceIndex !== expectedFirstServiceIndex) {
 
-				let msg = `[createInstance] constructor '${descriptor.ctor.name}' has first` +
-					` service dependency at position ${actualFirstServiceIndex + 1} but is called with` +
-					` ${expectedFirstServiceIndex - 1} static arguments that are expected to come first`;
+			let msg = `[createInstance] constructor '${descriptor.ctor.name}' has first` +
+				` service dependency at position ${actualFirstServiceIndex + 1} but is called with` +
+				` ${expectedFirstServiceIndex - 1} static arguments that are expected to come first`;
 
-				// throw new Error(msg);
-				console.warn(msg);
-			}
-
-		} else {
-			allArguments = [descriptor.ctor, this /*this === ctx*/];
-			allArguments.push.apply(allArguments, descriptor.staticArguments());
-			allArguments.push.apply(allArguments, args);
-
-			if (allArguments.length > 2) {
-				console.warn('using OLD INJECTION STYLE for ' + descriptor.ctor.name);
-			}
+			// throw new Error(msg);
+			console.warn(msg);
 		}
 
 		return this._lock.runUnlocked(() => {

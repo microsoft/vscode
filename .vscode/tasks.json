@@ -1,6 +1,14 @@
 {
 	"version": "0.1.0",
-	"command": "gulp",
+	"windows": {
+		"command": ".\\node_modules\\.bin\\gulp"
+	},
+	"osx": {
+		"command": "./node_modules/.bin/gulp"
+	},
+	"linux": {
+		"command": "./node_modules/.bin/gulp"
+	},
 	"isShellCommand": true,
 	"tasks": [
 		{
@@ -12,7 +20,9 @@
 			"isWatching": true,
 			"problemMatcher": {
 				"owner": "typescript",
-				"fileLocation": ["absolute"],
+				"fileLocation": [
+					"absolute"
+				],
 				"pattern": {
 					"regexp": "^\\*\\*\\* Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
 					"file": 1,

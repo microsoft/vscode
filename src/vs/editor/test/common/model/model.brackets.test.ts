@@ -60,7 +60,7 @@ suite('TextModelWithTokens', () => {
 			}
 		}
 
-		let model = new TextModelWithTokens([], TextModel.toRawText(contents.join('\n'), DefaultEndOfLine.LF), false, null);
+		let model = new TextModelWithTokens([], TextModel.toRawText(contents.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS), false, null);
 
 		// findPrevBracket
 		{

@@ -5,6 +5,7 @@
 'use strict';
 
 import {ThrottledDelayer} from 'vs/base/common/async';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import {EventEmitter, IEventEmitter, ListenerCallback} from 'vs/base/common/eventEmitter';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -72,21 +73,22 @@ export class ParameterHintsModel extends EventEmitter {
 	}
 
 	public doTrigger(triggerCharacter: string): TPromise<boolean> {
-		return getParameterHints(this.editor.getModel(), this.editor.getPosition(), triggerCharacter).then(result => {
+		return getParameterHints(this.editor.getModel(), this.editor.getPosition(), triggerCharacter)
+			.then<IParameterHints>(null, onUnexpectedError)
+			.then(result => {
+				if (!result || result.signatures.length === 0) {
+					this.cancel();
+					this.emit('cancel');
+					return false;
+				}
 
-			if (!result || result.signatures.length === 0) {
-				this.cancel();
-				this.emit('cancel');
-				return false;
-			}
+				this.active = true;
+				this.prevResult = result;
 
-			this.active = true;
-			this.prevResult = result;
-
-			var event:IHintEvent = { hints: result };
-			this.emit('hint', event);
-			return true;
-		});
+				var event:IHintEvent = { hints: result };
+				this.emit('hint', event);
+				return true;
+			});
 	}
 
 	public isTriggered():boolean {

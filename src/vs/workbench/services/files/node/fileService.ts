@@ -10,7 +10,6 @@ import fs = require('fs');
 import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
-import iconv = require('iconv-lite');
 
 import files = require('vs/platform/files/common/files');
 import strings = require('vs/base/common/strings');
@@ -43,6 +42,7 @@ export interface IFileServiceOptions {
 	tmpDir?: string;
 	errorLogger?: (msg: string) => void;
 	encoding?: string;
+	bom?: string;
 	encodingOverride?: IEncodingOverride[];
 	watcherIgnoredPatterns?: string[];
 	disableWatcher?: boolean;
@@ -70,7 +70,6 @@ export class FileService implements files.IFileService {
 	public serviceId = files.IFileService;
 
 	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
-	private static MAX_FILE_SIZE = 50 * 1024 * 1024;  // do not try to load larger files than that
 	private static MAX_DEGREE_OF_PARALLEL_FS_OPS = 10; // degree of parallel fs calls that we accept at the same time
 
 	private basePath: string;
@@ -154,11 +153,25 @@ export class FileService implements files.IFileService {
 				});
 			}
 
-			let etag = options && options.etag;
-			let enc = options && options.encoding;
+			let preferredEncoding: string;
+			if (options && options.encoding) {
+				if (detected.encoding === encoding.UTF8 && options.encoding === encoding.UTF8) {
+					preferredEncoding = encoding.UTF8_with_bom; // indicate the file has BOM if we are to resolve with UTF 8
+				} else {
+					preferredEncoding = options.encoding; // give passed in encoding highest priority
+				}
+			} else if (detected.encoding) {
+				if (detected.encoding === encoding.UTF8) {
+					preferredEncoding = encoding.UTF8_with_bom; // if we detected UTF-8, it can only be because of a BOM
+				} else {
+					preferredEncoding = detected.encoding;
+				}
+			} else if (this.options.encoding === encoding.UTF8_with_bom) {
+				preferredEncoding = encoding.UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
+			}
 
 			// 2.) get content
-			return this.resolveFileContent(resource, etag, enc /* give user choice precedence */ || detected.encoding).then((content) => {
+			return this.resolveFileContent(resource, options && options.etag, preferredEncoding).then((content) => {
 
 				// set our knowledge about the mime on the content obj
 				content.mime = detected.mimes.join(', ');
@@ -226,17 +239,21 @@ export class FileService implements files.IFileService {
 
 			// 2.) create parents as needed
 			return createParentsPromise.then(() => {
-				let encodingToWrite = this.getEncoding(resource, options.charset);
-
-				// UTF16 without BOM makes no sense so always add it
+				let encodingToWrite = this.getEncoding(resource, options.encoding);
 				let addBomPromise: TPromise<boolean> = TPromise.as(false);
-				if (encodingToWrite === encoding.UTF16be || encodingToWrite === encoding.UTF16le) {
+
+				// UTF_16 BE and LE as well as UTF_8 with BOM always have a BOM
+				if (encodingToWrite === encoding.UTF16be || encodingToWrite === encoding.UTF16le || encodingToWrite === encoding.UTF8_with_bom) {
 					addBomPromise = TPromise.as(true);
 				}
 
-				// UTF8 only gets a BOM if the file had it alredy
+				// Existing UTF-8 file: check for options regarding BOM
 				else if (exists && encodingToWrite === encoding.UTF8) {
-					addBomPromise = nfcall(encoding.detectEncodingByBOM, absolutePath).then((enc) => enc === encoding.UTF8); // only for UTF8 we need to check if we have to preserve a BOM
+					if (options.overwriteEncoding) {
+						addBomPromise = TPromise.as(false); // if we are to overwrite the encoding, we do not preserve it if found
+					} else {
+						addBomPromise = nfcall(encoding.detectEncodingByBOM, absolutePath).then((enc) => enc === encoding.UTF8); // otherwise preserve it if found
+					}
 				}
 
 				// 3.) check to add UTF BOM
@@ -248,9 +265,9 @@ export class FileService implements files.IFileService {
 						writeFilePromise = pfs.writeFile(absolutePath, value, encoding.UTF8);
 					}
 
-					// Otherwise use Iconv-Lite for encoding
+					// Otherwise use encoding lib
 					else {
-						let encoded = iconv.encode(value, encodingToWrite, { addBOM: addBom });
+						let encoded = encoding.encode(value, encodingToWrite, { addBOM: addBom });
 						writeFilePromise = pfs.writeFile(absolutePath, encoded);
 					}
 
@@ -412,7 +429,7 @@ export class FileService implements files.IFileService {
 			}
 
 			// Return early if file is too large to load
-			if (types.isNumber(model.size) && model.size > FileService.MAX_FILE_SIZE) {
+			if (types.isNumber(model.size) && model.size > files.MAX_FILE_SIZE) {
 				return TPromise.wrapError(<files.IFileOperationResult>{
 					fileOperationResult: files.FileOperationResult.FILE_TOO_LARGE
 				});
@@ -424,7 +441,7 @@ export class FileService implements files.IFileService {
 				let chunks: NodeBuffer[] = [];
 				let fileEncoding = this.getEncoding(model.resource, enc);
 
-				const reader = fs.createReadStream(absolutePath).pipe(iconv.decodeStream(fileEncoding)); // decode takes care of stripping any BOMs from the file content
+				const reader = fs.createReadStream(absolutePath).pipe(encoding.decodeStream(fileEncoding)); // decode takes care of stripping any BOMs from the file content
 
 				reader.on('data', (buf) => {
 					chunks.push(buf);
@@ -440,7 +457,7 @@ export class FileService implements files.IFileService {
 				reader.on('end', () => {
 					let content: files.IContent = <any>model;
 					content.value = chunks.join('');
-					content.charset = fileEncoding; // make sure to store the charset in the model to restore it later when writing
+					content.encoding = fileEncoding; // make sure to store the encoding in the model to restore it later when writing
 
 					if (!done) {
 						done = true;
@@ -451,19 +468,19 @@ export class FileService implements files.IFileService {
 		});
 	}
 
-	private getEncoding(resource: uri, candidate?: string): string {
+	private getEncoding(resource: uri, preferredEncoding?: string): string {
 		let fileEncoding: string;
 
 		let override = this.getEncodingOverride(resource);
 		if (override) {
 			fileEncoding = override;
-		} else if (candidate) {
-			fileEncoding = candidate;
-		} else if (this.options) {
+		} else if (preferredEncoding) {
+			fileEncoding = preferredEncoding;
+		} else {
 			fileEncoding = this.options.encoding;
 		}
 
-		if (!fileEncoding || !iconv.encodingExists(fileEncoding)) {
+		if (!fileEncoding || !encoding.encodingExists(fileEncoding)) {
 			fileEncoding = encoding.UTF8; // the default is UTF 8
 		}
 

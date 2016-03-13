@@ -36,6 +36,17 @@ export interface ILanguageExtensionPoint {
 	configuration?: string;
 }
 
+export interface IValidLanguageExtensionPoint {
+	id: string;
+	extensions: string[];
+	filenames: string[];
+	filenamePatterns: string[];
+	firstLine: string;
+	aliases: string[];
+	mimetypes: string[];
+	configuration: string;
+}
+
 export interface IModeService {
 	serviceId: ServiceIdentifier<any>;
 

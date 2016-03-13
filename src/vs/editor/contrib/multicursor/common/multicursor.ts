@@ -7,7 +7,6 @@
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {EditorAction, HandlerEditorAction} from 'vs/editor/common/editorAction';
 import {Handler, ICommonCodeEditor, IEditorActionDescriptorData, ISelection} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
@@ -15,7 +14,7 @@ import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/edito
 class InsertCursorAbove extends HandlerEditorAction {
 	static ID = 'editor.action.insertCursorAbove';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor, Handler.AddCursorUp);
 	}
 }
@@ -23,7 +22,7 @@ class InsertCursorAbove extends HandlerEditorAction {
 class InsertCursorBelow extends HandlerEditorAction {
 	static ID = 'editor.action.insertCursorBelow';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor, Handler.AddCursorDown);
 	}
 }
@@ -31,7 +30,7 @@ class InsertCursorBelow extends HandlerEditorAction {
 class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 	static ID = 'editor.action.insertCursorAtEndOfEachLineSelected';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor);
 	}
 

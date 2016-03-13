@@ -6,10 +6,12 @@
 
 import {MarkedString, CompletionItemKind} from 'vscode-languageserver';
 import Strings = require('../utils/strings');
-import nls = require('../utils/nls');
 import {IJSONWorkerContribution, ISuggestionsCollector} from '../jsonContributions';
 import {IRequestService} from '../jsonSchemaService';
 import {JSONLocation} from '../jsonLocation';
+
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
 
 let LIMIT = 40;
 
@@ -42,7 +44,7 @@ export class PackageJSONContribution implements IJSONWorkerContribution {
 				'main': '{{pathToMain}}',
 				'dependencies': {}
 			};
-			result.add({ kind: CompletionItemKind.Module, label: nls.localize('json.package.default', 'Default package.json'), insertText: JSON.stringify(defaultValue, null, '\t'), documentation: '' });
+			result.add({ kind: CompletionItemKind.Module, label: localize('json.package.default', 'Default package.json'), insertText: JSON.stringify(defaultValue, null, '\t'), documentation: '' });
 		}
 		return null;
 	}
@@ -83,11 +85,11 @@ export class PackageJSONContribution implements IJSONWorkerContribution {
 							// ignore
 						}
 					} else {
-						result.error(nls.localize('json.npm.error.repoaccess', 'Request to the NPM repository failed: {0}', success.responseText));
+						result.error(localize('json.npm.error.repoaccess', 'Request to the NPM repository failed: {0}', success.responseText));
 						return 0;
 					}
 				}, (error) => {
-					result.error(nls.localize('json.npm.error.repoaccess', 'Request to the NPM repository failed: {0}', error.responseText));
+					result.error(localize('json.npm.error.repoaccess', 'Request to the NPM repository failed: {0}', error.responseText));
 					return 0;
 				});
 			} else {
@@ -119,11 +121,11 @@ export class PackageJSONContribution implements IJSONWorkerContribution {
 					if (obj && obj.version) {
 						let version = obj.version;
 						let name = JSON.stringify(version);
-						result.add({ kind: CompletionItemKind.Class, label: name, insertText: name, documentation: nls.localize('json.npm.latestversion', 'The currently latest version of the package') });
+						result.add({ kind: CompletionItemKind.Class, label: name, insertText: name, documentation: localize('json.npm.latestversion', 'The currently latest version of the package') });
 						name = JSON.stringify('^' + version);
-						result.add({ kind: CompletionItemKind.Class, label: name, insertText: name, documentation: nls.localize('json.npm.majorversion', 'Matches the most recent major version (1.x.x)') });
+						result.add({ kind: CompletionItemKind.Class, label: name, insertText: name, documentation: localize('json.npm.majorversion', 'Matches the most recent major version (1.x.x)') });
 						name = JSON.stringify('~' + version);
-						result.add({ kind: CompletionItemKind.Class, label: name, insertText: name, documentation: nls.localize('json.npm.minorversion', 'Matches the most recent minor version (1.2.x)') });
+						result.add({ kind: CompletionItemKind.Class, label: name, insertText: name, documentation: localize('json.npm.minorversion', 'Matches the most recent minor version (1.2.x)') });
 					}
 				} catch (e) {
 					// ignore
@@ -141,7 +143,7 @@ export class PackageJSONContribution implements IJSONWorkerContribution {
 			let pack = location.getSegments()[location.getSegments().length - 1];
 
 			let htmlContent : MarkedString[] = [];
-			htmlContent.push(nls.localize('json.npm.package.hover', '{0}', pack));
+			htmlContent.push(localize('json.npm.package.hover', '{0}', pack));
 
 			let queryUrl = 'http://registry.npmjs.org/' + encodeURIComponent(pack) + '/latest';
 
@@ -155,7 +157,7 @@ export class PackageJSONContribution implements IJSONWorkerContribution {
 							htmlContent.push(obj.description);
 						}
 						if (obj.version) {
-							htmlContent.push(nls.localize('json.npm.version.hover', 'Latest version: {0}', obj.version));
+							htmlContent.push(localize('json.npm.version.hover', 'Latest version: {0}', obj.version));
 						}
 					}
 				} catch (e) {

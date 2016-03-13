@@ -1,7 +1,7 @@
 {
   "name": "Code",
-  "version": "0.10.11",
-  "electronVersion": "0.36.9",
+  "version": "0.10.12",
+  "electronVersion": "0.37.1",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -11,9 +11,10 @@
     "node": ">= 0.10.0 < 0.11.0"
   },
   "scripts": {
-    "test": "node node_modules/mocha/bin/_mocha",
+    "test": "mocha",
     "preinstall": "node build/npm/preinstall.js",
-    "postinstall": "npm --prefix extensions/vscode-api-tests/ install extensions/vscode-api-tests/ && npm --prefix extensions/json/ install extensions/json/ && npm --prefix extensions/typescript/ install extensions/typescript/"
+    "postinstall": "npm --prefix extensions/vscode-api-tests/ install extensions/vscode-api-tests/ && npm --prefix extensions/json/ install extensions/json/ && npm --prefix extensions/typescript/ install extensions/typescript/ && npm --prefix extensions/php/ install extensions/php/ && npm --prefix extensions/tasks/ install extensions/tasks/",
+    "watch": "gulp watch"
   },
   "dependencies": {
     "applicationinsights": "0.15.6",
@@ -27,7 +28,7 @@
     "native-keymap": "^0.1.2",
     "sax": "^1.1.1",
     "semver": "^4.2.0",
-    "vscode-debugprotocol": "^1.5.0",
+    "vscode-debugprotocol": "^1.6.1",
     "vscode-textmate": "^1.0.11",
     "weak": "^1.0.1",
     "winreg": "0.0.12",
@@ -69,7 +70,6 @@
     "innosetup-compiler": "^5.5.60",
     "istanbul": "^0.3.17",
     "jsdom-no-contextify": "^3.1.0",
-    "json-comments": "^0.2.1",
     "lazy.js": "^0.4.2",
     "mime": "1.2.11",
     "minimatch": "^2.0.10",
@@ -85,7 +85,9 @@
     "typescript": "^1.8.0",
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",
-    "vinyl": "^0.4.5"
+    "vinyl": "^0.4.5",
+	"vscode-nls-dev": "^1.0.0",
+	"is": "^3.1.0"
   },
   "repository": {
     "type": "git",

@@ -205,7 +205,7 @@
 	color: #219AE4;
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs,
+.monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > .docs,
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .docs {
 	color: #C07A7A;
 }
@@ -213,7 +213,7 @@
 
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .docs > .docs-details,
 .monaco-editor.vs-dark .suggest-widget .details > .header > .go-back,
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .type,
+.monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > .type,
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .type-label {
 	color: #4E94CE;
 }
@@ -251,14 +251,14 @@
 	color: #219AE4;
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs,
+.monaco-editor.hc-black .suggest-widget .details > .monaco-scrollable-element > .body > .docs,
 .monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .docs {
 	color: #C07A7A;
 }
 
 .monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .docs > .docs-details,
 .monaco-editor.hc-black .suggest-widget .details > .header > .go-back,
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .type,
+.monaco-editor.hc-black .suggest-widget .details > .monaco-scrollable-element > .body > .type,
 .monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .type-label {
 	color: #4E94CE;
 }

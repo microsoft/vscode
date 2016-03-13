@@ -10,7 +10,7 @@ import {Action, IAction} from 'vs/base/common/actions';
 import {ActionItem, BaseActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
 import {IEditorInputActionContext, IEditorInputAction, EditorInputActionContributor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {AddToWorkingFiles, FocusWorkingFiles, OpenPreviousWorkingFile, OpenNextWorkingFile, CloseAllFilesAction, CloseFileAction, CloseOtherFilesAction, GlobalCompareResourcesAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, keybindingForAction, MoveFileToTrashAction, TriggerRenameFileAction, PasteFileAction, CopyFileAction, SelectResourceForCompareAction, CompareResourcesAction, NewFolderAction, NewFileAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';
+import {AddToWorkingFiles, FocusWorkingFiles, FocusFilesExplorer, OpenPreviousWorkingFile, OpenNextWorkingFile, CloseAllFilesAction, CloseFileAction, CloseOtherFilesAction, GlobalCompareResourcesAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, keybindingForAction, MoveFileToTrashAction, TriggerRenameFileAction, PasteFileAction, CopyFileAction, SelectResourceForCompareAction, CompareResourcesAction, NewFolderAction, NewFileAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {RevertLocalChangesAction, AcceptLocalChangesAction, ConflictResolutionDiffEditorInput} from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
@@ -108,7 +108,7 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		let curOrder = 10;
 		for (let i = 0; i < actions.length; i++) {
 			let action = <any>actions[i];
-			if (!action.order) { // TODO@Ben order should be a property in another place where the action gets bound to the UI
+			if (!action.order) {
 				curOrder += 10;
 				action.order = curOrder;
 			} else {
@@ -175,3 +175,4 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(OpenNextWorkingFile, O
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousWorkingFile, OpenPreviousWorkingFile.ID, OpenPreviousWorkingFile.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.UpArrow) }), category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(AddToWorkingFiles, AddToWorkingFiles.ID, AddToWorkingFiles.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.Enter) }), category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusWorkingFiles, FocusWorkingFiles.ID, FocusWorkingFiles.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_E) }), category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(FocusFilesExplorer, FocusFilesExplorer.ID, FocusFilesExplorer.LABEL), category);

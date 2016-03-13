@@ -19,7 +19,9 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingServic
 import {remote} from 'electron';
 
 export class ContextMenuService implements IContextMenuService {
+
 	public serviceId = IContextMenuService;
+
 	private telemetryService: ITelemetryService;
 	private messageService: IMessageService;
 	private keybindingService: IKeybindingService;
@@ -36,46 +38,48 @@ export class ContextMenuService implements IContextMenuService {
 				return TPromise.as(null);
 			}
 
-			let menu = new remote.Menu();
+			return TPromise.timeout(0).then(() => { // https://github.com/Microsoft/vscode/issues/3638
+				let menu = new remote.Menu();
 
-			actions.forEach(a => {
-				if (a instanceof Separator) {
-					menu.append(new remote.MenuItem({ type: 'separator' }));
+				actions.forEach(a => {
+					if (a instanceof Separator) {
+						menu.append(new remote.MenuItem({ type: 'separator' }));
+					} else {
+						const keybinding = !!delegate.getKeyBinding ? delegate.getKeyBinding(a) : undefined;
+						const accelerator = keybinding && this.keybindingService.getElectronAcceleratorFor(keybinding);
+
+						const item = new remote.MenuItem({
+							label: a.label,
+							checked: a.checked,
+							accelerator,
+							enabled: a.enabled,
+							click: () => {
+								this.runAction(a, delegate);
+							}
+						});
+
+						menu.append(item);
+					}
+				});
+
+				const anchor = delegate.getAnchor();
+				let x: number, y: number;
+
+				if (dom.isHTMLElement(anchor)) {
+					const $anchor = $(<HTMLElement>anchor);
+					const elementPosition = $anchor.getPosition();
+					const elementSize = $anchor.getTotalSize();
+
+					x = elementPosition.left;
+					y = elementPosition.top + elementSize.height;
 				} else {
-					const keybinding = !!delegate.getKeyBinding ? delegate.getKeyBinding(a) : undefined;
-					const accelerator = keybinding && this.keybindingService.getElectronAcceleratorFor(keybinding);
-
-					const item = new remote.MenuItem({
-						label: a.label,
-						checked: a.checked,
-						accelerator,
-						enabled: a.enabled,
-						click: () => {
-							this.runAction(a, delegate);
-						}
-					});
-
-					menu.append(item);
+					const pos = <{ x: number; y: number; }>anchor;
+					x = pos.x;
+					y = pos.y;
 				}
+
+				menu.popup(remote.getCurrentWindow(), Math.floor(x), Math.floor(y));
 			});
-
-			const anchor = delegate.getAnchor();
-			let x: number, y: number;
-
-			if (dom.isHTMLElement(anchor)) {
-				const $anchor = $(<HTMLElement>anchor);
-				const elementPosition = $anchor.getPosition();
-				const elementSize = $anchor.getTotalSize();
-
-				x = elementPosition.left;
-				y = elementPosition.top + elementSize.height;
-			} else {
-				const pos = <{ x: number; y: number; }>anchor;
-				x = pos.x;
-				y = pos.y;
-			}
-
-			menu.popup(remote.getCurrentWindow(), Math.floor(x), Math.floor(y));
 		});
 	}
 
@@ -89,6 +93,6 @@ export class ContextMenuService implements IContextMenuService {
 		const context = delegate.getActionsContext ? delegate.getActionsContext() : null;
 		const res = actionToRun.run(context) || TPromise.as(null);
 
-		res.done(null, e => this.messageService.show(severity.Error, e))
+		res.done(null, e => this.messageService.show(severity.Error, e));
 	}
 }

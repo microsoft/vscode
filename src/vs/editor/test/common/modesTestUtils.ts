@@ -7,37 +7,27 @@
 import {Arrays} from 'vs/editor/common/core/arrays';
 import * as modes from 'vs/editor/common/modes';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
 
-class SimpleTokenTypeClassificationMode implements modes.IMode {
-
-	private _id:string;
+class ModeWithRichEditSupport extends MockMode {
 
 	public richEditSupport: modes.IRichEditSupport;
 
 	constructor(id:string, wordRegExp:RegExp) {
-		this._id = id;
-		this.richEditSupport = new RichEditSupport(this._id, null, {
+		super(id);
+		this.richEditSupport = new RichEditSupport(id, null, {
 			wordPattern: wordRegExp
 		});
-	}
-
-	public getId(): string {
-		return this._id;
-	}
-
-	public toSimplifiedMode(): modes.IMode {
-		return this;
 	}
 }
 
 export function createMockMode(id:string, wordRegExp:RegExp = null):modes.IMode {
-	return new SimpleTokenTypeClassificationMode(id, wordRegExp);
+	return new ModeWithRichEditSupport(id, wordRegExp);
 }
 
 export interface TokenText {
 	text: string;
 	type: string;
-	bracket?: modes.Bracket;
 }
 
 export function createLineContextFromTokenText(tokens: TokenText[]): modes.ILineContext {
@@ -54,7 +44,7 @@ export function createLineContextFromTokenText(tokens: TokenText[]): modes.ILine
 	return new TestLineContext(line, processedTokens, null);
 }
 
-export function createLineContext(line:string, tokens:modes.ILineTokens): modes.ILineContext {
+export function createMockLineContext(line:string, tokens:modes.ILineTokens): modes.ILineContext {
 	return new TestLineContext(line, tokens.tokens, tokens.modeTransitions);
 }
 

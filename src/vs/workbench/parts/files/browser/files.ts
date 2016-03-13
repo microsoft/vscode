@@ -4,75 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import strings = require('vs/base/common/strings');
-import {FileEditorInput} from 'vs/workbench/parts/files/common/files';
-import {EditorDescriptor, IEditorInputActionContext, EditorInputActionContributor} from 'vs/workbench/browser/parts/editor/baseEditor';
-
-/**
- * A variant of the editor input action contributor to contribute only to inputs that match a set of given mimes
- * and implement the FileEditorInput API. This is useful to dynamically contribute editor actions to specific
- * file types.
- */
-export class FileEditorInputActionContributor extends EditorInputActionContributor {
-	private mimes: string[];
-
-	constructor(mimes: string[]) {
-		super();
-
-		this.mimes = mimes;
-	}
-
-	/* We override toId() to make the caching of actions based on the mime of the input if given */
-	protected toId(context: IEditorInputActionContext): string {
-		let id = super.toId(context);
-
-		let mime = this.getMimeFromContext(context);
-		if (mime) {
-			id += mime;
-		}
-
-		return id;
-	}
-
-	private getMimeFromContext(context: IEditorInputActionContext): string {
-		if (context && context.input && context.input instanceof FileEditorInput) {
-			let fileInput = <FileEditorInput>context.input;
-			return fileInput.getMime();
-		}
-
-		return null;
-	}
-
-	private hasMime(context: IEditorInputActionContext): boolean {
-		let mime = this.getMimeFromContext(context);
-		if (mime) {
-			let mimes = mime.split(',');
-			for (let i = 0; i < mimes.length; i++) {
-				if (this.mimes.indexOf(strings.trim(mimes[i])) >= 0) {
-					return true;
-				}
-			}
-		}
-
-		return false;
-	}
-
-	public hasActions(context: IEditorInputActionContext): boolean {
-		if (!this.hasMime(context)) {
-			return false;
-		}
-
-		return super.hasActions(context);
-	}
-
-	public hasSecondaryActions(context: IEditorInputActionContext): boolean {
-		if (!this.hasMime(context)) {
-			return false;
-		}
-
-		return super.hasSecondaryActions(context);
-	}
-}
+import {EditorDescriptor} from 'vs/workbench/browser/parts/editor/baseEditor';
 
 /**
  * A lightweight descriptor of an editor for files. Optionally allows to specify a list of mime types the editor

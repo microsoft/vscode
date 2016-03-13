@@ -7,7 +7,6 @@
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {TrimTrailingWhitespaceCommand} from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import {EditorAction, HandlerEditorAction} from 'vs/editor/common/editorAction';
 import {Handler, ICommand, ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
@@ -45,7 +44,7 @@ class CopyLinesAction extends EditorAction {
 class CopyLinesUpAction extends CopyLinesAction {
 	static ID = 'editor.action.copyLinesUpAction';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor, false);
 	}
 
@@ -54,7 +53,7 @@ class CopyLinesUpAction extends CopyLinesAction {
 class CopyLinesDownAction extends CopyLinesAction {
 	static ID = 'editor.action.copyLinesDownAction';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor, true);
 	}
 }
@@ -88,7 +87,7 @@ class MoveLinesAction extends EditorAction {
 class MoveLinesUpAction extends MoveLinesAction {
 	static ID = 'editor.action.moveLinesUpAction';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor, false);
 	}
 }
@@ -96,7 +95,7 @@ class MoveLinesUpAction extends MoveLinesAction {
 class MoveLinesDownAction extends MoveLinesAction {
 	static ID = 'editor.action.moveLinesDownAction';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor, true);
 	}
 }
@@ -105,7 +104,7 @@ class TrimTrailingWhitespaceAction extends EditorAction {
 
 	static ID = 'editor.action.trimTrailingWhitespace';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor);
 	}
 
@@ -179,7 +178,7 @@ class DeleteLinesAction extends AbstractRemoveLinesAction {
 
 	static ID = 'editor.action.deleteLines';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor);
 	}
 
@@ -201,7 +200,7 @@ class DeleteLinesAction extends AbstractRemoveLinesAction {
 class IndentLinesAction extends HandlerEditorAction {
 	static ID = 'editor.action.indentLines';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor, Handler.Indent);
 	}
 }
@@ -209,7 +208,7 @@ class IndentLinesAction extends HandlerEditorAction {
 class OutdentLinesAction extends HandlerEditorAction {
 	static ID = 'editor.action.outdentLines';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor, Handler.Outdent);
 	}
 }
@@ -217,7 +216,7 @@ class OutdentLinesAction extends HandlerEditorAction {
 class InsertLineBeforeAction extends HandlerEditorAction {
 	static ID = 'editor.action.insertLineBefore';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor, Handler.LineInsertBefore);
 	}
 }
@@ -225,7 +224,7 @@ class InsertLineBeforeAction extends HandlerEditorAction {
 class InsertLineAfterAction extends HandlerEditorAction {
 	static ID = 'editor.action.insertLineAfter';
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor, Handler.LineInsertAfter);
 	}
 }

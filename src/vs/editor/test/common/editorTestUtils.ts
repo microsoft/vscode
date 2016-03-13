@@ -4,18 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IPosition, DefaultEndOfLine} from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
 
-export function pos(lineNumber:number, column:number): IPosition {
-	return {
-		lineNumber: lineNumber,
-		column: column
-	};
-}
-
 export function withEditorModel(text:string[], callback:(model:Model) => void): void {
-	var model = new Model(text.join('\n'), DefaultEndOfLine.LF, null);
+	var model = new Model(text.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
 	callback(model);
 	model.dispose();
 }

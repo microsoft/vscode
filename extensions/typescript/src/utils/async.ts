@@ -12,7 +12,7 @@ export interface ITask<T> {
 export class Delayer<T> {
 
 	public defaultDelay: number;
-	private timeout: NodeJS.Timer;
+	private timeout: any; // Timer
 	private completionPromise: Promise<T>;
 	private onSuccess: (value?: T | Thenable<T>) => void;
 	private task: ITask<T>;

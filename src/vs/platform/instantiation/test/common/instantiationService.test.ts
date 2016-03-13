@@ -9,7 +9,7 @@ import assert = require('assert');
 import instantiation = require('vs/platform/instantiation/common/instantiation');
 import instantiationService = require('vs/platform/instantiation/common/instantiationService');
 
-import {SyncDescriptor, createSyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
+import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 
 let IService1 = instantiation.createDecorator<IService1>('service1');
 
@@ -123,11 +123,6 @@ class ServiceLoop2 implements IService2 {
 }
 
 suite('Instantiation Service', () => {
-	let service: instantiation.IInstantiationService;
-
-
-
-
 	test('@Param - simple clase', function() {
 		let service = instantiationService.createInstantiationService(Object.create(null));
 		service.addSingleton(IService1, new Service1());

@@ -5,9 +5,8 @@
 
 'use strict';
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, WorkspaceConfiguration } from 'vscode';
 
-import { IConfiguration, defaultConfiguration } from './configuration';
 import { ITypescriptServiceClient } from '../typescriptService';
 
 import * as PConst from '../protocol.const';
@@ -59,6 +58,14 @@ class MyCompletionItem extends CompletionItem {
 	}
 }
 
+interface Configuration {
+	useCodeSnippetsOnMethodSuggest?: boolean;
+}
+
+namespace Configuration {
+	export const useCodeSnippetsOnMethodSuggest = 'useCodeSnippetsOnMethodSuggest';
+}
+
 export default class TypeScriptCompletionItemProvider implements CompletionItemProvider {
 
 	public triggerCharacters = ['.'];
@@ -66,15 +73,15 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 	public sortBy = [{ type: 'reference', partSeparator: '/' }];
 
 	private client: ITypescriptServiceClient;
-	private config: IConfiguration;
+	private config: Configuration;
 
 	constructor(client: ITypescriptServiceClient) {
 		this.client = client;
-		this.config = defaultConfiguration;
+		this.config = { useCodeSnippetsOnMethodSuggest: false };
 	}
 
-	public setConfiguration(config: IConfiguration): void {
-		this.config = config;
+	public updateConfiguration(config: WorkspaceConfiguration): void {
+		this.config.useCodeSnippetsOnMethodSuggest = config.get(Configuration.useCodeSnippetsOnMethodSuggest, false);
 	}
 
 	public provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): Promise<CompletionItem[]> {

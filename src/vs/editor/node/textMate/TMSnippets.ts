@@ -9,7 +9,7 @@ import {parse} from 'vs/base/common/json';
 import * as paths from 'vs/base/common/paths';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {readFile} from 'vs/base/node/pfs';
-import {IMessageCollector, PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
+import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {ISuggestion} from 'vs/editor/common/modes';
 import {SnippetsRegistry} from 'vs/editor/common/modes/supports';
 import {IModeService} from 'vs/editor/common/services/modeService';
@@ -30,13 +30,13 @@ export function snippetUpdated(modeId: string, filePath: string): TPromise<void>
 	});
 }
 
-let snippetsExtensionPoint = PluginsRegistry.registerExtensionPoint<ITMSnippetsExtensionPoint[]>('snippets', {
+let snippetsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ITMSnippetsExtensionPoint[]>('snippets', {
 	description: nls.localize('vscode.extension.contributes.snippets', 'Contributes textmate snippets.'),
 	type: 'array',
-	default: [{ language: '', path: '' }],
+	defaultSnippets: [ { body: [{ language: '', path: '' }] }],
 	items: {
 		type: 'object',
-		default: { language: '{{id}}', path: './snippets/{{id}}.json.'},
+		defaultSnippets: [ { body: { language: '{{id}}', path: './snippets/{{id}}.json.'} }] ,
 		properties: {
 			language: {
 				description: nls.localize('vscode.extension.contributes.snippets-language', 'Language id for which this snippet is contributed to.'),
@@ -71,7 +71,7 @@ export class MainProcessTextMateSnippet {
 		});
 	}
 
-	private _withTMSnippetContribution(extensionFolderPath:string, snippet:ITMSnippetsExtensionPoint, collector:IMessageCollector): void {
+	private _withTMSnippetContribution(extensionFolderPath:string, snippet:ITMSnippetsExtensionPoint, collector:IExtensionMessageCollector): void {
 		if (!snippet.language || (typeof snippet.language !== 'string') || !this._modeService.isRegisteredMode(snippet.language)) {
 			collector.error(nls.localize('invalid.language', "Unknown language in `contributes.{0}.language`. Provided value: {1}", snippetsExtensionPoint.name, String(snippet.language)));
 			return;

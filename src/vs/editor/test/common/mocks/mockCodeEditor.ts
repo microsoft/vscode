@@ -10,7 +10,7 @@ import {IKeybindingScopeLocation} from 'vs/platform/keybinding/common/keybinding
 import {MockKeybindingService} from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import {MockTelemetryService} from 'vs/platform/telemetry/test/common/mockTelemetryService';
 import {CommonCodeEditor} from 'vs/editor/common/commonCodeEditor';
-import {CommonEditorConfiguration, IIndentationGuesser} from 'vs/editor/common/config/commonEditorConfig';
+import {CommonEditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
 import {Cursor} from 'vs/editor/common/controller/cursor';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
@@ -18,7 +18,7 @@ import {MockCodeEditorService} from 'vs/editor/test/common/mocks/mockCodeEditorS
 import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 
 export class MockCodeEditor extends CommonCodeEditor {
-	protected _createConfiguration(options:editorCommon.ICodeEditorWidgetCreationOptions, indentationGuesser:IIndentationGuesser): CommonEditorConfiguration {
+	protected _createConfiguration(options:editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration {
 		return new MockConfiguration(options);
 	}
 	public getCenteredRangeInViewport(): editorCommon.IEditorRange { return null; }
@@ -66,7 +66,7 @@ export function withMockCodeEditor(text:string[], options:editorCommon.ICodeEdit
 		telemetryService: telemetryService
 	});
 
-	let model = new Model(text.join('\n'), editorCommon.DefaultEndOfLine.LF, null);
+	let model = new Model(text.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
 	let editor = new MockCodeEditor(new MockScopeLocation(), options, instantiationService, codeEditorService, keybindingService, telemetryService);
 	editor.setModel(model);
 

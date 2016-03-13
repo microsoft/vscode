@@ -3,5 +3,16 @@
 	"javascript.reloadProjects.title": "Reload JavaScript Project",
 	"configuration.typescript": "TypeScript configuration",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Complete functions with their parameter signature.",
-	"typescript.tsdk.desc": "Specifies the folder path containing the tsserver and lib*.d.ts files to use."
+	"typescript.tsdk.desc": "Specifies the folder path containing the tsserver and lib*.d.ts files to use.",
+	"typescript.validate.enable": "Enable / disable TypeScript validation",
+	"format.insertSpaceAfterCommaDelimiter": "Defines space handling after a comma delimiter",
+	"format.insertSpaceAfterSemicolonInForStatements": " Defines space handling after a semicolon in a for statement",
+	"format.insertSpaceBeforeAndAfterBinaryOperators": "Defines space handling after a binary operator",
+	"format.insertSpaceAfterKeywordsInControlFlowStatements": "Defines space handling after keywords in control flow statement",
+	"format.insertSpaceAfterFunctionKeywordForAnonymousFunctions": "Defines space handling after function keyword for anonymous functions",
+	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": "Defines space handling after opening and before closing non empty parenthesis",
+	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": "Defines space handling after opening and before closing non empty brackets",
+	"format.placeOpenBraceOnNewLineForFunctions": "Defines whether an open brace is put onto a new line for functions or not",
+	"format.placeOpenBraceOnNewLineForControlBlocks": "Defines whether an open brace is put onto a new line for control blocks or not",
+	"javascript.validate.enable": "Enable / disable JavaScript validation"
 }

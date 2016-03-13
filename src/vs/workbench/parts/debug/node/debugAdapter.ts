@@ -120,7 +120,7 @@ export class Adapter {
 
 	private warnRelativePaths(attribute: any): void {
 		if (attribute) {
-			attribute.pattern = '^\\${.*}.*|^((\\/|[a-zA-Z]:\\\\)[^\\(\\)<>\\\'\\"\\[\\]]+)';
+			attribute.pattern = '^\\${.*}.*|' + paths.isAbsoluteRegex.source;
 			attribute.errorMessage = nls.localize('relativePathsNotConverted', "Relative paths will no longer be automatically converted to absolute ones. Consider using ${workspaceRoot} as a prefix.");
 		}
 	}

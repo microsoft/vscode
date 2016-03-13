@@ -14,3 +14,8 @@
 .monaco-workbench > .part.panel {
 	z-index: initial;
 }
+
+/* High Contrast Theming */
+.monaco-workbench.hc-black > .part.panel > .title {
+	border-top-color: #6FC3DF;
+}

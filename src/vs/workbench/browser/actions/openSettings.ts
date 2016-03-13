@@ -17,6 +17,7 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {Position, IEditor} from 'vs/platform/editor/common/editor';
+import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IFileService, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
 import {IMessageService, Severity, CloseAction} from 'vs/platform/message/common/message';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
@@ -92,14 +93,36 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 	public static ID = 'workbench.action.openGlobalSettings';
 	public static LABEL = nls.localize('openGlobalSettings', "Open User Settings");
 
+	private static SETTINGS_INFO_IGNORE_KEY = 'settings.workspace.info.ignore';
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IFileService fileService: IFileService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IMessageService messageService: IMessageService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IStorageService private storageService: IStorageService
+	) {
+		super(id, label, editorService, fileService, configurationService, messageService, contextService, keybindingService, instantiationService);
+	}
+
 	public run(event?: any): TPromise<IEditor> {
 
 		// Inform user about workspace settings
-		if (this.configurationService.hasWorkspaceConfiguration()) {
-			let hide = this.messageService.show(Severity.Info, {
+		if (this.configurationService.hasWorkspaceConfiguration() && !this.storageService.getBoolean(OpenGlobalSettingsAction.SETTINGS_INFO_IGNORE_KEY, StorageScope.WORKSPACE)) {
+			this.messageService.show(Severity.Info, {
 				message: nls.localize('workspaceHasSettings', "The currently opened folder contains workspace settings that may override user settings"),
 				actions: [
 					CloseAction,
+					new Action('neverShowAgain', nls.localize('neverShowAgain', "Never Show Again"), null, true, () => {
+						this.storageService.store(OpenGlobalSettingsAction.SETTINGS_INFO_IGNORE_KEY, true, StorageScope.WORKSPACE);
+
+						return TPromise.as(true);
+					}),
 					new Action('open.workspaceSettings', nls.localize('openWorkspaceSettings', "Open Workspace Settings"), null, true, () => {
 						let editorCount = this.editorService.getVisibleEditors().length;
 
@@ -109,8 +132,6 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 					})
 				]
 			});
-
-			setTimeout(() => hide(), 10000 /* hide after 10 seconds */);
 		}
 
 		// Open settings

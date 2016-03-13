@@ -8,15 +8,14 @@
 // include these in the editor bundle because they are widely used by many languages
 import 'vs/editor/common/languages.common';
 import 'vs/editor/common/worker/validationHelper';
-
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {WorkerServer} from 'vs/base/common/worker/workerServer';
 import {EventService} from 'vs/platform/event/common/eventService';
+import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
+import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
 import {SecondaryMarkerService} from 'vs/platform/markers/common/markerService';
-import {AbstractPluginService, ActivatedPlugin} from 'vs/platform/plugins/common/abstractPluginService';
-import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
 import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
 import {WorkerTelemetryService} from 'vs/platform/telemetry/common/workerTelemetryService';
 import {WorkerThreadService} from 'vs/platform/thread/common/workerThreadService';
@@ -46,7 +45,7 @@ export interface ICallback {
 	(something:any):void;
 }
 
-class WorkerPluginService extends AbstractPluginService<ActivatedPlugin> {
+class WorkerExtensionService extends AbstractExtensionService<ActivatedExtension> {
 
 	constructor() {
 		super(true);
@@ -68,15 +67,11 @@ class WorkerPluginService extends AbstractPluginService<ActivatedPlugin> {
 		}
 	}
 
-	public deactivate(pluginId:string): void {
-		// nothing to do
-	}
-
-	protected _createFailedPlugin(): ActivatedPlugin {
+	protected _createFailedExtension(): ActivatedExtension {
 		throw new Error('unexpected');
 	}
 
-	protected _actualActivatePlugin(pluginDescription: IPluginDescription): TPromise<ActivatedPlugin> {
+	protected _actualActivateExtension(extensionDescription: IExtensionDescription): TPromise<ActivatedExtension> {
 		throw new Error('unexpected');
 	}
 
@@ -91,7 +86,7 @@ export class EditorWorkerServer {
 
 	public initialize(mainThread:WorkerServer, complete:ICallback, error:ICallback, progress:ICallback, initData:IInitData):void {
 
-		var pluginService = new WorkerPluginService();
+		var extensionService = new WorkerExtensionService();
 
 		var contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
 
@@ -103,13 +98,13 @@ export class EditorWorkerServer {
 		var resourceService = new ResourceService();
 		var markerService = new SecondaryMarkerService(this.threadService);
 
-		var modeService = new ModeServiceImpl(this.threadService, pluginService);
+		var modeService = new ModeServiceImpl(this.threadService, extensionService);
 
 		var requestService = new BaseRequestService(contextService, telemetryServiceInstance);
 
 		var _services : any = {
 			threadService: this.threadService,
-			pluginService: pluginService,
+			extensionService: extensionService,
 			modeService: modeService,
 			contextService: contextService,
 			eventService: new EventService(),

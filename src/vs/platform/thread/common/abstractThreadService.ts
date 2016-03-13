@@ -134,8 +134,8 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 			return this._registerAndInstantiateMainProcessActor(id, desc);
 		}
 
-		if (Remotable.Registry.PluginHostContext[id]) {
-			return this._registerAndInstantiatePluginHostActor(id, desc);
+		if (Remotable.Registry.ExtHostContext[id]) {
+			return this._registerAndInstantiateExtHostActor(id, desc);
 		}
 
 		if (Remotable.Registry.WorkerContext[id]) {
@@ -155,8 +155,8 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 			return this._registerMainProcessActor(id, instance);
 		}
 
-		if (Remotable.Registry.PluginHostContext[id]) {
-			return this._registerPluginHostActor(id, instance);
+		if (Remotable.Registry.ExtHostContext[id]) {
+			return this._registerExtHostActor(id, instance);
 		}
 
 		if (Remotable.Registry.WorkerContext[id]) {
@@ -168,8 +168,8 @@ export abstract class AbstractThreadService implements remote.IManyHandler {
 
 	protected abstract _registerAndInstantiateMainProcessActor<T>(id: string, descriptor: SyncDescriptor0<T>): T;
 	protected abstract _registerMainProcessActor<T>(id: string, actor: T): void;
-	protected abstract _registerAndInstantiatePluginHostActor<T>(id: string, descriptor: SyncDescriptor0<T>): T;
-	protected abstract _registerPluginHostActor<T>(id: string, actor: T): void;
+	protected abstract _registerAndInstantiateExtHostActor<T>(id: string, descriptor: SyncDescriptor0<T>): T;
+	protected abstract _registerExtHostActor<T>(id: string, actor: T): void;
 	protected abstract _registerAndInstantiateWorkerActor<T>(id: string, descriptor: SyncDescriptor0<T>, whichWorker: ThreadAffinity): T;
 	protected abstract _registerWorkerActor<T>(id: string, actor: T): void;
 }

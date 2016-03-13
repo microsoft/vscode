@@ -100,7 +100,7 @@ export class MessageList {
 
 		// Return only if we are unable to extract a message text
 		let messageText = this.getMessageText(message);
-		if (!messageText) {
+		if (!messageText || typeof messageText !== 'string') {
 			return () => {/* empty */ };
 		}
 

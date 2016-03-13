@@ -23,7 +23,7 @@ suite('LESS - Intellisense', () => {
 	var testSuggestionsFor = function(value:string, stringBefore:string):WinJS.TPromise<Modes.ISuggestResult> {
 		var resourceService = new ResourceService.ResourceService();
 		var url = URI.parse('test://1');
-		resourceService.insert(url,  mm.createMirrorModelFromString(null, 0, value, EditorCommon.DefaultEndOfLine.LF, modesUtil.createMockMode('mock.mode.id', /(-?\d*\.\d+)|([\w-]+)/g), url));
+		resourceService.insert(url,  mm.createTestMirrorModelFromString(value, modesUtil.createMockMode('mock.mode.id', /(-?\d*\.\d+)|([\w-]+)/g), url));
 
 		let services = servicesUtil2.createMockEditorWorkerServices({
 			resourceService: resourceService,

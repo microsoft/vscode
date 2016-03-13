@@ -301,12 +301,13 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		inputBox.focus();
 
 		let done = async.once<boolean, void>(commit => {
+			tree.clearHighlight();
+
 			if (commit && inputBox.value) {
 				this.state.actionProvider.runAction(tree, stat, editableData.action, { value: inputBox.value });
 			}
 
 			setTimeout(() => {
-				tree.clearHighlight();
 				tree.DOMFocus();
 				lifecycle.disposeAll(toDispose);
 			}, 0);

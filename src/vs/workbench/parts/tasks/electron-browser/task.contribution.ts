@@ -38,10 +38,16 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService, ConfigurationServiceEventTypes } from 'vs/platform/configuration/common/configuration';
 import { IFileService, FileChangesEvent, FileChangeType, EventType as FileEventType } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPluginService } from 'vs/platform/plugins/common/plugins';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybindingService';
 
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
+
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ISuggestSupport } from 'vs/editor/common/modes';
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggest';
+import { SuggestRegistry } from 'vs/editor/contrib/suggest/common/suggest';
 
 import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -148,11 +154,12 @@ class ConfigureTaskRunnerAction extends Action {
 	private contextService: IWorkspaceContextService;
 	private outputService: IOutputService;
 	private messageService: IMessageService;
+	private keybindingService: IKeybindingService;
 
 	constructor(id: string, label: string, @IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
-		@IMessageService messageService: IMessageService) {
+		@IMessageService messageService: IMessageService, @IKeybindingService keybindingService: IKeybindingService) {
 
 		super(id, label);
 		this.configurationService = configurationService;
@@ -161,11 +168,14 @@ class ConfigureTaskRunnerAction extends Action {
 		this.contextService = contextService;
 		this.outputService = outputService;
 		this.messageService = messageService;
+		this.keybindingService = keybindingService;
 	}
 
 	public run(event?:any): Promise {
 		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
 		let autoDetectFailed = false;
+		let useTaskSampleConfig = false;
+		let fileCreated = false;
 		return this.fileService.resolveFile(this.contextService.toResource('.vscode/tasks.json')).then((success) => {
 			return success;
 		}, (err:any) => {
@@ -186,6 +196,7 @@ class ConfigureTaskRunnerAction extends Action {
 					// TODO@Dirk: Converting double time here to get a wrong uri that is compatible with the rest of the system
 					let configSampleUri = URI.parse(require.toUrl('vs/workbench/parts/tasks/common/taskSampleConfig.json'));
 					contentPromise = this.fileService.resolveContent(configSampleUri, { encoding: 'utf8' /* make sure to keep sample file encoding as we stored it! */}).then(content => {
+						useTaskSampleConfig = true;
 						return content.value;
 					}, (err:any) => {
 						let config: FileConfig.ExternalTaskRunnerConfiguration = {
@@ -198,7 +209,10 @@ class ConfigureTaskRunnerAction extends Action {
 					});
 				}
 				return contentPromise.then((content) => {
-					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content);
+					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content).then((value) => {
+						fileCreated = true;
+						return value;
+					});
 				});
 			});
 		}).then((stat) => {
@@ -208,7 +222,27 @@ class ConfigureTaskRunnerAction extends Action {
 				options: {
 					forceOpen: true
 				}
-			}, sideBySide);
+			}, sideBySide).then((editor) => {
+				if (useTaskSampleConfig && fileCreated) {
+					let codeEditor: ICodeEditor = editor.getControl() as ICodeEditor;
+					let position = { lineNumber: 5, column: 2 };
+					codeEditor.revealPosition(position);
+					codeEditor.setPosition(position);
+					// Workaround for: https://github.com/Microsoft/vscode/issues/3121
+					setTimeout(() => {
+						let groups: ISuggestSupport[][] = SuggestRegistry.orderedGroups(codeEditor.getModel());
+						let newGroups: ISuggestSupport[][];
+						if (groups.length > 1 && groups[0].length > 1) {
+							newGroups = [[groups[0][1]], groups[1]];
+						} else {
+							newGroups = groups;
+						}
+						SuggestController.getSuggestController(codeEditor).triggerSuggest(undefined, newGroups);
+					}, 300);
+				}
+				this.outputService.showOutput(TaskService.OutputChannel, true);
+				return editor;
+			});
 		}, (error) => {
 			throw new Error(nls.localize('ConfigureTaskRunnerAction.failed', "Unable to create the 'tasks.json' file inside the '.vscode' folder. Consult the task output for details."));
 		});
@@ -449,7 +483,8 @@ class TaskService extends EventEmitter implements ITaskService {
 	private textFileService: ITextFileService;
 	private eventService: IEventService;
 	private modelService: IModelService;
-	private pluginService: IPluginService;
+	private extensionService: IExtensionService;
+	private keybindingService: IKeybindingService;
 
 	private _taskSystemPromise: TPromise<ITaskSystem>;
 	private _taskSystem: ITaskSystem;
@@ -464,7 +499,8 @@ class TaskService extends EventEmitter implements ITaskService {
 		@IFileService fileService:IFileService, @IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ITelemetryService telemetryService: ITelemetryService, @ITextFileService textFileService:ITextFileService,
 		@ILifecycleService lifecycleService: ILifecycleService, @IEventService eventService: IEventService,
-		@IModelService modelService: IModelService, @IPluginService pluginService: IPluginService) {
+		@IModelService modelService: IModelService, @IExtensionService extensionService: IExtensionService,
+		@IKeybindingService keybindingService: IKeybindingService) {
 
 		super();
 		this.modeService = modeService;
@@ -479,7 +515,8 @@ class TaskService extends EventEmitter implements ITaskService {
 		this.textFileService = textFileService;
 		this.eventService = eventService;
 		this.modelService = modelService;
-		this.pluginService = pluginService;
+		this.extensionService = extensionService;
+		this.keybindingService = keybindingService;
 
 		this.taskSystemListeners = [];
 		this.clearTaskSystemPromise = false;
@@ -618,7 +655,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	public configureAction(): Action {
 		return new ConfigureTaskRunnerAction(ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT,
 			this.configurationService, this.editorService, this.fileService, this.contextService,
-			this.outputService, this.messageService);
+			this.outputService, this.messageService, this.keybindingService);
 	}
 
 	public build(): TPromise<ITaskSummary> {
@@ -747,7 +784,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (needsConfig || needsTerminate) {
 				let closeAction = new CloseMessageAction();
 				let action = needsConfig
-					? new ConfigureTaskRunnerAction(ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT, this.configurationService, this.editorService, this.fileService, this.contextService, this.outputService, this.messageService)
+					? this.configureAction()
 					: new TerminateAction(TerminateAction.ID, TerminateAction.TEXT, this, this.telemetryService);
 
 				closeAction.closeFunction = this.messageService.show(buildError.severity, { message: buildError.message, actions: [closeAction, action ] });
@@ -970,7 +1007,7 @@ if (Env.enableTasks) {
 						'severity': {
 							'type': 'string',
 							'enum': ['error', 'warning', 'info'],
-							'description': nls.localize('JsonSchema.problemMatcher.severity', 'The default severity for captures problems. Is used if the pattern doesn\' define a match group for severity.')
+							'description': nls.localize('JsonSchema.problemMatcher.severity', 'The default severity for captures problems. Is used if the pattern doesn\'t define a match group for severity.')
 						},
 						'applyTo': {
 							'type': 'string',
@@ -1067,6 +1104,9 @@ if (Env.enableTasks) {
 								},
 								'env': {
 									'type': 'object',
+									'additionalProperties': {
+										'type': 'string'
+									},
 									'description': nls.localize('JsonSchema.options.env', 'The environment of the executed program or shell. If omitted the parent process\' environment is used.')
 								}
 							},

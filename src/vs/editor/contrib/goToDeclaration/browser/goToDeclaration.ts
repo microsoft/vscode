@@ -37,6 +37,12 @@ import {FindReferencesController} from 'vs/editor/contrib/referenceSearch/browse
 
 const DEFAULT_BEHAVIOR = Behaviour.WidgetFocus | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange;
 
+function metaTitle(references: IReference[]): string {
+	if (references.length > 1) {
+		return nls.localize('meta.title', " – {0} definitions", references.length);
+	}
+}
+
 export abstract class GoToTypeAction extends EditorAction {
 
 	constructor(
@@ -79,7 +85,7 @@ export abstract class GoToTypeAction extends EditorAction {
 
 			} else {
 				let controller = FindReferencesController.getController(this.editor);
-				return controller.processRequest(this.editor.getSelection(), TPromise.as(references));
+				return controller.processRequest(this.editor.getSelection(), TPromise.as(references), metaTitle);
 			}
 
 		}, (err) => {
@@ -399,7 +405,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		let htmlMessage: IHTMLContentElement = {
 			tagName: 'div',
 			className: 'goto-definition-link-hover',
-			style: `tab-size: ${this.editor.getIndentationOptions().tabSize}`
+			style: `tab-size: ${model.getOptions().tabSize}`
 		};
 
 		if (text && text.trim().length > 0) {
@@ -514,7 +520,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			// Muli result: Show in references UI
 			if (validResults.length > 1) {
 				let controller = FindReferencesController.getController(this.editor);
-				return controller.processRequest(this.editor.getSelection(), TPromise.as(validResults));
+				return controller.processRequest(this.editor.getSelection(), TPromise.as(validResults), metaTitle);
 			}
 
 			// Single result: Open

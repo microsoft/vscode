@@ -202,7 +202,7 @@ suite('Workbench UI Services', () => {
 					value: 'Hello Html',
 					etag: 'index.txt',
 					mime: 'text/plain',
-					charset: 'utf8',
+					encoding: 'utf8',
 					mtime: new Date().getTime(),
 					name: paths.basename(resource.fsPath)
 				});
@@ -214,7 +214,7 @@ suite('Workbench UI Services', () => {
 						resource: res,
 						etag: 'index.txt',
 						mime: 'text/plain',
-						charset: 'utf8',
+						encoding: 'utf8',
 						mtime: new Date().getTime(),
 						name: paths.basename(res.fsPath)
 					};

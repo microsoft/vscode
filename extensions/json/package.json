@@ -2,16 +2,17 @@
 	"name": "json",
 	"version": "0.1.0",
 	"publisher": "vscode",
+	"aiKey":"AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
 	"engines": {
 		"vscode": "0.10.x"
 	},
 	"activationEvents": [
 		"onLanguage:json"
 	],
-	"main": "./out/jsonMain",
+	"main": "./client/out/jsonMain",
 	"scripts": {
-		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../gulpfile.plugins.js compile-plugin:json ./src/tsconfig.json",
-		"postinstall": "cd server && npm install && npm run compile && cd .."
+		"compile": "gulp compile-extension:json-client && gulp compile-extension:json-server",
+		"postinstall": "npm --prefix server install server"
 	},
 	"contributes": {
 		"languages": [
@@ -122,6 +123,7 @@
 		}
 	},
 	"dependencies": {
-		"vscode-languageclient": "^1.3.1"
+		"vscode-languageclient": "^1.3.1",
+		"vscode-extension-telemetry": "^0.0.5"
 	}
 }

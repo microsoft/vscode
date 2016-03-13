@@ -28,14 +28,21 @@ export class ChokidarWatcherService extends WatcherService {
 	private spamWarningLogged:boolean;
 
 	public watch(request: IWatcherRequest): TPromise<void> {
-		let watcherOpts: any = {
+		let watcherOpts: chokidar.IOptions = {
 			ignoreInitial: true,
 			ignorePermissionErrors: true,
 			followSymlinks: true, // this is the default of chokidar and supports file events through symlinks
-			ignored: request.ignored
+			ignored: request.ignored,
+			interval: 1000, // while not used in normal cases, if any error causes chokidar to fallback to polling, increase its intervals
+			binaryInterval: 1000
 		};
 
 		let chokidarWatcher = chokidar.watch(request.basePath, watcherOpts);
+
+		// Detect if for some reason the native watcher library fails to load
+		if (process.platform === 'darwin' && !chokidarWatcher.options.useFsEvents) {
+			console.error('Watcher is not using native fsevents library and is falling back to unefficient polling.');
+		}
 
 		let undeliveredFileEvents: watcher.IRawFileChange[] = [];
 		let fileEventDelayer = new ThrottledDelayer(ChokidarWatcherService.FS_EVENT_DELAY);

@@ -241,6 +241,9 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	}
 
 	public getResultsFromCache(searchValue: string, range: IRange = null): QuickOpenEntry[] {
+		if (paths.isAbsolute(searchValue)) {
+			return null; // bypass cache if user looks up an absolute path where matching goes directly on disk
+		}
 
 		// Find cache entries by prefix of search value
 		let cachedEntries: QuickOpenEntry[];

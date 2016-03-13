@@ -16,7 +16,7 @@ import {nfcall} from 'vs/base/common/async';
 import uri from 'vs/base/common/uri';
 import uuid = require('vs/base/common/uuid');
 import extfs = require('vs/base/node/extfs');
-import encoding = require('vs/base/node/encoding');
+import encodingLib = require('vs/base/node/encoding');
 import utils = require('vs/workbench/services/files/test/node/utils');
 
 suite('FileService', () => {
@@ -25,7 +25,7 @@ suite('FileService', () => {
 	let parentDir = path.join(os.tmpdir(), 'vsctests', 'service');
 	let testDir: string;
 
-	setup(function (done) {
+	setup(function(done) {
 		let id = uuid.generateUuid();
 		testDir = path.join(parentDir, id);
 		let sourceDir = require.toUrl('./fixtures/service');
@@ -125,7 +125,7 @@ suite('FileService', () => {
 
 	test('move - FILE_MOVE_CONFLICT', function(done: () => void) {
 		service.resolveFile(uri.file(path.join(testDir, 'index.html'))).done(source => {
-			return service.moveFile(source.resource, uri.file(path.join(testDir, 'binary.txt'))).then(null, (e:IFileOperationResult) => {
+			return service.moveFile(source.resource, uri.file(path.join(testDir, 'binary.txt'))).then(null, (e: IFileOperationResult) => {
 				assert.equal(e.fileOperationResult, FileOperationResult.FILE_MOVE_CONFLICT);
 
 				done();
@@ -246,7 +246,7 @@ suite('FileService', () => {
 	});
 
 	test('resolveFile', function(done: () => void) {
-		service.resolveFile(uri.file(testDir), { resolveTo: [uri.file(path.join(testDir, 'deep'))]}).done(r => {
+		service.resolveFile(uri.file(testDir), { resolveTo: [uri.file(path.join(testDir, 'deep'))] }).done(r => {
 			assert.equal(r.children.length, 6);
 
 			let deep = utils.getByName(r, 'deep');
@@ -274,17 +274,17 @@ suite('FileService', () => {
 
 	test('updateContent - use encoding (UTF 16 BE)', function(done: () => void) {
 		let resource = uri.file(path.join(testDir, 'small.txt'));
-		let charset = 'utf16be';
+		let encoding = 'utf16be';
 
 		service.resolveContent(resource).done(c => {
-			c.charset = charset;
+			c.encoding = encoding;
 
-			return service.updateContent(c.resource, c.value, { charset: charset }).then(c => {
-				return nfcall(encoding.detectEncodingByBOM, c.resource.fsPath).then((enc) => {
-					assert.equal(enc, encoding.UTF16be);
+			return service.updateContent(c.resource, c.value, { encoding: encoding }).then(c => {
+				return nfcall(encodingLib.detectEncodingByBOM, c.resource.fsPath).then((enc) => {
+					assert.equal(enc, encodingLib.UTF16be);
 
 					return service.resolveContent(resource).then(c => {
-						assert.equal(c.charset, charset);
+						assert.equal(c.encoding, encoding);
 
 						done();
 					});
@@ -294,20 +294,20 @@ suite('FileService', () => {
 	});
 
 	test('updateContent - encoding preserved (UTF 16 LE)', function(done: () => void) {
-		let charset = 'utf16le';
+		let encoding = 'utf16le';
 		let resource = uri.file(path.join(testDir, 'some_utf16le.css'));
 
 		service.resolveContent(resource).done(c => {
-			assert.equal(c.charset, charset);
+			assert.equal(c.encoding, encoding);
 
 			c.value = 'Some updates';
 
-			return service.updateContent(c.resource, c.value, { charset: charset }).then(c => {
-				return nfcall(encoding.detectEncodingByBOM, c.resource.fsPath).then((enc) => {
-					assert.equal(enc, encoding.UTF16le);
+			return service.updateContent(c.resource, c.value, { encoding: encoding }).then(c => {
+				return nfcall(encodingLib.detectEncodingByBOM, c.resource.fsPath).then((enc) => {
+					assert.equal(enc, encodingLib.UTF16le);
 
 					return service.resolveContent(resource).then(c => {
-						assert.equal(c.charset, charset);
+						assert.equal(c.encoding, encoding);
 
 						done();
 					});
@@ -319,7 +319,7 @@ suite('FileService', () => {
 	test('resolveContent - FILE_IS_BINARY', function(done: () => void) {
 		let resource = uri.file(path.join(testDir, 'binary.txt'));
 
-		service.resolveContent(resource, { acceptTextOnly: true }).done(null, (e:IFileOperationResult) => {
+		service.resolveContent(resource, { acceptTextOnly: true }).done(null, (e: IFileOperationResult) => {
 			assert.equal(e.fileOperationResult, FileOperationResult.FILE_IS_BINARY);
 
 			return service.resolveContent(uri.file(path.join(testDir, 'small.txt')), { acceptTextOnly: true }).then(r => {
@@ -333,7 +333,7 @@ suite('FileService', () => {
 	test('resolveContent - FILE_IS_DIRECTORY', function(done: () => void) {
 		let resource = uri.file(path.join(testDir, 'deep'));
 
-		service.resolveContent(resource).done(null, (e:IFileOperationResult) => {
+		service.resolveContent(resource).done(null, (e: IFileOperationResult) => {
 			assert.equal(e.fileOperationResult, FileOperationResult.FILE_IS_DIRECTORY);
 
 			done();
@@ -343,7 +343,7 @@ suite('FileService', () => {
 	test('resolveContent - FILE_NOT_FOUND', function(done: () => void) {
 		let resource = uri.file(path.join(testDir, '404.html'));
 
-		service.resolveContent(resource).done(null, (e:IFileOperationResult) => {
+		service.resolveContent(resource).done(null, (e: IFileOperationResult) => {
 			assert.equal(e.fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
 
 			done();
@@ -354,7 +354,7 @@ suite('FileService', () => {
 		let resource = uri.file(path.join(testDir, 'index.html'));
 
 		service.resolveContent(resource).done(c => {
-			return service.resolveContent(resource, { etag: c.etag }).then(null, (e:IFileOperationResult) => {
+			return service.resolveContent(resource, { etag: c.etag }).then(null, (e: IFileOperationResult) => {
 				assert.equal(e.fileOperationResult, FileOperationResult.FILE_NOT_MODIFIED_SINCE);
 
 				done();
@@ -368,7 +368,7 @@ suite('FileService', () => {
 		service.resolveContent(resource).done(c => {
 			fs.writeFileSync(resource.fsPath, 'Updates Incoming!');
 
-			return service.updateContent(resource, c.value, { etag: c.etag, mtime: c.mtime - 1000 }).then(null, (e:IFileOperationResult) => {
+			return service.updateContent(resource, c.value, { etag: c.etag, mtime: c.mtime - 1000 }).then(null, (e: IFileOperationResult) => {
 				assert.equal(e.fileOperationResult, FileOperationResult.FILE_MODIFIED_SINCE);
 
 				done();
@@ -378,10 +378,10 @@ suite('FileService', () => {
 
 	test('resolveContent - encoding picked up', function(done: () => void) {
 		let resource = uri.file(path.join(testDir, 'index.html'));
-		let charset = 'windows1252';
+		let encoding = 'windows1252';
 
-		service.resolveContent(resource, { encoding: charset }).done(c => {
-			assert.equal(c.charset, charset);
+		service.resolveContent(resource, { encoding: encoding }).done(c => {
+			assert.equal(c.encoding, encoding);
 
 			done();
 		});
@@ -391,7 +391,7 @@ suite('FileService', () => {
 		let resource = uri.file(path.join(testDir, 'some_utf16le.css'));
 
 		service.resolveContent(resource, { encoding: 'windows1252' }).done(c => {
-			assert.equal(c.charset, 'windows1252');
+			assert.equal(c.encoding, 'windows1252');
 
 			done();
 		});
@@ -401,7 +401,7 @@ suite('FileService', () => {
 		let resource = uri.file(path.join(testDir, 'some_utf8_bom.txt'));
 
 		service.resolveContent(resource).done(c => {
-			assert.equal(encoding.detectEncodingByBOMFromBuffer(new Buffer(c.value), 512), null);
+			assert.equal(encodingLib.detectEncodingByBOMFromBuffer(new Buffer(c.value), 512), null);
 
 			done();
 		});
@@ -411,7 +411,7 @@ suite('FileService', () => {
 		let resource = uri.file(path.join(testDir, 'index.html'));
 
 		service.resolveContent(resource, { encoding: 'superduper' }).done(c => {
-			assert.equal(c.charset, 'utf8');
+			assert.equal(c.encoding, 'utf8');
 
 			done();
 		});
@@ -422,7 +422,7 @@ suite('FileService', () => {
 
 		service.watchFileChanges(toWatch);
 
-		events.on(EventType.FILE_CHANGES, (e:FileChangesEvent) => {
+		events.on(EventType.FILE_CHANGES, (e: FileChangesEvent) => {
 			assert.ok(e);
 
 			service.unwatchFileChanges(toWatch);
@@ -434,7 +434,7 @@ suite('FileService', () => {
 		}, 100);
 	});
 
-	test('options', function(done: () => void) {
+	test('options - encoding', function(done: () => void) {
 
 		// setup
 		let _id = uuid.generateUuid();
@@ -455,14 +455,64 @@ suite('FileService', () => {
 			});
 
 			_service.resolveContent(uri.file(path.join(testDir, 'index.html'))).done(c => {
-				assert.equal(c.charset, 'windows1252');
+				assert.equal(c.encoding, 'windows1252');
 
 				return _service.resolveContent(uri.file(path.join(testDir, 'deep', 'conway.js'))).done(c => {
-					assert.equal(c.charset, 'utf16le');
+					assert.equal(c.encoding, 'utf16le');
 
 					// teardown
 					_service.dispose();
 					done();
+				});
+			});
+		});
+	});
+
+	test('UTF 8 BOMs', function(done: () => void) {
+
+		// setup
+		let _id = uuid.generateUuid();
+		let _testDir = path.join(parentDir, _id);
+		let _sourceDir = require.toUrl('./fixtures/service');
+		let resource = uri.file(path.join(testDir, 'index.html'));
+
+		let _service = new FileService(_testDir, null, {
+			disableWatcher: true
+		});
+
+		extfs.copy(_sourceDir, _testDir, () => {
+			fs.readFile(resource.fsPath, (error, data) => {
+				assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), null);
+
+				// Update content: UTF_8 => UTF_8_BOM
+				_service.updateContent(resource, 'Hello Bom', { encoding: encodingLib.UTF8_with_bom }).done(() => {
+					fs.readFile(resource.fsPath, (error, data) => {
+						assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), encodingLib.UTF8);
+
+						// Update content: PRESERVE BOM when using UTF-8
+						_service.updateContent(resource, 'Please stay Bom', { encoding: encodingLib.UTF8 }).done(() => {
+							fs.readFile(resource.fsPath, (error, data) => {
+								assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), encodingLib.UTF8);
+
+								// Update content: REMOVE BOM
+								_service.updateContent(resource, 'Go away Bom', { encoding: encodingLib.UTF8, overwriteEncoding: true }).done(() => {
+									fs.readFile(resource.fsPath, (error, data) => {
+										assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), null);
+
+										// Update content: BOM comes not back
+										_service.updateContent(resource, 'Do not come back Bom', { encoding: encodingLib.UTF8 }).done(() => {
+											fs.readFile(resource.fsPath, (error, data) => {
+												assert.equal(encodingLib.detectEncodingByBOMFromBuffer(data, 512), null);
+
+												_service.dispose();
+												done();
+											});
+										});
+									});
+								});
+							});
+						});
+					});
 				});
 			});
 		});

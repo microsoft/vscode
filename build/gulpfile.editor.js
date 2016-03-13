@@ -5,16 +5,13 @@
 
 var gulp = require('gulp');
 var path = require('path');
-var rename = require('gulp-rename');
-var filter = require('gulp-filter');
 var _ = require('underscore');
-var es = require('event-stream');
 var buildfile = require('../src/buildfile');
 var util = require('./lib/util');
 var common = require('./gulpfile.common');
 
 var root = path.dirname(__dirname);
-var commit = util.getVersion(root);
+var headerVersion = process.env['BUILD_SOURCEVERSION'] || util.getVersion(root);
 
 // Build
 
@@ -39,14 +36,13 @@ var editorResources = [
 var editorOtherSources = [
 	'out-build/vs/css.js',
 	'out-build/vs/nls.js',
-	'out-build/vs/text.js',
-	'out-build/vs/editor/css/*.css'
+	'out-build/vs/text.js'
 ];
 
 var BUNDLED_FILE_HEADER = [
 	'/*!-----------------------------------------------------------',
 	' * Copyright (c) Microsoft Corporation. All rights reserved.',
-	' * Version: ' + commit,
+	' * Version: ' + headerVersion,
 	' * Released under the MIT license',
 	' * https://github.com/Microsoft/vscode/blob/master/LICENSE.txt',
 	' *-----------------------------------------------------------*/',
@@ -80,31 +76,4 @@ gulp.task('optimize-editor', ['clean-optimized-editor', 'compile-build'], common
 
 gulp.task('clean-minified-editor', util.rimraf('out-editor-min'));
 gulp.task('minify-editor', ['clean-minified-editor', 'optimize-editor'], common.minifyTask('out-editor', true));
-
-// Package
-
-var root = path.dirname(__dirname);
-
-function copyTask(src, dest, FILTER) {
-	return function () {
-		return (
-			gulp.src(src + '/**', { base: src })
-			.pipe(FILTER ? filter(FILTER) : es.through())
-			.pipe(gulp.dest(dest))
-		);
-	};
-}
-
-var DISTRO_DEV_FOLDER_PATH = path.join(path.dirname(root), 'Monaco-Editor');
-gulp.task('clean-editor-distro-dev', util.rimraf(DISTRO_DEV_FOLDER_PATH));
-gulp.task('editor-distro-dev', ['clean-editor-distro-dev', 'optimize-editor'], copyTask('out-editor', DISTRO_DEV_FOLDER_PATH));
-
-var DISTRO_MIN_FOLDER_PATH = path.join(path.dirname(root), 'Monaco-Editor-Min');
-gulp.task('clean-editor-distro-min', util.rimraf(DISTRO_MIN_FOLDER_PATH));
-gulp.task('editor-distro-min', ['clean-editor-distro-min', 'minify-editor'], copyTask('out-editor-min', DISTRO_MIN_FOLDER_PATH, ['**', '!**/*.js.map', '!nls.metadata.json']));
-
-var DISTRO_MIN_SOURCEMAPS_FOLDER_PATH = path.join(path.dirname(root), 'Monaco-Editor-Min-SourceMaps');
-gulp.task('clean-editor-distro-min-sourcemaps', util.rimraf(DISTRO_MIN_SOURCEMAPS_FOLDER_PATH));
-gulp.task('editor-distro-min-sourcemaps', ['clean-editor-distro-min-sourcemaps', 'minify-editor'], copyTask('out-editor-min', DISTRO_MIN_SOURCEMAPS_FOLDER_PATH, ['**/*.js.map']));
-
-gulp.task('editor-distro', ['editor-distro-min', 'editor-distro-min-sourcemaps', 'editor-distro-dev']);
+gulp.task('editor-distro', ['minify-editor', 'optimize-editor']);

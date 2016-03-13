@@ -153,8 +153,8 @@ export abstract class BaseHistoryService {
 	protected getWindowTitle(input?: IEditorInput): string {
 		let title = this.doGetWindowTitle(input);
 
-		// Plugin Development Host gets a special title to identify itself
-		if (this.contextService.getConfiguration().env.pluginDevelopmentPath) {
+		// Extension Development Host gets a special title to identify itself
+		if (this.contextService.getConfiguration().env.extensionDevelopmentPath) {
 			return nls.localize('devExtensionWindowTitle', "[Extension Development Host] - {0}", title);
 		}
 

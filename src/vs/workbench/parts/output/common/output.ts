@@ -36,6 +36,8 @@ export const Extensions = {
 
 export const OUTPUT_SERVICE_ID = 'outputService';
 
+export const MAX_OUTPUT_LENGTH = 10000 /* Max. number of output lines to show in output */ * 100 /* Guestimated chars per line */;
+
 /**
  * The output event informs when new output got received.
  */
@@ -99,6 +101,11 @@ export interface IOutputService {
 	 * Allows to register on a new Output channel getting filled with output
 	 */
 	onOutputChannel: Event<string>;
+
+	/**
+	 * Allows to register on active output channel change
+	 */
+	onActiveOutputChannel: Event<string>;
 }
 
 export interface IOutputChannelRegistry {

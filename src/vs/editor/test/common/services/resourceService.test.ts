@@ -6,10 +6,9 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import {createMirrorModelFromString} from 'vs/editor/common/model/mirrorModel';
+import {createTestMirrorModelFromString} from 'vs/editor/common/model/mirrorModel';
 import {ResourceEvents} from 'vs/editor/common/services/resourceService';
 import {ResourceService} from 'vs/editor/common/services/resourceServiceImpl';
-import {DefaultEndOfLine} from 'vs/editor/common/editorCommon';
 
 suite('Editor Services - ResourceService', () => {
 
@@ -17,10 +16,10 @@ suite('Editor Services - ResourceService', () => {
 
 		var service = new ResourceService();
 
-		service.insert(URI.parse('test://1'), createMirrorModelFromString(null, 1, 'hi', DefaultEndOfLine.LF, null));
+		service.insert(URI.parse('test://1'), createTestMirrorModelFromString('hi'));
 		assert.equal(service.all().length, 1);
 
-		service.insert(URI.parse('test://2'), createMirrorModelFromString(null, 1, 'hi', DefaultEndOfLine.LF, null));
+		service.insert(URI.parse('test://2'), createTestMirrorModelFromString('hi'));
 		assert.equal(service.all().length, 2);
 
 		assert.ok(service.contains(URI.parse('test://1')));
@@ -38,7 +37,7 @@ suite('Editor Services - ResourceService', () => {
 		var eventCnt = 0;
 
 		var url = URI.parse('far');
-		var element = createMirrorModelFromString(null, 1, 'hi', DefaultEndOfLine.LF, null);
+		var element = createTestMirrorModelFromString('hi');
 		var service = new ResourceService();
 		service.addListener(ResourceEvents.ADDED, () => {
 			eventCnt++;
@@ -59,7 +58,7 @@ suite('Editor Services - ResourceService', () => {
 		var eventCnt = 0;
 
 		var url = URI.parse('far');
-		var element = createMirrorModelFromString(null, 1, 'hi', DefaultEndOfLine.LF, null);
+		var element = createTestMirrorModelFromString('hi');
 		var event = {};
 
 		var service = new ResourceService();

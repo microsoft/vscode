@@ -6,10 +6,12 @@
 
 import {MarkedString, CompletionItemKind} from 'vscode-languageserver';
 import Strings = require('../utils/strings');
-import nls = require('../utils/nls');
 import {IJSONWorkerContribution, ISuggestionsCollector} from '../jsonContributions';
 import {IRequestService} from '../jsonSchemaService';
 import {JSONLocation} from '../jsonLocation';
+
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
 
 export class BowerJSONContribution implements IJSONWorkerContribution {
 
@@ -41,7 +43,7 @@ export class BowerJSONContribution implements IJSONWorkerContribution {
 				'main': '{{pathToMain}}',
 				'dependencies': {}
 			};
-			result.add({ kind: CompletionItemKind.Class, label: nls.localize('json.bower.default', 'Default bower.json'), insertText: JSON.stringify(defaultValue, null, '\t'), documentation: '' });
+			result.add({ kind: CompletionItemKind.Class, label: localize('json.bower.default', 'Default bower.json'), insertText: JSON.stringify(defaultValue, null, '\t'), documentation: '' });
 		}
 		return null;
 	}
@@ -77,11 +79,11 @@ export class BowerJSONContribution implements IJSONWorkerContribution {
 							// ignore
 						}
 					} else {
-						result.error(nls.localize('json.bower.error.repoaccess', 'Request to the bower repository failed: {0}', success.responseText));
+						result.error(localize('json.bower.error.repoaccess', 'Request to the bower repository failed: {0}', success.responseText));
 						return 0;
 					}
 				}, (error) => {
-					result.error(nls.localize('json.bower.error.repoaccess', 'Request to the bower repository failed: {0}', error.responseText));
+					result.error(localize('json.bower.error.repoaccess', 'Request to the bower repository failed: {0}', error.responseText));
 					return 0;
 				});
 			} else {
@@ -110,7 +112,7 @@ export class BowerJSONContribution implements IJSONWorkerContribution {
 		if (this.isBowerFile(resource) && (location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']))) {
 			let pack = location.getSegments()[location.getSegments().length - 1];
 			let htmlContent : MarkedString[] = [];
-			htmlContent.push(nls.localize('json.bower.package.hover', '{0}', pack));
+			htmlContent.push(localize('json.bower.package.hover', '{0}', pack));
 
 			let queryUrl = 'https://bower.herokuapp.com/packages/' + encodeURIComponent(pack);
 

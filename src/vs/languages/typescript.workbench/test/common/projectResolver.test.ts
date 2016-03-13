@@ -62,7 +62,8 @@ function createModelService(): IModelService {
 		onModelAdded: undefined,
 		onModelRemoved: undefined,
 		onModelModeChanged: undefined,
-		destroyModel: undefined
+		destroyModel: undefined,
+		getCreationOptions: undefined
 	}
 }
 
@@ -113,7 +114,7 @@ function createFileService(index: { [n: string]: string } = Object.create(null))
 		var result: Files.IContent = {
 			resource,
 			value: index[resource.path],
-			charset: undefined,
+			encoding: undefined,
 			etag: undefined,
 			mime: undefined,
 			mtime: undefined,
@@ -129,7 +130,7 @@ function createFileService(index: { [n: string]: string } = Object.create(null))
 				result.push({
 					resource,
 					value: index[resource.path],
-					charset: undefined,
+					encoding: undefined,
 					etag: undefined,
 					mime: undefined,
 					mtime: undefined,

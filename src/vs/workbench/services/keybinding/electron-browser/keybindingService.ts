@@ -4,25 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IJSONSchema} from 'vs/base/common/jsonSchema';
+import * as nls from 'vs/nls';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {Registry} from 'vs/platform/platform';
+import {IJSONSchema} from 'vs/base/common/jsonSchema';
+import {Keybinding} from 'vs/base/common/keyCodes';
+import * as platform from 'vs/base/common/platform';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {IEventService} from 'vs/platform/event/common/event';
-import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
-import {IPluginService} from 'vs/platform/plugins/common/plugins';
-import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
+import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
+import {Extensions, IJSONContributionRegistry} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {KeybindingService} from 'vs/platform/keybinding/browser/keybindingServiceImpl';
+import {IOSupport} from 'vs/platform/keybinding/common/keybindingResolver';
 import {IKeybindingItem, IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybindingService';
 import {ICommandRule, KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {Keybinding} from 'vs/base/common/keyCodes';
-import * as Platform from 'vs/base/common/platform';
-import {getNativeLabelProvider} from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
-import {OptionsChangeEvent, EventType} from 'vs/workbench/common/events';
+import {Registry} from 'vs/platform/platform';
+import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
+import {EventType, OptionsChangeEvent} from 'vs/workbench/common/events';
+import {getNativeLabelProvider, getNativeAriaLabelProvider} from 'vs/workbench/services/keybinding/electron-browser/nativeKeymap';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -100,7 +101,7 @@ let keybindingType:IJSONSchema = {
 	}
 };
 
-let keybindingsExtPoint = PluginsRegistry.registerExtensionPoint<ContributedKeyBinding | ContributedKeyBinding[]>('keybindings', {
+let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedKeyBinding | ContributedKeyBinding[]>('keybindings', {
 	description: nls.localize('vscode.extension.contributes.keybindings', "Contributes keybindings."),
 	oneOf: [
 		keybindingType,
@@ -117,11 +118,11 @@ export class WorkbenchKeybindingService extends KeybindingService {
 	private eventService: IEventService;
 	private telemetryService: ITelemetryService;
 	private toDispose: Function;
-	private _pluginService: IPluginService;
+	private _extensionService: IExtensionService;
 	private _eventService: IEventService;
 
-	constructor(contextService: IWorkspaceContextService, eventService: IEventService, telemetryService: ITelemetryService, domNode: HTMLElement) {
-		super();
+	constructor(configurationService: IConfigurationService, contextService: IWorkspaceContextService, eventService: IEventService, telemetryService: ITelemetryService, domNode: HTMLElement) {
+		super(configurationService);
 		this.contextService = contextService;
 		this.eventService = eventService;
 		this.telemetryService = telemetryService;
@@ -142,8 +143,8 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		this._beginListening(domNode);
 	}
 
-	setPluginService(pluginService: IPluginService): void {
-		this._pluginService = pluginService;
+	setExtensionService(extensionService: IExtensionService): void {
+		this._extensionService = extensionService;
 	}
 
 	public customKeybindingsCount(): number {
@@ -192,8 +193,12 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		return keybinding.toCustomHTMLLabel(getNativeLabelProvider());
 	}
 
+	public getAriaLabelFor(keybinding: Keybinding): string {
+		return keybinding.toCustomLabel(getNativeAriaLabelProvider());
+	}
+
 	public getElectronAcceleratorFor(keybinding:Keybinding): string {
-		if (Platform.isWindows) {
+		if (platform.isWindows) {
 			// electron menus always do the correct rendering on Windows
 			return super.getElectronAcceleratorFor(keybinding);
 		}
@@ -209,7 +214,7 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		return super.getElectronAcceleratorFor(keybinding);
 	}
 
-	private _handleKeybindingsExtensionPointUser(isBuiltin: boolean, keybindings:ContributedKeyBinding | ContributedKeyBinding[], collector:IMessageCollector): boolean {
+	private _handleKeybindingsExtensionPointUser(isBuiltin: boolean, keybindings:ContributedKeyBinding | ContributedKeyBinding[], collector:IExtensionMessageCollector): boolean {
 		if (isContributedKeyBindingsArray(keybindings)) {
 			let commandAdded = false;
 			for (let i = 0, len = keybindings.length; i < len; i++) {
@@ -221,7 +226,7 @@ export class WorkbenchKeybindingService extends KeybindingService {
 		}
 	}
 
-	private _handleKeybinding(isBuiltin: boolean, idx:number, keybindings:ContributedKeyBinding, collector:IMessageCollector): boolean {
+	private _handleKeybinding(isBuiltin: boolean, idx:number, keybindings:ContributedKeyBinding, collector:IExtensionMessageCollector): boolean {
 
 		let rejects: string[] = [];
 		let commandAdded = false;
@@ -247,8 +252,8 @@ export class WorkbenchKeybindingService extends KeybindingService {
 	}
 
 	protected _invokeHandler(commandId: string, args: any): TPromise<any> {
-		if (this._pluginService) {
-			return this._pluginService.activateByEvent('onCommand:' + commandId).then(_ => {
+		if (this._extensionService) {
+			return this._extensionService.activateByEvent('onCommand:' + commandId).then(_ => {
 				return super._invokeHandler(commandId, args);
 			});
 		}
@@ -292,7 +297,7 @@ let schema : IJSONSchema = {
 	'items': {
 		'required': ['key'],
 		'type': 'object',
-		'default': { 'key': '{{_}}', 'command': '{{_}}', 'when': '{{_}}' },
+		'defaultSnippets': [ { 'body': { 'key': '{{_}}', 'command': '{{_}}', 'when': '{{_}}' } }],
 		'properties': {
 			'key': {
 				'type': 'string',
@@ -309,7 +314,7 @@ let schema : IJSONSchema = {
 	}
 };
 
-let schemaRegistry = <JSONContributionRegistry.IJSONContributionRegistry>Registry.as(JSONContributionRegistry.Extensions.JSONContribution);
+let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);
 schemaRegistry.addSchemaFileAssociation('vscode://defaultsettings/keybindings.json', schemaId);
 schemaRegistry.addSchemaFileAssociation('%APP_SETTINGS_HOME%/keybindings.json', schemaId);

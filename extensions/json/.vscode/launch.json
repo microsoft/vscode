@@ -10,8 +10,8 @@
 				"--extensionDevelopmentPath=${workspaceRoot}"
 			],
 			"stopOnEntry": false,
-			"sourceMaps": false,
-			"outDir": "${workspaceRoot}/out",
+			"sourceMaps": true,
+			"outDir": "${workspaceRoot}/client/out",
 			"preLaunchTask": "npm"
 		}	
 	]

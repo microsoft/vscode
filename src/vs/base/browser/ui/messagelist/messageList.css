@@ -24,10 +24,6 @@
 	box-shadow: 0 2px 8px #000;
 }
 
-.hc-black .global-message-list  {
-	box-shadow: none;
-}
-
 .global-message-list.transition {
 	-webkit-transition:	top 200ms linear;
 	-ms-transition:		top 200ms linear;
@@ -104,10 +100,6 @@
 	background-color: #007ACC;
 }
 
-.hc-black .global-message-list li.message-list-entry .message-left-side.severity {
-	border: 1px solid #6FC3DF;
-}
-
 .global-message-list li.message-list-entry .message-left-side.message-overflow-ellipsis {
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -160,5 +152,14 @@
 /* High Contrast Theming */
 .hc-black .global-message-list {
 	background-color: #000;
-	border: 2px solid #6FC3DF;
+	outline: 2px solid #6FC3DF;
+	outline-offset: -2px;
+}
+
+.hc-black .global-message-list  {
+	box-shadow: none;
+}
+
+.hc-black .global-message-list li.message-list-entry .message-left-side.severity {
+	border: 1px solid #6FC3DF;
 }

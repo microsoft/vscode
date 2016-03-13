@@ -8,13 +8,12 @@
 import strings = require('vs/base/common/strings');
 
 import fs = require('fs');
-import iconv = require('iconv-lite');
 
 import baseMime = require('vs/base/common/mime');
 import {ILineMatch, IProgress} from 'vs/platform/search/common/search';
 import {detectMimeAndEncodingFromBuffer} from 'vs/base/node/mime';
 import {FileWalker} from 'vs/workbench/services/search/node/fileSearch';
-import {UTF16le, UTF16be, UTF8} from 'vs/base/node/encoding';
+import {UTF16le, UTF16be, UTF8, UTF8_with_bom, encodingExists, decode} from 'vs/base/node/encoding';
 import {ISerializedFileMatch, IRawSearch, ISearchEngine} from 'vs/workbench/services/search/node/rawSearchService';
 
 interface ReadLinesOptions {
@@ -47,7 +46,7 @@ export class Engine implements ISearchEngine {
 		this.maxResults = config.maxResults;
 		this.worked = 0;
 		this.total = 0;
-		this.fileEncoding = iconv.encodingExists(config.fileEncoding) ? config.fileEncoding : UTF8;
+		this.fileEncoding = encodingExists(config.fileEncoding) ? config.fileEncoding : UTF8;
 	}
 
 	public cancel(): void {
@@ -149,16 +148,16 @@ export class Engine implements ISearchEngine {
 
 			const outer = this;
 
-			function decode(buffer: NodeBuffer): string {
-				if (options.encoding === UTF8) {
+			function decodeBuffer(buffer: NodeBuffer): string {
+				if (options.encoding === UTF8 || options.encoding === UTF8_with_bom) {
 					return buffer.toString(); // much faster to use built in toString() when encoding is default
 				}
 
-				return iconv.decode(buffer, options.encoding);
+				return decode(buffer, options.encoding);
 			}
 
 			function lineFinished(offset: number): void {
-				line += decode(buffer.slice(pos, i + offset));
+				line += decodeBuffer(buffer.slice(pos, i + offset));
 				perLineCallback(line, lineNumber);
 				line = '';
 				lineNumber++;
@@ -228,7 +227,7 @@ export class Engine implements ISearchEngine {
 						}
 					}
 
-					line += decode(buffer.slice(pos, bytesRead));
+					line += decodeBuffer(buffer.slice(pos, bytesRead));
 
 					readFile(false /* isFirstRead */, clb); // Continue reading
 				});

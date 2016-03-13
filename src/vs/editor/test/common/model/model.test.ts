@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
-import {EventType, IModelContentChangedEvent, IModelContentChangedFlushEvent, DefaultEndOfLine} from 'vs/editor/common/editorCommon';
+import {EventType, IModelContentChangedEvent, IModelContentChangedFlushEvent} from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
 import {BracketMode} from 'vs/editor/test/common/testModes';
 
@@ -55,7 +55,7 @@ suite('Editor Model - Model', () => {
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = new Model(text, DefaultEndOfLine.LF, null);
+		thisModel = new Model(text, Model.DEFAULT_CREATION_OPTIONS, null);
 	});
 
 	teardown(() => {
@@ -361,7 +361,7 @@ suite('Editor Model - Model Line Separators', () => {
 			LINE3 + '\u2028' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = new Model(text, DefaultEndOfLine.LF, null);
+		thisModel = new Model(text, Model.DEFAULT_CREATION_OPTIONS, null);
 	});
 
 	teardown(() => {
@@ -377,7 +377,7 @@ suite('Editor Model - Model Line Separators', () => {
 	});
 
 	test('Bug 13333:Model should line break on lonely CR too', () => {
-		var model = new Model('Hello\rWorld!\r\nAnother line', DefaultEndOfLine.LF, null);
+		var model = new Model('Hello\rWorld!\r\nAnother line', Model.DEFAULT_CREATION_OPTIONS, null);
 		assert.equal(model.getLineCount(), 3);
 		assert.equal(model.getValue(), 'Hello\r\nWorld!\r\nAnother line');
 		model.dispose();
@@ -385,9 +385,9 @@ suite('Editor Model - Model Line Separators', () => {
 });
 
 
-// --------- Bracket matching
+// --------- bracket matching
 
-suite('Editor Model - Bracket Matching', () => {
+suite('Editor Model - bracket Matching', () => {
 
 	var thisModel: Model;
 	var bracketMode = new BracketMode();
@@ -399,14 +399,14 @@ suite('Editor Model - Bracket Matching', () => {
 			'}, bar: {hallo: [{' + '\n' +
 			'}, {' + '\n' +
 			'}]}}';
-		thisModel = new Model(text, DefaultEndOfLine.LF, bracketMode);
+		thisModel = new Model(text, Model.DEFAULT_CREATION_OPTIONS, bracketMode);
 	});
 
 	teardown(() => {
 		thisModel.destroy();
 	});
 
-	test('Model Bracket matching 1', () => {
+	test('Model bracket matching 1', () => {
 
 		var brackets = [
 			[1, 11, 12, 5, 4, 5],
@@ -455,7 +455,7 @@ suite('Editor Model - Bracket Matching', () => {
 });
 
 
-suite('Editor Model - Bracket Matching 2', () => {
+suite('Editor Model - bracket Matching 2', () => {
 
 	var thisModel: Model;
 	var bracketMode = new BracketMode();
@@ -464,14 +464,14 @@ suite('Editor Model - Bracket Matching 2', () => {
 		var text =
 			')]}{[(' + '\n' +
 			')]}{[(';
-		thisModel = new Model(text, DefaultEndOfLine.LF, bracketMode);
+		thisModel = new Model(text, Model.DEFAULT_CREATION_OPTIONS, bracketMode);
 	});
 
 	teardown(() => {
 		thisModel.destroy();
 	});
 
-	test('Model Bracket matching', () => {
+	test('Model bracket matching', () => {
 		isNotABracket(thisModel, 1, 1);
 		isNotABracket(thisModel, 1, 2);
 		isNotABracket(thisModel, 1, 3);
@@ -499,7 +499,7 @@ suite('Editor Model - Words', () => {
 
 	setup(() => {
 		var text = [ 'This text has some  words. ' ];
-		thisModel = new Model(text.join('\n'), DefaultEndOfLine.LF, null);
+		thisModel = new Model(text.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
 	});
 
 	teardown(() => {
@@ -552,7 +552,7 @@ suite('Editor Model - Find', () => {
 			'It is also interesting if it\'s part of a word like amazingFooBar',
 			'Again nothing interesting here'
 		];
-		thisModel = new Model(text.join('\n'), DefaultEndOfLine.LF, null);
+		thisModel = new Model(text.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
 	});
 
 	teardown(() => {
@@ -638,7 +638,7 @@ suite('Editor Model - Find', () => {
 			'',
 			'Again nothing interesting here'
 		];
-		var model = new Model(text.join('\n'), DefaultEndOfLine.LF, null);
+		var model = new Model(text.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
 
 		var ranges = [
 			[2, 1, 2, 1],

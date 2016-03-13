@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*global process,__dirname,define,run,suite,test*/
+/*eslint-env mocha*/
+/*global define,run*/
 
 var assert = require('assert');
 var path = require('path');

@@ -17,7 +17,7 @@ export class FileWatcher {
 		this.eventEmitter = eventEmitter;
 	}
 
-	public startWatching(): () => void /* dispose */ {
+	public startWatching(): () => void {
 		let watcher = new OutOfProcessWin32FolderWatcher(
 			this.basePath,
 			this.ignored,

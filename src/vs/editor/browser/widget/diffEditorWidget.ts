@@ -1695,13 +1695,13 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 	private originalModel:editorCommon.IModel;
 	private modifiedEditorConfiguration:editorCommon.IInternalEditorOptions;
-	private modifiedEditorIndentation:editorCommon.IInternalIndentationOptions;
+	private modifiedEditorTabSize:number;
 
 	constructor(lineChanges:editorCommon.ILineChange[], originalForeignVZ:editorCommon.IEditorWhitespace[], modifiedForeignVZ:editorCommon.IEditorWhitespace[], originalEditor:editorBrowser.ICodeEditor, modifiedEditor:editorBrowser.ICodeEditor) {
 		super(lineChanges, originalForeignVZ, modifiedForeignVZ);
 		this.originalModel = originalEditor.getModel();
 		this.modifiedEditorConfiguration = modifiedEditor.getConfiguration();
-		this.modifiedEditorIndentation = modifiedEditor.getIndentationOptions();
+		this.modifiedEditorTabSize = modifiedEditor.getModel().getOptions().tabSize;
 	}
 
 	_produceOriginalFromDiff(lineChange:editorCommon.ILineChange, lineChangeOriginalLength:number, lineChangeModifiedLength:number): IMyViewZone {
@@ -1733,7 +1733,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		var html: string[] = [],
 			lineNumber: number;
 		for (lineNumber = lineChange.originalStartLineNumber; lineNumber <= lineChange.originalEndLineNumber; lineNumber++) {
-			html = html.concat(this.renderOriginalLine(lineNumber - lineChange.originalStartLineNumber, this.originalModel, this.modifiedEditorConfiguration, this.modifiedEditorIndentation, lineNumber, decorations));
+			html = html.concat(this.renderOriginalLine(lineNumber - lineChange.originalStartLineNumber, this.originalModel, this.modifiedEditorConfiguration, this.modifiedEditorTabSize, lineNumber, decorations));
 		}
 
 		var domNode = document.createElement('div');
@@ -1748,7 +1748,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		};
 	}
 
-	private renderOriginalLine(count:number, originalModel:editorCommon.IModel, config:editorCommon.IInternalEditorOptions, indentation:editorCommon.IInternalIndentationOptions, lineNumber:number, decorations:editorCommon.IModelDecoration[]): string[] {
+	private renderOriginalLine(count:number, originalModel:editorCommon.IModel, config:editorCommon.IInternalEditorOptions, tabSize:number, lineNumber:number, decorations:editorCommon.IModelDecoration[]): string[] {
 		var lineContent = originalModel.getLineContent(lineNumber),
 			lineTokens:editorCommon.IViewLineTokens,
 			parts:ILineParts;
@@ -1775,7 +1775,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 		var r = renderLine({
 			lineContent: lineContent,
-			tabSize: indentation.tabSize,
+			tabSize: tabSize,
 			stopRenderingLineAfter: config.stopRenderingLineAfter,
 			renderWhitespace: config.renderWhitespace,
 			parts: parts.getParts()

@@ -12,7 +12,6 @@ import {IDisposable, cAll, disposeAll} from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 
@@ -82,7 +81,7 @@ export class ColorContribution implements editorCommon.IEditorContribution {
 
 	private _style:HTMLStyleElement;
 
-	constructor(editor:editorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(editor:editorCommon.ICommonCodeEditor) {
 		this._instanceCount = (++ColorContribution.INSTANCE_COUNT);
 		this._editor = editor;
 		this._callOnDispose = [];

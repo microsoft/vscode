@@ -8,7 +8,7 @@ import Event from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
-import {IModel} from 'vs/editor/common/editorCommon';
+import {IModel, ITextModelCreationOptions} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 
 export var IModelService = createDecorator<IModelService>('modelService');
@@ -21,6 +21,8 @@ export interface IModelService {
 	destroyModel(resource: URI): void;
 
 	getModels(): IModel[];
+
+	getCreationOptions(): ITextModelCreationOptions;
 
 	getModel(resource: URI): IModel;
 

@@ -47,6 +47,10 @@ export class MockKeybindingService implements IKeybindingService {
 		return keybinding._toUSHTMLLabel();
 	}
 
+	public getAriaLabelFor(keybinding: Keybinding): string {
+		return keybinding._toUSAriaLabel();
+	}
+
 	public getElectronAcceleratorFor(keybinding: Keybinding): string {
 		return keybinding._toElectronAccelerator();
 	}

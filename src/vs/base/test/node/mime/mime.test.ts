@@ -6,7 +6,6 @@
 'use strict';
 
 import assert = require('assert');
-import path = require('path');
 
 import mimeCommon = require('vs/base/common/mime');
 import mime = require('vs/base/node/mime');
@@ -24,7 +23,7 @@ suite('Mime', () => {
 	});
 
 	test('detectMimesFromFile (PNG saved as TXT)', function(done: () => void) {
-		mimeCommon.registerTextMimeByFilename('.txt', 'text/plain');
+		mimeCommon.registerTextMime({ mime: 'text/plain', extension: '.txt' });
 		var file = require.toUrl('./fixtures/some.png.txt');
 		mime.detectMimesFromFile(file, (error, mimes) => {
 			assert.equal(error, null);

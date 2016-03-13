@@ -8,11 +8,10 @@ import * as assert from 'assert';
 import {Model} from 'vs/editor/common/model/model';
 import {IFoldingRange} from 'vs/editor/contrib/folding/common/foldingRange';
 import {computeRanges, limitByIndent, computeIndentLevel} from 'vs/editor/contrib/folding/common/indentFoldStrategy';
-import {DefaultEndOfLine} from 'vs/editor/common/editorCommon';
 
 suite('Indentation Folding', () => {
 	function assertRanges(lines: string[], tabSize: number, expected:IFoldingRange[]): void {
-		let model = new Model(lines.join('\n'), DefaultEndOfLine.LF, null);
+		let model = new Model(lines.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
 		let actual = computeRanges(model, tabSize);
 		actual.sort((r1, r2) => r1.startLineNumber - r2.startLineNumber);
 		assert.deepEqual(actual, expected);
@@ -129,17 +128,17 @@ suite('Indentation Folding', () => {
 	});
 
 	test('Compute indent level', () => {
-		assert.equal(computeIndentLevel("Hello", 4), 0);
-		assert.equal(computeIndentLevel(" Hello", 4), 1);
-		assert.equal(computeIndentLevel("   Hello", 4), 3);
-		assert.equal(computeIndentLevel("\tHello", 4), 4);
-		assert.equal(computeIndentLevel(" \tHello", 4), 4);
-		assert.equal(computeIndentLevel("  \tHello", 4), 4);
-		assert.equal(computeIndentLevel("   \tHello", 4), 4);
-		assert.equal(computeIndentLevel("    \tHello", 4), 8);
-		assert.equal(computeIndentLevel("     \tHello", 4), 8);
-		assert.equal(computeIndentLevel("\t Hello", 4), 5);
-		assert.equal(computeIndentLevel("\t \tHello", 4), 8);
+		assert.equal(computeIndentLevel('Hello', 4), 0);
+		assert.equal(computeIndentLevel(' Hello', 4), 1);
+		assert.equal(computeIndentLevel('   Hello', 4), 3);
+		assert.equal(computeIndentLevel('\tHello', 4), 4);
+		assert.equal(computeIndentLevel(' \tHello', 4), 4);
+		assert.equal(computeIndentLevel('  \tHello', 4), 4);
+		assert.equal(computeIndentLevel('   \tHello', 4), 4);
+		assert.equal(computeIndentLevel('    \tHello', 4), 8);
+		assert.equal(computeIndentLevel('     \tHello', 4), 8);
+		assert.equal(computeIndentLevel('\t Hello', 4), 5);
+		assert.equal(computeIndentLevel('\t \tHello', 4), 8);
 	});
 
 });

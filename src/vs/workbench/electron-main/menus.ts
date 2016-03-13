@@ -60,7 +60,7 @@ export class VSCodeMenu {
 
 		// Listen to "open" & "close" event from window manager
 		windows.onOpen((paths) => this.onOpen(paths));
-		windows.onClose((remainingWindowCount) => this.onClose(remainingWindowCount));
+		windows.onClose(_ => this.onClose(windows.manager.getWindowCount()));
 
 		// Resolve keybindings when any first workbench is loaded
 		windows.onReady((win) => this.resolveKeybindings(win));
@@ -374,7 +374,7 @@ export class VSCodeMenu {
 
 	private quit(): void {
 
-		// If the user selected to exit from a plugin development host window, do not quit, but just
+		// If the user selected to exit from an extension development host window, do not quit, but just
 		// close the window unless this is the last window that is opened.
 		let vscodeWindow = windows.manager.getFocusedWindow();
 		if (vscodeWindow && vscodeWindow.isPluginDevelopmentHost && windows.manager.getWindowCount() > 1) {
@@ -422,7 +422,7 @@ export class VSCodeMenu {
 
 	private createOpenRecentMenuItem(path:string): Electron.MenuItem {
 		return new MenuItem({ label: path, click: () => {
-			let success = windows.manager.open({ cli: env.cliArgs, pathsToOpen: [path] });
+			let success = !!windows.manager.open({ cli: env.cliArgs, pathsToOpen: [path] });
 			if (!success) {
 				this.removeFromOpenedPathsList(path);
 				this.updateMenu();
@@ -505,6 +505,8 @@ export class VSCodeMenu {
 		let togglePanel = this.createMenuItem(nls.localize('miTogglePanel', "Toggle &&Panel"), 'workbench.action.togglePanel');
 
 		const toggleWordWrap = this.createMenuItem(nls.localize('miToggleWordWrap', "Toggle &&Word Wrap"), 'editor.action.toggleWordWrap');
+		const toggleRenderWhitespace = this.createMenuItem(nls.localize('miToggleRenderWhitespace', "Toggle &&Render Whitespace"), 'editor.action.toggleRenderWhitespace');
+
 
 		let zoomIn = this.createMenuItem(nls.localize('miZoomIn', "&&Zoom in"), 'workbench.action.zoomIn');
 		let zoomOut = this.createMenuItem(nls.localize('miZoomOut', "Zoom o&&ut"), 'workbench.action.zoomOut');
@@ -530,6 +532,7 @@ export class VSCodeMenu {
 			togglePanel,
 			__separator__(),
 			toggleWordWrap,
+			toggleRenderWhitespace,
 			__separator__(),
 			zoomIn,
 			zoomOut
@@ -587,7 +590,20 @@ export class VSCodeMenu {
 			env.product.requestFeatureUrl ? new MenuItem({ label: mnemonicLabel(nls.localize('miUserVoice', "&&Request Features")), click: () => openUrl(env.product.requestFeatureUrl, 'openUserVoiceUrl') }) : null,
 			env.product.reportIssueUrl ? new MenuItem({ label: mnemonicLabel(nls.localize('miReportIssues', "Report &&Issues")), click: () => openUrl(env.product.reportIssueUrl, 'openReportIssues') }) : null,
 			(env.product.twitterUrl || env.product.requestFeatureUrl || env.product.reportIssueUrl) ? __separator__() : null,
-			env.product.licenseUrl ? new MenuItem({ label: mnemonicLabel(nls.localize('miLicense', "&&View License")), click: () => openUrl(env.product.licenseUrl, 'openLicenseUrl') }) : null,
+			env.product.licenseUrl ? new MenuItem({ label: mnemonicLabel(nls.localize('miLicense', "&&View License")), click: () => {
+				let nlsConfig = process.env['VSCODE_NLS_CONFIG'];
+				if (nlsConfig) {
+					try {
+						let languages = JSON.parse(nlsConfig).availableLanguages;
+						if (languages && languages['*']) {
+							openUrl(`${env.product.licenseUrl}?lang=${languages['*']}`, 'openLicenseUrl');
+							return;
+						}
+					} catch (e) {
+					}
+				}
+				openUrl(env.product.licenseUrl, 'openLicenseUrl');
+			}}) : null,
 			env.product.privacyStatementUrl ? new MenuItem({ label: mnemonicLabel(nls.localize('miPrivacyStatement', "&&Privacy Statement")), click: () => openUrl(env.product.privacyStatementUrl, 'openPrivacyStatement') }) : null,
 			(env.product.licenseUrl || env.product.privacyStatementUrl) ? __separator__() : null,
 			toggleDevToolsItem,

@@ -7,18 +7,18 @@
 
 import {onUnexpectedError} from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { PluginHostMain, createServices, IInitData, exit } from 'vs/workbench/node/pluginHostMain';
+import { ExtensionHostMain, createServices, IInitData, exit } from 'vs/workbench/node/extensionHostMain';
 import { Client, connect } from 'vs/base/node/service.net';
-import { create as createIPC, IPluginsIPC } from 'vs/platform/plugins/common/ipcRemoteCom';
+import { create as createIPC, IMainProcessExtHostIPC } from 'vs/platform/extensions/common/ipcRemoteCom';
 import marshalling = require('vs/base/common/marshalling');
 
 interface IRendererConnection {
-	remoteCom: IPluginsIPC;
+	remoteCom: IMainProcessExtHostIPC;
 	initData: IInitData;
 }
 
 // This calls exit directly in case the initialization is not finished and we need to exit
-// Otherwise, if initialization completed we go to pluginHostMain.terminate()
+// Otherwise, if initialization completed we go to extensionHostMain.terminate()
 let onTerminate = function() {
 	exit();
 };
@@ -112,12 +112,12 @@ TPromise.join<any>([connectToRenderer(), connectToSharedProcess()])
 		const renderer: IRendererConnection = result[0];
 		const sharedProcessClient: Client = result[1];
 		const instantiationService = createServices(renderer.remoteCom, renderer.initData, sharedProcessClient);
-		const pluginHostMain = instantiationService.createInstance(PluginHostMain);
+		const extensionHostMain = instantiationService.createInstance(ExtensionHostMain);
 
 		onTerminate = () => {
-			pluginHostMain.terminate();
+			extensionHostMain.terminate();
 		};
 
-		pluginHostMain.start()
+		extensionHostMain.start()
 			.done(null, err => console.error(err));
 	});

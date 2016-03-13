@@ -7,9 +7,10 @@
 import * as assert from 'assert';
 import {TrimTrailingWhitespaceCommand, trimTrailingWhitespace} from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import {Selection} from 'vs/editor/common/core/selection';
+import {Position} from 'vs/editor/common/core/position';
 import {IIdentifiedSingleEditOperation, IPosition} from 'vs/editor/common/editorCommon';
 import {createInsertDeleteSingleEditOp, createSingleEditOp, getEditOperation} from 'vs/editor/test/common/commands/commandTestUtils';
-import {pos, withEditorModel} from 'vs/editor/test/common/editorTestUtils';
+import {withEditorModel} from 'vs/editor/test/common/editorTestUtils';
 
 function assertTrimTrailingWhitespaceCommand(text:string[], expected:IIdentifiedSingleEditOperation[]): void {
 	return withEditorModel(text, (model) => {
@@ -49,9 +50,9 @@ suite('Editor Commands - Trim Trailing Whitespace Command', () => {
 		]);
 
 
-		assertTrimTrailingWhitespace(['text   '], [pos(1,1), pos(1,2), pos(1,3)], [createInsertDeleteSingleEditOp(null, 1, 5, 1, 8)]);
-		assertTrimTrailingWhitespace(['text   '], [pos(1,1), pos(1,5)], [createInsertDeleteSingleEditOp(null, 1, 5, 1, 8)]);
-		assertTrimTrailingWhitespace(['text   '], [pos(1,1), pos(1,5), pos(1,6)], [createInsertDeleteSingleEditOp(null, 1, 6, 1, 8)]);
+		assertTrimTrailingWhitespace(['text   '], [new Position(1,1), new Position(1,2), new Position(1,3)], [createInsertDeleteSingleEditOp(null, 1, 5, 1, 8)]);
+		assertTrimTrailingWhitespace(['text   '], [new Position(1,1), new Position(1,5)], [createInsertDeleteSingleEditOp(null, 1, 5, 1, 8)]);
+		assertTrimTrailingWhitespace(['text   '], [new Position(1,1), new Position(1,5), new Position(1,6)], [createInsertDeleteSingleEditOp(null, 1, 6, 1, 8)]);
 		assertTrimTrailingWhitespace([
 			'some text\t',
 			'some more text',
@@ -70,7 +71,7 @@ suite('Editor Commands - Trim Trailing Whitespace Command', () => {
 			'\t  ',
 			'even more text  ',
 			'and some mixed\t   \t'
-		], [pos(1,11), pos(3,2), pos(5,1), pos(4,1), pos(5,10)], [
+		], [new Position(1,11), new Position(3,2), new Position(5,1), new Position(4,1), new Position(5,10)], [
 			createInsertDeleteSingleEditOp(null, 3, 2, 3, 4),
 			createInsertDeleteSingleEditOp(null, 4, 15, 4, 17),
 			createInsertDeleteSingleEditOp(null, 5, 15, 5, 20)

@@ -9,17 +9,16 @@ import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {IThreadService, Remotable} from 'vs/platform/thread/common/thread';
 import {IConfigurationService, ConfigurationServiceEventTypes, IConfigurationServiceEvent} from 'vs/platform/configuration/common/configuration';
 import Event, {Emitter} from 'vs/base/common/event';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {WorkspaceConfiguration} from 'vscode';
 
-@Remotable.PluginHostContext('ExtHostConfiguration')
+@Remotable.ExtHostContext('ExtHostConfiguration')
 export class ExtHostConfiguration {
 
 	private _config: any;
 	private _hasConfig: boolean;
 	private _onDidChangeConfiguration: Emitter<void>;
 
-	constructor(@INullService ns) {
+	constructor() {
 		this._onDidChangeConfiguration = new Emitter<void>();
 	}
 

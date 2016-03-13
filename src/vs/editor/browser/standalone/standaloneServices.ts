@@ -14,6 +14,7 @@ import {ContextViewService} from 'vs/platform/contextview/browser/contextViewSer
 import {IEditorService} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
 import {EventService} from 'vs/platform/event/common/eventService';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IFileService} from 'vs/platform/files/common/files';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
@@ -21,7 +22,6 @@ import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingServic
 import {MainProcessMarkerService} from 'vs/platform/markers/common/markerService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IMessageService} from 'vs/platform/message/common/message';
-import {IPluginService} from 'vs/platform/plugins/common/plugins';
 import {IProgressService} from 'vs/platform/progress/common/progress';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {ISearchService} from 'vs/platform/search/common/search';
@@ -40,7 +40,7 @@ import {MainThreadModeServiceImpl} from 'vs/editor/common/services/modeServiceIm
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {ModelServiceImpl} from 'vs/editor/common/services/modelServiceImpl';
 import {CodeEditorServiceImpl} from 'vs/editor/browser/services/codeEditorServiceImpl';
-import {SimpleConfigurationService, SimpleEditorRequestService, SimpleMessageService, SimplePluginService, StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
+import {SimpleConfigurationService, SimpleEditorRequestService, SimpleMessageService, SimpleExtensionService, StandaloneKeybindingService} from 'vs/editor/browser/standalone/simpleServices';
 
 export interface IEditorContextViewService extends IContextViewService {
 	dispose(): void;
@@ -50,7 +50,7 @@ export interface IEditorContextViewService extends IContextViewService {
 export interface IEditorOverrideServices {
 	threadService?:IThreadService;
 	modeService?: IModeService;
-	pluginService?:IPluginService;
+	extensionService?:IExtensionService;
 	instantiationService?:IInstantiationService;
 	messageService?:IMessageService;
 	markerService?:IMarkerService;
@@ -76,7 +76,7 @@ export interface IStaticServices {
 	configurationService: IConfigurationService;
 	threadService: IThreadService;
 	modeService: IModeService;
-	pluginService: IPluginService;
+	extensionService: IExtensionService;
 	markerService: IMarkerService;
 	contextService: IWorkspaceContextService;
 	requestService: IRequestService;
@@ -106,19 +106,13 @@ export function ensureStaticPlatformServices(services: IEditorOverrideServices):
 
 	var statics = getOrCreateStaticServices(services);
 
-	services.threadService = services.threadService || statics.threadService;
-	services.pluginService = services.pluginService || statics.pluginService;
-	services.modeService = services.modeService || statics.modeService;
-	services.contextService = services.contextService || statics.contextService;
-	services.telemetryService = services.telemetryService || statics.telemetryService;
-	services.requestService = services.requestService || statics.requestService;
-	services.messageService = services.messageService || statics.messageService;
-	services.modelService = services.modelService || statics.modelService;
-	services.codeEditorService = services.codeEditorService || statics.codeEditorService;
-	services.editorWorkerService = services.editorWorkerService || statics.editorWorkerService;
-	services.eventService = services.eventService || statics.eventService;
-	services.markerService = services.markerService || statics.markerService;
-	services.instantiationService = statics.instantiationService;
+	for (var serviceId in statics) {
+		if (statics.hasOwnProperty(serviceId)) {
+			if (!services.hasOwnProperty(serviceId)) {
+				services[serviceId] = statics[serviceId];
+			}
+		}
+	}
 
 	return services;
 }
@@ -127,7 +121,7 @@ export function ensureDynamicPlatformServices(domElement:HTMLElement, services: 
 	var r:IDisposable[] = [];
 
 	if (typeof services.keybindingService === 'undefined') {
-		var keybindingService = new StandaloneKeybindingService(domElement);
+		var keybindingService = new StandaloneKeybindingService(services.configurationService, domElement);
 		r.push(keybindingService);
 		services.keybindingService = keybindingService;
 	}
@@ -183,17 +177,17 @@ export function getOrCreateStaticServices(services?: IEditorOverrideServices): I
 
 	let threadService = services.threadService || new MainThreadService(contextService, 'vs/editor/common/worker/editorWorkerServer', 2);
 	let messageService = services.messageService || new SimpleMessageService();
-	let pluginService = services.pluginService || new SimplePluginService();
+	let extensionService = services.extensionService || new SimpleExtensionService();
 	let markerService = services.markerService || new MainProcessMarkerService(threadService);
 	let requestService = services.requestService || new SimpleEditorRequestService(contextService, telemetryService);
-	let modeService = services.modeService || new MainThreadModeServiceImpl(threadService, pluginService);
-	let modelService = services.modelService || new ModelServiceImpl(threadService, markerService, modeService, configurationService);
+	let modeService = services.modeService || new MainThreadModeServiceImpl(threadService, extensionService, configurationService);
+	let modelService = services.modelService || new ModelServiceImpl(threadService, markerService, modeService, configurationService, messageService);
 	let editorWorkerService = services.editorWorkerService || new EditorWorkerServiceImpl(modelService);
 	let codeEditorService = services.codeEditorService || new CodeEditorServiceImpl();
 
 	staticServices = {
 		configurationService: configurationService,
-		pluginService: pluginService,
+		extensionService: extensionService,
 		modeService: modeService,
 		threadService: threadService,
 		markerService: markerService,

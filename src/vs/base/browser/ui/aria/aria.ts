@@ -7,6 +7,7 @@
 
 import 'vs/css!./aria';
 import nls = require('vs/nls');
+import {isMacintosh} from 'vs/base/common/platform';
 import {Builder, $} from 'vs/base/browser/builder';
 
 let ariaContainer: Builder;
@@ -30,7 +31,11 @@ export function alert(msg: string): void {
  * Given the provided message, will make sure that it is read as status to screen readers.
  */
 export function status(msg: string): void {
-	insertMessage(statusContainer, msg);
+	if (isMacintosh) {
+		alert(msg); // VoiceOver does not seem to support status role
+	} else {
+		insertMessage(statusContainer, msg);
+	}
 }
 
 function insertMessage(target: Builder, msg: string): void {

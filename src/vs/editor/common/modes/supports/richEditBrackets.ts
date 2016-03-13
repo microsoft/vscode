@@ -121,11 +121,11 @@ export class BracketsUtils {
 			return null;
 		}
 
-		let matchOffset = reversedText.length - 1 - m.index;
+		let matchOffset = reversedText.length - m.index;
 		let matchLength = m[0].length;
 		let absoluteMatchOffset = offset + matchOffset;
 
-		return new Range(lineNumber, absoluteMatchOffset + 1, lineNumber, absoluteMatchOffset + 1 + matchLength);
+		return new Range(lineNumber, absoluteMatchOffset - matchLength + 1, lineNumber, absoluteMatchOffset + 1);
 	}
 
 	public static findPrevBracketInToken(reversedBracketRegex:RegExp, lineNumber:number, lineText:string, currentTokenStart:number, currentTokenEnd:number): Range {

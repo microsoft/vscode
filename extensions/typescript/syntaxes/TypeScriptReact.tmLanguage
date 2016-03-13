@@ -361,6 +361,10 @@
 				</dict>
 				<dict>
 					<key>include</key>
+					<string>#type-primitive</string>
+				</dict>
+				<dict>
+					<key>include</key>
 					<string>#function-call</string>
 				</dict>
 				<dict>
@@ -1070,14 +1074,14 @@
 		<key>logic-operator</key>
 		<dict>
 			<key>match</key>
-			<string>\!|&amp;|~|\||&amp;&amp;|\|\|</string>
+			<string>\!|&amp;|~|\^|\||&amp;&amp;|\|\|</string>
 			<key>name</key>
 			<string>keyword.operator.arithmetic.tsx</string>
 		</dict>
 		<key>method-declaration</key>
 		<dict>
 			<key>begin</key>
-			<string>\b(?:(abstract)\s+)?\b(?:(public|private|protected)\s+)?\b(?:(async)\s+)?(?:(get|set)\s+)?(?:(new)|(?:([a-zA-Z_$][\.\w$]*)\s*(\??)))?\s*(?=\(|\&lt;)</string>
+			<string>\b(?:(abstract)\s+)?\b(?:(public|private|protected)\s+)?\b(?:(async)\s+)?(?:(get|set)\s+)?(?:(new)|(?:\b(constructor)\b)|(?:([a-zA-Z_$][\.\w$]*)\s*(\??)))?\s*(?=\(|\&lt;)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
@@ -1108,9 +1112,14 @@
 				<key>6</key>
 				<dict>
 					<key>name</key>
-					<string>entity.name.function.tsx</string>
+					<string>support.type.tsx</string>
 				</dict>
 				<key>7</key>
+				<dict>
+					<key>name</key>
+					<string>entity.name.function.tsx</string>
+				</dict>
+				<key>8</key>
 				<dict>
 					<key>name</key>
 					<string>keyword.operator.tsx</string>
@@ -1180,16 +1189,21 @@
 				<key>6</key>
 				<dict>
 					<key>name</key>
-					<string>entity.name.function.tsx</string>
+					<string>support.type.tsx</string>
 				</dict>
 				<key>7</key>
+				<dict>
+					<key>name</key>
+					<string>entity.name.function.tsx</string>
+				</dict>
+				<key>8</key>
 				<dict>
 					<key>name</key>
 					<string>keyword.operator.tsx</string>
 				</dict>
 			</dict>
 			<key>match</key>
-			<string>\b(?:(abstract)\s+)?\b(?:(public|private|protected)\s+)?\b(?:(async)\s+)?(?:(get|set)\s+)?(?:(new)|(?:([a-zA-Z_$][\.\w$]*)\s*(\??)))?\s*(?=\(|\&lt;)</string>
+			<string>\b(?:(abstract)\s+)?\b(?:(public|private|protected)\s+)?\b(?:(async)\s+)?(?:(get|set)\s+)?(?:(new)|(?:\b(constructor)\b)|(?:([a-zA-Z_$][\.\w$]*)\s*(\??)))?\s*(?=\(|\&lt;)</string>
 			<key>name</key>
 			<string>meta.method.overload.declaration.tsx</string>
 		</dict>
@@ -1231,7 +1245,7 @@
 		<key>numeric-literal</key>
 		<dict>
 			<key>match</key>
-			<string>\b(?&lt;=[^$])((0(x|X)[0-9a-fA-F]+)|([0-9]+(\.[0-9]+)?))\b</string>
+			<string>\b(?&lt;=[^$])((0(x|X)[0-9a-fA-F]+)|(([0-9]+(\.[0-9]+)?))([eE]([+-]?)[0-9]+(\.[0-9]+)?)?)\b</string>
 			<key>name</key>
 			<string>constant.numeric.tsx</string>
 		</dict>
@@ -1364,7 +1378,7 @@
 		<key>object-heritage</key>
 		<dict>
 			<key>begin</key>
-			<string>(?:\b(extends|implements))</string>
+			<string>(?:\b(extends|implements)\b)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
@@ -1401,22 +1415,22 @@
 				</dict>
 				<dict>
 					<key>include</key>
-					<string>#object-heritage-parent</string>
+					<string>#object-heritage-type</string>
 				</dict>
 			</array>
 		</dict>
-		<key>object-heritage-parent</key>
+		<key>object-heritage-type</key>
 		<dict>
 			<key>captures</key>
 			<dict>
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>storage.type.tsx</string>
+					<string>support.type.tsx</string>
 				</dict>
 			</dict>
 			<key>match</key>
-			<string>(?:\s*([a-zA-Z_$][\w$]*))</string>
+			<string>(?:\b([a-zA-Z_$][\w$]*)\b)</string>
 			<key>name</key>
 			<string>meta.object.heritage.parent.tsx</string>
 		</dict>
@@ -1523,7 +1537,7 @@
 			<key>begin</key>
 			<string>"</string>
 			<key>end</key>
-			<string>"|(?=$)</string>
+			<string>"|(?:[^\\\n]$)</string>
 			<key>name</key>
 			<string>string.double.tsx</string>
 			<key>patterns</key>
@@ -1539,7 +1553,7 @@
 			<key>begin</key>
 			<string>'</string>
 			<key>end</key>
-			<string>'|(?=$)</string>
+			<string>\'|(?:[^\\\n]$)</string>
 			<key>name</key>
 			<string>string.single.tsx</string>
 			<key>patterns</key>
@@ -1607,7 +1621,7 @@
 		<key>storage-keyword</key>
 		<dict>
 			<key>match</key>
-			<string>\b(number|boolean|string|any|var|let|function|const|module|namespace)\b</string>
+			<string>\b(var|let|function|const|module|namespace)\b</string>
 			<key>name</key>
 			<string>storage.type.tsx</string>
 		</dict>
@@ -1852,7 +1866,7 @@
 		<key>type-declaration</key>
 		<dict>
 			<key>begin</key>
-			<string>\b(type)\b\s+([a-zA-Z_$][\w$]*)\s*=\s*</string>
+			<string>\b(type)\b\s+([a-zA-Z_$][\w$]*)\s*</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
@@ -1863,7 +1877,7 @@
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>storage.type.tsx</string>
+					<string>support.type.tsx</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -1874,7 +1888,17 @@
 			<array>
 				<dict>
 					<key>include</key>
+					<string>#type-parameters</string>
+				</dict>
+				<dict>
+					<key>include</key>
 					<string>#type</string>
+				</dict>
+				<dict>
+					<key>match</key>
+					<string>=\s*</string>
+					<key>name</key>
+					<string>keyword.operator.tsx</string>
 				</dict>
 			</array>
 		</dict>
@@ -2058,7 +2082,7 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>storage.type.tsx</string>
+					<string>support.type.tsx</string>
 				</dict>
 			</dict>
 			<key>match</key>
@@ -2112,7 +2136,7 @@
 		<key>var-expr</key>
 		<dict>
 			<key>begin</key>
-			<string>(?&lt;!\()\s*\b(var|let|const(?!\s+enum)\b)</string>
+			<string>(?&lt;!\()\s*\b(var|let|const(?!\s+enum))\b</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>

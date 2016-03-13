@@ -29,7 +29,7 @@ import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/unti
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IInstantiationService, INullService} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {CommonKeybindings, Keybinding} from 'vs/base/common/keyCodes';
 
@@ -37,7 +37,7 @@ const ROOT_ID = '__WORKING_FILES_ROOT';
 
 export class WorkingFilesDataSource implements IDataSource {
 
-	constructor( @INullService ns) { }
+	constructor() { }
 
 	public getId(tree: ITree, element: any): string {
 		if (element instanceof WorkingFileEntry) {
@@ -70,7 +70,7 @@ export class WorkingFilesDataSource implements IDataSource {
 
 export class WorkingFilesSorter implements ISorter {
 
-	constructor(@INullService ns) { }
+	constructor() { }
 
 	public compare(tree: ITree, element: any, otherElement: any): number {
 		return WorkingFilesModel.compare(element, otherElement);
@@ -171,10 +171,12 @@ export class WorkingFilesActionProvider extends ContributableActionProvider {
 
 					let saveAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
 					saveAction.setResource(element.resource);
+					saveAction.enabled = element.dirty;
 					actions.push(saveAction);
 
 					let revertAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
 					revertAction.setResource(element.resource);
+					revertAction.enabled = element.dirty;
 					actions.push(revertAction);
 				}
 

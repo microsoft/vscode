@@ -10,7 +10,7 @@
  */
 
 import * as objects from 'vs/base/common/objects';
-import {Bracket, IAutoClosingPairConditional, CharacterPair} from 'vs/editor/common/modes';
+import {IAutoClosingPairConditional, CharacterPair} from 'vs/editor/common/modes';
 import * as monarchCommon from 'vs/editor/common/modes/monarch/monarchCommon';
 import {ILanguage, ILanguageBracket} from 'vs/editor/common/modes/monarch/monarchTypes';
 
@@ -243,9 +243,9 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
 			}
 			if (typeof (action.bracket) === 'string') {
 				if (action.bracket === '@open') {
-					newAction.bracket = Bracket.Open;
+					newAction.bracket = monarchCommon.MonarchBracket.Open;
 				} else if (action.bracket === '@close') {
-					newAction.bracket = Bracket.Close;
+					newAction.bracket = monarchCommon.MonarchBracket.Close;
 				} else {
 					monarchCommon.throwError(lexer, 'a \'bracket\' attribute must be either \'@open\' or \'@close\', in rule: ' + ruleName);
 				}

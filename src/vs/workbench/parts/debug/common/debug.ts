@@ -24,7 +24,13 @@ export interface IRawModelUpdate {
 	threadId: number;
 	thread?: DebugProtocol.Thread;
 	callStack?: DebugProtocol.StackFrame[];
-	stoppedReason?: string;
+	stoppedDetails?: IRawStoppedDetails;
+}
+
+export interface IRawStoppedDetails {
+	reason: string;
+	threadId?: number;
+	text?: string;
 }
 
 // model
@@ -48,7 +54,7 @@ export interface IThread extends ITreeElement {
 	threadId: number;
 	name: string;
 	callStack: IStackFrame[];
-	stoppedReason: string;
+	stoppedDetails: IRawStoppedDetails;
 }
 
 export interface IScope extends IExpressionContainer {
@@ -157,7 +163,8 @@ export enum State {
 	Inactive,
 	Initializing,
 	Stopped,
-	Running
+	Running,
+	RunningNoDebug
 }
 
 // service interfaces
@@ -186,6 +193,7 @@ export interface IConfig {
 	preLaunchTask?: string;
 	externalConsole?: boolean;
 	debugServer?: number;
+	noDebug?: boolean;
 }
 
 export interface IRawEnvAdapter {
@@ -271,7 +279,7 @@ export interface IDebugService extends ee.IEventEmitter {
 	/**
 	 * Creates a new debug session. Depending on the configuration will either 'launch' or 'attach'.
 	 */
-	createSession(): TPromise<any>;
+	createSession(noDebug: boolean): TPromise<any>;
 
 	/**
 	 * Restarts an active debug session or creates a new one if there is no active session.
@@ -319,7 +327,7 @@ export function formatPII(value:string, excludePII: boolean, args: {[key: string
 			return match;
 		}
 
-		return args.hasOwnProperty(group) ?
+		return args && args.hasOwnProperty(group) ?
 			args[group] :
 			match;
 	});

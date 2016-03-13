@@ -15,8 +15,6 @@ export var language = <ILanguage> {
 	blockCommentStart: '/*',
 	blockCommentEnd: '*/',
 
-	editorOptions: { tabSize: 4, insertSpaces: true },
-
 	// TODO(owensd): Support the full range of unicode valid identifiers.
 	identifier: /[a-zA-Z_][\w$]*/,
 	// TODO(owensd): Support the @availability macro properly.

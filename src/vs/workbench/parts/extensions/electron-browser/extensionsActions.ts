@@ -86,7 +86,7 @@ export class ListOutdatedExtensionsAction extends Action {
 export class ListSuggestedExtensionsAction extends Action {
 
 	static ID = 'workbench.extensions.action.listSuggestedExtensions';
-	static LABEL = nls.localize('showExtensionTips', "Show Extension Tips");
+	static LABEL = nls.localize('showExtensionRecommendations', "Show Extension Recommendations");
 
 	constructor(
 		id: string,
@@ -98,7 +98,7 @@ export class ListSuggestedExtensionsAction extends Action {
 	}
 
 	public run(): Promise {
-		return this.quickOpenService.show('ext tips ');
+		return this.quickOpenService.show('ext recommend ');
 	}
 
 	protected isEnabled(): boolean {

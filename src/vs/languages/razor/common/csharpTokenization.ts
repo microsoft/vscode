@@ -29,7 +29,6 @@ var brackets = (function() {
 	let MAP: {
 		[text:string]:{
 			tokenType: string;
-			bracketType: Modes.Bracket
 		}
 	} = Object.create(null);
 
@@ -37,11 +36,9 @@ var brackets = (function() {
 		let bracket = bracketsSource[i];
 		MAP[bracket.open] = {
 			tokenType: bracket.tokenType,
-			bracketType: Modes.Bracket.Open
 		};
 		MAP[bracket.close] = {
 			tokenType: bracket.tokenType,
-			bracketType: Modes.Bracket.Close
 		};
 	}
 
@@ -51,9 +48,6 @@ var brackets = (function() {
 		},
 		tokenTypeFromString: (text:string): string => {
 			return MAP[text].tokenType;
-		},
-		bracketTypeFromString: (text:string): Modes.Bracket => {
-			return MAP[text].bracketType;
 		}
 	};
 })();
@@ -408,7 +402,6 @@ export class CSStatement extends CSState implements VSXML.IVSXMLWrapperState {
 		if (brackets.stringIsBracket(token)) {
 
 			var tr: Modes.ITokenizationResult = {
-				bracket: brackets.bracketTypeFromString(token),
 				type: brackets.tokenTypeFromString(token),
 				nextState: nextStateAtEnd
 			};
@@ -468,9 +461,6 @@ export class CSStatement extends CSState implements VSXML.IVSXMLWrapperState {
 	}
 }
 
-// list of empty elements - for performance reasons we won't open a bracket for them
-var emptyElements:string[] = ['area','base','basefont','br','col','frame','hr','img','input','isindex','link','meta','param'];
-
 // this state always returns to parent state if it leaves a html tag
 class CSSimpleHTML extends CSState {
 	private state:htmlMode.States;
@@ -502,7 +492,7 @@ class CSSimpleHTML extends CSState {
 				}
 				if (stream.advanceIfString('-->').length > 0) {
 					this.state = htmlMode.States.Content;
-					return { type: htmlTokenTypes.DELIM_COMMENT, bracket: Modes.Bracket.Close, nextState: this.parent };
+					return { type: htmlTokenTypes.DELIM_COMMENT, nextState: this.parent };
 				}
 				break;
 
@@ -512,37 +502,36 @@ class CSSimpleHTML extends CSState {
 				}
 				if (stream.advanceIfString('>').length > 0) {
 					this.state = htmlMode.States.Content;
-					return { type: htmlTokenTypes.DELIM_DOCTYPE, bracket: Modes.Bracket.Close, nextState: this.parent };
+					return { type: htmlTokenTypes.DELIM_DOCTYPE, nextState: this.parent };
 				}
 				break;
 
 			case htmlMode.States.Content:
 				if (stream.advanceIfString('!--').length > 0){
 					this.state = htmlMode.States.WithinComment;
-					return { type: htmlTokenTypes.DELIM_COMMENT, bracket: Modes.Bracket.Open };
+					return { type: htmlTokenTypes.DELIM_COMMENT };
 				}
 				if (stream.advanceIfRegExp(/!DOCTYPE/i).length > 0) {
 					this.state = htmlMode.States.WithinDoctype;
-					return { type: htmlTokenTypes.DELIM_DOCTYPE, bracket: Modes.Bracket.Open };
+					return { type: htmlTokenTypes.DELIM_DOCTYPE };
 				}
 				if (stream.advanceIfString('/').length > 0){
 					this.state = htmlMode.States.OpeningEndTag;
-					return { type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Open };
+					return { type: htmlTokenTypes.DELIM_END };
 				}
 				this.state = htmlMode.States.OpeningStartTag;
-				return { type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open };
+				return { type: htmlTokenTypes.DELIM_START };
 
 			case htmlMode.States.OpeningEndTag: {
 				let tagName = this.nextName(stream);
 				if (tagName.length > 0) {
 					return {
-						type: htmlTokenTypes.getTag(tagName),
-						bracket: emptyElements.indexOf(tagName) !== -1 ? -1 : Modes.Bracket.Close
+						type: htmlTokenTypes.getTag(tagName)
 					};
 				}
 				if (stream.advanceIfString('>').length > 0) {
 					this.state = htmlMode.States.Content;
-					return { type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Close, nextState: this.parent };
+					return { type: htmlTokenTypes.DELIM_END, nextState: this.parent };
 				}
 				stream.advanceUntil('>', false);
 				return { type: '' };
@@ -553,8 +542,7 @@ class CSSimpleHTML extends CSState {
 				if (tagName.length > 0) {
 					this.state = htmlMode.States.WithinTag;
 					return {
-						type: htmlTokenTypes.getTag(tagName),
-						bracket: emptyElements.indexOf(tagName) !== -1 ? -1 : Modes.Bracket.Open
+						type: htmlTokenTypes.getTag(tagName)
 					};
 				}
 				break;
@@ -571,7 +559,7 @@ class CSSimpleHTML extends CSState {
 				}
 				if (stream.advanceIfRegExp(/^\/?>/).length > 0) {
 					this.state = htmlMode.States.Content;
-					return { type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close, nextState: this.parent };
+					return { type: htmlTokenTypes.DELIM_START, nextState: this.parent };
 				}
 				stream.next();
 				return { type: '' };

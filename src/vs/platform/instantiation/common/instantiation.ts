@@ -230,12 +230,3 @@ export function createDecorator<T>(serviceId: string): { (...args: any[]): void;
 export interface Context {
 	get<T>(id: ServiceIdentifier<T>): T;
 }
-
-/*
- * Dummy service to make signal that the new service injection is used. I will go away once we remove the old way (using ctx)
- */
-export const INullService = createDecorator<IInstantiationService>('nullService');
-
-export interface INullService {
-	serviceId: ServiceIdentifier<any>;
-}

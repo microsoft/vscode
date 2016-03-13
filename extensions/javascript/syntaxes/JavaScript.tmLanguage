@@ -362,6 +362,10 @@
 				</dict>
 				<dict>
 					<key>include</key>
+					<string>#type-primitive</string>
+				</dict>
+				<dict>
+					<key>include</key>
 					<string>#function-call</string>
 				</dict>
 				<dict>
@@ -1071,14 +1075,14 @@
 		<key>logic-operator</key>
 		<dict>
 			<key>match</key>
-			<string>\!|&amp;|~|\||&amp;&amp;|\|\|</string>
+			<string>\!|&amp;|~|\^|\||&amp;&amp;|\|\|</string>
 			<key>name</key>
 			<string>keyword.operator.arithmetic.js</string>
 		</dict>
 		<key>method-declaration</key>
 		<dict>
 			<key>begin</key>
-			<string>\b(?:(abstract)\s+)?\b(?:(public|private|protected)\s+)?\b(?:(async)\s+)?(?:(get|set)\s+)?(?:(new)|(?:([a-zA-Z_$][\.\w$]*)\s*(\??)))?\s*(?=\(|\&lt;)</string>
+			<string>\b(?:(abstract)\s+)?\b(?:(public|private|protected)\s+)?\b(?:(async)\s+)?(?:(get|set)\s+)?(?:(new)|(?:\b(constructor)\b)|(?:([a-zA-Z_$][\.\w$]*)\s*(\??)))?\s*(?=\(|\&lt;)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
@@ -1109,9 +1113,14 @@
 				<key>6</key>
 				<dict>
 					<key>name</key>
-					<string>entity.name.function.js</string>
+					<string>support.type.js</string>
 				</dict>
 				<key>7</key>
+				<dict>
+					<key>name</key>
+					<string>entity.name.function.js</string>
+				</dict>
+				<key>8</key>
 				<dict>
 					<key>name</key>
 					<string>keyword.operator.js</string>
@@ -1181,16 +1190,21 @@
 				<key>6</key>
 				<dict>
 					<key>name</key>
-					<string>entity.name.function.js</string>
+					<string>support.type.js</string>
 				</dict>
 				<key>7</key>
+				<dict>
+					<key>name</key>
+					<string>entity.name.function.js</string>
+				</dict>
+				<key>8</key>
 				<dict>
 					<key>name</key>
 					<string>keyword.operator.js</string>
 				</dict>
 			</dict>
 			<key>match</key>
-			<string>\b(?:(abstract)\s+)?\b(?:(public|private|protected)\s+)?\b(?:(async)\s+)?(?:(get|set)\s+)?(?:(new)|(?:([a-zA-Z_$][\.\w$]*)\s*(\??)))?\s*(?=\(|\&lt;)</string>
+			<string>\b(?:(abstract)\s+)?\b(?:(public|private|protected)\s+)?\b(?:(async)\s+)?(?:(get|set)\s+)?(?:(new)|(?:\b(constructor)\b)|(?:([a-zA-Z_$][\.\w$]*)\s*(\??)))?\s*(?=\(|\&lt;)</string>
 			<key>name</key>
 			<string>meta.method.overload.declaration.js</string>
 		</dict>
@@ -1232,7 +1246,7 @@
 		<key>numeric-literal</key>
 		<dict>
 			<key>match</key>
-			<string>\b(?&lt;=[^$])((0(x|X)[0-9a-fA-F]+)|([0-9]+(\.[0-9]+)?))\b</string>
+			<string>\b(?&lt;=[^$])((0(x|X)[0-9a-fA-F]+)|(([0-9]+(\.[0-9]+)?))([eE]([+-]?)[0-9]+(\.[0-9]+)?)?)\b</string>
 			<key>name</key>
 			<string>constant.numeric.js</string>
 		</dict>
@@ -1365,7 +1379,7 @@
 		<key>object-heritage</key>
 		<dict>
 			<key>begin</key>
-			<string>(?:\b(extends|implements))</string>
+			<string>(?:\b(extends|implements)\b)</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
@@ -1402,22 +1416,22 @@
 				</dict>
 				<dict>
 					<key>include</key>
-					<string>#object-heritage-parent</string>
+					<string>#object-heritage-type</string>
 				</dict>
 			</array>
 		</dict>
-		<key>object-heritage-parent</key>
+		<key>object-heritage-type</key>
 		<dict>
 			<key>captures</key>
 			<dict>
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>storage.type.js</string>
+					<string>support.type.js</string>
 				</dict>
 			</dict>
 			<key>match</key>
-			<string>(?:\s*([a-zA-Z_$][\w$]*))</string>
+			<string>(?:\b([a-zA-Z_$][\w$]*)\b)</string>
 			<key>name</key>
 			<string>meta.object.heritage.parent.js</string>
 		</dict>
@@ -1524,7 +1538,7 @@
 			<key>begin</key>
 			<string>"</string>
 			<key>end</key>
-			<string>"|(?=$)</string>
+			<string>"|(?:[^\\\n]$)</string>
 			<key>name</key>
 			<string>string.double.js</string>
 			<key>patterns</key>
@@ -1540,7 +1554,7 @@
 			<key>begin</key>
 			<string>'</string>
 			<key>end</key>
-			<string>'|(?=$)</string>
+			<string>\'|(?:[^\\\n]$)</string>
 			<key>name</key>
 			<string>string.single.js</string>
 			<key>patterns</key>
@@ -1608,7 +1622,7 @@
 		<key>storage-keyword</key>
 		<dict>
 			<key>match</key>
-			<string>\b(number|boolean|string|any|var|let|function|const|module|namespace)\b</string>
+			<string>\b(var|let|function|const|module|namespace)\b</string>
 			<key>name</key>
 			<string>storage.type.js</string>
 		</dict>
@@ -1853,7 +1867,7 @@
 		<key>type-declaration</key>
 		<dict>
 			<key>begin</key>
-			<string>\b(type)\b\s+([a-zA-Z_$][\w$]*)\s*=\s*</string>
+			<string>\b(type)\b\s+([a-zA-Z_$][\w$]*)\s*</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>
@@ -1864,7 +1878,7 @@
 				<key>2</key>
 				<dict>
 					<key>name</key>
-					<string>storage.type.js</string>
+					<string>support.type.js</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -1875,7 +1889,17 @@
 			<array>
 				<dict>
 					<key>include</key>
+					<string>#type-parameters</string>
+				</dict>
+				<dict>
+					<key>include</key>
 					<string>#type</string>
+				</dict>
+				<dict>
+					<key>match</key>
+					<string>=\s*</string>
+					<key>name</key>
+					<string>keyword.operator.js</string>
 				</dict>
 			</array>
 		</dict>
@@ -2059,7 +2083,7 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>storage.type.js</string>
+					<string>support.type.js</string>
 				</dict>
 			</dict>
 			<key>match</key>
@@ -2113,7 +2137,7 @@
 		<key>var-expr</key>
 		<dict>
 			<key>begin</key>
-			<string>(?&lt;!\()\s*\b(var|let|const(?!\s+enum)\b)</string>
+			<string>(?&lt;!\()\s*\b(var|let|const(?!\s+enum))\b</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>1</key>

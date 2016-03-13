@@ -22,7 +22,6 @@ export var language = <ILanguage> {
 	// 	{ openTrigger: 'n', open: /when$/i, closeComplete: 'then', matchCase: true }
 	// ],
 	noindentBrackets: '()',
-	editorOptions: { tabSize: 4, insertSpaces: true },
 	lineComment: '--',
 	blockCommentStart: '/*',
 	blockCommentEnd: '*/',

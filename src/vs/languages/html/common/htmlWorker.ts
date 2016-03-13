@@ -39,6 +39,7 @@ export class HTMLWorker {
 	private markerService: IMarkerService;
 	private _modeId: string;
 	private _tagProviders: htmlTags.IHTMLTagProvider[];
+	private formatSettings: any;
 
 	constructor(
 		modeId: string,
@@ -61,6 +62,7 @@ export class HTMLWorker {
 
 	protected addCustomTagProviders(providers: htmlTags.IHTMLTagProvider[]): void {
 		providers.push(htmlTags.getAngularTagProvider());
+		providers.push(htmlTags.getIonicTagProvider());
 	}
 
 	public format(resource: URI, range: EditorCommon.IRange, options: Modes.IFormattingOptions): winjs.TPromise<EditorCommon.ISingleEditOperation[]> {
@@ -74,14 +76,23 @@ export class HTMLWorker {
 	}
 
 	private formatHTML(resource: URI, range: EditorCommon.IRange, options: Modes.IFormattingOptions): winjs.TPromise<EditorCommon.ISingleEditOperation[]> {
-		var model = this.resourceService.get(resource);
-		var value = range ? model.getValueInRange(range) : model.getValue();
+		let model = this.resourceService.get(resource);
+		let value = range ? model.getValueInRange(range) : model.getValue();
 
-		var result: string = beautifyHTML.html_beautify(value, {
+		let htmlOptions : beautifyHTML.IBeautifyHTMLOptions = {
 			indent_size: options.insertSpaces ? options.tabSize : 1,
 			indent_char: options.insertSpaces ? ' ' : '\t',
-			wrap_line_length: 120
-		});
+			wrap_line_length: this.getFormatOption('wrapLineLength', 120),
+			unformatted: this.getFormatListOption('unformatted', void 0),
+			indent_inner_html: this.getFormatOption('indentInnerHtml', false),
+			preserve_newlines: this.getFormatOption('preserveNewLines', false),
+			max_preserve_newlines: this.getFormatOption('maxPreserveNewLines', void 0),
+			indent_handlebars: this.getFormatOption('indentHandlebars', false),
+			end_with_newline: this.getFormatOption('endWithNewline', false),
+			extra_liners: this.getFormatListOption('extraLiners', void 0),
+		};
+
+		let result = beautifyHTML.html_beautify(value, htmlOptions);
 
 		return winjs.TPromise.as([{
 			range: range,
@@ -89,26 +100,49 @@ export class HTMLWorker {
 		}]);
 	}
 
+	private getFormatOption(key: string, dflt: any): any {
+		if (this.formatSettings && this.formatSettings.hasOwnProperty(key)) {
+			let value = this.formatSettings[key];
+			if (value !== null) {
+				return value;
+			}
+		}
+		return dflt;
+	}
+
+	private getFormatListOption(key: string, dflt: string[]): string[] {
+		let list = this.getFormatOption(key, null);
+		if (list) {
+			return list.split(',');
+		}
+		return dflt;
+	}
+
+	_doConfigure(options: any): winjs.TPromise<void> {
+		this.formatSettings = options && options.format;
+		return winjs.TPromise.as(null);
+	}
+
 	_delegateToModeAtPosition<T>(resource:URI, position:EditorCommon.IPosition, callback:(isEmbeddedMode:boolean, model:EditorCommon.IMirrorModel) => T): T {
-		var model = this.resourceService.get(resource);
+		let model = this.resourceService.get(resource);
 
 		if (!model) {
 			return null;
 		}
 
-		var modelAtPosition = model.getEmbeddedAtPosition(position);
+		let modelAtPosition = model.getEmbeddedAtPosition(position);
 
 		if (!modelAtPosition) {
 			return callback(false, model);
 		}
 
-		var modeAtPosition = modelAtPosition.getMode();
+		let modeAtPosition = modelAtPosition.getMode();
 
 		return callback(modeAtPosition.getId() !== this._modeId, modelAtPosition);
 	}
 
 	_delegateToAllModes<T>(resource:URI, callback:(models:EditorCommon.IMirrorModel[]) => T): T {
-		var model = this.resourceService.get(resource);
+		let model = this.resourceService.get(resource);
 
 		if (!model) {
 			return null;
@@ -151,14 +185,14 @@ export class HTMLWorker {
 
 	public findColorDeclarations(resource:URI):winjs.TPromise<{range:EditorCommon.IRange; value:string; }[]> {
 		return this._delegateToAllModes(resource, (models) => {
-			var allPromises: winjs.TPromise<IColorRange[]>[] = [];
+			let allPromises: winjs.TPromise<IColorRange[]>[] = [];
 
 			allPromises = models
 				.filter((model) => (typeof model.getMode()['findColorDeclarations'] === 'function'))
 				.map((model) => model.getMode()['findColorDeclarations'](model.getAssociatedResource()));
 
 			return winjs.TPromise.join(allPromises).then((results:IColorRange[][]) => {
-				var result:IColorRange[] = [];
+				let result:IColorRange[] = [];
 
 				results.forEach((oneResult) => result = result.concat(oneResult));
 
@@ -176,11 +210,11 @@ export class HTMLWorker {
 	}
 
 	private findMatchingOpenTag(scanner: IHTMLScanner) : string {
-		var closedTags : { [name:string]: number } = {};
-		var tagClosed = false;
+		let closedTags : { [name:string]: number } = {};
+		let tagClosed = false;
 		while (scanner.scanBack()) {
 			if (isTag(scanner.getTokenType()) && !tagClosed) {
-				var tag = scanner.getTokenContent();
+				let tag = scanner.getTokenContent();
 				scanner.scanBack();
 				if (scanner.getTokenType() === DELIM_END) {
 					closedTags[tag] = (closedTags[tag] || 0) + 1;
@@ -199,15 +233,15 @@ export class HTMLWorker {
 	}
 
 	private collectTagSuggestions(scanner: IHTMLScanner, position: EditorCommon.IPosition, suggestions: Modes.ISuggestResult): void {
-		var model = scanner.getModel();
-		var contentAfter = model.getLineContent(position.lineNumber).substr(position.column - 1);
-		var closeTag = isWhiteSpace(contentAfter) || strings.startsWith(contentAfter, '<') ? '>' : '';
+		let model = scanner.getModel();
+		let contentAfter = model.getLineContent(position.lineNumber).substr(position.column - 1);
+		let closeTag = isWhiteSpace(contentAfter) || strings.startsWith(contentAfter, '<') ? '>' : '';
 
-		var collectClosingTagSuggestion = (correctIndent:boolean, overwriteBefore: number) => {
-			var endPosition = scanner.getTokenPosition();
-			var matchingTag = this.findMatchingOpenTag(scanner);
+		let collectClosingTagSuggestion = (correctIndent:boolean, overwriteBefore: number) => {
+			let endPosition = scanner.getTokenPosition();
+			let matchingTag = this.findMatchingOpenTag(scanner);
 			if (matchingTag) {
-				var suggestion : Modes.ISuggestion = {
+				let suggestion : Modes.ISuggestion = {
 					label: '/' + matchingTag,
 					codeSnippet: '/' + matchingTag + closeTag,
 					overwriteBefore: overwriteBefore,
@@ -217,10 +251,10 @@ export class HTMLWorker {
 
 				// use indent from start tag
 				if (correctIndent) {
-					var startPosition = scanner.getTokenPosition();
+					let startPosition = scanner.getTokenPosition();
 					if (endPosition.lineNumber !== startPosition.lineNumber) {
-						var startIndent = model.getLineContent(startPosition.lineNumber).substring(0, startPosition.column - 1);
-						var endIndent = model.getLineContent(endPosition.lineNumber).substring(0, endPosition.column - 1);
+						let startIndent = model.getLineContent(startPosition.lineNumber).substring(0, startPosition.column - 1);
+						let endIndent = model.getLineContent(endPosition.lineNumber).substring(0, endPosition.column - 1);
 						if (isWhiteSpace(startIndent) && isWhiteSpace(endIndent)) {
 							suggestion.overwriteBefore = position.column - 1; // replace from start of line
 							suggestion.codeSnippet = startIndent + '</' + matchingTag + closeTag;
@@ -234,7 +268,7 @@ export class HTMLWorker {
 
 
 		if (scanner.getTokenType() === DELIM_END) {
-			var hasClose = collectClosingTagSuggestion(true, suggestions.currentWord.length + 1);
+			let hasClose = collectClosingTagSuggestion(true, suggestions.currentWord.length + 1);
 			if (!hasClose) {
 				this._tagProviders.forEach((provider) => {
 					provider.collectTags((tag, label) => {
@@ -270,7 +304,7 @@ export class HTMLWorker {
 	}
 
 	private collectAttributeSuggestions(scanner: IHTMLScanner, suggestions: Modes.ISuggestResult): void {
-		var parentTag: string = null;
+		let parentTag: string = null;
 		do {
 			if (isTag(scanner.getTokenType())) {
 				parentTag = scanner.getTokenContent();
@@ -283,7 +317,7 @@ export class HTMLWorker {
 
 		this._tagProviders.forEach((provider) => {
 			provider.collectAttributes(parentTag,(attribute, type) => {
-				var codeSnippet = attribute;
+				let codeSnippet = attribute;
 				if (type !== 'v') {
 					codeSnippet = codeSnippet + '="{{}}"';
 				}
@@ -297,10 +331,10 @@ export class HTMLWorker {
 	}
 
 	private collectAttributeValueSuggestions(scanner: IHTMLScanner, suggestions:  Modes.ISuggestResult): void {
-		var needsQuotes = scanner.getTokenType() === DELIM_ASSIGN;
+		let needsQuotes = scanner.getTokenType() === DELIM_ASSIGN;
 
-		var attribute: string = null;
-		var parentTag: string = null;
+		let attribute: string = null;
+		let parentTag: string = null;
 		while (scanner.scanBack()) {
 			if (scanner.getTokenType() === ATTRIB_NAME) {
 				attribute = scanner.getTokenContent();
@@ -344,15 +378,15 @@ export class HTMLWorker {
 
 	private doSuggest(resource: URI, position: EditorCommon.IPosition): winjs.TPromise<Modes.ISuggestResult> {
 
-		var model = this.resourceService.get(resource),
+		let model = this.resourceService.get(resource),
 			currentWord = model.getWordUntilPosition(position).word;
 
-		var suggestions: Modes.ISuggestResult = {
+		let suggestions: Modes.ISuggestResult = {
 			currentWord: currentWord,
 			suggestions: [],
 		};
 
-		var scanner = getScanner(model, position);
+		let scanner = getScanner(model, position);
 		switch (scanner.getTokenType()) {
 			case DELIM_START:
 			case DELIM_END:
@@ -413,14 +447,14 @@ export class HTMLWorker {
 		if (isEmptyElement(tagname)) {
 			return null;
 		}
-		var tagCount = 0;
+		let tagCount = 0;
 		scanner.scanBack(); // one back to the end/start bracket
 		if (scanner.getTokenType() === DELIM_END) {
 			// find the opening tag
-			var tagClosed = false;
+			let tagClosed = false;
 			while (scanner.scanBack()) {
 				if (isTag(scanner.getTokenType()) && scanner.getTokenContent() === tagname && !tagClosed) {
-					var range = scanner.getTokenRange();
+					let range = scanner.getTokenRange();
 					scanner.scanBack(); // one back to the end/start bracket
 					if (scanner.getTokenType() === DELIM_START) {
 						if (tagCount === 0) {
@@ -436,7 +470,7 @@ export class HTMLWorker {
 				}
 			}
 		} else {
-			var isTagEnd = false;
+			let isTagEnd = false;
 			while (scanner.scanForward()) {
 				if (isTag(scanner.getTokenType()) && scanner.getTokenContent() === tagname) {
 					if (!isTagEnd) {
@@ -477,29 +511,29 @@ export class HTMLWorker {
 
 	public findOccurrencesHTML(resource:URI, position:EditorCommon.IPosition, strict?:boolean):winjs.TPromise<Modes.IOccurence[]> {
 
-		var model = this.resourceService.get(resource),
+		let model = this.resourceService.get(resource),
 			wordAtPosition = model.getWordAtPosition(position),
 			currentWord = (wordAtPosition ? wordAtPosition.word : ''),
 			result:Modes.IOccurence[] = [];
 
 
-		var scanner = getScanner(model, position);
+		let scanner = getScanner(model, position);
 		if (isTag(scanner.getTokenType())) {
-			var tagname = scanner.getTokenContent();
+			let tagname = scanner.getTokenContent();
 			result.push({
 				range: scanner.getTokenRange()
 			});
-			var range = this.findMatchingBracket(tagname, scanner);
+			let range = this.findMatchingBracket(tagname, scanner);
 			if (range) {
 				result.push({
 					range: range
 				});
 			}
 		} else {
-			var words = model.getAllWordsWithRange(),
+			let words = model.getAllWordsWithRange(),
 				upperBound = Math.min(1000, words.length); // Limit find occurences to 1000 occurences
 
-			for(var i = 0; i < upperBound; i++) {
+			for(let i = 0; i < upperBound; i++) {
 				if(words[i].text === currentWord) {
 					result.push({
 						range: words[i].range
@@ -563,7 +597,7 @@ export class HTMLWorker {
 	}
 
 	private createLink(modelAbsoluteUrl: URI, rootAbsoluteUrl: URI, tokenContent: string, lineNumber: number, startColumn: number, endColumn: number): Modes.ILink {
-		var workspaceUrl = HTMLWorker._getWorkspaceUrl(modelAbsoluteUrl, rootAbsoluteUrl, tokenContent);
+		let workspaceUrl = HTMLWorker._getWorkspaceUrl(modelAbsoluteUrl, rootAbsoluteUrl, tokenContent);
 		if (!workspaceUrl) {
 			return null;
 		}
@@ -581,7 +615,7 @@ export class HTMLWorker {
 	}
 
 	private _computeHTMLLinks(model: EditorCommon.IMirrorModel): Modes.ILink[] {
-		var lineCount = model.getLineCount(),
+		let lineCount = model.getLineCount(),
 			newLinks: Modes.ILink[] = [],
 			state: LinkDetectionState = LinkDetectionState.LOOKING_FOR_HREF_OR_SRC,
 			modelAbsoluteUrl = model.getAssociatedResource(),

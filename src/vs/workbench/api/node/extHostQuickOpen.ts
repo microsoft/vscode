@@ -15,7 +15,7 @@ export interface MyQuickPickItems extends IPickOpenEntry {
 
 export type Item = string | QuickPickItem;
 
-@Remotable.PluginHostContext('ExtHostQuickOpen')
+@Remotable.ExtHostContext('ExtHostQuickOpen')
 export class ExtHostQuickOpen {
 
 	private _proxy: MainThreadQuickOpen;

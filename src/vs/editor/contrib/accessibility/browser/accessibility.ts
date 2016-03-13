@@ -15,7 +15,6 @@ import {clearNode} from 'vs/base/browser/dom';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {Widget} from 'vs/base/browser/ui/widget';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingContextKey, IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
 import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -43,7 +42,7 @@ class AccessibilityHelpController extends Disposable implements IEditorContribut
 	private _editor: ICodeEditor;
 	private _widget: AccessibilityHelpWidget;
 
-	constructor(editor:ICodeEditor, @IKeybindingService keybindingService: IKeybindingService, @INullService ns) {
+	constructor(editor:ICodeEditor, @IKeybindingService keybindingService: IKeybindingService) {
 		super();
 
 		this._editor = editor;
@@ -140,7 +139,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	private _descriptionForCommand(commandId:string, msg:string, noKbMsg:string): string {
 		let keybindings = this._keybindingService.lookupKeybindings(commandId);
 		if (keybindings.length > 0) {
-			return strings.format(msg, this._keybindingService.getLabelFor(keybindings[0]));
+			return strings.format(msg, this._keybindingService.getAriaLabelFor(keybindings[0]));
 		}
 		return strings.format(noKbMsg, commandId);
 	}
@@ -212,7 +211,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 class ShowAccessibilityHelpAction extends EditorAction {
 
-	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor, Behaviour.WidgetFocus);
 	}
 

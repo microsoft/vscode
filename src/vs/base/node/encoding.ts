@@ -6,10 +6,40 @@
 'use strict';
 
 import stream = require('vs/base/node/stream');
+import iconv = require('iconv-lite');
 
 export const UTF8 = 'utf8';
+export const UTF8_with_bom = 'utf8bom';
 export const UTF16be = 'utf16be';
 export const UTF16le = 'utf16le';
+
+export function decode(buffer: NodeBuffer, encoding: string, options?: any): string {
+	return iconv.decode(buffer, toNodeEncoding(encoding), options);
+}
+
+export function encode(content: string, encoding: string, options?: any): NodeBuffer {
+	return iconv.encode(content, toNodeEncoding(encoding), options);
+}
+
+export function encodingExists(encoding: string): boolean {
+	return iconv.encodingExists(toNodeEncoding(encoding));
+}
+
+export function decodeStream(encoding: string): NodeJS.ReadWriteStream {
+	return iconv.decodeStream(toNodeEncoding(encoding));
+}
+
+export function encodeStream(encoding: string): NodeJS.ReadWriteStream {
+	return iconv.encodeStream(toNodeEncoding(encoding));
+}
+
+function toNodeEncoding(enc: string): string {
+	if (enc === UTF8_with_bom) {
+		return UTF8; // iconv does not distinguish UTF 8 with or without BOM, so we need to help it
+	}
+
+	return enc;
+}
 
 export function detectEncodingByBOMFromBuffer(buffer: NodeBuffer, bytesRead: number): string {
 	if (!buffer || bytesRead < 2) {

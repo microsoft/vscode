@@ -86,6 +86,7 @@ export interface IView extends IDisposable {
 	renderOnce(callback:() => any): any;
 
 	render(now:boolean): void;
+	setAriaActiveDescendant(id:string): void;
 
 	focus(): void;
 	isFocused(): boolean;
@@ -110,23 +111,31 @@ export interface IViewZoneData {
 	afterLineNumber: number;
 }
 
+export interface IMouseDispatchData {
+	position: editorCommon.IEditorPosition;
+	/**
+	 * Desired mouse column (e.g. when position.column gets clamped to text length -- clicking after text on a line).
+	 */
+	mouseColumn: number;
+	startedOnLineNumbers: boolean;
+
+	inSelectionMode: boolean;
+	mouseDownCount: number;
+	altKey: boolean;
+	ctrlKey: boolean;
+	metaKey: boolean;
+	shiftKey: boolean;
+}
+
 export interface IViewController {
+	dispatchMouse(data:IMouseDispatchData);
+
+	moveTo(source:string, position:editorCommon.IEditorPosition): void;
+
 	paste(source:string, text:string, pasteOnNewLine:boolean): void;
 	type(source: string, text: string): void;
 	replacePreviousChar(source: string, text: string, replaceCharCnt:number): void;
 	cut(source:string): void;
-	moveTo(source:string, lineNumber:number, column:number): void;
-	moveToSelect(source:string, lineNumber:number, column:number): void;
-	createCursor(source:string, lineNumber:number, column:number, wholeLine:boolean): void;
-	lastCursorMoveToSelect(source:string, lineNumber:number, column:number): void;
-	wordSelect(source:string, lineNumber:number, column:number, preference:string): void;
-	wordSelectDrag(source:string, lineNumber:number, column:number, preference:string): void;
-	lastCursorWordSelect(source:string, lineNumber:number, column:number, preference:string): void;
-	lineSelect(source:string, lineNumber:number, column:number): void;
-	lineSelectDrag(source:string, lineNumber:number, column:number): void;
-	lastCursorLineSelect(source:string, lineNumber:number, column:number): void;
-	lastCursorLineSelectDrag(source:string, lineNumber:number, column:number): void;
-	selectAll(source:string): void;
 
 	emitKeyDown(e:IKeyboardEvent): void;
 	emitKeyUp(e:IKeyboardEvent): void;
@@ -459,6 +468,10 @@ export interface IMouseTarget {
 	 */
 	position: editorCommon.IEditorPosition;
 	/**
+	 * Desired mouse column (e.g. when position.column gets clamped to text length -- clicking after text on a line).
+	 */
+	mouseColumn: number;
+	/**
 	 * The 'approximate' editor range
 	 */
 	range: editorCommon.IEditorRange;
@@ -595,6 +608,8 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	 * Set the model ranges that will be hidden in the view.
 	 */
 	setHiddenAreas(ranges:editorCommon.IRange[]): void;
+
+	setAriaActiveDescendant(id:string): void;
 }
 
 /**

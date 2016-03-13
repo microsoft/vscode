@@ -1212,7 +1212,7 @@
 				</dict>
 			</dict>
 			<key>match</key>
-			<string>(mixin\s+)([\w-]+)(?:(\()((?:[a-zA-Z_]\w*(?:,\s*)?)*)(\)))?$</string>
+			<string>(mixin\s+)([\w-]+)(?:(\()\s*((?:[a-zA-Z_]\w*\s*)(?:,\s*[a-zA-Z_]\w*\s*)*)(\)))?$</string>
 		</dict>
 		<key>printed_expression</key>
 		<dict>
@@ -1329,7 +1329,7 @@
 				</dict>
 				<dict>
 					<key>match</key>
-					<string>!</string>
+					<string>!(?!=)</string>
 					<key>name</key>
 					<string>invalid.illegal.tag.jade</string>
 				</dict>

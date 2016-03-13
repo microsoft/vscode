@@ -10,33 +10,25 @@ import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModelLine} from 'vs/editor/common/model/modelLine';
+import {guessIndentation} from 'vs/editor/common/model/indentationGuesser';
+import {DEFAULT_INDENTATION} from 'vs/editor/common/config/defaultConfig';
 
-var __space = ' '.charCodeAt(0);
-var __tab = '\t'.charCodeAt(0);
 var LIMIT_FIND_COUNT = 999;
 
-export interface IIndentationFactors {
-	/**
-	 * The number of lines that are indented with tabs
-	 */
-	linesIndentedWithTabs:number;
-	/**
-	 * relativeSpaceCounts[i] contains the number of times (i spaces) have been encountered in a relative indentation
-	 */
-	relativeSpaceCounts:number[];
-	/**
-	 * absoluteSpaceCounts[i] contains the number of times (i spaces) have been encounted in an indentation
-	 */
-	absoluteSpaceCounts:number[];
-}
-
 export class TextModel extends OrderGuaranteeEventEmitter implements editorCommon.ITextModel {
+
+	public static DEFAULT_CREATION_OPTIONS: editorCommon.ITextModelCreationOptions = {
+		tabSize: DEFAULT_INDENTATION.tabSize,
+		insertSpaces: DEFAULT_INDENTATION.insertSpaces,
+		detectIndentation: false,
+		defaultEOL: editorCommon.DefaultEndOfLine.LF
+	};
 
 	_lines:ModelLine[];
 	_EOL:string;
 	_isDisposed:boolean;
 	_isDisposing:boolean;
-	private _defaultEOL:editorCommon.DefaultEndOfLine;
+	private _options: editorCommon.ITextModelResolvedOptions;
 
 	private _versionId:number;
 	/**
@@ -46,14 +38,110 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	private _BOM:string;
 
 	constructor(allowedEventTypes:string[], rawText:editorCommon.IRawText) {
-		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged);
+		allowedEventTypes.push(editorCommon.EventType.ModelContentChanged, editorCommon.EventType.ModelOptionsChanged);
 		super(allowedEventTypes);
 
-		this._defaultEOL = rawText.defaultEOL;
+		this._options = rawText.options;
 		this._constructLines(rawText);
 		this._setVersionId(1);
 		this._isDisposed = false;
 		this._isDisposing = false;
+	}
+
+	public getOptions(): editorCommon.ITextModelResolvedOptions {
+		if (this._isDisposed) {
+			throw new Error('TextModel.getOptions: Model is disposed');
+		}
+
+		return this._options;
+	}
+
+	public updateOptions(newOpts:editorCommon.ITextModelUpdateOptions): void {
+		let somethingChanged = false;
+		let changed:editorCommon.IModelOptionsChangedEvent = {
+			tabSize: false,
+			insertSpaces: false
+		};
+
+		if (typeof newOpts.insertSpaces !== 'undefined') {
+			if (this._options.insertSpaces !== newOpts.insertSpaces) {
+				somethingChanged = true;
+				changed.insertSpaces = true;
+				this._options.insertSpaces = newOpts.insertSpaces;
+			}
+		}
+		if (typeof newOpts.tabSize !== 'undefined') {
+			if (this._options.tabSize !== newOpts.tabSize) {
+				somethingChanged = true;
+				changed.tabSize = true;
+				this._options.tabSize = newOpts.tabSize;
+			}
+		}
+
+		if (somethingChanged) {
+			this.emit(editorCommon.EventType.ModelOptionsChanged, changed);
+		}
+	}
+
+	public detectIndentation(defaultInsertSpaces:boolean, defaultTabSize:number): void {
+		let lines = this._lines.map(line => line.text);
+		let guessedIndentation = guessIndentation(lines, defaultTabSize, defaultInsertSpaces);
+		this.updateOptions({
+			insertSpaces: guessedIndentation.insertSpaces,
+			tabSize: guessedIndentation.tabSize
+		});
+	}
+
+	private _normalizeIndentationFromWhitespace(str:string): string {
+		let tabSize = this._options.tabSize;
+		let insertSpaces = this._options.insertSpaces;
+
+		let spacesCnt = 0;
+		for (let i = 0; i < str.length; i++) {
+			if (str.charAt(i) === '\t') {
+				spacesCnt += tabSize;
+			} else {
+				spacesCnt++;
+			}
+		}
+
+		let result = '';
+		if (!insertSpaces) {
+			let tabsCnt = Math.floor(spacesCnt / tabSize);
+			spacesCnt = spacesCnt % tabSize;
+			for (let i = 0; i < tabsCnt; i++) {
+				result += '\t';
+			}
+		}
+
+		for (let i = 0; i < spacesCnt; i++) {
+			result += ' ';
+		}
+
+		return result;
+	}
+
+	public normalizeIndentation(str:string): string {
+		let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(str);
+		if (firstNonWhitespaceIndex === -1) {
+			firstNonWhitespaceIndex = str.length;
+		}
+		return this._normalizeIndentationFromWhitespace(str.substring(0, firstNonWhitespaceIndex)) + str.substring(firstNonWhitespaceIndex);
+	}
+
+	public getOneIndent(): string {
+		let tabSize = this._options.tabSize;
+		let insertSpaces = this._options.insertSpaces;
+
+		if (insertSpaces) {
+			let result = '';
+			for (let i = 0; i < tabSize; i++) {
+				result += ' ';
+			}
+			return result;
+		} else {
+			return '\t';
+		}
 	}
 
 	public getVersionId(): number {
@@ -130,7 +218,12 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	_resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:string): void {
-		this._constructLines(TextModel.toRawText(newValue, this._defaultEOL));
+		this._constructLines(TextModel.toRawText(newValue, {
+			tabSize: this._options.tabSize,
+			insertSpaces: this._options.insertSpaces,
+			detectIndentation: false,
+			defaultEOL: this._options.defaultEOL
+		}));
 		this._increaseVersionId();
 
 		e.detail = this.toRawText();
@@ -143,7 +236,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			EOL: this._EOL,
 			lines: this.getLinesContent(),
 			length: this.getValueLength(),
-			defaultEOL: this._defaultEOL
+			options: this._options
 		};
 	}
 
@@ -313,225 +406,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 
 		return (longLineCharCount > smallLineCharCount);
-	}
-
-	_extractIndentationFactors(): IIndentationFactors {
-
-		var i:number,
-			len:number,
-			j:number,
-			lenJ:number,
-			charCode:number,
-			prevLineCharCode:number,
-			lines = this._lines,
-			/**
-			 * text on current line
-			 */
-			currentLineText: string,
-			/**
-			 * the content of the previous line that had non whitespace characters
-			 */
-			previousLineTextWithContent = '',
-			/**
-			 * the char index at which `previousLineTextWithContent` has a non whitespace character
-			 */
-			previousLineIndentation = 0,
-			/**
-			 * does `currentLineText` have non whitespace characters?
-			 */
-			currentLineHasContent:boolean,
-			/**
-			 * the char index at which `currentLineText` has a non whitespace character
-			 */
-			currentLineIndentation:number,
-			/**
-			 * relativeSpaceCounts[i] contains the number of times (i spaces) have been encountered in a relative indentation
-			 */
-			relativeSpaceCounts:number[] = [],
-			/**
-			 * The total number of tabs that appear in indentations
-			 */
-			linesIndentedWithTabs:number = 0,
-			/**
-			 * absoluteSpaceCounts[i] contains the number of times (i spaces) have been encounted in an indentation
-			 */
-			absoluteSpaceCounts:number[] = [],
-			tmpTabCounts: number,
-			tmpSpaceCounts: number;
-
-		for (i = 0, len = lines.length; i < len; i++) {
-			currentLineText = lines[i].text;
-
-			currentLineHasContent = false;
-			currentLineIndentation = 0;
-			tmpSpaceCounts = 0;
-			tmpTabCounts = 0;
-			for (j = 0, lenJ = currentLineText.length; j < lenJ; j++) {
-				charCode = currentLineText.charCodeAt(j);
-
-				if (charCode === __tab) {
-					tmpTabCounts++;
-				} else if (charCode === __space) {
-					tmpSpaceCounts++;
-				} else {
-					// Hit non whitespace character on this line
-					currentLineHasContent = true;
-					currentLineIndentation = j;
-					break;
-				}
-			}
-
-			// Ignore `space` if it occurs exactly once in the indentation
-			if (tmpSpaceCounts === 1) {
-				tmpSpaceCounts = 0;
-			}
-
-			if (currentLineHasContent && (tmpTabCounts > 0 || tmpSpaceCounts > 0)) {
-				if (tmpTabCounts > 0) {
-					linesIndentedWithTabs++;
-				}
-				if (tmpSpaceCounts > 0) {
-					absoluteSpaceCounts[tmpSpaceCounts] = (absoluteSpaceCounts[tmpSpaceCounts] || 0) + 1;
-				}
-			}
-
-			if (currentLineHasContent) {
-				// Only considering lines with content, look at the relative indentation between previous line's indentation and current line's indentation
-
-				// This can go both ways (e.g.):
-				//  - previousLineIndentation: "\t\t"
-				//  - currentLineIndentation: "\t    "
-				//  => This should count 1 tab and 4 spaces
-				tmpSpaceCounts = 0;
-
-				var stillMatchingIndentation = true;
-				for (j = 0; j < previousLineIndentation && j < currentLineIndentation; j++) {
-					prevLineCharCode = previousLineTextWithContent.charCodeAt(j);
-					charCode = currentLineText.charCodeAt(j);
-
-					if (stillMatchingIndentation && prevLineCharCode !== charCode) {
-						stillMatchingIndentation = false;
-					}
-
-					if (!stillMatchingIndentation) {
-						if (prevLineCharCode === __space) {
-							tmpSpaceCounts++;
-						}
-						if (charCode === __space) {
-							tmpSpaceCounts++;
-						}
-					}
-				}
-
-				for (;j < previousLineIndentation; j++) {
-					prevLineCharCode = previousLineTextWithContent.charCodeAt(j);
-					if (prevLineCharCode === __space) {
-						tmpSpaceCounts++;
-					}
-				}
-
-				for (;j < currentLineIndentation; j++) {
-					charCode = currentLineText.charCodeAt(j);
-					if (charCode === __space) {
-						tmpSpaceCounts++;
-					}
-				}
-
-				// Ignore `space` if it occurs exactly once in the indentation
-				if (tmpSpaceCounts === 1) {
-					tmpSpaceCounts = 0;
-				}
-
-				if (tmpSpaceCounts > 0) {
-					relativeSpaceCounts[tmpSpaceCounts] = (relativeSpaceCounts[tmpSpaceCounts] || 0) + 1;
-				}
-
-				previousLineIndentation = currentLineIndentation;
-				previousLineTextWithContent = currentLineText;
-			}
-		}
-
-		return {
-			linesIndentedWithTabs: linesIndentedWithTabs,
-			relativeSpaceCounts: relativeSpaceCounts,
-			absoluteSpaceCounts: absoluteSpaceCounts
-		};
-	}
-
-	public guessIndentation(defaultTabSize:number): editorCommon.IGuessedIndentation {
-		if (this._isDisposed) {
-			throw new Error('TextModel.guessIndentation: Model is disposed');
-		}
-
-		let i:number,
-			len:number,
-			factors = this._extractIndentationFactors(),
-			linesIndentedWithTabs = factors.linesIndentedWithTabs,
-			absoluteSpaceCounts = factors.absoluteSpaceCounts,
-			relativeSpaceCounts = factors.relativeSpaceCounts;
-
-		// Count the absolute number of times tabs or spaces have been used as indentation
-		let linesIndentedWithSpaces = 0;
-		for (i = 1, len = absoluteSpaceCounts.length; i < len; i++) {
-			linesIndentedWithSpaces += (absoluteSpaceCounts[i] || 0);
-		}
-
-		let candidate:number,
-			candidateScore:number,
-			penalization:number,
-			m:number,
-			scores:number[] = [];
-
-		for (candidate = 2, len = absoluteSpaceCounts.length; candidate < len; candidate++) {
-			if (!absoluteSpaceCounts[candidate]) {
-				continue;
-			}
-
-			// Try to compute a score that `candidate` is the `tabSize`
-			candidateScore = 0;
-			penalization = 0;
-			for (m = candidate; m < len; m += candidate) {
-				if (absoluteSpaceCounts[m]) {
-					candidateScore += absoluteSpaceCounts[m];
-				} else {
-					// Penalize this candidate, but penalize less with every mutliple..
-					penalization += candidate / m;
-				}
-			}
-			scores[candidate] = candidateScore / (1 + penalization);
-		}
-
-		// console.log('----------');
-		// console.log('linesIndentedWithTabs: ', linesIndentedWithTabs);
-		// console.log('absoluteSpaceCounts: ', absoluteSpaceCounts);
-		// console.log('relativeSpaceCounts: ', relativeSpaceCounts);
-		// console.log('=> linesIndentedWithSpaces: ', linesIndentedWithSpaces);
-		// console.log('=> scores: ', scores);
-
-		let bestCandidate = defaultTabSize,
-			bestCandidateScore = 0;
-
-		let allowedGuesses = [2, 4, 6, 8];
-
-		for (i = 0; i < allowedGuesses.length; i++) {
-			candidate = allowedGuesses[i];
-			candidateScore = (scores[candidate] || 0) + (relativeSpaceCounts[candidate] || 0);
-			if (candidateScore > bestCandidateScore) {
-				bestCandidate = candidate;
-				bestCandidateScore = candidateScore;
-			}
-		}
-
-		let insertSpaces = true;
-		if (linesIndentedWithTabs > linesIndentedWithSpaces) {
-			// More lines indented with tabs
-			insertSpaces = false;
-		}
-
-		return {
-			insertSpaces: insertSpaces,
-			tabSize: bestCandidate
-		};
 	}
 
 	public getLineCount(): number {
@@ -773,7 +647,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 	}
 
-	public static toRawText(rawText:string, defaultEOL:editorCommon.DefaultEndOfLine): editorCommon.IRawText {
+	public static toRawText(rawText:string, opts:editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
 		// Count the number of lines that end with \r\n
 		var carriageReturnCnt = 0,
 			lastCarriageReturnIndex = -1;
@@ -795,7 +669,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		var EOL = '';
 		if (lineFeedCnt === 0) {
 			// This is an empty file or a file with precisely one line
-			EOL = (defaultEOL === editorCommon.DefaultEndOfLine.LF ? '\n' : '\r\n');
+			EOL = (opts.defaultEOL === editorCommon.DefaultEndOfLine.LF ? '\n' : '\r\n');
 		} else if (carriageReturnCnt > lineFeedCnt / 2) {
 			// More than half of the file contains \r\n ending lines
 			EOL = '\r\n';
@@ -804,12 +678,28 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			EOL = '\n';
 		}
 
+		let resolvedOpts: editorCommon.ITextModelResolvedOptions;
+		if (opts.detectIndentation) {
+			let guessedIndentation = guessIndentation(lines, opts.tabSize, opts.insertSpaces);
+			resolvedOpts = {
+				tabSize: guessedIndentation.tabSize,
+				insertSpaces: guessedIndentation.insertSpaces,
+				defaultEOL: opts.defaultEOL
+			};
+		} else {
+			resolvedOpts = {
+				tabSize: opts.tabSize,
+				insertSpaces: opts.insertSpaces,
+				defaultEOL: opts.defaultEOL
+			};
+		}
+
 		return {
 			BOM: BOM,
 			EOL: EOL,
 			lines: lines,
 			length: rawText.length,
-			defaultEOL: defaultEOL
+			options: resolvedOpts
 		};
 	}
 

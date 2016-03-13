@@ -49,7 +49,7 @@ export function getWordDefinitionFor(modeId: string): RegExp {
 	return _modeId2WordDefinition[modeId];
 }
 
-@Remotable.PluginHostContext('ExtHostModelService')
+@Remotable.ExtHostContext('ExtHostModelService')
 export class ExtHostModelService {
 
 	private static _handlePool: number = 0;
@@ -572,7 +572,7 @@ export class MainThreadDocuments {
 		}
 	}
 
-	// --- from plugin host process
+	// --- from extension host process
 
 	_trySaveDocument(uri: URI): TPromise<boolean> {
 		return this._textFileService.save(uri);

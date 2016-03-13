@@ -331,9 +331,12 @@ export interface IKeybindingService {
 	customKeybindingsCount(): number;
 
 	getLabelFor(keybinding: Keybinding): string;
+	getAriaLabelFor(keybinding: Keybinding): string;
 	getHTMLLabelFor(keybinding: Keybinding): IHTMLContentElement[];
 	getElectronAcceleratorFor(keybinding: Keybinding): string;
 
 	executeCommand<T>(commandId: string, args?: any): TPromise<T>;
 	executeCommand(commandId: string, args?: any): TPromise<any>;
 }
+
+export const SET_CONTEXT_COMMAND_ID = 'setContext';

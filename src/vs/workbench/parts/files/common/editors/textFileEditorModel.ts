@@ -241,9 +241,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 			};
 			this.updateVersionOnDiskStat(resolvedStat);
 
-			// Keep the original charset to not loose it when saving
+			// Keep the original encoding to not loose it when saving
 			let oldEncoding = this.contentEncoding;
-			this.contentEncoding = content.charset;
+			this.contentEncoding = content.encoding;
 
 			// Handle events if encoding changed
 			if (this.preferredEncoding) {
@@ -398,7 +398,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 	/**
 	 * Saves the current versionId of this editor model if it is dirty.
 	 */
-	public save(overwriteReadonly?: boolean): TPromise<void> {
+	public save(overwriteReadonly?: boolean, overwriteEncoding?: boolean): TPromise<void> {
 		if (!this.isResolved()) {
 			return TPromise.as<void>(null);
 		}
@@ -408,10 +408,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		// Cancel any currently running auto saves to make this the one that succeeds
 		this.cancelAutoSavePromises();
 
-		return this.doSave(this.versionId, false, overwriteReadonly);
+		return this.doSave(this.versionId, false, overwriteReadonly, overwriteEncoding);
 	}
 
-	private doSave(versionId: number, isAutoSave: boolean, overwriteReadonly?: boolean): TPromise<void> {
+	private doSave(versionId: number, isAutoSave: boolean, overwriteReadonly?: boolean, overwriteEncoding?: boolean): TPromise<void> {
 		diag('doSave(' + versionId + ') - enter with versionId ' + versionId, this.resource, new Date());
 
 		// Lookup any running pending save for this versionId and return it if found
@@ -467,8 +467,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 		diag('doSave(' + versionId + ') - before updateContent()', this.resource, new Date());
 		this.mapPendingSaveToVersionId[versionId] = this.fileService.updateContent(this.versionOnDiskStat.resource, this.getValue(), {
 			overwriteReadonly: overwriteReadonly,
+			overwriteEncoding: overwriteEncoding,
 			mtime: this.versionOnDiskStat.mtime,
-			charset: this.getEncoding(),
+			encoding: this.getEncoding(),
 			etag: this.versionOnDiskStat.etag
 		}).then((stat: IFileStat) => {
 			diag('doSave(' + versionId + ') - after updateContent()', this.resource, new Date());
@@ -654,7 +655,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements IEncodin
 			}
 
 			if (!this.inConflictResolutionMode) {
-				this.save().done(null, onUnexpectedError);
+				this.save(false, true /* overwriteEncoding due to forced encoding change */).done(null, onUnexpectedError);
 			}
 		}
 

@@ -6,9 +6,12 @@
 
 import * as assert from 'assert';
 import {Position} from 'vs/editor/common/core/position';
-import {CharacterHardWrappingLineMapping} from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
+import {CharacterHardWrappingLineMapping, CharacterHardWrappingLineMapperFactory} from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
-import {ILineMapping, IModel, SplitLine} from 'vs/editor/common/viewModel/splitLinesCollection';
+import {ILineMapping, IModel, SplitLine, SplitLinesCollection} from 'vs/editor/common/viewModel/splitLinesCollection';
+import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
+import {Model} from 'vs/editor/common/model/model';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
@@ -75,6 +78,93 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		for (var col = 1 + 13 + 14; col <= 15 + 14 + 13; col++) {
 			assert.deepEqual(line1.getOutputPositionOfInputPosition(0, col), pos(2, 1 + col - 13 - 14), 'getOutputPositionOfInputPosition(' + col + ')');
 		}
+	});
+
+	test('issue #3662', () => {
+		let config = new MockConfiguration({});
+
+		let hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
+			config.editor.wordWrapBreakBeforeCharacters,
+			config.editor.wordWrapBreakAfterCharacters,
+			config.editor.wordWrapBreakObtrusiveCharacters
+		);
+
+		let model = new Model([
+			'int main() {',
+			'\tprintf("Hello world!");',
+			'}',
+			'int main() {',
+			'\tprintf("Hello world!");',
+			'}',
+		].join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
+
+		let linesCollection = new SplitLinesCollection(
+			model,
+			hardWrappingLineMapperFactory,
+			model.getOptions().tabSize,
+			config.editor.wrappingInfo.wrappingColumn,
+			config.editor.typicalFullwidthCharacterWidth / config.editor.typicalHalfwidthCharacterWidth,
+			editorCommon.wrappingIndentFromString(config.editor.wrappingIndent)
+		);
+
+		linesCollection.setHiddenAreas([{
+			startLineNumber: 1,
+			startColumn: 1,
+			endLineNumber: 3,
+			endColumn: 1
+		}, {
+			startLineNumber: 5,
+			startColumn: 1,
+			endLineNumber: 6,
+			endColumn: 1
+		}], (eventType, payload) => {/*no-op*/});
+
+		let viewLineCount = linesCollection.getOutputLineCount();
+		assert.equal(viewLineCount, 1, 'getOutputLineCount()');
+
+		let modelLineCount = model.getLineCount();
+		for (let lineNumber = 0; lineNumber <= modelLineCount + 1; lineNumber++) {
+			let lineMinColumn = (lineNumber >= 1 && lineNumber <= modelLineCount) ? model.getLineMinColumn(lineNumber) : 1;
+			let lineMaxColumn = (lineNumber >= 1 && lineNumber <= modelLineCount) ? model.getLineMaxColumn(lineNumber) : 1;
+			for (let column = lineMinColumn - 1; column <= lineMaxColumn + 1; column++) {
+				let viewPosition = linesCollection.convertInputPositionToOutputPosition(lineNumber, column);
+
+				// validate view position
+				let viewLineNumber = viewPosition.lineNumber;
+				let viewColumn = viewPosition.column;
+				if (viewLineNumber < 1) {
+					viewLineNumber = 1;
+				}
+				var lineCount = linesCollection.getOutputLineCount();
+				if (viewLineNumber > lineCount) {
+					viewLineNumber = lineCount;
+				}
+				var viewMinColumn = linesCollection.getOutputLineMinColumn(viewLineNumber);
+				var viewMaxColumn = linesCollection.getOutputLineMaxColumn(viewLineNumber);
+				if (viewColumn < viewMinColumn) {
+					viewColumn = viewMinColumn;
+				}
+				if (viewColumn > viewMaxColumn) {
+					viewColumn = viewMaxColumn;
+				}
+				let validViewPosition = new Position(viewLineNumber, viewColumn);
+				assert.equal(viewPosition.toString(), validViewPosition.toString(), 'model->view for ' + lineNumber + ', ' + column);
+			}
+		}
+
+		for (let lineNumber = 0; lineNumber <= viewLineCount + 1; lineNumber++) {
+			let lineMinColumn = linesCollection.getOutputLineMinColumn(lineNumber);
+			let lineMaxColumn = linesCollection.getOutputLineMaxColumn(lineNumber);
+			for (let column = lineMinColumn - 1; column <= lineMaxColumn + 1; column++) {
+				let modelPosition = linesCollection.convertOutputPositionToInputPosition(lineNumber, column);
+				let validModelPosition = model.validatePosition(modelPosition);
+				assert.equal(modelPosition.toString(), validModelPosition.toString(), 'view->model for ' + lineNumber + ', ' + column);
+			}
+		}
+
+		linesCollection.dispose();
+		model.dispose();
+		config.dispose();
 	});
 });
 

@@ -8,7 +8,6 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
 import arrays = require('vs/base/common/arrays');
-import {IDisposable} from 'vs/base/common/lifecycle';
 import {IAction, Action} from 'vs/base/common/actions';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
@@ -108,15 +107,14 @@ export class SwitchOutputAction extends Action {
 
 export class SwitchOutputActionItem extends SelectActionItem {
 	private input: OutputEditorInput;
-	private outputListenerDispose: IDisposable;
 
 	constructor(
 		action: IAction,
 		@IOutputService private outputService: IOutputService
 	) {
 		super(null, action, SwitchOutputActionItem.getChannels(outputService), Math.max(0, SwitchOutputActionItem.getChannels(outputService).indexOf(outputService.getActiveChannel())));
-
-		this.outputListenerDispose = this.outputService.onOutputChannel(this.onOutputChannel, this);
+		this.toDispose.push(this.outputService.onOutputChannel(this.onOutputChannel, this));
+		this.toDispose.push(this.outputService.onActiveOutputChannel(this.onOutputChannel, this));
 	}
 
 	private onOutputChannel(): void {
@@ -135,12 +133,6 @@ export class SwitchOutputActionItem extends SelectActionItem {
 
 	public dispose(): void {
 		super.dispose();
-
-		if (this.outputListenerDispose) {
-			this.outputListenerDispose.dispose();
-			delete this.outputListenerDispose;
-		}
-
 		delete this.input;
 	}
 }

@@ -10,15 +10,11 @@
 	"dependencies": {
 		"http-proxy-agent": "^0.2.6",
 		"https-proxy-agent": "^0.3.5",
-		"vscode-languageserver": "^1.3.0"
-	},
-	"devDependencies": {
-		"mocha": "^2.2.5",
-		"typescript": "^1.6.2"
+		"vscode-languageserver": "^1.3.0",
+		"vscode-nls": "^1.0.4"
 	},
 	"scripts": {
-		"compile": "tsc -p .",
-		"watch": "tsc --watch -p .",
-		"postinstall": "tsc -p ."
+		"compile": "gulp compile-extension:json-server",
+		"watch": "gulp watch-extension:json-server"
 	}
 }

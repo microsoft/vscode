@@ -14,7 +14,7 @@ import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
 import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {BaseTextEditor} from 'vs/workbench/browser/parts/editor/textEditor';
-import {LocalFileChangeEvent, VIEWLET_ID, EventType as FileEventType, IWorkingFilesModel, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
+import {LocalFileChangeEvent, VIEWLET_ID, BINARY_FILE_EDITOR_ID, EventType as FileEventType, IWorkingFilesModel, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {FileChangeType, FileChangesEvent, EventType as CommonFileEventType} from 'vs/platform/files/common/files';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
@@ -257,7 +257,7 @@ export class FileTracker implements IWorkbenchContribution {
 					}
 
 					// Binary file: always update
-					else {
+					else if (editor.getId() === BINARY_FILE_EDITOR_ID) {
 						let editorOptions = new EditorOptions();
 						editorOptions.forceOpen = true;
 						editorOptions.preserveFocus = true;

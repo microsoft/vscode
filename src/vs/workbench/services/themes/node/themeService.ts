@@ -9,8 +9,8 @@ import nls = require('vs/nls');
 import Paths = require('vs/base/common/paths');
 import Themes = require('vs/platform/theme/common/themes');
 import {IThemeExtensionPoint} from 'vs/platform/theme/common/themeExtensionPoint';
-import {IPluginService} from 'vs/platform/plugins/common/plugins';
-import {PluginsRegistry, IMessageCollector} from 'vs/platform/plugins/common/pluginsRegistry';
+import {IExtensionService} from 'vs/platform/extensions/common/extensions';
+import {ExtensionsRegistry, IExtensionMessageCollector} from 'vs/platform/extensions/common/extensionsRegistry';
 import {IThemeService, IThemeData, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
 
 import plist = require('vs/base/node/plist');
@@ -20,13 +20,13 @@ import pfs = require('vs/base/node/pfs');
 
 let defaultBaseTheme = Themes.getBaseThemeId(DEFAULT_THEME_ID);
 
-let themesExtPoint = PluginsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('themes', {
+let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('themes', {
 	description: nls.localize('vscode.extension.contributes.themes', 'Contributes textmate color themes.'),
 	type: 'array',
-	default: [{ label: '{{label}}', uiTheme: 'vs-dark', path: './themes/{{id}}.tmTheme.' }],
+	defaultSnippets: [{ body: [{ label: '{{label}}', uiTheme: 'vs-dark', path: './themes/{{id}}.tmTheme.' }] }],
 	items: {
 		type: 'object',
-		default: { label: '{{label}}', uiTheme: 'vs-dark', path: './themes/{{id}}.tmTheme.' },
+		defaultSnippets: [{ body: { label: '{{label}}', uiTheme: 'vs-dark', path: './themes/{{id}}.tmTheme.' } }],
 		properties: {
 			label: {
 				description: nls.localize('vscode.extension.contributes.themes.label', 'Label of the color theme as shown in the UI.'),
@@ -49,7 +49,7 @@ export class ThemeService implements IThemeService {
 
 	private knownThemes: IThemeData[];
 
-	constructor(private pluginService: IPluginService) {
+	constructor(private extensionService: IExtensionService) {
 		this.knownThemes = [];
 
 		themesExtPoint.setHandler((extensions) => {
@@ -79,12 +79,12 @@ export class ThemeService implements IThemeService {
 	}
 
 	public getThemes(): TPromise<IThemeData[]> {
-		return this.pluginService.onReady().then(isReady => {
+		return this.extensionService.onReady().then(isReady => {
 			return this.knownThemes;
 		});
 	}
 
-	private onThemes(extensionFolderPath: string, extensionId: string, themes: IThemeExtensionPoint[], collector: IMessageCollector): void {
+	private onThemes(extensionFolderPath: string, extensionId: string, themes: IThemeExtensionPoint[], collector: IExtensionMessageCollector): void {
 		if (!Array.isArray(themes)) {
 			collector.error(nls.localize(
 				'reqarray',

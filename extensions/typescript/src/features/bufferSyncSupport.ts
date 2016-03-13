@@ -71,16 +71,19 @@ export default class BufferSyncSupport {
 
 	private client: ITypescriptServiceClient;
 
-	private modeId: string;
+	private _validate: boolean;
+	private modeIds: Map<boolean>;
 	private disposables: Disposable[] = [];
 	private syncedBuffers: { [key: string]: SyncedBuffer };
 
 	private pendingDiagnostics: { [key: string]: number; };
 	private diagnosticDelayer: Delayer<any>;
 
-	constructor(client: ITypescriptServiceClient, modeId: string) {
+	constructor(client: ITypescriptServiceClient, modeIds: string[], validate: boolean = true) {
 		this.client = client;
-		this.modeId = modeId;
+		this.modeIds = Object.create(null);
+		modeIds.forEach(modeId => this.modeIds[modeId] = true);
+		this._validate = validate;
 
 		this.pendingDiagnostics = Object.create(null);
 		this.diagnosticDelayer = new Delayer<any>(100);
@@ -90,6 +93,18 @@ export default class BufferSyncSupport {
 		workspace.onDidCloseTextDocument(this.onDidRemoveDocument, this, this.disposables);
 		workspace.onDidChangeTextDocument(this.onDidChangeDocument, this, this.disposables);
 		workspace.textDocuments.forEach(this.onDidAddDocument, this);
+	}
+
+	public get validate(): boolean {
+		return this._validate;
+	}
+
+	public set validate(value: boolean) {
+		this._validate = value;
+	}
+
+	public handles(file: string): boolean {
+		return !!this.syncedBuffers[file];
 	}
 
 	public reOpenDocuments(): void {
@@ -105,7 +120,7 @@ export default class BufferSyncSupport {
 	}
 
 	private onDidAddDocument(document: TextDocument): void {
-		if (document.languageId !== this.modeId) {
+		if (!this.modeIds[document.languageId]) {
 			return;
 		}
 		if (document.isUntitled) {
@@ -148,6 +163,9 @@ export default class BufferSyncSupport {
 	}
 
 	public requestAllDiagnostics() {
+		if (!this._validate) {
+			return;
+		}
 		Object.keys(this.syncedBuffers).forEach(filePath => this.pendingDiagnostics[filePath] = Date.now());
 		this.diagnosticDelayer.trigger(() => {
 			this.sendPendingDiagnostics();
@@ -155,6 +173,9 @@ export default class BufferSyncSupport {
 	}
 
 	public requestDiagnostic(file: string): void {
+		if (!this._validate) {
+			return;
+		}
 		this.pendingDiagnostics[file] = Date.now();
 		this.diagnosticDelayer.trigger(() => {
 			this.sendPendingDiagnostics();
@@ -162,6 +183,9 @@ export default class BufferSyncSupport {
 	}
 
 	private sendPendingDiagnostics(): void {
+		if (!this._validate) {
+			return;
+		}
 		let files = Object.keys(this.pendingDiagnostics).map((key) => {
 			return {
 				file: key,

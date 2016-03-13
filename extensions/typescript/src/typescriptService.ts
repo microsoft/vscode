@@ -19,6 +19,7 @@ export interface ITypescriptServiceClient {
 	asUrl(filepath: string): Uri;
 
 	trace: boolean;
+	logTelemetry(eventName: string, properties?: { [prop: string]: string });
 
 	execute(command:'configure', args: Proto.ConfigureRequestArguments, token?: CancellationToken):Promise<Proto.ConfigureResponse>;
 	execute(command:'open', args: Proto.OpenRequestArgs, expectedResult:boolean, token?: CancellationToken):Promise<any>;

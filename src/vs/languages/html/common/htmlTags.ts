@@ -2,26 +2,58 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------------------------
+ *  This file is based on or incorporates material from the projects listed below (Third Party IP).
+ *  The original copyright notice and the license under which Microsoft received such Third Party IP,
+ *  are set forth below. Such licenses and notices are provided for informational purposes only.
+ *  Microsoft licenses the Third Party IP to you under the licensing terms for the Microsoft product.
+ *  Microsoft reserves all other rights not expressly granted under this agreement, whether by implication,
+ *  estoppel or otherwise.
+ *--------------------------------------------------------------------------------------------*/
 /*---------------------------------------------------------------------------------------------
  *  Copyright © 2015 W3C® (MIT, ERCIM, Keio, Beihang). This software or document includes includes material copied
  *  from or derived from HTML 5.1 W3C Working Draft (http://www.w3.org/TR/2015/WD-html51-20151008/.)"
+ *--------------------------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------
+ *  Ionic Main Site (https://github.com/driftyco/ionic-site).
+ *  Copyright Drifty Co. http://drifty.com/.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
+ *  except in compliance with the License. You may obtain a copy of the License at
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ *  KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY IMPLIED
+ *  WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+ *  MERCHANTABLITY OR NON-INFRINGEMENT.
+ *
+ *  See the Apache Version 2.0 License for specific language governing permissions
+ *  and limitations under the License.
  *--------------------------------------------------------------------------------------------*/
 
 import strings = require('vs/base/common/strings');
 import nls = require('vs/nls');
 
 export interface IHTMLTagProvider {
-	collectTags(collector: (tag:string, label:string) => void): void;
+	collectTags(collector: (tag: string, label: string) => void): void;
 	collectAttributes(tag: string, collector: (attribute: string, type: string) => void): void;
 	collectValues(tag: string, attribute: string, collector: (value: string) => void): void;
 }
 
+export interface ITagSet {
+	[tag: string]: HTMLTagSpecification;
+}
+
 export class HTMLTagSpecification {
-	constructor(public label: string, public attributes: string[] = []) {}
+	constructor(public label: string, public attributes: string[] = []) { }
+}
+
+interface IValueSets {
+	[tag: string]: string[];
 }
 
 // HTML tag information sourced from http://www.w3.org/TR/2015/WD-html51-20151008/
-export const HTML_TAGS : { [tag:string]: HTMLTagSpecification } = {
+export const HTML_TAGS: ITagSet = {
 	// The root element
 	html: new HTMLTagSpecification(
 		nls.localize('tags.html', 'The html element represents the root of an HTML document.'),
@@ -205,7 +237,7 @@ export const HTML_TAGS : { [tag:string]: HTMLTagSpecification } = {
 		['src', 'crossorigin:xo', 'preload:pl', 'autoplay:v', 'mediagroup', 'loop:v', 'muted:v', 'controls:v']),
 	source: new HTMLTagSpecification(
 		nls.localize('tags.source', 'The source element allows authors to specify multiple alternative media resources for media elements. It does not represent anything on its own.'),
-	// 'When the source element has a parent that is a picture element, the source element allows authors to specify multiple alternative source sets for img elements.'
+		// 'When the source element has a parent that is a picture element, the source element allows authors to specify multiple alternative source sets for img elements.'
 		['src', 'type']),
 	track: new HTMLTagSpecification(
 		nls.localize('tags.track', 'The track element allows authors to specify explicit external timed text tracks for media elements. It does not represent anything on its own.'),
@@ -310,12 +342,82 @@ export const HTML_TAGS : { [tag:string]: HTMLTagSpecification } = {
 		['width', 'height'])
 };
 
+// Ionic tag information sourced from Ionic main website (https://github.com/driftyco/ionic-site)
+export const IONIC_TAGS: ITagSet = {
+	'ion-checkbox': new HTMLTagSpecification(nls.localize('tags.ion.checkbox', 'The checkbox is no different than the HTML checkbox input, except it\'s styled differently. The checkbox behaves like any AngularJS checkbox.'),
+		['name', 'ng-false-value', 'ng-model', 'ng-true-value']),
+	'ion-content': new HTMLTagSpecification(nls.localize('tags.ion.content', 'The ionContent directive provides an easy to use content area that can be configured to use Ionic\'s custom Scroll View, or the built-in overflow scrolling of the browser.'),
+		['delegate-handle', 'direction:scrolldir', 'has-bouncing:b', 'locking:b', 'on-scroll', 'on-scroll-complete', 'overflow-scroll:b', 'padding:b', 'scroll:b', 'scrollbar-x:b', 'scrollbar-y:b', 'start-x', 'start-y']),
+	'ion-delete-button': new HTMLTagSpecification(nls.localize('tags.ion.deletebutton', 'Child of ionItem'),
+		[]),
+	'ion-footer-bar': new HTMLTagSpecification(nls.localize('tags.ion.footerbar', 'Adds a fixed footer bar below some content. Can also be a subfooter (higher up) if the "bar-subfooter" class is applied.'),
+		['align-title:align', 'keyboard-attach:v']),
+	'ion-header-bar': new HTMLTagSpecification(nls.localize('tags.ion.headerbar', 'Adds a fixed header bar above some content. Can also be a subheader (lower down) if the "bar-subheader" class is applied.'),
+		['align-title:align', 'no-tap-scroll:b']),
+	'ion-infinite-scroll': new HTMLTagSpecification(nls.localize('tags.ion.infinitescroll', 'Child of ionContent or ionScroll. The ionInfiniteScroll directive allows you to call a function whenever the user gets to the bottom of the page or near the bottom of the page.'),
+		['distance', 'icon', 'immediate-check:b', 'on-infinite', 'spinner']),
+	'ion-input': new HTMLTagSpecification(nls.localize('tags.ion.input', 'ionInput is meant for text type inputs only. Ionic uses an actual <input type="text"> HTML element within the component, with Ionic wrapping to better handle the user experience and interactivity.'),
+		['type:inputtype', 'clearInput:v']),
+	'ion-item': new HTMLTagSpecification(nls.localize('tags.ion.item', 'Child of ionList.'),
+		[]),
+	'ion-list': new HTMLTagSpecification(nls.localize('tags.ion.list', 'The List is a widely used interface element in almost any mobile app, and can include content ranging from basic text all the way to buttons, toggles, icons, and thumbnails.'),
+		['can-swipe:b', 'delegate-handle', 'show-delete:b', 'show-reorder:b', 'type:listtype']),
+	'ion-modal-view': new HTMLTagSpecification(nls.localize('tags.ion.modalview', 'The Modal is a content pane that can go over the user\'s main view temporarily. Usually used for making a choice or editing an item.'),
+		[]),
+	'ion-nav-back-button': new HTMLTagSpecification(nls.localize('tags.ion.navbackbutton', 'Child of ionNavBar. Creates a back button inside an ionNavBar. The back button will appear when the user is able to go back in the current navigation stack.'),
+		[]),
+	'ion-nav-bar': new HTMLTagSpecification(nls.localize('tags.ion.navbar', 'If you have an ionNavView directive, you can also create an <ion-nav-bar>, which will create a topbar that updates as the application state changes.'),
+		['align-title:align', 'delegate-handle', 'no-tap-scroll:b']),
+	'ion-nav-buttons': new HTMLTagSpecification(nls.localize('tags.ion.navbuttons', 'Child of ionNavView. Use ionNavButtons to set the buttons on your ionNavBar from within an ionView.'),
+		['side:navsides']),
+	'ion-nav-title': new HTMLTagSpecification(nls.localize('tags.ion.navtitle', 'Child of ionNavView. The ionNavTitle directive replaces an ionNavBar title text with custom HTML from within an ionView template.'),
+		[]),
+	'ion-nav-view': new HTMLTagSpecification(nls.localize('tags.ion.navview', 'The ionNavView directive is used to render templates in your application. Each template is part of a state. States are usually mapped to a url, and are defined programatically using angular-ui-router.'),
+		['name']),
+	'ion-option-button': new HTMLTagSpecification(nls.localize('tags.ion.optionbutton', 'Child of ionItem. Creates an option button inside a list item, that is visible when the item is swiped to the left by the user.'),
+		[]),
+	'ion-pane': new HTMLTagSpecification(nls.localize('tags.ion.pane', 'A simple container that fits content, with no side effects. Adds the "pane" class to the element.'),
+		[]),
+	'ion-popover-view': new HTMLTagSpecification(nls.localize('tags.ion.popoverview', 'The Popover is a view that floats above an app\'s content. Popovers provide an easy way to present or gather information from the user.'),
+		[]),
+	'ion-radio': new HTMLTagSpecification(nls.localize('tags.ion.radio', 'The radio ionRirective is no different than the HTML radio input, except it\'s styled differently. The ionRadio behaves like AngularJS radio input.'),
+		['disabled:b', 'icon', 'name', 'ng-disabled:b', 'ng-model', 'ng-value', 'value']),
+	'ion-refresher': new HTMLTagSpecification(nls.localize('tags.ion.refresher', 'Child of ionContent or ionScroll. Allows you to add pull-to-refresh to a scrollView. Place it as the first child of your ionContent or ionScroll element.'),
+		['disable-pulling-rotation:b', 'on-pulling', 'on-refresh', 'pulling-icon', 'pulling-text', 'refreshing-icon', 'spinner']),
+	'ion-reorder-button': new HTMLTagSpecification(nls.localize('tags.ion.reorderbutton', 'Child of ionItem.'),
+		['on-reorder']),
+	'ion-scroll': new HTMLTagSpecification(nls.localize('tags.ion.scroll', 'Creates a scrollable container for all content inside.'),
+		['delegate-handle', 'direction:scrolldir', 'has-bouncing:b', 'locking:b', 'max-zoom', 'min-zoom', 'on-refresh', 'on-scroll', 'paging:b', 'scrollbar-x:b', 'scrollbar-y:b', 'zooming:b']),
+	'ion-side-menu': new HTMLTagSpecification(nls.localize('tags.ion.sidemenu', 'Child of ionSideMenus. A container for a side menu, sibling to an ionSideMenuContent directive.'),
+		['is-enabled:b', 'expose-aside-when', 'side:navsides', 'width']),
+	'ion-side-menu-content': new HTMLTagSpecification(nls.localize('tags.ion.sidemenucontent', 'Child of ionSideMenus. A container for the main visible content, sibling to one or more ionSideMenu directives.'),
+		['drag-content:b', 'edge-drag-threshold']),
+	'ion-side-menus': new HTMLTagSpecification(nls.localize('tags.ion.sidemenus', 'A container element for side menu(s) and the main content. Allows the left and/or right side menu to be toggled by dragging the main content area side to side.'),
+		['delegate-handle', 'enable-menu-with-back-views:b']),
+	'ion-slide': new HTMLTagSpecification(nls.localize('tags.ion.slide', 'Child of ionSlideBox. Displays a slide inside of a slidebox.'),
+		[]),
+	'ion-slide-box': new HTMLTagSpecification(nls.localize('tags.ion.slidebox', 'The Slide Box is a multi-page container where each page can be swiped or dragged between.'),
+		['active-slide', 'auto-play:b', 'delegate-handle', 'does-continue:b', 'on-slide-changed', 'pager-click', 'show-pager:b', 'slide-interval']),
+	'ion-spinner': new HTMLTagSpecification(nls.localize('tags.ion.spinner', 'The ionSpinner directive provides a variety of animated spinners.'),
+		['icon']),
+	'ion-tab': new HTMLTagSpecification(nls.localize('tags.ion.tab', 'Child of ionTabs. Contains a tab\'s content. The content only exists while the given tab is selected.'),
+		['badge', 'badge-style', 'disabled', 'hidden', 'href', 'icon', 'icon-off', 'icon-on', 'ng-click', 'on-deselect', 'on-select', 'title']),
+	'ion-tabs': new HTMLTagSpecification(nls.localize('tags.ion.tabs', 'Powers a multi-tabbed interface with a tab bar and a set of "pages" that can be tabbed through.'),
+		['delegate-handle']),
+	'ion-title': new HTMLTagSpecification(nls.localize('tags.ion.title', 'ion-title is a component that sets the title of the ionNavbar'),
+		[]),
+	'ion-toggle': new HTMLTagSpecification(nls.localize('tags.ion.toggle', 'A toggle is an animated switch which binds a given model to a boolean. Allows dragging of the switch\'s nub. The toggle behaves like any AngularJS checkbox otherwise.'),
+		['name', 'ng-false-value', 'ng-model', 'ng-true-value', 'toggle-class']),
+	'ion-view ': new HTMLTagSpecification(nls.localize('tags.ion.view', 'Child of ionNavView. A container for view content and any navigational and header bar information.'),
+		['cache-view:b', 'can-swipe-back:b', 'hide-back-button:b', 'hide-nav-bar:b', 'view-title'])
+};
+
 export function getHTML5TagProvider(): IHTMLTagProvider {
 	var globalAttributes = [
 		'aria-activedescendant', 'aria-atomic:b', 'aria-autocomplete:autocomplete', 'aria-busy:b', 'aria-checked:tristate', 'aria-colcount', 'aria-colindex', 'aria-colspan', 'aria-controls', 'aria-current:current', 'aria-describedat',
 		'aria-describedby', 'aria-disabled:b', 'aria-dropeffect:dropeffect', 'aria-errormessage', 'aria-expanded:u', 'aria-flowto', 'aria-grabbed:u', 'aria-haspopup:b', 'aria-hidden:b', 'aria-invalid:invalid', 'aria-kbdshortcuts',
 		'aria-label', 'aria-labelledby', 'aria-level', 'aria-live:live', 'aria-modal:b', 'aria-multiline:b', 'aria-multiselectable:b', 'aria-orientation:orientation', 'aria-owns', 'aria-placeholder', 'aria-posinset', 'aria-pressed:tristate',
-		'aria-readonly:b','aria-relevant:relevant', 'aria-required:b', 'aria-roledescription', 'aria-rowcount', 'aria-rowindex', 'aria-rowspan', 'aria-selected:u', 'aria-setsize', 'aria-sort:sort', 'aria-valuemax', 'aria-valuemin', 'aria-valuenow', 'aria-valuetext',
+		'aria-readonly:b', 'aria-relevant:relevant', 'aria-required:b', 'aria-roledescription', 'aria-rowcount', 'aria-rowindex', 'aria-rowspan', 'aria-selected:u', 'aria-setsize', 'aria-sort:sort', 'aria-valuemax', 'aria-valuemin', 'aria-valuenow', 'aria-valuetext',
 		'accesskey', 'class', 'contenteditable:b', 'contextmenu', 'dir:d', 'draggable:b', 'dropzone', 'hidden:v', 'id', 'itemid', 'itemprop', 'itemref', 'itemscope:v', 'itemtype', 'lang', 'role:roles', 'spellcheck:b', 'style', 'tabindex',
 		'title', 'translate:y'];
 
@@ -324,7 +426,7 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 		'onloadstart', 'onmousedown', 'onmousemove', 'onmouseout', 'onmouseover', 'onmouseup', 'onmousewheel', 'onpause', 'onplay', 'onplaying', 'onprogress', 'onratechange', 'onreset', 'onresize', 'onreadystatechange', 'onscroll',
 		'onseeked', 'onseeking', 'onselect', 'onshow', 'onstalled', 'onsubmit', 'onsuspend', 'ontimeupdate', 'onvolumechange', 'onwaiting'];
 
-	var valueSets : { [tag:string]: string[]} = {
+	var valueSets: IValueSets = {
 		b: ['true', 'false'],
 		u: ['true', 'false', 'undefined'],
 		o: ['on', 'off'],
@@ -363,72 +465,26 @@ export function getHTML5TagProvider(): IHTMLTagProvider {
 	};
 
 	return {
-		collectTags: (collector: (tag: string, label: string) => void) => {
-			for (var tag in HTML_TAGS) {
-				collector(tag, HTML_TAGS[tag].label);
-			}
-		},
+		collectTags: (collector: (tag: string, label: string) => void) => collectTagsDefault(collector, HTML_TAGS),
 		collectAttributes: (tag: string, collector: (attribute: string, type: string) => void) => {
-			globalAttributes.forEach(attr => {
-				var segments = attr.split(':');
-				collector(segments[0], segments[1]);
-			});
+			collectAttributesDefault(tag, collector, HTML_TAGS, globalAttributes);
 			eventHandlers.forEach(handler => {
 				collector(handler, 'event');
 			});
-			if (tag) {
-				var tags = HTML_TAGS[tag];
-				if (tags) {
-					var attributes = tags.attributes;
-					if (attributes) {
-						attributes.forEach(attr => {
-							var segments = attr.split(':');
-							collector(segments[0], segments[1]);
-						});
-					}
-				}
-			}
 		},
-		collectValues: (tag: string, attribute: string, collector: (value: string) => void) => {
-			var prefix = attribute + ':';
-			var processAttributes = (attributes: string[]) => {
-				attributes.forEach((attr) => {
-					if (attr.length > prefix.length && strings.startsWith(attr, prefix)) {
-						var typeInfo = attr.substr(prefix.length);
-						if (typeInfo === 'v') {
-							collector(attribute);
-						} else {
-							var values = valueSets[typeInfo];
-							if (values) {
-								values.forEach(collector);
-							}
-						}
-					}
-				});
-			};
-			if (tag) {
-				var tags = HTML_TAGS[tag];
-				if (tags) {
-					var attributes = tags.attributes;
-					if (attributes) {
-						processAttributes(attributes);
-					}
-				}
-			}
-			processAttributes(globalAttributes); // no need to look in event handlers
-		}
+		collectValues: (tag: string, attribute: string, collector: (value: string) => void) => collectValuesDefault(tag, attribute, collector, HTML_TAGS, globalAttributes, valueSets)
 	};
 }
 
 
-export function getAngularTagProvider() : IHTMLTagProvider {
-	var customTags : { [tag:string]: string[]} = {
+export function getAngularTagProvider(): IHTMLTagProvider {
+	var customTags: { [tag: string]: string[] } = {
 		input: ['ng-model', 'ng-required', 'ng-minlength', 'ng-maxlength', 'ng-pattern', 'ng-trim'],
 		select: ['ng-model'],
 		textarea: ['ng-model', 'ng-required', 'ng-minlength', 'ng-maxlength', 'ng-pattern', 'ng-trim']
 	};
 
-	var globalAttributes = 	['ng-app', 'ng-bind', 'ng-bind-html', 'ng-bind-template', 'ng-blur', 'ng-change', 'ng-checked', 'ng-class', 'ng-class-even', 'ng-class-odd',
+	var globalAttributes = ['ng-app', 'ng-bind', 'ng-bind-html', 'ng-bind-template', 'ng-blur', 'ng-change', 'ng-checked', 'ng-class', 'ng-class-even', 'ng-class-odd',
 		'ng-click', 'ng-cloak', 'ng-controller', 'ng-copy', 'ng-csp', 'ng-cut', 'ng-dblclick', 'ng-disabled', 'ng-focus', 'ng-form', 'ng-hide', 'ng-href', 'ng-if',
 		'ng-include', 'ng-init', 'ng-jq', 'ng-keydown', 'ng-keypress', 'ng-keyup', 'ng-list', 'ng-model-options', 'ng-mousedown', 'ng-mouseenter', 'ng-mouseleave',
 		'ng-mousemove', 'ng-mouseover', 'ng-mouseup', 'ng-non-bindable', 'ng-open', 'ng-options', 'ng-paste', 'ng-pluralize', 'ng-readonly', 'ng-repeat', 'ng-selected',
@@ -458,4 +514,104 @@ export function getAngularTagProvider() : IHTMLTagProvider {
 			// no values
 		}
 	};
+}
+
+export function getIonicTagProvider(): IHTMLTagProvider {
+	var customTags: { [tag: string]: string[] } = {
+		a: ['nav-direction:navdir', 'nav-transition:trans'],
+		button: ['menu-toggle:menusides']
+	};
+
+	var globalAttributes = ['collection-repeat', 'force-refresh-images:b', 'ion-stop-event', 'item-height', 'item-render-buffer', 'item-width', 'menu-close:v',
+		'on-double-tap', 'on-drag', 'on-drag-down', 'on-drag-left', 'on-drag-right', 'on-drag-up', 'on-hold', 'on-release', 'on-swipe', 'on-swipe-down', 'on-swipe-left',
+		'on-swipe-right', 'on-swipe-up', 'on-tap', 'on-touch'];
+
+	var valueSets: IValueSets = {
+		align: ['center', 'left', 'right'],
+		b: ['true', 'false'],
+		inputtype: ['email', 'number', 'password', 'search', 'tel', 'text', 'url'],
+		listtype: ['card', 'list-inset'],
+		menusides: ['left', 'right'],
+		navdir: ['back', 'enter', 'exit', 'forward', 'swap'],
+		navsides: ['left', 'primary', 'right', 'secondary'],
+		scrolldir: ['x', 'xy', 'y'],
+		trans: ['android', 'ios', 'none']
+	};
+
+	return {
+		collectTags: (collector: (tag: string, label: string) => void) => collectTagsDefault(collector, IONIC_TAGS),
+		collectAttributes: (tag: string, collector: (attribute: string, type: string) => void) => {
+			collectAttributesDefault(tag, collector, IONIC_TAGS, globalAttributes);
+			if (tag) {
+				var attributes = customTags[tag];
+				if (attributes) {
+					attributes.forEach((a) => {
+						var segments = a.split(':');
+						collector(segments[0], segments[1]);
+					});
+				}
+			}
+		},
+		collectValues: (tag: string, attribute: string, collector: (value: string) => void) => collectValuesDefault(tag, attribute, collector, IONIC_TAGS, globalAttributes, valueSets, customTags)
+	};
+}
+
+function collectTagsDefault(collector: (tag: string, label: string) => void, tagSet: ITagSet): void {
+	for (var tag in tagSet) {
+		collector(tag, tagSet[tag].label);
+	}
+}
+
+function collectAttributesDefault(tag: string, collector: (attribute: string, type: string) => void, tagSet: ITagSet, globalAttributes: string[]): void {
+	globalAttributes.forEach(attr => {
+		var segments = attr.split(':');
+		collector(segments[0], segments[1]);
+	});
+	if (tag) {
+		var tags = tagSet[tag];
+		if (tags) {
+			var attributes = tags.attributes;
+			if (attributes) {
+				attributes.forEach(attr => {
+					var segments = attr.split(':');
+					collector(segments[0], segments[1]);
+				});
+			}
+		}
+	}
+}
+
+function collectValuesDefault(tag: string, attribute: string, collector: (value: string) => void, tagSet: ITagSet, globalAttributes: string[], valueSets: IValueSets, customTags?: { [tag: string]: string[] }): void {
+	var prefix = attribute + ':';
+	var processAttributes = (attributes: string[]) => {
+		attributes.forEach((attr) => {
+			if (attr.length > prefix.length && strings.startsWith(attr, prefix)) {
+				var typeInfo = attr.substr(prefix.length);
+				if (typeInfo === 'v') {
+					collector(attribute);
+				} else {
+					var values = valueSets[typeInfo];
+					if (values) {
+						values.forEach(collector);
+					}
+				}
+			}
+		});
+	};
+	if (tag) {
+		var tags = tagSet[tag];
+		if (tags) {
+			var attributes = tags.attributes;
+			if (attributes) {
+				processAttributes(attributes);
+			}
+		}
+	}
+	processAttributes(globalAttributes);
+	if (customTags) {
+		var customTagAttributes = customTags[tag];
+		if (customTagAttributes) {
+			processAttributes(customTagAttributes);
+		}
+	}
 }

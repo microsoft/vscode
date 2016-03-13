@@ -6,6 +6,7 @@
 
 import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
+import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import * as Async from 'vs/base/common/async';
@@ -352,7 +353,12 @@ export class ProcessRunnerSystem extends EventEmitter implements ITaskSystem {
 		if (options.env) {
 			result.env = Object.create(null);
 			Object.keys(options.env).forEach((key) => {
-				result.env[key] = this.resolveVariable(options.env[key]);
+				let value: any = options.env[key];
+				if (Types.isString(value)) {
+					result.env[key] = this.resolveVariable(value);
+				} else {
+					result.env[key] = value.toString();
+				}
 			});
 		}
 		return result;

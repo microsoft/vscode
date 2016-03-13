@@ -124,6 +124,7 @@ export class RefreshIFrameEditorInputAction extends EditorInputAction {
 		let editor = this.editorService.getActiveEditor();
 		if (editor instanceof IFrameEditor) {
 			(<IFrameEditor>editor).reload(true);
+			(<IFrameEditor>editor).focus();
 		}
 
 		return TPromise.as(null);

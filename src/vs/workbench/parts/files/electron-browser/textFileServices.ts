@@ -24,12 +24,9 @@ import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IModeService} from 'vs/editor/common/services/modeService';
-
-import {remote} from 'electron';
+import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 
 export class TextFileService extends AbstractTextFileService {
-
-	private modeService: IModeService;
 
 	constructor(
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -40,9 +37,11 @@ export class TextFileService extends AbstractTextFileService {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEventService eventService: IEventService,
-		@IModeService modeService: IModeService
+		@IModeService private modeService: IModeService,
+		@IWindowService private windowService: IWindowService
 	) {
 		super(contextService, instantiationService, configurationService, telemetryService, lifecycleService, eventService);
+
 		this.modeService = modeService;
 
 		this.init();
@@ -144,8 +143,8 @@ export class TextFileService extends AbstractTextFileService {
 	}
 
 	public confirmSave(resources?: URI[]): ConfirmResult {
-		if (!!this.contextService.getConfiguration().env.pluginDevelopmentPath) {
-			return ConfirmResult.DONT_SAVE; // no veto when we are in plugin dev mode because we cannot assum we run interactive (e.g. tests)
+		if (!!this.contextService.getConfiguration().env.extensionDevelopmentPath) {
+			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
 		}
 
 		let resourcesToConfirm = this.getDirty(resources);
@@ -195,7 +194,7 @@ export class TextFileService extends AbstractTextFileService {
 			opts.defaultId = 2;
 		}
 
-		const choice = remote.dialog.showMessageBox(remote.getCurrentWindow(), opts);
+		const choice = this.windowService.getWindow().showMessageBox(opts);
 
 		return buttons[choice].result;
 	}
@@ -336,7 +335,7 @@ export class TextFileService extends AbstractTextFileService {
 
 			// We have a model: Use it (can be null e.g. if this file is binary and not a text file or was never opened before)
 			if (model) {
-				return this.fileService.updateContent(target, model.getValue(), { charset: model.getEncoding() });
+				return this.fileService.updateContent(target, model.getValue(), { encoding: model.getEncoding() });
 			}
 
 			// Otherwise we can only copy
@@ -366,14 +365,14 @@ export class TextFileService extends AbstractTextFileService {
 
 	private promptForPathAsync(defaultPath?: string): TPromise<string> {
 		return new TPromise<string>((c, e) => {
-			remote.dialog.showSaveDialog(remote.getCurrentWindow(), this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0), (path) => {
+			this.windowService.getWindow().showSaveDialog(this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0), (path) => {
 				c(path);
 			});
 		});
 	}
 
 	private promptForPathSync(defaultPath?: string): string {
-		return remote.dialog.showSaveDialog(remote.getCurrentWindow(), this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0));
+		return this.windowService.getWindow().showSaveDialog(this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0));
 	}
 
 	private getSaveDialogOptions(defaultPath?: string): Electron.Dialog.SaveDialogOptions {

@@ -7,8 +7,7 @@
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
-import platform = require('vs/base/common/platform');
-import encoding = require('vs/base/common/bits/encoding');
+import encoding = require('vs/base/node/encoding');
 import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
 import uri from 'vs/base/common/uri';
@@ -44,9 +43,9 @@ export class FileService implements files.IFileService {
 				encodingOverride.push({ resource: uri.file(paths.join(this.contextService.getWorkspace().resource.fsPath, '.vscode')), encoding: encoding.UTF8 });
 			}
 
-			let doNotWatch = ['**/.git/objects/**']; 	// this folder does the heavy duty for git and we don't need to watch it
-			if (platform.isLinux) {
-				doNotWatch.push('**/node_modules/**'); 	// Linux does not have a good watching implementation, so we exclude more
+			let watcherIgnoredPatterns:string[] = [];
+			if (configuration.files && configuration.files.watcherExclude) {
+				watcherIgnoredPatterns = Object.keys(configuration.files.watcherExclude).filter(k => !!configuration.files.watcherExclude[k]);
 			}
 
 			// build config
@@ -54,7 +53,7 @@ export class FileService implements files.IFileService {
 				errorLogger: (msg: string) => errors.onUnexpectedError(msg),
 				encoding: configuration.files && configuration.files.encoding,
 				encodingOverride: encodingOverride,
-				watcherIgnoredPatterns: doNotWatch,
+				watcherIgnoredPatterns: watcherIgnoredPatterns,
 				verboseLogging: this.contextService.getConfiguration().env.verboseLogging
 			};
 

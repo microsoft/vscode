@@ -7,8 +7,8 @@
 import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
-import {IMessageCollector, PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
-import {Bracket, ILineTokens, IMode, IToken, ITokenizationSupport} from 'vs/editor/common/modes';
+import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
+import {ILineTokens, IMode, IToken, ITokenizationSupport} from 'vs/editor/common/modes';
 import {TMState} from 'vs/editor/common/modes/TMState';
 import {Token} from 'vs/editor/common/modes/supports';
 import {IModeService} from 'vs/editor/common/services/modeService';
@@ -20,13 +20,13 @@ export interface ITMSyntaxExtensionPoint {
 	path: string;
 }
 
-let grammarsExtPoint = PluginsRegistry.registerExtensionPoint<ITMSyntaxExtensionPoint[]>('grammars', {
+let grammarsExtPoint = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtensionPoint[]>('grammars', {
 	description: nls.localize('vscode.extension.contributes.grammars', 'Contributes textmate tokenizers.'),
 	type: 'array',
-	default: [{ id: '', extensions: [] }],
+	defaultSnippets: [ { body: [{ id: '', extensions: [] }] }],
 	items: {
 		type: 'object',
-		default: { language: '{{id}}', scopeName: 'source.{{id}}', path: './syntaxes/{{id}}.tmLanguage.'},
+		defaultSnippets: [ { body: { language: '{{id}}', scopeName: 'source.{{id}}', path: './syntaxes/{{id}}.tmLanguage.'} }],
 		properties: {
 			language: {
 				description: nls.localize('vscode.extension.contributes.grammars.language', 'Language id for which this syntax is contributed to.'),
@@ -70,7 +70,7 @@ export class MainProcessTextMateSyntax {
 		});
 	}
 
-	private _handleGrammarExtensionPointUser(extensionFolderPath:string, syntax:ITMSyntaxExtensionPoint, collector: IMessageCollector): void {
+	private _handleGrammarExtensionPointUser(extensionFolderPath:string, syntax:ITMSyntaxExtensionPoint, collector: IExtensionMessageCollector): void {
 		if (syntax.language && ((typeof syntax.language !== 'string') || !this._modeService.isRegisteredMode(syntax.language))) {
 			collector.error(nls.localize('invalid.language', "Unknown language in `contributes.{0}.language`. Provided value: {1}", grammarsExtPoint.name, String(syntax.language)));
 			return;
@@ -142,8 +142,7 @@ class Tokenizer {
 			return {
 				tokens: <IToken[]>[{
 					startIndex: offsetDelta,
-					type: '',
-					bracket: Bracket.None
+					type: ''
 				}],
 				actualStopOffset: offsetDelta,
 				endState: state,

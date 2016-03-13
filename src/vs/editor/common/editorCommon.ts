@@ -483,7 +483,12 @@ export interface IEditorOptions {
 	 * Enable the suggestion box to pop-up on trigger characters.
 	 * Defaults to true.
 	 */
-	suggestOnTriggerCharacters?:boolean;
+	suggestOnTriggerCharacters?: boolean;
+	/**
+	 * Accept suggestions on ENTER.
+	 * Defaults to true.
+	 */
+	acceptSuggestionOnEnter?: boolean;
 	/**
 	 * Enable selection highlight.
 	 * Defaults to true.
@@ -509,18 +514,6 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	renderWhitespace?: boolean;
-	/**
-	 * Tab size in spaces. This is used for rendering and for editing.
-	 * 'auto' means the model attached to the editor will be scanned and this property will be guessed.
-	 * Defaults to 4.
-	 */
-	tabSize?:any;
-	/**
-	 * Insert spaces instead of tabs when indenting or when auto-indenting.
-	 * 'auto' means the model attached to the editor will be scanned and this property will be guessed.
-	 * Defaults to true.
-	 */
-	insertSpaces?:any;
 	/**
 	 * The font family
 	 */
@@ -632,7 +625,8 @@ export interface IInternalEditorOptions {
 	iconsInSuggestions:boolean;
 	autoClosingBrackets:boolean;
 	formatOnType:boolean;
-	suggestOnTriggerCharacters:boolean;
+	suggestOnTriggerCharacters: boolean;
+	acceptSuggestionOnEnter: boolean;
 	selectionHighlight:boolean;
 	outlineMarkers: boolean;
 	referenceInfos: boolean;
@@ -646,8 +640,6 @@ export interface IInternalEditorOptions {
 	stylingInfo: IEditorStyling;
 
 	wrappingInfo: IEditorWrappingInfo;
-
-	indentInfo: IInternalIndentationOptions;
 
 	/**
 	 * Computed width of the container of the editor in px.
@@ -732,7 +724,6 @@ export interface IConfigurationChangedEvent {
 	layoutInfo: boolean;
 	stylingInfo: boolean;
 	wrappingInfo: boolean;
-	indentInfo: boolean;
 	observedOuterWidth: boolean;
 	observedOuterHeight: boolean;
 	lineHeight: boolean;
@@ -1257,10 +1248,35 @@ export interface IGuessedIndentation {
 	insertSpaces: boolean;
 }
 
+export interface ITextModelResolvedOptions {
+	tabSize: number;
+	insertSpaces: boolean;
+	defaultEOL: DefaultEndOfLine;
+}
+
+export interface ITextModelCreationOptions {
+	tabSize: number;
+	insertSpaces: boolean;
+	detectIndentation: boolean;
+	defaultEOL: DefaultEndOfLine;
+}
+
+export interface ITextModelUpdateOptions {
+	tabSize?: number;
+	insertSpaces?: boolean;
+}
+
+export interface IModelOptionsChangedEvent {
+	tabSize: boolean;
+	insertSpaces: boolean;
+}
+
 /**
  * A textual read-only model.
  */
 export interface ITextModel {
+
+	getOptions(): ITextModelResolvedOptions;
 
 	/**
 	 * Get the current version id of the model.
@@ -1315,14 +1331,6 @@ export interface ITextModel {
 	 * If count(B) > count(A) return true. Returns false otherwise.
 	 */
 	isDominatedByLongLines(longLineBoundary:number): boolean;
-
-	/**
-	 * Guess the text indentation.
-	 * @param defaultTabSize The tab size to use if `insertSpaces` is false.
-	 * If `insertSpaces` is true, then `tabSize` is relevant.
-	 * If `insertSpaces` is false, then `tabSize` is `defaultTabSize`.
-	 */
-	guessIndentation(defaultTabSize:number): IGuessedIndentation;
 
 	/**
 	 * Get the number of lines in the model.
@@ -1709,6 +1717,15 @@ export interface ITextModelWithDecorations {
  * An editable text model.
  */
 export interface IEditableTextModel extends ITextModelWithMarkers {
+
+	normalizeIndentation(str:string): string;
+
+	getOneIndent(): string;
+
+	updateOptions(newOpts:ITextModelUpdateOptions): void;
+
+	detectIndentation(defaultInsertSpaces:boolean, defaultTabSize:number): void;
+
 	/**
 	 * Push a stack element onto the undo stack. This acts as an undo/redo point.
 	 * The idea is to use `pushEditOperations` to edit the model and then to
@@ -1947,7 +1964,7 @@ export interface IRawText {
 	lines: string[];
 	BOM: string;
 	EOL: string;
-	defaultEOL: DefaultEndOfLine;
+	options: ITextModelResolvedOptions;
 }
 /**
  * An event describing that a model has been reset to a new value.
@@ -2470,10 +2487,6 @@ export interface IConfiguration {
 	setLineCount(lineCount:number): void;
 
 	handlerDispatcher: IHandlerDispatcher;
-
-	getIndentationOptions(): IInternalIndentationOptions;
-	getOneIndent(): string;
-	normalizeIndentation(str:string): string;
 }
 
 // --- view
@@ -2504,16 +2517,10 @@ export interface IWhitespaceManager {
 	addWhitespace(afterLineNumber:number, ordinal:number, height:number): number;
 
 	/**
-	 * Change the height of a whitespace.
+	 * Change the properties of a whitespace.
 	 * @param height is specified in pixels.
 	 */
-	changeWhitespace(id:number, newHeight:number): boolean;
-
-	/**
-	 * Change the `afterLineNumber` of a whitespace.
-	 * @return a boolean indicating if something has actually changed
-	 */
-	changeAfterLineNumberForWhitespace(id:number, newAfterLineNumber:number): boolean;
+	changeWhitespace(id:number, newAfterLineNumber:number, newHeight:number): boolean;
 
 	/**
 	 * Remove rendering space
@@ -2529,6 +2536,8 @@ export interface IWhitespaceManager {
 }
 
 export interface IViewModel extends IEventEmitter, IDisposable {
+
+	getTabSize(): number;
 
 	getLineCount(): number;
 	getLineContent(lineNumber:number): string;
@@ -2553,6 +2562,7 @@ export interface IViewModel extends IEventEmitter, IDisposable {
 	convertViewRangeToModelRange(viewRange:IRange): IEditorRange;
 	convertModelPositionToViewPosition(modelLineNumber:number, modelColumn:number): IEditorPosition;
 	convertModelSelectionToViewSelection(modelSelection:IEditorSelection): IEditorSelection;
+	modelPositionIsVisible(position:IPosition): boolean;
 }
 
 export interface IViewEventNames {
@@ -3087,18 +3097,6 @@ export interface ICommonCodeEditor extends IEditor {
 	getRawConfiguration(): IEditorOptions;
 
 	/**
-	 * Computed indentation options.
-	 * If either one of the `tabSize` and `insertSpaces` options is set to 'auto', this is computed based on the current attached model.
-	 * Otherwise, they are equal to `tabSize` and `insertSpaces`.
-	 */
-	getIndentationOptions(): IInternalIndentationOptions;
-
-	/**
-	 * Normalize whitespace using the editor's whitespace specific settings
-	 */
-	normalizeIndentation(str: string): string;
-
-	/**
 	 * Get value of the current model attached to this editor.
 	 * @see IModel.getValue
 	 */
@@ -3267,6 +3265,7 @@ export var EventType = {
 	ModelTokensChanged: 'modelTokensChanged',
 	ModelModeChanged: 'modelsModeChanged',
 	ModelModeSupportChanged: 'modelsModeSupportChanged',
+	ModelOptionsChanged: 'modelOptionsChanged',
 	ModelContentChanged: 'contentChanged',
 	ModelContentChanged2: 'contentChanged2',
 	ModelContentChangedFlush: 'flush',
@@ -3351,6 +3350,7 @@ export var Handler = {
 	CursorUndo:					'cursorUndo',
 	MoveTo:						'moveTo',
 	MoveToSelect:				'moveToSelect',
+	ColumnSelect:				'columnSelect',
 	CreateCursor:				'createCursor',
 	LastCursorMoveToSelect:		'lastCursorMoveToSelect',
 

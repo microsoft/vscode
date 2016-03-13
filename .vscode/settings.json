@@ -1,5 +1,6 @@
 {
 	"editor.insertSpaces": false,
+	"files.eol": "\n",
 	"files.trimTrailingWhitespace": true,
 	"files.exclude": {
 		".git": true,
@@ -10,8 +11,9 @@
 		"**/bower_components": true,
 		".build/**": true,
 		"out*/**": true,
+		"i18n/**": true,
 		"extensions/**/out/**": true
 	},
 	"tslint.enable": true,
-	"tslint.rulesDirectory": "build/tslintRules"
+	"tslint.rulesDirectory": "build/lib/tslint"
 }

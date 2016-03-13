@@ -34,7 +34,7 @@ const model: EditorCommon.IModel = new EditorModel(
 		'This is the second line',
 		'This is the third line',
 	].join('\n'),
-	EditorCommon.DefaultEndOfLine.LF,
+	EditorModel.DEFAULT_CREATION_OPTIONS,
 	undefined,
 	URI.parse('far://testing/file.b'));
 
@@ -71,7 +71,8 @@ suite('ExtHostLanguageFeatureCommands', function() {
 			getModels(): any { throw new Error(); },
 			onModelAdded: undefined,
 			onModelModeChanged: undefined,
-			onModelRemoved: undefined
+			onModelRemoved: undefined,
+			getCreationOptions(): any { throw new Error(); }
 		});
 
 		threadService.getRemotable(ExtHostModelService)._acceptModelAdd({
@@ -84,7 +85,11 @@ suite('ExtHostLanguageFeatureCommands', function() {
 				lines: model.getValue().split(model.getEOL()),
 				BOM: '',
 				length: -1,
-				defaultEOL: EditorCommon.DefaultEndOfLine.LF
+				options: {
+					tabSize: 4,
+					insertSpaces: true,
+					defaultEOL: EditorCommon.DefaultEndOfLine.LF
+				}
 			},
 		});
 
