@@ -133,7 +133,8 @@ export class CursorMoveHelper {
 
 		let lineCount = Math.abs(toLineNumber - from.lineNumber) + 1;
 		let reversed = (from.lineNumber > toLineNumber);
-		let isCollapsed = (fromVisibleColumn === toVisibleColumn);
+		let isRTL = (fromVisibleColumn > toVisibleColumn);
+		let isLTR = (fromVisibleColumn < toVisibleColumn);
 
 		let result: IEditorSelection[] = [];
 
@@ -141,13 +142,22 @@ export class CursorMoveHelper {
 			let lineNumber = from.lineNumber + (reversed ? -i : i);
 
 			let startColumn = this.columnFromVisibleColumn(model, lineNumber, fromVisibleColumn);
-			let deltaStartColumn = this.visibleColumnFromColumn(model, lineNumber, startColumn) - fromVisibleColumn;
+			let endColumn = this.columnFromVisibleColumn(model, lineNumber, toVisibleColumn);
 
-			if (!isCollapsed && deltaStartColumn < 0) {
-				continue;
+			if (isLTR) {
+				let deltaStartColumn = this.visibleColumnFromColumn(model, lineNumber, startColumn) - fromVisibleColumn;
+				if (deltaStartColumn < 0) {
+					continue;
+				}
 			}
 
-			let endColumn = this.columnFromVisibleColumn(model, lineNumber, toVisibleColumn);
+			if (isRTL) {
+				let deltaEndColumn = this.visibleColumnFromColumn(model, lineNumber, endColumn) - toVisibleColumn;
+				if (deltaEndColumn < 0) {
+					continue;
+				}
+			}
+
 			result.push(new Selection(lineNumber, startColumn, lineNumber, endColumn));
 		}
 
