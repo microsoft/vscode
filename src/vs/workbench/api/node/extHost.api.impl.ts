@@ -134,7 +134,7 @@ export class ExtHostAPIImplementation {
 		this.OverviewRulerLane = EditorCommon.OverviewRulerLane;
 		this.TextEditorRevealType = TextEditorRevealType;
 		this.EndOfLine = extHostTypes.EndOfLine;
-		this.TextEditorCursorStyle = extHostTypes.TextEditorCursorStyle;
+		this.TextEditorCursorStyle = EditorCommon.TextEditorCursorStyle;
 
 		errors.setUnexpectedErrorHandler((err) => {
 			this._proxy.onUnexpectedExtHostError(errors.transformErrorForSerialization(err));
