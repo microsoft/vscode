@@ -177,7 +177,7 @@ class ConfigureTaskRunnerAction extends Action {
 				let contentPromise: TPromise<string>;
 				if (selection.autoDetect) {
 					let detector = new ProcessRunnerDetector(this.fileService, this.contextService, new SystemVariables(this.editorService, this.contextService));
-					contentPromise = detector.detect(false).then((value) => {
+					contentPromise = detector.detect(false, selection.id).then((value) => {
 						let config = value.config;
 						if (value.stderr && value.stderr.length > 0) {
 							value.stderr.forEach((line) => {

@@ -148,7 +148,7 @@ export class ProcessRunnerDetector {
 		return this._stderr;
 	}
 
-	public detect(list: boolean = false): TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
+	public detect(list: boolean = false, detectSpecific?: string): TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
 		if (this.taskConfiguration && this.taskConfiguration.command && ProcessRunnerDetector.supports(this.taskConfiguration.command)) {
 			let config = ProcessRunnerDetector.detectorConfig(this.taskConfiguration.command);
 			let args = (this.taskConfiguration.args || []).concat(config.arg);
@@ -158,22 +158,40 @@ export class ProcessRunnerDetector {
 				new LineProcess(this.taskConfiguration.command, this.variables.resolve(args), isShellCommand, options),
 				this.taskConfiguration.command, isShellCommand, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
 		} else {
-			return this.tryDetectGulp(list).then((value) => {
-				if (value) {
-					return value;
+			if (detectSpecific) {
+				let detectorPromise: TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }>;
+				if ('gulp' === detectSpecific) {
+					detectorPromise = this.tryDetectGulp(list);
+				} else if ('jake' === detectSpecific) {
+					detectorPromise = this.tryDetectJake(list);
+				} else if ('grunt' === detectSpecific) {
+					detectorPromise = this.tryDetectGrunt(list);
 				}
-				return this.tryDetectJake(list).then((value) => {
+				return detectorPromise.then((value) => {
+					if (value) {
+						return value;
+					} else {
+						return { config: null, stderr: this.stderr };
+					}
+				});
+			} else {
+				return this.tryDetectGulp(list).then((value) => {
 					if (value) {
 						return value;
 					}
-					return this.tryDetectGrunt(list).then((value) => {
+					return this.tryDetectJake(list).then((value) => {
 						if (value) {
 							return value;
 						}
-						return { config: null, stderr: this.stderr };
+						return this.tryDetectGrunt(list).then((value) => {
+							if (value) {
+								return value;
+							}
+							return { config: null, stderr: this.stderr };
+						});
 					});
 				});
-			});
+			}
 		}
 	}
 
