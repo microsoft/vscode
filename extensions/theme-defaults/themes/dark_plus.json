@@ -24,7 +24,7 @@
 			"name": "Function declarations",
 			"scope": [
 				"entity.name.function",
-				"entity.method.name"
+				"entity.name.method"
 			],
 			"settings": {
 				"foreground": "#DCDCAA"
@@ -59,25 +59,11 @@
 		{
 			"name": "CSS property value",
 			"scope": [
-				"css.support.property-value",
-				"css.constant.rgb-value"
+				"support.property-value.css",
+				"constant.rgb-value.css"
 			],
 			"settings": {
 				"foreground": "#CE9178"
-			}
-		},
-		{
-			"name": "JSON keys",
-			"scope": "support.type.property-name",
-			"settings": {
-				"foreground": "#9CDCFE"
-			}
-		},
-		{
-			"name": "LESS workaround",
-			"scope": "keyword.control.less",
-			"settings": {
-				"foreground": "#D7BA7D"
 			}
 		}
 	]

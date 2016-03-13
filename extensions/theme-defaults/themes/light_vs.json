@@ -2,20 +2,6 @@
 	"name": "Light Visual Studio",
 	"settings": [
 		{
-			"scope": "string",
-			"settings": {
-				"foreground": "#a31515"
-			}
-		},
-		{
-			"scope": "string.escape",
-			"settings": {
-				"foreground": "#a31515"
-			}
-		},
-
-		/* Markdown */
-		{
 			"scope": "emphasis",
 			"settings": {
 				"fontStyle": "italic"
@@ -65,10 +51,15 @@
 				"foreground": "#0451a5"
 			}
 		},
-
 		{
 			"name": "css tags in selectors, xml tags",
 			"scope": "entity.name.tag",
+			"settings": {
+				"foreground": "#800000"
+			}
+		},
+		{
+			"scope": "entity.name.selector",
 			"settings": {
 				"foreground": "#800000"
 			}
@@ -243,6 +234,12 @@
 		},
 		{
 			"scope": "keyword.control.less",
+			"settings": {
+				"foreground": "#800000"
+			}
+		},
+		{
+			"scope": "metatag.php",
 			"settings": {
 				"foreground": "#800000"
 			}

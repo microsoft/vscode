@@ -2,19 +2,6 @@
 	"name": "Dark Visual Studio",
 	"settings": [
 		{
-			"scope": "string",
-			"settings": {
-				"foreground": "#ce9178"
-			}
-		},
-		{
-			"scope": "string.escape",
-			"settings": {
-				"foreground": "#ce9178"
-			}
-		},
-
-		{
 			"scope": "emphasis",
 			"settings": {
 				"fontStyle": "italic"
@@ -247,6 +234,12 @@
 			"scope": "keyword.other.unit",
 			"settings": {
 				"foreground": "#b5cea8"
+			}
+		},
+		{
+			"scope": "metatag.php",
+			"settings": {
+				"foreground": "#569cd6"
 			}
 		}
 	]

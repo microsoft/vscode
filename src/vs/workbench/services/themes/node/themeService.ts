@@ -21,6 +21,21 @@ import pfs = require('vs/base/node/pfs');
 
 let defaultBaseTheme = Themes.getBaseThemeId(DEFAULT_THEME_ID);
 
+const defaultThemeExtensionId = 'vscode-theme-defaults';
+const oldDefaultThemeExtensionId = 'vscode-theme-colorful-defaults';
+
+function validateThemeId(theme: string) : string {
+	// migrations
+	switch (theme) {
+		case 'vs': return `vs ${defaultThemeExtensionId}-themes-light_vs-json`;
+		case 'vs-dark': return `vs-dark ${defaultThemeExtensionId}-themes-dark_vs-json`;
+		case 'hc-black': return `hc-black ${defaultThemeExtensionId}-themes-hc_black-json`;
+		case `vs ${oldDefaultThemeExtensionId}-themes-light_plus-tmTheme`: return `vs ${defaultThemeExtensionId}-themes-light_plus-json`;
+		case `vs-dark ${oldDefaultThemeExtensionId}-themes-dark_plus-tmTheme`: return `vs-dark ${defaultThemeExtensionId}-themes-dark_plus-json`;
+	}
+	return theme;
+}
+
 let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('themes', {
 	description: nls.localize('vscode.extension.contributes.themes', 'Contributes textmate color themes.'),
 	type: 'array',
@@ -35,7 +50,7 @@ let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPo
 			},
 			uiTheme: {
 				description: nls.localize('vscode.extension.contributes.themes.uiTheme', 'Base theme defining the colors around the editor: \'vs\' is the light color theme, \'vs-dark\' is the dark color theme.'),
-				enum: ['vs', 'vs-dark']
+				enum: ['vs', 'vs-dark', 'hc-black']
 			},
 			path: {
 				description: nls.localize('vscode.extension.contributes.themes.path', 'Path of the tmTheme file. The path is relative to the extension folder and is typically \'./themes/themeFile.tmTheme\'.'),
@@ -56,8 +71,8 @@ interface ThemeSettingStyle {
 }
 
 interface ThemeSetting {
-	name?: string,
-	scope?: string | string[],
+	name?: string;
+	scope?: string | string[];
 	settings: ThemeSettingStyle[];
 }
 
@@ -83,6 +98,7 @@ export class ThemeService implements IThemeService {
 	}
 
 	public loadTheme(themeId: string): TPromise<IThemeData> {
+		themeId = validateThemeId(themeId);
 		return this.getThemes().then(allThemes => {
 			let themes = allThemes.filter(t => t.id === themeId);
 			if (themes.length > 0) {
@@ -164,7 +180,6 @@ function applyTheme(theme: IThemeData): TPromise<boolean> {
 
 function _loadThemeDocument(themePath: string) : TPromise<ThemeDocument> {
 	return pfs.readFile(themePath).then(content => {
-		let contentValue: any;
 		if (Paths.extname(themePath) === '.json') {
 			let errors: string[] = [];
 			let contentValue = <ThemeDocument> Json.parse(content.toString(), errors);

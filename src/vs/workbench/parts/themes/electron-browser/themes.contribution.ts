@@ -13,7 +13,6 @@ import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import platform = require('vs/platform/platform');
 import workbenchActionRegistry = require('vs/workbench/common/actionRegistry');
-import Themes = require('vs/platform/theme/common/themes');
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IThemeService, IThemeData, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
@@ -43,9 +42,6 @@ class SelectThemeAction extends actions.Action {
 			let currentTheme = this.storageService.get(Constants.Preferences.THEME, StorageScope.GLOBAL, DEFAULT_THEME_ID);
 
 			let picks: IPickOpenEntry[] = [];
-			Themes.getBaseThemes(true).forEach(baseTheme => {
-				picks.push({ label: Themes.toLabel(baseTheme), id: Themes.toId(baseTheme) });
-			});
 
 			let contributedThemesById: { [id: string]: IThemeData } = {};
 			contributedThemes.forEach(theme => {

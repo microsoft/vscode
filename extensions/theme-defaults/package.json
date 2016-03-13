@@ -1,0 +1,38 @@
+{
+	"name": "theme-defaults",
+	"displayName": "Default Themes",
+	"description": "The default light and dark themes (Plus and Visual Studio)",
+	"categories": [ "Themes" ],
+	"version": "0.1.10",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"themes": [
+			{
+				"label": "Dark+ (default dark)",
+				"uiTheme": "vs-dark",
+				"path": "./themes/dark_plus.json"
+			},
+			{
+				"label": "Light+ (default light)",
+				"uiTheme": "vs",
+				"path": "./themes/light_plus.json"
+			},
+			{
+				"label": "Dark (Visual Studio)",
+				"uiTheme": "vs-dark",
+				"path": "./themes/dark_vs.json"
+			},
+			{
+				"label": "Light (Visual Studio)",
+				"uiTheme": "vs",
+				"path": "./themes/light_vs.json"
+			},
+			{
+				"label": "High Contrast",
+				"uiTheme": "hc-black",
+				"path": "./themes/hc_black.json"
+			}
+		]
+	}
+}

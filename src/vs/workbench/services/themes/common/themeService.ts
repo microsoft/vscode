@@ -9,7 +9,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 
 export let IThemeService = createDecorator<IThemeService>('themeService');
 
-export const DEFAULT_THEME_ID = 'vs-dark vscode-theme-colorful-defaults-themes-dark_plus-tmTheme';
+export const DEFAULT_THEME_ID = 'vs-dark vscode-theme-defaults-themes-dark_plus-json';
 
 export interface IThemeService {
 	serviceId: ServiceIdentifier<any>;

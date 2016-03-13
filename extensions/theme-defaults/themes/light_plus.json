@@ -24,7 +24,7 @@
 			"name": "Function declarations",
 			"scope": [
 				"entity.name.function",
-				"entity.method.name"
+				"entity.name.method"
 			],
 			"settings": {
 				"foreground": "#795E26"
@@ -54,31 +54,6 @@
 			"scope": "keyword.control.import",
 			"settings": {
 				"foreground": "#0000FF"
-			}
-		},
-		{
-			"name": "CSS keys",
-			"scope": [
-				"support.type.property-name.css",
-				"support.type.property-name.less",
-				"support.type.property-name.sass"
-			],
-			"settings": {
-				"foreground": "#FF0000"
-			}
-		},
-		{
-			"name": "JSON keys",
-			"scope": "support.type.property-name",
-			"settings": {
-				"foreground": "#0451A5"
-			}
-		},
-		{
-			"name": "LESS workaround",
-			"scope": "keyword.control.less",
-			"settings": {
-				"foreground": "#800000"
 			}
 		}
 	]
