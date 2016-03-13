@@ -131,22 +131,24 @@ export class CursorMoveHelper {
 		let fromVisibleColumn = this.visibleColumnFromColumn(model, from.lineNumber, from.column);
 		let toVisibleColumn = this.visibleColumnFromColumn(model, toLineNumber, toColumn);
 
+		let lineCount = Math.abs(toLineNumber - from.lineNumber) + 1;
+		let reversed = (from.lineNumber > toLineNumber);
+		let isCollapsed = (fromVisibleColumn === toVisibleColumn);
+
 		let result: IEditorSelection[] = [];
-		let reversed: boolean;
-		if (from.lineNumber <= toLineNumber) {
-			reversed = false;
-			for (let lineNumber = from.lineNumber; lineNumber <= toLineNumber; lineNumber++) {
-				let startColumn = this.columnFromVisibleColumn(model, lineNumber, fromVisibleColumn);
-				let endColumn = this.columnFromVisibleColumn(model, lineNumber, toVisibleColumn);
-				result.push(new Selection(lineNumber, startColumn, lineNumber, endColumn));
+
+		for (let i = 0; i < lineCount; i++) {
+			let lineNumber = from.lineNumber + (reversed ? -i : i);
+
+			let startColumn = this.columnFromVisibleColumn(model, lineNumber, fromVisibleColumn);
+			let deltaStartColumn = this.visibleColumnFromColumn(model, lineNumber, startColumn) - fromVisibleColumn;
+
+			if (!isCollapsed && deltaStartColumn < 0) {
+				continue;
 			}
-		} else {
-			reversed = true;
-			for (let lineNumber = from.lineNumber; lineNumber >= toLineNumber; lineNumber--) {
-				let startColumn = this.columnFromVisibleColumn(model, lineNumber, fromVisibleColumn);
-				let endColumn = this.columnFromVisibleColumn(model, lineNumber, toVisibleColumn);
-				result.push(new Selection(lineNumber, startColumn, lineNumber, endColumn));
-			}
+
+			let endColumn = this.columnFromVisibleColumn(model, lineNumber, toVisibleColumn);
+			result.push(new Selection(lineNumber, startColumn, lineNumber, endColumn));
 		}
 
 		return {

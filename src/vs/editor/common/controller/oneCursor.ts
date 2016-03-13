@@ -499,6 +499,9 @@ export class OneCursor {
 	public getVisibleColumnFromColumn(lineNumber:number, column:number): number {
 		return this.helper.visibleColumnFromColumn(this.model, lineNumber, column);
 	}
+	public getViewVisibleColumnFromColumn(viewLineNumber:number, viewColumn:number): number {
+		return this.helper.visibleColumnFromColumn(this.viewModelHelper.viewModel, viewLineNumber, viewColumn);
+	}
 
 	// -- view
 	public getViewLineCount(): number {
@@ -581,7 +584,7 @@ export class OneCursorOp {
 		return true;
 	}
 
-	public static columnSelect(cursor:OneCursor, position: editorCommon.IPosition, viewPosition: editorCommon.IPosition, mouseColumn: number): IColumnSelectResult {
+	public static columnSelect(cursor:OneCursor, position: editorCommon.IPosition, viewPosition: editorCommon.IPosition, visibleMouseColumn: number): IColumnSelectResult {
 		let validatedPosition = cursor.model.validatePosition(position);
 		let validatedViewPosition: editorCommon.IPosition;
 		if (viewPosition) {
@@ -595,7 +598,9 @@ export class OneCursorOp {
 		let endViewLineNumber = validatedViewPosition.lineNumber;
 		let endViewColumn = validatedViewPosition.column;
 		if (endViewColumn === cursor.getViewLineMaxColumn(endViewLineNumber)) {
-			endViewColumn = mouseColumn;
+			let visibleEndViewColumn = cursor.getViewVisibleColumnFromColumn(endViewLineNumber, endViewColumn) + 1;
+			let deltaVisibleColumn = visibleMouseColumn - visibleEndViewColumn;
+			endViewColumn += deltaVisibleColumn;
 		}
 
 		return cursor.columnSelect(startViewPosition, endViewLineNumber, endViewColumn);

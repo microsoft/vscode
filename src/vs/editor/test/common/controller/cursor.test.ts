@@ -9,6 +9,7 @@ import {Cursor} from 'vs/editor/common/controller/cursor';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
+import {Selection} from 'vs/editor/common/core/selection';
 import {EndOfLinePreference, EventType, Handler, IPosition, ISelection, DefaultEndOfLine, ITextModelCreationOptions} from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
 import {IMode, IRichEditSupport, IndentAction} from 'vs/editor/common/modes';
@@ -116,6 +117,12 @@ function cursorEqual(cursor: Cursor, posLineNumber: number, posColumn: number, s
 	selectionEqual(cursor.getSelection(), posLineNumber, posColumn, selLineNumber, selColumn);
 }
 
+function cursorEquals(cursor: Cursor, selections: Selection[]): void {
+	let actual = cursor.getSelections().map(s => s.toString());
+	let expected = selections.map(s => s.toString());
+
+	assert.deepEqual(actual, expected);
+}
 
 suite('Editor Controller - Cursor', () => {
 	const LINE1 = '    \tMy First Line\t ';
@@ -753,6 +760,37 @@ suite('Editor Controller - Cursor', () => {
 
 		thisModel.applyEdits([EditOperation.delete(new Range(2, 1, 2, 2))]);
 		cursorEqual(thisCursor, 2, 15, 1, 1);
+	});
+
+	test('column select 1', () => {
+		let model = new Model([
+			'\tprivate compute(a:number): boolean {',
+			'\t\tif (a + 3 === 0 || a + 5 === 0) {',
+			'\t\t\treturn false;',
+			'\t\t}',
+			'\t}'
+		].join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
+		let cursor = new Cursor(1, new MockConfiguration(null), model, null, true);
+
+		moveTo(cursor, 1, 7, false);
+		cursorEqual(cursor, 1, 7);
+
+		cursorCommand(cursor, H.ColumnSelect, {
+			position: new Position(4, 4),
+			viewPosition: new Position(4, 4),
+			mouseColumn: 15
+		});
+
+		let expectedSelections = [
+			new Selection(1, 7, 1, 12),
+			new Selection(2, 4, 2, 9),
+			new Selection(4, 4, 4, 4),
+		];
+
+		cursorEquals(cursor, expectedSelections);
+
+		cursor.dispose();
+		model.dispose();
 	});
 });
 
