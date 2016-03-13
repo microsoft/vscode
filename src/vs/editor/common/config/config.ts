@@ -245,6 +245,25 @@ registerCoreCommand(H.ScrollPageDown, {
 	primary: KeyMod.CtrlCmd | KeyCode.PageDown
 });
 
+registerCoreCommand(H.CursorColumnSelectLeft, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow
+});
+registerCoreCommand(H.CursorColumnSelectRight, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow
+});
+registerCoreCommand(H.CursorColumnSelectUp, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow
+});
+registerCoreCommand(H.CursorColumnSelectPageUp, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.PageUp
+});
+registerCoreCommand(H.CursorColumnSelectDown, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow
+});
+registerCoreCommand(H.CursorColumnSelectPageDown, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.PageDown
+});
+
 registerCoreCommand(H.Tab, {
 	primary: KeyCode.Tab
 }, KeybindingsRegistry.WEIGHT.editorCore(), KbExpr.and(

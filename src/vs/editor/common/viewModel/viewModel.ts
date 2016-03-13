@@ -483,6 +483,12 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 	}
 
+	public convertViewSelectionToModelSelection(viewSelection:editorCommon.ISelection): editorCommon.IEditorSelection {
+		let selectionStart = this.convertViewPositionToModelPosition(viewSelection.selectionStartLineNumber, viewSelection.selectionStartColumn);
+		let position = this.convertViewPositionToModelPosition(viewSelection.positionLineNumber, viewSelection.positionColumn);
+		return new Selection(selectionStart.lineNumber, selectionStart.column, position.lineNumber, position.column);
+	}
+
 	public convertModelPositionToViewPosition(modelLineNumber:number, modelColumn:number): editorCommon.IEditorPosition {
 		return this.lines.convertInputPositionToOutputPosition(modelLineNumber, modelColumn);
 	}

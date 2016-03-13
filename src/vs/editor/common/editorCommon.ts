@@ -3345,6 +3345,13 @@ export var Handler = {
 	CursorBottom:				'cursorBottom',
 	CursorBottomSelect:			'cursorBottomSelect',
 
+	CursorColumnSelectLeft:		'cursorColumnSelectLeft',
+	CursorColumnSelectRight:	'cursorColumnSelectRight',
+	CursorColumnSelectUp:		'cursorColumnSelectUp',
+	CursorColumnSelectPageUp:	'cursorColumnSelectPageUp',
+	CursorColumnSelectDown:		'cursorColumnSelectDown',
+	CursorColumnSelectPageDown:	'cursorColumnSelectPageDown',
+
 	AddCursorDown:				'addCursorDown',
 	AddCursorUp:				'addCursorUp',
 	CursorUndo:					'cursorUndo',

@@ -16,6 +16,7 @@ import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import {IColumnSelectResult} from 'vs/editor/common/controller/cursorMoveHelper';
 
 export interface ITypingListener {
 	(): void;
@@ -42,6 +43,8 @@ interface IMultipleCursorOperationContext {
 	executeCommands: editorCommon.ICommand[];
 	postOperationRunnables: IPostOperationRunnable[];
 	requestScrollDeltaLines: number;
+	setColumnSelectToLineNumber: number;
+	setColumnSelectToVisualColumn: number;
 }
 
 interface IExecContext {
@@ -105,6 +108,9 @@ export class Cursor extends EventEmitter {
 				},
 				convertViewToModelPosition: (lineNumber:number, column:number) => {
 					return new Position(lineNumber, column);
+				},
+				convertViewSelectionToModelSelection: (viewSelection:editorCommon.IEditorSelection) => {
+					return viewSelection;
 				},
 				validateViewPosition: (viewLineNumber:number, viewColumn:number, modelPosition:editorCommon.IEditorPosition) => {
 					return modelPosition;
@@ -309,7 +315,9 @@ export class Cursor extends EventEmitter {
 			postOperationRunnables: [],
 			shouldPushStackElementBefore: false,
 			shouldPushStackElementAfter: false,
-			requestScrollDeltaLines: 0
+			requestScrollDeltaLines: 0,
+			setColumnSelectToLineNumber: 0,
+			setColumnSelectToVisualColumn: 0
 		};
 
 		callback(currentHandlerCtx);
@@ -425,6 +433,9 @@ export class Cursor extends EventEmitter {
 			this.model.pushStackElement();
 			ctx.shouldPushStackElementBefore = false;
 		}
+
+		this._columnSelectToLineNumber = ctx.setColumnSelectToLineNumber;
+		this._columnSelectToVisualColumn = ctx.setColumnSelectToVisualColumn;
 
 		ctx.hasExecutedCommands = this._internalExecuteCommands(ctx.executeCommands, ctx.postOperationRunnables) || ctx.hasExecutedCommands;
 		ctx.executeCommands = [];
@@ -919,7 +930,7 @@ export class Cursor extends EventEmitter {
 
 		handlersMap[H.MoveTo] = 					(ctx:IMultipleCursorOperationContext) => this._moveTo(false, ctx);
 		handlersMap[H.MoveToSelect] = 				(ctx:IMultipleCursorOperationContext) => this._moveTo(true, ctx);
-		handlersMap[H.ColumnSelect] = 				(ctx:IMultipleCursorOperationContext) => this._columnSelect(ctx);
+		handlersMap[H.ColumnSelect] = 				(ctx:IMultipleCursorOperationContext) => this._columnSelectMouse(ctx);
 		handlersMap[H.AddCursorUp] = 				(ctx:IMultipleCursorOperationContext) => this._addCursorUp(ctx);
 		handlersMap[H.AddCursorDown] = 				(ctx:IMultipleCursorOperationContext) => this._addCursorDown(ctx);
 		handlersMap[H.CreateCursor] =				(ctx:IMultipleCursorOperationContext) => this._createCursor(ctx);
@@ -956,6 +967,13 @@ export class Cursor extends EventEmitter {
 		handlersMap[H.CursorTopSelect] =			(ctx:IMultipleCursorOperationContext) => this._moveToBeginningOfBuffer(true, ctx);
 		handlersMap[H.CursorBottom] =				(ctx:IMultipleCursorOperationContext) => this._moveToEndOfBuffer(false, ctx);
 		handlersMap[H.CursorBottomSelect] =			(ctx:IMultipleCursorOperationContext) => this._moveToEndOfBuffer(true, ctx);
+
+		handlersMap[H.CursorColumnSelectLeft] =		(ctx:IMultipleCursorOperationContext) => this._columnSelectLeft(ctx);
+		handlersMap[H.CursorColumnSelectRight] =	(ctx:IMultipleCursorOperationContext) => this._columnSelectRight(ctx);
+		handlersMap[H.CursorColumnSelectUp] =		(ctx:IMultipleCursorOperationContext) => this._columnSelectUp(false, ctx);
+		handlersMap[H.CursorColumnSelectPageUp] =	(ctx:IMultipleCursorOperationContext) => this._columnSelectUp(true, ctx);
+		handlersMap[H.CursorColumnSelectDown] =		(ctx:IMultipleCursorOperationContext) => this._columnSelectDown(false, ctx);
+		handlersMap[H.CursorColumnSelectPageDown] =	(ctx:IMultipleCursorOperationContext) => this._columnSelectDown(true, ctx);
 
 		handlersMap[H.SelectAll] =					(ctx:IMultipleCursorOperationContext) => this._selectAll(ctx);
 
@@ -1081,19 +1099,66 @@ export class Cursor extends EventEmitter {
 		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveTo(oneCursor, inSelectionMode, ctx.eventData.position, ctx.eventData.viewPosition, ctx.eventSource, oneCtx));
 	}
 
-	private _columnSelect(ctx: IMultipleCursorOperationContext): boolean {
-		if (this.configuration.editor.readOnly || this.model.hasEditableRange()) {
-			return false;
+	private _columnSelectToLineNumber: number = 0;
+	private _getColumnSelectToLineNumber(): number {
+		if (!this._columnSelectToLineNumber) {
+			let primaryCursor = this.cursors.getAll()[0];
+			let primaryPos = primaryCursor.getViewPosition();
+			return primaryPos.lineNumber;
 		}
+		return this._columnSelectToLineNumber;
+	}
 
-		let primary = this.cursors.getAll()[0];
-		let result = OneCursorOp.columnSelect(primary, ctx.eventData.position, ctx.eventData.viewPosition,  ctx.eventData.mouseColumn);
+	private _columnSelectToVisualColumn: number = 0;
+	private _getColumnSelectToVisualColumn(): number {
+		if (!this._columnSelectToVisualColumn) {
+			let primaryCursor = this.cursors.getAll()[0];
+			let primaryPos = primaryCursor.getViewPosition();
+			return primaryCursor.getViewVisibleColumnFromColumn(primaryPos.lineNumber, primaryPos.column);
+		}
+		return this._columnSelectToVisualColumn;
+	}
+
+	private _columnSelectMouse(ctx: IMultipleCursorOperationContext): boolean {
+		let cursors = this.cursors.getAll();
+		let result = OneCursorOp.columnSelectMouse(cursors[0], ctx.eventData.position, ctx.eventData.viewPosition,  ctx.eventData.mouseColumn);
 
 		ctx.shouldRevealTarget = (result.reversed ? RevealTarget.TopMost : RevealTarget.BottomMost);
 		ctx.shouldReveal = true;
+		ctx.setColumnSelectToLineNumber = result.toLineNumber;
+		ctx.setColumnSelectToVisualColumn = result.toVisualColumn;
 
-		this.cursors.setSelections(result.selections);
+		this.cursors.setSelections(result.selections, result.viewSelections);
 		return true;
+	}
+
+	private _columnSelectOp(ctx: IMultipleCursorOperationContext, op:(cursor:OneCursor, toViewLineNumber:number, toViewVisualColumn: number) => IColumnSelectResult): boolean {
+		let primary = this.cursors.getAll()[0];
+		let result = op(primary, this._getColumnSelectToLineNumber(), this._getColumnSelectToVisualColumn());
+
+		ctx.shouldRevealTarget = (result.reversed ? RevealTarget.TopMost : RevealTarget.BottomMost);
+		ctx.shouldReveal = true;
+		ctx.setColumnSelectToLineNumber = result.toLineNumber;
+		ctx.setColumnSelectToVisualColumn = result.toVisualColumn;
+
+		this.cursors.setSelections(result.selections, result.viewSelections);
+		return true;
+	}
+
+	private _columnSelectLeft(ctx: IMultipleCursorOperationContext): boolean {
+		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => OneCursorOp.columnSelectLeft(cursor, toViewLineNumber, toViewVisualColumn));
+	}
+
+	private _columnSelectRight(ctx: IMultipleCursorOperationContext): boolean {
+		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => OneCursorOp.columnSelectRight(cursor, toViewLineNumber, toViewVisualColumn));
+	}
+
+	private _columnSelectUp(isPaged:boolean, ctx: IMultipleCursorOperationContext): boolean {
+		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => OneCursorOp.columnSelectUp(isPaged, cursor, toViewLineNumber, toViewVisualColumn));
+	}
+
+	private _columnSelectDown(isPaged:boolean, ctx: IMultipleCursorOperationContext): boolean {
+		return this._columnSelectOp(ctx, (cursor, toViewLineNumber, toViewVisualColumn) => OneCursorOp.columnSelectDown(isPaged, cursor, toViewLineNumber, toViewVisualColumn));
 	}
 
 	private _createCursor(ctx: IMultipleCursorOperationContext): boolean {
