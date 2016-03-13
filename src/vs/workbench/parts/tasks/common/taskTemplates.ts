@@ -147,7 +147,7 @@ const tscOpenFile: TaskEntry = {
 
 const dotnetBuild: TaskEntry = {
 	id: 'dotnetBuild',
-	label: 'dotnet build',
+	label: '.Net build',
 	autoDetect: false,
 	description: nls.localize('dotnetBuild', 'Creates a tasks.json that compiles using dotnet build.'),
 	content: [
@@ -163,7 +163,7 @@ const dotnetBuild: TaskEntry = {
 
 const msbuild: TaskEntry = {
 	id: 'msbuild',
-	label: 'msbuild',
+	label: 'MSBuild',
 	autoDetect: false,
 	description: nls.localize('msbuild', 'Creates a tasks.json that compiles using msbuild.'),
 	content: [
