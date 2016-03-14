@@ -601,7 +601,7 @@ export class Cursor extends EventEmitter {
 			previousOp = operations[i - 1];
 			currentOp = operations[i];
 
-			if (previousOp.range.getStartPosition().isBeforeOrEqual(currentOp.range.getEndPosition())) {
+			if (previousOp.range.getStartPosition().isBefore(currentOp.range.getEndPosition())) {
 
 				if (previousOp.identifier.major > currentOp.identifier.major) {
 					// previousOp loses the battle
