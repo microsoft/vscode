@@ -782,8 +782,9 @@ suite('Editor Controller - Cursor', () => {
 		});
 
 		let expectedSelections = [
-			new Selection(1, 7, 1, 12),
-			new Selection(2, 4, 2, 9),
+			new Selection(1, 7, 1, 13),
+			new Selection(2, 4, 2, 10),
+			new Selection(3, 3, 3, 7),
 			new Selection(4, 4, 4, 4),
 		];
 
