@@ -376,7 +376,7 @@ export class WorkbenchShell {
 		if (!themeId) {
 			return;
 		}
-		let applyTheme = () => {
+		let applyTheme = (themeId: string) => {
 			if (this.currentTheme) {
 				$(this.container).removeClass(this.currentTheme);
 			}
@@ -390,8 +390,11 @@ export class WorkbenchShell {
 
 		this.themeService.loadTheme(themeId).then(theme => {
 			if (theme) {
-				this.themeService.applyThemeCSS(themeId);
-				applyTheme();
+				this.themeService.applyThemeCSS(theme.id);
+				applyTheme(theme.id);
+				if (theme.id !== themeId) {
+					this.storageService.store(Preferences.THEME, theme.id, StorageScope.GLOBAL);
+				}
 			}
 		}, error => {
 			errors.onUnexpectedError(error);
