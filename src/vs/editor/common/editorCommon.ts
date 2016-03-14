@@ -547,6 +547,11 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 * Defaults to true.
 	 */
 	ignoreTrimWhitespace?: boolean;
+	/**
+	 * Original model should be editable?
+	 * Defaults to false.
+	 */
+	originalEditable?: boolean;
 }
 
 /**
