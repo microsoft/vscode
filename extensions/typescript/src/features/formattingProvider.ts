@@ -146,7 +146,7 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 			indentSize: options.tabSize,
 			convertTabsToSpaces: options.insertSpaces,
 			// We can use \n here since the editor normalizes later on to its line endings.
-			newLineCharacter: '\n' /*,
+			newLineCharacter: '\n',
 			insertSpaceAfterCommaDelimiter: this.config.insertSpaceAfterCommaDelimiter,
 			insertSpaceAfterSemicolonInForStatements: this.config.insertSpaceAfterSemicolonInForStatements,
 			insertSpaceBeforeAndAfterBinaryOperators: this.config.insertSpaceBeforeAndAfterBinaryOperators,
@@ -156,7 +156,6 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 			insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets,
 			placeOpenBraceOnNewLineForFunctions: this.config.placeOpenBraceOnNewLineForFunctions,
 			placeOpenBraceOnNewLineForControlBlocks: this.config.placeOpenBraceOnNewLineForControlBlocks
-			*/
 		};
 	}
 }
