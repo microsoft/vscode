@@ -21,23 +21,29 @@ export class Position implements IEditorPosition {
 	}
 
 	public isBefore(other:IPosition): boolean {
-		if (this.lineNumber < other.lineNumber) {
+		return Position.isBefore(this, other);
+	}
+	public static isBefore(a:IPosition, b:IPosition): boolean {
+		if (a.lineNumber < b.lineNumber) {
 			return true;
 		}
-		if (other.lineNumber < this.lineNumber) {
+		if (b.lineNumber < a.lineNumber) {
 			return false;
 		}
-		return this.column < other.column;
+		return a.column < b.column;
 	}
 
 	public isBeforeOrEqual(other:IPosition): boolean {
-		if (this.lineNumber < other.lineNumber) {
+		return Position.isBeforeOrEqual(this, other);
+	}
+	public static isBeforeOrEqual(a:IPosition, b:IPosition): boolean {
+		if (a.lineNumber < b.lineNumber) {
 			return true;
 		}
-		if (other.lineNumber < this.lineNumber) {
+		if (b.lineNumber < a.lineNumber) {
 			return false;
 		}
-		return this.column <= other.column;
+		return a.column <= b.column;
 	}
 
 	public clone(): Position {
