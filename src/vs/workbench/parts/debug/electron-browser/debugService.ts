@@ -676,7 +676,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			sourceMaps: configuration.sourceMaps,
 			outDir: configuration.outDir,
 			debugServer: configuration.debugServer
-		}, true);
+		}, false);
 	}
 
 	public restartSession(): TPromise<any> {
