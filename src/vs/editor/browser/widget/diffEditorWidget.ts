@@ -631,6 +631,8 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		dimensions = dimensions || dom.getDomNodePosition(this._containerDomElement);
 
 		if (dimensions.width <= 0) {
+			this._width = 0;
+			this._height = 0;
 			return;
 		}
 
