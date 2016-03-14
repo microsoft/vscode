@@ -11,7 +11,7 @@ import { ThroughStream } from 'through';
 import File = require('vinyl');
 import * as Is from 'is';
 
-const quiet = !!process.env['VSCODE_BUILD_QUIET'];
+const quiet = !!process.env['VSCODE_BUILD_QUIET'] && false;
 
 var util = require('gulp-util');
 function log(message: any, ...rest: any[]): void {

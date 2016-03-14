@@ -8,7 +8,7 @@ var fs = require('fs');
 var event_stream_1 = require('event-stream');
 var File = require('vinyl');
 var Is = require('is');
-var quiet = !!process.env['VSCODE_BUILD_QUIET'];
+var quiet = !!process.env['VSCODE_BUILD_QUIET'] && false;
 var util = require('gulp-util');
 function log(message) {
     var rest = [];
