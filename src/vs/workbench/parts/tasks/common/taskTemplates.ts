@@ -52,7 +52,7 @@ const grunt: TaskEntry = {
 	id: 'grunt',
 	label: 'Grunt',
 	autoDetect: true,
-	description: nls.localize('grunt', 'Creates a tasks.json file for Grunt. If a jake file is present tasks will be auto-detected.'),
+	description: nls.localize('grunt', 'Creates a tasks.json file for Grunt. If a grunt file is present tasks will be auto-detected.'),
 	content: [
 		'{',
 			'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
