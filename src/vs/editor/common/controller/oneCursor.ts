@@ -1759,7 +1759,7 @@ export class OneCursorOp {
 			if (nextWordOnLine) {
 				column = nextWordOnLine.end + 1;
 			} else {
-				column = 1;
+				column = maxColumn;
 			}
 
 			var deleteSelection = new Range(lineNumber, column, lineNumber, position.column);

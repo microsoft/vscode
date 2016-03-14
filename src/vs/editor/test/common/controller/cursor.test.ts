@@ -1347,6 +1347,30 @@ suite('Editor Controller - Regression tests', () => {
 			assertWordRight(50, '   /* Just some   more   text a+= 3 +5-3 + 7 */  '.length + 1);
 		});
 	});
+
+	test('issue #3882 (1): Ctrl+Delete removing entire line when used at the end of line', () => {
+		usingCursor({
+			text: [
+				'A line with text.',
+				'   And another one'
+			],
+		}, (model, cursor) => {
+			moveTo(cursor, 1, 18, false);
+			deleteWordRight(cursor); assert.equal(model.getLineContent(1), 'A line with text.   And another one', '001');
+		});
+	});
+
+	test('issue #3882 (2): Ctrl+Delete removing entire line when used at the end of line', () => {
+		usingCursor({
+			text: [
+				'A line with text.',
+				'   And another one'
+			],
+		}, (model, cursor) => {
+			moveTo(cursor, 2, 1, false);
+			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), 'A line with text.   And another one', '001');
+		});
+	});
 });
 
 suite('Editor Controller - Cursor Configuration', () => {
