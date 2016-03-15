@@ -12,6 +12,7 @@ import {assign} from 'vs/base/common/objects';
 import platform = require('vs/base/common/platform');
 import env = require('vs/workbench/electron-main/env');
 import windows = require('vs/workbench/electron-main/windows');
+import window = require('vs/workbench/electron-main/window');
 import lifecycle = require('vs/workbench/electron-main/lifecycle');
 import menu = require('vs/workbench/electron-main/menus');
 import settings = require('vs/workbench/electron-main/settings');
@@ -28,30 +29,31 @@ export class LaunchService {
 		env.log('Received data from other instance', args);
 
 		let killOtherInstance = args.waitForWindowClose;
+		let usedWindows: window.VSCodeWindow[];
 
 		// Otherwise handle in windows manager
 		if (!!args.extensionDevelopmentPath) {
 			windows.manager.openPluginDevelopmentHostWindow({ cli: args, userEnv: userEnv });
 		} else if (args.pathArguments.length === 0 && args.openNewWindow) {
-			windows.manager.open({ cli: args, userEnv: userEnv, forceNewWindow: true, forceEmpty: true });
+			usedWindows = windows.manager.open({ cli: args, userEnv: userEnv, forceNewWindow: true, forceEmpty: true });
 		} else if (args.pathArguments.length === 0) {
-			windows.manager.focusLastActive(args);
+			usedWindows = [windows.manager.focusLastActive(args)];
 		} else {
-			let usedWindows = windows.manager.open({ cli: args, userEnv: userEnv, forceNewWindow: args.waitForWindowClose || args.openNewWindow, preferNewWindow: !args.openInSameWindow });
+			usedWindows = windows.manager.open({ cli: args, userEnv: userEnv, forceNewWindow: args.waitForWindowClose || args.openNewWindow, preferNewWindow: !args.openInSameWindow });
+		}
 
-			// If the other instance is waiting to be killed, we hook up a window listener if one window
-			// is being used and kill the other instance when that window is being closed
-			if (args.waitForWindowClose && usedWindows && usedWindows.length === 1) {
-				let windowToObserve = usedWindows[0];
-				killOtherInstance = false; // only scenario where the "-w" switch is supported and makes sense
+		// If the other instance is waiting to be killed, we hook up a window listener if one window
+		// is being used and kill the other instance when that window is being closed
+		if (args.waitForWindowClose && usedWindows && usedWindows.length === 1 && usedWindows[0]) {
+			let windowToObserve = usedWindows[0];
+			killOtherInstance = false; // only scenario where the "-w" switch is supported and makes sense
 
-				let unbind = windows.onClose(id => {
-					if (id === windowToObserve.id) {
-						unbind();
-						process.kill(otherInstancePid);
-					}
-				});
-			}
+			let unbind = windows.onClose(id => {
+				if (id === windowToObserve.id) {
+					unbind();
+					process.kill(otherInstancePid);
+				}
+			});
 		}
 
 		if (killOtherInstance) {

@@ -964,17 +964,19 @@ export class WindowsManager {
 		});
 	}
 
-	public focusLastActive(cli: env.ICommandLineArguments): void {
+	public focusLastActive(cli: env.ICommandLineArguments): window.VSCodeWindow {
 		let lastActive = this.getLastActiveWindow();
 		if (lastActive) {
 			lastActive.focus();
+
+			return lastActive;
 		}
 
 		// No window - open new one
-		else {
-			this.windowsState.openedFolders = []; // make sure we do not open too much
-			this.open({ cli: cli });
-		}
+		this.windowsState.openedFolders = []; // make sure we do not open too much
+		const res = this.open({ cli: cli });
+
+		return res && res[0];
 	}
 
 	public getLastActiveWindow(): window.VSCodeWindow {
