@@ -15,6 +15,8 @@ import { IExtensionsService, IExtension } from 'vs/workbench/parts/extensions/co
 import { extensionEquals } from 'vs/workbench/parts/extensions/common/extensionsUtil';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 
+const CloseAction = new Action('action.close', nls.localize('close', "Close"));
+
 export class ListExtensionsAction extends Action {
 
 	static ID = 'workbench.extensions.action.listExtensions';
@@ -140,7 +142,10 @@ export class InstallAction extends Action {
 			Severity.Info,
 			{
 				message: nls.localize('success-installed', "'{0}' was successfully installed. Restart to enable it.", extension.displayName),
-				actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('restartNow', "Restart Now"))]
+				actions: [
+					CloseAction,
+					this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('restartNow', "Restart Now"))
+				]
 			}
 		);
 	}
@@ -196,7 +201,10 @@ export class UninstallAction extends Action {
 			Severity.Info,
 			{
 				message: nls.localize('success-uninstalled', "'{0}' was successfully uninstalled. Restart to deactivate it.", extension.displayName),
-				actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('restartNow2', "Restart Now"))]
+				actions: [
+					CloseAction,
+					this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, nls.localize('restartNow2', "Restart Now"))
+				]
 			}
 		);
 	}
