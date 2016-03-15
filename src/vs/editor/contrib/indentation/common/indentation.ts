@@ -79,9 +79,12 @@ export class ChangeIndentationSizeAction extends EditorAction {
 		const picks = [1, 2, 3, 4, 5, 6, 7, 8].map(n => ({
 			id: n.toString(),
 			label: n.toString(),
+			// add description for tabSize value set in the configuration
 			description: n === creationOpts.tabSize ? nls.localize('configuredTabSize', "Configured Tab Size") : null
 		}));
-		const autoFocusIndex = Math.min(creationOpts.tabSize - 1, 7);
+
+		// auto focus the tabSize set for the current editor
+		const autoFocusIndex = Math.min(model.getOptions().tabSize - 1, 7);
 
 		return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() =>
 			this.quickOpenService.pick(picks, { placeHolder: nls.localize('selectTabWidth', "Select Tab Size for Current File"), autoFocus: { autoFocusIndex } }).then(pick => {
