@@ -12,6 +12,7 @@ import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorAction} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
@@ -603,7 +604,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 
 abstract class FoldingAction extends EditorAction {
 	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor) {
-		super(descriptor, editor);
+		super(descriptor, editor, Behaviour.TextFocus);
 	}
 
 	abstract invoke(foldingController: FoldingController): void;
