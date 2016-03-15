@@ -9,6 +9,7 @@ import 'vs/css!./contentWidgets';
 import * as dom from 'vs/base/browser/dom';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import {Position} from 'vs/editor/common/core/position';
 import {ClassNames, ContentWidgetPositionPreference, IContentWidget, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 
@@ -159,11 +160,40 @@ export class ViewContentWidgets extends ViewPart {
 		this.shouldRender = true;
 	}
 
-	public setWidgetPosition(widget: IContentWidget, position: editorCommon.IPosition, preference:ContentWidgetPositionPreference[]): void {
+	private static _contentWidgetPositionPreferenceEqual(a:ContentWidgetPositionPreference[], b:ContentWidgetPositionPreference[]): boolean {
+		if (!a && !b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		if (a.length !== b.length) {
+			return false;
+		}
+		for (let i = 0, len = a.length; i < len; i++) {
+			if (a[i] !== b[i]) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	public setWidgetPosition(widget: IContentWidget, position: editorCommon.IPosition, preference:ContentWidgetPositionPreference[]): boolean {
 		let widgetData = this._widgets[widget.getId()];
-		widgetData.position = position;
-		widgetData.preference = preference;
-		this.shouldRender = true;
+		let somethingChanged = false;
+
+		if (!Position.equals(widgetData.position, position)) {
+			widgetData.position = position;
+			somethingChanged = true;
+		}
+
+		if (!ViewContentWidgets._contentWidgetPositionPreferenceEqual(widgetData.preference, preference)) {
+			widgetData.preference = preference;
+			somethingChanged = true;
+		}
+
+		this.shouldRender = somethingChanged;
+		return somethingChanged;
 	}
 
 	public removeWidget(widget: IContentWidget): void {

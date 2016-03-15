@@ -17,7 +17,18 @@ export class Position implements IEditorPosition {
 	}
 
 	public equals(other:IPosition): boolean {
-		return (!!other && this.lineNumber === other.lineNumber && this.column === other.column);
+		return Position.equals(this, other);
+	}
+	public static equals(a:IPosition, b:IPosition): boolean {
+		if (!a && !b) {
+			return true;
+		}
+		return (
+			!!a &&
+			!!b &&
+			a.lineNumber === b.lineNumber &&
+			a.column === b.column
+		);
 	}
 
 	public isBefore(other:IPosition): boolean {

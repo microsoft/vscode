@@ -74,15 +74,19 @@ export class ViewOverlayWidgets extends ViewPart {
 		this.domNode.appendChild(domNode);
 	}
 
-	public setWidgetPosition(widget: IOverlayWidget, preference:OverlayWidgetPositionPreference): void {
+	public setWidgetPosition(widget: IOverlayWidget, preference:OverlayWidgetPositionPreference): boolean {
 		var widgetData = this._widgets[widget.getId()];
-		widgetData.preference = preference;
+		if (widgetData.preference === preference) {
+			return false;
+		}
 
+		widgetData.preference = preference;
 		this._requestModificationFrame(() => {
 			if(this._widgets.hasOwnProperty(widget.getId())) {
 				this._renderWidget(widgetData);
 			}
 		});
+		return true;
 	}
 
 	public removeWidget(widget: IOverlayWidget): void {

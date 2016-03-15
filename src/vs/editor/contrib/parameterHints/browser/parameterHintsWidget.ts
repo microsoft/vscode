@@ -92,7 +92,9 @@ export class ParameterHintsWidget implements IContentWidget {
 		this.toDispose = [];
 
 		this.toDispose.push(this.editor.addListener2(EventType.CursorSelectionChanged,(e: ICursorSelectionChangedEvent) => {
-			this.editor.layoutContentWidget(this);
+			if (this.isVisible) {
+				this.editor.layoutContentWidget(this);
+			}
 		}));
 	}
 
@@ -117,6 +119,9 @@ export class ParameterHintsWidget implements IContentWidget {
 		if (this.isDisposed) {
 			return;
 		}
+		if (this.isVisible) {
+			return;
+		}
 		this._onShown();
 
 		this.isVisible = true;
@@ -128,6 +133,9 @@ export class ParameterHintsWidget implements IContentWidget {
 
 	private hide(): void {
 		if (this.isDisposed) {
+			return;
+		}
+		if (!this.isVisible) {
 			return;
 		}
 		this._onHidden();
@@ -221,7 +229,7 @@ export class ParameterHintsWidget implements IContentWidget {
 
 	private select(position: number): void {
 		var signature = this.signatureViews[position];
-		
+
 		if (!signature) {
 			return;
 		}
