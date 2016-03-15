@@ -51,13 +51,21 @@ export class LaunchService {
 			let unbind = windows.onClose(id => {
 				if (id === windowToObserve.id) {
 					unbind();
-					process.kill(otherInstancePid);
+					try {
+						process.kill(otherInstancePid);
+					} catch (e) {
+						env.log(e); // process might not live anymore
+					}
 				}
 			});
 		}
 
 		if (killOtherInstance) {
-			process.kill(otherInstancePid);
+			try {
+				process.kill(otherInstancePid);
+			} catch (e) {
+				env.log(e); // process might not live anymore
+			}
 		}
 
 		return TPromise.as(null);
