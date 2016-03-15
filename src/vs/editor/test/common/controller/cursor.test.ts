@@ -841,6 +841,12 @@ suite('Editor Controller - Regression tests', () => {
 			text: [
 				''
 			],
+			modelOpts: {
+				defaultEOL: DefaultEndOfLine.LF,
+				detectIndentation: false,
+				insertSpaces: false,
+				tabSize: 4
+			}
 		}, (model, cursor) => {
 			cursorCommand(cursor, H.Type, { text: '\n' }, null, 'keyboard');
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n', 'assert1');
@@ -922,6 +928,12 @@ suite('Editor Controller - Regression tests', () => {
 				'\t}',
 				'}'
 			],
+			modelOpts: {
+				defaultEOL: DefaultEndOfLine.LF,
+				detectIndentation: false,
+				insertSpaces: false,
+				tabSize: 4
+			},
 			mode: new OnEnterMode(IndentAction.Indent),
 		}, (model, cursor) => {
 			moveTo(cursor, 4, 1, false);
@@ -937,6 +949,12 @@ suite('Editor Controller - Regression tests', () => {
 			text: [
 				'function baz() {'
 			],
+			modelOpts: {
+				defaultEOL: DefaultEndOfLine.LF,
+				detectIndentation: false,
+				insertSpaces: false,
+				tabSize: 4
+			},
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 2, false);
 			cursorEqual(cursor, 1, 2, 1, 2);
@@ -994,6 +1012,12 @@ suite('Editor Controller - Regression tests', () => {
 				'}',
 				''
 			],
+			modelOpts: {
+				defaultEOL: DefaultEndOfLine.LF,
+				detectIndentation: false,
+				insertSpaces: false,
+				tabSize: 4
+			},
 		}, (model, cursor) => {
 			moveTo(cursor, 7, 1, false);
 			cursorEqual(cursor, 7, 1, 7, 1);

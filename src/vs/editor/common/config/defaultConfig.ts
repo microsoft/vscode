@@ -14,7 +14,7 @@ export interface IConfiguration {
 export const USUAL_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?';
 export const DEFAULT_INDENTATION = {
 	tabSize: 4,
-	insertSpaces: false,
+	insertSpaces: true,
 	detectIndentation: true
 };
 
