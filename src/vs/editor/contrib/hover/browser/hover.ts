@@ -151,11 +151,8 @@ class ShowHoverAction extends EditorAction {
 
 	public run(): TPromise<any> {
 		const position = this.editor.getPosition();
-		const word = this.editor.getModel().getWordAtPosition(position);
-		if (word) {
-			const range = new Range(position.lineNumber, position.column, position.lineNumber, word.endColumn);
-			(<ModesHoverController>this.editor.getContribution(ModesHoverController.ID)).showContentHover(range, true);
-		}
+		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+		(<ModesHoverController>this.editor.getContribution(ModesHoverController.ID)).showContentHover(range, true);
 
 		return TPromise.as(null);
 	}
