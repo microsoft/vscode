@@ -25,13 +25,11 @@ import {spawnSharedProcess} from 'vs/workbench/electron-main/sharedProcess';
 import {Mutex} from 'windows-mutex';
 
 export class LaunchService {
-	public start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment, otherInstancePid: number): TPromise<void> {
+	public start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): TPromise<void> {
 		env.log('Received data from other instance', args);
 
-		let killOtherInstance = args.waitForWindowClose;
-		let usedWindows: window.VSCodeWindow[];
-
 		// Otherwise handle in windows manager
+		let usedWindows: window.VSCodeWindow[];
 		if (!!args.extensionDevelopmentPath) {
 			windows.manager.openPluginDevelopmentHostWindow({ cli: args, userEnv: userEnv });
 		} else if (args.pathArguments.length === 0 && args.openNewWindow) {
@@ -43,29 +41,19 @@ export class LaunchService {
 		}
 
 		// If the other instance is waiting to be killed, we hook up a window listener if one window
-		// is being used and kill the other instance when that window is being closed
+		// is being used and only then resolve the startup promise which will kill this second instance
 		if (args.waitForWindowClose && usedWindows && usedWindows.length === 1 && usedWindows[0]) {
-			let windowToObserve = usedWindows[0];
-			killOtherInstance = false; // only scenario where the "-w" switch is supported and makes sense
+			const windowId = usedWindows[0].id;
 
-			let unbind = windows.onClose(id => {
-				if (id === windowToObserve.id) {
-					unbind();
-					try {
-						process.kill(otherInstancePid);
-					} catch (e) {
-						env.log(e); // process might not live anymore
+			return new TPromise<void>((c, e) => {
+
+				const unbind = windows.onClose(id => {
+					if (id === windowId) {
+						unbind();
+						c(null);
 					}
-				}
+				});
 			});
-		}
-
-		if (killOtherInstance) {
-			try {
-				process.kill(otherInstancePid);
-			} catch (e) {
-				env.log(e); // process might not live anymore
-			}
 		}
 
 		return TPromise.as(null);
@@ -107,10 +95,7 @@ function quit(arg?: any) {
 		}
 	}
 
-	// If not in wait mode or seeing an error: exit directly
-	if (!env.cliArgs.waitForWindowClose || exitCode) {
-		process.exit(exitCode);
-	}
+	process.exit(exitCode);
 }
 
 function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
@@ -253,7 +238,7 @@ function setupIPC(): TPromise<Server> {
 
 					const service = client.getService<LaunchService>('LaunchService', LaunchService);
 
-					return service.start(env.cliArgs, process.env, process.pid)
+					return service.start(env.cliArgs, process.env)
 						.then(() => client.dispose())
 						.then(() => TPromise.wrapError('Sent env to running instance. Terminating...'));
 				},
