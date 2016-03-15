@@ -19,23 +19,31 @@ interface Option extends vscode.MessageItem {
 
 interface Hint {
 	message: string;
-	option: Option;
+	options: Option[];
 }
 
 const fileLimit = 500;
 
-export function create(client: ITypescriptServiceClient) {
+export function create(client: ITypescriptServiceClient, memento: vscode.Memento) {
 
 	const toDispose: vscode.Disposable[] = [];
-	const projectHinted: { [k: string]:any} = Object.create(null);
+	const projectHinted: { [k: string]: boolean } = Object.create(null);
+
+	const projectHintIgnoreList = memento.get<string[]>('projectHintIgnoreList', []);
+	for (let path of projectHintIgnoreList) {
+		if (path === null) {
+			path = undefined;
+		}
+		projectHinted[path] = true;
+	}
 
 	let currentHint: Hint;
 	let item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
 	item.command = 'js.projectStatus.command';
 	toDispose.push(vscode.commands.registerCommand('js.projectStatus.command', () => {
-		let {message, option} = currentHint;
-		return vscode.window.showInformationMessage(message, option).then(selection => {
-			if (selection === option) {
+		let {message, options} = currentHint;
+		return vscode.window.showInformationMessage(message, ...options).then(selection => {
+			if (selection) {
 				return selection.execute();
 			}
 		});
@@ -64,7 +72,16 @@ export function create(client: ITypescriptServiceClient) {
 			if (!configFileName) {
 				currentHint = {
 					message: localize('hintCreate', "Have a project and experience better IntelliSense and code navigation."),
-					option: {
+					options: [{
+						title: localize('ignore.cmdCreate', 'Ignore'),
+						execute: () => {
+							client.logTelemetry('js.hintProjectCreation.ignored');
+							projectHinted[configFileName] = true;
+							projectHintIgnoreList.push(configFileName);
+							memento.update('projectHintIgnoreList', projectHintIgnoreList);
+							item.hide();
+						}
+					},{
 						title: localize('cmdCreate', "Create jsconfig.json..."),
 						execute: () => {
 							client.logTelemetry('js.hintProjectCreation.accepted');
@@ -75,7 +92,7 @@ export function create(client: ITypescriptServiceClient) {
 								.then(vscode.window.showTextDocument)
 								.then(editor => editor.edit(builder => builder.insert(new vscode.Position(0, 0), defaultConfig)));
 						}
-					}
+					}]
 				};
 				item.text = '$(light-bulb)';
 				item.tooltip = localize('hint.tooltip', "Have a project and have better IntelliSense, better symbol search, and much more.");
@@ -91,7 +108,7 @@ export function create(client: ITypescriptServiceClient) {
 					message: localize('hintExclude', "'{0}' is a large project. For better performance exclude folders with many files, like: {1}...",
 						vscode.workspace.asRelativePath(configFileName),
 						largeRoots),
-					option: {
+					options: [{
 						title: localize('open', "Configure excludes..."),
 						execute: () => {
 							client.logTelemetry('js.hintProjectExcludes.accepted');
@@ -101,7 +118,7 @@ export function create(client: ITypescriptServiceClient) {
 							return vscode.workspace.openTextDocument(configFileName)
 								.then(vscode.window.showTextDocument);
 						}
-					}
+					}]
 				};
 				item.tooltip = currentHint.message;
 				item.text = localize('large.label', "Configure Excludes");
