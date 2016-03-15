@@ -854,7 +854,7 @@ export class ChangeEncodingAction extends Action {
 								aliasMatchIndex = index;
 							}
 
-							return { id: key, label: SUPPORTED_ENCODINGS[key].labelLong, description: key === configuredEncoding ? nls.localize('defaultEncoding', "Configured in Settings") : void 0 };
+							return { id: key, label: SUPPORTED_ENCODINGS[key].labelLong };
 						});
 
 					return this.quickOpenService.pick(picks, {
