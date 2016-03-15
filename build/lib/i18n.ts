@@ -69,9 +69,9 @@ const vscodeLanguages: string[] = [
 ];
 
 const iso639_3_to_2: Map<string> = {
-	'chs': 'zh-cn',
-	'cht': 'zh-tw',
-	'csy': 'cs-cz',
+	'chs': 'zh-CN',
+	'cht': 'zh-TW',
+	'csy': 'cs-CZ',
 	'deu': 'de',
 	'enu': 'en',
 	'esn': 'es',
@@ -82,10 +82,10 @@ const iso639_3_to_2: Map<string> = {
 	'kor': 'ko',
 	'nld': 'nl',
 	'plk': 'pl',
-	'ptb': 'pt-br',
+	'ptb': 'pt-BR',
 	'ptg': 'pt',
 	'rus': 'ru',
-	'sve': 'sv-se',
+	'sve': 'sv-SE',
 	'trk': 'tr'
 };
 
