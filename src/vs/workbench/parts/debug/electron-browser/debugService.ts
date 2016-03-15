@@ -57,7 +57,6 @@ const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
 const DEBUG_EXCEPTION_BREAKPOINTS_KEY = 'debug.exceptionbreakpoint';
 const DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
 const DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
-const HIDE_REPL_TIMEOUT = 1000;
 
 export class DebugService extends ee.EventEmitter implements debug.IDebugService {
 	public serviceId = debug.IDebugService;
@@ -702,15 +701,13 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 		if (this.session) {
 			const bpsExist = this.model.getBreakpoints().length > 0;
-			this.telemetryService.publicLog('debugSessionStop', { type: this.session.getType(), success: this.session.emittedStopped || !bpsExist, sessionLengthInSeconds: this.session.getLengthInSeconds(), breakpointCount: this.model.getBreakpoints().length, watchExpressionsCount: this.model.getWatchExpressions().length });
-			if (!this.session.restarted) {
-				setTimeout(() => {
-					const panel = this.panelService.getActivePanel();
-					if (panel && panel.getId() === debug.REPL_ID) {
-						this.partService.setPanelHidden(true);
-					}
-				}, HIDE_REPL_TIMEOUT);
-			}
+			this.telemetryService.publicLog('debugSessionStop', {
+				type: this.session.getType(),
+				success: this.session.emittedStopped || !bpsExist,
+				sessionLengthInSeconds: this.session.getLengthInSeconds(),
+				breakpointCount: this.model.getBreakpoints().length,
+				watchExpressionsCount: this.model.getWatchExpressions().length
+			});
 		}
 		this.session = null;
 		this.partService.removeClass('debugging');
