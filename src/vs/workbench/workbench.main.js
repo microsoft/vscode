@@ -81,7 +81,7 @@ define([
 
 	'vs/workbench/parts/gettingStarted/electron-browser/electronGettingStarted.contribution',
 
-	'vs/workbench/parts/releaseNotes/electron-browser/releaseNotes.contribution',
+	'vs/workbench/parts/update/electron-browser/update.contribution',
 
 	'vs/workbench/electron-browser/darwin/cli.contribution',
 

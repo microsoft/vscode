@@ -108,6 +108,7 @@ export interface IEnvironment {
 	};
 
 	releaseNotesUrl: string;
+	licenseUrl: string;
 	productDownloadUrl: string;
 
 	welcomePage: string;

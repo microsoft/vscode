@@ -117,6 +117,7 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 	};
 	welcomePage: string;
 	releaseNotesUrl: string;
+	licenseUrl: string;
 	productDownloadUrl: string;
 	enableTelemetry: boolean;
 	userEnv: env.IProcessEnvironment;
