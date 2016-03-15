@@ -260,6 +260,10 @@ export class MainThreadTextEditor {
 	}
 
 	private _readConfiguration(model:EditorCommon.IModel, codeEditor:EditorCommon.ICommonCodeEditor): IResolvedTextEditorConfiguration {
+		if (model.isDisposed()) {
+			// shutdown time
+			return this._configuration;
+		}
 		let cursorStyle = this._configuration ? this._configuration.cursorStyle : EditorCommon.TextEditorCursorStyle.Line;
 		if (codeEditor) {
 			let codeEditorOpts = codeEditor.getConfiguration();
