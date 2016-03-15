@@ -119,7 +119,13 @@ export class ExtensionsService implements IExtensionsService {
 			return this.installFromZip(arg);
 		}
 
-		return this.installFromGallery(arg);
+		return this.isObsolete(arg as IExtension).then(obsolete => {
+			if (obsolete) {
+				return TPromise.wrapError(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", extension.name)));
+			}
+
+			return this.installFromGallery(arg);
+		});
 	}
 
 	private installFromGallery(extension: IExtension): TPromise<IExtension> {
@@ -255,6 +261,11 @@ export class ExtensionsService implements IExtensionsService {
 			return extensions
 				.filter(e => !!e.path);
 		});
+	}
+
+	private isObsolete(extension: IExtension): TPromise<boolean> {
+		const id = getExtensionId(extension);
+		return this.withObsoleteExtensions(obsolete => !!obsolete[id]);
 	}
 
 	private setObsolete(extension: IExtension): TPromise<void> {
