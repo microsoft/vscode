@@ -721,12 +721,11 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			throw new Error('ViewImpl.layoutContentWidget: View is disposed');
 		}
 
-		let newPosition = widgetData.position ? widgetData.position.position : null;
-		let newPreference = widgetData.position ? widgetData.position.preference : null;
-		let shouldRender = this.contentWidgets.setWidgetPosition(widgetData.widget, newPosition, newPreference);
-		if (shouldRender) {
-			this._scheduleRender();
-		}
+		this._renderOnce(() => {
+			let newPosition = widgetData.position ? widgetData.position.position : null;
+			let newPreference = widgetData.position ? widgetData.position.preference : null;
+			this.contentWidgets.setWidgetPosition(widgetData.widget, newPosition, newPreference);
+		});
 	}
 
 	public removeContentWidget(widgetData: editorBrowser.IContentWidgetData): void {
