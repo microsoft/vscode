@@ -223,6 +223,18 @@
 			"settings": {
 				"foreground": "#b5cea8"
 			}
+		},
+		{
+			"scope": "support.function.git-rebase",
+			"settings": {
+				"foreground": "#d4d4d4"
+			}
+		},
+		{
+			"scope": "constant.sha.git-rebase",
+			"settings": {
+				"foreground": "#b5cea8"
+			}
 		}
 	]
 }
