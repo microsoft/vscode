@@ -257,7 +257,7 @@ function _processThemeObject(themeId: string, themeDocument: ThemeDocument): str
 	}
 	if (editorSettings.lineHighlight) {
 		let lineHighlight = new Color(editorSettings.lineHighlight);
-		cssRules.push(`.monaco-editor.${themeSelector} .current-line { background-color: ${lineHighlight}; }`);
+		cssRules.push(`.monaco-editor.${themeSelector} .current-line { background-color: ${lineHighlight}; border:0; }`);
 	}
 	if (editorSettings.caret) {
 		let caret = new Color(editorSettings.caret);
