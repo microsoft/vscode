@@ -10,6 +10,33 @@ var app = require('electron').app;
 var fs = require('fs');
 var path = require('path');
 
+function stripComments(content) {
+	var regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
+	var result = content.replace(regexp, function (match, m1, m2, m3, m4) {
+		// Only one of m1, m2, m3, m4 matches
+		if (m3) {
+			// A block comment. Replace with nothing
+			return '';
+		}
+		else if (m4) {
+			// A line comment. If it ends in \r?\n then keep it.
+			var length_1 = m4.length;
+			if (length_1 > 2 && m4[length_1 - 1] === '\n') {
+				return m4[length_1 - 2] === '\r' ? '\r\n' : '\n';
+			}
+			else {
+				return '';
+			}
+		}
+		else {
+			// We match a string
+			return match;
+		}
+	});
+	return result;
+};
+
+
 // Duplicated in ../index.html for the renderes.
 function getNLSConfiguration() {
 	var locale = undefined;
@@ -20,6 +47,21 @@ function getNLSConfiguration() {
 			var segments = arg.split('=');
 			locale = segments[1];
 			break;
+		}
+	}
+
+	if (!locale) {
+		var userData = app.getPath('userData');
+		localeConfig = path.join(userData, 'User', 'locale.json');
+		if (fs.existsSync(localeConfig)) {
+			try {
+				var content = stripComments(fs.readFileSync(localeConfig, 'utf8'));
+				value = JSON.parse(content).locale;
+				if (value && typeof value === 'string') {
+					locale = value;
+				}
+			} catch (e) {
+			}
 		}
 	}
 
@@ -72,10 +114,9 @@ app.on('open-file', function(event, path) {
 	global.macOpenFiles.push(path);
 });
 
-var nlsConfig = getNLSConfiguration();
-process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
-
 // Load our code once ready
 app.once('ready', function() {
+	var nlsConfig = getNLSConfiguration();
+	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 	require('./bootstrap-amd').bootstrap('vs/workbench/electron-main/main');
 });

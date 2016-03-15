@@ -30,6 +30,7 @@ define([
 	'vs/workbench/browser/actions/triggerNavigation',
 	'vs/workbench/browser/actions/showPerformanceBox',
 	'vs/workbench/browser/actions/openSettings',
+	'vs/workbench/browser/actions/configureLocale',
 
 	'vs/workbench/parts/quickopen/browser/quickopen.contribution',
 
