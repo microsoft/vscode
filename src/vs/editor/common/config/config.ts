@@ -246,22 +246,28 @@ registerCoreCommand(H.ScrollPageDown, {
 });
 
 registerCoreCommand(H.CursorColumnSelectLeft, {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
+	linux: { primary: 0 }
 });
 registerCoreCommand(H.CursorColumnSelectRight, {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
+	linux: { primary: 0 }
 });
 registerCoreCommand(H.CursorColumnSelectUp, {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow,
+	linux: { primary: 0 }
 });
 registerCoreCommand(H.CursorColumnSelectPageUp, {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.PageUp
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.PageUp,
+	linux: { primary: 0 }
 });
 registerCoreCommand(H.CursorColumnSelectDown, {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow,
+	linux: { primary: 0 }
 });
 registerCoreCommand(H.CursorColumnSelectPageDown, {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.PageDown
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.PageDown,
+	linux: { primary: 0 }
 });
 
 registerCoreCommand(H.Tab, {
