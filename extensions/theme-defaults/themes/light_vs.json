@@ -185,15 +185,9 @@
 			}
 		},
 		{
-			"scope": "string.tag",
+			"scope": ["string.xml", "string.jade", "string.yaml", "string.html"],
 			"settings": {
 				"foreground": "#0000ff"
-			}
-		},
-		{
-			"scope": "string.value",
-			"settings": {
-				"foreground": "#a31515"
 			}
 		},
 		{
