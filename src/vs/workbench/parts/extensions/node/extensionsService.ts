@@ -119,7 +119,8 @@ export class ExtensionsService implements IExtensionsService {
 			return this.installFromZip(arg);
 		}
 
-		return this.isObsolete(arg as IExtension).then(obsolete => {
+		const extension = arg as IExtension;
+		return this.isObsolete(extension).then(obsolete => {
 			if (obsolete) {
 				return TPromise.wrapError(new Error(nls.localize('restartCode', "Please restart Code before reinstalling {0}.", extension.name)));
 			}
