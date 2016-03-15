@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -11,13 +11,11 @@ import { emmet as $, append, toggleClass } from 'vs/base/browser/dom';
 import { IDisposable, combinedDispose } from 'vs/base/common/lifecycle';
 import { onUnexpectedPromiseError } from 'vs/base/common/errors';
 import { assign } from 'vs/base/common/objects';
-import { Action } from 'vs/base/common/actions';
-import statusbar = require('vs/workbench/browser/parts/statusbar/statusbar');
+import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { IExtensionService, IMessage } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
-import { UninstallAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
-import { IExtensionsService, commandCategory, IExtension, IExtensionManifest } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionsService, ExtensionsLabel, IExtension, IExtensionManifest } from 'vs/workbench/parts/extensions/common/extensions';
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { getOutdatedExtensions } from 'vs/workbench/parts/extensions/common/extensionsUtil';
 
@@ -39,7 +37,7 @@ function extensionEquals(one: IExtensionManifest, other: IExtensionManifest): bo
 
 const OutdatedPeriod = 5 * 60 * 1000; // every 5 minutes
 
-export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
+export class ExtensionsStatusbarItem implements IStatusbarItem {
 
 	private domNode: HTMLElement;
 	private state: IState = InitialState;
@@ -47,7 +45,7 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 
 	constructor(
 		@IExtensionService private extensionService: IExtensionService,
-		@IMessageService private messageService: IMessageService,
+		@IOutputService private outputService: IOutputService,
 		@IExtensionsService protected extensionsService: IExtensionsService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IQuickOpenService protected quickOpenService: IQuickOpenService
@@ -105,7 +103,7 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 		} else if (this.hasUpdates) {
 			this.quickOpenService.show(`ext update `);
 		} else {
-			this.quickOpenService.show(`>${commandCategory}: `);
+			this.quickOpenService.show(`>${ExtensionsLabel}: `);
 		}
 	}
 
@@ -114,16 +112,11 @@ export class ExtensionsStatusbarItem implements statusbar.IStatusbarItem {
 		promise.done(installed => {
 			errors.forEach(m => {
 				const extension = installed.filter(ext => ext.path === m.source).pop();
-				const actions = [CloseAction];
 				const name = extension && extension.name;
 				const message = name ? `${ name }: ${ m.message }` : m.message;
 
-				if (extension) {
-					const actionLabel = nls.localize('uninstall', "Uninstall");
-					actions.push(new Action('extensions.uninstall2', actionLabel, null, true, () => this.instantiationService.createInstance(UninstallAction).run(extension)));
-				}
-
-				this.messageService.show(m.type, { message, actions });
+				this.outputService.append(ExtensionsLabel, message);
+				this.outputService.showOutput(ExtensionsLabel, true);
 			});
 		});
 	}

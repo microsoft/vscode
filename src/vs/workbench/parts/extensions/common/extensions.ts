@@ -41,8 +41,8 @@ export interface IExtension extends IExtensionManifest {
 	path?: string;
 }
 
-export var IExtensionsService = createDecorator<IExtensionsService>('extensionsService');
-export var IGalleryService = createDecorator<IGalleryService>('galleryService');
+export const IExtensionsService = createDecorator<IExtensionsService>('extensionsService');
+export const IGalleryService = createDecorator<IGalleryService>('galleryService');
 
 export interface IGalleryService {
 	serviceId: ServiceIdentifier<any>;
@@ -63,11 +63,11 @@ export interface IExtensionsService {
 	getInstalled(includeDuplicateVersions?: boolean): TPromise<IExtension[]>;
 }
 
-export var IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');
+export const IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');
 
 export interface IExtensionTipsService {
 	serviceId: ServiceIdentifier<any>;
 	getRecommendations(): TPromise<IExtension[]>;
 }
 
-export var commandCategory = nls.localize('extensionsCategory', "Extensions");
+export const ExtensionsLabel = nls.localize('extensions', "Extensions");
