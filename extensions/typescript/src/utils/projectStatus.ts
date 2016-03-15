@@ -65,7 +65,7 @@ export function create(client: ITypescriptServiceClient) {
 				currentHint = {
 					message: localize('hintCreate', "Have a project and experience better IntelliSense and code navigation."),
 					option: {
-						title: localize('cmdCreate', "Create jsconfig.json-file..."),
+						title: localize('cmdCreate', "Create jsconfig.json..."),
 						execute: () => {
 							client.logTelemetry('js.hintProjectCreation.accepted');
 							projectHinted[configFileName] = true;
