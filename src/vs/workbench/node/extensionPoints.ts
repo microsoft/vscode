@@ -5,6 +5,7 @@
 
 'use strict';
 
+import * as nls from 'vs/nls';
 import pfs = require('vs/base/node/pfs');
 import {IExtensionDescription, IMessage} from 'vs/platform/extensions/common/extensions';
 import Severity from 'vs/base/common/severity';
@@ -93,13 +94,13 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 			let extensionDescription: IExtensionDescription = json.parse(manifestContents.toString(), errors);
 			if (errors.length > 0) {
 				errors.forEach((error) => {
-					this._collector.error(this._absoluteFolderPath, 'Failed to parse ' + this._absoluteManifestPath + ': ' + error);
+					this._collector.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", this._absoluteManifestPath, error));
 				});
 				return null;
 			}
 			return extensionDescription;
 		}, (err) => {
-			this._collector.error(this._absoluteFolderPath, 'Cannot read file ' + this._absoluteManifestPath + ': ' + err.message);
+			this._collector.error(this._absoluteFolderPath, nls.localize('fileReadFail', "Cannot read file {0}: {1}.", this._absoluteManifestPath, err.message));
 			return null;
 		});
 	}
@@ -124,14 +125,14 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 					let messages: { [key: string]: string; } = json.parse(messageBundleContent.toString(), errors);
 					if (errors.length > 0) {
 						errors.forEach((error) => {
-							this._collector.error(this._absoluteFolderPath, 'Failed to parse ' + messageBundle + ': ' + error);
+							this._collector.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", messageBundle, error));
 						});
 						return extensionDescription;
 					}
 					ExtensionManifestNLSReplacer._replaceNLStrings(extensionDescription, messages, this._collector, this._absoluteFolderPath);
 					return extensionDescription;
 				}, (err) => {
-					this._collector.error(this._absoluteFolderPath, 'Cannot read file ' + messageBundle + ': ' + err.message);
+					this._collector.error(this._absoluteFolderPath, nls.localize('fileReadFail', "Cannot read file {0}: {1}.", messageBundle, err.message));
 					return null;
 				});
 			});
@@ -186,7 +187,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 							}
 							literal[key] = message;
 						} else {
-							collector.warn(messageScope, `Couldn't find message for key ${messageKey}.`);
+							collector.warn(messageScope, nls.localize('missingNLSKey', "Couldn't find message for key {0}.", messageKey));
 						}
 					}
 				} else if (Types.isObject(value)) {
