@@ -492,6 +492,7 @@ export class WindowsManager {
 		if (openConfig.cli.diffMode && candidates.length === 2) {
 			filesToDiff = candidates;
 			foldersToOpen = []; // diff is always in empty workspace
+			filesToCreate = []; // diff ignores other files that do not exist
 		} else {
 			filesToOpen = candidates;
 		}
