@@ -11,6 +11,7 @@ import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/edi
 import {IndentationToSpacesCommand, IndentationToTabsCommand} from 'vs/editor/contrib/indentation/common/indentationCommands';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 
 export class IndentationToSpacesAction extends EditorAction {
 	static ID = 'editor.action.indentationToSpaces';
@@ -152,7 +153,7 @@ export class ToggleRenderWhitespaceAction extends EditorAction {
 	static ID = 'editor.action.toggleRenderWhitespace';
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
-		super(descriptor, editor);
+		super(descriptor, editor, Behaviour.TextFocus);
 	}
 
 	public run(): TPromise<boolean> {
