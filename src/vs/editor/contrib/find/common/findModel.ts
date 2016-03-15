@@ -362,6 +362,8 @@ export class FindModelBoundToEditorModel {
 }
 
 const BACKSLASH_CHAR_CODE = '\\'.charCodeAt(0);
+const DOLLAR_CHAR_CODE = '$'.charCodeAt(0);
+const ZERO_CHAR_CODE = '0'.charCodeAt(0);
 const n_CHAR_CODE = 'n'.charCodeAt(0);
 const t_CHAR_CODE = 't'.charCodeAt(0);
 
@@ -369,6 +371,7 @@ const t_CHAR_CODE = 't'.charCodeAt(0);
  * \n => LF
  * \t => TAB
  * \\ => \
+ * $0 => $& (see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace#Specifying_a_string_as_a_parameter)
  * everything else stays untouched
  */
 export function parseReplaceString(input:string): string {
@@ -405,6 +408,32 @@ export function parseReplaceString(input:string): string {
 				case t_CHAR_CODE:
 					// \t => TAB
 					replaceWithCharacter = '\t';
+					break;
+			}
+
+			if (replaceWithCharacter) {
+				result += input.substring(substrFrom, i - 1) + replaceWithCharacter;
+				substrFrom = i + 1;
+			}
+		}
+
+		if (chCode === DOLLAR_CHAR_CODE) {
+
+			// move to next char
+			i++;
+
+			if (i >= len) {
+				// string ends with a $
+				break;
+			}
+
+			let nextChCode = input.charCodeAt(i);
+			let replaceWithCharacter: string = null;
+
+			switch (nextChCode) {
+				case ZERO_CHAR_CODE:
+					// $0 => $&
+					replaceWithCharacter = '$&';
 					break;
 			}
 

@@ -50,6 +50,23 @@ suite('FindModel', () => {
 
 		// \ with back reference => no treatment
 		testParse('hello\\0', 'hello\\0');
+
+
+
+		// $1 => no treatment
+		testParse('hello$1', 'hello$1');
+		// $2 => no treatment
+		testParse('hello$2', 'hello$2');
+		// $12 => no treatment
+		testParse('hello$12', 'hello$12');
+		// $$ => no treatment
+		testParse('hello$$', 'hello$$');
+		// $$0 => no treatment
+		testParse('hello$$0', 'hello$$0');
+
+		// $0 => $&
+		testParse('hello$0', 'hello$&');
+		testParse('hello$02', 'hello$&2');
 	});
 
 	function findTest(testName:string, callback:(editor:ICommonCodeEditor, cursor:Cursor)=>void): void {
