@@ -44,7 +44,7 @@ function getStatus(gitService: IGitService, contextService: IWorkspaceContextSer
 
 class OpenInDiffAction extends baseeditor.EditorInputAction {
 
-	static ID = 'workbench.git.action.openInDiff';
+	static ID = 'workbench.action.git.openInDiff';
 	static Label = nls.localize('switchToChangesView', "Switch to Changes View");
 
 	private gitService: IGitService;
@@ -135,7 +135,7 @@ class OpenInDiffAction extends baseeditor.EditorInputAction {
 class OpenInEditorAction extends baseeditor.EditorInputAction {
 
 	private static DELETED_STATES = [Status.BOTH_DELETED, Status.DELETED, Status.DELETED_BY_US, Status.INDEX_DELETED];
-	static ID = 'workbench.git.action.openInEditor';
+	static ID = 'workbench.action.git.openInEditor';
 	static LABEL = nls.localize('openInEditor', "Switch to Editor View");
 
 	private gitService: IGitService;
@@ -250,7 +250,7 @@ export class StageRangesAction extends baseeditor.EditorInputAction {
 	private editor:editorbrowser.IDiffEditor;
 
 	constructor(editor:tdeditor.TextDiffEditor, @IGitService gitService: IGitService, @IWorkbenchEditorService editorService : IWorkbenchEditorService) {
-		super('workbench.git.action.stageRanges', nls.localize('stageSelectedLines', "Stage Selected Lines"));
+		super('workbench.action.git.stageRanges', nls.localize('stageSelectedLines', "Stage Selected Lines"));
 
 		this.editorService = editorService;
 		this.gitService = gitService;
@@ -366,7 +366,7 @@ class GitWorkingTreeDiffEditorActionContributor extends baseeditor.EditorInputAc
 
 class GlobalOpenChangeAction extends OpenChangeAction {
 
-	static ID = 'workbench.git.action.globalOpenChange';
+	static ID = 'workbench.action.git.globalOpenChange';
 	static LABEL = nls.localize('openChange', "Open Change");
 
 	constructor(
@@ -430,7 +430,7 @@ class GlobalOpenChangeAction extends OpenChangeAction {
 
 class GlobalOpenInEditorAction extends OpenFileAction {
 
-	static ID = 'workbench.git.action.globalOpenFile';
+	static ID = 'workbench.action.git.globalOpenFile';
 	static LABEL = nls.localize('openFile', "Open File");
 
 	constructor(

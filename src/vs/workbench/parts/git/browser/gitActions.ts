@@ -97,7 +97,7 @@ export abstract class GitAction extends Action {
 
 export class OpenChangeAction extends GitAction {
 
-	static ID = 'workbench.action.openChange';
+	static ID = 'workbench.action.git.openChange';
 	protected editorService: IWorkbenchEditorService;
 
 	constructor(@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IGitService gitService: IGitService) {
@@ -126,7 +126,7 @@ export class OpenChangeAction extends GitAction {
 export class OpenFileAction extends GitAction {
 
 	private static DELETED_STATES = [Status.BOTH_DELETED, Status.DELETED, Status.DELETED_BY_US, Status.INDEX_DELETED];
-	static ID = 'workbench.action.openFile';
+	static ID = 'workbench.action.git.openFile';
 
 	protected fileService: IFileService;
 	protected editorService: IWorkbenchEditorService;
@@ -183,7 +183,7 @@ export class OpenFileAction extends GitAction {
 
 export class InitAction extends GitAction {
 
-	static ID = 'workbench.action.init';
+	static ID = 'workbench.action.git.init';
 
 	constructor(@IGitService gitService: IGitService) {
 		super(InitAction.ID, nls.localize('init', "Init"), 'git-action init', gitService);
@@ -200,7 +200,7 @@ export class InitAction extends GitAction {
 
 export class RefreshAction extends GitAction {
 
-	static ID = 'workbench.action.refresh';
+	static ID = 'workbench.action.git.refresh';
 
 	constructor(@IGitService gitService: IGitService) {
 		super(RefreshAction.ID, nls.localize('refresh', "Refresh"), 'git-action refresh', gitService);
@@ -280,7 +280,7 @@ export abstract class BaseStageAction extends GitAction {
 }
 
 export class StageAction extends BaseStageAction {
-	static ID = 'workbench.action.stage';
+	static ID = 'workbench.action.git.stage';
 	static LABEL = nls.localize('stageChanges', "Stage");
 
 	constructor(@IGitService gitService: IGitService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
@@ -290,7 +290,7 @@ export class StageAction extends BaseStageAction {
 
 export class GlobalStageAction extends BaseStageAction {
 
-	static ID = 'workbench.action.stageAll';
+	static ID = 'workbench.action.git.stageAll';
 
 	constructor(@IGitService gitService: IGitService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
 		super(GlobalStageAction.ID, nls.localize('stageAllChanges', "Stage All"), 'git-action stage', gitService, editorService);
@@ -460,7 +460,7 @@ export abstract class BaseUndoAction extends GitAction {
 }
 
 export class UndoAction extends BaseUndoAction {
-	static ID = 'workbench.action.undo';
+	static ID = 'workbench.action.git.undo';
 	constructor( @IGitService gitService: IGitService, @IEventService eventService: IEventService, @IMessageService messageService: IMessageService, @IFileService fileService: IFileService, @IWorkbenchEditorService editorService: IWorkbenchEditorService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
 		super(UndoAction.ID, nls.localize('undoChanges', "Clean"), 'git-action undo', gitService, eventService, messageService, fileService, editorService, contextService);
 	}
@@ -468,7 +468,7 @@ export class UndoAction extends BaseUndoAction {
 
 export class GlobalUndoAction extends BaseUndoAction {
 
-	static ID = 'workbench.action.undoAll';
+	static ID = 'workbench.action.git.undoAll';
 
 	constructor(@IGitService gitService: IGitService, @IEventService eventService: IEventService, @IMessageService messageService: IMessageService, @IFileService fileService: IFileService, @IWorkbenchEditorService editorService: IWorkbenchEditorService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
 		super(GlobalUndoAction.ID, nls.localize('undoAllChanges', "Clean All"), 'git-action undo', gitService, eventService, messageService, fileService, editorService, contextService);
@@ -558,7 +558,7 @@ export abstract class BaseUnstageAction extends GitAction {
 }
 
 export class UnstageAction extends BaseUnstageAction {
-	static ID = 'workbench.action.unstage';
+	static ID = 'workbench.action.git.unstage';
 
 	constructor(@IGitService gitService: IGitService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
 		super(UnstageAction.ID, nls.localize('unstage', "Unstage"), 'git-action unstage', gitService, editorService);
@@ -567,7 +567,7 @@ export class UnstageAction extends BaseUnstageAction {
 
 export class GlobalUnstageAction extends BaseUnstageAction {
 
-	static ID = 'workbench.action.unstageAll';
+	static ID = 'workbench.action.git.unstageAll';
 
 	constructor(@IGitService gitService: IGitService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
 		super(GlobalUnstageAction.ID, nls.localize('unstageAllChanges', "Unstage All"), 'git-action unstage', gitService, editorService);
@@ -590,7 +590,7 @@ enum LifecycleState {
 
 export class CheckoutAction extends GitAction {
 
-	static ID = 'workbench.action.checkout';
+	static ID = 'workbench.action.git.checkout';
 	private editorService: IWorkbenchEditorService;
 	private branch: IBranch;
 	private HEAD: IBranch;
@@ -670,7 +670,7 @@ export class CheckoutAction extends GitAction {
 
 export class BranchAction extends GitAction {
 
-	static ID = 'workbench.action.branch';
+	static ID = 'workbench.action.git.branch';
 	private checkout:boolean;
 
 	constructor(checkout: boolean, @IGitService gitService: IGitService) {
@@ -723,7 +723,7 @@ export abstract class BaseCommitAction extends GitAction {
 
 export class CommitAction extends BaseCommitAction {
 
-	static ID = 'workbench.action.commit';
+	static ID = 'workbench.action.git.commit';
 
 	constructor(commitState: ICommitState, @IGitService gitService: IGitService) {
 		super(commitState, CommitAction.ID, nls.localize('commitStaged', "Commit Staged"), 'git-action commit', gitService);
@@ -733,7 +733,7 @@ export class CommitAction extends BaseCommitAction {
 
 export class StageAndCommitAction extends BaseCommitAction {
 
-	static ID = 'workbench.action.stageAndCommit';
+	static ID = 'workbench.action.git.stageAndCommit';
 
 	constructor(commitState: ICommitState, @IGitService gitService: IGitService) {
 		super(commitState, StageAndCommitAction.ID, nls.localize('commitAll', "Commit All"), 'git-action stage-and-commit', gitService);
@@ -766,7 +766,7 @@ export class StageAndCommitAction extends BaseCommitAction {
 
 export class SmartCommitAction extends BaseCommitAction {
 
-	static ID = 'workbench.action.commitAll';
+	static ID = 'workbench.action.git.commitAll';
 	private static ALL = nls.localize('commitAll2', "Commit All");
 	private static STAGED = nls.localize('commitStaged2', "Commit Staged");
 
@@ -826,7 +826,7 @@ export class SmartCommitAction extends BaseCommitAction {
 
 export class PullAction extends GitAction {
 
-	static ID = 'workbench.action.pull';
+	static ID = 'workbench.action.git.pull';
 	static LABEL = nls.localize('pull', "Pull");
 
 	constructor(
@@ -875,7 +875,7 @@ export class PullAction extends GitAction {
 
 export class PullWithRebaseAction extends PullAction {
 
-	static ID = 'workbench.action.pull.rebase';
+	static ID = 'workbench.action.git.pull.rebase';
 	static LABEL = nls.localize('pullWithRebase', "Pull (Rebase)");
 
 	constructor(@IGitService gitService: IGitService) {
@@ -889,7 +889,7 @@ export class PullWithRebaseAction extends PullAction {
 
 export class PushAction extends GitAction {
 
-	static ID = 'workbench.action.push';
+	static ID = 'workbench.action.git.push';
 	static LABEL = nls.localize('push', "Push");
 
 	constructor(
@@ -936,7 +936,7 @@ export class PushAction extends GitAction {
 
 export class PublishAction extends GitAction {
 
-	static ID = 'workbench.action.publish';
+	static ID = 'workbench.action.git.publish';
 	static LABEL = nls.localize('publish', "Publish");
 
 	constructor(
@@ -1048,7 +1048,7 @@ export abstract class BaseSyncAction extends GitAction {
 
 export class SyncAction extends BaseSyncAction {
 
-	static ID = 'workbench.action.sync';
+	static ID = 'workbench.action.git.sync';
 	static LABEL = nls.localize('sync', "Sync");
 
 	constructor(id: string, label: string, @IGitService gitService: IGitService) {
@@ -1058,7 +1058,7 @@ export class SyncAction extends BaseSyncAction {
 
 export class LiveSyncAction extends BaseSyncAction {
 
-	static ID = 'workbench.action.liveSync';
+	static ID = 'workbench.action.git.liveSync';
 	static CLASS_NAME = 'git-action live-sync';
 	static CLASS_NAME_LOADING = 'git-action live-sync loading';
 
@@ -1121,7 +1121,7 @@ export class LiveSyncAction extends BaseSyncAction {
 
 export class UndoLastCommitAction extends GitAction {
 
-	static ID = 'workbench.action.undoLastCommit';
+	static ID = 'workbench.action.git.undoLastCommit';
 
 	constructor(@IGitService gitService: IGitService) {
 		super(UndoLastCommitAction.ID, nls.localize('undoLastCommit', "Undo Last Commit"), 'git-action undo-last-commit', gitService);
