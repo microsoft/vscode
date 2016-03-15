@@ -133,6 +133,7 @@ class CollapsibleRegion {
 export class FoldingController implements editorCommon.IEditorContribution {
 
 	static ID = 'editor.contrib.folding';
+	static MAX_FOLDING_REGIONS = 5000;
 
 	static getFoldingController(editor:editorCommon.ICommonCodeEditor): FoldingController {
 		return <FoldingController>editor.getContribution(FoldingController.ID);
@@ -222,7 +223,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 			return;
 		}
 		let updateHiddenRegions = false;
-		regions = limitByIndent(regions, 10000).sort((r1, r2) => r1.startLineNumber - r2.startLineNumber);
+		regions = limitByIndent(regions, FoldingController.MAX_FOLDING_REGIONS).sort((r1, r2) => r1.startLineNumber - r2.startLineNumber);
 
 		this.editor.changeDecorations(changeAccessor => {
 
