@@ -151,8 +151,15 @@
 /* ----------- bracket Match ------ */
 
 .monaco-editor .bracket-match {
-	box-shadow:	inset 0 0 0 1px #B9B9B9;
+	box-sizing: border-box;
+	border: 1px solid #B9B9B9;
 	background-color: rgba(0, 100, 0, 0.1);
+}
+.monaco-editor.vs-dark .bracket-match {
+	border: 1px solid #888;
+}
+.monaco-editor.hc-black .bracket-match {
+	border: 1px solid #fff;
 }
 
 /* All widgets */
@@ -323,9 +330,6 @@
 @-ms-keyframes monaco-editor-dark-word-highlight-strong		{ from { background-color: inherit; } to { background-color: rgba(0, 73, 114, 0.72); } }
 @keyframes monaco-editor-dark-word-highlight-strong			{ from { background-color: inherit; } to { background-color: rgba(0, 73, 114, 0.72); } }
 
-/* bracket Match */
-.monaco-editor.vs-dark .bracket-match { box-shadow:	inset 0 0 0 1px #555; }
-
 /* Linked Editing */
 .monaco-editor.vs-dark .linked-editing { box-shadow: inset 0 0 0 1px #555; }
 
@@ -494,9 +498,6 @@
 	color: #D5D8D6;
 	box-shadow: none;
 }
-
-/* bracket Match */
-.monaco-editor.hc-black .bracket-match { box-shadow:	inset 0 0 0 1px #fff; }
 
 /* Linked Editing */
 .monaco-editor.hc-black .linked-editing { box-shadow: inset 0 0 0 1px #fff; }
