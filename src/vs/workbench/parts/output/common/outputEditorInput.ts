@@ -61,23 +61,27 @@ export class OutputEditorInput extends StringEditorInput {
 		this.toDispose.push(this.outputService.onActiveOutputChannel(() => this.scheduleOutputAppend()));
 		this.toDispose.push(this.eventService.addListener2(EventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
 			if (e.compositeId === OUTPUT_PANEL_ID) {
-				this.scheduleOutputAppend();
+				this.appendOutput();
 			}
 		}));
 
 		this.appendOutputScheduler = new RunOnceScheduler(() => {
-			if (this.value.length + this.bufferedOutput.length > MAX_OUTPUT_LENGTH) {
-				this.setValue(this.outputService.getOutput(this.channel));
-			} else {
-				this.append(this.bufferedOutput);
-			}
-			this.bufferedOutput = '';
-
 			if (this.isVisible()) {
-				const panel = this.panelService.getActivePanel();
-				(<OutputPanel>panel).revealLastLine();
+				this.appendOutput();
 			}
 		}, OutputEditorInput.OUTPUT_DELAY);
+	}
+
+	private appendOutput(): void {
+		if (this.value.length + this.bufferedOutput.length > MAX_OUTPUT_LENGTH) {
+			this.setValue(this.outputService.getOutput(this.channel));
+		} else {
+			this.append(this.bufferedOutput);
+		}
+		this.bufferedOutput = '';
+
+		const panel = this.panelService.getActivePanel();
+		(<OutputPanel>panel).revealLastLine();
 	}
 
 	private onOutputReceived(e: IOutputEvent): void {
