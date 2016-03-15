@@ -141,6 +141,13 @@ export class PeekViewWidget extends ZoneWidget implements IPeekViewService {
 
 	public doLayout(heightInPixel:number):void {
 
+		if (heightInPixel < 0) {
+			// Looks like the view zone got folded away!
+			this.dispose();
+			this.emit(Events.Closed, this);
+			return;
+		}
+
 		var headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2),
 			bodyHeight = heightInPixel - (headHeight + 2 /* the border-top/bottom width*/);
 

@@ -141,6 +141,7 @@ export class ZoneWidget extends EventEmitter {
 
 	private onViewZoneHeight(height:number):void {
 		this.domNode.style.height = height + 'px';
+		this.doLayout(height - this._decoratingElementsHeight());
 	}
 
 	public show(where:IRange, heightInLines:number):void;
@@ -158,6 +159,23 @@ export class ZoneWidget extends EventEmitter {
 		}
 	}
 
+	private _decoratingElementsHeight(): number {
+		let lineHeight = this.editor.getConfiguration().lineHeight;
+		let result = 0;
+
+		if(this.options.showArrow) {
+			let arrowHeight = Math.round(lineHeight / 3);
+			result += 2 * arrowHeight;
+		}
+
+		if(this.options.showFrame) {
+			let frameThickness = Math.round(lineHeight / 9);
+			result += 2 * frameThickness;
+		}
+
+		return result;
+	}
+
 	private showImpl(where:IRange, heightInLines:number):void {
 		var position = {
 			lineNumber: where.startLineNumber,
@@ -173,13 +191,11 @@ export class ZoneWidget extends EventEmitter {
 		var viewZoneDomNode = document.createElement('div'),
 			arrow = document.createElement('div'),
 			lineHeight = this.editor.getConfiguration().lineHeight,
-			containerHeight = heightInLines * lineHeight,
 			arrowHeight = 0, frameThickness = 0;
 
 		// Render the arrow one 1/3 of an editor line height
 		if(this.options.showArrow) {
 			arrowHeight = Math.round(lineHeight / 3);
-			containerHeight -= 2 * arrowHeight;
 
 			arrow = document.createElement('div');
 			arrow.className = 'zone-widget-arrow below';
@@ -194,7 +210,6 @@ export class ZoneWidget extends EventEmitter {
 		// Render the frame as 1/9 of an editor line height
 		if(this.options.showFrame) {
 			frameThickness = Math.round(lineHeight / 9);
-			containerHeight -= 2 * frameThickness;
 		}
 
 		// insert zone widget
@@ -228,6 +243,7 @@ export class ZoneWidget extends EventEmitter {
 			this.container.style.borderBottomWidth = frameThickness + 'px';
 		}
 
+		let containerHeight = heightInLines * lineHeight - this._decoratingElementsHeight();
 		this.container.style.top = arrowHeight + 'px';
 		this.container.style.height = containerHeight + 'px';
 		this.container.style.overflow = 'hidden';
