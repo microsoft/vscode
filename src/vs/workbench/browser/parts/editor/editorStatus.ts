@@ -681,7 +681,7 @@ export class ChangeModeAction extends Action {
 						const action = this.instantiationService.createInstance(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL);
 						action.run().done(() => action.dispose(), errors.onUnexpectedError);
 
-						this.messageService.show(Severity.Info, nls.localize('persistFileAssociations', "You can configure filename to language associations from the **files.associations** section"));
+						this.messageService.show(Severity.Info, nls.localize('persistFileAssociations', "You can configure filename to language associations in the **files.associations** section"));
 					} else {
 						mode = this.modeService.getOrCreateModeByLanguageName(language.label);
 					}
