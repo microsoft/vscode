@@ -230,7 +230,7 @@ class SuggestionDetails {
 		this.scrollable.onElementDimensions();
 		this.scrollable.onElementInternalDimensions();
 
-		this.ariaLabel = strings.format('{0}\n{1}\n{2}', item.suggestion.label, item.suggestion.typeLabel, item.suggestion.documentationLabel);
+		this.ariaLabel = strings.format('{0}\n{1}\n{2}', item.suggestion.label || '', item.suggestion.typeLabel || '', item.suggestion.documentationLabel || '');
 	}
 
 	getAriaLabel(): string {
