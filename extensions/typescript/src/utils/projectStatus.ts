@@ -105,11 +105,9 @@ export function create(client: ITypescriptServiceClient, memento: vscode.Memento
 				let largeRoots = computeLargeRoots(configFileName, fileNames).map(f => `'/${f}/'`).join(', ');
 
 				currentHint = {
-					message: localize('hintExclude', "'{0}' is a large project. For better performance exclude folders with many files, like: {1}...",
-						vscode.workspace.asRelativePath(configFileName),
-						largeRoots),
+					message: localize('hintExclude', "For better performance exclude folders with many files, like: {0}...", largeRoots),
 					options: [{
-						title: localize('open', "Configure excludes..."),
+						title: localize('open', "Configure Excludes..."),
 						execute: () => {
 							client.logTelemetry('js.hintProjectExcludes.accepted');
 							projectHinted[configFileName] = true;
