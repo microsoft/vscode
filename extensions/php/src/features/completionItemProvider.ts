@@ -33,7 +33,7 @@ export default class PHPCompletionItemProvider implements CompletionItemProvider
 		};
 
 		var matches = (name:string) => {
-			return prefix.length === 0 || name.length > prefix.length && name.substr(0, prefix.length) === prefix;
+			return prefix.length === 0 || name.length >= prefix.length && name.substr(0, prefix.length) === prefix;
 		};
 
 		for (var name in phpGlobals.globalvariables) {
@@ -62,7 +62,7 @@ export default class PHPCompletionItemProvider implements CompletionItemProvider
 		}
 
 		var text = document.getText();
-		if (matches('$')) {
+		if (prefix[0] === '$') {
 			var variableMatch = /\$([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)/g;
 			var match : RegExpExecArray = null;
 			while (match = variableMatch.exec(text)) {
