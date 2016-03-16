@@ -45,7 +45,8 @@ interface ITokensAdjuster {
 }
 
 interface IMarkersAdjuster {
-	adjust(toColumn:number, delta:number, minimumAllowedColumn:number, isReplace:boolean, forceMoveMarkers:boolean): void;
+	adjustDelta(toColumn:number, delta:number, minimumAllowedColumn:number, moveSemantics:MarkerMoveSemantics): void;
+	adjustSet(toColumn:number, newColumn:number, moveSemantics:MarkerMoveSemantics): void;
 	finish(delta:number, lineTextLength:number): void;
 }
 
@@ -54,9 +55,16 @@ var NO_OP_TOKENS_ADJUSTER: ITokensAdjuster = {
 	finish: () => {}
 };
 var NO_OP_MARKERS_ADJUSTER: IMarkersAdjuster = {
-	adjust: () => {},
+	adjustDelta: () => {},
+	adjustSet: () => {},
 	finish: () => {}
 };
+
+enum MarkerMoveSemantics {
+	MarkerDefined = 0,
+	ForceMove = 1,
+	ForceStay = 2
+}
 
 export class ModelLine {
 	public lineNumber:number;
@@ -249,7 +257,7 @@ export class ModelLine {
 	// 			return '|' + m.column;
 	// 		}
 	// 		return m.column + '|';
-	// 	}
+	// 	};
 	// 	return '[' + markers.map(printMarker).join(', ') + ']';
 	// }
 
@@ -270,28 +278,35 @@ export class ModelLine {
 
 		// console.log('------------- INITIAL MARKERS: ' + this._printMarkers());
 
-		let adjust = (toColumn:number, delta:number, minimumAllowedColumn:number, forceStickToPrevious:boolean, forceMoveMarkers:boolean) => {
+		let adjustMarkerBeforeColumn = (toColumn:number, moveSemantics:MarkerMoveSemantics) => {
+			if (marker.column < toColumn) {
+				return true;
+			}
+			if (marker.column > toColumn) {
+				return false;
+			}
+			if (moveSemantics === MarkerMoveSemantics.ForceMove) {
+				return false;
+			}
+			if (moveSemantics === MarkerMoveSemantics.ForceStay) {
+				return true;
+			}
+			return marker.stickToPreviousCharacter;
+		};
+
+		let adjustDelta = (toColumn:number, delta:number, minimumAllowedColumn:number, moveSemantics:MarkerMoveSemantics) => {
 			// console.log('------------------------------');
-			// console.log('adjust called: toColumn: ' + toColumn + ', delta: ' + delta + ', minimumAllowedColumn: ' + minimumAllowedColumn + ', forceStickToPrevious: ' + forceStickToPrevious + ', forceMoveMarkers:' + forceMoveMarkers);
+			// console.log('adjustDelta called: toColumn: ' + toColumn + ', delta: ' + delta + ', minimumAllowedColumn: ' + minimumAllowedColumn + ', moveSemantics: ' + MarkerMoveSemantics[moveSemantics]);
 			// console.log('BEFORE::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
-			while (
-				markersIndex < markersLength
-				&& (
-					marker.column < toColumn
-					|| (
-						!forceMoveMarkers
-						&& marker.column === toColumn
-						&& (forceStickToPrevious || marker.stickToPreviousCharacter)
-					)
-				)
-			) {
+
+			while (markersIndex < markersLength && adjustMarkerBeforeColumn(toColumn, moveSemantics)) {
 				if (delta !== 0) {
 					let newColumn = Math.max(minimumAllowedColumn, marker.column + delta);
 					if (marker.column !== newColumn) {
 						changedMarkers[marker.id] = true;
 						marker.oldLineNumber = marker.oldLineNumber || this.lineNumber;
 						marker.oldColumn = marker.oldColumn || marker.column;
-						marker.column = Math.max(minimumAllowedColumn, marker.column + delta);
+						marker.column = newColumn;
 					}
 				}
 
@@ -300,17 +315,41 @@ export class ModelLine {
 					marker = markers[markersIndex];
 				}
 			}
+
+			// console.log('AFTER::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
+		};
+
+		let adjustSet = (toColumn:number, newColumn:number, moveSemantics:MarkerMoveSemantics) => {
+			// console.log('------------------------------');
+			// console.log('adjustSet called: toColumn: ' + toColumn + ', newColumn: ' + newColumn + ', moveSemantics: ' + MarkerMoveSemantics[moveSemantics]);
+			// console.log('BEFORE::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
+
+			while (markersIndex < markersLength && adjustMarkerBeforeColumn(toColumn, moveSemantics)) {
+				if (marker.column !== newColumn) {
+					changedMarkers[marker.id] = true;
+					marker.oldLineNumber = marker.oldLineNumber || this.lineNumber;
+					marker.oldColumn = marker.oldColumn || marker.column;
+					marker.column = newColumn;
+				}
+
+				markersIndex++;
+				if (markersIndex < markersLength) {
+					marker = markers[markersIndex];
+				}
+			}
+
 			// console.log('AFTER::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
 		};
 
 		let finish = (delta:number, lineTextLength:number) => {
-			adjust(Number.MAX_VALUE, delta, 1, false, false);
+			adjustDelta(Number.MAX_VALUE, delta, 1, MarkerMoveSemantics.MarkerDefined);
 
 			// console.log('------------- FINAL MARKERS: ' + this._printMarkers());
 		};
 
 		return {
-			adjust: adjust,
+			adjustDelta: adjustDelta,
+			adjustSet: adjustSet,
 			finish: finish
 		};
 	}
@@ -338,14 +377,17 @@ export class ModelLine {
 			// Adjust tokens & markers before this edit
 			// console.log('Adjust tokens & markers before this edit');
 			tokensAdjuster.adjust(edit.startColumn - 1, deltaColumn, 1);
-			markersAdjuster.adjust(edit.startColumn, deltaColumn, 1, deletingCnt > 0, edit.forceMoveMarkers);
+			markersAdjuster.adjustDelta(edit.startColumn, deltaColumn, 1, edit.forceMoveMarkers ? MarkerMoveSemantics.ForceMove : (deletingCnt > 0 ? MarkerMoveSemantics.ForceStay : MarkerMoveSemantics.MarkerDefined));
 
 			// Adjust tokens & markers for the common part of this edit
 			let commonLength = Math.min(deletingCnt, insertingCnt);
 			if (commonLength > 0) {
 				// console.log('Adjust tokens & markers for the common part of this edit');
 				tokensAdjuster.adjust(edit.startColumn - 1 + commonLength, deltaColumn, startColumn);
-				markersAdjuster.adjust(edit.startColumn + commonLength, deltaColumn, startColumn, deletingCnt > insertingCnt, edit.forceMoveMarkers);
+
+				if (!edit.forceMoveMarkers) {
+					markersAdjuster.adjustDelta(edit.startColumn + commonLength, deltaColumn, startColumn, edit.forceMoveMarkers ? MarkerMoveSemantics.ForceMove : (deletingCnt > insertingCnt ? MarkerMoveSemantics.ForceStay : MarkerMoveSemantics.MarkerDefined));
+				}
 			}
 
 			// Perform the edit & update `deltaColumn`
@@ -355,7 +397,7 @@ export class ModelLine {
 			// Adjust tokens & markers inside this edit
 			// console.log('Adjust tokens & markers inside this edit');
 			tokensAdjuster.adjust(edit.endColumn, deltaColumn, startColumn);
-			markersAdjuster.adjust(edit.endColumn, deltaColumn, startColumn, false, edit.forceMoveMarkers);
+			markersAdjuster.adjustSet(edit.endColumn, startColumn + insertingCnt, edit.forceMoveMarkers ? MarkerMoveSemantics.ForceMove : MarkerMoveSemantics.MarkerDefined);
 		}
 
 		// Wrap up tokens & markers; adjust remaining if needed

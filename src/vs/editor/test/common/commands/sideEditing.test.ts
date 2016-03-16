@@ -8,6 +8,7 @@ import * as assert from 'assert';
 import {Cursor} from 'vs/editor/common/controller/cursor';
 import {EditOperation} from 'vs/editor/common/core/editOperation';
 import {Position} from 'vs/editor/common/core/position';
+import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
 import {IIdentifiedSingleEditOperation} from 'vs/editor/common/editorCommon';
 import {Model} from 'vs/editor/common/model/model';
@@ -146,6 +147,22 @@ suite('Editor Side Editing - collapsed selection', () => {
 				'fourth'
 			],
 			new Selection(2,5,2,5)
+		);
+	});
+
+	test('issue #3994: replace on top of selection', () => {
+		testCommand(
+			[
+				'$obj = New-Object "system.col"'
+			],
+			new Selection(1,30,1,30),
+			[
+				EditOperation.replaceMove(new Range(1,19,1,31), '"System.Collections"')
+			],
+			[
+				'$obj = New-Object "System.Collections"'
+			],
+			new Selection(1,39,1,39)
 		);
 	});
 

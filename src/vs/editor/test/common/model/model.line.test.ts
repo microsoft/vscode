@@ -1805,7 +1805,7 @@ suite('Editor Model - modelLine.applyEdits text & markers', () => {
 			[2],
 			[
 				marker(1, 1, false),
-				marker(2, 1, true),
+				marker(2, 4, true),
 			]
 		);
 	});
