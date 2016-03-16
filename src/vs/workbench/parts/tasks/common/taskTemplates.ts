@@ -146,8 +146,8 @@ const tscOpenFile: TaskEntry = {
 };
 
 const dotnetBuild: TaskEntry = {
-	id: 'dotnetBuild',
-	label: '.Net build',
+	id: 'dotnetCore',
+	label: '.NET Core',
 	autoDetect: false,
 	description: nls.localize('dotnetBuild', 'Creates a tasks.json that compiles using dotnet build.'),
 	content: [
@@ -155,8 +155,17 @@ const dotnetBuild: TaskEntry = {
 			'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
 			'\t// for the documentation about the tasks.json format',
 			'\t"version": "0.1.0",',
-			'\t"command": "dotnet build",',
-			'\t"showOutput": "always"',
+			'\t"command": "dotnet",',
+			'\t"isShellCommand": true,',
+			'\t"args": [],',
+			'\t"tasks": [',
+				'\t\t{',
+					'\t\t\t"taskName": "build",',
+					'\t\t\t"args": [ ],',
+					'\t\t\t"isBuildCommand": true,',
+					'\t\t\t"problemMatcher": "$msCompile"',
+				'\t\t}',
+			'\t]',
 		'}'
 	].join('\n')
 };
