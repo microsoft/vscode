@@ -157,11 +157,10 @@ export class Delayer<T> {
 			}).then(() => {
 				this.completionPromise = null;
 				this.onSuccess = null;
-
-				const result = this.task();
+				const task = this.task;
 				this.task = null;
 
-				return result;
+				return task();
 			});
 		}
 
