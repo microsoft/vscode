@@ -86,7 +86,8 @@ class ExtHostApiCommands {
 			description: 'Execute signature help provider.',
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'position', description: 'Position in a text document', constraint: types.Position }
+				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
+				{ name: 'triggerCharacter', description: 'Trigger signature help when the user types the character, like `,` or `(`', constraint: String }
 			],
 			returns: 'A promise that resolves to SignatureHelp.'
 		});
@@ -101,7 +102,8 @@ class ExtHostApiCommands {
 			description: 'Execute completion item provider.',
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'position', description: 'Position in a text document', constraint: types.Position }
+				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
+				{ name: 'triggerCharacter', description: 'Trigger completion when the user types the character, like `,` or `(`', constraint: String }
 			],
 			returns: 'A promise that resolves to a CompletionList-instance.'
 		});
