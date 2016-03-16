@@ -71,7 +71,7 @@ export function create(client: ITypescriptServiceClient, memento: vscode.Memento
 
 			if (!configFileName) {
 				currentHint = {
-					message: localize('hintCreate', "Have a project and experience better IntelliSense and code navigation."),
+					message: localize('hintCreate', "Create a jsconfig.json to enable richer IntelliSense and code navigation across the entire workspace."),
 					options: [{
 						title: localize('ignore.cmdCreate', 'Ignore'),
 						execute: () => {
@@ -82,7 +82,7 @@ export function create(client: ITypescriptServiceClient, memento: vscode.Memento
 							item.hide();
 						}
 					},{
-						title: localize('cmdCreate', "Create jsconfig.json..."),
+						title: localize('cmdCreate', "Create jsconfig.json"),
 						execute: () => {
 							client.logTelemetry('js.hintProjectCreation.accepted');
 							projectHinted[configFileName] = true;
@@ -95,7 +95,7 @@ export function create(client: ITypescriptServiceClient, memento: vscode.Memento
 					}]
 				};
 				item.text = '$(light-bulb)';
-				item.tooltip = localize('hint.tooltip', "Have a project and have better IntelliSense, better symbol search, and much more.");
+				item.tooltip = localize('hintCreate.tooltip', "Create a jsconfig.json to enable richer IntelliSense and code navigation across the entire workspace.");
 				item.color = 'white';
 				item.show();
 				client.logTelemetry('js.hintProjectCreation');
@@ -107,7 +107,7 @@ export function create(client: ITypescriptServiceClient, memento: vscode.Memento
 				currentHint = {
 					message: localize('hintExclude', "For better performance exclude folders with many files, like: {0}...", largeRoots),
 					options: [{
-						title: localize('open', "Configure Excludes..."),
+						title: localize('open', "Configure Excludes"),
 						execute: () => {
 							client.logTelemetry('js.hintProjectExcludes.accepted');
 							projectHinted[configFileName] = true;
