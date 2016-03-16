@@ -15,6 +15,8 @@ import arrays = require('vs/base/common/arrays');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
+const MAX_REPL_LENGTH = 10000;
+
 function resolveChildren(debugService: debug.IDebugService, parent: debug.IExpressionContainer): TPromise<Variable[]> {
 	const session = debugService.getActiveSession();
 	// only variables with reference > 0 have children.
@@ -487,7 +489,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 
 	public addReplExpression(session: debug.IRawDebugSession, stackFrame: debug.IStackFrame, name: string): TPromise<void> {
 		const expression = new Expression(name, true);
-		this.replElements.push(expression);
+		this.addReplElements([expression]);
 		return evaluateExpression(session, stackFrame, expression, 'repl').then(() =>
 			this.emit(debug.ModelEvents.REPL_ELEMENTS_UPDATED, expression)
 		);
@@ -518,7 +520,7 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		}
 
 		if (elements.length) {
-			this.replElements.push(...elements);
+			this.addReplElements(elements);
 			this.emit(debug.ModelEvents.REPL_ELEMENTS_UPDATED, elements);
 		}
 	}
@@ -543,8 +545,15 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 			elements.push(new ValueOutputElement(line, severity, 'output'));
 		});
 
-		this.replElements.push(...elements);
+		this.addReplElements(elements);
 		this.emit(debug.ModelEvents.REPL_ELEMENTS_UPDATED, elements);
+	}
+
+	private addReplElements(newElements: debug.ITreeElement[]): void {
+		this.replElements.push(...newElements);
+		if (this.replElements.length > MAX_REPL_LENGTH) {
+			this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);
+		}
 	}
 
 	public clearReplExpressions(): void {
