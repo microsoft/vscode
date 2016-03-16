@@ -37,7 +37,7 @@ var tasks = compilations.map(function(tsconfigFile) {
 	var tsOptions = require(absolutePath).compilerOptions;
 	tsOptions.verbose = !quiet;
 	tsOptions.sourceMap = true;
-	tsOptions.sourceRoot = util.toFileUri(absoluteDirname);
+	tsOptions.sourceRoot = util.toFileUri(path.join(absoluteDirname, 'src'));
 
 	var name = relativeDirname.replace(/\//g, '-');
 
