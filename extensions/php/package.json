@@ -2,7 +2,7 @@
 	"name": "php",
 	"version": "0.1.0",
 	"publisher": "vscode",
-	"engines": { "vscode": "*" },
+	"engines": { "vscode": "0.10.x" },
 	"activationEvents": ["onLanguage:php"],
 	"main": "./out/phpMain",
 	"dependencies": {
@@ -44,6 +44,6 @@
 		}
 	},
 	"scripts": {
-		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:php ./src/tsconfig.json"
+		"compile": "gulp compile-extension:php && gulp compile-extension:php"
 	}
 }
