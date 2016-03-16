@@ -449,7 +449,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 		const index = e.indexes[0];
 
-		this.suggestionSupportsAutoAccept.set(item.suggestion.noAutoAccept);
+		this.suggestionSupportsAutoAccept.set(!item.suggestion.noAutoAccept);
 		this.focusedItem = item;
 		this.list.setFocus(index);
 		this.updateWidgetHeight();
