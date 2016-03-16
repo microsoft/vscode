@@ -71,6 +71,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	private telemetryAdapter: AIAdapter;
 	private lastTaskEvent: TaskEvent;
 	private toDispose: lifecycle.IDisposable[];
+	private toDisposeOnSessionEnd: lifecycle.IDisposable[];
 	private inDebugMode: IKeybindingContextKey<boolean>;
 
 	constructor(
@@ -95,6 +96,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		super();
 
 		this.toDispose = [];
+		this.toDisposeOnSessionEnd = [];
 		this.debugStringEditorInputs = [];
 		this.session = null;
 		this.state = debug.State.Inactive;
@@ -225,7 +227,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	private registerSessionListeners(): void {
-		this.toDispose.push(this.session.addListener2(debug.SessionEvents.INITIALIZED, (event: DebugProtocol.InitializedEvent) => {
+		this.toDisposeOnSessionEnd.push(this.session.addListener2(debug.SessionEvents.INITIALIZED, (event: DebugProtocol.InitializedEvent) => {
 			aria.status(nls.localize('debuggingStarted', "Debugging started."));
 			this.sendAllBreakpoints().then(() => {
 				if (this.session.capabilities.supportsConfigurationDoneRequest) {
@@ -234,7 +236,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			});
 		}));
 
-		this.toDispose.push(this.session.addListener2(debug.SessionEvents.STOPPED, (event: DebugProtocol.StoppedEvent) => {
+		this.toDisposeOnSessionEnd.push(this.session.addListener2(debug.SessionEvents.STOPPED, (event: DebugProtocol.StoppedEvent) => {
 			this.setStateAndEmit(debug.State.Stopped);
 			const threadId = event.body.threadId;
 
@@ -255,14 +257,14 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			}, errors.onUnexpectedError);
 		}));
 
-		this.toDispose.push(this.session.addListener2(debug.SessionEvents.CONTINUED, () => {
+		this.toDisposeOnSessionEnd.push(this.session.addListener2(debug.SessionEvents.CONTINUED, () => {
 			aria.status(nls.localize('debuggingContinued', "Debugging continued."));
 			this.model.clearThreads(false);
 			this.setFocusedStackFrameAndEvaluate(null);
 			this.setStateAndEmit(this.configurationManager.getConfiguration().noDebug ? debug.State.RunningNoDebug : debug.State.Running);
 		}));
 
-		this.toDispose.push(this.session.addListener2(debug.SessionEvents.THREAD, (event: DebugProtocol.ThreadEvent) => {
+		this.toDisposeOnSessionEnd.push(this.session.addListener2(debug.SessionEvents.THREAD, (event: DebugProtocol.ThreadEvent) => {
 			if (event.body.reason === 'started') {
 				this.session.threads().done((result) => {
 					const thread = result.body.threads.filter(thread => thread.id === event.body.threadId).pop();
@@ -278,7 +280,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			}
 		}));
 
-		this.toDispose.push(this.session.addListener2(debug.SessionEvents.DEBUGEE_TERMINATED, (event: DebugProtocol.TerminatedEvent) => {
+		this.toDisposeOnSessionEnd.push(this.session.addListener2(debug.SessionEvents.DEBUGEE_TERMINATED, (event: DebugProtocol.TerminatedEvent) => {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (this.session && this.session.getId() === (<any>event).sessionId) {
 				if (event.body && typeof event.body.restart === 'boolean' && event.body.restart) {
@@ -289,7 +291,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			}
 		}));
 
-		this.toDispose.push(this.session.addListener2(debug.SessionEvents.OUTPUT, (event: DebugProtocol.OutputEvent) => {
+		this.toDisposeOnSessionEnd.push(this.session.addListener2(debug.SessionEvents.OUTPUT, (event: DebugProtocol.OutputEvent) => {
 			if (event.body && event.body.category === 'telemetry') {
 				// only log telemetry events from debug adapter if the adapter provided the telemetry key
 				if (this.telemetryAdapter) {
@@ -300,7 +302,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			}
 		}));
 
-		this.toDispose.push(this.session.addListener2(debug.SessionEvents.BREAKPOINT, (event: DebugProtocol.BreakpointEvent) => {
+		this.toDisposeOnSessionEnd.push(this.session.addListener2(debug.SessionEvents.BREAKPOINT, (event: DebugProtocol.BreakpointEvent) => {
 			const id = event.body && event.body.breakpoint ? event.body.breakpoint.id : undefined;
 			const breakpoint = this.model.getBreakpoints().filter(bp => bp.idFromAdapter === id).pop();
 			if (breakpoint) {
@@ -313,7 +315,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			}
 		}));
 
-		this.toDispose.push(this.session.addListener2(debug.SessionEvents.SERVER_EXIT, event => {
+		this.toDisposeOnSessionEnd.push(this.session.addListener2(debug.SessionEvents.SERVER_EXIT, event => {
 			// 'Run without debugging' mode VSCode must terminate the extension host. More details: #3905
 			if (this.session.getType() === 'extensionHost' && this.state === debug.State.RunningNoDebug) {
 				ipc.send('vscode:closeExtensionHostWindow', this.contextService.getWorkspace().resource.fsPath);
@@ -699,6 +701,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 		if (this.session) {
 			const bpsExist = this.model.getBreakpoints().length > 0;
+			this.session.dispose();
 			this.telemetryService.publicLog('debugSessionStop', {
 				type: this.session.getType(),
 				success: this.session.emittedStopped || !bpsExist,
@@ -707,7 +710,9 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 				watchExpressionsCount: this.model.getWatchExpressions().length
 			});
 		}
+
 		this.session = null;
+		this.toDisposeOnSessionEnd = lifecycle.disposeAll(this.toDisposeOnSessionEnd);
 		this.partService.removeClass('debugging');
 		this.editorService.focusEditor();
 
@@ -917,5 +922,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}
 		this.model.dispose();
 		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDisposeOnSessionEnd = lifecycle.disposeAll(this.toDisposeOnSessionEnd);
 	}
 }
