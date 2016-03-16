@@ -77,6 +77,10 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 
 	private onErrorEvent(e: any): void {
 
+		if(!e) {
+			return;
+		}
+		
 		let error = Object.create(null);
 
 		// unwrap nested errors from loader
