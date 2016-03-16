@@ -105,7 +105,9 @@ export function create(client: ITypescriptServiceClient, memento: vscode.Memento
 				let largeRoots = computeLargeRoots(configFileName, fileNames).map(f => `'/${f}/'`).join(', ');
 
 				currentHint = {
-					message: localize('hintExclude', "For better performance exclude folders with many files, like: {0}...", largeRoots),
+					message: largeRoots.length > 0
+						? localize('hintExclude', "For better performance exclude folders with many files, like: {0}", largeRoots)
+						: localize('hintExclude.generic', "For better performance exclude folders with many files."),
 					options: [{
 						title: localize('open', "Configure Excludes"),
 						execute: () => {
@@ -120,7 +122,7 @@ export function create(client: ITypescriptServiceClient, memento: vscode.Memento
 				};
 				item.tooltip = currentHint.message;
 				item.text = localize('large.label', "Configure Excludes");
-				item.tooltip = localize('large.tooltip', "Too many files in a project might result in bad performance. Exclude folders with many files, like: {0}...", largeRoots);
+				item.tooltip = localize('hintExclude.tooltip', "For better performance exclude folders with many files.");
 				item.color = '#0CFF00';
 				item.show();
 				client.logTelemetry('js.hintProjectExcludes');
@@ -160,7 +162,10 @@ function computeLargeRoots(configFileName:string, fileNames: string[]): string[]
 	for (let key in roots) {
 		data.push({ root: key, count: roots[key] });
 	}
-	data.sort((a, b) => b.count - a.count);
+
+	data
+		.sort((a, b) => b.count - a.count)
+		.filter(s => s.root === 'src' || s.root === 'test' || s.root === 'tests');
 
 	let result: string[] = [];
 	let sum = 0;
