@@ -181,7 +181,7 @@ function computeLargeRoots(configFileName:string, fileNames: string[]): string[]
 }
 
 const defaultConfig = `{
-	// See http://go.microsoft.com/fwlink/?LinkId=733559
+	// See http://go.microsoft.com/fwlink/?LinkId=759670
 	// for the documentation about the jsconfig.json format
 	"compilerOptions": {
 		"module": "commonjs"
