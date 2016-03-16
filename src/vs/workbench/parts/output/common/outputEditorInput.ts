@@ -87,11 +87,17 @@ export class OutputEditorInput extends StringEditorInput {
 	private onOutputReceived(e: IOutputEvent): void {
 		if (this.outputSet && e.channel === this.channel) {
 			if (e.output) {
-				if (this.bufferedOutput.length + e.output.length > MAX_OUTPUT_LENGTH) {
-					this.bufferedOutput = '...' + this.bufferedOutput.substr(this.bufferedOutput.length + e.output.length - MAX_OUTPUT_LENGTH);
+				// TODO@Isidor extract this output trimming to common string with tests
+				const newLength = this.bufferedOutput.length + e.output.length;
+				if (newLength > MAX_OUTPUT_LENGTH) {
+					this.bufferedOutput = '...' + this.bufferedOutput.substr(newLength - MAX_OUTPUT_LENGTH);
+				}
+				if (e.output.length > MAX_OUTPUT_LENGTH) {
+					this.bufferedOutput += e.output.substr(e.output.length - MAX_OUTPUT_LENGTH);
+				} else {
+					this.bufferedOutput += e.output;
 				}
 
-				this.bufferedOutput += e.output.substr(0, MAX_OUTPUT_LENGTH);
 				this.scheduleOutputAppend();
 			} else if (e.output === null) {
 				this.clearValue(); // special output indicates we should clear
