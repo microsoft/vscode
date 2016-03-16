@@ -9,6 +9,7 @@ import * as nls from 'vs/nls';
 import { IPickOpenEntry } from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 export interface TaskEntry extends IPickOpenEntry {
+	sort?: string;
 	autoDetect: boolean;
 	content: string;
 }
@@ -17,7 +18,7 @@ const gulp: TaskEntry = {
 	id: 'gulp',
 	label: 'Gulp',
 	autoDetect: true,
-	description: nls.localize('gulp', 'Creates a tasks.json file for gulp. If a gulp file is present tasks will be auto-detected.'),
+	description: nls.localize('gulp', 'Integrates with Gulp'),
 	content: [
 		'{',
 			'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
@@ -35,7 +36,7 @@ const jake: TaskEntry = {
 	id: 'jake',
 	label: 'Jake',
 	autoDetect: true,
-	description: nls.localize('jake', 'Creates a tasks.json file for Jake. If a jake file is present tasks will be auto-detected.'),
+	description: nls.localize('jake', 'Integrates with Jake'),
 	content: [
 		'{',
 			'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
@@ -52,7 +53,7 @@ const grunt: TaskEntry = {
 	id: 'grunt',
 	label: 'Grunt',
 	autoDetect: true,
-	description: nls.localize('grunt', 'Creates a tasks.json file for Grunt. If a grunt file is present tasks will be auto-detected.'),
+	description: nls.localize('grunt', 'Integrates with Grunt'),
 	content: [
 		'{',
 			'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
@@ -66,30 +67,11 @@ const grunt: TaskEntry = {
 	].join('\n')
 };
 
-const tscSpecificFile: TaskEntry = {
-	id: 'tsc.specificFile',
-	label: 'TypeScript - Specific File',
-	autoDetect: false,
-	description: nls.localize('tsc.specificFile', 'Creates a tasks.json that compiles a specific TypeScript file.'),
-	content: [
-		'{',
-			'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
-			'\t// for the documentation about the tasks.json format',
-			'\t"version": "0.1.0",',
-			'\t"command": "tsc",',
-			'\t"isShellCommand": true,',
-			'\t"args": ["file.ts"],',
-			'\t"showOutput": "silent",',
-			'\t"problemMatcher": "$tsc"',
-		'}'
-	].join('\n')
-};
-
 const tscConfig: TaskEntry = {
 	id: 'tsc.config',
 	label: 'TypeScript - tsconfig.json',
 	autoDetect: false,
-	description: nls.localize('tsc.config', 'Creates a tasks.json that compiles a TypeScript project.'),
+	description: nls.localize('tsc.config', 'Compiles a TypeScript project'),
 	content: [
 		'{',
 			'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
@@ -108,7 +90,7 @@ const tscWatch: TaskEntry = {
 	id: 'tsc.watch',
 	label: 'TypeScript - Watch Mode',
 	autoDetect: false,
-	description: nls.localize('tsc.watch', 'Creates a tasks.json that compiles a TypeScript project in watch mode.'),
+	description: nls.localize('tsc.watch', 'Compiles a TypeScript project in watch mode'),
 	content: [
 		'{',
 			'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
@@ -123,33 +105,12 @@ const tscWatch: TaskEntry = {
 	].join('\n')
 };
 
-const tscOpenFile: TaskEntry = {
-	id: 'tsc.openFile',
-	label: 'TypeScript - Open File',
-	autoDetect: false,
-	description: nls.localize('tsc.openFile', 'Creates a tasks.json that compiles the currently open TypeScript file.'),
-	content: [
-		'{',
-			'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
-			'\t// for the documentation about the tasks.json format',
-			'\t"version": "0.1.0",',
-			'\t"command": "tsc",',
-			'\t"isShellCommand": true,',
-			'\t"args": ["${file}"],',
-			'\t"showOutput": "silent",',
-			'\t"problemMatcher": {',
-				'\t\t"base": "$tsc",',
-				'\t\t"fileLocation": "absolute"',
-			'\t}',
-		'}'
-	].join('\n')
-};
-
 const dotnetBuild: TaskEntry = {
 	id: 'dotnetCore',
 	label: '.NET Core',
+	sort: 'NET Core',
 	autoDetect: false,
-	description: nls.localize('dotnetBuild', 'Creates a tasks.json that compiles using dotnet build.'),
+	description: nls.localize('dotnetCore', 'Builds using .NET Core commands'),
 	content: [
 		'{',
 			'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
@@ -174,7 +135,7 @@ const msbuild: TaskEntry = {
 	id: 'msbuild',
 	label: 'MSBuild',
 	autoDetect: false,
-	description: nls.localize('msbuild', 'Creates a tasks.json that compiles using msbuild.'),
+	description: nls.localize('msbuild', 'Integrates MSBuild targets'),
 	content: [
 		'{',
 			'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
@@ -204,7 +165,7 @@ const command: TaskEntry = {
 	id: 'externalCommand',
 	label: 'External Command',
 	autoDetect: false,
-	description: nls.localize('externalCommand', 'Creates a tasks.json for an external command to run.'),
+	description: nls.localize('externalCommand', 'Runs an external command'),
 	content: [
 		'{',
 			'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
@@ -219,4 +180,6 @@ const command: TaskEntry = {
 };
 
 
-export const templates: TaskEntry[] = [gulp, jake, grunt, tscConfig, tscSpecificFile, tscOpenFile, tscWatch, dotnetBuild, msbuild, command];
+export const templates: TaskEntry[] = [gulp, jake, grunt, tscConfig, tscWatch, dotnetBuild, msbuild, command].sort((a, b) => {
+	return (a.sort || a.label).localeCompare(b.sort || b.label);
+});

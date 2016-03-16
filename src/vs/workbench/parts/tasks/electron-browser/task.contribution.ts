@@ -170,7 +170,8 @@ class ConfigureTaskRunnerAction extends Action {
 		return this.fileService.resolveFile(this.contextService.toResource('.vscode/tasks.json')).then((success) => {
 			return success;
 		}, (err:any) => {
-			return this.quickOpenService.pick(taskTemplates, { placeHolder: 'Pick a task template'}).then(selection => {
+			;
+			return this.quickOpenService.pick(taskTemplates, { placeHolder: nls.localize('ConfigureTaskRunnerAction.quickPick.template', 'Select a Task Template')}).then(selection => {
 				if (!selection) {
 					return undefined;
 				}
