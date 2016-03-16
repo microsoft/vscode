@@ -66,7 +66,7 @@ export class ChangeIndentationSizeAction extends EditorAction {
 		private quickOpenService: IQuickOpenService,
 		private modelService:IModelService
 	) {
-		super(descriptor, editor);
+		super(descriptor, editor, Behaviour.Writeable);
 	}
 
 	public run(): TPromise<boolean> {
