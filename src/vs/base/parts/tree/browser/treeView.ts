@@ -1087,7 +1087,7 @@ export class TreeView extends HeightMap implements IScrollable {
 			if (this.highlightedItemWasDraggable) {
 				viewItem.draggable = true;
 			}
-			delete this.highlightedItemWasDraggable;
+			this.highlightedItemWasDraggable = false;
 		}
 	}
 
@@ -1400,9 +1400,9 @@ export class TreeView extends HeightMap implements IScrollable {
 			}
 
 			this.cancelDragAndDropScrollInterval();
-			delete this.currentDropTarget;
-			delete this.currentDropElement;
-			delete this.dragAndDropMouseY;
+			this.currentDropTarget = null;
+			this.currentDropElement = null;
+			this.dragAndDropMouseY = null;
 
 			return false;
 		}
@@ -1444,7 +1444,7 @@ export class TreeView extends HeightMap implements IScrollable {
 		} while (item);
 
 		if (!item) {
-			delete this.currentDropElement;
+			this.currentDropElement = null;
 			return false;
 		}
 
@@ -1455,7 +1455,7 @@ export class TreeView extends HeightMap implements IScrollable {
 			event.preventDefault();
 			event.dataTransfer.dropEffect = reaction.effect === _.DragOverEffect.COPY ? 'copy' : 'move';
 		} else {
-			delete this.currentDropElement;
+			this.currentDropElement = null;
 		}
 
 		// item is the model item where drop() should be called
@@ -1533,11 +1533,11 @@ export class TreeView extends HeightMap implements IScrollable {
 		}
 
 		this.cancelDragAndDropScrollInterval();
-		delete this.currentDragAndDropData;
+		this.currentDragAndDropData = null;
 		TreeView.currentExternalDragAndDropData = null;
-		delete this.currentDropElement;
-		delete this.currentDropTarget;
-		delete this.dragAndDropMouseY;
+		this.currentDropElement = null;
+		this.currentDropTarget = null;
+		this.dragAndDropMouseY = null;
 	}
 
 	private onFocus(): void {

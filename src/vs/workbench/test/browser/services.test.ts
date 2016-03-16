@@ -141,14 +141,14 @@ class TestProgressBar {
 	}
 
 	public infinite() {
-		delete this.fDone;
+		this.fDone = null;
 		this.fInfinite = true;
 
 		return this;
 	}
 
 	public total(total: number) {
-		delete this.fDone;
+		this.fDone = null;
 		this.fTotal = total;
 
 		return this;
@@ -159,7 +159,7 @@ class TestProgressBar {
 	}
 
 	public worked(worked: number) {
-		delete this.fDone;
+		this.fDone = null;
 
 		if (this.fWorked) {
 			this.fWorked += worked;
@@ -173,9 +173,9 @@ class TestProgressBar {
 	public done() {
 		this.fDone = true;
 
-		delete this.fInfinite;
-		delete this.fWorked;
-		delete this.fTotal;
+		this.fInfinite = null;
+		this.fWorked = null;
+		this.fTotal = null;
 
 		return this;
 	}
