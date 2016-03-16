@@ -38,7 +38,7 @@ import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletServi
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {TextModel} from 'vs/editor/common/model/textModel';
+import {RawText} from 'vs/editor/common/model/textModel';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import URI from 'vs/base/common/uri';
 
@@ -204,22 +204,6 @@ class DirtyDiffModelDecorator {
 			.done(null, errors.onUnexpectedError);
 	}
 
-	private static _stringArrEquals(a:string[], b:string[]): boolean {
-		if (a.length !== b.length) {
-			return false;
-		}
-		for (let i = 0, len = a.length; i < len; i++) {
-			if (a[i] !== b[i]) {
-				return false;
-			}
-		}
-		return true;
-	}
-
-	private static _equals(a:common.IRawText, b:common.IRawText): boolean {
-		return this._stringArrEquals(a.lines, b.lines);
-	}
-
 	private diffOriginalContents(): winjs.TPromise<void> {
 		return this.getOriginalContents()
 			.then(contents => {
@@ -235,26 +219,18 @@ class DirtyDiffModelDecorator {
 
 				let originalModel = this.modelService.getModel(this._originalContentsURI);
 				if (originalModel) {
-					let originalRawText = originalModel.toRawText();
-					let contentsRawText = TextModel.toRawText(contents, {
-						tabSize: originalRawText.options.tabSize,
-						insertSpaces: originalRawText.options.insertSpaces,
-						detectIndentation: false,
-						defaultEOL: originalRawText.options.defaultEOL
-					});
+					let contentsRawText = RawText.fromStringWithModelOptions(contents, originalModel);
 
 					// return early if nothing has changed
-					if (DirtyDiffModelDecorator._equals(originalRawText, contentsRawText)) {
+					if (originalModel.equals(contentsRawText)) {
 						return winjs.TPromise.as(null);
 					}
-				}
 
-				if (!originalModel) {
+					// we already have the original contents
+					originalModel.setValueFromRawText(contentsRawText);
+				} else {
 					// this is the first time we load the original contents
 					this.modelService.createModel(contents, null, this._originalContentsURI);
-				} else {
-					// we already have the original contents
-					originalModel.setValue(contents);
 				}
 
 				return this.triggerDiff();

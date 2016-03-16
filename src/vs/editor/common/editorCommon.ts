@@ -1314,6 +1314,8 @@ export interface ITextModel {
 
 	toRawText(): IRawText;
 
+	equals(other:IRawText): boolean;
+
 	/**
 	 * Get the text in a certain range.
 	 * @param range The range describing what text to get.
@@ -1858,6 +1860,9 @@ export interface IModel extends IEditableTextModel, ITextModelWithMarkers, IToke
 	 */
 	setValue(newValue:string, newMode?:IMode): void;
 	setValue(newValue:string, newModePromise:TPromise<IMode>): void;
+
+	setValueFromRawText(newValue:IRawText, newMode?:IMode): void;
+	setValueFromRawText(newValue:IRawText, newModePromise:TPromise<IMode>): void;
 
 	onBeforeAttached(): void;
 
