@@ -474,6 +474,7 @@ export class TimeoutTimer extends Disposable {
 }
 
 export class IntervalTimer extends Disposable {
+	
 	private _token: platform.IntervalToken;
 
 	constructor() {
@@ -499,8 +500,6 @@ export class IntervalTimer extends Disposable {
 			runner();
 		}, interval);
 	}
-
-
 }
 
 export class RunOnceScheduler {
