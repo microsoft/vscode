@@ -1223,6 +1223,48 @@ suite('FindModel', () => {
 		findState.dispose();
 	});
 
+	findTest('replaceAll two spaces with one space', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: '  ', replaceString: ' ' }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[6, 1, 6, 3],
+				[6, 3, 6, 5],
+				[7, 1, 7, 3],
+				[7, 3, 7, 5],
+				[8, 1, 8, 3],
+				[8, 3, 8, 5],
+				[9, 1, 9, 3],
+				[9, 3, 9, 5]
+			]
+		);
+
+		findModel.replaceAll();
+		assertFindState(
+			editor,
+			[9, 3, 9, 3],
+			null,
+			[
+				[6, 1, 6, 3],
+				[7, 1, 7, 3],
+				[8, 1, 8, 3],
+				[9, 1, 9, 3]
+			]
+		);
+		assert.equal(editor.getModel().getLineContent(6), '  cout << "hello world, Hello!" << endl;');
+		assert.equal(editor.getModel().getLineContent(7), '  cout << "hello world again" << endl;');
+		assert.equal(editor.getModel().getLineContent(8), '  cout << "Hello world again" << endl;');
+		assert.equal(editor.getModel().getLineContent(9), '  cout << "helloworld again" << endl;');
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
 	findTest('replaceAll bla', (editor, cursor) => {
 		let findState = new FindReplaceState();
 		findState.change({ searchString: 'bla', replaceString: 'ciao' }, false);

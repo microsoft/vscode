@@ -339,9 +339,6 @@ export class FindModelBoundToEditorModel {
 		// Get all the ranges (even more than the highlighted ones)
 		let ranges = this._findMatches(findScope, Number.MAX_VALUE);
 
-		this._decorations.set([], findScope);
-		this._state.changeMatchInfo(0, 0);
-
 		let replaceStrings:string[] = [];
 		for (let i = 0, len = ranges.length; i < len; i++) {
 			replaceStrings.push(this.getReplaceString(model.getValueInRange(ranges[i])));
@@ -349,6 +346,8 @@ export class FindModelBoundToEditorModel {
 
 		let command = new ReplaceAllCommand(ranges, replaceStrings);
 		this._executeEditorCommand('replaceAll', command);
+
+		this.research(false);
 	}
 
 	private _executeEditorCommand(source:string, command:editorCommon.ICommand): void {

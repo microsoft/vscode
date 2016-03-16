@@ -151,7 +151,7 @@ export function guessIndentation(lines:string[], defaultTabSize:number, defaultI
 	// console.log('--------------------------');
 	// console.log('linesIndentedWithTabsCount: ' + linesIndentedWithTabsCount + ', linesIndentedWithSpacesCount: ' + linesIndentedWithSpacesCount);
 	// console.log('spacesDiffCount: ' + spacesDiffCount);
-	// console.log('bestCandidate: ' + tabSizeScore + ', bestCandidateScore: ' + tabSize);
+	// console.log('tabSize: ' + tabSize + ', tabSizeScore: ' + tabSizeScore);
 
 	return {
 		insertSpaces: insertSpaces,
