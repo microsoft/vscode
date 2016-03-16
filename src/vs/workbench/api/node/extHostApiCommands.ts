@@ -113,14 +113,14 @@ class ExtHostApiCommands {
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
 				{ name: 'range', description: 'Range in a text document', constraint: types.Range }
 			],
-			returns: 'A promise that resolves to an array of CompletionItem-instances.'
+			returns: 'A promise that resolves to an array of Command-instances.'
 		});
 		this._register('vscode.executeCodeLensProvider', this._executeCodeLensProvider, {
 			description: 'Execute completion item provider.',
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI }
 			],
-			returns: 'A promise that resolves to an array of Commands.'
+			returns: 'A promise that resolves to an array of CodeLens-instances.'
 		});
 		this._register('vscode.executeFormatDocumentProvider', this._executeFormatDocumentProvider, {
 			description: 'Execute document format provider.',
