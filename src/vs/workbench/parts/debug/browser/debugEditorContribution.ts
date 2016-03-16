@@ -84,7 +84,7 @@ export class DebugEditorContribution implements debug.IDebugEditorContribution {
 			const lineNumber = e.target.position.lineNumber;
 			const uri = this.editor.getModel().getAssociatedResource();
 
-			if (e.event.rightButton) {
+			if (e.event.rightButton || (env.isMacintosh && e.event.leftButton && e.event.ctrlKey)) {
 				const anchor = { x: e.event.posx + 1, y: e.event.posy };
 				const breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.source.uri.toString() === uri.toString()).pop();
 
