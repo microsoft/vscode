@@ -29,10 +29,12 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import {IConfigurationService, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IMessageService} from 'vs/platform/message/common/message';
+import {IMessageService, CancelAction} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import URI from 'vs/base/common/uri';
+import * as semver from 'semver';
+import { shell } from 'electron';
 
 function toReadablePath(path: string): string {
 	if (!platform.isWindows) {
@@ -427,6 +429,23 @@ export class GitService extends ee.EventEmitter
 		this.inputCache = this.instantiationService.createInstance(EditorInputCache, this);
 
 		this.triggerStatus(true); // trigger initial status
+
+		this.raw.getVersion().done(version => {
+			version = semver.valid(version);
+
+			if (version && semver.satisfies(version, '<2.0.0')) {
+				messageService.show(severity.Warning, {
+					message: nls.localize('updateGit', "You seem to have git {0} installed. Code works best with git >=2.0.0.", version),
+					actions: [
+						CancelAction,
+						new actions.Action('downloadLatest', nls.localize('download', "Download"), '', true, () => {
+							shell.openExternal('https://git-scm.com/');
+							return null;
+						})
+					]
+				});
+			}
+		});
 	}
 
 	private registerListeners():void {

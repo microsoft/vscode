@@ -20,6 +20,10 @@ export class RawGitService implements IRawGitService {
 		this.repo = repo;
 	}
 
+	getVersion(): TPromise<string> {
+		return TPromise.as(this.repo.version);
+	}
+
 	private getRepositoryRoot(): TPromise<string> {
 		return this._repositoryRoot || (this._repositoryRoot = pfs.realpath(this.repo.path));
 	}
@@ -178,6 +182,10 @@ export class RawGitService implements IRawGitService {
 export class DelayedRawGitService implements IRawGitService {
 
 	constructor(private raw: TPromise<IRawGitService>) { }
+
+	getVersion(): TPromise<string> {
+		return this.raw.then(raw => raw.getVersion());
+	}
 
 	public serviceState(): TPromise<RawServiceState> {
 		return this.raw.then(raw => raw.serviceState());

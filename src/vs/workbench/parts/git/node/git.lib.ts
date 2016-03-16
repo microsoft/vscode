@@ -117,6 +117,7 @@ export class GitError {
 
 export interface IGitOptions {
 	gitPath:string;
+	version: string;
 	tmpPath:string;
 	defaultEncoding?: string;
 	env?:any;
@@ -125,6 +126,7 @@ export interface IGitOptions {
 export class Git {
 
 	public gitPath: string;
+	public version: string;
 	public env: any;
 	private tmpPath: string;
 	private defaultEncoding: string;
@@ -132,6 +134,7 @@ export class Git {
 
 	constructor(options: IGitOptions) {
 		this.gitPath = options.gitPath;
+		this.version = options.version;
 		this.tmpPath = options.tmpPath;
 
 		const encoding = options.defaultEncoding || 'utf8';
@@ -266,6 +269,10 @@ export class Repository {
 		this.repository = repository;
 		this.defaultEncoding = defaultEncoding;
 		this.env = env;
+	}
+
+	public get version(): string {
+		return this.git.version;
 	}
 
 	public get path(): string {
