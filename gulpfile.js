@@ -156,6 +156,7 @@ gulp.task('mixin', function () {
 
 	var all = remote(url, opts)
 		.pipe(zip.src())
+		.pipe(filter(function (f) { return !f.isDirectory(); }))
 		.pipe(util.rebase(1));
 
 	if (quality) {
