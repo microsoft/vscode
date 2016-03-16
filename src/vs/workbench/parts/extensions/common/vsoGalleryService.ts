@@ -76,27 +76,27 @@ export class GalleryService implements IGalleryService {
 			return TPromise.wrapError(new Error('No extension gallery service configured.'));
 		}
 
-		const gallery = this.queryGallery();
-		const cache = this.queryCache().then(r => {
-			const rawLastModified = r.getResponseHeader('last-modified');
+		const raw = this.queryCache()
+			.then(null, err => this.queryGallery())
+			.then(result => {
+				const rawLastModified = result.getResponseHeader('last-modified');
 
-			if (!rawLastModified) {
-				return gallery;
-			}
+				if (!rawLastModified) {
+					return this.queryGallery();
+				}
 
-			const lastModified = new Date(rawLastModified).getTime();
-			const now = new Date().getTime();
-			const diff = now - lastModified;
+				const lastModified = new Date(rawLastModified).getTime();
+				const now = new Date().getTime();
+				const diff = now - lastModified;
 
-			if (diff > FIVE_MINUTES) {
-				return gallery;
-			}
+				if (diff > FIVE_MINUTES) {
+					return this.queryGallery();
+				}
 
-			gallery.cancel();
-			return TPromise.as(r);
-		}, err => gallery);
+				return TPromise.as(result);
+			});
 
-		return cache
+		return raw
 			.then<IGalleryExtension[]>(r => JSON.parse(r.responseText).results[0].extensions || [])
 			.then<IExtension[]>(extensions => {
 				return extensions.map(e => {
