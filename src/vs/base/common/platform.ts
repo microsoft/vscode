@@ -12,15 +12,24 @@ let _isLinux = false;
 let _isNative = false;
 let _isWeb = false;
 let _isQunit = false;
+let _locale = undefined;
+let _language = undefined;
+
+interface NLSConfig {
+	locale: string;
+	availableLanguages: { [key: string]: string; };
+}
 
 interface INodeProcess {
 	platform: string;
+	env: { [key: string]: string; };
 }
 declare let process: INodeProcess;
 declare let global: any;
 
 interface INavigator {
-	userAgent:string;
+	userAgent: string;
+	language: string;
 }
 declare let navigator: INavigator;
 declare let self: any;
@@ -30,6 +39,17 @@ if (typeof process === 'object') {
 	_isWindows = (process.platform === 'win32');
 	_isMacintosh = (process.platform === 'darwin');
 	_isLinux = (process.platform === 'linux');
+	let vscode_nls_config = process.env['VSCODE_NLS_CONFIG'];
+	if (vscode_nls_config) {
+		try {
+			let nlsConfig:NLSConfig = JSON.parse(vscode_nls_config);
+			let resolved = nlsConfig.availableLanguages['*'];
+			_locale = nlsConfig.locale;
+			// VSCode's default language is 'en'
+			_language = resolved ? resolved : 'en';
+		} catch (e) {
+		}
+	}
 	_isNative = true;
 } else if (typeof navigator === 'object') {
 	let userAgent = navigator.userAgent;
@@ -37,7 +57,8 @@ if (typeof process === 'object') {
 	_isMacintosh = userAgent.indexOf('Macintosh') >= 0;
 	_isLinux = userAgent.indexOf('Linux') >= 0;
 	_isWeb = true;
-
+	_locale = navigator.language;
+	_language = _locale;
 	_isQunit = !!(<any>self).QUnit;
 }
 
@@ -66,6 +87,16 @@ export const isNative = _isNative;
 export const isWeb = _isWeb;
 export const isQunit = _isQunit;
 export const platform = _platform;
+
+/**
+ * The language used for the user interface.
+ */
+export const language = _language;
+
+/**
+ * The OS locale or the locale specified by --locale
+ */
+export const locale = _locale;
 
 export interface TimeoutToken {
 }

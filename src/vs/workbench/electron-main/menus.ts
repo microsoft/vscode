@@ -591,18 +591,11 @@ export class VSCodeMenu {
 			env.product.reportIssueUrl ? new MenuItem({ label: mnemonicLabel(nls.localize('miReportIssues', "Report &&Issues")), click: () => openUrl(env.product.reportIssueUrl, 'openReportIssues') }) : null,
 			(env.product.twitterUrl || env.product.requestFeatureUrl || env.product.reportIssueUrl) ? __separator__() : null,
 			env.product.licenseUrl ? new MenuItem({ label: mnemonicLabel(nls.localize('miLicense', "&&View License")), click: () => {
-				let nlsConfig = process.env['VSCODE_NLS_CONFIG'];
-				if (nlsConfig) {
-					try {
-						let languages = JSON.parse(nlsConfig).availableLanguages;
-						if (languages && languages['*']) {
-							openUrl(`${env.product.licenseUrl}?lang=${languages['*']}`, 'openLicenseUrl');
-							return;
-						}
-					} catch (e) {
-					}
+				if (platform.language) {
+					openUrl(`${env.product.licenseUrl}?lang=${platform.language}`, 'openLicenseUrl');
+				} else {
+					openUrl(env.product.licenseUrl, 'openLicenseUrl');
 				}
-				openUrl(env.product.licenseUrl, 'openLicenseUrl');
 			}}) : null,
 			env.product.privacyStatementUrl ? new MenuItem({ label: mnemonicLabel(nls.localize('miPrivacyStatement', "&&Privacy Statement")), click: () => openUrl(env.product.privacyStatementUrl, 'openPrivacyStatement') }) : null,
 			(env.product.licenseUrl || env.product.privacyStatementUrl) ? __separator__() : null,

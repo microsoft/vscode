@@ -85,8 +85,6 @@ export interface IConfiguration {
 }
 
 export interface IEnvironment {
-	language: string;
-
 	appName: string;
 	appRoot: string;
 	isBuilt: boolean;

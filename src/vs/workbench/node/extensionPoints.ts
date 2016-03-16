@@ -6,6 +6,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
+import * as Platform from 'vs/base/common/platform';
 import pfs = require('vs/base/node/pfs');
 import {IExtensionDescription, IMessage} from 'vs/platform/extensions/common/extensions';
 import Severity from 'vs/base/common/severity';
@@ -24,18 +25,10 @@ interface NlsConfiguration {
 	locale: string;
 	pseudo: boolean;
 }
-const nlsConfig = function(): NlsConfiguration {
-	if (process.env['VSCODE_NLS_CONFIG']) {
-		try {
-			return JSON.parse(process.env['VSCODE_NLS_CONFIG']);
-		} catch (err) {
-			return {
-				locale: undefined,
-				pseudo: false
-			};
-		}
-	}
-}();
+const nlsConfig: NlsConfiguration = {
+	locale: Platform.locale,
+	pseudo: Platform.locale === 'pseudo'
+};
 
 export class MessagesCollector {
 
