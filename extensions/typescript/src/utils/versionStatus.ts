@@ -7,10 +7,11 @@
 
 import vscode = require('vscode');
 
-let versionBarEntry: vscode.StatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
+const versionBarEntry: vscode.StatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
+let _enable: boolean = false;
 
 export function showHideStatus() {
-	if (!versionBarEntry) {
+	if (!versionBarEntry || !_enable) {
 		return;
 	}
 	if (!vscode.window.activeTextEditor) {
@@ -38,5 +39,12 @@ export function setInfo(message: string, tooltip: string) {
 	versionBarEntry.tooltip = tooltip;
 	let color = 'white';
 	versionBarEntry.color = color;
-	versionBarEntry.show();
+	if (_enable) {
+		versionBarEntry.show();
+	}
+}
+
+export function enable(value: boolean) {
+	_enable = value;
+	showHideStatus();
 }

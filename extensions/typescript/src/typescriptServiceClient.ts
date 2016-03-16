@@ -166,6 +166,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 		let label = this.getTypeScriptVersion(modulePath);
 		let tooltip = modulePath;
+		VersionStatus.enable(!!this.tsdk);
 		VersionStatus.setInfo(label, tooltip);
 
 		this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
