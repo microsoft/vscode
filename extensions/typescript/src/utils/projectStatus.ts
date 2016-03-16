@@ -96,7 +96,7 @@ export function create(client: ITypescriptServiceClient, memento: vscode.Memento
 				};
 				item.text = '$(light-bulb)';
 				item.tooltip = localize('hintCreate.tooltip', "Create a jsconfig.json to enable richer IntelliSense and code navigation across the entire workspace.");
-				item.color = 'white';
+				item.color = '#0CFF00';
 				item.show();
 				client.logTelemetry('js.hintProjectCreation');
 
