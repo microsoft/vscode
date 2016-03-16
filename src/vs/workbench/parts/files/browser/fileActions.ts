@@ -1939,7 +1939,7 @@ export class CloseAllWorkingFilesAction extends BaseCloseWorkingFileAction {
 	public dispose(): void {
 		if (this.listenerToDispose) {
 			this.listenerToDispose.dispose();
-			delete this.listenerToDispose;
+			this.listenerToDispose = null;
 		}
 
 		super.dispose();

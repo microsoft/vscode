@@ -296,7 +296,7 @@ export class VSCodeWindow {
 			if (this.pendingLoadConfig) {
 				this.currentConfig = this.pendingLoadConfig;
 
-				delete this.pendingLoadConfig;
+				this.pendingLoadConfig = null;
 			}
 
 			// To prevent flashing, we set the window visible after the page has finished to load but before VSCode is loaded
