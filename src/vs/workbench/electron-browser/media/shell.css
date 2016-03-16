@@ -75,21 +75,23 @@
 	opacity: 1 !important;
 }
 
-.monaco-shell.vs-dark .monaco-editor.focused,
-.monaco-shell.vs .monaco-editor.focused {
-	outline-offset: 0;
-	z-index: 1;
-}
-
 .monaco-shell.hc-black [tabindex="0"]:focus,
 .monaco-shell.hc-black .synthetic-focus,
 .monaco-shell.hc-black select:focus,
 .monaco-shell.hc-black input[type="button"]:focus,
 .monaco-shell.hc-black input[type="submit"]:focus,
 .monaco-shell.hc-black input[type="text"]:focus, .monaco-shell.hc-black textarea:focus,
-.monaco-shell.hc-black input[type="checkbox"]:focus {
+.monaco-shell.hc-black input[type="checkbox"]:focus,
+.monaco-shell.hc-black .monaco-editor.focused {
 	outline: 2px solid #f38518;
 	outline-offset: -1px;
+}
+
+.monaco-shell.vs-dark .monaco-editor.focused,
+.monaco-shell.vs .monaco-editor.focused,
+.monaco-shell.hc-black .monaco-editor.focused {
+	outline-offset: 0;
+	z-index: 1;
 }
 
 .monaco-shell.hc-black .synthetic-focus input {
