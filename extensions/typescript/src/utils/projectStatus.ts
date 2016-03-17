@@ -96,7 +96,7 @@ export function create(client: ITypescriptServiceClient, memento: vscode.Memento
 				};
 				item.text = '$(light-bulb)';
 				item.tooltip = localize('hintCreate.tooltip', "Create a jsconfig.json to enable richer IntelliSense and code navigation across the entire workspace.");
-				item.color = '#0CFF00';
+				item.color = '#A5DF3B';
 				item.show();
 				client.logTelemetry('js.hintProjectCreation');
 
@@ -123,7 +123,7 @@ export function create(client: ITypescriptServiceClient, memento: vscode.Memento
 				item.tooltip = currentHint.message;
 				item.text = localize('large.label', "Configure Excludes");
 				item.tooltip = localize('hintExclude.tooltip', "For better performance exclude folders with many files.");
-				item.color = '#0CFF00';
+				item.color = '#A5DF3B';
 				item.show();
 				client.logTelemetry('js.hintProjectExcludes');
 
