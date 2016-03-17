@@ -160,6 +160,14 @@
         ],
         "description": "Code snippet for a static class method"
     },
+    "def(abstract class method)": {
+        "prefix": "def(abstract class method)",
+        "body": [
+            "def ${funcname}(self, ${parameter_list}):",
+            "\traise NotImplementedError"
+        ],
+        "description": "Code snippet for a static class method"
+    },
     "class": {
         "prefix": "class",
         "body": [
