@@ -18,7 +18,6 @@ const gulp: TaskEntry = {
 	id: 'gulp',
 	label: 'Gulp',
 	autoDetect: true,
-	description: nls.localize('gulp', 'Integrates with Gulp'),
 	content: [
 		'{',
 			'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
@@ -32,28 +31,10 @@ const gulp: TaskEntry = {
 	].join('\n')
 };
 
-const jake: TaskEntry = {
-	id: 'jake',
-	label: 'Jake',
-	autoDetect: true,
-	description: nls.localize('jake', 'Integrates with Jake'),
-	content: [
-		'{',
-			'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
-			'\t// for the documentation about the tasks.json format',
-			'\t"version": "0.1.0",',
-			'\t"command": "jake",',
-			'\t"isShellCommand": true,',
-			'\t"showOutput": "silent"',
-		'}'
-	].join('\n')
-};
-
 const grunt: TaskEntry = {
 	id: 'grunt',
 	label: 'Grunt',
 	autoDetect: true,
-	description: nls.localize('grunt', 'Integrates with Grunt'),
 	content: [
 		'{',
 			'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
@@ -110,7 +91,7 @@ const dotnetBuild: TaskEntry = {
 	label: '.NET Core',
 	sort: 'NET Core',
 	autoDetect: false,
-	description: nls.localize('dotnetCore', 'Builds using .NET Core commands'),
+	description: nls.localize('dotnetCore', 'Executes .NET Core build command'),
 	content: [
 		'{',
 			'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
@@ -135,7 +116,7 @@ const msbuild: TaskEntry = {
 	id: 'msbuild',
 	label: 'MSBuild',
 	autoDetect: false,
-	description: nls.localize('msbuild', 'Integrates MSBuild targets'),
+	description: nls.localize('msbuild', 'Executes the build target'),
 	content: [
 		'{',
 			'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
@@ -163,9 +144,9 @@ const msbuild: TaskEntry = {
 
 const command: TaskEntry = {
 	id: 'externalCommand',
-	label: 'External Command',
+	label: 'Others',
 	autoDetect: false,
-	description: nls.localize('externalCommand', 'Runs an external command'),
+	description: nls.localize('externalCommand', 'Example to run an arbitrary external command'),
 	content: [
 		'{',
 			'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
@@ -180,6 +161,7 @@ const command: TaskEntry = {
 };
 
 
-export const templates: TaskEntry[] = [gulp, jake, grunt, tscConfig, tscWatch, dotnetBuild, msbuild, command].sort((a, b) => {
+export let templates: TaskEntry[] = [gulp, grunt, tscConfig, tscWatch, dotnetBuild, msbuild].sort((a, b) => {
 	return (a.sort || a.label).localeCompare(b.sort || b.label);
 });
+templates.push(command);

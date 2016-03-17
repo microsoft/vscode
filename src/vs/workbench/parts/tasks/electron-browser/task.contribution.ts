@@ -171,7 +171,7 @@ class ConfigureTaskRunnerAction extends Action {
 			return success;
 		}, (err:any) => {
 			;
-			return this.quickOpenService.pick(taskTemplates, { placeHolder: nls.localize('ConfigureTaskRunnerAction.quickPick.template', 'Select a Task Template')}).then(selection => {
+			return this.quickOpenService.pick(taskTemplates, { placeHolder: nls.localize('ConfigureTaskRunnerAction.quickPick.template', 'Select a Task Runner')}).then(selection => {
 				if (!selection) {
 					return undefined;
 				}
