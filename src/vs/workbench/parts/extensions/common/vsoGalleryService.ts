@@ -6,6 +6,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IGalleryService, IExtension, IGalleryVersion } from 'vs/workbench/parts/extensions/common/extensions';
 import { IXHRResponse } from 'vs/base/common/http';
+import { assign } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -54,15 +55,17 @@ export class GalleryService implements IGalleryService {
 
 	private extensionsGalleryUrl: string;
 	private extensionsCacheUrl: string;
+	private machineId: TPromise<string>;
 
 	constructor(
 		@IRequestService private requestService: IRequestService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		const config = contextService.getConfiguration().env.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
 		this.extensionsCacheUrl = config && config.cacheUrl;
+		this.machineId = telemetryService.getTelemetryInfo().then(({ machineId }) => machineId);
 	}
 
 	private api(path = ''): string {
@@ -101,30 +104,33 @@ export class GalleryService implements IGalleryService {
 		return raw
 			.then<IGalleryExtension[]>(r => JSON.parse(r.responseText).results[0].extensions || [])
 			.then<IExtension[]>(extensions => {
-				return extensions.map(e => {
-					const versions = e.versions.map<IGalleryVersion>(v => ({
-						version: v.version,
-						date: v.lastUpdated,
-						downloadUrl: `${ v.assetUri }/Microsoft.VisualStudio.Services.VSIXPackage?install=true`,
-						manifestUrl: `${ v.assetUri }/Microsoft.VisualStudio.Code.Manifest`
-					}));
+				return this.getRequestHeaders().then(downloadHeaders => {
+					return extensions.map(e => {
+						const versions = e.versions.map<IGalleryVersion>(v => ({
+							version: v.version,
+							date: v.lastUpdated,
+							downloadHeaders,
+							downloadUrl: `${ v.assetUri }/Microsoft.VisualStudio.Services.VSIXPackage?install=true`,
+							manifestUrl: `${ v.assetUri }/Microsoft.VisualStudio.Code.Manifest`
+						}));
 
-					return {
-						name: e.extensionName,
-						displayName: e.displayName || e.extensionName,
-						publisher: e.publisher.publisherName,
-						version: versions[0].version,
-						engines: { vscode: void 0 }, // TODO: ugly
-						description: e.shortDescription || '',
-						galleryInformation: {
-							galleryApiUrl: this.extensionsGalleryUrl,
-							id: e.extensionId,
-							publisherId: e.publisher.publisherId,
-							publisherDisplayName: e.publisher.displayName,
-							installCount: getInstallCount(e.statistics),
-							versions
-						}
-					};
+						return {
+							name: e.extensionName,
+							displayName: e.displayName || e.extensionName,
+							publisher: e.publisher.publisherName,
+							version: versions[0].version,
+							engines: { vscode: void 0 }, // TODO: ugly
+							description: e.shortDescription || '',
+							galleryInformation: {
+								galleryApiUrl: this.extensionsGalleryUrl,
+								id: e.extensionId,
+								publisherId: e.publisher.publisherId,
+								publisherDisplayName: e.publisher.displayName,
+								installCount: getInstallCount(e.statistics),
+								versions
+							}
+						};
+					});
 				});
 			});
 	}
@@ -150,21 +156,35 @@ export class GalleryService implements IGalleryService {
 			flags: 0x1 | 0x4 | 0x80 | 0x100
 		});
 
-		return this.telemetryService.getTelemetryInfo().then(({ machineId }) => {
+		return this.getRequestHeaders().then(headers => {
+			headers = assign(headers, {
+				'Content-Type': 'application/json',
+				'Accept': 'application/json;api-version=3.0-preview.1',
+				'Content-Length': data.length
+			});
+
 			const request = {
 				type: 'POST',
 				url: this.api('/extensionquery'),
-				data: data,
-				headers: {
-					'Content-Type': 'application/json',
-					'Accept': 'application/json;api-version=3.0-preview.1',
-					'Content-Length': data.length,
-					'X-Market-Client-Id': 'VSCodeExtensionCache',
-					'X-Market-User-Id': machineId
-				}
+				data,
+				headers
 			};
 
 			return this.requestService.makeRequest(request);
+		});
+	}
+
+	private getRequestHeaders(): TPromise<any> {
+		return this.machineId.then(machineId => {
+			const result = {
+				'X-Market-Client-Id': 'VSCode'
+			};
+
+			if (machineId) {
+				result['X-Market-User-Id'] = machineId;
+			}
+
+			return result;
 		});
 	}
 }

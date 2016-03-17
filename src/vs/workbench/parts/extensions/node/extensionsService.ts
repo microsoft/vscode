@@ -141,11 +141,13 @@ export class ExtensionsService implements IExtensionsService {
 		return this.getLastValidExtensionVersion(extension, extension.galleryInformation.versions).then(versionInfo => {
 			const version = versionInfo.version;
 			const url = versionInfo.downloadUrl;
+			const headers = versionInfo.downloadHeaders;
 			const zipPath = path.join(tmpdir(), galleryInformation.id);
 			const extensionPath = path.join(this.extensionsPath, getExtensionId(extension, version));
 			const manifestPath = path.join(extensionPath, 'package.json');
 
 			return this.request(url)
+				.then(opts => assign(opts, { headers }))
 				.then(opts => download(zipPath, opts))
 				.then(() => validate(zipPath, extension, version))
 				.then(manifest => extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true }).then(() => manifest))
@@ -314,7 +316,6 @@ export class ExtensionsService implements IExtensionsService {
 			const proxyUrl: string = settings[0];
 			const strictSSL: boolean = settings[1];
 			const agent = getProxyAgent(url, { proxyUrl, strictSSL });
-
 
 			return { url, agent, strictSSL };
 		});

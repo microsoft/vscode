@@ -25,6 +25,7 @@ export interface IGalleryVersion {
 	date: string;
 	manifestUrl: string;
 	downloadUrl: string;
+	downloadHeaders: { [key: string]: string; };
 }
 
 export interface IGalleryMetadata {
