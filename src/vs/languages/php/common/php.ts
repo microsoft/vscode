@@ -492,7 +492,9 @@ export class PHPMode extends AbstractMode implements ITokenizationCustomization 
 			}
 		});
 
-		this.suggestSupport = new TextualSuggestSupport(this.getId(), editorWorkerService);
+		if (editorWorkerService) {
+			this.suggestSupport = new TextualSuggestSupport(this.getId(), editorWorkerService);
+		}
 	}
 
 	public asyncCtor(): WinJS.Promise {
