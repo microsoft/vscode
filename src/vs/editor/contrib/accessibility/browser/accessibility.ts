@@ -227,7 +227,7 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ShowAccessi
 	context: ContextKey.EditorFocus,
 	primary: KeyMod.Alt | KeyCode.F1
 }));
-CommonEditorRegistry.registerEditorCommand('closeAccessibilityHelp', CommonEditorRegistry.commandWeight(100), { primary: KeyCode.Escape }, false, CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE, (ctx, editor, args) => {
+CommonEditorRegistry.registerEditorCommand('closeAccessibilityHelp', CommonEditorRegistry.commandWeight(100), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE, (ctx, editor, args) => {
 	AccessibilityHelpController.get(editor).hide();
 });
 KeybindingsRegistry.registerCommandDesc({

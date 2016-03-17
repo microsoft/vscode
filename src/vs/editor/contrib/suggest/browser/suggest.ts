@@ -237,7 +237,7 @@ KeybindingsRegistry.registerCommandDesc({
 	context: KbExpr.and(KbExpr.has(CONTEXT_SUGGEST_WIDGET_VISIBLE), KbExpr.has('config.editor.acceptSuggestionOnEnter')),
 	primary: KeyCode.Enter,
 });
-CommonEditorRegistry.registerEditorCommand('hideSuggestWidget', weight, { primary: KeyCode.Escape }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
+CommonEditorRegistry.registerEditorCommand('hideSuggestWidget', weight, { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
 	const controller = SuggestController.getSuggestController(editor);
 	controller.cancelSuggestWidget();
 });

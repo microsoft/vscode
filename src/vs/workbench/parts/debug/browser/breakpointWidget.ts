@@ -7,7 +7,7 @@ import nls = require('vs/nls');
 import 'vs/css!../browser/media/breakpointWidget';
 import async = require('vs/base/common/async');
 import errors = require('vs/base/common/errors');
-import { CommonKeybindings, KeyCode } from 'vs/base/common/keyCodes';
+import { CommonKeybindings, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import platform = require('vs/base/common/platform');
 import lifecycle = require('vs/base/common/lifecycle');
 import dom = require('vs/base/browser/dom');
@@ -108,7 +108,7 @@ export class BreakpointWidget extends ZoneWidget {
 	}
 }
 
-CommonEditorRegistry.registerEditorCommand(CLOSE_BREAKPOINT_WIDGET_COMMAND_ID, CommonEditorRegistry.commandWeight(8), { primary: KeyCode.Escape,  }, false, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, (ctx, editor, args) => {
+CommonEditorRegistry.registerEditorCommand(CLOSE_BREAKPOINT_WIDGET_COMMAND_ID, CommonEditorRegistry.commandWeight(8), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape]  }, false, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, (ctx, editor, args) => {
 	if (BreakpointWidget.INSTANCE) {
 		BreakpointWidget.INSTANCE.dispose();
 	}

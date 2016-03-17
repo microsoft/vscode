@@ -171,7 +171,7 @@ CommonEditorRegistry.registerEditorCommand('acceptQuickFixSuggestion', weight, {
 	var controller = QuickFixController.getQuickFixController(editor);
 	controller.acceptSelectedSuggestion();
 });
-CommonEditorRegistry.registerEditorCommand('closeQuickFixWidget', weight, { primary: KeyCode.Escape }, false, CONTEXT_QUICK_FIX_WIDGET_VISIBLE,(ctx, editor, args) => {
+CommonEditorRegistry.registerEditorCommand('closeQuickFixWidget', weight, { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, CONTEXT_QUICK_FIX_WIDGET_VISIBLE,(ctx, editor, args) => {
 	var controller = QuickFixController.getQuickFixController(editor);
 	controller.closeWidget();
 });

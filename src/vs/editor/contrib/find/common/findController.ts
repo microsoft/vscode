@@ -675,7 +675,8 @@ function registerFindCommand(id:string, callback:(controller:CommonFindControlle
 }
 
 registerFindCommand(FIND_IDS.CloseFindWidgetCommand, x => x.closeFindWidget(), {
-	primary: KeyCode.Escape
+	primary: KeyCode.Escape,
+	secondary: [KeyMod.Shift | KeyCode.Escape]
 }, CONTEXT_FIND_WIDGET_VISIBLE);
 registerFindCommand(FIND_IDS.ToggleCaseSensitiveCommand, x => x.toggleCaseSensitive(), {
 	primary: KeyMod.Alt | KeyCode.KEY_C,

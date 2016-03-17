@@ -907,6 +907,6 @@ CommonEditorRegistry.registerEditorCommand('jumpToPrevSnippetPlaceholder', weigh
 CommonEditorRegistry.registerEditorCommand('acceptSnippet', weight, { primary: KeyCode.Enter }, true, CONTEXT_SNIPPET_MODE,(ctx, editor, args) => {
 	getSnippetController(editor).acceptSnippet();
 });
-CommonEditorRegistry.registerEditorCommand('leaveSnippet', weight, { primary: KeyCode.Escape }, true, CONTEXT_SNIPPET_MODE,(ctx, editor, args) => {
+CommonEditorRegistry.registerEditorCommand('leaveSnippet', weight, { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, true, CONTEXT_SNIPPET_MODE,(ctx, editor, args) => {
 	getSnippetController(editor).leaveSnippet();
 });

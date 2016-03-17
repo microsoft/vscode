@@ -332,13 +332,15 @@ registerCoreCommand(H.DeleteWordStartRight, { primary: 0 });
 registerCoreCommand(H.DeleteWordEndRight, { primary: 0 });
 
 registerCoreCommand(H.CancelSelection, {
-	primary: KeyCode.Escape
+	primary: KeyCode.Escape,
+	secondary: [KeyMod.Shift | KeyCode.Escape]
 }, KeybindingsRegistry.WEIGHT.editorCore(), KbExpr.and(
 	KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
 	KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION)
 ));
 registerCoreCommand(H.RemoveSecondaryCursors, {
-	primary: KeyCode.Escape
+	primary: KeyCode.Escape,
+	secondary: [KeyMod.Shift | KeyCode.Escape]
 }, KeybindingsRegistry.WEIGHT.editorCore(1), KbExpr.and(
 	KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
 	KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS)
