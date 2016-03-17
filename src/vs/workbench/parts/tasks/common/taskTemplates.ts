@@ -26,7 +26,7 @@ const gulp: TaskEntry = {
 			'\t"command": "gulp",',
 			'\t"isShellCommand": true,',
 			'\t"args": ["--no-color"],',
-			'\t"showOutput": "silent"',
+			'\t"showOutput": "always"',
 		'}'
 	].join('\n')
 };
@@ -43,7 +43,39 @@ const grunt: TaskEntry = {
 			'\t"command": "grunt",',
 			'\t"isShellCommand": true,',
 			'\t"args": ["--no-color"],',
-			'\t"showOutput": "silent"',
+			'\t"showOutput": "always"',
+		'}'
+	].join('\n')
+};
+
+const npm: TaskEntry = {
+	id: 'npm',
+	label: 'npm',
+	sort: 'NPM',
+	autoDetect: false,
+	content: [
+		'{',
+			'\t// See http://go.microsoft.com/fwlink/?LinkId=733558',
+			'\t// for the documentation about the tasks.json format',
+			'\t"version": "0.1.0",',
+			'\t"command": "npm",',
+			'\t"isShellCommand": true,',
+			'\t"showOutput": "always",',
+			'\t"suppressTaskName": true,',
+			'\t"tasks": [',
+				'\t\t{',
+					'\t\t\t"taskName": "install",',
+					'\t\t\t"args": ["install"]',
+				'\t\t},',
+				'\t\t{',
+					'\t\t\t"taskName": "update",',
+					'\t\t\t"args": ["update"]',
+				'\t\t}',
+				'\t\t{',
+					'\t\t\t"taskName": "test",',
+					'\t\t\t"args": ["run", "test"]',
+				'\t\t}',
+			'\t]',
 		'}'
 	].join('\n')
 };
@@ -105,6 +137,7 @@ const dotnetBuild: TaskEntry = {
 					'\t\t\t"taskName": "build",',
 					'\t\t\t"args": [ ],',
 					'\t\t\t"isBuildCommand": true,',
+					'\t\t\t"showOutput": "silent",',
 					'\t\t\t"problemMatcher": "$msCompile"',
 				'\t\t}',
 			'\t]',
@@ -131,11 +164,11 @@ const msbuild: TaskEntry = {
 			'\t"showOutput": "silent",',
 			'\t"tasks": [',
 				'\t\t{',
-				'\t\t\t"taskName": "build",',
-				'\t\t\t// Show the output window only if unrecognized errors occur.',
-				'\t\t\t"showOutput": "silent",',
-				'\t\t\t// Use the standard MS compiler pattern to detect errors, warnings and infos',
-				'\t\t\t"problemMatcher": "$msCompile"',
+					'\t\t\t"taskName": "build",',
+					'\t\t\t// Show the output window only if unrecognized errors occur.',
+					'\t\t\t"showOutput": "silent",',
+					'\t\t\t// Use the standard MS compiler pattern to detect errors, warnings and infos',
+					'\t\t\t"problemMatcher": "$msCompile"',
 				'\t\t}',
 			'\t]',
 		'}'
@@ -161,7 +194,7 @@ const command: TaskEntry = {
 };
 
 
-export let templates: TaskEntry[] = [gulp, grunt, tscConfig, tscWatch, dotnetBuild, msbuild].sort((a, b) => {
+export let templates: TaskEntry[] = [gulp, grunt, tscConfig, tscWatch, dotnetBuild, msbuild, npm].sort((a, b) => {
 	return (a.sort || a.label).localeCompare(b.sort || b.label);
 });
 templates.push(command);
