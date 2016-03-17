@@ -68,7 +68,7 @@ var isKeyword = objects.createKeywordMatcher([
 	'try', 'true', 'use', 'var', 'while', 'xor',
 	'die', 'echo', 'empty', 'exit', 'eval',
 	'include', 'include_once', 'isset', 'list', 'require',
-	'require_once', 'return', 'print', 'unset',
+	'require_once', 'return', 'print', 'unset', 'yield',
 	'__construct'
 ]);
 
