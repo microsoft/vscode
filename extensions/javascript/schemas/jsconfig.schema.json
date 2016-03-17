@@ -29,10 +29,9 @@
 					"format": "uri"
 				},
 				"module": {
-					"description": "Specify module code generation: 'CommonJS', 'Amd', 'System', 'UMD', 'es6', or 'es2015'.",
+					"description": "Specify used module type: 'commonjs', 'system', 'umd', 'es6', or 'es2015'. Note: 'amd' is currently not supported.",
 					"enum": [
 						"commonjs",
-						"amd",
 						"umd",
 						"system",
 						"es6",
