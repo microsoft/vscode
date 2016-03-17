@@ -32,3 +32,8 @@
 /* Action labels */
 .monaco-workbench.vs-dark .stacked-view .action-label		{ color: inherit; }
 .monaco-workbench.vs-dark .stacked-view .action-label:hover { color: #3399FF; }
+
+.monaco-workbench.vs-dark .margin-view-overlays {
+	border-right: 1px solid #5a5a5a;
+	z-index: 1;
+}
