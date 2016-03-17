@@ -137,10 +137,10 @@ export class Thread implements debug.IThread {
 		return session.stackTrace({ threadId: this.threadId, levels: 20 }).then(response => {
 			return response.body.stackFrames.map((rsf, level) => {
 				if (!rsf) {
-					return new StackFrame(this.threadId, 0, new Source({ name: 'unknown' }), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
+					return new StackFrame(this.threadId, 0, new Source({ name: 'unknown' }, false), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
 				}
 
-				return new StackFrame(this.threadId, rsf.id, rsf.source ? new Source(rsf.source) : new Source({ name: 'unknown' }), rsf.name, rsf.line, rsf.column);
+				return new StackFrame(this.threadId, rsf.id, rsf.source ? new Source(rsf.source) : new Source({ name: 'unknown' }, false), rsf.name, rsf.line, rsf.column);
 			});
 		});
 	}

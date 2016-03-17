@@ -253,7 +253,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 					this.windowService.getWindow().focus();
 					if (callStack.length > 0) {
 						// focus first stack frame from top that has source location
-						const stackFrameToFocus = arrays.first(callStack, sf => !!sf.source, callStack[0]);
+						const stackFrameToFocus = arrays.first(callStack, sf => sf.source && sf.source.available, callStack[0]);
 						this.setFocusedStackFrameAndEvaluate(stackFrameToFocus);
 						aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.lineNumber));
 
