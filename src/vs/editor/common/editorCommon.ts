@@ -3324,13 +3324,25 @@ export var Handler = {
 
 	CursorLeft:					'cursorLeft',
 	CursorLeftSelect:			'cursorLeftSelect',
+
 	CursorWordLeft:				'cursorWordLeft',
+	CursorWordStartLeft:		'cursorWordStartLeft',
+	CursorWordEndLeft:			'cursorWordEndLeft',
+
 	CursorWordLeftSelect:		'cursorWordLeftSelect',
+	CursorWordStartLeftSelect:	'cursorWordStartLeftSelect',
+	CursorWordEndLeftSelect:	'cursorWordEndLeftSelect',
 
 	CursorRight:				'cursorRight',
 	CursorRightSelect:			'cursorRightSelect',
+
 	CursorWordRight:			'cursorWordRight',
+	CursorWordStartRight:		'cursorWordStartRight',
+	CursorWordEndRight:			'cursorWordEndRight',
+
 	CursorWordRightSelect:		'cursorWordRightSelect',
+	CursorWordStartRightSelect:	'cursorWordStartRightSelect',
+	CursorWordEndRightSelect:	'cursorWordEndRightSelect',
 
 	CursorUp:					'cursorUp',
 	CursorUpSelect:				'cursorUpSelect',
@@ -3383,8 +3395,15 @@ export var Handler = {
 
 	DeleteLeft:					'deleteLeft',
 	DeleteRight:				'deleteRight',
+
 	DeleteWordLeft:				'deleteWordLeft',
+	DeleteWordStartLeft:		'deleteWordStartLeft',
+	DeleteWordEndLeft:			'deleteWordEndLeft',
+
 	DeleteWordRight:			'deleteWordRight',
+	DeleteWordStartRight:		'deleteWordStartRight',
+	DeleteWordEndRight:			'deleteWordEndRight',
+
 	DeleteAllLeft:				'deleteAllLeft',
 	DeleteAllRight:				'deleteAllRight',
 

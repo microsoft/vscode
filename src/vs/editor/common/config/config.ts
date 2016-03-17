@@ -307,12 +307,29 @@ function registerWordCommand(handlerId: string, shift:boolean, key:KeyCode): voi
 		mac: { primary: getMacWordNavigationKB(shift, key) }
 	});
 }
-registerWordCommand(H.CursorWordLeft, false, KeyCode.LeftArrow);
-registerWordCommand(H.CursorWordLeftSelect, true, KeyCode.LeftArrow);
-registerWordCommand(H.CursorWordRight, false, KeyCode.RightArrow);
-registerWordCommand(H.CursorWordRightSelect, true, KeyCode.RightArrow);
+registerWordCommand(H.CursorWordStartLeft, false, KeyCode.LeftArrow);
+registerCoreCommand(H.CursorWordEndLeft, { primary: 0 });
+registerCoreCommand(H.CursorWordLeft, { primary: 0 });
+
+registerWordCommand(H.CursorWordStartLeftSelect, true, KeyCode.LeftArrow);
+registerCoreCommand(H.CursorWordEndLeftSelect, { primary: 0 });
+registerCoreCommand(H.CursorWordLeftSelect, { primary: 0 });
+
+registerWordCommand(H.CursorWordEndRight, false, KeyCode.RightArrow);
+registerCoreCommand(H.CursorWordStartRight, { primary: 0 });
+registerCoreCommand(H.CursorWordRight, { primary: 0 });
+
+registerWordCommand(H.CursorWordEndRightSelect, true, KeyCode.RightArrow);
+registerCoreCommand(H.CursorWordStartRightSelect, { primary: 0 });
+registerCoreCommand(H.CursorWordRightSelect, { primary: 0 });
+
 registerWordCommand(H.DeleteWordLeft, false, KeyCode.Backspace);
+registerCoreCommand(H.DeleteWordStartLeft, { primary: 0 });
+registerCoreCommand(H.DeleteWordEndLeft, { primary: 0 });
+
 registerWordCommand(H.DeleteWordRight, false, KeyCode.Delete);
+registerCoreCommand(H.DeleteWordStartRight, { primary: 0 });
+registerCoreCommand(H.DeleteWordEndRight, { primary: 0 });
 
 registerCoreCommand(H.CancelSelection, {
 	primary: KeyCode.Escape

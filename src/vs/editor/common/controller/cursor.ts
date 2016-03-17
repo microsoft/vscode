@@ -11,7 +11,7 @@ import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {ReplaceCommand} from 'vs/editor/common/commands/replaceCommand';
 import {CursorCollection, ICursorCollectionState} from 'vs/editor/common/controller/cursorCollection';
 import {DispatcherEvent} from 'vs/editor/common/controller/handlerDispatcher';
-import {IOneCursorOperationContext, IPostOperationRunnable, IViewModelHelper, OneCursor, OneCursorOp} from 'vs/editor/common/controller/oneCursor';
+import {WordNavigationType, IOneCursorOperationContext, IPostOperationRunnable, IViewModelHelper, OneCursor, OneCursorOp} from 'vs/editor/common/controller/oneCursor';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
@@ -939,13 +939,25 @@ export class Cursor extends EventEmitter {
 
 		handlersMap[H.CursorLeft] = 				(ctx:IMultipleCursorOperationContext) => this._moveLeft(false, ctx);
 		handlersMap[H.CursorLeftSelect] =			(ctx:IMultipleCursorOperationContext) => this._moveLeft(true, ctx);
-		handlersMap[H.CursorWordLeft] =				(ctx:IMultipleCursorOperationContext) => this._moveWordLeft(false, ctx);
-		handlersMap[H.CursorWordLeftSelect] =		(ctx:IMultipleCursorOperationContext) => this._moveWordLeft(true, ctx);
+
+		handlersMap[H.CursorWordLeft] =				(ctx:IMultipleCursorOperationContext) => this._moveWordLeft(false, WordNavigationType.WordStart, ctx);
+		handlersMap[H.CursorWordStartLeft] =		(ctx:IMultipleCursorOperationContext) => this._moveWordLeft(false, WordNavigationType.WordStart, ctx);
+		handlersMap[H.CursorWordEndLeft] =			(ctx:IMultipleCursorOperationContext) => this._moveWordLeft(false, WordNavigationType.WordEnd, ctx);
+
+		handlersMap[H.CursorWordLeftSelect] =		(ctx:IMultipleCursorOperationContext) => this._moveWordLeft(true, WordNavigationType.WordStart, ctx);
+		handlersMap[H.CursorWordStartLeftSelect] =	(ctx:IMultipleCursorOperationContext) => this._moveWordLeft(true, WordNavigationType.WordStart, ctx);
+		handlersMap[H.CursorWordEndLeftSelect] =	(ctx:IMultipleCursorOperationContext) => this._moveWordLeft(true, WordNavigationType.WordEnd, ctx);
 
 		handlersMap[H.CursorRight] =				(ctx:IMultipleCursorOperationContext) => this._moveRight(false, ctx);
 		handlersMap[H.CursorRightSelect] =			(ctx:IMultipleCursorOperationContext) => this._moveRight(true, ctx);
-		handlersMap[H.CursorWordRight] =			(ctx:IMultipleCursorOperationContext) => this._moveWordRight(false, ctx);
-		handlersMap[H.CursorWordRightSelect] =		(ctx:IMultipleCursorOperationContext) => this._moveWordRight(true, ctx);
+
+		handlersMap[H.CursorWordRight] =			(ctx:IMultipleCursorOperationContext) => this._moveWordRight(false, WordNavigationType.WordEnd, ctx);
+		handlersMap[H.CursorWordStartRight] =		(ctx:IMultipleCursorOperationContext) => this._moveWordRight(false, WordNavigationType.WordStart, ctx);
+		handlersMap[H.CursorWordEndRight] =			(ctx:IMultipleCursorOperationContext) => this._moveWordRight(false, WordNavigationType.WordEnd, ctx);
+
+		handlersMap[H.CursorWordRightSelect] =		(ctx:IMultipleCursorOperationContext) => this._moveWordRight(true, WordNavigationType.WordEnd, ctx);
+		handlersMap[H.CursorWordStartRightSelect] =	(ctx:IMultipleCursorOperationContext) => this._moveWordRight(true, WordNavigationType.WordStart, ctx);
+		handlersMap[H.CursorWordEndRightSelect] =	(ctx:IMultipleCursorOperationContext) => this._moveWordRight(true, WordNavigationType.WordEnd, ctx);
 
 		handlersMap[H.CursorUp] =					(ctx:IMultipleCursorOperationContext) => this._moveUp(false, false, ctx);
 		handlersMap[H.CursorUpSelect] =				(ctx:IMultipleCursorOperationContext) => this._moveUp(true, false, ctx);
@@ -1005,9 +1017,17 @@ export class Cursor extends EventEmitter {
 		handlersMap[H.ScrollPageDown] =				(ctx:IMultipleCursorOperationContext) => this._scrollDown(true, ctx);
 
 		handlersMap[H.DeleteLeft] =					(ctx:IMultipleCursorOperationContext) => this._deleteLeft(ctx);
-		handlersMap[H.DeleteWordLeft] =				(ctx:IMultipleCursorOperationContext) => this._deleteWordLeft(ctx);
+
+		handlersMap[H.DeleteWordLeft] =				(ctx:IMultipleCursorOperationContext) => this._deleteWordLeft(true, WordNavigationType.WordStart, ctx);
+		handlersMap[H.DeleteWordStartLeft] =		(ctx:IMultipleCursorOperationContext) => this._deleteWordLeft(false, WordNavigationType.WordStart, ctx);
+		handlersMap[H.DeleteWordEndLeft] =			(ctx:IMultipleCursorOperationContext) => this._deleteWordLeft(false, WordNavigationType.WordEnd, ctx);
+
 		handlersMap[H.DeleteRight] =				(ctx:IMultipleCursorOperationContext) => this._deleteRight(ctx);
-		handlersMap[H.DeleteWordRight] =			(ctx:IMultipleCursorOperationContext) => this._deleteWordRight(ctx);
+
+		handlersMap[H.DeleteWordRight] =			(ctx:IMultipleCursorOperationContext) => this._deleteWordRight(true, WordNavigationType.WordEnd, ctx);
+		handlersMap[H.DeleteWordStartRight] =		(ctx:IMultipleCursorOperationContext) => this._deleteWordRight(false, WordNavigationType.WordStart, ctx);
+		handlersMap[H.DeleteWordEndRight] =			(ctx:IMultipleCursorOperationContext) => this._deleteWordRight(false, WordNavigationType.WordEnd, ctx);
+
 		handlersMap[H.DeleteAllLeft] =				(ctx:IMultipleCursorOperationContext) => this._deleteAllLeft(ctx);
 		handlersMap[H.DeleteAllRight] =				(ctx:IMultipleCursorOperationContext) => this._deleteAllRight(ctx);
 		handlersMap[H.Cut] =						(ctx:IMultipleCursorOperationContext) => this._cut(ctx);
@@ -1249,16 +1269,16 @@ export class Cursor extends EventEmitter {
 		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveLeft(oneCursor, inSelectionMode, oneCtx));
 	}
 
-	private _moveWordLeft(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveWordLeft(oneCursor, inSelectionMode, oneCtx));
+	private _moveWordLeft(inSelectionMode:boolean, wordNavigationType:WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
+		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveWordLeft(oneCursor, inSelectionMode, wordNavigationType, oneCtx));
 	}
 
 	private _moveRight(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
 		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveRight(oneCursor, inSelectionMode, oneCtx));
 	}
 
-	private _moveWordRight(inSelectionMode:boolean, ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveWordRight(oneCursor, inSelectionMode, oneCtx));
+	private _moveWordRight(inSelectionMode:boolean, wordNavigationType:WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
+		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.moveWordRight(oneCursor, inSelectionMode, wordNavigationType, oneCtx));
 	}
 
 	private _moveDown(inSelectionMode:boolean, isPaged:boolean, ctx: IMultipleCursorOperationContext): boolean {
@@ -1462,16 +1482,16 @@ export class Cursor extends EventEmitter {
 		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.deleteLeft(oneCursor, oneCtx), false, false);
 	}
 
-	private _deleteWordLeft(ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.deleteWordLeft(oneCursor, oneCtx), false, false);
+	private _deleteWordLeft(whitespaceHeuristics:boolean, wordNavigationType:WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
+		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.deleteWordLeft(oneCursor, whitespaceHeuristics, wordNavigationType, oneCtx), false, false);
 	}
 
 	private _deleteRight(ctx: IMultipleCursorOperationContext): boolean {
 		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.deleteRight(oneCursor, oneCtx), false, false);
 	}
 
-	private _deleteWordRight(ctx: IMultipleCursorOperationContext): boolean {
-		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.deleteWordRight(oneCursor, oneCtx), false, false);
+	private _deleteWordRight(whitespaceHeuristics:boolean, wordNavigationType:WordNavigationType, ctx: IMultipleCursorOperationContext): boolean {
+		return this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => OneCursorOp.deleteWordRight(oneCursor, whitespaceHeuristics, wordNavigationType, oneCtx), false, false);
 	}
 
 	private _deleteAllLeft(ctx: IMultipleCursorOperationContext): boolean {

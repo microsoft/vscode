@@ -91,6 +91,11 @@ enum CharacterClass {
 	WordSeparator = 2
 };
 
+export enum WordNavigationType {
+	WordStart = 0,
+	WordEnd = 1
+}
+
 const CH_REGULAR = CharacterClass.Regular;
 const CH_WHITESPACE = CharacterClass.Whitespace;
 const CH_WORD_SEPARATOR = CharacterClass.WordSeparator;
@@ -695,15 +700,13 @@ export class OneCursorOp {
 		return true;
 	}
 
-	public static moveWordLeft(cursor:OneCursor, inSelectionMode: boolean, ctx: IOneCursorOperationContext): boolean {
+	public static moveWordLeft(cursor:OneCursor, inSelectionMode: boolean, wordNavigationType:WordNavigationType, ctx: IOneCursorOperationContext): boolean {
 		let position = cursor.getPosition();
-		var lineNumber = position.lineNumber;
-		var column = position.column;
+		let lineNumber = position.lineNumber;
+		let column = position.column;
 
-		var wentUp = false;
 		if (column === 1) {
 			if (lineNumber > 1) {
-				wentUp = true;
 				lineNumber = lineNumber - 1;
 				column = cursor.model.getLineMaxColumn(lineNumber);
 			}
@@ -711,10 +714,21 @@ export class OneCursorOp {
 
 		let prevWordOnLine = cursor.findPreviousWordOnLine(new Position(lineNumber, column));
 
-		if (prevWordOnLine) {
-			column = prevWordOnLine.start + 1;
+		if (wordNavigationType === WordNavigationType.WordStart) {
+			if (prevWordOnLine) {
+				column = prevWordOnLine.start + 1;
+			} else {
+				column = 1;
+			}
 		} else {
-			column = 1;
+			if (prevWordOnLine && column <= prevWordOnLine.end + 1) {
+				prevWordOnLine = cursor.findPreviousWordOnLine(new Position(lineNumber, prevWordOnLine.start + 1));
+			}
+			if (prevWordOnLine) {
+				column = prevWordOnLine.end + 1;
+			} else {
+				column = 1;
+			}
 		}
 
 		ctx.cursorPositionChangeReason = 'explicit';
@@ -744,15 +758,13 @@ export class OneCursorOp {
 		return true;
 	}
 
-	public static moveWordRight(cursor:OneCursor, inSelectionMode: boolean, ctx: IOneCursorOperationContext): boolean {
+	public static moveWordRight(cursor:OneCursor, inSelectionMode: boolean, wordNavigationType:WordNavigationType, ctx: IOneCursorOperationContext): boolean {
 		let position = cursor.getPosition();
-		var lineNumber = position.lineNumber;
-		var column = position.column;
+		let lineNumber = position.lineNumber;
+		let column = position.column;
 
-		var wentDown = false;
 		if (column === cursor.model.getLineMaxColumn(lineNumber)) {
 			if (lineNumber < cursor.model.getLineCount()) {
-				wentDown = true;
 				lineNumber = lineNumber + 1;
 				column = 1;
 			}
@@ -760,10 +772,21 @@ export class OneCursorOp {
 
 		let nextWordOnLine = cursor.findNextWordOnLine(new Position(lineNumber, column));
 
-		if (nextWordOnLine) {
-			column = nextWordOnLine.end + 1;
+		if (wordNavigationType === WordNavigationType.WordEnd) {
+			if (nextWordOnLine) {
+				column = nextWordOnLine.end + 1;
+			} else {
+				column = cursor.model.getLineMaxColumn(lineNumber);
+			}
 		} else {
-			column = cursor.model.getLineMaxColumn(lineNumber);
+			if (nextWordOnLine && column >= nextWordOnLine.start + 1) {
+				nextWordOnLine = cursor.findNextWordOnLine(new Position(lineNumber, nextWordOnLine.end + 1));
+			}
+			if (nextWordOnLine) {
+				column = nextWordOnLine.start + 1;
+			} else {
+				column = cursor.model.getLineMaxColumn(lineNumber);
+			}
 		}
 
 		ctx.cursorPositionChangeReason = 'explicit';
@@ -1640,7 +1663,7 @@ export class OneCursorOp {
 		return false;
 	}
 
-	public static deleteWordLeft(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
+	public static deleteWordLeft(cursor:OneCursor, whitespaceHeuristics:boolean, wordNavigationType:WordNavigationType, ctx: IOneCursorOperationContext): boolean {
 		if (this._autoClosingPairDelete(cursor, ctx)) {
 			// This was a case for an auto-closing pair delete
 			return true;
@@ -1659,16 +1682,27 @@ export class OneCursorOp {
 				return true;
 			}
 
-			if (this.deleteWordLeftWhitespace(cursor, ctx)) {
+			if (whitespaceHeuristics && this.deleteWordLeftWhitespace(cursor, ctx)) {
 				return true;
 			}
 
 			let prevWordOnLine = cursor.findPreviousWordOnLine(position);
 
-			if (prevWordOnLine) {
-				column = prevWordOnLine.start + 1;
+			if (wordNavigationType === WordNavigationType.WordStart) {
+				if (prevWordOnLine) {
+					column = prevWordOnLine.start + 1;
+				} else {
+					column = 1;
+				}
 			} else {
-				column = 1;
+				if (prevWordOnLine && column <= prevWordOnLine.end + 1) {
+					prevWordOnLine = cursor.findPreviousWordOnLine(new Position(lineNumber, prevWordOnLine.start + 1));
+				}
+				if (prevWordOnLine) {
+					column = prevWordOnLine.end + 1;
+				} else {
+					column = 1;
+				}
 			}
 
 			let deleteSelection = new Range(lineNumber, column, lineNumber, position.column);
@@ -1733,7 +1767,7 @@ export class OneCursorOp {
 		return false;
 	}
 
-	public static deleteWordRight(cursor:OneCursor, ctx: IOneCursorOperationContext): boolean {
+	public static deleteWordRight(cursor:OneCursor, whitespaceHeuristics:boolean, wordNavigationType:WordNavigationType, ctx: IOneCursorOperationContext): boolean {
 
 		var selection = cursor.getSelection();
 
@@ -1750,16 +1784,27 @@ export class OneCursorOp {
 				return true;
 			}
 
-			if (this.deleteWordRightWhitespace(cursor, ctx)) {
+			if (whitespaceHeuristics && this.deleteWordRightWhitespace(cursor, ctx)) {
 				return true;
 			}
 
 			let nextWordOnLine = cursor.findNextWordOnLine(position);
 
-			if (nextWordOnLine) {
-				column = nextWordOnLine.end + 1;
+			if (wordNavigationType === WordNavigationType.WordEnd) {
+				if (nextWordOnLine) {
+					column = nextWordOnLine.end + 1;
+				} else {
+					column = maxColumn;
+				}
 			} else {
-				column = maxColumn;
+				if (nextWordOnLine && column >= nextWordOnLine.start + 1) {
+					nextWordOnLine = cursor.findNextWordOnLine(new Position(lineNumber, nextWordOnLine.end + 1));
+				}
+				if (nextWordOnLine) {
+					column = nextWordOnLine.start + 1;
+				} else {
+					column = maxColumn;
+				}
 			}
 
 			var deleteSelection = new Range(lineNumber, column, lineNumber, position.column);
