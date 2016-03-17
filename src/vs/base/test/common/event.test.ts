@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import Event, {Emitter, fromEventEmitter} from 'vs/base/common/event';
+import Event, {Emitter, fromEventEmitter, EventBufferer} from 'vs/base/common/event';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import Errors = require('vs/base/common/errors');
@@ -14,13 +14,13 @@ namespace Samples {
 
 	export class EventCounter {
 
-		public count = 0;
+		count = 0;
 
-		public reset() {
+		reset() {
 			this.count = 0;
 		}
 
-		public onEvent() {
+		onEvent() {
 			this.count += 1;
 		}
 	}
@@ -29,9 +29,9 @@ namespace Samples {
 
 		private _onDidChange = new Emitter<string>();
 
-		public onDidChange: Event<string> = this._onDidChange.event;
+		onDidChange: Event<string> = this._onDidChange.event;
 
-		public setText(value:string) {
+		setText(value:string) {
 			//...
 			this._onDidChange.fire(value);
 		}
@@ -45,29 +45,26 @@ namespace Samples {
 
 		private _eventBus = new EventEmitter();
 
-		public onDidChange = fromEventEmitter<string>(this._eventBus, Document3b._didChange);
+		onDidChange = fromEventEmitter<string>(this._eventBus, Document3b._didChange);
 
-		public setText(value:string) {
+		setText(value:string) {
 			//...
 			this._eventBus.emit(Document3b._didChange, value);
 		}
 	}
 }
 
-
-let counter = new Samples.EventCounter();
-
-setup(function () {
-	counter.reset();
-})
-
 suite('Event',function(){
+
+	const counter = new Samples.EventCounter();
+
+	setup(() => counter.reset());
 
 	test('Emitter plain', function () {
 
 		let doc = new Samples.Document3();
 
-		document.createElement('div').onclick = function () { }
+		document.createElement('div').onclick = function () { };
 		let subscription = doc.onDidChange(counter.onEvent, counter);
 
 		doc.setText('far');
@@ -169,7 +166,7 @@ suite('Event',function(){
 			let hit = false;
 			a.event(function() {
 				throw 9;
-			})
+			});
 			a.event(function() {
 				hit = true;
 			});
@@ -179,5 +176,51 @@ suite('Event',function(){
 		} finally {
 			Errors.setUnexpectedErrorHandler(origErrorHandler);
 		}
+	});
+});
+
+suite('EventBufferer', () => {
+
+	test('should not buffer when not wrapped', () => {
+		const bufferer = new EventBufferer();
+		const counter = new Samples.EventCounter();
+		const emitter = new Emitter<void>();
+		const event = bufferer.wrapEvent(emitter.event);
+		const listener = event(counter.onEvent, counter);
+
+		assert.equal(counter.count, 0);
+		emitter.fire();
+		assert.equal(counter.count, 1);
+		emitter.fire();
+		assert.equal(counter.count, 2);
+		emitter.fire();
+		assert.equal(counter.count, 3);
+
+		listener.dispose();
+	});
+
+	test('should buffer when wrapped', () => {
+		const bufferer = new EventBufferer();
+		const counter = new Samples.EventCounter();
+		const emitter = new Emitter<void>();
+		const event = bufferer.wrapEvent(emitter.event);
+		const listener = event(counter.onEvent, counter);
+
+		assert.equal(counter.count, 0);
+		emitter.fire();
+		assert.equal(counter.count, 1);
+
+		bufferer.bufferEvents(() => {
+			emitter.fire();
+			assert.equal(counter.count, 1);
+			emitter.fire();
+			assert.equal(counter.count, 1);
+		});
+
+		assert.equal(counter.count, 3);
+		emitter.fire();
+		assert.equal(counter.count, 4);
+
+		listener.dispose();
 	});
 });

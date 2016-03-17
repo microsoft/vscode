@@ -191,11 +191,11 @@ export class EventBufferer {
 				const buffer = this.buffers[this.buffers.length - 1];
 
 				if (buffer) {
-					buffer.push(() => listener(i));
+					buffer.push(() => listener.call(thisArgs, i));
 				} else {
-					listener(i);
+					listener.call(thisArgs, i);
 				}
-			}, thisArgs, disposables);
+			}, void 0, disposables);
 		};
 	}
 
