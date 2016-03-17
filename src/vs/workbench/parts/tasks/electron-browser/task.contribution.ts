@@ -31,6 +31,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IEventService } from 'vs/platform/event/common/event';
+import { IEditor } from 'vs/platform/editor/common/editor';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -47,9 +48,9 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 
-import workbenchActionRegistry = require('vs/workbench/common/actionRegistry');
-import statusbar = require('vs/workbench/browser/parts/statusbar/statusbar');
-import QuickOpen = require('vs/workbench/browser/quickopen');
+import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { IStatusbarItem, IStatusbarRegistry, Extensions as StatusbarExtensions, StatusbarItemDescriptor, StatusbarAlignment }  from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
 import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -165,7 +166,11 @@ class ConfigureTaskRunnerAction extends Action {
 		this.quickOpenService = quickOpenService;
 	}
 
-	public run(event?:any): Promise {
+	public run(event?:any): TPromise<IEditor> {
+		if (!this.contextService.getWorkspace()) {
+			this.messageService.show(Severity.Info, nls.localize('ConfigureTaskRunnerAction.noWorkspace', 'Tasks are only available on a workspace folder.'));
+			return TPromise.as(undefined);
+		}
 		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
 		return this.fileService.resolveFile(this.contextService.toResource('.vscode/tasks.json')).then((success) => {
 			return success;
@@ -299,7 +304,7 @@ class RunTaskAction extends Action {
 }
 
 
-class StatusBarItem implements statusbar.IStatusbarItem {
+class StatusBarItem implements IStatusbarItem {
 
 	private quickOpenService: IQuickOpenService;
 	private markerService: IMarkerService;
@@ -788,26 +793,26 @@ export class TaskServiceParticipant implements IWorkbenchContribution {
 	}
 }
 
+let tasksCategory = nls.localize('tasksCategory', "Tasks");
+let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(WorkbenchActionExtensions.WorkbenchActions);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureTaskRunnerAction, ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT), tasksCategory);
 if (Env.enableTasks) {
 
 	// Task Service
 	registerSingleton(ITaskService, TaskService);
 
 	// Actions
-	let tasksCategory = nls.localize('tasksCategory', "Tasks");
-	let workbenchActionsRegistry = <workbenchActionRegistry.IWorkbenchActionRegistry>Registry.as(workbenchActionRegistry.Extensions.WorkbenchActions);
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(BuildAction, BuildAction.ID, BuildAction.TEXT, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_B }), tasksCategory);
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(TestAction, TestAction.ID, TestAction.TEXT, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_T }), tasksCategory);
 	// workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(RebuildAction, RebuildAction.ID, RebuildAction.TEXT), tasksCategory);
 	// workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CleanAction, CleanAction.ID, CleanAction.TEXT), tasksCategory);
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(TerminateAction, TerminateAction.ID, TerminateAction.TEXT), tasksCategory);
-	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ConfigureTaskRunnerAction, ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT), tasksCategory);
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowLogAction, ShowLogAction.ID, ShowLogAction.TEXT), tasksCategory);
 	workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(RunTaskAction, RunTaskAction.ID, RunTaskAction.TEXT), tasksCategory);
 
 	// Register Quick Open
-	(<QuickOpen.IQuickOpenRegistry>Registry.as(QuickOpen.Extensions.Quickopen)).registerQuickOpenHandler(
-		new QuickOpen.QuickOpenHandlerDescriptor(
+	(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
+		new QuickOpenHandlerDescriptor(
 			'vs/workbench/parts/tasks/browser/taskQuickOpen',
 			'QuickOpenHandler',
 			'task ',
@@ -816,8 +821,8 @@ if (Env.enableTasks) {
 	);
 
 	// Status bar
-	let statusbarRegistry = <statusbar.IStatusbarRegistry>Registry.as(statusbar.Extensions.Statusbar);
-	statusbarRegistry.registerStatusbarItem(new statusbar.StatusbarItemDescriptor(StatusBarItem, statusbar.StatusbarAlignment.LEFT, 50 /* Medium Priority */));
+	let statusbarRegistry = <IStatusbarRegistry>Registry.as(StatusbarExtensions.Statusbar);
+	statusbarRegistry.registerStatusbarItem(new StatusbarItemDescriptor(StatusBarItem, StatusbarAlignment.LEFT, 50 /* Medium Priority */));
 
 	// Output channel
 	let outputChannelRegistry = <IOutputChannelRegistry>Registry.as(OutputExt.OutputChannels);
