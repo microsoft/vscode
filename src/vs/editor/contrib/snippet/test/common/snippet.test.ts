@@ -75,5 +75,13 @@ suite('Editor Contrib - Snippets', () => {
 		assert.equal(snippet.placeHolders[1].occurences.length, 1);
 		assert.deepEqual(snippet.placeHolders[1].occurences[0], new Range(2, 2, 2, 2));
 	});
+
+	test('issue #3552: Snippet Converted Not Working for literal Dollar Sign', () => {
+
+		let external = '\n\\$scope.\\$broadcast(\'scroll.infiniteScrollComplete\');\n';
+		let internal = CodeSnippet.convertExternalSnippet(external, ExternalSnippetType.TextMateSnippet);
+
+		assert.equal(internal, '\n$scope.$broadcast(\'scroll.infiniteScrollComplete\');\n');
+	});
 });
 

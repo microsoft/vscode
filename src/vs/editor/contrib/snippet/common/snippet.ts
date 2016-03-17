@@ -282,7 +282,11 @@ export class CodeSnippet implements ICodeSnippet {
 			// Escapes
 			if (/^\\./.test(restOfLine)) {
 				i += 2;
-				convertedSnippet += restOfLine.substr(0, 2);
+				if (/^\\\$/.test(restOfLine)) {
+					convertedSnippet += '$';
+				} else {
+					convertedSnippet += restOfLine.substr(0, 2);
+				}
 				continue;
 			}
 
