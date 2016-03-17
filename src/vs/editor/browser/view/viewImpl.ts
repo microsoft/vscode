@@ -768,12 +768,14 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		});
 	}
 
-	public render(now:boolean): void {
+	public render(now:boolean, everything:boolean): void {
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.render: View is disposed');
 		}
-		// Force a render with a layout event
-		this.layoutProvider.emitLayoutChangedEvent();
+		if (everything) {
+			// Force a render with a layout event
+			this.layoutProvider.emitLayoutChangedEvent();
+		}
 		if (now) {
 			this._flushAccumulatedAndRenderNow();
 		}

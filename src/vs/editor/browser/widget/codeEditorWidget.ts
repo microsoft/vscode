@@ -377,7 +377,7 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		if (!this.hasView) {
 			return;
 		}
-		this._view.render(true);
+		this._view.render(true, false);
 	}
 
 	public setHiddenAreas(ranges:editorCommon.IRange[]): void {
@@ -416,7 +416,7 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 					}
 				}
 
-				this._view.render(false);
+				this._view.render(false, true);
 				this.hasView = true;
 			});
 		}

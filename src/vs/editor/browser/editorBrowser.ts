@@ -85,7 +85,7 @@ export interface IView extends IDisposable {
 	getWhitespaces(): editorCommon.IEditorWhitespace[];
 	renderOnce(callback:() => any): any;
 
-	render(now:boolean): void;
+	render(now:boolean, everything:boolean): void;
 	setAriaActiveDescendant(id:string): void;
 
 	focus(): void;
