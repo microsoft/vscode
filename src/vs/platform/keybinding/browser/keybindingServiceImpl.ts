@@ -322,7 +322,7 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 
 		let handler = this._getCommandHandler(commandId);
 		if (!handler) {
-			return TPromise.wrapError(new Error(`No handler found for the command: '${commandId}'. Ensure there is an activation event defined, if you are an extension.`));
+			return TPromise.wrapError(new Error(`No handler found for the command: '${commandId}'. An extension might be missing an activation event.`));
 		}
 		try {
 			let result = this._instantiationService.invokeFunction(handler, args);
