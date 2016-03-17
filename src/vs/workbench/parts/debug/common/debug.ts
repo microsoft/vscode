@@ -25,6 +25,7 @@ export interface IRawModelUpdate {
 	thread?: DebugProtocol.Thread;
 	callStack?: DebugProtocol.StackFrame[];
 	stoppedDetails?: IRawStoppedDetails;
+	allThreadsStopped?: boolean;
 }
 
 export interface IRawStoppedDetails {
@@ -53,8 +54,31 @@ export interface IExpression extends ITreeElement, IExpressionContainer {
 export interface IThread extends ITreeElement {
 	threadId: number;
 	name: string;
-	callStack: IStackFrame[];
 	stoppedDetails: IRawStoppedDetails;
+
+	/**
+	 * Queries the debug adapter for the callstack and returns a promise with
+	 * the stack frames of the callstack.
+	 * If the thread is not stopped, it returns a promise to an empty array.
+	 */
+	getCallStack(debugService: IDebugService): TPromise<IStackFrame[]>;
+
+	/**
+	 * Gets the callstack if it has already been received from the debug
+	 * adapter, otherwise it returns undefined.
+	 */
+	getCachedCallStack(): IStackFrame[];
+
+	/**
+	 * Invalidates the callstack cache
+	 */
+	clearCallStack(): void;
+
+	/**
+	 * Indicates whether this thread is stopped. The callstack for stopped
+	 * threads can be retrieved from the debug adapter.
+	 */
+	stopped: boolean;
 }
 
 export interface IScope extends IExpressionContainer {
@@ -229,6 +253,7 @@ export interface IRawDebugSession extends ee.EventEmitter {
 	continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse>;
 	pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse>;
 
+	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
 	variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse>;
 	evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse>;

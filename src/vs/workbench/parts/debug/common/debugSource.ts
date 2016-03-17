@@ -40,8 +40,8 @@ export class Source {
 			// first try to find the raw source amongst the stack frames - since that represenation has more data (source reference),
 			const threads = model.getThreads();
 			for (let threadId in threads) {
-				if (threads.hasOwnProperty(threadId) && threads[threadId].callStack) {
-					const found = threads[threadId].callStack.filter(sf => sf.source.uri.toString() === uri.toString()).pop();
+				if (threads.hasOwnProperty(threadId) && threads[threadId].getCachedCallStack()) {
+					const found = threads[threadId].getCachedCallStack().filter(sf => sf.source.uri.toString() === uri.toString()).pop();
 					if (found) {
 						return found.source.raw;
 					}
