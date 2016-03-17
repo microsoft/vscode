@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { TPromise } from 'vs/base/common/winjs.base';
 import Lifecycle = require('vs/base/common/lifecycle');
 import Timer = require('vs/base/common/timer');
 import {createDecorator, ServiceIdentifier, IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -47,7 +48,7 @@ export interface ITelemetryService extends Lifecycle.IDisposable {
 	 */
 	getMachineId(): string;
 
-	getTelemetryInfo(): Thenable<ITelemetryInfo>;
+	getTelemetryInfo(): TPromise<ITelemetryInfo>;
 
 	/**
 	 * Appender operations

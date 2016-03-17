@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { TPromise } from 'vs/base/common/winjs.base';
 import Errors = require('vs/base/common/errors');
 import Types = require('vs/base/common/types');
 import Platform = require('vs/base/common/platform');
@@ -80,7 +81,7 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		if(!e) {
 			return;
 		}
-		
+
 		let error = Object.create(null);
 
 		// unwrap nested errors from loader
@@ -217,8 +218,8 @@ export abstract class AbstractTelemetryService implements ITelemetryService {
 		return this.instanceId;
 	}
 
-	public getTelemetryInfo(): Thenable<ITelemetryInfo> {
-		return Promise.resolve({
+	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
+		return TPromise.as({
 			instanceId: this.instanceId,
 			sessionId: this.sessionId,
 			machineId: this.machineId
