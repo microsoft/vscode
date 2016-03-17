@@ -84,6 +84,11 @@
 	outline-offset: -1px;
 }
 
+.monaco-shell.vs-dark .monaco-button:focus,
+.monaco-shell.vs-dark .action-button:focus {
+	outline-color: rgba(255, 255, 255, .5); /* buttons have a blue color, so focus indication needs to be different */
+}
+
 .monaco-shell.hc-black .synthetic-focus input {
 	background:transparent; /* Search input focus fix when in high contrast */
 }
