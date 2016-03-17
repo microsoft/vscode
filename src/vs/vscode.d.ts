@@ -3475,7 +3475,7 @@ declare namespace vscode {
 		 * Register a reference provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the result of best-matching provider is used. Failure
+		 * by their [score](#languages.match) and the best-matching provider is used. Failure
 		 * of the selected provider will cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
@@ -3488,7 +3488,7 @@ declare namespace vscode {
 		 * Register a formatting provider for a document.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the result of best-matching provider is used. Failure
+		 * by their [score](#languages.match) and the best-matching provider is used. Failure
 		 * of the selected provider will cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
@@ -3501,7 +3501,7 @@ declare namespace vscode {
 		 * Register a formatting provider for a document range.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the result of best-matching provider is used. Failure
+		 * by their [score](#languages.match) and the best-matching provider is used. Failure
 		 * of the selected provider will cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
@@ -3514,7 +3514,7 @@ declare namespace vscode {
 		 * Register a formatting provider that works on type. The provider is active when the user enables the setting `editor.formatOnType`.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the result of best-matching provider is used. Failure
+		 * by their [score](#languages.match) and the best-matching provider is used. Failure
 		 * of the selected provider will cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
@@ -3529,7 +3529,7 @@ declare namespace vscode {
 		 * Register a signature help provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the result of best-matching provider is used. Failure
+		 * by their [score](#languages.match) and the best-matching provider is used. Failure
 		 * of the selected provider will cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
