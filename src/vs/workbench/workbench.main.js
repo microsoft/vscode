@@ -17,6 +17,7 @@ define([
 	'vs/base/common/errors',
 
 	// Editor
+	'vs/editor/contrib/selectionClipboard/electron-browser/selectionClipboard',
 	'vs/editor/browser/editor.all',
 
 	// Languages

@@ -285,6 +285,11 @@ export interface IEditorOptions {
 	 */
 	wordSeparators?: string;
 	/**
+	 * Enable Linux primary clipboard.
+	 * Defaults to true.
+	 */
+	selectionClipboard?: boolean;
+	/**
 	 * Control the rendering of line numbers.
 	 * If it is a function, it will be invoked when rendering a line number and the return value will be rendered.
 	 * Otherwise, if it is a truey, line numbers will be rendered normally (equivalent of using an identity function).
@@ -595,6 +600,7 @@ export interface IInternalEditorOptions {
 	experimentalScreenReader: boolean;
 	rulers: number[];
 	wordSeparators: string;
+	selectionClipboard: boolean;
 	ariaLabel: string;
 
 	// ---- Options that are transparent - get no massaging
@@ -683,6 +689,7 @@ export interface IConfigurationChangedEvent {
 	experimentalScreenReader: boolean;
 	rulers: boolean;
 	wordSeparators: boolean;
+	selectionClipboard: boolean;
 	ariaLabel: boolean;
 
 	// ---- Options that are transparent - get no massaging
