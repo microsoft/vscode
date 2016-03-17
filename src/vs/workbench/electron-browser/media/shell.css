@@ -56,7 +56,8 @@
 .monaco-shell.vs input[type="submit"]:focus,
 .monaco-shell.vs input[type="text"]:focus, .monaco-shell.vs textarea:focus,
 .monaco-shell.vs input[type="checkbox"]:focus,
-.monaco-shell.vs .monaco-editor.focused {
+.monaco-shell.vs .monaco-editor.focused,
+.monaco-shell.vs .action-button:focus {
 	outline: 1px solid rgba(0, 122, 204, 0.4);
 	outline-offset: -1px;
 	opacity: 1 !important;
@@ -69,7 +70,8 @@
 .monaco-shell.vs-dark input[type="submit"]:focus,
 .monaco-shell.vs-dark input[type="text"]:focus, .monaco-shell.vs-dark textarea:focus,
 .monaco-shell.vs-dark input[type="checkbox"]:focus,
-.monaco-shell.vs-dark .monaco-editor.focused {
+.monaco-shell.vs-dark .monaco-editor.focused,
+.monaco-shell.vs-dark .action-button:focus {
 	outline: 1px solid rgba(14, 99, 156, 0.6);
 	outline-offset: -1px;
 	opacity: 1 !important;
@@ -82,9 +84,19 @@
 .monaco-shell.hc-black input[type="submit"]:focus,
 .monaco-shell.hc-black input[type="text"]:focus, .monaco-shell.hc-black textarea:focus,
 .monaco-shell.hc-black input[type="checkbox"]:focus,
-.monaco-shell.hc-black .monaco-editor.focused {
+.monaco-shell.hc-black .monaco-editor.focused,
+.monaco-shell.hc-black .action-button:focus {
 	outline: 2px solid #f38518;
 	outline-offset: -1px;
+}
+
+.monaco-shell.vs .action-button:focus,
+.monaco-shell.vs-dark .action-button:focus {
+	outline-color: rgba(255,255,255,.5);
+}
+
+.monaco-shell.hc-black .action-button:focus {
+	outline-offset: -4px;
 }
 
 .monaco-shell.vs-dark .monaco-editor.focused,
