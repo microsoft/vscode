@@ -8,6 +8,7 @@ import { IGalleryService, IExtension, IGalleryVersion } from 'vs/workbench/parts
 import { IXHRResponse } from 'vs/base/common/http';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IGalleryExtensionFile {
 	assetType: string;
@@ -56,7 +57,8 @@ export class GalleryService implements IGalleryService {
 
 	constructor(
 		@IRequestService private requestService: IRequestService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		const config = contextService.getConfiguration().env.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
@@ -148,17 +150,21 @@ export class GalleryService implements IGalleryService {
 			flags: 0x1 | 0x4 | 0x80 | 0x100
 		});
 
-		const request = {
-			type: 'POST',
-			url: this.api('/extensionquery'),
-			data: data,
-			headers: {
-				'Content-Type': 'application/json',
-				'Accept': 'application/json;api-version=3.0-preview.1',
-				'Content-Length': data.length
-			}
-		};
+		return this.telemetryService.getTelemetryInfo().then(({ machineId }) => {
+			const request = {
+				type: 'POST',
+				url: this.api('/extensionquery'),
+				data: data,
+				headers: {
+					'Content-Type': 'application/json',
+					'Accept': 'application/json;api-version=3.0-preview.1',
+					'Content-Length': data.length,
+					'X-Market-Client-Id': 'VSCodeExtensionCache',
+					'X-Market-User-Id': machineId
+				}
+			};
 
-		return this.requestService.makeRequest(request);
+			return this.requestService.makeRequest(request);
+		});
 	}
 }
