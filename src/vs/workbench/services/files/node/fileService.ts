@@ -411,7 +411,7 @@ export class FileService implements files.IFileService {
 		let absolutePath = this.toAbsolutePath(resource);
 
 		return pfs.stat(absolutePath).then((stat: fs.Stats) => {
-			return new StatResolver(resource, stat.isDirectory(), stat.mtime.getTime(), stat.size);
+			return new StatResolver(resource, stat.isDirectory(), stat.mtime.getTime(), stat.size, this.options.verboseLogging);
 		});
 	}
 
@@ -627,8 +627,9 @@ export class StatResolver {
 	private mime: string;
 	private etag: string;
 	private size: number;
+	private verboseLogging: boolean;
 
-	constructor(resource: uri, isDirectory: boolean, mtime: number, size: number) {
+	constructor(resource: uri, isDirectory: boolean, mtime: number, size: number, verboseLogging: boolean) {
 		assert.ok(resource && resource.scheme === 'file', 'Invalid resource: ' + resource);
 
 		this.resource = resource;
@@ -638,6 +639,8 @@ export class StatResolver {
 		this.mime = !this.isDirectory ? baseMime.guessMimeTypes(resource.fsPath).join(', ') : null;
 		this.etag = etag(size, mtime);
 		this.size = size;
+
+		this.verboseLogging = verboseLogging;
 	}
 
 	public resolve(options: files.IResolveFileOptions): TPromise<files.IFileStat> {
@@ -688,7 +691,9 @@ export class StatResolver {
 	private resolveChildren(absolutePath: string, absoluteTargetPaths: string[], resolveSingleChildDescendants: boolean, callback: (children: files.IFileStat[]) => void): void {
 		extfs.readdir(absolutePath, (error: Error, files: string[]) => {
 			if (error) {
-				console.error(error);
+				if (this.verboseLogging) {
+					console.error(error);
+				}
 
 				return callback(null); // return - we might not have permissions to read the folder
 			}
@@ -701,7 +706,9 @@ export class StatResolver {
 
 				flow.sequence(
 					function onError(error: Error): void {
-						console.error(error);
+						if (this.verboseLogging) {
+							console.error(error);
+						}
 
 						clb(null, null); // return - we might not have permissions to read the folder or stat the file
 					},
