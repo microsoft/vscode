@@ -5,7 +5,7 @@
 
 'use strict';
 
-import {app, shell, dialog} from 'electron';
+import {app} from 'electron';
 import fs = require('fs');
 import nls = require('vs/nls');
 import {assign} from 'vs/base/common/objects';
@@ -188,29 +188,6 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 	}
 }
 
-function timebomb(): TPromise<void> {
-	if (!env.product.expiryDate || Date.now() <= env.product.expiryDate) {
-		return TPromise.as(null);
-	}
-
-	return new TPromise<void>((c, e) => {
-		dialog.showMessageBox({
-			type: 'warning',
-			title: env.product.nameLong,
-			message: nls.localize('expired', "Expired"),
-			detail: nls.localize('expiredDetail', "This pre-release version of {0} has expired.\n\nPlease visit {1} to download the current release.", env.product.nameLong, env.product.expiryUrl),
-			buttons: [nls.localize('quit', "Quit"), nls.localize('openWebSite', "Open Web Site")],
-			noLink: true,
-		}, (i) => {
-			if (i === 1) {
-				shell.openExternal(env.product.expiryUrl);
-			}
-
-			e('Product expired');
-		});
-	});
-}
-
 function setupIPC(): TPromise<Server> {
 	function setup(retry: boolean): TPromise<Server> {
 		return serve(env.mainIPCHandle).then(null, err => {
@@ -272,8 +249,7 @@ getUserEnvironment()
 	.then(userEnv => {
 		assign(process.env, userEnv);
 
-		return timebomb()
-			.then(setupIPC)
+		return setupIPC()
 			.then(ipcServer => main(ipcServer, userEnv));
 	})
 	.done(null, quit);
