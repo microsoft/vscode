@@ -3213,8 +3213,8 @@ declare namespace vscode {
 		 * [open document](#workspace.onDidOpenTextDocument)-event fires.
 		 * The document to open is denoted by the [uri](#Uri). Two schemes are supported:
 		 *
-		 * file: A file on disk, will be rejected if the file does not exist or cannot be loaded, e.g. 'file:///Users/frodo/r.ini'.
-		 * untitled: A new file that should be saved on disk, e.g. 'untitled:/Users/frodo/new.js'. The language will be derived from the file name.
+		 * file: A file on disk, will be rejected if the file does not exist or cannot be loaded, e.g. `file:///Users/frodo/r.ini`.
+		 * untitled: A new file that should be saved on disk, e.g. `untitled:c:\frodo\new.js`. The language will be derived from the file name.
 		 *
 		 * Uris with other schemes will make this method return a rejected promise.
 		 *

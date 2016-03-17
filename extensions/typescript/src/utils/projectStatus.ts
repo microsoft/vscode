@@ -8,7 +8,7 @@
 import * as vscode from 'vscode';
 import {ITypescriptServiceClient} from '../typescriptService';
 import {loadMessageBundle} from 'vscode-nls';
-import {dirname} from 'path';
+import {dirname, join} from 'path';
 
 const localize = loadMessageBundle();
 const selector = ['javascript', 'javascriptreact'];
@@ -88,7 +88,7 @@ export function create(client: ITypescriptServiceClient, memento: vscode.Memento
 							projectHinted[configFileName] = true;
 							item.hide();
 
-							return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled://' + vscode.workspace.rootPath + '/jsconfig.json'))
+							return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.rootPath, 'jsconfig.json')))
 								.then(vscode.window.showTextDocument)
 								.then(editor => editor.edit(builder => builder.insert(new vscode.Position(0, 0), defaultConfig)));
 						}
