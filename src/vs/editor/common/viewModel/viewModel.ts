@@ -239,7 +239,12 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 
 					case editorCommon.EventType.ModelOptionsChanged:
 						// A tab size change causes a line mapping changed event => all view parts will repaint OK, no further event needed here
-						revealPreviousCenteredModelRange = this._onTabSizeChange(this.model.getOptions().tabSize) || revealPreviousCenteredModelRange;
+						let prevLineCount = this.lines.getOutputLineCount();
+						let tabSizeChanged = this._onTabSizeChange(this.model.getOptions().tabSize);
+						let newLineCount = this.lines.getOutputLineCount();
+						if (tabSizeChanged && prevLineCount !== newLineCount) {
+							revealPreviousCenteredModelRange = true;
+						}
 
 						break;
 
