@@ -166,7 +166,7 @@
             "def ${funcname}(self, ${parameter_list}):",
             "\traise NotImplementedError"
         ],
-        "description": "Code snippet for a static class method"
+        "description": "Code snippet for an abstract class method"
     },
     "class": {
         "prefix": "class",
