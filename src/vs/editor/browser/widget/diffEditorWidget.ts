@@ -1580,7 +1580,7 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 	constructor(dataSource:IDataSource, enableSplitViewResizing:boolean) {
 		super(dataSource);
 
-		this.decorationsLeft = 40;
+		this.decorationsLeft = dataSource.getOriginalEditor().getLayoutInfo().decorationsLeft;
 
 		this.toDispose = [];
 		this.toDispose.push(dataSource.getOriginalEditor().addListener2(editorCommon.EventType.EditorLayout, (layoutInfo:editorCommon.IEditorLayoutInfo) => {
