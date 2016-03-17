@@ -600,7 +600,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			currentCharsToTokenize = 0,
 			currentEstimatedTimeToTokenize = 0,
 			stopLineTokenizationAfter = this._stopLineTokenizationAfter,
-			sw = StopWatch.create(),
+			sw = StopWatch.create(false),
 			elapsedTime: number;
 
 		// Tokenize at most 1000 lines. Estimate the tokenization speed per character and stop when:
@@ -682,7 +682,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			stopLineTokenizationAfter = 1000000000; // 1 billion, if a line is so long, you have other trouble :).
 		}
 
-		var sw = StopWatch.create();
+		var sw = StopWatch.create(false);
 		var tokenizedCharacters = 0;
 
 		var fromLineNumber = this._invalidLineStartIndex + 1, toLineNumber = lineNumber;
