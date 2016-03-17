@@ -70,7 +70,7 @@ const npm: TaskEntry = {
 				'\t\t{',
 					'\t\t\t"taskName": "update",',
 					'\t\t\t"args": ["update"]',
-				'\t\t}',
+				'\t\t},',
 				'\t\t{',
 					'\t\t\t"taskName": "test",',
 					'\t\t\t"args": ["run", "test"]',

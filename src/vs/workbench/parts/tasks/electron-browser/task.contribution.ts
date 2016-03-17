@@ -182,6 +182,8 @@ class ConfigureTaskRunnerAction extends Action {
 				}
 				let contentPromise: TPromise<string>;
 				if (selection.autoDetect) {
+					this.outputService.showOutput(TaskService.OutputChannel);
+					this.outputService.append(TaskService.OutputChannel, nls.localize('ConfigureTaskRunnerAction.autoDetecting', 'Auto detecting tasks for {0}', selection.id) + '\n');
 					let detector = new ProcessRunnerDetector(this.fileService, this.contextService, new SystemVariables(this.editorService, this.contextService));
 					contentPromise = detector.detect(false, selection.id).then((value) => {
 						let config = value.config;
@@ -189,9 +191,12 @@ class ConfigureTaskRunnerAction extends Action {
 							value.stderr.forEach((line) => {
 								this.outputService.append(TaskService.OutputChannel, line + '\n');
 							});
-							this.messageService.show(Severity.Error, nls.localize('ConfigureTaskRunnerAction.autoDetect', 'Auto detecting the task system failed. Using default template. Consult the task output for details.'));
+							this.messageService.show(Severity.Warning, nls.localize('ConfigureTaskRunnerAction.autoDetect', 'Auto detecting the task system failed. Using default template. Consult the task output for details.'));
 							return selection.content;
 						} else if (config) {
+							if (value.stdout && value.stdout.length > 0) {
+								value.stdout.forEach(line => this.outputService.append(TaskService.OutputChannel, line + '\n'));
+							}
 							let content = JSON.stringify(config, null, '\t');
 							content = [
 								'{',
