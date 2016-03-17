@@ -399,6 +399,9 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 					return null;
 				}
 				return visibleRanges[0];
+			},
+			flushAnyAccumulatedEvents: () => {
+				this._flushAnyAccumulatedEvents();
 			}
 		};
 	}
