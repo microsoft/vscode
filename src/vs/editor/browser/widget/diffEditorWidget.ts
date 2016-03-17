@@ -1782,7 +1782,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			}
 		};
 
-		parts = createLineParts(lineNumber, lineContent, lineTokens, decorations, config.renderWhitespace);
+		parts = createLineParts(lineNumber, 1, lineContent, lineTokens, decorations, config.renderWhitespace);
 
 		var r = renderLine({
 			lineContent: lineContent,

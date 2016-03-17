@@ -74,6 +74,7 @@ export class ViewLine implements IVisibleLineData {
 			// Compute new line parts only if there is some evidence that something might have changed
 			newLineParts = createLineParts(
 				lineNumber,
+				this._context.model.getLineMinColumn(lineNumber),
 				this._context.model.getLineContent(lineNumber),
 				this._context.model.getLineTokens(lineNumber),
 				inlineDecorations,
