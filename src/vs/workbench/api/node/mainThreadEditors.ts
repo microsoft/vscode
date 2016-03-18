@@ -412,7 +412,7 @@ export class MainThreadEditorsTracker {
 	private _doUpdateMapping(): void {
 		let allModels = this._modelService.getModels();
 		// Same filter as in extHostDocuments
-		allModels.filter((model) => !model.isTooLargeForHavingARichMode());
+		allModels = allModels.filter((model) => !model.isTooLargeForHavingARichMode());
 		let allModelsMap: { [modelUri:string]: EditorCommon.IModel; } = Object.create(null);
 		allModels.forEach((model) => {
 			allModelsMap[model.getAssociatedResource().toString()] = model;
@@ -572,7 +572,7 @@ export class MainThreadEditorsTracker {
 
 		allCodeEditors.forEach((codeEditor) => {
 			let model = codeEditor.getModel();
-			if (!model) {
+			if (!model || model.isTooLargeForHavingARichMode()) {
 				return;
 			}
 
