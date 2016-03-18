@@ -44,7 +44,7 @@
 				</dict>
 			</dict>
 			<key>match</key>
-			<string>^\s*(pick|p|reword|r|edit|e|squash|s|fixup|f)\s+([0-9a-f]+)\s+(.*)$</string>
+			<string>^\s*(pick|p|reword|r|edit|e|squash|s|fixup|f|d|drop|x|exec)\s+([0-9a-f]+)\s+(.*)$</string>
 			<key>name</key>
 			<string>meta.commit-command.git-rebase</string>
 		</dict>
