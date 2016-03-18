@@ -299,7 +299,7 @@ export class SelectionsOverlay extends ViewEventHandler implements IDynamicViewO
 		lineOutput.push('px;"></div>');
 	}
 
-	private _actualRenderOneSelection(output:IRenderResult, visibleRanges:LineVisibleRangesWithStyle[]): number {
+	private _actualRenderOneSelection(output:IRenderResult, hasMultipleSelections:boolean, visibleRanges:LineVisibleRangesWithStyle[]): number {
 		var visibleRangesHaveStyle = (visibleRanges.length > 0 && visibleRanges[0].ranges[0].startStyle),
 			lineVisibleRanges:LineVisibleRangesWithStyle,
 			lineOutput: string[],
@@ -318,8 +318,8 @@ export class SelectionsOverlay extends ViewEventHandler implements IDynamicViewO
 			lineVisibleRanges = visibleRanges[i];
 			let lineNumber = lineVisibleRanges.lineNumber;
 
-			let lineHeight = (lineNumber === lastLineNumber || lineNumber === firstLineNumber ? reducedLineHeight : fullLineHeight);
-			let top = (lineNumber === firstLineNumber ? 1 : 0);
+			let lineHeight = hasMultipleSelections ? (lineNumber === lastLineNumber || lineNumber === firstLineNumber ? reducedLineHeight : fullLineHeight) : fullLineHeight;
+			let top = hasMultipleSelections ? (lineNumber === firstLineNumber ? 1 : 0) : 0;
 
 			if (output.hasOwnProperty(lineNumber.toString())) {
 				lineOutput = output[lineNumber.toString()];
@@ -416,7 +416,7 @@ export class SelectionsOverlay extends ViewEventHandler implements IDynamicViewO
 
 			visibleRangesWithStyle = this._getVisibleRangesWithStyle(selection, ctx, this._previousFrameVisibleRangesWithStyle[i]);
 			thisFrameVisibleRangesWithStyle.push(visibleRangesWithStyle);
-			piecesCount += this._actualRenderOneSelection(output, visibleRangesWithStyle);
+			piecesCount += this._actualRenderOneSelection(output, this._selections.length > 1, visibleRangesWithStyle);
 		}
 
 		this._previousFrameVisibleRangesWithStyle = thisFrameVisibleRangesWithStyle;
