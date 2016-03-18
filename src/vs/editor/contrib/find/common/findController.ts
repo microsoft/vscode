@@ -504,11 +504,24 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 		this.editor = editor;
 		this.decorations = [];
 
-		this._register(editor.addListener2(editorCommon.EventType.CursorPositionChanged, _ => this._update()));
+		this._register(editor.addListener2(editorCommon.EventType.CursorSelectionChanged, (e: editorCommon.ICursorSelectionChangedEvent) => {
+			if (e.selection.isEmpty()) {
+				if (e.reason === 'explicit') {
+					this._update();
+				} else {
+					this.removeDecorations();
+
+				}
+			} else {
+				this._update();
+			}
+		}));
 		this._register(editor.addListener2(editorCommon.EventType.ModelChanged, (e) => {
 			this.removeDecorations();
 		}));
-		this._register(CommonFindController.getFindController(editor).getState().addChangeListener((e) => this._update()));
+		this._register(CommonFindController.getFindController(editor).getState().addChangeListener((e) => {
+			this._update();
+		}));
 	}
 
 	public getId(): string {
