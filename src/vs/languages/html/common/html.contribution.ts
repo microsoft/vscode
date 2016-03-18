@@ -44,7 +44,7 @@ configurationRegistry.registerConfiguration({
 		'html.format.preserveNewLines': {
 			'type': 'boolean',
 			'default': true,
-			'description': nls.localize('format.preserveNewLines', "Whether existing line breaks before elements should be preserved. Only works before elements, not inside tags or for text.."),
+			'description': nls.localize('format.preserveNewLines', "Whether existing line breaks before elements should be preserved. Only works before elements, not inside tags or for text."),
 		},
 		'html.format.maxPreserveNewLines': {
 			'type': ['number', 'null'],
