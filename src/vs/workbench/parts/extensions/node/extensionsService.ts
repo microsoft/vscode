@@ -189,7 +189,7 @@ export class ExtensionsService implements IExtensionsService {
 
 			return extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true })
 				.then(() => createExtension(manifest, (<any> manifest).__metadata, extensionPath))
-				.then(extension => { this._onDidInstallExtension.fire(extension); return extension; });
+				.then(extension => { this._onDidInstallExtension.fire({ extension }); return extension; });
 		});
 	}
 
