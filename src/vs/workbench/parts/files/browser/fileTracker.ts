@@ -160,7 +160,9 @@ export class FileTracker implements IWorkbenchContribution {
 			if (input instanceof FileEditorInput) {
 				let fileInput = <FileEditorInput>input;
 				if (fileInput.getResource().toString() === resource.toString()) {
-					this.eventService.emit(WorkbenchEventType.EDITOR_INPUT_STATE_CHANGED, new EditorInputEvent(fileInput));
+					let inputEvent = editor.input instanceof DiffEditorInput ? <DiffEditorInput>editor.input : fileInput; // make sure to still send around the input from the diff editor if given
+
+					this.eventService.emit(WorkbenchEventType.EDITOR_INPUT_STATE_CHANGED, new EditorInputEvent(inputEvent));
 				}
 			}
 		});

@@ -5,7 +5,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import WinJS = require('vs/base/common/winjs.base');
+import { TPromise } from 'vs/base/common/winjs.base';
 import Strings = require('vs/base/common/strings');
 import Collections = require('vs/base/common/collections');
 
@@ -104,6 +104,12 @@ class GruntTaskMatcher implements TaskDetectorMatcher {
 	}
 }
 
+export interface DetectorResult {
+	config: FileConfig.ExternalTaskRunnerConfiguration;
+	stdout: string[];
+	stderr: string[];
+}
+
 export class ProcessRunnerDetector {
 
 	private static Version: string = '0.1.0';
@@ -135,6 +141,7 @@ export class ProcessRunnerDetector {
 	private variables: SystemVariables;
 	private taskConfiguration: FileConfig.ExternalTaskRunnerConfiguration;
 	private _stderr: string[];
+	private _stdout: string[];
 
 	constructor(fileService: IFileService, contextService: IWorkspaceContextService, variables:SystemVariables, config: FileConfig.ExternalTaskRunnerConfiguration = null) {
 		this.fileService = fileService;
@@ -142,13 +149,18 @@ export class ProcessRunnerDetector {
 		this.variables = variables;
 		this.taskConfiguration = config;
 		this._stderr = [];
+		this._stdout = [];
 	}
 
 	public get stderr(): string[] {
 		return this._stderr;
 	}
 
-	public detect(list: boolean = false): WinJS.TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
+	public get stdout(): string[] {
+		return this._stdout;
+	}
+
+	public detect(list: boolean = false, detectSpecific?: string): TPromise<DetectorResult> {
 		if (this.taskConfiguration && this.taskConfiguration.command && ProcessRunnerDetector.supports(this.taskConfiguration.command)) {
 			let config = ProcessRunnerDetector.detectorConfig(this.taskConfiguration.command);
 			let args = (this.taskConfiguration.args || []).concat(config.arg);
@@ -158,26 +170,44 @@ export class ProcessRunnerDetector {
 				new LineProcess(this.taskConfiguration.command, this.variables.resolve(args), isShellCommand, options),
 				this.taskConfiguration.command, isShellCommand, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
 		} else {
-			return this.tryDetectGulp(list).then((value) => {
-				if (value) {
-					return value;
+			if (detectSpecific) {
+				let detectorPromise: TPromise<DetectorResult>;
+				if ('gulp' === detectSpecific) {
+					detectorPromise = this.tryDetectGulp(list);
+				} else if ('jake' === detectSpecific) {
+					detectorPromise = this.tryDetectJake(list);
+				} else if ('grunt' === detectSpecific) {
+					detectorPromise = this.tryDetectGrunt(list);
 				}
-				return this.tryDetectJake(list).then((value) => {
+				return detectorPromise.then((value) => {
+					if (value) {
+						return value;
+					} else {
+						return { config: null, stdout: this.stdout, stderr: this.stderr };
+					}
+				});
+			} else {
+				return this.tryDetectGulp(list).then((value) => {
 					if (value) {
 						return value;
 					}
-					return this.tryDetectGrunt(list).then((value) => {
+					return this.tryDetectJake(list).then((value) => {
 						if (value) {
 							return value;
 						}
-						return { config: null, stderr: this.stderr };
+						return this.tryDetectGrunt(list).then((value) => {
+							if (value) {
+								return value;
+							}
+							return { config: null, stdout: this.stdout, stderr: this.stderr };
+						});
 					});
 				});
-			});
+			}
 		}
 	}
 
-	private tryDetectGulp(list:boolean):WinJS.TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
+	private tryDetectGulp(list:boolean): TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
 		return this.fileService.resolveFile(this.contextService.toResource('gulpfile.js')).then((stat) => {
 			let config = ProcessRunnerDetector.detectorConfig('gulp');
 			let process = new LineProcess('gulp', [config.arg, '--no-color'], true, {cwd: this.variables.workspaceRoot});
@@ -187,7 +217,7 @@ export class ProcessRunnerDetector {
 		});
 	}
 
-	private tryDetectGrunt(list:boolean):WinJS.TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
+	private tryDetectGrunt(list:boolean): TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
 		return this.fileService.resolveFile(this.contextService.toResource('Gruntfile.js')).then((stat) => {
 			let config = ProcessRunnerDetector.detectorConfig('grunt');
 			let process = new LineProcess('grunt', [config.arg, '--no-color'], true, {cwd: this.variables.workspaceRoot});
@@ -197,17 +227,24 @@ export class ProcessRunnerDetector {
 		});
 	}
 
-	private tryDetectJake(list:boolean):WinJS.TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
-		return this.fileService.resolveFile(this.contextService.toResource('Jakefile')).then((stat) => {
+	private tryDetectJake(list:boolean): TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
+		let run = () => {
 			let config = ProcessRunnerDetector.detectorConfig('jake');
 			let process = new LineProcess('jake', [config.arg], true, {cwd: this.variables.workspaceRoot});
 			return this.runDetection(process, 'jake', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
-		}, (err: any): FileConfig.ExternalTaskRunnerConfiguration => {
-			return null;
+		};
+		return this.fileService.resolveFile(this.contextService.toResource('Jakefile')).then((stat) => {
+			return run();
+		}, (err: any) => {
+			return this.fileService.resolveFile(this.contextService.toResource('Jakefile.js')).then((stat) => {
+				return run();
+			}, (err: any): FileConfig.ExternalTaskRunnerConfiguration => {
+				return null;
+			});
 		});
 	}
 
-	private runDetection(process: LineProcess, command: string, isShellCommand: boolean, matcher: TaskDetectorMatcher, problemMatchers: string[], list: boolean):WinJS.TPromise<{ config: FileConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
+	private runDetection(process: LineProcess, command: string, isShellCommand: boolean, matcher: TaskDetectorMatcher, problemMatchers: string[], list: boolean): TPromise<DetectorResult> {
 		let tasks:string[] = [];
 		matcher.init();
 		return process.start().then((success) => {
@@ -219,7 +256,7 @@ export class ProcessRunnerDetector {
 						this._stderr.push(nls.localize('TaskSystemDetector.noJakeTasks', 'Running jake --tasks didn\'t list any tasks. Did you run npm install?'));
 					}
 				}
-				return { config: null, stderr: this._stderr };
+				return { config: null, stdout: this._stdout, stderr: this._stderr };
 			}
 			let result: FileConfig.ExternalTaskRunnerConfiguration = {
 				version: ProcessRunnerDetector.Version,
@@ -231,7 +268,7 @@ export class ProcessRunnerDetector {
 				result.args = ['--no-color'];
 			}
 			result.tasks = this.createTaskDescriptions(tasks, problemMatchers, list);
-			return { config: result, stderr: this._stderr };
+			return { config: result, stdout: this._stdout, stderr: this._stderr };
 		}, (err: ErrorData) => {
 			let error = err.error;
 			if ((<any>error).code === 'ENOENT') {
@@ -245,7 +282,7 @@ export class ProcessRunnerDetector {
 			} else {
 				this._stderr.push(nls.localize('TaskSystemDetector.noProgram', 'Program {0} was not found. Message is {1}', command, error.message));
 			}
-			return { config: null, stderr: this._stderr };
+			return { config: null, stdout: this._stdout, stderr: this._stderr };
 		}, (progress) => {
 			if (progress.source === Source.stderr) {
 				this._stderr.push(progress.line);
@@ -279,8 +316,10 @@ export class ProcessRunnerDetector {
 				this.testTest(taskInfos.test, task, index);
 			});
 			if (taskInfos.build.index !== -1) {
+				let name = tasks[taskInfos.build.index];
+				this._stdout.push(nls.localize('TaskSystemDetector.buildTaskDetected','Build task named \'{0}\' detected.', name));
 				taskConfigs.push({
-					taskName: tasks[taskInfos.build.index],
+					taskName: name,
 					args: [],
 					isBuildCommand: true,
 					isWatching: false,
@@ -288,8 +327,10 @@ export class ProcessRunnerDetector {
 				});
 			}
 			if (taskInfos.test.index !== -1) {
+				let name = tasks[taskInfos.test.index];
+				this._stdout.push(nls.localize('TaskSystemDetector.testTaskDetected','Test task named \'{0}\' detected.', name));
 				taskConfigs.push({
-					taskName: tasks[taskInfos.test.index],
+					taskName: name,
 					args: [],
 					isTestCommand: true
 				});

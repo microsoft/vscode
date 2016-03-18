@@ -208,34 +208,36 @@ export class MessageList {
 
 			// Actions (if none provided, add one default action to hide message)
 			let messageActions = this.getMessageActions(message);
-			messageActions.forEach((action) => {
-				let clazz = (total > 1 || delta < 0) ? 'message-right-side multiple' : 'message-right-side';
-				li.div({ class: clazz }, (div) => {
-					div.a({ class: 'action-button', tabindex: '0', role: 'button' }).text(action.label).on([DOM.EventType.CLICK, DOM.EventType.KEY_DOWN], (e) => {
-						if (e instanceof KeyboardEvent) {
-							let event = new StandardKeyboardEvent(e);
-							if (!event.equals(CommonKeybindings.ENTER) && !event.equals(CommonKeybindings.SPACE)) {
-								return; // Only handle Enter/Escape for keyboard access
-							}
-						}
-
-						DOM.EventHelper.stop(e, true);
-
-						if (this.usageLogger) {
-							this.usageLogger.publicLog('workbenchActionExecuted', { id: action.id, from: 'message' });
-						}
-
-						(action.run() || TPromise.as(null))
-							.then<any>(null, error => this.showMessage(Severity.Error, error))
-							.done((r) => {
-								if (r === false) {
-									return;
+			li.div({ class: (total > 1 || delta < 0) ? 'actions-container multiple' : 'actions-container' }, (actionContainer) => {
+				for (let i = messageActions.length - 1; i >= 0; i--) {
+					let action = messageActions[i];
+					actionContainer.div({ class: 'message-action' }, (div) => {
+						div.a({ class: 'action-button', tabindex: '0', role: 'button' }).text(action.label).on([DOM.EventType.CLICK, DOM.EventType.KEY_DOWN], (e) => {
+							if (e instanceof KeyboardEvent) {
+								let event = new StandardKeyboardEvent(e);
+								if (!event.equals(CommonKeybindings.ENTER) && !event.equals(CommonKeybindings.SPACE)) {
+									return; // Only handle Enter/Escape for keyboard access
 								}
+							}
 
-								this.hideMessage(message.text); // hide all matching the text since there may be duplicates
-							});
+							DOM.EventHelper.stop(e, true);
+
+							if (this.usageLogger) {
+								this.usageLogger.publicLog('workbenchActionExecuted', { id: action.id, from: 'message' });
+							}
+
+							(action.run() || TPromise.as(null))
+								.then<any>(null, error => this.showMessage(Severity.Error, error))
+								.done((r) => {
+									if (r === false) {
+										return;
+									}
+
+									this.hideMessage(message.text); // hide all matching the text since there may be duplicates
+								});
+						});
 					});
-				});
+				}
 			});
 
 			// Text

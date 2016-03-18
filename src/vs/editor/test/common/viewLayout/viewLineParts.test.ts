@@ -25,7 +25,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 
 	test('Bug 9827:Overlapping inline decorations can cause wrong inline class to be applied', () => {
 
-		var result = LineDecorationsNormalizer.normalize(1, [
+		var result = LineDecorationsNormalizer.normalize(1, 1, [
 			newDecoration(1, 1, 1, 11, 'c1'),
 			newDecoration(1, 3, 1, 4, 'c2')
 		]);
@@ -39,7 +39,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 
 	test('issue #3462: no whitespace shown at the end of a decorated line', () => {
 
-		var result = LineDecorationsNormalizer.normalize(3, [
+		var result = LineDecorationsNormalizer.normalize(3, 1, [
 			newDecoration(3, 15, 3, 21, 'trailing whitespace'),
 			newDecoration(3, 20, 3, 21, 'inline-folded'),
 		]);
@@ -50,9 +50,20 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		]);
 	});
 
+	test('issue #3661: Link decoration bleeds to next line when wrapping', () => {
+
+		var result = LineDecorationsNormalizer.normalize(3, 12, [
+			newDecoration(2, 12, 3, 30, 'detected-link')
+		]);
+
+		assert.deepEqual(result, [
+			new DecorationSegment(11, 28, 'detected-link'),
+		]);
+	});
+
 	test('ViewLineParts', () => {
 
-		assert.deepEqual(LineDecorationsNormalizer.normalize(1, [
+		assert.deepEqual(LineDecorationsNormalizer.normalize(1, 1, [
 			newDecoration(1, 1, 1, 2, 'c1'),
 			newDecoration(1, 3, 1, 4, 'c2')
 		]), [
@@ -60,7 +71,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			new DecorationSegment(2, 2, 'c2')
 		]);
 
-		assert.deepEqual(LineDecorationsNormalizer.normalize(1, [
+		assert.deepEqual(LineDecorationsNormalizer.normalize(1, 1, [
 			newDecoration(1, 1, 1, 3, 'c1'),
 			newDecoration(1, 3, 1, 4, 'c2')
 		]), [
@@ -68,7 +79,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			new DecorationSegment(2, 2, 'c2')
 		]);
 
-		assert.deepEqual(LineDecorationsNormalizer.normalize(1, [
+		assert.deepEqual(LineDecorationsNormalizer.normalize(1, 1, [
 			newDecoration(1, 1, 1, 4, 'c1'),
 			newDecoration(1, 3, 1, 4, 'c2')
 		]), [
@@ -76,7 +87,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			new DecorationSegment(2, 2, 'c1 c2')
 		]);
 
-		assert.deepEqual(LineDecorationsNormalizer.normalize(1, [
+		assert.deepEqual(LineDecorationsNormalizer.normalize(1, 1, [
 			newDecoration(1, 1, 1, 4, 'c1'),
 			newDecoration(1, 1, 1, 4, 'c1*'),
 			newDecoration(1, 3, 1, 4, 'c2')
@@ -85,7 +96,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			new DecorationSegment(2, 2, 'c1 c1* c2')
 		]);
 
-		assert.deepEqual(LineDecorationsNormalizer.normalize(1, [
+		assert.deepEqual(LineDecorationsNormalizer.normalize(1, 1, [
 			newDecoration(1, 1, 1, 4, 'c1'),
 			newDecoration(1, 1, 1, 4, 'c1*'),
 			newDecoration(1, 1, 1, 4, 'c1**'),
@@ -95,7 +106,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			new DecorationSegment(2, 2, 'c1 c1* c1** c2')
 		]);
 
-		assert.deepEqual(LineDecorationsNormalizer.normalize(1, [
+		assert.deepEqual(LineDecorationsNormalizer.normalize(1, 1, [
 			newDecoration(1, 1, 1, 4, 'c1'),
 			newDecoration(1, 1, 1, 4, 'c1*'),
 			newDecoration(1, 1, 1, 4, 'c1**'),
@@ -106,7 +117,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			new DecorationSegment(2, 2, 'c1 c1* c1** c2 c2*')
 		]);
 
-		assert.deepEqual(LineDecorationsNormalizer.normalize(1, [
+		assert.deepEqual(LineDecorationsNormalizer.normalize(1, 1, [
 			newDecoration(1, 1, 1, 4, 'c1'),
 			newDecoration(1, 1, 1, 4, 'c1*'),
 			newDecoration(1, 1, 1, 4, 'c1**'),

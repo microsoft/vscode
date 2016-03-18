@@ -68,7 +68,7 @@ var isKeyword = objects.createKeywordMatcher([
 	'try', 'true', 'use', 'var', 'while', 'xor',
 	'die', 'echo', 'empty', 'exit', 'eval',
 	'include', 'include_once', 'isset', 'list', 'require',
-	'require_once', 'return', 'print', 'unset',
+	'require_once', 'return', 'print', 'unset', 'yield',
 	'__construct'
 ]);
 
@@ -492,7 +492,9 @@ export class PHPMode extends AbstractMode implements ITokenizationCustomization 
 			}
 		});
 
-		this.suggestSupport = new TextualSuggestSupport(this.getId(), editorWorkerService);
+		if (editorWorkerService) {
+			this.suggestSupport = new TextualSuggestSupport(this.getId(), editorWorkerService);
+		}
 	}
 
 	public asyncCtor(): WinJS.Promise {

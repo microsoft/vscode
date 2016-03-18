@@ -8,7 +8,7 @@
 import 'vs/css!./rename';
 import * as nls from 'vs/nls';
 import {isPromiseCanceledError} from 'vs/base/common/errors';
-import {KeyCode} from 'vs/base/common/keyCodes';
+import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorService} from 'vs/platform/editor/common/editor';
@@ -173,7 +173,7 @@ CommonEditorRegistry.registerEditorCommand('acceptRenameInput', weight, { primar
 	action.acceptRenameInput();
 });
 
-CommonEditorRegistry.registerEditorCommand('cancelRenameInput', weight, { primary: KeyCode.Escape }, false, CONTEXT_RENAME_INPUT_VISIBLE, (ctx, editor, args) => {
+CommonEditorRegistry.registerEditorCommand('cancelRenameInput', weight, { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, CONTEXT_RENAME_INPUT_VISIBLE, (ctx, editor, args) => {
 	const action = <RenameAction>editor.getAction(RenameAction.ID);
 	action.cancelRenameInput();
 });

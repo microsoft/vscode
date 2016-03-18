@@ -183,26 +183,27 @@ enum EventDelayerState {
  */
 export class EventBufferer {
 
-	private state = EventDelayerState.Idle;
-	private buffer: Function[] = [];
+	private buffers: Function[][] = [];
 
 	wrapEvent<T>(event: Event<T>): Event<T> {
 		return (listener, thisArgs?, disposables?) => {
 			return event(i => {
-				if (this.state === EventDelayerState.Idle) {
-					listener(i);
+				const buffer = this.buffers[this.buffers.length - 1];
+
+				if (buffer) {
+					buffer.push(() => listener.call(thisArgs, i));
 				} else {
-					this.buffer.push(() => listener(i));
+					listener.call(thisArgs, i);
 				}
-			}, thisArgs, disposables);
+			}, void 0, disposables);
 		};
 	}
 
 	bufferEvents(fn: () => void): void {
-		this.state = EventDelayerState.Running;
+		const buffer = [];
+		this.buffers.push(buffer);
 		fn();
-		this.buffer.forEach(flush => flush());
-		this.buffer = [];
-		this.state = EventDelayerState.Idle;
+		this.buffers.pop();
+		buffer.forEach(flush => flush());
 	}
 }

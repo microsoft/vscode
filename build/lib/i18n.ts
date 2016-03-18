@@ -11,7 +11,7 @@ import { ThroughStream } from 'through';
 import File = require('vinyl');
 import * as Is from 'is';
 
-const quiet = !!process.env['VSCODE_BUILD_QUIET'];
+const quiet = !!process.env['VSCODE_BUILD_QUIET'] && false;
 
 var util = require('gulp-util');
 function log(message: any, ...rest: any[]): void {
@@ -69,9 +69,9 @@ const vscodeLanguages: string[] = [
 ];
 
 const iso639_3_to_2: Map<string> = {
-	'chs': 'zh-cn',
-	'cht': 'zh-tw',
-	'csy': 'cs-cz',
+	'chs': 'zh-CN',
+	'cht': 'zh-TW',
+	'csy': 'cs-CZ',
 	'deu': 'de',
 	'enu': 'en',
 	'esn': 'es',
@@ -82,10 +82,10 @@ const iso639_3_to_2: Map<string> = {
 	'kor': 'ko',
 	'nld': 'nl',
 	'plk': 'pl',
-	'ptb': 'pt-br',
+	'ptb': 'pt-BR',
 	'ptg': 'pt',
 	'rus': 'ru',
-	'sve': 'sv-se',
+	'sve': 'sv-SE',
 	'trk': 'tr'
 };
 
@@ -237,7 +237,7 @@ function processCoreBundleFormat(json: BundledFormat, emitter: any) {
 				let content = stripComments(fs.readFileSync(i18nFile, 'utf8'));
 				messages = JSON.parse(content);
 			} else {
-				log(`No localized messages found for module ${module}. Using default messages.`);
+				// log(`No localized messages found for module ${module}. Using default messages.`);
 				messages = defaultMessages[module];
 				statistics[language.iso639_2] = statistics[language.iso639_2] + Object.keys(messages).length;
 			}

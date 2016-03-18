@@ -13,7 +13,6 @@ import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
 import {IOutputChannelRegistry, Extensions, IOutputService, OUTPUT_MODE_ID, OUTPUT_PANEL_ID} from 'vs/workbench/parts/output/common/output';
-import {OutputEditorInput} from 'vs/workbench/parts/output/common/outputEditorInput';
 import {SelectActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {IPartService} from 'vs/workbench/services/part/common/partService';
 import {IPanelService} from 'vs/workbench/services/panel/common/panelService';
@@ -94,7 +93,7 @@ export class SwitchOutputAction extends Action {
 
 	public static ID = 'workbench.output.action.switchBetweenOutputs';
 
-	constructor(@IOutputService private outputService: IOutputService) {
+	constructor( @IOutputService private outputService: IOutputService) {
 		super(SwitchOutputAction.ID, nls.localize('switchToOutput.label', "Switch to Output"));
 
 		this.class = 'output-action switch-to-output';
@@ -106,7 +105,6 @@ export class SwitchOutputAction extends Action {
 }
 
 export class SwitchOutputActionItem extends SelectActionItem {
-	private input: OutputEditorInput;
 
 	constructor(
 		action: IAction,
@@ -129,10 +127,5 @@ export class SwitchOutputActionItem extends SelectActionItem {
 		const usedChannels = outputService.getChannels();
 
 		return arrays.distinct(contributedChannels.concat(usedChannels)).sort(); // sort by name
-	}
-
-	public dispose(): void {
-		super.dispose();
-		delete this.input;
 	}
 }

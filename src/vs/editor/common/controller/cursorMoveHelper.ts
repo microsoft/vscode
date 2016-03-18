@@ -13,9 +13,14 @@ export interface IMoveResult {
 	leftoverVisibleColumns: number;
 }
 
-export interface IColumnSelectResult {
-	selections: IEditorSelection[];
+export interface IViewColumnSelectResult {
+	viewSelections: IEditorSelection[];
 	reversed: boolean;
+}
+export interface IColumnSelectResult extends IViewColumnSelectResult {
+	selections: IEditorSelection[];
+	toLineNumber: number;
+	toVisualColumn: number;
 }
 
 export interface ICursorMoveHelperModel {
@@ -127,30 +132,49 @@ export class CursorMoveHelper {
 		};
 	}
 
-	public columnSelect(model:ICursorMoveHelperModel, from:IPosition, toLineNumber:number, toColumn:number): IColumnSelectResult {
-		let fromVisibleColumn = this.visibleColumnFromColumn(model, from.lineNumber, from.column);
-		let toVisibleColumn = this.visibleColumnFromColumn(model, toLineNumber, toColumn);
+	public columnSelect(model:ICursorMoveHelperModel, fromLineNumber:number, fromVisibleColumn:number, toLineNumber:number, toVisibleColumn:number): IViewColumnSelectResult {
+		let lineCount = Math.abs(toLineNumber - fromLineNumber) + 1;
+		let reversed = (fromLineNumber > toLineNumber);
+		let isRTL = (fromVisibleColumn > toVisibleColumn);
+		let isLTR = (fromVisibleColumn < toVisibleColumn);
 
 		let result: IEditorSelection[] = [];
-		let reversed: boolean;
-		if (from.lineNumber <= toLineNumber) {
-			reversed = false;
-			for (let lineNumber = from.lineNumber; lineNumber <= toLineNumber; lineNumber++) {
-				let startColumn = this.columnFromVisibleColumn(model, lineNumber, fromVisibleColumn);
-				let endColumn = this.columnFromVisibleColumn(model, lineNumber, toVisibleColumn);
-				result.push(new Selection(lineNumber, startColumn, lineNumber, endColumn));
+
+		// console.log(`fromVisibleColumn: ${fromVisibleColumn}, toVisibleColumn: ${toVisibleColumn}`);
+
+		for (let i = 0; i < lineCount; i++) {
+			let lineNumber = fromLineNumber + (reversed ? -i : i);
+
+			let startColumn = this.columnFromVisibleColumn(model, lineNumber, fromVisibleColumn);
+			let endColumn = this.columnFromVisibleColumn(model, lineNumber, toVisibleColumn);
+			let visibleStartColumn = this.visibleColumnFromColumn(model, lineNumber, startColumn);
+			let visibleEndColumn = this.visibleColumnFromColumn(model, lineNumber, endColumn);
+
+			// console.log(`lineNumber: ${lineNumber}: visibleStartColumn: ${visibleStartColumn}, visibleEndColumn: ${visibleEndColumn}`);
+
+			if (isLTR) {
+				if (visibleStartColumn > toVisibleColumn) {
+					continue;
+				}
+				if (visibleEndColumn < fromVisibleColumn) {
+					continue;
+				}
 			}
-		} else {
-			reversed = true;
-			for (let lineNumber = from.lineNumber; lineNumber >= toLineNumber; lineNumber--) {
-				let startColumn = this.columnFromVisibleColumn(model, lineNumber, fromVisibleColumn);
-				let endColumn = this.columnFromVisibleColumn(model, lineNumber, toVisibleColumn);
-				result.push(new Selection(lineNumber, startColumn, lineNumber, endColumn));
+
+			if (isRTL) {
+				if (visibleEndColumn > fromVisibleColumn) {
+					continue;
+				}
+				if (visibleStartColumn < toVisibleColumn) {
+					continue;
+				}
 			}
+
+			result.push(new Selection(lineNumber, startColumn, lineNumber, endColumn));
 		}
 
 		return {
-			selections: result,
+			viewSelections: result,
 			reversed: reversed
 		};
 	}

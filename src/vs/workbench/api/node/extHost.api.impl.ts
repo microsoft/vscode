@@ -6,6 +6,7 @@
 
 import {Emitter} from 'vs/base/common/event';
 import {score} from 'vs/editor/common/modes/languageSelector';
+import * as Platform from 'vs/base/common/platform';
 import {regExpLeadsToEndlessLoop} from 'vs/base/common/strings';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import * as errors from 'vs/base/common/errors';
@@ -152,7 +153,7 @@ export class ExtHostAPIImplementation {
 		this.env = Object.freeze({
 			get machineId() { return telemetryInfo.machineId; },
 			get sessionId() { return telemetryInfo.sessionId; },
-			get language() { return contextService.getConfiguration().env.language; }
+			get language() { return Platform.language; }
 		});
 		telemetryService.getTelemetryInfo().then(info => telemetryInfo = info, errors.onUnexpectedError);
 

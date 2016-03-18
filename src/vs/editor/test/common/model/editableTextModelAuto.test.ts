@@ -103,6 +103,35 @@ suite('EditorModel Auto Tests', () => {
 			]
 		);
 	});
+
+	test('auto4', () => {
+		testApplyEditsWithSyncedModels(
+			[
+				'fefymj',
+				'qum',
+				'vmiwxxaiqq',
+				'dz',
+				'lnqdgorosf',
+			],
+			[
+				editOp(1, 3, 1, 5, ['hp']),
+				editOp(1, 7, 2, 1, ['kcg', '', 'mpx']),
+				editOp(2, 2, 2, 2, ['', 'aw', '']),
+				editOp(2, 2, 2, 2, ['vqr', 'mo']),
+				editOp(4, 2, 5, 3, ['xyc']),
+			],
+			[
+				'fehpmjkcg',
+				'',
+				'mpxq',
+				'aw',
+				'vqr',
+				'moum',
+				'vmiwxxaiqq',
+				'dxycqdgorosf',
+			]
+		);
+	});
 });
 
 function getRandomInt(min: number, max: number): number {
@@ -138,14 +167,15 @@ function generateEdits(content:string): ITestModelEdit[] {
 
 		let offset = getRandomInt(0, maxOffset);
 		let length = getRandomInt(0, maxOffset - offset);
+		let text = generateFile(true);
 
 		result.push({
 			offset: offset,
 			length: length,
-			text: generateFile(true)
+			text: text
 		});
 
-		maxOffset = offset - 1;
+		maxOffset = offset;
 		cnt--;
 	}
 
@@ -166,37 +196,15 @@ class TestModel {
 	public resultingContent: string;
 	public edits: IIdentifiedSingleEditOperation[];
 
-	constructor() {
-		this.initialContent = generateFile(false);
-
-		let edits = generateEdits(this.initialContent);
-		let currentEditIdx = 0;
+	private static _generateOffsetToPosition(content:string): Position[] {
+		let result: Position[] = [];
 		let lineNumber = 1;
 		let column = 1;
 
-		let editStartPosition: Position = null;
-		this.edits = [];
-		for (let offset = 0, len = this.initialContent.length; currentEditIdx < edits.length && offset <= len; offset++) {
-			let ch = this.initialContent.charAt(offset);
+		for (let offset = 0, len = content.length; offset <= len; offset++) {
+			let ch = content.charAt(offset);
 
-			if (!editStartPosition) {
-				if (offset === edits[currentEditIdx].offset) {
-					editStartPosition = new Position(lineNumber, column);
-				}
-			}
-
-			if (editStartPosition) {
-				if (offset === edits[currentEditIdx].offset + edits[currentEditIdx].length) {
-					this.edits.push({
-						identifier: null,
-						range: new Range(editStartPosition.lineNumber, editStartPosition.column, lineNumber, column),
-						text: edits[currentEditIdx].text,
-						forceMoveMarkers: false
-					});
-					currentEditIdx++;
-					editStartPosition = null;
-				}
-			}
+			result[offset] = new Position(lineNumber, column);
 
 			if (ch === '\n') {
 				lineNumber++;
@@ -204,6 +212,27 @@ class TestModel {
 			} else {
 				column++;
 			}
+		}
+
+		return result;
+	}
+
+	constructor() {
+		this.initialContent = generateFile(false);
+
+		let edits = generateEdits(this.initialContent);
+
+		let offsetToPosition = TestModel._generateOffsetToPosition(this.initialContent);
+		this.edits = [];
+		for (let i = 0; i < edits.length; i++) {
+			let startPosition = offsetToPosition[edits[i].offset];
+			let endPosition = offsetToPosition[edits[i].offset + edits[i].length];
+			this.edits.push({
+				identifier: null,
+				range: new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),
+				text: edits[i].text,
+				forceMoveMarkers: false
+			});
 		}
 
 		this.resultingContent = this.initialContent;
@@ -247,7 +276,7 @@ if (GENERATE_TESTS) {
 
 		let testModel = new TestModel();
 
-		console.log(testModel.print());
+		// console.log(testModel.print());
 
 		console.log('------END NEW TEST: ' + (number++));
 
@@ -259,7 +288,7 @@ if (GENERATE_TESTS) {
 			);
 			// throw new Error('a');
 		} catch(err) {
-			console.log('bubu');
+			console.log(err);
 			console.log(testModel.print());
 			break;
 		}

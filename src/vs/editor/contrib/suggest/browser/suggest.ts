@@ -226,9 +226,9 @@ CommonEditorRegistry.registerEditorCommand(ACCEPT_SELECTED_SUGGESTION_CMD, weigh
 	controller.acceptSelectedSuggestion();
 });
 KeybindingsRegistry.registerCommandDesc({
-	id: ACCEPT_SELECTED_SUGGESTION_CMD,
+	id: 'acceptSelectedSuggestionOnEnter',
 	handler(accessor, args) {
-		withCodeEditorFromCommandHandler(ACCEPT_SELECTED_SUGGESTION_CMD, accessor, args, (editor) => {
+		withCodeEditorFromCommandHandler('acceptSelectedSuggestionOnEnter', accessor, args, (editor) => {
 			const controller = SuggestController.getSuggestController(editor);
 			controller.acceptSelectedSuggestion();
 		});
@@ -237,23 +237,23 @@ KeybindingsRegistry.registerCommandDesc({
 	context: KbExpr.and(KbExpr.has(CONTEXT_SUGGEST_WIDGET_VISIBLE), KbExpr.has('config.editor.acceptSuggestionOnEnter')),
 	primary: KeyCode.Enter,
 });
-CommonEditorRegistry.registerEditorCommand('hideSuggestWidget', weight, { primary: KeyCode.Escape }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
+CommonEditorRegistry.registerEditorCommand('hideSuggestWidget', weight, { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
 	const controller = SuggestController.getSuggestController(editor);
 	controller.cancelSuggestWidget();
 });
-CommonEditorRegistry.registerEditorCommand('selectNextSuggestion', weight, { primary: KeyCode.DownArrow }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
+CommonEditorRegistry.registerEditorCommand('selectNextSuggestion', weight, { primary: KeyCode.DownArrow, secondary: [ KeyMod.Alt | KeyCode.DownArrow ] }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
 	const controller = SuggestController.getSuggestController(editor);
 	controller.selectNextSuggestion();
 });
-CommonEditorRegistry.registerEditorCommand('selectNextPageSuggestion', weight, { primary: KeyCode.PageDown }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
+CommonEditorRegistry.registerEditorCommand('selectNextPageSuggestion', weight, { primary: KeyCode.PageDown, secondary: [ KeyMod.Alt | KeyCode.PageDown ] }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
 	const controller = SuggestController.getSuggestController(editor);
 	controller.selectNextPageSuggestion();
 });
-CommonEditorRegistry.registerEditorCommand('selectPrevSuggestion', weight, { primary: KeyCode.UpArrow }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
+CommonEditorRegistry.registerEditorCommand('selectPrevSuggestion', weight, { primary: KeyCode.UpArrow, secondary: [ KeyMod.Alt | KeyCode.UpArrow ] }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
 	const controller = SuggestController.getSuggestController(editor);
 	controller.selectPrevSuggestion();
 });
-CommonEditorRegistry.registerEditorCommand('selectPrevPageSuggestion', weight, { primary: KeyCode.PageUp }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
+CommonEditorRegistry.registerEditorCommand('selectPrevPageSuggestion', weight, { primary: KeyCode.PageUp, secondary: [ KeyMod.Alt | KeyCode.PageUp ] }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
 	const controller = SuggestController.getSuggestController(editor);
 	controller.selectPrevPageSuggestion();
 });

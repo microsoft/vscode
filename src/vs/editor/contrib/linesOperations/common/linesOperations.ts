@@ -7,6 +7,7 @@
 import * as nls from 'vs/nls';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
+import {SortLinesCommand} from 'vs/editor/contrib/linesOperations/common/sortLinesCommand';
 import {TrimTrailingWhitespaceCommand} from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import {EditorAction, HandlerEditorAction} from 'vs/editor/common/editorAction';
 import {Handler, ICommand, ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
@@ -94,6 +95,40 @@ class MoveLinesUpAction extends MoveLinesAction {
 
 class MoveLinesDownAction extends MoveLinesAction {
 	static ID = 'editor.action.moveLinesDownAction';
+
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
+		super(descriptor, editor, true);
+	}
+}
+
+class SortLinesAction extends EditorAction {
+	private descending:boolean;
+
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, descending:boolean) {
+		super(descriptor, editor);
+		this.descending = descending;
+	}
+
+	public run():TPromise<boolean> {
+
+		var command = new SortLinesCommand(this.editor.getSelection(), this.descending);
+
+		this.editor.executeCommands(this.id, [command]);
+
+		return TPromise.as(true);
+	}
+}
+
+class SortLinesAscendingAction extends SortLinesAction {
+	static ID ='editor.action.sortLinesAscending';
+
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
+		super(descriptor, editor, false);
+	}
+}
+
+class SortLinesDescendingAction extends SortLinesAction {
+	static ID ='editor.action.sortLinesDescending';
 
 	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor, true);
@@ -234,6 +269,14 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(DeleteLines
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K
 }));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SortLinesAscendingAction, SortLinesAscendingAction.ID, nls.localize('lines.sortAscending', "Sort Lines Ascending"), {
+	context: ContextKey.EditorTextFocus,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_2
+}));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SortLinesDescendingAction, SortLinesDescendingAction.ID, nls.localize('lines.sortDescending', "Sort Lines Descending"), {
+	context: ContextKey.EditorTextFocus,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_3
+}));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(TrimTrailingWhitespaceAction, TrimTrailingWhitespaceAction.ID, nls.localize('lines.trimTrailingWhitespace', "Trim Trailing Whitespace"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_X
@@ -274,5 +317,3 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertLineA
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyCode.Enter
 }));
-
-

@@ -71,7 +71,9 @@ export function activate(context: ExtensionContext): void {
 
 	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
 	client.onReady().then(() => {
-		context.subscriptions.push(ProjectStatus.create(client));
+		context.subscriptions.push(ProjectStatus.create(client,
+			path => new Promise(resolve => setTimeout(() => resolve(clientHost.handles(path)), 750)),
+			context.workspaceState));
 	}, () => {
 		// Nothing to do here. The client did show a message;
 	});
@@ -296,6 +298,10 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	public reloadProjects(): void {
 		this.client.execute('reloadProjects', null, false);
 		this.triggerAllDiagnostics();
+	}
+
+	public handles(file: string): boolean {
+		return !!this.findLanguage(file);
 	}
 
 	private findLanguage(file: string): LanguageProvider {

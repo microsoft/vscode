@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as nls from 'vs/nls';
 import Event, {Emitter} from 'vs/base/common/event';
 import {Registry} from 'vs/platform/platform';
 import {IWorkerParticipantDescriptor} from 'vs/editor/common/modes';
@@ -104,6 +105,6 @@ Registry.add(Extensions.ModesRegistry, ModesRegistry);
 ModesRegistry.registerLanguage({
 	id: 'plaintext',
 	extensions: ['.txt', '.gitignore'],
-	aliases: ['Plain Text', 'text'],
+	aliases: [nls.localize('plainText.alias', "Plain Text"), 'text'],
 	mimetypes: ['text/plain']
 });

@@ -83,13 +83,13 @@ export class HTMLWorker {
 			indent_size: options.insertSpaces ? options.tabSize : 1,
 			indent_char: options.insertSpaces ? ' ' : '\t',
 			wrap_line_length: this.getFormatOption('wrapLineLength', 120),
-			unformatted: this.getFormatListOption('unformatted', void 0),
+			unformatted: this.getTagsFormatOption('unformatted', void 0),
 			indent_inner_html: this.getFormatOption('indentInnerHtml', false),
 			preserve_newlines: this.getFormatOption('preserveNewLines', false),
 			max_preserve_newlines: this.getFormatOption('maxPreserveNewLines', void 0),
 			indent_handlebars: this.getFormatOption('indentHandlebars', false),
 			end_with_newline: this.getFormatOption('endWithNewline', false),
-			extra_liners: this.getFormatListOption('extraLiners', void 0),
+			extra_liners: this.getTagsFormatOption('extraLiners', void 0),
 		};
 
 		let result = beautifyHTML.html_beautify(value, htmlOptions);
@@ -110,10 +110,10 @@ export class HTMLWorker {
 		return dflt;
 	}
 
-	private getFormatListOption(key: string, dflt: string[]): string[] {
-		let list = this.getFormatOption(key, null);
+	private getTagsFormatOption(key: string, dflt: string[]): string[] {
+		let list = <string> this.getFormatOption(key, null);
 		if (list) {
-			return list.split(',');
+			return list.split(',').map(t => t.trim().toLowerCase());
 		}
 		return dflt;
 	}

@@ -103,7 +103,7 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 
 		// Defer the update so that multiple changes to setters dont cause a redraw each
 		this._timeoutHandle = setTimeout(() => {
-			delete this._timeoutHandle;
+			this._timeoutHandle = null;
 
 			// Set to status bar
 			this._proxy.setEntry(this.id, this.text, this.tooltip, this.command, this.color,

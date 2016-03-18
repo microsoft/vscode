@@ -31,7 +31,7 @@ export function snippetUpdated(modeId: string, filePath: string): TPromise<void>
 }
 
 let snippetsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ITMSnippetsExtensionPoint[]>('snippets', {
-	description: nls.localize('vscode.extension.contributes.snippets', 'Contributes textmate snippets.'),
+	description: nls.localize('vscode.extension.contributes.snippets', 'Contributes TextMate snippets.'),
 	type: 'array',
 	defaultSnippets: [ { body: [{ language: '', path: '' }] }],
 	items: {

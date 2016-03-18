@@ -42,6 +42,7 @@ export interface IKeyboardHandlerHelper {
 	viewDomNode:HTMLElement;
 	textArea:HTMLTextAreaElement;
 	visibleRangeForPositionRelativeToEditor(lineNumber:number, column:number): editorCommon.VisibleRange;
+	flushAnyAccumulatedEvents(): void;
 }
 
 export interface IPointerHandlerHelper {
@@ -85,7 +86,7 @@ export interface IView extends IDisposable {
 	getWhitespaces(): editorCommon.IEditorWhitespace[];
 	renderOnce(callback:() => any): any;
 
-	render(now:boolean): void;
+	render(now:boolean, everything:boolean): void;
 	setAriaActiveDescendant(id:string): void;
 
 	focus(): void;

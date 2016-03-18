@@ -157,7 +157,7 @@ export class ItemRegistry extends Events.EventEmitter {
 
 	public dispose(): void {
 		super.dispose();
-		delete this.items;
+		this.items = null;
 	}
 }
 
@@ -574,11 +574,11 @@ export class Item extends Events.EventEmitter {
 	public dispose(): void {
 		this.forEachChild((child) => child.dispose());
 
-		delete this.parent;
-		delete this.previous;
-		delete this.next;
-		delete this.firstChild;
-		delete this.lastChild;
+		this.parent = null;
+		this.previous = null;
+		this.next = null;
+		this.firstChild = null;
+		this.lastChild = null;
 
 		var eventData: IItemDisposeEvent = { item: this };
 		this.emit('item:dispose', eventData);

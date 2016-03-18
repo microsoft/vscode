@@ -450,7 +450,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		});
 
 		// tree
-		container.div({ 'class': 'tree inline' }, (div:Builder) => {
+		container.div({ 'class': 'ref-tree inline' }, (div:Builder) => {
 			var config = {
 				dataSource: this.instantiationService.createInstance(DataSource),
 				renderer: this.instantiationService.createInstance(Renderer, this.editor),

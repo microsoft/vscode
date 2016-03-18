@@ -5,7 +5,7 @@
 'use strict';
 
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {IHTMLContentElement, htmlContentElementArrEquals} from 'vs/base/common/htmlContent';
 import * as strings from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IdGenerator} from 'vs/editor/common/core/idGenerator';
@@ -113,7 +113,7 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 		super.dispose();
 	}
 
-	_resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:string): void {
+	_resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:editorCommon.IRawText): void {
 		super._resetValue(e, newValue);
 
 		// Destroy all my decorations
@@ -706,43 +706,6 @@ class ModelDecorationOptions implements editorCommon.IModelDecorationOptions {
 		this.inlineClassName = cleanClassName(options.inlineClassName||strings.empty);
 	}
 
-	private static _htmlContentEquals(a:IHTMLContentElement, b:IHTMLContentElement): boolean {
-		return (
-			a.formattedText === b.formattedText
-			&& a.text === b.text
-			&& a.className === b.className
-			&& a.style === b.style
-			&& a.customStyle === b.customStyle
-			&& a.tagName === b.tagName
-			&& a.isText === b.isText
-			&& ModelDecorationOptions._htmlContentArrEquals(a.children, b.children)
-		);
-	}
-
-	private static _htmlContentArrEquals(a:IHTMLContentElement[], b:IHTMLContentElement[]): boolean {
-		if (!a) {
-			return (!b);
-		}
-		if (!b) {
-			return false;
-		}
-
-		let aLen = a.length,
-			bLen = b.length;
-
-		if (aLen !== bLen) {
-			return false;
-		}
-
-		for (let i = 0; i < aLen; i++) {
-			if (!ModelDecorationOptions._htmlContentEquals(a[i], b[i])) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
 	private static _overviewRulerEquals(a:editorCommon.IModelDecorationOverviewRulerOptions, b:editorCommon.IModelDecorationOverviewRulerOptions): boolean {
 		return (
 			a.color === b.color
@@ -761,7 +724,7 @@ class ModelDecorationOptions implements editorCommon.IModelDecorationOptions {
 			&& this.glyphMarginClassName === other.glyphMarginClassName
 			&& this.linesDecorationsClassName === other.linesDecorationsClassName
 			&& this.inlineClassName === other.inlineClassName
-			&& ModelDecorationOptions._htmlContentArrEquals(this.htmlMessage, other.htmlMessage)
+			&& htmlContentElementArrEquals(this.htmlMessage, other.htmlMessage)
 			&& ModelDecorationOptions._overviewRulerEquals(this.overviewRuler, other.overviewRuler)
 		);
 	}

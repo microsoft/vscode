@@ -6,6 +6,7 @@
 import getmac = require('getmac');
 import crypto = require('crypto');
 
+import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import * as errors from 'vs/base/common/errors';
 import * as uuid from 'vs/base/common/uuid';
@@ -33,7 +34,7 @@ export class ElectronTelemetryService extends MainTelemetryService implements IT
 
 	private static MAX_BUFFER_SIZE = 100;
 
-	private _setupIds: Promise<ITelemetryInfo>;
+	private _setupIds: TPromise<ITelemetryInfo>;
 	private _buffer: ITelemetryEvent[];
 	private _optInStatusLoaded: boolean;
 
@@ -50,7 +51,7 @@ export class ElectronTelemetryService extends MainTelemetryService implements IT
 	/**
 	 * override the base getTelemetryInfo to make sure this information is not retrieved before it's ready
 	 */
-	public getTelemetryInfo(): Promise<ITelemetryInfo> {
+	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return this._setupIds;
 	}
 	/**
@@ -88,8 +89,8 @@ export class ElectronTelemetryService extends MainTelemetryService implements IT
 		}));
 	}
 
-	private setupIds(): Promise<ITelemetryInfo> {
-		return Promise.all([this.setupInstanceId(), this.setupMachineId()]).then(() => {
+	private setupIds(): TPromise<ITelemetryInfo> {
+		return TPromise.join([this.setupInstanceId(), this.setupMachineId()]).then(() => {
 			return {
 				machineId: this.machineId,
 				instanceId: this.instanceId,
@@ -98,23 +99,23 @@ export class ElectronTelemetryService extends MainTelemetryService implements IT
 		});
 	}
 
-	private setupInstanceId(): Promise<string> {
+	private setupInstanceId(): TPromise<string> {
 		let instanceId = this.storageService.get(StorageKeys.InstanceId);
 		if (!instanceId) {
 			instanceId = uuid.generateUuid();
 			this.storageService.store(StorageKeys.InstanceId, instanceId);
 		}
 		this.instanceId = instanceId;
-		return Promise.resolve(this.instanceId);
+		return TPromise.as(this.instanceId);
 	}
 
-	private setupMachineId(): Promise<string> {
+	private setupMachineId(): TPromise<string> {
 		let machineId = this.storageService.get(StorageKeys.MachineId);
 		if (machineId) {
 			this.machineId = machineId;
-			return Promise.resolve(this.machineId);
+			return TPromise.as(this.machineId);
 		} else {
-			return new Promise((resolve, reject) => {
+			return new TPromise((resolve, reject) => {
 				try {
 					// add a unique machine id as a hash of the macAddress
 					getmac.getMac((error, macAddress) => {

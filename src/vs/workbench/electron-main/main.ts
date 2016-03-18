@@ -5,13 +5,14 @@
 
 'use strict';
 
-import {app, shell, dialog} from 'electron';
+import {app} from 'electron';
 import fs = require('fs');
 import nls = require('vs/nls');
 import {assign} from 'vs/base/common/objects';
 import platform = require('vs/base/common/platform');
 import env = require('vs/workbench/electron-main/env');
 import windows = require('vs/workbench/electron-main/windows');
+import window = require('vs/workbench/electron-main/window');
 import lifecycle = require('vs/workbench/electron-main/lifecycle');
 import menu = require('vs/workbench/electron-main/menus');
 import settings = require('vs/workbench/electron-main/settings');
@@ -24,38 +25,35 @@ import {spawnSharedProcess} from 'vs/workbench/electron-main/sharedProcess';
 import {Mutex} from 'windows-mutex';
 
 export class LaunchService {
-	public start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment, otherInstancePid: number): TPromise<void> {
+	public start(args: env.ICommandLineArguments, userEnv: env.IProcessEnvironment): TPromise<void> {
 		env.log('Received data from other instance', args);
 
-		let killOtherInstance = args.waitForWindowClose;
-
 		// Otherwise handle in windows manager
+		let usedWindows: window.VSCodeWindow[];
 		if (!!args.extensionDevelopmentPath) {
 			windows.manager.openPluginDevelopmentHostWindow({ cli: args, userEnv: userEnv });
 		} else if (args.pathArguments.length === 0 && args.openNewWindow) {
-			windows.manager.open({ cli: args, userEnv: userEnv, forceNewWindow: true, forceEmpty: true });
+			usedWindows = windows.manager.open({ cli: args, userEnv: userEnv, forceNewWindow: true, forceEmpty: true });
 		} else if (args.pathArguments.length === 0) {
-			windows.manager.focusLastActive(args);
+			usedWindows = [windows.manager.focusLastActive(args)];
 		} else {
-			let usedWindows = windows.manager.open({ cli: args, userEnv: userEnv, forceNewWindow: args.waitForWindowClose || args.openNewWindow, preferNewWindow: !args.openInSameWindow });
-
-			// If the other instance is waiting to be killed, we hook up a window listener if one window
-			// is being used and kill the other instance when that window is being closed
-			if (args.waitForWindowClose && usedWindows && usedWindows.length === 1) {
-				let windowToObserve = usedWindows[0];
-				killOtherInstance = false; // only scenario where the "-w" switch is supported and makes sense
-
-				let unbind = windows.onClose(id => {
-					if (id === windowToObserve.id) {
-						unbind();
-						process.kill(otherInstancePid);
-					}
-				});
-			}
+			usedWindows = windows.manager.open({ cli: args, userEnv: userEnv, forceNewWindow: args.waitForWindowClose || args.openNewWindow, preferNewWindow: !args.openInSameWindow });
 		}
 
-		if (killOtherInstance) {
-			process.kill(otherInstancePid);
+		// If the other instance is waiting to be killed, we hook up a window listener if one window
+		// is being used and only then resolve the startup promise which will kill this second instance
+		if (args.waitForWindowClose && usedWindows && usedWindows.length === 1 && usedWindows[0]) {
+			const windowId = usedWindows[0].id;
+
+			return new TPromise<void>((c, e) => {
+
+				const unbind = windows.onClose(id => {
+					if (id === windowId) {
+						unbind();
+						c(null);
+					}
+				});
+			});
 		}
 
 		return TPromise.as(null);
@@ -97,10 +95,7 @@ function quit(arg?: any) {
 		}
 	}
 
-	// If not in wait mode or seeing an error: exit directly
-	if (!env.cliArgs.waitForWindowClose || exitCode) {
-		process.exit(exitCode);
-	}
+	process.exit(exitCode);
 }
 
 function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
@@ -193,29 +188,6 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 	}
 }
 
-function timebomb(): TPromise<void> {
-	if (!env.product.expiryDate || Date.now() <= env.product.expiryDate) {
-		return TPromise.as(null);
-	}
-
-	return new TPromise<void>((c, e) => {
-		dialog.showMessageBox({
-			type: 'warning',
-			title: env.product.nameLong,
-			message: nls.localize('expired', "Expired"),
-			detail: nls.localize('expiredDetail', "This pre-release version of {0} has expired.\n\nPlease visit {1} to download the current release.", env.product.nameLong, env.product.expiryUrl),
-			buttons: [nls.localize('quit', "Quit"), nls.localize('openWebSite', "Open Web Site")],
-			noLink: true,
-		}, (i) => {
-			if (i === 1) {
-				shell.openExternal(env.product.expiryUrl);
-			}
-
-			e('Product expired');
-		});
-	});
-}
-
 function setupIPC(): TPromise<Server> {
 	function setup(retry: boolean): TPromise<Server> {
 		return serve(env.mainIPCHandle).then(null, err => {
@@ -243,7 +215,7 @@ function setupIPC(): TPromise<Server> {
 
 					const service = client.getService<LaunchService>('LaunchService', LaunchService);
 
-					return service.start(env.cliArgs, process.env, process.pid)
+					return service.start(env.cliArgs, process.env)
 						.then(() => client.dispose())
 						.then(() => TPromise.wrapError('Sent env to running instance. Terminating...'));
 				},
@@ -277,8 +249,7 @@ getUserEnvironment()
 	.then(userEnv => {
 		assign(process.env, userEnv);
 
-		return timebomb()
-			.then(setupIPC)
+		return setupIPC()
 			.then(ipcServer => main(ipcServer, userEnv));
 	})
 	.done(null, quit);

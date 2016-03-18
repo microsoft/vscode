@@ -7,7 +7,7 @@
 
 import 'vs/css!./rulers';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
-import {IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ILayoutProvider, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 
@@ -35,7 +35,7 @@ export class Rulers extends ViewPart {
 
 	// --- begin event handlers
 
-	public onConfigurationChanged(e: IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
 		if (e.rulers || e.layoutInfo || e.typicalHalfwidthCharacterWidth) {
 			this._rulers = this._context.configuration.editor.rulers;
 			this._height = this._context.configuration.editor.layoutInfo.contentHeight;
@@ -43,6 +43,9 @@ export class Rulers extends ViewPart {
 			return true;
 		}
 		return false;
+	}
+	public onScrollHeightChanged(scrollHeight:number): boolean {
+		return true;
 	}
 
 	// --- end event handlers

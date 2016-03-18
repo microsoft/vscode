@@ -164,6 +164,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	private _isHandlingScrollEvent:boolean;
 
 	private _ignoreTrimWhitespace: boolean;
+	private _originalIsEditable: boolean;
 
 	private _renderSideBySide:boolean;
 	private _enableSplitViewResizing:boolean;
@@ -198,6 +199,11 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		this._ignoreTrimWhitespace = true;
 		if (typeof options.ignoreTrimWhitespace !== 'undefined') {
 			this._ignoreTrimWhitespace = options.ignoreTrimWhitespace;
+		}
+
+		this._originalIsEditable = false;
+		if (typeof options.originalEditable !== 'undefined') {
+			this._originalIsEditable = Boolean(options.originalEditable);
 		}
 
 		this._updateDecorationsRunner = new RunOnceScheduler(() => this._updateDecorations(), 0);
@@ -317,13 +323,13 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	}
 
 	private _createLeftHandSideEditor(options:editorCommon.IDiffEditorOptions, instantiationService:IInstantiationService): void {
-		this.originalEditor = instantiationService.createInstance(CodeEditorWidget, this._originalDomNode, <any> this._adjustOptionsForLeftHandSide(options)); //TS bug: IDiffEditorOptions are not compatable with IEditorCreationOptions
+		this.originalEditor = instantiationService.createInstance(CodeEditorWidget, this._originalDomNode, this._adjustOptionsForLeftHandSide(options, this._originalIsEditable));
 		this._toDispose.push(this.originalEditor.addBulkListener2((events: any) => this._onOriginalEditorEvents(events)));
 		this._toDispose.push(this.addEmitter2(this.originalEditor, 'leftHandSide'));
 	}
 
 	private _createRightHandSideEditor(options:editorCommon.IDiffEditorOptions, instantiationService:IInstantiationService): void {
-		this.modifiedEditor = instantiationService.createInstance(CodeEditorWidget, this._modifiedDomNode, <any> this._adjustOptionsForRightHandSide(options)); //TS bug: IDiffEditorOptions are not compatable with IEditorCreationOptions
+		this.modifiedEditor = instantiationService.createInstance(CodeEditorWidget, this._modifiedDomNode, this._adjustOptionsForRightHandSide(options));
 		this._toDispose.push(this.modifiedEditor.addBulkListener2((events: any) => this._onModifiedEditorEvents(events)));
 		this._toDispose.push(this.addEmitter2(this.modifiedEditor, 'rightHandSide'));
 	}
@@ -393,11 +399,15 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 			}
 		}
 
+		if (typeof newOptions.originalEditable !== 'undefined') {
+			this._originalIsEditable = Boolean(newOptions.originalEditable);
+		}
+
 		// Update class name
 		this._containerDomElement.className = DiffEditorWidget._getClassName(this._theme, this._renderSideBySide);
 
 		this.modifiedEditor.updateOptions(this._adjustOptionsForRightHandSide(newOptions));
-		this.originalEditor.updateOptions(this._adjustOptionsForLeftHandSide(newOptions));
+		this.originalEditor.updateOptions(this._adjustOptionsForLeftHandSide(newOptions, this._originalIsEditable));
 
 		// enableSplitViewResizing
 		if (typeof newOptions.enableSplitViewResizing !== 'undefined') {
@@ -621,6 +631,8 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		dimensions = dimensions || dom.getDomNodePosition(this._containerDomElement);
 
 		if (dimensions.width <= 0) {
+			this._width = 0;
+			this._height = 0;
 			return;
 		}
 
@@ -769,32 +781,31 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		}
 	}
 
-	private _adjustOptionsForLeftHandSide(options:editorCommon.IDiffEditorOptions): editorCommon.IDiffEditorOptions {
-		var clonedOptions:editorCommon.IDiffEditorOptions = objects.clone(options || {});
+	private _adjustOptionsForSubEditor(options:editorCommon.IDiffEditorOptions): editorCommon.IDiffEditorOptions {
+		let clonedOptions:editorCommon.IDiffEditorOptions = objects.clone(options || {});
 		clonedOptions.wrappingColumn = -1;
-		clonedOptions.readOnly = true;
 		clonedOptions.automaticLayout = false;
 		clonedOptions.scrollbar = clonedOptions.scrollbar || {};
 		clonedOptions.scrollbar.vertical = 'visible';
-		clonedOptions.overviewRulerLanes = 1;
-		clonedOptions.theme = this._theme + ' original-in-monaco-diff-editor';
 		clonedOptions.folding = false;
 		clonedOptions.referenceInfos = false;
 		return clonedOptions;
 	}
 
+	private _adjustOptionsForLeftHandSide(options:editorCommon.IDiffEditorOptions, isEditable:boolean): editorCommon.IDiffEditorOptions {
+		let result = this._adjustOptionsForSubEditor(options);
+		result.readOnly = !isEditable;
+		result.overviewRulerLanes = 1;
+		result.theme = this._theme + ' original-in-monaco-diff-editor';
+		return result;
+	}
+
 	private _adjustOptionsForRightHandSide(options:editorCommon.IDiffEditorOptions): editorCommon.IDiffEditorOptions {
-		var clonedOptions:editorCommon.IDiffEditorOptions = objects.clone(options || {});
-		clonedOptions.wrappingColumn = -1;
-		clonedOptions.automaticLayout = false;
-		clonedOptions.revealHorizontalRightPadding = DefaultConfig.editor.revealHorizontalRightPadding + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
-		clonedOptions.scrollbar = clonedOptions.scrollbar || {};
-		clonedOptions.scrollbar.vertical = 'visible';
-		clonedOptions.scrollbar.verticalHasArrows = false;
-		clonedOptions.theme = this._theme + ' modified-in-monaco-diff-editor';
-		clonedOptions.folding = false;
-		clonedOptions.referenceInfos = false;
-		return clonedOptions;
+		let result = this._adjustOptionsForSubEditor(options);
+		result.revealHorizontalRightPadding = DefaultConfig.editor.revealHorizontalRightPadding + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
+		result.scrollbar.verticalHasArrows = false;
+		result.theme = this._theme + ' modified-in-monaco-diff-editor';
+		return result;
 	}
 
 	private _onOriginalEditorScroll(e:IEditorScrollEvent): void {
@@ -1569,7 +1580,7 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 	constructor(dataSource:IDataSource, enableSplitViewResizing:boolean) {
 		super(dataSource);
 
-		this.decorationsLeft = 40;
+		this.decorationsLeft = dataSource.getOriginalEditor().getLayoutInfo().decorationsLeft;
 
 		this.toDispose = [];
 		this.toDispose.push(dataSource.getOriginalEditor().addListener2(editorCommon.EventType.EditorLayout, (layoutInfo:editorCommon.IEditorLayoutInfo) => {
@@ -1771,7 +1782,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			}
 		};
 
-		parts = createLineParts(lineNumber, lineContent, lineTokens, decorations, config.renderWhitespace);
+		parts = createLineParts(lineNumber, 1, lineContent, lineTokens, decorations, config.renderWhitespace);
 
 		var r = renderLine({
 			lineContent: lineContent,

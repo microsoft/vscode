@@ -59,6 +59,27 @@ class MarkdownFilesActionContributor extends EditorInputActionContributor {
 		super();
 	}
 
+	/* We override toId() to make the caching of actions based on the mime of the input if given */
+	protected toId(context: IEditorInputActionContext): string {
+		let id = super.toId(context);
+
+		let mime = this.getMimeFromContext(context);
+		if (mime) {
+			id += mime;
+		}
+
+		return id;
+	}
+
+	private getMimeFromContext(context: IEditorInputActionContext): string {
+		if (context && context.input && context.input instanceof FileEditorInput) {
+			let fileInput = <FileEditorInput>context.input;
+			return fileInput.getMime();
+		}
+
+		return null;
+	}
+
 	public hasActionsForEditorInput(context: IEditorInputActionContext): boolean {
 		const input = context.input;
 		if (input instanceof FileEditorInput) {

@@ -138,9 +138,16 @@ export class CursorCollection {
 		return result;
 	}
 
-	public setSelections(selections: ISelection[]): void {
+	public setSelections(selections: ISelection[], viewSelections?: ISelection[]): void {
 		this.primaryCursor.setSelection(selections[0]);
 		this._setSecondarySelections(selections.slice(1));
+
+		if (viewSelections) {
+			this.primaryCursor.setViewSelection(viewSelections[0]);
+			for (let i = 0; i < this.secondaryCursors.length; i++) {
+				this.secondaryCursors[i].setViewSelection(viewSelections[i + 1]);
+			}
+		}
 	}
 
 	public killSecondaryCursors(): boolean {
@@ -233,29 +240,31 @@ export class CursorCollection {
 		var sortedCursors:{
 			index: number;
 			selection: IEditorSelection;
+			viewSelection: IEditorSelection;
 		}[] = [];
 		for (var i = 0; i < cursors.length; i++) {
 			sortedCursors.push({
 				index: i,
-				selection: cursors[i].getSelection()
+				selection: cursors[i].getSelection(),
+				viewSelection: cursors[i].getViewSelection()
 			});
 		}
 
 		sortedCursors.sort((a, b) => {
-			if (a.selection.startLineNumber === b.selection.startLineNumber) {
-				return a.selection.startColumn - b.selection.startColumn;
+			if (a.viewSelection.startLineNumber === b.viewSelection.startLineNumber) {
+				return a.viewSelection.startColumn - b.viewSelection.startColumn;
 			}
-			return a.selection.startLineNumber - b.selection.startLineNumber;
+			return a.viewSelection.startLineNumber - b.viewSelection.startLineNumber;
 		});
 
 		for (var sortedCursorIndex = 0; sortedCursorIndex < sortedCursors.length - 1; sortedCursorIndex++) {
 			var current = sortedCursors[sortedCursorIndex];
 			var next = sortedCursors[sortedCursorIndex + 1];
 
-			var currentSelection = current.selection;
-			var nextSelection = next.selection;
+			var currentViewSelection = current.viewSelection;
+			var nextViewSelection = next.viewSelection;
 
-			if (nextSelection.getStartPosition().isBeforeOrEqual(currentSelection.getEndPosition())) {
+			if (nextViewSelection.getStartPosition().isBeforeOrEqual(currentViewSelection.getEndPosition())) {
 				var winnerSortedCursorIndex = current.index < next.index ? sortedCursorIndex : sortedCursorIndex + 1;
 				var looserSortedCursorIndex = current.index < next.index ? sortedCursorIndex + 1 : sortedCursorIndex;
 

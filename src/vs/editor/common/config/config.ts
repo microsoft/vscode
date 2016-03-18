@@ -245,6 +245,31 @@ registerCoreCommand(H.ScrollPageDown, {
 	primary: KeyMod.CtrlCmd | KeyCode.PageDown
 });
 
+registerCoreCommand(H.CursorColumnSelectLeft, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
+	linux: { primary: 0 }
+});
+registerCoreCommand(H.CursorColumnSelectRight, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
+	linux: { primary: 0 }
+});
+registerCoreCommand(H.CursorColumnSelectUp, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow,
+	linux: { primary: 0 }
+});
+registerCoreCommand(H.CursorColumnSelectPageUp, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.PageUp,
+	linux: { primary: 0 }
+});
+registerCoreCommand(H.CursorColumnSelectDown, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow,
+	linux: { primary: 0 }
+});
+registerCoreCommand(H.CursorColumnSelectPageDown, {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.PageDown,
+	linux: { primary: 0 }
+});
+
 registerCoreCommand(H.Tab, {
 	primary: KeyCode.Tab
 }, KeybindingsRegistry.WEIGHT.editorCore(), KbExpr.and(
@@ -282,21 +307,40 @@ function registerWordCommand(handlerId: string, shift:boolean, key:KeyCode): voi
 		mac: { primary: getMacWordNavigationKB(shift, key) }
 	});
 }
-registerWordCommand(H.CursorWordLeft, false, KeyCode.LeftArrow);
-registerWordCommand(H.CursorWordLeftSelect, true, KeyCode.LeftArrow);
-registerWordCommand(H.CursorWordRight, false, KeyCode.RightArrow);
-registerWordCommand(H.CursorWordRightSelect, true, KeyCode.RightArrow);
+registerWordCommand(H.CursorWordStartLeft, false, KeyCode.LeftArrow);
+registerCoreCommand(H.CursorWordEndLeft, { primary: 0 });
+registerCoreCommand(H.CursorWordLeft, { primary: 0 });
+
+registerWordCommand(H.CursorWordStartLeftSelect, true, KeyCode.LeftArrow);
+registerCoreCommand(H.CursorWordEndLeftSelect, { primary: 0 });
+registerCoreCommand(H.CursorWordLeftSelect, { primary: 0 });
+
+registerWordCommand(H.CursorWordEndRight, false, KeyCode.RightArrow);
+registerCoreCommand(H.CursorWordStartRight, { primary: 0 });
+registerCoreCommand(H.CursorWordRight, { primary: 0 });
+
+registerWordCommand(H.CursorWordEndRightSelect, true, KeyCode.RightArrow);
+registerCoreCommand(H.CursorWordStartRightSelect, { primary: 0 });
+registerCoreCommand(H.CursorWordRightSelect, { primary: 0 });
+
 registerWordCommand(H.DeleteWordLeft, false, KeyCode.Backspace);
+registerCoreCommand(H.DeleteWordStartLeft, { primary: 0 });
+registerCoreCommand(H.DeleteWordEndLeft, { primary: 0 });
+
 registerWordCommand(H.DeleteWordRight, false, KeyCode.Delete);
+registerCoreCommand(H.DeleteWordStartRight, { primary: 0 });
+registerCoreCommand(H.DeleteWordEndRight, { primary: 0 });
 
 registerCoreCommand(H.CancelSelection, {
-	primary: KeyCode.Escape
+	primary: KeyCode.Escape,
+	secondary: [KeyMod.Shift | KeyCode.Escape]
 }, KeybindingsRegistry.WEIGHT.editorCore(), KbExpr.and(
 	KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
 	KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION)
 ));
 registerCoreCommand(H.RemoveSecondaryCursors, {
-	primary: KeyCode.Escape
+	primary: KeyCode.Escape,
+	secondary: [KeyMod.Shift | KeyCode.Escape]
 }, KeybindingsRegistry.WEIGHT.editorCore(1), KbExpr.and(
 	KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS),
 	KbExpr.has(editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS)

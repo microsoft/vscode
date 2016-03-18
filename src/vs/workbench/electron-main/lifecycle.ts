@@ -124,8 +124,8 @@ export class Lifecycle {
 				// Any cancellation also cancels a pending quit if present
 				if (this.pendingQuitPromiseComplete) {
 					this.pendingQuitPromiseComplete(true /* veto */);
-					delete this.pendingQuitPromiseComplete;
-					delete this.pendingQuitPromise;
+					this.pendingQuitPromiseComplete = null;
+					this.pendingQuitPromise = null;
 				}
 
 				c(true); // veto
@@ -151,8 +151,8 @@ export class Lifecycle {
 				app.once('will-quit', () => {
 					if (this.pendingQuitPromiseComplete) {
 						this.pendingQuitPromiseComplete(false /* no veto */);
-						delete this.pendingQuitPromiseComplete;
-						delete this.pendingQuitPromise;
+						this.pendingQuitPromiseComplete = null;
+						this.pendingQuitPromise = null;
 					}
 				});
 

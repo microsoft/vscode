@@ -323,6 +323,7 @@
 }
 
 .monaco-shell.hc-black .feedback-form .feedback-alias, .monaco-shell.hc-black .feedback-form .feedback-description {
+	font-family: inherit;
 	border: 1px solid #6FC3DF;
 	background-color: #000;
 	color: #D4D4D4;

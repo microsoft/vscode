@@ -17,6 +17,7 @@ define([
 	'vs/base/common/errors',
 
 	// Editor
+	'vs/editor/contrib/selectionClipboard/electron-browser/selectionClipboard',
 	'vs/editor/browser/editor.all',
 
 	// Languages
@@ -30,6 +31,7 @@ define([
 	'vs/workbench/browser/actions/triggerNavigation',
 	'vs/workbench/browser/actions/showPerformanceBox',
 	'vs/workbench/browser/actions/openSettings',
+	'vs/workbench/browser/actions/configureLocale',
 
 	'vs/workbench/parts/quickopen/browser/quickopen.contribution',
 
@@ -80,7 +82,7 @@ define([
 
 	'vs/workbench/parts/gettingStarted/electron-browser/electronGettingStarted.contribution',
 
-	'vs/workbench/parts/releaseNotes/electron-browser/releaseNotes.contribution',
+	'vs/workbench/parts/update/electron-browser/update.contribution',
 
 	'vs/workbench/electron-browser/darwin/cli.contribution',
 

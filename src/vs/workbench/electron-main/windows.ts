@@ -482,17 +482,20 @@ export class WindowsManager {
 
 		let filesToOpen:window.IPath[] = [];
 		let filesToDiff:window.IPath[] = [];
-		let candidates = iPathsToOpen.filter((iPath) => !!iPath.filePath && !iPath.createFilePath && !iPath.installExtensionPath);
-		if (openConfig.cli.diffMode && candidates.length === 2) {
-			filesToDiff = candidates;
-		} else {
-			filesToOpen = candidates;
-		}
-
-		let filesToCreate = iPathsToOpen.filter((iPath) => !!iPath.filePath && iPath.createFilePath && !iPath.installExtensionPath);
 		let foldersToOpen = iPathsToOpen.filter((iPath) => iPath.workspacePath && !iPath.filePath && !iPath.installExtensionPath);
 		let emptyToOpen = iPathsToOpen.filter((iPath) => !iPath.workspacePath && !iPath.filePath && !iPath.installExtensionPath);
 		let extensionsToInstall = iPathsToOpen.filter((iPath) => iPath.installExtensionPath).map(ipath => ipath.filePath);
+		let filesToCreate = iPathsToOpen.filter((iPath) => !!iPath.filePath && iPath.createFilePath && !iPath.installExtensionPath);
+
+		// Diff mode needs special care
+		let candidates = iPathsToOpen.filter((iPath) => !!iPath.filePath && !iPath.createFilePath && !iPath.installExtensionPath);
+		if (openConfig.cli.diffMode && candidates.length === 2) {
+			filesToDiff = candidates;
+			foldersToOpen = []; // diff is always in empty workspace
+			filesToCreate = []; // diff ignores other files that do not exist
+		} else {
+			filesToOpen = candidates;
+		}
 
 		let configuration: window.IWindowConfiguration;
 
@@ -666,6 +669,7 @@ export class WindowsManager {
 		configuration.appSettingsPath = env.appSettingsPath;
 		configuration.appKeybindingsPath = env.appKeybindingsPath;
 		configuration.userExtensionsHome = env.userExtensionsHome;
+		configuration.extensionTips = env.product.extensionTips;
 		configuration.sharedIPCHandle = env.sharedIPCHandle;
 		configuration.isBuilt = env.isBuilt;
 		configuration.crashReporter = env.product.crashReporter;
@@ -673,6 +677,7 @@ export class WindowsManager {
 		configuration.welcomePage = env.product.welcomePage;
 		configuration.productDownloadUrl = env.product.downloadUrl;
 		configuration.releaseNotesUrl = env.product.releaseNotesUrl;
+		configuration.licenseUrl = env.product.licenseUrl;
 		configuration.updateFeedUrl = UpdateManager.feedUrl;
 		configuration.updateChannel = UpdateManager.channel;
 		configuration.recentPaths = this.getRecentlyOpenedPaths(workspacePath, filesToOpen);
@@ -962,17 +967,19 @@ export class WindowsManager {
 		});
 	}
 
-	public focusLastActive(cli: env.ICommandLineArguments): void {
+	public focusLastActive(cli: env.ICommandLineArguments): window.VSCodeWindow {
 		let lastActive = this.getLastActiveWindow();
 		if (lastActive) {
 			lastActive.focus();
+
+			return lastActive;
 		}
 
 		// No window - open new one
-		else {
-			this.windowsState.openedFolders = []; // make sure we do not open too much
-			this.open({ cli: cli });
-		}
+		this.windowsState.openedFolders = []; // make sure we do not open too much
+		const res = this.open({ cli: cli });
+
+		return res && res[0];
 	}
 
 	public getLastActiveWindow(): window.VSCodeWindow {

@@ -373,14 +373,14 @@ KeybindingsRegistry.registerCommandDesc({
 		]
 	}
 });
-CommonEditorRegistry.registerEditorCommand('closeReferenceSearch', CommonEditorRegistry.commandWeight(50), { primary: KeyCode.Escape }, false, CONTEXT_REFERENCE_SEARCH_VISIBLE, (accessor, editor, args) => {
+CommonEditorRegistry.registerEditorCommand('closeReferenceSearch', CommonEditorRegistry.commandWeight(50), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, CONTEXT_REFERENCE_SEARCH_VISIBLE, (accessor, editor, args) => {
 	var outerEditor = getOuterEditor(accessor, args);
 	if (outerEditor) {
 		var controller = FindReferencesController.getController(outerEditor);
 		controller.closeReferenceSearch();
 	}
 });
-CommonEditorRegistry.registerEditorCommand('closeReferenceSearchEditor', CommonEditorRegistry.commandWeight(-101), { primary: KeyCode.Escape }, false, ReferenceWidget.INNER_EDITOR_CONTEXT_KEY, (accessor, editor, args) => {
+CommonEditorRegistry.registerEditorCommand('closeReferenceSearchEditor', CommonEditorRegistry.commandWeight(-101), { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, false, ReferenceWidget.INNER_EDITOR_CONTEXT_KEY, (accessor, editor, args) => {
 	var outerEditor = getOuterEditor(accessor, args);
 	if (outerEditor) {
 		var controller = FindReferencesController.getController(outerEditor);

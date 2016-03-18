@@ -325,12 +325,12 @@ export class NewStatPlaceholder extends FileStat {
 	public destroy(): void {
 		this.parent.removeChild(this);
 
-		delete this.isDirectoryResolved;
-		delete this.name;
-		delete this.isDirectory;
-		delete this.hasChildren;
-		delete this.mtime;
-		delete this.mime;
+		this.isDirectoryResolved = void 0;
+		this.name = void 0;
+		this.isDirectory = void 0;
+		this.hasChildren = void 0;
+		this.mtime = void 0;
+		this.mime = void 0;
 	}
 
 	public getId(): string {

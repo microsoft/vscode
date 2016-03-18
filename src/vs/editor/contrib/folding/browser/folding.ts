@@ -12,6 +12,7 @@ import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorAction} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
@@ -132,6 +133,7 @@ class CollapsibleRegion {
 export class FoldingController implements editorCommon.IEditorContribution {
 
 	static ID = 'editor.contrib.folding';
+	static MAX_FOLDING_REGIONS = 5000;
 
 	static getFoldingController(editor:editorCommon.ICommonCodeEditor): FoldingController {
 		return <FoldingController>editor.getContribution(FoldingController.ID);
@@ -221,7 +223,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 			return;
 		}
 		let updateHiddenRegions = false;
-		regions = limitByIndent(regions, 10000).sort((r1, r2) => r1.startLineNumber - r2.startLineNumber);
+		regions = limitByIndent(regions, FoldingController.MAX_FOLDING_REGIONS).sort((r1, r2) => r1.startLineNumber - r2.startLineNumber);
 
 		this.editor.changeDecorations(changeAccessor => {
 
@@ -543,15 +545,15 @@ export class FoldingController implements editorCommon.IEditorContribution {
 						toFold = dec;
 					}
 				} else {
-					if (toFold) {
-						this.editor.changeDecorations(changeAccessor => {
-							toFold.setCollapsed(true, changeAccessor);
-							hasChanges = true;
-						});
-					}
-					return;
+					break;
 				}
 			};
+			if (toFold) {
+				this.editor.changeDecorations(changeAccessor => {
+					toFold.setCollapsed(true, changeAccessor);
+					hasChanges = true;
+				});
+			}
 		});
 		if (hasChanges) {
 			this.updateHiddenAreas(selections[0].startLineNumber);
@@ -603,7 +605,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 
 abstract class FoldingAction extends EditorAction {
 	constructor(descriptor: editorCommon.IEditorActionDescriptorData, editor: editorCommon.ICommonCodeEditor) {
-		super(descriptor, editor);
+		super(descriptor, editor, Behaviour.TextFocus);
 	}
 
 	abstract invoke(foldingController: FoldingController): void;

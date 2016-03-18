@@ -161,8 +161,10 @@ export class ViewContentWidgets extends ViewPart {
 
 	public setWidgetPosition(widget: IContentWidget, position: editorCommon.IPosition, preference:ContentWidgetPositionPreference[]): void {
 		let widgetData = this._widgets[widget.getId()];
+
 		widgetData.position = position;
 		widgetData.preference = preference;
+
 		this.shouldRender = true;
 	}
 

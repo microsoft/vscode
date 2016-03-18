@@ -167,8 +167,8 @@ export class TextFileService extends AbstractTextFileService {
 		// Mac: Save | Cancel | Don't Save
 		// Linux: Don't Save | Cancel | Save
 
-		const save = { label: resourcesToConfirm.length > 1 ? this.mnemonicLabel(nls.localize('saveAll', "&&Save All")) : this.mnemonicLabel(nls.localize('save', "&&Save")), result: ConfirmResult.SAVE };
-		const dontSave = { label: this.mnemonicLabel(nls.localize('dontSave', "Do&&n't Save")), result: ConfirmResult.DONT_SAVE };
+		const save = { label: resourcesToConfirm.length > 1 ? this.mnemonicLabel(nls.localize({ key: 'saveAll', comment: ['&& denotes a mnemonic'] }, "&&Save All")) : this.mnemonicLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")), result: ConfirmResult.SAVE };
+		const dontSave = { label: this.mnemonicLabel(nls.localize({ key: 'dontSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save")), result: ConfirmResult.DONT_SAVE };
 		const cancel = { label: nls.localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
 
 		const buttons = [];

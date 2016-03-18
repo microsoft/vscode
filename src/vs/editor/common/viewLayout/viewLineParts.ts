@@ -22,7 +22,7 @@ function cmpLineDecorations(a:ILineDecoration, b:ILineDecoration): number {
 	return Range.compareRangesUsingStarts(a.range, b.range);
 }
 
-export function createLineParts(lineNumber:number, lineContent:string, lineTokens:IViewLineTokens, rawLineDecorations:ILineDecoration[], renderWhitespace:boolean): ILineParts {
+export function createLineParts(lineNumber:number, minLineColumn:number, lineContent:string, lineTokens:IViewLineTokens, rawLineDecorations:ILineDecoration[], renderWhitespace:boolean): ILineParts {
 	if (renderWhitespace) {
 		let oldLength = rawLineDecorations.length;
 		rawLineDecorations = insertWhitespace(lineNumber, lineContent, lineTokens.getFauxIndentLength(), rawLineDecorations);
@@ -32,7 +32,7 @@ export function createLineParts(lineNumber:number, lineContent:string, lineToken
 	}
 
 	if (rawLineDecorations.length > 0) {
-		return new ViewLineParts(lineNumber, lineTokens, lineContent, rawLineDecorations);
+		return new ViewLineParts(lineNumber, minLineColumn, lineTokens, lineContent, rawLineDecorations);
 	} else {
 		return new FastViewLineParts(lineTokens, lineContent);
 	}
@@ -165,10 +165,10 @@ export class ViewLineParts implements ILineParts {
 	private lastPartIndex:number;
 	private lastEndOffset:number;
 
-	constructor(lineNumber:number, lineTokens:IViewLineTokens, lineContent:string, rawLineDecorations:ILineDecoration[]) {
+	constructor(lineNumber:number, minLineColumn:number, lineTokens:IViewLineTokens, lineContent:string, rawLineDecorations:ILineDecoration[]) {
 
 		// lineDecorations might overlap on top of each other, so they need to be normalized
-		var lineDecorations = LineDecorationsNormalizer.normalize(lineNumber, rawLineDecorations),
+		var lineDecorations = LineDecorationsNormalizer.normalize(lineNumber, minLineColumn, rawLineDecorations),
 			lineDecorationsIndex = 0,
 			lineDecorationsLength = lineDecorations.length;
 
@@ -342,7 +342,7 @@ export class LineDecorationsNormalizer {
 	/**
 	 * Normalize line decorations. Overlapping decorations will generate multiple segments
 	 */
-	public static normalize(lineNumber:number, lineDecorations:ILineDecoration[]): DecorationSegment[] {
+	public static normalize(lineNumber:number, minLineColumn:number, lineDecorations:ILineDecoration[]): DecorationSegment[] {
 
 		var result:DecorationSegment[] = [];
 
@@ -371,7 +371,7 @@ export class LineDecorationsNormalizer {
 				continue;
 			}
 
-			currentStartOffset = (d.range.startLineNumber === lineNumber ? d.range.startColumn - 1 : 0);
+			currentStartOffset = (d.range.startLineNumber === lineNumber ? d.range.startColumn - 1 : minLineColumn - 1);
 			currentEndOffset = (d.range.endLineNumber === lineNumber ? d.range.endColumn - 2 : LineDecorationsNormalizer.MAX_LINE_LENGTH - 1);
 
 			if (currentEndOffset < 0) {

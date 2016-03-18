@@ -260,6 +260,10 @@ export class MainThreadTextEditor {
 	}
 
 	private _readConfiguration(model:EditorCommon.IModel, codeEditor:EditorCommon.ICommonCodeEditor): IResolvedTextEditorConfiguration {
+		if (model.isDisposed()) {
+			// shutdown time
+			return this._configuration;
+		}
 		let cursorStyle = this._configuration ? this._configuration.cursorStyle : EditorCommon.TextEditorCursorStyle.Line;
 		if (codeEditor) {
 			let codeEditorOpts = codeEditor.getConfiguration();
@@ -408,7 +412,7 @@ export class MainThreadEditorsTracker {
 	private _doUpdateMapping(): void {
 		let allModels = this._modelService.getModels();
 		// Same filter as in extHostDocuments
-		allModels.filter((model) => !model.isTooLargeForHavingARichMode());
+		allModels = allModels.filter((model) => !model.isTooLargeForHavingARichMode());
 		let allModelsMap: { [modelUri:string]: EditorCommon.IModel; } = Object.create(null);
 		allModels.forEach((model) => {
 			allModelsMap[model.getAssociatedResource().toString()] = model;
@@ -568,7 +572,7 @@ export class MainThreadEditorsTracker {
 
 		allCodeEditors.forEach((codeEditor) => {
 			let model = codeEditor.getModel();
-			if (!model) {
+			if (!model || model.isTooLargeForHavingARichMode()) {
 				return;
 			}
 

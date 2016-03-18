@@ -239,7 +239,12 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 
 					case editorCommon.EventType.ModelOptionsChanged:
 						// A tab size change causes a line mapping changed event => all view parts will repaint OK, no further event needed here
-						revealPreviousCenteredModelRange = this._onTabSizeChange(this.model.getOptions().tabSize) || revealPreviousCenteredModelRange;
+						let prevLineCount = this.lines.getOutputLineCount();
+						let tabSizeChanged = this._onTabSizeChange(this.model.getOptions().tabSize);
+						let newLineCount = this.lines.getOutputLineCount();
+						if (tabSizeChanged && prevLineCount !== newLineCount) {
+							revealPreviousCenteredModelRange = true;
+						}
 
 						break;
 
@@ -481,6 +486,12 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 		var start = this.convertViewPositionToModelPosition(viewRange.startLineNumber, viewRange.startColumn);
 		var end = this.convertViewPositionToModelPosition(viewRange.endLineNumber, viewRange.endColumn);
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+	}
+
+	public convertViewSelectionToModelSelection(viewSelection:editorCommon.ISelection): editorCommon.IEditorSelection {
+		let selectionStart = this.convertViewPositionToModelPosition(viewSelection.selectionStartLineNumber, viewSelection.selectionStartColumn);
+		let position = this.convertViewPositionToModelPosition(viewSelection.positionLineNumber, viewSelection.positionColumn);
+		return new Selection(selectionStart.lineNumber, selectionStart.column, position.lineNumber, position.column);
 	}
 
 	public convertModelPositionToViewPosition(modelLineNumber:number, modelColumn:number): editorCommon.IEditorPosition {

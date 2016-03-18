@@ -118,7 +118,7 @@ export class OpenGlobalSettingsAction extends BaseOpenSettingsAction {
 				message: nls.localize('workspaceHasSettings', "The currently opened folder contains workspace settings that may override user settings"),
 				actions: [
 					CloseAction,
-					new Action('neverShowAgain', nls.localize('neverShowAgain', "Never Show Again"), null, true, () => {
+					new Action('neverShowAgain', nls.localize('neverShowAgain', "Don't show again"), null, true, () => {
 						this.storageService.store(OpenGlobalSettingsAction.SETTINGS_INFO_IGNORE_KEY, true, StorageScope.WORKSPACE);
 
 						return TPromise.as(true);

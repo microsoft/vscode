@@ -35,7 +35,7 @@ export enum WindowMode {
 	Minimized
 }
 
-export const defaultWindowState = function(mode = WindowMode.Normal): IWindowState {
+export const defaultWindowState = function (mode = WindowMode.Normal): IWindowState {
 	return {
 		width: 1024,
 		height: 768,
@@ -115,8 +115,10 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 		cacheUrl: string;
 		itemUrl: string;
 	};
+	extensionTips: { [id: string]: string; };
 	welcomePage: string;
 	releaseNotesUrl: string;
+	licenseUrl: string;
 	productDownloadUrl: string;
 	enableTelemetry: boolean;
 	userEnv: env.IProcessEnvironment;
@@ -295,7 +297,7 @@ export class VSCodeWindow {
 			if (this.pendingLoadConfig) {
 				this.currentConfig = this.pendingLoadConfig;
 
-				delete this.pendingLoadConfig;
+				this.pendingLoadConfig = null;
 			}
 
 			// To prevent flashing, we set the window visible after the page has finished to load but before VSCode is loaded

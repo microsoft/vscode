@@ -285,6 +285,11 @@ export interface IEditorOptions {
 	 */
 	wordSeparators?: string;
 	/**
+	 * Enable Linux primary clipboard.
+	 * Defaults to true.
+	 */
+	selectionClipboard?: boolean;
+	/**
 	 * Control the rendering of line numbers.
 	 * If it is a function, it will be invoked when rendering a line number and the return value will be rendered.
 	 * Otherwise, if it is a truey, line numbers will be rendered normally (equivalent of using an identity function).
@@ -547,6 +552,11 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 * Defaults to true.
 	 */
 	ignoreTrimWhitespace?: boolean;
+	/**
+	 * Original model should be editable?
+	 * Defaults to false.
+	 */
+	originalEditable?: boolean;
 }
 
 /**
@@ -590,6 +600,7 @@ export interface IInternalEditorOptions {
 	experimentalScreenReader: boolean;
 	rulers: number[];
 	wordSeparators: string;
+	selectionClipboard: boolean;
 	ariaLabel: string;
 
 	// ---- Options that are transparent - get no massaging
@@ -678,6 +689,7 @@ export interface IConfigurationChangedEvent {
 	experimentalScreenReader: boolean;
 	rulers: boolean;
 	wordSeparators: boolean;
+	selectionClipboard: boolean;
 	ariaLabel: boolean;
 
 	// ---- Options that are transparent - get no massaging
@@ -1309,6 +1321,8 @@ export interface ITextModel {
 
 	toRawText(): IRawText;
 
+	equals(other:IRawText): boolean;
+
 	/**
 	 * Get the text in a certain range.
 	 * @param range The range describing what text to get.
@@ -1853,6 +1867,9 @@ export interface IModel extends IEditableTextModel, ITextModelWithMarkers, IToke
 	 */
 	setValue(newValue:string, newMode?:IMode): void;
 	setValue(newValue:string, newModePromise:TPromise<IMode>): void;
+
+	setValueFromRawText(newValue:IRawText, newMode?:IMode): void;
+	setValueFromRawText(newValue:IRawText, newModePromise:TPromise<IMode>): void;
 
 	onBeforeAttached(): void;
 
@@ -3314,13 +3331,25 @@ export var Handler = {
 
 	CursorLeft:					'cursorLeft',
 	CursorLeftSelect:			'cursorLeftSelect',
+
 	CursorWordLeft:				'cursorWordLeft',
+	CursorWordStartLeft:		'cursorWordStartLeft',
+	CursorWordEndLeft:			'cursorWordEndLeft',
+
 	CursorWordLeftSelect:		'cursorWordLeftSelect',
+	CursorWordStartLeftSelect:	'cursorWordStartLeftSelect',
+	CursorWordEndLeftSelect:	'cursorWordEndLeftSelect',
 
 	CursorRight:				'cursorRight',
 	CursorRightSelect:			'cursorRightSelect',
+
 	CursorWordRight:			'cursorWordRight',
+	CursorWordStartRight:		'cursorWordStartRight',
+	CursorWordEndRight:			'cursorWordEndRight',
+
 	CursorWordRightSelect:		'cursorWordRightSelect',
+	CursorWordStartRightSelect:	'cursorWordStartRightSelect',
+	CursorWordEndRightSelect:	'cursorWordEndRightSelect',
 
 	CursorUp:					'cursorUp',
 	CursorUpSelect:				'cursorUpSelect',
@@ -3345,6 +3374,13 @@ export var Handler = {
 	CursorBottom:				'cursorBottom',
 	CursorBottomSelect:			'cursorBottomSelect',
 
+	CursorColumnSelectLeft:		'cursorColumnSelectLeft',
+	CursorColumnSelectRight:	'cursorColumnSelectRight',
+	CursorColumnSelectUp:		'cursorColumnSelectUp',
+	CursorColumnSelectPageUp:	'cursorColumnSelectPageUp',
+	CursorColumnSelectDown:		'cursorColumnSelectDown',
+	CursorColumnSelectPageDown:	'cursorColumnSelectPageDown',
+
 	AddCursorDown:				'addCursorDown',
 	AddCursorUp:				'addCursorUp',
 	CursorUndo:					'cursorUndo',
@@ -3366,8 +3402,15 @@ export var Handler = {
 
 	DeleteLeft:					'deleteLeft',
 	DeleteRight:				'deleteRight',
+
 	DeleteWordLeft:				'deleteWordLeft',
+	DeleteWordStartLeft:		'deleteWordStartLeft',
+	DeleteWordEndLeft:			'deleteWordEndLeft',
+
 	DeleteWordRight:			'deleteWordRight',
+	DeleteWordStartRight:		'deleteWordStartRight',
+	DeleteWordEndRight:			'deleteWordEndRight',
+
 	DeleteAllLeft:				'deleteAllLeft',
 	DeleteAllRight:				'deleteAllRight',
 

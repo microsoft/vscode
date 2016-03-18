@@ -14,7 +14,7 @@ export interface IConfiguration {
 export const USUAL_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?';
 export const DEFAULT_INDENTATION = {
 	tabSize: 4,
-	insertSpaces: false,
+	insertSpaces: true,
 	detectIndentation: true
 };
 
@@ -27,6 +27,7 @@ class ConfigClass implements IConfiguration {
 			experimentalScreenReader: true,
 			rulers: [],
 			wordSeparators: USUAL_WORD_SEPARATORS,
+			selectionClipboard: false,
 			ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
 			lineNumbers: true,
 			selectOnLineNumbers: true,

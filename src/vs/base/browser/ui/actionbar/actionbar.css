@@ -183,6 +183,12 @@
 	color: rgb(204, 204, 204);
 }
 
+.hc-black.monaco-workbench .action-bar-select {
+	background-color: #3C3C3C;
+	border-color: #3C3C3C;
+	color: white;
+}
+
 .vs.monaco-workbench .action-bar-select {
 	background-color: white;
 	border-color: #CECECE;

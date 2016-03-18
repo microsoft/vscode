@@ -43,13 +43,13 @@ configurationRegistry.registerConfiguration({
 		},
 		'html.format.preserveNewLines': {
 			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('format.preserveNewLines', "Whether existing line breaks before elements should be preserved. Only works before elements, not inside tags or for text.."),
+			'default': true,
+			'description': nls.localize('format.preserveNewLines', "Whether existing line breaks before elements should be preserved. Only works before elements, not inside tags or for text."),
 		},
 		'html.format.maxPreserveNewLines': {
 			'type': ['number', 'null'],
 			'default': null,
-			'description': nls.localize('format.maxPreserveNewLines', "Maximum number of line breaks to be preserved in one chunk. Use 'null' for unlimeted."),
+			'description': nls.localize('format.maxPreserveNewLines', "Maximum number of line breaks to be preserved in one chunk. Use 'null' for unlimited."),
 		},
 		'html.format.indentHandlebars': {
 			'type': 'boolean',
@@ -64,7 +64,7 @@ configurationRegistry.registerConfiguration({
 		'html.format.extraLiners': {
 			'type': ['string', 'null'],
 			'default': null,
-			'description': nls.localize('format.extraLiners', "List of tags, comma separated, that should have an extra newline before them. 'null' defaults to [head,body,/html]."),
+			'description': nls.localize('format.extraLiners', "List of tags, comma separated, that should have an extra newline before them. 'null' defaults to \"head, body, /html\"."),
 		},
 	}
 });

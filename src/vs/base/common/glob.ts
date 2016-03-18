@@ -231,17 +231,20 @@ function globToRegExp(pattern: string): RegExp {
 	regEx = '^' + regEx + '$';
 
 	// Convert to regexp and be ready for errors
-	let result: RegExp;
-	try {
-		result = new RegExp(regEx);
-	} catch (error) {
-		result = /.^/; // create a regex that matches nothing if we cannot parse the pattern
-	}
+	let result = toRegExp(regEx);
 
 	// Make sure to cache
 	CACHE[pattern] = result;
 
 	return result;
+}
+
+function toRegExp(regEx: string): RegExp {
+	try {
+		return new RegExp(regEx);
+	} catch (error) {
+		return /.^/; // create a regex that matches nothing if we cannot parse the pattern
+	}
 }
 
 /**

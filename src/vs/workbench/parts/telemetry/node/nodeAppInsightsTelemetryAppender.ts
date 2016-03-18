@@ -163,16 +163,10 @@ export class NodeAppInsightsTelemetryAppender implements ITelemetryAppender {
 		data = this.addCommonProperties(data);
 
 		if (this.appInsights) {
-			if (eventName === 'UnhandledError' && data) {
-				this.appInsights.logException(data);
-			}
 			this.appInsights.log(eventName, data);
 		}
 
 		if (this.appInsightsVortex) {
-			if (eventName === 'UnhandledError' && data) {
-				this.appInsightsVortex.logException(data);
-			}
 			this.appInsightsVortex.log(eventName, data);
 		}
 	}

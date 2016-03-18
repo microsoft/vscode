@@ -133,14 +133,12 @@ export class Throttler {
  */
 export class Delayer<T> {
 
-	public defaultDelay: number;
 	private timeout: number;
 	private completionPromise: Promise;
 	private onSuccess: ValueCallback;
 	private task: ITask<T>;
 
-	constructor(defaultDelay: number) {
-		this.defaultDelay = defaultDelay;
+	constructor(public defaultDelay: number) {
 		this.timeout = null;
 		this.completionPromise = null;
 		this.onSuccess = null;
@@ -159,11 +157,10 @@ export class Delayer<T> {
 			}).then(() => {
 				this.completionPromise = null;
 				this.onSuccess = null;
-
-				const result = this.task();
+				const task = this.task;
 				this.task = null;
 
-				return result;
+				return task();
 			});
 		}
 
@@ -474,6 +471,7 @@ export class TimeoutTimer extends Disposable {
 }
 
 export class IntervalTimer extends Disposable {
+
 	private _token: platform.IntervalToken;
 
 	constructor() {
@@ -499,8 +497,6 @@ export class IntervalTimer extends Disposable {
 			runner();
 		}, interval);
 	}
-
-
 }
 
 export class RunOnceScheduler {

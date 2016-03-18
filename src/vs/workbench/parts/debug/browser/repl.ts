@@ -82,7 +82,7 @@ export class Repl extends Panel {
 			}
 
 			this.refreshTimeoutHandle = setTimeout(() => {
-				delete this.refreshTimeoutHandle;
+				this.refreshTimeoutHandle = null;
 
 				const scrollPosition = this.tree.getScrollPosition();
 				this.tree.refresh().then(() => {

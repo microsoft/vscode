@@ -247,13 +247,16 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
  */
 export let canNormalize = typeof ((<any>'').normalize) === 'function';
 const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
-export function normalizeNFC(str: string, cache?: { [str: string]: string }): string {
+const normalizedCache = Object.create(null);
+let cacheCounter = 0;
+export function normalizeNFC(str: string): string {
 	if (!canNormalize || !str) {
 		return str;
 	}
 
-	if (cache && cache[str]) {
-		return cache[str];
+	const cached = normalizedCache[str];
+	if (cached) {
+		return cached;
 	}
 
 	let res: string;
@@ -263,8 +266,10 @@ export function normalizeNFC(str: string, cache?: { [str: string]: string }): st
 		res = str;
 	}
 
-	if (cache) {
-		cache[str] = res;
+	// Use the cache for fast lookup but do not let it grow unbounded
+	if (cacheCounter < 10000) {
+		normalizedCache[str] = res;
+		cacheCounter++;
 	}
 
 	return res;

@@ -63,7 +63,7 @@ export class State extends AbstractState {
 	}
 
 	static escapeTagName(s:string):string {
-		return htmlTokenTypes.getTag(s.replace(/[:_]/g, '-'));
+		return htmlTokenTypes.getTag(s.replace(/[:_.]/g, '-'));
 	}
 
 	public makeClone():State {

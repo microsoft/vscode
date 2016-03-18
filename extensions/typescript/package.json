@@ -108,22 +108,22 @@
 				},
 				"typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": {
 					"type": "boolean",
-					"default": true,
+					"default": false,
 					"description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis%"
 				},
 				"typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": {
 					"type": "boolean",
-					"default": true,
+					"default": false,
 					"description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets%"
 				},
 				"typescript.format.placeOpenBraceOnNewLineForFunctions": {
 					"type": "boolean",
-					"default": true,
+					"default": false,
 					"description": "%format.placeOpenBraceOnNewLineForFunctions%"
 				},
 				"typescript.format.placeOpenBraceOnNewLineForControlBlocks": {
 					"type": "boolean",
-					"default": true,
+					"default": false,
 					"description": "%format.placeOpenBraceOnNewLineForControlBlocks%"
 				},
 				"javascript.validate.enable": {
@@ -158,22 +158,22 @@
 				},
 				"javascript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": {
 					"type": "boolean",
-					"default": true,
+					"default": false,
 					"description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis%"
 				},
 				"javascript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": {
 					"type": "boolean",
-					"default": true,
+					"default": false,
 					"description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets%"
 				},
 				"javascript.format.placeOpenBraceOnNewLineForFunctions": {
 					"type": "boolean",
-					"default": true,
+					"default": false,
 					"description": "%format.placeOpenBraceOnNewLineForFunctions%"
 				},
 				"javascript.format.placeOpenBraceOnNewLineForControlBlocks": {
 					"type": "boolean",
-					"default": true,
+					"default": false,
 					"description": "%format.placeOpenBraceOnNewLineForControlBlocks%"
 				}
 			}

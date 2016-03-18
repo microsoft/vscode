@@ -100,7 +100,7 @@ export class UserSettings {
 		// we can get multiple change events for one change, so we buffer through a timeout
 		if (this.timeoutHandle) {
 			global.clearTimeout(this.timeoutHandle);
-			delete this.timeoutHandle;
+			this.timeoutHandle = null;
 		}
 
 		this.timeoutHandle = global.setTimeout(() => {

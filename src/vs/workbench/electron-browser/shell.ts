@@ -71,7 +71,6 @@ import {MainThreadConfiguration} from 'vs/workbench/api/node/extHostConfiguratio
 import {MainThreadLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
 import {EventService} from 'vs/platform/event/common/eventService';
 import {IOptions} from 'vs/workbench/common/options';
-import themes = require('vs/platform/theme/common/themes');
 import {WorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IStorageService, StorageScope, StorageEvent, StorageEventType} from 'vs/platform/storage/common/storage';
 import {MainThreadStorage} from 'vs/platform/storage/common/remotable.storage';
@@ -377,7 +376,7 @@ export class WorkbenchShell {
 		if (!themeId) {
 			return;
 		}
-		let applyTheme = () => {
+		let applyTheme = (themeId: string) => {
 			if (this.currentTheme) {
 				$(this.container).removeClass(this.currentTheme);
 			}
@@ -389,18 +388,17 @@ export class WorkbenchShell {
 			}
 		};
 
-		if (!themes.getSyntaxThemeId(themeId)) {
-			applyTheme();
-		} else {
-			this.themeService.loadTheme(themeId).then(theme => {
-				if (theme) {
-					this.themeService.applyThemeCSS(themeId);
-					applyTheme();
-				}
-			}, error => {
-				errors.onUnexpectedError(error);
-			});
-		}
+		this.themeService.loadTheme(themeId).then(theme => {
+			let newThemeId = theme ? theme.id : DEFAULT_THEME_ID;
+
+			this.themeService.applyThemeCSS(newThemeId);
+			applyTheme(newThemeId);
+			if (newThemeId !== themeId) {
+				this.storageService.store(Preferences.THEME, newThemeId, StorageScope.GLOBAL);
+			}
+		}, error => {
+			errors.onUnexpectedError(error);
+		});
 	}
 
 	private registerListeners(): void {

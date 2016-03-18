@@ -399,6 +399,9 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 					return null;
 				}
 				return visibleRanges[0];
+			},
+			flushAnyAccumulatedEvents: () => {
+				this._flushAnyAccumulatedEvents();
 			}
 		};
 	}
@@ -720,10 +723,11 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.layoutContentWidget: View is disposed');
 		}
+
 		this._renderOnce(() => {
-			var position1 = widgetData.position ? widgetData.position.position : null;
-			var preference1 = widgetData.position ? widgetData.position.preference : null;
-			this.contentWidgets.setWidgetPosition(widgetData.widget, position1, preference1);
+			let newPosition = widgetData.position ? widgetData.position.position : null;
+			let newPreference = widgetData.position ? widgetData.position.preference : null;
+			this.contentWidgets.setWidgetPosition(widgetData.widget, newPosition, newPreference);
 		});
 	}
 
@@ -750,10 +754,12 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.layoutOverlayWidget: View is disposed');
 		}
-		this._renderOnce(() => {
-			var preference2 = widgetData.position ? widgetData.position.preference : null;
-			this.overlayWidgets.setWidgetPosition(widgetData.widget, preference2);
-		});
+
+		let newPreference = widgetData.position ? widgetData.position.preference : null;
+		let shouldRender = this.overlayWidgets.setWidgetPosition(widgetData.widget, newPreference);
+		if (shouldRender) {
+			this._scheduleRender();
+		}
 	}
 
 	public removeOverlayWidget(widgetData: editorBrowser.IOverlayWidgetData): void {
@@ -765,12 +771,14 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		});
 	}
 
-	public render(now:boolean): void {
+	public render(now:boolean, everything:boolean): void {
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.render: View is disposed');
 		}
-		// Force a render with a layout event
-		this.layoutProvider.emitLayoutChangedEvent();
+		if (everything) {
+			// Force a render with a layout event
+			this.layoutProvider.emitLayoutChangedEvent();
+		}
 		if (now) {
 			this._flushAccumulatedAndRenderNow();
 		}

@@ -8,7 +8,7 @@
 import * as vscode from 'vscode';
 import {ITypescriptServiceClient} from '../typescriptService';
 import {loadMessageBundle} from 'vscode-nls';
-import {dirname} from 'path';
+import {dirname, join} from 'path';
 
 const localize = loadMessageBundle();
 const selector = ['javascript', 'javascriptreact'];
@@ -19,23 +19,31 @@ interface Option extends vscode.MessageItem {
 
 interface Hint {
 	message: string;
-	option: Option;
+	options: Option[];
 }
 
 const fileLimit = 500;
 
-export function create(client: ITypescriptServiceClient) {
+export function create(client: ITypescriptServiceClient, isOpen:(path:string)=>Promise<boolean>, memento: vscode.Memento) {
 
 	const toDispose: vscode.Disposable[] = [];
-	const projectHinted: { [k: string]:any} = Object.create(null);
+	const projectHinted: { [k: string]: boolean } = Object.create(null);
+
+	const projectHintIgnoreList = memento.get<string[]>('projectHintIgnoreList', []);
+	for (let path of projectHintIgnoreList) {
+		if (path === null) {
+			path = undefined;
+		}
+		projectHinted[path] = true;
+	}
 
 	let currentHint: Hint;
 	let item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
 	item.command = 'js.projectStatus.command';
 	toDispose.push(vscode.commands.registerCommand('js.projectStatus.command', () => {
-		let {message, option} = currentHint;
-		return vscode.window.showInformationMessage(message, option).then(selection => {
-			if (selection === option) {
+		let {message, options} = currentHint;
+		return vscode.window.showInformationMessage(message, ...options).then(selection => {
+			if (selection) {
 				return selection.execute();
 			}
 		});
@@ -52,67 +60,82 @@ export function create(client: ITypescriptServiceClient) {
 		}
 
 		const file = client.asAbsolutePath(editor.document.uri);
-		client.execute('open', { file }, false); // tsserver will fail if document isn't open
-		client.execute('projectInfo', { file, needFileNameList: true }).then(res => {
 
-			let {configFileName, fileNames} = res.body;
-
-			if (projectHinted[configFileName] === true) {
+		isOpen(file).then(value => {
+			if (!value) {
 				return;
 			}
 
-			if (!configFileName) {
-				currentHint = {
-					message: localize('hintCreate', "Have a project and experience better IntelliSense and code navigation."),
-					option: {
-						title: localize('cmdCreate', "Create jsconfig.json-file..."),
-						execute: () => {
-							client.logTelemetry('js.hintProjectCreation.accepted');
-							projectHinted[configFileName] = true;
-							item.hide();
+			return client.execute('projectInfo', { file, needFileNameList: true }).then(res => {
 
-							return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled://' + vscode.workspace.rootPath + '/jsconfig.json'))
-								.then(vscode.window.showTextDocument)
-								.then(editor => editor.edit(builder => builder.insert(new vscode.Position(0, 0), defaultConfig)));
-						}
-					}
-				};
-				item.text = '$(light-bulb)';
-				item.tooltip = localize('hint.tooltip', "Have a project and have better IntelliSense, better symbol search, and much more.");
-				item.color = 'white';
-				item.show();
-				client.logTelemetry('js.hintProjectCreation');
+				let {configFileName, fileNames} = res.body;
 
-			} else if (fileNames.length > fileLimit) {
+				if (projectHinted[configFileName] === true) {
+					return;
+				}
 
-				let largeRoots = computeLargeRoots(configFileName, fileNames).map(f => `'/${f}/'`).join(', ');
+				if (!configFileName) {
+					currentHint = {
+						message: localize('hintCreate', "Create a jsconfig.json to enable richer IntelliSense and code navigation across the entire workspace."),
+						options: [{
+							title: localize('ignore.cmdCreate', 'Ignore'),
+							execute: () => {
+								client.logTelemetry('js.hintProjectCreation.ignored');
+								projectHinted[configFileName] = true;
+								projectHintIgnoreList.push(configFileName);
+								memento.update('projectHintIgnoreList', projectHintIgnoreList);
+								item.hide();
+							}
+						}, {
+							title: localize('cmdCreate', "Create jsconfig.json"),
+							execute: () => {
+								client.logTelemetry('js.hintProjectCreation.accepted');
+								projectHinted[configFileName] = true;
+								item.hide();
 
-				currentHint = {
-					message: localize('hintExclude', "'{0}' is a large project. For better performance exclude folders with many files, like: {1}...",
-						vscode.workspace.asRelativePath(configFileName),
-						largeRoots),
-					option: {
-						title: localize('open', "Configure excludes..."),
-						execute: () => {
-							client.logTelemetry('js.hintProjectExcludes.accepted');
-							projectHinted[configFileName] = true;
-							item.hide();
+								return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.rootPath, 'jsconfig.json')))
+									.then(vscode.window.showTextDocument)
+									.then(editor => editor.edit(builder => builder.insert(new vscode.Position(0, 0), defaultConfig)));
+							}
+						}]
+					};
+					item.text = '$(light-bulb)';
+					item.tooltip = localize('hintCreate.tooltip', "Create a jsconfig.json to enable richer IntelliSense and code navigation across the entire workspace.");
+					item.color = '#A5DF3B';
+					item.show();
+					client.logTelemetry('js.hintProjectCreation');
 
-							return vscode.workspace.openTextDocument(configFileName)
-								.then(vscode.window.showTextDocument);
-						}
-					}
-				};
-				item.tooltip = currentHint.message;
-				item.text = localize('large.label', "Configure Excludes");
-				item.tooltip = localize('large.tooltip', "Too many files in a project might result in bad performance. Exclude folders with many files, like: {0}...", largeRoots);
-				item.color = '#0CFF00';
-				item.show();
-				client.logTelemetry('js.hintProjectExcludes');
+				} else if (fileNames.length > fileLimit) {
 
-			} else {
-				item.hide();
-			}
+					let largeRoots = computeLargeRoots(configFileName, fileNames).map(f => `'/${f}/'`).join(', ');
+
+					currentHint = {
+						message: largeRoots.length > 0
+							? localize('hintExclude', "For better performance exclude folders with many files, like: {0}", largeRoots)
+							: localize('hintExclude.generic', "For better performance exclude folders with many files."),
+						options: [{
+							title: localize('open', "Configure Excludes"),
+							execute: () => {
+								client.logTelemetry('js.hintProjectExcludes.accepted');
+								projectHinted[configFileName] = true;
+								item.hide();
+
+								return vscode.workspace.openTextDocument(configFileName)
+									.then(vscode.window.showTextDocument);
+							}
+						}]
+					};
+					item.tooltip = currentHint.message;
+					item.text = localize('large.label', "Configure Excludes");
+					item.tooltip = localize('hintExclude.tooltip', "For better performance exclude folders with many files.");
+					item.color = '#A5DF3B';
+					item.show();
+					client.logTelemetry('js.hintProjectExcludes');
+
+				} else {
+					item.hide();
+				}
+			});
 		}).catch(err => {
 			console.log(err);
 		});
@@ -145,7 +168,10 @@ function computeLargeRoots(configFileName:string, fileNames: string[]): string[]
 	for (let key in roots) {
 		data.push({ root: key, count: roots[key] });
 	}
-	data.sort((a, b) => b.count - a.count);
+
+	data
+		.sort((a, b) => b.count - a.count)
+		.filter(s => s.root === 'src' || s.root === 'test' || s.root === 'tests');
 
 	let result: string[] = [];
 	let sum = 0;
@@ -161,6 +187,8 @@ function computeLargeRoots(configFileName:string, fileNames: string[]): string[]
 }
 
 const defaultConfig = `{
+	// See http://go.microsoft.com/fwlink/?LinkId=759670
+	// for the documentation about the jsconfig.json format
 	"compilerOptions": {
 		"module": "commonjs"
 	},

@@ -11,6 +11,7 @@ import {CommonEditorRegistry, EditorActionDescriptor} from 'vs/editor/common/edi
 import {IndentationToSpacesCommand, IndentationToTabsCommand} from 'vs/editor/contrib/indentation/common/indentationCommands';
 import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 
 export class IndentationToSpacesAction extends EditorAction {
 	static ID = 'editor.action.indentationToSpaces';
@@ -65,7 +66,7 @@ export class ChangeIndentationSizeAction extends EditorAction {
 		private quickOpenService: IQuickOpenService,
 		private modelService:IModelService
 	) {
-		super(descriptor, editor);
+		super(descriptor, editor, Behaviour.Writeable);
 	}
 
 	public run(): TPromise<boolean> {
@@ -78,9 +79,12 @@ export class ChangeIndentationSizeAction extends EditorAction {
 		const picks = [1, 2, 3, 4, 5, 6, 7, 8].map(n => ({
 			id: n.toString(),
 			label: n.toString(),
+			// add description for tabSize value set in the configuration
 			description: n === creationOpts.tabSize ? nls.localize('configuredTabSize', "Configured Tab Size") : null
 		}));
-		const autoFocusIndex = Math.min(creationOpts.tabSize - 1, 7);
+
+		// auto focus the tabSize set for the current editor
+		const autoFocusIndex = Math.min(model.getOptions().tabSize - 1, 7);
 
 		return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() =>
 			this.quickOpenService.pick(picks, { placeHolder: nls.localize('selectTabWidth', "Select Tab Size for Current File"), autoFocus: { autoFocusIndex } }).then(pick => {
@@ -152,7 +156,7 @@ export class ToggleRenderWhitespaceAction extends EditorAction {
 	static ID = 'editor.action.toggleRenderWhitespace';
 
 	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
-		super(descriptor, editor);
+		super(descriptor, editor, Behaviour.TextFocus);
 	}
 
 	public run(): TPromise<boolean> {

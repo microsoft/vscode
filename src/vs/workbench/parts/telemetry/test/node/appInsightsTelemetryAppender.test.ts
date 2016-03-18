@@ -73,17 +73,6 @@ suite('Telemetry - AppInsightsTelemetryAppender', () => {
 		assert.equal(appInsightsMock.events[0].eventName, NodeAppInsightsTelemetryAppender.EVENT_NAME_PREFIX+'/testEvent');
 	});
 
-	test('Track UnhandledError as exception and events', () => {
-		var sampleError = new Error('test');
-
-		appender.log('UnhandledError', sampleError);
-
-		assert.equal(appInsightsMock.events.length, 1);
-		assert.equal(appInsightsMock.events[0].eventName, NodeAppInsightsTelemetryAppender.EVENT_NAME_PREFIX+'/UnhandledError');
-
-		assert.equal(appInsightsMock.exceptions.length, 1);
-	});
-
 	test('Event with data', () => {
 		appender.log('testEvent', {
 			title: 'some title',

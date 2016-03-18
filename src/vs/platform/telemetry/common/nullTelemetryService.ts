@@ -5,6 +5,7 @@
 
 'use strict';
 
+import { TPromise } from 'vs/base/common/winjs.base';
 import {ITelemetryService, ITelemetryInfo} from 'vs/platform/telemetry/common/telemetry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
@@ -51,8 +52,8 @@ export class NullTelemetryService implements ITelemetryService {
 		return this.instanceId;
 	}
 
-	getTelemetryInfo(): Thenable<ITelemetryInfo> {
-		return Promise.resolve({
+	getTelemetryInfo(): TPromise<ITelemetryInfo> {
+		return TPromise.as({
 			instanceId: this.instanceId,
 			sessionId: this.sessionId,
 			machineId: this.machineId

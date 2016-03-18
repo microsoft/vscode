@@ -32,7 +32,7 @@ export class LanguagesRegistry {
 	private _onDidAddModes: Emitter<string[]> = new Emitter<string[]>();
 	public onDidAddModes: Event<string[]> = this._onDidAddModes.event;
 
-	constructor() {
+	constructor(useModesRegistry = true) {
 		this.knownModeIds = {};
 		this.mime2LanguageId = {};
 		this.name2LanguageId = {};
@@ -42,14 +42,16 @@ export class LanguagesRegistry {
 		this.lowerName2Id = {};
 		this.id2ConfigurationFiles = {};
 
-		this._registerCompatModes(ModesRegistry.getCompatModes());
-		ModesRegistry.onDidAddCompatModes((m) => this._registerCompatModes(m));
+		if (useModesRegistry) {
+			this._registerCompatModes(ModesRegistry.getCompatModes());
+			ModesRegistry.onDidAddCompatModes((m) => this._registerCompatModes(m));
 
-		this._registerLanguages(ModesRegistry.getLanguages());
-		ModesRegistry.onDidAddLanguages((m) => this._registerLanguages(m));
+			this._registerLanguages(ModesRegistry.getLanguages());
+			ModesRegistry.onDidAddLanguages((m) => this._registerLanguages(m));
+		}
 	}
 
-	private _registerCompatModes(defs:ILegacyLanguageDefinition[]): void {
+	_registerCompatModes(defs:ILegacyLanguageDefinition[]): void {
 		let addedModes: string[] = [];
 		for (let i = 0; i < defs.length; i++) {
 			let def = defs[i];
@@ -73,7 +75,7 @@ export class LanguagesRegistry {
 		this._onDidAddModes.fire(addedModes);
 	}
 
-	private _registerLanguages(desc:ILanguageExtensionPoint[]): void {
+	_registerLanguages(desc:ILanguageExtensionPoint[]): void {
 		let addedModes: string[] = [];
 		for (let i = 0; i < desc.length; i++) {
 			this._registerLanguage(desc[i]);
@@ -135,21 +137,32 @@ export class LanguagesRegistry {
 			}
 		}
 
-		var bestName: string = null;
+		this.lowerName2Id[lang.id.toLowerCase()] = lang.id;
+
 		if (typeof lang.aliases !== 'undefined' && Array.isArray(lang.aliases)) {
 			for (var i = 0; i < lang.aliases.length; i++) {
 				if (!lang.aliases[i] || lang.aliases[i].length === 0) {
 					continue;
 				}
-				if (!bestName) {
-					bestName = lang.aliases[i];
-					this.name2LanguageId[lang.aliases[i]] = lang.id;
-					this.name2Extensions[lang.aliases[i]] = lang.extensions;
-				}
 				this.lowerName2Id[lang.aliases[i].toLowerCase()] = lang.id;
 			}
 		}
-		this.id2Name[lang.id] = bestName || '';
+
+		if (!this.id2Name[lang.id]) {
+			let bestName = null;
+
+			if (typeof lang.aliases !== 'undefined' && Array.isArray(lang.aliases) && lang.aliases.length > 0) {
+				bestName = lang.aliases[0];
+			} else {
+				bestName = lang.id;
+			}
+
+			if (bestName) {
+				this.name2LanguageId[bestName] = lang.id;
+				this.name2Extensions[bestName] = lang.extensions;
+				this.id2Name[lang.id] = bestName || '';
+			}
+		}
 
 		if (typeof lang.configuration === 'string') {
 			this.id2ConfigurationFiles[lang.id] = this.id2ConfigurationFiles[lang.id] || [];

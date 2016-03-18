@@ -15,6 +15,7 @@ import {CommonKeybindings} from 'vs/base/common/keyCodes';
 
 export interface ILegacyTemplateData {
 	root: HTMLElement;
+	element: any;
 	previousCleanupFn: _.IElementCallback;
 }
 
@@ -31,24 +32,32 @@ export class LegacyRenderer implements _.IRenderer {
 	public renderTemplate(tree: _.ITree, templateId: string, container: HTMLElement): any {
 		return <ILegacyTemplateData> {
 			root: container,
+			element: null,
 			previousCleanupFn: null
 		};
 	}
 
 	public renderElement(tree: _.ITree, element: any, templateId: string, templateData: ILegacyTemplateData): void {
 		if (templateData.previousCleanupFn) {
-			templateData.previousCleanupFn(tree, element);
+			templateData.previousCleanupFn(tree, templateData.element);
 		}
 
 		while (templateData.root.firstChild) {
 			templateData.root.removeChild(templateData.root.firstChild);
 		}
 
+		templateData.element = element;
 		templateData.previousCleanupFn = this.render(tree, element, templateData.root);
 	}
 
 	public disposeTemplate(tree: _.ITree, templateId: string, templateData: any): void {
-		// noop
+		if (templateData.previousCleanupFn) {
+			templateData.previousCleanupFn(tree, templateData.element);
+		}
+
+		templateData.root = null;
+		templateData.element = null;
+		templateData.previousCleanupFn = null;
 	}
 
 	protected render(tree:_.ITree, element:any, container:HTMLElement, previousCleanupFn?: _.IElementCallback):_.IElementCallback {

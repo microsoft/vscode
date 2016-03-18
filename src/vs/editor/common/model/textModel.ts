@@ -28,7 +28,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	_EOL:string;
 	_isDisposed:boolean;
 	_isDisposing:boolean;
-	private _options: editorCommon.ITextModelResolvedOptions;
+	protected _options: editorCommon.ITextModelResolvedOptions;
 
 	private _versionId:number;
 	/**
@@ -217,13 +217,9 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		}
 	}
 
-	_resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:string): void {
-		this._constructLines(TextModel.toRawText(newValue, {
-			tabSize: this._options.tabSize,
-			insertSpaces: this._options.insertSpaces,
-			detectIndentation: false,
-			defaultEOL: this._options.defaultEOL
-		}));
+	_resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:editorCommon.IRawText): void {
+		this._constructLines(newValue);
+
 		this._increaseVersionId();
 
 		e.detail = this.toRawText();
@@ -240,9 +236,43 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		};
 	}
 
-	public setValue(newValue:string): void {
+	public equals(other: editorCommon.IRawText): boolean {
+		if (this._BOM !== other.BOM) {
+			return false;
+		}
+		if (this._EOL !== other.EOL) {
+			return false;
+		}
+		if (this._lines.length !== other.lines.length) {
+			return false;
+		}
+		for (let i = 0, len = this._lines.length; i < len; i++) {
+			if (this._lines[i].text !== other.lines[i]) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	public setValue(value:string): void {
 		if (this._isDisposed) {
 			throw new Error('TextModel.setValue: Model is disposed');
+		}
+		let rawText: editorCommon.IRawText = null;
+		if (value !== null) {
+			rawText = TextModel.toRawText(value, {
+				tabSize: this._options.tabSize,
+				insertSpaces: this._options.insertSpaces,
+				detectIndentation: false,
+				defaultEOL: this._options.defaultEOL
+			});
+		}
+		this.setValueFromRawText(rawText);
+	}
+
+	public setValueFromRawText(newValue:editorCommon.IRawText): void {
+		if (this._isDisposed) {
+			throw new Error('TextModel.setValueFromRawText: Model is disposed');
 		}
 
 		if (newValue === null) {
@@ -254,6 +284,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		var endLineNumber = this.getLineCount();
 		var endColumn = this.getLineMaxColumn(endLineNumber);
 		var e = this._createContentChangedFlushEvent();
+
 		this._resetValue(e, newValue);
 		this._emitModelContentChangedFlushEvent(e);
 		this._emitContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false);
@@ -891,4 +922,22 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		} while(m);
 		return counter;
 	}
+}
+
+export class RawText {
+
+	public static fromString(rawText:string, opts:editorCommon.ITextModelCreationOptions): editorCommon.IRawText {
+		return TextModel.toRawText(rawText, opts);
+	}
+
+	public static fromStringWithModelOptions(rawText:string, model:editorCommon.IModel): editorCommon.IRawText {
+		let opts = model.getOptions();
+		return TextModel.toRawText(rawText, {
+			tabSize: opts.tabSize,
+			insertSpaces: opts.insertSpaces,
+			detectIndentation: false,
+			defaultEOL: opts.defaultEOL
+		});
+	}
+
 }

@@ -1,0 +1,6 @@
+﻿{
+	"configuration.validate.enable": "Whether php validation is enabled or not.",
+	"configuration.validate.executablePath": "Points to the php executable.",
+	"configuration.validate.run": "Whether the linter is run on save or on type.",
+	"configuration.title": "PHP Configuration options"
+}

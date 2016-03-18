@@ -262,7 +262,9 @@ export class FrankensteinMode extends AbstractMode {
 	) {
 		super(descriptor.id);
 
-		this.suggestSupport = new TextualSuggestSupport(this.getId(), editorWorkerService);
+		if (editorWorkerService) {
+			this.suggestSupport = new TextualSuggestSupport(this.getId(), editorWorkerService);
+		}
 	}
 }
 

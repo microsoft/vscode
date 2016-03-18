@@ -95,7 +95,7 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 		super.dispose();
 	}
 
-	_resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:string): void {
+	_resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:editorCommon.IRawText): void {
 		super._resetValue(e, newValue);
 
 		// Destroy all my tracked ranges

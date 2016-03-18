@@ -61,29 +61,43 @@ export class OutputEditorInput extends StringEditorInput {
 		this.toDispose.push(this.outputService.onActiveOutputChannel(() => this.scheduleOutputAppend()));
 		this.toDispose.push(this.eventService.addListener2(EventType.COMPOSITE_OPENED, (e: CompositeEvent) => {
 			if (e.compositeId === OUTPUT_PANEL_ID) {
-				this.scheduleOutputAppend();
+				this.appendOutput();
 			}
 		}));
 
 		this.appendOutputScheduler = new RunOnceScheduler(() => {
-			if (this.value.length + this.bufferedOutput.length > MAX_OUTPUT_LENGTH) {
-				this.setValue(this.outputService.getOutput(this.channel));
-			} else {
-				this.append(this.bufferedOutput);
-			}
-			this.bufferedOutput = '';
-
 			if (this.isVisible()) {
-				const panel = this.panelService.getActivePanel();
-				(<OutputPanel>panel).revealLastLine();
+				this.appendOutput();
 			}
 		}, OutputEditorInput.OUTPUT_DELAY);
+	}
+
+	private appendOutput(): void {
+		if (this.value.length + this.bufferedOutput.length > MAX_OUTPUT_LENGTH) {
+			this.setValue(this.outputService.getOutput(this.channel));
+		} else {
+			this.append(this.bufferedOutput);
+		}
+		this.bufferedOutput = '';
+
+		const panel = this.panelService.getActivePanel();
+		(<OutputPanel>panel).revealLastLine();
 	}
 
 	private onOutputReceived(e: IOutputEvent): void {
 		if (this.outputSet && e.channel === this.channel) {
 			if (e.output) {
-				this.bufferedOutput += e.output;
+				// TODO@Isidor extract this output trimming to common string with tests
+				const newLength = this.bufferedOutput.length + e.output.length;
+				if (newLength > MAX_OUTPUT_LENGTH) {
+					this.bufferedOutput = '...' + this.bufferedOutput.substr(newLength - MAX_OUTPUT_LENGTH);
+				}
+				if (e.output.length > MAX_OUTPUT_LENGTH) {
+					this.bufferedOutput += e.output.substr(e.output.length - MAX_OUTPUT_LENGTH);
+				} else {
+					this.bufferedOutput += e.output;
+				}
+
 				this.scheduleOutputAppend();
 			} else if (e.output === null) {
 				this.clearValue(); // special output indicates we should clear

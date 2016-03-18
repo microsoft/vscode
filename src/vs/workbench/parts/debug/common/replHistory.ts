@@ -104,7 +104,7 @@ export class ReplHistory {
 		this.currentExpressionStoredMarkers = false;
 
 		// reset overwrites
-		delete this.historyOverwrites;
+		this.historyOverwrites = null;
 	}
 
 	public save(): string[] {

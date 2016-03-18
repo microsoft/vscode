@@ -96,12 +96,12 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(TriggerPara
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space
 }));
-CommonEditorRegistry.registerEditorCommand('closeParameterHints', weight, { primary: KeyCode.Escape }, true, CONTEXT_PARAMETER_HINTS_VISIBLE,(ctx, editor, args) => {
+CommonEditorRegistry.registerEditorCommand('closeParameterHints', weight, { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, true, CONTEXT_PARAMETER_HINTS_VISIBLE,(ctx, editor, args) => {
 	ParameterHintsController.get(editor).closeWidget();
 });
-CommonEditorRegistry.registerEditorCommand('showPrevParameterHint', weight, { primary: KeyCode.UpArrow }, true, CONTEXT_PARAMETER_HINTS_VISIBLE,(ctx, editor, args) => {
+CommonEditorRegistry.registerEditorCommand('showPrevParameterHint', weight, { primary: KeyCode.UpArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow] }, true, CONTEXT_PARAMETER_HINTS_VISIBLE,(ctx, editor, args) => {
 	ParameterHintsController.get(editor).showPrevHint();
 });
-CommonEditorRegistry.registerEditorCommand('showNextParameterHint', weight, { primary: KeyCode.DownArrow }, true, CONTEXT_PARAMETER_HINTS_VISIBLE,(ctx, editor, args) => {
+CommonEditorRegistry.registerEditorCommand('showNextParameterHint', weight, { primary: KeyCode.DownArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow] }, true, CONTEXT_PARAMETER_HINTS_VISIBLE,(ctx, editor, args) => {
 	ParameterHintsController.get(editor).showNextHint();
 });

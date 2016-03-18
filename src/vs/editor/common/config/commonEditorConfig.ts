@@ -8,7 +8,8 @@ import * as nls from 'vs/nls';
 import Event, {Emitter} from 'vs/base/common/event';
 import {Disposable} from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
-import {Extensions, IConfigurationRegistry} from 'vs/platform/configuration/common/configurationRegistry';
+import * as platform from 'vs/base/common/platform';
+import {Extensions, IConfigurationRegistry, IConfigurationNode} from 'vs/platform/configuration/common/configurationRegistry';
 import {Registry} from 'vs/platform/platform';
 import {DefaultConfig, DEFAULT_INDENTATION} from 'vs/editor/common/config/defaultConfig';
 import {HandlerDispatcher} from 'vs/editor/common/controller/handlerDispatcher';
@@ -66,6 +67,7 @@ function cloneInternalEditorOptions(opts: editorCommon.IInternalEditorOptions): 
 		experimentalScreenReader: opts.experimentalScreenReader,
 		rulers: opts.rulers.slice(0),
 		wordSeparators: opts.wordSeparators,
+		selectionClipboard: opts.selectionClipboard,
 		ariaLabel: opts.ariaLabel,
 		lineNumbers: opts.lineNumbers,
 		selectOnLineNumbers: opts.selectOnLineNumbers,
@@ -276,6 +278,7 @@ class InternalEditorOptionsHelper {
 			experimentalScreenReader: toBoolean(opts.experimentalScreenReader),
 			rulers: toSortedIntegerArray(opts.rulers),
 			wordSeparators: String(opts.wordSeparators),
+			selectionClipboard: toBoolean(opts.selectionClipboard),
 			ariaLabel: String(opts.ariaLabel),
 			cursorStyle: editorCommon.cursorStyleFromString(opts.cursorStyle),
 			fontLigatures: toBoolean(opts.fontLigatures),
@@ -358,6 +361,7 @@ class InternalEditorOptionsHelper {
 			experimentalScreenReader:		(prevOpts.experimentalScreenReader !== newOpts.experimentalScreenReader),
 			rulers:							(!this._numberArraysEqual(prevOpts.rulers, newOpts.rulers)),
 			wordSeparators:					(prevOpts.wordSeparators !== newOpts.wordSeparators),
+			selectionClipboard:				(prevOpts.selectionClipboard !== newOpts.selectionClipboard),
 			ariaLabel:						(prevOpts.ariaLabel !== newOpts.ariaLabel),
 
 			lineNumbers:					(prevOpts.lineNumbers !== newOpts.lineNumbers),
@@ -704,7 +708,7 @@ export class EditorConfiguration {
 }
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
-configurationRegistry.registerConfiguration({
+let editorConfiguration:IConfigurationNode = {
 	'id': 'editor',
 	'order': 5,
 	'type': 'object',
@@ -887,4 +891,14 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('ignoreTrimWhitespace', "Controls if the diff editor shows changes in leading or trailing whitespace as diffs")
 		}
 	}
-});
+};
+
+if (platform.isLinux) {
+	editorConfiguration['properties']['editor.selectionClipboard'] = {
+		'type': 'boolean',
+		'default': DefaultConfig.editor.selectionClipboard,
+		'description': nls.localize('selectionClipboard', "Controls if the Linux primary clipboard should be supported.")
+	};
+}
+
+configurationRegistry.registerConfiguration(editorConfiguration);

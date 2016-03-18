@@ -62,7 +62,7 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 		super.dispose();
 	}
 
-	_resetValue(e:IModelContentChangedFlushEvent, newValue:string): void {
+	_resetValue(e:IModelContentChangedFlushEvent, newValue:IRawText): void {
 		super._resetValue(e, newValue);
 
 		// Destroy all my markers

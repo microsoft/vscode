@@ -232,7 +232,11 @@ interface IStackEntry {
 }
 
 export class HistoryService extends BaseHistoryService implements IHistoryService {
+
 	public serviceId = IHistoryService;
+
+	private static MAX_HISTORY_ITEMS = 200;
+
 	private _stack: IStackEntry[];
 	private index: number;
 	private blockEditorEvent: boolean;
@@ -369,6 +373,14 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		else {
 			this.index++;
 			this.stack.splice(this.index, 0, entry);
+
+			// Check for limit
+			if (this.stack.length > HistoryService.MAX_HISTORY_ITEMS) {
+				this.stack.shift(); // remove first
+				if (this.index > 0) {
+					this.index--;
+				}
+			}
 		}
 
 		// Take out on dispose

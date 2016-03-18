@@ -93,7 +93,7 @@ class VariablesView extends viewlet.CollapsibleViewletView {
 		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => {
 			collapseAction.enabled = this.debugService.getState() === debug.State.Running || this.debugService.getState() === debug.State.Stopped;
 		}));
-        
+
 		this.toDispose.push(this.tree.addListener2(events.EventType.FOCUS, (e: tree.IFocusEvent) => {
 			const isMouseClick = (e.payload && e.payload.origin === 'mouse');
 			const isVariableType = (e.focus instanceof model.Variable);
@@ -226,7 +226,7 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 		this.treeContainer = renderViewTree(container);
 
 		this.tree = new treeimpl.Tree(this.treeContainer, {
-			dataSource: new viewer.CallStackDataSource(),
+			dataSource: this.instantiationService.createInstance(viewer.CallStackDataSource),
 			renderer: this.instantiationService.createInstance(viewer.CallStackRenderer),
 			accessibilityProvider: this.instantiationService.createInstance(viewer.CallstackAccessibilityProvider)
 		}, debugTreeOptions(nls.localize('callStackAriaLabel', "Debug Call Stack")));
@@ -275,7 +275,7 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 
 		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => {
 			const focussedThread = this.debugService.getModel().getThreads()[this.debugService.getViewModel().getFocusedThreadId()];
-			if (focussedThread && focussedThread.stoppedDetails && focussedThread.stoppedDetails.reason !== 'step') {
+			if (focussedThread && focussedThread.stoppedDetails && focussedThread.stoppedDetails.reason && focussedThread.stoppedDetails.reason !== 'step') {
 				this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", focussedThread.stoppedDetails.reason));
 				if (focussedThread.stoppedDetails.text) {
 					this.pauseMessageLabel.title(focussedThread.stoppedDetails.text);
@@ -292,7 +292,11 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 			if (focused) {
 				const threads = this.debugService.getModel().getThreads();
 				for (let ref in threads) {
-					if (threads[ref].callStack.some(sf => sf === focused)) {
+					// Only query for threads whose callstacks are already available
+					// so that we don't perform unnecessary queries to the
+					// debug adapter. If it's a thread we need to expand, its
+					// callstack would have already been populated already
+					if (threads[ref].getCachedCallStack() && threads[ref].getCachedCallStack().some(sf => sf === focused)) {
 						this.tree.expand(threads[ref]);
 					}
 				}

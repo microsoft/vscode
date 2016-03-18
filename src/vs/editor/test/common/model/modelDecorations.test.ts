@@ -564,6 +564,45 @@ suite('deltaDecorations', () => {
 		);
 	});
 
+	test('issue #4317: editor.setDecorations doesn\'t update the hover message', () => {
+
+		let model = new Model('Hello world!', Model.DEFAULT_CREATION_OPTIONS, null);
+
+		let ids = model.deltaDecorations([], [{
+			range: {
+				startLineNumber: 1,
+				startColumn: 1,
+				endLineNumber: 100,
+				endColumn: 1
+			},
+			options: {
+				htmlMessage: [{
+					markdown: 'hello1'
+				}]
+			}
+		}]);
+
+		ids = model.deltaDecorations(ids, [{
+			range: {
+				startLineNumber: 1,
+				startColumn: 1,
+				endLineNumber: 100,
+				endColumn: 1
+			},
+			options: {
+				htmlMessage: [{
+					markdown: 'hello2'
+				}]
+			}
+		}]);
+
+		let actualDecoration = model.getDecorationOptions(ids[0]);
+
+		assert.equal(actualDecoration.htmlMessage[0].markdown, 'hello2');
+
+		model.dispose();
+	});
+
 	test('model doesn\'t get confused with individual tracked ranges', () => {
 		var model = new Model([
 			'Hello world,',

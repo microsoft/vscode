@@ -230,7 +230,7 @@ class SuggestionDetails {
 		this.scrollable.onElementDimensions();
 		this.scrollable.onElementInternalDimensions();
 
-		this.ariaLabel = strings.format('{0}\n{1}\n{2}', item.suggestion.label, item.suggestion.typeLabel, item.suggestion.documentationLabel);
+		this.ariaLabel = strings.format('{0}\n{1}\n{2}', item.suggestion.label || '', item.suggestion.typeLabel || '', item.suggestion.documentationLabel || '');
 	}
 
 	getAriaLabel(): string {
@@ -382,22 +382,20 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 			return;
 		}
 
-		setTimeout(() => {
-			this.telemetryData.selectedIndex = 0;
-			this.telemetryData.wasCancelled = false;
-			this.telemetryData.selectedIndex = e.indexes[0];
-			this.submitTelemetryData();
+		this.telemetryData.selectedIndex = 0;
+		this.telemetryData.wasCancelled = false;
+		this.telemetryData.selectedIndex = e.indexes[0];
+		this.submitTelemetryData();
 
-			const item = e.elements[0];
-			const container = item.container;
-			const overwriteBefore = (typeof item.suggestion.overwriteBefore === 'undefined') ? container.currentWord.length : item.suggestion.overwriteBefore;
-			const overwriteAfter = (typeof item.suggestion.overwriteAfter === 'undefined') ? 0 : Math.max(0, item.suggestion.overwriteAfter);
-			this.model.accept(item.suggestion, overwriteBefore, overwriteAfter);
+		const item = e.elements[0];
+		const container = item.container;
+		const overwriteBefore = (typeof item.suggestion.overwriteBefore === 'undefined') ? container.currentWord.length : item.suggestion.overwriteBefore;
+		const overwriteAfter = (typeof item.suggestion.overwriteAfter === 'undefined') ? 0 : Math.max(0, item.suggestion.overwriteAfter);
+		this.model.accept(item.suggestion, overwriteBefore, overwriteAfter);
 
-			alert(nls.localize('suggestionAriaAccepted', "{0}, accepted", item.suggestion.label));
+		alert(nls.localize('suggestionAriaAccepted', "{0}, accepted", item.suggestion.label));
 
-			this.editor.focus();
-		}, 0);
+		this.editor.focus();
 	}
 
 	private _getSuggestionAriaAlertLabel(item:CompletionItem): string {
@@ -449,7 +447,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 
 		const index = e.indexes[0];
 
-		this.suggestionSupportsAutoAccept.set(item.suggestion.noAutoAccept);
+		this.suggestionSupportsAutoAccept.set(!item.suggestion.noAutoAccept);
 		this.focusedItem = item;
 		this.list.setFocus(index);
 		this.updateWidgetHeight();

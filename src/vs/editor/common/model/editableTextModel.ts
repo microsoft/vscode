@@ -12,15 +12,8 @@ import {ILineEdit, ILineMarker, ModelLine} from 'vs/editor/common/model/modelLin
 import {DeferredEventsBuilder, TextModelWithDecorations} from 'vs/editor/common/model/textModelWithDecorations';
 import {IMode} from 'vs/editor/common/modes';
 
-export interface IDeltaSingleEditOperation {
-	original: IValidatedEditOperation;
-	deltaStartLineNumber: number;
-	deltaStartColumn: number;
-	deltaEndLineNumber: number;
-	deltaEndColumn: number;
-}
-
 export interface IValidatedEditOperation {
+	sortIndex: number;
 	identifier: editorCommon.ISingleEditOperationIdentifier;
 	range: editorCommon.IEditorRange;
 	rangeLength: number;
@@ -63,7 +56,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		super.dispose();
 	}
 
-	_resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:string): void {
+	_resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:editorCommon.IRawText): void {
 		super._resetValue(e, newValue);
 
 		// Destroy my edit history and settings
@@ -155,12 +148,29 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		}
 
 		return {
+			sortIndex: 0,
 			identifier: operations[0].identifier,
 			range: entireEditRange,
 			rangeLength: this.getValueLengthInRange(entireEditRange),
 			lines: result.join('').split('\n'),
 			forceMoveMarkers: forceMoveMarkers
 		};
+	}
+
+	private static _sortOpsAscending(a:IValidatedEditOperation, b:IValidatedEditOperation): number {
+		let r = Range.compareRangesUsingEnds(a.range, b.range);
+		if (r === 0) {
+			return a.sortIndex - b.sortIndex;
+		}
+		return r;
+	}
+
+	private static _sortOpsDescending(a:IValidatedEditOperation, b:IValidatedEditOperation): number {
+		let r = Range.compareRangesUsingEnds(a.range, b.range);
+		if (r === 0) {
+			return b.sortIndex - a.sortIndex;
+		}
+		return -r;
 	}
 
 	public applyEdits(rawOperations:editorCommon.IIdentifiedSingleEditOperation[]): editorCommon.IIdentifiedSingleEditOperation[] {
@@ -173,6 +183,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			let op = rawOperations[i];
 			let validatedRange = this.validateRange(op.range);
 			operations[i] = {
+				sortIndex: i,
 				identifier: op.identifier,
 				range: validatedRange,
 				rangeLength: this.getValueLengthInRange(validatedRange),
@@ -181,19 +192,18 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			};
 		}
 
-		// Sort operations
-		operations.sort((a, b) => {
-			return Range.compareRangesUsingEnds(a.range, b.range);
-		});
+		// Sort operations ascending
+		operations.sort(EditableTextModel._sortOpsAscending);
 
-		// Operations can not overlap!
-		for (let i = operations.length - 2; i >= 0; i--) {
-			if (operations[i+1].range.getStartPosition().isBeforeOrEqual(operations[i].range.getEndPosition())) {
+		for (let i = 0, count = operations.length - 1; i < count; i++) {
+			let rangeEnd = operations[i].range.getEndPosition();
+			let nextRangeStart = operations[i + 1].range.getStartPosition();
+
+			if (nextRangeStart.isBefore(rangeEnd)) {
+				// overlapping ranges
 				throw new Error('Overlapping ranges are not allowed!');
 			}
 		}
-
-		// console.log(JSON.stringify(operations, null, '\t'));
 
 		operations = this._reduceOperations(operations);
 
@@ -208,8 +218,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		}
 
 		// Delta encode operations
-		let deltaOperations = EditableTextModel._toDeltaOperations(operations);
-		let reverseRanges = EditableTextModel._getInverseEditRanges(deltaOperations);
+		let reverseRanges = EditableTextModel._getInverseEditRanges(operations);
 		let reverseOperations: editorCommon.IIdentifiedSingleEditOperation[] = [];
 		for (let i = 0; i < operations.length; i++) {
 			reverseOperations[i] = {
@@ -225,54 +234,59 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		return reverseOperations;
 	}
 
-	private static _toDeltaOperation(base: IValidatedEditOperation, operation:IValidatedEditOperation): IDeltaSingleEditOperation {
-		let deltaStartLineNumber = operation.range.startLineNumber - (base ? base.range.endLineNumber : 0);
-		let deltaStartColumn = operation.range.startColumn - (deltaStartLineNumber === 0 ? base.range.endColumn : 0);
-		let deltaEndLineNumber = operation.range.endLineNumber - (base ? base.range.endLineNumber : 0);
-		let deltaEndColumn = operation.range.endColumn - (deltaEndLineNumber === 0 ? base.range.endColumn : 0);
-
-		return {
-			original: operation,
-			deltaStartLineNumber: deltaStartLineNumber,
-			deltaStartColumn: deltaStartColumn,
-			deltaEndLineNumber: deltaEndLineNumber,
-			deltaEndColumn: deltaEndColumn
-		};
-	}
-
 	/**
 	 * Assumes `operations` are validated and sorted ascending
 	 */
-	public static _getInverseEditRanges(operations:IDeltaSingleEditOperation[]): editorCommon.IEditorRange[] {
-		let lineNumber = 0,
-			column = 0,
-			result:editorCommon.IEditorRange[] = [];
+	public static _getInverseEditRanges(operations:IValidatedEditOperation[]): editorCommon.IEditorRange[] {
+		let result:editorCommon.IEditorRange[] = [];
 
+		let prevOpEndLineNumber: number;
+		let prevOpEndColumn: number;
+		let prevOp:IValidatedEditOperation = null;
 		for (let i = 0, len = operations.length; i < len; i++) {
 			let op = operations[i];
 
-			let startLineNumber = op.deltaStartLineNumber + lineNumber;
-			let startColumn = op.deltaStartColumn + (op.deltaStartLineNumber === 0 ? column : 0);
+			let startLineNumber: number;
+			let startColumn: number;
+
+			if (prevOp) {
+				if (prevOp.range.endLineNumber === op.range.startLineNumber) {
+					startLineNumber = prevOpEndLineNumber;
+					startColumn = prevOpEndColumn + (op.range.startColumn - prevOp.range.endColumn);
+				} else {
+					startLineNumber = prevOpEndLineNumber + (op.range.startLineNumber - prevOp.range.endLineNumber);
+					startColumn = op.range.startColumn;
+				}
+			} else {
+				startLineNumber = op.range.startLineNumber;
+				startColumn = op.range.startColumn;
+			}
+
 			let resultRange: editorCommon.IEditorRange;
 
-			if (op.original.lines && op.original.lines.length > 0) {
-				// There is something to insert
-				if (op.original.lines.length === 1) {
-					// Single line insert
-					resultRange = new Range(startLineNumber, startColumn, startLineNumber, startColumn + op.original.lines[0].length);
+			if (op.lines && op.lines.length > 0) {
+				// the operation inserts something
+				let lineCount = op.lines.length;
+				let firstLine = op.lines[0];
+				let lastLine = op.lines[lineCount - 1];
+
+				if (lineCount === 1) {
+					// single line insert
+					resultRange = new Range(startLineNumber, startColumn, startLineNumber, startColumn + firstLine.length);
 				} else {
-					// Multi line insert
-					resultRange = new Range(startLineNumber, startColumn, startLineNumber + op.original.lines.length - 1, op.original.lines[op.original.lines.length - 1].length + 1);
+					// multi line insert
+					resultRange = new Range(startLineNumber, startColumn, startLineNumber + lineCount - 1, lastLine.length + 1);
 				}
 			} else {
 				// There is nothing to insert
 				resultRange = new Range(startLineNumber, startColumn, startLineNumber, startColumn);
 			}
 
-			lineNumber = resultRange.endLineNumber;
-			column = resultRange.endColumn;
+			prevOpEndLineNumber = resultRange.endLineNumber;
+			prevOpEndColumn = resultRange.endColumn;
 
 			result.push(resultRange);
+			prevOp = op;
 		}
 
 		return result;
@@ -280,8 +294,9 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	private _applyEdits(operations:IValidatedEditOperation[]): void {
 
-		// Note the minus!
-		operations = operations.sort((a, b) => -Range.compareRangesUsingEnds(a.range, b.range));
+		// Sort operations descending
+		operations.sort(EditableTextModel._sortOpsDescending);
+
 
 		this._withDeferredEvents((deferredEventsBuilder:DeferredEventsBuilder) => {
 			let contentChangedEvents: editorCommon.IModelContentChangedEvent[] = [];
@@ -514,14 +529,6 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		if (totalMarkersCnt !== foundMarkersCnt) {
 			throw new Error('There are misplaced markers!');
 		}
-	}
-
-	public static _toDeltaOperations(operations:IValidatedEditOperation[]): IDeltaSingleEditOperation[] {
-		let result: IDeltaSingleEditOperation[] = [];
-		for (let i = 0; i < operations.length; i++) {
-			result[i] = EditableTextModel._toDeltaOperation(i > 0 ? operations[i-1] : null, operations[i]);
-		}
-		return result;
 	}
 
 	public undo(): editorCommon.IEditorSelection[] {

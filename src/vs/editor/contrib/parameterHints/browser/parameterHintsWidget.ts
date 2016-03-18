@@ -92,7 +92,9 @@ export class ParameterHintsWidget implements IContentWidget {
 		this.toDispose = [];
 
 		this.toDispose.push(this.editor.addListener2(EventType.CursorSelectionChanged,(e: ICursorSelectionChangedEvent) => {
-			this.editor.layoutContentWidget(this);
+			if (this.isVisible) {
+				this.editor.layoutContentWidget(this);
+			}
 		}));
 	}
 
@@ -117,6 +119,9 @@ export class ParameterHintsWidget implements IContentWidget {
 		if (this.isDisposed) {
 			return;
 		}
+		if (this.isVisible) {
+			return;
+		}
 		this._onShown();
 
 		this.isVisible = true;
@@ -128,6 +133,9 @@ export class ParameterHintsWidget implements IContentWidget {
 
 	private hide(): void {
 		if (this.isDisposed) {
+			return;
+		}
+		if (!this.isVisible) {
 			return;
 		}
 		this._onHidden();
@@ -221,7 +229,7 @@ export class ParameterHintsWidget implements IContentWidget {
 
 	private select(position: number): void {
 		var signature = this.signatureViews[position];
-		
+
 		if (!signature) {
 			return;
 		}
@@ -236,7 +244,7 @@ export class ParameterHintsWidget implements IContentWidget {
 		}
 
 		this.$overloads.text(overloads);
-		if (this.parameterHints) {
+		if (this.parameterHints && this.parameterHints.signatures[position].parameters[this.parameterHints.currentParameter]) {
 			const labelToAnnounce = this.parameterHints.signatures[position].parameters[this.parameterHints.currentParameter].label;
 			// Select method gets called on every user type while parameter hints are visible.
 			// We do not want to spam the user with same announcements, so we only announce if the current parameter changed.

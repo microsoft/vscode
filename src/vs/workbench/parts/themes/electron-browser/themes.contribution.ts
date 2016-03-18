@@ -13,10 +13,10 @@ import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import platform = require('vs/platform/platform');
 import workbenchActionRegistry = require('vs/workbench/common/actionRegistry');
-import Themes = require('vs/platform/theme/common/themes');
 import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IThemeService, IThemeData, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
+import {RunOnceScheduler} from 'vs/base/common/async';
 
 import {ipcRenderer as ipc} from 'electron';
 
@@ -43,9 +43,6 @@ class SelectThemeAction extends actions.Action {
 			let currentTheme = this.storageService.get(Constants.Preferences.THEME, StorageScope.GLOBAL, DEFAULT_THEME_ID);
 
 			let picks: IPickOpenEntry[] = [];
-			Themes.getBaseThemes(true).forEach(baseTheme => {
-				picks.push({ label: Themes.toLabel(baseTheme), id: Themes.toId(baseTheme) });
-			});
 
 			let contributedThemesById: { [id: string]: IThemeData } = {};
 			contributedThemes.forEach(theme => {
@@ -62,7 +59,7 @@ class SelectThemeAction extends actions.Action {
 				}
 			});
 
-			let pickTheme = pick => {
+			let selectTheme = pick => {
 				if (pick) {
 					let themeId = pick.id;
 					if (!contributedThemesById[themeId]) {
@@ -82,10 +79,21 @@ class SelectThemeAction extends actions.Action {
 						ipc.send('vscode:changeTheme', currentTheme);
 					}
 				}
-				return winjs.TPromise.as(null);
 			};
 
-			return this.quickOpenService.pick(picks, { placeHolder: nls.localize('themes.selectTheme', "Select Color Theme"), autoFocus: { autoFocusIndex: selectedPickIndex } }).then(pickTheme, null, pickTheme);
+			let themeToPreview : IPickOpenEntry = null;
+			let previewThemeScheduler = new RunOnceScheduler(() => {
+				selectTheme(themeToPreview);
+			}, 200);
+			let previewTheme = pick => {
+				themeToPreview = pick;
+				previewThemeScheduler.schedule();
+			};
+			let pickTheme = pick => {
+				previewThemeScheduler.dispose();
+				selectTheme(pick);
+			};
+			return this.quickOpenService.pick(picks, { placeHolder: nls.localize('themes.selectTheme', "Select Color Theme"), autoFocus: { autoFocusIndex: selectedPickIndex } }).then(pickTheme, null, previewTheme);
 		});
 	}
 }

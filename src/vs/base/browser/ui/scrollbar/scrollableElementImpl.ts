@@ -137,8 +137,9 @@ export class ScrollableElement extends Widget implements IScrollableElement {
 	public onElementDimensions(dimensions: IDimensions = null, synchronous: boolean = false): void {
 		if (synchronous) {
 			this._actualElementDimensions(dimensions);
+			this._onElementDimensionsTimeout.cancel();
 		} else {
-			this._onElementDimensionsTimeout.setIfNotSet(() => this._actualElementDimensions(dimensions), 0);
+			this._onElementDimensionsTimeout.cancelAndSet(() => this._actualElementDimensions(dimensions), 0);
 		}
 	}
 
@@ -157,6 +158,7 @@ export class ScrollableElement extends Widget implements IScrollableElement {
 	public onElementInternalDimensions(synchronous: boolean = false): void {
 		if (synchronous) {
 			this._actualElementInternalDimensions();
+			this._onElementInternalDimensionsTimeout.cancel();
 		} else {
 			this._onElementInternalDimensionsTimeout.setIfNotSet(() => this._actualElementInternalDimensions(), 0);
 		}

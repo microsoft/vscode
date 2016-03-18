@@ -8,7 +8,7 @@ var fs = require('fs');
 var event_stream_1 = require('event-stream');
 var File = require('vinyl');
 var Is = require('is');
-var quiet = !!process.env['VSCODE_BUILD_QUIET'];
+var quiet = !!process.env['VSCODE_BUILD_QUIET'] && false;
 var util = require('gulp-util');
 function log(message) {
     var rest = [];
@@ -52,9 +52,9 @@ var vscodeLanguages = [
     'ita'
 ];
 var iso639_3_to_2 = {
-    'chs': 'zh-cn',
-    'cht': 'zh-tw',
-    'csy': 'cs-cz',
+    'chs': 'zh-CN',
+    'cht': 'zh-TW',
+    'csy': 'cs-CZ',
     'deu': 'de',
     'enu': 'en',
     'esn': 'es',
@@ -65,10 +65,10 @@ var iso639_3_to_2 = {
     'kor': 'ko',
     'nld': 'nl',
     'plk': 'pl',
-    'ptb': 'pt-br',
+    'ptb': 'pt-BR',
     'ptg': 'pt',
     'rus': 'ru',
-    'sve': 'sv-se',
+    'sve': 'sv-SE',
     'trk': 'tr'
 };
 function sortLanguages(directoryNames) {
@@ -210,7 +210,7 @@ function processCoreBundleFormat(json, emitter) {
                 messages = JSON.parse(content);
             }
             else {
-                log("No localized messages found for module " + module + ". Using default messages.");
+                // log(`No localized messages found for module ${module}. Using default messages.`);
                 messages = defaultMessages[module];
                 statistics[language.iso639_2] = statistics[language.iso639_2] + Object.keys(messages).length;
             }

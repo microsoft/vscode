@@ -5,15 +5,14 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import types = require('vs/base/common/types');
 import {EndOfLinePreference, IModel, EventType} from 'vs/editor/common/editorCommon';
 import {IMode} from 'vs/editor/common/modes';
 import {EditorModel} from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
-import {NullMode} from 'vs/editor/common/modes/nullMode';
 import {ITextEditorModel} from 'vs/platform/editor/common/editor';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {RawText} from 'vs/editor/common/model/textModel';
 
 /**
  * The base text editor model leverages the monaco code editor model. This class is only intended to be subclassed and not instantiated.
@@ -98,32 +97,22 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	}
 
 	/**
-	 * Updates the text editor model with the provided value and mime (can be comma separated for multiple values).
-	 *
-	 * This is a no-op if neither the value did not change nor the mime.
+	 * Updates the text editor model with the provided value. If the value is the same as the model has, this is a no-op.
 	 */
-	protected updateTextEditorModel(newValue?: string, newMime?: string): void {
-		// Detect content changes
-		let currentModelValue = this.getValue();
-		let valueChanged = (!types.isUndefinedOrNull(newValue) && currentModelValue !== newValue);
-
-		// Detect mode changes
-		let modeChanged = false;
-		if (!types.isUndefinedOrNull(newMime)) {
-			let modeId = this.modeService.getModeId(newMime);
-			let currentMode = this.textEditorModel.getMode();
-			if (currentMode && currentMode.getId() !== NullMode.ID && modeId) {
-				let currentModeId = currentMode.getId();
-				modeChanged = (currentModeId !== modeId);
-			}
+	protected updateTextEditorModel(newValue: string): void {
+		if (!this.textEditorModel) {
+			return;
 		}
 
-		// Apply either content or mode or both
-		if (valueChanged) {
-			this.textEditorModel.setValue(newValue, modeChanged ? this.getOrCreateMode(this.modeService, newMime) : undefined);
-		} else if (modeChanged) {
-			this.textEditorModel.setMode(this.getOrCreateMode(this.modeService, newMime));
+		let rawText = RawText.fromStringWithModelOptions(newValue, this.textEditorModel);
+
+		// Return early if the text is already set in that form
+		if (this.textEditorModel.equals(rawText)) {
+			return;
 		}
+
+		// Otherwise update model
+		this.textEditorModel.setValueFromRawText(rawText);
 	}
 
 	/**

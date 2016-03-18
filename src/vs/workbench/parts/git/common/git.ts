@@ -258,6 +258,7 @@ export interface IPushOptions {
 }
 
 export interface IRawGitService {
+	getVersion(): WinJS.TPromise<string>;
 	serviceState(): WinJS.TPromise<RawServiceState>;
 	status(): WinJS.TPromise<IRawStatus>;
 	init(): WinJS.TPromise<IRawStatus>;

@@ -339,9 +339,6 @@ export class FindModelBoundToEditorModel {
 		// Get all the ranges (even more than the highlighted ones)
 		let ranges = this._findMatches(findScope, Number.MAX_VALUE);
 
-		this._decorations.set([], findScope);
-		this._state.changeMatchInfo(0, 0);
-
 		let replaceStrings:string[] = [];
 		for (let i = 0, len = ranges.length; i < len; i++) {
 			replaceStrings.push(this.getReplaceString(model.getValueInRange(ranges[i])));
@@ -349,6 +346,8 @@ export class FindModelBoundToEditorModel {
 
 		let command = new ReplaceAllCommand(ranges, replaceStrings);
 		this._executeEditorCommand('replaceAll', command);
+
+		this.research(false);
 	}
 
 	private _executeEditorCommand(source:string, command:editorCommon.ICommand): void {
@@ -362,6 +361,8 @@ export class FindModelBoundToEditorModel {
 }
 
 const BACKSLASH_CHAR_CODE = '\\'.charCodeAt(0);
+const DOLLAR_CHAR_CODE = '$'.charCodeAt(0);
+const ZERO_CHAR_CODE = '0'.charCodeAt(0);
 const n_CHAR_CODE = 'n'.charCodeAt(0);
 const t_CHAR_CODE = 't'.charCodeAt(0);
 
@@ -369,6 +370,7 @@ const t_CHAR_CODE = 't'.charCodeAt(0);
  * \n => LF
  * \t => TAB
  * \\ => \
+ * $0 => $& (see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace#Specifying_a_string_as_a_parameter)
  * everything else stays untouched
  */
 export function parseReplaceString(input:string): string {
@@ -405,6 +407,32 @@ export function parseReplaceString(input:string): string {
 				case t_CHAR_CODE:
 					// \t => TAB
 					replaceWithCharacter = '\t';
+					break;
+			}
+
+			if (replaceWithCharacter) {
+				result += input.substring(substrFrom, i - 1) + replaceWithCharacter;
+				substrFrom = i + 1;
+			}
+		}
+
+		if (chCode === DOLLAR_CHAR_CODE) {
+
+			// move to next char
+			i++;
+
+			if (i >= len) {
+				// string ends with a $
+				break;
+			}
+
+			let nextChCode = input.charCodeAt(i);
+			let replaceWithCharacter: string = null;
+
+			switch (nextChCode) {
+				case ZERO_CHAR_CODE:
+					// $0 => $&
+					replaceWithCharacter = '$&';
 					break;
 			}
 

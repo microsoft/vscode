@@ -377,6 +377,10 @@
 				</dict>
 				<dict>
 					<key>include</key>
+					<string>#imply-operator</string>
+				</dict>
+				<dict>
+					<key>include</key>
 					<string>#relational-operator</string>
 				</dict>
 				<dict>
@@ -416,7 +420,7 @@
 		<key>expression-operator</key>
 		<dict>
 			<key>match</key>
-			<string>=&gt;|\b(delete|in|instanceof|new|typeof|as|is|of)\b</string>
+			<string>\b(delete|in|instanceof|new|typeof|as|is|of)\b</string>
 			<key>name</key>
 			<string>keyword.others.ts</string>
 		</dict>
@@ -616,6 +620,13 @@
 					<string>#variable-initializer</string>
 				</dict>
 			</array>
+		</dict>
+		<key>imply-operator</key>
+		<dict>
+			<key>match</key>
+			<string>=&gt;</string>
+			<key>name</key>
+			<string>keyword.operator.ts</string>
 		</dict>
 		<key>import-operator</key>
 		<dict>
@@ -1560,7 +1571,7 @@
 				<key>0</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.others.ts</string>
+					<string>keyword.operator.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>
@@ -1855,7 +1866,7 @@
 				<key>1</key>
 				<dict>
 					<key>name</key>
-					<string>keyword.others.ts</string>
+					<string>keyword.operator.comparison.ts</string>
 				</dict>
 			</dict>
 			<key>end</key>

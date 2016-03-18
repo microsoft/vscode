@@ -711,6 +711,9 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 				convertViewToModelPosition: (lineNumber:number, column:number) => {
 					return this.viewModel.convertViewPositionToModelPosition(lineNumber, column);
 				},
+				convertViewSelectionToModelSelection: (viewSelection:editorCommon.ISelection) => {
+					return this.viewModel.convertViewSelectionToModelSelection(viewSelection);
+				},
 				validateViewPosition: (viewLineNumber:number, viewColumn:number, modelPosition:editorCommon.IEditorPosition) => {
 					return this.viewModel.validateViewPosition(viewLineNumber, viewColumn, modelPosition);
 				},

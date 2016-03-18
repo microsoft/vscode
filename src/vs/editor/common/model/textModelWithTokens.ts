@@ -335,7 +335,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return new FullModelRetokenizer(retokenizePromise, this);
 	}
 
-	_resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:string): void {
+	_resetValue(e:editorCommon.IModelContentChangedFlushEvent, newValue:editorCommon.IRawText): void {
 		super._resetValue(e, newValue);
 		// Cancel tokenization, clear all tokens and begin tokenizing
 		this._resetTokenizationState();
@@ -456,9 +456,27 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		if (this._isDisposed) {
 			throw new Error('TextModelWithTokens.setValue: Model is disposed');
 		}
+		let rawText: editorCommon.IRawText = null;
+		if (value !== null) {
+			rawText = TextModel.toRawText(value, {
+				tabSize: this._options.tabSize,
+				insertSpaces: this._options.insertSpaces,
+				detectIndentation: false,
+				defaultEOL: this._options.defaultEOL
+			});
+		}
+		this.setValueFromRawText(rawText, newModeOrPromise);
+	}
+
+	public setValueFromRawText(value:editorCommon.IRawText, newMode?:IMode): void;
+	public setValueFromRawText(value:editorCommon.IRawText, newModePromise?:TPromise<IMode>): void;
+	public setValueFromRawText(value:editorCommon.IRawText, newModeOrPromise:any=null): void {
+		if (this._isDisposed) {
+			throw new Error('TextModelWithTokens.setValueFromRawText: Model is disposed');
+		}
 
 		if (value !== null) {
-			super.setValue(value);
+			super.setValueFromRawText(value);
 		}
 
 		if (newModeOrPromise) {
@@ -501,7 +519,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			// There's nothing to do
 			return;
 		}
-		this.setValue(null, newModeOrPromise);
+		this.setValueFromRawText(null, newModeOrPromise);
 	}
 
 	public getModeAtPosition(_lineNumber:number, _column:number): IMode {
@@ -582,7 +600,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			currentCharsToTokenize = 0,
 			currentEstimatedTimeToTokenize = 0,
 			stopLineTokenizationAfter = this._stopLineTokenizationAfter,
-			sw = StopWatch.create(),
+			sw = StopWatch.create(false),
 			elapsedTime: number;
 
 		// Tokenize at most 1000 lines. Estimate the tokenization speed per character and stop when:
@@ -664,7 +682,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			stopLineTokenizationAfter = 1000000000; // 1 billion, if a line is so long, you have other trouble :).
 		}
 
-		var sw = StopWatch.create();
+		var sw = StopWatch.create(false);
 		var tokenizedCharacters = 0;
 
 		var fromLineNumber = this._invalidLineStartIndex + 1, toLineNumber = lineNumber;

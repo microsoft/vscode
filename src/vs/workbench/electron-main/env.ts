@@ -35,13 +35,12 @@ export interface IProductConfiguration {
 	quality?: string;
 	commit: string;
 	date: string;
-	expiryDate: number;
-	expiryUrl: string;
 	extensionsGallery: {
 		serviceUrl: string;
 		cacheUrl: string;
 		itemUrl: string;
 	};
+	extensionTips: { [id: string]: string; };
 	crashReporter: Electron.CrashReporterStartOptions;
 	welcomePage: string;
 	enableTelemetry: boolean;
