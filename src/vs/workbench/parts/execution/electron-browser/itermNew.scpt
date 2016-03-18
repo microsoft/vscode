@@ -10,11 +10,21 @@ on run argv
 	tell application "iTerm"
 		activate
 
-		set myterm to (current terminal)
-		tell myterm
-			tell (launch session "Default")
-				write text command
+		set theWindow to current window
+
+		if theWindow = missing value then
+			set theWindow to (create window with default profile)
+			tell theWindow
+				write (current session) text command
 			end tell
-		end tell
+		else
+			tell theWindow
+				set theTab to (create tab with default profile)
+				tell theTab
+					write (current session) text command
+				end tell
+			end tell
+		end if
+		
 	end tell
 end run
