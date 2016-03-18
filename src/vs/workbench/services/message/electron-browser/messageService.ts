@@ -27,7 +27,7 @@ export class MessageService extends WorkbenchMessageService {
 
 	public confirm(confirmation: IConfirmation): boolean {
 		if (!confirmation.primaryButton) {
-			confirmation.primaryButton = nls.localize('yesButton', "&&Yes");
+			confirmation.primaryButton = nls.localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes");
 		}
 
 		if (!confirmation.secondaryButton) {

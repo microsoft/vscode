@@ -737,7 +737,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (this._taskSystem && this._taskSystem.isActiveSync()) {
 			if (this._taskSystem.canAutoTerminate() || this.messageService.confirm({
 				message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
-				primaryButton: nls.localize('TaskSystem.terminateTask', "&&Terminate Task")
+				primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task")
 			})) {
 				return this._taskSystem.terminate().then((response) => {
 					if (response.success) {
