@@ -10,7 +10,7 @@ update-alternatives --install /usr/bin/editor editor /usr/bin/@@NAME@@ 0
 
 # Remove the legacy bin command if this is the stable build
 if [ "@@NAME@@" = "code"] then
-	rm -rf /usr/local/bin/code
+	rm -f /usr/local/bin/code
 fi
 
 # Register repository as an apt source
