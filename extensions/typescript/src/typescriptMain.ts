@@ -298,6 +298,10 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		this.triggerAllDiagnostics();
 	}
 
+	public handles(file: string): boolean {
+		return !!this.findLanguage(file);
+	}
+
 	private findLanguage(file: string): LanguageProvider {
 		for (let i = 0; i < this.languages.length; i++) {
 			let language = this.languages[i];
