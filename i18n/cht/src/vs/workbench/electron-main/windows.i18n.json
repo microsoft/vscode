@@ -9,6 +9,7 @@
 	"appStalled": "視窗已沒有回應",
 	"appStalledDetail": "您可以重新開啟或關閉視窗，或是繼續等候。",
 	"close": "關閉",
+	"hiddenMenuBar": "您仍然可以按 **Alt** 鍵來存取功能表列。",
 	"ok": "確定",
 	"pathNotExistDetail": "磁碟上似乎已沒有路徑 '{0}'。",
 	"pathNotExistTitle": "路徑不存在",

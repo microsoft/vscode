@@ -12,7 +12,6 @@
 	"closeOtherFiles": "Fermer les autres fichiers",
 	"closeOtherLabel": "Fermer les autres fichiers",
 	"compareFiles": "Comparer des fichiers",
-	"compareLabels": "{0} ↔ {1}",
 	"compareSource": "Sélectionner pour comparer",
 	"compareWith": "Comparer à '{0}'",
 	"confirmDeleteMessageFile": "Voulez-vous vraiment supprimer définitivement '{0}' ?",

@@ -18,7 +18,7 @@
 	"noExtensionsInstalled": "Расширений не найдено",
 	"noExtensionsToInstall": "Расширений не найдено",
 	"noOutdatedExtensions": "Устаревших расширений не найдено",
-	"noSuggestedExtensions": "Нет предлагаемых расширений",
+	"noRecommendedExtensions": "Нет рекомендуемых расширений",
 	"nowInstalling": "{0} устанавливается...",
 	"outdatedExtensionsHandlerAriaLabel": "Введите, чтобы ограничить список устаревших расширений",
 	"readme": "Файл сведений",

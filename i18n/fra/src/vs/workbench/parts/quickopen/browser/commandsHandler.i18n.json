@@ -9,6 +9,7 @@
 	"canNotRun": "La commande '{0}' ne peut pas être exécutée à partir d'ici.",
 	"commandLabel": "{0} : {1}",
 	"entryAriaLabel": "{0}, commandes",
+	"entryAriaLabelWithKey": "{0}, {1}, commandes",
 	"noCommandsMatching": "Aucune commande correspondante",
 	"showTriggerActions": "Afficher toutes les commandes"
 }

@@ -77,6 +77,7 @@
 	"miToggleMenuBar": "メニュー バーの切り替え(&&B)",
 	"miToggleOutput": "出力の切り替え(&&O)",
 	"miTogglePanel": "パネルの切り替え(&&P)",
+	"miToggleRenderWhitespace": "空白文字の表示の切り替え(&&R)",
 	"miToggleSidebar": "サイドバーの切り替え(&&T)",
 	"miToggleWordWrap": "折り返しの切り替え(&&W)",
 	"miTwitter": "ツイッターに参加(&&J)",

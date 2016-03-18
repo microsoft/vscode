@@ -9,6 +9,7 @@
 	"canNotRun": "無法從這裡執行命令 '{0}'。",
 	"commandLabel": "{0}: {1}",
 	"entryAriaLabel": "{0}，命令",
+	"entryAriaLabelWithKey": "{0}、{1}、命令",
 	"noCommandsMatching": "沒有相符的命令",
 	"showTriggerActions": "顯示所有命令"
 }

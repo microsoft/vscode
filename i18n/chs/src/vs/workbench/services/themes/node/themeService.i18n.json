@@ -7,7 +7,7 @@
 	"error.cannotloadtheme": "无法加载 {0}",
 	"error.cannotparse": "问题分析 plist 文件: {0}",
 	"invalid.path.1": "“contributes.{0}.path”({1})应包含在扩展的文件夹({2})内。这可能会使扩展不可移植。",
-	"reqarray": "扩展点“{0}”必须是阵列。 ",
+	"reqarray": "扩展点“{0}”必须是数组。 ",
 	"reqpath": "“contributes.{0}.path”中应为字符串。提供的值: {1}",
 	"vscode.extension.contributes.themes": "用于 textmate 颜色主题。",
 	"vscode.extension.contributes.themes.label": "颜色主题的标签在 UI 中的显示形式。",

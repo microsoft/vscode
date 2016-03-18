@@ -6,7 +6,7 @@
 {
 	"ConfigurationParser.globalMatcher": "警告: グローバル マッチャーとタスクは混合できません。グローバル マッチャーは無視されます。",
 	"ConfigurationParser.invalidCWD": "警告: options.cwd は、型 string でなければなりません。値 {0} を無視します\n",
-	"ConfigurationParser.invalidVaraibleReference": "エラー: 無効な problemMatcher 参照: {0}\n",
+	"ConfigurationParser.invalidVaraibleReference": "エラー: 正しくない problemMatcher 参照: {0}\n",
 	"ConfigurationParser.noCommand": "エラー: 有効なコマンド名が指定されていません。",
 	"ConfigurationParser.noName": "エラー: 宣言スコープ内の問題マッチャーに次の名前がなければなりません:\n{0}\n",
 	"ConfigurationParser.noTaskName": "エラー: タスクが taskName プロパティを提供しなければなりません。このタスクは無視されます。\n{0}\n",

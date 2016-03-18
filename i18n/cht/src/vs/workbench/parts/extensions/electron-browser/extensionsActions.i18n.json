@@ -8,7 +8,7 @@
 	"installExtension": "安裝擴充功能",
 	"restartNow": "立即重新啟動",
 	"restartNow2": "立即重新啟動",
-	"showExtensionTips": "顯示擴充功能提示",
+	"showExtensionRecommendations": "顯示擴充功能建議",
 	"showInstalledExtensions": "顯示安裝的擴充功能",
 	"showOutdatedExtensions": "顯示過期的擴充功能",
 	"success-installed": "已成功安裝 '{0}'。請重新啟動加以啟用。",

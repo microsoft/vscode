@@ -77,6 +77,7 @@
 	"miToggleMenuBar": "切換功能表列(&B)",
 	"miToggleOutput": "切換輸出(&O)",
 	"miTogglePanel": "切換面板(&P)",
+	"miToggleRenderWhitespace": "切換轉譯空白字元(&R)",
 	"miToggleSidebar": "切換提要欄位(&T)",
 	"miToggleWordWrap": "切換自動換行(&W)",
 	"miTwitter": "加入我們的 Twitter(&J)",

@@ -6,8 +6,8 @@
 {
 	"CloseBraceExpected": "닫는 괄호 필요",
 	"CloseBracketExpected": "닫는 대괄호 필요",
-	"ColonExpected": "콜론 필요",
-	"CommaExpected": "쉼표 필요",
+	"ColonExpected": "콜론이 필요합니다.",
+	"CommaExpected": "쉼표가 필요합니다.",
 	"EOFExpected": "콘텐츠 끝 필요",
 	"InvalidNumberFormat": "잘못된 숫자 형식",
 	"PropertyExpected": "속성 이름 필요",

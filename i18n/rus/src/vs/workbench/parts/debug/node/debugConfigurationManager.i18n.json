@@ -10,7 +10,7 @@
 	"app.launch.json.version": "Версия этого формата файла.",
 	"debugNoType": "Параметр type адаптера отладки не может быть опущен и должен иметь тип string.",
 	"duplicateDebuggerType": "Тип отладки \"{0}\" уже зарегистрирован и имеет атрибут \"{1}\". Атрибут \"{1}\" игнорируется.",
-	"selectDebug": "Выберите среду отладки",
+	"selectDebug": "Выбор среды",
 	"vscode.extension.contributes.debuggers": "Добавляет адаптеры отладки.",
 	"vscode.extension.contributes.debuggers.args": "Необязательные аргументы для передачи адаптеру.",
 	"vscode.extension.contributes.debuggers.configurationAttributes": "Конфигурации схемы JSON для проверки launch.json.",

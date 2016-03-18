@@ -77,6 +77,7 @@
 	"miToggleMenuBar": "Переключить строку &&меню",
 	"miToggleOutput": "Переключить в&&ыходные данные",
 	"miTogglePanel": "Переключить &&панель",
+	"miToggleRenderWhitespace": "Переключение &&отображения пробелов",
 	"miToggleSidebar": "&&Переключить боковую панель",
 	"miToggleWordWrap": "Изменить р&&ежим переноса по словам",
 	"miTwitter": "&&Присоединяйтесь к нам в Twitter",

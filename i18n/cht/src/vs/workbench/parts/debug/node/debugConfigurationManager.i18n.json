@@ -10,7 +10,7 @@
 	"app.launch.json.version": "此檔案格式的版本。",
 	"debugNoType": "偵錯配接器 'type' 不能省略且必須屬於 'string' 類型。",
 	"duplicateDebuggerType": "偵錯類型 '{0}' 已註冊並具有屬性 '{1}'，即將略過屬性 '{1}'。",
-	"selectDebug": "選取偵錯環境",
+	"selectDebug": "選取環境",
 	"vscode.extension.contributes.debuggers": "提供偵錯配接器。",
 	"vscode.extension.contributes.debuggers.args": "要傳遞至配接器的選擇性引數。",
 	"vscode.extension.contributes.debuggers.configurationAttributes": "JSON 結構描述組態，用於驗證 'launch.json'。",

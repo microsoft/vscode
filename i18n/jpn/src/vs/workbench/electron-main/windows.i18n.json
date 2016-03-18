@@ -9,6 +9,7 @@
 	"appStalled": "ウィンドウから応答がありません",
 	"appStalledDetail": "ウィンドウを再度開くか、閉じるか、このまま待機できます。",
 	"close": "閉じる",
+	"hiddenMenuBar": "引き続き **Alt** キーを押してメニュー バーにアクセスできます。",
 	"ok": "OK",
 	"pathNotExistDetail": "パス '{0}' はディスクに存在しなくなったようです。",
 	"pathNotExistTitle": "パスが存在しません",

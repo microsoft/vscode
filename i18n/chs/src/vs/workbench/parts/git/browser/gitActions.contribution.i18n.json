@@ -6,6 +6,7 @@
 {
 	"git": "GIT",
 	"openChange": "打开更改",
+	"openFile": "打开文件",
 	"openInEditor": "切换到编辑器视图",
 	"stageSelectedLines": "暂存选定行",
 	"switchToChangesView": "切换到更改视图"

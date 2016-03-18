@@ -12,7 +12,6 @@
 	"closeOtherFiles": "その他のファイルを閉じる",
 	"closeOtherLabel": "その他のファイルを閉じる",
 	"compareFiles": "ファイルの比較",
-	"compareLabels": "{0} ↔ {1}",
 	"compareSource": "比較対象の選択",
 	"compareWith": "'{0}' と比較",
 	"confirmDeleteMessageFile": "'{0}' を完全に削除してもよろしいですか?",

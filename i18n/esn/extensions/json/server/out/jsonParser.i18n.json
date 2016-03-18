@@ -23,7 +23,7 @@
 	"UnexpectedEndOfComment": "Final de comentario inesperado",
 	"UnexpectedEndOfNumber": "Final de número inesperado",
 	"UnexpectedEndOfString": "Final de cadena inesperado",
-	"ValueExpected": "Valor esperado",
+	"ValueExpected": "Se esperaba un valor",
 	"additionalItemsWarning": "La matriz tiene demasiados elementos según el esquema. Se esperan {0} o menos",
 	"enumWarning": "El valor no se acepta. Valores válidos: {0}",
 	"exclusiveMaximumWarning": "El valor es superior al máximo exclusivo de {0}",

@@ -9,6 +9,7 @@
 	"appStalled": "Das Fenster reagiert nicht mehr.",
 	"appStalledDetail": "Sie können das Fenster erneut öffnen oder schließen oder weiterhin warten.",
 	"close": "Schließen",
+	"hiddenMenuBar": "Sie können weiterhin auf die Menüleiste zugreifen, in dem Sie die **ALT**-Taste drücken.",
 	"ok": "OK",
 	"pathNotExistDetail": "Der Pfad \"{0}\" scheint auf dem Datenträger nicht mehr vorhanden zu sein.",
 	"pathNotExistTitle": "Der Pfad ist nicht vorhanden.",

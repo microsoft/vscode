@@ -17,7 +17,7 @@
 	"status.411": "Lunghezza obbligatoria. Il valore \"Content-Length\" non è definito.",
 	"status.412": "Precondizione non riuscita. Il server ha restituito false per la precondizione specificata nella richiesta.",
 	"status.413": "Entità della richiesta troppo estesa. Il server non accetterà la richiesta perché l'entità della richiesta è troppo estesa.",
-	"status.414": "URL della richiesta troppo lungo. Il server non accetterà la richiesta perché l'URL è troppo lungo.",
+	"status.414": "URI della richiesta troppo lungo. Il server non accetterà la richiesta perché l'URL è troppo lungo.",
 	"status.415": "Tipo di supporto non supportato. Il server non accetterà la richiesta perché il tipo di supporto non è supportato.",
 	"status.416": "Codice di stato HTTP {0}",
 	"status.500": "Errore interno del server.",

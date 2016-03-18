@@ -9,9 +9,9 @@
 	"ColonExpected": "コロンが必要です",
 	"CommaExpected": "コンマが必要です",
 	"EOFExpected": "コンテンツの終わりが必要です",
-	"InvalidNumberFormat": "無効な数値表示形式",
+	"InvalidNumberFormat": "正しくない数値表示形式",
 	"PropertyExpected": "プロパティ名が必要です",
-	"UnknownSymbol": "無効なシンボル",
+	"UnknownSymbol": "正しくないシンボル",
 	"ValeExpected": "値が必要です",
 	"ValueExpected": "値が必要です"
 }
