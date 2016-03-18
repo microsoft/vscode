@@ -323,7 +323,7 @@ function buildDebPackage(arch) {
 	], { cwd: '.build/linux/deb/' + debArch});
 }
 
-var rpmBuildPath = path.join(os.homedir(), 'rpmbuild');
+var rpmBuildPath = typeof os.homedir === 'function' ? path.join(os.homedir(), 'rpmbuild') : null;
 
 function getRpmPackageArch(arch) {
 	return { x64: 'x86_64', ia32: 'i386' }[arch];
