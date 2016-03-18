@@ -545,15 +545,15 @@ export class FoldingController implements editorCommon.IEditorContribution {
 						toFold = dec;
 					}
 				} else {
-					if (toFold) {
-						this.editor.changeDecorations(changeAccessor => {
-							toFold.setCollapsed(true, changeAccessor);
-							hasChanges = true;
-						});
-					}
-					return;
+					break;
 				}
 			};
+			if (toFold) {
+				this.editor.changeDecorations(changeAccessor => {
+					toFold.setCollapsed(true, changeAccessor);
+					hasChanges = true;
+				});
+			}
 		});
 		if (hasChanges) {
 			this.updateHiddenAreas(selections[0].startLineNumber);
