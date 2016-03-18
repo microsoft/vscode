@@ -172,6 +172,12 @@
 			}
 		},
 		{
+			"scope": "meta.header.diff",
+			"settings": {
+				"foreground": "#569cd6"
+			}
+		},
+		{
 			"scope": "storage",
 			"settings": {
 				"foreground": "#569cd6"
