@@ -119,38 +119,60 @@ export function isValidVersion(_version: string | INormalizedVersion, _desiredVe
 		return false;
 	}
 
-	if (version.majorBase < desiredVersion.majorBase) {
+	let majorBase = version.majorBase;
+	let minorBase = version.minorBase;
+	let patchBase = version.patchBase;
+
+	let desiredMajorBase = desiredVersion.majorBase;
+	let desiredMinorBase = desiredVersion.minorBase;
+	let desiredPatchBase = desiredVersion.patchBase;
+
+	let majorMustEqual = desiredVersion.majorMustEqual;
+	let minorMustEqual = desiredVersion.minorMustEqual;
+	let patchMustEqual = desiredVersion.patchMustEqual;
+
+	// Anything < 1.0.0 is compatible with >= 1.0.0, except exact matches
+	if (majorBase === 1 && desiredMajorBase === 0 && (!majorMustEqual || !minorMustEqual || !patchMustEqual)) {
+		desiredMajorBase = 1;
+		desiredMinorBase = 0;
+		desiredPatchBase = 0;
+		majorMustEqual = true;
+		minorMustEqual = false;
+		patchMustEqual = false;
+	}
+
+	if (majorBase < desiredMajorBase) {
 		// smaller major version
 		return false;
 	}
 
-	if (version.majorBase > desiredVersion.majorBase) {
+	if (majorBase > desiredMajorBase) {
 		// higher major version
-		return (!desiredVersion.majorMustEqual);
+		return (!majorMustEqual);
 	}
 
 	// at this point, majorBase are equal
 
-	if (version.minorBase < desiredVersion.minorBase) {
+	if (minorBase < desiredMinorBase) {
 		// smaller minor version
 		return false;
 	}
 
-	if (version.minorBase > desiredVersion.minorBase) {
+	if (minorBase > desiredMinorBase) {
 		// higher minor version
-		return (!desiredVersion.minorMustEqual);
+		return (!minorMustEqual);
 	}
 
 	// at this point, minorBase are equal
 
-	if (version.patchBase < desiredVersion.patchBase) {
+	if (patchBase < desiredPatchBase) {
 		// smaller patch version
 		return false;
 	}
 
-	if (version.patchBase > desiredVersion.patchBase) {
+	if (patchBase > desiredPatchBase) {
 		// higher patch version
-		return (!desiredVersion.patchMustEqual);
+		return (!patchMustEqual);
 	}
 
 	// at this point, patchBase are equal
