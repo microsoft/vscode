@@ -19,7 +19,6 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ListExtensionsAction, InstallExtensionAction, ListOutdatedExtensionsAction, ListSuggestedExtensionsAction } from './extensionsActions';
 import { ExtensionTipsService } from './extensionTipsService';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
-import { checkForLegacyExtensionNeeds } from './extensionsAssistant';
 import {ipcRenderer as ipc} from 'electron';
 
 interface IInstallExtensionsRequest {
@@ -59,7 +58,6 @@ export class ExtensionsWorkbenchExtension implements IWorkbenchContribution {
 		);
 
 		if (galleryService.isEnabled()) {
-			this.instantiationService.invokeFunction(checkForLegacyExtensionNeeds);
 
 			actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(InstallExtensionAction, InstallExtensionAction.ID, InstallExtensionAction.LABEL), ExtensionsLabel);
 
