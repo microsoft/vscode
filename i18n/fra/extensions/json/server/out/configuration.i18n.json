@@ -7,7 +7,7 @@
 	"schema.json": "Décrit un fichier JSON à l'aide d'un schéma. Pour plus d'informations, consultez json-schema.org.",
 	"schema.json.$schema": "Schéma servant à la vérification de ce document ",
 	"schema.json.additionalItems": "Pour les tableaux, uniquement lorsque les éléments sont définis comme tableau. S'il s'agit d'un schéma, celui-ci valide les éléments après ceux spécifiés par le tableau d'éléments. Si la valeur est false, les éléments supplémentaires entraînent l'échec de la validation.",
-	"schema.json.additionalProperties": "Schéma ou booléen. S'il s'agit d'un schéma, il est utilisé pour valider toutes les propriétés non mises en correspondance par 'properties' ou 'patternProperties'. Si la valeur est false, toutes les propriétés non mises en correspondance par l'un ou l'autre entraînent l'échec du schéma.",
+	"schema.json.additionalProperties": "Schéma ou booléen. S'il s'agit d'un schéma, il est utilisé pour valider toutes les propriétés non mises en correspondance par 'properties' ou 'patternProperties'. Si la valeur est false, les propriétés non mises en correspondance entraînent l'échec du schéma.",
 	"schema.json.allOf": "Tableau de schémas qui doivent tous correspondre.",
 	"schema.json.anyOf": "Tableau de schémas dont au moins un doit correspondre.",
 	"schema.json.default": "Valeur par défaut. Utilisée par les suggestions.",

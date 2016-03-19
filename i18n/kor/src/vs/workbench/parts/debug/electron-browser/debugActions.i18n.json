@@ -29,6 +29,7 @@
 	"renameFunctionBreakpoint": "함수 중단점 이름 바꾸기",
 	"renameWatchExpression": "식 이름 바꾸기",
 	"restartDebug": "다시 시작",
+	"run": "실행",
 	"selectConfig": "구성 선택",
 	"startDebug": "시작",
 	"stepIntoDebug": "단계 정보",

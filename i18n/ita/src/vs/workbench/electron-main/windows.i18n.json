@@ -9,6 +9,7 @@
 	"appStalled": "La finestra non risponde",
 	"appStalledDetail": "È possibile riaprire la finestra, chiuderla oppure attendere.",
 	"close": "Chiudi",
+	"hiddenMenuBar": "È comunque possibile accedere alla barra dei menu premendo **ALT**.",
 	"ok": "OK",
 	"pathNotExistDetail": "Il percorso '{0}' sembra non esistere più sul disco.",
 	"pathNotExistTitle": "Il percorso non esiste",

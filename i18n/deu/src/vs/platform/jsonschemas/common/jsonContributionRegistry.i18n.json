@@ -32,7 +32,7 @@
 	"schema.json.not": "Ein Schema, das nicht übereinstimmen darf.",
 	"schema.json.oneOf": "Ein Array von Schemas, von denen genau ein Schema übereinstimmen muss.",
 	"schema.json.pattern": "Ein regulärer Ausdruck, mit dem die Zeichenfolge verglichen wird. Er ist nicht implizit verankert.",
-	"schema.json.patternProperties": "Eine Zuordnung von regulären Ausdrücken bei Eigenschaftennamen zu Schemas zum Vergleichen von Eigenschaften.",
+	"schema.json.patternProperties": "Eine Zuordnung von regulären Ausdrücken für Eigenschaftennamen zu Schemas zum Vergleichen von Eigenschaften.",
 	"schema.json.properties": "Eine Zuordnung von Eigenschaftennamen zu Schemas für jede Eigenschaft.",
 	"schema.json.required": "Ein Array von Zeichenfolgen, das die Namen aller für dieses Objekt erforderlichen Eigenschaften auflistet.",
 	"schema.json.title": "Ein beschreibender Titel des Elements.",

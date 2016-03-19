@@ -10,7 +10,7 @@
 	"app.launch.json.version": "Die Version dieses Dateiformats.",
 	"debugNoType": "Der \"type\" des Debugadapters kann nicht ausgelassen werden und muss vom Typ \"string\" sein.",
 	"duplicateDebuggerType": "Der Debugtyp \"{0}\" ist bereits registriert und weist das Attribut \"{1}\" auf. Das Attribut \"{1}\" wird ignoriert.",
-	"selectDebug": "Debugumgebung auswählen",
+	"selectDebug": "Umgebung auswählen",
 	"vscode.extension.contributes.debuggers": "Trägt Debugadapter bei.",
 	"vscode.extension.contributes.debuggers.args": "Optionale Argumente, die an den Adapter übergeben werden sollen.",
 	"vscode.extension.contributes.debuggers.configurationAttributes": "JSON-Schemakonfigurationen zum Überprüfen von \"launch.json\".",

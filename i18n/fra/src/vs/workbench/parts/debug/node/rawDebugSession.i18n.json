@@ -6,6 +6,7 @@
 {
 	"debugAdapterBinNotFound": "Dossier bin de DebugAdapter introuvable dans le chemin {0}.",
 	"debugAdapterCrash": "Le processus de l'adaptateur de débogage s'est terminé de manière inattendue",
+	"moreInfo": "Informations",
 	"noDebugAdapterExtensionInstalled": "Aucune extension installée pour le débogage de '{0}'.",
 	"stoppingDebugAdapter": "{0}. Arrêt de l'adaptateur de débogage.",
 	"unableToLaunchDebugAdapter": "Impossible de lancer l'adaptateur de débogage à partir de {0}."

@@ -29,6 +29,7 @@
 	"renameFunctionBreakpoint": "関数ブレークポイントの名前変更",
 	"renameWatchExpression": "式の名前変更",
 	"restartDebug": "再起動",
+	"run": "実行",
 	"selectConfig": "構成の選択",
 	"startDebug": "開始",
 	"stepIntoDebug": "ステップ インする",

@@ -12,5 +12,5 @@
 	"readonlyEditorAriaLabel": "Редактор сравнения текста только для чтения.",
 	"readonlyEditorWithInputAriaLabel": "{0}. Редактор сравнения текста только для чтения.",
 	"sideBySideDiffLabel": "Переключиться на параллельное представление",
-	"textDiffEditor": "Редактор текстовых различий"
+	"textDiffEditor": "Редактор текстовых несовпадений"
 }

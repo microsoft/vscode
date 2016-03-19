@@ -9,6 +9,7 @@
 	"canNotRun": "コマンド '{0}' はここからは実行できません。",
 	"commandLabel": "{0}: {1}",
 	"entryAriaLabel": "{0}、コマンド",
+	"entryAriaLabelWithKey": "{0}、{1}、コマンド",
 	"noCommandsMatching": "一致するコマンドはありません",
 	"showTriggerActions": "すべてのコマンドの表示"
 }

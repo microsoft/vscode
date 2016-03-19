@@ -6,6 +6,7 @@
 {
 	"git": "Git",
 	"openChange": "변경 내용 열기",
+	"openFile": "파일 열기",
 	"openInEditor": "편집기 보기로 전환",
 	"stageSelectedLines": "선택한 줄 스테이징",
 	"switchToChangesView": "변경 내용 보기로 전환"

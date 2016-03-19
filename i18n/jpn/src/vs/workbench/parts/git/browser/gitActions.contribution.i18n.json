@@ -6,6 +6,7 @@
 {
 	"git": "Git",
 	"openChange": "変更を開く",
+	"openFile": "ファイルを開く",
 	"openInEditor": "エディター ビューに切り替える",
 	"stageSelectedLines": "選択した行のステージング",
 	"switchToChangesView": "変更の表示に切り替え"

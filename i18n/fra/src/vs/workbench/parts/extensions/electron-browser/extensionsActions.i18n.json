@@ -8,7 +8,7 @@
 	"installExtension": "Installer l'extension",
 	"restartNow": "Redémarrer maintenant",
 	"restartNow2": "Redémarrer maintenant",
-	"showExtensionTips": "Afficher les conseils relatifs à l'extension",
+	"showExtensionRecommendations": "Afficher les extensions recommandées",
 	"showInstalledExtensions": "Afficher les extensions installées",
 	"showOutdatedExtensions": "Afficher les extensions obsolètes",
 	"success-installed": "'{0}' a été installé correctement. Redémarrez pour l'activer.",

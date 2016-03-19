@@ -18,7 +18,7 @@
 	"noExtensionsInstalled": "Extensions introuvables",
 	"noExtensionsToInstall": "Extensions introuvables",
 	"noOutdatedExtensions": "Extensions obsolètes introuvables",
-	"noSuggestedExtensions": "Aucune extension suggérée",
+	"noRecommendedExtensions": "Aucune extension recommandée",
 	"nowInstalling": "'{0}' est en cours d'installation...",
 	"outdatedExtensionsHandlerAriaLabel": "Tapez pour réduire la liste des extensions obsolètes",
 	"readme": "Readme",

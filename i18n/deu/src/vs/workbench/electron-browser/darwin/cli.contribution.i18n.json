@@ -12,7 +12,7 @@
 	"changeNow": "Jetzt ändern",
 	"continue": "Weiter",
 	"editFile": "{0} bearbeiten",
-	"exists": "Bitte entfernen Sie den {0}-Alias in \"{1}\", und wiederholen Sie diese Aktion.",
+	"exists": "Bitte entfernen Sie den Alias in \"{1}\", der auf \"{0}\" verweist, und wiederholen Sie diese Aktion.",
 	"install": "Befehl \"code\" in \"PATH\" installieren",
 	"later": "Später",
 	"laterInfo": "Denken Sie daran, dass Sie die Aktion \"{0}\" immer über die Befehlspalette ausführen können.",

@@ -7,7 +7,7 @@
 	"schema.json": "使用結構描述來描述 JSON 檔案。如需詳細資訊，請參閱 json-schema.org。",
 	"schema.json.$schema": "用來驗證此文件的結構描述",
 	"schema.json.additionalItems": "用於陣列 (只有在項目設為陣列時)。若其為結構描述，此結構描述會驗證項目陣列所指定的項目之後的項目。若其為 False，則額外的項目會導致驗證失敗。",
-	"schema.json.additionalProperties": "為結構描述或布林值。若為結構描述，將會用於驗證所有不符合 'properties' 或 'patternProperties' 的屬性。若為 False，則所有不符合這兩項其中之一的屬性，都會導致此結構描述失敗。",
+	"schema.json.additionalProperties": "為結構描述或布林值。若為結構描述，將會用以驗證所有不符合 'properties' 或 'patternProperties' 的屬性。若為 false，則所有不符合這兩項其中之一的屬性，都會導致此結構描述失敗。",
 	"schema.json.allOf": "結構描述的陣列，必須全部符合。",
 	"schema.json.anyOf": "結構描述的陣列，其中必須至少有一個符合。",
 	"schema.json.default": "預設值。供建議使用。",

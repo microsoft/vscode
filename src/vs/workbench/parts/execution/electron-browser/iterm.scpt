@@ -10,7 +10,12 @@ on run argv
 	tell application "iTerm"
 		activate
 
-		set myterm to (current terminal)
+		if (count terminal) = 0 then
+			set myterm to (make new terminal)
+		else
+			set myterm to (current terminal)
+		end if
+
 		tell myterm
 			tell (launch session "Default")
 				write text command

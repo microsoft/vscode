@@ -8,7 +8,7 @@
 	"installExtension": "Установить расширение",
 	"restartNow": "Перезагрузка",
 	"restartNow2": "Перезагрузка",
-	"showExtensionTips": "Показывать советы по работе с расширением",
+	"showExtensionRecommendations": "Показать рекомендуемые расширения",
 	"showInstalledExtensions": "Показать установленные расширения",
 	"showOutdatedExtensions": "Показать устаревшие расширения",
 	"success-installed": "Расширение \"{0}\" было успешно установлено. Чтобы включить его, выполните перезапуск.",

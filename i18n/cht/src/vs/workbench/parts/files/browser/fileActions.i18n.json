@@ -12,7 +12,6 @@
 	"closeOtherFiles": "關閉其他檔案",
 	"closeOtherLabel": "關閉其他檔案",
 	"compareFiles": "比較檔案",
-	"compareLabels": "{0} ↔ {1}",
 	"compareSource": "選取用以比較",
 	"compareWith": "與 '{0}' 比較",
 	"confirmDeleteMessageFile": "您確定要永久刪除 '{0}' 嗎?",

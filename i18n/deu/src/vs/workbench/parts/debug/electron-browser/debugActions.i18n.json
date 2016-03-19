@@ -29,6 +29,7 @@
 	"renameFunctionBreakpoint": "Funktionshaltepunkt umbenennen",
 	"renameWatchExpression": "Ausdruck umbenennen",
 	"restartDebug": "Neu starten",
+	"run": "Ausführen",
 	"selectConfig": "Konfiguration auswählen",
 	"startDebug": "Starten",
 	"stepIntoDebug": "Einzelschritt",

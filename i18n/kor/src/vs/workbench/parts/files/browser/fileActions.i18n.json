@@ -12,7 +12,6 @@
 	"closeOtherFiles": "다른 파일 닫기",
 	"closeOtherLabel": "다른 파일 닫기",
 	"compareFiles": "파일 비교",
-	"compareLabels": "{0} ↔ {1}",
 	"compareSource": "비교를 위해 선택",
 	"compareWith": "'{0}'과(와) 비교",
 	"confirmDeleteMessageFile": "'{0}'을(를) 영구히 삭제할까요?",

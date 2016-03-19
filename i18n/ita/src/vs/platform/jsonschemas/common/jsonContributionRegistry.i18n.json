@@ -7,7 +7,7 @@
 	"schema.json": "Descrive un file JSON che usa uno schema. Per altre informazioni, visitare il sito json-schema.org.",
 	"schema.json.$schema": "Schema da usare per la verifica di questo documento ",
 	"schema.json.additionalItems": "Per le matrici solo quando gli elementi sono impostati come una matrice. Se è uno schema, convalida gli elementi dopo quelli specificati dalla matrice di elementi. Se è false, gli elementi aggiuntivi impediranno la convalida.",
-	"schema.json.additionalProperties": "Uno schema o un valore booleano. Se è uno schema, viene usato per convalidare tutte le proprietà che non corrispondono a 'properties' o 'patternProperties'. Se è false, eventuali proprietà non corrispondenti a nessuna delle due bloccheranno lo schema.",
+	"schema.json.additionalProperties": "Schema o valore booleano. Se è uno schema, viene usato per convalidare tutte le proprietà che non corrispondono a 'properties' o 'patternProperties'. Se è false, eventuali proprietà non corrispondenti a nessuna delle due bloccheranno lo schema.",
 	"schema.json.allOf": "Matrice di schemi che devono tutti avere una corrispondenza.",
 	"schema.json.anyOf": "Matrice di schemi, in cui almeno uno deve avere una corrispondenza.",
 	"schema.json.default": "Valore predefinito. Usato dai suggerimenti.",

@@ -9,6 +9,7 @@
 	"canNotRun": "Выполнить команду {0} отсюда невозможно.",
 	"commandLabel": "{0}: {1}",
 	"entryAriaLabel": "{0}, команды",
+	"entryAriaLabelWithKey": "{0}, {1}, команды",
 	"noCommandsMatching": "Нет соответствующих команд",
 	"showTriggerActions": "Показать все команды"
 }

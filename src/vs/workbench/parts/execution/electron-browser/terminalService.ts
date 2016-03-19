@@ -45,7 +45,7 @@ export class MacTerminalService implements ITerminalService {
 
 		return this._terminalApplicationScriptPath = new TPromise<string>((c, e) => {
 			let version = '';
-			let child = cp.spawn('/usr/bin/osascript', ['-e', 'item (((exists application "iTerm") as integer) + 1) of {0, version of application "iTerm"}']);
+			let child = cp.spawn('/usr/bin/osascript', ['-e', 'version of application "iTerm"']);
 			child.on('error', e);
 			child.stdout.on('data', (data) => {
 				version += data.toString();

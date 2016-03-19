@@ -12,5 +12,5 @@
 	"vscode.extension.contributes.commandType.category": "(Facoltativo) Stringa di categoria in base a cui è raggruppato il comando nell'interfaccia utente",
 	"vscode.extension.contributes.commandType.command": "Identificatore del comando da eseguire",
 	"vscode.extension.contributes.commandType.title": "Titolo con cui è rappresentato il comando nell'interfaccia utente.",
-	"vscode.extension.contributes.commands": "Comandi di contributes per il pannello comandi."
+	"vscode.extension.contributes.commands": "Comandi di contributes per il riquadro comandi."
 }

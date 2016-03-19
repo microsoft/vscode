@@ -29,6 +29,7 @@
 	"renameFunctionBreakpoint": "Переименовать точку останова в функции",
 	"renameWatchExpression": "Переименовать выражение",
 	"restartDebug": "Перезапустить",
+	"run": "Запуск",
 	"selectConfig": "Выбрать конфигурацию",
 	"startDebug": "Пуск",
 	"stepIntoDebug": "Шаг с заходом",

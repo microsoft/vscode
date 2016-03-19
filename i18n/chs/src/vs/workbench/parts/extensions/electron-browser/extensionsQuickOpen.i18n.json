@@ -18,7 +18,7 @@
 	"noExtensionsInstalled": "找不到扩展",
 	"noExtensionsToInstall": "找不到扩展",
 	"noOutdatedExtensions": "找不到过时扩展",
-	"noSuggestedExtensions": "没有建议的扩展",
+	"noRecommendedExtensions": "没有推荐的扩展",
 	"nowInstalling": "正在安装“{0}”...",
 	"outdatedExtensionsHandlerAriaLabel": "键入以缩小过时扩展列表的范围",
 	"readme": "自述文件",

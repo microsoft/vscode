@@ -12,5 +12,5 @@
 	"readonlyEditorAriaLabel": "唯讀文字比較編輯器。",
 	"readonlyEditorWithInputAriaLabel": "{0}。唯讀文字比較編輯器。",
 	"sideBySideDiffLabel": "切換至並排檢視",
-	"textDiffEditor": "文字差異編輯器"
+	"textDiffEditor": "文字 Diff 編輯器"
 }

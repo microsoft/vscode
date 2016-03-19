@@ -6,6 +6,7 @@
 {
 	"git": "GIT",
 	"openChange": "Abrir cambio",
+	"openFile": "Abrir archivo",
 	"openInEditor": "Cambiar a la vista de editor",
 	"stageSelectedLines": "Almacenar provisionalmente las líneas seleccionadas",
 	"switchToChangesView": "Cambiar a la vista de cambios"

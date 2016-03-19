@@ -6,6 +6,11 @@
 {
 	"foldAction.label": "Falten",
 	"foldAllAction.label": "Alle falten",
-	"unfoldAction.label": "Entfalten",
-	"unfoldAllAction.label": "Alle entfalten"
+	"foldLevel1Action.label": "Faltebene 1",
+	"foldLevel2Action.label": "Faltebene 2",
+	"foldLevel3Action.label": "Faltebene 3",
+	"foldLevel4Action.label": "Faltebene 4",
+	"foldLevel5Action.label": "Faltebene 5",
+	"unfoldAction.label": "Auffalten",
+	"unfoldAllAction.label": "Alle auffalten"
 }

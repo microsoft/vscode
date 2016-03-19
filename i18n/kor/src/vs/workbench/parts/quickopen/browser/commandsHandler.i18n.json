@@ -9,6 +9,7 @@
 	"canNotRun": "'{0}' 명령은 여기에서 실행할 수 없습니다.",
 	"commandLabel": "{0}: {1}",
 	"entryAriaLabel": "{0}, 명령",
+	"entryAriaLabelWithKey": "{0}, {1}, 명령",
 	"noCommandsMatching": "일치하는 명령 없음",
 	"showTriggerActions": "모든 명령 표시"
 }

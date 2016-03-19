@@ -23,15 +23,15 @@
 	"UnexpectedEndOfComment": "意外的注释结尾",
 	"UnexpectedEndOfNumber": "意外的数字结尾",
 	"UnexpectedEndOfString": "意外的字符串结尾",
-	"ValueExpected": "预期的值",
-	"additionalItemsWarning": "根据架构，阵列项目过多。预期为 {0} 或更少",
+	"ValueExpected": "需要值",
+	"additionalItemsWarning": "根据架构，数组项目过多。预期为 {0} 或更少",
 	"enumWarning": "值不是一个可接受的值。有效值为: {0}",
 	"exclusiveMaximumWarning": "值超过了最大值 {0}(不含)",
 	"exclusiveMinimumWarning": "值低于最小值 {0}(不含)",
-	"maxItemsWarning": "阵列拥有的项目过多。预期为 {0} 或更少",
+	"maxItemsWarning": "数组拥有的项目过多。预期为 {0} 或更少",
 	"maxLengthWarning": "字符串短于最大长度 ",
 	"maximumWarning": "值超过了最大值 {0}",
-	"minItemsWarning": "阵列拥有的项目过少。预期为 {0} 或更多",
+	"minItemsWarning": "数组拥有的项目过少。预期为 {0} 或更多",
 	"minLengthWarning": "字符串短于最小长度 ",
 	"minimumWarning": "值低于最小值 {0}",
 	"multipleOfWarning": "值不能被 {0} 整除",
@@ -40,5 +40,5 @@
 	"patternWarning": "字符串不匹配“{0}”的模式",
 	"typeArrayMismatchWarning": "错误类型。预期为 {0} 的一种",
 	"typeMismatchWarning": "错误类型。预期为“{0}”",
-	"uniqueItemsWarning": "阵列有重复的项目"
+	"uniqueItemsWarning": "数组有重复的项目"
 }

@@ -8,7 +8,7 @@
 	"installExtension": "Extension installieren",
 	"restartNow": "Jetzt neu starten",
 	"restartNow2": "Jetzt neu starten",
-	"showExtensionTips": "Extensiontipps anzeigen",
+	"showExtensionRecommendations": "Extensionempfehlungen anzeigen",
 	"showInstalledExtensions": "Installierte Extensions anzeigen",
 	"showOutdatedExtensions": "Veraltete Extensions anzeigen",
 	"success-installed": "{0} wurde erfolgreich installiert. Führen Sie zur Aktivierung einen Neustart aus.",
