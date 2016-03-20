@@ -9,7 +9,7 @@
 update-alternatives --install /usr/bin/editor editor /usr/bin/@@NAME@@ 0
 
 # Remove the legacy bin command if this is the stable build
-if [ "@@NAME@@" = "code"] then
+if [ "@@NAME@@" = "code" ]; then
 	rm -f /usr/local/bin/code
 fi
 
