@@ -9,6 +9,7 @@ import uri from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {ITerminalService} from 'vs/workbench/parts/execution/common/execution';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {defaultWindowsTerm, defaultLinuxTerm} from 'vs/workbench/parts/execution/common/terminal';
 
 import cp = require('child_process');
 import processes = require('vs/base/node/processes');
@@ -41,7 +42,8 @@ export class WinTerminalService implements ITerminalService {
 
 	private spawnTerminal(spawner, configuration, command: string, path: string, onExit, onError) {
 		let terminalConfig = configuration.terminal;
-		let cmdArgs = ['/c', 'start', '/wait', terminalConfig.windows.exec];
+		let exec = terminalConfig.windows.exec || defaultWindowsTerm;
+		let cmdArgs = ['/c', 'start', '/wait', exec];
 
 		let child = spawner.spawn(command, cmdArgs, { cwd: path });
 		child.on('error', onError);
@@ -101,8 +103,8 @@ export class LinuxTerminalService implements ITerminalService {
 
 	private spawnTerminal(spawner, configuration, path: string, onExit, onError) {
 		let terminalConfig = configuration.terminal;
-
-		const child = spawner.spawn(terminalConfig.linux.exec, [], { cwd: path });
+		let exec = terminalConfig.linux.exec || defaultLinuxTerm;
+		const child = spawner.spawn(exec, [], { cwd: path });
 		child.on('error', onError);
 		child.on('exit', onExit);
 	}

@@ -20,6 +20,7 @@ import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 import {Extensions, IConfigurationRegistry} from 'vs/platform/configuration/common/configurationRegistry';
+import {defaultWindowsTerm, defaultLinuxTerm} from 'vs/workbench/parts/execution/common/terminal';
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -35,7 +36,7 @@ configurationRegistry.registerConfiguration({
 				'exec': {
 					'type': 'string',
 					'description': nls.localize('terminal.windows.exec', "Customizes which terminal to run."),
-					'default': 'cmd'
+					'default': defaultWindowsTerm
 				}
 			}
 		},
@@ -46,7 +47,7 @@ configurationRegistry.registerConfiguration({
 				'exec': {
 					'type': 'string',
 					'description': nls.localize('terminal.linux.exec', "Customizes which terminal to run."),
-					'default': 'x-terminal-emulator'
+					'default': defaultLinuxTerm
 				}
 			}
 		}
