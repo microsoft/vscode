@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import nodes = require('./cssNodes');
+import * as nls from 'vs/nls';
+import * as nodes from './cssNodes';
 
 export class CSSIssueType implements nodes.IRule {
 	id: string;

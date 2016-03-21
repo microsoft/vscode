@@ -5,10 +5,10 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import winjs = require('vs/base/common/winjs.base');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import htmlWorker = require('vs/languages/html/common/htmlWorker');
+import * as winjs from 'vs/base/common/winjs.base';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as htmlWorker from 'vs/languages/html/common/htmlWorker';
 import { AbstractMode, createWordRegExp, ModeWorkerManager } from 'vs/editor/common/modes/abstractMode';
 import { AbstractState } from 'vs/editor/common/modes/abstractState';
 import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';

@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import mm = require('vs/editor/common/model/mirrorModel');
-import cssWorker = require('vs/languages/css/common/cssWorker');
+import * as assert from 'assert';
+import * as mm from 'vs/editor/common/model/mirrorModel';
+import * as cssWorker from 'vs/languages/css/common/cssWorker';
 import URI from 'vs/base/common/uri';
-import ResourceService = require('vs/editor/common/services/resourceServiceImpl');
-import MarkerService = require('vs/platform/markers/common/markerService');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import WinJS = require('vs/base/common/winjs.base');
-import cssErrors = require('vs/languages/css/common/parser/cssErrors');
-import servicesUtil2 = require('vs/editor/test/common/servicesTestUtils');
-import modesUtil = require('vs/editor/test/common/modesTestUtils');
+import * as ResourceService from 'vs/editor/common/services/resourceServiceImpl';
+import * as MarkerService from 'vs/platform/markers/common/markerService';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as winjs from 'vs/base/common/winjs.base';
+import * as cssErrors from 'vs/languages/css/common/parser/cssErrors';
+import * as servicesUtil2 from 'vs/editor/test/common/servicesTestUtils';
+import * as modesUtil from 'vs/editor/test/common/modesTestUtils';
 import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
 import {IMarker} from 'vs/platform/markers/common/markers';
 
@@ -69,7 +69,7 @@ suite('Validation - CSS', () => {
 		return { worker: worker, model: model, markers: markers };
 	};
 
-	var testSuggestionsFor = function(value:string, stringBefore:string):WinJS.TPromise<Modes.ISuggestResult> {
+	var testSuggestionsFor = function(value:string, stringBefore:string):winjs.TPromise<Modes.ISuggestResult> {
 		var url = URI.parse('test://1');
 		var env = mockCSSWorkerEnv(url, value);
 
@@ -78,7 +78,7 @@ suite('Validation - CSS', () => {
 		return env.worker.suggest(url, position).then(result => result[0]);
 	};
 
-	var testValueSetFor = function(value:string, selection:string, selectionLength: number, up: boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
+	var testValueSetFor = function(value:string, selection:string, selectionLength: number, up: boolean):winjs.TPromise<Modes.IInplaceReplaceSupportResult> {
 		var url = URI.parse('test://1');
 		var env = mockCSSWorkerEnv(url, value);
 
@@ -88,7 +88,7 @@ suite('Validation - CSS', () => {
 		return env.worker.navigateValueSet(url, range, up);
 	};
 
-	var testOccurrences = function (value: string, tokenBefore: string): WinJS.TPromise<{ occurrences: Modes.IOccurence[]; model: mm.MirrorModel; }> {
+	var testOccurrences = function (value: string, tokenBefore: string): winjs.TPromise<{ occurrences: Modes.IOccurence[]; model: mm.MirrorModel; }> {
 		var url = URI.parse('test://1');
 		var env = mockCSSWorkerEnv(url, value);
 
@@ -97,7 +97,7 @@ suite('Validation - CSS', () => {
 		return env.worker.findOccurrences(url, pos).then((occurrences) => { return { occurrences: occurrences, model: env.model}; });
 	};
 
-	var testQuickFixes = function (value: string, tokenBefore: string): WinJS.TPromise<{ fixes: Modes.IQuickFix[]; model: mm.MirrorModel; }> {
+	var testQuickFixes = function (value: string, tokenBefore: string): winjs.TPromise<{ fixes: Modes.IQuickFix[]; model: mm.MirrorModel; }> {
 		var url = URI.parse('test://1');
 		var env = mockCSSWorkerEnv(url, value);
 
@@ -138,7 +138,7 @@ suite('Validation - CSS', () => {
 	};
 
 	test('Intellisense', function(testDone): any {
-		WinJS.Promise.join([
+		winjs.Promise.join([
 			testSuggestionsFor(' ', null).then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '');
 				assertSuggestion(completion, '@import');
@@ -272,7 +272,7 @@ suite('Validation - CSS', () => {
 	});
 
 	test('Value sets', function(testDone): any {
-		WinJS.Promise.join([
+		winjs.Promise.join([
 			testValueSetFor('body { display: inline }', 'inline', 6, false).then(function(result:Modes.IInplaceReplaceSupportResult):void  {
 				assertReplaceResult(result, 'flex');
 			}),
@@ -294,7 +294,7 @@ suite('Validation - CSS', () => {
 	});
 
 	test('Occurrences', function(testDone): any {
-		WinJS.Promise.join([
+		winjs.Promise.join([
 			testOccurrences('body { /*here*/display: inline } #foo { display: inline }', '/*here*/').then((result) =>  {
 				assertOccurrences(result.occurrences, result.model, 2, 'display');
 			}),
@@ -316,7 +316,7 @@ suite('Validation - CSS', () => {
 	});
 
 	test('Quick Fixes', function(testDone): any {
-		WinJS.Promise.join([
+		winjs.Promise.join([
 			testQuickFixes('body { /*here*/displai: inline }', '/*here*/').then((result) =>  {
 				assertQuickFix(result.fixes, result.model, [ 'Rename to \'display\'']);
 			}),

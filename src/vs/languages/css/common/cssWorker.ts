@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import _severity from 'vs/base/common/severity';
-import strings = require('vs/base/common/strings');
-import winjs = require('vs/base/common/winjs.base');
-import languageService = require('vs/languages/css/common/services/cssLanguageService');
-import languageFacts = require('vs/languages/css/common/services/languageFacts');
-import occurrences = require('./services/occurrences');
-import cssIntellisense = require('vs/languages/css/common/services/intelliSense');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import nodes = require('vs/languages/css/common/parser/cssNodes');
-import _level = require('vs/languages/css/common/level');
-import parser = require('vs/languages/css/common/parser/cssParser');
-import selectorPrinting = require('vs/languages/css/common/services/selectorPrinting');
-import lint = require('vs/languages/css/common/services/lint');
-import lintRules = require('vs/languages/css/common/services/lintRules');
+import * as strings from 'vs/base/common/strings';
+import * as winjs from 'vs/base/common/winjs.base';
+import * as languageService from 'vs/languages/css/common/services/cssLanguageService';
+import * as languageFacts from 'vs/languages/css/common/services/languageFacts';
+import * as occurrences from './services/occurrences';
+import * as cssIntellisense from 'vs/languages/css/common/services/intelliSense';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
+import * as _level from 'vs/languages/css/common/level';
+import * as parser from 'vs/languages/css/common/parser/cssParser';
+import * as selectorPrinting from 'vs/languages/css/common/services/selectorPrinting';
+import * as lint from 'vs/languages/css/common/services/lint';
+import * as lintRules from 'vs/languages/css/common/services/lintRules';
 import {IMarker, IMarkerData} from 'vs/platform/markers/common/markers';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
