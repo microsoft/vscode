@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import types = require('vs/base/common/types');
-import _level = require('vs/languages/css/common/level');
+import * as types from 'vs/base/common/types';
+import * as _level from 'vs/languages/css/common/level';
 
 /// <summary>
 /// Nodes for the css 2.1 specification. See for reference:

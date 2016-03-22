@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-import assert = require('assert');
-import languageFacts = require('vs/languages/css/common/services/languageFacts');
-import _parser = require('vs/languages/css/common/parser/cssParser');
-import nodes = require ('vs/languages/css/common/parser/cssNodes');
-import workerTests = require('./css-worker.test');
+import * as assert from 'assert';
+import * as languageFacts from 'vs/languages/css/common/services/languageFacts';
+import * as _parser from 'vs/languages/css/common/parser/cssParser';
+import * as nodes from 'vs/languages/css/common/parser/cssNodes';
+import * as workerTests from './css-worker.test';
 
 export function assertColor(parser: _parser.Parser, text: string, selection: string, isColor: boolean):void {
 	var stylesheet = parser.parseStylesheet(workerTests.mockMirrorModel(text));

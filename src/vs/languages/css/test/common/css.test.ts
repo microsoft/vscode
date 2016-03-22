@@ -5,10 +5,10 @@
 'use strict';
 
 import 'vs/languages/css/common/css.contribution';
-import cssMode = require('vs/languages/css/common/css');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import modesUtil = require('vs/editor/test/common/modesUtil');
+import * as cssMode from 'vs/languages/css/common/css';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as modesUtil from 'vs/editor/test/common/modesUtil';
 import {cssTokenTypes} from 'vs/languages/css/common/css';
 
 suite('CSS Colorizing', () => {

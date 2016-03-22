@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import javascriptWorker = require('vs/languages/javascript/common/javascriptWorker');
-import typescriptMode = require('vs/languages/typescript/common/typescriptMode');
-import typescript = require('vs/languages/typescript/common/typescript');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import extensions = require('vs/languages/javascript/common/javascript.extensions');
+import * as javascriptWorker from 'vs/languages/javascript/common/javascriptWorker';
+import * as typescriptMode from 'vs/languages/typescript/common/typescriptMode';
+import * as typescript from 'vs/languages/typescript/common/typescript';
+import * as EditorCommon from 'vs/editor/common/editorCommon';
+import * as Modes from 'vs/editor/common/modes';
+import * as extensions from 'vs/languages/javascript/common/javascript.extensions';
 import {createWordRegExp, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 import {IThreadService} from 'vs/platform/thread/common/thread';
