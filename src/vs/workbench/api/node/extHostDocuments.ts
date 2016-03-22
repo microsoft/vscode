@@ -528,7 +528,7 @@ export class MainThreadDocuments {
 	private _shouldHandleFileEvent(e: LocalFileChangeEvent): boolean {
 		const after = e.getAfter();
 		const model = this._modelService.getModel(after.resource);
-		return !model && !model.isTooLargeForHavingARichMode();
+		return model && !model.isTooLargeForHavingARichMode();
 	}
 
 	private _onModelAdded(model: EditorCommon.IModel): void {
