@@ -86,11 +86,11 @@
 					"type": "boolean"
 				},
 				"noResolve": {
-					"description": "When down-level compiling, do not add triple-slash references or module import targets to the input files.",
+					"description": "When down-level compiling, do not resolve triple-slash references or module import targets to the input files.",
 					"type": "boolean"
 				},
 				"skipDefaultLibCheck": {
-					"description": "When down-level compiling, do not check for the default library (lib.d.ts).",
+					"description": "Do not check for the default library (lib.d.ts).",
 					"type": "boolean"
 				},
 				"outFile": {
