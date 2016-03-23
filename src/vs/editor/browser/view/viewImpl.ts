@@ -6,7 +6,7 @@
 
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {EventEmitter, IEmitterEvent, IEventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as timer from 'vs/base/common/timer';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
@@ -501,7 +501,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		});
 		this.listenersToRemove = [];
 
-		this.listenersToDispose = disposeAll(this.listenersToDispose);
+		this.listenersToDispose = dispose(this.listenersToDispose);
 
 		this.keyboardHandler.dispose();
 		this.pointerHandler.dispose();

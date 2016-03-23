@@ -297,7 +297,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	}
 
 	public dispose(): void {
-		this._disposables = lifecycle.disposeAll(this._disposables);
+		this._disposables = lifecycle.dispose(this._disposables);
 	}
 
 	_shouldBeValidated(model: EditorCommon.IModel): boolean {

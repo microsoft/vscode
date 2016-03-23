@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {IAction} from 'vs/base/common/actions';
 import {KeyCode, KeyMod, Keybinding} from 'vs/base/common/keyCodes';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {SortedList} from 'vs/base/common/sortedList';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
@@ -248,7 +248,7 @@ class ContextMenuController implements IEditorContribution {
 			this.contextViewService.hideContextView();
 		}
 
-		this._toDispose = disposeAll(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
 	}
 }
 

@@ -5,7 +5,7 @@
 'use strict';
 
 import Event, {Emitter} from 'vs/base/common/event';
-import {Disposable, IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {Disposable, IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
@@ -267,7 +267,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		this.context.removeEventHandler(this);
 		this.textAreaHandler.dispose();
 		this.textArea.dispose();
-		this._toDispose = disposeAll(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
 	}
 
 	private _getStrategy(): TextAreaStrategy {

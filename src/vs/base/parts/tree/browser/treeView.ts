@@ -1645,7 +1645,7 @@ export class TreeView extends HeightMap implements IScrollable {
 		this.releaseModel();
 		this.modelListeners = null;
 
-		this.viewListeners = Lifecycle.disposeAll(this.viewListeners);
+		this.viewListeners = Lifecycle.dispose(this.viewListeners);
 
 		if (this.domNode.parentNode) {
 			this.domNode.parentNode.removeChild(this.domNode);

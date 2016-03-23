@@ -9,7 +9,7 @@
 import * as nls from 'vs/nls';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
@@ -173,7 +173,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 
 	public dispose(): void {
 		this.cleanState();
-		this.globalToDispose = disposeAll(this.globalToDispose);
+		this.globalToDispose = dispose(this.globalToDispose);
 	}
 
 	/**
@@ -214,7 +214,7 @@ export class FoldingController implements editorCommon.IEditorContribution {
 	}
 
 	private cleanState(): void {
-		this.localToDispose = disposeAll(this.localToDispose);
+		this.localToDispose = dispose(this.localToDispose);
 	}
 
 	private applyRegions(regions: IFoldingRange[]) {

@@ -7,7 +7,7 @@
 
 import 'vs/css!./timer';
 import {TimeKeeper, ITimerEvent, getTimeKeeper} from 'vs/base/common/timer';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import DomUtils = require('vs/base/browser/dom');
 
 interface IUnmatchedStartTimerEvent {
@@ -50,7 +50,7 @@ export class TimeKeeperRenderer {
 	public destroy(): void {
 		document.body.removeChild(this.outerDomNode);
 		window.clearInterval(this.intervalTokenId);
-		this.listenersToRemove = disposeAll(this.listenersToRemove);
+		this.listenersToRemove = dispose(this.listenersToRemove);
 	}
 
 	private _createDomNode(): HTMLElement {

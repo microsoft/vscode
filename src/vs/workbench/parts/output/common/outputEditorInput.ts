@@ -151,7 +151,7 @@ export class OutputEditorInput extends StringEditorInput {
 
 	public dispose(): void {
 		this.appendOutputScheduler.dispose();
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 
 		super.dispose();
 	}

@@ -6,7 +6,7 @@
 import { IScrollable } from 'vs/base/common/scrollable';
 import { Emitter } from 'vs/base/common/event';
 import { toObject, assign } from 'vs/base/common/objects';
-import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Gesture } from 'vs/base/browser/touch';
 import * as DOM from 'vs/base/browser/dom';
 import { IScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -350,6 +350,6 @@ export class ListView<T> implements IScrollable, IDisposable {
 			this._domNode = null;
 		}
 
-		this.toDispose = disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 	}
 }

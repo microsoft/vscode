@@ -77,7 +77,7 @@ export class TypeScriptWorker2 {
 			this._modelListener[key]();
 			delete this._modelListener[key];
 		}
-		this._disposables = lifecycle.disposeAll(this._disposables);
+		this._disposables = lifecycle.dispose(this._disposables);
 	}
 
 	// ---- typescript project

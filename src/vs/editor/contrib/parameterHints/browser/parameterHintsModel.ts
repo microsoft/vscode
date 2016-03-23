@@ -7,7 +7,7 @@
 import {ThrottledDelayer} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {EventEmitter, IEventEmitter, ListenerCallback} from 'vs/base/common/eventEmitter';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EventType, ICommonCodeEditor, ICursorSelectionChangedEvent, IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
 import {IParameterHints} from 'vs/editor/common/modes';
@@ -96,7 +96,7 @@ export class ParameterHintsModel extends EventEmitter {
 	}
 
 	private onModelChanged(): void {
-		this.triggerCharactersListeners = disposeAll(this.triggerCharactersListeners);
+		this.triggerCharactersListeners = dispose(this.triggerCharactersListeners);
 
 		var model = this.editor.getModel();
 		if (!model) {
@@ -145,8 +145,8 @@ export class ParameterHintsModel extends EventEmitter {
 	public dispose(): void {
 		this.cancel(true);
 
-		this.triggerCharactersListeners = disposeAll(this.triggerCharactersListeners);
-		this.toDispose = disposeAll(this.toDispose);
+		this.triggerCharactersListeners = dispose(this.triggerCharactersListeners);
+		this.toDispose = dispose(this.toDispose);
 
 		this.emit('destroy', null);
 

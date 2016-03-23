@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable, disposeAll, Disposable} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose, Disposable} from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
@@ -144,8 +144,8 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 
 	public dispose(): void {
 		this.context.removeEventHandler(this);
-		this.listenersToRemove = disposeAll(this.listenersToRemove);
-		this.toDispose = disposeAll(this.toDispose);
+		this.listenersToRemove = dispose(this.listenersToRemove);
+		this.toDispose = dispose(this.toDispose);
 		this._mouseDownOperation.dispose();
 	}
 

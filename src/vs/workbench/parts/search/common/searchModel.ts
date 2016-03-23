@@ -315,8 +315,8 @@ export class SearchResult extends EventEmitter {
 	}
 
 	public dispose(): void {
-		this._disposables = lifecycle.disposeAll(this._disposables);
-		lifecycle.disposeAll(this.matches());
+		this._disposables = lifecycle.dispose(this._disposables);
+		lifecycle.dispose(this.matches());
 		super.dispose();
 	}
 }

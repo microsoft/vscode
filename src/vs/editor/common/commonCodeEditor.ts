@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import {IAction, IActionProvider, isAction} from 'vs/base/common/actions';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {EventEmitter, IEventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -145,7 +145,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 
 	public dispose(): void {
 		this._codeEditorService.removeCodeEditor(this);
-		this._lifetimeDispose = disposeAll(this._lifetimeDispose);
+		this._lifetimeDispose = dispose(this._lifetimeDispose);
 
 		var contributionId:string;
 		for (contributionId in this.contributions) {

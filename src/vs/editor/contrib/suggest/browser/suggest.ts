@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IDisposable, cAll, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, cAll, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
@@ -70,7 +70,7 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	public dispose(): void {
-		this.toDispose = disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 		this.triggerCharacterListeners = cAll(this.triggerCharacterListeners);
 
 		if (this.widget) {

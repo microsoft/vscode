@@ -5,7 +5,7 @@
 'use strict';
 
 import {clone} from 'vs/base/common/objects';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IThreadService, Remotable} from 'vs/platform/thread/common/thread';
 import {IConfigurationService, ConfigurationServiceEventTypes, IConfigurationServiceEvent} from 'vs/platform/configuration/common/configuration';
 import Event, {Emitter} from 'vs/base/common/event';
@@ -94,6 +94,6 @@ export class MainThreadConfiguration {
 	}
 
 	public dispose(): void {
-		this._toDispose = disposeAll(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
 	}
 }

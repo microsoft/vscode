@@ -19,7 +19,7 @@ import {Action} from 'vs/base/common/actions';
 import {IMode} from 'vs/editor/common/modes';
 import {UntitledEditorInput} from 'vs/workbench/common/editor/untitledEditorInput';
 import {IFileEditorInput, EncodingMode, IEncodingSupport, asFileEditorInput, getUntitledOrFileResource} from 'vs/workbench/common/editor';
-import {IDisposable, combinedDispose} from 'vs/base/common/lifecycle';
+import {IDisposable, combinedDisposable} from 'vs/base/common/lifecycle';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
@@ -271,7 +271,7 @@ export class EditorStatus implements IStatusbarItem {
 			this.eventService.addListener2(EventType.TEXT_EDITOR_CONTENT_OPTIONS_CHANGED, (e: EditorEvent) => this.onIndentationChange(e.editor))
 		);
 
-		return combinedDispose(...this.toDispose);
+		return combinedDisposable(this.toDispose);
 	}
 
 	private updateState(update: StateDelta): void {
