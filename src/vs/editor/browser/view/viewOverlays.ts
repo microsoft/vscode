@@ -126,14 +126,27 @@ class ViewOverlayLine implements IVisibleLineData {
 	}
 
 	private _piecesEqual(newPieces: string[]): boolean {
-		if (!this._renderPieces || this._renderPieces.length !== newPieces.length) {
+		if (!this._renderPieces) {
 			return false;
 		}
-		for (var i = 0, len = newPieces.length; i < len; i++) {
+
+		let myLen = this._renderPieces.length;
+		let newLen = newPieces.length;
+
+		if (myLen !== newLen) {
+			return false;
+		}
+
+		if (newLen === 0) {
+			return true;
+		}
+
+		for (let i = 0; i < newLen; i++) {
 			if (this._renderPieces[i] !== newPieces[i]) {
 				return false;
 			}
 		}
+
 		return true;
 	}
 

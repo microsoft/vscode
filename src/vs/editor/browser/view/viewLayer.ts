@@ -492,7 +492,54 @@ class ViewLayerRenderer {
 		ctx.lines.splice(removeIndex, removeCount);
 	}
 
+	private static _resolveInlineDecorations(ctx: IRendererContext): editorCommon.IModelDecoration[][] {
+		let result: editorCommon.IModelDecoration[][] = [];
+		for (let i = 0, len = ctx.linesLength; i < len; i++) {
+			let lineNumber = i + ctx.rendLineNumberStart;
+			result[i] = ctx.getInlineDecorationsForLineInViewport(lineNumber);
+		}
+		return result;
+	}
+
+	private _finishRenderingNewLines(ctx: IRendererContext, domNodeIsEmpty:boolean, newLinesHTML: string[], wasNew: boolean[]): void {
+		var lastChild = <HTMLElement>ctx.domNode.lastChild;
+		if (domNodeIsEmpty || !lastChild) {
+			ctx.domNode.innerHTML = this._extraDomNodeHTML() + newLinesHTML.join('');
+		} else {
+			lastChild.insertAdjacentHTML('afterend', newLinesHTML.join(''));
+		}
+
+		var currChild = <HTMLElement>ctx.domNode.lastChild;
+		for (let i = ctx.linesLength - 1; i >= 0; i--) {
+			let line = ctx.lines[i];
+			if (wasNew[i]) {
+				line.setDomNode(currChild);
+				currChild = <HTMLElement>currChild.previousSibling;
+			}
+		}
+	}
+
+	private _finishRenderingInvalidLines(ctx: IRendererContext, invalidLinesHTML: string[], wasInvalid: boolean[]): void {
+		var hugeDomNode = document.createElement('div');
+
+		hugeDomNode.innerHTML = invalidLinesHTML.join('');
+
+		var lineDomNode:HTMLElement,
+			source:HTMLElement;
+		for (let i = 0; i < ctx.linesLength; i++) {
+			let line = ctx.lines[i];
+			if (wasInvalid[i]) {
+				source = <HTMLElement>hugeDomNode.firstChild;
+				lineDomNode = line.getDomNode();
+				lineDomNode.parentNode.replaceChild(source, lineDomNode);
+				line.setDomNode(source);
+			}
+		}
+	}
+
 	private _finishRendering(ctx: IRendererContext, domNodeIsEmpty:boolean, deltaTop:number[]): void {
+
+		let inlineDecorations = ViewLayerRenderer._resolveInlineDecorations(ctx);
 
 		var i: number,
 			len: number,
@@ -509,7 +556,7 @@ class ViewLayerRenderer {
 			line = ctx.lines[i];
 			lineNumber = i + ctx.rendLineNumberStart;
 
-			if (line.shouldUpdateHTML(lineNumber, ctx.getInlineDecorationsForLineInViewport(lineNumber))) {
+			if (line.shouldUpdateHTML(lineNumber, inlineDecorations[i])) {
 				var lineDomNode = line.getDomNode();
 				if (!lineDomNode) {
 					// Line is new
@@ -527,40 +574,11 @@ class ViewLayerRenderer {
 		}
 
 		if (hadNewLine) {
-			var lastChild = <HTMLElement>ctx.domNode.lastChild;
-			if (domNodeIsEmpty || !lastChild) {
-				ctx.domNode.innerHTML = this._extraDomNodeHTML() + newLinesHTML.join('');
-			} else {
-				lastChild.insertAdjacentHTML('afterend', newLinesHTML.join(''));
-			}
-
-			var currChild = <HTMLElement>ctx.domNode.lastChild;
-			for (i = ctx.linesLength - 1; i >= 0; i--) {
-				line = ctx.lines[i];
-				if (wasNew[i]) {
-					line.setDomNode(currChild);
-					currChild = <HTMLElement>currChild.previousSibling;
-				}
-			}
+			this._finishRenderingNewLines(ctx, domNodeIsEmpty, newLinesHTML, wasNew);
 		}
 
 		if (hadInvalidLine) {
-
-			var hugeDomNode = document.createElement('div');
-
-			hugeDomNode.innerHTML = invalidLinesHTML.join('');
-
-			var lineDomNode:HTMLElement,
-				source:HTMLElement;
-			for (i = 0; i < ctx.linesLength; i++) {
-				line = ctx.lines[i];
-				if (wasInvalid[i]) {
-					source = <HTMLElement>hugeDomNode.firstChild;
-					lineDomNode = line.getDomNode();
-					lineDomNode.parentNode.replaceChild(source, lineDomNode);
-					line.setDomNode(source);
-				}
-			}
+			this._finishRenderingInvalidLines(ctx, invalidLinesHTML, wasInvalid);
 		}
 	}
 }

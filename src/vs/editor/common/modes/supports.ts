@@ -140,8 +140,9 @@ export class FilteredLineContext implements modes.ILineContext {
 	}
 }
 
+const IGNORE_IN_TOKENS = /\b(comment|string|regex)\b/;
 export function ignoreBracketsInToken(tokenType:string): boolean {
-	return /\b(comment|string|regex)\b/.test(tokenType);
+	return IGNORE_IN_TOKENS.test(tokenType);
 }
 
 // TODO@Martin: find a better home for this code:

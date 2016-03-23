@@ -168,7 +168,10 @@ export class ViewLine implements IVisibleLineData {
 	 * Visible ranges for a model range
 	 */
 	public getVisibleRangesForRange(startColumn:number, endColumn:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
-		let stopRenderingLineAfter = this._context.configuration.editor.stopRenderingLineAfter;
+		startColumn = +startColumn; // @perf
+		endColumn = +endColumn; // @perf
+		clientRectDeltaLeft = +clientRectDeltaLeft; // @perf
+		let stopRenderingLineAfter = +this._context.configuration.editor.stopRenderingLineAfter; // @perf
 
 		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter && endColumn > stopRenderingLineAfter) {
 			// This range is obviously not visible

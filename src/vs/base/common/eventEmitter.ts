@@ -18,7 +18,7 @@ export class EmitterEvent implements IEmitterEvent {
 	private _data:any;
 	private _emitterType:string;
 
-	constructor(eventType:string, data:any, emitterType:string=null) {
+	constructor(eventType:string=null, data:any=null, emitterType:string=null) {
 		this._type = eventType;
 		this._data = data;
 		this._emitterType = emitterType;

@@ -80,6 +80,10 @@ export class ModelLine {
 		this.lineNumber = lineNumber;
 		this.text = text;
 		this.isInvalid = false;
+		this._state = null;
+		this._modeTransitions = null;
+		this._lineTokens = null;
+		this._markers = null;
 	}
 
 	// --- BEGIN STATE
@@ -123,12 +127,27 @@ export class ModelLine {
 	// --- BEGIN TOKENS
 
 	public setTokens(map: ITokensInflatorMap, tokens: IToken[], topLevelMode:IMode, modeTransitions:IModeTransition[]): void {
-		this._setLineTokens(map, tokens);
+		this._setLineTokensFromInflated(map, tokens);
 		this._setModeTransitions(topLevelMode, modeTransitions);
 	}
 
-	private _setLineTokens(map:ITokensInflatorMap, tokens:IToken[]|number[]): void {
-		let desired = toLineTokens(map, tokens, this.text.length);
+	private _setLineTokensFromInflated(map:ITokensInflatorMap, tokens:IToken[]): void {
+		let desired = toLineTokensFromInflated(map, tokens, this.text.length);
+
+		if (desired === null) {
+			// saving memory
+			if (typeof this._lineTokens === 'undefined') {
+				return;
+			}
+			this._lineTokens = null;
+			return;
+		}
+
+		this._lineTokens = desired;
+	}
+
+	private _setLineTokensFromDeflated(map:ITokensInflatorMap, tokens:number[]): void {
+		let desired = toLineTokensFromDeflated(map, tokens, this.text.length);
 
 		if (desired === null) {
 			// saving memory
@@ -238,7 +257,7 @@ export class ModelLine {
 				tokens.pop();
 			}
 
-			this._setLineTokens(map, tokens);
+			this._setLineTokensFromDeflated(map, tokens);
 		}
 	}
 
@@ -491,10 +510,10 @@ export class ModelLine {
 			let myLineTokens = this._lineTokens;
 			if (myLineTokens) {
 				// I have real tokens
-				this._setLineTokens(myLineTokens.getBinaryEncodedTokensMap(), myLineTokens.getBinaryEncodedTokens().concat(otherTokens));
+				this._setLineTokensFromDeflated(myLineTokens.getBinaryEncodedTokensMap(), myLineTokens.getBinaryEncodedTokens().concat(otherTokens));
 			} else {
 				// I don't have real tokens
-				this._setLineTokens(otherLineTokens.getBinaryEncodedTokensMap(), otherTokens);
+				this._setLineTokensFromDeflated(otherLineTokens.getBinaryEncodedTokensMap(), otherTokens);
 			}
 		}
 
@@ -641,11 +660,7 @@ export class ModelLine {
 	}
 }
 
-function areDeflatedTokens(tokens:IToken[]|number[]): tokens is number[] {
-	return (typeof tokens[0] === 'number');
-}
-
-function toLineTokens(map:ITokensInflatorMap, tokens:IToken[]|number[], textLength:number): ILineTokens {
+function toLineTokensFromInflated(map:ITokensInflatorMap, tokens:IToken[], textLength:number): ILineTokens {
 	if (textLength === 0) {
 		return null;
 	}
@@ -653,14 +668,25 @@ function toLineTokens(map:ITokensInflatorMap, tokens:IToken[]|number[], textLeng
 		return null;
 	}
 	if (tokens.length === 1) {
-		if (areDeflatedTokens(tokens)) {
-			if (tokens[0] === 0) {
-				return null;
-			}
-		} else {
-			if (tokens[0].startIndex === 0 && tokens[0].type === '') {
-				return null;
-			}
+		if (tokens[0].startIndex === 0 && tokens[0].type === '') {
+			return null;
+		}
+	}
+
+	let deflated = LineTokensBinaryEncoding.deflateArr(map, tokens);
+	return new LineTokens(map, deflated);
+}
+
+function toLineTokensFromDeflated(map:ITokensInflatorMap, tokens:number[], textLength:number): ILineTokens {
+	if (textLength === 0) {
+		return null;
+	}
+	if (!tokens || tokens.length === 0) {
+		return null;
+	}
+	if (tokens.length === 1) {
+		if (tokens[0] === 0) {
+			return null;
 		}
 	}
 	return new LineTokens(map, tokens);
@@ -675,13 +701,9 @@ export class LineTokens implements ILineTokens {
 	private map:ITokensInflatorMap;
 	private _tokens:number[];
 
-	constructor(map:ITokensInflatorMap, tokens:IToken[]|number[]) {
+	constructor(map:ITokensInflatorMap, tokens:/*IToken[]|*/number[]) {
 		this.map = map;
-		if (areDeflatedTokens(tokens)) {
-			this._tokens = tokens;
-		} else {
-			this._tokens = LineTokensBinaryEncoding.deflateArr(map, tokens);
-		}
+		this._tokens = tokens;
 	}
 
 	public toString(): string {

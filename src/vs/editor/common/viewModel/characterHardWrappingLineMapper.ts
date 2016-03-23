@@ -57,6 +57,10 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 
 	// TODO@Alex -> duplicated in lineCommentCommand
 	private static nextVisibleColumn(currentVisibleColumn:number, tabSize:number, isTab:boolean, columnSize:number): number {
+		currentVisibleColumn = +currentVisibleColumn; //@perf
+		tabSize = +tabSize; //@perf
+		columnSize = +columnSize; //@perf
+
 		if (isTab) {
 			return currentVisibleColumn + (tabSize - (currentVisibleColumn % tabSize));
 		}

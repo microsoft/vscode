@@ -217,6 +217,9 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		this._stopLineTokenizationAfter = DefaultConfig.editor.stopLineTokenizationAfter;
 
+		this._modeListener = null;
+		this._modeToModelBinder = null;
+
 		if (!modeOrPromise) {
 			this._mode = new NullMode();
 		} else if (TPromise.is(modeOrPromise)) {
