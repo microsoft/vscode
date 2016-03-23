@@ -75,93 +75,131 @@ export class ViewEventHandler {
 	// --- end event handlers
 
 	public handleEvents(events:IEmitterEvent[]): void {
-		var i:number,
-			len:number,
-			e:IEmitterEvent,
-			data:any;
 
-		for (i = 0, len = events.length; i < len; i++) {
-			e = events[i];
-			data = e.getData();
+		let shouldRender = false;
+
+		for (let i = 0, len = events.length; i < len; i++) {
+			let e = events[i];
+			let data = e.getData();
 
 			switch (e.getType()) {
 
 				case editorCommon.ViewEventNames.LineMappingChangedEvent:
-					this.shouldRender = this.onLineMappingChanged() || this.shouldRender;
+					if (this.onLineMappingChanged()) {
+						shouldRender = true;
+					}
 					break;
 
 				case editorCommon.ViewEventNames.ModelFlushedEvent:
-					this.shouldRender = this.onModelFlushed() || this.shouldRender;
+					if (this.onModelFlushed()) {
+						shouldRender = true;
+					}
 					break;
 
 				case editorCommon.ViewEventNames.LinesDeletedEvent:
-					this.shouldRender = this.onModelLinesDeleted(<editorCommon.IViewLinesDeletedEvent>data) || this.shouldRender;
+					if (this.onModelLinesDeleted(<editorCommon.IViewLinesDeletedEvent>data)) {
+						shouldRender = true;
+					}
 					break;
 
 				case editorCommon.ViewEventNames.LinesInsertedEvent:
-					this.shouldRender = this.onModelLinesInserted(<editorCommon.IViewLinesInsertedEvent>data) || this.shouldRender;
+					if (this.onModelLinesInserted(<editorCommon.IViewLinesInsertedEvent>data)) {
+						shouldRender = true;
+					}
 					break;
 
 				case editorCommon.ViewEventNames.LineChangedEvent:
-					this.shouldRender = this.onModelLineChanged(<editorCommon.IViewLineChangedEvent>data) || this.shouldRender;
+					if (this.onModelLineChanged(<editorCommon.IViewLineChangedEvent>data)) {
+						shouldRender = true;
+					}
 					break;
 
 				case editorCommon.ViewEventNames.TokensChangedEvent:
-					this.shouldRender = this.onModelTokensChanged(<editorCommon.IViewTokensChangedEvent>data) || this.shouldRender;
+					if (this.onModelTokensChanged(<editorCommon.IViewTokensChangedEvent>data)) {
+						shouldRender = true;
+					}
 					break;
 
 				case editorCommon.ViewEventNames.DecorationsChangedEvent:
-					this.shouldRender = this.onModelDecorationsChanged(<editorCommon.IViewDecorationsChangedEvent>data) || this.shouldRender;
+					if (this.onModelDecorationsChanged(<editorCommon.IViewDecorationsChangedEvent>data)) {
+						shouldRender = true;
+					}
 					break;
 
 				case editorCommon.ViewEventNames.CursorPositionChangedEvent:
-					this.shouldRender = this.onCursorPositionChanged(<editorCommon.IViewCursorPositionChangedEvent>data) || this.shouldRender;
+					if (this.onCursorPositionChanged(<editorCommon.IViewCursorPositionChangedEvent>data)) {
+						shouldRender = true;
+					}
 					break;
 
 				case editorCommon.ViewEventNames.CursorSelectionChangedEvent:
-					this.shouldRender = this.onCursorSelectionChanged(<editorCommon.IViewCursorSelectionChangedEvent>data) || this.shouldRender;
+					if (this.onCursorSelectionChanged(<editorCommon.IViewCursorSelectionChangedEvent>data)) {
+						shouldRender = true;
+					}
 					break;
 
 				case editorCommon.ViewEventNames.RevealRangeEvent:
-					this.shouldRender = this.onCursorRevealRange(<editorCommon.IViewRevealRangeEvent>data) || this.shouldRender;
+					if (this.onCursorRevealRange(<editorCommon.IViewRevealRangeEvent>data)) {
+						shouldRender = true;
+					}
 					break;
 
 				case editorCommon.ViewEventNames.ScrollRequestEvent:
-					this.shouldRender = this.onCursorScrollRequest(<editorCommon.IViewScrollRequestEvent>data) || this.shouldRender;
+					if (this.onCursorScrollRequest(<editorCommon.IViewScrollRequestEvent>data)) {
+						shouldRender = true;
+					}
 					break;
 
 				case editorCommon.EventType.ConfigurationChanged:
-					this.shouldRender = this.onConfigurationChanged(<editorCommon.IConfigurationChangedEvent>data) || this.shouldRender;
+					if (this.onConfigurationChanged(<editorCommon.IConfigurationChangedEvent>data)) {
+						shouldRender = true;
+					}
 					break;
 
 				case editorCommon.EventType.ViewLayoutChanged:
-					this.shouldRender = this.onLayoutChanged(<editorCommon.IEditorLayoutInfo>data) || this.shouldRender;
+					if (this.onLayoutChanged(<editorCommon.IEditorLayoutInfo>data)) {
+						shouldRender = true;
+					}
 					break;
 
 				case editorCommon.EventType.ViewScrollChanged:
-					this.shouldRender = this.onScrollChanged(<editorCommon.IScrollEvent>data) || this.shouldRender;
+					if (this.onScrollChanged(<editorCommon.IScrollEvent>data)) {
+						shouldRender = true;
+					}
 					break;
 
 				case editorCommon.EventType.ViewZonesChanged:
-					this.shouldRender = this.onZonesChanged() || this.shouldRender;
+					if (this.onZonesChanged()) {
+						shouldRender = true;
+					}
 					break;
 
 				case editorCommon.EventType.ViewScrollWidthChanged:
-					this.shouldRender = this.onScrollWidthChanged(<number>data) || this.shouldRender;
+					if (this.onScrollWidthChanged(<number>data)) {
+						shouldRender = true;
+					}
 					break;
 
 				case editorCommon.EventType.ViewScrollHeightChanged:
-					this.shouldRender = this.onScrollHeightChanged(<number>data) || this.shouldRender;
+					if (this.onScrollHeightChanged(<number>data)) {
+						shouldRender = true;
+					}
 					break;
 
 				case editorCommon.EventType.ViewFocusChanged:
-					this.shouldRender = this.onViewFocusChanged(<boolean>data) || this.shouldRender;
+					if (this.onViewFocusChanged(<boolean>data)) {
+						shouldRender = true;
+					}
 					break;
 
 				default:
 					console.info('View received unknown event: ');
 					console.info(e);
 			}
+		}
+
+		if (shouldRender) {
+			this.shouldRender = true;
 		}
 	}
 }
