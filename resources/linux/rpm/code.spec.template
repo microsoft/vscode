@@ -15,13 +15,19 @@ Visual Studio Code is a new choice of tool that combines the simplicity of a cod
 
 %install
 mkdir -p %{buildroot}/usr/bin
-cp -r usr/bin/@@NAME@@ %{buildroot}/usr/bin
 mkdir -p %{buildroot}/usr/share/@@NAME@@
-cp -r usr/share/@@NAME@@/* %{buildroot}/usr/share/@@NAME@@
 mkdir -p %{buildroot}/usr/share/applications
-cp -r usr/share/applications/@@NAME@@.desktop %{buildroot}/usr/share/applications
 mkdir -p %{buildroot}/usr/share/pixmaps
+cp -r usr/bin/@@NAME@@ %{buildroot}/usr/bin
+cp -r usr/share/@@NAME@@/* %{buildroot}/usr/share/@@NAME@@
+cp -r usr/share/applications/@@NAME@@.desktop %{buildroot}/usr/share/applications
 cp -r usr/share/pixmaps/@@NAME@@.png %{buildroot}/usr/share/pixmaps
+
+%post
+# Remove the legacy bin command if this is the stable build
+if [ "@@NAME@@" = "code" ]; then
+	rm -f /usr/local/bin/code
+fi
 
 %files
 %defattr(-,root,root)
