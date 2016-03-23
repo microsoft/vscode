@@ -134,7 +134,7 @@
 					"type": "boolean"
 				},
 				"target": {
-					"description": "Specifies the default libarary used and, when down-level compiling, what code is generated.",
+					"description": "Specifies which default library (lib.d.ts) to use. When down-level compiling, specifies the code being generated.",
 					"enum": [
 						"ES3",
 						"ES5",
