@@ -18,7 +18,7 @@
 	"noExtensionsInstalled": "Non sono state trovate estensioni",
 	"noExtensionsToInstall": "Non sono state trovate estensioni",
 	"noOutdatedExtensions": "Non sono state trovate estensioni obsolete",
-	"noSuggestedExtensions": "Non ci sono estensioni suggerite",
+	"noRecommendedExtensions": "Non ci sono estensioni suggerite",
 	"nowInstalling": "È in corso l'installazione di '{0}'...",
 	"outdatedExtensionsHandlerAriaLabel": "Digitare per ridurre il numero di estensioni obsolete elencate",
 	"readme": "Leggimi",

@@ -7,7 +7,7 @@
 	"BuildAction.label": "Выполнить задачу сборки",
 	"CleanAction.label": "Выполнить задачу очистки",
 	"CloseMessageAction.label": "Закрыть",
-	"ConfigureTaskRunnerAction.autoDetect": "Не удалось автоматически определить систему задачи. Подробности см. в выходных данных задачи",
+	"ConfigureTaskRunnerAction.autoDetect": "Не удалось автоматически определить систему задачи, используется шаблон по умолчанию. Подробности см. в выходных данных задачи.",
 	"ConfigureTaskRunnerAction.failed": "Не удается создать файл tasks.json в папке .vscode. Подробности см. в выходных данных задачи.",
 	"ConfigureTaskRunnerAction.label": "Настроить средство выполнения задач",
 	"JsonSchema.args": "Дополнительные аргументы, передаваемые в команду.",

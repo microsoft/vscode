@@ -12,7 +12,7 @@
 	"changeNow": "Changer maintenant",
 	"continue": "Continuer",
 	"editFile": "Modifier '{0}'",
-	"exists": "Supprimez l'alias '{0}' dans '{1}', puis réessayez cette action.",
+	"exists": "Supprimez l'alias faisant référence à '{0}' dans '{1}', puis réessayez cette action.",
 	"install": "Installer la commande 'code' dans PATH",
 	"later": "Plus tard",
 	"laterInfo": "N'oubliez pas que vous pouvez toujours exécuter l'action '{0}' à partir de la palette de commandes.",

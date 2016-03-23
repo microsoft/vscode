@@ -40,6 +40,7 @@ export interface IProductConfiguration {
 		cacheUrl: string;
 		itemUrl: string;
 	};
+	extensionTips: { [id: string]: string; };
 	crashReporter: Electron.CrashReporterStartOptions;
 	welcomePage: string;
 	enableTelemetry: boolean;

@@ -115,6 +115,7 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 		cacheUrl: string;
 		itemUrl: string;
 	};
+	extensionTips: { [id: string]: string; };
 	welcomePage: string;
 	releaseNotesUrl: string;
 	licenseUrl: string;

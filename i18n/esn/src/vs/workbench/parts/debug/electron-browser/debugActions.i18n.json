@@ -29,6 +29,7 @@
 	"renameFunctionBreakpoint": "Cambiar nombre de punto de interrupción de función",
 	"renameWatchExpression": "Cambiar nombre de expresión",
 	"restartDebug": "Reiniciar",
+	"run": "Ejecutar",
 	"selectConfig": "Seleccionar configuración",
 	"startDebug": "Iniciar",
 	"stepIntoDebug": "Depurar paso a paso por instrucciones",

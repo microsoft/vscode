@@ -8,7 +8,7 @@
 	"installExtension": "Installa estensione",
 	"restartNow": "Riavvia ora",
 	"restartNow2": "Riavvia ora",
-	"showExtensionTips": "Mostra suggerimenti per estensioni",
+	"showExtensionRecommendations": "Mostra suggerimenti per estensioni",
 	"showInstalledExtensions": "Mostra estensioni installate",
 	"showOutdatedExtensions": "Mostra estensioni obsolete",
 	"success-installed": "'{0}' è stato installato. Riavviare per abilitarlo.",

@@ -44,10 +44,28 @@ export class MacTerminalService implements ITerminalService {
 		}
 
 		return this._terminalApplicationScriptPath = new TPromise<string>((c, e) => {
-			let child = cp.spawn('/usr/bin/osascript', ['-e', 'exists application "iTerm"']);
+			let version = '';
+			let child = cp.spawn('/usr/bin/osascript', ['-e', 'version of application "iTerm"']);
 			child.on('error', e);
+			child.stdout.on('data', (data) => {
+				version += data.toString();
+			});
 			child.on('exit', (code: number) => {
-				c(code === 0 ? 'iterm.scpt' : 'terminal.scpt');
+				let script = 'terminal.scpt';
+				if (code === 0) {
+					const match = /(\d+).(\d+).(\d+)/.exec(version);
+					if (match.length >= 4) {
+						const major = +match[1];
+						const minor = +match[2];
+						const veryMinor = +match[3];
+						if ((major < 2) || (major === 2 && minor < 9) || (major === 2 && minor === 9 && veryMinor < 20150414)) {
+							script = 'iterm.scpt';
+						} else {
+							script = 'itermNew.scpt';	// versions >= 2.9.20150414 use new script syntax
+						}
+					}
+				}
+				c(script);
 			});
 		}).then(name => uri.parse(require.toUrl(`vs/workbench/parts/execution/electron-browser/${ name }`)).fsPath);
 	}

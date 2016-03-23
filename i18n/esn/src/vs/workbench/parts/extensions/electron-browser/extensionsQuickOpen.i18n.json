@@ -18,7 +18,7 @@
 	"noExtensionsInstalled": "No se encontraron extensiones",
 	"noExtensionsToInstall": "No se encontraron extensiones",
 	"noOutdatedExtensions": "No se encontraron extensiones obsoletas",
-	"noSuggestedExtensions": "Sin extensiones sugeridas",
+	"noRecommendedExtensions": "No hay extensiones recomendadas",
 	"nowInstalling": "'{0}' se está instalando...",
 	"outdatedExtensionsHandlerAriaLabel": "Escribir para restringir la lista de extensiones obsoletas",
 	"readme": "Léame",

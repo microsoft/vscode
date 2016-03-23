@@ -36,8 +36,6 @@ function stripComments(content) {
 	return result;
 };
 
-
-// Duplicated in ../index.html for the renderes.
 function getNLSConfiguration() {
 	var locale = undefined;
 	var localeOpts = '--locale';
@@ -65,10 +63,15 @@ function getNLSConfiguration() {
 		}
 	}
 
+	locale = locale || app.getLocale();
+	// Language tags are case insensitve however an amd loader is case sensitive
+	// To make this work on case preserving & insensitive FS we do the following:
+	// the language bundles have lower case language tags and we always lower case
+	// the locale we receive from the user or OS.
+	locale = locale ? locale.toLowerCase() : locale;
 	if (locale === 'pseudo') {
 		return { locale: locale, availableLanguages: {}, pseudo: true }
 	}
-	locale = locale || app.getLocale();
 	var initialLocale = locale;
 	if (process.env.VSCODE_DEV) {
 		return { locale: locale, availableLanguages: {} };

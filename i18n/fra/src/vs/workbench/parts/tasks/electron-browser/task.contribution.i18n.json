@@ -7,7 +7,7 @@
 	"BuildAction.label": "Exécuter la tâche de génération",
 	"CleanAction.label": "Exécuter la tâche de nettoyage",
 	"CloseMessageAction.label": "Fermer",
-	"ConfigureTaskRunnerAction.autoDetect": "Échec de la détection automatique du système de tâche. Pour plus d'informations, consultez la sortie de la tâche.",
+	"ConfigureTaskRunnerAction.autoDetect": "En raison de l'échec de la détection automatique du système de tâche, le modèle par défaut va être utilisé. Pour plus d'informations, consultez la sortie de la tâche.",
 	"ConfigureTaskRunnerAction.failed": "Impossible de créer le fichier 'tasks.json' dans le dossier '.vscode'. Pour plus d'informations, consultez la sortie de la tâche.",
 	"ConfigureTaskRunnerAction.label": "Configurer l'exécuteur de tâches",
 	"JsonSchema.args": "Arguments supplémentaires passés à la commande.",

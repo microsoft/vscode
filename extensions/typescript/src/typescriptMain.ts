@@ -11,6 +11,11 @@
 
 import { env, languages, commands, workspace, window, Uri, ExtensionContext, IndentAction, Diagnostic, DiagnosticCollection, Range } from 'vscode';
 
+// This must be the first statement otherwise modules might got loaded with
+// the wrong locale.
+import * as nls from 'vscode-nls';
+nls.config({locale: env.language});
+
 import * as Proto from './protocol';
 import TypeScriptServiceClient from './typescriptServiceClient';
 import { ITypescriptServiceClientHost } from './typescriptService';
@@ -30,8 +35,6 @@ import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 import * as VersionStatus from './utils/versionStatus';
 import * as ProjectStatus from './utils/projectStatus';
 
-import * as nls from 'vscode-nls';
-
 interface LanguageDescription {
 	id: string;
 	diagnosticSource: string;
@@ -39,8 +42,6 @@ interface LanguageDescription {
 }
 
 export function activate(context: ExtensionContext): void {
-	nls.config({locale: env.language});
-
 	let MODE_ID_TS = 'typescript';
 	let MODE_ID_TSX = 'typescriptreact';
 	let MODE_ID_JS = 'javascript';

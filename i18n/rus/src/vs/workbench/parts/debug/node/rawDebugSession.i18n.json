@@ -6,6 +6,7 @@
 {
 	"debugAdapterBinNotFound": "Папка корзины DebugAdapter не найдена по пути {0}.",
 	"debugAdapterCrash": "Процесс адаптера отладки неожиданно завершился",
+	"moreInfo": "Подробнее",
 	"noDebugAdapterExtensionInstalled": "Расширение для отладки \"{0}\" не установлено.",
 	"stoppingDebugAdapter": "{0}. Адаптер отладки останавливается.",
 	"unableToLaunchDebugAdapter": "Не удается запустить адаптер отладки из {0}."

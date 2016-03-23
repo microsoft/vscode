@@ -8,7 +8,7 @@
 	"installExtension": "확장 설치",
 	"restartNow": "지금 다시 시작",
 	"restartNow2": "지금 다시 시작",
-	"showExtensionTips": "확장 팁 표시",
+	"showExtensionRecommendations": "확장 권장 사항 표시",
 	"showInstalledExtensions": "설치된 확장 표시",
 	"showOutdatedExtensions": "만료된 확장 표시",
 	"success-installed": "'{0}'이(가) 설치되었습니다. 사용하도록 설정하려면 다시 시작하세요.",

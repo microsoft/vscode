@@ -17,7 +17,7 @@
 	"vscode.extension.contributes.languages.aliases": "Alias de nom du langage.",
 	"vscode.extension.contributes.languages.configuration": "Chemin relatif d'un fichier contenant les options de configuration du langage.",
 	"vscode.extension.contributes.languages.extensions": "Extensions de fichier associées au langage.",
-	"vscode.extension.contributes.languages.filenamePatterns": "Modèles glob de noms de fichiers associés au langage.",
+	"vscode.extension.contributes.languages.filenamePatterns": "Modèles Glob de noms de fichiers associés au langage.",
 	"vscode.extension.contributes.languages.filenames": "Noms de fichiers associés au langage.",
 	"vscode.extension.contributes.languages.firstLine": "Expression régulière correspondant à la première ligne d'un fichier du langage.",
 	"vscode.extension.contributes.languages.id": "ID du langage.",

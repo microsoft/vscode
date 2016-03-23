@@ -6,6 +6,7 @@
 {
 	"debugAdapterBinNotFound": "DebugAdapter bin フォルダーがパス {0} にありません。",
 	"debugAdapterCrash": "デバッグ アダプター プロセスが予期せず終了しました",
+	"moreInfo": "詳細情報",
 	"noDebugAdapterExtensionInstalled": "'{0}' デバッグにインストールされている拡張機能はありません。",
 	"stoppingDebugAdapter": "{0}。デバッグ アダプターを停止しています。",
 	"unableToLaunchDebugAdapter": "デバッグ アダプターを {0} から起動できません。"

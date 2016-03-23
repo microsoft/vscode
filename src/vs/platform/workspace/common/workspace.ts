@@ -105,6 +105,8 @@ export interface IEnvironment {
 		itemUrl: string;
 	};
 
+	extensionTips: { [id: string]: string; };
+
 	releaseNotesUrl: string;
 	licenseUrl: string;
 	productDownloadUrl: string;

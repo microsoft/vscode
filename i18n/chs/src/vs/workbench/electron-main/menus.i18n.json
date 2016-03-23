@@ -77,6 +77,7 @@
 	"miToggleMenuBar": "切换菜单栏(&&B)",
 	"miToggleOutput": "切换输出(&&O)",
 	"miTogglePanel": "切换面板(&&P)",
+	"miToggleRenderWhitespace": "切换呈现空格(&&R)",
 	"miToggleSidebar": "切换侧边栏(&&T)",
 	"miToggleWordWrap": "切换自动换行(&&W)",
 	"miTwitter": "在 Twitter 上加入我们(&&J)",

@@ -18,7 +18,7 @@
 	"noExtensionsInstalled": "Es wurden keine Extensions gefunden.",
 	"noExtensionsToInstall": "Es wurden keine Extensions gefunden.",
 	"noOutdatedExtensions": "Es wurden keine veralteten Extensions gefunden.",
-	"noSuggestedExtensions": "Keine vorgeschlagenen Extensions",
+	"noRecommendedExtensions": "Keine empfohlenen Extensions",
 	"nowInstalling": "{0} wird installiert...",
 	"outdatedExtensionsHandlerAriaLabel": "Nehmen Sie eine Eingabe vor, um die Liste der veralteten Extensions einzuschränken.",
 	"readme": "Infodatei",

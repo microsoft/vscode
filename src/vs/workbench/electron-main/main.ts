@@ -248,7 +248,9 @@ function setupIPC(): TPromise<Server> {
 getUserEnvironment()
 	.then(userEnv => {
 		assign(process.env, userEnv);
-
+		// Make sure the NLS Config travels to the rendered process
+		// See also https://github.com/Microsoft/vscode/issues/4558
+		userEnv['VSCODE_NLS_CONFIG'] = process.env['VSCODE_NLS_CONFIG'];
 		return setupIPC()
 			.then(ipcServer => main(ipcServer, userEnv));
 	})

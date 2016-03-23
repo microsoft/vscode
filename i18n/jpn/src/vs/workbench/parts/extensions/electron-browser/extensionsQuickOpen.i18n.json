@@ -18,7 +18,7 @@
 	"noExtensionsInstalled": "拡張機能が見つかりません",
 	"noExtensionsToInstall": "拡張機能が見つかりません",
 	"noOutdatedExtensions": "古くなった拡張機能が見つかりません",
-	"noSuggestedExtensions": "候補に挙がっている拡張機能がありません",
+	"noRecommendedExtensions": "おすすめの拡張機能はありません。",
 	"nowInstalling": "'{0}' をインストールしています...",
 	"outdatedExtensionsHandlerAriaLabel": "入力して古くなった拡張機能の一覧を絞り込みます",
 	"readme": "Readme",

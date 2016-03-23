@@ -17,7 +17,7 @@
 	"vscode.extension.contributes.languages.aliases": "Псевдонимы имен для языка.",
 	"vscode.extension.contributes.languages.configuration": "Относительный путь к файлу, содержащему параметры конфигурации для языка.",
 	"vscode.extension.contributes.languages.extensions": "Расширения имен файлов, связанные с языком.",
-	"vscode.extension.contributes.languages.filenamePatterns": "Глобальные шаблоны имен файлов, связанные с языком.",
+	"vscode.extension.contributes.languages.filenamePatterns": "Стандартные маски имен файлов, связанные с языком.",
 	"vscode.extension.contributes.languages.filenames": "Имена файлов, связанные с языком.",
 	"vscode.extension.contributes.languages.firstLine": "Регулярное выражение, соответствующее первой строке файла языка.",
 	"vscode.extension.contributes.languages.id": "Идентификатор языка.",

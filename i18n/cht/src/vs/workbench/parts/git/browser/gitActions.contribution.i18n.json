@@ -6,6 +6,7 @@
 {
 	"git": "Git",
 	"openChange": "開啟變更",
+	"openFile": "開啟檔案",
 	"openInEditor": "切換至編輯器檢視",
 	"stageSelectedLines": "將選取的行分段",
 	"switchToChangesView": "切換至變更檢視"

@@ -12,6 +12,7 @@
 	"emptySettingsHeader": "Placez vos paramètres dans ce fichier pour remplacer les paramètres par défaut",
 	"emptySettingsHeader1": "Placez vos paramètres dans ce fichier pour remplacer les paramètres par défaut et les paramètres utilisateur.",
 	"fail.createSettings": "Impossible de créer '{0}' ({1}).",
+	"neverShowAgain": "Ne plus afficher",
 	"openFolderFirst": "Ouvrir d'abord un dossier pour créer les paramètres d'espace de travail",
 	"openGlobalKeybindings": "Ouvrir les raccourcis clavier",
 	"openGlobalSettings": "Ouvrir les paramètres utilisateur",

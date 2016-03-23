@@ -12,7 +12,6 @@
 	"closeOtherFiles": "Закрыть другие файлы",
 	"closeOtherLabel": "Закрыть другие файлы",
 	"compareFiles": "Сравнить файлы",
-	"compareLabels": "{0} ↔ {1}",
 	"compareSource": "Выбрать для сравнения",
 	"compareWith": "Сравнить с \"{0}\"",
 	"confirmDeleteMessageFile": "Вы действительно хотите удалить \"{0}\" без возможности восстановления?",

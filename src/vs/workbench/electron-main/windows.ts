@@ -669,6 +669,7 @@ export class WindowsManager {
 		configuration.appSettingsPath = env.appSettingsPath;
 		configuration.appKeybindingsPath = env.appKeybindingsPath;
 		configuration.userExtensionsHome = env.userExtensionsHome;
+		configuration.extensionTips = env.product.extensionTips;
 		configuration.sharedIPCHandle = env.sharedIPCHandle;
 		configuration.isBuilt = env.isBuilt;
 		configuration.crashReporter = env.product.crashReporter;

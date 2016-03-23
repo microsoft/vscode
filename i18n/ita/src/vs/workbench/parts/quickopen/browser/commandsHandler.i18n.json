@@ -9,6 +9,7 @@
 	"canNotRun": "Non è possibile eseguire il comando '{0}' da questa posizione.",
 	"commandLabel": "{0}: {1}",
 	"entryAriaLabel": "{0}, comandi",
+	"entryAriaLabelWithKey": "{0}, {1}, comandi",
 	"noCommandsMatching": "Non ci sono comandi corrispondenti",
 	"showTriggerActions": "Mostra tutti i comandi"
 }

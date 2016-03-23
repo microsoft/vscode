@@ -18,7 +18,7 @@
 	"noExtensionsInstalled": "找不到擴充功能",
 	"noExtensionsToInstall": "找不到擴充功能",
 	"noOutdatedExtensions": "找不到過期的擴充功能",
-	"noSuggestedExtensions": "沒有建議的擴充功能",
+	"noRecommendedExtensions": "沒有建議的擴充功能",
 	"nowInstalling": "正在安裝 '{0}'...",
 	"outdatedExtensionsHandlerAriaLabel": "輸入以縮小過期的擴充功能清單範圍",
 	"readme": "讀我檔案",

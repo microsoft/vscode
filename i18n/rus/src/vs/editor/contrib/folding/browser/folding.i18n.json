@@ -6,6 +6,11 @@
 {
 	"foldAction.label": "Свернуть",
 	"foldAllAction.label": "Свернуть все",
+	"foldLevel1Action.label": "Уровень сгиба 1",
+	"foldLevel2Action.label": "Уровень сгиба 2",
+	"foldLevel3Action.label": "Уровень сгиба 3",
+	"foldLevel4Action.label": "Уровень сгиба 4",
+	"foldLevel5Action.label": "Уровень сгиба 5",
 	"unfoldAction.label": "Развернуть",
 	"unfoldAllAction.label": "Развернуть все"
 }

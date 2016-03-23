@@ -7,7 +7,7 @@
 	"BuildAction.label": "Buildtask ausführen",
 	"CleanAction.label": "Bereinigungstask ausführen",
 	"CloseMessageAction.label": "Schließen",
-	"ConfigureTaskRunnerAction.autoDetect": "Fehler bei der automatischen Erkennung des Tasksystems. Einzelheiten finden Sie in der Taskausgabe.",
+	"ConfigureTaskRunnerAction.autoDetect": "Fehler bei der automatischen Erkennung des Tasksystems. Die Standardvorlage wird verwendet. Einzelheiten finden Sie in der Taskausgabe.",
 	"ConfigureTaskRunnerAction.failed": "Die Datei \"tasks.json\" kann nicht im Ordner \".vscode\" erstellt werden. Einzelheiten finden Sie in der Taskausgabe.",
 	"ConfigureTaskRunnerAction.label": "Taskausführung konfigurieren",
 	"JsonSchema.args": "Weitere Argumente, die an den Befehl übergeben werden.",

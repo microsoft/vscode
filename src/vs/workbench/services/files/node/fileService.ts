@@ -706,7 +706,7 @@ export class StatResolver {
 
 				flow.sequence(
 					function onError(error: Error): void {
-						if (this.verboseLogging) {
+						if ($this.verboseLogging) {
 							console.error(error);
 						}
 

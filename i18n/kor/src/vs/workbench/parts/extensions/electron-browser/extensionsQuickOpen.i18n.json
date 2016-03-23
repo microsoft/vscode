@@ -18,7 +18,7 @@
 	"noExtensionsInstalled": "확장을 찾을 수 없음",
 	"noExtensionsToInstall": "확장을 찾을 수 없음",
 	"noOutdatedExtensions": "만료된 확장 없음",
-	"noSuggestedExtensions": "제안된 확장 없음",
+	"noRecommendedExtensions": "권장되는 확장 없음",
 	"nowInstalling": "'{0}'을(를) 설치하는 중...",
 	"outdatedExtensionsHandlerAriaLabel": "입력하여 설치된 확장 목록의 범위를 축소합니다.",
 	"readme": "추가 정보",

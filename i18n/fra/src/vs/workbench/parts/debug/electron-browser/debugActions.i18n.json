@@ -29,6 +29,7 @@
 	"renameFunctionBreakpoint": "Renommer un point d'arrêt sur fonction",
 	"renameWatchExpression": "Renommer une expression",
 	"restartDebug": "Redémarrer",
+	"run": "Exécuter",
 	"selectConfig": "Sélectionner une configuration",
 	"startDebug": "Démarrer",
 	"stepIntoDebug": "Pas à pas détaillé",

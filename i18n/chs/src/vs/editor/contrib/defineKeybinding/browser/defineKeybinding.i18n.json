@@ -7,6 +7,6 @@
 	"DefineKeybindingAction": "定义键绑定",
 	"defineKeybinding.initial": "按所需组合键，然后按 ENTER",
 	"defineKeybinding.kbLayoutErrorMessage": "在当前键盘布局下无法生成此组合键。",
-	"defineKeybinding.kbLayoutInfoMessage": "对于当前键盘布局，按",
+	"defineKeybinding.kbLayoutInfoMessage": "对于当前键盘布局，按 ",
 	"defineKeybinding.start": "定义键绑定"
 }
