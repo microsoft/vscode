@@ -33,7 +33,7 @@ export class RenderLineInput {
 export interface IRenderLineOutput {
 	charOffsetInPart: number[];
 	lastRenderedPartIndex: number;
-	output: string[];
+	output: string;
 }
 
 const _space = ' '.charCodeAt(0);
@@ -58,7 +58,7 @@ export function renderLine(input:RenderLineInput): IRenderLineOutput {
 			charOffsetInPart: [],
 			lastRenderedPartIndex: 0,
 			// This is basically for IE's hit test to work
-			output: ['<span><span>&nbsp;</span></span>']
+			output: '<span><span>&nbsp;</span></span>'
 		};
 	}
 
@@ -80,18 +80,18 @@ function renderLineActual(lineText:string, lineTextLength:number, tabSize:number
 	charBreakIndex = +charBreakIndex;
 
 	let charIndex = 0;
-	let out: string[] = [];
+	let out = '';
 	let charOffsetInPartArr: number[] = [];
 	let charOffsetInPart = 0;
 	let tabsCharDelta = 0;
 
-	out.push('<span>');
+	out += '<span>';
 	for (let partIndex = 0, partIndexLen = actualLineParts.length; partIndex < partIndexLen; partIndex++) {
 		let part = actualLineParts[partIndex];
 
-		out.push('<span class="token ');
-		out.push(part.type);
-		out.push('">');
+		out += '<span class="token ';
+		out += part.type;
+		out += '">';
 
 		let partRendersWhitespace = false;
 		if (renderWhitespace) {
@@ -115,54 +115,54 @@ function renderLineActual(lineText:string, lineTextLength:number, tabSize:number
 					tabsCharDelta += insertSpacesCount - 1;
 					charOffsetInPart += insertSpacesCount - 1;
 					if (insertSpacesCount > 0) {
-						out.push(partRendersWhitespace ? '&rarr;' : '&nbsp;');
+						out += partRendersWhitespace ? '&rarr;' : '&nbsp;';
 						insertSpacesCount--;
 					}
 					while (insertSpacesCount > 0) {
-						out.push('&nbsp;');
+						out += '&nbsp;';
 						insertSpacesCount--;
 					}
 					break;
 
 				case _space:
-					out.push(partRendersWhitespace ? '&middot;' : '&nbsp;');
+					out += partRendersWhitespace ? '&middot;' : '&nbsp;';
 					break;
 
 				case _lowerThan:
-					out.push('&lt;');
+					out += '&lt;';
 					break;
 
 				case _greaterThan:
-					out.push('&gt;');
+					out += '&gt;';
 					break;
 
 				case _ampersand:
-					out.push('&amp;');
+					out += '&amp;';
 					break;
 
 				case 0:
-					out.push('&#00;');
+					out += '&#00;';
 					break;
 
 				case _bom:
 				case _lineSeparator:
-					out.push('\ufffd');
+					out += '\ufffd';
 					break;
 
 				case _carriageReturn:
 					// zero width space, because carriage return would introduce a line break
-					out.push('&#8203');
+					out += '&#8203';
 					break;
 
 				default:
-					out.push(lineText.charAt(charIndex));
+					out += lineText.charAt(charIndex);
 			}
 
 			charOffsetInPart ++;
 
 			if (charIndex >= charBreakIndex) {
-				out.push('&hellip;</span></span>');
-				charOffsetInPartArr[charOffsetInPartArr.length - 1]++;
+				out += '&hellip;</span></span>';
+				charOffsetInPartArr[charIndex] = charOffsetInPart;
 				return {
 					charOffsetInPart: charOffsetInPartArr,
 					lastRenderedPartIndex: partIndex,
@@ -170,9 +170,9 @@ function renderLineActual(lineText:string, lineTextLength:number, tabSize:number
 				};
 			}
 		}
-		out.push('</span>');
+		out += '</span>';
 	}
-	out.push('</span>');
+	out += '</span>';
 
 	// When getting client rects for the last character, we will position the
 	// text range at the end of the span, insteaf of at the beginning of next span

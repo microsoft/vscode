@@ -23,7 +23,7 @@ suite('viewLineRenderer.renderLine', () => {
 			[createPart(0, '')]
 		));
 
-		assert.equal(_actual.output.join(''), '<span><span class="token ">' + expected + '</span></span>');
+		assert.equal(_actual.output, '<span><span class="token ">' + expected + '</span></span>');
 		assert.deepEqual(_actual.charOffsetInPart, expectedCharOffsetInPart);
 	}
 
@@ -63,7 +63,7 @@ suite('viewLineRenderer.renderLine', () => {
 			parts
 		));
 
-		assert.equal(_actual.output.join(''), '<span>' + expected + '</span>');
+		assert.equal(_actual.output, '<span>' + expected + '</span>');
 		assert.deepEqual(_actual.charOffsetInPart, expectedCharOffsetInPart);
 	}
 
@@ -114,7 +114,7 @@ suite('viewLineRenderer.renderLine', () => {
 			'<span class="token 5">&nbsp;&hellip;</span>'
 		].join('');
 
-		assert.equal(_actual.output.join(''), '<span>' + expectedOutput + '</span>');
+		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
 		assert.deepEqual(_actual.charOffsetInPart, [
 			0,
 			0,
@@ -179,7 +179,7 @@ suite('viewLineRenderer.renderLine', () => {
 			lineParts
 		));
 
-		assert.equal(_actual.output.join(''), '<span>' + expectedOutput + '</span>');
+		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
 		assert.deepEqual(_actual.charOffsetInPart, expectedOffsets);
 	});
 
@@ -232,7 +232,7 @@ suite('viewLineRenderer.renderLine', () => {
 			lineParts
 		));
 
-		assert.equal(_actual.output.join(''), '<span>' + expectedOutput + '</span>');
+		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
 		assert.deepEqual(_actual.charOffsetInPart, expectedOffsets);
 	});
 
@@ -285,7 +285,7 @@ suite('viewLineRenderer.renderLine', () => {
 			lineParts
 		));
 
-		assert.equal(_actual.output.join(''), '<span>' + expectedOutput + '</span>');
+		assert.equal(_actual.output, '<span>' + expectedOutput + '</span>');
 		assert.deepEqual(_actual.charOffsetInPart, expectedOffsets);
 	});
 

@@ -118,7 +118,7 @@ export class ViewLine implements IVisibleLineData {
 
 	public getLineInnerHTML(lineNumber: number): string {
 		this._isInvalid = false;
-		return this._render(lineNumber, this._lineParts).join('');
+		return this._render(lineNumber, this._lineParts);
 	}
 
 	public layoutLine(lineNumber:number, deltaTop:number): void {
@@ -129,7 +129,7 @@ export class ViewLine implements IVisibleLineData {
 
 	// --- end IVisibleLineData
 
-	private _render(lineNumber:number, lineParts:ILineParts): string[] {
+	private _render(lineNumber:number, lineParts:ILineParts): string {
 
 		this._cachedWidth = -1;
 

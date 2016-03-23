@@ -100,7 +100,7 @@ export class Colorizer {
 			false,
 			tokens
 		));
-		return renderResult.output.join('');
+		return renderResult.output;
 	}
 
 	public static colorizeModelLine(model:IModel, lineNumber:number, tabSize:number = 4): string {
