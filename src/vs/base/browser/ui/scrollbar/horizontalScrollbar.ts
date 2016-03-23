@@ -10,7 +10,6 @@ import {IMouseEvent, StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
 import {IDomNodePosition} from 'vs/base/browser/dom';
 import {IParent, IScrollableElementOptions, Visibility} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {IScrollable} from 'vs/base/common/scrollable';
-import {StyleMutator} from 'vs/base/browser/styleMutator';
 
 export class HorizontalScrollbar extends AbstractScrollbar {
 
@@ -42,19 +41,19 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 	}
 
 	protected _updateSlider(sliderSize: number, sliderPosition: number): void {
-		StyleMutator.setWidth(this.slider, sliderSize);
+		this.slider.setWidth(sliderSize);
 		if (!this._forbidTranslate3dUse && Browser.canUseTranslate3d) {
-			StyleMutator.setTransform(this.slider, 'translate3d(' + sliderPosition + 'px, 0px, 0px)');
+			this.slider.setTransform('translate3d(' + sliderPosition + 'px, 0px, 0px)');
 		} else {
-			StyleMutator.setLeft(this.slider, sliderPosition);
+			this.slider.setLeft(sliderPosition);
 		}
 	}
 
 	protected _renderDomNode(largeSize: number, smallSize: number): void {
-		StyleMutator.setWidth(this.domNode, largeSize);
-		StyleMutator.setHeight(this.domNode, smallSize);
-		StyleMutator.setLeft(this.domNode, 0);
-		StyleMutator.setBottom(this.domNode, 0);
+		this.domNode.setWidth(largeSize);
+		this.domNode.setHeight(smallSize);
+		this.domNode.setLeft(0);
+		this.domNode.setBottom(0);
 	}
 
 	protected _mouseDownRelativePosition(e: IMouseEvent, domNodePosition: IDomNodePosition): number {

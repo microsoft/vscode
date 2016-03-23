@@ -74,8 +74,8 @@ export class ScrollableElement extends Widget implements IScrollableElement {
 		this._domNode.style.position = 'relative';
 		this._domNode.style.overflow = 'hidden';
 		this._domNode.appendChild(this._originalElement);
-		this._domNode.appendChild(this._horizontalScrollbar.domNode);
-		this._domNode.appendChild(this._verticalScrollbar.domNode);
+		this._domNode.appendChild(this._horizontalScrollbar.domNode.domNode);
+		this._domNode.appendChild(this._verticalScrollbar.domNode.domNode);
 
 		if (this._options.useShadows) {
 			this._leftShadowDomNode = document.createElement('div');
@@ -126,7 +126,7 @@ export class ScrollableElement extends Widget implements IScrollableElement {
 	public getOverviewRulerLayoutInfo(): IOverviewRulerLayoutInfo {
 		return {
 			parent: this._domNode,
-			insertBefore: this._verticalScrollbar.domNode,
+			insertBefore: this._verticalScrollbar.domNode.domNode,
 		};
 	}
 

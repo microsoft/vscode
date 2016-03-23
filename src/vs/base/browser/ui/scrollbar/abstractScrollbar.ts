@@ -13,6 +13,7 @@ import {Disposable} from 'vs/base/common/lifecycle';
 import {GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger} from 'vs/base/browser/globalMouseMoveMonitor';
 import {Widget} from 'vs/base/browser/ui/widget';
 import {TimeoutTimer, IntervalTimer} from 'vs/base/common/async';
+import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
 
 /**
  * The arrow image size.
@@ -72,16 +73,26 @@ export class ScrollbarState {
 	private _computedSliderPosition: number;
 
 	constructor(arrowSize: number, scrollbarSize: number, oppositeScrollbarSize: number) {
+		this._scrollbarSize = Math.round(scrollbarSize);
+		this._oppositeScrollbarSize = Math.round(oppositeScrollbarSize);
+		this._arrowSize = Math.round(arrowSize);
+
 		this._visibleSize = 0;
 		this._scrollSize = 0;
 		this._scrollPosition = 0;
-		this._scrollbarSize = scrollbarSize;
-		this._oppositeScrollbarSize = oppositeScrollbarSize;
-		this._arrowSize = arrowSize;
+
+		this._computedAvailableSize = 0;
+		this._computedRepresentableSize = 0;
+		this._computedRatio = 0;
+		this._computedIsNeeded = false;
+		this._computedSliderSize = 0;
+		this._computedSliderPosition = 0;
+
 		this._refreshComputedValues();
 	}
 
 	public setVisibleSize(visibleSize: number): boolean {
+		visibleSize = Math.round(visibleSize);
 		if (this._visibleSize !== visibleSize) {
 			this._visibleSize = visibleSize;
 			this._refreshComputedValues();
@@ -91,6 +102,7 @@ export class ScrollbarState {
 	}
 
 	public setScrollSize(scrollSize: number): boolean {
+		scrollSize = Math.round(scrollSize);
 		if (this._scrollSize !== scrollSize) {
 			this._scrollSize = scrollSize;
 			this._refreshComputedValues();
@@ -100,6 +112,7 @@ export class ScrollbarState {
 	}
 
 	public setScrollPosition(scrollPosition: number): boolean {
+		scrollPosition = Math.round(scrollPosition);
 		if (this._scrollPosition !== scrollPosition) {
 			this._scrollPosition = scrollPosition;
 			this._refreshComputedValues();
@@ -247,7 +260,7 @@ class VisibilityController extends Disposable {
 	private _visibility: Visibility;
 	private _visibleClassName: string;
 	private _invisibleClassName: string;
-	private _domNode: HTMLElement;
+	private _domNode: FastDomNode;
 	private _shouldBeVisible: boolean;
 	private _isNeeded: boolean;
 	private _isVisible: boolean;
@@ -293,9 +306,9 @@ class VisibilityController extends Disposable {
 		}
 	}
 
-	public setDomNode(domNode: HTMLElement): void {
+	public setDomNode(domNode: FastDomNode): void {
 		this._domNode = domNode;
-		this._domNode.className = this._invisibleClassName;
+		this._domNode.setClassName(this._invisibleClassName);
 
 		// Now that the flags & the dom node are in a consistent state, ensure the Hidden/Visible configuration
 		this.setShouldBeVisible(false);
@@ -325,7 +338,7 @@ class VisibilityController extends Disposable {
 
 		// The CSS animation doesn't play otherwise
 		this._revealTimer.setIfNotSet(() => {
-			this._domNode.className = this._visibleClassName;
+			this._domNode.setClassName(this._visibleClassName);
 		}, 0);
 	}
 
@@ -335,7 +348,7 @@ class VisibilityController extends Disposable {
 			return;
 		}
 		this._isVisible = false;
-		this._domNode.className = this._invisibleClassName + (withFadeAway ? ' fade' : '');
+		this._domNode.setClassName(this._invisibleClassName + (withFadeAway ? ' fade' : ''));
 	}
 }
 
@@ -353,8 +366,8 @@ export abstract class AbstractScrollbar extends Widget implements IScrollbar {
 	private _visibilityController: VisibilityController;
 	private _mouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
 
-	public domNode: HTMLElement;
-	public slider: HTMLElement;
+	public domNode: FastDomNode;
+	public slider: FastDomNode;
 
 	constructor(forbidTranslate3dUse: boolean, parent: IParent, scrollbarState: ScrollbarState, visibility: Visibility, extraScrollbarClassName: string) {
 		super();
@@ -371,16 +384,16 @@ export abstract class AbstractScrollbar extends Widget implements IScrollbar {
 	 * Creates the container dom node for the scrollbar & hooks up the events
 	 */
 	protected _createDomNode(): void {
-		this.domNode = document.createElement('div');
+		this.domNode = createFastDomNode(document.createElement('div'));
 		if (!this._forbidTranslate3dUse && Browser.canUseTranslate3d) {
-			// Put the worker reporter in its own layer
-			this.domNode.style.transform = 'translate3d(0px, 0px, 0px)';
+			// Put the scrollbar in its own layer
+			this.domNode.setTransform('translate3d(0px, 0px, 0px)');
 		}
 
 		this._visibilityController.setDomNode(this.domNode);
-		this.domNode.style.position = 'absolute';
+		this.domNode.setPosition('absolute');
 
-		this.onmousedown(this.domNode, (e) => this._domNodeMouseDown(e));
+		this.onmousedown(this.domNode.domNode, (e) => this._domNodeMouseDown(e));
 	}
 
 	/**
@@ -388,22 +401,25 @@ export abstract class AbstractScrollbar extends Widget implements IScrollbar {
 	 */
 	protected _createArrow(className: string, top: number, left: number, bottom: number, right: number, bgWidth: number, bgHeight: number, mouseWheelEventFactory: IMouseWheelEventFactory): void {
 		let arrow = this._register(new ScrollbarArrow(className, top, left, bottom, right, bgWidth, bgHeight, mouseWheelEventFactory, this._parent));
-		this.domNode.appendChild(arrow.bgDomNode);
-		this.domNode.appendChild(arrow.domNode);
+		this.domNode.domNode.appendChild(arrow.bgDomNode);
+		this.domNode.domNode.appendChild(arrow.domNode);
 	}
 
 	/**
 	 * Creates the slider dom node, adds it to the container & hooks up the events
 	 */
 	protected _createSlider(top: number, left: number, width: number, height: number): void {
-		this.slider = document.createElement('div');
-		this.slider.className = 'slider';
-		this.slider.style.position = 'absolute';
-		setPosition(this.slider, top, left, null, null);
-		setSize(this.slider, width, height);
-		this.domNode.appendChild(this.slider);
+		this.slider = createFastDomNode(document.createElement('div'));
+		this.slider.setClassName('slider');
+		this.slider.setPosition('absolute');
+		this.slider.setTop(top);
+		this.slider.setLeft(left);
+		this.slider.setWidth(width);
+		this.slider.setHeight(height);
 
-		this.onmousedown(this.slider, (e) => this._sliderMouseDown(e));
+		this.domNode.domNode.appendChild(this.slider.domNode);
+
+		this.onmousedown(this.slider.domNode, (e) => this._sliderMouseDown(e));
 	}
 
 	// ----------------- Update state
@@ -447,7 +463,7 @@ export abstract class AbstractScrollbar extends Widget implements IScrollbar {
 	// ----------------- DOM events
 
 	private _domNodeMouseDown(e: IMouseEvent): void {
-		if (e.target !== this.domNode) {
+		if (e.target !== this.domNode.domNode) {
 			return;
 		}
 		this._onMouseDown(e);
@@ -455,7 +471,7 @@ export abstract class AbstractScrollbar extends Widget implements IScrollbar {
 
 	public delegateMouseDown(browserEvent: MouseEvent): void {
 		let e = new StandardMouseEvent(browserEvent);
-		let domTop = this.domNode.getClientRects()[0].top;
+		let domTop = this.domNode.domNode.getClientRects()[0].top;
 		let sliderStart = domTop + this._scrollbarState.getSliderPosition();
 		let sliderStop = domTop + this._scrollbarState.getSliderPosition() + this._scrollbarState.getSliderSize();
 		let mousePos = this._sliderMousePosition(e);
@@ -469,7 +485,7 @@ export abstract class AbstractScrollbar extends Widget implements IScrollbar {
 	}
 
 	private _onMouseDown(e: IMouseEvent): void {
-		let domNodePosition = DomUtils.getDomNodePosition(this.domNode);
+		let domNodePosition = DomUtils.getDomNodePosition(this.domNode.domNode);
 		let desiredSliderPosition = this._mouseDownRelativePosition(e, domNodePosition) - this._scrollbarState.getArrowSize() - this._scrollbarState.getSliderSize() / 2;
 		this.setDesiredScrollPosition(this._scrollbarState.convertSliderPositionToScrollPosition(desiredSliderPosition));
 		this._sliderMouseDown(e);
@@ -480,7 +496,7 @@ export abstract class AbstractScrollbar extends Widget implements IScrollbar {
 			let initialMouseOrthogonalPosition = this._sliderOrthogonalMousePosition(e);
 			let initialScrollPosition = this._getScrollPosition();
 			let draggingDelta = this._sliderMousePosition(e) - this._scrollbarState.getSliderPosition();
-			DomUtils.toggleClass(this.slider, 'active', true);
+			this.slider.toggleClassName('active', true);
 
 			this._mouseMoveMonitor.startMonitoring(
 				standardMouseMoveMerger,
@@ -497,7 +513,7 @@ export abstract class AbstractScrollbar extends Widget implements IScrollbar {
 					}
 				},
 				() => {
-					DomUtils.toggleClass(this.slider, 'active', false);
+					this.slider.toggleClassName('active', false);
 					this._parent.onDragEnd();
 				}
 			);

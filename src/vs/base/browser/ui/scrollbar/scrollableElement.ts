@@ -5,6 +5,7 @@
 'use strict';
 
 import {IScrollable} from 'vs/base/common/scrollable';
+import {FastDomNode} from 'vs/base/browser/styleMutator';
 
 export interface IScrollableElementCreationOptions {
 	/**
@@ -185,9 +186,9 @@ export interface IMouseWheelEvent {
 }
 
 export interface IScrollbar {
-	domNode: HTMLElement;
+	domNode: FastDomNode;
 	dispose(): void;
-	slider: HTMLElement;
+	slider: FastDomNode;
 	onElementSize(size: number): void;
 	onElementScrollSize(scrollSize: number): void;
 	onElementScrollPosition(scrollPosition: number): void;

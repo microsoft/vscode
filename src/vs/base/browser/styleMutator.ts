@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as dom from 'vs/base/browser/dom';
+
 export abstract class FastDomNode {
 
 	private _domNode: HTMLElement;
@@ -16,7 +18,9 @@ export abstract class FastDomNode {
 	private _right: number;
 	private _fontSize: number;
 	private _lineHeight: number;
+	private _className: string;
 	private _display: string;
+	private _position: string;
 	private _visibility: string;
 	private _transform: string;
 	private _lineNumber: string;
@@ -36,7 +40,9 @@ export abstract class FastDomNode {
 		this._right = -1;
 		this._fontSize = -1;
 		this._lineHeight = -1;
+		this._className = '';
 		this._display = '';
+		this._position = '';
 		this._visibility = '';
 		this._transform = '';
 		this._lineNumber = '';
@@ -114,12 +120,33 @@ export abstract class FastDomNode {
 		this._domNode.style.lineHeight = this._lineHeight + 'px';
 	}
 
+	public setClassName(className: string): void {
+		if (this._className === className) {
+			return;
+		}
+		this._className = className;
+		this._domNode.className = this._className;
+	}
+
+	public toggleClassName(className: string, shouldHaveIt?: boolean): void {
+		dom.toggleClass(this._domNode, className, shouldHaveIt);
+		this._className = this._domNode.className;
+	}
+
 	public setDisplay(display: string): void {
 		if (this._display === display) {
 			return;
 		}
 		this._display = display;
 		this._domNode.style.display = this._display;
+	}
+
+	public setPosition(position: string): void {
+		if (this._position === position) {
+			return;
+		}
+		this._position = position;
+		this._domNode.style.position = this._position;
 	}
 
 	public setVisibility(visibility: string): void {
