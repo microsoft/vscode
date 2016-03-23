@@ -13,7 +13,6 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IInstantiationService, IConstructorSignature1, IConstructorSignature2} from 'vs/platform/instantiation/common/instantiation';
-import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
 import {ILineContext, IMode, IModeTransition, IToken} from 'vs/editor/common/modes';
 
 export type KeyCode = KeyCode;
@@ -1183,9 +1182,16 @@ export interface ICursorStateComputer {
 /**
  * A token on a line.
  */
-export interface ILineToken {
-	startIndex: number;
-	type: string;
+export class LineToken {
+	public _lineTokenTrait: void;
+
+	public startIndex:number;
+	public type:string;
+
+	constructor(startIndex:number, type:string) {
+		this.startIndex = +startIndex;// @perf
+		this.type = type.replace(/[^a-z0-9\-]/gi, ' ');
+	}
 }
 
 export interface ITokensInflatorMap {
@@ -1207,7 +1213,6 @@ export interface ILineTokensBinaryEncoding {
 	findIndexOfOffset(binaryEncodedTokens:number[], offset:number): number;
 	sliceAndInflate(map:ITokensInflatorMap, binaryEncodedTokens:number[], startOffset:number, endOffset:number, deltaStartIndex:number): IToken[];
 }
-export var LineTokensBinaryEncoding:ILineTokensBinaryEncoding = TokensBinaryEncoding;
 
 /**
  * A list of tokens on a line.
@@ -2509,7 +2514,7 @@ export interface IConfiguration {
 // --- view
 
 export interface IViewLineTokens {
-	getTokens(): ILineToken[];
+	getTokens(): LineToken[];
 	getFauxIndentLength(): number;
 	getTextLength(): number;
 	equals(other:IViewLineTokens): boolean;

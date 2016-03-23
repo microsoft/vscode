@@ -4,14 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {ILineToken} from 'vs/editor/common/editorCommon';
+import {LineToken} from 'vs/editor/common/editorCommon';
 
-export interface IRenderLineInput {
+export class RenderLineInput {
+	public _renderLineInputTrait: void;
+
 	lineContent: string;
 	tabSize: number;
 	stopRenderingLineAfter: number;
 	renderWhitespace: boolean;
-	parts: ILineToken[];
+	parts: LineToken[];
+
+	constructor(
+		lineContent: string,
+		tabSize: number,
+		stopRenderingLineAfter: number,
+		renderWhitespace: boolean,
+		parts: LineToken[]
+	) {
+		this.lineContent = lineContent;
+		this.tabSize = tabSize;
+		this.stopRenderingLineAfter = stopRenderingLineAfter;
+		this.renderWhitespace = renderWhitespace;
+		this.parts = parts;
+	}
 }
 
 export interface IRenderLineOutput {
@@ -29,7 +45,7 @@ const _carriageReturn = '\r'.charCodeAt(0);
 const _lineSeparator = '\u2028'.charCodeAt(0); //http://www.fileformat.info/info/unicode/char/2028/index.htm
 const _bom = 65279;
 
-export function renderLine(input:IRenderLineInput): IRenderLineOutput {
+export function renderLine(input:RenderLineInput): IRenderLineOutput {
 	const lineText = input.lineContent;
 	const lineTextLength = lineText.length;
 	const tabSize = input.tabSize;
@@ -50,6 +66,19 @@ export function renderLine(input:IRenderLineInput): IRenderLineOutput {
 		throw new Error('Cannot render non empty line without line parts!');
 	}
 
+	return renderLineActual(lineText, lineTextLength, tabSize, actualLineParts, renderWhitespace, charBreakIndex);
+}
+
+const WHITESPACE_TOKEN_TEST = /\bwhitespace\b/;
+function isWhitespace(type:string): boolean {
+	return WHITESPACE_TOKEN_TEST.test(type);
+}
+
+function renderLineActual(lineText:string, lineTextLength:number, tabSize:number, actualLineParts:LineToken[], renderWhitespace:boolean, charBreakIndex:number): IRenderLineOutput {
+	lineTextLength = +lineTextLength;
+	tabSize = +tabSize;
+	charBreakIndex = +charBreakIndex;
+
 	let charIndex = 0;
 	let out: string[] = [];
 	let charOffsetInPartArr: number[] = [];
@@ -60,19 +89,19 @@ export function renderLine(input:IRenderLineInput): IRenderLineOutput {
 	for (let partIndex = 0, partIndexLen = actualLineParts.length; partIndex < partIndexLen; partIndex++) {
 		let part = actualLineParts[partIndex];
 
-		out.push('<span class="');
-		out.push('token ');
-		out.push(part.type.replace(/[^a-z0-9\-]/gi, ' '));
+		out.push('<span class="token ');
+		out.push(part.type);
 		out.push('">');
 
 		let partRendersWhitespace = false;
 		if (renderWhitespace) {
-			partRendersWhitespace = (/\bwhitespace\b/.test(part.type));
+			partRendersWhitespace = isWhitespace(part.type);
 		}
 
 		let toCharIndex = lineTextLength;
 		if (partIndex + 1 < partIndexLen) {
-			toCharIndex = Math.min(lineTextLength, actualLineParts[partIndex + 1].startIndex);
+			let nextPart = actualLineParts[partIndex + 1];
+			toCharIndex = Math.min(lineTextLength, nextPart.startIndex);
 		}
 
 		charOffsetInPart = 0;

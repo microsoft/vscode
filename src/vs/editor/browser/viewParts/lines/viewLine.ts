@@ -8,7 +8,7 @@ import * as browser from 'vs/base/browser/browser';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {HorizontalRange, IConfigurationChangedEvent, IModelDecoration} from 'vs/editor/common/editorCommon';
 import {ILineParts, createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
-import {renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
+import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
 import {ClassNames, IViewContext} from 'vs/editor/browser/editorBrowser';
 import {IVisibleLineData} from 'vs/editor/browser/view/viewLayer';
 
@@ -134,13 +134,13 @@ export class ViewLine implements IVisibleLineData {
 
 		this._cachedWidth = -1;
 
-		let r = renderLine({
-			lineContent: this._context.model.getLineContent(lineNumber),
-			tabSize: this._context.model.getTabSize(),
-			stopRenderingLineAfter: this._context.configuration.editor.stopRenderingLineAfter,
-			renderWhitespace: this._context.configuration.editor.renderWhitespace,
-			parts: lineParts.getParts()
-		});
+		let r = renderLine(new RenderLineInput(
+			this._context.model.getLineContent(lineNumber),
+			this._context.model.getTabSize(),
+			this._context.configuration.editor.stopRenderingLineAfter,
+			this._context.configuration.editor.renderWhitespace,
+			lineParts.getParts()
+		));
 
 		this._charOffsetInPart = r.charOffsetInPart;
 		this._lastRenderedPartIndex = r.lastRenderedPartIndex;

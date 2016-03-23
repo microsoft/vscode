@@ -5,26 +5,23 @@
 'use strict';
 
 import * as assert from 'assert';
-import {ILineToken} from 'vs/editor/common/editorCommon';
-import {renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
+import {LineToken} from 'vs/editor/common/editorCommon';
+import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
 
 suite('viewLineRenderer.renderLine', () => {
 
-	function createPart(startIndex: number, type:string): ILineToken {
-		return {
-			startIndex: startIndex,
-			type: type
-		};
+	function createPart(startIndex: number, type:string): LineToken {
+		return new LineToken(startIndex, type);
 	}
 
 	function assertCharacterReplacement(lineContent:string, tabSize:number, expected:string, expectedCharOffsetInPart: number[]): void {
-		let _actual = renderLine({
-			lineContent: lineContent,
-			tabSize: tabSize,
-			stopRenderingLineAfter: -1,
-			renderWhitespace: false,
-			parts: [createPart(0, '')]
-		});
+		let _actual = renderLine(new RenderLineInput(
+			lineContent,
+			tabSize,
+			-1,
+			false,
+			[createPart(0, '')]
+		));
 
 		assert.equal(_actual.output.join(''), '<span><span class="token ">' + expected + '</span></span>');
 		assert.deepEqual(_actual.charOffsetInPart, expectedCharOffsetInPart);
@@ -57,14 +54,14 @@ suite('viewLineRenderer.renderLine', () => {
 		assertCharacterReplacement('xxxx\t', 4, 'xxxx&nbsp;&nbsp;&nbsp;&nbsp;', [0, 1, 2, 3, 4, 8]);
 	});
 
-	function assertParts(lineContent:string, tabSize:number, parts: ILineToken[], expected:string, expectedCharOffsetInPart:number[]): void {
-		let _actual = renderLine({
-			lineContent: lineContent,
-			tabSize: tabSize,
-			stopRenderingLineAfter: -1,
-			renderWhitespace: false,
-			parts: parts
-		});
+	function assertParts(lineContent:string, tabSize:number, parts: LineToken[], expected:string, expectedCharOffsetInPart:number[]): void {
+		let _actual = renderLine(new RenderLineInput(
+			lineContent,
+			tabSize,
+			-1,
+			false,
+			parts
+		));
 
 		assert.equal(_actual.output.join(''), '<span>' + expected + '</span>');
 		assert.deepEqual(_actual.charOffsetInPart, expectedCharOffsetInPart);
@@ -87,9 +84,12 @@ suite('viewLineRenderer.renderLine', () => {
 	});
 
 	test('overflow', () => {
-		let _actual = renderLine({
-			lineContent: 'Hello world!',
-			parts: [
+		let _actual = renderLine(new RenderLineInput(
+			'Hello world!',
+			4,
+			6,
+			true,
+			[
 				createPart( 0,  '0'),
 				createPart( 1,  '1'),
 				createPart( 2,  '2'),
@@ -102,11 +102,8 @@ suite('viewLineRenderer.renderLine', () => {
 				createPart( 9,  '9'),
 				createPart(10, '10'),
 				createPart(11, '11'),
-			],
-			tabSize: 4,
-			stopRenderingLineAfter: 6,
-			renderWhitespace: true,
-		});
+			]
+		));
 
 		let expectedOutput = [
 			'<span class="token 0">H</span>',
@@ -174,13 +171,13 @@ suite('viewLineRenderer.renderLine', () => {
 		];
 		let expectedOffsets = expectedOffsetsArr.reduce((prev, curr) => prev.concat(curr), []);
 
-		let _actual = renderLine({
-			lineContent: lineText,
-			tabSize: 4,
-			stopRenderingLineAfter: -1,
-			renderWhitespace: true,
-			parts: lineParts
-		});
+		let _actual = renderLine(new RenderLineInput(
+			lineText,
+			4,
+			-1,
+			true,
+			lineParts
+		));
 
 		assert.equal(_actual.output.join(''), '<span>' + expectedOutput + '</span>');
 		assert.deepEqual(_actual.charOffsetInPart, expectedOffsets);
@@ -227,13 +224,13 @@ suite('viewLineRenderer.renderLine', () => {
 		];
 		let expectedOffsets = expectedOffsetsArr.reduce((prev, curr) => prev.concat(curr), []);
 
-		let _actual = renderLine({
-			lineContent: lineText,
-			tabSize: 4,
-			stopRenderingLineAfter: -1,
-			renderWhitespace: false,
-			parts: lineParts
-		});
+		let _actual = renderLine(new RenderLineInput(
+			lineText,
+			4,
+			-1,
+			false,
+			lineParts
+		));
 
 		assert.equal(_actual.output.join(''), '<span>' + expectedOutput + '</span>');
 		assert.deepEqual(_actual.charOffsetInPart, expectedOffsets);
@@ -280,13 +277,13 @@ suite('viewLineRenderer.renderLine', () => {
 		];
 		let expectedOffsets = expectedOffsetsArr.reduce((prev, curr) => prev.concat(curr), []);
 
-		let _actual = renderLine({
-			lineContent: lineText,
-			tabSize: 4,
-			stopRenderingLineAfter: -1,
-			renderWhitespace: false,
-			parts: lineParts
-		});
+		let _actual = renderLine(new RenderLineInput(
+			lineText,
+			4,
+			-1,
+			false,
+			lineParts
+		));
 
 		assert.equal(_actual.output.join(''), '<span>' + expectedOutput + '</span>');
 		assert.deepEqual(_actual.charOffsetInPart, expectedOffsets);

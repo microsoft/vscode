@@ -23,6 +23,7 @@ import {ILineContext, ILineTokens, IMode, IModeTransition, IState} from 'vs/edit
 import {NullMode, NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
 import {ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
 import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
+import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
 
 export class TokensInflatorMap implements editorCommon.ITokensInflatorMap {
 
@@ -1252,5 +1253,5 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 }
 
-var getType = editorCommon.LineTokensBinaryEncoding.getType;
-var getStartIndex = editorCommon.LineTokensBinaryEncoding.getStartIndex;
+var getType = TokensBinaryEncoding.getType;
+var getStartIndex = TokensBinaryEncoding.getStartIndex;

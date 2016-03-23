@@ -5,8 +5,9 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import {ILineTokens, IReadOnlyLineMarker, ITokensInflatorMap, LineTokensBinaryEncoding} from 'vs/editor/common/editorCommon';
+import {ILineTokens, IReadOnlyLineMarker, ITokensInflatorMap} from 'vs/editor/common/editorCommon';
 import {IMode, IModeTransition, IState, IToken} from 'vs/editor/common/modes';
+import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
 
 export interface ILineEdit {
 	startColumn: number;
@@ -181,7 +182,7 @@ export class ModelLine {
 
 		var lineTokens = this._lineTokens;
 
-		let BIN = LineTokensBinaryEncoding;
+		let BIN = TokensBinaryEncoding;
 		let tokens = lineTokens.getBinaryEncodedTokens();
 		let tokensLength = tokens.length;
 		let tokensIndex = 0;
@@ -241,7 +242,7 @@ export class ModelLine {
 		this.text = text;
 
 		if (this._lineTokens) {
-			let BIN = LineTokensBinaryEncoding,
+			let BIN = TokensBinaryEncoding,
 				map = this._lineTokens.getBinaryEncodedTokensMap(),
 				tokens = this._lineTokens.getBinaryEncodedTokens(),
 				lineTextLength = this.text.length;
@@ -492,7 +493,7 @@ export class ModelLine {
 
 			// Adjust other tokens
 			if (thisTextLength > 0) {
-				let BIN = LineTokensBinaryEncoding;
+				let BIN = TokensBinaryEncoding;
 
 				for (let i = 0, len = otherTokens.length; i < len; i++) {
 					let token = otherTokens[i];
@@ -673,7 +674,7 @@ function toLineTokensFromInflated(map:ITokensInflatorMap, tokens:IToken[], textL
 		}
 	}
 
-	let deflated = LineTokensBinaryEncoding.deflateArr(map, tokens);
+	let deflated = TokensBinaryEncoding.deflateArr(map, tokens);
 	return new LineTokens(map, deflated);
 }
 
@@ -692,9 +693,9 @@ function toLineTokensFromDeflated(map:ITokensInflatorMap, tokens:number[], textL
 	return new LineTokens(map, tokens);
 }
 
-var getStartIndex = LineTokensBinaryEncoding.getStartIndex;
-var getType = LineTokensBinaryEncoding.getType;
-var findIndexOfOffset = LineTokensBinaryEncoding.findIndexOfOffset;
+var getStartIndex = TokensBinaryEncoding.getStartIndex;
+var getType = TokensBinaryEncoding.getType;
+var findIndexOfOffset = TokensBinaryEncoding.findIndexOfOffset;
 
 export class LineTokens implements ILineTokens {
 
@@ -707,7 +708,7 @@ export class LineTokens implements ILineTokens {
 	}
 
 	public toString(): string {
-		return LineTokensBinaryEncoding.inflateArr(this.map, this._tokens).toString();
+		return TokensBinaryEncoding.inflateArr(this.map, this._tokens).toString();
 	}
 
 	public getBinaryEncodedTokensMap(): ITokensInflatorMap {

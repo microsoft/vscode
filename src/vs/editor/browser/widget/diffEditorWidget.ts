@@ -20,7 +20,7 @@ import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {ILineParts, createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
-import {renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
+import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
 
@@ -1766,7 +1766,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 		lineTokens = {
 			getTokens: () => {
-				return [{ startIndex: 0, type: '' }];
+				return [new editorCommon.LineToken(0, '')];
 			},
 			getFauxIndentLength: () => {
 				return 0;
@@ -1784,13 +1784,13 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 		parts = createLineParts(lineNumber, 1, lineContent, lineTokens, decorations, config.renderWhitespace);
 
-		var r = renderLine({
-			lineContent: lineContent,
-			tabSize: tabSize,
-			stopRenderingLineAfter: config.stopRenderingLineAfter,
-			renderWhitespace: config.renderWhitespace,
-			parts: parts.getParts()
-		});
+		var r = renderLine(new RenderLineInput(
+			lineContent,
+			tabSize,
+			config.stopRenderingLineAfter,
+			config.renderWhitespace,
+			parts.getParts()
+		));
 
 		var myResult:string[] = [];
 

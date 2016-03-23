@@ -6,12 +6,12 @@
 
 import * as strings from 'vs/base/common/strings';
 import {Arrays} from 'vs/editor/common/core/arrays';
-import {ILineToken, IRange, IViewLineTokens} from 'vs/editor/common/editorCommon';
+import {LineToken, IRange, IViewLineTokens} from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 
 export interface ILineParts {
 
-	getParts(): ILineToken[];
+	getParts(): LineToken[];
 
 	equals(other:ILineParts): boolean;
 
@@ -38,7 +38,7 @@ export function createLineParts(lineNumber:number, minLineColumn:number, lineCon
 	}
 }
 
-function trimEmptyTrailingPart(parts: LinePart[], lineContent: string): LinePart[] {
+function trimEmptyTrailingPart(parts: LineToken[], lineContent: string): LineToken[] {
 	if (parts.length <= 1) {
 		return parts;
 	}
@@ -133,7 +133,7 @@ function insertWhitespace(lineNumber:number, lineContent: string, fauxIndentLeng
 export class FastViewLineParts implements ILineParts {
 
 	private lineTokens: IViewLineTokens;
-	private parts: LinePart[];
+	private parts: LineToken[];
 
 	constructor(lineTokens:IViewLineTokens, lineContent:string) {
 		this.lineTokens = lineTokens;
@@ -141,7 +141,7 @@ export class FastViewLineParts implements ILineParts {
 		this.parts = trimEmptyTrailingPart(this.parts, lineContent);
 	}
 
-	public getParts(): ILineToken[]{
+	public getParts(): LineToken[]{
 		return this.parts;
 	}
 
@@ -161,7 +161,7 @@ export class FastViewLineParts implements ILineParts {
 
 export class ViewLineParts implements ILineParts {
 
-	private parts:LinePart[];
+	private parts:LineToken[];
 	private lastPartIndex:number;
 	private lastEndOffset:number;
 
@@ -177,7 +177,7 @@ export class ViewLineParts implements ILineParts {
 			currentTokenEndOffset:number,
 			currentTokenClassName:string;
 
-		var parts:LinePart[] = [];
+		var parts:LineToken[] = [];
 
 		for (var i = 0, len = actualLineTokens.length; i < len; i++) {
 			nextStartOffset = actualLineTokens[i].startIndex;
@@ -187,11 +187,11 @@ export class ViewLineParts implements ILineParts {
 			while (lineDecorationsIndex < lineDecorationsLength && lineDecorations[lineDecorationsIndex].startOffset < currentTokenEndOffset) {
 				if (lineDecorations[lineDecorationsIndex].startOffset > nextStartOffset) {
 					// the first decorations starts after the token
-					parts.push(new LinePart(nextStartOffset, currentTokenClassName));
+					parts.push(new LineToken(nextStartOffset, currentTokenClassName));
 					nextStartOffset = lineDecorations[lineDecorationsIndex].startOffset;
 				}
 
-				parts.push(new LinePart(nextStartOffset, currentTokenClassName + ' ' + lineDecorations[lineDecorationsIndex].className));
+				parts.push(new LineToken(nextStartOffset, currentTokenClassName + ' ' + lineDecorations[lineDecorationsIndex].className));
 
 				if (lineDecorations[lineDecorationsIndex].endOffset >= currentTokenEndOffset) {
 					// this decoration goes on to the next token
@@ -205,7 +205,7 @@ export class ViewLineParts implements ILineParts {
 			}
 
 			if (nextStartOffset < currentTokenEndOffset) {
-				parts.push(new LinePart(nextStartOffset, currentTokenClassName));
+				parts.push(new LineToken(nextStartOffset, currentTokenClassName));
 			}
 		}
 
@@ -214,7 +214,7 @@ export class ViewLineParts implements ILineParts {
 		this.lastEndOffset = currentTokenEndOffset;
 	}
 
-	public getParts(): ILineToken[] {
+	public getParts(): LineToken[] {
 		return this.parts;
 	}
 
@@ -242,16 +242,6 @@ export class ViewLineParts implements ILineParts {
 
 	public findIndexOfOffset(offset:number): number {
 		return Arrays.findIndexInSegmentsArray(this.parts, offset);
-	}
-}
-
-class LinePart implements ILineToken {
-	startIndex:number;
-	type:string;
-
-	constructor(startIndex:number, type:string) {
-		this.startIndex = startIndex;
-		this.type = type;
 	}
 }
 
