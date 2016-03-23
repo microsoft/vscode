@@ -66,7 +66,7 @@ export function renderLine(input:RenderLineInput): IRenderLineOutput {
 		throw new Error('Cannot render non empty line without line parts!');
 	}
 
-	return renderLineActual(lineText, lineTextLength, tabSize, actualLineParts, renderWhitespace, charBreakIndex);
+	return renderLineActual(lineText, lineTextLength, tabSize, actualLineParts.slice(0), renderWhitespace, charBreakIndex);
 }
 
 const WHITESPACE_TOKEN_TEST = /\bwhitespace\b/;

@@ -4,6 +4,178 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+export abstract class FastDomNode {
+
+	private _domNode: HTMLElement;
+	private _maxWidth: number;
+	private _width: number;
+	private _height: number;
+	private _top: number;
+	private _left: number;
+	private _bottom: number;
+	private _right: number;
+	private _fontSize: number;
+	private _lineHeight: number;
+	private _display: string;
+	private _visibility: string;
+	private _transform: string;
+	private _lineNumber: string;
+
+	public get domNode(): HTMLElement {
+		return this._domNode;
+	}
+
+	constructor(domNode: HTMLElement) {
+		this._domNode = domNode;
+		this._maxWidth = -1;
+		this._width = -1;
+		this._height = -1;
+		this._top = -1;
+		this._left = -1;
+		this._bottom = -1;
+		this._right = -1;
+		this._fontSize = -1;
+		this._lineHeight = -1;
+		this._display = '';
+		this._visibility = '';
+		this._transform = '';
+		this._lineNumber = '';
+	}
+
+	public setMaxWidth(maxWidth: number): void {
+		if (this._maxWidth === maxWidth) {
+			return;
+		}
+		this._maxWidth = maxWidth;
+		this._domNode.style.maxWidth = this._maxWidth + 'px';
+	}
+
+	public setWidth(width: number): void {
+		if (this._width === width) {
+			return;
+		}
+		this._width = width;
+		this._domNode.style.width = this._width + 'px';
+	}
+
+	public setHeight(height: number): void {
+		if (this._height === height) {
+			return;
+		}
+		this._height = height;
+		this._domNode.style.height = this._height + 'px';
+	}
+
+	public setTop(top: number): void {
+		if (this._top === top) {
+			return;
+		}
+		this._top = top;
+		this._domNode.style.top = this._top + 'px';
+	}
+
+	public setLeft(left: number): void {
+		if (this._left === left) {
+			return;
+		}
+		this._left = left;
+		this._domNode.style.left = this._left + 'px';
+	}
+
+	public setBottom(bottom: number): void {
+		if (this._bottom === bottom) {
+			return;
+		}
+		this._bottom = bottom;
+		this._domNode.style.bottom = this._bottom + 'px';
+	}
+
+	public setRight(right: number): void {
+		if (this._right === right) {
+			return;
+		}
+		this._right = right;
+		this._domNode.style.right = this._right + 'px';
+	}
+
+	public setFontSize(fontSize: number): void {
+		if (this._fontSize === fontSize) {
+			return;
+		}
+		this._fontSize = fontSize;
+		this._domNode.style.fontSize = this._fontSize + 'px';
+	}
+
+	public setLineHeight(lineHeight: number): void {
+		if (this._lineHeight === lineHeight) {
+			return;
+		}
+		this._lineHeight = lineHeight;
+		this._domNode.style.lineHeight = this._lineHeight + 'px';
+	}
+
+	public setDisplay(display: string): void {
+		if (this._display === display) {
+			return;
+		}
+		this._display = display;
+		this._domNode.style.display = this._display;
+	}
+
+	public setVisibility(visibility: string): void {
+		if (this._visibility === visibility) {
+			return;
+		}
+		this._visibility = visibility;
+		this._domNode.style.visibility = this._visibility;
+	}
+
+	public setTransform(transform:string): void {
+		if (this._transform === transform) {
+			return;
+		}
+		this._transform = transform;
+		this._setTransform(this._domNode, this._transform);
+	}
+
+	protected abstract _setTransform(domNode:HTMLElement, transform:string): void;
+
+	public setLineNumber(lineNumber:string): void {
+		if (this._lineNumber === lineNumber) {
+			return;
+		}
+		this._lineNumber = lineNumber;
+		this._domNode.setAttribute('lineNumber', this._lineNumber);
+	}
+}
+
+class WebKitFastDomNode extends FastDomNode {
+	protected _setTransform(domNode:HTMLElement, transform:string): void {
+		(<any>domNode.style).webkitTransform = transform;
+	}
+}
+
+class StandardFastDomNode extends FastDomNode {
+	protected _setTransform(domNode:HTMLElement, transform:string): void {
+		domNode.style.transform = transform;
+	}
+}
+
+let useWebKitFastDomNode = false;
+(function() {
+	let testDomNode = document.createElement('div');
+	if (typeof (<any>testDomNode.style).webkitTransform !== 'undefined') {
+		useWebKitFastDomNode = true;
+	}
+})();
+export function createFastDomNode(domNode: HTMLElement): FastDomNode {
+	if (useWebKitFastDomNode) {
+		return new WebKitFastDomNode(domNode);
+	} else {
+		return new StandardFastDomNode(domNode);
+	}
+}
+
 export const StyleMutator = {
 	setMaxWidth: (domNode: HTMLElement, maxWidth: number) => {
 		let desiredValue = maxWidth + 'px';

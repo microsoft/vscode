@@ -5,7 +5,7 @@
 'use strict';
 
 import * as browser from 'vs/base/browser/browser';
-import {StyleMutator} from 'vs/base/browser/styleMutator';
+import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
 import {HorizontalRange, IConfigurationChangedEvent, IModelDecoration} from 'vs/editor/common/editorCommon';
 import {ILineParts, createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
 import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
@@ -15,7 +15,7 @@ import {IVisibleLineData} from 'vs/editor/browser/view/viewLayer';
 export class ViewLine implements IVisibleLineData {
 
 	protected _context:IViewContext;
-	private _domNode: HTMLElement;
+	private _domNode: FastDomNode;
 
 	private _lineParts: ILineParts;
 
@@ -39,10 +39,13 @@ export class ViewLine implements IVisibleLineData {
 	// --- begin IVisibleLineData
 
 	public getDomNode(): HTMLElement {
-		return this._domNode;
+		if (!this._domNode) {
+			return null;
+		}
+		return this._domNode.domNode;
 	}
 	public setDomNode(domNode:HTMLElement): void {
-		this._domNode = domNode;
+		this._domNode = createFastDomNode(domNode);
 	}
 
 	public onContentChanged(): void {
@@ -119,13 +122,9 @@ export class ViewLine implements IVisibleLineData {
 	}
 
 	public layoutLine(lineNumber:number, deltaTop:number): void {
-		let desiredLineNumber = String(lineNumber);
-		let currentLineNumber = this._domNode.getAttribute('lineNumber');
-		if (currentLineNumber !== desiredLineNumber) {
-			this._domNode.setAttribute('lineNumber', desiredLineNumber);
-		}
-		StyleMutator.setTop(this._domNode, deltaTop);
-		StyleMutator.setHeight(this._domNode, this._context.configuration.editor.lineHeight);
+		this._domNode.setLineNumber(String(lineNumber));
+		this._domNode.setTop(deltaTop);
+		this._domNode.setHeight(this._context.configuration.editor.lineHeight);
 	}
 
 	// --- end IVisibleLineData
@@ -151,7 +150,7 @@ export class ViewLine implements IVisibleLineData {
 	// --- Reading from the DOM methods
 
 	protected _getReadingTarget(): HTMLElement {
-		return <HTMLSpanElement>this._domNode.firstChild;
+		return <HTMLSpanElement>this._domNode.domNode.firstChild;
 	}
 
 	/**

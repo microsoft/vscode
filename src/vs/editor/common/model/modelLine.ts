@@ -104,14 +104,6 @@ export class ModelLine {
 	private _setModeTransitions(topLevelMode:IMode, modeTransitions:IModeTransition[]): void {
 		let desired = toModeTransitions(topLevelMode, modeTransitions);
 
-		if (desired === null) {
-			// saving memory
-			if (typeof this._modeTransitions === 'undefined') {
-				return;
-			}
-			this._modeTransitions = null;
-			return;
-		}
 
 		this._modeTransitions = desired;
 	}
@@ -135,14 +127,6 @@ export class ModelLine {
 	private _setLineTokensFromInflated(map:ITokensInflatorMap, tokens:IToken[]): void {
 		let desired = toLineTokensFromInflated(map, tokens, this.text.length);
 
-		if (desired === null) {
-			// saving memory
-			if (typeof this._lineTokens === 'undefined') {
-				return;
-			}
-			this._lineTokens = null;
-			return;
-		}
 
 		this._lineTokens = desired;
 	}
@@ -150,14 +134,6 @@ export class ModelLine {
 	private _setLineTokensFromDeflated(map:ITokensInflatorMap, tokens:number[]): void {
 		let desired = toLineTokensFromDeflated(map, tokens, this.text.length);
 
-		if (desired === null) {
-			// saving memory
-			if (typeof this._lineTokens === 'undefined') {
-				return;
-			}
-			this._lineTokens = null;
-			return;
-		}
 
 		this._lineTokens = desired;
 	}

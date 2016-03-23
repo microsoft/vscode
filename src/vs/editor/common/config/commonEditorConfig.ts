@@ -62,105 +62,160 @@ export class ConfigurationWithDefaults {
 	}
 }
 
-function cloneInternalEditorOptions(opts: editorCommon.IInternalEditorOptions): editorCommon.IInternalEditorOptions {
-	return {
-		experimentalScreenReader: opts.experimentalScreenReader,
-		rulers: opts.rulers.slice(0),
-		wordSeparators: opts.wordSeparators,
-		selectionClipboard: opts.selectionClipboard,
-		ariaLabel: opts.ariaLabel,
-		lineNumbers: opts.lineNumbers,
-		selectOnLineNumbers: opts.selectOnLineNumbers,
-		glyphMargin: opts.glyphMargin,
-		revealHorizontalRightPadding: opts.revealHorizontalRightPadding,
-		roundedSelection: opts.roundedSelection,
-		theme: opts.theme,
-		readOnly: opts.readOnly,
-		scrollbar: {
-			arrowSize: opts.scrollbar.arrowSize,
-			vertical: opts.scrollbar.vertical,
-			horizontal: opts.scrollbar.horizontal,
-			useShadows: opts.scrollbar.useShadows,
-			verticalHasArrows: opts.scrollbar.verticalHasArrows,
-			horizontalHasArrows: opts.scrollbar.horizontalHasArrows,
-			handleMouseWheel: opts.scrollbar.handleMouseWheel,
-			horizontalScrollbarSize: opts.scrollbar.horizontalScrollbarSize,
-			horizontalSliderSize: opts.scrollbar.horizontalSliderSize,
-			verticalScrollbarSize: opts.scrollbar.verticalScrollbarSize,
-			verticalSliderSize: opts.scrollbar.verticalSliderSize,
-			mouseWheelScrollSensitivity: opts.scrollbar.mouseWheelScrollSensitivity,
-		},
-		overviewRulerLanes: opts.overviewRulerLanes,
-		cursorBlinking: opts.cursorBlinking,
-		cursorStyle: opts.cursorStyle,
-		fontLigatures: opts.fontLigatures,
-		hideCursorInOverviewRuler: opts.hideCursorInOverviewRuler,
-		scrollBeyondLastLine: opts.scrollBeyondLastLine,
-		wrappingIndent: opts.wrappingIndent,
-		wordWrapBreakBeforeCharacters: opts.wordWrapBreakBeforeCharacters,
-		wordWrapBreakAfterCharacters: opts.wordWrapBreakAfterCharacters,
-		wordWrapBreakObtrusiveCharacters: opts.wordWrapBreakObtrusiveCharacters,
-		tabFocusMode: opts.tabFocusMode,
-		stopLineTokenizationAfter: opts.stopLineTokenizationAfter,
-		stopRenderingLineAfter: opts.stopRenderingLineAfter,
-		longLineBoundary: opts.longLineBoundary,
-		forcedTokenizationBoundary: opts.forcedTokenizationBoundary,
-		hover: opts.hover,
-		contextmenu: opts.contextmenu,
-		quickSuggestions: opts.quickSuggestions,
-		quickSuggestionsDelay: opts.quickSuggestionsDelay,
-		iconsInSuggestions: opts.iconsInSuggestions,
-		autoClosingBrackets: opts.autoClosingBrackets,
-		formatOnType: opts.formatOnType,
-		suggestOnTriggerCharacters: opts.suggestOnTriggerCharacters,
-		acceptSuggestionOnEnter: opts.acceptSuggestionOnEnter,
-		selectionHighlight: opts.selectionHighlight,
-		outlineMarkers: opts.outlineMarkers,
-		referenceInfos: opts.referenceInfos,
-		folding: opts.folding,
-		renderWhitespace: opts.renderWhitespace,
-		layoutInfo: {
-			width: opts.layoutInfo.width,
-			height: opts.layoutInfo.height,
-			glyphMarginLeft: opts.layoutInfo.glyphMarginLeft,
-			glyphMarginWidth: opts.layoutInfo.glyphMarginWidth,
-			glyphMarginHeight: opts.layoutInfo.glyphMarginHeight,
-			lineNumbersLeft: opts.layoutInfo.lineNumbersLeft,
-			lineNumbersWidth: opts.layoutInfo.lineNumbersWidth,
-			lineNumbersHeight: opts.layoutInfo.lineNumbersHeight,
-			decorationsLeft: opts.layoutInfo.decorationsLeft,
-			decorationsWidth: opts.layoutInfo.decorationsWidth,
-			decorationsHeight: opts.layoutInfo.decorationsHeight,
-			contentLeft: opts.layoutInfo.contentLeft,
-			contentWidth: opts.layoutInfo.contentWidth,
-			contentHeight: opts.layoutInfo.contentHeight,
-			verticalScrollbarWidth: opts.layoutInfo.verticalScrollbarWidth,
-			horizontalScrollbarHeight: opts.layoutInfo.horizontalScrollbarHeight,
+export class InternalEditorOptions implements editorCommon.IInternalEditorOptions {
+	public _internalEditorOptionsTrait: void;
+
+	experimentalScreenReader: boolean;
+	rulers: number[];
+	wordSeparators: string;
+	selectionClipboard: boolean;
+	ariaLabel: string;
+	lineNumbers:any;
+	selectOnLineNumbers:boolean;
+	glyphMargin:boolean;
+	revealHorizontalRightPadding:number;
+	roundedSelection:boolean;
+	theme:string;
+	readOnly:boolean;
+	scrollbar:editorCommon.IInternalEditorScrollbarOptions;
+	overviewRulerLanes:number;
+	cursorBlinking:string;
+	cursorStyle:editorCommon.TextEditorCursorStyle;
+	fontLigatures:boolean;
+	hideCursorInOverviewRuler:boolean;
+	scrollBeyondLastLine:boolean;
+	wrappingIndent: string;
+	wordWrapBreakBeforeCharacters: string;
+	wordWrapBreakAfterCharacters: string;
+	wordWrapBreakObtrusiveCharacters: string;
+	tabFocusMode:boolean;
+	stopLineTokenizationAfter:number;
+	stopRenderingLineAfter: number;
+	longLineBoundary:number;
+	forcedTokenizationBoundary:number;
+	hover:boolean;
+	contextmenu:boolean;
+	quickSuggestions:boolean;
+	quickSuggestionsDelay:number;
+	iconsInSuggestions:boolean;
+	autoClosingBrackets:boolean;
+	formatOnType:boolean;
+	suggestOnTriggerCharacters: boolean;
+	acceptSuggestionOnEnter: boolean;
+	selectionHighlight:boolean;
+	outlineMarkers: boolean;
+	referenceInfos: boolean;
+	folding: boolean;
+	renderWhitespace: boolean;
+	layoutInfo: editorCommon.IEditorLayoutInfo;
+	stylingInfo: editorCommon.IEditorStyling;
+	wrappingInfo: editorCommon.IEditorWrappingInfo;
+	observedOuterWidth:number;
+	observedOuterHeight:number;
+	lineHeight:number;
+	pageSize:number;
+	typicalHalfwidthCharacterWidth:number;
+	typicalFullwidthCharacterWidth:number;
+	fontSize:number;
+
+	constructor(input:editorCommon.IInternalEditorOptions) {
+		this.experimentalScreenReader = Boolean(input.experimentalScreenReader);
+		this.rulers = Array.prototype.slice.call(input.rulers, 0);
+		this.wordSeparators = String(input.wordSeparators);
+		this.selectionClipboard = Boolean(input.selectionClipboard);
+		this.ariaLabel = String(input.ariaLabel);
+		this.lineNumbers = input.lineNumbers || false;
+		this.selectOnLineNumbers = Boolean(input.selectOnLineNumbers);
+		this.glyphMargin = Boolean(input.glyphMargin);
+		this.revealHorizontalRightPadding = Number(input.revealHorizontalRightPadding);
+		this.roundedSelection = Boolean(input.roundedSelection);
+		this.theme = String(input.theme);
+		this.readOnly = Boolean(input.readOnly);
+		this.scrollbar = {
+			arrowSize: Number(input.scrollbar.arrowSize),
+			vertical: String(input.scrollbar.vertical),
+			horizontal: String(input.scrollbar.horizontal),
+			useShadows: Boolean(input.scrollbar.useShadows),
+			verticalHasArrows: Boolean(input.scrollbar.verticalHasArrows),
+			horizontalHasArrows: Boolean(input.scrollbar.horizontalHasArrows),
+			handleMouseWheel: Boolean(input.scrollbar.handleMouseWheel),
+			horizontalScrollbarSize: Number(input.scrollbar.horizontalScrollbarSize),
+			horizontalSliderSize: Number(input.scrollbar.horizontalSliderSize),
+			verticalScrollbarSize: Number(input.scrollbar.verticalScrollbarSize),
+			verticalSliderSize: Number(input.scrollbar.verticalSliderSize),
+			mouseWheelScrollSensitivity: Number(input.scrollbar.mouseWheelScrollSensitivity),
+		};
+		this.overviewRulerLanes = Number(input.overviewRulerLanes);
+		this.cursorBlinking = String(input.cursorBlinking);
+		this.cursorStyle = Number(input.cursorStyle);
+		this.fontLigatures = Boolean(input.fontLigatures);
+		this.hideCursorInOverviewRuler = Boolean(input.hideCursorInOverviewRuler);
+		this.scrollBeyondLastLine = Boolean(input.scrollBeyondLastLine);
+		this.wrappingIndent = String(input.wrappingIndent);
+		this.wordWrapBreakBeforeCharacters = String(input.wordWrapBreakBeforeCharacters);
+		this.wordWrapBreakAfterCharacters = String(input.wordWrapBreakAfterCharacters);
+		this.wordWrapBreakObtrusiveCharacters = String(input.wordWrapBreakObtrusiveCharacters);
+		this.tabFocusMode = Boolean(input.tabFocusMode);
+		this.stopLineTokenizationAfter = Number(input.stopLineTokenizationAfter);
+		this.stopRenderingLineAfter = Number(input.stopRenderingLineAfter);
+		this.longLineBoundary = Number(input.longLineBoundary);
+		this.forcedTokenizationBoundary = Number(input.forcedTokenizationBoundary);
+		this.hover = Boolean(input.hover);
+		this.contextmenu = Boolean(input.contextmenu);
+		this.quickSuggestions = Boolean(input.quickSuggestions);
+		this.quickSuggestionsDelay = Number(input.quickSuggestionsDelay);
+		this.iconsInSuggestions = Boolean(input.iconsInSuggestions);
+		this.autoClosingBrackets = Boolean(input.autoClosingBrackets);
+		this.formatOnType = Boolean(input.formatOnType);
+		this.suggestOnTriggerCharacters = Boolean(input.suggestOnTriggerCharacters);
+		this.acceptSuggestionOnEnter = Boolean(input.acceptSuggestionOnEnter);
+		this.selectionHighlight = Boolean(input.selectionHighlight);
+		this.outlineMarkers = Boolean(input.outlineMarkers);
+		this.referenceInfos = Boolean(input.referenceInfos);
+		this.folding = Boolean(input.folding);
+		this.renderWhitespace = Boolean(input.renderWhitespace);
+		this.layoutInfo = {
+			width: Number(input.layoutInfo.width),
+			height: Number(input.layoutInfo.height),
+			glyphMarginLeft: Number(input.layoutInfo.glyphMarginLeft),
+			glyphMarginWidth: Number(input.layoutInfo.glyphMarginWidth),
+			glyphMarginHeight: Number(input.layoutInfo.glyphMarginHeight),
+			lineNumbersLeft: Number(input.layoutInfo.lineNumbersLeft),
+			lineNumbersWidth: Number(input.layoutInfo.lineNumbersWidth),
+			lineNumbersHeight: Number(input.layoutInfo.lineNumbersHeight),
+			decorationsLeft: Number(input.layoutInfo.decorationsLeft),
+			decorationsWidth: Number(input.layoutInfo.decorationsWidth),
+			decorationsHeight: Number(input.layoutInfo.decorationsHeight),
+			contentLeft: Number(input.layoutInfo.contentLeft),
+			contentWidth: Number(input.layoutInfo.contentWidth),
+			contentHeight: Number(input.layoutInfo.contentHeight),
+			verticalScrollbarWidth: Number(input.layoutInfo.verticalScrollbarWidth),
+			horizontalScrollbarHeight: Number(input.layoutInfo.horizontalScrollbarHeight),
 			overviewRuler:{
-				width: opts.layoutInfo.overviewRuler.width,
-				height: opts.layoutInfo.overviewRuler.height,
-				top: opts.layoutInfo.overviewRuler.top,
-				right: opts.layoutInfo.overviewRuler.right,
+				width: Number(input.layoutInfo.overviewRuler.width),
+				height: Number(input.layoutInfo.overviewRuler.height),
+				top: Number(input.layoutInfo.overviewRuler.top),
+				right: Number(input.layoutInfo.overviewRuler.right),
 			}
-		},
-		stylingInfo: {
-			editorClassName: opts.stylingInfo.editorClassName,
-			fontFamily: opts.stylingInfo.fontFamily,
-			fontSize: opts.stylingInfo.fontSize,
-			lineHeight: opts.stylingInfo.lineHeight,
-		},
-		wrappingInfo: {
-			isViewportWrapping: opts.wrappingInfo.isViewportWrapping,
-			wrappingColumn: opts.wrappingInfo.wrappingColumn,
-		},
-		observedOuterWidth: opts.observedOuterWidth,
-		observedOuterHeight: opts.observedOuterHeight,
-		lineHeight: opts.lineHeight,
-		pageSize: opts.pageSize,
-		typicalHalfwidthCharacterWidth: opts.typicalHalfwidthCharacterWidth,
-		typicalFullwidthCharacterWidth: opts.typicalFullwidthCharacterWidth,
-		fontSize: opts.fontSize,
-	};
+		};
+		this.stylingInfo = {
+			editorClassName: String(input.stylingInfo.editorClassName),
+			fontFamily: String(input.stylingInfo.fontFamily),
+			fontSize: Number(input.stylingInfo.fontSize),
+			lineHeight: Number(input.stylingInfo.lineHeight),
+		};
+		this.wrappingInfo = {
+			isViewportWrapping: Boolean(input.wrappingInfo.isViewportWrapping),
+			wrappingColumn: Number(input.wrappingInfo.wrappingColumn),
+		};
+		this.observedOuterWidth = Number(input.observedOuterWidth);
+		this.observedOuterHeight = Number(input.observedOuterHeight);
+		this.lineHeight = Number(input.lineHeight);
+		this.pageSize = Number(input.pageSize);
+		this.typicalHalfwidthCharacterWidth = Number(input.typicalHalfwidthCharacterWidth);
+		this.typicalFullwidthCharacterWidth = Number(input.typicalFullwidthCharacterWidth);
+		this.fontSize = Number(input.fontSize);
+	}
 }
 
 class InternalEditorOptionsHelper {
@@ -548,8 +603,8 @@ export interface IElementSizeObserver {
 export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
 
 	public handlerDispatcher:editorCommon.IHandlerDispatcher;
-	public editor:editorCommon.IInternalEditorOptions;
-	public editorClone:editorCommon.IInternalEditorOptions;
+	public editor:InternalEditorOptions;
+	public editorClone:InternalEditorOptions;
 
 	protected _configWithDefaults:ConfigurationWithDefaults;
 	protected _elementSizeObserver: IElementSizeObserver;
@@ -569,7 +624,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this.handlerDispatcher = new HandlerDispatcher();
 
 		this.editor = this._computeInternalOptions();
-		this.editorClone = cloneInternalEditorOptions(this.editor);
+		this.editorClone = new InternalEditorOptions(this.editor);
 	}
 
 	public dispose(): void {
@@ -579,7 +634,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	protected _recomputeOptions(): void {
 		let oldOpts = this.editor;
 		this.editor = this._computeInternalOptions();
-		this.editorClone = cloneInternalEditorOptions(this.editor);
+		this.editorClone = new InternalEditorOptions(this.editor);
 
 		let changeEvent = InternalEditorOptionsHelper.createConfigurationChangedEvent(oldOpts, this.editor);
 
@@ -602,7 +657,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		return this._configWithDefaults.getEditorOptions();
 	}
 
-	private _computeInternalOptions(): editorCommon.IInternalEditorOptions {
+	private _computeInternalOptions(): InternalEditorOptions {
 		let opts = this._configWithDefaults.getEditorOptions();
 
 		let editorClassName = this._getEditorClassName(opts.theme, toBoolean(opts.fontLigatures));
@@ -615,7 +670,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			adjustedLineHeight = Math.round(1.3 * requestedFontSize);
 		}
 
-		return InternalEditorOptionsHelper.createInternalEditorOptions(
+		let result = InternalEditorOptionsHelper.createInternalEditorOptions(
 			this.getOuterWidth(),
 			this.getOuterHeight(),
 			opts,
@@ -628,6 +683,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			this._isDominatedByLongLines,
 			this._lineCount
 		);
+
+		return new InternalEditorOptions(result);
 	}
 
 	public updateOptions(newOptions:editorCommon.IEditorOptions): void {

@@ -213,13 +213,24 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		super(allowedEventTypes, rawText);
 
 		this._shouldAutoTokenize = shouldAutoTokenize;
-		this._shouldSimplifyMode = (rawText.length > TextModelWithTokens.MODEL_SYNC_LIMIT);
-		this._shouldDenyMode = (rawText.length > TextModelWithTokens.MODEL_TOKENIZATION_LIMIT);
-
-		this._stopLineTokenizationAfter = DefaultConfig.editor.stopLineTokenizationAfter;
-
+		this._mode = null;
 		this._modeListener = null;
 		this._modeToModelBinder = null;
+		this._tokensInflatorMap = null;
+		this._stopLineTokenizationAfter = DefaultConfig.editor.stopLineTokenizationAfter;
+
+		this._invalidLineStartIndex = 0;
+		this._lastState = null;
+
+		this._revalidateTokensTimeout = -1;
+		this._scheduleRetokenizeNow = null;
+		this._retokenizers = null;
+
+		this._tokenizationElapsedTime = 0;
+		this._tokenizationTotalCharacters = 0;
+
+		this._shouldSimplifyMode = (rawText.length > TextModelWithTokens.MODEL_SYNC_LIMIT);
+		this._shouldDenyMode = (rawText.length > TextModelWithTokens.MODEL_TOKENIZATION_LIMIT);
 
 		if (!modeOrPromise) {
 			this._mode = new NullMode();

@@ -72,6 +72,11 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			return null;
 		}
 
+		tabSize = +tabSize; //@perf
+		breakingColumn = +breakingColumn; //@perf
+		columnsForFullWidthChar = +columnsForFullWidthChar; //@perf
+		hardWrappingIndent = +hardWrappingIndent; //@perf
+
 		var wrappedTextIndentVisibleColumn = 0,
 			wrappedTextIndent = '',
 			TAB_CHAR_CODE = '\t'.charCodeAt(0);
