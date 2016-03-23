@@ -52,7 +52,7 @@ var vscodeLanguages = [
     'ita'
 ];
 var iso639_3_to_2 = {
-    'chs': 'zh-ch',
+    'chs': 'zh-cn',
     'cht': 'zh-tw',
     'csy': 'cs-cz',
     'deu': 'de',
