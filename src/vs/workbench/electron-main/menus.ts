@@ -595,7 +595,8 @@ export class VSCodeMenu {
 			env.product.licenseUrl ? new MenuItem({
 				label: mnemonicLabel(nls.localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "&&View License")), click: () => {
 					if (platform.language) {
-						openUrl(`${env.product.licenseUrl}?lang=${platform.language}`, 'openLicenseUrl');
+						let queryArgChar = env.product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
+						openUrl(`${env.product.licenseUrl}${queryArgChar}lang=${platform.language}`, 'openLicenseUrl');
 					} else {
 						openUrl(env.product.licenseUrl, 'openLicenseUrl');
 					}
