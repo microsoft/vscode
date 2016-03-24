@@ -183,7 +183,6 @@ export class TypeScriptWorker2 {
 		var markers: IMarker[] = [];
 		markers.push.apply(markers, diagnostics.getSyntacticDiagnostics(project.languageService, resource, project.host.getCompilationSettings(),
 			this._options, this.resourceService.get(resource).getMode().getId() === 'javascript'));
-		markers.push.apply(markers, diagnostics.getExtraDiagnostics(project.languageService, resource, this._options));
 		this.markerService.changeOne(`/${this._modeId}/syntactic`, resource, markers);
 	}
 

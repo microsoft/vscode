@@ -17,32 +17,6 @@ interface Options {
 		semanticValidation: boolean;
 		syntaxValidation: boolean;
 		_surpressSuperWithoutSuperTypeError: boolean;
-		lint: {
-			comparisonOperatorsNotStrict: string;
-			curlyBracketsMustNotBeOmitted: string;
-			emptyBlocksWithoutComment: string;
-			forcedTypeConversion: string;
-			functionsInsideLoops: string;
-			functionsWithoutReturnType: string;
-			missingSemicolon: string;
-			mixedTypesArithmetics: string;
-			newOnLowercaseFunctions: string;
-			newOnReturningFunctions: string;
-			parametersDontMatchSignature: string;
-			parametersOptionalButNotLast: string;
-			primitivesInInstanceOf: string;
-			redeclaredVariables: string;
-			semicolonsInsteadOfBlocks: string;
-			tripleSlashReferenceAlike: string;
-			undeclaredVariables: string;
-			unknownModule: string;
-			unknownProperty: string;
-			unknownTypeOfResults: string;
-			unusedFunctions: string;
-			unusedImports: string;
-			unusedMembers: string;
-			unusedVariables: string;
-		};
 	};
 }
 
@@ -57,38 +31,7 @@ namespace Options {
 			enable: true,
 			semanticValidation: true,
 			syntaxValidation: true,
-			_surpressSuperWithoutSuperTypeError: false,
-			lint: {
-				comparisonOperatorsNotStrict: 'ignore',
-				curlyBracketsMustNotBeOmitted: 'ignore',
-				emptyBlocksWithoutComment: 'ignore',
-				functionsInsideLoops: 'ignore',
-				functionsWithoutReturnType: 'ignore',
-				missingSemicolon: 'ignore',
-				newOnLowercaseFunctions: 'ignore',
-				semicolonsInsteadOfBlocks: 'ignore',
-				tripleSlashReferenceAlike: 'ignore',
-				unknownTypeOfResults: 'ignore',
-				unusedFunctions: 'ignore',
-				unusedImports: 'ignore',
-				unusedMembers: 'ignore',
-				unusedVariables: 'ignore',
-
-				// the below lint checks are done by
-				// the TypeScript compiler and we can
-				// change the severity with this. Tho
-				// the default remains error
-				forcedTypeConversion: 'error',
-				mixedTypesArithmetics: 'error',
-				newOnReturningFunctions: 'error',
-				parametersDontMatchSignature: 'error',
-				parametersOptionalButNotLast: 'error',
-				primitivesInInstanceOf: 'error',
-				redeclaredVariables: 'error',
-				undeclaredVariables: 'error',
-				unknownModule: 'error',
-				unknownProperty: 'error',
-			}
+			_surpressSuperWithoutSuperTypeError: false
 		}
 	});
 
@@ -101,33 +44,7 @@ namespace Options {
 			enable: true,
 			semanticValidation: true,
 			syntaxValidation: true,
-			_surpressSuperWithoutSuperTypeError: false,
-			lint: {
-				comparisonOperatorsNotStrict: 'ignore',
-				curlyBracketsMustNotBeOmitted: 'ignore',
-				emptyBlocksWithoutComment: 'ignore',
-				forcedTypeConversion: 'warning',
-				functionsInsideLoops: 'ignore',
-				functionsWithoutReturnType: 'ignore',
-				missingSemicolon: 'ignore',
-				mixedTypesArithmetics: 'warning',
-				newOnLowercaseFunctions: 'warning',
-				newOnReturningFunctions: 'warning',
-				parametersDontMatchSignature: 'ignore',
-				parametersOptionalButNotLast: 'ignore',
-				primitivesInInstanceOf: 'error',
-				redeclaredVariables: 'warning',
-				semicolonsInsteadOfBlocks: 'ignore',
-				tripleSlashReferenceAlike: 'warning',
-				undeclaredVariables: 'warning',
-				unknownModule: 'ignore',
-				unknownProperty: 'ignore',
-				unknownTypeOfResults: 'warning',
-				unusedFunctions: 'ignore',
-				unusedImports: 'ignore',
-				unusedMembers: 'ignore',
-				unusedVariables: 'warning',
-			}
+			_surpressSuperWithoutSuperTypeError: false
 		}
 	});
 

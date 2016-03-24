@@ -9,7 +9,6 @@ import ts = require('vs/languages/typescript/common/lib/typescriptServices');
 import Options = require('vs/languages/typescript/common/options');
 import Severity from 'vs/base/common/severity';
 import converter = require('vs/languages/typescript/common/features/converter');
-import lint = require('vs/languages/typescript/common/lint/lint');
 import {IMarkerData} from 'vs/platform/markers/common/markers';
 
 export function getSyntacticDiagnostics(languageService: ts.LanguageService, resource: URI, compilerOptions: ts.CompilerOptions, options: Options, isJavaScript:boolean): IMarkerData[]{
@@ -53,24 +52,6 @@ export function getSemanticDiagnostics(languageService: ts.LanguageService, reso
 	return markers;
 }
 
-export function getExtraDiagnostics(languageService: ts.LanguageService, resource: URI, options: Options): IMarkerData[] {
-
-	if (options.validate.enable === false || options.validate.semanticValidation === false) {
-		return [];
-	}
-
-	return lint.check(options, languageService, resource).map(error => {
-		return {
-			message: error.message,
-			severity: error.severity,
-			startLineNumber: error.range.startLineNumber,
-			startColumn: error.range.startColumn,
-			endLineNumber: error.range.endLineNumber,
-			endColumn: error.range.endColumn,
-		};
-	});
-}
-
 export interface DiagnosticClassifier {
 	(diagnostic: ts.Diagnostic): Severity;
 }
@@ -81,32 +62,8 @@ _categorySeverity[ts.DiagnosticCategory.Warning] = Severity.Warning;
 _categorySeverity[ts.DiagnosticCategory.Message] = Severity.Info;
 
 export function createDiagnosticClassifier(options: Options): DiagnosticClassifier {
-	var map: { [code: number]: Severity } = Object.create(null);
-	map[2403] = Severity.fromValue(options.validate.lint.redeclaredVariables);
-	map[2403] = Severity.fromValue(options.validate.lint.redeclaredVariables);
-	map[2304] = Severity.fromValue(options.validate.lint.undeclaredVariables);
-	map[2339] = Severity.fromValue(options.validate.lint.unknownProperty);
-	map[2459] = Severity.fromValue(options.validate.lint.unknownProperty);
-	map[2460] = Severity.fromValue(options.validate.lint.unknownProperty);
-	map[2306] = Severity.fromValue(options.validate.lint.unknownModule);
-	map[2307] = Severity.fromValue(options.validate.lint.unknownModule);
-	map[2322] = Severity.fromValue(options.validate.lint.forcedTypeConversion);
-	map[2323] = Severity.fromValue(options.validate.lint.forcedTypeConversion);
-	map[2345] = Severity.fromValue(options.validate.lint.forcedTypeConversion);
-	map[2362] = Severity.fromValue(options.validate.lint.mixedTypesArithmetics);
-	map[2363] = Severity.fromValue(options.validate.lint.mixedTypesArithmetics);
-	map[2365] = Severity.fromValue(options.validate.lint.mixedTypesArithmetics);
-	map[2356] = Severity.fromValue(options.validate.lint.mixedTypesArithmetics);
-	map[2357] = Severity.fromValue(options.validate.lint.mixedTypesArithmetics);
-	map[2359] = Severity.fromValue(options.validate.lint.primitivesInInstanceOf);
-	map[2358] = Severity.fromValue(options.validate.lint.primitivesInInstanceOf);
-	map[2350] = Severity.fromValue(options.validate.lint.newOnReturningFunctions);
-	map[2346] = Severity.fromValue(options.validate.lint.parametersDontMatchSignature);
-	map[1016] = Severity.fromValue(options.validate.lint.parametersOptionalButNotLast);
-	map[2335] = options.validate._surpressSuperWithoutSuperTypeError ? Severity.Ignore : Severity.Error;
 	return (diagnostic: ts.Diagnostic) => {
-		var result = map[diagnostic.code];
-		return typeof result !== 'undefined' ? result : _categorySeverity[diagnostic.category];
+		return _categorySeverity[diagnostic.category];
 	};
 }
 
