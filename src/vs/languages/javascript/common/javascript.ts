@@ -20,8 +20,8 @@ import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSup
 import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
 import {ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
 import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
-
-import tokenization = typescriptMode.tokenization;
+import tokenization = require('vs/languages/typescript/common/features/tokenization');
+// import tokenization = typescriptMode.tokenization;
 
 export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaScriptWorker> {
 
@@ -39,7 +39,7 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 		@IThreadService threadService: IThreadService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(descriptor, instantiationService, threadService, telemetryService);
+		super(descriptor, null, instantiationService, threadService, telemetryService);
 
 		this.tokenizationSupport = tokenization.createTokenizationSupport(this, tokenization.Language.EcmaScript5);
 		this.referenceSupport = new ReferenceSupport(this.getId(), {
