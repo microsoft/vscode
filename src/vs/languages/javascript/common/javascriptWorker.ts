@@ -19,10 +19,9 @@ import occurrences = require('vs/languages/typescript/common/features/occurrence
 import extraInfo = require('vs/languages/typescript/common/features/extraInfo');
 import references = require('vs/languages/typescript/common/features/references');
 import definitions = require('vs/languages/typescript/common/features/definitions');
-import quickFix = require('vs/languages/typescript/common/features/quickFix');
 import diagnostics = require('vs/languages/typescript/common/features/diagnostics');
 import rename = require('vs/languages/typescript/common/features/rename');
-import {IMarker, IMarkerData, IMarkerService} from 'vs/platform/markers/common/markers';
+import {IMarkerData, IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 
 export class JavaScriptWorker extends typeScriptWorker.TypeScriptWorker2 {
@@ -177,31 +176,6 @@ export class JavaScriptWorker extends typeScriptWorker.TypeScriptWorker2 {
 			result.range = project.translations.getTranslator(resource).from(result.range);
 			rewriter.decodeVariableNames(result.htmlContent, project.translations.getOriginal(resource));
 		}
-		return winjs.TPromise.as(result);
-	}
-
-	public runQuickFixAction(resource: URI, range: EditorCommon.IRange, id: any): winjs.TPromise<Modes.IQuickFixResult> {
-
-		var project = this._projectService.getProject(resource, this._fancyRewriters);
-		var translatedRange = project.translations.getTranslator(resource).to(range);
-		objects.mixin(translatedRange, range, false);
-
-		var result = quickFix.evaluate(project.languageService, resource, translatedRange, id);
-		if (result) {
-			for (let edit of result.edits) {
-				edit.range = project.translations.getTranslator(edit.resource).from(edit.range);
-			}
-		}
-		return winjs.TPromise.as(result);
-	}
-
-	public getQuickFixes(resource: URI, range: IMarker | EditorCommon.IRange): winjs.TPromise<Modes.IQuickFix[]> {
-
-		var project = this._projectService.getProject(resource, this._fancyRewriters);
-		var translatedRange = project.translations.getTranslator(resource).to(range);
-		objects.mixin(translatedRange, range, false);
-
-		var result = quickFix.compute(project.languageService, resource, translatedRange);
 		return winjs.TPromise.as(result);
 	}
 

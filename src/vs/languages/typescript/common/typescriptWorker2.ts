@@ -16,7 +16,6 @@ import Options = require('vs/languages/typescript/common/options');
 import typescript = require('vs/languages/typescript/common/typescript');
 import projectService = require('vs/languages/typescript/common/project/projectService');
 import format = require('vs/languages/typescript/common/features/format');
-import logicalSelection = require('vs/languages/typescript/common/features/logicalSelection');
 import extraInfo = require('vs/languages/typescript/common/features/extraInfo');
 import outline = require('vs/languages/typescript/common/features/outline');
 import occurrences = require('vs/languages/typescript/common/features/occurrences');
@@ -24,7 +23,6 @@ import definitions = require('vs/languages/typescript/common/features/definition
 import references = require('vs/languages/typescript/common/features/references');
 import parameterHints = require('vs/languages/typescript/common/features/parameterHints');
 import suggestions = require('vs/languages/typescript/common/features/suggestions');
-import quickFix = require('vs/languages/typescript/common/features/quickFix');
 import diagnostics = require('vs/languages/typescript/common/features/diagnostics');
 import emitting = require('vs/languages/typescript/common/features/emitting');
 import rename = require('vs/languages/typescript/common/features/rename');
@@ -217,18 +215,6 @@ export class TypeScriptWorker2 {
 		return winjs.TPromise.as(result);
 	}
 
-	public runQuickFixAction(resource: URI, range: EditorCommon.IRange, id: any): winjs.TPromise<Modes.IQuickFixResult> {
-		var project = this._projectService.getProject(resource);
-		var result = quickFix.evaluate(project.languageService, resource, range, id);
-		return winjs.TPromise.as(result);
-	}
-
-	public getQuickFixes(resource: URI, range: IMarker | EditorCommon.IRange): winjs.TPromise<Modes.IQuickFix[]> {
-		var project = this._projectService.getProject(resource);
-		var result = quickFix.compute(project.languageService, resource, range);
-		return winjs.TPromise.as(result);
-	}
-
 	public getEmitOutput(resource: URI, type: string): winjs.TPromise<Modes.IEmitOutput> {
 		var project = this._projectService.getProject(resource);
 		var result = emitting.getEmitOutput(project.languageService, resource, type);
@@ -302,11 +288,6 @@ export class TypeScriptWorker2 {
 	public formatAfterKeystroke(resource: URI, position: EditorCommon.IPosition, ch: string, options: Modes.IFormattingOptions): EditorCommon.ISingleEditOperation[]{
 		var project = this._projectService.getProject(resource);
 		return format.formatAfterKeystroke(project.languageService, resource, position, ch, options);
-	}
-
-	public getRangesToPosition(resource: URI, position: EditorCommon.IPosition): Modes.ILogicalSelectionEntry[]{
-		var project = this._projectService.getProject(resource);
-		return logicalSelection.compute(project.languageService, resource, position);
 	}
 
 	public rename(resource: URI, position: EditorCommon.IPosition, newName: string): winjs.TPromise<Modes.IRenameResult> {

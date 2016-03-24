@@ -12,7 +12,6 @@ import Modes = require('vs/editor/common/modes');
 import lifecycle = require('vs/base/common/lifecycle');
 import async = require('vs/base/common/async');
 import tokenization = require('vs/languages/typescript/common/features/tokenization');
-import quickFixMainActions = require('vs/languages/typescript/common/features/quickFixMainActions');
 import typescriptWorker = require('vs/languages/typescript/common/typescriptWorker2');
 import typescript = require('vs/languages/typescript/common/typescript');
 import ts = require('vs/languages/typescript/common/lib/typescriptServices');
@@ -20,7 +19,6 @@ import {AbstractMode, createWordRegExp, ModeWorkerManager} from 'vs/editor/commo
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {IMarker} from 'vs/platform/markers/common/markers';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -138,8 +136,6 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	public referenceSupport: Modes.IReferenceSupport;
 	public extraInfoSupport:Modes.IExtraInfoSupport;
 	public occurrencesSupport:Modes.IOccurrencesSupport;
-	public quickFixSupport:Modes.IQuickFixSupport;
-	public logicalSelectionSupport:Modes.ILogicalSelectionSupport;
 	public parameterHintsSupport:Modes.IParameterHintsSupport;
 	public outlineSupport:Modes.IOutlineSupport;
 	public declarationSupport: Modes.IDeclarationSupport;
@@ -198,8 +194,6 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 		this.extraInfoSupport = this;
 		this.occurrencesSupport = this;
 		this.formattingSupport = this;
-		this.quickFixSupport = this;
-		this.logicalSelectionSupport = this;
 		this.outlineSupport = this;
 		this.emitOutputSupport = this;
 		this.renameSupport = this;
@@ -460,31 +454,6 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	static $rename = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.rename, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group2);
 	public rename(resource: URI, position: EditorCommon.IPosition, newName: string): WinJS.TPromise<Modes.IRenameResult> {
 		return this._worker(w => w.rename(resource, position, newName));
-	}
-
-	public runQuickFixAction(resource:  URI, range: EditorCommon.IRange, id: any): WinJS.TPromise<Modes.IQuickFixResult> {
-		var quickFixMainSupport = this._instantiationService.createInstance(quickFixMainActions.QuickFixMainActions);
-		return quickFixMainSupport.evaluate(resource, range, id).then((action) => {
-			if (action) {
-				return action;
-			}
-			return this.runQuickFixActionInWorker(resource, range, id);
-		});
-	}
-
-	static $runQuickFixActionInWorker = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.runQuickFixActionInWorker, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group2);
-	public runQuickFixActionInWorker(resource:  URI, range: EditorCommon.IRange, id: any): WinJS.TPromise<Modes.IQuickFixResult> {
-		return this._worker((w) => w.runQuickFixAction(resource, range, id));
-	}
-
-	static $getQuickFixes = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.getQuickFixes, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group2);
-	public getQuickFixes(resource: URI, range: IMarker | EditorCommon.IRange):WinJS.TPromise<Modes.IQuickFix[]> {
-		return this._worker((w) => w.getQuickFixes(resource, range));
-	}
-
-	static $getRangesToPosition = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.getRangesToPosition, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group1);
-	public getRangesToPosition(resource: URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ILogicalSelectionEntry[]> {
-		return this._worker((w) => w.getRangesToPosition(resource, position));
 	}
 
 	static $findDeclaration = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.findDeclaration, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group2);
