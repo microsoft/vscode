@@ -893,11 +893,13 @@ export class ImportFileAction extends BaseFileAction {
 						multiFileProgressTracker = this.progressService.show(filesArray.length);
 					}
 
-					// Run import in sequence to not consume too many connections
+					// Run import in sequence
 					let importPromisesFactory: ITask<TPromise<void>>[] = [];
 					filesArray.forEach((file) => {
 						importPromisesFactory.push(() => {
-							return this.fileService.importFile(URI.file((<any>file).path), targetElement.resource).then((result: IImportResult) => {
+							let sourceFile = URI.file((<any>file).path);
+
+							return this.fileService.importFile(sourceFile, targetElement.resource).then((result: IImportResult) => {
 
 								// Progress
 								if (multiFileProgressTracker) {
@@ -906,9 +908,9 @@ export class ImportFileAction extends BaseFileAction {
 
 								if (result.stat) {
 
-									// Emit Deleted Event if file gets replaced
+									// Emit Deleted Event if file gets replaced unless it is the same file
 									let oldFile = targetNames[isLinux ? file.name : file.name.toLowerCase()];
-									if (oldFile) {
+									if (oldFile && oldFile.resource.fsPath !== result.stat.resource.fsPath) {
 										this.eventService.emit('files.internal:fileChanged', new Files.LocalFileChangeEvent(oldFile, null));
 									}
 
