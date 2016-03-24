@@ -334,18 +334,18 @@ export class ProjectService {
 		callback(this._virtualProject);
 	}
 
-	public getMissingScriptNamesSinceLastTime(): string[] {
-		let allMissing: { [fileName: string]: any } = Object.create(null);
-		this._forEachProject(project => {
-			let missing = project.host.getMissingFileNamesSinceLastTime();
-			if (missing) {
-				for (let fileName of missing) {
-					allMissing[fileName] = 0;
-				}
-			}
-		});
-		return Object.keys(allMissing);
-	}
+	// public getMissingScriptNamesSinceLastTime(): string[] {
+	// 	let allMissing: { [fileName: string]: any } = Object.create(null);
+	// 	this._forEachProject(project => {
+	// 		let missing = project.host.getMissingFileNamesSinceLastTime();
+	// 		if (missing) {
+	// 			for (let fileName of missing) {
+	// 				allMissing[fileName] = 0;
+	// 			}
+	// 		}
+	// 	});
+	// 	return Object.keys(allMissing);
+	// }
 
 	public getTotalLength():number {
 		let total = 0;

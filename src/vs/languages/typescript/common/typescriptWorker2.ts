@@ -189,18 +189,12 @@ export class TypeScriptWorker2 {
 		this.markerService.changeOne(`/${this._modeId}/syntactic`, resource, markers);
 	}
 
-	public doValidateSemantics(resource: URI): boolean {
+	public doValidateSemantics(resource: URI): void {
 		var project = this._projectService.getProject(resource);
 		var result = diagnostics.getSemanticDiagnostics(project.languageService, resource, this._options);
 		if (result) {
-			this.markerService.changeOne(`/${this._modeId}/semantic`, resource, result.markers);
-			return result.hasMissingFiles;
+			this.markerService.changeOne(`/${this._modeId}/semantic`, resource, result);
 		}
-	}
-
-	public getMissingFiles(): URI[] {
-		var fileNames = this._projectService.getMissingScriptNamesSinceLastTime();
-		return fileNames && fileNames.map(URI.parse);
 	}
 
 	public suggest(resource:URI, position:EditorCommon.IPosition):winjs.TPromise<Modes.ISuggestResult[]> {

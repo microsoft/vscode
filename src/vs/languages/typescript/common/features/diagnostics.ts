@@ -36,10 +36,9 @@ export function getSyntacticDiagnostics(languageService: ts.LanguageService, res
 	return markers;
 }
 
-export function getSemanticDiagnostics(languageService: ts.LanguageService, resource: URI, options: Options): { markers: IMarkerData[]; hasMissingFiles: boolean } {
+export function getSemanticDiagnostics(languageService: ts.LanguageService, resource: URI, options: Options): IMarkerData[] {
 
-	var markers: IMarkerData[] = [],
-		hasMissingFiles = false;
+	var markers: IMarkerData[] = [];
 
 	if (options.validate.enable && options.validate.semanticValidation) {
 
@@ -48,14 +47,10 @@ export function getSemanticDiagnostics(languageService: ts.LanguageService, reso
 
 		for (var i = 0; i < diagnostics.length; i++) {
 			_asMarker(diagnostics[i], classifier, markers);
-			hasMissingFiles = hasMissingFiles || diagnostics[i].code === 2307 || diagnostics[i].code === 6053;
 		}
 	}
 
-	return {
-		markers,
-		hasMissingFiles
-	};
+	return markers;
 }
 
 export function getExtraDiagnostics(languageService: ts.LanguageService, resource: URI, options: Options): IMarkerData[] {

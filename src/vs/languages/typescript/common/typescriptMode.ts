@@ -95,7 +95,7 @@ class SemanticValidator {
 				}
 
 				if (thisValidationReq === this._lastValidationReq) {
-					return this._mode.performSemanticValidation(r);
+					return this._mode.doValidateSemantics(r);
 				}
 			};
 		}));
@@ -413,30 +413,9 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 		return this._worker((w) => w.enableValidator());
 	}
 
-	public performSemanticValidation(resource: URI): WinJS.TPromise<void> {
-		return this.doValidateSemantics(resource).then(missesFiles => {
-			if (!missesFiles) {
-				return;
-			}
-			return this.getMissingFiles().then(missing => {
-				if (missing) {
-					// console.log(`${resource.fsPath} misses ~${missing.length} resources`);
-					return this._projectResolver.then(resolver => {
-						return resolver.resolveFiles(missing);
-					});
-				}
-			});
-		});
-	}
-
 	static $doValidateSemantics = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.doValidateSemantics, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group3);
-	public doValidateSemantics(resource: URI): WinJS.TPromise<boolean> {
+	public doValidateSemantics(resource: URI): WinJS.TPromise<void> {
 		return this._worker(w => w.doValidateSemantics(resource));
-	}
-
-	static $getMissingFiles = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.getMissingFiles, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group3);
-	public getMissingFiles(): WinJS.TPromise<URI[]> {
-		return this._worker(w => w.getMissingFiles());
 	}
 
 	static $getOutline = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.getOutline, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group1);
