@@ -230,11 +230,11 @@ class LinkDetector {
 	private updateDecorations(links:ILink[]):void {
 		this.editor.changeDecorations((changeAccessor:editorCommon.IModelDecorationsChangeAccessor) => {
 			var oldDecorations:string[] = [];
-			for (var decorationId in this.currentOccurences) {
-				if (this.currentOccurences.hasOwnProperty(decorationId)) {
-					var occurance = this.currentOccurences[decorationId];
-					oldDecorations.push(occurance.decorationId);
-				}
+			let keys = Object.keys(this.currentOccurences);
+			for (let i = 0, len = keys.length; i < len; i++) {
+				let decorationId = keys[i];
+				let occurance = this.currentOccurences[decorationId];
+				oldDecorations.push(occurance.decorationId);
 			}
 
 			var newDecorations:editorCommon.IModelDeltaDecoration[] = [];

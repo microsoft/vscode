@@ -639,12 +639,12 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		let changeEvent = InternalEditorOptionsHelper.createConfigurationChangedEvent(oldOpts, this.editor);
 
 		let hasChanged = false;
-		for (let key in changeEvent) {
-			if (changeEvent.hasOwnProperty(key)) {
-				if (changeEvent[key]) {
-					hasChanged = true;
-					break;
-				}
+		let keys = Object.keys(changeEvent);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let key = keys[i];
+			if (changeEvent[key]) {
+				hasChanged = true;
+				break;
 			}
 		}
 

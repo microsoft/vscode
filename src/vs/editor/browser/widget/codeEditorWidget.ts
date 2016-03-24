@@ -404,17 +404,16 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 
 			this._view.renderOnce(() => {
 
-				var widgetId:string;
-				for (widgetId in this.contentWidgets) {
-					if (this.contentWidgets.hasOwnProperty(widgetId)) {
-						this._view.addContentWidget(this.contentWidgets[widgetId]);
-					}
+				let keys = Object.keys(this.contentWidgets);
+				for (let i = 0, len = keys.length; i < len; i++) {
+					let widgetId = keys[i];
+					this._view.addContentWidget(this.contentWidgets[widgetId]);
 				}
 
-				for (widgetId in this.overlayWidgets) {
-					if (this.overlayWidgets.hasOwnProperty(widgetId)) {
-						this._view.addOverlayWidget(this.overlayWidgets[widgetId]);
-					}
+				keys = Object.keys(this.overlayWidgets);
+				for (let i = 0, len = keys.length; i < len; i++) {
+					let widgetId = keys[i];
+					this._view.addOverlayWidget(this.overlayWidgets[widgetId]);
 				}
 
 				this._view.render(false, true);

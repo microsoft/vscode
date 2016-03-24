@@ -82,7 +82,7 @@ export class ViewOverlayWidgets extends ViewPart {
 
 		widgetData.preference = preference;
 		this._requestModificationFrame(() => {
-			if(this._widgets.hasOwnProperty(widget.getId())) {
+			if (this._widgets.hasOwnProperty(widget.getId())) {
 				this._renderWidget(widgetData);
 			}
 		});
@@ -136,13 +136,11 @@ export class ViewOverlayWidgets extends ViewPart {
 	}
 
 	_render(ctx:IRenderingContext): void {
-		var widgetId:string;
-
 		this._requestModificationFrame(() => {
-			for (widgetId in this._widgets) {
-				if (this._widgets.hasOwnProperty(widgetId)) {
-					this._renderWidget(this._widgets[widgetId]);
-				}
+			let keys = Object.keys(this._widgets);
+			for (let i = 0, len = keys.length; i < len; i++) {
+				let widgetId = keys[i];
+				this._renderWidget(this._widgets[widgetId]);
 			}
 		});
 	}

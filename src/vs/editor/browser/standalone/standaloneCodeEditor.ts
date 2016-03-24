@@ -293,12 +293,12 @@ var startup = (function() {
 })();
 
 function shallowClone<T>(obj:T): T {
-	var r:T = <any>{};
+	let r:T = <any>{};
 	if (obj) {
-		for (var key in obj) {
-			if (obj.hasOwnProperty(key)) {
-				r[key] = obj[key];
-			}
+		let keys = Object.keys(obj);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let key = keys[i];
+			r[key] = obj[key];
 		}
 	}
 	return r;

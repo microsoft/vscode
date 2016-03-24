@@ -54,30 +54,29 @@ export class ViewZones extends ViewPart {
 	// ---- begin view event handlers
 
 	private _recomputeWhitespacesProps(): boolean {
-		let id:string;
 		let zone2Height:{[id:string]:number;} = {};
 		let hadAChange = false;
 
-		for (id in this._zones) {
-			if (this._zones.hasOwnProperty(id)) {
-				let zone = this._zones[id];
-				let props = this._computeWhitespaceProps(zone.delegate);
-				if (this._whitespaceManager.changeWhitespace(parseInt(id, 10), props.afterViewLineNumber, props.heightInPx)) {
-					this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
-					zone2Height[id] = props.heightInPx;
-					hadAChange = true;
-				}
+		let keys = Object.keys(this._zones);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let id = keys[i];
+			let zone = this._zones[id];
+			let props = this._computeWhitespaceProps(zone.delegate);
+			if (this._whitespaceManager.changeWhitespace(parseInt(id, 10), props.afterViewLineNumber, props.heightInPx)) {
+				this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
+				zone2Height[id] = props.heightInPx;
+				hadAChange = true;
 			}
 		}
 
 		if (hadAChange) {
 			this._requestModificationFrame(() => {
-				for (id in this._zones) {
-					if (this._zones.hasOwnProperty(id)) {
-						if (zone2Height.hasOwnProperty(id)) {
-							// TODO@Alex - edit dom node properties only in render()
-							StyleMutator.setHeight(this._zones[id].delegate.domNode, zone2Height[id]);
-						}
+				let keys = Object.keys(this._zones);
+				for (let i = 0, len = keys.length; i < len; i++) {
+					let id = keys[i];
+					if (zone2Height.hasOwnProperty(id)) {
+						// TODO@Alex - edit dom node properties only in render()
+						StyleMutator.setHeight(this._zones[id].delegate.domNode, zone2Height[id]);
 					}
 				}
 			});
@@ -291,41 +290,36 @@ export class ViewZones extends ViewPart {
 		var visibleWhitespaces = this._whitespaceManager.getWhitespaceViewportData();
 
 		this._requestModificationFrame(() => {
-			var visibleZones:{[id:string]:editorCommon.IViewWhitespaceViewportData;} = {},
-				i:number,
-				len:number,
-				hasVisibleZone = false;
+			let visibleZones:{[id:string]:editorCommon.IViewWhitespaceViewportData;} = {};
 
-			for (i = 0, len = visibleWhitespaces.length; i < len; i++) {
+			let hasVisibleZone = false;
+			for (let i = 0, len = visibleWhitespaces.length; i < len; i++) {
 				visibleZones[visibleWhitespaces[i].id.toString()] = visibleWhitespaces[i];
 				hasVisibleZone = true;
 			}
 
-			var id:string,
-				zone:IMyViewZone;
+			let keys = Object.keys(this._zones);
+			for (let i = 0, len = keys.length; i < len; i++) {
+				let id = keys[i];
+				let zone = this._zones[id];
 
-			for (id in this._zones) {
-				if (this._zones.hasOwnProperty(id)) {
-					zone = this._zones[id];
-
-					if (visibleZones.hasOwnProperty(id)) {
-						// zone is visible
-						StyleMutator.setTop(zone.delegate.domNode, (visibleZones[id].verticalOffset - ctx.bigNumbersDelta));
-						StyleMutator.setHeight(zone.delegate.domNode, visibleZones[id].height);
-						if (!zone.isVisible) {
-							StyleMutator.setDisplay(zone.delegate.domNode, 'block');
-							zone.delegate.domNode.setAttribute('monaco-visible-view-zone', 'true');
-							zone.isVisible = true;
-						}
-						this._safeCallOnDomNodeTop(zone.delegate, ctx.getScrolledTopFromAbsoluteTop(visibleZones[id].verticalOffset));
-					} else {
-						if (zone.isVisible) {
-							StyleMutator.setDisplay(zone.delegate.domNode, 'none');
-							zone.delegate.domNode.removeAttribute('monaco-visible-view-zone');
-							zone.isVisible = false;
-						}
-						this._safeCallOnDomNodeTop(zone.delegate, ctx.getScrolledTopFromAbsoluteTop(-1000000));
+				if (visibleZones.hasOwnProperty(id)) {
+					// zone is visible
+					StyleMutator.setTop(zone.delegate.domNode, (visibleZones[id].verticalOffset - ctx.bigNumbersDelta));
+					StyleMutator.setHeight(zone.delegate.domNode, visibleZones[id].height);
+					if (!zone.isVisible) {
+						StyleMutator.setDisplay(zone.delegate.domNode, 'block');
+						zone.delegate.domNode.setAttribute('monaco-visible-view-zone', 'true');
+						zone.isVisible = true;
 					}
+					this._safeCallOnDomNodeTop(zone.delegate, ctx.getScrolledTopFromAbsoluteTop(visibleZones[id].verticalOffset));
+				} else {
+					if (zone.isVisible) {
+						StyleMutator.setDisplay(zone.delegate.domNode, 'none');
+						zone.delegate.domNode.removeAttribute('monaco-visible-view-zone');
+						zone.isVisible = false;
+					}
+					this._safeCallOnDomNodeTop(zone.delegate, ctx.getScrolledTopFromAbsoluteTop(-1000000));
 				}
 			}
 

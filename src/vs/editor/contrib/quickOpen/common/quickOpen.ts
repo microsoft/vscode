@@ -36,10 +36,10 @@ export function getOutlineEntries(model: IModel): TPromise<IOutline> {
 	let promises = OutlineRegistry.all(model).map(support => {
 
 		if (support.outlineGroupLabel) {
-			for (var key in support.outlineGroupLabel) {
-				if (Object.prototype.hasOwnProperty.call(support.outlineGroupLabel, key)) {
-					groupLabels[key] = support.outlineGroupLabel[key];
-				}
+			let keys = Object.keys(support.outlineGroupLabel);
+			for (let i = 0, len = keys.length; i < len; i++) {
+				let key = keys[i];
+				groupLabels[key] = support.outlineGroupLabel[key];
 			}
 		}
 

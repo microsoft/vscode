@@ -921,8 +921,8 @@ export class Cursor extends EventEmitter {
 	// ----- handlers beyond this point
 
 	private _registerHandlers(): void {
-		var H = editorCommon.Handler;
-		var handlersMap:{
+		let H = editorCommon.Handler;
+		let handlersMap:{
 			[key:string]:(ctx:IMultipleCursorOperationContext)=>boolean;
 		} = {};
 
@@ -1041,15 +1041,14 @@ export class Cursor extends EventEmitter {
 		handlersMap[H.ExecuteCommand] =				(ctx:IMultipleCursorOperationContext) => this._externalExecuteCommand(ctx);
 		handlersMap[H.ExecuteCommands] =			(ctx:IMultipleCursorOperationContext) => this._externalExecuteCommands(ctx);
 
-		var createHandler = (handlerId:string, handlerExec:(ctx:IMultipleCursorOperationContext)=>boolean) => {
+		let createHandler = (handlerId:string, handlerExec:(ctx:IMultipleCursorOperationContext)=>boolean) => {
 			return (e:editorCommon.IDispatcherEvent) => this._onHandler(handlerId, handlerExec, e);
 		};
 
-		var handler:string;
-		for (handler in handlersMap) {
-			if (handlersMap.hasOwnProperty(handler)) {
-				this.configuration.handlerDispatcher.setHandler(handler, createHandler(handler, handlersMap[handler]));
-			}
+		let keys = Object.keys(handlersMap);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let handler = keys[i];
+			this.configuration.handlerDispatcher.setHandler(handler, createHandler(handler, handlersMap[handler]));
 		}
 	}
 

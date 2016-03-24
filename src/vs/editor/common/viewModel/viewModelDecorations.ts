@@ -156,9 +156,10 @@ export class ViewModelDecorations implements IDisposable {
 		}
 
 		// Interpret new decorations
-		var id:string;
-		for (id in addedOrChangedMap) {
-			if (!usedMap.hasOwnProperty(id) && addedOrChangedMap.hasOwnProperty(id)) {
+		let keys = Object.keys(addedOrChangedMap);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let id = keys[i];
+			if (!usedMap.hasOwnProperty(id)) {
 				theirDecoration = addedOrChangedMap[id];
 
 				myDecoration = new ViewModelDecoration(theirDecoration, this.converter.convertModelRangeToViewRange(theirDecoration.range, theirDecoration.options.isWholeLine));

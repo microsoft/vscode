@@ -177,17 +177,15 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 			throw new Error('TextModelWithDecorations.removeAllDecorationsWithOwnerId: Model is disposed');
 		}
 
-		var decorationId:string;
-		var decoration:IInternalDecoration;
-		var toRemove:string[] = [];
+		let toRemove:string[] = [];
 
-		for (decorationId in this.decorations) {
-			if (this.decorations.hasOwnProperty(decorationId)) {
-				decoration = this.decorations[decorationId];
+		let keys = Object.keys(this.decorations);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let decorationId = keys[i];
+			let decoration = this.decorations[decorationId];
 
-				if (decoration.ownerId === ownerId) {
-					toRemove.push(decoration.id);
-				}
+			if (decoration.ownerId === ownerId) {
+				toRemove.push(decoration.id);
 			}
 		}
 
@@ -298,32 +296,31 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 			throw new Error('TextModelWithDecorations.getAllDecorations: Model is disposed');
 		}
 
-		var result:editorCommon.IModelDecoration[] = [];
-		var decorationId:string;
-		var decoration:IInternalDecoration;
+		let result:editorCommon.IModelDecoration[] = [];
 
-		for (decorationId in this.decorations) {
-			if (this.decorations.hasOwnProperty(decorationId)) {
-				decoration = this.decorations[decorationId];
+		let keys = Object.keys(this.decorations);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let decorationId = keys[i];
+			let decoration = this.decorations[decorationId];
 
-				if (ownerId && decoration.ownerId && decoration.ownerId !== ownerId) {
+			if (ownerId && decoration.ownerId && decoration.ownerId !== ownerId) {
+				continue;
+			}
+
+			if (filterOutValidation) {
+				if (decoration.options.className === editorCommon.ClassName.EditorErrorDecoration || decoration.options.className === editorCommon.ClassName.EditorWarningDecoration) {
 					continue;
 				}
-
-				if (filterOutValidation) {
-					if (decoration.options.className === editorCommon.ClassName.EditorErrorDecoration || decoration.options.className === editorCommon.ClassName.EditorWarningDecoration) {
-						continue;
-					}
-				}
-
-				result.push({
-					id: decoration.id,
-					ownerId: decoration.ownerId,
-					range: this.getTrackedRange(decoration.rangeId),
-					options: decoration.options
-				});
 			}
+
+			result.push({
+				id: decoration.id,
+				ownerId: decoration.ownerId,
+				range: this.getTrackedRange(decoration.rangeId),
+				options: decoration.options
+			});
 		}
+
 		return result;
 	}
 
@@ -370,12 +367,11 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	private _onChangedRanges(eventBuilder:DeferredEventsBuilder, changedRanges:editorCommon.IChangedTrackedRanges): void {
-		var rangeId:string;
-		var decorationId:string;
-
-		for (rangeId in changedRanges) {
-			if (changedRanges.hasOwnProperty(rangeId) && this.rangeIdToDecorationId.hasOwnProperty(rangeId)) {
-				decorationId = this.rangeIdToDecorationId[rangeId];
+		let keys = Object.keys(changedRanges);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let rangeId = keys[i];
+			if (this.rangeIdToDecorationId.hasOwnProperty(rangeId)) {
+				let decorationId = this.rangeIdToDecorationId[rangeId];
 
 				eventBuilder.addMovedDecoration(decorationId, changedRanges[rangeId]);
 			}
@@ -383,34 +379,34 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	private _handleCollectedDecorationsEvents(b:DeferredEventsBuilder): void {
-		var decorationId:string,
-			addedOrChangedDecorations:editorCommon.IModelDecorationsChangedEventDecorationData[] = [],
+		var addedOrChangedDecorations:editorCommon.IModelDecorationsChangedEventDecorationData[] = [],
 			removedDecorations:string[] = [],
 			decorationIds:string[] = [],
 			decorationData:editorCommon.IModelDecorationsChangedEventDecorationData,
 			oldRange:editorCommon.IRange;
 
-		for (decorationId in b.newOrChangedDecorations) {
-			if (b.newOrChangedDecorations.hasOwnProperty(decorationId)) {
-				decorationIds.push(decorationId);
-				decorationData = this._getDecorationData(decorationId);
-				decorationData.isForValidation = (decorationData.options.className === editorCommon.ClassName.EditorErrorDecoration || decorationData.options.className === editorCommon.ClassName.EditorWarningDecoration);
-				addedOrChangedDecorations.push(decorationData);
-				if (b.oldDecorationRange.hasOwnProperty(decorationId)) {
-					oldRange = b.oldDecorationRange[decorationId];
-					oldRange.startLineNumber = oldRange.startLineNumber || decorationData.range.startLineNumber;
-					oldRange.startColumn = oldRange.startColumn || decorationData.range.startColumn;
-					oldRange.endLineNumber = oldRange.endLineNumber || decorationData.range.endLineNumber;
-					oldRange.endColumn = oldRange.endColumn || decorationData.range.endColumn;
-				}
+		let keys = Object.keys(b.newOrChangedDecorations);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let decorationId = keys[i];
+
+			decorationIds.push(decorationId);
+			decorationData = this._getDecorationData(decorationId);
+			decorationData.isForValidation = (decorationData.options.className === editorCommon.ClassName.EditorErrorDecoration || decorationData.options.className === editorCommon.ClassName.EditorWarningDecoration);
+			addedOrChangedDecorations.push(decorationData);
+			if (b.oldDecorationRange.hasOwnProperty(decorationId)) {
+				oldRange = b.oldDecorationRange[decorationId];
+				oldRange.startLineNumber = oldRange.startLineNumber || decorationData.range.startLineNumber;
+				oldRange.startColumn = oldRange.startColumn || decorationData.range.startColumn;
+				oldRange.endLineNumber = oldRange.endLineNumber || decorationData.range.endLineNumber;
+				oldRange.endColumn = oldRange.endColumn || decorationData.range.endColumn;
 			}
 		}
 
-		for (decorationId in b.removedDecorations) {
-			if (b.removedDecorations.hasOwnProperty(decorationId)) {
-				decorationIds.push(decorationId);
-				removedDecorations.push(decorationId);
-			}
+		keys = Object.keys(b.removedDecorations);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let decorationId = keys[i];
+			decorationIds.push(decorationId);
+			removedDecorations.push(decorationId);
 		}
 
 		if (decorationIds.length > 0) {

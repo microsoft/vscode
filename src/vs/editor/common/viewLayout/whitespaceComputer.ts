@@ -117,15 +117,12 @@ export class WhitespaceComputer {
 		this.ordinals.splice(insertIndex, 0, ordinal);
 		this.prefixSum.splice(insertIndex, 0, 0);
 
-		var sid:string,
-			oldIndex:number;
-
-		for (sid in this.whitespaceId2Index) {
-			if (this.whitespaceId2Index.hasOwnProperty(sid)) {
-				oldIndex = this.whitespaceId2Index[sid];
-				if (oldIndex >= insertIndex) {
-					this.whitespaceId2Index[sid] = oldIndex + 1;
-				}
+		let keys = Object.keys(this.whitespaceId2Index);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let sid = keys[i];
+			let oldIndex = this.whitespaceId2Index[sid];
+			if (oldIndex >= insertIndex) {
+				this.whitespaceId2Index[sid] = oldIndex + 1;
 			}
 		}
 
@@ -220,15 +217,12 @@ export class WhitespaceComputer {
 		this.prefixSum.splice(removeIndex, 1);
 		this.prefixSumValidIndex = Math.min(this.prefixSumValidIndex, removeIndex - 1);
 
-		var sid:string,
-			oldIndex:number;
-
-		for (sid in this.whitespaceId2Index) {
-			if (this.whitespaceId2Index.hasOwnProperty(sid)) {
-				oldIndex = this.whitespaceId2Index[sid];
-				if (oldIndex >= removeIndex) {
-					this.whitespaceId2Index[sid] = oldIndex - 1;
-				}
+		let keys = Object.keys(this.whitespaceId2Index);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let sid = keys[i];
+			let oldIndex = this.whitespaceId2Index[sid];
+			if (oldIndex >= removeIndex) {
+				this.whitespaceId2Index[sid] = oldIndex - 1;
 			}
 		}
 	}

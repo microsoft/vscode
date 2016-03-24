@@ -223,11 +223,11 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 			throw new Error('TextModelWithMarkers._getMarkersInMap: Model is disposed');
 		}
 
-		var result: ILineMarker[] = [],
-			markerId: string;
-
-		for (markerId in markersMap)	{
-			if (markersMap.hasOwnProperty(markerId) && this._markerIdToMarker.hasOwnProperty(markerId)) {
+		let result: ILineMarker[] = [];
+		let keys = Object.keys(markersMap);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let markerId = keys[i];
+			if (this._markerIdToMarker.hasOwnProperty(markerId)) {
 				result.push(this._markerIdToMarker[markerId]);
 			}
 		}

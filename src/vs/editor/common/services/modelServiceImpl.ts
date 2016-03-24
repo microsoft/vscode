@@ -309,18 +309,18 @@ export class ModelServiceImpl implements IModelService {
 		this._modelCreationOptions = newOpts;
 
 		// Update options on all models
-		for (let modelId in this._models) {
-			if (this._models.hasOwnProperty(modelId)) {
-				let modelData = this._models[modelId];
+		let keys = Object.keys(this._models);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let modelId = keys[i];
+			let modelData = this._models[modelId];
 
-				if (this._modelCreationOptions.detectIndentation) {
-					modelData.model.detectIndentation(this._modelCreationOptions.insertSpaces, this._modelCreationOptions.tabSize);
-				} else {
-					modelData.model.updateOptions({
-						insertSpaces: this._modelCreationOptions.insertSpaces,
-						tabSize:  this._modelCreationOptions.tabSize
-					});
-				}
+			if (this._modelCreationOptions.detectIndentation) {
+				modelData.model.detectIndentation(this._modelCreationOptions.insertSpaces, this._modelCreationOptions.tabSize);
+			} else {
+				modelData.model.updateOptions({
+					insertSpaces: this._modelCreationOptions.insertSpaces,
+					tabSize:  this._modelCreationOptions.tabSize
+				});
 			}
 		}
 	}
@@ -398,11 +398,13 @@ export class ModelServiceImpl implements IModelService {
 
 	public getModels(): editorCommon.IModel[] {
 		let ret: editorCommon.IModel[] = [];
-		for (let modelId in this._models) {
-			if (this._models.hasOwnProperty(modelId)) {
-				ret.push(this._models[modelId].model);
-			}
+
+		let keys = Object.keys(this._models);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let modelId = keys[i];
+			ret.push(this._models[modelId].model);
 		}
+
 		return ret;
 	}
 

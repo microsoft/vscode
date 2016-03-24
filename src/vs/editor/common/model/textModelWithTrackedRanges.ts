@@ -299,31 +299,27 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 	 * Fetch only multi-line ranges that intersect with the given line number range
 	 */
 	private _getMultiLineTrackedRanges(filterStartLineNumber: number, filterEndLineNumber: number): editorCommon.IModelTrackedRange[] {
-		var result: editorCommon.IModelTrackedRange[] = [],
-			rangeId: string,
-			range: ITrackedRange,
-			startMarker: editorCommon.IEditorPosition,
-			endMarker: editorCommon.IEditorPosition;
+		let result: editorCommon.IModelTrackedRange[] = [];
 
-		for (rangeId in this._multiLineTrackedRanges) {
-			if (this._multiLineTrackedRanges.hasOwnProperty(rangeId)) {
-				range = this._ranges[rangeId];
+		let keys = Object.keys(this._multiLineTrackedRanges);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let rangeId = keys[i];
+			let range = this._ranges[rangeId];
 
-				startMarker = this._getMarker(range.startMarkerId);
-				if (startMarker.lineNumber > filterEndLineNumber) {
-					continue;
-				}
-
-				endMarker = this._getMarker(range.endMarkerId);
-				if (endMarker.lineNumber < filterStartLineNumber) {
-					continue;
-				}
-
-				result.push({
-					id: range.id,
-					range: this._newEditorRange(startMarker, endMarker)
-				});
+			let startMarker = this._getMarker(range.startMarkerId);
+			if (startMarker.lineNumber > filterEndLineNumber) {
+				continue;
 			}
+
+			let endMarker = this._getMarker(range.endMarkerId);
+			if (endMarker.lineNumber < filterStartLineNumber) {
+				continue;
+			}
+
+			result.push({
+				id: range.id,
+				range: this._newEditorRange(startMarker, endMarker)
+			});
 		}
 
 		return result;

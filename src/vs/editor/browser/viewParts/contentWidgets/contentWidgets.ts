@@ -114,11 +114,10 @@ export class ViewContentWidgets extends ViewPart {
 		this._requestModificationFrameBeforeRendering(() => {
 			// update the maxWidth on widgets nodes, such that `onReadAfterForcedLayout`
 			// below can read out the adjusted width/height of widgets
-			let widgetId:string;
-			for (widgetId in this._widgets) {
-				if (this._widgets.hasOwnProperty(widgetId)) {
-					StyleMutator.setMaxWidth(this._widgets[widgetId].widget.getDomNode(), this._contentWidth);
-				}
+			let keys = Object.keys(this._widgets);
+			for (let i = 0, len = keys.length; i < len; i++) {
+				let widgetId = keys[i];
+				StyleMutator.setMaxWidth(this._widgets[widgetId].widget.getDomNode(), this._contentWidth);
 			}
 		});
 
@@ -363,48 +362,42 @@ export class ViewContentWidgets extends ViewPart {
 	}
 
 	_render(ctx:IRenderingContext): void {
-		let data:IMyRenderData = {},
-			renderData: IMyWidgetRenderData,
-			widgetId: string;
+		let data:IMyRenderData = {};
 
-		for (widgetId in this._widgets) {
-			if (this._widgets.hasOwnProperty(widgetId)) {
-				renderData = this._prepareRenderWidget(this._widgets[widgetId], ctx);
-				if (renderData) {
-					data[widgetId] = renderData;
-				}
+		let keys = Object.keys(this._widgets);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let widgetId = keys[i];
+			let renderData = this._prepareRenderWidget(this._widgets[widgetId], ctx);
+			if (renderData) {
+				data[widgetId] = renderData;
 			}
 		}
 
 		this._requestModificationFrame(() => {
-			let widgetId:string,
-				widget:IWidgetData,
-				domNode: HTMLElement;
+			let keys = Object.keys(this._widgets);
+			for (let i = 0, len = keys.length; i < len; i++) {
+				let widgetId = keys[i];
+				let widget = this._widgets[widgetId];
+				let domNode = this._widgets[widgetId].widget.getDomNode();
 
-			for (widgetId in this._widgets) {
-				if (this._widgets.hasOwnProperty(widgetId)) {
-					widget = this._widgets[widgetId];
-					domNode = this._widgets[widgetId].widget.getDomNode();
-
-					if (data.hasOwnProperty(widgetId)) {
-						if (widget.allowEditorOverflow) {
-							StyleMutator.setTop(domNode, data[widgetId].top);
-							StyleMutator.setLeft(domNode, data[widgetId].left);
-						} else {
-							StyleMutator.setTop(domNode, data[widgetId].top + ctx.viewportTop - ctx.bigNumbersDelta);
-							StyleMutator.setLeft(domNode, data[widgetId].left);
-						}
-						if (!widget.isVisible) {
-							StyleMutator.setVisibility(domNode, 'inherit');
-							domNode.setAttribute('monaco-visible-content-widget', 'true');
-							widget.isVisible = true;
-						}
+				if (data.hasOwnProperty(widgetId)) {
+					if (widget.allowEditorOverflow) {
+						StyleMutator.setTop(domNode, data[widgetId].top);
+						StyleMutator.setLeft(domNode, data[widgetId].left);
 					} else {
-						if (widget.isVisible) {
-							domNode.removeAttribute('monaco-visible-content-widget');
-							widget.isVisible = false;
-							StyleMutator.setVisibility(domNode, 'hidden');
-						}
+						StyleMutator.setTop(domNode, data[widgetId].top + ctx.viewportTop - ctx.bigNumbersDelta);
+						StyleMutator.setLeft(domNode, data[widgetId].left);
+					}
+					if (!widget.isVisible) {
+						StyleMutator.setVisibility(domNode, 'inherit');
+						domNode.setAttribute('monaco-visible-content-widget', 'true');
+						widget.isVisible = true;
+					}
+				} else {
+					if (widget.isVisible) {
+						domNode.removeAttribute('monaco-visible-content-widget');
+						widget.isVisible = false;
+						StyleMutator.setVisibility(domNode, 'hidden');
 					}
 				}
 			}
