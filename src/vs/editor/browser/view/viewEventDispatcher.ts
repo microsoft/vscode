@@ -10,76 +10,87 @@ import {IViewEventHandler} from 'vs/editor/browser/editorBrowser';
 
 export class ViewEventDispatcher implements IViewEventBus {
 
-	private eventHandlerGateKeeper:(callback:()=>void)=>void;
-	private eventHandlers:IViewEventHandler[];
-	private eventQueue:IEmitterEvent[];
-	private isConsumingQueue:boolean;
+	private _eventHandlerGateKeeper:(callback:()=>void)=>void;
+	private _eventHandlers:IViewEventHandler[];
+	private _eventQueue:IEmitterEvent[];
+	private _isConsumingQueue:boolean;
 
 	constructor(eventHandlerGateKeeper:(callback:()=>void)=>void) {
-		this.eventHandlerGateKeeper = eventHandlerGateKeeper;
-		this.eventHandlers = [];
-		this.eventQueue = [];
-		this.isConsumingQueue = false;
+		this._eventHandlerGateKeeper = eventHandlerGateKeeper;
+		this._eventHandlers = [];
+		this._eventQueue = null;
+		this._isConsumingQueue = false;
 	}
 
 	public addEventHandler(eventHandler: IViewEventHandler): void {
-		for (var i = 0, len = this.eventHandlers.length; i < len; i++) {
-			if (this.eventHandlers[i] === eventHandler) {
+		for (let i = 0, len = this._eventHandlers.length; i < len; i++) {
+			if (this._eventHandlers[i] === eventHandler) {
 				console.warn('Detected duplicate listener in ViewEventDispatcher', eventHandler);
 			}
 		}
-		this.eventHandlers.push(eventHandler);
+		this._eventHandlers.push(eventHandler);
 	}
 
 	public removeEventHandler(eventHandler:IViewEventHandler): void {
-		for (var i = 0; i < this.eventHandlers.length; i++) {
-			if (this.eventHandlers[i] === eventHandler) {
-				this.eventHandlers.splice(i, 1);
+		for (let i = 0; i < this._eventHandlers.length; i++) {
+			if (this._eventHandlers[i] === eventHandler) {
+				this._eventHandlers.splice(i, 1);
 				break;
 			}
 		}
 	}
 
 	public emit(eventType:string, data?:any): void {
-		this.eventQueue.push(new EmitterEvent(eventType, data));
-		if (!this.isConsumingQueue) {
+		let event = new EmitterEvent(eventType, data);
+
+		if (this._eventQueue) {
+			this._eventQueue.push(event);
+		} else {
+			this._eventQueue = [event];
+		}
+
+		if (!this._isConsumingQueue) {
 			this.consumeQueue();
 		}
 	}
 
 	public emitMany(events:IEmitterEvent[]): void {
-		this.eventQueue = this.eventQueue.concat(events);
-		if (!this.isConsumingQueue) {
+		if (this._eventQueue) {
+			this._eventQueue = this._eventQueue.concat(events);
+		} else {
+			this._eventQueue = events;
+		}
+
+		if (!this._isConsumingQueue) {
 			this.consumeQueue();
 		}
 	}
 
 	private consumeQueue(): void {
-		this.eventHandlerGateKeeper(() => {
+		this._eventHandlerGateKeeper(() => {
 			try {
-				this.isConsumingQueue = true;
+				this._isConsumingQueue = true;
 
-				var i:number,
-					len:number,
-					eventHandlers:IViewEventHandler[],
-					events:IEmitterEvent[];
-
-				while (this.eventQueue.length > 0) {
-					// Empty event queue, as events might come in while sending these off
-					events = this.eventQueue;
-					this.eventQueue = [];
-
-					// Use a clone of the event handlers list, as they might remove themselves
-					eventHandlers = this.eventHandlers.slice(0);
-					for (i = 0, len = eventHandlers.length; i < len; i++) {
-						eventHandlers[i].handleEvents(events);
-					}
-				}
+				this._doConsumeQueue();
 
 			} finally {
-				this.isConsumingQueue = false;
+				this._isConsumingQueue = false;
 			}
 		});
+	}
+
+	private _doConsumeQueue(): void {
+		while (this._eventQueue) {
+			// Empty event queue, as events might come in while sending these off
+			let events = this._eventQueue;
+			this._eventQueue = null;
+
+			// Use a clone of the event handlers list, as they might remove themselves
+			let eventHandlers = this._eventHandlers.slice(0);
+			for (let i = 0, len = eventHandlers.length; i < len; i++) {
+				eventHandlers[i].handleEvents(events);
+			}
+		}
 	}
 
 }
