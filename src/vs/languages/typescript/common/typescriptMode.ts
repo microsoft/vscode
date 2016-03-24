@@ -307,7 +307,7 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	// ---- project sync
 
 	protected _getProjectResolver(): AsyncDescriptor<typescript.IProjectResolver2>|typescript.IProjectResolver2 {
-		return typescript.Extensions.getProjectResolver() || typescript.Defaults.ProjectResolver;
+		return typescript.Defaults.ProjectResolver;
 	}
 
 	acceptProjectChanges(changes: { kind: typescript.ChangeKind; resource: URI; files: URI[]; options: ts.CompilerOptions }[]): WinJS.TPromise<{[dirname:string]:URI}> {

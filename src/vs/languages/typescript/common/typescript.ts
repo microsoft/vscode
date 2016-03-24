@@ -5,10 +5,8 @@
 'use strict';
 
 import winjs = require('vs/base/common/winjs.base');
-import platform = require('vs/platform/platform');
 import URI from 'vs/base/common/uri';
 import ts = require('vs/languages/typescript/common/lib/typescriptServices');
-import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 
 export enum ChangeKind {
 	Changed,
@@ -113,24 +111,5 @@ export namespace Defaults {
 
 	export function setCompilerOptions(options: ts.CompilerOptions): void {
 		ProjectResolver.setCompilerOptions(options);
-	}
-}
-
-// ----- TypeScript extension ---------------------------------------------------------------
-
-export namespace Extensions {
-
-	export var Identifier = 'typescript';
-
-	platform.Registry.add(Identifier, Extensions);
-
-	var projectResolver: AsyncDescriptor<IProjectResolver2>;
-
-	export function setProjectResolver(desc: AsyncDescriptor<IProjectResolver2>): void {
-		projectResolver = desc;
-	}
-
-	export function getProjectResolver(): AsyncDescriptor<IProjectResolver2> {
-		return projectResolver;
 	}
 }
