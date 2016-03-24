@@ -135,7 +135,7 @@ class SortLinesDescendingAction extends SortLinesAction {
 	}
 }
 
-class TrimTrailingWhitespaceAction extends EditorAction {
+export class TrimTrailingWhitespaceAction extends EditorAction {
 
 	static ID = 'editor.action.trimTrailingWhitespace';
 
