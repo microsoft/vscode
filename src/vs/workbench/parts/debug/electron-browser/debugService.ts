@@ -889,7 +889,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			return TPromise.as(null);
 		}
 
-		const breakpointsToSend = this.model.getFunctionBreakpoints().filter(fbp => fbp.enabled);
+		const breakpointsToSend = this.model.getFunctionBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
 		return this.session.setFunctionBreakpoints({ breakpoints: breakpointsToSend }).then(response => {
 			const data: {[id: string]: { name?: string, verified?: boolean } } = { };
 			for (let i = 0; i < breakpointsToSend.length; i++) {
