@@ -13,7 +13,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 
 export interface IDynamicViewOverlay extends IDisposable {
 	shouldCallRender2(ctx:IRenderingContext): boolean;
-	render2(lineNumber:number): string[];
+	render2(startLineNumber:number, lineNumber:number): string;
 }
 
 export interface IContentWidgetData {

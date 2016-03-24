@@ -11,16 +11,12 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import {ClassNames, IDynamicViewOverlay, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
 
-interface IRenderResult {
-	[lineNumber:string]:string[];
-}
-
 export class LineNumbersOverlay extends ViewEventHandler implements IDynamicViewOverlay {
 
 	private _context:IViewContext;
 	private _lineNumbersLeft:number;
 	private _lineNumbersWidth:number;
-	private _renderResult:IRenderResult;
+	private _renderResult:string[];
 
 	constructor(context:IViewContext) {
 		super();
@@ -97,26 +93,25 @@ export class LineNumbersOverlay extends ViewEventHandler implements IDynamicView
 			return false;
 		}
 
-		var output: IRenderResult = {};
+		let lineHeightClassName = (platform.isLinux ? (this._context.configuration.editor.lineHeight % 2 === 0 ? ' lh-even': ' lh-odd') : '');
+		let lineHeight = this._context.configuration.editor.lineHeight.toString();
+		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+		let visibleEndLineNumber = ctx.visibleRange.endLineNumber;
+		let common = '<div class="' + ClassNames.LINE_NUMBERS + lineHeightClassName + '" style="left:' + this._lineNumbersLeft.toString() + 'px;width:' + this._lineNumbersWidth.toString() + 'px;height:' + lineHeight + 'px;">';
 
-		var lineHeightClassName = (platform.isLinux ? (this._context.configuration.editor.lineHeight % 2 === 0 ? ' lh-even': ' lh-odd') : '');
-		var lineHeight = this._context.configuration.editor.lineHeight.toString(),
-			lineNumber:number,
-			renderLineNumber:string;
+		let output: string[] = [];
+		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
+			let lineIndex = lineNumber - visibleStartLineNumber;
 
-		var common = '<div class="' + ClassNames.LINE_NUMBERS + lineHeightClassName + '" style="left:' + this._lineNumbersLeft.toString() + 'px;width:' + this._lineNumbersWidth.toString() + 'px;height:' + lineHeight + 'px;">';
-
-		for (lineNumber = ctx.visibleRange.startLineNumber; lineNumber <= ctx.visibleRange.endLineNumber; lineNumber++) {
-			renderLineNumber = this._context.model.getLineRenderLineNumber(lineNumber);
-
+			let renderLineNumber = this._context.model.getLineRenderLineNumber(lineNumber);
 			if (renderLineNumber) {
-				var lineOutput:string[] = [
-					common,
-					this._context.model.getLineRenderLineNumber(lineNumber),
-					'</div>'
-				];
-
-				output[lineNumber.toString()] = lineOutput;
+				output[lineIndex] = (
+					common
+					+ renderLineNumber
+					+ '</div>'
+				);
+			} else {
+				output[lineIndex] = '';
 			}
 		}
 
@@ -125,10 +120,14 @@ export class LineNumbersOverlay extends ViewEventHandler implements IDynamicView
 		return true;
 	}
 
-	public render2(lineNumber:number): string[] {
-		if (this._renderResult && this._renderResult.hasOwnProperty(lineNumber.toString())) {
-			return this._renderResult[lineNumber.toString()];
+	public render2(startLineNumber:number, lineNumber:number): string {
+		if (!this._renderResult) {
+			return '';
 		}
-		return null;
+		let lineIndex = lineNumber - startLineNumber;
+		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
+			throw new Error('Unexpected render request');
+		}
+		return this._renderResult[lineIndex];
 	}
 }

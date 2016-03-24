@@ -13,10 +13,6 @@ import {IDynamicViewOverlay, IRenderingContext, IViewContext} from 'vs/editor/br
 type HorizontalRange = editorCommon.HorizontalRange;
 type LineVisibleRanges = editorCommon.LineVisibleRanges;
 
-interface IRenderResult {
-	[lineNumber:string]:string[];
-}
-
 enum CornerStyle {
 	EXTERN,
 	INTERN,
@@ -82,7 +78,7 @@ export class SelectionsOverlay extends ViewEventHandler implements IDynamicViewO
 
 	private _context:IViewContext;
 	private _selections:editorCommon.IEditorRange[];
-	private _renderResult:IRenderResult;
+	private _renderResult:string[];
 
 	constructor(context:IViewContext) {
 		super();
@@ -285,92 +281,79 @@ export class SelectionsOverlay extends ViewEventHandler implements IDynamicViewO
 		return linesVisibleRanges;
 	}
 
-	private _createSelectionPiece(lineOutput:string[], top:number, height:string, className:string, left:number, width:number): void {
-		lineOutput.push('<div class="cslr ');
-		lineOutput.push(className);
-		lineOutput.push('" style="top:');
-		lineOutput.push(top.toString());
-		lineOutput.push('px;left:');
-		lineOutput.push(left.toString());
-		lineOutput.push('px;width:');
-		lineOutput.push(width.toString());
-		lineOutput.push('px;height:');
-		lineOutput.push(height);
-		lineOutput.push('px;"></div>');
+	private _createSelectionPiece(top:number, height:string, className:string, left:number, width:number): string {
+		return (
+			'<div class="cslr '
+			+ className
+			+ '" style="top:'
+			+ top.toString()
+			+ 'px;left:'
+			+ left.toString()
+			+ 'px;width:'
+			+ width.toString()
+			+ 'px;height:'
+			+ height
+			+ 'px;"></div>'
+		);
 	}
 
-	private _actualRenderOneSelection(output:IRenderResult, hasMultipleSelections:boolean, visibleRanges:LineVisibleRangesWithStyle[]): number {
-		var visibleRangesHaveStyle = (visibleRanges.length > 0 && visibleRanges[0].ranges[0].startStyle),
-			lineVisibleRanges:LineVisibleRangesWithStyle,
-			lineOutput: string[],
-			className:string,
-			fullLineHeight = (this._context.configuration.editor.lineHeight).toString(),
-			reducedLineHeight = (this._context.configuration.editor.lineHeight - 1).toString(),
-			i:number, len:number,
-			j:number, lenJ:number,
-			piecesCount = 0,
-			visibleRange:HorizontalRangeWithStyle;
+	private _actualRenderOneSelection(output2:string[], visibleStartLineNumber:number, hasMultipleSelections:boolean, visibleRanges:LineVisibleRangesWithStyle[]): void {
+		let visibleRangesHaveStyle = (visibleRanges.length > 0 && visibleRanges[0].ranges[0].startStyle);
+		let fullLineHeight = (this._context.configuration.editor.lineHeight).toString();
+		let reducedLineHeight = (this._context.configuration.editor.lineHeight - 1).toString();
 
 		let firstLineNumber = (visibleRanges.length > 0 ? visibleRanges[0].lineNumber : 0);
 		let lastLineNumber = (visibleRanges.length > 0 ? visibleRanges[visibleRanges.length - 1].lineNumber : 0);
 
-		for (i = 0, len = visibleRanges.length; i < len; i++) {
-			lineVisibleRanges = visibleRanges[i];
+		for (let i = 0, len = visibleRanges.length; i < len; i++) {
+			let lineVisibleRanges = visibleRanges[i];
 			let lineNumber = lineVisibleRanges.lineNumber;
+			let lineIndex = lineNumber - visibleStartLineNumber;
 
 			let lineHeight = hasMultipleSelections ? (lineNumber === lastLineNumber || lineNumber === firstLineNumber ? reducedLineHeight : fullLineHeight) : fullLineHeight;
 			let top = hasMultipleSelections ? (lineNumber === firstLineNumber ? 1 : 0) : 0;
 
-			if (output.hasOwnProperty(lineNumber.toString())) {
-				lineOutput = output[lineNumber.toString()];
-			} else {
-				lineOutput = [];
-				output[lineNumber.toString()] = lineOutput;
-			}
+			let lineOutput = '';
 
-			for (j = 0, lenJ = lineVisibleRanges.ranges.length; j < lenJ; j++) {
-				visibleRange = lineVisibleRanges.ranges[j];
+			for (let j = 0, lenJ = lineVisibleRanges.ranges.length; j < lenJ; j++) {
+				let visibleRange = lineVisibleRanges.ranges[j];
 
 				if (visibleRangesHaveStyle) {
 					if (visibleRange.startStyle.top === CornerStyle.INTERN || visibleRange.startStyle.bottom === CornerStyle.INTERN) {
 						// Reverse rounded corner to the left
 
 						// First comes the selection (blue layer)
-						piecesCount++;
-						this._createSelectionPiece(lineOutput, top, lineHeight, SelectionsOverlay.SELECTION_CLASS_NAME, visibleRange.left - SelectionsOverlay.ROUNDED_PIECE_WIDTH, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
+						lineOutput += this._createSelectionPiece(top, lineHeight, SelectionsOverlay.SELECTION_CLASS_NAME, visibleRange.left - SelectionsOverlay.ROUNDED_PIECE_WIDTH, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
 
 						// Second comes the background (white layer) with inverse border radius
-						className = SelectionsOverlay.EDITOR_BACKGROUND_CLASS_NAME;
+						let className = SelectionsOverlay.EDITOR_BACKGROUND_CLASS_NAME;
 						if (visibleRange.startStyle.top === CornerStyle.INTERN) {
 							className += ' ' + SelectionsOverlay.SELECTION_TOP_RIGHT;
 						}
 						if (visibleRange.startStyle.bottom === CornerStyle.INTERN) {
 							className += ' ' + SelectionsOverlay.SELECTION_BOTTOM_RIGHT;
 						}
-						piecesCount++;
-						this._createSelectionPiece(lineOutput, top, lineHeight, className, visibleRange.left - SelectionsOverlay.ROUNDED_PIECE_WIDTH, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
+						lineOutput += this._createSelectionPiece(top, lineHeight, className, visibleRange.left - SelectionsOverlay.ROUNDED_PIECE_WIDTH, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
 					}
 					if (visibleRange.endStyle.top === CornerStyle.INTERN || visibleRange.endStyle.bottom === CornerStyle.INTERN) {
 						// Reverse rounded corner to the right
 
 						// First comes the selection (blue layer)
-						piecesCount++;
-						this._createSelectionPiece(lineOutput, top, lineHeight, SelectionsOverlay.SELECTION_CLASS_NAME, visibleRange.left + visibleRange.width, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
+						lineOutput += this._createSelectionPiece(top, lineHeight, SelectionsOverlay.SELECTION_CLASS_NAME, visibleRange.left + visibleRange.width, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
 
 						// Second comes the background (white layer) with inverse border radius
-						className = SelectionsOverlay.EDITOR_BACKGROUND_CLASS_NAME;
+						let className = SelectionsOverlay.EDITOR_BACKGROUND_CLASS_NAME;
 						if (visibleRange.endStyle.top === CornerStyle.INTERN) {
 							className += ' ' + SelectionsOverlay.SELECTION_TOP_LEFT;
 						}
 						if (visibleRange.endStyle.bottom === CornerStyle.INTERN) {
 							className += ' ' + SelectionsOverlay.SELECTION_BOTTOM_LEFT;
 						}
-						piecesCount++;
-						this._createSelectionPiece(lineOutput, top, lineHeight, className, visibleRange.left + visibleRange.width, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
+						lineOutput += this._createSelectionPiece(top, lineHeight, className, visibleRange.left + visibleRange.width, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
 					}
 				}
 
-				className = SelectionsOverlay.SELECTION_CLASS_NAME;
+				let className = SelectionsOverlay.SELECTION_CLASS_NAME;
 				if (visibleRangesHaveStyle) {
 					if (visibleRange.startStyle.top === CornerStyle.EXTERN) {
 						className += ' ' + SelectionsOverlay.SELECTION_TOP_LEFT;
@@ -385,12 +368,11 @@ export class SelectionsOverlay extends ViewEventHandler implements IDynamicViewO
 						className += ' ' + SelectionsOverlay.SELECTION_BOTTOM_RIGHT;
 					}
 				}
-				piecesCount++;
-				this._createSelectionPiece(lineOutput, top, lineHeight, className, visibleRange.left, visibleRange.width);
+				lineOutput += this._createSelectionPiece(top, lineHeight, className, visibleRange.left, visibleRange.width);
 			}
-		}
 
-		return piecesCount;
+			output2[lineIndex] += lineOutput;
+		}
 	}
 
 	private _previousFrameVisibleRangesWithStyle: LineVisibleRangesWithStyle[][] = [];
@@ -400,23 +382,25 @@ export class SelectionsOverlay extends ViewEventHandler implements IDynamicViewO
 		}
 		this.shouldRender = false;
 
-		var output: IRenderResult = {},
-			selection:editorCommon.IEditorRange,
-			visibleRangesWithStyle:LineVisibleRangesWithStyle[],
-			piecesCount = 0,
-			i:number,
-			thisFrameVisibleRangesWithStyle: LineVisibleRangesWithStyle[][] = [];
+		let output: string[] = [];
+		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+		let visibleEndLineNumber = ctx.visibleRange.endLineNumber;
+		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
+			let lineIndex = lineNumber - visibleStartLineNumber;
+			output[lineIndex] = '';
+		}
 
-		for (i = 0; i < this._selections.length; i++) {
-			selection = this._selections[i];
+		let thisFrameVisibleRangesWithStyle: LineVisibleRangesWithStyle[][] = [];
+		for (let i = 0, len = this._selections.length; i < len; i++) {
+			let selection = this._selections[i];
 			if (selection.isEmpty()) {
 				thisFrameVisibleRangesWithStyle.push(null);
 				continue;
 			}
 
-			visibleRangesWithStyle = this._getVisibleRangesWithStyle(selection, ctx, this._previousFrameVisibleRangesWithStyle[i]);
+			let visibleRangesWithStyle = this._getVisibleRangesWithStyle(selection, ctx, this._previousFrameVisibleRangesWithStyle[i]);
 			thisFrameVisibleRangesWithStyle.push(visibleRangesWithStyle);
-			piecesCount += this._actualRenderOneSelection(output, this._selections.length > 1, visibleRangesWithStyle);
+			this._actualRenderOneSelection(output, visibleStartLineNumber, this._selections.length > 1, visibleRangesWithStyle);
 		}
 
 		this._previousFrameVisibleRangesWithStyle = thisFrameVisibleRangesWithStyle;
@@ -425,10 +409,14 @@ export class SelectionsOverlay extends ViewEventHandler implements IDynamicViewO
 		return true;
 	}
 
-	public render2(lineNumber:number): string[] {
-		if (this._renderResult && this._renderResult.hasOwnProperty(lineNumber.toString())) {
-			return this._renderResult[lineNumber.toString()];
+	public render2(startLineNumber:number, lineNumber:number): string {
+		if (!this._renderResult) {
+			return '';
 		}
-		return null;
+		let lineIndex = lineNumber - startLineNumber;
+		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
+			throw new Error('Unexpected render request');
+		}
+		return this._renderResult[lineIndex];
 	}
 }

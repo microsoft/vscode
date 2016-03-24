@@ -7,20 +7,16 @@
 
 import 'vs/css!./linesDecorations';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import {IDynamicViewOverlay, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {DecorationToRender, DedupOverlay} from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
 
-interface IRenderResult {
-	[lineNumber:string]:string[];
-}
-
-export class LinesDecorationsOverlay extends ViewEventHandler implements IDynamicViewOverlay {
+export class LinesDecorationsOverlay extends DedupOverlay implements IDynamicViewOverlay {
 
 	private _context:IViewContext;
 
 	private _decorationsLeft:number;
 	private _decorationsWidth:number;
-	private _renderResult:IRenderResult;
+	private _renderResult:string[];
 
 	constructor(context:IViewContext) {
 		super();
@@ -86,67 +82,47 @@ export class LinesDecorationsOverlay extends ViewEventHandler implements IDynami
 
 	// --- end event handlers
 
+	protected _getDecorations(ctx:IRenderingContext): DecorationToRender[] {
+		let decorations = ctx.getDecorationsInViewport();
+		let r:DecorationToRender[] = [];
+		for (let i = 0, len = decorations.length; i < len; i++) {
+			let d = decorations[i];
+			if (d.options.linesDecorationsClassName) {
+				r.push(new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, d.options.linesDecorationsClassName));
+			}
+		}
+		return r;
+	}
+
 	public shouldCallRender2(ctx:IRenderingContext): boolean {
 		if (!this.shouldRender) {
 			return false;
 		}
 		this.shouldRender = false;
 
-		var output: IRenderResult = {};
-		var renderedCount = 0;
+		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+		let visibleEndLineNumber = ctx.visibleRange.endLineNumber;
+		let toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, this._getDecorations(ctx));
 
-		var decorations = ctx.getDecorationsInViewport(),
-			lineHeight = this._context.configuration.editor.lineHeight.toString(),
-			d:editorCommon.IModelDecoration,
-			rng:editorCommon.IRange,
-			i:number, lenI:number,
-			classNames:{[top:string]:{[className:string]:boolean;};} = {},
-			lineClassNames:{[className:string]:boolean;},
-			className:string,
-			lineOutput:string[],
-			lineNumber: number,
-			lineNumberStr: string;
+		let lineHeight = this._context.configuration.editor.lineHeight.toString();
+		let left = this._decorationsLeft.toString();
+		let width = this._decorationsWidth.toString();
+		let common = '" style="left:' + left + 'px;width:' + width + 'px' + ';height:' + lineHeight + 'px;"></div>';
 
-		for (i = 0, lenI = decorations.length; i < lenI; i++) {
-			d = decorations[i];
-			if (!d.options.linesDecorationsClassName) {
-				continue;
+		let output: string[] = [];
+		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
+			let lineIndex = lineNumber - visibleStartLineNumber;
+			let classNames = toRender[lineIndex];
+
+			if (classNames.length === 0) {
+				output[lineIndex] = '';
+			} else {
+				output[lineIndex] = (
+					'<div class="cldr'
+					+ classNames
+					+ common
+				);
 			}
-
-			rng = d.range;
-
-			for (lineNumber = rng.startLineNumber; lineNumber <= rng.endLineNumber; lineNumber++) {
-				if (!ctx.lineIsVisible(lineNumber)) {
-					continue;
-				}
-
-				lineNumberStr = lineNumber.toString();
-
-//					oldTop = ctx.getViewportVerticalOffsetForLineNumber(j);
-
-				if (!classNames.hasOwnProperty(lineNumberStr)) {
-					classNames[lineNumberStr] = {};
-				}
-				classNames[lineNumberStr][d.options.linesDecorationsClassName] = true;
-			}
-		}
-
-		var left = this._decorationsLeft.toString(),
-			width = this._decorationsWidth.toString();
-
-		var common = '" style="left:' + left + 'px;width:' + width + 'px' + ';height:' + lineHeight + 'px;"></div>';
-		for (lineNumberStr in classNames) {
-			lineClassNames = classNames[lineNumberStr];
-			lineOutput = [];
-			lineOutput.push('<div class="cldr');
-			for (className in lineClassNames) {
-				// Count one more glyph
-				renderedCount++;
-				lineOutput.push(' ');
-				lineOutput.push(className);
-			}
-			lineOutput.push(common);
-			output[lineNumberStr] = lineOutput;
 		}
 
 		this._renderResult = output;
@@ -154,10 +130,14 @@ export class LinesDecorationsOverlay extends ViewEventHandler implements IDynami
 		return true;
 	}
 
-	public render2(lineNumber:number): string[] {
-		if (this._renderResult && this._renderResult.hasOwnProperty(lineNumber.toString())) {
-			return this._renderResult[lineNumber.toString()];
+	public render2(startLineNumber:number, lineNumber:number): string {
+		if (!this._renderResult) {
+			return '';
 		}
-		return null;
+		let lineIndex = lineNumber - startLineNumber;
+		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
+			throw new Error('Unexpected render request');
+		}
+		return this._renderResult[lineIndex];
 	}
 }

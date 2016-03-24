@@ -23,7 +23,7 @@ export interface IVisibleLineData {
 	getLineOuterHTML(out:string[], lineNumber: number, deltaTop: number): void;
 	getLineInnerHTML(lineNumber: number): string;
 
-	shouldUpdateHTML(lineNumber:number, inlineDecorations:editorCommon.IModelDecoration[]): boolean;
+	shouldUpdateHTML(startLineNumber:number, lineNumber:number, inlineDecorations:editorCommon.IModelDecoration[]): boolean;
 	layoutLine(lineNumber: number, deltaTop:number): void;
 }
 
@@ -556,7 +556,7 @@ class ViewLayerRenderer {
 			line = ctx.lines[i];
 			lineNumber = i + ctx.rendLineNumberStart;
 
-			if (line.shouldUpdateHTML(lineNumber, inlineDecorations[i])) {
+			if (line.shouldUpdateHTML(ctx.rendLineNumberStart, lineNumber, inlineDecorations[i])) {
 				var lineDomNode = line.getDomNode();
 				if (!lineDomNode) {
 					// Line is new

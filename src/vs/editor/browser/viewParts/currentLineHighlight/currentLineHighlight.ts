@@ -101,21 +101,21 @@ export class CurrentLineHighlightOverlay extends ViewEventHandler implements IDy
 		return true;
 	}
 
-	public render2(lineNumber:number): string[] {
+	public render2(startLineNumber:number, lineNumber:number): string {
 		if (lineNumber === this._primaryCursorLineNumber) {
 			if (this._shouldShowCurrentLine()) {
-				return [
-					'<div class="current-line" style="width:',
-					String(this._scrollWidth),
-					'px; height:',
-					String(this._context.configuration.editor.lineHeight),
-					'px;"></div>'
-				];
+				return (
+					'<div class="current-line" style="width:'
+					+ String(this._scrollWidth)
+					+ 'px; height:'
+					+ String(this._context.configuration.editor.lineHeight)
+					+ 'px;"></div>'
+				);
 			} else {
-				return null;
+				return '';
 			}
 		}
-		return null;
+		return '';
 	}
 
 	private _shouldShowCurrentLine(): boolean {

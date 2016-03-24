@@ -89,14 +89,14 @@ class ViewOverlayLine implements IVisibleLineData {
 	private _context:editorBrowser.IViewContext;
 	private _dynamicOverlays:editorBrowser.IDynamicViewOverlay[];
 	private _domNode: HTMLElement;
-	private _renderPieces: string[];
+	private _renderPieces: string;
 
 	constructor(context:editorBrowser.IViewContext, dynamicOverlays:editorBrowser.IDynamicViewOverlay[]) {
 		this._context = context;
 		this._dynamicOverlays = dynamicOverlays;
 
 		this._domNode = null;
-		this._renderPieces = null;
+		this._renderPieces = '';
 	}
 
 	public getDomNode(): HTMLElement {
@@ -125,41 +125,14 @@ class ViewOverlayLine implements IVisibleLineData {
 		// Nothing
 	}
 
-	private _piecesEqual(newPieces: string[]): boolean {
-		if (!this._renderPieces) {
-			return false;
+	shouldUpdateHTML(startLineNumber:number, lineNumber:number, inlineDecorations:IModelDecoration[]): boolean {
+		let newPieces = '';
+		for (let i = 0; i < this._dynamicOverlays.length; i++) {
+			newPieces += this._dynamicOverlays[i].render2(startLineNumber, lineNumber);
 		}
 
-		let myLen = this._renderPieces.length;
-		let newLen = newPieces.length;
+		let piecesEqual = (this._renderPieces === newPieces);
 
-		if (myLen !== newLen) {
-			return false;
-		}
-
-		if (newLen === 0) {
-			return true;
-		}
-
-		for (let i = 0; i < newLen; i++) {
-			if (this._renderPieces[i] !== newPieces[i]) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	shouldUpdateHTML(lineNumber:number, inlineDecorations:IModelDecoration[]): boolean {
-		var newPieces: string[] = [];
-		for (var i = 0; i < this._dynamicOverlays.length; i++) {
-			var pieces = this._dynamicOverlays[i].render2(lineNumber);
-			if (pieces && pieces.length > 0) {
-				newPieces = newPieces.concat(pieces);
-			}
-		}
-
-		var piecesEqual = this._piecesEqual(newPieces);
 		if (!piecesEqual) {
 			this._renderPieces = newPieces;
 		}
@@ -182,7 +155,7 @@ class ViewOverlayLine implements IVisibleLineData {
 	}
 
 	getLineInnerHTML(lineNumber: number): string {
-		return this._renderPieces.join('');
+		return this._renderPieces;
 	}
 
 	layoutLine(lineNumber: number, deltaTop:number): void {

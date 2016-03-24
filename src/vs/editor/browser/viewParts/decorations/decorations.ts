@@ -10,14 +10,10 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
 import {IDynamicViewOverlay, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
 
-interface IRenderResult {
-	[lineNumber:string]:string[];
-}
-
 export class DecorationsOverlay extends ViewEventHandler implements IDynamicViewOverlay {
 
 	private _context:IViewContext;
-	private _renderResult:IRenderResult;
+	private _renderResult: string[];
 
 	constructor(context:IViewContext) {
 		super();
@@ -112,8 +108,15 @@ export class DecorationsOverlay extends ViewEventHandler implements IDynamicView
 			return a.range.startLineNumber - b.range.startLineNumber;
 		});
 
+		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+		let visibleEndLineNumber = ctx.visibleRange.endLineNumber;
+		let output: string[] = [];
+		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
+			let lineIndex = lineNumber - visibleStartLineNumber;
+			output[lineIndex] = '';
+		}
+
 		// Render first whole line decorations and then regular decorations
-		let output: IRenderResult = {};
 		this._renderWholeLineDecorations(ctx, decorations, output);
 		this._renderNormalDecorations(ctx, decorations, output);
 		this._renderResult = output;
@@ -121,8 +124,10 @@ export class DecorationsOverlay extends ViewEventHandler implements IDynamicView
 		return true;
 	}
 
-	private _renderWholeLineDecorations(ctx:IRenderingContext, decorations:editorCommon.IModelDecoration[], output: IRenderResult): void {
+	private _renderWholeLineDecorations(ctx:IRenderingContext, decorations:editorCommon.IModelDecoration[], output: string[]): void {
 		let lineHeight = String(this._context.configuration.editor.lineHeight);
+		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+		let visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 
 		for (let i = 0, lenI = decorations.length; i < lenI; i++) {
 			let d = decorations[i];
@@ -131,33 +136,26 @@ export class DecorationsOverlay extends ViewEventHandler implements IDynamicView
 				continue;
 			}
 
-			let decorationOutput = [
-				'<div class="cdr ',
-				d.options.className,
-				'" style="left:0;width:100%;height:',
-				lineHeight,
-				'px;"></div>'
-			].join('');
+			let decorationOutput = (
+				'<div class="cdr '
+				+ d.options.className
+				+ '" style="left:0;width:100%;height:'
+				+ lineHeight
+				+ 'px;"></div>'
+			);
 
-			let startLineNumber = d.range.startLineNumber;
-			let endLineNumber = d.range.endLineNumber;
+			let startLineNumber = Math.max(d.range.startLineNumber, visibleStartLineNumber);
+			let endLineNumber = Math.min(d.range.endLineNumber, visibleEndLineNumber);
 			for (let j = startLineNumber; j <= endLineNumber; j++) {
-				if (!ctx.lineIsVisible(j)) {
-					continue;
-				}
-
-				let strLineNumber = String(j);
-				if (output.hasOwnProperty(strLineNumber)) {
-					output[strLineNumber].push(decorationOutput);
-				} else {
-					output[strLineNumber] = [decorationOutput];
-				}
+				let lineIndex = j - visibleStartLineNumber;
+				output[lineIndex] += decorationOutput;
 			}
 		}
 	}
 
-	private _renderNormalDecorations(ctx:IRenderingContext, decorations:editorCommon.IModelDecoration[], output: IRenderResult): void {
+	private _renderNormalDecorations(ctx:IRenderingContext, decorations:editorCommon.IModelDecoration[], output: string[]): void {
 		let lineHeight = String(this._context.configuration.editor.lineHeight);
+		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 
 		for (let i = 0, lenI = decorations.length; i < lenI; i++) {
 			let d = decorations[i];
@@ -173,37 +171,35 @@ export class DecorationsOverlay extends ViewEventHandler implements IDynamicView
 			let className = d.options.className;
 			for (let j = 0, lenJ = linesVisibleRanges.length; j < lenJ; j++) {
 				let lineVisibleRanges = linesVisibleRanges[j];
-
-				let strLineNumber = String(lineVisibleRanges.lineNumber);
-				let lineOutput: string[];
-				if (output.hasOwnProperty(strLineNumber)) {
-					lineOutput = output[strLineNumber];
-				} else {
-					lineOutput = [];
-					output[strLineNumber] = lineOutput;
-				}
+				let lineIndex = lineVisibleRanges.lineNumber - visibleStartLineNumber;
 
 				for (let k = 0, lenK = lineVisibleRanges.ranges.length; k < lenK; k++) {
 					let visibleRange = lineVisibleRanges.ranges[k];
-
-					lineOutput.push('<div class="cdr ');
-					lineOutput.push(className);
-					lineOutput.push('" style="left:');
-					lineOutput.push(String(visibleRange.left));
-					lineOutput.push('px;width:');
-					lineOutput.push(String(visibleRange.width));
-					lineOutput.push('px;height:');
-					lineOutput.push(lineHeight);
-					lineOutput.push('px;"></div>');
+					let decorationOutput = (
+						'<div class="cdr '
+						+ className
+						+ '" style="left:'
+						+ String(visibleRange.left)
+						+ 'px;width:'
+						+ String(visibleRange.width)
+						+ 'px;height:'
+						+ lineHeight
+						+ 'px;"></div>'
+					);
+					output[lineIndex] += decorationOutput;
 				}
 			}
 		}
 	}
 
-	public render2(lineNumber:number): string[] {
-		if (this._renderResult && this._renderResult.hasOwnProperty(lineNumber.toString())) {
-			return this._renderResult[lineNumber.toString()];
+	public render2(startLineNumber:number, lineNumber:number): string {
+		if (!this._renderResult) {
+			return '';
 		}
-		return null;
+		let lineIndex = lineNumber - startLineNumber;
+		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
+			throw new Error('Unexpected render request');
+		}
+		return this._renderResult[lineIndex];
 	}
 }

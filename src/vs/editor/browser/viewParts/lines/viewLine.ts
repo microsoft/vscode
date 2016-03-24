@@ -70,7 +70,7 @@ export class ViewLine implements IVisibleLineData {
 		this._isInvalid = true;
 	}
 
-	public shouldUpdateHTML(lineNumber:number, inlineDecorations:IModelDecoration[]): boolean {
+	public shouldUpdateHTML(startLineNumber:number, lineNumber:number, inlineDecorations:IModelDecoration[]): boolean {
 		let newLineParts:ILineParts = null;
 
 		if (this._isMaybeInvalid || this._isInvalid) {
