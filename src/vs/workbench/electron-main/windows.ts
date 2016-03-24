@@ -835,9 +835,9 @@ export class WindowsManager {
 			if (!configuration.extensionDevelopmentPath && currentWindowConfig && !!currentWindowConfig.extensionDevelopmentPath) {
 				configuration.extensionDevelopmentPath = currentWindowConfig.extensionDevelopmentPath;
 				configuration.verboseLogging = currentWindowConfig.verboseLogging;
-				configuration.logPluginHostCommunication = currentWindowConfig.logPluginHostCommunication;
-				configuration.debugBrkPluginHost = currentWindowConfig.debugBrkPluginHost;
-				configuration.debugPluginHostPort = currentWindowConfig.debugPluginHostPort;
+				configuration.logExtensionHostCommunication = currentWindowConfig.logExtensionHostCommunication;
+				configuration.debugBrkExtensionHost = currentWindowConfig.debugBrkExtensionHost;
+				configuration.debugExtensionHostPort = currentWindowConfig.debugExtensionHostPort;
 				configuration.pluginHomePath = currentWindowConfig.pluginHomePath;
 			}
 		}
