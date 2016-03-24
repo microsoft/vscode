@@ -224,7 +224,7 @@ export class VSCodeMenu {
 		}
 
 		let mru = this.getOpenedPathsList();
-		if (isFile || platform.isMacintosh /* on mac we don't treat files any different from folders */) {
+		if (isFile) {
 			mru.files.unshift(path);
 			mru.files = arrays.distinct(mru.files, (f) => platform.isLinux ? f : f.toLowerCase());
 		} else {

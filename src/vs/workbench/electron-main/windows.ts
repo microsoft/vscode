@@ -719,7 +719,7 @@ export class WindowsManager {
 		recentPaths = arrays.distinct(recentPaths);
 
 		// Make sure it is bounded
-		return recentPaths.slice(0, 10);
+		return recentPaths.slice(0, 20 /* max 10 files, 10 folders */);
 	}
 
 	private toIPath(anyPath: string, ignoreFileNotFound?: boolean, gotoLineMode?: boolean): window.IPath {
