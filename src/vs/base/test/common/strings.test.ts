@@ -143,4 +143,11 @@ suite('Strings', () => {
 		assert.strictEqual(strings.localeCompare('A', 'a'), 'A'.localeCompare('a'));
 		assert.strictEqual(strings.localeCompare('a', 'A'), 'a'.localeCompare('A'));
 	});
+
+	test('appendWithLimit', function() {
+		assert.strictEqual(strings.appendWithLimit('ab', 'cd', 100), 'abcd');
+		assert.strictEqual(strings.appendWithLimit('ab', 'cd', 2), '...cd');
+		assert.strictEqual(strings.appendWithLimit('ab', 'cdefgh',4), '...efgh');
+		assert.strictEqual(strings.appendWithLimit('abcdef', 'ghijk', 7), '...efghijk');
+	});
 });
