@@ -12,6 +12,8 @@ import {IDynamicViewOverlay, ILayoutProvider, IRenderingContext, IViewContext} f
 
 export class CurrentLineHighlightOverlay extends ViewEventHandler implements IDynamicViewOverlay {
 	private _context:IViewContext;
+	private _lineHeight:number;
+	private _readOnly:boolean;
 	private _layoutProvider:ILayoutProvider;
 	private _selectionIsEmpty:boolean;
 	private _primaryCursorIsInEditableRange:boolean;
@@ -21,6 +23,9 @@ export class CurrentLineHighlightOverlay extends ViewEventHandler implements IDy
 	constructor(context:IViewContext, layoutProvider:ILayoutProvider) {
 		super();
 		this._context = context;
+		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._readOnly = this._context.configuration.editor.readOnly;
+
 		this._layoutProvider = layoutProvider;
 
 		this._selectionIsEmpty = true;
@@ -72,6 +77,12 @@ export class CurrentLineHighlightOverlay extends ViewEventHandler implements IDy
 		return false;
 	}
 	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
+		if (e.lineHeight) {
+			this._lineHeight = this._context.configuration.editor.lineHeight;
+		}
+		if (e.readOnly) {
+			this._readOnly = this._context.configuration.editor.readOnly;
+		}
 		return true;
 	}
 	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
@@ -108,7 +119,7 @@ export class CurrentLineHighlightOverlay extends ViewEventHandler implements IDy
 					'<div class="current-line" style="width:'
 					+ String(this._scrollWidth)
 					+ 'px; height:'
-					+ String(this._context.configuration.editor.lineHeight)
+					+ String(this._lineHeight)
 					+ 'px;"></div>'
 				);
 			} else {
@@ -119,6 +130,6 @@ export class CurrentLineHighlightOverlay extends ViewEventHandler implements IDy
 	}
 
 	private _shouldShowCurrentLine(): boolean {
-		return this._selectionIsEmpty && this._primaryCursorIsInEditableRange && !this._context.configuration.editor.readOnly;
+		return this._selectionIsEmpty && this._primaryCursorIsInEditableRange && !this._readOnly;
 	}
 }

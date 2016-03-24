@@ -13,11 +13,13 @@ import {IDynamicViewOverlay, IRenderingContext, IViewContext} from 'vs/editor/br
 export class DecorationsOverlay extends ViewEventHandler implements IDynamicViewOverlay {
 
 	private _context:IViewContext;
+	private _lineHeight: number;
 	private _renderResult: string[];
 
 	constructor(context:IViewContext) {
 		super();
 		this._context = context;
+		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._renderResult = null;
 
 		this._context.addEventHandler(this);
@@ -56,6 +58,9 @@ export class DecorationsOverlay extends ViewEventHandler implements IDynamicView
 		return false;
 	}
 	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
+		if (e.lineHeight) {
+			this._lineHeight = this._context.configuration.editor.lineHeight;
+		}
 		return true;
 	}
 	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
@@ -125,7 +130,7 @@ export class DecorationsOverlay extends ViewEventHandler implements IDynamicView
 	}
 
 	private _renderWholeLineDecorations(ctx:IRenderingContext, decorations:editorCommon.IModelDecoration[], output: string[]): void {
-		let lineHeight = String(this._context.configuration.editor.lineHeight);
+		let lineHeight = String(this._lineHeight);
 		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		let visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 
@@ -154,7 +159,7 @@ export class DecorationsOverlay extends ViewEventHandler implements IDynamicView
 	}
 
 	private _renderNormalDecorations(ctx:IRenderingContext, decorations:editorCommon.IModelDecoration[], output: string[]): void {
-		let lineHeight = String(this._context.configuration.editor.lineHeight);
+		let lineHeight = String(this._lineHeight);
 		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 
 		for (let i = 0, lenI = decorations.length; i < lenI; i++) {

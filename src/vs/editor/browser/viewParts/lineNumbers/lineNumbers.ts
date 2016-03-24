@@ -14,6 +14,8 @@ import {ClassNames, IDynamicViewOverlay, IRenderingContext, IViewContext} from '
 export class LineNumbersOverlay extends ViewEventHandler implements IDynamicViewOverlay {
 
 	private _context:IViewContext;
+	private _lineHeight:number;
+	private _lineNumbers:any;
 	private _lineNumbersLeft:number;
 	private _lineNumbersWidth:number;
 	private _renderResult:string[];
@@ -21,6 +23,8 @@ export class LineNumbersOverlay extends ViewEventHandler implements IDynamicView
 	constructor(context:IViewContext) {
 		super();
 		this._context = context;
+		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._lineNumbers = this._context.configuration.editor.lineNumbers;
 		this._lineNumbersLeft = 0;
 		this._lineNumbersWidth = 0;
 		this._renderResult = null;
@@ -60,6 +64,12 @@ export class LineNumbersOverlay extends ViewEventHandler implements IDynamicView
 		return false;
 	}
 	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
+		if (e.lineHeight) {
+			this._lineHeight = this._context.configuration.editor.lineHeight;
+		}
+		if (e.lineNumbers) {
+			this._lineNumbers = this._context.configuration.editor.lineNumbers;
+		}
 		return true;
 	}
 	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
@@ -88,13 +98,13 @@ export class LineNumbersOverlay extends ViewEventHandler implements IDynamicView
 		}
 		this.shouldRender = false;
 
-		if (!this._context.configuration.editor.lineNumbers) {
+		if (!this._lineNumbers) {
 			this._renderResult = null;
 			return false;
 		}
 
-		let lineHeightClassName = (platform.isLinux ? (this._context.configuration.editor.lineHeight % 2 === 0 ? ' lh-even': ' lh-odd') : '');
-		let lineHeight = this._context.configuration.editor.lineHeight.toString();
+		let lineHeightClassName = (platform.isLinux ? (this._lineHeight % 2 === 0 ? ' lh-even': ' lh-odd') : '');
+		let lineHeight = this._lineHeight.toString();
 		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		let visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 		let common = '<div class="' + ClassNames.LINE_NUMBERS + lineHeightClassName + '" style="left:' + this._lineNumbersLeft.toString() + 'px;width:' + this._lineNumbersWidth.toString() + 'px;height:' + lineHeight + 'px;">';

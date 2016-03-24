@@ -107,8 +107,8 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 		return {
 			top: this.scrollable.getScrollTop(),
 			left: this.scrollable.getScrollLeft(),
-			width: this.configuration.editor.layoutInfo.contentWidth,
-			height: this.configuration.editor.layoutInfo.contentHeight
+			width: this.scrollable.getWidth(),
+			height: this.scrollable.getHeight()
 		};
 	}
 

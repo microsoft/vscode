@@ -18,6 +18,7 @@ export class ScrollDecorationViewPart extends ViewPart {
 	private _scrollTop: number;
 	private _width: number;
 	private _shouldShow: boolean;
+	private _useShadows: boolean;
 
 	constructor(context: IViewContext) {
 		super(context);
@@ -25,11 +26,12 @@ export class ScrollDecorationViewPart extends ViewPart {
 		this._scrollTop = 0;
 		this._width = 0;
 		this._shouldShow = false;
+		this._useShadows = this._context.configuration.editor.scrollbar.useShadows;
 		this._domNode = document.createElement('div');
 	}
 
 	private _updateShouldShow(): boolean {
-		var newShouldShow = (this._context.configuration.editor.scrollbar.useShadows && this._scrollTop > 0);
+		var newShouldShow = (this._useShadows && this._scrollTop > 0);
 		if (this._shouldShow !== newShouldShow) {
 			this._shouldShow = newShouldShow;
 			return true;
@@ -44,6 +46,9 @@ export class ScrollDecorationViewPart extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: IConfigurationChangedEvent): boolean {
+		if (e.scrollbar) {
+			this._useShadows = this._context.configuration.editor.scrollbar.useShadows;
+		}
 		return this._updateShouldShow();
 	}
 	public onLayoutChanged(layoutInfo: IEditorLayoutInfo): boolean {

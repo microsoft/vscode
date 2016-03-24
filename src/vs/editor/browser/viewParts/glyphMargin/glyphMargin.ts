@@ -108,6 +108,8 @@ export abstract class DedupOverlay extends ViewEventHandler {
 export class GlyphMarginOverlay extends DedupOverlay implements IDynamicViewOverlay {
 
 	private _context:IViewContext;
+	private _lineHeight:number;
+	private _glyphMargin:boolean;
 	private _glyphMarginLeft:number;
 	private _glyphMarginWidth:number;
 	private _renderResult: string[];
@@ -115,6 +117,8 @@ export class GlyphMarginOverlay extends DedupOverlay implements IDynamicViewOver
 	constructor(context:IViewContext) {
 		super();
 		this._context = context;
+		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._glyphMargin = this._context.configuration.editor.glyphMargin;
 		this._glyphMarginLeft = 0;
 		this._glyphMarginWidth = 0;
 		this._renderResult = null;
@@ -154,6 +158,12 @@ export class GlyphMarginOverlay extends DedupOverlay implements IDynamicViewOver
 		return false;
 	}
 	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
+		if (e.lineHeight) {
+			this._lineHeight = this._context.configuration.editor.lineHeight;
+		}
+		if (e.glyphMargin) {
+			this._glyphMargin = this._context.configuration.editor.glyphMargin;
+		}
 		return true;
 	}
 	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
@@ -194,7 +204,7 @@ export class GlyphMarginOverlay extends DedupOverlay implements IDynamicViewOver
 		}
 		this.shouldRender = false;
 
-		if (!this._context.configuration.editor.glyphMargin) {
+		if (!this._glyphMargin) {
 			this._renderResult = null;
 			return false;
 		}
@@ -203,7 +213,7 @@ export class GlyphMarginOverlay extends DedupOverlay implements IDynamicViewOver
 		let visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 		let toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, this._getDecorations(ctx));
 
-		let lineHeight = this._context.configuration.editor.lineHeight.toString();
+		let lineHeight = this._lineHeight.toString();
 		let left = this._glyphMarginLeft.toString();
 		let width = this._glyphMarginWidth.toString();
 		let common = '" style="left:' + left + 'px;width:' + width + 'px' + ';height:' + lineHeight + 'px;"></div>';

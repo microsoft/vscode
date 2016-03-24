@@ -13,6 +13,7 @@ import {DecorationToRender, DedupOverlay} from 'vs/editor/browser/viewParts/glyp
 export class LinesDecorationsOverlay extends DedupOverlay implements IDynamicViewOverlay {
 
 	private _context:IViewContext;
+	private _lineHeight: number;
 
 	private _decorationsLeft:number;
 	private _decorationsWidth:number;
@@ -21,6 +22,7 @@ export class LinesDecorationsOverlay extends DedupOverlay implements IDynamicVie
 	constructor(context:IViewContext) {
 		super();
 		this._context = context;
+		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._decorationsLeft = 0;
 		this._decorationsWidth = 0;
 		this._renderResult = null;
@@ -60,6 +62,9 @@ export class LinesDecorationsOverlay extends DedupOverlay implements IDynamicVie
 		return false;
 	}
 	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
+		if (e.lineHeight) {
+			this._lineHeight = this._context.configuration.editor.lineHeight;
+		}
 		return true;
 	}
 	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
@@ -104,7 +109,7 @@ export class LinesDecorationsOverlay extends DedupOverlay implements IDynamicVie
 		let visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 		let toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, this._getDecorations(ctx));
 
-		let lineHeight = this._context.configuration.editor.lineHeight.toString();
+		let lineHeight = this._lineHeight.toString();
 		let left = this._decorationsLeft.toString();
 		let width = this._decorationsWidth.toString();
 		let common = '" style="left:' + left + 'px;width:' + width + 'px' + ';height:' + lineHeight + 'px;"></div>';

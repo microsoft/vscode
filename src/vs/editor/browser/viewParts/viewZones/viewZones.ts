@@ -29,11 +29,13 @@ export class ViewZones extends ViewPart {
 
 	private _whitespaceManager:editorCommon.IWhitespaceManager;
 	private _zones: { [id:string]:IMyViewZone; };
+	private _lineHeight:number;
 
 	public domNode: HTMLElement;
 
 	constructor(context:IViewContext, whitespaceManager:editorCommon.IWhitespaceManager) {
 		super(context);
+		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._whitespaceManager = whitespaceManager;
 		this.domNode = document.createElement('div');
 		this.domNode.className = ClassNames.VIEW_ZONES;
@@ -87,6 +89,7 @@ export class ViewZones extends ViewPart {
 	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
 
 		if (e.lineHeight) {
+			this._lineHeight = this._context.configuration.editor.lineHeight;
 			return this._recomputeWhitespacesProps();
 		}
 
@@ -259,9 +262,9 @@ export class ViewZones extends ViewPart {
 			return zone.heightInPx;
 		}
 		if (typeof zone.heightInLines === 'number') {
-			return this._context.configuration.editor.lineHeight * zone.heightInLines;
+			return this._lineHeight * zone.heightInLines;
 		}
-		return this._context.configuration.editor.lineHeight;
+		return this._lineHeight;
 	}
 
 	private _safeCallOnComputedHeight(zone: IViewZone, height: number): void {

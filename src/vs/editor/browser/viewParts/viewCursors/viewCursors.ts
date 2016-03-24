@@ -22,6 +22,10 @@ export class ViewCursors extends ViewPart {
 
 	static BLINK_INTERVAL = 500;
 
+	private _readOnly:boolean;
+	private _cursorBlinking:string;
+	private _cursorStyle:editorCommon.TextEditorCursorStyle;
+
 	private _isVisible:boolean;
 
 	private _domNode:HTMLElement;
@@ -35,6 +39,10 @@ export class ViewCursors extends ViewPart {
 
 	constructor(context:IViewContext) {
 		super(context);
+
+		this._readOnly = this._context.configuration.editor.readOnly;
+		this._cursorBlinking = this._context.configuration.editor.cursorBlinking;
+		this._cursorStyle = this._context.configuration.editor.cursorStyle;
 
 		this._primaryCursor = new ViewCursor(this._context, false);
 		this._secondaryCursors = [];
@@ -134,6 +142,17 @@ export class ViewCursors extends ViewPart {
 		return false;
 	}
 	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
+
+		if (e.readOnly) {
+			this._readOnly = this._context.configuration.editor.readOnly;
+		}
+		if (e.cursorBlinking) {
+			this._cursorBlinking = this._context.configuration.editor.cursorBlinking;
+		}
+		if (e.cursorStyle) {
+			this._cursorStyle = this._context.configuration.editor.cursorStyle;
+		}
+
 		this._primaryCursor.onConfigurationChanged(e);
 		this._updateBlinking();
 		if (e.cursorStyle) {
@@ -174,8 +193,8 @@ export class ViewCursors extends ViewPart {
 
 	private _getRenderType(): RenderType {
 		if (this._editorHasFocus) {
-			if (this._primaryCursor.getIsInEditableRange() && !this._context.configuration.editor.readOnly) {
-				switch (this._context.configuration.editor.cursorBlinking) {
+			if (this._primaryCursor.getIsInEditableRange() && !this._readOnly) {
+				switch (this._cursorBlinking) {
 					case 'blink':
 						return RenderType.Blink;
 					case 'visible':
@@ -218,7 +237,7 @@ export class ViewCursors extends ViewPart {
 	private _getClassName(): string {
 		let result = ClassNames.VIEW_CURSORS_LAYER;
 		let extraClassName: string;
-		switch (this._context.configuration.editor.cursorStyle) {
+		switch (this._cursorStyle) {
 			case editorCommon.TextEditorCursorStyle.Line:
 				extraClassName = 'cursor-line-style';
 				break;

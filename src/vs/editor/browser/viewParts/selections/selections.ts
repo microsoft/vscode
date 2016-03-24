@@ -77,12 +77,16 @@ export class SelectionsOverlay extends ViewEventHandler implements IDynamicViewO
 	private static ROUNDED_PIECE_WIDTH = 10;
 
 	private _context:IViewContext;
+	private _lineHeight:number;
+	private _roundedSelection:boolean;
 	private _selections:editorCommon.IEditorRange[];
 	private _renderResult:string[];
 
 	constructor(context:IViewContext) {
 		super();
 		this._context = context;
+		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._roundedSelection = this._context.configuration.editor.roundedSelection;
 		this._selections = [];
 		this._renderResult = null;
 		this._context.addEventHandler(this);
@@ -125,6 +129,12 @@ export class SelectionsOverlay extends ViewEventHandler implements IDynamicViewO
 		return false;
 	}
 	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
+		if (e.lineHeight) {
+			this._lineHeight = this._context.configuration.editor.lineHeight;
+		}
+		if (e.roundedSelection) {
+			this._roundedSelection = this._context.configuration.editor.roundedSelection;
+		}
 		return true;
 	}
 	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
@@ -273,7 +283,7 @@ export class SelectionsOverlay extends ViewEventHandler implements IDynamicViewO
 		let linesVisibleRanges = _linesVisibleRanges.map(toStyled);
 		let visibleRangesHaveGaps = this._visibleRangesHaveGaps(linesVisibleRanges);
 
-		if (!isIEWithZoomingIssuesNearRoundedBorders && !visibleRangesHaveGaps && this._context.configuration.editor.roundedSelection) {
+		if (!isIEWithZoomingIssuesNearRoundedBorders && !visibleRangesHaveGaps && this._roundedSelection) {
 			this._enrichVisibleRangesWithStyle(linesVisibleRanges, previousFrame);
 		}
 
@@ -299,8 +309,8 @@ export class SelectionsOverlay extends ViewEventHandler implements IDynamicViewO
 
 	private _actualRenderOneSelection(output2:string[], visibleStartLineNumber:number, hasMultipleSelections:boolean, visibleRanges:LineVisibleRangesWithStyle[]): void {
 		let visibleRangesHaveStyle = (visibleRanges.length > 0 && visibleRanges[0].ranges[0].startStyle);
-		let fullLineHeight = (this._context.configuration.editor.lineHeight).toString();
-		let reducedLineHeight = (this._context.configuration.editor.lineHeight - 1).toString();
+		let fullLineHeight = (this._lineHeight).toString();
+		let reducedLineHeight = (this._lineHeight - 1).toString();
 
 		let firstLineNumber = (visibleRanges.length > 0 ? visibleRanges[0].lineNumber : 0);
 		let lastLineNumber = (visibleRanges.length > 0 ? visibleRanges[visibleRanges.length - 1].lineNumber : 0);

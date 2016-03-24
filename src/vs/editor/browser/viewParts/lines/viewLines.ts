@@ -30,6 +30,10 @@ export class ViewLines extends ViewLayer {
 
 	public textRangeRestingSpot:HTMLElement;
 
+	private _lineHeight: number;
+	private _isViewportWrapping: boolean;
+	private _revealHorizontalRightPadding: number;
+
 	// --- width
 	private _maxLineWidth: number;
 	private _asyncUpdateLineWidths: RunOnceScheduler;
@@ -41,6 +45,9 @@ export class ViewLines extends ViewLayer {
 
 	constructor(context:IViewContext, layoutProvider:ILayoutProvider) {
 		super(context);
+		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._isViewportWrapping = this._context.configuration.editor.wrappingInfo.isViewportWrapping;
+		this._revealHorizontalRightPadding = this._context.configuration.editor.revealHorizontalRightPadding;
 		this._layoutProvider = layoutProvider;
 		this.domNode.className = ClassNames.VIEW_LINES;
 
@@ -74,6 +81,17 @@ export class ViewLines extends ViewLayer {
 		if (e.wrappingInfo) {
 			this._maxLineWidth = 0;
 		}
+
+		if (e.lineHeight) {
+			this._lineHeight = this._context.configuration.editor.lineHeight;
+		}
+		if (e.wrappingInfo) {
+			this._isViewportWrapping = this._context.configuration.editor.wrappingInfo.isViewportWrapping;
+		}
+		if (e.revealHorizontalRightPadding) {
+			this._revealHorizontalRightPadding = this._context.configuration.editor.revealHorizontalRightPadding;
+		}
+
 		return shouldRender;
 	}
 
@@ -116,7 +134,7 @@ export class ViewLines extends ViewLayer {
 
 	public onCursorScrollRequest(e:editorCommon.IViewScrollRequestEvent): boolean {
 		let currentScrollTop = this._layoutProvider.getScrollTop();
-		let newScrollTop = currentScrollTop + e.deltaLines * this._context.configuration.editor.lineHeight;
+		let newScrollTop = currentScrollTop + e.deltaLines * this._lineHeight;
 		this._layoutProvider.setScrollTop(newScrollTop);
 		return true;
 	}
@@ -321,7 +339,7 @@ export class ViewLines extends ViewLayer {
 			var newScrollLeft = this._computeScrollLeftToRevealRange(this._lastCursorRevealRangeHorizontallyEvent.range);
 			this._lastCursorRevealRangeHorizontallyEvent = null;
 
-			var isViewportWrapping = this._context.configuration.editor.wrappingInfo.isViewportWrapping;
+			var isViewportWrapping = this._isViewportWrapping;
 			if (!isViewportWrapping) {
 				this._ensureMaxLineWidth(newScrollLeft.maxHorizontalOffset);
 			}
@@ -403,7 +421,7 @@ export class ViewLines extends ViewLayer {
 		boxEndY = this._layoutProvider.getVerticalOffsetForLineNumber(range.endLineNumber) + this._layoutProvider.heightInPxForLine(range.endLineNumber);
 		if (verticalType === editorCommon.VerticalRevealType.Simple) {
 			// Reveal one line more for the arrow down case, when the last line would be covered by the scrollbar
-			boxEndY += this._context.configuration.editor.lineHeight;
+			boxEndY += this._lineHeight;
 		}
 
 		var newScrollTop: number;
@@ -468,7 +486,7 @@ export class ViewLines extends ViewLayer {
 		maxHorizontalOffset = boxEndX;
 
 		boxStartX = Math.max(0, boxStartX - ViewLines.HORIZONTAL_EXTRA_PX);
-		boxEndX += this._context.configuration.editor.revealHorizontalRightPadding;
+		boxEndX += this._revealHorizontalRightPadding;
 
 		var newScrollLeft = this._computeMinimumScrolling(viewportStartX, viewportEndX, boxStartX, boxEndX);
 		return {

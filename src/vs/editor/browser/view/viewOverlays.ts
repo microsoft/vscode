@@ -90,9 +90,11 @@ class ViewOverlayLine implements IVisibleLineData {
 	private _dynamicOverlays:editorBrowser.IDynamicViewOverlay[];
 	private _domNode: HTMLElement;
 	private _renderPieces: string;
+	private _lineHeight: number;
 
 	constructor(context:editorBrowser.IViewContext, dynamicOverlays:editorBrowser.IDynamicViewOverlay[]) {
 		this._context = context;
+		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._dynamicOverlays = dynamicOverlays;
 
 		this._domNode = null;
@@ -122,7 +124,9 @@ class ViewOverlayLine implements IVisibleLineData {
 		// Nothing
 	}
 	onConfigurationChanged(e:IConfigurationChangedEvent): void {
-		// Nothing
+		if (e.lineHeight) {
+			this._lineHeight = this._context.configuration.editor.lineHeight;
+		}
 	}
 
 	shouldUpdateHTML(startLineNumber:number, lineNumber:number, inlineDecorations:IModelDecoration[]): boolean {
@@ -146,7 +150,7 @@ class ViewOverlayLine implements IVisibleLineData {
 		out.push('" style="top:');
 		out.push(deltaTop.toString());
 		out.push('px;height:');
-		out.push(this._context.configuration.editor.lineHeight.toString());
+		out.push(this._lineHeight.toString());
 		out.push('px;" class="');
 		out.push(editorBrowser.ClassNames.VIEW_LINE);
 		out.push('">');
@@ -164,7 +168,7 @@ class ViewOverlayLine implements IVisibleLineData {
 			this._domNode.setAttribute('lineNumber', lineNumber.toString());
 		}
 		StyleMutator.setTop(this._domNode, deltaTop);
-		StyleMutator.setHeight(this._domNode, this._context.configuration.editor.lineHeight);
+		StyleMutator.setHeight(this._domNode, this._lineHeight);
 	}
 }
 

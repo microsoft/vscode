@@ -15,6 +15,11 @@ import {IVisibleLineData} from 'vs/editor/browser/view/viewLayer';
 export class ViewLine implements IVisibleLineData {
 
 	protected _context:IViewContext;
+	private _renderWhitespace: boolean;
+	private _lineHeight: number;
+	private _stopRenderingLineAfter: number;
+	protected _fontLigatures: boolean;
+
 	private _domNode: FastDomNode;
 
 	private _lineParts: ILineParts;
@@ -28,6 +33,11 @@ export class ViewLine implements IVisibleLineData {
 
 	constructor(context:IViewContext) {
 		this._context = context;
+		this._renderWhitespace = this._context.configuration.editor.renderWhitespace;
+		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._stopRenderingLineAfter = this._context.configuration.editor.stopRenderingLineAfter;
+		this._fontLigatures = this._context.configuration.editor.fontLigatures;
+
 		this._domNode = null;
 		this._isInvalid = true;
 		this._isMaybeInvalid = false;
@@ -67,6 +77,18 @@ export class ViewLine implements IVisibleLineData {
 		this._isMaybeInvalid = true;
 	}
 	public onConfigurationChanged(e:IConfigurationChangedEvent): void {
+		if (e.renderWhitespace) {
+			this._renderWhitespace = this._context.configuration.editor.renderWhitespace;
+		}
+		if (e.lineHeight) {
+			this._lineHeight = this._context.configuration.editor.lineHeight;
+		}
+		if (e.stopRenderingLineAfter) {
+			this._stopRenderingLineAfter = this._context.configuration.editor.stopRenderingLineAfter;
+		}
+		if (e.fontLigatures) {
+			this._fontLigatures = this._context.configuration.editor.fontLigatures;
+		}
 		this._isInvalid = true;
 	}
 
@@ -81,7 +103,7 @@ export class ViewLine implements IVisibleLineData {
 				this._context.model.getLineContent(lineNumber),
 				this._context.model.getLineTokens(lineNumber),
 				inlineDecorations,
-				this._context.configuration.editor.renderWhitespace
+				this._renderWhitespace
 			);
 		}
 
@@ -108,7 +130,7 @@ export class ViewLine implements IVisibleLineData {
 		out.push('" style="top:');
 		out.push(deltaTop.toString());
 		out.push('px;height:');
-		out.push(this._context.configuration.editor.lineHeight.toString());
+		out.push(this._lineHeight.toString());
 		out.push('px;" class="');
 		out.push(ClassNames.VIEW_LINE);
 		out.push('">');
@@ -124,7 +146,7 @@ export class ViewLine implements IVisibleLineData {
 	public layoutLine(lineNumber:number, deltaTop:number): void {
 		this._domNode.setLineNumber(String(lineNumber));
 		this._domNode.setTop(deltaTop);
-		this._domNode.setHeight(this._context.configuration.editor.lineHeight);
+		this._domNode.setHeight(this._lineHeight);
 	}
 
 	// --- end IVisibleLineData
@@ -136,8 +158,8 @@ export class ViewLine implements IVisibleLineData {
 		let r = renderLine(new RenderLineInput(
 			this._context.model.getLineContent(lineNumber),
 			this._context.model.getTabSize(),
-			this._context.configuration.editor.stopRenderingLineAfter,
-			this._context.configuration.editor.renderWhitespace,
+			this._stopRenderingLineAfter,
+			this._renderWhitespace,
 			lineParts.getParts()
 		));
 
@@ -170,7 +192,7 @@ export class ViewLine implements IVisibleLineData {
 		startColumn = +startColumn; // @perf
 		endColumn = +endColumn; // @perf
 		clientRectDeltaLeft = +clientRectDeltaLeft; // @perf
-		let stopRenderingLineAfter = +this._context.configuration.editor.stopRenderingLineAfter; // @perf
+		let stopRenderingLineAfter = +this._stopRenderingLineAfter; // @perf
 
 		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter && endColumn > stopRenderingLineAfter) {
 			// This range is obviously not visible
@@ -325,7 +347,7 @@ export class ViewLine implements IVisibleLineData {
 		let lineParts = this._lineParts.getParts();
 
 		if (spanIndex >= lineParts.length) {
-			return this._context.configuration.editor.stopRenderingLineAfter;
+			return this._stopRenderingLineAfter;
 		}
 
 		if (offset === 0) {
@@ -348,8 +370,8 @@ export class ViewLine implements IVisibleLineData {
 		let min = originalMin;
 		let max = originalMax;
 
-		if (this._context.configuration.editor.stopRenderingLineAfter !== -1) {
-			max = Math.min(this._context.configuration.editor.stopRenderingLineAfter - 1, originalMax);
+		if (this._stopRenderingLineAfter !== -1) {
+			max = Math.min(this._stopRenderingLineAfter - 1, originalMax);
 		}
 
 		let nextStartOffset:number;
@@ -429,7 +451,7 @@ class WebKitViewLine extends ViewLine {
 	protected _readVisibleRangesForRange(startColumn:number, endColumn:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
 		let output = super._readVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, endNode);
 
-		if (this._context.configuration.editor.fontLigatures && output.length === 1 && endColumn > 1 && endColumn === this._charOffsetInPart.length) {
+		if (this._fontLigatures && output.length === 1 && endColumn > 1 && endColumn === this._charOffsetInPart.length) {
 			let lastSpanBoundingClientRect = (<HTMLElement>this._getReadingTarget().lastChild).getBoundingClientRect();
 			let lastSpanBoundingClientRectRight = lastSpanBoundingClientRect.right - clientRectDeltaLeft;
 			if (startColumn === endColumn) {

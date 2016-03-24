@@ -46,6 +46,7 @@ export class ViewContentWidgets extends ViewPart {
 	private _widgets:IWidgetMap;
 	private _contentWidth:number;
 	private _contentLeft: number;
+	private _lineHeight: number;
 
 	public domNode:HTMLElement;
 	public overflowingContentWidgetsDomNode:HTMLElement;
@@ -58,6 +59,7 @@ export class ViewContentWidgets extends ViewPart {
 		this._widgets = {};
 		this._contentWidth = 0;
 		this._contentLeft = 0;
+		this._lineHeight = this._context.configuration.editor.lineHeight;
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = ClassNames.CONTENT_WIDGETS;
@@ -100,6 +102,9 @@ export class ViewContentWidgets extends ViewPart {
 		return false;
 	}
 	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
+		if (e.lineHeight) {
+			this._lineHeight = this._context.configuration.editor.lineHeight;
+		}
 		return true;
 	}
 	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
@@ -200,7 +205,7 @@ export class ViewContentWidgets extends ViewPart {
 		let heightAboveLine = aboveLineTop;
 
 		// b) the box under the line
-		let underLineTop = visibleRange.top + this._context.configuration.editor.lineHeight;
+		let underLineTop = visibleRange.top + this._lineHeight;
 		let heightUnderLine = ctx.viewportHeight - underLineTop;
 
 		let aboveTop = aboveLineTop - height;
@@ -243,7 +248,7 @@ export class ViewContentWidgets extends ViewPart {
 		}
 
 		let aboveTop = visibleRange.top - height,
-			belowTop = visibleRange.top + this._context.configuration.editor.lineHeight,
+			belowTop = visibleRange.top + this._lineHeight,
 			left = left0 + this._contentLeft;
 
 		let domNodePosition = dom.getDomNodePosition(this._viewDomNode);
