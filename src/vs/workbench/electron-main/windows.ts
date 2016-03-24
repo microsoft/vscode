@@ -63,6 +63,7 @@ export interface IOpenConfiguration {
 	forceNewWindow?: boolean;
 	forceEmpty?: boolean;
 	windowToUse?: window.VSCodeWindow;
+	diffMode?: boolean;
 }
 
 interface IWindowState {
@@ -489,7 +490,7 @@ export class WindowsManager {
 
 		// Diff mode needs special care
 		let candidates = iPathsToOpen.filter((iPath) => !!iPath.filePath && !iPath.createFilePath && !iPath.installExtensionPath);
-		if (openConfig.cli.diffMode && candidates.length === 2) {
+		if (openConfig.diffMode && candidates.length === 2) {
 			filesToDiff = candidates;
 			foldersToOpen = []; // diff is always in empty workspace
 			filesToCreate = []; // diff ignores other files that do not exist
