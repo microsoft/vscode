@@ -53,13 +53,6 @@ exports.collectModules = function(args) {
 		.combine(worker)
 			.define('vs/languages/typescript/common/typescriptWorker2');
 
-	particpantExcludes.define('vs/languages/typescript/common/js/globalVariableRewriter');
-	particpantExcludes.define('vs/languages/typescript/common/js/importAndExportRewriter');
-	particpantExcludes.define('vs/languages/typescript/common/js/angularServiceRewriter');
-	particpantExcludes.define('vs/languages/typescript/common/js/defineRewriter');
-	particpantExcludes.define('vs/languages/typescript/common/js/es6PropertyDeclarator');
-	particpantExcludes.define('vs/languages/typescript/common/js/requireRewriter');
-
 	// ---- javascript ----------------------------
 	common.define('vs/languages/javascript/common/javascript', SHARED_JS_TS.concat(['vs/languages/typescript/common/typescriptMode']))
 		.combine(worker)

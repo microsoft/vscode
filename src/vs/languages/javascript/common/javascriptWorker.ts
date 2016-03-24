@@ -43,7 +43,7 @@ export class JavaScriptWorker extends typeScriptWorker.TypeScriptWorker2 {
 		return super._doConfigure(options, Options.javaScriptOptions);
 	}
 
-	public doValidateSemantics(resource: URI): boolean {
+	public doValidateSemantics(resource: URI): void {
 
 		var markers: IMarkerData[] = [];
 
@@ -53,7 +53,7 @@ export class JavaScriptWorker extends typeScriptWorker.TypeScriptWorker2 {
 		var result = diagnostics.getSemanticDiagnostics(project.languageService, resource, this._options);
 		if (result) {
 			var translator = project.translations.getTranslator(resource);
-			result.markers.forEach(marker => {
+			result.forEach(marker => {
 				var info = translator.info(marker);
 				if (info.origin) {
 					// put marker on orgin of this modification
@@ -66,7 +66,6 @@ export class JavaScriptWorker extends typeScriptWorker.TypeScriptWorker2 {
 				}
 			});
 			this.markerService.changeOne(`/${this._modeId}/semantic`, resource, markers);
-			return result.hasMissingFiles;
 		}
 	}
 
