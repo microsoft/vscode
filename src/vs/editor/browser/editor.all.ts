@@ -45,3 +45,5 @@ import 'vs/editor/contrib/indentation/common/indentation';
 
 // include these in the editor bundle because they are widely used by many languages
 import 'vs/editor/common/languages.common';
+
+import 'vs/editor/contrib/perfTest/perfTest';
