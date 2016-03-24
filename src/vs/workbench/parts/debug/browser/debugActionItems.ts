@@ -70,7 +70,7 @@ export class SelectConfigActionItem extends BaseActionItem {
 			if (!config || !config.configurations) {
 				this.select.add(this.createOption(`<${ nls.localize('none', "none") }>`));
 				this.select.disabled = true;
-				return;
+				return this.actionRunner.run(this._action, null);
 			}
 
 			const configurations = config.configurations;

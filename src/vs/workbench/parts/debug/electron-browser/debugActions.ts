@@ -79,7 +79,10 @@ export class ConfigureAction extends AbstractDebugAction {
 	static LABEL = nls.localize('openLaunchJson', "Open {0}", 'launch.json');
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, 'debug-action configure', debugService, keybindingService);
+		super(id, label, 'debug-action configure notification', debugService, keybindingService);
+		this.toDispose.push(debugService.addListener2(debug.ServiceEvents.CONFIGURATION_CHANGED, e  => {
+			this.class = this.debugService.getConfigurationName() ? 'debug-action configure' : 'debug-action configure notification';
+		}));
 	}
 
 	public run(event?: any): TPromise<any> {

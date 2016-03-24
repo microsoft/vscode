@@ -19,7 +19,7 @@
 	background: url('repl.svg') center center no-repeat;
 }
 
-.monaco-workbench .debug-action.toggle-repl.notification:before {
+.monaco-workbench .debug-action.notification:before {
 	content: '';
 	width: 6px;
 	height: 6px;
