@@ -954,6 +954,7 @@ declare module "child_process" {
         stderr: stream.Readable;
         stdio: [stream.Writable, stream.Readable, stream.Readable];
         pid: number;
+        connected: boolean;
         kill(signal?: string): void;
         send(message: any, sendHandle?: any): void;
         disconnect(): void;
@@ -987,11 +988,8 @@ declare module "child_process" {
     export interface ExecOptionsWithBufferEncoding extends ExecOptions {
         encoding: string; // specify `null`.
     }
-    export function exec(command: string, callback?: (error: Error, stdout: string, stderr: string) =>void ): ChildProcess;
-    export function exec(command: string, options: ExecOptionsWithStringEncoding, callback?: (error: Error, stdout: string, stderr: string) =>void ): ChildProcess;
-    // usage. child_process.exec("tsc", {encoding: null as string}, (err, stdout, stderr) => {});
-    export function exec(command: string, options: ExecOptionsWithBufferEncoding, callback?: (error: Error, stdout: Buffer, stderr: Buffer) =>void ): ChildProcess;
-    export function exec(command: string, options: ExecOptions, callback?: (error: Error, stdout: string, stderr: string) =>void ): ChildProcess;
+    export function exec(command: string, callback?: (error: Error, stdout: Buffer, stderr: Buffer) =>void ): ChildProcess;
+    export function exec(command: string, options: ExecOptions, callback?: (error: Error, stdout: Buffer, stderr: Buffer) =>void ): ChildProcess;
 
     export interface ExecFileOptions {
         cwd?: string;
@@ -1918,6 +1916,7 @@ declare module "stream" {
         setEncoding(encoding: string): void;
         pause(): void;
         resume(): void;
+        destroy(): void;
         pipe<T extends NodeJS.WritableStream>(destination: T, options?: { end?: boolean; }): T;
         unpipe<T extends NodeJS.WritableStream>(destination?: T): void;
         unshift(chunk: any): void;
