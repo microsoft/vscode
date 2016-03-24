@@ -504,13 +504,48 @@ export interface IEditorContributionDescriptor {
 /**
  * A zone in the overview ruler
  */
-export interface IOverviewRulerZone {
+export class OverviewRulerZone {
+	_overviewRulerZoneTrait: void;
+
 	startLineNumber: number;
 	endLineNumber: number;
-	forceHeight?: number;
-	color: string;
-	darkColor: string;
 	position: editorCommon.OverviewRulerLane;
+	forceHeight: number;
+
+	private _color: string;
+	private _darkColor: string;
+
+	constructor(
+		startLineNumber: number, endLineNumber: number,
+		position: editorCommon.OverviewRulerLane,
+		forceHeight: number,
+		color: string, darkColor: string
+	) {
+		this.startLineNumber = startLineNumber;
+		this.endLineNumber = endLineNumber;
+		this.position = position;
+		this.forceHeight = forceHeight;
+		this._color = color;
+		this._darkColor = darkColor;
+	}
+
+	public getColor(useDarkColor:boolean): string {
+		if (useDarkColor) {
+			return this._darkColor;
+		}
+		return this._color;
+	}
+
+	public equals(other:OverviewRulerZone): boolean {
+		return (
+			this.startLineNumber === other.startLineNumber
+			&& this.endLineNumber === other.endLineNumber
+			&& this.position === other.position
+			&& this.forceHeight === other.forceHeight
+			&& this._color === other._color
+			&& this._darkColor === other._darkColor
+		);
+	}
 }
 /**
  * An overview ruler
@@ -518,7 +553,7 @@ export interface IOverviewRulerZone {
 export interface IOverviewRuler {
 	getDomNode(): HTMLElement;
 	dispose(): void;
-	setZones(zones:IOverviewRulerZone[]): void;
+	setZones(zones:OverviewRulerZone[]): void;
 	setLayout(position:editorCommon.IOverviewRulerPosition): void;
 }
 /**

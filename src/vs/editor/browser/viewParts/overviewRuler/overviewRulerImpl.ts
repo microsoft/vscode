@@ -7,36 +7,33 @@
 import * as browser from 'vs/base/browser/browser';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {IOverviewRulerPosition, OverviewRulerLane} from 'vs/editor/common/editorCommon';
-import {IOverviewRulerZone} from 'vs/editor/browser/editorBrowser';
+import {OverviewRulerZone} from 'vs/editor/browser/editorBrowser';
 
-interface IColorZone {
+class ColorZone {
+	_colorZoneTrait: void;
+
 	from: number;
 	to: number;
+	color: string;
+	colorId: number;
+
+	constructor(from:number, to:number, color:string) {
+		this.from = from;
+		this.to = to;
+		this.color = color;
+		this.colorId = 0;
+	}
 }
 
-interface IColorZoneMap {
-	[color:string]:IColorZone[];
-}
-
-function zoneEquals(a:IOverviewRulerZone, b:IOverviewRulerZone): boolean {
-	return (
-		a.startLineNumber === b.startLineNumber
-		&& a.endLineNumber === b.endLineNumber
-		&& a.forceHeight === b.forceHeight
-		&& a.color === b.color
-		&& a.position === b.position
-	);
-}
-
-function zonesEqual(a:IOverviewRulerZone[], b:IOverviewRulerZone[]): boolean {
+function zonesEqual(a:OverviewRulerZone[], b:OverviewRulerZone[]): boolean {
 	if (a === b) {
 		return true;
 	}
 	if (a.length !== b.length) {
 		return false;
 	}
-	for (var i = 0, len = a.length; i < len; i++) {
-		if (!zoneEquals(a[i], b[i])) {
+	for (let i = 0, len = a.length; i < len; i++) {
+		if (!a[i].equals(b[i])) {
 			return false;
 		}
 	}
@@ -51,8 +48,8 @@ export class OverviewRulerImpl {
 	private _minimumHeight: number;
 	private _maximumHeight: number;
 	private _getVerticalOffsetForLine:(lineNumber:number)=>number;
-	private _zones:IOverviewRulerZone[];
-	private _renderedZones:IOverviewRulerZone[];
+	private _zones:OverviewRulerZone[];
+	private _renderedZones:OverviewRulerZone[];
 	private _canvasLeftOffset: number;
 
 	private _domNode: HTMLCanvasElement;
@@ -153,16 +150,22 @@ export class OverviewRulerImpl {
 		}
 	}
 
-	public setZones(zones:IOverviewRulerZone[], render:boolean): void {
+	public setZones(zones:OverviewRulerZone[], render:boolean): void {
 		this._zones = zones;
 		if (render) {
 			this.render(false);
 		}
 	}
 
-	private _insertZone(colorsZones:IColorZoneMap, y1:number, y2:number, minimumHeight:number, maximumHeight:number, color:string): void {
-		var ycenter = Math.floor((y1 + y2) / 2);
-		var halfHeight = (y2 - ycenter);
+	private static _createZone(totalHeight:number, y1:number, y2:number, minimumHeight:number, maximumHeight:number, color:string): ColorZone {
+		totalHeight = Math.floor(totalHeight); // @perf
+		y1 = Math.floor(y1); // @perf
+		y2 = Math.floor(y2); // @perf
+		minimumHeight = Math.floor(minimumHeight); // @perf
+		maximumHeight = Math.floor(maximumHeight); // @perf
+
+		let ycenter = Math.floor((y1 + y2) / 2);
+		let halfHeight = (y2 - ycenter);
 
 
 		if (halfHeight > maximumHeight / 2) {
@@ -175,92 +178,122 @@ export class OverviewRulerImpl {
 		if (ycenter - halfHeight < 0) {
 			ycenter = halfHeight;
 		}
-		if (ycenter + halfHeight > this._height) {
-			ycenter = this._height - halfHeight;
+		if (ycenter + halfHeight > totalHeight) {
+			ycenter = totalHeight - halfHeight;
 		}
 
-		colorsZones[color] = colorsZones[color] || [];
-		colorsZones[color].push({
-			from: ycenter - halfHeight,
-			to: ycenter + halfHeight
-		});
+		return new ColorZone(ycenter - halfHeight, ycenter + halfHeight, color);
 	}
 
-	private _getColorForZone(zone:IOverviewRulerZone): string {
-		if (this._useDarkColor) {
-			return zone.darkColor;
-		}
-		return zone.color;
-	}
+	private _renderVerticalPatchPrep(heightRatio:number, laneMask:number): ColorZone[] {
+		const lineHeight = Math.floor(this._lineHeight); // @perf
+		const totalHeight = Math.floor(this._height); // @perf
+		const maximumHeight = Math.floor(this._maximumHeight); // @perf
+		const minimumHeight = Math.floor(this._minimumHeight); // @perf
+		const useDarkColor = this._useDarkColor; // @perf
 
-	private _renderVerticalPatch(ctx:CanvasRenderingContext2D, heightRatio:number, laneMask:number, xpos:number, width:number): void {
-		var colorsZones:IColorZoneMap = {};
-		var i:number, len:number, zone:IOverviewRulerZone, y1:number, y2:number, zoneLineNumbers:number, zoneMaximumHeight:number;
-		for (i = 0, len = this._zones.length; i < len; i++) {
-			zone = this._zones[i];
+		let result: ColorZone[] = [];
+
+		for (let i = 0, len = this._zones.length; i < len; i++) {
+			let zone = this._zones[i];
 
 			if (!(zone.position & laneMask)) {
 				continue;
 			}
 
-			y1 = this._getVerticalOffsetForLine(zone.startLineNumber);
-			y2 = this._getVerticalOffsetForLine(zone.endLineNumber) + this._lineHeight;
+			let y1 = Math.floor(this._getVerticalOffsetForLine(zone.startLineNumber));
+			let y2 = Math.floor(this._getVerticalOffsetForLine(zone.endLineNumber)) + lineHeight;
 
-			y1 *= heightRatio;
-			y2 *= heightRatio;
+			y1 = Math.floor(y1 * heightRatio);
+			y2 = Math.floor(y2 * heightRatio);
 
 			if (zone.forceHeight) {
 				y2 = y1 + zone.forceHeight;
-				this._insertZone(colorsZones, y1, y2, zone.forceHeight, zone.forceHeight, this._getColorForZone(zone));
+				result.push(OverviewRulerImpl._createZone(totalHeight, y1, y2, zone.forceHeight, zone.forceHeight, zone.getColor(useDarkColor)));
 			} else {
 				// Figure out if we can render this in one continuous zone
-				zoneLineNumbers = zone.endLineNumber - zone.startLineNumber + 1;
-				zoneMaximumHeight = zoneLineNumbers * this._maximumHeight;
+				let zoneLineNumbers = zone.endLineNumber - zone.startLineNumber + 1;
+				let zoneMaximumHeight = zoneLineNumbers * maximumHeight;
 
 				if (y2 - y1 > zoneMaximumHeight) {
 					// We need to draw one zone per line
-					for (var lineNumber = zone.startLineNumber; lineNumber <= zone.endLineNumber; lineNumber++) {
-						y1 = this._getVerticalOffsetForLine(lineNumber);
-						y2 = y1 + this._lineHeight;
+					for (let lineNumber = zone.startLineNumber; lineNumber <= zone.endLineNumber; lineNumber++) {
+						y1 = Math.floor(this._getVerticalOffsetForLine(lineNumber));
+						y2 = y1 + lineHeight;
 
-						y1 *= heightRatio;
-						y2 *= heightRatio;
+						y1 = Math.floor(y1 * heightRatio);
+						y2 = Math.floor(y2 * heightRatio);
 
-						this._insertZone(colorsZones, y1, y2, this._minimumHeight, this._maximumHeight, this._getColorForZone(zone));
+						result.push(OverviewRulerImpl._createZone(totalHeight, y1, y2, minimumHeight, maximumHeight, zone.getColor(useDarkColor)));
 					}
 				} else {
-					this._insertZone(colorsZones, y1, y2, this._minimumHeight, zoneMaximumHeight, this._getColorForZone(zone));
+					result.push(OverviewRulerImpl._createZone(totalHeight, y1, y2, minimumHeight, zoneMaximumHeight, zone.getColor(useDarkColor)));
 				}
 			}
-
 		}
 
-		var sorter = (a:IColorZone, b:IColorZone) => {
+		return result;
+	}
+
+	private _renderVerticalPatch(ctx:CanvasRenderingContext2D, heightRatio:number, laneMask:number, xpos:number, width:number): void {
+
+		let colorsZones = this._renderVerticalPatchPrep(heightRatio, laneMask);
+
+		if (colorsZones.length === 0) {
+			return;
+		}
+
+		let lastAssignedId = 0;
+		let color2Id: { [color:string]: number; } = Object.create(null);
+		let id2Color: string[] = [];
+		for (let i = 0, len = colorsZones.length; i < len; i++) {
+			let colorZone = colorsZones[i];
+
+			let id = color2Id[colorZone.color];
+			if (!id) {
+				id = (++lastAssignedId);
+				color2Id[colorZone.color] = id;
+				id2Color[id] = colorZone.color;
+			}
+
+			colorZone.colorId = id;
+		}
+
+		let groupedColorZones: ColorZone[][] = [];
+		for (let id = 1; id <= lastAssignedId; id++) {
+			groupedColorZones[id] = [];
+		}
+
+		for (let i = 0, len = colorsZones.length; i < len; i++) {
+			let colorZone = colorsZones[i];
+			groupedColorZones[colorZone.colorId].push(colorZone);
+		}
+
+		OverviewRulerImpl._renderVerticalPatchFinish(ctx, xpos, width, id2Color, groupedColorZones);
+	}
+
+	private static _renderVerticalPatchFinish(ctx:CanvasRenderingContext2D, xpos:number, width:number, id2Color: string[], groupedColorZones:ColorZone[][]): void {
+		let sorter = (a:ColorZone, b:ColorZone) => {
 			return a.from - b.from;
 		};
 
-		// Merge color zones
-		var colorName:string, colorZones:IColorZone[], currentFrom:number, currentTo:number;
-		for (colorName in colorsZones) {
-			if (colorsZones.hasOwnProperty(colorName)) {
-				colorZones = colorsZones[colorName];
+		for (let id = 1, len = groupedColorZones.length; id < len; id++) {
+			let colorZones = groupedColorZones[id];
+			colorZones.sort(sorter);
 
-				// Merge & Render zones
-				colorZones.sort(sorter);
-				currentFrom = colorZones[0].from;
-				currentTo = colorZones[0].to;
-				ctx.fillStyle = colorName;
-				for (i = 1, len = colorZones.length; i < len; i++) {
-					if (currentTo >= colorZones[i].from) {
-						currentTo = Math.max(currentTo, colorZones[i].to);
-					} else {
-						ctx.fillRect (xpos, currentFrom, width, currentTo - currentFrom);
-						currentFrom = colorZones[i].from;
-						currentTo = colorZones[i].to;
-					}
+			let currentFrom = colorZones[0].from;
+			let currentTo = colorZones[0].to;
+			ctx.fillStyle = id2Color[id];
+			for (let i = 1, len = colorZones.length; i < len; i++) {
+				if (currentTo >= colorZones[i].from) {
+					currentTo = Math.max(currentTo, colorZones[i].to);
+				} else {
+					ctx.fillRect (xpos, currentFrom, width, currentTo - currentFrom);
+					currentFrom = colorZones[i].from;
+					currentTo = colorZones[i].to;
 				}
-				ctx.fillRect (xpos, currentFrom, width, currentTo - currentFrom);
 			}
+			ctx.fillRect (xpos, currentFrom, width, currentTo - currentFrom);
 		}
 	}
 
@@ -271,14 +304,14 @@ export class OverviewRulerImpl {
 		if (!OverviewRulerImpl.hasCanvas) {
 			return false;
 		}
-		var shouldRender = forceRender || !zonesEqual(this._renderedZones, this._zones);
+		let shouldRender = forceRender || !zonesEqual(this._renderedZones, this._zones);
 		if (shouldRender) {
-			var heightRatio = this._height / this._outerHeight;
+			let heightRatio = this._height / this._outerHeight;
 
-			var ctx = this._domNode.getContext('2d');
+			let ctx = this._domNode.getContext('2d');
 			ctx.clearRect (0, 0, this._width, this._height);
 
-			var remainingWidth = this._width - this._canvasLeftOffset;
+			let remainingWidth = this._width - this._canvasLeftOffset;
 
 			if (this._lanesCount >= 3) {
 				this._renderThreeLanes(ctx, heightRatio, remainingWidth);
@@ -300,10 +333,10 @@ export class OverviewRulerImpl {
 
 	private _renderTwoLanes(ctx:CanvasRenderingContext2D, heightRatio:number, w:number): void {
 
-		var leftWidth = Math.floor(w / 2),
-			rightWidth = w - leftWidth,
-			leftOffset = this._canvasLeftOffset,
-			rightOffset = this._canvasLeftOffset + leftWidth;
+		let leftWidth = Math.floor(w / 2);
+		let rightWidth = w - leftWidth;
+		let leftOffset = this._canvasLeftOffset;
+		let rightOffset = this._canvasLeftOffset + leftWidth;
 
 		this._renderVerticalPatch(ctx, heightRatio, OverviewRulerLane.Left | OverviewRulerLane.Center, leftOffset, leftWidth);
 		this._renderVerticalPatch(ctx, heightRatio, OverviewRulerLane.Right, rightOffset, rightWidth);
@@ -311,12 +344,12 @@ export class OverviewRulerImpl {
 
 	private _renderThreeLanes(ctx:CanvasRenderingContext2D, heightRatio:number, w:number): void {
 
-		var leftWidth = Math.floor(w / 3),
-			rightWidth = Math.floor(w / 3),
-			centerWidth = w - leftWidth - rightWidth,
-			leftOffset = this._canvasLeftOffset,
-			centerOffset = this._canvasLeftOffset + leftWidth,
-			rightOffset = this._canvasLeftOffset + leftWidth + centerWidth;
+		let leftWidth = Math.floor(w / 3);
+		let rightWidth = Math.floor(w / 3);
+		let centerWidth = w - leftWidth - rightWidth;
+		let leftOffset = this._canvasLeftOffset;
+		let centerOffset = this._canvasLeftOffset + leftWidth;
+		let rightOffset = this._canvasLeftOffset + leftWidth + centerWidth;
 
 		this._renderVerticalPatch(ctx, heightRatio, OverviewRulerLane.Left, leftOffset, leftWidth);
 		this._renderVerticalPatch(ctx, heightRatio, OverviewRulerLane.Center, centerOffset, centerWidth);
