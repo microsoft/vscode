@@ -481,8 +481,8 @@ export class WindowsManager {
 			iPathsToOpen = this.cliToPaths(openConfig.cli, ignoreFileNotFound);
 		}
 
-		let filesToOpen:window.IPath[] = [];
-		let filesToDiff:window.IPath[] = [];
+		let filesToOpen: window.IPath[] = [];
+		let filesToDiff: window.IPath[] = [];
 		let foldersToOpen = iPathsToOpen.filter((iPath) => iPath.workspacePath && !iPath.filePath && !iPath.installExtensionPath);
 		let emptyToOpen = iPathsToOpen.filter((iPath) => !iPath.workspacePath && !iPath.filePath && !iPath.installExtensionPath);
 		let extensionsToInstall = iPathsToOpen.filter((iPath) => iPath.installExtensionPath).map(ipath => ipath.filePath);
@@ -490,8 +490,13 @@ export class WindowsManager {
 
 		// Diff mode needs special care
 		let candidates = iPathsToOpen.filter((iPath) => !!iPath.filePath && !iPath.createFilePath && !iPath.installExtensionPath);
-		if (openConfig.diffMode && candidates.length === 2) {
-			filesToDiff = candidates;
+		if (openConfig.diffMode) {
+			if (candidates.length === 2) {
+				filesToDiff = candidates;
+			} else {
+				emptyToOpen = [Object.create(null)]; // improper use of diffMode, open empty
+			}
+
 			foldersToOpen = []; // diff is always in empty workspace
 			filesToCreate = []; // diff ignores other files that do not exist
 		} else {
