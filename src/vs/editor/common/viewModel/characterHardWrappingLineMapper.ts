@@ -7,12 +7,7 @@
 import * as strings from 'vs/base/common/strings';
 import {WrappingIndent} from 'vs/editor/common/editorCommon';
 import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
-import {ILineMapperFactory, ILineMapping, IOutputPosition} from 'vs/editor/common/viewModel/splitLinesCollection';
-
-var throwawayIndexOfResult = {
-	index: -1,
-	remainder: -1
-};
+import {ILineMapperFactory, ILineMapping, OutputPosition} from 'vs/editor/common/viewModel/splitLinesCollection';
 
 var BREAK_BEFORE_CLASS = 1;
 var BREAK_AFTER_CLASS = 2;
@@ -244,9 +239,8 @@ export class CharacterHardWrappingLineMapping implements ILineMapping {
 		}
 	}
 
-	public getOutputPositionOfInputOffset(inputOffset:number, result:IOutputPosition): void {
-		this._prefixSums.getIndexOf(inputOffset, throwawayIndexOfResult);
-		result.outputLineIndex = throwawayIndexOfResult.index;
-		result.outputOffset = throwawayIndexOfResult.remainder;
+	public getOutputPositionOfInputOffset(inputOffset:number): OutputPosition {
+		let r = this._prefixSums.getIndexOf(inputOffset);
+		return new OutputPosition(r.index, r.remainder);
 	}
 }

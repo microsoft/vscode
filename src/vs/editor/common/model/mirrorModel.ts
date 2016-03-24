@@ -13,7 +13,7 @@ import {TextModel} from 'vs/editor/common/model/textModel';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
 import {IMode} from 'vs/editor/common/modes';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
-import {IPrefixSumIndexOfResult, PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
+import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
 
 export interface IMirrorModelEvents {
 	contentChanged: editorCommon.IModelContentChangedEvent[];
@@ -115,11 +115,8 @@ export class AbstractMirrorModel extends TextModelWithTokens implements editorCo
 		}
 
 		this._ensurePrefixSum();
-		var r:IPrefixSumIndexOfResult = {
-			index: 0,
-			remainder: 0
-		};
-		this._lineStarts.getIndexOf(offset, r);
+
+		let r = this._lineStarts.getIndexOf(offset);
 		return {
 			lineNumber: r.index + 1,
 			column: this.getEOL().length + r.remainder
