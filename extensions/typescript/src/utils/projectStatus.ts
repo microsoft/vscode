@@ -94,7 +94,7 @@ export function create(client: ITypescriptServiceClient, isOpen:(path:string)=>P
 								item.hide();
 
 								return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.rootPath, 'jsconfig.json')))
-									.then(vscode.window.showTextDocument)
+									.then(doc => vscode.window.showTextDocument(doc, vscode.ViewColumn.Three))
 									.then(editor => editor.edit(builder => builder.insert(new vscode.Position(0, 0), defaultConfig)));
 							}
 						}]
