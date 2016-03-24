@@ -523,6 +523,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	public createSession(noDebug: boolean, changeViewState = !this.partService.isSideBarHidden()): TPromise<any> {
+		this.setStateAndEmit(debug.State.Initializing);
 		this.clearReplExpressions();
 
 		return this.textFileService.saveAll().then(() => this.extensionService.onReady()).then(() => this.setConfiguration(this.configurationManager.getConfigurationName())).then(() => {
@@ -595,7 +596,6 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 				return TPromise.wrapError(new Error(nls.localize('debugAdapterCrash', "Debug adapter process has terminated unexpectedly")));
 			}
 
-			this.setStateAndEmit(debug.State.Initializing);
 			this.model.setExceptionBreakpoints(this.session.capabilities.exceptionBreakpointFilters);
 			return configuration.request === 'attach' ? this.session.attach(configuration) : this.session.launch(configuration);
 		}).then((result: DebugProtocol.Response) => {
@@ -676,6 +676,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}
 
 		const configuration = this.configurationManager.getConfiguration();
+		this.setStateAndEmit(debug.State.Initializing);
 		return this.doCreateSession({
 			type: configuration.type,
 			request: 'attach',
