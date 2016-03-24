@@ -122,7 +122,7 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 	// ---- specialize by override
 
 	protected _getProjectResolver(): AsyncDescriptor<typescript.IProjectResolver2>|typescript.IProjectResolver2 {
-		return extensions.Extensions.getProjectResolver() || extensions.Defaults.ProjectResolver;
+		return extensions.Defaults.ProjectResolver;
 	}
 
 	_shouldBeValidated(model: EditorCommon.IModel): boolean {

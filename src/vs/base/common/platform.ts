@@ -89,12 +89,16 @@ export const isQunit = _isQunit;
 export const platform = _platform;
 
 /**
- * The language used for the user interface.
+ * The language used for the user interface. The format of
+ * the string is all lower case (e.g. zh-tw for Traditional
+ * Chinese)
  */
 export const language = _language;
 
 /**
- * The OS locale or the locale specified by --locale
+ * The OS locale or the locale specified by --locale. The format of
+ * the string is all lower case (e.g. zh-tw for Traditional
+ * Chinese)
  */
 export const locale = _locale;
 
