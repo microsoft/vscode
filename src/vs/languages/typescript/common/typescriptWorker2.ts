@@ -47,7 +47,6 @@ export class TypeScriptWorker2 {
 
 	constructor(
 		modeId: string,
-		participants: Modes.IWorkerParticipant[],
 		@IResourceService resourceService: IResourceService,
 		@IMarkerService markerService: IMarkerService
 	) {

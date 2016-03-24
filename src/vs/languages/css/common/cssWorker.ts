@@ -39,7 +39,6 @@ export class CSSWorker {
 
 	constructor(
 		modeId: string,
-		participants: Modes.IWorkerParticipant[],
 		@IResourceService resourceService: IResourceService,
 		@IMarkerService markerService: IMarkerService
 	) {

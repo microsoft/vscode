@@ -22,7 +22,6 @@ import definitions = require('vs/languages/typescript/common/features/definition
 import quickFix = require('vs/languages/typescript/common/features/quickFix');
 import diagnostics = require('vs/languages/typescript/common/features/diagnostics');
 import rename = require('vs/languages/typescript/common/features/rename');
-import ShebangRewriter = require('vs/languages/typescript/common/js/shebangRewriter');
 import {IMarker, IMarkerData, IMarkerService} from 'vs/platform/markers/common/markers';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
 
@@ -30,20 +29,14 @@ export class JavaScriptWorker extends typeScriptWorker.TypeScriptWorker2 {
 
 	private _fancyRewriters: rewriter.ISyntaxRewriter[];
 
-	constructor(modeId: string, participants: Modes.IWorkerParticipant[], @IResourceService resourceService: IResourceService,
+	constructor(modeId: string, @IResourceService resourceService: IResourceService,
 		@IMarkerService markerService: IMarkerService) {
 
-		super(modeId, participants, resourceService, markerService);
+		super(modeId, resourceService, markerService);
 
 		// since we colorize the shebang we should also always handle it
-		this._projectService.defaultRewriter = [new ShebangRewriter()];
-		this._fancyRewriters = [new ShebangRewriter()];
-
-		participants.forEach((participant:any) => {
-			if (typeof participant['computeEdits'] === 'function') {
-				this._fancyRewriters.push(participant);
-			}
-		});
+		this._projectService.defaultRewriter = [];
+		this._fancyRewriters = [];
 	}
 
 	_doConfigure(options: any): winjs.TPromise<void> {

@@ -414,10 +414,6 @@ export function configureMode(modeId: string, options: any): void {
 	modeService.configureModeById(modeId, options);
 }
 
-export function registerWorkerParticipant(modeId:string, moduleName:string, ctorName:string): void {
-	ModesRegistry.registerWorkerParticipant(modeId, moduleName, ctorName);
-}
-
 export function createCustomMode(language:ILanguage): TPromise<IMode> {
 	startup.initStaticServicesIfNecessary();
 	let staticPlatformServices = ensureStaticPlatformServices(null);

@@ -9,19 +9,8 @@ import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IMarker} from 'vs/platform/markers/common/markers';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-
-export interface IWorkerParticipantDescriptor {
-	modeId: string;
-	moduleId: string;
-	ctorName: string;
-}
-
-export interface IWorkerParticipant {
-
-}
 
 export interface ITokenizationResult {
 	type?:string;
@@ -159,7 +148,6 @@ export interface IStream {
 
 export interface IModeDescriptor {
 	id:string;
-	workerParticipants:AsyncDescriptor0<IWorkerParticipant>[];
 }
 
 export interface ILineContext {

@@ -13,7 +13,7 @@ import * as paths from 'vs/base/common/paths';
 import {TPromise} from 'vs/base/common/winjs.base';
 import mime = require('vs/base/common/mime');
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
-import {createAsyncDescriptor0, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
+import {createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {IThreadService, Remotable, ThreadAffinity} from 'vs/platform/thread/common/thread';
@@ -393,10 +393,8 @@ export class ModeServiceImpl implements IModeService {
 	}
 
 	private _createModeDescriptor(modeId:string): modes.IModeDescriptor {
-		var workerParticipants = ModesRegistry.getWorkerParticipantsForMode(modeId);
 		return {
-			id: modeId,
-			workerParticipants: workerParticipants.map(p => createAsyncDescriptor0(p.moduleId, p.ctorName))
+			id: modeId
 		};
 	}
 
@@ -589,8 +587,7 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 
 			let initData = {
 				compatModes: ModesRegistry.getCompatModes(),
-				languages: ModesRegistry.getLanguages(),
-				workerParticipants: ModesRegistry.getWorkerParticipants()
+				languages: ModesRegistry.getLanguages()
 			};
 
 			r._initialize(initData);
@@ -628,7 +625,6 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 export interface IWorkerInitData {
 	compatModes: ILegacyLanguageDefinition[];
 	languages: ILanguageExtensionPoint[];
-	workerParticipants: modes.IWorkerParticipantDescriptor[];
 }
 
 @Remotable.WorkerContext('ModeServiceWorkerHelper', ThreadAffinity.All)
@@ -642,7 +638,6 @@ export class ModeServiceWorkerHelper {
 	public _initialize(initData:IWorkerInitData): void {
 		ModesRegistry.registerCompatModes(initData.compatModes);
 		ModesRegistry.registerLanguages(initData.languages);
-		ModesRegistry.registerWorkerParticipants(initData.workerParticipants);
 	}
 
 	public _acceptCompatModes(modes:ILegacyLanguageDefinition[]): void {
