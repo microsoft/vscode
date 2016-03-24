@@ -39,6 +39,8 @@ export default class URI {
 	private _path: string;
 	private _query: string;
 	private _fragment: string;
+	private _formatted: string;
+	private _fsPath: string;
 
 	constructor() {
 		this._scheme = URI._empty;
@@ -46,6 +48,9 @@ export default class URI {
 		this._path = URI._empty;
 		this._query = URI._empty;
 		this._fragment = URI._empty;
+
+		this._formatted = null;
+		this._fsPath = null;
 	}
 
 	/**
@@ -86,8 +91,6 @@ export default class URI {
 	}
 
 	// ---- filesystem path -----------------------
-
-	private _fsPath: string;
 
 	/**
 	 * Returns a string representing the corresponding file system path of this URI.
@@ -231,8 +234,6 @@ export default class URI {
 	}
 
 	// ---- printing/externalize ---------------------------
-
-	private _formatted: string;
 
 	public toString(): string {
 		if (!this._formatted) {

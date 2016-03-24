@@ -190,7 +190,7 @@ const defaultConfig = `{
 	// See http://go.microsoft.com/fwlink/?LinkId=759670
 	// for the documentation about the jsconfig.json format
 	"compilerOptions": {
-		"module": "commonjs"
+		"target": "es6"
 	},
 	"exclude": [
 		"node_modules",

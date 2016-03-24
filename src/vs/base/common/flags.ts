@@ -8,9 +8,6 @@ import { globals } from 'vs/base/common/platform';
 
 export const enableTasks = environment('enableTasks');
 export const enableSendASmile = environment('enableSendASmile');
-export const enableJavaScriptRewriting = environment('enableJavaScriptRewriting');
-export const enableTypeScriptServiceMode = environment('enableTypeScriptServiceMode');
-export const enableTypeScriptServiceModeForJS = environment('enableTypeScriptServiceModeForJS');
 
 // Telemetry endpoint (used in the standalone editor) for hosts that want to collect editor telemetry
 export const standaloneEditorTelemetryEndpoint:string = environment('telemetryEndpoint', null);

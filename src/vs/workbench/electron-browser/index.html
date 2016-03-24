@@ -167,10 +167,7 @@
 
 				window.MonacoEnvironment = {
 					'enableTasks': hasWorkspaceContext,
-					'enableJavaScriptRewriting': true,
-					'enableSendASmile' : !!configuration.sendASmile,
-					'enableTypeScriptServiceMode': true || !process.env['VSCODE_TSWORKER'],
-					'enableTypeScriptServiceModeForJS': !!process.env['CODE_TSJS'] || !!process.env['VSCODE_TSJS']
+					'enableSendASmile' : !!configuration.sendASmile
 				};
 
 				var timers = window.MonacoEnvironment.timers = {
