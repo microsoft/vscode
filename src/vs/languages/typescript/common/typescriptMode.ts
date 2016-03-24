@@ -28,7 +28,10 @@ import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport
 import {ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
 import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
-export import tokenization = tokenization;
+import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
+import {SimpleWorkerClient} from 'vs/base/common/worker/simpleWorker';
+import AbstractWorker from './worker/abstractWorker';
+
 
 class SemanticValidator {
 
@@ -152,13 +155,22 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	private _threadService:IThreadService;
 	private _instantiationService: IInstantiationService;
 
+	private _worker2: SimpleWorkerClient<AbstractWorker>;
+
 	constructor(
-		descriptor:Modes.IModeDescriptor,
+		descriptor: Modes.IModeDescriptor,
+		@IModelService private _modelService: IModelService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThreadService threadService: IThreadService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(descriptor.id);
+
+		this._worker2 = new SimpleWorkerClient<AbstractWorker>(
+			new DefaultWorkerFactory(),
+			'vs/languages/typescript/common/worker/typescriptWorker',
+			AbstractWorker);
+
 		this._threadService = threadService;
 		this._instantiationService = instantiationService;
 		this._telemetryService = telemetryService;
@@ -423,9 +435,33 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	}
 
 	static $suggest = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.suggest, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group2);
-	public suggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult[]> {
+	public suggest(resource: URI, position: EditorCommon.IPosition): WinJS.TPromise<Modes.ISuggestResult[]> {
 		return this._worker((w) => w.suggest(resource, position));
 	}
+
+	public suggest2(resource: URI, position: EditorCommon.IPosition): WinJS.TPromise<Modes.ISuggestResult[]> {
+
+		const model = this._modelService.getModel(resource);
+		const wordInfo = model.getWordUntilPosition(position);
+		const offset = 0; //model.getOffset(position);
+
+		return this._worker2.get().getCompletionsAtPosition(resource.toString(), offset).then(info => {
+
+			let suggestions = info.entries.map(entry => {
+				return <Modes.ISuggestion>{
+					label: entry.name,
+					codeSnippet: entry.name,
+					type: undefined
+				};
+			});
+
+			return [{
+				currentWord: wordInfo && wordInfo.word,
+				suggestions
+			}];
+		});
+	}
+
 
 	static $getSuggestionDetails = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.getSuggestionDetails, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group2);
 	public getSuggestionDetails(resource:URI, position:EditorCommon.IPosition, suggestion:Modes.ISuggestion):WinJS.TPromise<Modes.ISuggestion> {
