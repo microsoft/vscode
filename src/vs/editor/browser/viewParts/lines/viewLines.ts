@@ -85,6 +85,9 @@ export class ViewLines extends ViewLayer {
 	private _lastCursorRevealRangeHorizontallyEvent:editorCommon.IViewRevealRangeEvent;
 	private _lastRenderedData: LastRenderedData;
 
+	private _hasVerticalScroll:boolean;
+	private _hasHorizontalScroll:boolean;
+
 	constructor(context:IViewContext, layoutProvider:ILayoutProvider) {
 		super(context);
 		this._lineHeight = this._context.configuration.editor.lineHeight;
@@ -139,6 +142,7 @@ export class ViewLines extends ViewLayer {
 	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
 		var shouldRender = super.onLayoutChanged(layoutInfo);
 		this._maxLineWidth = 0;
+		this._lastRenderedData.resetDomNodeClientRectLeft();
 		return shouldRender;
 	}
 
@@ -180,8 +184,6 @@ export class ViewLines extends ViewLayer {
 		return true;
 	}
 
-	private _hasVerticalScroll = false;
-	private _hasHorizontalScroll = false;
 	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
 		this._hasVerticalScroll = this._hasVerticalScroll || e.vertical;
 		this._hasHorizontalScroll = this._hasHorizontalScroll || e.horizontal;
@@ -366,8 +368,6 @@ export class ViewLines extends ViewLayer {
 			this._context.model.getLineMaxColumn(this._lines.length - 1 + this._rendLineNumberStart)
 		));
 
-		this._lastRenderedData.resetDomNodeClientRectLeft();
-
 		if (this._lastCursorRevealRangeHorizontallyEvent) {
 			var newScrollLeft = this._computeScrollLeftToRevealRange(this._lastCursorRevealRangeHorizontallyEvent.range);
 			this._lastCursorRevealRangeHorizontallyEvent = null;
@@ -436,8 +436,9 @@ export class ViewLines extends ViewLayer {
 	// --- width
 
 	private _ensureMaxLineWidth(lineWidth: number): void {
-		if (this._maxLineWidth < lineWidth) {
-			this._maxLineWidth = lineWidth;
+		let iLineWidth = Math.ceil(lineWidth);
+		if (this._maxLineWidth < iLineWidth) {
+			this._maxLineWidth = iLineWidth;
 			this._layoutProvider.onMaxLineWidthChanged(this._maxLineWidth);
 		}
 	}

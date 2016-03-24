@@ -27,6 +27,7 @@ import {CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY, SuggestRegistry} from '../com
 import {CompletionItem, CompletionModel} from './completionModel';
 import {ICancelEvent, ISuggestEvent, ITriggerEvent, SuggestModel} from './suggestModel';
 import {alert} from 'vs/base/browser/ui/aria/aria';
+import {DomNodeScrollable} from 'vs/base/browser/ui/scrollbar/domNodeScrollable';
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
@@ -180,7 +181,8 @@ class SuggestionDetails {
 	private el: HTMLElement;
 	private title: HTMLElement;
 	private back: HTMLElement;
-	private scrollable: ScrollableElement;
+	private scrollable: DomNodeScrollable;
+	private scrollbar: ScrollableElement;
 	private body: HTMLElement;
 	private type: HTMLElement;
 	private docs: HTMLElement;
@@ -193,8 +195,9 @@ class SuggestionDetails {
 		this.back = append(header, $('span.go-back.octicon.octicon-mail-reply'));
 		this.back.title = nls.localize('goback', "Go back");
 		this.body = $('.body');
-		this.scrollable = new ScrollableElement(this.body, {});
-		append(this.el, this.scrollable.getDomNode());
+		this.scrollable = new DomNodeScrollable(this.body);
+		this.scrollbar = new ScrollableElement(this.body, this.scrollable, {});
+		append(this.el, this.scrollbar.getDomNode());
 		this.type = append(this.body, $('p.type'));
 		this.docs = append(this.body, $('p.docs'));
 
@@ -227,8 +230,8 @@ class SuggestionDetails {
 			this.widget.toggleDetails();
 		};
 
-		this.scrollable.onElementDimensions();
-		this.scrollable.onElementInternalDimensions();
+		this.scrollbar.onElementDimensions();
+		this.scrollable.onContentsDimensions();
 
 		this.ariaLabel = strings.format('{0}\n{1}\n{2}', item.suggestion.label || '', item.suggestion.typeLabel || '', item.suggestion.documentationLabel || '');
 	}
@@ -254,6 +257,9 @@ class SuggestionDetails {
 	}
 
 	dispose(): void {
+		this.scrollbar.dispose();
+		this.scrollable.dispose();
+
 		this.el.parentElement.removeChild(this.el);
 		this.el = null;
 	}

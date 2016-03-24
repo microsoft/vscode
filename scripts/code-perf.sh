@@ -30,6 +30,7 @@ function code() {
 		exec ./.build/electron/Electron.app/Contents/MacOS/Electron . "$@"
 	else
 		exec ./.build/electron/electron . "$@" --no-sandbox --js-flags="--trace-hydrogen --trace-phase=Z --trace-deopt --code-comments --hydrogen-track-positions --redirect-code-traces"
+		# exec ./.build/electron/electron . "$@" --no-sandbox --js-flags="--trace-opt-verbose --trace-hydrogen --trace-phase=Z --trace-deopt --code-comments --hydrogen-track-positions --redirect-code-traces"
 	fi
 }
 

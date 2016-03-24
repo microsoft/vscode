@@ -20,6 +20,7 @@ import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {DomNodeScrollable} from 'vs/base/browser/ui/scrollbar/domNodeScrollable';
 
 /**
  * An implementation of editor for diffing binary files like images or videos.
@@ -31,8 +32,10 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 	private static MIN_CONTAINER_WIDTH = 100;
 
 	private leftBinaryContainer: Builder;
+	private leftScrollable: DomNodeScrollable;
 	private leftScrollbar: IScrollableElement;
 	private rightBinaryContainer: Builder;
+	private rightScrollable: DomNodeScrollable;
 	private rightScrollbar: IScrollableElement;
 	private sash: Sash;
 	private dimension: Dimension;
@@ -59,7 +62,8 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 		this.leftBinaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
 
 		// Left Custom Scrollbars
-		this.leftScrollbar = new ScrollableElement(leftBinaryContainerElement, { horizontal: 'hidden', vertical: 'hidden' });
+		this.leftScrollable = new DomNodeScrollable(leftBinaryContainerElement);
+		this.leftScrollbar = new ScrollableElement(leftBinaryContainerElement, this.leftScrollable, { horizontal: 'hidden', vertical: 'hidden' });
 		parent.getHTMLElement().appendChild(this.leftScrollbar.getDomNode());
 		$(this.leftScrollbar.getDomNode()).addClass('binarydiff-left');
 
@@ -76,7 +80,8 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 		this.rightBinaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
 
 		// Right Custom Scrollbars
-		this.rightScrollbar = new ScrollableElement(rightBinaryContainerElement, { horizontal: 'hidden', vertical: 'hidden' });
+		this.rightScrollable = new DomNodeScrollable(rightBinaryContainerElement);
+		this.rightScrollbar = new ScrollableElement(rightBinaryContainerElement, this.rightScrollable, { horizontal: 'hidden', vertical: 'hidden' });
 		parent.getHTMLElement().appendChild(this.rightScrollbar.getDomNode());
 		$(this.rightScrollbar.getDomNode()).addClass('binarydiff-right');
 	}
@@ -127,9 +132,9 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 
 		// Pass to ResourceViewer
 		let container = isOriginal ? this.leftBinaryContainer : this.rightBinaryContainer;
-		let scrollbar = isOriginal ? this.leftScrollbar : this.rightScrollbar;
+		let scrollable = isOriginal ? this.leftScrollable : this.rightScrollable;
 
-		ResourceViewer.show(name, resource, container, scrollbar);
+		ResourceViewer.show(name, resource, container, scrollable);
 	}
 
 	public clearInput(): void {
@@ -165,12 +170,12 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 		// Size left container
 		this.leftBinaryContainer.size(this.leftContainerWidth, this.dimension.height);
 		this.leftScrollbar.onElementDimensions();
-		this.leftScrollbar.onElementInternalDimensions();
+		this.leftScrollable.onContentsDimensions();
 
 		// Size right container
 		this.rightBinaryContainer.size(this.dimension.width - this.leftContainerWidth, this.dimension.height);
 		this.rightScrollbar.onElementDimensions();
-		this.rightScrollbar.onElementInternalDimensions();
+		this.rightScrollable.onContentsDimensions();
 	}
 
 	private onSashDragStart(): void {
@@ -217,7 +222,9 @@ export class BinaryResourceDiffEditor extends BaseEditor implements IVerticalSas
 
 		// Dispose Scrollbar
 		this.leftScrollbar.dispose();
+		this.leftScrollable.dispose();
 		this.rightScrollbar.dispose();
+		this.rightScrollable.dispose();
 
 		// Destroy Container
 		this.leftBinaryContainer.destroy();

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IScrollable} from 'vs/base/common/scrollable';
 import {FastDomNode} from 'vs/base/browser/styleMutator';
 
 export interface IScrollableElementCreationOptions {
@@ -47,12 +46,6 @@ export interface IScrollableElementCreationOptions {
 	 * Defaults to 11.
 	 */
 	arrowSize?: number;
-
-	/**
-	 * The scrollable that will react to all the scrolling logic.
-	 * If no scrollable is provided, a dom node scrollable will be created automatically.
-	 */
-	scrollable?: IScrollable;
 
 	/**
 	 * The dom node events should be bound to.
@@ -146,11 +139,6 @@ export interface IScrollableElement {
 	onElementDimensions(dimensions?: IDimensions): void;
 
 	/**
-	 * Let the scrollable element know that the contained dom node's width / height might have changed.
-	 */
-	onElementInternalDimensions(): void;
-
-	/**
 	 * Dispose.
 	 */
 	dispose(): void;
@@ -230,7 +218,6 @@ export interface IScrollableElementOptions {
 	flipAxes: boolean;
 	mouseWheelScrollSensitivity: number;
 	arrowSize: number;
-	scrollable: IScrollable;
 	listenOnDomNode: HTMLElement;
 	horizontal: Visibility;
 	horizontalScrollbarSize: number;

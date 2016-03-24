@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as dom from 'vs/base/browser/dom';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IViewContext} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
@@ -47,6 +46,8 @@ export class ViewLayer extends ViewPart {
 	_rendLineNumberStart:number;
 
 	private _renderer: ViewLayerRenderer;
+	private _scrollDomNode: HTMLElement;
+	private _scrollDomNodeIsAbove: boolean;
 
 	constructor(context:IViewContext) {
 		super(context);
@@ -55,6 +56,9 @@ export class ViewLayer extends ViewPart {
 
 		this._lines = [];
 		this._rendLineNumberStart = 1;
+
+		this._scrollDomNode = null;
+		this._scrollDomNodeIsAbove = false;
 
 		this._renderer = new ViewLayerRenderer(
 			() => this._createLine(),
@@ -95,7 +99,8 @@ export class ViewLayer extends ViewPart {
 	public onModelFlushed(): boolean {
 		this._lines = [];
 		this._rendLineNumberStart = 1;
-		dom.clearNode(this.domNode);
+		this._scrollDomNode = null;
+		// No need to clear the dom node because a full .innerHTML will occur in ViewLayerRenderer._render
 		return true;
 	}
 
@@ -233,8 +238,6 @@ export class ViewLayer extends ViewPart {
 
 
 	// ---- end view event handlers
-	private _scrollDomNode: HTMLElement = null;
-	private _scrollDomNodeIsAbove: boolean = false;
 	public _renderLines(linesViewportData:editorCommon.IViewLinesViewportData): void {
 
 		var ctx: IRendererContext = {

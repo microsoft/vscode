@@ -83,7 +83,7 @@ export class ScrollbarState {
 
 		this._computedAvailableSize = 0;
 		this._computedRepresentableSize = 0;
-		this._computedRatio = 0;
+		this._computedRatio = 0.1;
 		this._computedIsNeeded = false;
 		this._computedSliderSize = 0;
 		this._computedSliderPosition = 0;
@@ -92,9 +92,9 @@ export class ScrollbarState {
 	}
 
 	public setVisibleSize(visibleSize: number): boolean {
-		visibleSize = Math.round(visibleSize);
-		if (this._visibleSize !== visibleSize) {
-			this._visibleSize = visibleSize;
+		let iVisibleSize = Math.round(visibleSize);
+		if (this._visibleSize !== iVisibleSize) {
+			this._visibleSize = iVisibleSize;
 			this._refreshComputedValues();
 			return true;
 		}
@@ -102,9 +102,9 @@ export class ScrollbarState {
 	}
 
 	public setScrollSize(scrollSize: number): boolean {
-		scrollSize = Math.round(scrollSize);
-		if (this._scrollSize !== scrollSize) {
-			this._scrollSize = scrollSize;
+		let iScrollSize = Math.round(scrollSize);
+		if (this._scrollSize !== iScrollSize) {
+			this._scrollSize = iScrollSize;
 			this._refreshComputedValues();
 			return true;
 		}
@@ -112,9 +112,9 @@ export class ScrollbarState {
 	}
 
 	public setScrollPosition(scrollPosition: number): boolean {
-		scrollPosition = Math.round(scrollPosition);
-		if (this._scrollPosition !== scrollPosition) {
-			this._scrollPosition = scrollPosition;
+		let iScrollPosition = Math.round(scrollPosition);
+		if (this._scrollPosition !== iScrollPosition) {
+			this._scrollPosition = iScrollPosition;
 			this._refreshComputedValues();
 			return true;
 		}
@@ -122,39 +122,55 @@ export class ScrollbarState {
 	}
 
 	private _refreshComputedValues(): void {
-		this._computedAvailableSize = Math.max(0, this._visibleSize - this._oppositeScrollbarSize);
-		this._computedRepresentableSize = Math.max(0, this._computedAvailableSize - 2 * this._arrowSize);
-		this._computedRatio = this._scrollSize > 0 ? (this._computedRepresentableSize / this._scrollSize) : 0;
-		this._computedIsNeeded = (this._scrollSize > this._visibleSize);
+		const oppositeScrollbarSize = this._oppositeScrollbarSize;
+		const arrowSize = this._arrowSize;
+		const visibleSize = this._visibleSize;
+		const scrollSize = this._scrollSize;
+		const scrollPosition = this._scrollPosition;
 
-		if (!this._computedIsNeeded) {
-			this._computedSliderSize = this._computedRepresentableSize;
-			this._computedSliderPosition = 0;
+		let computedAvailableSize = Math.max(0, visibleSize - oppositeScrollbarSize);
+		let computedRepresentableSize = Math.max(0, computedAvailableSize - 2 * arrowSize);
+		let computedRatio = scrollSize > 0 ? (computedRepresentableSize / scrollSize) : 0;
+		let computedIsNeeded = (scrollSize > visibleSize);
+
+		let computedSliderSize: number;
+		let computedSliderPosition: number;
+
+		if (!computedIsNeeded) {
+			computedSliderSize = computedRepresentableSize;
+			computedSliderPosition = 0;
 		} else {
-			this._computedSliderSize = Math.floor(this._visibleSize * this._computedRatio);
-			this._computedSliderPosition = Math.floor(this._scrollPosition * this._computedRatio);
+			computedSliderSize = Math.floor(visibleSize * computedRatio);
+			computedSliderPosition = Math.floor(scrollPosition * computedRatio);
 
-			if (this._computedSliderSize < MINIMUM_SLIDER_SIZE) {
+			if (computedSliderSize < MINIMUM_SLIDER_SIZE) {
 				// We must artificially increase the size of the slider, since the slider would be too small otherwise
 				// The effort is to keep the slider centered around the original position, but we must take into
 				// account the cases when the slider is too close to the top or too close to the bottom
 
-				let sliderArtificialOffset = (MINIMUM_SLIDER_SIZE - this._computedSliderSize) / 2;
-				this._computedSliderSize = MINIMUM_SLIDER_SIZE;
+				let sliderArtificialOffset = (MINIMUM_SLIDER_SIZE - computedSliderSize) / 2;
+				computedSliderSize = MINIMUM_SLIDER_SIZE;
 
-				this._computedSliderPosition -= sliderArtificialOffset;
+				computedSliderPosition -= sliderArtificialOffset;
 
-				if (this._computedSliderPosition + this._computedSliderSize > this._computedRepresentableSize) {
+				if (computedSliderPosition + computedSliderSize > computedRepresentableSize) {
 					// Slider is too close to the bottom, so we glue it to the bottom
-					this._computedSliderPosition = this._computedRepresentableSize - this._computedSliderSize;
+					computedSliderPosition = computedRepresentableSize - computedSliderSize;
 				}
 
-				if (this._computedSliderPosition < 0) {
+				if (computedSliderPosition < 0) {
 					// Slider is too close to the top, so we glue it to the top
-					this._computedSliderPosition = 0;
+					computedSliderPosition = 0;
 				}
 			}
 		}
+
+		this._computedAvailableSize = Math.round(computedAvailableSize);
+		this._computedRepresentableSize = Math.round(computedRepresentableSize);
+		this._computedRatio = computedRatio;
+		this._computedIsNeeded = computedIsNeeded;
+		this._computedSliderSize = Math.round(computedSliderSize);
+		this._computedSliderPosition = Math.round(computedSliderPosition);
 	}
 
 	public getArrowSize(): number {

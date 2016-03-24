@@ -9,13 +9,13 @@ import {ARROW_IMG_SIZE, AbstractScrollbar, ScrollbarState, IMouseMoveEventData} 
 import {IMouseEvent, StandardMouseWheelEvent} from 'vs/base/browser/mouseEvent';
 import {IDomNodePosition} from 'vs/base/browser/dom';
 import {IParent, IScrollableElementOptions, Visibility} from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import {IScrollable} from 'vs/base/common/scrollable';
+import {DelegateScrollable} from 'vs/base/common/scrollable';
 
 export class VerticalScrollbar extends AbstractScrollbar {
 
-	private _scrollable: IScrollable;
+	private _scrollable: DelegateScrollable;
 
-	constructor(scrollable: IScrollable, parent: IParent, options: IScrollableElementOptions) {
+	constructor(scrollable: DelegateScrollable, parent: IParent, options: IScrollableElementOptions) {
 		let s = new ScrollbarState(
 			(options.verticalHasArrows ? options.arrowSize : 0),
 			(options.vertical === Visibility.Hidden ? 0 : options.verticalScrollbarSize),
