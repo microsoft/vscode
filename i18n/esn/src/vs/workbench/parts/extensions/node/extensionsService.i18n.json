@@ -10,5 +10,6 @@
 	"invalidVersion": "Extensión no válida: La versión del manifiesto no coincide.",
 	"missingGalleryInformation": "Falta información de la galería",
 	"noCompatible": "No se encontró una versión de {0} compatible con esta versión de Code.",
-	"notExists": "No se encontró la extensión"
+	"notExists": "No se encontró la extensión",
+	"restartCode": "Reinicie Code antes de volver a instalar {0}."
 }

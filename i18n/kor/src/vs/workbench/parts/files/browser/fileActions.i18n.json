@@ -30,6 +30,7 @@
 	"emptyFileNameError": "파일 또는 폴더 이름을 입력해야 합니다.",
 	"fileNameExistsError": "파일 또는 폴더 **{0}**이(가) 이 위치에 이미 있습니다. 다른 이름을 선택하세요.",
 	"filePathTooLongError": "**{0}**(이)라는 이름을 사용하면 경로가 너무 길어집니다. 짧은 이름을 선택하세요.",
+	"focusFilesExplorer": "파일 탐색기에 포커스 설정",
 	"focusWorkingFiles": "작업 파일에 포커스 설정",
 	"globalCompareFile": "활성 파일을 다음과 비교...",
 	"importFiles": "파일 가져오기",

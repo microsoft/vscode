@@ -31,6 +31,7 @@
 	"roundedSelection": "Contrôle si les sélections ont des angles arrondis",
 	"rulers": "Colonnes où afficher les règles verticales",
 	"scrollBeyondLastLine": "Contrôle si l'éditeur défile au-delà de la dernière ligne",
+	"selectionClipboard": "Contrôle si le presse-papiers primaire Linux doit être pris en charge.",
 	"selectionHighlight": "Détermine si l'éditeur doit surligner les correspondances similaires à la sélection",
 	"sideBySide": "Contrôle si l'éditeur de différences affiche les différences en mode côte à côte ou inline",
 	"suggestOnTriggerCharacters": "Contrôle si les suggestions doivent s'afficher automatiquement durant la saisie de caractères de déclenchement",

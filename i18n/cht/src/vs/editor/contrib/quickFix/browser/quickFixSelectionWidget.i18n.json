@@ -6,5 +6,7 @@
 {
 	"QuickFixSelectionWidget.loading": "正在載入...",
 	"QuickFixSelectionWidget.noSuggestions": "沒有修正建議。",
+	"ariaCurrentFix": "{0}，快速檢修建議",
+	"quickFixAriaAccepted": "{0}，接受",
 	"treeAriaLabel": "Quick Fix"
 }

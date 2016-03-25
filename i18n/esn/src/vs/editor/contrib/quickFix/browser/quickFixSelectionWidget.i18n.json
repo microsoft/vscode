@@ -6,5 +6,7 @@
 {
 	"QuickFixSelectionWidget.loading": "Cargando...",
 	"QuickFixSelectionWidget.noSuggestions": "No hay sugerencias de correcciones.",
+	"ariaCurrentFix": "{0}, sugerencia de corrección rápida",
+	"quickFixAriaAccepted": "{0}, aceptada",
 	"treeAriaLabel": "Corrección rápida"
 }

@@ -6,5 +6,7 @@
 {
 	"QuickFixSelectionWidget.loading": "로드 중...",
 	"QuickFixSelectionWidget.noSuggestions": "수정 제안 사항이 없습니다.",
+	"ariaCurrentFix": "{0}, 빠른 수정 제안",
+	"quickFixAriaAccepted": "{0}, 수락됨",
 	"treeAriaLabel": "빠른 수정"
 }

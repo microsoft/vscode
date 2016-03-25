@@ -13,5 +13,7 @@
 	"lines.moveDown": "向下移动行",
 	"lines.moveUp": "向上移动行",
 	"lines.outdent": "行减少缩进",
+	"lines.sortAscending": "按升序排列行",
+	"lines.sortDescending": "按降序排列行",
 	"lines.trimTrailingWhitespace": "裁剪尾随空格"
 }
