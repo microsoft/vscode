@@ -10,5 +10,6 @@
 	"invalidVersion": "无效的扩展: 清单版本不匹配。",
 	"missingGalleryInformation": "库信息缺失",
 	"noCompatible": "找不到可与此代码版本兼容的 {0} 版本。",
-	"notExists": "找不到扩展"
+	"notExists": "找不到扩展",
+	"restartCode": "请重启代码再重新安装 {0}。"
 }

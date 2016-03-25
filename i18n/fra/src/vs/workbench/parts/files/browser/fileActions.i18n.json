@@ -30,6 +30,7 @@
 	"emptyFileNameError": "Un nom de fichier ou de dossier doit être fourni.",
 	"fileNameExistsError": "Un fichier ou dossier **{0}** existe déjà à cet emplacement. Choisissez un autre nom.",
 	"filePathTooLongError": "Le nom **{0}** correspond à un chemin d'accès trop long. Choisissez un nom plus court.",
+	"focusFilesExplorer": "Focus sur l'Explorateur de fichiers",
 	"focusWorkingFiles": "Focus sur les fichiers de travail",
 	"globalCompareFile": "Comparer le fichier actif à...",
 	"importFiles": "Importer des fichiers",

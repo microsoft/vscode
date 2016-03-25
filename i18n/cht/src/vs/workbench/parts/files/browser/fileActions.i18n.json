@@ -30,6 +30,7 @@
 	"emptyFileNameError": "必須提供檔案或資料夾名稱。",
 	"fileNameExistsError": "這個位置已存在檔案或資料夾 **{0}**。請選擇不同的名稱。",
 	"filePathTooLongError": "名稱 **{0}** 導致路徑太長。請選擇較短的名稱。",
+	"focusFilesExplorer": "將焦點設在檔案總管上",
 	"focusWorkingFiles": "將焦點放在工作檔案上",
 	"globalCompareFile": "使用中檔案的比較對象...",
 	"importFiles": "匯入檔案",

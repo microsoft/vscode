@@ -30,6 +30,7 @@
 	"emptyFileNameError": "ファイルまたはフォルダーの名前を指定する必要があります。",
 	"fileNameExistsError": "**{0}** というファイルまたはフォルダーはこの場所に既に存在します。別の名前を指定してください。",
 	"filePathTooLongError": "名前 **{0}** のパスが長すぎます。名前を短くしてください。",
+	"focusFilesExplorer": "ファイル エクスプローラーにフォーカスを置く",
 	"focusWorkingFiles": "作業ファイルにフォーカス",
 	"globalCompareFile": "アクティブ ファイルを比較しています...",
 	"importFiles": "ファイルのインポート",

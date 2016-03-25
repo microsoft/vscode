@@ -6,6 +6,7 @@
 {
 	"error.cannotloadtheme": "No se puede cargar {0}",
 	"error.cannotparse": "Problemas al analizar el archivo .plist: {0}",
+	"error.cannotparsejson": "Problemas al analizar el archivo de tema JSON: {0}",
 	"invalid.path.1": "Se esperaba que \"contributes.{0}.path\" ({1}) se incluyera en la carpeta de la extensión ({2}). Esto puede hacer que la extensión no sea portátil.",
 	"reqarray": "El punto de extensión `{0}` debe ser una matriz.",
 	"reqpath": "Se esperaba una cadena en \"contributes.{0}.path\". Valor proporcionado: {1}",
