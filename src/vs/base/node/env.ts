@@ -19,8 +19,7 @@ export function getUserEnvironment(): TPromise<IEnv> {
 	}
 
 	return new TPromise((c, e) => {
-		// Use --null and split by '\0' as splitting by '\n' breaks multi-line environment variables
-		let child = cp.spawn(process.env.SHELL, ['-ilc', 'env', '--null'], {
+		let child = cp.spawn(process.env.SHELL, ['-ilc', 'env'], {
 			detached: true,
 			stdio: ['ignore', 'pipe', process.stderr],
 		});
@@ -38,7 +37,7 @@ export function getUserEnvironment(): TPromise<IEnv> {
 
 			let result: IEnv = Object.create(null);
 
-			buffer.split('\0').forEach(line => {
+			buffer.split('\n').forEach(line => {
 				let pos = line.indexOf('=');
 				if (pos > 0) {
 					let key = line.substring(0, pos);
