@@ -238,7 +238,7 @@ export class ViewLayer extends ViewPart {
 
 
 	// ---- end view event handlers
-	public _renderLines(linesViewportData:editorCommon.IViewLinesViewportData): void {
+	public _renderLines(linesViewportData:editorCommon.ViewLinesViewportData): void {
 
 		var ctx: IRendererContext = {
 			domNode: this.domNode,

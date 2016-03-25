@@ -829,7 +829,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.actualRender();
 	}
 
-	private createRenderingContext(linesViewportData:editorCommon.IViewLinesViewportData): editorBrowser.IRenderingContext {
+	private createRenderingContext(linesViewportData:editorCommon.ViewLinesViewportData): editorBrowser.IRenderingContext {
 
 		var vInfo = this.layoutProvider.getCurrentViewport();
 

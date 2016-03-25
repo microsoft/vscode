@@ -203,7 +203,7 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 	public getWhitespaceAtVerticalOffset(verticalOffset:number): editorCommon.IViewWhitespaceViewportData {
 		return this.linesLayout.getWhitespaceAtVerticalOffset(verticalOffset);
 	}
-	public getLinesViewportData(): editorCommon.IViewLinesViewportData {
+	public getLinesViewportData(): editorCommon.ViewLinesViewportData {
 		return this.linesLayout.getLinesViewportData(this.getCurrentViewport());
 	}
 	public getWhitespaceViewportData(): editorCommon.IViewWhitespaceViewportData[] {

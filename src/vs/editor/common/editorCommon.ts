@@ -2521,9 +2521,9 @@ export interface IViewLineTokens {
 	findIndexOfOffset(offset:number): number;
 }
 
-export interface IViewModelDecorationsResolver {
-	getDecorations(): IModelDecoration[];
-	getInlineDecorations(lineNumber: number): IModelDecoration[];
+export interface IDecorationsViewportData {
+	decorations: IModelDecoration[];
+	inlineDecorations: IModelDecoration[][];
 }
 
 export interface IViewEventBus {
@@ -2568,7 +2568,7 @@ export interface IViewModel extends IEventEmitter, IDisposable {
 	getLineFirstNonWhitespaceColumn(lineNumber:number): number;
 	getLineLastNonWhitespaceColumn(lineNumber:number): number;
 	getLineTokens(lineNumber:number): IViewLineTokens;
-	getDecorationsResolver(startLineNumber:number, endLineNumber:number): IViewModelDecorationsResolver;
+	getDecorationsViewportData(startLineNumber:number, endLineNumber:number): IDecorationsViewportData;
 	getLineRenderLineNumber(lineNumber:number): string;
 	getAllDecorations(): IModelDecoration[];
 	getEOL(): string;
@@ -2719,33 +2719,65 @@ export interface IViewWhitespaceViewportData {
 	height:number;
 }
 
-export interface IViewLinesViewportData {
+export interface IPartialViewLinesViewportData {
 	viewportTop: number;
 	viewportHeight: number;
-
 	bigNumbersDelta: number;
+	visibleRangesDeltaTop: number;
+	startLineNumber: number;
+	endLineNumber: number;
+	relativeVerticalOffset: number[];
+}
 
-	visibleRangesDeltaTop:number;
+export class ViewLinesViewportData {
+	_viewLinesViewportDataTrait: void;
+
+	viewportTop: number;
+	viewportHeight: number;
+	bigNumbersDelta: number;
+	visibleRangesDeltaTop: number;
 	/**
 	 * The line number at which to start rendering (inclusive).
 	 */
-	startLineNumber:number;
+	startLineNumber: number;
 	/**
 	 * The line number at which to end rendering (inclusive).
 	 */
-	endLineNumber:number;
+	endLineNumber: number;
 	/**
 	 * relativeVerticalOffset[i] is the gap that must be left between line at
 	 * i - 1 + `startLineNumber` and i + `startLineNumber`.
 	 */
-	relativeVerticalOffset:number[];
+	relativeVerticalOffset: number[];
 	/**
 	 * The viewport as a range (`startLineNumber`,1) -> (`endLineNumber`,maxColumn(`endLineNumber`)).
 	 */
 	visibleRange:IEditorRange;
 
-	getInlineDecorationsForLineInViewport(lineNumber:number): IModelDecoration[];
-	getDecorationsInViewport(): IModelDecoration[];
+	private _decorations: IModelDecoration[];
+	private _inlineDecorations: IModelDecoration[][];
+
+	constructor(partialData:IPartialViewLinesViewportData, visibleRange:IEditorRange, decorationsData:IDecorationsViewportData) {
+		this.viewportTop = partialData.viewportTop|0;
+		this.viewportHeight = partialData.viewportHeight|0;
+		this.bigNumbersDelta = partialData.bigNumbersDelta|0;
+		this.visibleRangesDeltaTop = partialData.visibleRangesDeltaTop|0;
+		this.startLineNumber = partialData.startLineNumber|0;
+		this.endLineNumber = partialData.endLineNumber|0;
+		this.relativeVerticalOffset = partialData.relativeVerticalOffset;
+		this.visibleRange = visibleRange;
+		this._decorations = decorationsData.decorations;
+		this._inlineDecorations = decorationsData.inlineDecorations;
+	}
+
+	public getDecorationsInViewport(): IModelDecoration[] {
+		return this._decorations;
+	}
+
+	public getInlineDecorationsForLineInViewport(lineNumber:number): IModelDecoration[] {
+		lineNumber = lineNumber|0;
+		return this._inlineDecorations[lineNumber - this.startLineNumber];
+	}
 }
 
 export interface IViewport {

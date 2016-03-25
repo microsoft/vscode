@@ -445,8 +445,8 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 		return modelLineNumber.toString();
 	}
 
-	public getDecorationsResolver(startLineNumber:number, endLineNumber:number): editorCommon.IViewModelDecorationsResolver {
-		return this.decorations.getDecorationsResolver(startLineNumber, endLineNumber);
+	public getDecorationsViewportData(startLineNumber:number, endLineNumber:number): editorCommon.IDecorationsViewportData {
+		return this.decorations.getDecorationsViewportData(startLineNumber, endLineNumber);
 	}
 
 	public getAllDecorations(): editorCommon.IModelDecoration[] {

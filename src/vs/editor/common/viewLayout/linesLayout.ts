@@ -6,6 +6,7 @@
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {VerticalObjects} from 'vs/editor/common/viewLayout/verticalObjects';
+import {Range} from 'vs/editor/common/core/range';
 
 /**
  * Layouting of objects that take vertical space (by having a height) and push down other objects.
@@ -185,15 +186,17 @@ export class LinesLayout {
 	 * @param viewport The viewport.
 	 * @return A structure describing the lines positioned between `verticalOffset1` and `verticalOffset2`.
 	 */
-	public getLinesViewportData(visibleBox:editorCommon.IViewport): editorCommon.IViewLinesViewportData {
+	public getLinesViewportData(visibleBox:editorCommon.IViewport): editorCommon.ViewLinesViewportData {
+		let partialData = this.verticalObjects.getLinesViewportData(visibleBox.top, visibleBox.top + visibleBox.height, this._lineHeight);
+		let decorationsData = this.model.getDecorationsViewportData(partialData.startLineNumber, partialData.endLineNumber);
+		let visibleRange = new Range(
+			partialData.startLineNumber,
+			1,
+			partialData.endLineNumber,
+			this.model.getLineMaxColumn(partialData.endLineNumber)
+		);
 
-		var viewportData = this.verticalObjects.getLinesViewportData(visibleBox.top, visibleBox.top + visibleBox.height, this._lineHeight);
-
-		var decorationsResolver = this.model.getDecorationsResolver(viewportData.startLineNumber, viewportData.endLineNumber);
-		viewportData.getDecorationsInViewport = () => decorationsResolver.getDecorations();
-		viewportData.getInlineDecorationsForLineInViewport = (lineNumber:number) => decorationsResolver.getInlineDecorations(lineNumber);
-
-		return viewportData;
+		return new editorCommon.ViewLinesViewportData(partialData, visibleRange, decorationsData);
 	}
 
 	/**

@@ -167,7 +167,7 @@ export var ClassNames = {
 };
 
 export interface IRestrictedRenderingContext {
-	linesViewportData:editorCommon.IViewLinesViewportData;
+	linesViewportData:editorCommon.ViewLinesViewportData;
 
 	scrollWidth:number;
 	scrollHeight:number;
@@ -280,7 +280,7 @@ export interface IVerticalLayoutProvider {
 	/**
 	 * Compute the lines that need to be rendered in the current viewport position.
 	 */
-	getLinesViewportData(): editorCommon.IViewLinesViewportData;
+	getLinesViewportData(): editorCommon.ViewLinesViewportData;
 }
 
 /**

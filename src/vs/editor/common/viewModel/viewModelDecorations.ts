@@ -46,7 +46,7 @@ export class ViewModelDecorations implements IDisposable {
 	private converter:IModelRangeToViewRangeConverter;
 	private decorations:IViewModelDecoration[];
 
-	private _cachedModelDecorationsResolver:editorCommon.IViewModelDecorationsResolver;
+	private _cachedModelDecorationsResolver:editorCommon.IDecorationsViewportData;
 	private _cachedModelDecorationsResolverStartLineNumber:number;
 	private _cachedModelDecorationsResolverEndLineNumber:number;
 
@@ -217,20 +217,20 @@ export class ViewModelDecorations implements IDisposable {
 		return this.decorations;
 	}
 
-	public getDecorationsResolver(startLineNumber: number, endLineNumber: number): editorCommon.IViewModelDecorationsResolver {
+	public getDecorationsViewportData(startLineNumber: number, endLineNumber: number): editorCommon.IDecorationsViewportData {
 		var cacheIsValid = true;
 		cacheIsValid = cacheIsValid && (this._cachedModelDecorationsResolver !== null);
 		cacheIsValid = cacheIsValid && (this._cachedModelDecorationsResolverStartLineNumber === startLineNumber);
 		cacheIsValid = cacheIsValid && (this._cachedModelDecorationsResolverEndLineNumber === endLineNumber);
 		if (!cacheIsValid) {
-			this._cachedModelDecorationsResolver = this._createDecorationsResolver(startLineNumber, endLineNumber);
+			this._cachedModelDecorationsResolver = this._getDecorationsViewportData(startLineNumber, endLineNumber);
 			this._cachedModelDecorationsResolverStartLineNumber = startLineNumber;
 			this._cachedModelDecorationsResolverEndLineNumber = endLineNumber;
 		}
 		return this._cachedModelDecorationsResolver;
 	}
 
-	private _createDecorationsResolver(startLineNumber: number, endLineNumber: number): editorCommon.IViewModelDecorationsResolver {
+	private _getDecorationsViewportData(startLineNumber: number, endLineNumber: number): editorCommon.IDecorationsViewportData {
 		var decorationsInViewport: editorCommon.IModelDecoration[] = [],
 			inlineDecorations: editorCommon.IModelDecoration[][] = [],
 			j: number,
@@ -269,15 +269,8 @@ export class ViewModelDecorations implements IDisposable {
 		}
 
 		return {
-			getDecorations: () => {
-				return decorationsInViewport;
-			},
-			getInlineDecorations: (lineNumber:number) => {
-				if (lineNumber < startLineNumber || lineNumber > endLineNumber) {
-					throw new Error('Unexpected line outside the ViewModelDecorationsResolver preconfigured range');
-				}
-				return inlineDecorations[lineNumber - startLineNumber];
-			}
+			decorations: decorationsInViewport,
+			inlineDecorations: inlineDecorations
 		};
 	}
 

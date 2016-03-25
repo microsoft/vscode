@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEditorWhitespace, IViewLinesViewportData, IViewWhitespaceViewportData} from 'vs/editor/common/editorCommon';
+import {IEditorWhitespace, IPartialViewLinesViewportData, IViewWhitespaceViewportData} from 'vs/editor/common/editorCommon';
 import {WhitespaceComputer} from 'vs/editor/common/viewLayout/whitespaceComputer';
 
 /**
@@ -233,37 +233,38 @@ export class VerticalObjects {
 	 * @param deviceLineHeight The height, in pixels, for one rendered line.
 	 * @return A structure describing the lines positioned between `verticalOffset1` and `verticalOffset2`.
 	 */
-	public getLinesViewportData(verticalOffset1:number, verticalOffset2:number, deviceLineHeight:number): IViewLinesViewportData {
+	public getLinesViewportData(verticalOffset1:number, verticalOffset2:number, deviceLineHeight:number): IPartialViewLinesViewportData {
 		verticalOffset1 = verticalOffset1|0;
 		verticalOffset2 = verticalOffset2|0;
 		deviceLineHeight = deviceLineHeight|0;
 
 		// Find first line number
 		// We don't live in a perfect world, so the line number might start before or after verticalOffset1
-		let startLineNumber = this.getLineNumberAtOrAfterVerticalOffset(verticalOffset1, deviceLineHeight);
+		let startLineNumber = this.getLineNumberAtOrAfterVerticalOffset(verticalOffset1, deviceLineHeight)|0;
 
-		let endLineNumber = this.linesCount|0,
-			startLineNumberVerticalOffset = this.getVerticalOffsetForLineNumber(startLineNumber, deviceLineHeight);
+		let endLineNumber = this.linesCount|0;
+		let startLineNumberVerticalOffset = this.getVerticalOffsetForLineNumber(startLineNumber, deviceLineHeight)|0;
 
 		// Also keep track of what whitespace we've got
-		let whitespaceIndex = this.whitespaces.getFirstWhitespaceIndexAfterLineNumber(startLineNumber),
-			whitespaceCount = this.whitespaces.getCount(),
-			currentWhitespaceHeight: number,
-			currentWhitespaceAfterLineNumber: number;
+		let whitespaceIndex = this.whitespaces.getFirstWhitespaceIndexAfterLineNumber(startLineNumber)|0;
+		let whitespaceCount = this.whitespaces.getCount()|0;
+		let currentWhitespaceHeight: number;
+		let currentWhitespaceAfterLineNumber: number;
 
 		if (whitespaceIndex === -1) {
 			whitespaceIndex = whitespaceCount;
 			currentWhitespaceAfterLineNumber = endLineNumber + 1;
+			currentWhitespaceHeight = 0;
 		} else {
-			currentWhitespaceAfterLineNumber = this.whitespaces.getAfterLineNumberForWhitespaceIndex(whitespaceIndex);
-			currentWhitespaceHeight = this.whitespaces.getHeightForWhitespaceIndex(whitespaceIndex);
+			currentWhitespaceAfterLineNumber = this.whitespaces.getAfterLineNumberForWhitespaceIndex(whitespaceIndex)|0;
+			currentWhitespaceHeight = this.whitespaces.getHeightForWhitespaceIndex(whitespaceIndex)|0;
 		}
 
 		let currentVerticalOffset = startLineNumberVerticalOffset;
 		let currentLineRelativeOffset = currentVerticalOffset;
 
 		// IE (all versions) cannot handle units above about 1,533,908 px, so every 500k pixels bring numbers down
-		let STEP_SIZE = 500000;
+		const STEP_SIZE = 500000;
 		let bigNumbersDelta = 0;
 		if (startLineNumberVerticalOffset >= STEP_SIZE) {
 			// Compute a delta that guarantees that lines are positioned at `lineHeight` increments
@@ -295,8 +296,8 @@ export class VerticalObjects {
 				if (whitespaceIndex >= whitespaceCount) {
 					currentWhitespaceAfterLineNumber = endLineNumber + 1;
 				} else {
-					currentWhitespaceAfterLineNumber = this.whitespaces.getAfterLineNumberForWhitespaceIndex(whitespaceIndex);
-					currentWhitespaceHeight = this.whitespaces.getHeightForWhitespaceIndex(whitespaceIndex);
+					currentWhitespaceAfterLineNumber = this.whitespaces.getAfterLineNumberForWhitespaceIndex(whitespaceIndex)|0;
+					currentWhitespaceHeight = this.whitespaces.getHeightForWhitespaceIndex(whitespaceIndex)|0;
 				}
 			}
 
@@ -314,10 +315,7 @@ export class VerticalObjects {
 			startLineNumber: startLineNumber,
 			endLineNumber: endLineNumber,
 			visibleRangesDeltaTop: -(verticalOffset1 - bigNumbersDelta),
-			relativeVerticalOffset: linesOffsets,
-			visibleRange: null, // This will be filled in by someone else :) (hint: viewLines)
-			getInlineDecorationsForLineInViewport: null, // This will be filled in by linesLayout
-			getDecorationsInViewport: null // This will be filled in by linesLayout
+			relativeVerticalOffset: linesOffsets
 		};
 	}
 
