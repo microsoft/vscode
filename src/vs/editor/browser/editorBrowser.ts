@@ -501,6 +501,22 @@ export interface IEditorContributionDescriptor {
 	createInstance(instantiationService:IInstantiationService, editor:ICodeEditor): editorCommon.IEditorContribution;
 }
 
+export class ColorZone {
+	_colorZoneTrait: void;
+
+	from: number;
+	to: number;
+	colorId: number;
+	position: editorCommon.OverviewRulerLane;
+
+	constructor(from:number, to:number, colorId:number, position: editorCommon.OverviewRulerLane) {
+		this.from = from|0;
+		this.to = to|0;
+		this.colorId = colorId|0;
+		this.position = position|0;
+	}
+}
+
 /**
  * A zone in the overview ruler
  */
@@ -515,6 +531,8 @@ export class OverviewRulerZone {
 	private _color: string;
 	private _darkColor: string;
 
+	private _colorZones: ColorZone[];
+
 	constructor(
 		startLineNumber: number, endLineNumber: number,
 		position: editorCommon.OverviewRulerLane,
@@ -527,6 +545,7 @@ export class OverviewRulerZone {
 		this.forceHeight = forceHeight;
 		this._color = color;
 		this._darkColor = darkColor;
+		this._colorZones = null;
 	}
 
 	public getColor(useDarkColor:boolean): string {
@@ -545,6 +564,36 @@ export class OverviewRulerZone {
 			&& this._color === other._color
 			&& this._darkColor === other._darkColor
 		);
+	}
+
+	public compareTo(other:OverviewRulerZone): number {
+		if (this.startLineNumber === other.startLineNumber) {
+			if (this.endLineNumber === other.endLineNumber) {
+				if (this.forceHeight === other.forceHeight) {
+					if (this.position === other.position) {
+						if (this._darkColor === other._darkColor) {
+							if (this._color === other._color) {
+								return 0;
+							}
+							return this._color < other._color ? -1 : 1;
+						}
+						return this._darkColor < other._darkColor ? -1 : 1;
+					}
+					return this.position - other.position;
+				}
+				return this.forceHeight - other.forceHeight;
+			}
+			return this.endLineNumber - other.endLineNumber;
+		}
+		return this.startLineNumber - other.startLineNumber;
+	}
+
+	public setColorZones(colorZones:ColorZone[]): void {
+		this._colorZones = colorZones;
+	}
+
+	public getColorZones(): ColorZone[] {
+		return this._colorZones;
 	}
 }
 /**

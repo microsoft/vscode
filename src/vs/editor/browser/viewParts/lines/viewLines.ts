@@ -94,7 +94,7 @@ export class ViewLines extends ViewLayer {
 		this._isViewportWrapping = this._context.configuration.editor.wrappingInfo.isViewportWrapping;
 		this._revealHorizontalRightPadding = this._context.configuration.editor.revealHorizontalRightPadding;
 		this._layoutProvider = layoutProvider;
-		this.domNode.className = ClassNames.VIEW_LINES;
+		this.domNode.setClassName(ClassNames.VIEW_LINES);
 
 		// --- width & height
 		this._maxLineWidth = 0;
@@ -116,6 +116,10 @@ export class ViewLines extends ViewLayer {
 		this._asyncUpdateLineWidths.dispose();
 		this._layoutProvider = null;
 		super.dispose();
+	}
+
+	public getDomNode(): HTMLElement {
+		return this.domNode.domNode;
 	}
 
 	// ---- begin view event handlers
@@ -153,7 +157,7 @@ export class ViewLines extends ViewLayer {
 	}
 
 	public onScrollWidthChanged(scrollWidth:number): boolean {
-		StyleMutator.setWidth(this.domNode, scrollWidth);
+		this.domNode.setWidth(scrollWidth);
 		return false;
 	}
 
@@ -265,7 +269,7 @@ export class ViewLines extends ViewLayer {
 		}
 
 		let visibleRanges:editorCommon.LineVisibleRanges[] = [];
-		let clientRectDeltaLeft = this._lastRenderedData.getDomNodeClientRectLeft(this.domNode);
+		let clientRectDeltaLeft = this._lastRenderedData.getDomNodeClientRectLeft(this.domNode.domNode);
 
 		let nextLineModelLineNumber:number;
 		if (includeNewLines) {
@@ -320,7 +324,7 @@ export class ViewLines extends ViewLayer {
 		}
 
 		let result:editorCommon.VisibleRange[] = [];
-		let clientRectDeltaLeft = this._lastRenderedData.getDomNodeClientRectLeft(this.domNode);
+		let clientRectDeltaLeft = this._lastRenderedData.getDomNodeClientRectLeft(this.domNode.domNode);
 		let bigNumbersDelta = this._lastRenderedData.getBigNumbersDelta();
 
 		for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
@@ -357,7 +361,7 @@ export class ViewLines extends ViewLayer {
 		return createLine(this._context);
 	}
 
-	private _renderAndUpdateLineHeights(linesViewportData: editorCommon.IViewLinesViewportData): void {
+	private _renderAndUpdateLineHeights(linesViewportData: editorCommon.ViewLinesViewportData): void {
 		super._renderLines(linesViewportData);
 
 		// Update internal current visible range
@@ -395,7 +399,7 @@ export class ViewLines extends ViewLayer {
 		this._ensureMaxLineWidth(localMaxLineWidth);
 	}
 
-	public render(): editorCommon.IViewLinesViewportData {
+	public render(): editorCommon.ViewLinesViewportData {
 
 		var linesViewportData = this._layoutProvider.getLinesViewportData();
 		this._lastRenderedData.setBigNumbersDelta(linesViewportData.bigNumbersDelta);
@@ -412,23 +416,21 @@ export class ViewLines extends ViewLayer {
 		if (this._hasVerticalScroll || this._hasHorizontalScroll) {
 			if (browser.canUseTranslate3d) {
 				var transform = 'translate3d(' + -this._layoutProvider.getScrollLeft() + 'px, ' + linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
-				StyleMutator.setTransform(<HTMLElement>this.domNode.parentNode, transform);
+				StyleMutator.setTransform(<HTMLElement>this.domNode.domNode.parentNode, transform); // TODO@Alex
 			} else {
 				if (this._hasVerticalScroll) {
-					StyleMutator.setTop(<HTMLElement>this.domNode.parentNode, linesViewportData.visibleRangesDeltaTop);
+					StyleMutator.setTop(<HTMLElement>this.domNode.domNode.parentNode, linesViewportData.visibleRangesDeltaTop); // TODO@Alex
 				}
 				if (this._hasHorizontalScroll) {
-					StyleMutator.setLeft(<HTMLElement>this.domNode.parentNode, -this._layoutProvider.getScrollLeft());
+					StyleMutator.setLeft(<HTMLElement>this.domNode.domNode.parentNode, -this._layoutProvider.getScrollLeft()); // TODO@Alex
 				}
 			}
 			this._hasVerticalScroll = false;
 			this._hasHorizontalScroll = false;
 		}
 
-		StyleMutator.setWidth(this.domNode, this._layoutProvider.getScrollWidth());
-		StyleMutator.setHeight(this.domNode, Math.min(this._layoutProvider.getTotalHeight(), 1000000));
-
-		linesViewportData.visibleRange = this._lastRenderedData.getCurrentVisibleRange();
+		this.domNode.setWidth(this._layoutProvider.getScrollWidth());
+		this.domNode.setHeight(Math.min(this._layoutProvider.getTotalHeight(), 1000000));
 
 		return linesViewportData;
 	}

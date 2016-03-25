@@ -5,8 +5,7 @@
 'use strict';
 
 import * as browser from 'vs/base/browser/browser';
-import * as dom from 'vs/base/browser/dom';
-import {StyleMutator} from 'vs/base/browser/styleMutator';
+import {StyleMutator, FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
 import {IConfigurationChangedEvent, IEditorLayoutInfo, IModelDecoration, IScrollEvent} from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {IVisibleLineData, ViewLayer} from 'vs/editor/browser/view/viewLayer';
@@ -22,8 +21,7 @@ export class ViewOverlays extends ViewLayer {
 		this._layoutProvider = layoutProvider;
 		this._dynamicOverlays = [];
 
-		this.domNode.className = 'view-overlays';
-
+		this.domNode.setClassName('view-overlays');
 	}
 
 	public dispose(): void {
@@ -37,7 +35,7 @@ export class ViewOverlays extends ViewLayer {
 	}
 
 	public getDomNode(): HTMLElement {
-		return this.domNode;
+		return this.domNode.domNode;
 	}
 
 	public addDynamicOverlay(overlay:editorBrowser.IDynamicViewOverlay): void {
@@ -48,7 +46,7 @@ export class ViewOverlays extends ViewLayer {
 
 	public onViewFocusChanged(isFocused:boolean): boolean {
 		this._requestModificationFrame(() => {
-			dom.toggleClass(this.domNode, 'focused', isFocused);
+			this.domNode.toggleClassName('focused', isFocused);
 		});
 		return false;
 	}
@@ -88,7 +86,7 @@ class ViewOverlayLine implements IVisibleLineData {
 
 	private _context:editorBrowser.IViewContext;
 	private _dynamicOverlays:editorBrowser.IDynamicViewOverlay[];
-	private _domNode: HTMLElement;
+	private _domNode: FastDomNode;
 	private _renderPieces: string;
 	private _lineHeight: number;
 
@@ -102,10 +100,13 @@ class ViewOverlayLine implements IVisibleLineData {
 	}
 
 	public getDomNode(): HTMLElement {
-		return this._domNode;
+		if (!this._domNode) {
+			return null;
+		}
+		return this._domNode.domNode;
 	}
 	public setDomNode(domNode:HTMLElement): void {
-		this._domNode = domNode;
+		this._domNode = createFastDomNode(domNode);
 	}
 
 	onContentChanged(): void {
@@ -163,32 +164,34 @@ class ViewOverlayLine implements IVisibleLineData {
 	}
 
 	layoutLine(lineNumber: number, deltaTop:number): void {
-		var currentLineNumber = this._domNode.getAttribute('lineNumber');
-		if (currentLineNumber !== lineNumber.toString()) {
-			this._domNode.setAttribute('lineNumber', lineNumber.toString());
-		}
-		StyleMutator.setTop(this._domNode, deltaTop);
-		StyleMutator.setHeight(this._domNode, this._lineHeight);
+		this._domNode.setLineNumber(String(lineNumber));
+		this._domNode.setTop(deltaTop);
+		this._domNode.setHeight(this._lineHeight);
 	}
 }
 
 export class ContentViewOverlays extends ViewOverlays {
 
+	private _scrollWidth: number;
+
 	constructor(context:editorBrowser.IViewContext, layoutProvider:editorBrowser.ILayoutProvider) {
 		super(context, layoutProvider);
 
-		StyleMutator.setWidth(this.domNode, 0);
-		StyleMutator.setHeight(this.domNode, 0);
+		this._scrollWidth = this._layoutProvider.getScrollWidth();
+
+		this.domNode.setWidth(this._scrollWidth);
+		this.domNode.setHeight(0);
 	}
 
 	public onScrollWidthChanged(scrollWidth:number): boolean {
+		this._scrollWidth = this._layoutProvider.getScrollWidth();
 		return true;
 	}
 
 	_viewOverlaysRender(ctx:editorBrowser.IRestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
 
-		StyleMutator.setWidth(this.domNode, this._layoutProvider.getScrollWidth());
+		this.domNode.setWidth(this._scrollWidth);
 	}
 }
 
@@ -205,8 +208,8 @@ export class MarginViewOverlays extends ViewOverlays {
 		this._glyphMarginWidth = 0;
 		this._scrollHeight = layoutProvider.getScrollHeight();
 
-		this.domNode.className = editorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS + ' monaco-editor-background';
-		StyleMutator.setWidth(this.domNode, 1);
+		this.domNode.setClassName(editorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS + ' monaco-editor-background');
+		this.domNode.setWidth(1);
 		this._hasVerticalScroll = true;
 	}
 
@@ -225,7 +228,7 @@ export class MarginViewOverlays extends ViewOverlays {
 	}
 
 	private _getGlyphMarginDomNode(): HTMLElement {
-		return <HTMLElement>this.domNode.children[0];
+		return <HTMLElement>this.domNode.domNode.children[0];
 	}
 
 	public onScrollHeightChanged(scrollHeight:number): boolean {
@@ -245,7 +248,7 @@ export class MarginViewOverlays extends ViewOverlays {
 		this._scrollHeight = this._layoutProvider.getScrollHeight();
 
 		this._requestModificationFrame(() => {
-			StyleMutator.setWidth(this.domNode, layoutInfo.contentLeft);
+			this.domNode.setWidth(layoutInfo.contentLeft);
 
 			var glyphMargin = this._getGlyphMarginDomNode();
 			if (glyphMargin) {
@@ -267,15 +270,15 @@ export class MarginViewOverlays extends ViewOverlays {
 		if (this._hasVerticalScroll) {
 			if (browser.canUseTranslate3d) {
 				var transform = 'translate3d(0px, ' + ctx.linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
-				StyleMutator.setTransform(this.domNode, transform);
+				this.domNode.setTransform(transform);
 			} else {
 				if (this._hasVerticalScroll) {
-					StyleMutator.setTop(this.domNode, ctx.linesViewportData.visibleRangesDeltaTop);
+					this.domNode.setTop(ctx.linesViewportData.visibleRangesDeltaTop);
 				}
 			}
 			this._hasVerticalScroll = false;
 		}
 		var height = Math.min(this._layoutProvider.getTotalHeight(), 1000000);
-		StyleMutator.setHeight(this.domNode, height);
+		this.domNode.setHeight(height);
 	}
 }

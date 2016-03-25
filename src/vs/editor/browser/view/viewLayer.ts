@@ -7,6 +7,7 @@
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IViewContext} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
+import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
 
 export interface IVisibleLineData {
 	getDomNode(): HTMLElement;
@@ -38,12 +39,12 @@ interface IRendererContext {
 	scrollDomNodeIsAbove: boolean;
 }
 
-export class ViewLayer extends ViewPart {
+export abstract class ViewLayer extends ViewPart {
 
-	public domNode: HTMLElement;
+	protected domNode: FastDomNode;
 
-	_lines:IVisibleLineData[];
-	_rendLineNumberStart:number;
+	protected _lines:IVisibleLineData[];
+	protected _rendLineNumberStart:number;
 
 	private _renderer: ViewLayerRenderer;
 	private _scrollDomNode: HTMLElement;
@@ -128,7 +129,7 @@ export class ViewLayer extends ViewPart {
 			for (i = from; i <= to; i++) {
 				var lineDomNode = this._lines[i].getDomNode();
 				if (lineDomNode) {
-					this.domNode.removeChild(lineDomNode);
+					this.domNode.domNode.removeChild(lineDomNode);
 				}
 			}
 			// Remove from array
@@ -202,7 +203,7 @@ export class ViewLayer extends ViewPart {
 				// Remove from DOM
 				var lineDomNode = lastLine.getDomNode();
 				if (lineDomNode) {
-					this.domNode.removeChild(lineDomNode);
+					this.domNode.domNode.removeChild(lineDomNode);
 				}
 			}
 		}
@@ -241,7 +242,7 @@ export class ViewLayer extends ViewPart {
 	public _renderLines(linesViewportData:editorCommon.ViewLinesViewportData): void {
 
 		var ctx: IRendererContext = {
-			domNode: this.domNode,
+			domNode: this.domNode.domNode,
 			rendLineNumberStart: this._rendLineNumberStart,
 			lines: this._lines,
 			linesLength: this._lines.length,
@@ -261,12 +262,12 @@ export class ViewLayer extends ViewPart {
 		this._scrollDomNodeIsAbove = resCtx.scrollDomNodeIsAbove;
 	}
 
-	public _createDomNode(): HTMLElement {
-		var domNode = document.createElement('div');
-		domNode.className = 'view-layer';
-		domNode.style.position = 'absolute';
-		domNode.setAttribute('role', 'presentation');
-		domNode.setAttribute('aria-hidden', 'true');
+	public _createDomNode(): FastDomNode {
+		let domNode = createFastDomNode(document.createElement('div'));
+		domNode.setClassName('view-layer');
+		domNode.setPosition('absolute');
+		domNode.domNode.setAttribute('role', 'presentation');
+		domNode.domNode.setAttribute('aria-hidden', 'true');
 		return domNode;
 	}
 
