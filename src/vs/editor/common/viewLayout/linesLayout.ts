@@ -20,11 +20,26 @@ export class LinesLayout {
 	private model: editorCommon.IViewModel;
 	private verticalObjects:VerticalObjects;
 
+	private _lineHeight: number;
+	private _scrollBeyondLastLine: boolean;
+
 	constructor(configuration: editorCommon.IConfiguration, model:editorCommon.IViewModel) {
 		this.configuration = configuration;
+		this._lineHeight = this.configuration.editor.lineHeight;
+		this._scrollBeyondLastLine = this.configuration.editor.scrollBeyondLastLine;
+
 		this.model = model;
 		this.verticalObjects = new VerticalObjects();
 		this.verticalObjects.replaceLines(model.getLineCount());
+	}
+
+	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): void {
+		if (e.lineHeight) {
+			this._lineHeight = this.configuration.editor.lineHeight;
+		}
+		if (e.scrollBeyondLastLine) {
+			this._scrollBeyondLastLine = this.configuration.editor.scrollBeyondLastLine;
+		}
 	}
 
 	/**
@@ -82,11 +97,11 @@ export class LinesLayout {
 	 * @return The sum of heights for all objects above `lineNumber`.
 	 */
 	public getVerticalOffsetForLineNumber(lineNumber:number): number {
-		return this.verticalObjects.getVerticalOffsetForLineNumber(lineNumber, this.configuration.editor.lineHeight);
+		return this.verticalObjects.getVerticalOffsetForLineNumber(lineNumber, this._lineHeight);
 	}
 
 	public getLinesTotalHeight(): number {
-		return this.verticalObjects.getTotalHeight(this.configuration.editor.lineHeight);
+		return this.verticalObjects.getTotalHeight(this._lineHeight);
 	}
 
 	/**
@@ -105,8 +120,8 @@ export class LinesLayout {
 //			return linesHeight;
 //		}
 
-		if (this.configuration.editor.scrollBeyondLastLine) {
-			totalLinesHeight += viewport.height - this.configuration.editor.lineHeight;
+		if (this._scrollBeyondLastLine) {
+			totalLinesHeight += viewport.height - this._lineHeight;
 		} else {
 			totalLinesHeight += reserveHorizontalScrollbarHeight;
 		}
@@ -115,7 +130,7 @@ export class LinesLayout {
 	}
 
 	public isAfterLines(verticalOffset:number): boolean {
-		return this.verticalObjects.isAfterLines(verticalOffset, this.configuration.editor.lineHeight);
+		return this.verticalObjects.isAfterLines(verticalOffset, this._lineHeight);
 	}
 
 	/**
@@ -127,7 +142,7 @@ export class LinesLayout {
 	 * @return The line number at or after vertical offset `verticalOffset`.
 	 */
 	public getLineNumberAtOrAfterVerticalOffset(verticalOffset:number): number {
-		return this.verticalObjects.getLineNumberAtOrAfterVerticalOffset(verticalOffset, this.configuration.editor.lineHeight);
+		return this.verticalObjects.getLineNumberAtOrAfterVerticalOffset(verticalOffset, this._lineHeight);
 	}
 
 	/**
@@ -137,7 +152,7 @@ export class LinesLayout {
 	 * @return The height, in pixels, for line `lineNumber`.
 	 */
 	public getHeightForLineNumber(lineNumber:number): number {
-		return this.configuration.editor.lineHeight;
+		return this._lineHeight;
 	}
 
 	/**
@@ -147,11 +162,11 @@ export class LinesLayout {
 	 * @return An array with all the whitespaces in the viewport. If no whitespace is in viewport, the array is empty.
 	 */
 	public getWhitespaceViewportData(visibleBox:editorCommon.IViewport): editorCommon.IViewWhitespaceViewportData[] {
-		return this.verticalObjects.getWhitespaceViewportData(visibleBox.top, visibleBox.top + visibleBox.height, this.configuration.editor.lineHeight);
+		return this.verticalObjects.getWhitespaceViewportData(visibleBox.top, visibleBox.top + visibleBox.height, this._lineHeight);
 	}
 
 	public getWhitespaces(): editorCommon.IEditorWhitespace[] {
-		return this.verticalObjects.getWhitespaces(this.configuration.editor.lineHeight);
+		return this.verticalObjects.getWhitespaces(this._lineHeight);
 	}
 
 	/**
@@ -161,7 +176,7 @@ export class LinesLayout {
 	 * @return Precisely the whitespace that is layouted at `verticaloffset` or null.
 	 */
 	public getWhitespaceAtVerticalOffset(verticalOffset:number): editorCommon.IViewWhitespaceViewportData {
-		return this.verticalObjects.getWhitespaceAtVerticalOffset(verticalOffset, this.configuration.editor.lineHeight);
+		return this.verticalObjects.getWhitespaceAtVerticalOffset(verticalOffset, this._lineHeight);
 	}
 
 	/**
@@ -172,7 +187,7 @@ export class LinesLayout {
 	 */
 	public getLinesViewportData(visibleBox:editorCommon.IViewport): editorCommon.IViewLinesViewportData {
 
-		var viewportData = this.verticalObjects.getLinesViewportData(visibleBox.top, visibleBox.top + visibleBox.height, this.configuration.editor.lineHeight);
+		var viewportData = this.verticalObjects.getLinesViewportData(visibleBox.top, visibleBox.top + visibleBox.height, this._lineHeight);
 
 		var decorationsResolver = this.model.getDecorationsResolver(viewportData.startLineNumber, viewportData.endLineNumber);
 		viewportData.getDecorationsInViewport = () => decorationsResolver.getDecorations();
@@ -188,7 +203,7 @@ export class LinesLayout {
 	 * @return The line number that is closest to the center of `viewport`.
 	 */
 	public getCenteredLineInViewport(visibleBox:editorCommon.IViewport): number {
-		return this.verticalObjects.getCenteredLineInViewport(visibleBox.top, visibleBox.top + visibleBox.height, this.configuration.editor.lineHeight);
+		return this.verticalObjects.getCenteredLineInViewport(visibleBox.top, visibleBox.top + visibleBox.height, this._lineHeight);
 	}
 
 	/**

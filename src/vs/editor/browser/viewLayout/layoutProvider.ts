@@ -80,6 +80,7 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 	}
 
 	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
+		this.linesLayout.onConfigurationChanged(e);
 		if (e.layoutInfo) {
 			this.scrollable.setWidth(this.configuration.editor.layoutInfo.contentWidth);
 			this.scrollable.setHeight(this.configuration.editor.layoutInfo.contentHeight);
