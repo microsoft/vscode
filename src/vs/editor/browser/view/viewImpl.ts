@@ -683,12 +683,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 				}
 			};
 
-			var r: any = null;
-			try {
-				r = callback(changeAccessor);
-			} catch (e) {
-				onUnexpectedError(e);
-			}
+			var r: any = safeInvoke1Arg(callback, changeAccessor);
 
 			// Invalidate changeAccessor
 			changeAccessor.addZone = null;
@@ -799,12 +794,8 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			throw new Error('ViewImpl._renderOnce: View is disposed');
 		}
 		return this.outgoingEventBus.deferredEmit(() => {
-			try {
-				var r = callback ? callback() : null;
-			} finally {
-				this._scheduleRender();
-			}
-
+			let r = safeInvokeNoArg(callback);
+			this._scheduleRender();
 			return r;
 		});
 	}
@@ -824,10 +815,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	}
 
 	private _renderNow(): void {
-		if (this._isDisposed) {
-			throw new Error('ViewImpl._renderNow: View is disposed');
-		}
-		this.actualRender();
+		safeInvokeNoArg(() => this._actualRender());
 	}
 
 	private createRenderingContext(linesViewportData:editorCommon.ViewLinesViewportData): editorBrowser.IRenderingContext {
@@ -880,45 +868,45 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		return r;
 	}
 
-	private actualRender(): void {
-		if (this._isDisposed) {
-			throw new Error('ViewImpl.actualRender: View is disposed');
-		}
+	private _actualRender(): void {
 		if (!dom.isInDOM(this.domNode)) {
 			return;
 		}
+		let t = timer.start(timer.Topic.EDITOR, 'View.render');
 
-		var t = timer.start(timer.Topic.EDITOR, 'View.render');
-
-		let viewPartsToRender = this.viewParts.filter((vp) => vp.shouldRender());
-		var i:number,
-			len:number;
-
-		try {
-
-			var linesViewportData = this.layoutProvider.getLinesViewportData();
-
-			if (this.viewLines.shouldRender()) {
-				this.viewLines.renderText(linesViewportData);
-				this.viewLines.onDidRender();
+		let viewPartsToRender:ViewPart[] = [];
+		for (let i = 0, len = this.viewParts.length; i < len; i++) {
+			let viewPart = this.viewParts[i];
+			if (viewPart.shouldRender()) {
+				viewPartsToRender.push(viewPart);
 			}
+		}
 
-			var renderingContext = this.createRenderingContext(linesViewportData);
-			// Render the rest of the parts
-			for (i = 0, len = viewPartsToRender.length; i < len; i++) {
-				viewPartsToRender[i].prepareRender(renderingContext);
-			}
+		if (!this.viewLines.shouldRender() && viewPartsToRender.length === 0) {
+			// Nothing to render
+			t.stop();
+			return;
+		}
 
-			for (i = 0, len = viewPartsToRender.length; i < len; i++) {
-				viewPartsToRender[i].render(renderingContext);
-			}
+		let linesViewportData = this.layoutProvider.getLinesViewportData();
 
-			for (i = 0, len = viewPartsToRender.length; i < len; i++) {
-				viewPartsToRender[i].onDidRender();
-			}
+		if (this.viewLines.shouldRender()) {
+			this.viewLines.renderText(linesViewportData);
+			this.viewLines.onDidRender();
+		}
 
-		} catch (err) {
-			onUnexpectedError(err);
+		let renderingContext = this.createRenderingContext(linesViewportData);
+
+		// Render the rest of the parts
+		for (let i = 0, len = viewPartsToRender.length; i < len; i++) {
+			let viewPart = viewPartsToRender[i];
+			viewPart.prepareRender(renderingContext);
+		}
+
+		for (let i = 0, len = viewPartsToRender.length; i < len; i++) {
+			let viewPart = viewPartsToRender[i];
+			viewPart.render(renderingContext);
+			viewPart.onDidRender();
 		}
 
 		t.stop();
@@ -956,5 +944,21 @@ class ViewContext implements editorBrowser.IViewContext {
 		this.privateViewEventBus = privateViewEventBus;
 		this.addEventHandler = addEventHandler;
 		this.removeEventHandler = removeEventHandler;
+	}
+}
+
+function safeInvokeNoArg(func:Function): any {
+	try {
+		return func();
+	} catch(e) {
+		onUnexpectedError(e);
+	}
+}
+
+function safeInvoke1Arg(func:Function, arg1:any): any {
+	try {
+		return func(arg1);
+	} catch(e) {
+		onUnexpectedError(e);
 	}
 }
