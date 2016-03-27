@@ -7,8 +7,8 @@
 
 import 'vs/css!./glyphMargin';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import {IDynamicViewOverlay, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
+import {IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
 
 export class DecorationToRender {
 	public _decorationToRenderTrait:void;
@@ -26,7 +26,7 @@ export class DecorationToRender {
 	}
 }
 
-export abstract class DedupOverlay extends ViewEventHandler {
+export abstract class DedupOverlay extends DynamicViewOverlay {
 
 	protected _render(visibleStartLineNumber:number, visibleEndLineNumber:number, decorations:DecorationToRender[]): string[] {
 
@@ -105,7 +105,7 @@ export abstract class DedupOverlay extends ViewEventHandler {
 	}
 }
 
-export class GlyphMarginOverlay extends DedupOverlay implements IDynamicViewOverlay {
+export class GlyphMarginOverlay extends DedupOverlay {
 
 	private _context:IViewContext;
 	private _lineHeight:number;
@@ -198,15 +198,14 @@ export class GlyphMarginOverlay extends DedupOverlay implements IDynamicViewOver
 		return r;
 	}
 
-	public shouldCallRender2(ctx:IRenderingContext): boolean {
-		if (!this.shouldRender) {
-			return false;
+	public prepareRender(ctx:IRenderingContext): void {
+		if (!this.shouldRender()) {
+			throw new Error('I did not ask to render!');
 		}
-		this.shouldRender = false;
 
 		if (!this._glyphMargin) {
 			this._renderResult = null;
-			return false;
+			return;
 		}
 
 		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
@@ -237,7 +236,7 @@ export class GlyphMarginOverlay extends DedupOverlay implements IDynamicViewOver
 		this._renderResult = output;
 	}
 
-	public render2(startLineNumber:number, lineNumber:number): string {
+	public render(startLineNumber:number, lineNumber:number): string {
 		if (!this._renderResult) {
 			return '';
 		}

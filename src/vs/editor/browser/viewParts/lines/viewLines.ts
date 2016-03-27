@@ -85,9 +85,6 @@ export class ViewLines extends ViewLayer {
 	private _lastCursorRevealRangeHorizontallyEvent:editorCommon.IViewRevealRangeEvent;
 	private _lastRenderedData: LastRenderedData;
 
-	private _hasVerticalScroll:boolean;
-	private _hasHorizontalScroll:boolean;
-
 	constructor(context:IViewContext, layoutProvider:ILayoutProvider) {
 		super(context);
 		this._lineHeight = this._context.configuration.editor.lineHeight;
@@ -107,9 +104,6 @@ export class ViewLines extends ViewLayer {
 		this._lastCursorRevealRangeHorizontallyEvent = null;
 		this._textRangeRestingSpot = document.createElement('div');
 		this._textRangeRestingSpot.className = 'textRangeRestingSpot';
-
-		this._hasVerticalScroll = true;
-		this._hasHorizontalScroll = true;
 	}
 
 	public dispose(): void {
@@ -189,9 +183,7 @@ export class ViewLines extends ViewLayer {
 	}
 
 	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
-		this._hasVerticalScroll = this._hasVerticalScroll || e.vertical;
-		this._hasHorizontalScroll = this._hasHorizontalScroll || e.horizontal;
-		return super.onScrollChanged(e);
+		return super.onScrollChanged(e) || true;
 	}
 
 	// ---- end view event handlers
@@ -256,7 +248,7 @@ export class ViewLines extends ViewLayer {
 	}
 
 	public linesVisibleRangesForRange(range:editorCommon.IRange, includeNewLines:boolean): editorCommon.LineVisibleRanges[] {
-		if (this.shouldRender) {
+		if (this.shouldRender()) {
 			// Cannot read from the DOM because it is dirty
 			// i.e. the model & the dom are out of sync, so I'd be reading something stale
 			return null;
@@ -312,7 +304,7 @@ export class ViewLines extends ViewLayer {
 
 	public visibleRangesForRange2(range:editorCommon.IRange, deltaTop:number): editorCommon.VisibleRange[] {
 
-		if (this.shouldRender) {
+		if (this.shouldRender()) {
 			// Cannot read from the DOM because it is dirty
 			// i.e. the model & the dom are out of sync, so I'd be reading something stale
 			return null;
@@ -399,40 +391,37 @@ export class ViewLines extends ViewLayer {
 		this._ensureMaxLineWidth(localMaxLineWidth);
 	}
 
-	public render(): editorCommon.ViewLinesViewportData {
+	public prepareRender(): void {
+		throw new Error('Not supported');
+	}
 
-		var linesViewportData = this._layoutProvider.getLinesViewportData();
-		this._lastRenderedData.setBigNumbersDelta(linesViewportData.bigNumbersDelta);
+	public render(): void {
+		throw new Error('Not supported');
+	}
 
-		if (this.shouldRender) {
-			this.shouldRender = false;
-
-			this._renderAndUpdateLineHeights(linesViewportData);
-
-			// Update max line width (not so important, it is just so the horizontal scrollbar doesn't get too small)
-			this._asyncUpdateLineWidths.schedule();
+	public renderText(linesViewportData:editorCommon.ViewLinesViewportData): void {
+		if (!this.shouldRender()) {
+			throw new Error('I did not ask to render!');
 		}
 
-		if (this._hasVerticalScroll || this._hasHorizontalScroll) {
-			if (browser.canUseTranslate3d) {
-				var transform = 'translate3d(' + -this._layoutProvider.getScrollLeft() + 'px, ' + linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
-				StyleMutator.setTransform(<HTMLElement>this.domNode.domNode.parentNode, transform); // TODO@Alex
-			} else {
-				if (this._hasVerticalScroll) {
-					StyleMutator.setTop(<HTMLElement>this.domNode.domNode.parentNode, linesViewportData.visibleRangesDeltaTop); // TODO@Alex
-				}
-				if (this._hasHorizontalScroll) {
-					StyleMutator.setLeft(<HTMLElement>this.domNode.domNode.parentNode, -this._layoutProvider.getScrollLeft()); // TODO@Alex
-				}
-			}
-			this._hasVerticalScroll = false;
-			this._hasHorizontalScroll = false;
+		this._lastRenderedData.setBigNumbersDelta(linesViewportData.bigNumbersDelta);
+
+		this._renderAndUpdateLineHeights(linesViewportData);
+		this.onDidRender();
+
+		// Update max line width (not so important, it is just so the horizontal scrollbar doesn't get too small)
+		this._asyncUpdateLineWidths.schedule();
+
+		if (browser.canUseTranslate3d) {
+			var transform = 'translate3d(' + -this._layoutProvider.getScrollLeft() + 'px, ' + linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
+			StyleMutator.setTransform(<HTMLElement>this.domNode.domNode.parentNode, transform); // TODO@Alex
+		} else {
+			StyleMutator.setTop(<HTMLElement>this.domNode.domNode.parentNode, linesViewportData.visibleRangesDeltaTop); // TODO@Alex
+			StyleMutator.setLeft(<HTMLElement>this.domNode.domNode.parentNode, -this._layoutProvider.getScrollLeft()); // TODO@Alex
 		}
 
 		this.domNode.setWidth(this._layoutProvider.getScrollWidth());
 		this.domNode.setHeight(Math.min(this._layoutProvider.getTotalHeight(), 1000000));
-
-		return linesViewportData;
 	}
 
 	// --- width

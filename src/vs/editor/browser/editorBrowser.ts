@@ -11,11 +11,6 @@ import {IMouseEvent} from 'vs/base/browser/mouseEvent';
 import {IInstantiationService, IConstructorSignature1} from 'vs/platform/instantiation/common/instantiation';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 
-export interface IDynamicViewOverlay extends IDisposable {
-	shouldCallRender2(ctx:IRenderingContext): boolean;
-	render2(startLineNumber:number, lineNumber:number): string;
-}
-
 export interface IContentWidgetData {
 	widget: IContentWidget;
 	position: IContentWidgetPosition;
@@ -204,12 +199,6 @@ export interface IViewportInfo {
 	height:number;
 	deltaTop:number;
 	deltaLeft:number;
-}
-
-export interface IViewPart extends IDisposable {
-	onBeforeForcedLayout(): void;
-	onReadAfterForcedLayout(ctx:IRenderingContext): void;
-	onWriteAfterForcedLayout(): void;
 }
 
 // --- end View Event Handlers & Parts

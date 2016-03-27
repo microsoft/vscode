@@ -83,7 +83,7 @@ class PerfController implements IEditorContribution {
 
 		let lineIndex = 0;
 		let lineCount = this._editor.getModel().getLineCount();
-		for (let i = 0; i < 1000; i++) {
+		for (let i = 0; i < 2000; i++) {
 			lineIndex = (i % lineCount);
 
 			funcs.push(function(lineIndex) {
@@ -97,11 +97,11 @@ class PerfController implements IEditorContribution {
 			if (func) {
 				func();
 				this._editor.render();
-				setTimeout(run, 20);
+				setTimeout(run, 10);
 			}
 		};
 
-		setTimeout(run, 20);
+		setTimeout(run, 10);
 	}
 
 	public getId(): string {

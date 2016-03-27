@@ -38,6 +38,7 @@ import {ScrollDecorationViewPart} from 'vs/editor/browser/viewParts/scrollDecora
 import {SelectionsOverlay} from 'vs/editor/browser/viewParts/selections/selections';
 import {ViewCursors} from 'vs/editor/browser/viewParts/viewCursors/viewCursors';
 import {ViewZones} from 'vs/editor/browser/viewParts/viewZones/viewZones';
+import {ViewPart} from 'vs/editor/browser/view/viewPart';
 
 export class View extends ViewEventHandler implements editorBrowser.IView, IDisposable {
 
@@ -56,7 +57,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	private viewZones: ViewZones;
 	private contentWidgets: ViewContentWidgets;
 	private overlayWidgets: ViewOverlayWidgets;
-	private viewParts: editorBrowser.IViewPart[];
+	private viewParts: ViewPart[];
 
 	private keyboardHandler: KeyboardHandler;
 	private pointerHandler: PointerHandler;
@@ -889,27 +890,33 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 		var t = timer.start(timer.Topic.EDITOR, 'View.render');
 
+		let viewPartsToRender = this.viewParts.filter((vp) => vp.shouldRender());
 		var i:number,
 			len:number;
 
 		try {
 
-			for (i = 0, len = this.viewParts.length; i < len; i++) {
-				this.viewParts[i].onBeforeForcedLayout();
-			}
+			var linesViewportData = this.layoutProvider.getLinesViewportData();
 
-			var linesViewportData = this.viewLines.render();
+			if (this.viewLines.shouldRender()) {
+				this.viewLines.renderText(linesViewportData);
+				this.viewLines.onDidRender();
+			}
 
 			var renderingContext = this.createRenderingContext(linesViewportData);
-
 			// Render the rest of the parts
-			for (i = 0, len = this.viewParts.length; i < len; i++) {
-				this.viewParts[i].onReadAfterForcedLayout(renderingContext);
+			for (i = 0, len = viewPartsToRender.length; i < len; i++) {
+				viewPartsToRender[i].prepareRender(renderingContext);
 			}
 
-			for (i = 0, len = this.viewParts.length; i < len; i++) {
-				this.viewParts[i].onWriteAfterForcedLayout();
+			for (i = 0, len = viewPartsToRender.length; i < len; i++) {
+				viewPartsToRender[i].render(renderingContext);
 			}
+
+			for (i = 0, len = viewPartsToRender.length; i < len; i++) {
+				viewPartsToRender[i].onDidRender();
+			}
+
 		} catch (err) {
 			onUnexpectedError(err);
 		}

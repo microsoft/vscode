@@ -7,7 +7,7 @@
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ClassNames, IRenderingContext, IViewContext, IViewZone} from 'vs/editor/browser/editorBrowser';
+import {ClassNames, IRenderingContext, IRestrictedRenderingContext, IViewContext, IViewZone} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 
 export interface IMyViewZone {
@@ -54,7 +54,6 @@ export class ViewZones extends ViewPart {
 	// ---- begin view event handlers
 
 	private _recomputeWhitespacesProps(): boolean {
-		let zone2Height:{[id:string]:number;} = {};
 		let hadAChange = false;
 
 		let keys = Object.keys(this._zones);
@@ -64,22 +63,8 @@ export class ViewZones extends ViewPart {
 			let props = this._computeWhitespaceProps(zone.delegate);
 			if (this._whitespaceManager.changeWhitespace(parseInt(id, 10), props.afterViewLineNumber, props.heightInPx)) {
 				this._safeCallOnComputedHeight(zone.delegate, props.heightInPx);
-				zone2Height[id] = props.heightInPx;
 				hadAChange = true;
 			}
-		}
-
-		if (hadAChange) {
-			this._requestModificationFrame(() => {
-				let keys = Object.keys(this._zones);
-				for (let i = 0, len = keys.length; i < len; i++) {
-					let id = keys[i];
-					if (zone2Height.hasOwnProperty(id)) {
-						// TODO@Alex - edit dom node properties only in render()
-						StyleMutator.setHeight(this._zones[id].delegate.domNode, zone2Height[id]);
-					}
-				}
-			});
 		}
 
 		return hadAChange;
@@ -194,21 +179,16 @@ export class ViewZones extends ViewPart {
 
 		this._safeCallOnComputedHeight(myZone.delegate, props.heightInPx);
 
-		this._requestModificationFrame(() => {
-			if (!myZone.delegate.domNode.hasAttribute('monaco-view-zone')) {
-				// Do not position zone if it was removed in the meantime
-				return;
-			}
-			myZone.delegate.domNode.style.position = 'absolute';
-			StyleMutator.setHeight(myZone.delegate.domNode, props.heightInPx);
-			myZone.delegate.domNode.style.width = '100%';
-			StyleMutator.setDisplay(myZone.delegate.domNode, 'none');
-		});
+		myZone.delegate.domNode.style.position = 'absolute';
+		myZone.delegate.domNode.style.width = '100%';
+		StyleMutator.setDisplay(myZone.delegate.domNode, 'none');
 
 		this._zones[myZone.whitespaceId.toString()] = myZone;
 
 		myZone.delegate.domNode.setAttribute('monaco-view-zone', myZone.whitespaceId.toString());
 		this.domNode.appendChild(myZone.delegate.domNode);
+
+		this.setShouldRender();
 
 		return myZone.whitespaceId;
 	}
@@ -221,16 +201,10 @@ export class ViewZones extends ViewPart {
 
 			zone.delegate.domNode.removeAttribute('monaco-visible-view-zone');
 			zone.delegate.domNode.removeAttribute('monaco-view-zone');
+			zone.delegate.domNode.parentNode.removeChild(zone.delegate.domNode);
 
-			this._requestModificationFrame(() => {
-				if (zone.delegate.domNode.hasAttribute('monaco-view-zone')) {
-					// This dom node was added again as a view zone, so no need to mutate the DOM here
-					return;
-				}
-				if (zone.delegate.domNode.parentNode) {
-					zone.delegate.domNode.parentNode.removeChild(zone.delegate.domNode);
-				}
-			});
+			this.setShouldRender();
+
 			return true;
 		}
 		return false;
@@ -244,6 +218,10 @@ export class ViewZones extends ViewPart {
 			// let newOrdinal = this._getZoneOrdinal(zone.delegate);
 			changed = this._whitespaceManager.changeWhitespace(zone.whitespaceId, props.afterViewLineNumber, props.heightInPx) || changed;
 			// TODO@Alex: change `newOrdinal` too
+
+			if (changed) {
+				this.setShouldRender();
+			}
 		}
 		return changed;
 	}
@@ -286,46 +264,50 @@ export class ViewZones extends ViewPart {
 		}
 	}
 
-	_render(ctx:IRenderingContext): void {
-		var visibleWhitespaces = this._whitespaceManager.getWhitespaceViewportData();
+	public prepareRender(ctx:IRenderingContext): void {
+		// Nothing to read
+		if (!this.shouldRender()) {
+			throw new Error('I did not ask to render!');
+		}
+	}
 
-		this._requestModificationFrame(() => {
-			let visibleZones:{[id:string]:editorCommon.IViewWhitespaceViewportData;} = {};
+	public render(ctx:IRestrictedRenderingContext): void {
+		let visibleWhitespaces = this._whitespaceManager.getWhitespaceViewportData();
+		let visibleZones:{[id:string]:editorCommon.IViewWhitespaceViewportData;} = {};
 
-			let hasVisibleZone = false;
-			for (let i = 0, len = visibleWhitespaces.length; i < len; i++) {
-				visibleZones[visibleWhitespaces[i].id.toString()] = visibleWhitespaces[i];
-				hasVisibleZone = true;
-			}
+		let hasVisibleZone = false;
+		for (let i = 0, len = visibleWhitespaces.length; i < len; i++) {
+			visibleZones[visibleWhitespaces[i].id.toString()] = visibleWhitespaces[i];
+			hasVisibleZone = true;
+		}
 
-			let keys = Object.keys(this._zones);
-			for (let i = 0, len = keys.length; i < len; i++) {
-				let id = keys[i];
-				let zone = this._zones[id];
+		let keys = Object.keys(this._zones);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let id = keys[i];
+			let zone = this._zones[id];
 
-				if (visibleZones.hasOwnProperty(id)) {
-					// zone is visible
-					StyleMutator.setTop(zone.delegate.domNode, (visibleZones[id].verticalOffset - ctx.bigNumbersDelta));
-					StyleMutator.setHeight(zone.delegate.domNode, visibleZones[id].height);
-					if (!zone.isVisible) {
-						StyleMutator.setDisplay(zone.delegate.domNode, 'block');
-						zone.delegate.domNode.setAttribute('monaco-visible-view-zone', 'true');
-						zone.isVisible = true;
-					}
-					this._safeCallOnDomNodeTop(zone.delegate, ctx.getScrolledTopFromAbsoluteTop(visibleZones[id].verticalOffset));
-				} else {
-					if (zone.isVisible) {
-						StyleMutator.setDisplay(zone.delegate.domNode, 'none');
-						zone.delegate.domNode.removeAttribute('monaco-visible-view-zone');
-						zone.isVisible = false;
-					}
-					this._safeCallOnDomNodeTop(zone.delegate, ctx.getScrolledTopFromAbsoluteTop(-1000000));
+			if (visibleZones.hasOwnProperty(id)) {
+				// zone is visible
+				StyleMutator.setTop(zone.delegate.domNode, (visibleZones[id].verticalOffset - ctx.bigNumbersDelta));
+				StyleMutator.setHeight(zone.delegate.domNode, visibleZones[id].height);
+				if (!zone.isVisible) {
+					StyleMutator.setDisplay(zone.delegate.domNode, 'block');
+					zone.delegate.domNode.setAttribute('monaco-visible-view-zone', 'true');
+					zone.isVisible = true;
 				}
+				this._safeCallOnDomNodeTop(zone.delegate, ctx.getScrolledTopFromAbsoluteTop(visibleZones[id].verticalOffset));
+			} else {
+				if (zone.isVisible) {
+					StyleMutator.setDisplay(zone.delegate.domNode, 'none');
+					zone.delegate.domNode.removeAttribute('monaco-visible-view-zone');
+					zone.isVisible = false;
+				}
+				this._safeCallOnDomNodeTop(zone.delegate, ctx.getScrolledTopFromAbsoluteTop(-1000000));
 			}
+		}
 
-			if (hasVisibleZone) {
-				StyleMutator.setWidth(this.domNode, ctx.scrollWidth);
-			}
-		});
+		if (hasVisibleZone) {
+			StyleMutator.setWidth(this.domNode, ctx.scrollWidth);
+		}
 	}
 }

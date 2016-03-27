@@ -554,7 +554,10 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private onDidSuggest(e: ISuggestEvent): void {
-		clearTimeout(this.loadingTimeout);
+		if (this.loadingTimeout) {
+			clearTimeout(this.loadingTimeout);
+			this.loadingTimeout = null;
+		}
 
 		this.completionModel = e.completionModel;
 
@@ -615,7 +618,10 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 	}
 
 	private onDidCancel(e: ICancelEvent) {
-		clearTimeout(this.loadingTimeout);
+		if (this.loadingTimeout) {
+			clearTimeout(this.loadingTimeout);
+			this.loadingTimeout = null;
+		}
 
 		if (!e.retrigger) {
 			this.setState(State.Hidden);
@@ -827,8 +833,10 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.toDispose = disposeAll(this.toDispose);
 		this._onDidVisibilityChange.dispose();
 		this._onDidVisibilityChange = null;
-		clearTimeout(this.loadingTimeout);
-		this.loadingTimeout = null;
+		if (this.loadingTimeout) {
+			clearTimeout(this.loadingTimeout);
+			this.loadingTimeout = null;
+		}
 
 		if (this.editorBlurTimeout) {
 			this.editorBlurTimeout.cancel();

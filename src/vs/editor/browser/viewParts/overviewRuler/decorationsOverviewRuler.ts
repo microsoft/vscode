@@ -6,7 +6,7 @@
 
 import * as themes from 'vs/platform/theme/common/themes';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {OverviewRulerZone, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {OverviewRulerZone, IRenderingContext, IRestrictedRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 import {OverviewRulerImpl} from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
 
@@ -21,18 +21,24 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	private _shouldUpdateDecorations:boolean;
 	private _shouldUpdateCursorPosition:boolean;
-	private _shouldForceRender:boolean;
+
 	private _hideCursor:boolean;
+	private _cursorPositions: editorCommon.IEditorPosition[];
 
 	private _zonesFromDecorations: OverviewRulerZone[];
 	private _zonesFromCursors: OverviewRulerZone[];
 
-	private _cursorPositions: editorCommon.IEditorPosition[];
-
 	constructor(context:IViewContext, scrollHeight:number, getVerticalOffsetForLine:(lineNumber:number)=>number) {
 		super(context);
-		this._overviewRuler = new OverviewRulerImpl(1, 'decorationsOverviewRuler', scrollHeight, this._context.configuration.editor.lineHeight,
-					DecorationsOverviewRuler.DECORATION_HEIGHT, DecorationsOverviewRuler.DECORATION_HEIGHT, getVerticalOffsetForLine);
+		this._overviewRuler = new OverviewRulerImpl(
+			1,
+			'decorationsOverviewRuler',
+			scrollHeight,
+			this._context.configuration.editor.lineHeight,
+			DecorationsOverviewRuler.DECORATION_HEIGHT,
+			DecorationsOverviewRuler.DECORATION_HEIGHT,
+			getVerticalOffsetForLine
+		);
 		this._overviewRuler.setLanesCount(this._context.configuration.editor.overviewRulerLanes, false);
 		let theme = this._context.configuration.editor.theme;
 		this._overviewRuler.setUseDarkColor(!themes.isLightTheme(theme), false);
@@ -42,8 +48,6 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 		this._shouldUpdateCursorPosition = true;
 		this._hideCursor = this._context.configuration.editor.hideCursorInOverviewRuler;
-
-		this._shouldForceRender = false;
 
 		this._zonesFromCursors = [];
 		this._cursorPositions = [];
@@ -71,13 +75,11 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 		if (e.lineHeight) {
 			this._overviewRuler.setLineHeight(this._context.configuration.editor.lineHeight, false);
-			this._shouldForceRender = true;
 			shouldRender = true;
 		}
 
 		if (prevLanesCount !== newLanesCount) {
 			this._overviewRuler.setLanesCount(newLanesCount, false);
-			this._shouldForceRender = true;
 			shouldRender = true;
 		}
 
@@ -90,7 +92,6 @@ export class DecorationsOverviewRuler extends ViewPart {
 		if (e.theme) {
 			let theme = this._context.configuration.editor.theme;
 			this._overviewRuler.setUseDarkColor(!themes.isLightTheme(theme), false);
-			this._shouldForceRender = true;
 			shouldRender = true;
 		}
 
@@ -98,10 +99,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 	}
 
 	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
-		this._shouldForceRender = true;
-		this._requestModificationFrame(() => {
-			this._overviewRuler.setLayout(layoutInfo.overviewRuler, false);
-		});
+		this._overviewRuler.setLayout(layoutInfo.overviewRuler, false);
 		return true;
 	}
 
@@ -122,7 +120,6 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	public onScrollHeightChanged(scrollHeight:number): boolean {
 		this._overviewRuler.setScrollHeight(scrollHeight, false);
-		this._shouldForceRender = true;
 		return true;
 	}
 
@@ -133,14 +130,11 @@ export class DecorationsOverviewRuler extends ViewPart {
 	}
 
 	private _createZonesFromDecorations(): OverviewRulerZone[] {
-		var decorations = this._context.model.getAllDecorations(),
-			zones:OverviewRulerZone[] = [],
-			i:number,
-			len:number,
-			dec:editorCommon.IModelDecoration;
+		let decorations = this._context.model.getAllDecorations();
+		let zones:OverviewRulerZone[] = [];
 
-		for (i = 0, len = decorations.length; i < len; i++) {
-			dec = decorations[i];
+		for (let i = 0, len = decorations.length; i < len; i++) {
+			let dec = decorations[i];
 			if (dec.options.overviewRuler.color) {
 				zones.push(new OverviewRulerZone(
 					dec.range.startLineNumber,
@@ -157,13 +151,10 @@ export class DecorationsOverviewRuler extends ViewPart {
 	}
 
 	private _createZonesFromCursors(): OverviewRulerZone[] {
-		var zones:OverviewRulerZone[] = [],
-			i:number,
-			len:number,
-			cursor:editorCommon.IEditorPosition;
+		let zones:OverviewRulerZone[] = [];
 
-		for (i = 0, len = this._cursorPositions.length; i < len; i++) {
-			cursor = this._cursorPositions[i];
+		for (let i = 0, len = this._cursorPositions.length; i < len; i++) {
+			let cursor = this._cursorPositions[i];
 
 			zones.push(new OverviewRulerZone(
 					cursor.lineNumber,
@@ -178,13 +169,14 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return zones;
 	}
 
-	_render(ctx:IRenderingContext): void {
+	public prepareRender(ctx:IRenderingContext): void {
+		// Nothing to read
+		if (!this.shouldRender()) {
+			throw new Error('I did not ask to render!');
+		}
+	}
 
-		var shouldForceRender = this._shouldForceRender;
-		this._shouldForceRender = false;
-
-		// Update decorations if necessary
-		var shouldRender = false;
+	public render(ctx:IRestrictedRenderingContext): void {
 		if (this._shouldUpdateDecorations || this._shouldUpdateCursorPosition) {
 
 			if (this._shouldUpdateDecorations) {
@@ -206,28 +198,22 @@ export class DecorationsOverviewRuler extends ViewPart {
 			allZones = allZones.concat(this._zonesFromDecorations);
 
 			this._overviewRuler.setZones(allZones, false);
-
-			shouldRender = true;
 		}
 
-		if (shouldRender || shouldForceRender) {
-			this._requestModificationFrame(() => {
-				var hasRendered = this._overviewRuler.render(shouldForceRender);
+		var hasRendered = this._overviewRuler.render(false);
 
-				if (hasRendered && OverviewRulerImpl.hasCanvas && this._overviewRuler.getLanesCount() > 0 && (this._zonesFromDecorations.length > 0 || this._zonesFromCursors.length > 0)) {
-					var ctx2 = this._overviewRuler.getDomNode().getContext('2d');
-					ctx2.beginPath();
-					ctx2.lineWidth = 1;
-					ctx2.strokeStyle = 'rgba(197,197,197,0.8)';
-					ctx2.moveTo(0, 0);
-					ctx2.lineTo(0, this._overviewRuler.getHeight());
-					ctx2.stroke();
+		if (hasRendered && OverviewRulerImpl.hasCanvas && this._overviewRuler.getLanesCount() > 0 && (this._zonesFromDecorations.length > 0 || this._zonesFromCursors.length > 0)) {
+			var ctx2 = this._overviewRuler.getDomNode().getContext('2d');
+			ctx2.beginPath();
+			ctx2.lineWidth = 1;
+			ctx2.strokeStyle = 'rgba(197,197,197,0.8)';
+			ctx2.moveTo(0, 0);
+			ctx2.lineTo(0, this._overviewRuler.getHeight());
+			ctx2.stroke();
 
-					ctx2.moveTo(0, 0);
-					ctx2.lineTo(this._overviewRuler.getWidth(), 0);
-					ctx2.stroke();
-				}
-			});
+			ctx2.moveTo(0, 0);
+			ctx2.lineTo(this._overviewRuler.getWidth(), 0);
+			ctx2.stroke();
 		}
 	}
 }

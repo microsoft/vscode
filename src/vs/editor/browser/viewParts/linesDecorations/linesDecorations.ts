@@ -7,10 +7,10 @@
 
 import 'vs/css!./linesDecorations';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {IDynamicViewOverlay, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
 import {DecorationToRender, DedupOverlay} from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
 
-export class LinesDecorationsOverlay extends DedupOverlay implements IDynamicViewOverlay {
+export class LinesDecorationsOverlay extends DedupOverlay {
 
 	private _context:IViewContext;
 	private _lineHeight: number;
@@ -99,11 +99,10 @@ export class LinesDecorationsOverlay extends DedupOverlay implements IDynamicVie
 		return r;
 	}
 
-	public shouldCallRender2(ctx:IRenderingContext): boolean {
-		if (!this.shouldRender) {
-			return false;
+	public prepareRender(ctx:IRenderingContext): void {
+		if (!this.shouldRender()) {
+			throw new Error('I did not ask to render!');
 		}
-		this.shouldRender = false;
 
 		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		let visibleEndLineNumber = ctx.visibleRange.endLineNumber;
@@ -131,11 +130,9 @@ export class LinesDecorationsOverlay extends DedupOverlay implements IDynamicVie
 		}
 
 		this._renderResult = output;
-
-		return true;
 	}
 
-	public render2(startLineNumber:number, lineNumber:number): string {
+	public render(startLineNumber:number, lineNumber:number): string {
 		if (!this._renderResult) {
 			return '';
 		}

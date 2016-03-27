@@ -83,6 +83,7 @@ class ExtensionHostProcessManager {
 
 	private initializeExtensionHostProcess: TPromise<ChildProcess>;
 	private extensionHostProcessHandle: ChildProcess;
+	private extensionHostProcessReady: boolean;
 	private initializeTimer: number;
 
 	private lastExtensionHostError: string;
@@ -100,6 +101,7 @@ class ExtensionHostProcessManager {
 		this.isExtensionDevelopmentHost = !!this.contextService.getConfiguration().env.extensionDevelopmentPath;
 
 		this.unsentMessages = [];
+		this.extensionHostProcessReady = false;
 	}
 
 	public startExtensionHostProcess(onExtensionHostMessage: (msg: any) => void): void {
@@ -168,6 +170,7 @@ class ExtensionHostProcessManager {
 						this.unsentMessages.forEach(m => this.postMessage(m));
 						this.unsentMessages = [];
 
+						this.extensionHostProcessReady = true;
 						c(this.extensionHostProcessHandle);
 					}
 
@@ -294,7 +297,9 @@ class ExtensionHostProcessManager {
 	}
 
 	public postMessage(msg: any): void {
-		if (this.initializeExtensionHostProcess) {
+		if (this.extensionHostProcessReady) {
+			this.extensionHostProcessHandle.send(msg);
+		} else if (this.initializeExtensionHostProcess) {
 			this.initializeExtensionHostProcess.done(p => p.send(msg));
 		} else {
 			this.unsentMessages.push(msg);

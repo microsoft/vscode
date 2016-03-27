@@ -7,10 +7,10 @@
 
 import 'vs/css!./decorations';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import {IDynamicViewOverlay, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
+import {IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
 
-export class DecorationsOverlay extends ViewEventHandler implements IDynamicViewOverlay {
+export class DecorationsOverlay extends DynamicViewOverlay {
 
 	private _context:IViewContext;
 	private _lineHeight: number;
@@ -81,11 +81,10 @@ export class DecorationsOverlay extends ViewEventHandler implements IDynamicView
 
 	// --- end event handlers
 
-	public shouldCallRender2(ctx:IRenderingContext): boolean {
-		if (!this.shouldRender) {
-			return false;
+	public prepareRender(ctx:IRenderingContext): void {
+		if (!this.shouldRender()) {
+			throw new Error('I did not ask to render!');
 		}
-		this.shouldRender = false;
 
 		let decorations = ctx.getDecorationsInViewport();
 
@@ -125,8 +124,6 @@ export class DecorationsOverlay extends ViewEventHandler implements IDynamicView
 		this._renderWholeLineDecorations(ctx, decorations, output);
 		this._renderNormalDecorations(ctx, decorations, output);
 		this._renderResult = output;
-
-		return true;
 	}
 
 	private _renderWholeLineDecorations(ctx:IRenderingContext, decorations:editorCommon.IModelDecoration[], output: string[]): void {
@@ -197,7 +194,7 @@ export class DecorationsOverlay extends ViewEventHandler implements IDynamicView
 		}
 	}
 
-	public render2(startLineNumber:number, lineNumber:number): string {
+	public render(startLineNumber:number, lineNumber:number): string {
 		if (!this._renderResult) {
 			return '';
 		}

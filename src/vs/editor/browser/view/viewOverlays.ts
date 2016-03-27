@@ -9,27 +9,46 @@ import {StyleMutator, FastDomNode, createFastDomNode} from 'vs/base/browser/styl
 import {IConfigurationChangedEvent, IEditorLayoutInfo, IModelDecoration, IScrollEvent} from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {IVisibleLineData, ViewLayer} from 'vs/editor/browser/view/viewLayer';
+import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
 
 export class ViewOverlays extends ViewLayer {
-	private _dynamicOverlays:editorBrowser.IDynamicViewOverlay[];
 
+	private _dynamicOverlays:DynamicViewOverlay[];
+	private _isFocused:boolean;
 	_layoutProvider:editorBrowser.ILayoutProvider;
 
 	constructor(context:editorBrowser.IViewContext, layoutProvider:editorBrowser.ILayoutProvider) {
 		super(context);
 
-		this._layoutProvider = layoutProvider;
 		this._dynamicOverlays = [];
+		this._isFocused = false;
+		this._layoutProvider = layoutProvider;
 
 		this.domNode.setClassName('view-overlays');
+	}
+
+	public shouldRender(): boolean {
+		if (super.shouldRender()) {
+			return true;
+		}
+
+		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
+			let dynamicOverlay = this._dynamicOverlays[i];
+			if (dynamicOverlay.shouldRender()) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	public dispose(): void {
 		super.dispose();
 		this._layoutProvider = null;
 
-		for(var i = 0; i < this._dynamicOverlays.length; i++) {
-			this._dynamicOverlays[i].dispose();
+		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
+			let dynamicOverlay = this._dynamicOverlays[i];
+			dynamicOverlay.dispose();
 		}
 		this._dynamicOverlays = null;
 	}
@@ -38,17 +57,15 @@ export class ViewOverlays extends ViewLayer {
 		return this.domNode.domNode;
 	}
 
-	public addDynamicOverlay(overlay:editorBrowser.IDynamicViewOverlay): void {
+	public addDynamicOverlay(overlay:DynamicViewOverlay): void {
 		this._dynamicOverlays.push(overlay);
 	}
 
 	// ----- event handlers
 
 	public onViewFocusChanged(isFocused:boolean): boolean {
-		this._requestModificationFrame(() => {
-			this.domNode.toggleClassName('focused', isFocused);
-		});
-		return false;
+		this._isFocused = isFocused;
+		return true;
 	}
 
 	// ----- end event handlers
@@ -59,38 +76,39 @@ export class ViewOverlays extends ViewLayer {
 	}
 
 
-	public onReadAfterForcedLayout(ctx:editorBrowser.IRenderingContext): void {
-		// Overwriting to bypass `shouldRender` flag
-		for (var i = 0; i < this._dynamicOverlays.length; i++) {
-			this._dynamicOverlays[i].shouldCallRender2(ctx);
-		}
+	public prepareRender(ctx:editorBrowser.IRenderingContext): void {
+		let toRender = this._dynamicOverlays.filter(overlay => overlay.shouldRender());
 
-		this._requestModificationFrame(() => {
-			this._viewOverlaysRender(ctx);
-		});
+		for (let i = 0, len = toRender.length; i < len; i++) {
+			let dynamicOverlay = toRender[i];
+			dynamicOverlay.prepareRender(ctx);
+			dynamicOverlay.onDidRender();
+		}
 
 		return null;
 	}
 
-	_viewOverlaysRender(ctx:editorBrowser.IRestrictedRenderingContext): void {
-		super._renderLines(ctx.linesViewportData);
+	public render(ctx:editorBrowser.IRestrictedRenderingContext): void {
+		// Overwriting to bypass `shouldRender` flag
+		this._viewOverlaysRender(ctx);
+
+		this.domNode.toggleClassName('focused', this._isFocused);
 	}
 
-	public onWriteAfterForcedLayout(): void {
-		// Overwriting to bypass `shouldRender` flag
-		this._executeModificationRunners();
+	_viewOverlaysRender(ctx:editorBrowser.IRestrictedRenderingContext): void {
+		super._renderLines(ctx.linesViewportData);
 	}
 }
 
 class ViewOverlayLine implements IVisibleLineData {
 
 	private _context:editorBrowser.IViewContext;
-	private _dynamicOverlays:editorBrowser.IDynamicViewOverlay[];
+	private _dynamicOverlays:DynamicViewOverlay[];
 	private _domNode: FastDomNode;
 	private _renderPieces: string;
 	private _lineHeight: number;
 
-	constructor(context:editorBrowser.IViewContext, dynamicOverlays:editorBrowser.IDynamicViewOverlay[]) {
+	constructor(context:editorBrowser.IViewContext, dynamicOverlays:DynamicViewOverlay[]) {
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._dynamicOverlays = dynamicOverlays;
@@ -132,8 +150,9 @@ class ViewOverlayLine implements IVisibleLineData {
 
 	shouldUpdateHTML(startLineNumber:number, lineNumber:number, inlineDecorations:IModelDecoration[]): boolean {
 		let newPieces = '';
-		for (let i = 0; i < this._dynamicOverlays.length; i++) {
-			newPieces += this._dynamicOverlays[i].render2(startLineNumber, lineNumber);
+		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
+			let dynamicOverlay = this._dynamicOverlays[i];
+			newPieces += dynamicOverlay.render(startLineNumber, lineNumber);
 		}
 
 		let piecesEqual = (this._renderPieces === newPieces);
@@ -233,12 +252,10 @@ export class MarginViewOverlays extends ViewOverlays {
 
 	public onScrollHeightChanged(scrollHeight:number): boolean {
 		this._scrollHeight = scrollHeight;
-		this._requestModificationFrame(() => {
-			var glyphMargin = this._getGlyphMarginDomNode();
-			if (glyphMargin) {
-				StyleMutator.setHeight(glyphMargin, this._scrollHeight);
-			}
-		});
+		var glyphMargin = this._getGlyphMarginDomNode();
+		if (glyphMargin) {
+			StyleMutator.setHeight(glyphMargin, this._scrollHeight);
+		}
 		return super.onScrollHeightChanged(scrollHeight) || true;
 	}
 
@@ -247,15 +264,14 @@ export class MarginViewOverlays extends ViewOverlays {
 		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
 		this._scrollHeight = this._layoutProvider.getScrollHeight();
 
-		this._requestModificationFrame(() => {
-			this.domNode.setWidth(layoutInfo.contentLeft);
+		this.domNode.setWidth(layoutInfo.contentLeft);
 
-			var glyphMargin = this._getGlyphMarginDomNode();
-			if (glyphMargin) {
-				StyleMutator.setLeft(glyphMargin, layoutInfo.glyphMarginLeft);
-				StyleMutator.setWidth(glyphMargin, layoutInfo.glyphMarginWidth);
-			}
-		});
+		var glyphMargin = this._getGlyphMarginDomNode();
+		if (glyphMargin) {
+			StyleMutator.setLeft(glyphMargin, layoutInfo.glyphMarginLeft);
+			StyleMutator.setWidth(glyphMargin, layoutInfo.glyphMarginWidth);
+		}
+
 		return super.onLayoutChanged(layoutInfo) || true;
 	}
 

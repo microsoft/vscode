@@ -7,8 +7,8 @@
 
 import 'vs/css!./selections';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import {IDynamicViewOverlay, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
+import {IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
 
 type HorizontalRange = editorCommon.HorizontalRange;
 type LineVisibleRanges = editorCommon.LineVisibleRanges;
@@ -65,7 +65,7 @@ const isIEWithZoomingIssuesNearRoundedBorders = (
 );
 
 
-export class SelectionsOverlay extends ViewEventHandler implements IDynamicViewOverlay {
+export class SelectionsOverlay extends DynamicViewOverlay {
 
 	private static SELECTION_CLASS_NAME = 'selected-text';
 	private static SELECTION_TOP_LEFT = 'top-left-radius';
@@ -386,11 +386,10 @@ export class SelectionsOverlay extends ViewEventHandler implements IDynamicViewO
 	}
 
 	private _previousFrameVisibleRangesWithStyle: LineVisibleRangesWithStyle[][] = [];
-	public shouldCallRender2(ctx:IRenderingContext): boolean {
-		if (!this.shouldRender) {
-			return false;
+	public prepareRender(ctx:IRenderingContext): void {
+		if (!this.shouldRender()) {
+			throw new Error('I did not ask to render!');
 		}
-		this.shouldRender = false;
 
 		let output: string[] = [];
 		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
@@ -415,11 +414,9 @@ export class SelectionsOverlay extends ViewEventHandler implements IDynamicViewO
 
 		this._previousFrameVisibleRangesWithStyle = thisFrameVisibleRangesWithStyle;
 		this._renderResult = output;
-
-		return true;
 	}
 
-	public render2(startLineNumber:number, lineNumber:number): string {
+	public render(startLineNumber:number, lineNumber:number): string {
 		if (!this._renderResult) {
 			return '';
 		}

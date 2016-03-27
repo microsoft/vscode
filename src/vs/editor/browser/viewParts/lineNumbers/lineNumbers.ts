@@ -8,10 +8,10 @@
 import 'vs/css!./lineNumbers';
 import * as platform from 'vs/base/common/platform';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import {ClassNames, IDynamicViewOverlay, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
+import {ClassNames, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
 
-export class LineNumbersOverlay extends ViewEventHandler implements IDynamicViewOverlay {
+export class LineNumbersOverlay extends DynamicViewOverlay {
 
 	private _context:IViewContext;
 	private _lineHeight:number;
@@ -92,15 +92,14 @@ export class LineNumbersOverlay extends ViewEventHandler implements IDynamicView
 
 	// --- end event handlers
 
-	public shouldCallRender2(ctx:IRenderingContext): boolean {
-		if (!this.shouldRender) {
-			return false;
+	public prepareRender(ctx:IRenderingContext): void {
+		if (!this.shouldRender()) {
+			throw new Error('I did not ask to render!');
 		}
-		this.shouldRender = false;
 
 		if (!this._lineNumbers) {
 			this._renderResult = null;
-			return false;
+			return;
 		}
 
 		let lineHeightClassName = (platform.isLinux ? (this._lineHeight % 2 === 0 ? ' lh-even': ' lh-odd') : '');
@@ -126,11 +125,9 @@ export class LineNumbersOverlay extends ViewEventHandler implements IDynamicView
 		}
 
 		this._renderResult = output;
-
-		return true;
 	}
 
-	public render2(startLineNumber:number, lineNumber:number): string {
+	public render(startLineNumber:number, lineNumber:number): string {
 		if (!this._renderResult) {
 			return '';
 		}

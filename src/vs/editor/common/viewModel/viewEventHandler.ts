@@ -9,10 +9,22 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 
 export class ViewEventHandler {
 
-	public shouldRender:boolean;
+	private _shouldRender:boolean;
 
 	constructor() {
-		this.shouldRender = true;
+		this._shouldRender = true;
+	}
+
+	public shouldRender(): boolean {
+		return this._shouldRender;
+	}
+
+	protected setShouldRender(): void {
+		this._shouldRender = true;
+	}
+
+	public onDidRender(): void {
+		this._shouldRender = false;
 	}
 
 	// --- begin event handlers
@@ -199,7 +211,7 @@ export class ViewEventHandler {
 		}
 
 		if (shouldRender) {
-			this.shouldRender = true;
+			this._shouldRender = true;
 		}
 	}
 }

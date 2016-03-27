@@ -8,7 +8,7 @@
 import 'vs/css!./overlayWidgets';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {IEditorLayoutInfo} from 'vs/editor/common/editorCommon';
-import {ClassNames, IOverlayWidget, IRenderingContext, IViewContext, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
+import {ClassNames, IOverlayWidget, IRenderingContext, IRestrictedRenderingContext, IViewContext, OverlayWidgetPositionPreference} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 
 interface IWidgetData {
@@ -28,6 +28,7 @@ export class ViewOverlayWidgets extends ViewPart {
 	private _verticalScrollbarWidth: number;
 	private _horizontalScrollbarHeight:number;
 	private _editorHeight:number;
+	private _editorWidth:number;
 
 	constructor(context:IViewContext) {
 		super(context);
@@ -36,6 +37,7 @@ export class ViewOverlayWidgets extends ViewPart {
 		this._verticalScrollbarWidth = 0;
 		this._horizontalScrollbarHeight = 0;
 		this._editorHeight = 0;
+		this._editorWidth = 0;
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = ClassNames.OVERLAY_WIDGETS;
@@ -52,10 +54,7 @@ export class ViewOverlayWidgets extends ViewPart {
 		this._verticalScrollbarWidth = layoutInfo.verticalScrollbarWidth;
 		this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;
 		this._editorHeight = layoutInfo.height;
-
-		this._requestModificationFrame(() => {
-			StyleMutator.setWidth(this.domNode, layoutInfo.width);
-		});
+		this._editorWidth = layoutInfo.width;
 		return true;
 	}
 
@@ -81,11 +80,7 @@ export class ViewOverlayWidgets extends ViewPart {
 		}
 
 		widgetData.preference = preference;
-		this._requestModificationFrame(() => {
-			if (this._widgets.hasOwnProperty(widget.getId())) {
-				this._renderWidget(widgetData);
-			}
-		});
+
 		return true;
 	}
 
@@ -135,24 +130,20 @@ export class ViewOverlayWidgets extends ViewPart {
 		}
 	}
 
-	_render(ctx:IRenderingContext): void {
-		this._requestModificationFrame(() => {
-			let keys = Object.keys(this._widgets);
-			for (let i = 0, len = keys.length; i < len; i++) {
-				let widgetId = keys[i];
-				this._renderWidget(this._widgets[widgetId]);
-			}
-		});
+	public prepareRender(ctx:IRenderingContext): void {
+		// Nothing to read
+		if (!this.shouldRender()) {
+			throw new Error('I did not ask to render!');
+		}
 	}
 
-	public onReadAfterForcedLayout(ctx:IRenderingContext): void {
-		// Overwriting to bypass `shouldRender` flag
-		this._render(ctx);
-		return null;
-	}
+	public render(ctx:IRestrictedRenderingContext): void {
+		StyleMutator.setWidth(this.domNode, this._editorWidth);
 
-	public onWriteAfterForcedLayout(): void {
-		// Overwriting to bypass `shouldRender` flag
-		this._executeModificationRunners();
+		let keys = Object.keys(this._widgets);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let widgetId = keys[i];
+			this._renderWidget(this._widgets[widgetId]);
+		}
 	}
 }

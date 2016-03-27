@@ -9,7 +9,7 @@ import 'vs/css!./scrollDecoration';
 import * as dom from 'vs/base/browser/dom';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import {IConfigurationChangedEvent, IEditorLayoutInfo, IScrollEvent} from 'vs/editor/common/editorCommon';
-import {ClassNames, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {ClassNames, IRenderingContext, IRestrictedRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 
 export class ScrollDecorationViewPart extends ViewPart {
@@ -65,10 +65,15 @@ export class ScrollDecorationViewPart extends ViewPart {
 
 	// --- end event handlers
 
-	_render(ctx: IRenderingContext): void {
-		this._requestModificationFrame(() => {
-			StyleMutator.setWidth(this._domNode, this._width);
-			dom.toggleClass(this._domNode, ClassNames.SCROLL_DECORATION, this._shouldShow);
-		});
+	public prepareRender(ctx:IRenderingContext): void {
+		// Nothing to read
+		if (!this.shouldRender()) {
+			throw new Error('I did not ask to render!');
+		}
+	}
+
+	public render(ctx:IRestrictedRenderingContext): void {
+		StyleMutator.setWidth(this._domNode, this._width);
+		dom.toggleClass(this._domNode, ClassNames.SCROLL_DECORATION, this._shouldShow);
 	}
 }
