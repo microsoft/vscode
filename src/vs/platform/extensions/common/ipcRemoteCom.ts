@@ -21,7 +21,31 @@ interface IRPCFunc {
 
 const pendingRPCReplies: { [msgId: string]: IRPCReply; } = {};
 
-function createRPC(serializeAndSend: (obj: any) => void): IRPCFunc {
+class MessageFactory {
+	public static cancel(req:string): string {
+		return `{"cancel":"${req}"}`;
+	}
+
+	public static request(req:string, rpcId:string, method:string, args:any[]): string {
+		return `{"req":"${req}","rpcId":"${rpcId}","method":"${method}","args":${marshalling.stringify(args)}}`;
+	}
+
+	public static replyOK(req:string, res:any): string {
+		if (typeof res === 'undefined') {
+			return `{"seq":"${req}"}`;
+		}
+		return `{"seq":"${req}","res":${marshalling.stringify(res)}}`;
+	}
+
+	public static replyErr(req:string, err:any): string {
+		if (typeof err === 'undefined') {
+			return `{"seq":"${req}","err":null}`;
+		}
+		return `{"seq":"${req}","err":${marshalling.stringify(errors.transformErrorForSerialization(err))}}`;
+	}
+}
+
+function createRPC(serializeAndSend: (value: string) => void): IRPCFunc {
 	let lastMessageId = 0;
 
 	return function rpc(rpcId: string, method: string, args: any[]): winjs.TPromise<any> {
@@ -36,18 +60,11 @@ function createRPC(serializeAndSend: (obj: any) => void): IRPCFunc {
 			reply.e = e;
 			reply.p = p;
 		}, () => {
-			serializeAndSend({
-				cancel: req
-			});
+			serializeAndSend(MessageFactory.cancel(req));
 		});
 		pendingRPCReplies[req] = reply;
 
-		serializeAndSend({
-			req: req,
-			rpcId: rpcId,
-			method: method,
-			args: args
-		});
+		serializeAndSend(MessageFactory.request(req, rpcId, method, args));
 
 		return r;
 	};
@@ -58,7 +75,7 @@ export interface IMainProcessExtHostIPC extends remote.IRemoteCom {
 }
 
 export function create(send: (obj: string[]) => void): IMainProcessExtHostIPC {
-	let rpc = createRPC(marshallAndSend);
+	let rpc = createRPC(sendDelayed);
 	let bigHandler: remote.IManyHandler = null;
 	let invokedHandlers: { [req: string]: winjs.TPromise<any>; } = Object.create(null);
 	let messagesToSend: string[] = [];
@@ -121,16 +138,10 @@ export function create(send: (obj: string[]) => void): IMainProcessExtHostIPC {
 
 		invokedHandlers[req].then((r) => {
 			delete invokedHandlers[req];
-			marshallAndSend({
-				seq: req,
-				res: r
-			});
+			sendDelayed(MessageFactory.replyOK(req, r));
 		}, (err) => {
 			delete invokedHandlers[req];
-			marshallAndSend({
-				seq: req,
-				err: errors.transformErrorForSerialization(err)
-			});
+			sendDelayed(MessageFactory.replyErr(req, err));
 		});
 	};
 
@@ -157,13 +168,10 @@ export function create(send: (obj: string[]) => void): IMainProcessExtHostIPC {
 		send(tmp);
 	}
 
-	function marshallAndSend(msg: any): void {
-		let value = marshalling.stringify(msg);
-
+	function sendDelayed(value: string): void {
 		if (messagesToSend.length === 0) {
 			process.nextTick(sendAccumulated);
 		}
-
 		messagesToSend.push(value);
 	}
 
