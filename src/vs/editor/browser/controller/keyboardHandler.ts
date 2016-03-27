@@ -160,7 +160,15 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 	}
 
 	public setSelectionRange(selectionStart:number, selectionEnd:number): void {
-		// console.log('setSelectionRange: ' + selectionStart + ', ' + selectionEnd);
+		let activeElement = document.activeElement;
+		if (activeElement === this._textArea) {
+			this._textArea.setSelectionRange(selectionStart, selectionEnd);
+		} else {
+			this._setSelectionRangeJumpy(selectionStart, selectionEnd);
+		}
+	}
+
+	private _setSelectionRangeJumpy(selectionStart:number, selectionEnd:number): void {
 		try {
 			let scrollState = dom.saveParentsScrollTop(this._textArea);
 			this._textArea.focus();

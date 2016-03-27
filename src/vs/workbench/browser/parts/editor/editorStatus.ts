@@ -8,7 +8,7 @@
 import 'vs/css!./media/editorstatus';
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
-import { emmet as $, append } from 'vs/base/browser/dom';
+import { emmet as $, append, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 import types = require('vs/base/common/types');
@@ -83,13 +83,33 @@ interface IEditorSelectionStatus {
 	charactersSelected?: number;
 }
 
-interface IStateChange {
+class StateChange {
+	_stateChangeTrait: void;
+
 	indentation: boolean;
 	selectionStatus: boolean;
 	mode: boolean;
 	encoding: boolean;
 	EOL: boolean;
 	tabFocusMode: boolean;
+
+	constructor() {
+		this.indentation = false;
+		this.selectionStatus = false;
+		this.mode = false;
+		this.encoding = false;
+		this.EOL = false;
+		this.tabFocusMode = false;
+	}
+
+	public combine(other:StateChange) {
+		this.indentation = this.indentation || other.indentation;
+		this.selectionStatus = this.selectionStatus || other.selectionStatus;
+		this.mode = this.mode || other.mode;
+		this.encoding = this.encoding || other.encoding;
+		this.EOL = this.EOL || other.EOL;
+		this.tabFocusMode = this.tabFocusMode || other.tabFocusMode;
+	}
 }
 
 interface StateDelta {
@@ -128,15 +148,8 @@ class State {
 		this._tabFocusMode = false;
 	}
 
-	public update(update: StateDelta): IStateChange {
-		let e = {
-			selectionStatus: false,
-			mode: false,
-			encoding: false,
-			EOL: false,
-			tabFocusMode: false,
-			indentation: false
-		};
+	public update(update: StateDelta): StateChange {
+		let e = new StateChange();
 		let somethingChanged = false;
 
 		if (typeof update.selectionStatus !== 'undefined') {
@@ -215,6 +228,8 @@ export class EditorStatus implements IStatusbarItem {
 	private eolElement: HTMLElement;
 	private modeElement: HTMLElement;
 	private toDispose: IDisposable[];
+	private delayedRender: IDisposable;
+	private toRender: StateChange;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -262,7 +277,18 @@ export class EditorStatus implements IStatusbarItem {
 		this.modeElement.onclick = () => this.onModeClick();
 		hide(this.modeElement);
 
+		this.delayedRender = null;
+		this.toRender = null;
+
 		this.toDispose.push(
+			{
+				dispose: () => {
+					if (this.delayedRender) {
+						this.delayedRender.dispose();
+						this.delayedRender = null;
+					}
+				}
+			},
 			this.eventService.addListener2(EventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChange(e.editor)),
 			this.eventService.addListener2(EventType.RESOURCE_ENCODING_CHANGED, (e: ResourceEvent) => this.onResourceEncodingChange(e.resource)),
 			this.eventService.addListener2(EventType.TEXT_EDITOR_SELECTION_CHANGED, (e: TextEditorSelectionEvent) => this.onSelectionChange(e.editor)),
@@ -282,6 +308,20 @@ export class EditorStatus implements IStatusbarItem {
 			return;
 		}
 
+		if (!this.toRender) {
+			this.toRender = changed;
+			this.delayedRender = runAtThisOrScheduleAtNextAnimationFrame(() => {
+				this.delayedRender = null;
+				let toRender = this.toRender;
+				this.toRender = null;
+				this._renderNow(toRender);
+			});
+		} else {
+			this.toRender.combine(changed);
+		}
+	}
+
+	private _renderNow(changed:StateChange): void {
 		if (changed.tabFocusMode) {
 			if (this.state.tabFocusMode && this.state.tabFocusMode === true) {
 				show(this.tabFocusModeElement);
