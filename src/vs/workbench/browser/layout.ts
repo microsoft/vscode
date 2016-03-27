@@ -190,7 +190,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 					let dragCompensation = DEFAULT_MIN_PANEL_PART_HEIGHT - HIDE_PANEL_HEIGHT_THRESHOLD;
 					this.partService.setPanelHidden(true);
 					startY = Math.min(this.sidebarHeight - this.computedStyles.statusbar.height, e.currentY + dragCompensation);
-					this.panelHeight = this.startPanelHeight; // when restoring panel, restore to the panel width we started from
+					this.panelHeight = this.startPanelHeight; // when restoring panel, restore to the panel height we started from
 				}
 
 				// Otherwise size the panel accordingly
@@ -217,8 +217,16 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.sashX.addListener('end', () => {
 			this.storageService.store(WorkbenchLayout.sashXWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
 		});
+
 		this.sashY.addListener('end', () => {
 			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
+		});
+
+		this.sashY.addListener('reset', () => {
+			this.panelHeight = DEFAULT_MIN_PANEL_PART_HEIGHT;
+			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
+			this.partService.setPanelHidden(false);
+			this.layout();
 		});
 	}
 
