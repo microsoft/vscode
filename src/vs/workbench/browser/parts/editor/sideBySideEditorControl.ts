@@ -728,6 +728,7 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 		this.leftSash.addListener('start', () => this.onLeftSashDragStart());
 		this.leftSash.addListener('change', (e: ISashEvent) => this.onLeftSashDrag(e));
 		this.leftSash.addListener('end', () => this.onLeftSashDragEnd());
+		this.leftSash.addListener('reset', () => this.onLeftSashReset());
 		this.leftSash.hide();
 
 		// Center Container
@@ -738,6 +739,7 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 		this.rightSash.addListener('start', () => this.onRightSashDragStart());
 		this.rightSash.addListener('change', (e: ISashEvent) => this.onRightSashDrag(e));
 		this.rightSash.addListener('end', () => this.onRightSashDragEnd());
+		this.rightSash.addListener('reset', () => this.onRightSashReset());
 		this.rightSash.hide();
 
 		// Right Container
@@ -1212,6 +1214,14 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 		this.editorActionsToolbar[position].setActions([], [])();
 	}
 
+	private centerSash(a: Position, b: Position): void {
+		let sumWidth = this.containerWidth[a] + this.containerWidth[b];
+		let meanWidth = sumWidth / 2;
+		this.containerWidth[a] = meanWidth;
+		this.containerWidth[b] = sumWidth - meanWidth;
+		this.layoutContainers();
+	}
+
 	private onLeftSashDragStart(): void {
 		this.startLeftContainerWidth = this.containerWidth[Position.LEFT];
 	}
@@ -1301,6 +1311,11 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 		this.focusNextNonMinimized();
 	}
 
+	private onLeftSashReset(): void {
+		this.centerSash(Position.LEFT, Position.CENTER);
+		this.leftSash.layout();
+	}
+
 	private onRightSashDragStart(): void {
 		this.startRightContainerWidth = this.containerWidth[Position.RIGHT];
 	}
@@ -1356,6 +1371,11 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 		this.leftSash.layout(); // Moving right sash might have also moved left sash, so layout() both
 		this.rightSash.layout();
 		this.focusNextNonMinimized();
+	}
+
+	private onRightSashReset(): void {
+		this.centerSash(Position.CENTER, Position.RIGHT);
+		this.rightSash.layout();
 	}
 
 	public getVerticalSashTop(sash: Sash): number {
