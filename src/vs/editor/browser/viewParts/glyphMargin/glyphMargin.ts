@@ -16,13 +16,11 @@ export class DecorationToRender {
 	public startLineNumber:number;
 	public endLineNumber:number;
 	public className:string;
-	public classNameId:number;
 
 	constructor(startLineNumber:number, endLineNumber:number, className:string) {
 		this.startLineNumber = +startLineNumber;
 		this.endLineNumber = +endLineNumber;
 		this.className = String(className);
-		this.classNameId = 0;
 	}
 }
 
@@ -30,75 +28,45 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 
 	protected _render(visibleStartLineNumber:number, visibleEndLineNumber:number, decorations:DecorationToRender[]): string[] {
 
-		if (decorations.length === 0) {
-			let output: string[] = [];
-			for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
-				let lineIndex = lineNumber - visibleStartLineNumber;
-				output[lineIndex] = '';
-			}
-			return output;
-		}
-
-		// Give each unique class name a numeric id
-		let className2Id: {[className:string]:number;} = Object.create(null);
-		let id2Classname: string[] = [null];
-		let lastAssignedId = 0;
-
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			let d = decorations[i];
-			d.startLineNumber = Math.max(d.startLineNumber, visibleStartLineNumber);
-			d.endLineNumber = Math.min(d.endLineNumber, visibleEndLineNumber);
-			if (d.startLineNumber > d.endLineNumber) {
-				continue;
-			}
-
-			let className = d.className;
-			let classNameId:number;
-
-			let tmp = className2Id[className];
-			if (tmp) {
-				classNameId = tmp;
-			} else {
-				classNameId = (++lastAssignedId);
-				id2Classname[classNameId] = className;
-				className2Id[className] = classNameId;
-			}
-
-			d.classNameId = classNameId;
-		}
-
-		let uniqueRender: boolean[][] = [];
-		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
-			let lineIndex = lineNumber - visibleStartLineNumber;
-
-			let uniqueRenderLine:boolean[] = [];
-			for (let id = 0; id < lastAssignedId; id++) {
-				uniqueRenderLine[id] = false;
-			}
-			uniqueRender[lineIndex] = uniqueRenderLine;
-		}
-
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			let r = decorations[i];
-			for (let lineNumber = r.startLineNumber; lineNumber <= r.endLineNumber; lineNumber++) {
-				let lineIndex = lineNumber - visibleStartLineNumber;
-				uniqueRender[lineIndex][r.classNameId] = true;
-			}
-		}
-
 		let output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			let lineIndex = lineNumber - visibleStartLineNumber;
-			let uniqueRenderLine = uniqueRender[lineIndex];
+			output[lineIndex] = '';
+		}
 
-			let allClassNames = '';
-			for (let id = 0; id < lastAssignedId; id++) {
-				if (uniqueRenderLine[id]) {
-					allClassNames += ' ' + id2Classname[id];
+		if (decorations.length === 0) {
+			return output;
+		}
+
+		decorations.sort((a, b) => {
+			if (a.className === b.className) {
+				if (a.startLineNumber === b.startLineNumber) {
+					return a.endLineNumber - b.endLineNumber;
 				}
+				return a.startLineNumber - b.startLineNumber;
+			}
+			return (a.className < b.className ? -1 : 1);
+		});
+
+		let prevClassName:string = null;
+		let prevEndLineIndex = 0;
+		for (let i = 0, len = decorations.length; i < len; i++) {
+			let d = decorations[i];
+			let className = d.className;
+			let startLineIndex = Math.max(d.startLineNumber, visibleStartLineNumber) - visibleStartLineNumber;
+			let endLineIndex = Math.min(d.endLineNumber, visibleEndLineNumber) - visibleStartLineNumber;
+
+			if (prevClassName === className) {
+				startLineIndex = Math.max(prevEndLineIndex + 1, startLineIndex);
+				prevEndLineIndex = Math.max(prevEndLineIndex, endLineIndex);
+			} else {
+				prevClassName = className;
+				prevEndLineIndex = endLineIndex;
 			}
 
-			output[lineIndex] = allClassNames;
+			for (let i = startLineIndex; i <= prevEndLineIndex; i++) {
+				output[i] += ' ' + prevClassName;
+			}
 		}
 
 		return output;
