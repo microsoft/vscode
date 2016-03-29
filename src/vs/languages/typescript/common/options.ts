@@ -8,43 +8,28 @@ import objects = require('vs/base/common/objects');
 
 interface Options {
 
-	suggest: {
-		alwaysAllWords: boolean;
-		useCodeSnippetsOnMethodSuggest: boolean;
-	};
 	validate: {
 		enable: boolean;
 		semanticValidation: boolean;
 		syntaxValidation: boolean;
-		_surpressSuperWithoutSuperTypeError: boolean;
 	};
 }
 
 namespace Options {
 
 	export var typeScriptOptions: Options = Object.freeze({
-		suggest: {
-			alwaysAllWords: false,
-			useCodeSnippetsOnMethodSuggest: false
-		},
 		validate: {
 			enable: true,
 			semanticValidation: true,
 			syntaxValidation: true,
-			_surpressSuperWithoutSuperTypeError: false
 		}
 	});
 
 	export var javaScriptOptions: Options = Object.freeze({
-		suggest: {
-			alwaysAllWords: false,
-			useCodeSnippetsOnMethodSuggest: false
-		},
 		validate: {
 			enable: true,
 			semanticValidation: true,
 			syntaxValidation: true,
-			_surpressSuperWithoutSuperTypeError: false
 		}
 	});
 

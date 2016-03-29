@@ -32,22 +32,6 @@ configurationRegistry.registerConfiguration({
 	'title': nls.localize('jsConfigurationTitle', "JavaScript configuration"),
 	'allOf': [
 		{
-			'type': 'object',
-			'title': nls.localize('suggestSettings', "Controls how JavaScript IntelliSense works."),
-			'properties': {
-				'javascript.suggest.alwaysAllWords': {
-					'type': 'boolean',
-					'default': defaults.suggest.alwaysAllWords,
-					'description': nls.localize('allwaysAllWords', "Always include all words from the current document."),
-				},
-				'javascript.suggest.useCodeSnippetsOnMethodSuggest': {
-					'type': 'boolean',
-					'default': defaults.suggest.useCodeSnippetsOnMethodSuggest,
-					'description': nls.localize('useCodeSnippetsOnMethodSuggest', "Complete functions with their parameter signature."),
-				}
-			}
-		},
-		{
 			'title': nls.localize('compilationSettings', "Controls how JavaScript validation works."),
 			'type': 'object',
 			'properties': {
