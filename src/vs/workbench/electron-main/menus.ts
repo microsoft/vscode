@@ -402,19 +402,24 @@ export class VSCodeMenu {
 		});
 
 		// Files
-		if (recentList.files.length > 0) {
+		let files = recentList.files;
+		if (platform.isMacintosh && recentList.files.length > 0) {
+			files = recentList.files.filter(f => recentList.folders.indexOf(f) < 0); // TODO@Ben migration (remove in the future)
+		}
+
+		if (files.length > 0) {
 			if (recentList.folders.length > 0) {
 				openRecentMenu.append(__separator__());
 			}
 
-			recentList.files.forEach((file, index) => {
+			files.forEach((file, index) => {
 				if (index < VSCodeMenu.MAX_RECENT_ENTRIES) {
 					openRecentMenu.append(this.createOpenRecentMenuItem(file));
 				}
 			});
 		}
 
-		if (recentList.folders.length || recentList.files.length) {
+		if (recentList.folders.length || files.length) {
 			openRecentMenu.append(__separator__());
 			openRecentMenu.append(new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miClearItems', comment: ['&& denotes a mnemonic'] }, "&&Clear Items")), click: () => this.clearOpenedPathsList() }));
 		}
