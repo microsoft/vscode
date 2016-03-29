@@ -100,7 +100,7 @@ export class ResourceViewer {
 					}
 
 					var image = <HTMLImageElement>document.getElementById('image');
-					var imageDimensions = <HTMLSpanElement>document.getElementById('imageDimensions');
+					var imageDimensions = <HTMLDivElement>document.getElementById('imageDimensions');
 
 					var dimensionsLabel = nls.localize('imageDimensions', "Image Dimensions") + ': ' + image.naturalWidth + ' x ' + image.naturalHeight;
 					imageDimensions.innerText = dimensionsLabel;
