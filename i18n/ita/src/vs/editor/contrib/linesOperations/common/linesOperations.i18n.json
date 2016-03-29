@@ -13,5 +13,7 @@
 	"lines.moveDown": "Sposta la riga in basso",
 	"lines.moveUp": "Sposta la riga in alto",
 	"lines.outdent": "Riduci il rientro per la riga",
+	"lines.sortAscending": "Ordinamento righe crescente",
+	"lines.sortDescending": "Ordinamento righe decrescente",
 	"lines.trimTrailingWhitespace": "Taglia spazio vuoto finale"
 }

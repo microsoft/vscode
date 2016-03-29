@@ -6,6 +6,7 @@
 {
 	"error.cannotloadtheme": "Impossible de charger {0}",
 	"error.cannotparse": "Problèmes durant l'analyse du fichier plist : {0}",
+	"error.cannotparsejson": "Problèmes durant l'analyse du fichier de thème JSON : {0}",
 	"invalid.path.1": "'contributes.{0}.path' ({1}) est censé être inclus dans le dossier ({2}) de l'extension. Cela risque de rendre l'extension non portable.",
 	"reqarray": "Le point d'extension '{0}' doit être un tableau.",
 	"reqpath": "Chaîne attendue dans 'contributes.{0}.path'. Valeur fournie : {1}",

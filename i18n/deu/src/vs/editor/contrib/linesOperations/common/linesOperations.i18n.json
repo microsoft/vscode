@@ -13,5 +13,7 @@
 	"lines.moveDown": "Zeile nach unten verschieben",
 	"lines.moveUp": "Zeile nach oben verschieben",
 	"lines.outdent": "Zeile ausrücken",
+	"lines.sortAscending": "Zeilen aufsteigend sortieren",
+	"lines.sortDescending": "Zeilen absteigend sortieren",
 	"lines.trimTrailingWhitespace": "Nachgestelltes Leerzeichen kürzen"
 }

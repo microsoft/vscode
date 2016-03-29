@@ -74,25 +74,7 @@ export class OutputService implements IOutputService {
 
 		// Store
 		if (output) {
-			let curLength = this.receivedOutput[channel].length;
-			let addLength = output.length;
-
-			// Still below MAX_OUTPUT, so just add
-			if (addLength + curLength <= MAX_OUTPUT_LENGTH) {
-				this.receivedOutput[channel] += output;
-			} else {
-
-				// New output exceeds MAX_OUTPUT, so trim beginning and use as received output
-				if (addLength > MAX_OUTPUT_LENGTH) {
-					this.receivedOutput[channel] = '...' + output.substr(addLength - MAX_OUTPUT_LENGTH);
-				}
-
-				// New output + existing output exceeds MAX_OUTPUT, so trim existing output that it fits new output
-				else {
-					let diff = MAX_OUTPUT_LENGTH - addLength;
-					this.receivedOutput[channel] = '...' + this.receivedOutput[channel].substr(curLength - diff) + output;
-				}
-			}
+			this.receivedOutput[channel] = strings.appendWithLimit(this.receivedOutput[channel], output, MAX_OUTPUT_LENGTH);
 		}
 
 		this._onOutput.fire({ output: output, channel });
@@ -121,7 +103,7 @@ export class OutputService implements IOutputService {
 		if (this.activeChannel === channel && panel && panel.getId() === OUTPUT_PANEL_ID) {
 			return TPromise.as(<OutputPanel>panel);
 		}
-		
+
 		this.activeChannel = channel;
 		this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel, StorageScope.WORKSPACE);
 		this._onActiveOutputChannel.fire(channel); // emit event that a new channel is active

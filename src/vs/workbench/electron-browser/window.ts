@@ -162,7 +162,11 @@ export class ElectronWindow {
 	}
 
 	public showSaveDialog(options: Electron.Dialog.SaveDialogOptions, callback?: (fileName: string) => void): string {
-		return dialog.showSaveDialog(this.win, options, callback);
+		if (callback) {
+			return dialog.showSaveDialog(this.win, options, callback);
+		}
+
+		return dialog.showSaveDialog(this.win, options); // https://github.com/atom/electron/issues/4936
 	}
 
 	public setFullScreen(fullscreen: boolean): void {

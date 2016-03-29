@@ -193,7 +193,8 @@ declare module DebugProtocol {
 	}
 	/** Arguments for "launch" request. */
 	export interface LaunchRequestArguments {
-		/* The launch request has no standardized attributes. */
+		/* If noDebug is true the launch request should launch the program without enabling debugging. */
+		noDebug?: boolean;
 	}
 	/** Response to "launch" request. This is just an acknowledgement, so no body field is required. */
 	export interface LaunchResponse extends Response {
@@ -501,18 +502,18 @@ declare module DebugProtocol {
 		supportsConditionalBreakpoints?: boolean;
 		/** The debug adapter supports a (side effect free) evaluate request for data hovers. */
 		supportsEvaluateForHovers?: boolean;
-
 		/** Available filters for the setExceptionBreakpoints request. */
-		exceptionBreakpointFilters?: [
-			{
-				/** The internal ID of the filter. This value is passed to the setExceptionBreakpoints request. */
-				filter: string,
-				/** The name of the filter. This will be shown in the UI. */
-				label: string,
-				/** Initial value of the filter. If not specified a value 'false' is assumed. */
-				default?: boolean
-			}
-		]
+		exceptionBreakpointFilters?: ExceptionBreakpointsFilter[];
+	}
+
+	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */
+	export interface ExceptionBreakpointsFilter {
+		/** The internal ID of the filter. This value is passed to the setExceptionBreakpoints request. */
+		filter: string,
+		/** The name of the filter. This will be shown in the UI. */
+		label: string,
+		/** Initial value of the filter. If not specified a value 'false' is assumed. */
+		default?: boolean
 	}
 
 	/** A structured message object. Used to return errors from requests. */

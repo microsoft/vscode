@@ -31,6 +31,7 @@
 	"roundedSelection": "Controlla se gli angoli delle selezioni sono arrotondati",
 	"rulers": "Colonne in corrispondenza delle quali visualizzare i righelli verticali",
 	"scrollBeyondLastLine": "Controlla se l'editor scorrerà oltre l'ultima riga",
+	"selectionClipboard": "Controlla se gli appunti primari di Linux devono essere supportati.",
 	"selectionHighlight": "Controlla se l'editor deve evidenziare gli elementi corrispondenti simili alla selezione",
 	"sideBySide": "Controlla se l'editor diff mostra le differenze affiancate o incorporate",
 	"suggestOnTriggerCharacters": "Controlla se i suggerimenti devono essere visualizzati automaticamente durante la digitazione dei caratteri trigger",

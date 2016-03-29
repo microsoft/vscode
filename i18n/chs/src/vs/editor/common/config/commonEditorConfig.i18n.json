@@ -31,6 +31,7 @@
 	"roundedSelection": "控制选项是否有圆角",
 	"rulers": "显示垂直标尺的列",
 	"scrollBeyondLastLine": "控制编辑器是否将滚动超出最后一行",
+	"selectionClipboard": "控制 Linux 主要剪贴板是否应受到支持。",
 	"selectionHighlight": "控制编辑器是否应突出显示选项的近似匹配",
 	"sideBySide": "控制差异编辑器是否显示并行差异或内联差异",
 	"suggestOnTriggerCharacters": "控制键入触发器字符时是否应自动显示建议",

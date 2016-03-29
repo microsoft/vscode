@@ -12,7 +12,7 @@
 	"changeNow": "Cambiar ahora",
 	"continue": "Continuar",
 	"editFile": "Editar '{0}'",
-	"exists": "Quite el alias que hace referencia a '{0}' en '{1}' y pruebe a realizar esta acción de nuevo.",
+	"exists": "Quite el alias que hace referencia a '{0}' en '{1}' (línea {2}) y pruebe a realizar esta acción de nuevo.",
 	"install": "Instalar el comando \"code\" en PATH",
 	"later": "Más tarde",
 	"laterInfo": "Recuerde que siempre puede ejecutar la acción '{0}' desde la paleta de comandos.",

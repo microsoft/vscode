@@ -13,5 +13,7 @@
 	"lines.moveDown": "行を下へ移動",
 	"lines.moveUp": "行を上へ移動",
 	"lines.outdent": "行のインデント解除",
+	"lines.sortAscending": "行を昇順に並べ替え",
+	"lines.sortDescending": "行を降順に並べ替え",
 	"lines.trimTrailingWhitespace": "末尾の空白のトリミング"
 }

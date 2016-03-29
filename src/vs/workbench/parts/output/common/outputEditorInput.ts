@@ -6,6 +6,7 @@
 
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
+import strings = require('vs/base/common/strings');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {EditorModel} from 'vs/workbench/common/editor';
@@ -87,17 +88,7 @@ export class OutputEditorInput extends StringEditorInput {
 	private onOutputReceived(e: IOutputEvent): void {
 		if (this.outputSet && e.channel === this.channel) {
 			if (e.output) {
-				// TODO@Isidor extract this output trimming to common string with tests
-				const newLength = this.bufferedOutput.length + e.output.length;
-				if (newLength > MAX_OUTPUT_LENGTH) {
-					this.bufferedOutput = '...' + this.bufferedOutput.substr(newLength - MAX_OUTPUT_LENGTH);
-				}
-				if (e.output.length > MAX_OUTPUT_LENGTH) {
-					this.bufferedOutput += e.output.substr(e.output.length - MAX_OUTPUT_LENGTH);
-				} else {
-					this.bufferedOutput += e.output;
-				}
-
+				this.bufferedOutput = strings.appendWithLimit(this.bufferedOutput, e.output, MAX_OUTPUT_LENGTH);
 				this.scheduleOutputAppend();
 			} else if (e.output === null) {
 				this.clearValue(); // special output indicates we should clear

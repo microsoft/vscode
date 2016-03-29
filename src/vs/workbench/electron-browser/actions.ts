@@ -396,17 +396,30 @@ export class OpenRecentAction extends Action {
 	}
 
 	public run(): TPromise<boolean> {
-		let picks = this.contextService.getConfiguration().env.recentPaths.map(p => {
+		const recentFolders = this.contextService.getConfiguration().env.recentFolders;
+		const recentFiles = this.contextService.getConfiguration().env.recentFiles;
+
+		let folderPicks = recentFolders.map((p, index) => {
 			return {
 				label: paths.basename(p),
 				description: paths.dirname(p),
-				path: p
+				path: p,
+				separator: index === 0 ? { label: nls.localize('folders', "folders") } : void 0
+			};
+		});
+
+		let filePicks = recentFiles.map((p, index) => {
+			return {
+				label: paths.basename(p),
+				description: paths.dirname(p),
+				path: p,
+				separator: index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0
 			};
 		});
 
 		const hasWorkspace = !!this.contextService.getWorkspace();
 
-		return this.quickOpenService.pick(picks, {
+		return this.quickOpenService.pick(folderPicks.concat(...filePicks), {
 			autoFocus: { autoFocusFirstEntry: !hasWorkspace, autoFocusSecondEntry: hasWorkspace },
 			placeHolder: nls.localize('openRecentPlaceHolder', "Select a path to open"),
 			matchOnDescription: true

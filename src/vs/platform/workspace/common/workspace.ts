@@ -119,11 +119,11 @@ export interface IEnvironment {
 	appSettingsPath: string;
 	appKeybindingsPath: string;
 
-	debugPluginHostPort: number;
-	debugBrkPluginHost: boolean;
+	debugExtensionHostPort: number;
+	debugBrkExtensionHost: boolean;
 	disableExtensions: boolean;
 
-	logPluginHostCommunication: boolean;
+	logExtensionHostCommunication: boolean;
 	verboseLogging: boolean;
 	enablePerformance: boolean;
 
@@ -132,7 +132,8 @@ export interface IEnvironment {
 	extensionDevelopmentPath: string;
 	extensionTestsPath: string;
 
-	recentPaths: string[];
+	recentFiles: string[];
+	recentFolders: string[];
 
 	enableTelemetry: boolean;
 

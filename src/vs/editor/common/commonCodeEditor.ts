@@ -554,7 +554,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		var candidate = this.getAction(handlerId);
 		if(candidate !== null) {
 			if (candidate.enabled) {
-				this._telemetryService.publicLog('editorActionInvoked', {name: candidate.label} );
+				this._telemetryService.publicLog('editorActionInvoked', {name: candidate.label, id: candidate.id} );
 				TPromise.as(candidate.run()).done(null, onUnexpectedError);
 			}
 		} else {

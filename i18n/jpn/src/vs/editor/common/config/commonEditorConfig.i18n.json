@@ -31,6 +31,7 @@
 	"roundedSelection": "選択範囲の角を丸くするかどうかを制御します",
 	"rulers": "垂直ルーラーを表示する列",
 	"scrollBeyondLastLine": "エディターで最後の行を越えてスクロールするかどうかを制御します",
+	"selectionClipboard": "Linux の PRIMARY クリップボードをサポートするかどうかを制御します。",
 	"selectionHighlight": "エディターで選択範囲に類似する一致箇所を強調表示するかどうかを制御します",
 	"sideBySide": "差分エディターが差分を横に並べて表示するか、行内に表示するかを制御します",
 	"suggestOnTriggerCharacters": "トリガー文字の入力時に候補が自動的に表示されるようにするかどうかを制御します",
