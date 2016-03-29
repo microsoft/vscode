@@ -18,7 +18,7 @@ export interface IRawModelData {
 }
 
 abstract class AbstractWorker implements IRequestHandler {
-	
+
 	_requestHandlerTrait: any;
 
 	// --- model sync
@@ -50,6 +50,14 @@ abstract class AbstractWorker implements IRequestHandler {
 	}
 
 	getOccurrencesAtPosition(fileName: string, position: number): TPromise<ts.ReferenceEntry[]> {
+		throw notImplemented();
+	}
+
+	getDefinitionAtPosition(fileName: string, position: number): TPromise<ts.DefinitionInfo[]> {
+		throw notImplemented();
+	}
+
+	getReferencesAtPosition(fileName: string, position: number): TPromise<ts.ReferenceEntry[]> {
 		throw notImplemented();
 	}
 }

@@ -88,6 +88,15 @@ class TypeScriptWorker extends AbstractWorker implements ts.LanguageServiceHost 
 	getOccurrencesAtPosition(fileName: string, position: number): TPromise<ts.ReferenceEntry[]> {
 		return TPromise.as(this._languageService.getOccurrencesAtPosition(fileName, position));
 	}
+
+	getDefinitionAtPosition(fileName: string, position: number): TPromise<ts.DefinitionInfo[]> {
+		return TPromise.as(this._languageService.getDefinitionAtPosition(fileName, position));
+	}
+
+	getReferencesAtPosition(fileName: string, position: number): TPromise<ts.ReferenceEntry[]> {
+		return TPromise.as(this._languageService.getReferencesAtPosition(fileName, position));
+	}
+
 }
 
 export function create(): AbstractWorker {

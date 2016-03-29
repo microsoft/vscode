@@ -15,12 +15,16 @@ import {IModelService} from 'vs/editor/common/services/modelService';
 import {SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
 import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import {ExtraInfoRegistry} from 'vs/editor/contrib/hover/common/hover';
+import {ReferenceRegistry} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
+import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 
 export default function registerLanguageFeatures(selector: string, modelService: IModelService, worker: () => TPromise<AbstractWorker>): lifecycle.IDisposable {
 	const disposables: lifecycle.IDisposable[] = [];
 	disposables.push(SuggestRegistry.register(selector, new SuggestAdapter(modelService, worker)));
 	disposables.push(ExtraInfoRegistry.register(selector, new QuickInfoAdapter(modelService, worker)));
 	disposables.push(OccurrencesRegistry.register(selector, new OccurrencesAdapter(modelService, worker)));
+	disposables.push(DeclarationRegistry.register(selector, new DeclarationAdapter(modelService, worker)));
+	disposables.push(ReferenceRegistry.register(selector, new ReferenceAdapter(modelService, worker)));
 	return lifecycle.combinedDispose2(disposables);
 }
 
@@ -154,3 +158,60 @@ class OccurrencesAdapter extends Adapter implements modes.IOccurrencesSupport {
 	}
 }
 
+// --- definition ------
+
+class DeclarationAdapter extends Adapter implements modes.IDeclarationSupport {
+
+	canFindDeclaration(context: modes.ILineContext, offset: number): boolean{
+		return true;
+	}
+
+	findDeclaration(resource: URI, position: editor.IPosition): TPromise<modes.IReference[]> {
+		return this._worker().then(worker => {
+			return worker.getDefinitionAtPosition(resource.toString(), this._positionToOffset(resource, position));
+		}).then(entries => {
+			const result: modes.IReference[] = [];
+			for (let entry of entries) {
+				const uri = URI.parse(entry.fileName);
+				if (this._modelService.getModel(uri)) {
+					result.push({
+						resource: uri,
+						range: this._textSpanToRange(uri, entry.textSpan)
+					});
+				}
+			}
+			return result;
+		});
+	}
+}
+
+// --- references ------
+
+class ReferenceAdapter extends Adapter implements modes.IReferenceSupport {
+
+	canFindReferences(context: modes.ILineContext, offset: number): boolean {
+		return true;
+	}
+
+	/**
+	 * @returns a list of reference of the symbol at the position in the
+	 * 	given resource.
+	 */
+	findReferences(resource: URI, position: editor.IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]>{
+		return this._worker().then(worker => {
+			return worker.getReferencesAtPosition(resource.toString(), this._positionToOffset(resource, position));
+		}).then(entries => {
+			const result: modes.IReference[] = [];
+			for (let entry of entries) {
+				const uri = URI.parse(entry.fileName);
+				if (this._modelService.getModel(uri)) {
+					result.push({
+						resource: uri,
+						range: this._textSpanToRange(uri, entry.textSpan)
+					});
+				}
+			}
+			return result;
+		});
+	}
+}
