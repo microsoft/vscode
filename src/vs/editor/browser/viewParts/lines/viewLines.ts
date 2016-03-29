@@ -140,7 +140,6 @@ export class ViewLines extends ViewLayer {
 	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
 		var shouldRender = super.onLayoutChanged(layoutInfo);
 		this._maxLineWidth = 0;
-		this._lastRenderedData.resetDomNodeClientRectLeft();
 		return shouldRender;
 	}
 
@@ -353,30 +352,6 @@ export class ViewLines extends ViewLayer {
 		return createLine(this._context);
 	}
 
-	private _renderAndUpdateLineHeights(linesViewportData: editorCommon.ViewLinesViewportData): void {
-		super._renderLines(linesViewportData);
-
-		// Update internal current visible range
-		this._lastRenderedData.setCurrentVisibleRange(new Range(
-			0 + this._rendLineNumberStart,
-			1,
-			this._lines.length - 1 + this._rendLineNumberStart,
-			this._context.model.getLineMaxColumn(this._lines.length - 1 + this._rendLineNumberStart)
-		));
-
-		if (this._lastCursorRevealRangeHorizontallyEvent) {
-			var newScrollLeft = this._computeScrollLeftToRevealRange(this._lastCursorRevealRangeHorizontallyEvent.range);
-			this._lastCursorRevealRangeHorizontallyEvent = null;
-
-			var isViewportWrapping = this._isViewportWrapping;
-			if (!isViewportWrapping) {
-				this._ensureMaxLineWidth(newScrollLeft.maxHorizontalOffset);
-			}
-
-			this._layoutProvider.setScrollLeft(newScrollLeft.scrollLeft);
-		}
-	}
-
 	private _updateLineWidths(): void {
 		var i:number,
 			localMaxLineWidth = 1,
@@ -404,10 +379,24 @@ export class ViewLines extends ViewLayer {
 			throw new Error('I did not ask to render!');
 		}
 
-		this._lastRenderedData.setBigNumbersDelta(linesViewportData.bigNumbersDelta);
-
-		this._renderAndUpdateLineHeights(linesViewportData);
+		super._renderLines(linesViewportData);
 		this.onDidRender();
+
+		this._lastRenderedData.setBigNumbersDelta(linesViewportData.bigNumbersDelta);
+		this._lastRenderedData.setCurrentVisibleRange(linesViewportData.visibleRange);
+		this._lastRenderedData.resetDomNodeClientRectLeft();
+
+		if (this._lastCursorRevealRangeHorizontallyEvent) {
+			var newScrollLeft = this._computeScrollLeftToRevealRange(this._lastCursorRevealRangeHorizontallyEvent.range);
+			this._lastCursorRevealRangeHorizontallyEvent = null;
+
+			var isViewportWrapping = this._isViewportWrapping;
+			if (!isViewportWrapping) {
+				this._ensureMaxLineWidth(newScrollLeft.maxHorizontalOffset);
+			}
+
+			this._layoutProvider.setScrollLeft(newScrollLeft.scrollLeft);
+		}
 
 		// Update max line width (not so important, it is just so the horizontal scrollbar doesn't get too small)
 		this._asyncUpdateLineWidths.schedule();
@@ -419,6 +408,7 @@ export class ViewLines extends ViewLayer {
 			StyleMutator.setTop(<HTMLElement>this.domNode.domNode.parentNode, linesViewportData.visibleRangesDeltaTop); // TODO@Alex
 			StyleMutator.setLeft(<HTMLElement>this.domNode.domNode.parentNode, -this._layoutProvider.getScrollLeft()); // TODO@Alex
 		}
+		this._lastRenderedData.resetDomNodeClientRectLeft();
 
 		this.domNode.setWidth(this._layoutProvider.getScrollWidth());
 		this.domNode.setHeight(Math.min(this._layoutProvider.getTotalHeight(), 1000000));
