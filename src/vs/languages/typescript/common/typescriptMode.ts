@@ -67,6 +67,16 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 
 			const factory = new DefaultWorkerFactory();
 			let client: SimpleWorkerClient<AbstractWorker>;
+			let handle: number;
+
+			this._disposables.push({
+				dispose() {
+					clearTimeout(handle);
+					if (client) {
+						client.dispose();
+					}
+				}
+			});
 
 			const worker = () => {
 
@@ -75,6 +85,18 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 						factory,
 						'vs/languages/typescript/common/worker/typescriptWorker',
 						AbstractWorker);
+
+					handle = setInterval(() => {
+						if (Date.now() - client.getLastRequestTimestamp() > 1000 * 60 * 5) {
+							dispose();
+						}
+					}, 1000 * 60);
+
+					function dispose() {
+						clearTimeout(handle);
+						client.dispose();
+						client = undefined;
+					}
 				}
 
 				let result = client.get();
