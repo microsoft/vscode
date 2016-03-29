@@ -91,11 +91,25 @@ export class ResourceViewer {
 				.empty()
 				.style({ paddingLeft: '20px' }) // restore CSS value in case the user saw a PDF before where we remove padding
 				.img({
+					id: 'image',
 					src: resource.toString() + '?' + new Date().getTime() // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
-				}).on(DOM.EventType.LOAD, () => {
+				})
+				.on(DOM.EventType.LOAD, () => {
 					if (scrollbar) {
 						scrollbar.onElementInternalDimensions();
 					}
+
+					var image = <HTMLImageElement>document.getElementById('image');
+					var imageDimensions = <HTMLSpanElement>document.getElementById('imageDimensions');
+
+					var dimensionsLabel = nls.localize('imageDimensions', "Image Dimensions") + ': ' + image.naturalWidth + ' x ' + image.naturalHeight;
+					imageDimensions.innerText = dimensionsLabel;
+				})
+				.div({
+					id: 'imageDimensions'
+				})
+				.style({
+					margin: '5px, 0'
 				});
 		}
 
