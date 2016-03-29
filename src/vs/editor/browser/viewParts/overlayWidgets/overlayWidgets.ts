@@ -71,6 +71,8 @@ export class ViewOverlayWidgets extends ViewPart {
 		domNode.style.position = 'absolute';
 		domNode.setAttribute('widgetId', widget.getId());
 		this.domNode.appendChild(domNode);
+
+		this.setShouldRender();
 	}
 
 	public setWidgetPosition(widget: IOverlayWidget, preference:OverlayWidgetPositionPreference): boolean {
@@ -80,6 +82,7 @@ export class ViewOverlayWidgets extends ViewPart {
 		}
 
 		widgetData.preference = preference;
+		this.setShouldRender();
 
 		return true;
 	}
@@ -92,6 +95,7 @@ export class ViewOverlayWidgets extends ViewPart {
 			delete this._widgets[widgetId];
 
 			domNode.parentNode.removeChild(domNode);
+			this.setShouldRender();
 		}
 	}
 
