@@ -84,7 +84,7 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 				return <modes.ISuggestion>{
 					label: entry.name,
 					codeSnippet: entry.name,
-					type: undefined
+					type: entry.kind
 				};
 			});
 
@@ -101,11 +101,14 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 			return worker.getCompletionEntryDetails(resource.toString(),
 				this._positionToOffset(resource, position),
 				suggestion.label);
+
 		}).then(details => {
 			return <modes.ISuggestion>{
 				label: details.name,
 				codeSnippet: details.name,
-				type: undefined //value.documentation
+				type: details.kind,
+				typeLabel: ts.displayPartsToString(details.displayParts),
+				documentationLabel: ts.displayPartsToString(details.documentation)
 			};
 		});
 	}

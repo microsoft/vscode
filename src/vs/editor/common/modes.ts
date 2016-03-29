@@ -325,11 +325,10 @@ export interface IExtraInfoSupport {
 	computeInfo(resource:URI, position:editorCommon.IPosition):TPromise<IComputeExtraInfoResult>;
 }
 
-
 export interface ISuggestion {
 	label: string;
 	codeSnippet: string;
-	type: string;
+	type: 'Text' | 'Method' | 'Function' | 'Constructor' | 'Field' | 'Variable' | 'Class' | 'Interface' | 'Module' | 'Property' | 'Unit' | 'Value' | 'Enum' | 'Keyword' | 'Snippet' | 'Color' | 'File' | 'Reference' | string;
 	typeLabel?: string;
 	documentationLabel?: string;
 	filterText?: string;
