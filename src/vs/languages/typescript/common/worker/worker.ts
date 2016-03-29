@@ -35,6 +35,10 @@ abstract class AbstractWorker implements IRequestHandler {
 		throw notImplemented();
 	}
 
+	acceptCompilerOptions(options: ts.CompilerOptions): TPromise<void> {
+		throw notImplemented();
+	}
+
 	// --- language features
 
 	getCompletionsAtPosition(uri: string, offset: number): TPromise<ts.CompletionInfo> {

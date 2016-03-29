@@ -4,18 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import typescript = require('vs/languages/typescript/common/typescript');
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
+import {LanguageServiceDefaults} from 'vs/languages/typescript/common/typescript';
 
-export namespace Defaults {
-
-	export const ProjectResolver = new typescript.DefaultProjectResolver();
-
-	export function addExtraLib(content: string, filePath?:string): void {
-		ProjectResolver.addExtraLib(content, filePath);
-	}
-
-	export function setCompilerOptions(options: ts.CompilerOptions): void {
-		ProjectResolver.setCompilerOptions(options);
-	}
-}
+export const Defaults = new LanguageServiceDefaults();

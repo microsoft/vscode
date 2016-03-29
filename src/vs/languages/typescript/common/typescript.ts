@@ -4,112 +4,63 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
-import URI from 'vs/base/common/uri';
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
+import Event, {Emitter} from 'vs/base/common/event';
+import {IDisposable} from 'vs/base/common/lifecycle';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 
-export enum ChangeKind {
-	Changed,
-	Added,
-	Removed
-}
+export class LanguageServiceDefaults {
 
-export interface IProjectChange {
-	kind: ChangeKind;
-	resource: URI;
-	files: URI[];
-	options: ts.CompilerOptions;
-}
+	private _compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, target: ts.ScriptTarget.Latest };
+	private _onDidChangeCompilerOptions = new Emitter<ts.CompilerOptions>();
+	private _extraLibs: { [path: string]: string } = Object.create(null);
+	private _onDidAddExtraLib = new Emitter<string>();
+	private _onDidRemoveExtraLib = new Emitter<string>();
 
-export interface IFileChange {
-	kind: ChangeKind;
-	resource: URI;
-	content: string;
-}
-
-export interface IProjectConsumer {
-	acceptProjectChanges(changes: IProjectChange[]): winjs.TPromise<{[dirname:string]:URI}>;
-	acceptFileChanges(changes: IFileChange[]): winjs.TPromise<boolean>;
-}
-
-export interface IProjectResolver2 {
-	setConsumer(consumer: IProjectConsumer): void;
-	resolveProjects(): winjs.TPromise<any>;
-	resolveFiles(resources: URI[]): winjs.TPromise<any>;
-}
-
-export var defaultLib = URI.create('ts', 'defaultlib', '/vs/text!vs/languages/typescript/common/lib/lib.d.ts');
-export var defaultLibES6 = URI.create('ts', 'defaultlib', '/vs/text!vs/languages/typescript/common/lib/lib.es6.d.ts');
-
-export function isDefaultLib(uri: URI|string): boolean {
-	if (typeof uri === 'string') {
-		return uri.indexOf('ts://defaultlib') === 0;
-	} else {
-		return uri.scheme === 'ts' && uri.authority === 'defaultlib';
-	}
-}
-
-export var virtualProjectResource = URI.create('ts', 'projects', '/virtual/1');
-
-export class DefaultProjectResolver implements IProjectResolver2 {
-
-	private _consumer: IProjectConsumer;
-	private _needsProjectUpdate = false;
-	private _fileChanges:IFileChange[] = [];
-	private _projectChange:IProjectChange = {
-		kind: ChangeKind.Changed,
-		resource: virtualProjectResource,
-		files: [],
-		options: undefined
-	};
-
-	setConsumer(consumer: IProjectConsumer) {
-		this._consumer = consumer;
+	get onDidAddExtraLibs(): Event<string> {
+		return this._onDidAddExtraLib.event;
 	}
 
-	resolveProjects(): winjs.TPromise<any> {
-		let promises:winjs.Promise[] = [];
-		if(this._fileChanges.length) {
-			promises.push(this._consumer.acceptFileChanges(this._fileChanges.slice(0)));
-			this._fileChanges.length = 0;
+	get onDidRemoveExtraLib(): Event<string> {
+		return this._onDidRemoveExtraLib.event;
+	}
+
+	getExtraLibs(): { [path: string]: string } {
+		return Object.freeze(this._extraLibs);
+	}
+
+	addExtraLib(content: string, filePath?: string): IDisposable {
+		if (typeof filePath === 'undefined') {
+			filePath = `ts:extralib-${Date.now()}`;
 		}
-		if(this._needsProjectUpdate) {
-			promises.push(this._consumer.acceptProjectChanges([this._projectChange]));
-			this._needsProjectUpdate = false;
+
+		if (this._extraLibs[filePath]) {
+			throw new Error(`${filePath} already a extra lib`);
 		}
-		return winjs.Promise.join(promises);
+
+		this._extraLibs[filePath] = content;
+		this._onDidAddExtraLib.fire(filePath);
+
+		return {
+			dispose: () => {
+				if (delete this._extraLibs[filePath]) {
+					this._onDidRemoveExtraLib.fire(filePath);
+				}
+			}
+		};
 	}
 
-	resolveFiles(): winjs.TPromise<any> {
-		return undefined;
+	get onDidChangeCompilerOptions(): Event<ts.CompilerOptions> {
+		return this._onDidChangeCompilerOptions.event;
 	}
 
-	addExtraLib(content: string, filePath?: string): void {
-
-		let resource = filePath
-			? URI.file(filePath)
-			: URI.create('extralib', undefined, Date.now().toString());
-
-		this._needsProjectUpdate = true;
-		this._projectChange.files.push(resource);
-		this._fileChanges.push({ kind: ChangeKind.Added, resource, content });
+	getCompilerOptions(): ts.CompilerOptions {
+		return this._compilerOptions;
 	}
 
 	setCompilerOptions(options: ts.CompilerOptions): void {
-		this._needsProjectUpdate = true;
-		this._projectChange.options = options;
+		this._compilerOptions = options || Object.create(null);
+		this._onDidChangeCompilerOptions.fire(this._compilerOptions);
 	}
 }
 
-export namespace Defaults {
-
-	export const ProjectResolver = new DefaultProjectResolver();
-
-	export function addExtraLib(content: string, filePath?:string): void {
-		ProjectResolver.addExtraLib(content, filePath);
-	}
-
-	export function setCompilerOptions(options: ts.CompilerOptions): void {
-		ProjectResolver.setCompilerOptions(options);
-	}
-}
+export const Defaults = new LanguageServiceDefaults();
