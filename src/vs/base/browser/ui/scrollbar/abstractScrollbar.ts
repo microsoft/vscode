@@ -377,6 +377,7 @@ export interface IMouseMoveEventData {
 export abstract class AbstractScrollbar extends Widget implements IScrollbar {
 
 	protected _forbidTranslate3dUse: boolean;
+	private _lazyRender: boolean;
 	private _parent: IParent;
 	private _scrollbarState: ScrollbarState;
 	private _visibilityController: VisibilityController;
@@ -385,13 +386,17 @@ export abstract class AbstractScrollbar extends Widget implements IScrollbar {
 	public domNode: FastDomNode;
 	public slider: FastDomNode;
 
-	constructor(forbidTranslate3dUse: boolean, parent: IParent, scrollbarState: ScrollbarState, visibility: Visibility, extraScrollbarClassName: string) {
+	protected _shouldRender: boolean;
+
+	constructor(forbidTranslate3dUse: boolean, lazyRender:boolean, parent: IParent, scrollbarState: ScrollbarState, visibility: Visibility, extraScrollbarClassName: string) {
 		super();
 		this._forbidTranslate3dUse = forbidTranslate3dUse;
+		this._lazyRender = lazyRender;
 		this._parent = parent;
 		this._scrollbarState = scrollbarState;
 		this._visibilityController = this._register(new VisibilityController(visibility, 'visible scrollbar ' + extraScrollbarClassName, 'invisible scrollbar ' + extraScrollbarClassName));
 		this._mouseMoveMonitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
+		this._shouldRender = true;
 	}
 
 	// ----------------- initialize & clean-up
@@ -440,26 +445,37 @@ export abstract class AbstractScrollbar extends Widget implements IScrollbar {
 
 	// ----------------- Update state
 
-	public onElementSize(visibleSize: number) {
+	public onElementSize(visibleSize: number): boolean {
 		if (this._scrollbarState.setVisibleSize(visibleSize)) {
-			this._renderDomNode(this._scrollbarState.getRectangleLargeSize(), this._scrollbarState.getRectangleSmallSize());
-			this._renderSlider();
 			this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
+			this._shouldRender = true;
+			if (!this._lazyRender) {
+				this.render();
+			}
 		}
+		return this._shouldRender;
 	}
 
-	public onElementScrollSize(elementScrollSize: number): void {
+	public onElementScrollSize(elementScrollSize: number): boolean {
 		if (this._scrollbarState.setScrollSize(elementScrollSize)) {
-			this._renderSlider();
 			this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
+			this._shouldRender = true;
+			if (!this._lazyRender) {
+				this.render();
+			}
 		}
+		return this._shouldRender;
 	}
 
-	public onElementScrollPosition(elementScrollPosition: number): void {
+	public onElementScrollPosition(elementScrollPosition: number): boolean {
 		if (this._scrollbarState.setScrollPosition(elementScrollPosition)) {
-			this._renderSlider();
 			this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
+			this._shouldRender = true;
+			if (!this._lazyRender) {
+				this.render();
+			}
 		}
+		return this._shouldRender;
 	}
 
 	// ----------------- rendering
@@ -472,10 +488,15 @@ export abstract class AbstractScrollbar extends Widget implements IScrollbar {
 		this._visibilityController.setShouldBeVisible(false);
 	}
 
-	private _renderSlider(): void {
+	public render(): void {
+		if (!this._shouldRender) {
+			return;
+		}
+		this._shouldRender = false;
+
+		this._renderDomNode(this._scrollbarState.getRectangleLargeSize(), this._scrollbarState.getRectangleSmallSize());
 		this._updateSlider(this._scrollbarState.getSliderSize(), this._scrollbarState.getArrowSize() + this._scrollbarState.getSliderPosition());
 	}
-
 	// ----------------- DOM events
 
 	private _domNodeMouseDown(e: IMouseEvent): void {
@@ -543,12 +564,18 @@ export abstract class AbstractScrollbar extends Widget implements IScrollbar {
 		return this._scrollbarState.validateScrollPosition(desiredScrollPosition);
 	}
 
-	public setDesiredScrollPosition(desiredScrollPosition: number): void {
+	public setDesiredScrollPosition(desiredScrollPosition: number): boolean {
 		desiredScrollPosition = this.validateScrollPosition(desiredScrollPosition);
 
+		let oldScrollPosition = this._getScrollPosition();
 		this._setScrollPosition(desiredScrollPosition);
-		this.onElementScrollPosition(desiredScrollPosition);
-		this._renderSlider();
+		let newScrollPosition = this._getScrollPosition();
+
+		if (oldScrollPosition !== newScrollPosition) {
+			this.onElementScrollPosition(this._getScrollPosition());
+			return true;
+		}
+		return false;
 	}
 
 	// ----------------- Overwrite these

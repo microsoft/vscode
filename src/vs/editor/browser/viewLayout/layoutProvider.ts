@@ -249,4 +249,8 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 	public getScrolledTopFromAbsoluteTop(top:number): number {
 		return top - this.scrollable.getScrollTop();
 	}
+
+	public renderScrollbar(): void {
+		this.scrollManager.renderScrollbar();
+	}
 }

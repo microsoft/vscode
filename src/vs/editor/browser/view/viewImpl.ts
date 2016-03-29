@@ -909,6 +909,9 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			viewPart.onDidRender();
 		}
 
+		// Render the scrollbar
+		this.layoutProvider.renderScrollbar();
+
 		t.stop();
 	}
 

@@ -47,6 +47,7 @@ export class ScrollManager implements IDisposable {
 			horizontal: configScrollbarOpts.horizontal,
 			className: ClassNames.SCROLLABLE_ELEMENT + ' ' + this.configuration.editor.theme,
 			useShadows: false,
+			lazyRender: true,
 			saveLastScrollTimeOnClassName: ClassNames.VIEW_LINE
 		};
 		addPropertyIfPresent(configScrollbarOpts, scrollbarOptions, 'verticalHasArrows');
@@ -103,6 +104,10 @@ export class ScrollManager implements IDisposable {
 
 	public dispose(): void {
 		this.toDispose = disposeAll(this.toDispose);
+	}
+
+	public renderScrollbar(): void {
+		this.scrollbar.renderNow();
 	}
 
 	public onSizeProviderLayoutChanged(): void {

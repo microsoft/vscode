@@ -22,7 +22,7 @@ export class VerticalScrollbar extends AbstractScrollbar {
 			// give priority to vertical scroll bar over horizontal and let it scroll all the way to the bottom
 			0
 		);
-		super(options.forbidTranslate3dUse, parent, s, options.vertical, 'vertical');
+		super(options.forbidTranslate3dUse, options.lazyRender, parent, s, options.vertical, 'vertical');
 		this._scrollable = scrollable;
 
 		this._createDomNode();

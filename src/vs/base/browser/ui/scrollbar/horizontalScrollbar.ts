@@ -21,7 +21,7 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 			(options.horizontal === Visibility.Hidden ? 0 : options.horizontalScrollbarSize),
 			(options.vertical === Visibility.Hidden ? 0 : options.verticalScrollbarSize)
 		);
-		super(options.forbidTranslate3dUse, parent, s, options.horizontal, 'horizontal');
+		super(options.forbidTranslate3dUse, options.lazyRender, parent, s, options.horizontal, 'horizontal');
 		this._scrollable = scrollable;
 
 		this._createDomNode();
