@@ -10,7 +10,7 @@ import * as editor from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
-import AbstractWorker from './worker/abstractWorker';
+import AbstractWorker from './worker/worker';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
 import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
@@ -38,7 +38,7 @@ abstract class Adapter {
 		const model = this._modelService.getModel(resource);
 		let result = position.column - 1;
 		for (let i = 1; i < position.lineNumber; i++) {
-			result += model.getLineContent(i).length;
+			result += model.getLineContent(i).length + model.getEOL().length;
 		}
 		return result;
 	}
@@ -46,12 +46,15 @@ abstract class Adapter {
 	protected _offsetToPosition(resource: URI, offset: number): editor.IPosition {
 		const model = this._modelService.getModel(resource);
 		let lineNumber = 1;
-		let lastLineLen: number;
-		while (offset >= 0) {
-			lastLineLen = model.getLineContent(lineNumber).length;
-			offset -= lastLineLen;
+		while (true) {
+			let len = model.getLineContent(lineNumber).length + model.getEOL().length;
+			if (offset < len) {
+				break;
+			}
+			offset -= len;
+			lineNumber++;
 		}
-		return { lineNumber, column: 1 + lastLineLen + offset };
+		return { lineNumber, column: 1 + offset };
 	}
 
 	protected _textSpanToRange(resource: URI, span: ts.TextSpan): editor.IRange {
@@ -132,6 +135,9 @@ class QuickInfoAdapter extends Adapter implements modes.IExtraInfoSupport {
 		return this._worker().then(worker => {
 			return worker.getQuickInfoAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(info => {
+			if (!info) {
+				return;
+			}
 			return <modes.IComputeExtraInfoResult>{
 				range: this._textSpanToRange(resource, info.textSpan),
 				value: ts.displayPartsToString(info.displayParts)
@@ -148,6 +154,9 @@ class OccurrencesAdapter extends Adapter implements modes.IOccurrencesSupport {
 		return this._worker().then(worker => {
 			return worker.getOccurrencesAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(entries => {
+			if (!entries) {
+				return;
+			}
 			return entries.map(entry => {
 				return <modes.IOccurence>{
 					range: this._textSpanToRange(resource, entry.textSpan),
@@ -170,6 +179,9 @@ class DeclarationAdapter extends Adapter implements modes.IDeclarationSupport {
 		return this._worker().then(worker => {
 			return worker.getDefinitionAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(entries => {
+			if (!entries) {
+				return;
+			}
 			const result: modes.IReference[] = [];
 			for (let entry of entries) {
 				const uri = URI.parse(entry.fileName);
@@ -201,6 +213,9 @@ class ReferenceAdapter extends Adapter implements modes.IReferenceSupport {
 		return this._worker().then(worker => {
 			return worker.getReferencesAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(entries => {
+			if (!entries) {
+				return;
+			}
 			const result: modes.IReference[] = [];
 			for (let entry of entries) {
 				const uri = URI.parse(entry.fileName);

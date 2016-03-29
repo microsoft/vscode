@@ -5,7 +5,7 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import AbstractWorker, {IRawModelData} from './abstractWorker';
+import AbstractWorker, {IRawModelData} from './worker';
 import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 import {IModelContentChangedEvent2} from 'vs/editor/common/editorCommon';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
@@ -43,6 +43,8 @@ class TypeScriptWorker extends AbstractWorker implements ts.LanguageServiceHost 
 	}
 
 	getCompilationSettings(): ts.CompilerOptions {
+		this._compilerOptions.allowNonTsExtensions = true;
+		// this._compilerOptions.allowNonTsExtensions = true;
 		return this._compilerOptions;
 	}
 
@@ -55,12 +57,14 @@ class TypeScriptWorker extends AbstractWorker implements ts.LanguageServiceHost 
 	}
 
 	getScriptSnapshot(fileName: string): ts.IScriptSnapshot {
-		const text = this._models[fileName].getText();
-		return <ts.IScriptSnapshot>{
-			getText: (start, end) => text.substring(start, end),
-			getLength: () => text.length,
-			getChangeRange: () => undefined
-		};
+		if (fileName in this._models) {
+			const text = this._models[fileName].getText();
+			return <ts.IScriptSnapshot>{
+				getText: (start, end) => text.substring(start, end),
+				getLength: () => text.length,
+				getChangeRange: () => undefined
+			};
+		}
 	}
 
 	getCurrentDirectory(): string {

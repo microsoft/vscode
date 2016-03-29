@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import WinJS = require('vs/base/common/winjs.base');
 import Modes = require('vs/editor/common/modes');
 import lifecycle = require('vs/base/common/lifecycle');
 import tokenization = require('vs/languages/typescript/common/features/tokenization');
@@ -12,12 +11,6 @@ import {AbstractMode, createWordRegExp} from 'vs/editor/common/modes/abstractMod
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
-import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
-import {SimpleWorkerClient} from 'vs/base/common/worker/simpleWorker';
-import AbstractWorker from './worker/abstractWorker';
-
-import registerLanguaeFeatures from './languageFeatures';
-
 
 export class TypeScriptMode extends AbstractMode implements lifecycle.IDisposable {
 
@@ -35,8 +28,13 @@ export class TypeScriptMode extends AbstractMode implements lifecycle.IDisposabl
 		super(descriptor.id);
 
 		this._modelService = modelService;
+
 		if (threadService.isInMainThread) {
-			this._setupWorker();
+			require(['vs/languages/typescript/common/worker/workerManager'], manager => {
+				this._disposables.push(manager.create(this.getId(), this._modelService));
+			}, err => {
+				console.error(err);
+			});
 		}
 
 		this.tokenizationSupport = tokenization.createTokenizationSupport(this, tokenization.Language.TypeScript);
@@ -97,49 +95,5 @@ export class TypeScriptMode extends AbstractMode implements lifecycle.IDisposabl
 
 	public dispose(): void {
 		this._disposables = lifecycle.disposeAll(this._disposables);
-	}
-
-	private _setupWorker(): void {
-
-		const factory = new DefaultWorkerFactory();
-		let client: SimpleWorkerClient<AbstractWorker>;
-		let handle: number;
-
-		this._disposables.push({
-			dispose() {
-				clearTimeout(handle);
-				if (client) {
-					client.dispose();
-				}
-			}
-		});
-
-		const worker = () => {
-
-			if (!client) {
-				client = new SimpleWorkerClient<AbstractWorker>(
-					factory,
-					'vs/languages/typescript/common/worker/typescriptWorker',
-					AbstractWorker);
-
-				handle = setInterval(() => {
-					if (Date.now() - client.getLastRequestTimestamp() > 1000 * 60 * 5) {
-						dispose();
-					}
-				}, 1000 * 60);
-
-				function dispose() {
-					clearTimeout(handle);
-					client.dispose();
-					client = undefined;
-				}
-			}
-
-			let result = client.get();
-			return WinJS.TPromise.as(result);
-		};
-
-		// --- register features
-		registerLanguaeFeatures(this.getId(), this._modelService, worker);
 	}
 }
