@@ -420,8 +420,8 @@ export interface IParameterHintsSupport {
 
 
 export interface IOccurence {
-	kind?:string;
-	range:editorCommon.IRange;
+	kind?: 'write' | 'text' | string;
+	range: editorCommon.IRange;
 }
 
 /**

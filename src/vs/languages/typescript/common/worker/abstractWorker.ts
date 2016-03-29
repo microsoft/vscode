@@ -6,6 +6,7 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {notImplemented} from 'vs/base/common/errors';
+import {IRequestHandler} from 'vs/base/common/worker/simpleWorker';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 
@@ -16,7 +17,9 @@ export interface IRawModelData {
 	value:editorCommon.IRawText;
 }
 
-abstract class AbstractWorker {
+abstract class AbstractWorker implements IRequestHandler {
+	
+	_requestHandlerTrait: any;
 
 	// --- model sync
 
@@ -35,6 +38,18 @@ abstract class AbstractWorker {
 	// --- language features
 
 	getCompletionsAtPosition(uri: string, offset: number): TPromise<ts.CompletionInfo> {
+		throw notImplemented();
+	}
+
+	getCompletionEntryDetails(fileName: string, position: number, entry: string): TPromise<ts.CompletionEntryDetails> {
+		throw notImplemented();
+	}
+
+	getQuickInfoAtPosition(fileName: string, position: number): TPromise<ts.QuickInfo> {
+		throw notImplemented();
+	}
+
+	getOccurrencesAtPosition(fileName: string, position: number): TPromise<ts.ReferenceEntry[]> {
 		throw notImplemented();
 	}
 }

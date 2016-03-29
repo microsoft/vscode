@@ -7,7 +7,7 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import AbstractWorker, {IRawModelData} from './abstractWorker';
 import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import {IModelContentChangedEvent2} from 'vs/editor/common/editorCommon';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
 import URI from 'vs/base/common/uri';
 
@@ -25,7 +25,7 @@ class TypeScriptWorker extends AbstractWorker implements ts.LanguageServiceHost 
 			data.value.EOL, data.versionId);
 	}
 
-	acceptModelChanged(uri: string, events: editorCommon.IModelContentChangedEvent2[]): void {
+	acceptModelChanged(uri: string, events: IModelContentChangedEvent2[]): void {
 		const model = this._models[uri];
 		if (model) {
 			model.onEvents(events);
@@ -36,11 +36,11 @@ class TypeScriptWorker extends AbstractWorker implements ts.LanguageServiceHost 
 		delete this._models[uri];
 	}
 
+	// --- language service host ---------------
+
 	acceptCompilerOptions(options: ts.CompilerOptions): void {
 		this._compilerOptions = options;
 	}
-
-	// --- language service host ---------------
 
 	getCompilationSettings(): ts.CompilerOptions {
 		return this._compilerOptions;
@@ -73,8 +73,23 @@ class TypeScriptWorker extends AbstractWorker implements ts.LanguageServiceHost 
 
 	// --- language features
 
-	suggest(uri: string, offset:number) {
-		return TPromise.as(this._languageService.getCompletionsAtPosition(uri, offset));
+	getCompletionsAtPosition(fileName: string, position:number): TPromise<ts.CompletionInfo> {
+		return TPromise.as(this._languageService.getCompletionsAtPosition(fileName, position));
 	}
 
+	getCompletionEntryDetails(fileName: string, position: number, entry: string): TPromise<ts.CompletionEntryDetails> {
+		return TPromise.as(this._languageService.getCompletionEntryDetails(fileName, position, entry));
+	}
+
+	getQuickInfoAtPosition(fileName: string, position: number): TPromise<ts.QuickInfo> {
+		return TPromise.as(this._languageService.getQuickInfoAtPosition(fileName, position));
+	}
+
+	getOccurrencesAtPosition(fileName: string, position: number): TPromise<ts.ReferenceEntry[]> {
+		return TPromise.as(this._languageService.getOccurrencesAtPosition(fileName, position));
+	}
+}
+
+export function create(): AbstractWorker {
+	return new TypeScriptWorker();
 }

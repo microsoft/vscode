@@ -19,7 +19,6 @@ import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
 import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
 import {ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
-import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import tokenization = require('vs/languages/typescript/common/features/tokenization');
 // import tokenization = typescriptMode.tokenization;
 
@@ -107,12 +106,6 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 				]
 			}
 		});
-
-		this.suggestSupport = new SuggestSupport(this.getId(), {
-			triggerCharacters: ['.'],
-			excludeTokens: ['string', 'comment', 'number', 'numeric'],
-			suggest: (resource, position) => this.suggest(resource, position),
-			getSuggestionDetails: (resource, position, suggestion) => this.getSuggestionDetails(resource, position, suggestion)});
 	}
 
 	protected _createModeWorkerManager(descriptor:Modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<javascriptWorker.JavaScriptWorker> {

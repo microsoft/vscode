@@ -26,136 +26,33 @@ import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
 import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
 import {ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
-import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
 import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
 import {SimpleWorkerClient} from 'vs/base/common/worker/simpleWorker';
 import AbstractWorker from './worker/abstractWorker';
 
+import registerLanguaeFeatures from './languageFeatures';
 
-class SemanticValidator {
-
-	private _modelService: IModelService;
-	private _mode: TypeScriptMode<any>;
-	private _validation: async.RunOnceScheduler;
-	private _lastChangedResource: URI;
-	private _listener: { [r: string]: Function } = Object.create(null);
-
-	constructor(mode: TypeScriptMode<any>, @IModelService modelService: IModelService) {
-		this._modelService = modelService;
-		this._mode = mode;
-		this._validation = new async.RunOnceScheduler(this._doValidate.bind(this), 750);
-		if (this._modelService) {
-			this._modelService.onModelAdded(this._onModelAdded, this);
-			this._modelService.onModelRemoved(this._onModelRemoved, this);
-			this._modelService.onModelModeChanged(event => {
-				// Handle a model mode changed as a remove + add
-				this._onModelRemoved(event.model);
-				this._onModelAdded(event.model);
-			}, this);
-			this._modelService.getModels().forEach(this._onModelAdded, this);
-		// } else {
-		// 	console.warn('NO model service for validation');
-		}
-	}
-
-	public dispose(): void {
-		this._validation.dispose();
-	}
-
-	private _lastValidationReq: number = 0;
-
-	public validateOpen(): void {
-		this._scheduleValidation();
-	}
-
-	private _scheduleValidation(resource?: URI): void {
-		this._lastValidationReq += 1;
-		this._lastChangedResource = resource;
-		this._validation.schedule();
-	}
-
-	private _doValidate(): void {
-
-		var resources: URI[] = [];
-		if (this._lastChangedResource) {
-			resources.push(this._lastChangedResource);
-		}
-		for (var k in this._listener) {
-			if (!this._lastChangedResource || k !== this._lastChangedResource.toString()) {
-				resources.push(URI.parse(k));
-			}
-		}
-
-		var thisValidationReq = this._lastValidationReq;
-		var validate = async.sequence(resources.map(r => {
-			return () => {
-
-				if (!this._modelService.getModel(r)) {
-					return WinJS.TPromise.as(undefined);
-				}
-
-				if (thisValidationReq === this._lastValidationReq) {
-					return this._mode.doValidateSemantics(r);
-				}
-			};
-		}));
-
-		validate.done(undefined, err => console.warn(err));
-	}
-
-	private _onModelAdded(model: EditorCommon.IModel): void {
-
-		if (!this._mode._shouldBeValidated(model)) {
-			return;
-		}
-
-		var validate: Function,
-			unbind: Function;
-
-		validate = () => {
-			this._scheduleValidation(model.getAssociatedResource());
-		};
-
-		unbind = model.addListener(EditorCommon.EventType.ModelContentChanged2, _ => validate());
-		this._listener[model.getAssociatedResource().toString()] = unbind;
-		validate();
-	}
-
-	private _onModelRemoved(model: EditorCommon.IModel): void {
-		var unbind = this._listener[model.getAssociatedResource().toString()];
-		if (unbind) {
-			unbind();
-			delete this._listener[model.getAssociatedResource().toString()];
-		}
-	}
-}
-
+// --- language features ------------------------
 export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extends AbstractMode implements lifecycle.IDisposable {
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
 	public configSupport:Modes.IConfigurationSupport;
 	public referenceSupport: Modes.IReferenceSupport;
-	public extraInfoSupport:Modes.IExtraInfoSupport;
-	public occurrencesSupport:Modes.IOccurrencesSupport;
 	public parameterHintsSupport:Modes.IParameterHintsSupport;
 	public outlineSupport:Modes.IOutlineSupport;
 	public declarationSupport: Modes.IDeclarationSupport;
 	public formattingSupport: Modes.IFormattingSupport;
 	public emitOutputSupport:Modes.IEmitOutputSupport;
 	public renameSupport: Modes.IRenameSupport;
-	public suggestSupport: Modes.ISuggestSupport;
 
 	private _telemetryService: ITelemetryService;
 	private _disposables: lifecycle.IDisposable[] = [];
 	private _projectResolver: WinJS.TPromise<typescript.IProjectResolver2>;
-	private _semanticValidator: SemanticValidator;
 	private _modeWorkerManager: ModeWorkerManager<W>;
 	private _threadService:IThreadService;
 	private _instantiationService: IInstantiationService;
-
-	private _worker2: SimpleWorkerClient<AbstractWorker>;
 
 	constructor(
 		descriptor: Modes.IModeDescriptor,
@@ -166,10 +63,27 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	) {
 		super(descriptor.id);
 
-		this._worker2 = new SimpleWorkerClient<AbstractWorker>(
-			new DefaultWorkerFactory(),
-			'vs/languages/typescript/common/worker/typescriptWorker',
-			AbstractWorker);
+		if (threadService.isInMainThread) {
+
+			const factory = new DefaultWorkerFactory();
+			let client: SimpleWorkerClient<AbstractWorker>;
+
+			const worker = () => {
+
+				if (!client) {
+					client = new SimpleWorkerClient<AbstractWorker>(
+						factory,
+						'vs/languages/typescript/common/worker/typescriptWorker',
+						AbstractWorker);
+				}
+
+				let result = client.get();
+				return WinJS.TPromise.as(result);
+			};
+
+			// --- register features
+			registerLanguaeFeatures(descriptor.id, _modelService, worker);
+		}
 
 		this._threadService = threadService;
 		this._instantiationService = instantiationService;
@@ -178,9 +92,6 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 
 		if (this._threadService && this._threadService.isInMainThread) {
 
-			// semantic validation from the client side
-			this._semanticValidator = instantiationService.createInstance(SemanticValidator, this);
-			this._disposables.push(this._semanticValidator);
 
 			// create project resolver
 			var desc = this._getProjectResolver();
@@ -203,8 +114,6 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 		}
 
 		this.configSupport = this;
-		this.extraInfoSupport = this;
-		this.occurrencesSupport = this;
 		this.formattingSupport = this;
 		this.outlineSupport = this;
 		this.emitOutputSupport = this;
@@ -277,12 +186,6 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 			triggerCharacters: ['(', ','],
 			excludeTokens: ['string.ts'],
 			getParameterHints: (resource, position) => this.getParameterHints(resource, position)});
-
-		this.suggestSupport = new SuggestSupport(this.getId(), {
-			triggerCharacters: ['.'],
-			excludeTokens: ['string', 'comment', 'number'],
-			suggest: (resource, position) => this.suggest(resource, position),
-			getSuggestionDetails: (resource, position, suggestion) => this.getSuggestionDetails(resource, position, suggestion)});
 	}
 
 	public creationDone(): void {
@@ -317,7 +220,6 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	}
 
 	acceptProjectChanges(changes: { kind: typescript.ChangeKind; resource: URI; files: URI[]; options: ts.CompilerOptions }[]): WinJS.TPromise<{[dirname:string]:URI}> {
-		this._semanticValidator.validateOpen();
 		return this._doAcceptProjectChanges(changes);
 	}
 
@@ -341,7 +243,6 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 					"Sorry, but there are too many JavaScript source files for VS Code. Consider using the exclude-property in jsconfig.json."));
 			}
 			return this._doAcceptFileChanges(changes).then(accepted => {
-				this._semanticValidator.validateOpen();
 				return accepted;
 			});
 		});
@@ -401,9 +302,6 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 
 	public configure(options: any): WinJS.TPromise<void> {
 		var ret = this.superConfigure(options);
-		if (this._semanticValidator) {
-			ret.then(validate => validate && this._semanticValidator.validateOpen());
-		}
 		return ret;
 	}
 
@@ -427,45 +325,6 @@ export class TypeScriptMode<W extends typescriptWorker.TypeScriptWorker2> extend
 	static $getOutline = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.getOutline, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group1);
 	public getOutline(resource:URI):WinJS.TPromise<Modes.IOutlineEntry[]> {
 		return this._worker((w) => w.getOutline(resource));
-	}
-
-	static $findOccurrences = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.findOccurrences, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group2);
-	public findOccurrences(resource:URI, position:EditorCommon.IPosition, strict:boolean = false): WinJS.TPromise<Modes.IOccurence[]> {
-		return this._worker((w) => w.findOccurrences(resource, position, strict));
-	}
-
-	static $suggest = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.suggest, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group2);
-	public suggest(resource: URI, position: EditorCommon.IPosition): WinJS.TPromise<Modes.ISuggestResult[]> {
-		return this._worker((w) => w.suggest(resource, position));
-	}
-
-	public suggest2(resource: URI, position: EditorCommon.IPosition): WinJS.TPromise<Modes.ISuggestResult[]> {
-
-		const model = this._modelService.getModel(resource);
-		const wordInfo = model.getWordUntilPosition(position);
-		const offset = 0; //model.getOffset(position);
-
-		return this._worker2.get().getCompletionsAtPosition(resource.toString(), offset).then(info => {
-
-			let suggestions = info.entries.map(entry => {
-				return <Modes.ISuggestion>{
-					label: entry.name,
-					codeSnippet: entry.name,
-					type: undefined
-				};
-			});
-
-			return [{
-				currentWord: wordInfo && wordInfo.word,
-				suggestions
-			}];
-		});
-	}
-
-
-	static $getSuggestionDetails = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.getSuggestionDetails, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group2);
-	public getSuggestionDetails(resource:URI, position:EditorCommon.IPosition, suggestion:Modes.ISuggestion):WinJS.TPromise<Modes.ISuggestion> {
-		return this._worker((w) => w.getSuggestionDetails(resource, position, suggestion));
 	}
 
 	static $getParameterHints = OneWorkerAttr(TypeScriptMode, TypeScriptMode.prototype.getParameterHints, TypeScriptMode.prototype._syncProjects, ThreadAffinity.Group2);
