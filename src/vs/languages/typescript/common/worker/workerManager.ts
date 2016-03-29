@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
 import {SimpleWorkerClient} from 'vs/base/common/worker/simpleWorker';
@@ -11,11 +12,29 @@ import AbstractWorker from './worker';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import registerLanguageFeatures from '../languageFeatures';
 
+import 'vs/text!vs/languages/typescript/common/lib/lib.d.ts';
+import 'vs/text!vs/languages/typescript/common/lib/lib.es6.d.ts';
+
+
+function loadDefaultLib(modelService: IModelService, path: string): TPromise<any> {
+	return new TPromise((resolve, reject) => {
+		require([path], lib => {
+			modelService.createModel(lib, null, URI.parse('ts:' + path));
+			resolve(undefined);
+		}, reject);
+	});
+}
+
 export function create(selector: string, modelService: IModelService) {
 
 	const factory = new DefaultWorkerFactory();
 	let client: SimpleWorkerClient<AbstractWorker>;
 	let handle: number;
+
+	let defaultLibs = TPromise.join([
+		// loadDefaultLib(modelService, 'vs/text!vs/languages/typescript/common/lib/lib.d.ts'),
+		loadDefaultLib(modelService, 'vs/text!vs/languages/typescript/common/lib/lib.es6.d.ts')
+	]);
 
 	const worker = () => {
 
@@ -54,7 +73,8 @@ export function create(selector: string, modelService: IModelService) {
 				}
 			}));
 		});
-		return TPromise.join(promises).then(() => result);
+
+		return TPromise.join(promises).then(() => defaultLibs).then(() => result);
 	};
 
 	// --- register features
