@@ -103,7 +103,8 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 	commitHash: string;
 	updateFeedUrl: string;
 	updateChannel: string;
-	recentPaths: string[];
+	recentFiles: string[];
+	recentFolders: string[];
 	workspacePath?: string;
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];

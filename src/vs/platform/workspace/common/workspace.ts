@@ -132,7 +132,8 @@ export interface IEnvironment {
 	extensionDevelopmentPath: string;
 	extensionTestsPath: string;
 
-	recentPaths: string[];
+	recentFiles: string[];
+	recentFolders: string[];
 
 	enableTelemetry: boolean;
 
