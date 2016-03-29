@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {forEach} from 'vs/base/common/collections';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
@@ -26,28 +27,41 @@ class Client {
 	}
 
 	private _createClient(): TPromise<AbstractWorker> {
-		let client = new SimpleWorkerClient<AbstractWorker>(
-			this._factory,
-			'vs/languages/typescript/common/worker/workerImpl',
-			AbstractWorker);
-
 		this._clientDispose = [];
 
-		const handle = setInterval(() => {
-			if (Date.now() - client.getLastRequestTimestamp() > 1000 * 60) {
-				this._clientDispose = disposeAll(this._clientDispose);
-				this._client = null;
-				client = null;
-			}
-		}, 1000 * 60);
-
-		this._clientDispose.push({ dispose() { clearInterval(handle); } });
+		let client = new SimpleWorkerClient<AbstractWorker>(this._factory,
+			'vs/languages/typescript/common/worker/workerImpl',
+			AbstractWorker);
 		this._clientDispose.push(client);
 
-		const worker = client.get();
-		this._clientDispose.push(Defaults.onDidChangeCompilerOptions(options => worker.acceptCompilerOptions(options)));
+		const stopWorker = () => {
+			this._clientDispose = disposeAll(this._clientDispose);
+			this._client = null;
+			client = null;
+		};
 
-		return worker.acceptCompilerOptions(Defaults.getCompilerOptions()).then(() => worker);
+		// stop worker after being idle
+		const handle = setInterval(() => {
+			if (Date.now() - client.getLastRequestTimestamp() > 1000 * 60) {
+				stopWorker();
+			}
+		}, 1000 * 60);
+		this._clientDispose.push({ dispose() { clearInterval(handle); } });
+
+		// stop worker when defaults change
+		this._clientDispose.push(Defaults.onDidChange(() => stopWorker()));
+
+
+		// send default to worker right away
+		const worker = client.get();
+		const promises: TPromise<any>[] = [];
+		promises.push(worker.acceptCompilerOptions(Defaults.compilerOptions));
+		forEach(Defaults.extraLibs, entry => promises.push(worker.acceptExtraLib(entry.key, entry.value)));
+
+		return TPromise.join(promises).then(() => {
+			promises.length = 0;
+			return worker;
+		});
 	}
 
 	dispose(): void {

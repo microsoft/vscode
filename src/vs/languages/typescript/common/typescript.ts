@@ -10,21 +10,15 @@ import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 
 export class LanguageServiceDefaults {
 
+	private _onDidChange = new Emitter<LanguageServiceDefaults>();
 	private _compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, target: ts.ScriptTarget.Latest };
-	private _onDidChangeCompilerOptions = new Emitter<ts.CompilerOptions>();
 	private _extraLibs: { [path: string]: string } = Object.create(null);
-	private _onDidAddExtraLib = new Emitter<string>();
-	private _onDidRemoveExtraLib = new Emitter<string>();
 
-	get onDidAddExtraLibs(): Event<string> {
-		return this._onDidAddExtraLib.event;
+	get onDidChange(): Event<LanguageServiceDefaults>{
+		return this._onDidChange.event;
 	}
 
-	get onDidRemoveExtraLib(): Event<string> {
-		return this._onDidRemoveExtraLib.event;
-	}
-
-	getExtraLibs(): { [path: string]: string } {
+	get extraLibs(): { [path: string]: string } {
 		return Object.freeze(this._extraLibs);
 	}
 
@@ -38,28 +32,24 @@ export class LanguageServiceDefaults {
 		}
 
 		this._extraLibs[filePath] = content;
-		this._onDidAddExtraLib.fire(filePath);
+		this._onDidChange.fire(this);
 
 		return {
 			dispose: () => {
 				if (delete this._extraLibs[filePath]) {
-					this._onDidRemoveExtraLib.fire(filePath);
+					this._onDidChange.fire(this);
 				}
 			}
 		};
 	}
 
-	get onDidChangeCompilerOptions(): Event<ts.CompilerOptions> {
-		return this._onDidChangeCompilerOptions.event;
-	}
-
-	getCompilerOptions(): ts.CompilerOptions {
+	get compilerOptions(): ts.CompilerOptions {
 		return this._compilerOptions;
 	}
 
 	setCompilerOptions(options: ts.CompilerOptions): void {
 		this._compilerOptions = options || Object.create(null);
-		this._onDidChangeCompilerOptions.fire(this._compilerOptions);
+		this._onDidChange.fire(this);
 	}
 }
 

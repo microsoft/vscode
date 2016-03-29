@@ -39,6 +39,10 @@ abstract class AbstractWorker implements IRequestHandler {
 		throw notImplemented();
 	}
 
+	acceptExtraLib(fileName: string, content: string): TPromise<void>{
+		throw notImplemented();
+	}
+
 	// --- language features
 
 	getCompletionsAtPosition(uri: string, offset: number): TPromise<ts.CompletionInfo> {
