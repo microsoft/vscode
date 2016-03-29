@@ -431,6 +431,8 @@ export class GitService extends ee.EventEmitter
 		this.triggerStatus(true); // trigger initial status
 
 		this.raw.getVersion().done(version => {
+			version = version || '';
+			version = version.replace(/^(\d+\.\d+\.\d+).*$/, '$1');
 			version = semver.valid(version);
 
 			if (version && semver.satisfies(version, '<2.0.0')) {
