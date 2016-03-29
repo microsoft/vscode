@@ -45,6 +45,11 @@ export interface IComposite {
 	getSelection(): ISelection;
 
 	/**
+	 * Returns the minimal width needed to avoid any content horizontal truncation
+	 */
+	getOptimalWidth(): number;
+
+	/**
 	 * Asks the underlying control to focus.
 	 */
 	focus(): void;

@@ -12,6 +12,7 @@ import {Sash, ISashEvent, IVerticalSashLayoutProvider, IHorizontalSashLayoutProv
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IPartService, Position} from 'vs/workbench/services/part/common/partService';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
+import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -94,6 +95,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IPartService private partService: IPartService,
+		@IViewletService private viewletService: IViewletService,
 		@IThemeService themeService: IThemeService
 	) {
 		this.parent = parent;
@@ -226,6 +228,15 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			this.panelHeight = DEFAULT_MIN_PANEL_PART_HEIGHT;
 			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
 			this.partService.setPanelHidden(false);
+			this.layout();
+		});
+
+		this.sashX.addListener('reset', () => {
+			let activeViewlet = this.viewletService.getActiveViewlet();
+			let optimalWidth = activeViewlet && activeViewlet.getOptimalWidth();
+			this.sidebarWidth = Math.max(DEFAULT_MIN_PART_WIDTH, optimalWidth || 0);
+			this.storageService.store(WorkbenchLayout.sashXWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
+			this.partService.setSideBarHidden(false);
 			this.layout();
 		});
 	}
