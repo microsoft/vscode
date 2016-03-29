@@ -13,6 +13,7 @@ import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 import AbstractWorker from './worker/worker';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
+import {ParameterHintsRegistry} from 'vs/editor/contrib/parameterHints/common/parameterHints';
 import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import {ExtraInfoRegistry} from 'vs/editor/contrib/hover/common/hover';
 import {ReferenceRegistry} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
@@ -21,6 +22,7 @@ import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goTo
 export default function registerLanguageFeatures(selector: string, modelService: IModelService, worker: () => TPromise<AbstractWorker>): lifecycle.IDisposable {
 	const disposables: lifecycle.IDisposable[] = [];
 	disposables.push(SuggestRegistry.register(selector, new SuggestAdapter(modelService, worker)));
+	disposables.push(ParameterHintsRegistry.register(selector, new ParameterHintsAdapter(modelService, worker)));
 	disposables.push(ExtraInfoRegistry.register(selector, new QuickInfoAdapter(modelService, worker)));
 	disposables.push(OccurrencesRegistry.register(selector, new OccurrencesAdapter(modelService, worker)));
 	disposables.push(DeclarationRegistry.register(selector, new DeclarationAdapter(modelService, worker)));
@@ -79,7 +81,9 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 		return this._worker().then(worker => {
 			return worker.getCompletionsAtPosition(resource.toString(), offset);
 		}).then(info => {
-
+			if (!info) {
+				return;
+			}
 			let suggestions = info.entries.map(entry => {
 				return <modes.ISuggestion>{
 					label: entry.name,
@@ -103,6 +107,9 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 				suggestion.label);
 
 		}).then(details => {
+			if (!details) {
+				return suggestion;
+			}
 			return <modes.ISuggestion>{
 				label: details.name,
 				codeSnippet: details.name,
@@ -130,6 +137,59 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 	}
 }
 
+class ParameterHintsAdapter extends Adapter implements modes.IParameterHintsSupport {
+	getParameterHintsTriggerCharacters(): string[] {
+		return ['(', ','];
+	}
+	shouldTriggerParameterHints(context: modes.ILineContext, offset: number): boolean {
+		return true;
+	}
+	getParameterHints(resource: URI, position: editor.IPosition, triggerCharacter?: string): TPromise<modes.IParameterHints> {
+		return this._worker().then(worker => worker.getSignatureHelpItems(resource.toString(), this._positionToOffset(resource, position))).then(info => {
+
+			if (!info) {
+				return;
+			}
+
+			let ret = <modes.IParameterHints>{
+				currentSignature: info.selectedItemIndex,
+				currentParameter: info.argumentIndex,
+				signatures: []
+			};
+
+			info.items.forEach(item => {
+
+				let signature = <modes.ISignature>{
+					label: '',
+					documentation: null,
+					parameters: []
+				};
+
+				signature.label += ts.displayPartsToString(item.prefixDisplayParts);
+				item.parameters.forEach((p, i, a) => {
+					let label = ts.displayPartsToString(p.displayParts);
+					let parameter = <modes.IParameter>{
+						label: label,
+						documentation: ts.displayPartsToString(p.documentation),
+						signatureLabelOffset: signature.label.length,
+						signatureLabelEnd: signature.label.length + label.length
+					};
+					signature.label += label;
+					signature.parameters.push(parameter);
+					if (i < a.length - 1) {
+						signature.label += ts.displayPartsToString(item.separatorDisplayParts);
+					}
+				});
+				signature.label += ts.displayPartsToString(item.suffixDisplayParts);
+				ret.signatures.push(signature);
+			});
+
+			return ret;
+
+		});
+	}
+}
+
 // --- hover ------
 
 class QuickInfoAdapter extends Adapter implements modes.IExtraInfoSupport {
@@ -153,7 +213,7 @@ class QuickInfoAdapter extends Adapter implements modes.IExtraInfoSupport {
 
 class OccurrencesAdapter extends Adapter implements modes.IOccurrencesSupport {
 
-	findOccurrences(resource: URI, position: editor.IPosition, strict?: boolean): TPromise<modes.IOccurence[]>{
+	findOccurrences(resource: URI, position: editor.IPosition, strict?: boolean): TPromise<modes.IOccurence[]> {
 		return this._worker().then(worker => {
 			return worker.getOccurrencesAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(entries => {
@@ -174,7 +234,7 @@ class OccurrencesAdapter extends Adapter implements modes.IOccurrencesSupport {
 
 class DeclarationAdapter extends Adapter implements modes.IDeclarationSupport {
 
-	canFindDeclaration(context: modes.ILineContext, offset: number): boolean{
+	canFindDeclaration(context: modes.ILineContext, offset: number): boolean {
 		return true;
 	}
 
@@ -212,7 +272,7 @@ class ReferenceAdapter extends Adapter implements modes.IReferenceSupport {
 	 * @returns a list of reference of the symbol at the position in the
 	 * 	given resource.
 	 */
-	findReferences(resource: URI, position: editor.IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]>{
+	findReferences(resource: URI, position: editor.IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]> {
 		return this._worker().then(worker => {
 			return worker.getReferencesAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(entries => {

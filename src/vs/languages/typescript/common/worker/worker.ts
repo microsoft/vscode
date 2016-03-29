@@ -45,6 +45,10 @@ abstract class AbstractWorker implements IRequestHandler {
 		throw notImplemented();
 	}
 
+	getSignatureHelpItems(fileName: string, position:number): TPromise<ts.SignatureHelpItems> {
+		throw notImplemented();
+	}
+
 	getQuickInfoAtPosition(fileName: string, position: number): TPromise<ts.QuickInfo> {
 		throw notImplemented();
 	}

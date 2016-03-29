@@ -85,6 +85,10 @@ class TypeScriptWorker extends AbstractWorker implements ts.LanguageServiceHost 
 		return TPromise.as(this._languageService.getCompletionEntryDetails(fileName, position, entry));
 	}
 
+	getSignatureHelpItems(fileName: string, position:number): TPromise<ts.SignatureHelpItems> {
+		return TPromise.as(this._languageService.getSignatureHelpItems(fileName, position));
+	}
+
 	getQuickInfoAtPosition(fileName: string, position: number): TPromise<ts.QuickInfo> {
 		return TPromise.as(this._languageService.getQuickInfoAtPosition(fileName, position));
 	}
