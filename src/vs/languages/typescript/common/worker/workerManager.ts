@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {forEach} from 'vs/base/common/collections';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
@@ -54,14 +53,8 @@ class Client {
 
 		// send default to worker right away
 		const worker = client.get();
-		const promises: TPromise<any>[] = [];
-		promises.push(worker.acceptCompilerOptions(Defaults.compilerOptions));
-		forEach(Defaults.extraLibs, entry => promises.push(worker.acceptExtraLib(entry.key, entry.value)));
-
-		return TPromise.join(promises).then(() => {
-			promises.length = 0;
-			return worker;
-		});
+		const {compilerOptions, extraLibs} = Defaults;
+		return worker.acceptDefaults(compilerOptions, extraLibs).then(() => worker);
 	}
 
 	dispose(): void {

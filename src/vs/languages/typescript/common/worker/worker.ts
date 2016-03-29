@@ -35,11 +35,7 @@ abstract class AbstractWorker implements IRequestHandler {
 		throw notImplemented();
 	}
 
-	acceptCompilerOptions(options: ts.CompilerOptions): TPromise<void> {
-		throw notImplemented();
-	}
-
-	acceptExtraLib(fileName: string, content: string): TPromise<void>{
+	acceptDefaults(options: ts.CompilerOptions, extraLibs: { [path: string]: string }): TPromise<void> {
 		throw notImplemented();
 	}
 

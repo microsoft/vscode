@@ -18,6 +18,7 @@ class TypeScriptWorker extends AbstractWorker implements ts.LanguageServiceHost 
 	// --- model sync -----------------------
 
 	private _models: { [uri: string]: MirrorModel2 } = Object.create(null);
+	private _extraLibs: { [fileName: string]: string } = Object.create(null);
 	private _languageService = ts.createLanguageService(this);
 	private _compilerOptions: ts.CompilerOptions;
 
@@ -38,12 +39,15 @@ class TypeScriptWorker extends AbstractWorker implements ts.LanguageServiceHost 
 		delete this._models[uri];
 	}
 
-	// --- language service host ---------------
+	// --- default ---------
 
-	acceptCompilerOptions(options: ts.CompilerOptions): TPromise<void> {
+	acceptDefaults(options:ts.CompilerOptions, extraLibs:{ [path: string]: string }): TPromise<void> {
 		this._compilerOptions = options;
-		return undefined;
+		this._extraLibs = extraLibs;
+		return;
 	}
+
+	// --- language service host ---------------
 
 	getCompilationSettings(): ts.CompilerOptions {
 		return this._compilerOptions;
@@ -55,8 +59,11 @@ class TypeScriptWorker extends AbstractWorker implements ts.LanguageServiceHost 
 
 	getScriptVersion(fileName: string): string {
 		if (fileName in this._models) {
+			// version changes on type
 			return this._models[fileName].version.toString();
-		} else if (this.isDefaultLibFileName(fileName)) {
+
+		} else if (this.isDefaultLibFileName(fileName) || fileName in this._extraLibs) {
+			// extra lib and default lib are static
 			return '1';
 		}
 	}
@@ -64,7 +71,12 @@ class TypeScriptWorker extends AbstractWorker implements ts.LanguageServiceHost 
 	getScriptSnapshot(fileName: string): ts.IScriptSnapshot {
 		let text: string;
 		if (fileName in this._models) {
+			// a true editor model
 			text = this._models[fileName].getText();
+
+		} else if (fileName in this._extraLibs) {
+			// static extra lib
+			text = this._extraLibs[fileName];
 
 		} else if (this.isDefaultLibFileName(fileName)) {
 			// load lib(.es6)?.d.ts as module
