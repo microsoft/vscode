@@ -432,6 +432,17 @@ export class VSCodeMenu {
 		});
 	}
 
+	private createRoleMenuItem(label: string, actionId: string, role: string): Electron.MenuItem {
+		let options: Electron.MenuItemOptions = {
+			label: mnemonicLabel(label),
+			accelerator: this.getAccelerator(actionId),
+			role: role,
+			enabled: true
+		};
+
+		return new MenuItem(options);
+	}
+
 	private setEditMenu(winLinuxEditMenu: Electron.Menu): void {
 		let undo: Electron.MenuItem;
 		let redo: Electron.MenuItem;
@@ -441,12 +452,12 @@ export class VSCodeMenu {
 		let selectAll: Electron.MenuItem;
 
 		if (platform.isMacintosh) {
-			undo = this.createMenuItem(nls.localize({ key: 'miUndo', comment: ['&& denotes a mnemonic'] }, "&&Undo"), 'undo', true, 'undo');
-			redo = this.createMenuItem(nls.localize({ key: 'miRedo', comment: ['&& denotes a mnemonic'] }, "&&Redo"), 'redo', true, 'redo');
-			cut = this.createMenuItem(nls.localize({ key: 'miCut', comment: ['&& denotes a mnemonic'] }, "&&Cut"), 'editor.action.clipboardCutAction', true, 'cut');
-			copy = this.createMenuItem(nls.localize({ key: 'miCopy', comment: ['&& denotes a mnemonic'] }, "C&&opy"), 'editor.action.clipboardCopyAction', true, 'copy');
-			paste = this.createMenuItem(nls.localize({ key: 'miPaste', comment: ['&& denotes a mnemonic'] }, "&&Paste"), 'editor.action.clipboardPasteAction', true, 'paste');
-			selectAll = this.createMenuItem(nls.localize({ key: 'miSelectAll', comment: ['&& denotes a mnemonic'] }, "&&Select All"), 'editor.action.selectAll', true, 'selectall');
+			undo = this.createDevToolsAwareMenuItem(nls.localize({ key: 'miUndo', comment: ['&& denotes a mnemonic'] }, "&&Undo"), 'undo', (devTools) => devTools.undo());
+			redo = this.createDevToolsAwareMenuItem(nls.localize({ key: 'miRedo', comment: ['&& denotes a mnemonic'] }, "&&Redo"), 'redo', (devTools) => devTools.redo());
+			cut = this.createRoleMenuItem(nls.localize({ key: 'miCut', comment: ['&& denotes a mnemonic'] }, "&&Cut"), 'editor.action.clipboardCutAction', 'cut');
+			copy = this.createRoleMenuItem(nls.localize({ key: 'miCopy', comment: ['&& denotes a mnemonic'] }, "C&&opy"), 'editor.action.clipboardCopyAction', 'copy');
+			paste = this.createRoleMenuItem(nls.localize({ key: 'miPaste', comment: ['&& denotes a mnemonic'] }, "&&Paste"), 'editor.action.clipboardPasteAction', 'paste');
+			selectAll = this.createDevToolsAwareMenuItem(nls.localize({ key: 'miSelectAll', comment: ['&& denotes a mnemonic'] }, "&&Select All"), 'editor.action.selectAll', (devTools) => devTools.selectAll());
 		} else {
 			undo = this.createMenuItem(nls.localize({ key: 'miUndo', comment: ['&& denotes a mnemonic'] }, "&&Undo"), 'undo');
 			redo = this.createMenuItem(nls.localize({ key: 'miRedo', comment: ['&& denotes a mnemonic'] }, "&&Redo"), 'redo');
@@ -648,9 +659,9 @@ export class VSCodeMenu {
 		}
 	}
 
-	private createMenuItem(label: string, actionId: string, enabled?: boolean, role?:string): Electron.MenuItem;
-	private createMenuItem(label: string, click: () => void, enabled?: boolean, role?:string): Electron.MenuItem;
-	private createMenuItem(arg1: string, arg2: any, arg3?: boolean, role?:string): Electron.MenuItem {
+	private createMenuItem(label: string, actionId: string, enabled?: boolean): Electron.MenuItem;
+	private createMenuItem(label: string, click: () => void, enabled?: boolean): Electron.MenuItem;
+	private createMenuItem(arg1: string, arg2: any, arg3?: boolean): Electron.MenuItem {
 		let label = mnemonicLabel(arg1);
 		let click: () => void = (typeof arg2 === 'function') ? arg2 : () => windows.manager.sendToFocused('vscode:runAction', arg2);
 		let enabled = typeof arg3 === 'boolean' ? arg3 : windows.manager.getWindowCount() > 0;
@@ -664,11 +675,30 @@ export class VSCodeMenu {
 			label: label,
 			accelerator: this.getAccelerator(actionId),
 			click: click,
-			role: role,
 			enabled: enabled
 		};
 
 		return new MenuItem(options);
+	}
+
+	private createDevToolsAwareMenuItem(label: string, actionId: string, devToolsFocusedFn: (contents: Electron.WebContents) => void): Electron.MenuItem {
+		return new MenuItem({
+			label: mnemonicLabel(label),
+			accelerator: this.getAccelerator(actionId),
+			enabled: windows.manager.getWindowCount() > 0,
+			click: () => {
+				let windowInFocus = windows.manager.getFocusedWindow();
+				if (!windowInFocus) {
+					return;
+				}
+
+				if (windowInFocus.win.isDevToolsFocused()) {
+					devToolsFocusedFn(windowInFocus.win.devToolsWebContents);
+				} else {
+					windows.manager.sendToFocused('vscode:runAction', actionId);
+				}
+			}
+		});
 	}
 
 	private getAccelerator(actionId: string): string {
