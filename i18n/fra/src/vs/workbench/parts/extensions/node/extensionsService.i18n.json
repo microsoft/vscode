@@ -10,5 +10,6 @@
 	"invalidVersion": "Extension non valide : non-correspondance de la version du manifeste.",
 	"missingGalleryInformation": "Les informations relatives à la galerie sont manquantes",
 	"noCompatible": "Version compatible de {0} introuvable avec cette version de Code.",
-	"notExists": "Extension introuvable"
+	"notExists": "Extension introuvable",
+	"restartCode": "Redémarrez Code avant de réinstaller {0}."
 }

@@ -31,6 +31,7 @@
 	"roundedSelection": "선택 항목의 모서리를 둥글게 할지 여부를 제어합니다.",
 	"rulers": "세로 눈금자를 표시할 열",
 	"scrollBeyondLastLine": "편집기에서 마지막 줄 이후로 스크롤할지 여부를 제어합니다.",
+	"selectionClipboard": "Linux 주 클립보드의 지원 여부를 제어합니다.",
 	"selectionHighlight": "편집기에서 선택 항목과 유사한 일치 항목을 강조 표시할지 여부를 제어합니다.",
 	"sideBySide": "diff 편집기에서 diff를 나란히 표시할지 인라인으로 표시할지 여부를 제어합니다.",
 	"suggestOnTriggerCharacters": "트리거 문자를 입력할 때 제안을 자동으로 표시할지 여부를 제어합니다.",

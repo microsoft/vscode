@@ -24,6 +24,7 @@ import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 import {OpenGlobalSettingsAction} from 'vs/workbench/browser/actions/openSettings';
 import {ICodeEditor, IDiffEditor} from 'vs/editor/browser/editorBrowser';
+import {TrimTrailingWhitespaceAction} from 'vs/editor/contrib/linesOperations/common/linesOperations';
 import {EndOfLineSequence, ITokenizedModel, EditorType, IEditorSelection, ITextModel, IDiffEditorModel, IEditor} from 'vs/editor/common/editorCommon';
 import {IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction} from 'vs/editor/contrib/indentation/common/indentation';
 import {EventType, ResourceEvent, EditorEvent, TextEditorSelectionEvent} from 'vs/workbench/common/events';
@@ -726,7 +727,8 @@ class ChangeIndentationAction extends Action {
 		}
 
 		const control = <ICommonCodeEditor>activeEditor.getControl();
-		const picks = [control.getAction(IndentUsingSpaces.ID), control.getAction(IndentUsingTabs.ID), control.getAction(DetectIndentation.ID), control.getAction(IndentationToSpacesAction.ID), control.getAction(IndentationToTabsAction.ID)];
+		const picks = [control.getAction(IndentUsingSpaces.ID), control.getAction(IndentUsingTabs.ID), control.getAction(DetectIndentation.ID),
+			control.getAction(IndentationToSpacesAction.ID), control.getAction(IndentationToTabsAction.ID), control.getAction(TrimTrailingWhitespaceAction.ID)];
 		(<IPickOpenEntry>picks[0]).separator = { label: nls.localize('indentView', "change view") };
 		(<IPickOpenEntry>picks[3]).separator = { label: nls.localize('indentConvert', "convert file"), border: true };
 

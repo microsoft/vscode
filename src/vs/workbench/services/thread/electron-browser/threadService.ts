@@ -44,7 +44,7 @@ export class MainThreadService extends CommonMainThreadService {
 
 		this.extensionHostProcessManager = new ExtensionHostProcessManager(contextService, messageService, windowService);
 
-		let logCommunication = logExtensionHostCommunication || contextService.getConfiguration().env.logPluginHostCommunication;
+		let logCommunication = logExtensionHostCommunication || contextService.getConfiguration().env.logExtensionHostCommunication;
 
 		// Message: Window --> Extension Host
 		this.remoteCom = create((msg) => {
@@ -105,16 +105,16 @@ class ExtensionHostProcessManager {
 	public startExtensionHostProcess(onExtensionHostMessage: (msg: any) => void): void {
 		let config = this.contextService.getConfiguration();
 		let isDev = !config.env.isBuilt || !!config.env.extensionDevelopmentPath;
-		let isTestingFromCli = !!config.env.extensionTestsPath && !config.env.debugBrkPluginHost;
+		let isTestingFromCli = !!config.env.extensionTestsPath && !config.env.debugBrkExtensionHost;
 
 		let opts: any = {
-			env: objects.mixin(objects.clone(process.env), { AMD_ENTRYPOINT: 'vs/workbench/node/pluginHostProcess', PIPE_LOGGING: 'true', VERBOSE_LOGGING: true })
+			env: objects.mixin(objects.clone(process.env), { AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess', PIPE_LOGGING: 'true', VERBOSE_LOGGING: true })
 		};
 
 		// Help in case we fail to start it
 		if (isDev) {
 			this.initializeTimer = setTimeout(() => {
-				const msg = config.env.debugBrkPluginHost ? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.") : nls.localize('pluginHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
+				const msg = config.env.debugBrkExtensionHost ? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.") : nls.localize('extensionHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
 
 				this.messageService.show(Severity.Warning, msg);
 			}, 10000);
@@ -126,11 +126,11 @@ class ExtensionHostProcessManager {
 			// Resolve additional execution args (e.g. debug)
 			return this.resolveDebugPort(config, (port) => {
 				if (port) {
-					opts.execArgv = ['--nolazy', (config.env.debugBrkPluginHost ? '--debug-brk=' : '--debug=') + port];
+					opts.execArgv = ['--nolazy', (config.env.debugBrkExtensionHost ? '--debug-brk=' : '--debug=') + port];
 				}
 
 				// Run Extension Host as fork of current process
-				this.extensionHostProcessHandle = fork(URI.parse(require.toUrl('bootstrap')).fsPath, ['--type=pluginHost'], opts);
+				this.extensionHostProcessHandle = fork(URI.parse(require.toUrl('bootstrap')).fsPath, ['--type=extensionHost'], opts);
 
 				// Notify debugger that we are ready to attach to the process if we run a development extension
 				if (config.env.extensionDevelopmentPath && port) {
@@ -265,19 +265,19 @@ class ExtensionHostProcessManager {
 	private resolveDebugPort(config: IConfiguration, clb: (port: number) => void): void {
 
 		// Check for a free debugging port
-		if (typeof config.env.debugPluginHostPort === 'number') {
-			return findFreePort(config.env.debugPluginHostPort, 10 /* try 10 ports */, (port) => {
+		if (typeof config.env.debugExtensionHostPort === 'number') {
+			return findFreePort(config.env.debugExtensionHostPort, 10 /* try 10 ports */, (port) => {
 				if (!port) {
 					console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color: black');
 
 					return clb(void 0);
 				}
 
-				if (port !== config.env.debugPluginHostPort) {
-					console.warn('%c[Extension Host] %cProvided debugging port ' + config.env.debugPluginHostPort + ' is not free, using ' + port + ' instead.', 'color: blue', 'color: black');
+				if (port !== config.env.debugExtensionHostPort) {
+					console.warn('%c[Extension Host] %cProvided debugging port ' + config.env.debugExtensionHostPort + ' is not free, using ' + port + ' instead.', 'color: blue', 'color: black');
 				}
 
-				if (config.env.debugBrkPluginHost) {
+				if (config.env.debugBrkExtensionHost) {
 					console.warn('%c[Extension Host] %cSTOPPED on first line for debugging on port ' + port, 'color: blue', 'color: black');
 				} else {
 					console.info('%c[Extension Host] %cdebugger listening on port ' + port, 'color: blue', 'color: black');

@@ -296,7 +296,7 @@ export class CallStackRenderer implements tree.IRenderer {
 		data.label.textContent = stackFrame.name;
 		data.label.title = stackFrame.name;
 		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService);
-		data.lineNumber.textContent = stackFrame.lineNumber !== undefined ? `${ stackFrame.lineNumber }` : '';
+		data.lineNumber.textContent = (stackFrame.source.available && stackFrame.lineNumber !== undefined) ? `${ stackFrame.lineNumber }` : '';
 	}
 
 	public disposeTemplate(tree: tree.ITree, templateId: string, templateData: any): void {

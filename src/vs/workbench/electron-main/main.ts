@@ -37,7 +37,13 @@ export class LaunchService {
 		} else if (args.pathArguments.length === 0) {
 			usedWindows = [windows.manager.focusLastActive(args)];
 		} else {
-			usedWindows = windows.manager.open({ cli: args, userEnv: userEnv, forceNewWindow: args.waitForWindowClose || args.openNewWindow, preferNewWindow: !args.openInSameWindow });
+			usedWindows = windows.manager.open({
+				cli: args,
+				userEnv: userEnv,
+				forceNewWindow: args.waitForWindowClose || args.openNewWindow,
+				preferNewWindow: !args.openInSameWindow,
+				diffMode: args.diffMode
+			});
 		}
 
 		// If the other instance is waiting to be killed, we hook up a window listener if one window
@@ -184,7 +190,7 @@ function main(ipcServer: Server, userEnv: env.IProcessEnvironment): void {
 	} else if (global.macOpenFiles && global.macOpenFiles.length && (!env.cliArgs.pathArguments || !env.cliArgs.pathArguments.length)) {
 		windows.manager.open({ cli: env.cliArgs, pathsToOpen: global.macOpenFiles }); // mac: open-file event received on startup
 	} else {
-		windows.manager.open({ cli: env.cliArgs, forceNewWindow: env.cliArgs.openNewWindow }); // default: read paths from cli
+		windows.manager.open({ cli: env.cliArgs, forceNewWindow: env.cliArgs.openNewWindow, diffMode: env.cliArgs.diffMode }); // default: read paths from cli
 	}
 }
 

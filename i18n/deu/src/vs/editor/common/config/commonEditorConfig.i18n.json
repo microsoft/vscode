@@ -31,6 +31,7 @@
 	"roundedSelection": "Steuert, ob die Auswahl runde Ecken aufweist.",
 	"rulers": "Spalten, an denen vertikale Lineale angezeigt werden sollen",
 	"scrollBeyondLastLine": "Legt fest, ob der Editor Bildläufe über die letzte Zeile hinaus ausführt.",
+	"selectionClipboard": "Steuert, ob die primäre Linux-Zwischenablage unterstützt werden soll.",
 	"selectionHighlight": "Steuert, ob der Editor der Auswahl ähnelnde Übereinstimmungen hervorheben soll.",
 	"sideBySide": "Steuert, ob der Diff-Editor das Diff nebeneinander oder inline anzeigt.",
 	"suggestOnTriggerCharacters": "Steuert, ob Vorschläge automatisch bei der Eingabe von Triggerzeichen angezeigt werden.",

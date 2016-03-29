@@ -74,7 +74,6 @@ let languagesExtPoint = ExtensionsRegistry.registerExtensionPoint<ILanguageExten
 			},
 			filenamePatterns: {
 				description: nls.localize('vscode.extension.contributes.languages.filenamePatterns', 'File name glob patterns associated to the language.'),
-				default: ['bar*foo.txt'],
 				type: 'array',
 				items: {
 					type: 'string'

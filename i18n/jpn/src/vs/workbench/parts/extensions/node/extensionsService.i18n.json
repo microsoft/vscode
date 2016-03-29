@@ -10,5 +10,6 @@
 	"invalidVersion": "正しくない拡張機能: マニフェストのバージョンが一致しません。",
 	"missingGalleryInformation": "ギャラリー情報がありません",
 	"noCompatible": "Code のこのバージョンと互換性のある {0} のバージョンが見つかりませんでした。",
-	"notExists": "拡張機能を見つけられませんでした"
+	"notExists": "拡張機能を見つけられませんでした",
+	"restartCode": "{0} を再インストールする前に、Code を再起動してください。"
 }

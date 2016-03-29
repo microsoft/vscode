@@ -9,6 +9,5 @@
 	"multipleIssues": "확장(문제 {0}개)",
 	"multipleUpdates": "확장(업데이트 {0}개 사용 가능)",
 	"oneIssue": "확장(문제 1개)",
-	"oneUpdate": "확장(업데이트 1개 사용 가능)",
-	"uninstall": "제거"
+	"oneUpdate": "확장(업데이트 1개 사용 가능)"
 }

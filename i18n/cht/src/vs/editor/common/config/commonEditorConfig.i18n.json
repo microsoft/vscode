@@ -31,6 +31,7 @@
 	"roundedSelection": "控制選取範圍是否有圓角",
 	"rulers": "要在其中顯示垂直尺規的資料行",
 	"scrollBeyondLastLine": "控制編輯器是否會捲動到最後一行之後",
+	"selectionClipboard": "控制是否應支援 Linux 主要剪貼簿。",
 	"selectionHighlight": "控制編輯器是否應反白顯示與選取範圍相似的符合項",
 	"sideBySide": "控制 Diff 編輯器要並排或內嵌顯示差異",
 	"suggestOnTriggerCharacters": "控制輸入觸發字元時，是否應自動顯示建議",

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -67,9 +68,9 @@ export class SelectConfigActionItem extends BaseActionItem {
 
 		return this.debugService.loadLaunchConfig().then(config => {
 			if (!config || !config.configurations) {
-				this.select.add(this.createOption('<none>'));
+				this.select.add(this.createOption(`<${ nls.localize('none', "none") }>`));
 				this.select.disabled = true;
-				return;
+				return this.actionRunner.run(this._action, null);
 			}
 
 			const configurations = config.configurations;

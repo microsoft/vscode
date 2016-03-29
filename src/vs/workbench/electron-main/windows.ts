@@ -63,6 +63,7 @@ export interface IOpenConfiguration {
 	forceNewWindow?: boolean;
 	forceEmpty?: boolean;
 	windowToUse?: window.VSCodeWindow;
+	diffMode?: boolean;
 }
 
 interface IWindowState {
@@ -480,8 +481,8 @@ export class WindowsManager {
 			iPathsToOpen = this.cliToPaths(openConfig.cli, ignoreFileNotFound);
 		}
 
-		let filesToOpen:window.IPath[] = [];
-		let filesToDiff:window.IPath[] = [];
+		let filesToOpen: window.IPath[] = [];
+		let filesToDiff: window.IPath[] = [];
 		let foldersToOpen = iPathsToOpen.filter((iPath) => iPath.workspacePath && !iPath.filePath && !iPath.installExtensionPath);
 		let emptyToOpen = iPathsToOpen.filter((iPath) => !iPath.workspacePath && !iPath.filePath && !iPath.installExtensionPath);
 		let extensionsToInstall = iPathsToOpen.filter((iPath) => iPath.installExtensionPath).map(ipath => ipath.filePath);
@@ -489,8 +490,13 @@ export class WindowsManager {
 
 		// Diff mode needs special care
 		let candidates = iPathsToOpen.filter((iPath) => !!iPath.filePath && !iPath.createFilePath && !iPath.installExtensionPath);
-		if (openConfig.cli.diffMode && candidates.length === 2) {
-			filesToDiff = candidates;
+		if (openConfig.diffMode) {
+			if (candidates.length === 2) {
+				filesToDiff = candidates;
+			} else {
+				emptyToOpen = [Object.create(null)]; // improper use of diffMode, open empty
+			}
+
 			foldersToOpen = []; // diff is always in empty workspace
 			filesToCreate = []; // diff ignores other files that do not exist
 		} else {
@@ -680,40 +686,55 @@ export class WindowsManager {
 		configuration.licenseUrl = env.product.licenseUrl;
 		configuration.updateFeedUrl = UpdateManager.feedUrl;
 		configuration.updateChannel = UpdateManager.channel;
-		configuration.recentPaths = this.getRecentlyOpenedPaths(workspacePath, filesToOpen);
 		configuration.aiConfig = env.product.aiConfig;
 		configuration.sendASmile = env.product.sendASmile;
 		configuration.enableTelemetry = env.product.enableTelemetry;
 		configuration.userEnv = userEnv;
 
+		const recents = this.getRecentlyOpenedPaths(workspacePath, filesToOpen);
+		configuration.recentFiles = recents.files;
+		configuration.recentFolders = recents.folders;
+
 		return configuration;
 	}
 
-	private getRecentlyOpenedPaths(workspacePath?: string, filesToOpen?: window.IPath[]): string[] {
+	private getRecentlyOpenedPaths(workspacePath?: string, filesToOpen?: window.IPath[]): IOpenedPathsList {
+		let files: string[];
+		let folders: string[];
 
 		// Get from storage
-		let openedPathsList = storage.getItem<IOpenedPathsList>(WindowsManager.openedPathsListStorageKey);
-		if (!openedPathsList) {
-			openedPathsList = { folders: [], files: [] };
+		let storedRecents = storage.getItem<IOpenedPathsList>(WindowsManager.openedPathsListStorageKey);
+		if (storedRecents) {
+			files = storedRecents.files || [];
+			folders = storedRecents.folders || [];
+		} else {
+			files = [];
+			folders = [];
 		}
-
-		let recentPaths = openedPathsList.folders.concat(openedPathsList.files);
 
 		// Add currently files to open to the beginning if any
 		if (filesToOpen) {
-			recentPaths.unshift(...filesToOpen.map(f => f.filePath));
+			files.unshift(...filesToOpen.map(f => f.filePath));
 		}
 
 		// Add current workspace path to beginning if set
 		if (workspacePath) {
-			recentPaths.unshift(workspacePath);
+			folders.unshift(workspacePath);
 		}
 
 		// Clear those dupes
-		recentPaths = arrays.distinct(recentPaths);
+		files = arrays.distinct(files);
+		folders = arrays.distinct(folders);
+
+		if (platform.isMacintosh && files.length > 0) {
+			files = files.filter(f => folders.indexOf(f) < 0); // TODO@Ben migration (remove in the future)
+		}
 
 		// Make sure it is bounded
-		return recentPaths.slice(0, 10);
+		files = files.slice(0, 10);
+		folders = folders.slice(0, 10);
+
+		return { files, folders };
 	}
 
 	private toIPath(anyPath: string, ignoreFileNotFound?: boolean, gotoLineMode?: boolean): window.IPath {
@@ -829,9 +850,9 @@ export class WindowsManager {
 			if (!configuration.extensionDevelopmentPath && currentWindowConfig && !!currentWindowConfig.extensionDevelopmentPath) {
 				configuration.extensionDevelopmentPath = currentWindowConfig.extensionDevelopmentPath;
 				configuration.verboseLogging = currentWindowConfig.verboseLogging;
-				configuration.logPluginHostCommunication = currentWindowConfig.logPluginHostCommunication;
-				configuration.debugBrkPluginHost = currentWindowConfig.debugBrkPluginHost;
-				configuration.debugPluginHostPort = currentWindowConfig.debugPluginHostPort;
+				configuration.logExtensionHostCommunication = currentWindowConfig.logExtensionHostCommunication;
+				configuration.debugBrkExtensionHost = currentWindowConfig.debugBrkExtensionHost;
+				configuration.debugExtensionHostPort = currentWindowConfig.debugExtensionHostPort;
 				configuration.pluginHomePath = currentWindowConfig.pluginHomePath;
 			}
 		}

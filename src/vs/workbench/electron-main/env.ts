@@ -105,7 +105,7 @@ if (!fs.existsSync(userExtensionsHome)) {
 }
 
 // Helper to identify if we have plugin tests to run from the command line without debugger
-export const isTestingFromCli = cliArgs.extensionTestsPath && !cliArgs.debugBrkPluginHost;
+export const isTestingFromCli = cliArgs.extensionTestsPath && !cliArgs.debugBrkExtensionHost;
 
 export function log(...a: any[]): void {
 	if (cliArgs.verboseLogging) {
@@ -119,9 +119,9 @@ export interface IProcessEnvironment {
 
 export interface ICommandLineArguments {
 	verboseLogging: boolean;
-	debugPluginHostPort: number;
-	debugBrkPluginHost: boolean;
-	logPluginHostCommunication: boolean;
+	debugExtensionHostPort: number;
+	debugBrkExtensionHost: boolean;
+	logExtensionHostCommunication: boolean;
 	disableExtensions: boolean;
 
 	pluginHomePath: string;
@@ -179,14 +179,14 @@ function parseCli(): ICommandLineArguments {
 
 	let gotoLineMode = !!opts['g'] || !!opts['goto'];
 
-	let debugBrkPluginHostPort = parseNumber(args, '--debugBrkPluginHost', 5870);
-	let debugPluginHostPort: number;
-	let debugBrkPluginHost: boolean;
-	if (debugBrkPluginHostPort) {
-		debugPluginHostPort = debugBrkPluginHostPort;
-		debugBrkPluginHost = true;
+	let debugBrkExtensionHostPort = parseNumber(args, '--debugBrkPluginHost', 5870);
+	let debugExtensionHostPort: number;
+	let debugBrkExtensionHost: boolean;
+	if (debugBrkExtensionHostPort) {
+		debugExtensionHostPort = debugBrkExtensionHostPort;
+		debugBrkExtensionHost = true;
 	} else {
-		debugPluginHostPort = parseNumber(args, '--debugPluginHost', 5870, isBuilt ? void 0 : 5870);
+		debugExtensionHostPort = parseNumber(args, '--debugPluginHost', 5870, isBuilt ? void 0 : 5870);
 	}
 
 	let pathArguments = parsePathArguments(args, gotoLineMode);
@@ -196,9 +196,9 @@ function parseCli(): ICommandLineArguments {
 		programStart: parseNumber(args, '--timestamp', 0, 0),
 		enablePerformance: !!opts['p'],
 		verboseLogging: !!opts['verbose'],
-		debugPluginHostPort: debugPluginHostPort,
-		debugBrkPluginHost: debugBrkPluginHost,
-		logPluginHostCommunication: !!opts['logPluginHostCommunication'],
+		debugExtensionHostPort: debugExtensionHostPort,
+		debugBrkExtensionHost: debugBrkExtensionHost,
+		logExtensionHostCommunication: !!opts['logPluginHostCommunication'],
 		firstrun: !!opts['squirrel-firstrun'],
 		openNewWindow: !!opts['n'] || !!opts['new-window'],
 		openInSameWindow: !!opts['r'] || !!opts['reuse-window'],

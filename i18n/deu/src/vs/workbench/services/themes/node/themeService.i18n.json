@@ -6,6 +6,7 @@
 {
 	"error.cannotloadtheme": "{0} kann nicht geladen werden.",
 	"error.cannotparse": "Probleme beim Analysieren der PLIST-Datei: {0}",
+	"error.cannotparsejson": "Probleme beim Analysieren der JSON-Designdatei: {0}",
 	"invalid.path.1": "Es wurde erwartet, dass \"contributes.{0}.path\" ({1}) im Ordner ({2}) der Extension enthalten ist. Dies führt ggf. dazu, dass die Extension nicht portierbar ist.",
 	"reqarray": "Der Extensionpunkt \"{0}\" muss ein Array sein.",
 	"reqpath": "In \"contributes.{0}.path\" wurde eine Zeichenfolge erwartet. Bereitgestellter Wert: {1}",

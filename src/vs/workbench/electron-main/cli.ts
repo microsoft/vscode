@@ -58,7 +58,7 @@ export function main(argv: string[]) {
 		if (argParser.hasFlag('wait', 'w')) {
 			exit = false;
 
-			let child = spawn(process.execPath, process.argv.slice(2), { stdio: 'ignore' });
+			let child = spawn(process.execPath, process.argv.slice(2), { detached: true, stdio: 'ignore' });
 			child.on('exit', process.exit);
 		} else {
 			spawn(process.execPath, process.argv.slice(2), { detached: true, stdio: 'ignore' });

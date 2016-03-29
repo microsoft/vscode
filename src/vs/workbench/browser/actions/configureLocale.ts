@@ -22,7 +22,7 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 
 class ConfigureLocaleAction extends Action {
 	public static ID = 'workbench.action.configureLocale';
-	public static LABEL = nls.localize('configureLocale', "Configure Locale");
+	public static LABEL = nls.localize('configureLocale', "Configure Language");
 
 	private static DEFAULT_CONTENT: string = [
 		'{',

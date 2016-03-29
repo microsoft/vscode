@@ -181,7 +181,6 @@ suite('FileService', () => {
 		});
 	});
 
-
 	test('importFile', function(done: () => void) {
 		service.resolveFile(uri.file(path.join(testDir, 'deep'))).done(target => {
 			return service.importFile(uri.file(require.toUrl('./fixtures/service/index.html')), target.resource).then(res => {
@@ -221,6 +220,16 @@ suite('FileService', () => {
 
 					done();
 				});
+			});
+		});
+	});
+
+	test('importFile - same file', function(done: () => void) {
+		service.resolveFile(uri.file(path.join(testDir, 'index.html'))).done(source => {
+			return service.importFile(source.resource, uri.file(path.dirname(source.resource.fsPath))).then(imported => {
+				assert.equal(imported.stat.size, source.size);
+
+				done();
 			});
 		});
 	});

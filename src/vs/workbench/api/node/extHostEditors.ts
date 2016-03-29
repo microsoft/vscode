@@ -94,7 +94,7 @@ export class ExtHostEditors {
 			if (editor) {
 				return editor;
 			} else {
-				throw new Error('Failed to create editor with id: ' + id);
+				throw new Error(`Failed to show text document ${document.uri.toString()}, should show in editor #${id}`);
 			}
 		});
 	}
@@ -625,6 +625,10 @@ export class MainThreadEditors {
 		};
 
 		return this._workbenchEditorService.openEditor(input, position).then(editor => {
+
+			if (!editor) {
+				return;
+			}
 
 			return new TPromise<void>(c => {
 				// not very nice but the way it is: changes to the editor state aren't

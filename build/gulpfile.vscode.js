@@ -363,7 +363,10 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@RELEASE@@', packageRevision))
 			.pipe(rename('SPECS/' + product.applicationName + '.spec'));
 
-		var all = es.merge(code, desktop, icon, shortcut, spec);
+		var specIcon = gulp.src('resources/linux/rpm/code.xpm', { base: '.' })
+			.pipe(rename('SOURCES/' + product.applicationName + '.xpm'));
+
+		var all = es.merge(code, desktop, icon, shortcut, spec, specIcon);
 
 		return all.pipe(symdest(destination));
 	}
