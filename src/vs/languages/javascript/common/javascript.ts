@@ -4,25 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import javascriptWorker = require('vs/languages/javascript/common/javascriptWorker');
 import typescriptMode = require('vs/languages/typescript/common/typescriptMode');
-import typescript = require('vs/languages/typescript/common/typescript');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import extensions = require('vs/languages/javascript/common/javascript.extensions');
-import {createWordRegExp, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
-import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
+import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {IThreadService} from 'vs/platform/thread/common/thread';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import {IModelService} from 'vs/editor/common/services/modelService';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
-import {DeclarationSupport} from 'vs/editor/common/modes/supports/declarationSupport';
-import {ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
-import {ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
 import tokenization = require('vs/languages/typescript/common/features/tokenization');
-// import tokenization = typescriptMode.tokenization;
 
-export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaScriptWorker> {
+export class JSMode extends typescriptMode.TypeScriptMode {
 
 	public outlineSupport: Modes.IOutlineSupport;
 	public declarationSupport: Modes.IDeclarationSupport;
@@ -33,27 +23,13 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 	public suggestSupport: Modes.ISuggestSupport;
 
 	constructor(
-		descriptor:Modes.IModeDescriptor,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThreadService threadService: IThreadService,
-		@ITelemetryService telemetryService: ITelemetryService
+		descriptor: Modes.IModeDescriptor,
+		@IModelService modelService: IModelService,
+		@IThreadService threadService: IThreadService
 	) {
-		super(descriptor, null, instantiationService, threadService, telemetryService);
+		super(descriptor, modelService, threadService);
 
 		this.tokenizationSupport = tokenization.createTokenizationSupport(this, tokenization.Language.EcmaScript5);
-		this.referenceSupport = new ReferenceSupport(this.getId(), {
-			tokens: [],
-			findReferences: (resource, position, includeDeclaration) => this.findReferences(resource, position, includeDeclaration)});
-
-		this.declarationSupport = new DeclarationSupport(this.getId(), {
-			tokens: [],
-			findDeclaration: (resource, position) => this.findDeclaration(resource, position)});
-
-		this.parameterHintsSupport = new ParameterHintsSupport(this.getId(), {
-			triggerCharacters: ['(', ','],
-			excludeTokens: ['string.js', 'string.escape.js'],
-			getParameterHints: (resource, position) => this.getParameterHints(resource, position)});
-
 		this.richEditSupport = new RichEditSupport(this.getId(), null, {
 			wordPattern: createWordRegExp('$'),
 
@@ -106,23 +82,5 @@ export class JSMode extends typescriptMode.TypeScriptMode<javascriptWorker.JavaS
 				]
 			}
 		});
-	}
-
-	protected _createModeWorkerManager(descriptor:Modes.IModeDescriptor, instantiationService: IInstantiationService): ModeWorkerManager<javascriptWorker.JavaScriptWorker> {
-		return new ModeWorkerManager<javascriptWorker.JavaScriptWorker>(descriptor, 'vs/languages/javascript/common/javascriptWorker', 'JavaScriptWorker', 'vs/languages/typescript/common/typescriptWorker2', instantiationService);
-	}
-
-	// ---- specialize by override
-
-	protected _getProjectResolver(): AsyncDescriptor<typescript.IProjectResolver2>|typescript.IProjectResolver2 {
-		return extensions.Defaults.ProjectResolver;
-	}
-
-	_shouldBeValidated(model: EditorCommon.IModel): boolean {
-		return model.getMode() === this || /\.(d\.ts|js)$/.test(model.getAssociatedResource().fsPath);
-	}
-
-	public get filter() {
-		return void 0;
 	}
 }
