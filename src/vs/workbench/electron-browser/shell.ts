@@ -255,8 +255,7 @@ export class WorkbenchShell {
 		let lifecycleService = new LifecycleService(this.messageService, this.windowService);
 		lifecycleService.onShutdown(() => fileService.dispose());
 
-		this.threadService = new MainThreadService(this.contextService, this.messageService, this.windowService);
-		lifecycleService.onShutdown(() => this.threadService.dispose());
+		this.threadService = new MainThreadService(this.contextService, this.messageService, this.windowService, lifecycleService);
 
 		let requestService = new RequestService(
 			this.contextService,
