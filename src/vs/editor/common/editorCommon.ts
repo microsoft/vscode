@@ -3528,8 +3528,8 @@ export class HorizontalRange {
 	public width: number;
 
 	constructor(left:number, width:number) {
-		this.left = left;
-		this.width = width;
+		this.left = left|0;
+		this.width = width|0;
 	}
 }
 

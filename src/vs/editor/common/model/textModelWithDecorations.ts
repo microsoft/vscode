@@ -122,10 +122,6 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	public changeDecorations(callback: (changeAccessor:editorCommon.IModelDecorationsChangeAccessor)=>any, ownerId:number=0): any {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithDecorations.changeDecorations: Model is disposed');
-		}
-
 		return this._withDeferredEvents((deferredEventsBuilder:DeferredEventsBuilder) => {
 			var changeAccessor:editorCommon.IModelDecorationsChangeAccessor = {
 				addDecoration: (range:editorCommon.IRange, options:editorCommon.IModelDecorationOptions): string => {
@@ -160,10 +156,6 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	public deltaDecorations(oldDecorations:string[], newDecorations:editorCommon.IModelDeltaDecoration[], ownerId:number=0): string[] {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithDecorations.deltaDecorations: Model is disposed');
-		}
-
 		if (!oldDecorations) {
 			oldDecorations = [];
 		}
@@ -173,10 +165,6 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	public removeAllDecorationsWithOwnerId(ownerId:number): void {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithDecorations.removeAllDecorationsWithOwnerId: Model is disposed');
-		}
-
 		let toRemove:string[] = [];
 
 		let keys = Object.keys(this.decorations);
@@ -193,10 +181,6 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	public getDecorationOptions(decorationId:string): editorCommon.IModelDecorationOptions {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithDecorations.getDecorationOptions: Model is disposed');
-		}
-
 		if (this.decorations.hasOwnProperty(decorationId)) {
 			return this.decorations[decorationId].options;
 		}
@@ -204,10 +188,6 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	public getDecorationRange(decorationId:string): editorCommon.IEditorRange {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithDecorations.getDecorationRange: Model is disposed');
-		}
-
 		if (this.decorations.hasOwnProperty(decorationId)) {
 			var decoration = this.decorations[decorationId];
 			return this.getTrackedRange(decoration.rangeId);
@@ -216,9 +196,6 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	public getLineDecorations(lineNumber:number, ownerId:number=0, filterOutValidation:boolean=false): editorCommon.IModelDecoration[] {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithDecorations.getLineDecorations: Model is disposed');
-		}
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			return [];
 		}
@@ -272,10 +249,6 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	public getLinesDecorations(startLineNumber: number, endLineNumber: number, ownerId:number=0, filterOutValidation:boolean=false): editorCommon.IModelDecoration[] {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithDecorations.getLinesDecorations: Model is disposed');
-		}
-
 		var lineCount = this.getLineCount();
 		startLineNumber = Math.min(lineCount, Math.max(1, startLineNumber));
 		endLineNumber = Math.min(lineCount, Math.max(1, endLineNumber));
@@ -283,19 +256,11 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	public getDecorationsInRange(range: editorCommon.IRange, ownerId?: number, filterOutValidation?: boolean): editorCommon.IModelDecoration[] {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithDecorations.getDecorationsInRange: Model is disposed');
-		}
-
 		var validatedRange = this.validateRange(range);
 		return this._getDecorationsInRange(validatedRange.startLineNumber, validatedRange.startColumn, validatedRange.endLineNumber, validatedRange.endColumn, ownerId, filterOutValidation);
 	}
 
 	public getAllDecorations(ownerId:number=0, filterOutValidation:boolean=false): editorCommon.IModelDecoration[] {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithDecorations.getAllDecorations: Model is disposed');
-		}
-
 		let result:editorCommon.IModelDecoration[] = [];
 
 		let keys = Object.keys(this.decorations);

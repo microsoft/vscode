@@ -426,17 +426,10 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	public setStopLineTokenizationAfter(stopLineTokenizationAfter:number): void {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTokens.setStopLineTokenizationAfter: Model is disposed');
-		}
-
 		this._stopLineTokenizationAfter = stopLineTokenizationAfter;
 	}
 
 	public getLineTokens(lineNumber:number, inaccurateTokensAcceptable:boolean = false): editorCommon.ILineTokens {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTokens.getLineTokens: Model is disposed');
-		}
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
@@ -448,9 +441,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	public getLineContext(lineNumber:number): ILineContext {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTokens.getLineContext: Model is disposed');
-		}
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
@@ -468,9 +458,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	public setValue(value:string, newMode?:IMode): void;
 	public setValue(value:string, newModePromise?:TPromise<IMode>): void;
 	public setValue(value:string, newModeOrPromise:any=null): void {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTokens.setValue: Model is disposed');
-		}
 		let rawText: editorCommon.IRawText = null;
 		if (value !== null) {
 			rawText = TextModel.toRawText(value, {
@@ -486,10 +473,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	public setValueFromRawText(value:editorCommon.IRawText, newMode?:IMode): void;
 	public setValueFromRawText(value:editorCommon.IRawText, newModePromise?:TPromise<IMode>): void;
 	public setValueFromRawText(value:editorCommon.IRawText, newModeOrPromise:any=null): void {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTokens.setValueFromRawText: Model is disposed');
-		}
-
 		if (value !== null) {
 			super.setValueFromRawText(value);
 		}
@@ -516,20 +499,12 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	public getMode(): IMode {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTokens.getMode: Model is disposed');
-		}
-
 		return this._mode;
 	}
 
 	public setMode(newMode:IMode): void;
 	public setMode(newModePromise:TPromise<IMode>): void;
 	public setMode(newModeOrPromise:any): void {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTokens.setMode: Model is disposed');
-		}
-
 		if (!newModeOrPromise) {
 			// There's nothing to do
 			return;
@@ -538,10 +513,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	public getModeAtPosition(_lineNumber:number, _column:number): IMode {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTokens.getModeAtPosition: Model is disposed');
-		}
-
 		var validPosition = this.validatePosition({
 			lineNumber: _lineNumber,
 			column: _column
@@ -586,10 +557,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	_warmUpTokens(): void {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTokens._warmUpTokens: Model is disposed');
-		}
-
 		// Warm up first 100 lines (if it takes less than 50ms)
 		var maxLineNumber = Math.min(100, this.getLineCount());
 		var toLineNumber = maxLineNumber;
@@ -679,9 +646,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	_getLineModeTransitions(lineNumber:number): IModeTransition[] {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTokens._getLineModeTransitions: Model is disposed');
-		}
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
@@ -829,18 +793,10 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	public getWordAtPosition(position:editorCommon.IPosition): editorCommon.IWordAtPosition {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTokens.getWordAtPosition: Model is disposed');
-		}
-
 		return WordHelper.getWordAtPosition(this, this.validatePosition(position));
 	}
 
 	public getWordUntilPosition(position: editorCommon.IPosition): editorCommon.IWordAtPosition {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTokens.getWordUntilPosition: Model is disposed');
-		}
-
 		var wordAtPosition = this.getWordAtPosition(position);
 		if (!wordAtPosition) {
 			return {
@@ -857,9 +813,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	public getWords(lineNumber:number): editorCommon.IWordRange[] {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTokens.getWords: Model is disposed');
-		}
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
@@ -868,10 +821,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	public tokenIterator(position:editorCommon.IPosition, callback:(it:TokenIterator)=>any): any {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTokens.tokenIterator: Model is disposed');
-		}
-
 		var iter = new TokenIterator(this, this.validatePosition(position));
 		var result = callback(iter);
 		iter._invalidate();
@@ -879,10 +828,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	public findMatchingBracketUp(bracket:string, _position:editorCommon.IPosition): editorCommon.IEditorRange {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTokens.findMatchingBracketUp: Model is disposed');
-		}
-
 		let position = this.validatePosition(_position);
 		let modeTransitions = this._lines[position.lineNumber - 1].getModeTransitions().toArray(this._mode);
 		let currentModeIndex = Arrays.findIndexInSegmentsArray(modeTransitions, position.column - 1);
@@ -903,10 +848,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	public matchBracket(position:editorCommon.IPosition, inaccurateResultAcceptable:boolean = false): editorCommon.IMatchBracketResult {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTokens.matchBracket: Model is disposed');
-		}
-
 		return this._matchBracket(this.validatePosition(position));
 	}
 
@@ -1165,9 +1106,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	public findPrevBracket(_position:editorCommon.IPosition): editorCommon.IFoundBracket {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTokens.findPrevBracket: Model is disposed');
-		}
 		let position = this.validatePosition(_position);
 
 		let tokensMap = this._tokensInflatorMap;
@@ -1205,9 +1143,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	public findNextBracket(_position:editorCommon.IPosition): editorCommon.IFoundBracket {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTokens.findNextBracket: Model is disposed');
-		}
 		let position = this.validatePosition(_position);
 
 		let tokensMap = this._tokensInflatorMap;
