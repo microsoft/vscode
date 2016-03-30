@@ -13,7 +13,7 @@ import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 import {IInplaceReplaceSupportResult, ILink, ISuggestResult} from 'vs/editor/common/modes';
-import {EditorSimpleWorker} from 'vs/editor/common/services/editorSimpleWorkerCommon';
+import {IEditorModelWorker, EditorSimpleWorker} from 'vs/editor/common/services/editorSimpleWorkerCommon';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {IModelService} from 'vs/editor/common/services/modelService';
 
@@ -102,28 +102,23 @@ class WorkerManager extends Disposable {
 	}
 }
 
-class EditorWorkerClient extends Disposable {
+export class EditorModelManager extends Disposable {
 
-	private _worker: SimpleWorkerClient<EditorSimpleWorker>;
-	private _proxy: EditorSimpleWorker;
-	private _modelService:IModelService;
-	private _syncedModels: {[modelUrl:string]:IDisposable[];};
-	private _syncedModelsLastUsedTime: {[modelUrl:string]:number;};
+	private _proxy: IEditorModelWorker;
+	private _modelService: IModelService;
+	private _syncedModels: { [modelUrl: string]: IDisposable[]; } = Object.create(null);
+	private _syncedModelsLastUsedTime: { [modelUrl: string]: number; } = Object.create(null);
 
-	constructor(modelService:IModelService) {
+	constructor(proxy: IEditorModelWorker, modelService: IModelService, keepIdleModels: boolean) {
 		super();
+		this._proxy = proxy;
 		this._modelService = modelService;
-		this._syncedModels = Object.create(null);
-		this._syncedModelsLastUsedTime = Object.create(null);
-		this._worker = this._register(new SimpleWorkerClient<EditorSimpleWorker>(
-			new DefaultWorkerFactory(),
-			'vs/editor/common/services/editorSimpleWorker',
-			EditorSimpleWorker
-		));
-		this._proxy = this._worker.get();
 
-		let stopModelSyncInterval = this._register(new IntervalTimer());
-		stopModelSyncInterval.cancelAndSet(() => this._checkStopModelSync(), Math.round(STOP_SYNC_MODEL_DELTA_TIME_MS / 2));
+		if (!keepIdleModels) {
+			let timer = new IntervalTimer();
+			timer.cancelAndSet(() => this._checkStopModelSync(), Math.round(STOP_SYNC_MODEL_DELTA_TIME_MS / 2));
+			this._register(timer);
+		}
 	}
 
 	public dispose(): void {
@@ -133,6 +128,23 @@ class EditorWorkerClient extends Disposable {
 		this._syncedModels = Object.create(null);
 		this._syncedModelsLastUsedTime = Object.create(null);
 		super.dispose();
+	}
+
+	public withSyncedResources(resources:URI[]): TPromise<void> {
+
+		for (let i = 0; i < resources.length; i++) {
+			let resource = resources[i];
+			let resourceStr = resource.toString();
+
+			if (!this._syncedModels[resourceStr]) {
+				this._beginModelSync(resource);
+			}
+			if (this._syncedModels[resourceStr]) {
+				this._syncedModelsLastUsedTime[resourceStr] = (new Date()).getTime();
+			}
+		}
+
+		return TPromise.as(null);
 	}
 
 	private _checkStopModelSync(): void {
@@ -149,67 +161,6 @@ class EditorWorkerClient extends Disposable {
 		for (let i = 0; i < toRemove.length; i++) {
 			this._stopModelSync(toRemove[i]);
 		}
-	}
-
-	public computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<editorCommon.ILineChange[]> {
-		return this._withSyncedResources([original, modified]).then(_ => {
-			return this._proxy.computeDiff(original.toString(), modified.toString(), ignoreTrimWhitespace);
-		});
-	}
-
-	public computeDirtyDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<editorCommon.IChange[]> {
-		return this._withSyncedResources([original, modified]).then(_ => {
-			return this._proxy.computeDirtyDiff(original.toString(), modified.toString(), ignoreTrimWhitespace);
-		});
-	}
-
-	public computeLinks(resource:URI):TPromise<ILink[]> {
-		return this._withSyncedResources([resource]).then(_ => {
-			return this._proxy.computeLinks(resource.toString());
-		});
-	}
-
-	public textualSuggest(resource: URI, position: editorCommon.IPosition): TPromise<ISuggestResult[]> {
-		return this._withSyncedResources([resource]).then(_ => {
-			let model = this._modelService.getModel(resource);
-			if (!model) {
-				return null;
-			}
-			let wordDefRegExp = WordHelper.massageWordDefinitionOf(model.getMode());
-			let wordDef = wordDefRegExp.source;
-			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
-			return this._proxy.textualSuggest(resource.toString(), position, wordDef, wordDefFlags);
-		});
-	}
-
-	public navigateValueSet(resource: URI, range:editorCommon.IRange, up:boolean): TPromise<IInplaceReplaceSupportResult> {
-		return this._withSyncedResources([resource]).then(_ => {
-			let model = this._modelService.getModel(resource);
-			if (!model) {
-				return null;
-			}
-			let wordDefRegExp = WordHelper.massageWordDefinitionOf(model.getMode());
-			let wordDef = wordDefRegExp.source;
-			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
-			return this._proxy.navigateValueSet(resource.toString(), range, up, wordDef, wordDefFlags);
-		});
-	}
-
-	private _withSyncedResources(resources:URI[]): TPromise<void> {
-
-		for (let i = 0; i < resources.length; i++) {
-			let resource = resources[i];
-			let resourceStr = resource.toString();
-
-			if (!this._syncedModels[resourceStr]) {
-				this._beginModelSync(resource);
-			}
-			if (this._syncedModels[resourceStr]) {
-				this._syncedModelsLastUsedTime[resourceStr] = (new Date()).getTime();
-			}
-		}
-
-		return TPromise.as(null);
 	}
 
 	private _beginModelSync(resource:URI): void {
@@ -260,5 +211,69 @@ class EditorWorkerClient extends Disposable {
 		delete this._syncedModels[modelUrl];
 		delete this._syncedModelsLastUsedTime[modelUrl];
 		disposeAll(toDispose);
+	}
+}
+
+class EditorWorkerClient extends Disposable {
+
+	private _modelService: IModelService;
+	private _worker: SimpleWorkerClient<EditorSimpleWorker>;
+	private _proxy: EditorSimpleWorker;
+	private _modelManager: EditorModelManager;
+
+	constructor(modelService: IModelService) {
+		super();
+		this._modelService = modelService;
+		this._worker = this._register(new SimpleWorkerClient<EditorSimpleWorker>(
+			new DefaultWorkerFactory(),
+			'vs/editor/common/services/editorSimpleWorker',
+			EditorSimpleWorker
+		));
+		this._proxy = this._worker.get();
+		this._modelManager = new EditorModelManager(this._proxy, this._modelService, false);
+	}
+
+	public computeDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<editorCommon.ILineChange[]> {
+		return this._modelManager.withSyncedResources([original, modified]).then(_ => {
+			return this._proxy.computeDiff(original.toString(), modified.toString(), ignoreTrimWhitespace);
+		});
+	}
+
+	public computeDirtyDiff(original:URI, modified:URI, ignoreTrimWhitespace:boolean):TPromise<editorCommon.IChange[]> {
+		return this._modelManager.withSyncedResources([original, modified]).then(_ => {
+			return this._proxy.computeDirtyDiff(original.toString(), modified.toString(), ignoreTrimWhitespace);
+		});
+	}
+
+	public computeLinks(resource:URI):TPromise<ILink[]> {
+		return this._modelManager.withSyncedResources([resource]).then(_ => {
+			return this._proxy.computeLinks(resource.toString());
+		});
+	}
+
+	public textualSuggest(resource: URI, position: editorCommon.IPosition): TPromise<ISuggestResult[]> {
+		return this._modelManager.withSyncedResources([resource]).then(_ => {
+			let model = this._modelService.getModel(resource);
+			if (!model) {
+				return null;
+			}
+			let wordDefRegExp = WordHelper.massageWordDefinitionOf(model.getMode());
+			let wordDef = wordDefRegExp.source;
+			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
+			return this._proxy.textualSuggest(resource.toString(), position, wordDef, wordDefFlags);
+		});
+	}
+
+	public navigateValueSet(resource: URI, range:editorCommon.IRange, up:boolean): TPromise<IInplaceReplaceSupportResult> {
+		return this._modelManager.withSyncedResources([resource]).then(_ => {
+			let model = this._modelService.getModel(resource);
+			if (!model) {
+				return null;
+			}
+			let wordDefRegExp = WordHelper.massageWordDefinitionOf(model.getMode());
+			let wordDef = wordDefRegExp.source;
+			let wordDefFlags = (wordDefRegExp.global ? 'g' : '') + (wordDefRegExp.ignoreCase ? 'i' : '') + (wordDefRegExp.multiline ? 'm' : '');
+			return this._proxy.navigateValueSet(resource.toString(), range, up, wordDef, wordDefFlags);
+		});
 	}
 }

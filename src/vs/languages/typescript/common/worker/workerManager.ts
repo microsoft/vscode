@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
 import {SimpleWorkerClient} from 'vs/base/common/worker/simpleWorker';
 import {IModelService} from 'vs/editor/common/services/modelService';
+import {EditorModelManager} from 'vs/editor/common/services/editorWorkerServiceImpl';
 import {Defaults} from '../typescript';
 import registerLanguageFeatures from '../languageFeatures';
 import AbstractWorker from './worker';
 
-
 class Client {
 
-	private _client: TPromise<AbstractWorker> = null;
-	private _clientDispose: IDisposable[];
+	private _client: TPromise<{ worker: AbstractWorker; manager: EditorModelManager }> = null;
+	private _clientDispose: IDisposable[] = [];
 	private _factory = new DefaultWorkerFactory();
 	private _modelService: IModelService;
 
@@ -25,18 +26,17 @@ class Client {
 		this._modelService = modelService;
 	}
 
-	private _createClient(): TPromise<AbstractWorker> {
-		this._clientDispose = [];
+	private _createClient(): TPromise<{ worker: AbstractWorker; manager: EditorModelManager; }> {
 
-		let client = new SimpleWorkerClient<AbstractWorker>(this._factory,
-			'vs/languages/typescript/common/worker/workerImpl',
-			AbstractWorker);
+		const client = new SimpleWorkerClient<AbstractWorker>(this._factory, 'vs/languages/typescript/common/worker/workerImpl', AbstractWorker);
+		const manager = new EditorModelManager(client.get(), this._modelService, true);
+
+		this._clientDispose.push(manager);
 		this._clientDispose.push(client);
 
 		const stopWorker = () => {
 			this._clientDispose = disposeAll(this._clientDispose);
 			this._client = null;
-			client = null;
 		};
 
 		// stop worker after being idle
@@ -50,47 +50,34 @@ class Client {
 		// stop worker when defaults change
 		this._clientDispose.push(Defaults.onDidChange(() => stopWorker()));
 
-
 		// send default to worker right away
 		const worker = client.get();
 		const {compilerOptions, extraLibs} = Defaults;
-		return worker.acceptDefaults(compilerOptions, extraLibs).then(() => worker);
+		return worker.acceptDefaults(compilerOptions, extraLibs).then(() =>({ worker, manager }));
 	}
 
 	dispose(): void {
 		this._clientDispose = disposeAll(this._clientDispose);
+		this._client = null;
 	}
 
-	get(): TPromise<AbstractWorker> {
+	get(resources:URI[]): TPromise<AbstractWorker> {
 		if (!this._client) {
 			this._client = this._createClient();
 		}
 
-		// TODO@joh use proper model sync
-		return this._client.then(worker => {
-			let promises = this._modelService.getModels().map(model => {
-				return TPromise.as(worker.acceptNewModel({
-					url: model.getAssociatedResource().toString(),
-					versionId: model.getVersionId(),
-					value: {
-						EOL: model.getEOL(),
-						lines: model.getLinesContent(),
-						length: model.getValueLength(),
-						BOM: undefined,
-						options: undefined
-					}
-				}));
-			});
-
-			return TPromise.join(promises).then(() => worker);
-		});
+		return this._client
+			.then(data => data.manager.withSyncedResources(resources)
+				.then(_ => data.worker));
 	}
 }
 
 export function create(selector: string, modelService: IModelService) {
 
 	const client = new Client(modelService);
-	const registration = registerLanguageFeatures(selector, modelService, () => client.get());
+	const registration = registerLanguageFeatures(selector,
+		modelService,
+		(first: URI, ...more: URI[]) => client.get([first].concat(more)));
 
 	return {
 		dispose() {

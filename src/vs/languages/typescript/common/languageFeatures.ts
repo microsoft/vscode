@@ -19,7 +19,7 @@ import {ExtraInfoRegistry} from 'vs/editor/contrib/hover/common/hover';
 import {ReferenceRegistry} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 
-export default function registerLanguageFeatures(selector: string, modelService: IModelService, worker: () => TPromise<AbstractWorker>): lifecycle.IDisposable {
+export default function registerLanguageFeatures(selector: string, modelService: IModelService, worker: (first:URI, ...more:URI[]) => TPromise<AbstractWorker>): lifecycle.IDisposable {
 	const disposables: lifecycle.IDisposable[] = [];
 	disposables.push(SuggestRegistry.register(selector, new SuggestAdapter(modelService, worker)));
 	disposables.push(ParameterHintsRegistry.register(selector, new ParameterHintsAdapter(modelService, worker)));
@@ -32,7 +32,7 @@ export default function registerLanguageFeatures(selector: string, modelService:
 
 abstract class Adapter {
 
-	constructor(protected _modelService: IModelService, protected _worker: () => TPromise<AbstractWorker>) {
+	constructor(protected _modelService: IModelService, protected _worker: (first:URI, ...more:URI[]) => TPromise<AbstractWorker>) {
 
 	}
 
@@ -78,7 +78,7 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 		const wordInfo = model.getWordUntilPosition(position);
 		const offset = this._positionToOffset(resource, position);
 
-		return this._worker().then(worker => {
+		return this._worker(resource).then(worker => {
 			return worker.getCompletionsAtPosition(resource.toString(), offset);
 		}).then(info => {
 			if (!info) {
@@ -101,7 +101,7 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 
 	getSuggestionDetails(resource: URI, position: editor.IPosition, suggestion: modes.ISuggestion) {
 
-		return this._worker().then(worker => {
+		return this._worker(resource).then(worker => {
 			return worker.getCompletionEntryDetails(resource.toString(),
 				this._positionToOffset(resource, position),
 				suggestion.label);
@@ -145,7 +145,7 @@ class ParameterHintsAdapter extends Adapter implements modes.IParameterHintsSupp
 		return true;
 	}
 	getParameterHints(resource: URI, position: editor.IPosition, triggerCharacter?: string): TPromise<modes.IParameterHints> {
-		return this._worker().then(worker => worker.getSignatureHelpItems(resource.toString(), this._positionToOffset(resource, position))).then(info => {
+		return this._worker(resource).then(worker => worker.getSignatureHelpItems(resource.toString(), this._positionToOffset(resource, position))).then(info => {
 
 			if (!info) {
 				return;
@@ -195,7 +195,7 @@ class ParameterHintsAdapter extends Adapter implements modes.IParameterHintsSupp
 class QuickInfoAdapter extends Adapter implements modes.IExtraInfoSupport {
 
 	computeInfo(resource: URI, position: editor.IPosition): TPromise<modes.IComputeExtraInfoResult> {
-		return this._worker().then(worker => {
+		return this._worker(resource).then(worker => {
 			return worker.getQuickInfoAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(info => {
 			if (!info) {
@@ -214,7 +214,7 @@ class QuickInfoAdapter extends Adapter implements modes.IExtraInfoSupport {
 class OccurrencesAdapter extends Adapter implements modes.IOccurrencesSupport {
 
 	findOccurrences(resource: URI, position: editor.IPosition, strict?: boolean): TPromise<modes.IOccurence[]> {
-		return this._worker().then(worker => {
+		return this._worker(resource).then(worker => {
 			return worker.getOccurrencesAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(entries => {
 			if (!entries) {
@@ -239,7 +239,7 @@ class DeclarationAdapter extends Adapter implements modes.IDeclarationSupport {
 	}
 
 	findDeclaration(resource: URI, position: editor.IPosition): TPromise<modes.IReference[]> {
-		return this._worker().then(worker => {
+		return this._worker(resource).then(worker => {
 			return worker.getDefinitionAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(entries => {
 			if (!entries) {
@@ -268,12 +268,8 @@ class ReferenceAdapter extends Adapter implements modes.IReferenceSupport {
 		return true;
 	}
 
-	/**
-	 * @returns a list of reference of the symbol at the position in the
-	 * 	given resource.
-	 */
 	findReferences(resource: URI, position: editor.IPosition, includeDeclaration: boolean): TPromise<modes.IReference[]> {
-		return this._worker().then(worker => {
+		return this._worker(resource).then(worker => {
 			return worker.getReferencesAtPosition(resource.toString(), this._positionToOffset(resource, position));
 		}).then(entries => {
 			if (!entries) {
