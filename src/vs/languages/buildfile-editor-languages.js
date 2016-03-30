@@ -49,14 +49,12 @@ exports.collectModules = function(args) {
 	var SHARED_JS_TS = ['vs/languages/typescript/common/lib/typescriptServices', 'vs/languages/typescript/common/typescript'];
 
 	// ---- typescript -----------------------------------
-	var particpantExcludes = common.define('vs/languages/typescript/common/typescriptMode', SHARED_JS_TS)
+	common.define('vs/languages/typescript/common/typescriptMode', SHARED_JS_TS)
 		.combine(worker)
-			.define('vs/languages/typescript/common/typescriptWorker2');
+			.define('vs/languages/typescript/common/worker/workerImpl');
 
 	// ---- javascript ----------------------------
-	common.define('vs/languages/javascript/common/javascript', SHARED_JS_TS.concat(['vs/languages/typescript/common/typescriptMode']))
-		.combine(worker)
-			.define('vs/languages/javascript/common/javascriptWorker', ['vs/languages/typescript/common/typescriptWorker2']);
+	common.define('vs/languages/javascript/common/javascript', SHARED_JS_TS.concat(['vs/languages/typescript/common/typescriptMode']));
 
 	return result;
 };
