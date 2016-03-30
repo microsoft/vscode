@@ -108,6 +108,18 @@ class TypeScriptWorker extends AbstractWorker implements ts.LanguageServiceHost 
 
 	// --- language features
 
+	getSyntacticDiagnostics(fileName: string): TPromise<ts.Diagnostic[]> {
+		const diagnostics = this._languageService.getSyntacticDiagnostics(fileName);
+		diagnostics.forEach(diag => diag.file = undefined); // diag.file cannot be JSON'yfied
+		return TPromise.as(diagnostics);
+	}
+
+	getSemanticDiagnostics(fileName: string): TPromise<ts.Diagnostic[]> {
+		const diagnostics = this._languageService.getSemanticDiagnostics(fileName);
+		diagnostics.forEach(diag => diag.file = undefined); // diag.file cannot be JSON'yfied
+		return TPromise.as(diagnostics);
+	}
+
 	getCompletionsAtPosition(fileName: string, position:number): TPromise<ts.CompletionInfo> {
 		return TPromise.as(this._languageService.getCompletionsAtPosition(fileName, position));
 	}

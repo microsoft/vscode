@@ -41,6 +41,14 @@ abstract class AbstractWorker implements IRequestHandler {
 
 	// --- language features
 
+	getSyntacticDiagnostics(fileName: string): TPromise<ts.Diagnostic[]> {
+		throw notImplemented();
+	}
+
+	getSemanticDiagnostics(fileName: string): TPromise<ts.Diagnostic[]> {
+		throw notImplemented();
+	}
+
 	getCompletionsAtPosition(uri: string, offset: number): TPromise<ts.CompletionInfo> {
 		throw notImplemented();
 	}

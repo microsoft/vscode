@@ -9,10 +9,11 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
 import {SimpleWorkerClient} from 'vs/base/common/worker/simpleWorker';
+import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {EditorModelManager} from 'vs/editor/common/services/editorWorkerServiceImpl';
 import {Defaults} from '../typescript';
-import registerLanguageFeatures from '../languageFeatures';
+import {registerLanguageFeatures} from '../languageFeatures';
 import AbstractWorker from './worker';
 
 class Client {
@@ -72,11 +73,10 @@ class Client {
 	}
 }
 
-export function create(selector: string, modelService: IModelService) {
+export function create(selector: string, modelService: IModelService, markerService: IMarkerService) {
 
 	const client = new Client(modelService);
-	const registration = registerLanguageFeatures(selector,
-		modelService,
+	const registration = registerLanguageFeatures(modelService, markerService, selector,
 		(first: URI, ...more: URI[]) => client.get([first].concat(more)));
 
 	return {
