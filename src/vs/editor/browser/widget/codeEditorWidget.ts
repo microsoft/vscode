@@ -488,13 +488,27 @@ export enum EditCursorState {
 	EndOfLastEditOperation = 0
 }
 
+class SingleEditOperation {
+
+	range: editorCommon.IEditorRange;
+	text: string;
+	forceMoveMarkers: boolean;
+
+	constructor(source:editorCommon.ISingleEditOperation) {
+		this.range = new Range(source.range.startLineNumber, source.range.startColumn, source.range.endLineNumber, source.range.endColumn);
+		this.text = source.text;
+		this.forceMoveMarkers = source.forceMoveMarkers || false;
+	}
+
+}
+
 export class CommandRunner implements editorCommon.ICommand {
 
-	private _ops: editorCommon.ISingleEditOperation[];
+	private _ops: SingleEditOperation[];
 	private _editCursorState: EditCursorState;
 
 	constructor(ops: editorCommon.ISingleEditOperation[], editCursorState: EditCursorState) {
-		this._ops = ops;
+		this._ops = ops.map(op => new SingleEditOperation(op));
 		this._editCursorState = editCursorState;
 	}
 

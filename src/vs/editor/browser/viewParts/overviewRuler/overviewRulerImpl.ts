@@ -175,7 +175,9 @@ class ZoneManager {
 			if (!colorZonesInvalid) {
 				let colorZones = zone.getColorZones();
 				if (colorZones) {
-					allColorZones = allColorZones.concat(colorZones);
+					for (let j = 0, lenJ = colorZones.length; j < lenJ; j++) {
+						allColorZones.push(colorZones[j]);
+					}
 					continue;
 				}
 			}
@@ -212,7 +214,9 @@ class ZoneManager {
 			}
 
 			zone.setColorZones(colorZones);
-			allColorZones = allColorZones.concat(colorZones);
+			for (let j = 0, lenJ = colorZones.length; j < lenJ; j++) {
+				allColorZones.push(colorZones[j]);
+			}
 		}
 
 		this._colorZonesInvalid = false;
@@ -389,14 +393,16 @@ export class OverviewRulerImpl {
 		let ctx = this._domNode.getContext('2d');
 		ctx.clearRect (0, 0, width, height);
 
-		let remainingWidth = width - this._canvasLeftOffset;
+		if (colorZones.length > 0) {
+			let remainingWidth = width - this._canvasLeftOffset;
 
-		if (this._lanesCount >= 3) {
-			this._renderThreeLanes(ctx, colorZones, id2Color, remainingWidth);
-		} else if (this._lanesCount === 2) {
-			this._renderTwoLanes(ctx, colorZones, id2Color, remainingWidth);
-		} else if (this._lanesCount === 1) {
-			this._renderOneLane(ctx, colorZones, id2Color, remainingWidth);
+			if (this._lanesCount >= 3) {
+				this._renderThreeLanes(ctx, colorZones, id2Color, remainingWidth);
+			} else if (this._lanesCount === 2) {
+				this._renderTwoLanes(ctx, colorZones, id2Color, remainingWidth);
+			} else if (this._lanesCount === 1) {
+				this._renderOneLane(ctx, colorZones, id2Color, remainingWidth);
+			}
 		}
 
 		return true;

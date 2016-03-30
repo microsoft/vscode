@@ -127,27 +127,27 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 		this.lineNumbers = input.lineNumbers || false;
 		this.selectOnLineNumbers = Boolean(input.selectOnLineNumbers);
 		this.glyphMargin = Boolean(input.glyphMargin);
-		this.revealHorizontalRightPadding = Number(input.revealHorizontalRightPadding);
+		this.revealHorizontalRightPadding = Number(input.revealHorizontalRightPadding)|0;
 		this.roundedSelection = Boolean(input.roundedSelection);
 		this.theme = String(input.theme);
 		this.readOnly = Boolean(input.readOnly);
 		this.scrollbar = {
-			arrowSize: Number(input.scrollbar.arrowSize),
+			arrowSize: Number(input.scrollbar.arrowSize)|0,
 			vertical: String(input.scrollbar.vertical),
 			horizontal: String(input.scrollbar.horizontal),
 			useShadows: Boolean(input.scrollbar.useShadows),
 			verticalHasArrows: Boolean(input.scrollbar.verticalHasArrows),
 			horizontalHasArrows: Boolean(input.scrollbar.horizontalHasArrows),
 			handleMouseWheel: Boolean(input.scrollbar.handleMouseWheel),
-			horizontalScrollbarSize: Number(input.scrollbar.horizontalScrollbarSize),
-			horizontalSliderSize: Number(input.scrollbar.horizontalSliderSize),
-			verticalScrollbarSize: Number(input.scrollbar.verticalScrollbarSize),
-			verticalSliderSize: Number(input.scrollbar.verticalSliderSize),
-			mouseWheelScrollSensitivity: Number(input.scrollbar.mouseWheelScrollSensitivity),
+			horizontalScrollbarSize: Number(input.scrollbar.horizontalScrollbarSize)|0,
+			horizontalSliderSize: Number(input.scrollbar.horizontalSliderSize)|0,
+			verticalScrollbarSize: Number(input.scrollbar.verticalScrollbarSize)|0,
+			verticalSliderSize: Number(input.scrollbar.verticalSliderSize)|0,
+			mouseWheelScrollSensitivity: Number(input.scrollbar.mouseWheelScrollSensitivity)|0,
 		};
-		this.overviewRulerLanes = Number(input.overviewRulerLanes);
+		this.overviewRulerLanes = Number(input.overviewRulerLanes)|0;
 		this.cursorBlinking = String(input.cursorBlinking);
-		this.cursorStyle = Number(input.cursorStyle);
+		this.cursorStyle = Number(input.cursorStyle)|0;
 		this.fontLigatures = Boolean(input.fontLigatures);
 		this.hideCursorInOverviewRuler = Boolean(input.hideCursorInOverviewRuler);
 		this.scrollBeyondLastLine = Boolean(input.scrollBeyondLastLine);
@@ -156,14 +156,14 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 		this.wordWrapBreakAfterCharacters = String(input.wordWrapBreakAfterCharacters);
 		this.wordWrapBreakObtrusiveCharacters = String(input.wordWrapBreakObtrusiveCharacters);
 		this.tabFocusMode = Boolean(input.tabFocusMode);
-		this.stopLineTokenizationAfter = Number(input.stopLineTokenizationAfter);
-		this.stopRenderingLineAfter = Number(input.stopRenderingLineAfter);
-		this.longLineBoundary = Number(input.longLineBoundary);
-		this.forcedTokenizationBoundary = Number(input.forcedTokenizationBoundary);
+		this.stopLineTokenizationAfter = Number(input.stopLineTokenizationAfter)|0;
+		this.stopRenderingLineAfter = Number(input.stopRenderingLineAfter)|0;
+		this.longLineBoundary = Number(input.longLineBoundary)|0;
+		this.forcedTokenizationBoundary = Number(input.forcedTokenizationBoundary)|0;
 		this.hover = Boolean(input.hover);
 		this.contextmenu = Boolean(input.contextmenu);
 		this.quickSuggestions = Boolean(input.quickSuggestions);
-		this.quickSuggestionsDelay = Number(input.quickSuggestionsDelay);
+		this.quickSuggestionsDelay = Number(input.quickSuggestionsDelay)|0;
 		this.iconsInSuggestions = Boolean(input.iconsInSuggestions);
 		this.autoClosingBrackets = Boolean(input.autoClosingBrackets);
 		this.formatOnType = Boolean(input.formatOnType);
@@ -175,46 +175,46 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 		this.folding = Boolean(input.folding);
 		this.renderWhitespace = Boolean(input.renderWhitespace);
 		this.layoutInfo = {
-			width: Number(input.layoutInfo.width),
-			height: Number(input.layoutInfo.height),
-			glyphMarginLeft: Number(input.layoutInfo.glyphMarginLeft),
-			glyphMarginWidth: Number(input.layoutInfo.glyphMarginWidth),
-			glyphMarginHeight: Number(input.layoutInfo.glyphMarginHeight),
-			lineNumbersLeft: Number(input.layoutInfo.lineNumbersLeft),
-			lineNumbersWidth: Number(input.layoutInfo.lineNumbersWidth),
-			lineNumbersHeight: Number(input.layoutInfo.lineNumbersHeight),
-			decorationsLeft: Number(input.layoutInfo.decorationsLeft),
-			decorationsWidth: Number(input.layoutInfo.decorationsWidth),
-			decorationsHeight: Number(input.layoutInfo.decorationsHeight),
-			contentLeft: Number(input.layoutInfo.contentLeft),
-			contentWidth: Number(input.layoutInfo.contentWidth),
-			contentHeight: Number(input.layoutInfo.contentHeight),
-			verticalScrollbarWidth: Number(input.layoutInfo.verticalScrollbarWidth),
-			horizontalScrollbarHeight: Number(input.layoutInfo.horizontalScrollbarHeight),
+			width: Number(input.layoutInfo.width)|0,
+			height: Number(input.layoutInfo.height)|0,
+			glyphMarginLeft: Number(input.layoutInfo.glyphMarginLeft)|0,
+			glyphMarginWidth: Number(input.layoutInfo.glyphMarginWidth)|0,
+			glyphMarginHeight: Number(input.layoutInfo.glyphMarginHeight)|0,
+			lineNumbersLeft: Number(input.layoutInfo.lineNumbersLeft)|0,
+			lineNumbersWidth: Number(input.layoutInfo.lineNumbersWidth)|0,
+			lineNumbersHeight: Number(input.layoutInfo.lineNumbersHeight)|0,
+			decorationsLeft: Number(input.layoutInfo.decorationsLeft)|0,
+			decorationsWidth: Number(input.layoutInfo.decorationsWidth)|0,
+			decorationsHeight: Number(input.layoutInfo.decorationsHeight)|0,
+			contentLeft: Number(input.layoutInfo.contentLeft)|0,
+			contentWidth: Number(input.layoutInfo.contentWidth)|0,
+			contentHeight: Number(input.layoutInfo.contentHeight)|0,
+			verticalScrollbarWidth: Number(input.layoutInfo.verticalScrollbarWidth)|0,
+			horizontalScrollbarHeight: Number(input.layoutInfo.horizontalScrollbarHeight)|0,
 			overviewRuler:{
-				width: Number(input.layoutInfo.overviewRuler.width),
-				height: Number(input.layoutInfo.overviewRuler.height),
-				top: Number(input.layoutInfo.overviewRuler.top),
-				right: Number(input.layoutInfo.overviewRuler.right),
+				width: Number(input.layoutInfo.overviewRuler.width)|0,
+				height: Number(input.layoutInfo.overviewRuler.height)|0,
+				top: Number(input.layoutInfo.overviewRuler.top)|0,
+				right: Number(input.layoutInfo.overviewRuler.right)|0,
 			}
 		};
 		this.stylingInfo = {
 			editorClassName: String(input.stylingInfo.editorClassName),
 			fontFamily: String(input.stylingInfo.fontFamily),
-			fontSize: Number(input.stylingInfo.fontSize),
-			lineHeight: Number(input.stylingInfo.lineHeight),
+			fontSize: Number(input.stylingInfo.fontSize)|0,
+			lineHeight: Number(input.stylingInfo.lineHeight)|0,
 		};
 		this.wrappingInfo = {
 			isViewportWrapping: Boolean(input.wrappingInfo.isViewportWrapping),
-			wrappingColumn: Number(input.wrappingInfo.wrappingColumn),
+			wrappingColumn: Number(input.wrappingInfo.wrappingColumn)|0,
 		};
-		this.observedOuterWidth = Number(input.observedOuterWidth);
-		this.observedOuterHeight = Number(input.observedOuterHeight);
-		this.lineHeight = Number(input.lineHeight);
-		this.pageSize = Number(input.pageSize);
+		this.observedOuterWidth = Number(input.observedOuterWidth)|0;
+		this.observedOuterHeight = Number(input.observedOuterHeight)|0;
+		this.lineHeight = Number(input.lineHeight)|0;
+		this.pageSize = Number(input.pageSize)|0;
 		this.typicalHalfwidthCharacterWidth = Number(input.typicalHalfwidthCharacterWidth);
 		this.typicalFullwidthCharacterWidth = Number(input.typicalFullwidthCharacterWidth);
-		this.fontSize = Number(input.fontSize);
+		this.fontSize = Number(input.fontSize)|0;
 	}
 }
 

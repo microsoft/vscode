@@ -26,11 +26,11 @@ interface IViewModelDecorationSource {
 class ViewModelDecoration implements IViewModelDecoration {
 	id: string;
 	ownerId: number;
-	range: editorCommon.IRange;
+	range: editorCommon.IEditorRange;
 	options: editorCommon.IModelDecorationOptions;
 	modelRange: editorCommon.IRange;
 
-	constructor(source:IViewModelDecorationSource, range:editorCommon.IRange) {
+	constructor(source:IViewModelDecorationSource, range:editorCommon.IEditorRange) {
 		this.id = source.id;
 		this.options = source.options;
 		this.ownerId = source.ownerId;

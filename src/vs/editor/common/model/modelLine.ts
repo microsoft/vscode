@@ -65,9 +65,15 @@ enum MarkerMoveSemantics {
 }
 
 export class ModelLine {
-	public lineNumber:number;
-	public text:string;
-	public isInvalid:boolean;
+	private _lineNumber:number;
+	public get lineNumber():number { return this._lineNumber; }
+
+	private _text:string;
+	public get text():string { return this._text; }
+
+	private _isInvalid:boolean;
+	public get isInvalid():boolean { return this._isInvalid; }
+	public set isInvalid(value:boolean) { this._isInvalid = value; }
 
 	private _state:IState;
 	private _modeTransitions:ModeTransition[];
@@ -75,9 +81,9 @@ export class ModelLine {
 	private _markers:ILineMarker[];
 
 	constructor(lineNumber:number, text:string) {
-		this.lineNumber = lineNumber;
-		this.text = text;
-		this.isInvalid = false;
+		this._lineNumber = lineNumber|0;
+		this._text = text;
+		this._isInvalid = false;
 		this._state = null;
 		this._modeTransitions = null;
 		this._lineTokens = null;
@@ -123,14 +129,14 @@ export class ModelLine {
 	}
 
 	private _setLineTokensFromInflated(map:ITokensInflatorMap, tokens:IToken[]): void {
-		let desired = toLineTokensFromInflated(map, tokens, this.text.length);
+		let desired = toLineTokensFromInflated(map, tokens, this._text.length);
 
 
 		this._lineTokens = desired;
 	}
 
 	private _setLineTokensFromDeflated(map:ITokensInflatorMap, tokens:number[]): void {
-		let desired = toLineTokensFromDeflated(map, tokens, this.text.length);
+		let desired = toLineTokensFromDeflated(map, tokens, this._text.length);
 
 
 		this._lineTokens = desired;
@@ -140,7 +146,7 @@ export class ModelLine {
 		if (this._lineTokens) {
 			return this._lineTokens;
 		}
-		if (this.text.length === 0) {
+		if (this._text.length === 0) {
 			return EmptyLineTokens.INSTANCE;
 		}
 		return DefaultLineTokens.INSTANCE;
@@ -213,13 +219,13 @@ export class ModelLine {
 	}
 
 	private _setText(text:string): void {
-		this.text = text;
+		this._text = text;
 
 		if (this._lineTokens) {
 			let BIN = TokensBinaryEncoding,
 				map = this._lineTokens.getBinaryEncodedTokensMap(),
 				tokens = this._lineTokens.getBinaryEncodedTokens(),
-				lineTextLength = this.text.length;
+				lineTextLength = this._text.length;
 
 			// Remove overflowing tokens
 			while (tokens.length > 0) {
@@ -298,7 +304,7 @@ export class ModelLine {
 					let newColumn = Math.max(minimumAllowedColumn, marker.column + delta);
 					if (marker.column !== newColumn) {
 						changedMarkers[marker.id] = true;
-						marker.oldLineNumber = marker.oldLineNumber || this.lineNumber;
+						marker.oldLineNumber = marker.oldLineNumber || this._lineNumber;
 						marker.oldColumn = marker.oldColumn || marker.column;
 						marker.column = newColumn;
 					}
@@ -321,7 +327,7 @@ export class ModelLine {
 			while (markersIndex < markersLength && adjustMarkerBeforeColumn(toColumn, moveSemantics)) {
 				if (marker.column !== newColumn) {
 					changedMarkers[marker.id] = true;
-					marker.oldLineNumber = marker.oldLineNumber || this.lineNumber;
+					marker.oldLineNumber = marker.oldLineNumber || this._lineNumber;
 					marker.oldColumn = marker.oldColumn || marker.column;
 					marker.column = newColumn;
 				}
@@ -350,7 +356,7 @@ export class ModelLine {
 
 	public applyEdits(changedMarkers: IChangedMarkers, edits:ILineEdit[]): number {
 		let deltaColumn = 0;
-		let resultText = this.text;
+		let resultText = this._text;
 
 		let tokensAdjuster = this._createTokensAdjuster();
 		let markersAdjuster = this._createMarkersAdjuster(changedMarkers);
@@ -406,8 +412,8 @@ export class ModelLine {
 
 	public split(changedMarkers: IChangedMarkers, splitColumn:number, forceMoveMarkers:boolean): ModelLine {
 		// console.log('--> split @ ' + splitColumn + '::: ' + this._printMarkers());
-		var myText = this.text.substring(0, splitColumn - 1);
-		var otherText = this.text.substring(splitColumn - 1);
+		var myText = this._text.substring(0, splitColumn - 1);
+		var otherText = this._text.substring(splitColumn - 1);
 
 		var otherMarkers: ILineMarker[] = null;
 
@@ -438,7 +444,7 @@ export class ModelLine {
 					let marker = otherMarkers[i];
 
 					changedMarkers[marker.id] = true;
-					marker.oldLineNumber = marker.oldLineNumber || this.lineNumber;
+					marker.oldLineNumber = marker.oldLineNumber || this._lineNumber;
 					marker.oldColumn = marker.oldColumn || marker.column;
 					marker.column -= splitColumn - 1;
 				}
@@ -447,7 +453,7 @@ export class ModelLine {
 
 		this._setText(myText);
 
-		var otherLine = new ModelLine(this.lineNumber + 1, otherText);
+		var otherLine = new ModelLine(this._lineNumber + 1, otherText);
 		if (otherMarkers) {
 			otherLine.addMarkers(otherMarkers);
 		}
@@ -457,8 +463,8 @@ export class ModelLine {
 	public append(changedMarkers: IChangedMarkers, other:ModelLine): void {
 		// console.log('--> append: THIS :: ' + this._printMarkers());
 		// console.log('--> append: OTHER :: ' + this._printMarkers());
-		var thisTextLength = this.text.length;
-		this._setText(this.text + other.text);
+		var thisTextLength = this._text.length;
+		this._setText(this._text + other._text);
 
 		let otherLineTokens = other._lineTokens;
 		if (otherLineTokens) {
@@ -587,11 +593,11 @@ export class ModelLine {
 				marker = markers[i];
 
 				changedMarkers[marker.id] = true;
-				marker.oldLineNumber = marker.oldLineNumber || this.lineNumber;
+				marker.oldLineNumber = marker.oldLineNumber || this._lineNumber;
 			}
 		}
 
-		this.lineNumber = newLineNumber;
+		this._lineNumber = newLineNumber;
 	}
 
 	public deleteLine(changedMarkers: IChangedMarkers, setMarkersColumn:number, setMarkersOldLineNumber:number): ILineMarker[] {

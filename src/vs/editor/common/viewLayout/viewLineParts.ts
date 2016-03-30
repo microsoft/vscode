@@ -6,7 +6,7 @@
 
 import * as strings from 'vs/base/common/strings';
 import {Arrays} from 'vs/editor/common/core/arrays';
-import {LineToken, IRange, IViewLineTokens} from 'vs/editor/common/editorCommon';
+import {LineToken, IEditorRange, IViewLineTokens} from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 
 export interface ILineParts {
@@ -56,8 +56,8 @@ function insertWhitespace(lineNumber:number, lineContent: string, fauxIndentLeng
 		return rawLineDecorations;
 	}
 
-	var prepend: IRange = null,
-		append: IRange = null,
+	var prepend: IEditorRange = null,
+		append: IEditorRange = null,
 		computeTrailing = true;
 
 	var firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
@@ -67,19 +67,9 @@ function insertWhitespace(lineNumber:number, lineContent: string, fauxIndentLeng
 		if (firstNonWhitespaceIndex === -1) {
 			// The entire string is whitespace
 			computeTrailing = false;
-			prepend = {
-				startLineNumber: lineNumber,
-				endLineNumber: lineNumber,
-				startColumn: 1,
-				endColumn: lineContent.length + 1
-			};
+			prepend = new Range(lineNumber, 1, lineNumber, lineContent.length + 1);
 		} else {
-			prepend = {
-				startLineNumber: lineNumber,
-				endLineNumber: lineNumber,
-				startColumn: 1,
-				endColumn: firstNonWhitespaceIndex + 1
-			};
+			prepend = new Range(lineNumber, 1, lineNumber, firstNonWhitespaceIndex + 1);
 		}
 	}
 
@@ -97,12 +87,7 @@ function insertWhitespace(lineNumber:number, lineContent: string, fauxIndentLeng
 		if (lastNonWhitespaceIndex !== lineContent.length - 1) {
 			// There is trailing whitespace
 			// No need to handle the case that the entire string is empty, since it is handled above
-			append = {
-				startLineNumber: lineNumber,
-				endLineNumber: lineNumber,
-				startColumn: lastNonWhitespaceIndex + 2,
-				endColumn: lineContent.length + 1
-			};
+			append = new Range(lineNumber, lastNonWhitespaceIndex + 2, lineNumber, lineContent.length + 1);
 		}
 	}
 
@@ -317,7 +302,7 @@ class Stack {
 }
 
 export interface ILineDecoration {
-	range: IRange;
+	range: IEditorRange;
 	options: {
 		inlineClassName?: string;
 	};

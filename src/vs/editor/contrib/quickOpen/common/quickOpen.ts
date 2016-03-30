@@ -65,7 +65,7 @@ export function getOutlineEntries(model: IModel): TPromise<IOutline> {
 }
 
 function compareEntriesUsingStart(a: IOutlineEntry, b: IOutlineEntry): number{
-	return Range.compareRangesUsingStarts(a.range, b.range);
+	return Range.compareRangesUsingStarts(Range.lift(a.range), Range.lift(b.range));
 }
 
 function flatten(bucket: IOutlineEntry[], entries: IOutlineEntry[], overrideContainerLabel: string): void {

@@ -873,7 +873,7 @@ export interface IModelTrackedRange {
 	/**
 	 * Range that this tracked range covers
 	 */
-	range: IRange;
+	range: IEditorRange;
 }
 
 /**
@@ -891,7 +891,7 @@ export interface IModelDecoration {
 	/**
 	 * Range that this decoration covers.
 	 */
-	range: IRange;
+	range: IEditorRange;
 	/**
 	 * Options associated with this decoration.
 	 */
@@ -2780,11 +2780,20 @@ export class ViewLinesViewportData {
 	}
 }
 
-export interface IViewport {
+export class Viewport {
+	_viewportTrait: void;
+
 	top: number;
 	left: number;
 	width: number;
 	height: number;
+
+	constructor(top:number, left:number, width:number, height:number) {
+		this.top = top|0;
+		this.left = left|0;
+		this.width = width|0;
+		this.height = height|0;
+	}
 }
 
 /**
@@ -3487,9 +3496,9 @@ export class VisibleRange {
 	public width:number;
 
 	constructor(top:number, left:number, width:number) {
-		this.top = top;
-		this.left = left;
-		this.width = width;
+		this.top = top|0;
+		this.left = left|0;
+		this.width = width|0;
 	}
 }
 

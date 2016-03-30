@@ -104,13 +104,13 @@ export class LayoutProvider extends ViewEventHandler implements IDisposable, ILa
 
 	// ---- Layouting logic
 
-	public getCurrentViewport(): editorCommon.IViewport {
-		return {
-			top: this.scrollable.getScrollTop(),
-			left: this.scrollable.getScrollLeft(),
-			width: this.scrollable.getWidth(),
-			height: this.scrollable.getHeight()
-		};
+	public getCurrentViewport(): editorCommon.Viewport {
+		return new editorCommon.Viewport(
+			this.scrollable.getScrollTop(),
+			this.scrollable.getScrollLeft(),
+			this.scrollable.getWidth(),
+			this.scrollable.getHeight()
+		);
 	}
 
 	public getCenteredViewLineNumberInViewport(): number {

@@ -114,7 +114,7 @@ export class LinesLayout {
 	 * @param reserveHorizontalScrollbarHeight The height of the horizontal scrollbar.
 	 * @return Basically, the `scrollHeight` for the editor content.
 	 */
-	public getTotalHeight(viewport:editorCommon.IViewport, reserveHorizontalScrollbarHeight:number): number {
+	public getTotalHeight(viewport:editorCommon.Viewport, reserveHorizontalScrollbarHeight:number): number {
 		var totalLinesHeight = this.getLinesTotalHeight();
 
 //		if (this.context.configuration.editor.autoSize) {
@@ -162,7 +162,7 @@ export class LinesLayout {
 	 * @param viewport The viewport.
 	 * @return An array with all the whitespaces in the viewport. If no whitespace is in viewport, the array is empty.
 	 */
-	public getWhitespaceViewportData(visibleBox:editorCommon.IViewport): editorCommon.IViewWhitespaceViewportData[] {
+	public getWhitespaceViewportData(visibleBox:editorCommon.Viewport): editorCommon.IViewWhitespaceViewportData[] {
 		return this.verticalObjects.getWhitespaceViewportData(visibleBox.top, visibleBox.top + visibleBox.height, this._lineHeight);
 	}
 
@@ -186,7 +186,7 @@ export class LinesLayout {
 	 * @param viewport The viewport.
 	 * @return A structure describing the lines positioned between `verticalOffset1` and `verticalOffset2`.
 	 */
-	public getLinesViewportData(visibleBox:editorCommon.IViewport): editorCommon.ViewLinesViewportData {
+	public getLinesViewportData(visibleBox:editorCommon.Viewport): editorCommon.ViewLinesViewportData {
 		let partialData = this.verticalObjects.getLinesViewportData(visibleBox.top, visibleBox.top + visibleBox.height, this._lineHeight);
 		let decorationsData = this.model.getDecorationsViewportData(partialData.startLineNumber, partialData.endLineNumber);
 		let visibleRange = new Range(
@@ -205,7 +205,7 @@ export class LinesLayout {
 	 * @param viewport The viewport.
 	 * @return The line number that is closest to the center of `viewport`.
 	 */
-	public getCenteredLineInViewport(visibleBox:editorCommon.IViewport): number {
+	public getCenteredLineInViewport(visibleBox:editorCommon.Viewport): number {
 		return this.verticalObjects.getCenteredLineInViewport(visibleBox.top, visibleBox.top + visibleBox.height, this._lineHeight);
 	}
 

@@ -442,7 +442,7 @@ export class ViewLines extends ViewLayer {
 		}
 	}
 
-	private _computeScrollTopToRevealRange(viewport:editorCommon.IViewport, range: editorCommon.IEditorRange, verticalType: editorCommon.VerticalRevealType): number {
+	private _computeScrollTopToRevealRange(viewport:editorCommon.Viewport, range: editorCommon.IEditorRange, verticalType: editorCommon.VerticalRevealType): number {
 		var viewportStartY = viewport.top,
 			viewportHeight = viewport.height,
 			viewportEndY = viewportStartY + viewportHeight,
@@ -529,8 +529,13 @@ export class ViewLines extends ViewLayer {
 	}
 
 	private _computeMinimumScrolling(viewportStart: number, viewportEnd: number, boxStart: number, boxEnd: number): number {
-		var viewportLength = viewportEnd - viewportStart,
-			boxLength = boxEnd - boxStart;
+		viewportStart = viewportStart|0;
+		viewportEnd = viewportEnd|0;
+		boxStart = boxStart|0;
+		boxEnd = boxEnd|0;
+
+		let viewportLength = viewportEnd - viewportStart;
+		let boxLength = boxEnd - boxStart;
 
 		if (boxLength < viewportLength) {
 			// The box would fit in the viewport

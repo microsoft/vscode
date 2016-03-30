@@ -219,7 +219,7 @@ export interface ILayoutProvider extends IVerticalLayoutProvider, IScrollingProv
 
 	getCenteredViewLineNumberInViewport(): number;
 
-	getCurrentViewport(): editorCommon.IViewport;
+	getCurrentViewport(): editorCommon.Viewport;
 
 	onMaxLineWidthChanged(width:number): void;
 

@@ -76,6 +76,18 @@ class LinkOccurence {
 	}
 }
 
+class Link {
+	range: editorCommon.IEditorRange;
+	url: string;
+	extraInlineClassName: string;
+
+	constructor(source:ILink) {
+		this.range = new Range(source.range.startLineNumber, source.range.startColumn, source.range.endLineNumber, source.range.endColumn);
+		this.url = source.url;
+		this.extraInlineClassName = source.extraInlineClassName || null;
+	}
+}
+
 class LinkDetector {
 	static RECOMPUTE_TIME = 1000; // ms
 	static TRIGGER_KEY_VALUE = platform.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;
@@ -174,7 +186,7 @@ class LinkDetector {
 			if (!b || b.length === 0) {
 				return a || [];
 			}
-			return LinkDetector._linksUnion(a, b);
+			return LinkDetector._linksUnion(a.map(el => new Link(el)), b.map(el => new Link(el)));
 		});
 
 		this.computePromise.then((links:ILink[]) => {
@@ -183,15 +195,15 @@ class LinkDetector {
 		});
 	}
 
-	private static _linksUnion(oldLinks: ILink[], newLinks: ILink[]): ILink[] {
+	private static _linksUnion(oldLinks: Link[], newLinks: Link[]): Link[] {
 		// reunite oldLinks with newLinks and remove duplicates
-		var result: ILink[] = [],
+		var result: Link[] = [],
 			oldIndex: number,
 			oldLen: number,
 			newIndex: number,
 			newLen: number,
-			oldLink: ILink,
-			newLink: ILink,
+			oldLink: Link,
+			newLink: Link,
 			comparisonResult: number;
 
 		for (oldIndex = 0, newIndex = 0, oldLen = oldLinks.length, newLen = newLinks.length; oldIndex < oldLen && newIndex < newLen;) {
