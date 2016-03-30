@@ -868,19 +868,24 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		return r;
 	}
 
+	private _getViewPartsToRender(): ViewPart[] {
+		let result:ViewPart[] = [];
+		for (let i = 0, len = this.viewParts.length; i < len; i++) {
+			let viewPart = this.viewParts[i];
+			if (viewPart.shouldRender()) {
+				result.push(viewPart);
+			}
+		}
+		return result;
+	}
+
 	private _actualRender(): void {
 		if (!dom.isInDOM(this.domNode)) {
 			return;
 		}
 		let t = timer.start(timer.Topic.EDITOR, 'View.render');
 
-		let viewPartsToRender:ViewPart[] = [];
-		for (let i = 0, len = this.viewParts.length; i < len; i++) {
-			let viewPart = this.viewParts[i];
-			if (viewPart.shouldRender()) {
-				viewPartsToRender.push(viewPart);
-			}
-		}
+		let viewPartsToRender = this._getViewPartsToRender();
 
 		if (!this.viewLines.shouldRender() && viewPartsToRender.length === 0) {
 			// Nothing to render
@@ -893,6 +898,9 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		if (this.viewLines.shouldRender()) {
 			this.viewLines.renderText(linesViewportData);
 			this.viewLines.onDidRender();
+
+			// Rendering of viewLines might cause scroll events to occur, so collect view parts to render again
+			viewPartsToRender = this._getViewPartsToRender();
 		}
 
 		let renderingContext = this.createRenderingContext(linesViewportData);

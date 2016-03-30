@@ -140,6 +140,7 @@ export class ViewLines extends ViewLayer {
 	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
 		var shouldRender = super.onLayoutChanged(layoutInfo);
 		this._maxLineWidth = 0;
+		this._lastRenderedData.resetDomNodeClientRectLeft();
 		return shouldRender;
 	}
 
@@ -379,39 +380,50 @@ export class ViewLines extends ViewLayer {
 			throw new Error('I did not ask to render!');
 		}
 
+		// (1) render lines - ensures lines are in the DOM
 		super._renderLines(linesViewportData);
-		this.onDidRender();
-
 		this._lastRenderedData.setBigNumbersDelta(linesViewportData.bigNumbersDelta);
 		this._lastRenderedData.setCurrentVisibleRange(linesViewportData.visibleRange);
-		this._lastRenderedData.resetDomNodeClientRectLeft();
+		this.domNode.setWidth(this._layoutProvider.getScrollWidth());
+		this.domNode.setHeight(Math.min(this._layoutProvider.getTotalHeight(), 1000000));
 
+		// (2) compute horizontal scroll position:
+		//  - this must happen after the lines are in the DOM since it might need a line that rendered just now
+		//  - it might change `scrollWidth` and `scrollLeft`
 		if (this._lastCursorRevealRangeHorizontallyEvent) {
-			var newScrollLeft = this._computeScrollLeftToRevealRange(this._lastCursorRevealRangeHorizontallyEvent.range);
+			let revealHorizontalRange = this._lastCursorRevealRangeHorizontallyEvent.range;
 			this._lastCursorRevealRangeHorizontallyEvent = null;
+
+			// allow `visibleRangesForRange2` to work
+			this.onDidRender();
+
+			// compute new scroll position
+			var newScrollLeft = this._computeScrollLeftToRevealRange(revealHorizontalRange);
 
 			var isViewportWrapping = this._isViewportWrapping;
 			if (!isViewportWrapping) {
+				// ensure `scrollWidth` is large enough
 				this._ensureMaxLineWidth(newScrollLeft.maxHorizontalOffset);
 			}
 
+			// set `scrollLeft`
 			this._layoutProvider.setScrollLeft(newScrollLeft.scrollLeft);
+		}
+
+		let somethingChanged = false;
+		if (browser.canUseTranslate3d) {
+			var transform = 'translate3d(' + -this._layoutProvider.getScrollLeft() + 'px, ' + linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
+			somethingChanged = StyleMutator.setTransform(<HTMLElement>this.domNode.domNode.parentNode, transform) || somethingChanged; // TODO@Alex
+		} else {
+			somethingChanged = StyleMutator.setTop(<HTMLElement>this.domNode.domNode.parentNode, linesViewportData.visibleRangesDeltaTop) || somethingChanged; // TODO@Alex
+			somethingChanged = StyleMutator.setLeft(<HTMLElement>this.domNode.domNode.parentNode, -this._layoutProvider.getScrollLeft()) || somethingChanged; // TODO@Alex
+		}
+		if (somethingChanged) {
+			this._lastRenderedData.resetDomNodeClientRectLeft();
 		}
 
 		// Update max line width (not so important, it is just so the horizontal scrollbar doesn't get too small)
 		this._asyncUpdateLineWidths.schedule();
-
-		if (browser.canUseTranslate3d) {
-			var transform = 'translate3d(' + -this._layoutProvider.getScrollLeft() + 'px, ' + linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
-			StyleMutator.setTransform(<HTMLElement>this.domNode.domNode.parentNode, transform); // TODO@Alex
-		} else {
-			StyleMutator.setTop(<HTMLElement>this.domNode.domNode.parentNode, linesViewportData.visibleRangesDeltaTop); // TODO@Alex
-			StyleMutator.setLeft(<HTMLElement>this.domNode.domNode.parentNode, -this._layoutProvider.getScrollLeft()); // TODO@Alex
-		}
-		this._lastRenderedData.resetDomNodeClientRectLeft();
-
-		this.domNode.setWidth(this._layoutProvider.getScrollWidth());
-		this.domNode.setHeight(Math.min(this._layoutProvider.getTotalHeight(), 1000000));
 	}
 
 	// --- width

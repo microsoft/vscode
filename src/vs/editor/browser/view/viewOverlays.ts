@@ -219,13 +219,15 @@ export class MarginViewOverlays extends ViewOverlays {
 	private _glyphMarginLeft:number;
 	private _glyphMarginWidth:number;
 	private _scrollHeight:number;
+	private _contentLeft: number;
 
 	constructor(context:editorBrowser.IViewContext, layoutProvider:editorBrowser.ILayoutProvider) {
 		super(context, layoutProvider);
 
-		this._glyphMarginLeft = 0;
-		this._glyphMarginWidth = 0;
+		this._glyphMarginLeft = context.configuration.editor.layoutInfo.glyphMarginLeft;
+		this._glyphMarginWidth = context.configuration.editor.layoutInfo.glyphMarginWidth;
 		this._scrollHeight = layoutProvider.getScrollHeight();
+		this._contentLeft = context.configuration.editor.layoutInfo.contentLeft;
 
 		this.domNode.setClassName(editorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS + ' monaco-editor-background');
 		this.domNode.setWidth(1);
@@ -251,10 +253,6 @@ export class MarginViewOverlays extends ViewOverlays {
 
 	public onScrollHeightChanged(scrollHeight:number): boolean {
 		this._scrollHeight = scrollHeight;
-		var glyphMargin = this._getGlyphMarginDomNode();
-		if (glyphMargin) {
-			StyleMutator.setHeight(glyphMargin, this._scrollHeight);
-		}
 		return super.onScrollHeightChanged(scrollHeight) || true;
 	}
 
@@ -262,15 +260,7 @@ export class MarginViewOverlays extends ViewOverlays {
 		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
 		this._scrollHeight = this._layoutProvider.getScrollHeight();
-
-		this.domNode.setWidth(layoutInfo.contentLeft);
-
-		var glyphMargin = this._getGlyphMarginDomNode();
-		if (glyphMargin) {
-			StyleMutator.setLeft(glyphMargin, layoutInfo.glyphMarginLeft);
-			StyleMutator.setWidth(glyphMargin, layoutInfo.glyphMarginWidth);
-		}
-
+		this._contentLeft = layoutInfo.contentLeft;
 		return super.onLayoutChanged(layoutInfo) || true;
 	}
 
@@ -284,5 +274,13 @@ export class MarginViewOverlays extends ViewOverlays {
 		}
 		var height = Math.min(this._layoutProvider.getTotalHeight(), 1000000);
 		this.domNode.setHeight(height);
+		this.domNode.setWidth(this._contentLeft);
+
+		var glyphMargin = this._getGlyphMarginDomNode();
+		if (glyphMargin) {
+			StyleMutator.setHeight(glyphMargin, this._scrollHeight);
+			StyleMutator.setLeft(glyphMargin, this._glyphMarginLeft);
+			StyleMutator.setWidth(glyphMargin, this._glyphMarginWidth);
+		}
 	}
 }

@@ -226,13 +226,17 @@ export const StyleMutator = {
 		let desiredValue = top + 'px';
 		if (domNode.style.top !== desiredValue) {
 			domNode.style.top = desiredValue;
+			return true;
 		}
+		return false;
 	},
 	setLeft: (domNode: HTMLElement, left: number) => {
 		let desiredValue = left + 'px';
 		if (domNode.style.left !== desiredValue) {
 			domNode.style.left = desiredValue;
+			return true;
 		}
+		return false;
 	},
 	setBottom: (domNode: HTMLElement, bottom: number) => {
 		let desiredValue = bottom + 'px';
@@ -272,17 +276,21 @@ export const StyleMutator = {
 };
 
 // Define setTransform
-function setWebkitTransform(domNode: HTMLElement, desiredValue: string): void {
+function setWebkitTransform(domNode: HTMLElement, desiredValue: string): boolean {
 	if (domNode.getAttribute('data-transform') !== desiredValue) {
 		domNode.setAttribute('data-transform', desiredValue);
 		(<any>domNode.style).webkitTransform = desiredValue;
+		return true;
 	}
+	return false;
 }
-function setTransform(domNode: HTMLElement, desiredValue: string): void {
+function setTransform(domNode: HTMLElement, desiredValue: string): boolean {
 	if (domNode.getAttribute('data-transform') !== desiredValue) {
 		domNode.setAttribute('data-transform', desiredValue);
 		domNode.style.transform = desiredValue;
+		return true;
 	}
+	return false;
 }
 (function() {
 	let testDomNode = document.createElement('div');
