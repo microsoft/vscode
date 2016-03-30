@@ -86,7 +86,7 @@ export const typeScriptDefaults = new LanguageServiceDefaults(
 	{ noSemanticValidation: false, noSyntaxValidation: false });
 
 export const javaScriptDefaults = new LanguageServiceDefaults(
-	{ allowNonTsExtensions: true, target: ts.ScriptTarget.Latest },
+	{ allowNonTsExtensions: true, allowJs: true, target: ts.ScriptTarget.Latest },
 	{ noSemanticValidation: true, noSyntaxValidation: false });
 
 

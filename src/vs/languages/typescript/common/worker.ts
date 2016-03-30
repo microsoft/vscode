@@ -97,6 +97,7 @@ class TypeScriptWorker extends TypeScriptWorkerProtocol implements ts.LanguageSe
 	}
 
 	getDefaultLibFileName(options: ts.CompilerOptions): string {
+		// TODO@joh support lib.es7.d.ts
 		return options.target > ts.ScriptTarget.ES5
 			? 'vs/text!vs/languages/typescript/common/lib/lib.es6.d.ts'
 			: 'vs/text!vs/languages/typescript/common/lib/lib.d.ts';
