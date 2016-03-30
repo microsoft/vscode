@@ -208,7 +208,7 @@ export class MessageList {
 
 			// Actions (if none provided, add one default action to hide message)
 			let messageActions = this.getMessageActions(message);
-			li.div({ class: (total > 1 || delta < 0) ? 'actions-container multiple' : 'actions-container' }, (actionContainer) => {
+			li.div({ class: 'actions-container' }, (actionContainer) => {
 				for (let i = messageActions.length - 1; i >= 0; i--) {
 					let action = messageActions[i];
 					actionContainer.div({ class: 'message-action' }, (div) => {
