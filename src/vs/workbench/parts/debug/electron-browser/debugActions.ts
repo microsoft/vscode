@@ -705,6 +705,16 @@ export class ClearReplAction extends AbstractDebugAction {
 	}
 }
 
+export class CopyAction extends actions.Action {
+	static ID = 'workbench.debug.action.copy';
+	static LABEL = nls.localize('copy', "Copy");
+
+	public run(): TPromise<any> {
+		clipboard.writeText(window.getSelection().toString());
+		return TPromise.as(null);
+	}
+}
+
 export class ToggleReplAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.action.toggleRepl';
 	static LABEL = nls.localize('toggleRepl', "Debug Console");
