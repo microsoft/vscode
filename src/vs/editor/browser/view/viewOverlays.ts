@@ -6,7 +6,7 @@
 
 import * as browser from 'vs/base/browser/browser';
 import {StyleMutator, FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
-import {IConfigurationChangedEvent, IEditorLayoutInfo, IModelDecoration, IScrollEvent} from 'vs/editor/common/editorCommon';
+import {IConfigurationChangedEvent, IEditorLayoutInfo, IModelDecoration} from 'vs/editor/common/editorCommon';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {IVisibleLineData, ViewLayer} from 'vs/editor/browser/view/viewLayer';
 import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
@@ -114,7 +114,7 @@ class ViewOverlayLine implements IVisibleLineData {
 		this._dynamicOverlays = dynamicOverlays;
 
 		this._domNode = null;
-		this._renderPieces = '';
+		this._renderPieces = null;
 	}
 
 	public getDomNode(): HTMLElement {
@@ -229,7 +229,6 @@ export class MarginViewOverlays extends ViewOverlays {
 
 		this.domNode.setClassName(editorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS + ' monaco-editor-background');
 		this.domNode.setWidth(1);
-		this._hasVerticalScroll = true;
 	}
 
 	protected _extraDomNodeHTML(): string {
@@ -275,24 +274,13 @@ export class MarginViewOverlays extends ViewOverlays {
 		return super.onLayoutChanged(layoutInfo) || true;
 	}
 
-	private _hasVerticalScroll = false;
-	public onScrollChanged(e:IScrollEvent): boolean {
-		this._hasVerticalScroll = this._hasVerticalScroll || e.vertical;
-		return super.onScrollChanged(e);
-	}
-
 	_viewOverlaysRender(ctx:editorBrowser.IRestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
-		if (this._hasVerticalScroll) {
-			if (browser.canUseTranslate3d) {
-				var transform = 'translate3d(0px, ' + ctx.linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
-				this.domNode.setTransform(transform);
-			} else {
-				if (this._hasVerticalScroll) {
-					this.domNode.setTop(ctx.linesViewportData.visibleRangesDeltaTop);
-				}
-			}
-			this._hasVerticalScroll = false;
+		if (browser.canUseTranslate3d) {
+			var transform = 'translate3d(0px, ' + ctx.linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
+			this.domNode.setTransform(transform);
+		} else {
+			this.domNode.setTop(ctx.linesViewportData.visibleRangesDeltaTop);
 		}
 		var height = Math.min(this._layoutProvider.getTotalHeight(), 1000000);
 		this.domNode.setHeight(height);

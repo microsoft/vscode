@@ -3451,7 +3451,6 @@ export var Handler = {
 	DeleteAllLeft:				'deleteAllLeft',
 	DeleteAllRight:				'deleteAllRight',
 
-	Enter: 						'enter',
 	RemoveSecondaryCursors: 	'removeSecondaryCursors',
 	CancelSelection:			'cancelSelection',
 
