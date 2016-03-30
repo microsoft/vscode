@@ -76,7 +76,8 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 	}
 
 	private onDebugStateChange(): void {
-		if (this.debugService.getState() === debug.State.Inactive) {
+		const state = this.debugService.getState();
+		if (state === debug.State.Disabled || state === debug.State.Inactive || state === debug.State.Initializing) {
 			return this.hide();
 		}
 

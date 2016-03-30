@@ -526,8 +526,10 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		this.setStateAndEmit(debug.State.Initializing);
 		this.clearReplExpressions();
 
-		return this.textFileService.saveAll().then(() => this.extensionService.onReady()).then(() => this.setConfiguration(this.configurationManager.getConfigurationName())).then(() => {
-
+		return this.textFileService.saveAll()
+		.then(() => this.extensionService.onReady()
+		.then(() => this.setConfiguration(this.configurationManager.getConfigurationName())
+		.then(() => {
 			const configuration = this.configurationManager.getConfiguration();
 			if (!configuration) {
 				return this.configurationManager.openConfigFile(false).then(openend => {
@@ -552,6 +554,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 					return this.doCreateSession(configuration, changeViewState);
 				}
 
+				this.setStateAndEmit(debug.State.Inactive);
 				this.messageService.show(severity.Error, {
 					message: errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Errors detected while running the preLaunchTask '{0}'.", configuration.preLaunchTask) :
 						errorCount === 1 ?  nls.localize('preLaunchTaskError', "Error detected while running the preLaunchTask '{0}'.", configuration.preLaunchTask) :
@@ -562,6 +565,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 					})]
 				});
 			}, (err: TaskError) => {
+				this.setStateAndEmit(debug.State.Inactive);
 				if (err.code !== TaskErrors.NotConfigured) {
 					throw err;
 				}
@@ -571,10 +575,14 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 					actions: [CloseAction, this.taskService.configureAction()]
 				});
 			});
+		})), err => {
+			this.setStateAndEmit(debug.State.Inactive);
+			throw err;
 		});
 	}
 
 	private doCreateSession(configuration: debug.IConfig, changeViewState: boolean): TPromise<any> {
+		this.setStateAndEmit(debug.State.Initializing);
 		const key = this.configurationManager.getAdapter().aiKey;
 		const telemetryInfo = Object.create(null);
 		this.telemetryService.getTelemetryInfo().then(info => {
