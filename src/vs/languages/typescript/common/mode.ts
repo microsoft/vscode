@@ -6,41 +6,48 @@
 
 import * as modes from 'vs/editor/common/modes';
 import * as lifecycle from 'vs/base/common/lifecycle';
+import URI from 'vs/base/common/uri';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {createTokenizationSupport, Language} from 'vs/languages/typescript/common/tokenization';
 import {AbstractMode, createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IThreadService} from 'vs/platform/thread/common/thread';
-import {LanguageServiceDefaults, typeScriptDefaults, javaScriptDefaults} from './typescript';
+import {LanguageServiceDefaults, typeScriptDefaults, javaScriptDefaults, LanguageServiceMode, TypeScriptWorkerProtocol} from './typescript';
+import {register} from './languageFeatures';
 
-export abstract class Mode extends AbstractMode implements lifecycle.IDisposable {
+export abstract class Mode extends AbstractMode implements lifecycle.IDisposable, LanguageServiceMode {
 
 	public tokenizationSupport: modes.ITokenizationSupport;
 	public richEditSupport: modes.IRichEditSupport;
 
+	private _languageServiceMode: LanguageServiceMode;
 	private _disposables: lifecycle.IDisposable[] = [];
 
 	constructor(
 		descriptor: modes.IModeDescriptor,
 		defaults:LanguageServiceDefaults,
 		@IThreadService threadService: IThreadService,
-		@IModelService modelService: IModelService,
-		@IMarkerService markerService: IMarkerService
+		@IModelService private _modelService: IModelService,
+		@IMarkerService private _markerService: IMarkerService
 	) {
 		super(descriptor.id);
 
-		if (threadService.isInMainThread && modelService && markerService) {
-			const initData = {
-				selector: this.getId(),
-				defaults,
-				modelService,
-				markerService,
-			};
+		if (threadService.isInMainThread && _modelService && _markerService) {
 
 			// this is needed as long as this mode is also instantiated in the worker
-			require(['vs/languages/typescript/common/worker/workerManager'], manager => {
-				this._disposables.push(manager.create(initData));
+			require(['vs/languages/typescript/common/workerManager'], workerManager => {
+
+				const client = <LanguageServiceMode & lifecycle.IDisposable>workerManager.create(defaults, this._modelService);
+				this._languageServiceMode = client;
+				this._disposables.push(client);
+
+				const registration = register(this._modelService, this._markerService,
+					this.getId(), defaults,
+					(first, ...more) => client.getLanguageServiceWorker(...[first].concat(more)));
+				this._disposables.push(registration);
+
 			}, err => {
 				console.error(err);
 			});
@@ -101,8 +108,14 @@ export abstract class Mode extends AbstractMode implements lifecycle.IDisposable
 		});
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this._disposables = lifecycle.disposeAll(this._disposables);
+	}
+
+	getLanguageServiceWorker(...resources: URI[]): TPromise<TypeScriptWorkerProtocol> {
+		if (this._languageServiceMode) {
+			return this._languageServiceMode.getLanguageServiceWorker(...resources);
+		}
 	}
 }
 

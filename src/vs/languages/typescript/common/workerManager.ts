@@ -9,18 +9,15 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
 import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
 import {SimpleWorkerClient} from 'vs/base/common/worker/simpleWorker';
-import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {EditorModelManager} from 'vs/editor/common/services/editorWorkerServiceImpl';
-import {LanguageServiceDefaults} from '../typescript';
-import {register} from '../languageFeatures';
-import AbstractWorker from './worker';
+import {LanguageServiceMode, LanguageServiceDefaults, TypeScriptWorkerProtocol} from './typescript';
 
-class Client {
+class WorkerManager {
 
 	private _modelService: IModelService;
 	private _defaults: LanguageServiceDefaults;
-	private _client: TPromise<{ worker: AbstractWorker; manager: EditorModelManager }> = null;
+	private _client: TPromise<{ worker: TypeScriptWorkerProtocol; manager: EditorModelManager }> = null;
 	private _clientDispose: IDisposable[] = [];
 	private _factory = new DefaultWorkerFactory();
 
@@ -29,9 +26,9 @@ class Client {
 		this._defaults = defaults;
 	}
 
-	private _createClient(): TPromise<{ worker: AbstractWorker; manager: EditorModelManager; }> {
+	private _createClient(): TPromise<{ worker: TypeScriptWorkerProtocol; manager: EditorModelManager; }> {
 
-		const client = new SimpleWorkerClient<AbstractWorker>(this._factory, 'vs/languages/typescript/common/worker/workerImpl', AbstractWorker);
+		const client = new SimpleWorkerClient<TypeScriptWorkerProtocol>(this._factory, 'vs/languages/typescript/common/worker', TypeScriptWorkerProtocol);
 		const manager = new EditorModelManager(client.get(), this._modelService, true);
 
 		this._clientDispose.push(manager);
@@ -64,7 +61,7 @@ class Client {
 		this._client = null;
 	}
 
-	get(resources: URI[]): TPromise<AbstractWorker> {
+	getLanguageServiceWorker(...resources: URI[]): TPromise<TypeScriptWorkerProtocol> {
 		if (!this._client) {
 			this._client = this._createClient();
 		}
@@ -75,17 +72,6 @@ class Client {
 	}
 }
 
-export function create(data: { selector: string, defaults: LanguageServiceDefaults, modelService: IModelService, markerService: IMarkerService }) {
-
-	const {selector, defaults, modelService, markerService} = data;
-	const client = new Client(modelService, defaults);
-	const registration = register(modelService, markerService, selector, defaults,
-		(first: URI, ...more: URI[]) => client.get([first].concat(more)));
-
-	return {
-		dispose() {
-			client.dispose();
-			registration.dispose();
-		}
-	};
+export function create(defaults: LanguageServiceDefaults, modelService: IModelService): LanguageServiceMode {
+	return new WorkerManager(modelService, defaults);
 }

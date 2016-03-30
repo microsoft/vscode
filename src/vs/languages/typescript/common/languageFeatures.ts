@@ -7,12 +7,10 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
+import * as lifecycle from 'vs/base/common/lifecycle';
 import * as editor from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import * as lifecycle from 'vs/base/common/lifecycle';
-import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 import matches from 'vs/editor/common/modes/languageSelector';
-import AbstractWorker from './worker/worker';
 import {IMarkerService, IMarkerData} from 'vs/platform/markers/common/markers';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
@@ -23,10 +21,11 @@ import {ReferenceRegistry} from 'vs/editor/contrib/referenceSearch/common/refere
 import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import {OutlineRegistry} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/common/format';
-import {LanguageServiceDefaults} from './typescript';
+import {TypeScriptWorkerProtocol, LanguageServiceDefaults} from 'vs/languages/typescript/common/typescript';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 
 export function register(modelService: IModelService, markerService: IMarkerService,
-	selector: string, defaults:LanguageServiceDefaults, worker: (first: URI, ...more: URI[]) => TPromise<AbstractWorker>): lifecycle.IDisposable {
+	selector: string, defaults:LanguageServiceDefaults, worker: (first: URI, ...more: URI[]) => TPromise<TypeScriptWorkerProtocol>): lifecycle.IDisposable {
 
 	const disposables: lifecycle.IDisposable[] = [];
 	disposables.push(SuggestRegistry.register(selector, new SuggestAdapter(modelService, worker)));
@@ -45,7 +44,7 @@ export function register(modelService: IModelService, markerService: IMarkerServ
 
 abstract class Adapter {
 
-	constructor(protected _modelService: IModelService, protected _worker: (first:URI, ...more:URI[]) => TPromise<AbstractWorker>) {
+	constructor(protected _modelService: IModelService, protected _worker: (first:URI, ...more:URI[]) => TPromise<TypeScriptWorkerProtocol>) {
 
 	}
 
@@ -90,7 +89,8 @@ class DiagnostcsAdapter extends Adapter {
 
 	constructor(private _defaults: LanguageServiceDefaults, private _selector: string,
 		private _markerService: IMarkerService, modelService: IModelService,
-		worker: (first: URI, ...more: URI[]) => TPromise<AbstractWorker>) {
+		worker: (first: URI, ...more: URI[]) => TPromise<TypeScriptWorkerProtocol>
+	) {
 		super(modelService, worker);
 
 		const onModelAdd = (model: editor.IModel): void => {

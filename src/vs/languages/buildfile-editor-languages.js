@@ -53,9 +53,9 @@ exports.collectModules = function(args) {
 
 	common.define('vs/languages/typescript/common/mode', EXCLUDES)
 		.combine(worker)
-			.define('vs/languages/typescript/common/worker/workerImpl', EXCLUDES);
+			.define('vs/languages/typescript/common/worker', EXCLUDES);
 
-	common.define('vs/languages/typescript/common/worker/workerManager', EXCLUDES);
+	common.define('vs/languages/typescript/common/workerManager', EXCLUDES);
 
 	return result;
 };

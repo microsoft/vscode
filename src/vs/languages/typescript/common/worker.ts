@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import AbstractWorker, {IRawModelData} from './worker';
-import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
-import {IModelContentChangedEvent2} from 'vs/editor/common/editorCommon';
-import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
-import URI from 'vs/base/common/uri';
 import 'vs/text!vs/languages/typescript/common/lib/lib.d.ts';
 import 'vs/text!vs/languages/typescript/common/lib/lib.es6.d.ts';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
+import URI from 'vs/base/common/uri';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {TypeScriptWorkerProtocol, IRawModelData} from './typescript';
+import {IModelContentChangedEvent2} from 'vs/editor/common/editorCommon';
+import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
 
-class TypeScriptWorker extends AbstractWorker implements ts.LanguageServiceHost {
+class TypeScriptWorker extends TypeScriptWorkerProtocol implements ts.LanguageServiceHost {
 
 	// --- model sync -----------------------
 
@@ -175,6 +175,6 @@ class TypeScriptWorker extends AbstractWorker implements ts.LanguageServiceHost 
 	}
 }
 
-export function create(): AbstractWorker {
+export function create(): TypeScriptWorkerProtocol {
 	return new TypeScriptWorker();
 }
