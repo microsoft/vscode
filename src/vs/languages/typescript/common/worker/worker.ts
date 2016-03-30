@@ -92,6 +92,10 @@ abstract class AbstractWorker implements IRequestHandler {
 	getFormattingEditsAfterKeystroke(fileName: string, postion: number, ch: string, options: ts.FormatCodeOptions): TPromise<ts.TextChange[]> {
 		throw notImplemented();
 	}
+
+	getEmitOutput(fileName: string): TPromise<ts.EmitOutput> {
+		throw notImplemented();
+	}
 }
 
 export default AbstractWorker;

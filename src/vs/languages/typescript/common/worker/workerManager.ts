@@ -62,7 +62,7 @@ class Client {
 		this._client = null;
 	}
 
-	get(resources:URI[]): TPromise<AbstractWorker> {
+	get(resources: URI[]): TPromise<AbstractWorker> {
 		if (!this._client) {
 			this._client = this._createClient();
 		}

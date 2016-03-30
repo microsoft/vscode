@@ -120,6 +120,12 @@ class TypeScriptWorker extends AbstractWorker implements ts.LanguageServiceHost 
 		return TPromise.as(diagnostics);
 	}
 
+	getCompilerOptionsDiagnostics(fileName: string): TPromise<ts.Diagnostic[]> {
+		const diagnostics = this._languageService.getCompilerOptionsDiagnostics();
+		diagnostics.forEach(diag => diag.file = undefined); // diag.file cannot be JSON'yfied
+		return TPromise.as(diagnostics);
+	}
+
 	getCompletionsAtPosition(fileName: string, position:number): TPromise<ts.CompletionInfo> {
 		return TPromise.as(this._languageService.getCompletionsAtPosition(fileName, position));
 	}
@@ -162,6 +168,10 @@ class TypeScriptWorker extends AbstractWorker implements ts.LanguageServiceHost 
 
 	getFormattingEditsAfterKeystroke(fileName: string, postion: number, ch: string, options: ts.FormatCodeOptions): TPromise<ts.TextChange[]> {
 		return TPromise.as(this._languageService.getFormattingEditsAfterKeystroke(fileName, postion, ch, options));
+	}
+
+	getEmitOutput(fileName: string): TPromise<ts.EmitOutput> {
+		return TPromise.as(this._languageService.getEmitOutput(fileName));
 	}
 }
 
