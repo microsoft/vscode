@@ -448,7 +448,7 @@ export class EditorStatus implements IStatusbarItem {
 					update.indentation = (
 						modelOpts.insertSpaces
 							? nls.localize('spacesSize', "Spaces: {0}", modelOpts.tabSize)
-							: nls.localize('tabSize', "Tab Size: {0}", modelOpts.tabSize)
+							: nls.localize({ key: 'tabSize', comment: ['Tab corresponds to the tab key']}, "Tab Size: {0}", modelOpts.tabSize)
 					);
 				}
 			}
