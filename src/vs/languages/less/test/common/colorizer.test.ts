@@ -5,11 +5,10 @@
 'use strict';
 
 import 'vs/languages/css/common/css.contribution';
-import 'vs/languages/javascript/common/javascript.contribution';
+import 'vs/languages/typescript/common/typescript.contribution';
+import 'vs/languages/less/common/less';
 import 'vs/languages/less/common/less.contribution';
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import LESS = require('vs/languages/less/common/less');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import * as lessTokenTypes from 'vs/languages/less/common/lessTokenTypes';
 

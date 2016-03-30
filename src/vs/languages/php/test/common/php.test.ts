@@ -6,7 +6,7 @@
 
 import 'vs/languages/php/common/php.contribution';
 import 'vs/languages/html/common/html.contribution';
-import 'vs/languages/javascript/common/javascript.contribution';
+import 'vs/languages/typescript/common/typescript.contribution';
 import 'vs/languages/css/common/css.contribution';
 
 import Modes = require('vs/editor/common/modes');

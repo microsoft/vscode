@@ -12,19 +12,21 @@ import {SimpleWorkerClient} from 'vs/base/common/worker/simpleWorker';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {EditorModelManager} from 'vs/editor/common/services/editorWorkerServiceImpl';
-import {Defaults} from '../typescript';
+import {LanguageServiceDefaults} from '../typescript';
 import {register} from '../languageFeatures';
 import AbstractWorker from './worker';
 
 class Client {
 
+	private _modelService: IModelService;
+	private _defaults: LanguageServiceDefaults;
 	private _client: TPromise<{ worker: AbstractWorker; manager: EditorModelManager }> = null;
 	private _clientDispose: IDisposable[] = [];
 	private _factory = new DefaultWorkerFactory();
-	private _modelService: IModelService;
 
-	constructor(modelService: IModelService) {
+	constructor(modelService: IModelService, defaults: LanguageServiceDefaults) {
 		this._modelService = modelService;
+		this._defaults = defaults;
 	}
 
 	private _createClient(): TPromise<{ worker: AbstractWorker; manager: EditorModelManager; }> {
@@ -49,12 +51,12 @@ class Client {
 		this._clientDispose.push({ dispose() { clearInterval(handle); } });
 
 		// stop worker when defaults change
-		this._clientDispose.push(Defaults.onDidChange(() => stopWorker()));
+		this._clientDispose.push(this._defaults.onDidChange(() => stopWorker()));
 
 		// send default to worker right away
 		const worker = client.get();
-		const {compilerOptions, extraLibs} = Defaults;
-		return worker.acceptDefaults(compilerOptions, extraLibs).then(() =>({ worker, manager }));
+		const {compilerOptions, extraLibs} = this._defaults;
+		return worker.acceptDefaults(compilerOptions, extraLibs).then(() => ({ worker, manager }));
 	}
 
 	dispose(): void {
@@ -73,10 +75,10 @@ class Client {
 	}
 }
 
-export function create(selector: string, modelService: IModelService, markerService: IMarkerService) {
+export function create(selector: string, defaults: LanguageServiceDefaults, modelService: IModelService, markerService: IMarkerService) {
 
-	const client = new Client(modelService);
-	const registration = register(modelService, markerService, selector,
+	const client = new Client(modelService, defaults);
+	const registration = register(modelService, markerService, selector, defaults,
 		(first: URI, ...more: URI[]) => client.get([first].concat(more)));
 
 	return {

@@ -13,6 +13,17 @@ ModesRegistry.registerCompatMode({
 	extensions: ['.ts'],
 	aliases: ['TypeScript', 'ts', 'typescript'],
 	mimetypes: ['text/typescript'],
-	moduleId: 'vs/languages/typescript/common/typescriptMode',
+	moduleId: 'vs/languages/typescript/common/mode',
 	ctorName: 'TypeScriptMode'
+});
+
+ModesRegistry.registerCompatMode({
+	id: 'javascript',
+	extensions: ['.js', '.es6'],
+	firstLine: '^#!.*\\bnode',
+	filenames: ['jakefile'],
+	aliases: ['JavaScript', 'javascript', 'js'],
+	mimetypes: ['text/javascript'],
+	moduleId: 'vs/languages/typescript/common/mode',
+	ctorName: 'JavaScriptMode'
 });

@@ -8,11 +8,23 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 
+export interface DiagnosticsOptions {
+	noSemanticValidation?: boolean;
+	noSyntaxValidation?: boolean;
+}
+
 export class LanguageServiceDefaults {
 
 	private _onDidChange = new Emitter<LanguageServiceDefaults>();
-	private _compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, target: ts.ScriptTarget.Latest };
-	private _extraLibs: { [path: string]: string } = Object.create(null);
+	private _extraLibs: { [path: string]: string };
+	private _compilerOptions: ts.CompilerOptions;
+	private _diagnosticsOptions: DiagnosticsOptions;
+
+	constructor(compilerOptions: ts.CompilerOptions, diagnosticsOptions: DiagnosticsOptions) {
+		this._extraLibs = Object.create(null);
+		this.setCompilerOptions(compilerOptions);
+		this.setDiagnosticsOptions(diagnosticsOptions);
+	}
 
 	get onDidChange(): Event<LanguageServiceDefaults>{
 		return this._onDidChange.event;
@@ -51,6 +63,21 @@ export class LanguageServiceDefaults {
 		this._compilerOptions = options || Object.create(null);
 		this._onDidChange.fire(this);
 	}
+
+	get diagnosticsOptions(): DiagnosticsOptions {
+		return this._diagnosticsOptions;
+	}
+
+	setDiagnosticsOptions(options: DiagnosticsOptions): void {
+		this._diagnosticsOptions = options || Object.create(null);
+		this._onDidChange.fire(this);
+	}
 }
 
-export const Defaults = new LanguageServiceDefaults();
+export const typeScriptDefaults = new LanguageServiceDefaults(
+	{ allowNonTsExtensions: true, target: ts.ScriptTarget.Latest },
+	{ noSemanticValidation: false, noSyntaxValidation: false });
+
+export const javaScriptDefaults = new LanguageServiceDefaults(
+	{ allowNonTsExtensions: true, target: ts.ScriptTarget.Latest },
+	{ noSemanticValidation: true, noSyntaxValidation: false });

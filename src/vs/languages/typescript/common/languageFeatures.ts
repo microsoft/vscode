@@ -23,9 +23,10 @@ import {ReferenceRegistry} from 'vs/editor/contrib/referenceSearch/common/refere
 import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import {OutlineRegistry} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/common/format';
+import {LanguageServiceDefaults} from './typescript';
 
 export function register(modelService: IModelService, markerService: IMarkerService,
-	selector: string, worker: (first: URI, ...more: URI[]) => TPromise<AbstractWorker>): lifecycle.IDisposable {
+	selector: string, defaults:LanguageServiceDefaults, worker: (first: URI, ...more: URI[]) => TPromise<AbstractWorker>): lifecycle.IDisposable {
 
 	const disposables: lifecycle.IDisposable[] = [];
 	disposables.push(SuggestRegistry.register(selector, new SuggestAdapter(modelService, worker)));
@@ -37,7 +38,7 @@ export function register(modelService: IModelService, markerService: IMarkerServ
 	disposables.push(OutlineRegistry.register(selector, new OutlineAdapter(modelService, worker)));
 	disposables.push(FormatRegistry.register(selector, new FormatAdapter(modelService, worker)));
 	disposables.push(FormatOnTypeRegistry.register(selector, new FormatAdapter(modelService, worker)));
-	disposables.push(new DiagnostcsAdapter(selector, markerService, modelService, worker));
+	disposables.push(new DiagnostcsAdapter(defaults, selector, markerService, modelService, worker));
 
 	return lifecycle.combinedDispose2(disposables);
 }
@@ -87,7 +88,9 @@ class DiagnostcsAdapter extends Adapter {
 	private _disposables: lifecycle.IDisposable[] = [];
 	private _listener: { [uri: string]: lifecycle.IDisposable } = Object.create(null);
 
-	constructor(private _selector:string, private _markerService: IMarkerService, modelService: IModelService, worker: (first: URI, ...more: URI[]) => TPromise<AbstractWorker>) {
+	constructor(private _defaults: LanguageServiceDefaults, private _selector: string,
+		private _markerService: IMarkerService, modelService: IModelService,
+		worker: (first: URI, ...more: URI[]) => TPromise<AbstractWorker>) {
 		super(modelService, worker);
 
 		const onModelAdd = (model: editor.IModel): void => {
@@ -131,9 +134,19 @@ class DiagnostcsAdapter extends Adapter {
 	}
 
 	private _doValidate(resource: URI): void {
-		this._worker(resource).then(worker => TPromise.join([worker.getSyntacticDiagnostics(resource.toString()), worker.getSemanticDiagnostics(resource.toString())])).then(diagnostics => {
-			const [syntactic, semantic] = diagnostics;
-			const markers = syntactic.concat(semantic).map(d => this._convertDiagnostics(resource, d));
+		this._worker(resource).then(worker => {
+			let promises: TPromise<ts.Diagnostic[]>[] = [];
+			if (!this._defaults.diagnosticsOptions.noSyntaxValidation) {
+				promises.push(worker.getSyntacticDiagnostics(resource.toString()));
+			}
+			if (!this._defaults.diagnosticsOptions.noSemanticValidation) {
+				promises.push(worker.getSemanticDiagnostics(resource.toString()));
+			}
+			return TPromise.join(promises);
+		}).then(diagnostics => {
+			const markers = diagnostics
+				.reduce((p, c) => c.concat(p), [])
+				.map(d => this._convertDiagnostics(resource, d));
 			this._markerService.changeOne(this._selector, resource, markers);
 		}).done(undefined, err => {
 			console.error(err);

@@ -43,20 +43,19 @@ exports.collectModules = function(args) {
 		.combine(worker)
 			.define('vs/languages/json/common/jsonWorker');
 
-	// ---- shared between javascript and typescript -----------------------------------
+	// ---- typescript & javascript -----------------
+
 	common.define('vs/languages/typescript/common/lib/typescriptServices');
+
 	common.define('vs/languages/typescript/common/typescript', 'vs/languages/typescript/common/lib/typescriptServices');
-	var SHARED_JS_TS = ['vs/languages/typescript/common/lib/typescriptServices', 'vs/languages/typescript/common/typescript'];
 
-	// ---- typescript -----------------------------------
-	common.define('vs/languages/typescript/common/typescriptMode', SHARED_JS_TS)
+	var EXCLUDES = ['vs/languages/typescript/common/lib/typescriptServices', 'vs/languages/typescript/common/typescript'];
+
+	common.define('vs/languages/typescript/common/mode', EXCLUDES)
 		.combine(worker)
-			.define('vs/languages/typescript/common/worker/workerImpl', SHARED_JS_TS);
+			.define('vs/languages/typescript/common/worker/workerImpl', EXCLUDES);
 
-	// ---- javascript ----------------------------
-	common.define('vs/languages/javascript/common/javascript', SHARED_JS_TS.concat(['vs/languages/typescript/common/typescriptMode']));
-
-	common.define('vs/languages/typescript/common/worker/workerManager', SHARED_JS_TS);
+	common.define('vs/languages/typescript/common/worker/workerManager', EXCLUDES);
 
 	return result;
 };

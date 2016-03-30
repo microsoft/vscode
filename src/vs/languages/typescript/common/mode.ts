@@ -12,8 +12,9 @@ import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IThreadService} from 'vs/platform/thread/common/thread';
+import {LanguageServiceDefaults, typeScriptDefaults, javaScriptDefaults} from './typescript';
 
-export class TypeScriptMode extends AbstractMode implements lifecycle.IDisposable {
+export abstract class Mode extends AbstractMode implements lifecycle.IDisposable {
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
 	public richEditSupport: Modes.IRichEditSupport;
@@ -22,6 +23,7 @@ export class TypeScriptMode extends AbstractMode implements lifecycle.IDisposabl
 
 	constructor(
 		descriptor: Modes.IModeDescriptor,
+		defaults:LanguageServiceDefaults,
 		@IThreadService threadService: IThreadService,
 		@IModelService private _modelService: IModelService,
 		@IMarkerService private _markerService: IMarkerService
@@ -32,13 +34,12 @@ export class TypeScriptMode extends AbstractMode implements lifecycle.IDisposabl
 			// this is needed as long as this mode is also instantiated in the
 			// worker
 			require(['vs/languages/typescript/common/worker/workerManager'], manager => {
-				this._disposables.push(manager.create(this.getId(), this._modelService, this._markerService));
+				this._disposables.push(manager.create(this.getId(), defaults, this._modelService, this._markerService));
 			}, err => {
 				console.error(err);
 			});
 		}
 
-		this.tokenizationSupport = tokenization.createTokenizationSupport(this, tokenization.Language.TypeScript);
 		this.richEditSupport = new RichEditSupport(this.getId(), null, {
 			wordPattern: createWordRegExp('$'),
 
@@ -96,5 +97,33 @@ export class TypeScriptMode extends AbstractMode implements lifecycle.IDisposabl
 
 	public dispose(): void {
 		this._disposables = lifecycle.disposeAll(this._disposables);
+	}
+}
+
+export class TypeScriptMode extends Mode {
+
+	constructor(
+		descriptor: Modes.IModeDescriptor,
+		@IThreadService threadService: IThreadService,
+		@IModelService modelService: IModelService,
+		@IMarkerService markerService: IMarkerService
+	) {
+		super(descriptor, typeScriptDefaults, threadService, modelService, markerService);
+
+		this.tokenizationSupport = tokenization.createTokenizationSupport(this, tokenization.Language.TypeScript);
+	}
+}
+
+export class JavaScriptMode extends Mode {
+
+	constructor(
+		descriptor: Modes.IModeDescriptor,
+		@IThreadService threadService: IThreadService,
+		@IModelService modelService: IModelService,
+		@IMarkerService markerService: IMarkerService
+	) {
+		super(descriptor, javaScriptDefaults, threadService, modelService, markerService);
+
+		this.tokenizationSupport = tokenization.createTokenizationSupport(this, tokenization.Language.EcmaScript5);
 	}
 }
