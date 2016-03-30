@@ -46,7 +46,6 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 	private lines:ILinesCollection;
 	private decorations:ViewModelDecorations;
 	private cursors:ViewModelCursors;
-	private shouldForceTokenization:boolean;
 
 	private getCurrentCenteredModelRange:()=>editorCommon.IEditorRange;
 
@@ -71,7 +70,6 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 		this.decorations.reset(this.model);
 
 		this.cursors = new ViewModelCursors(this.configuration, this);
-		this._updateShouldForceTokenization();
 
 		this.listenersToRemove = [];
 		this._toDispose = [];
@@ -88,7 +86,6 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 				this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
 				this.decorations.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
 				this.cursors.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
-				this._updateShouldForceTokenization();
 			}
 		});
 	}
@@ -111,17 +108,12 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 		this.model = null;
 	}
 
-	private _updateShouldForceTokenization(): void {
-		this.shouldForceTokenization = (this.lines.getOutputLineCount() <= this.configuration.editor.forcedTokenizationBoundary);
-	}
-
 	private _onTabSizeChange(newTabSize:number): boolean {
 		var lineMappingChanged = this.lines.setTabSize(newTabSize, (eventType:string, payload:any) => this.emit(eventType, payload));
 		if (lineMappingChanged) {
 			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
 			this.decorations.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
-			this._updateShouldForceTokenization();
 		}
 		return lineMappingChanged;
 	}
@@ -132,7 +124,6 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
 			this.decorations.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
-			this._updateShouldForceTokenization();
 		}
 		return lineMappingChanged;
 	}
@@ -156,7 +147,6 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 			this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
 			this.decorations.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
 			this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
-			this._updateShouldForceTokenization();
 		}
 		return lineMappingChanged;
 	}
@@ -179,7 +169,6 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 				len:number,
 				e: IEmitterEvent,
 				data:any,
-				shouldUpdateForceTokenization = false,
 				modelContentChangedEvent:editorCommon.IModelContentChangedEvent,
 				hadOtherModelChange = false,
 				hadModelLineChangeThatChangedLineMapping = false,
@@ -218,7 +207,6 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 								console.info('ViewModel received unknown event: ');
 								console.info(e);
 						}
-						shouldUpdateForceTokenization = true;
 						break;
 
 					case editorCommon.EventType.ModelTokensChanged:
@@ -292,15 +280,10 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 				}
 			}
 
-			if (shouldUpdateForceTokenization) {
-				this._updateShouldForceTokenization();
-			}
-
 			if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
 				this.emit(editorCommon.ViewEventNames.LineMappingChangedEvent);
 				this.decorations.onLineMappingChanged((eventType:string, payload:any) => this.emit(eventType, payload));
 				this.cursors.onLineMappingChanged((eventType: string, payload: any) => this.emit(eventType, payload));
-				this._updateShouldForceTokenization();
 			}
 
 			if (revealPreviousCenteredModelRange && previousCenteredModelRange) {
@@ -428,7 +411,7 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 	}
 
 	public getLineTokens(lineNumber:number): editorCommon.IViewLineTokens {
-		return this.lines.getOutputLineTokens(lineNumber, !this.shouldForceTokenization);
+		return this.lines.getOutputLineTokens(lineNumber, true);
 	}
 
 	public getLineRenderLineNumber(viewLineNumber:number): string {
