@@ -136,6 +136,21 @@ class TypeScriptWorker extends AbstractWorker implements ts.LanguageServiceHost 
 		return TPromise.as(this._languageService.getReferencesAtPosition(fileName, position));
 	}
 
+	getNavigationBarItems(fileName: string): TPromise<ts.NavigationBarItem[]> {
+		return TPromise.as(this._languageService.getNavigationBarItems(fileName));
+	}
+
+	getFormattingEditsForDocument(fileName: string, options: ts.FormatCodeOptions): TPromise<ts.TextChange[]> {
+		return TPromise.as(this._languageService.getFormattingEditsForDocument(fileName, options));
+	}
+
+	getFormattingEditsForRange(fileName: string, start: number, end: number, options: ts.FormatCodeOptions): TPromise<ts.TextChange[]> {
+		return TPromise.as(this._languageService.getFormattingEditsForRange(fileName, start, end, options));
+	}
+
+	getFormattingEditsAfterKeystroke(fileName: string, postion: number, ch: string, options: ts.FormatCodeOptions): TPromise<ts.TextChange[]> {
+		return TPromise.as(this._languageService.getFormattingEditsAfterKeystroke(fileName, postion, ch, options));
+	}
 }
 
 export function create(): AbstractWorker {

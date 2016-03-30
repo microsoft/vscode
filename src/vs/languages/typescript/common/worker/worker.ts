@@ -68,6 +68,22 @@ abstract class AbstractWorker implements IRequestHandler {
 	getReferencesAtPosition(fileName: string, position: number): TPromise<ts.ReferenceEntry[]> {
 		throw notImplemented();
 	}
+
+	getNavigationBarItems(fileName: string): TPromise<ts.NavigationBarItem[]> {
+		throw notImplemented();
+	}
+
+	getFormattingEditsForDocument(fileName: string, options: ts.FormatCodeOptions): TPromise<ts.TextChange[]> {
+		throw notImplemented();
+	}
+
+	getFormattingEditsForRange(fileName: string, start: number, end: number, options: ts.FormatCodeOptions): TPromise<ts.TextChange[]> {
+		throw notImplemented();
+	}
+
+	getFormattingEditsAfterKeystroke(fileName: string, postion: number, ch: string, options: ts.FormatCodeOptions): TPromise<ts.TextChange[]> {
+		throw notImplemented();
+	}
 }
 
 export default AbstractWorker;

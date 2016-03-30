@@ -18,6 +18,8 @@ import {OccurrencesRegistry} from 'vs/editor/contrib/wordHighlighter/common/word
 import {ExtraInfoRegistry} from 'vs/editor/contrib/hover/common/hover';
 import {ReferenceRegistry} from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
 import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
+import {OutlineRegistry} from 'vs/editor/contrib/quickOpen/common/quickOpen';
+import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/common/format';
 
 export default function registerLanguageFeatures(selector: string, modelService: IModelService, worker: (first:URI, ...more:URI[]) => TPromise<AbstractWorker>): lifecycle.IDisposable {
 	const disposables: lifecycle.IDisposable[] = [];
@@ -27,6 +29,9 @@ export default function registerLanguageFeatures(selector: string, modelService:
 	disposables.push(OccurrencesRegistry.register(selector, new OccurrencesAdapter(modelService, worker)));
 	disposables.push(DeclarationRegistry.register(selector, new DeclarationAdapter(modelService, worker)));
 	disposables.push(ReferenceRegistry.register(selector, new ReferenceAdapter(modelService, worker)));
+	disposables.push(OutlineRegistry.register(selector, new OutlineAdapter(modelService, worker)));
+	disposables.push(FormatRegistry.register(selector, new FormatAdapter(modelService, worker)));
+	disposables.push(FormatOnTypeRegistry.register(selector, new FormatAdapter(modelService, worker)));
 	return lifecycle.combinedDispose2(disposables);
 }
 
@@ -287,5 +292,87 @@ class ReferenceAdapter extends Adapter implements modes.IReferenceSupport {
 			}
 			return result;
 		});
+	}
+}
+
+// --- outline ------
+
+class OutlineAdapter extends Adapter implements modes.IOutlineSupport {
+
+	getOutline(resource: URI): TPromise<modes.IOutlineEntry[]> {
+		return this._worker(resource).then(worker => worker.getNavigationBarItems(resource.toString())).then(items => {
+			if (!items) {
+				return;
+			}
+
+			const convert = (item: ts.NavigationBarItem): modes.IOutlineEntry => {
+				return {
+					label: item.text,
+					type: item.kind,
+					range: this._textSpanToRange(resource, item.spans[0]),
+					children: item.childItems && item.childItems.map(convert)
+				};
+			};
+
+			return items.map(convert);
+		});
+	}
+}
+
+// --- formatting ----
+
+class FormatAdapter extends Adapter implements modes.IFormattingSupport {
+
+	formatRange(resource: URI, range: editor.IRange, options: modes.IFormattingOptions): TPromise<editor.ISingleEditOperation[]>{
+		return this._worker(resource).then(worker => {
+			return worker.getFormattingEditsForRange(resource.toString(),
+				this._positionToOffset(resource, { lineNumber: range.startLineNumber, column: range.startColumn }),
+				this._positionToOffset(resource, { lineNumber: range.endLineNumber, column: range.endColumn }),
+				FormatAdapter._convertOptions(options));
+		}).then(edits => {
+			if (edits) {
+				return edits.map(edit => this._convertTextChanges(resource, edit));
+			}
+		});
+	}
+
+	get autoFormatTriggerCharacters() {
+		return [';', '}', '\n'];
+	}
+
+	formatAfterKeystroke(resource: URI, position: editor.IPosition, ch: string, options: modes.IFormattingOptions): TPromise<editor.ISingleEditOperation[]> {
+		return this._worker(resource).then(worker => {
+			return worker.getFormattingEditsAfterKeystroke(resource.toString(),
+				this._positionToOffset(resource, position),
+				ch, FormatAdapter._convertOptions(options));
+		}).then(edits => {
+			if (edits) {
+				return edits.map(edit => this._convertTextChanges(resource, edit));
+			}
+		});
+	}
+
+	private _convertTextChanges(resource: URI, change: ts.TextChange): editor.ISingleEditOperation {
+		return <editor.ISingleEditOperation>{
+			text: change.newText,
+			range: this._textSpanToRange(resource, change.span)
+		};
+	}
+
+	private static _convertOptions(options: modes.IFormattingOptions): ts.FormatCodeOptions {
+		return {
+			ConvertTabsToSpaces: options.insertSpaces,
+			TabSize: options.tabSize,
+			IndentSize: options.tabSize,
+			NewLineCharacter: '\n',
+			InsertSpaceAfterCommaDelimiter: true,
+			InsertSpaceAfterFunctionKeywordForAnonymousFunctions: false,
+			InsertSpaceAfterKeywordsInControlFlowStatements: false,
+			InsertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: true,
+			InsertSpaceAfterSemicolonInForStatements: false,
+			InsertSpaceBeforeAndAfterBinaryOperators: true,
+			PlaceOpenBraceOnNewLineForControlBlocks: false,
+			PlaceOpenBraceOnNewLineForFunctions: false
+		};
 	}
 }
