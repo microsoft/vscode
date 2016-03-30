@@ -375,7 +375,7 @@ export class ViewLines extends ViewLayer {
 		throw new Error('Not supported');
 	}
 
-	public renderText(linesViewportData:editorCommon.ViewLinesViewportData): void {
+	public renderText(linesViewportData:editorCommon.ViewLinesViewportData, onAfterLinesRendered:()=>void): void {
 		if (!this.shouldRender()) {
 			throw new Error('I did not ask to render!');
 		}
@@ -387,7 +387,10 @@ export class ViewLines extends ViewLayer {
 		this.domNode.setWidth(this._layoutProvider.getScrollWidth());
 		this.domNode.setHeight(Math.min(this._layoutProvider.getTotalHeight(), 1000000));
 
-		// (2) compute horizontal scroll position:
+		// (2) execute DOM writing that forces sync layout (e.g. textArea manipulation)
+		onAfterLinesRendered();
+
+		// (3) compute horizontal scroll position:
 		//  - this must happen after the lines are in the DOM since it might need a line that rendered just now
 		//  - it might change `scrollWidth` and `scrollLeft`
 		if (this._lastCursorRevealRangeHorizontallyEvent) {
@@ -410,6 +413,7 @@ export class ViewLines extends ViewLayer {
 			this._layoutProvider.setScrollLeft(newScrollLeft.scrollLeft);
 		}
 
+		// (4) handle scrolling
 		let somethingChanged = false;
 		if (browser.canUseTranslate3d) {
 			var transform = 'translate3d(' + -this._layoutProvider.getScrollLeft() + 'px, ' + linesViewportData.visibleRangesDeltaTop + 'px, 0px)';
@@ -418,6 +422,8 @@ export class ViewLines extends ViewLayer {
 			somethingChanged = StyleMutator.setTop(<HTMLElement>this.domNode.domNode.parentNode, linesViewportData.visibleRangesDeltaTop) || somethingChanged; // TODO@Alex
 			somethingChanged = StyleMutator.setLeft(<HTMLElement>this.domNode.domNode.parentNode, -this._layoutProvider.getScrollLeft()) || somethingChanged; // TODO@Alex
 		}
+
+		// (5) reset cached client rect left if scrolling changed something
 		if (somethingChanged) {
 			this._lastRenderedData.resetDomNodeClientRectLeft();
 		}

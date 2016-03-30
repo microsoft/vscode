@@ -889,6 +889,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 
 		if (!this.viewLines.shouldRender() && viewPartsToRender.length === 0) {
 			// Nothing to render
+			this.keyboardHandler.writeToTextArea();
 			t.stop();
 			return;
 		}
@@ -896,11 +897,15 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		let linesViewportData = this.layoutProvider.getLinesViewportData();
 
 		if (this.viewLines.shouldRender()) {
-			this.viewLines.renderText(linesViewportData);
+			this.viewLines.renderText(linesViewportData, () => {
+				this.keyboardHandler.writeToTextArea();
+			});
 			this.viewLines.onDidRender();
 
 			// Rendering of viewLines might cause scroll events to occur, so collect view parts to render again
 			viewPartsToRender = this._getViewPartsToRender();
+		} else {
+			this.keyboardHandler.writeToTextArea();
 		}
 
 		let renderingContext = this.createRenderingContext(linesViewportData);

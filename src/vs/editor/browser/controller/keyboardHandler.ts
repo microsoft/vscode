@@ -312,8 +312,9 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		return false;
 	}
 
+	private _lastCursorSelectionChanged:editorCommon.IViewCursorSelectionChangedEvent = null;
 	public onCursorSelectionChanged(e:editorCommon.IViewCursorSelectionChangedEvent): boolean {
-		this.textAreaHandler.setCursorSelections(e.selection, e.secondarySelections);
+		this._lastCursorSelectionChanged = e;
 		return false;
 	}
 
@@ -326,6 +327,14 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		this.contentLeft = layoutInfo.contentLeft;
 		this.contentWidth = layoutInfo.contentWidth;
 		return false;
+	}
+
+	public writeToTextArea(): void {
+		if (this._lastCursorSelectionChanged) {
+			let e = this._lastCursorSelectionChanged;
+			this._lastCursorSelectionChanged = null;
+			this.textAreaHandler.setCursorSelections(e.selection, e.secondarySelections);
+		}
 	}
 
 }
