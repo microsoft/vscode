@@ -29,6 +29,8 @@ export class TypeScriptMode extends AbstractMode implements lifecycle.IDisposabl
 		super(descriptor.id);
 
 		if (threadService.isInMainThread) {
+			// this is needed as long as this mode is also instantiated in the
+			// worker
 			require(['vs/languages/typescript/common/worker/workerManager'], manager => {
 				this._disposables.push(manager.create(this.getId(), this._modelService, this._markerService));
 			}, err => {

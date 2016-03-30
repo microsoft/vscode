@@ -51,10 +51,12 @@ exports.collectModules = function(args) {
 	// ---- typescript -----------------------------------
 	common.define('vs/languages/typescript/common/typescriptMode', SHARED_JS_TS)
 		.combine(worker)
-			.define('vs/languages/typescript/common/worker/workerImpl');
+			.define('vs/languages/typescript/common/worker/workerImpl', SHARED_JS_TS);
 
 	// ---- javascript ----------------------------
 	common.define('vs/languages/javascript/common/javascript', SHARED_JS_TS.concat(['vs/languages/typescript/common/typescriptMode']));
+
+	common.define('vs/languages/typescript/common/worker/workerManager', SHARED_JS_TS);
 
 	return result;
 };
