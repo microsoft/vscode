@@ -1327,9 +1327,10 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 			this._sash.disable();
 		}
 
-		this._sash.on('start', () => this._onSashDragStart());
-		this._sash.on('change', (e: ISashEvent) => this._onSashDrag(e));
-		this._sash.on('end', () => this._onSashDragEnd());
+		this._sash.on('start', () => this.onSashDragStart());
+		this._sash.on('change', (e: ISashEvent) => this.onSashDrag(e));
+		this._sash.on('end', () => this.onSashDragEnd());
+		this._sash.on('reset', () => this.onSashReset());
 	}
 
 	public dispose(): void {
@@ -1378,11 +1379,11 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 		return this._sashPosition;
 	}
 
-	private _onSashDragStart(): void {
+	private onSashDragStart(): void {
 		this._startSashPosition = this._sashPosition;
 	}
 
-	private _onSashDrag(e:ISashEvent): void {
+	private onSashDrag(e:ISashEvent): void {
 		var w = this._dataSource.getWidth();
 		var contentWidth = w - DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		var sashPosition = this.layout((this._startSashPosition + (e.currentX - e.startX)) / contentWidth);
@@ -1392,7 +1393,13 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 		this._dataSource.relayoutEditors();
 	}
 
-	private _onSashDragEnd(): void {
+	private onSashDragEnd(): void {
+		this._sash.layout();
+	}
+
+	private onSashReset(): void {
+		this._sashRatio = 0.5;
+		this._dataSource.relayoutEditors();
 		this._sash.layout();
 	}
 
