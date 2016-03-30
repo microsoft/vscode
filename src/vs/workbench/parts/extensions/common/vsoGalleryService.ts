@@ -47,7 +47,7 @@ function getInstallCount(statistics: IGalleryExtensionStatistics[]): number {
 	return result ? result.value : 0;
 }
 
-const FIVE_MINUTES = 1000 * 60 * 5;
+// const FIVE_MINUTES = 1000 * 60 * 5;
 
 export class GalleryService implements IGalleryService {
 
@@ -76,36 +76,44 @@ export class GalleryService implements IGalleryService {
 		return !!this.extensionsGalleryUrl;
 	}
 
-	query(): TPromise<IExtension[]> {
+	query(text: string = ''): TPromise<{ extensions: IExtension[]; total: number; }> {
 		if (!this.isEnabled()) {
 			return TPromise.wrapError(new Error('No extension gallery service configured.'));
 		}
 
-		const raw = this.queryCache()
-			.then(null, err => this.queryGallery())
-			.then(result => {
-				const rawLastModified = result.getResponseHeader('last-modified');
+		// const raw = this.queryCache()
+		// 	.then(null, err => this.queryGallery(text))
+		// 	.then(result => {
+		// 		const rawLastModified = result.getResponseHeader('last-modified');
 
-				if (!rawLastModified) {
-					return this.queryGallery();
-				}
+		// 		if (!rawLastModified) {
+		// 			return this.queryGallery(text);
+		// 		}
 
-				const lastModified = new Date(rawLastModified).getTime();
-				const now = new Date().getTime();
-				const diff = now - lastModified;
+		// 		const lastModified = new Date(rawLastModified).getTime();
+		// 		const now = new Date().getTime();
+		// 		const diff = now - lastModified;
 
-				if (diff > FIVE_MINUTES) {
-					return this.queryGallery();
-				}
+		// 		if (diff > FIVE_MINUTES) {
+		// 			return this.queryGallery(text);
+		// 		}
 
-				return TPromise.as(result);
-			});
+		// 		return TPromise.as(result);
+		// 	});
 
-		return raw
-			.then<IGalleryExtension[]>(r => JSON.parse(r.responseText).results[0].extensions || [])
-			.then<IExtension[]>(extensions => {
+		// return raw
+		return this.queryGallery(text)
+			.then(r => JSON.parse(r.responseText).results[0])
+			.then<{ galleryExtensions: IGalleryExtension[]; total: number; }>(r => {
+				const galleryExtensions = r.extensions;
+				const resultCount = r.resultMetadata && r.resultMetadata.filter(m => m.metadataType === 'ResultCount')[0];
+				const total = resultCount && resultCount.metadataItems.filter(i => i.name === 'TotalCount')[0].count || 0;
+
+				return { galleryExtensions, total };
+			})
+			.then(({ galleryExtensions, total }) => {
 				return this.getRequestHeaders().then(downloadHeaders => {
-					return extensions.map(e => {
+					const extensions = galleryExtensions.map(e => {
 						const versions = e.versions.map<IGalleryVersion>(v => ({
 							version: v.version,
 							date: v.lastUpdated,
@@ -131,27 +139,30 @@ export class GalleryService implements IGalleryService {
 							}
 						};
 					});
+
+					return { extensions, total };
 				});
 			});
 	}
 
-	private queryCache(): TPromise<IXHRResponse> {
-		const url = this.extensionsCacheUrl;
+	// private queryCache(): TPromise<IXHRResponse> {
+	// 	const url = this.extensionsCacheUrl;
 
-		if (!url) {
-			return TPromise.wrapError(new Error('No cache configured.'));
-		}
+	// 	if (!url) {
+	// 		return TPromise.wrapError(new Error('No cache configured.'));
+	// 	}
 
-		return this.requestService.makeRequest({ url });
-	}
+	// 	return this.requestService.makeRequest({ url });
+	// }
 
-	private queryGallery(): TPromise<IXHRResponse> {
+	private queryGallery(text: string): TPromise<IXHRResponse> {
 		const data = JSON.stringify({
 			filters: [{
-				criteria:[{
-					filterType: 1,
-					value: 'vscode'
-				}]
+				criteria:[
+					{ filterType: 8, value: 'Microsoft.VisualStudio.Code' },
+					{ filterType: 10, value: text }
+				],
+				pageSize: 10
 			}],
 			flags: 0x1 | 0x4 | 0x80 | 0x100
 		});

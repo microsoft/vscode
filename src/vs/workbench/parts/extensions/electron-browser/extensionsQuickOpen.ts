@@ -7,6 +7,7 @@ import nls = require('vs/nls');
 import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isNumber } from 'vs/base/common/types';
+import { ThrottledDelayer } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import Severity from 'vs/base/common/severity';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -61,13 +62,13 @@ interface ITemplateData {
 	disposables: IDisposable[];
 }
 
-function getHighlights(input: string, extension: IExtension): IHighlights {
+function getHighlights(input: string, extension: IExtension, nullIfEmpty = true): IHighlights {
 	const id = matchesContiguousSubString(input, `${ extension.publisher }.${ extension.name }`) || [];
 	const name = matchesContiguousSubString(input, extension.name) || [];
 	const displayName = matchesContiguousSubString(input, extension.displayName) || [];
 	const description = matchesContiguousSubString(input, extension.description) || [];
 
-	if (!id.length && !name.length && !displayName.length && !description.length) {
+	if (nullIfEmpty && !id.length && !name.length && !displayName.length && !description.length) {
 		return null;
 	}
 
@@ -394,18 +395,15 @@ class GalleryExtensionsModel implements IModel<IExtensionEntry> {
 	public entries: IExtensionEntry[];
 
 	constructor(
+		input: string,
 		private galleryExtensions: IExtension[],
 		private localExtensions: IExtension[],
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.renderer = instantiationService.createInstance(Renderer);
 		this.runner = instantiationService.createInstance(InstallRunner);
-		this.entries = [];
-	}
-
-	public set input(input: string) {
 		this.entries = this.galleryExtensions
-			.map(extension => ({ extension, highlights: getHighlights(input.trim(), extension) }))
+			.map(extension => ({ extension, highlights: getHighlights(input.trim(), extension, false) }))
 			.filter(({ highlights }) => !!highlights)
 			.map(({ extension, highlights }: { extension: IExtension, highlights: IHighlights }) => {
 				const local = this.localExtensions.filter(local => extensionEquals(local, extension))[0];
@@ -417,14 +415,13 @@ class GalleryExtensionsModel implements IModel<IExtensionEntry> {
 						? (local.version === extension.version ? ExtensionState.Installed : ExtensionState.Outdated)
 						: ExtensionState.Uninstalled
 				};
-			})
-			.sort(extensionEntryCompare);
+			});
 	}
 }
 
 export class GalleryExtensionsHandler extends QuickOpenHandler {
 
-	private modelPromise: TPromise<GalleryExtensionsModel>;
+	private delayer: ThrottledDelayer<any>;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -433,6 +430,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super();
+		this.delayer = new ThrottledDelayer(50);
 	}
 
 	public getAriaLabel(): string {
@@ -440,20 +438,9 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 	}
 
 	getResults(input: string): TPromise<IModel<IExtensionEntry>> {
-		if (!this.modelPromise) {
-			this.telemetryService.publicLog('extensionGallery:open');
-			this.modelPromise = TPromise.join<any>([this.galleryService.query(), this.extensionsService.getInstalled()])
-				.then(result => this.instantiationService.createInstance(GalleryExtensionsModel, result[0], result[1]));
-		}
 
-		return this.modelPromise.then(model => {
-			model.input = input;
-			return model;
-		});
-	}
-
-	onClose(canceled: boolean): void {
-		this.modelPromise = null;
+		return this.delayer.trigger(() => TPromise.join<any>([this.galleryService.query(input), this.extensionsService.getInstalled()]))
+			.then(result => this.instantiationService.createInstance(GalleryExtensionsModel, input, result[0].extensions, result[1]));
 	}
 
 	getEmptyLabel(input: string): string {
@@ -486,7 +473,7 @@ class OutdatedExtensionsModel implements IModel<IExtensionEntry> {
 		this.entries = this.outdatedExtensions
 			.map(extension => ({ extension, highlights: getHighlights(input.trim(), extension) }))
 			.filter(({ highlights }) => !!highlights)
-			.map(({ extension, highlights }: { extension: IExtension, highlights: IHighlights }) => ({
+			.map(({ extension, highlights }) => ({
 				extension,
 				highlights,
 				state: ExtensionState.Outdated

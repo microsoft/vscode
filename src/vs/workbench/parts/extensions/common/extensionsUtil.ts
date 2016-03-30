@@ -24,7 +24,7 @@ export function getOutdatedExtensions(accessor: ServicesAccessor): TPromise<IExt
 
 	return TPromise.join<any>([galleryService.query(), extensionsService.getInstalled()])
 		.then(result => {
-			const available = result[0];
+			const available = result[0].extensions;
 			const installed = result[1];
 
 			return available.filter(extension => {

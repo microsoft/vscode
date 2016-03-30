@@ -628,9 +628,6 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		let currentResultToken = uuid.generateUuid();
 		this.currentResultToken = currentResultToken;
 
-		// Reset Progress
-		this.quickOpenWidget.getProgressBar().stop().getContainer().hide();
-
 		// Reset Extra Class
 		this.quickOpenWidget.setExtraClass(null);
 

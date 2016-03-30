@@ -48,7 +48,7 @@ export const IGalleryService = createDecorator<IGalleryService>('galleryService'
 export interface IGalleryService {
 	serviceId: ServiceIdentifier<any>;
 	isEnabled(): boolean;
-	query(): TPromise<IExtension[]>;
+	query(text?: string): TPromise<{ extensions: IExtension[]; total: number; }>;
 }
 
 export interface IExtensionsService {
