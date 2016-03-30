@@ -11,7 +11,6 @@ import nls = require('vs/nls');
 import {EditorType} from 'vs/editor/common/editorCommon';
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
-import assert = require('vs/base/common/assert');
 import aria = require('vs/base/browser/ui/aria/aria');
 import {IExpression, splitGlobAware} from 'vs/base/common/glob';
 import {isFunction} from 'vs/base/common/types';
@@ -65,13 +64,11 @@ import {KeyCode, CommonKeybindings} from 'vs/base/common/keyCodes';
 const ID = VIEWLET_ID;
 
 export class FindInFolderAction extends Action {
-
-	private viewletService: IViewletService;
 	private resource: URI;
 
-	constructor(resource: URI, @IViewletService viewletService: IViewletService) {
+	constructor(resource: URI, @IViewletService private viewletService: IViewletService) {
 		super('workbench.search.action.findInFolder', nls.localize('findInFolder', "Find in Folder"));
-		this.viewletService = viewletService;
+
 		this.resource = resource;
 	}
 
@@ -87,21 +84,24 @@ export class SearchDataSource implements IDataSource {
 	public getId(tree: ITree, element: any): string {
 		if (element instanceof FileMatch) {
 			return element.id();
-		} else if (element instanceof Match) {
-			return element.id();
-		} else if (element instanceof SearchResult) {
-			return 'root';
 		}
-		assert.ok(false);
+
+		if (element instanceof Match) {
+			return element.id();
+		}
+
+		return 'root';
 	}
 
 	public getChildren(tree: ITree, element: any): TPromise<any[]> {
 		let value: any[] = [];
+
 		if (element instanceof FileMatch) {
 			value = element.matches();
 		} else if (element instanceof SearchResult) {
 			value = element.matches();
 		}
+
 		return TPromise.as(value);
 	}
 
@@ -111,11 +111,13 @@ export class SearchDataSource implements IDataSource {
 
 	public getParent(tree: ITree, element: any): TPromise<any> {
 		let value: any = null;
+
 		if (element instanceof Match) {
 			value = element.parent();
 		} else if (element instanceof FileMatch) {
 			value = element.parent();
 		}
+
 		return TPromise.as(value);
 	}
 }
@@ -137,7 +139,7 @@ export class SearchSorter implements ISorter {
 
 export class SearchAccessibilityProvider implements IAccessibilityProvider {
 
-	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
 	}
 
 	public getAriaLabel(tree: ITree, element: FileMatchOrMatch): string {
@@ -157,6 +159,7 @@ class SearchController extends DefaultController {
 
 	constructor() {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN });
+
 		this.downKeyBindingDispatcher.set(CommonKeybindings.DELETE, (tree: ITree, event: any) => { this.onDelete(tree, event); });
 	}
 
@@ -170,6 +173,7 @@ class SearchController extends DefaultController {
 				result = true;
 			}
 		}
+
 		return result;
 	}
 }
@@ -199,35 +203,31 @@ class SearchActionProvider extends ContributableActionProvider {
 }
 
 class RemoveAction extends Action {
-
-	private _viewer: ITree;
-	private _fileMatch: FileMatch;
+	private viewer: ITree;
+	private fileMatch: FileMatch;
 
 	constructor(viewer: ITree, element: FileMatch) {
 		super('remove', nls.localize('RemoveAction.label', "Remove"), 'action-remove');
 
-		this._viewer = viewer;
-		this._fileMatch = element;
+		this.viewer = viewer;
+		this.fileMatch = element;
 	}
 
 	public run(): TPromise<any> {
-		let parent = this._fileMatch.parent();
-		parent.remove(this._fileMatch);
-		return this._viewer.refresh(parent);
+		let parent = this.fileMatch.parent();
+		parent.remove(this.fileMatch);
+
+		return this.viewer.refresh(parent);
 	}
 }
 
 class SearchRenderer extends ActionsRenderer {
 
-	private _contextService: IWorkspaceContextService;
-
-	constructor(actionRunner: IActionRunner, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+	constructor(actionRunner: IActionRunner, @IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		super({
 			actionProvider: new SearchActionProvider(),
 			actionRunner: actionRunner
 		});
-
-		this._contextService = contextService;
 	}
 
 	public getContentHeight(tree: ITree, element: any): number {
@@ -236,23 +236,23 @@ class SearchRenderer extends ActionsRenderer {
 
 	public renderContents(tree: ITree, element: FileMatchOrMatch, domElement: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
 
+		// File
 		if (element instanceof FileMatch) {
-
 			let fileMatch = <FileMatch>element;
-
-			let container = $('.filematch'),
-				leftRenderer: IRenderer,
-				rightRenderer: IRenderer,
-				widget: LeftRightWidget;
+			let container = $('.filematch');
+			let leftRenderer: IRenderer;
+			let rightRenderer: IRenderer;
+			let widget: LeftRightWidget;
 
 			leftRenderer = (left: HTMLElement): any => {
-				new FileLabel(left, fileMatch.resource(), this._contextService);
+				new FileLabel(left, fileMatch.resource(), this.contextService);
 
 				return null;
 			};
 
 			rightRenderer = (right: HTMLElement) => {
 				let len = fileMatch.count();
+
 				return new CountBadge(right, len, len > 1 ? nls.localize('searchMatches', "{0} matches found", len) : nls.localize('searchMatch', "{0} match found", len));
 			};
 
@@ -261,18 +261,20 @@ class SearchRenderer extends ActionsRenderer {
 			container.appendTo(domElement);
 
 			return widget.dispose.bind(widget);
+		}
 
-		} else if (element instanceof EmptyMatch) {
-
+		// Empty
+		else if (element instanceof EmptyMatch) {
 			dom.addClass(domElement, 'linematch');
 			$('a.plain.label').innerHtml(nls.localize('noMatches', "no matches")).appendTo(domElement);
+		}
 
-		} else if (element instanceof Match) {
-
+		// Match
+		else if (element instanceof Match) {
 			dom.addClass(domElement, 'linematch');
 
-			let elements: string[] = [],
-				preview = element.preview();
+			let elements: string[] = [];
+			let preview = element.preview();
 
 			elements.push('<span>');
 			elements.push(strings.escape(preview.before));
@@ -290,7 +292,6 @@ class SearchRenderer extends ActionsRenderer {
 }
 
 export class RefreshAction extends Action {
-
 	private viewlet: SearchViewlet;
 
 	constructor(viewlet: SearchViewlet) {
@@ -304,12 +305,12 @@ export class RefreshAction extends Action {
 
 	public run(): TPromise<void> {
 		this.viewlet.onQueryChanged(true);
+
 		return TPromise.as(null);
 	}
 }
 
 export class SelectOrRemoveAction extends Action {
-
 	private selectMode: boolean;
 	private viewlet: SearchViewlet;
 
@@ -324,30 +325,33 @@ export class SelectOrRemoveAction extends Action {
 
 	public run(): TPromise<any> {
 		let result: TPromise<any>;
+
 		if (this.selectMode) {
 			result = this.runAsSelect();
 		} else {
 			result = this.runAsRemove();
 		}
+
 		this.selectMode = !this.selectMode;
 		this.label = this.selectMode ? nls.localize('SelectOrRemoveAction.selectLabel', "Select") : nls.localize('SelectOrRemoveAction.removeLabel', "Remove");
+
 		return result;
 	}
 
 	private runAsSelect(): TPromise<void> {
 		this.viewlet.getResults().addClass('select');
+
 		return TPromise.as(null);
 	}
 
 	private runAsRemove(): TPromise<void> {
-
-		let elements: any[] = [],
-			tree: ITree = this.viewlet.getControl();
+		let elements: any[] = [];
+		let tree: ITree = this.viewlet.getControl();
 
 		tree.getInput().matches().forEach((fileMatch: FileMatch) => {
 			fileMatch.matches().filter((lineMatch: Match) => {
 				return (<any>lineMatch).$checked;
-			}).forEach(function(lineMatch: Match) {
+			}).forEach((lineMatch: Match) => {
 				lineMatch.parent().remove(lineMatch);
 				elements.push(lineMatch.parent());
 			});
@@ -355,9 +359,8 @@ export class SelectOrRemoveAction extends Action {
 
 		this.viewlet.getResults().removeClass('select');
 
-
 		if (elements.length > 0) {
-			return tree.refreshAll(elements).then(function() {
+			return tree.refreshAll(elements).then(() => {
 				return tree.refresh();
 			});
 		}
@@ -367,7 +370,6 @@ export class SelectOrRemoveAction extends Action {
 }
 
 export class CollapseAllAction extends Action {
-
 	private viewlet: SearchViewlet;
 
 	constructor(viewlet: SearchViewlet) {
@@ -413,16 +415,13 @@ export class ClearSearchResultsAction extends Action {
 }
 
 class ConfigureGlobalExclusionsAction extends Action {
-	private instantiationService: IInstantiationService;
 
-	constructor( @IInstantiationService instantiationService: IInstantiationService) {
+	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
 		super('configureGlobalExclusionsAction');
 
 		this.label = nls.localize('ConfigureGlobalExclusionsAction.label', "Open Settings");
 		this.enabled = true;
 		this.class = 'search-configure-exclusions';
-
-		this.instantiationService = instantiationService;
 	}
 
 	public run(): TPromise<void> {
@@ -629,18 +628,6 @@ export class SearchViewlet extends Viewlet {
 
 	private static MAX_TEXT_RESULTS = 2048;
 
-	private eventService: IEventService;
-	private editorService: IWorkbenchEditorService;
-	private progressService: IProgressService;
-	private messageService: IMessageService;
-	private contextViewService: IContextViewService;
-	private storageService: IStorageService;
-	private searchService: ISearchService;
-	private instantiationService: IInstantiationService;
-	private configurationService: IConfigurationService;
-	private textFileService: ITextFileService;
-	private contextService: IWorkspaceContextService;
-
 	private isDisposed: boolean;
 	private currentRequest: PPromise<ISearchComplete, ISearchProgressItem>;
 	private loading: boolean;
@@ -648,7 +635,7 @@ export class SearchViewlet extends Viewlet {
 	private viewModel: SearchResult;
 	private callOnModelChange: Function[];
 
-	private _viewletVisible: IKeybindingContextKey<boolean>;
+	private viewletVisible: IKeybindingContextKey<boolean>;
 	private actionRegistry: { [key: string]: Action; };
 	private tree: ITree;
 	private viewletSettings: any;
@@ -664,34 +651,24 @@ export class SearchViewlet extends Viewlet {
 	private inputPatternIncludes: PatternInput;
 	private results: Builder;
 
-	constructor( @ITelemetryService telemetryService: ITelemetryService,
-		@IEventService eventService: IEventService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IProgressService progressService: IProgressService,
-		@IMessageService messageService: IMessageService,
-		@IStorageService storageService: IStorageService,
-		@IContextViewService contextViewService: IContextViewService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@ISearchService searchService: ISearchService,
-		@ITextFileService textFileService: ITextFileService,
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IEventService private eventService: IEventService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IProgressService private progressService: IProgressService,
+		@IMessageService private messageService: IMessageService,
+		@IStorageService private storageService: IStorageService,
+		@IContextViewService private contextViewService: IContextViewService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@ISearchService private searchService: ISearchService,
+		@ITextFileService private textFileService: ITextFileService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(ID, telemetryService);
 
-		this.eventService = eventService;
-		this.editorService = editorService;
-		this.progressService = progressService;
-		this.messageService = messageService;
-		this.storageService = storageService;
-		this.contextViewService = contextViewService;
-		this.instantiationService = instantiationService;
-		this.configurationService = configurationService;
-		this.searchService = searchService;
-		this.textFileService = textFileService;
-		this.contextService = contextService;
-		this._viewletVisible = keybindingService.createKey<boolean>('searchViewletVisible', true);
+		this.viewletVisible = keybindingService.createKey<boolean>('searchViewletVisible', true);
 		this.callOnModelChange = [];
 
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
@@ -770,6 +747,7 @@ export class SearchViewlet extends Viewlet {
 				},
 				placeholder: nls.localize('findPlaceHolder', "Press Enter to Search, ESC to Cancel")
 			};
+
 			this.findInput = new FindInput(div.getHTMLElement(), this.contextViewService, options);
 			this.findInput.onKeyUp(onStandardKeyUp);
 			this.findInput.onKeyDown((keyboardEvent: IKeyboardEvent) => {
@@ -895,8 +873,8 @@ export class SearchViewlet extends Viewlet {
 				controller: new SearchController(),
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider)
 			}, {
-				ariaLabel: nls.localize('treeAriaLabel', "Search Results")
-			});
+					ariaLabel: nls.localize('treeAriaLabel', "Search Results")
+				});
 
 			this.toUnbind.push(() => renderer.dispose());
 
@@ -964,7 +942,7 @@ export class SearchViewlet extends Viewlet {
 
 	public setVisible(visible: boolean): TPromise<void> {
 		let promise: TPromise<void>;
-		this._viewletVisible.set(visible);
+		this.viewletVisible.set(visible);
 		if (visible) {
 			promise = super.setVisible(visible);
 			this.tree.onVisible();
@@ -996,6 +974,7 @@ export class SearchViewlet extends Viewlet {
 		if (selectedText) {
 			this.findInput.setValue(selectedText);
 		}
+
 		this.findInput.focus();
 		this.findInput.select();
 	}
@@ -1054,8 +1033,7 @@ export class SearchViewlet extends Viewlet {
 		}
 
 		let editor: any = this.editorService.getActiveEditor().getControl();
-		// Substitute for (editor instanceof ICodeEditor)
-		if (!editor || !isFunction(editor.getEditorType) || editor.getEditorType() !== EditorType.ICodeEditor) {
+		if (!editor || !isFunction(editor.getEditorType) || editor.getEditorType() !== EditorType.ICodeEditor) { // Substitute for (editor instanceof ICodeEditor)
 			return null;
 		}
 
@@ -1065,6 +1043,7 @@ export class SearchViewlet extends Viewlet {
 			r = r.substring(range.startColumn - 1, range.endColumn - 1);
 			return r;
 		}
+
 		return null;
 	}
 
@@ -1110,15 +1089,14 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	public onQueryChanged(rerunQuery: boolean, preserveFocus?: boolean): void {
-
-		let isRegex = this.findInput.getRegex(),
-			isWholeWords = this.findInput.getWholeWords(),
-			isCaseSensitive = this.findInput.getCaseSensitive(),
-			contentPattern = this.findInput.getValue(),
-			patternExcludes = this.inputPatternExclusions.getValue().trim(),
-			exclusionsUsePattern = this.inputPatternExclusions.isGlobPattern(),
-			patternIncludes = this.inputPatternIncludes.getValue().trim(),
-			includesUsePattern = this.inputPatternIncludes.isGlobPattern();
+		let isRegex = this.findInput.getRegex();
+		let isWholeWords = this.findInput.getWholeWords();
+		let isCaseSensitive = this.findInput.getCaseSensitive();
+		let contentPattern = this.findInput.getValue();
+		let patternExcludes = this.inputPatternExclusions.getValue().trim();
+		let exclusionsUsePattern = this.inputPatternExclusions.isGlobPattern();
+		let patternIncludes = this.inputPatternIncludes.getValue().trim();
+		let includesUsePattern = this.inputPatternIncludes.isGlobPattern();
 
 		// store memento
 		this.viewletSettings['query.contentPattern'] = contentPattern;
@@ -1134,24 +1112,21 @@ export class SearchViewlet extends Viewlet {
 			return;
 		}
 
-		if (/^\s+|\s$/.test(contentPattern)) {
-			contentPattern = strings.escapeRegExpCharacters(contentPattern);
-			isRegex = true;
-		}
-
 		if (contentPattern.length === 0) {
 			return;
 		}
 
+		// Validate regex is OK
 		if (isRegex) {
 			let regExp: RegExp;
 			try {
 				regExp = new RegExp(contentPattern);
 			} catch (e) {
-				return;
+				return; // malformed regex
 			}
+
 			if (strings.regExpLeadsToEndlessLoop(regExp)) {
-				return;
+				return; // endless regex
 			}
 		}
 
@@ -1163,7 +1138,6 @@ export class SearchViewlet extends Viewlet {
 		};
 
 		let excludes: IExpression = this.inputPatternExclusions.getGlob();
-
 		let includes: IExpression = this.inputPatternIncludes.getGlob();
 
 		let options: IQueryOptions = {
@@ -1183,7 +1157,6 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private onQueryTriggered(query: ISearchQuery, excludePattern: string, includePattern: string): void {
-
 		if (this.currentRequest) {
 			this.currentRequest.cancel();
 			this.currentRequest = null;
@@ -1428,6 +1401,7 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private showEmptyStage(): void {
+
 		// disable 'result'-actions
 		this.actionRegistry['refresh'].enabled = false;
 		this.actionRegistry['selectOrRemove'].enabled = false;
@@ -1463,7 +1437,6 @@ export class SearchViewlet extends Viewlet {
 		}
 
 		let matches = this.viewModel.matches();
-
 		for (let i = 0, len = matches.length; i < len; i++) {
 			if (e.resource.toString() === matches[i].resource().toString()) {
 				this.viewModel.remove(matches[i]);
@@ -1472,7 +1445,6 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private onFilesChanged(e: FileChangesEvent): void {
-
 		if (!this.viewModel) {
 			return;
 		}
