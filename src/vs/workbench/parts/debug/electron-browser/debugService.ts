@@ -48,7 +48,7 @@ import { ITextFileService } from 'vs/workbench/parts/files/common/files';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWindowService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
-import { ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL } from 'vs/workbench/services/thread/electron-browser/threadService';
+import { ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/workbench/services/thread/electron-browser/threadService';
 import { ipcRenderer as ipc } from 'electron';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
@@ -144,7 +144,11 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		// attach: PH is ready to be attached to
 		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
 			this.rawAttach(broadcast.payload.port);
+			return;
+		}
 
+		if (broadcast.channel === EXTENSION_TERMINATE_BROADCAST_CHANNEL) {
+			this.onSessionEnd();
 			return;
 		}
 
