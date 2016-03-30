@@ -6,7 +6,7 @@
 
 import Modes = require('vs/editor/common/modes');
 import lifecycle = require('vs/base/common/lifecycle');
-import tokenization = require('vs/languages/typescript/common/features/tokenization');
+import tokenization = require('vs/languages/typescript/common/tokenization');
 import {AbstractMode, createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {IModelService} from 'vs/editor/common/services/modelService';

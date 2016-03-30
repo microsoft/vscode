@@ -10,24 +10,18 @@ import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
-import tokenization = require('vs/languages/typescript/common/features/tokenization');
+import tokenization = require('vs/languages/typescript/common/tokenization');
+import {IMarkerService} from 'vs/platform/markers/common/markers';
 
 export class JSMode extends typescriptMode.TypeScriptMode {
-
-	public outlineSupport: Modes.IOutlineSupport;
-	public declarationSupport: Modes.IDeclarationSupport;
-	public referenceSupport: Modes.IReferenceSupport;
-	public extraInfoSupport: Modes.IExtraInfoSupport;
-	public logicalSelectionSupport: Modes.ILogicalSelectionSupport;
-	public typeDeclarationSupport: Modes.ITypeDeclarationSupport;
-	public suggestSupport: Modes.ISuggestSupport;
 
 	constructor(
 		descriptor: Modes.IModeDescriptor,
 		@IModelService modelService: IModelService,
-		@IThreadService threadService: IThreadService
+		@IThreadService threadService: IThreadService,
+		@IMarkerService markerService: IMarkerService
 	) {
-		super(descriptor, modelService, threadService);
+		super(descriptor,  threadService, modelService, markerService);
 
 		this.tokenizationSupport = tokenization.createTokenizationSupport(this, tokenization.Language.EcmaScript5);
 		this.richEditSupport = new RichEditSupport(this.getId(), null, {

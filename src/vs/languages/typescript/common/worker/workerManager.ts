@@ -13,7 +13,7 @@ import {IMarkerService} from 'vs/platform/markers/common/markers';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import {EditorModelManager} from 'vs/editor/common/services/editorWorkerServiceImpl';
 import {Defaults} from '../typescript';
-import {registerLanguageFeatures} from '../languageFeatures';
+import {register} from '../languageFeatures';
 import AbstractWorker from './worker';
 
 class Client {
@@ -76,7 +76,7 @@ class Client {
 export function create(selector: string, modelService: IModelService, markerService: IMarkerService) {
 
 	const client = new Client(modelService);
-	const registration = registerLanguageFeatures(modelService, markerService, selector,
+	const registration = register(modelService, markerService, selector,
 		(first: URI, ...more: URI[]) => client.get([first].concat(more)));
 
 	return {

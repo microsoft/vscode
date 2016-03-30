@@ -24,7 +24,9 @@ import {DeclarationRegistry} from 'vs/editor/contrib/goToDeclaration/common/goTo
 import {OutlineRegistry} from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import {FormatRegistry, FormatOnTypeRegistry} from 'vs/editor/contrib/format/common/format';
 
-export function registerLanguageFeatures(modelService: IModelService, markerService: IMarkerService, selector: string, worker: (first: URI, ...more: URI[]) => TPromise<AbstractWorker>): lifecycle.IDisposable {
+export function register(modelService: IModelService, markerService: IMarkerService,
+	selector: string, worker: (first: URI, ...more: URI[]) => TPromise<AbstractWorker>): lifecycle.IDisposable {
+
 	const disposables: lifecycle.IDisposable[] = [];
 	disposables.push(SuggestRegistry.register(selector, new SuggestAdapter(modelService, worker)));
 	disposables.push(ParameterHintsRegistry.register(selector, new ParameterHintsAdapter(modelService, worker)));
