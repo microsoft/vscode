@@ -75,8 +75,9 @@ class Client {
 	}
 }
 
-export function create(selector: string, defaults: LanguageServiceDefaults, modelService: IModelService, markerService: IMarkerService) {
+export function create(data: { selector: string, defaults: LanguageServiceDefaults, modelService: IModelService, markerService: IMarkerService }) {
 
+	const {selector, defaults, modelService, markerService} = data;
 	const client = new Client(modelService, defaults);
 	const registration = register(modelService, markerService, selector, defaults,
 		(first: URI, ...more: URI[]) => client.get([first].concat(more)));
