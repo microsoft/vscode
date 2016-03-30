@@ -12,6 +12,7 @@ import {TPromise} from 'vs/base/common/winjs.base';
 import {AsyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IMarker} from 'vs/platform/markers/common/markers';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 export interface IWorkerParticipantDescriptor {
 	modeId: string;
@@ -165,7 +166,7 @@ export interface IModeDescriptor {
 export interface ILineContext {
 	getLineContent(): string;
 
-	modeTransitions: IModeTransition[];
+	modeTransitions: ModeTransition[];
 
 	getTokenCount(): number;
 	getTokenStartIndex(tokenIndex:number): number;

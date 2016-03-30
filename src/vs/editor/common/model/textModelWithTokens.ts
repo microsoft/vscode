@@ -12,18 +12,18 @@ import {StopWatch} from 'vs/base/common/stopwatch';
 import * as timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
-import {Arrays} from 'vs/editor/common/core/arrays';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {ModelLine} from 'vs/editor/common/model/modelLine';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 import {TokenIterator} from 'vs/editor/common/model/tokenIterator';
-import {ILineContext, ILineTokens, IMode, IModeTransition, IState} from 'vs/editor/common/modes';
+import {ILineContext, ILineTokens, IMode, IState} from 'vs/editor/common/modes';
 import {NullMode, NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
 import {ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
 import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
 import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
+import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 export class TokensInflatorMap implements editorCommon.ITokensInflatorMap {
 
@@ -139,12 +139,12 @@ export class FullModelRetokenizer implements IRetokenizeRequest {
 
 class LineContext implements ILineContext {
 
-	public modeTransitions:IModeTransition[];
+	public modeTransitions:ModeTransition[];
 	private _text:string;
 	private _lineTokens:editorCommon.ILineTokens;
 
 	constructor (topLevelMode:IMode, line:ModelLine) {
-		this.modeTransitions = line.getModeTransitions().toArray(topLevelMode);
+		this.modeTransitions = line.getModeTransitions(topLevelMode);
 		this._text = line.text;
 		this._lineTokens = line.getTokens();
 	}
@@ -200,9 +200,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	private _scheduleRetokenizeNow: RunOnceScheduler;
 	private _retokenizers:IRetokenizeRequest[];
 
-	private _tokenizationElapsedTime: number;
-	private _tokenizationTotalCharacters: number;
-
 	private _shouldSimplifyMode: boolean;
 	private _shouldDenyMode: boolean;
 
@@ -225,9 +222,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._revalidateTokensTimeout = -1;
 		this._scheduleRetokenizeNow = null;
 		this._retokenizers = null;
-
-		this._tokenizationElapsedTime = 0;
-		this._tokenizationTotalCharacters = 0;
 
 		this._shouldSimplifyMode = (rawText.length > TextModelWithTokens.MODEL_SYNC_LIMIT);
 		this._shouldDenyMode = (rawText.length > TextModelWithTokens.MODEL_TOKENIZATION_LIMIT);
@@ -391,8 +385,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			this._lines[i].setState(null);
 		}
 		this._initializeTokenizationState();
-		this._tokenizationElapsedTime = 0;
-		this._tokenizationTotalCharacters = 1;
 	}
 
 	private _clearTimers(): void {
@@ -527,7 +519,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			return this.getStateAfterLine(lineNumber).getMode();
 		} else {
 			var modeTransitions = this._getLineModeTransitions(lineNumber);
-			var modeTransitionIndex = Arrays.findIndexInSegmentsArray(modeTransitions, column - 1);
+			var modeTransitionIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, column - 1);
 			return modeTransitions[modeTransitionIndex].mode;
 		}
 	}
@@ -618,11 +610,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		}
 
 		elapsedTime = sw.elapsed();
-//		console.log('TOKENIZED LOCAL (' + this._mode.getId() + ') ' + tokenizedChars + '\t in \t' + elapsedTime + '\t speed \t' + tokenizedChars/elapsedTime);
-//		console.log('TOKENIZED GLOBAL(' + this._mode.getId() + ') ' + this._tokenizationTotalCharacters + '\t in*\t' + this._tokenizationElapsedTime + '\t speed*\t' + this._tokenizationTotalCharacters/this._tokenizationElapsedTime);
-
-		var t2 = timer.start(timer.Topic.EDITOR, '**speed: ' + this._tokenizationTotalCharacters / this._tokenizationElapsedTime);
-		t2.stop();
 
 		if (fromLineNumber <= toLineNumber) {
 			this.emitModelTokensChangedEvent(fromLineNumber, toLineNumber);
@@ -645,12 +632,12 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return lineNumber < this._lines.length ? this._lines[lineNumber].getState() : this._lastState;
 	}
 
-	_getLineModeTransitions(lineNumber:number): IModeTransition[] {
+	_getLineModeTransitions(lineNumber:number): ModeTransition[] {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
 		this._updateTokensUntilLine(lineNumber, true);
-		return this._lines[lineNumber - 1].getModeTransitions().toArray(this._mode);
+		return this._lines[lineNumber - 1].getModeTransitions(this._mode);
 	}
 
 	private _updateTokensUntilLine(lineNumber:number, emitEvents:boolean): void {
@@ -660,9 +647,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		if (stopLineTokenizationAfter === -1) {
 			stopLineTokenizationAfter = 1000000000; // 1 billion, if a line is so long, you have other trouble :).
 		}
-
-		var sw = StopWatch.create(false);
-		var tokenizedCharacters = 0;
 
 		var fromLineNumber = this._invalidLineStartIndex + 1, toLineNumber = lineNumber;
 
@@ -676,7 +660,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 				try {
 					// Tokenize only the first X characters
 					r = this._mode.tokenizationSupport.tokenize(this._lines[lineIndex].text, this._lines[lineIndex].getState(), 0, stopLineTokenizationAfter);
-					tokenizedCharacters = r ? r.actualStopOffset : this._lines[lineIndex].text.length;
 				} catch (e) {
 					e.friendlyMessage = TextModelWithTokens.MODE_TOKENIZATION_FAILED_MSG;
 					onUnexpectedError(e);
@@ -752,9 +735,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		}
 		this._invalidLineStartIndex = Math.max(this._invalidLineStartIndex, endLineIndex + 1);
 
-		this._tokenizationElapsedTime += sw.elapsed();
-		this._tokenizationTotalCharacters += tokenizedCharacters;
-
 		if (emitEvents && fromLineNumber <= toLineNumber) {
 			this.emitModelTokensChangedEvent(fromLineNumber, toLineNumber);
 		}
@@ -829,8 +809,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	public findMatchingBracketUp(bracket:string, _position:editorCommon.IPosition): editorCommon.IEditorRange {
 		let position = this.validatePosition(_position);
-		let modeTransitions = this._lines[position.lineNumber - 1].getModeTransitions().toArray(this._mode);
-		let currentModeIndex = Arrays.findIndexInSegmentsArray(modeTransitions, position.column - 1);
+		let modeTransitions = this._lines[position.lineNumber - 1].getModeTransitions(this._mode);
+		let currentModeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, position.column - 1);
 		let currentMode = modeTransitions[currentModeIndex];
 		let currentModeBrackets = currentMode.mode.richEditSupport ? currentMode.mode.richEditSupport.brackets : null;
 
@@ -861,8 +841,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		let currentTokenIndex = lineTokens.findIndexOfOffset(position.column - 1);
 		let currentTokenStart = getStartIndex(tokens[currentTokenIndex]);
 
-		let modeTransitions = this._lines[lineNumber - 1].getModeTransitions().toArray(this._mode);
-		let currentModeIndex = Arrays.findIndexInSegmentsArray(modeTransitions, position.column - 1);
+		let modeTransitions = this._lines[lineNumber - 1].getModeTransitions(this._mode);
+		let currentModeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, position.column - 1);
 		let currentMode = modeTransitions[currentModeIndex];
 		let currentModeBrackets = currentMode.mode.richEditSupport ? currentMode.mode.richEditSupport.brackets : null;
 
@@ -978,7 +958,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			let lineTokens = this._lines[lineNumber - 1].getTokens();
 			let lineText = this._lines[lineNumber - 1].text;
 			let tokens = lineTokens.getBinaryEncodedTokens();
-			let modeTransitions = this._lines[lineNumber - 1].getModeTransitions().toArray(this._mode);
+			let modeTransitions = this._lines[lineNumber - 1].getModeTransitions(this._mode);
 			let currentModeIndex = modeTransitions.length - 1;
 			let currentModeStart = modeTransitions[currentModeIndex].startIndex;
 			let currentModeId = modeTransitions[currentModeIndex].mode.getId();
@@ -989,7 +969,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 				tokensLength = lineTokens.findIndexOfOffset(position.column - 1);
 				currentTokenEnd = position.column - 1;
 
-				currentModeIndex = Arrays.findIndexInSegmentsArray(modeTransitions, position.column - 1);
+				currentModeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, position.column - 1);
 				currentModeStart = modeTransitions[currentModeIndex].startIndex;
 				currentModeId = modeTransitions[currentModeIndex].mode.getId();
 			}
@@ -1048,7 +1028,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			let lineTokens = this._lines[lineNumber - 1].getTokens();
 			let lineText = this._lines[lineNumber - 1].text;
 			let tokens = lineTokens.getBinaryEncodedTokens();
-			let modeTransitions = this._lines[lineNumber - 1].getModeTransitions().toArray(this._mode);
+			let modeTransitions = this._lines[lineNumber - 1].getModeTransitions(this._mode);
 			let currentModeIndex = 0;
 			let nextModeStart = (currentModeIndex + 1 < modeTransitions.length ? modeTransitions[currentModeIndex + 1].startIndex : lineText.length + 1);
 			let currentModeId = modeTransitions[currentModeIndex].mode.getId();
@@ -1059,7 +1039,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 				startTokenIndex = lineTokens.findIndexOfOffset(position.column - 1);
 				currentTokenStart = Math.max(currentTokenStart, position.column - 1);
 
-				currentModeIndex = Arrays.findIndexInSegmentsArray(modeTransitions, position.column - 1);
+				currentModeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, position.column - 1);
 				nextModeStart = (currentModeIndex + 1 < modeTransitions.length ? modeTransitions[currentModeIndex + 1].startIndex : lineText.length + 1);
 				currentModeId = modeTransitions[currentModeIndex].mode.getId();
 			}

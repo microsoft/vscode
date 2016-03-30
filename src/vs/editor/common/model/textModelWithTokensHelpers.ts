@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Arrays} from 'vs/editor/common/core/arrays';
 import {ILineTokens, IPosition, IWordAtPosition, IWordRange} from 'vs/editor/common/editorCommon';
 import {IMode, IModeTransition} from 'vs/editor/common/modes';
 import {NullMode} from 'vs/editor/common/modes/nullMode';
+import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 export interface ITextSource {
 
@@ -21,7 +21,7 @@ export interface ITextSource {
 
 	getModeAtPosition(lineNumber:number, column:number): IMode;
 
-	_getLineModeTransitions(lineNumber:number): IModeTransition[];
+	_getLineModeTransitions(lineNumber:number): ModeTransition[];
 
 	getLineTokens(lineNumber:number, inaccurateTokensAcceptable:boolean): ILineTokens;
 }
@@ -168,7 +168,7 @@ export class WordHelper {
 		var txt = textSource.getLineContent(position.lineNumber),
 			modeTransitions = textSource._getLineModeTransitions(position.lineNumber),
 			columnIndex = position.column - 1,
-			modeIndex = Arrays.findIndexInSegmentsArray(modeTransitions, columnIndex);
+			modeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, columnIndex);
 
 		result = WordHelper._getWordAtColumn(txt, position.column, modeIndex, modeTransitions);
 

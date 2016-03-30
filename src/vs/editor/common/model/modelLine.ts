@@ -8,6 +8,7 @@ import * as strings from 'vs/base/common/strings';
 import {ILineTokens, IReadOnlyLineMarker, ITokensInflatorMap} from 'vs/editor/common/editorCommon';
 import {IMode, IModeTransition, IState, IToken} from 'vs/editor/common/modes';
 import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
+import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 export interface ILineEdit {
 	startColumn: number;
@@ -29,10 +30,6 @@ export interface ILineMarker extends IReadOnlyLineMarker {
 
 export interface IChangedMarkers {
 	[markerId:string]: boolean;
-}
-
-export interface IModeTransitions {
-	toArray(topLevelMode: IMode): IModeTransition[];
 }
 
 export interface ITextWithMarkers {
@@ -73,7 +70,7 @@ export class ModelLine {
 	public isInvalid:boolean;
 
 	private _state:IState;
-	private _modeTransitions:IModeTransitions;
+	private _modeTransitions:ModeTransition[];
 	private _lineTokens:ILineTokens;
 	private _markers:ILineMarker[];
 
@@ -108,11 +105,12 @@ export class ModelLine {
 		this._modeTransitions = desired;
 	}
 
-	public getModeTransitions(): IModeTransitions {
+	public getModeTransitions(topLevelMode:IMode): ModeTransition[] {
 		if (this._modeTransitions) {
 			return this._modeTransitions;
+		} else {
+			return [new ModeTransition(0, topLevelMode)];
 		}
-		return DefaultModeTransitions.INSTANCE;
 	}
 
 	// --- END MODE TRANSITIONS
@@ -800,57 +798,13 @@ export class DefaultLineTokens implements ILineTokens {
 
 }
 
-function toModeTransitions(topLevelMode:IMode, modeTransitions:IModeTransition[]): IModeTransitions {
+function toModeTransitions(topLevelMode:IMode, modeTransitions:IModeTransition[]): ModeTransition[] {
 
 	if (!modeTransitions || modeTransitions.length === 0) {
 		return null;
-	} else if (modeTransitions.length === 1 && modeTransitions[0].startIndex === 0) {
-		if (modeTransitions[0].mode === topLevelMode) {
-			return null;
-		} else {
-			return new SingleModeTransition(modeTransitions[0].mode);
-		}
+	} else if (modeTransitions.length === 1 && modeTransitions[0].startIndex === 0 && modeTransitions[0].mode === topLevelMode) {
+		return null;
 	}
 
-	return new ModeTransitions(modeTransitions);
-}
-
-class DefaultModeTransitions implements IModeTransitions {
-	public static INSTANCE = new DefaultModeTransitions();
-
-	public toArray(topLevelMode:IMode): IModeTransition[] {
-		return [{
-			startIndex: 0,
-			mode: topLevelMode
-		}];
-	}
-}
-
-class SingleModeTransition implements IModeTransitions {
-
-	private _mode: IMode;
-
-	constructor(mode:IMode) {
-		this._mode = mode;
-	}
-
-	public toArray(topLevelMode:IMode): IModeTransition[] {
-		return [{
-			startIndex: 0,
-			mode: this._mode
-		}];
-	}
-}
-
-class ModeTransitions implements IModeTransitions {
-
-	private _modeTransitions: IModeTransition[];
-
-	constructor(modeTransitions:IModeTransition[]) {
-		this._modeTransitions = modeTransitions;
-	}
-
-	public toArray(topLevelMode:IMode): IModeTransition[] {
-		return this._modeTransitions.slice(0);
-	}
+	return ModeTransition.create(modeTransitions);
 }

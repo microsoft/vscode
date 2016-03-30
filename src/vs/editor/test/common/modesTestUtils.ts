@@ -8,6 +8,7 @@ import {Arrays} from 'vs/editor/common/core/arrays';
 import * as modes from 'vs/editor/common/modes';
 import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
 import {MockMode} from 'vs/editor/test/common/mocks/mockMode';
+import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 class ModeWithRichEditSupport extends MockMode {
 
@@ -45,16 +46,16 @@ export function createLineContextFromTokenText(tokens: TokenText[]): modes.ILine
 }
 
 export function createMockLineContext(line:string, tokens:modes.ILineTokens): modes.ILineContext {
-	return new TestLineContext(line, tokens.tokens, tokens.modeTransitions);
+	return new TestLineContext(line, tokens.tokens, ModeTransition.create(tokens.modeTransitions));
 }
 
 class TestLineContext implements modes.ILineContext {
 
-	public modeTransitions: modes.IModeTransition[];
+	public modeTransitions: ModeTransition[];
 	private _line:string;
 	private _tokens: modes.IToken[];
 
-	constructor(line:string, tokens: modes.IToken[], modeTransitions:modes.IModeTransition[]) {
+	constructor(line:string, tokens: modes.IToken[], modeTransitions:ModeTransition[]) {
 		this.modeTransitions = modeTransitions;
 		this._line = line;
 		this._tokens = tokens;
