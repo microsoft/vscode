@@ -5,7 +5,7 @@
 'use strict';
 
 import * as flags from 'vs/base/common/flags';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IWorker, IWorkerCallback, IWorkerFactory} from 'vs/base/common/worker/workerClient';
 import * as dom from 'vs/base/browser/dom';
 
@@ -87,7 +87,7 @@ class FrameWorker implements IWorker {
 	}
 
 	public dispose(): void {
-		this._listeners = disposeAll(this._listeners);
+		this._listeners = dispose(this._listeners);
 		window.removeEventListener('message', this.onMessage);
 		window.frames[this.iframeId()].close();
 	}

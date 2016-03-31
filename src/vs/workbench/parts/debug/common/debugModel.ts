@@ -722,6 +722,6 @@ export class Model extends ee.EventEmitter implements debug.IModel {
 		this.functionBreakpoints = null;
 		this.watchExpressions = null;
 		this.replElements = null;
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }

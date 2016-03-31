@@ -7,7 +7,7 @@
 import 'vs/css!./builder';
 import {TPromise} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import strings = require('vs/base/common/strings');
 import assert = require('vs/base/common/assert');
 import DOM = require('vs/base/browser/dom');
@@ -627,11 +627,11 @@ export class Builder implements IDisposable {
 			let type = arg1;
 			if (useCapture) {
 				if (this.captureToUnbind[type]) {
-					this.captureToUnbind[type] = disposeAll(this.captureToUnbind[type]);
+					this.captureToUnbind[type] = dispose(this.captureToUnbind[type]);
 				}
 			} else {
 				if (this.toUnbind[type]) {
-					this.toUnbind[type] = disposeAll(this.toUnbind[type]);
+					this.toUnbind[type] = dispose(this.toUnbind[type]);
 				}
 			}
 		}
@@ -1769,13 +1769,13 @@ export class Builder implements IDisposable {
 
 		for (type in this.toUnbind) {
 			if (this.toUnbind.hasOwnProperty(type) && types.isArray(this.toUnbind[type])) {
-				this.toUnbind[type] = disposeAll(this.toUnbind[type]);
+				this.toUnbind[type] = dispose(this.toUnbind[type]);
 			}
 		}
 
 		for (type in this.captureToUnbind) {
 			if (this.captureToUnbind.hasOwnProperty(type) && types.isArray(this.captureToUnbind[type])) {
-				this.captureToUnbind[type] = disposeAll(this.captureToUnbind[type]);
+				this.captureToUnbind[type] = dispose(this.captureToUnbind[type]);
 			}
 		}
 

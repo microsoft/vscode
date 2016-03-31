@@ -5,7 +5,7 @@
 'use strict';
 
 import {EmitterEvent, EventEmitter, IEmitterEvent, IEventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
@@ -98,7 +98,7 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 		this.listenersToRemove.forEach((element) => {
 			element();
 		});
-		this._toDispose = disposeAll(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
 		this.listenersToRemove = [];
 		this.decorations.dispose();
 		this.decorations = null;

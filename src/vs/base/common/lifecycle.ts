@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { isArray } from './types';
+
 export const empty: IDisposable = Object.freeze({
 	dispose() { }
 });
@@ -12,44 +14,29 @@ export interface IDisposable {
 	dispose(): void;
 }
 
-export function dispose<T extends IDisposable>(disposable: T): T {
-	if (disposable) {
-		disposable.dispose();
+export function dispose<T extends IDisposable>(disposable: T): T;
+export function dispose<T extends IDisposable>(disposables: T[]): T[];
+export function dispose<T extends IDisposable>(...disposables: T[]): T[];
+export function dispose<T extends IDisposable>(arg: any): T[] {
+	if (isArray(arg)) {
+		const disposables: T[] = arg;
+		disposables.forEach(d => d && d.dispose());
+		return [];
 	}
+
+	const disposable: T = arg;
+	disposable.dispose();
 	return null;
 }
 
-export function disposeAll<T extends IDisposable>(arr: T[]): T[] {
-	if (arr) {
-		for (let i = 0, len = arr.length; i < len; i++) {
-			if (arr[i]) {
-				arr[i].dispose();
-			}
-		}
-	}
-	return [];
-}
-
-export function combinedDispose(...disposables: IDisposable[]): IDisposable {
-	return {
-		dispose: () => disposeAll(disposables)
-	};
-}
-
-export function combinedDispose2(disposables: IDisposable[]): IDisposable {
-	return {
-		dispose: () => disposeAll(disposables)
-	};
-}
-
-export function fnToDisposable(fn: () => void): IDisposable {
-	return {
-		dispose: () => fn()
-	};
+export function combinedDisposable(disposables: IDisposable[]): IDisposable;
+export function combinedDisposable(...disposables: IDisposable[]): IDisposable;
+export function combinedDisposable(disposables: any): IDisposable {
+	return { dispose: () => dispose(disposables) };
 }
 
 export function toDisposable(...fns: (() => void)[]): IDisposable {
-	return combinedDispose2(fns.map(fnToDisposable));
+	return combinedDisposable(fns.map(fn => ({ dispose: fn })));
 }
 
 function callAll(arg: any): any {
@@ -87,7 +74,7 @@ export abstract class Disposable implements IDisposable {
 	}
 
 	public dispose(): void {
-		this._toDispose = disposeAll(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
 	}
 
 	protected _register<T extends IDisposable>(t:T): T {

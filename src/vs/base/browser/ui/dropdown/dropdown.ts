@@ -12,7 +12,7 @@ import {Gesture, EventType} from 'vs/base/browser/touch';
 import {ActionRunner, IAction} from 'vs/base/common/actions';
 import {ActionItem, IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IContextViewProvider} from 'vs/base/browser/ui/contextview/contextview';
 import {IMenuOptions} from 'vs/base/browser/ui/menu/menu';
 
@@ -120,7 +120,7 @@ export class BaseDropdown extends ActionRunner {
 		super.dispose();
 		this.hide();
 
-		this.toDispose = disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 
 		if (this.$boxContainer) {
 			this.$boxContainer.destroy();

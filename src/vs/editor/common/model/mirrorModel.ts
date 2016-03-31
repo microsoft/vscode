@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {disposeAll} from 'vs/base/common/lifecycle';
+import {dispose} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -284,7 +284,7 @@ export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMi
 		super.dispose();
 		var embeddedModels = Object.keys(this._embeddedModels).map((modeId) => this._embeddedModels[modeId]);
 		embeddedModels.forEach((embeddedModel) => this._resourceService.remove(embeddedModel.getAssociatedResource()));
-		disposeAll(embeddedModels);
+		dispose(embeddedModels);
 		this._embeddedModels = {};
 	}
 

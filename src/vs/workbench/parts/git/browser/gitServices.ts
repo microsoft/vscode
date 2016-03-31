@@ -237,7 +237,7 @@ class EditorInputCache
 			delete this.cache[key];
 		});
 
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }
 

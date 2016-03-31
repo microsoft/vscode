@@ -48,7 +48,7 @@ import { ITextFileService } from 'vs/workbench/parts/files/common/files';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWindowService, IBroadcast } from 'vs/workbench/services/window/electron-browser/windowService';
-import { ILogEntry, PLUGIN_LOG_BROADCAST_CHANNEL, PLUGIN_ATTACH_BROADCAST_CHANNEL } from 'vs/workbench/services/thread/electron-browser/threadService';
+import { ILogEntry, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/workbench/services/thread/electron-browser/threadService';
 import { ipcRenderer as ipc } from 'electron';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
@@ -142,9 +142,13 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	private onBroadcast(broadcast: IBroadcast): void {
 
 		// attach: PH is ready to be attached to
-		if (broadcast.channel === PLUGIN_ATTACH_BROADCAST_CHANNEL) {
+		if (broadcast.channel === EXTENSION_ATTACH_BROADCAST_CHANNEL) {
 			this.rawAttach(broadcast.payload.port);
+			return;
+		}
 
+		if (broadcast.channel === EXTENSION_TERMINATE_BROADCAST_CHANNEL) {
+			this.onSessionEnd();
 			return;
 		}
 
@@ -155,7 +159,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}
 
 		// a plugin logged output, show it inside the REPL
-		if (broadcast.channel === PLUGIN_LOG_BROADCAST_CHANNEL) {
+		if (broadcast.channel === EXTENSION_LOG_BROADCAST_CHANNEL) {
 			let extensionOutput: ILogEntry = broadcast.payload;
 			let sev = extensionOutput.severity === 'warn' ? severity.Warning : extensionOutput.severity === 'error' ? severity.Error : severity.Info;
 
@@ -523,11 +527,12 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 	}
 
 	public createSession(noDebug: boolean, changeViewState = !this.partService.isSideBarHidden()): TPromise<any> {
-		this.setStateAndEmit(debug.State.Initializing);
 		this.clearReplExpressions();
 
-		return this.textFileService.saveAll().then(() => this.extensionService.onReady()).then(() => this.setConfiguration(this.configurationManager.getConfigurationName())).then(() => {
-
+		return this.textFileService.saveAll()
+		.then(() => this.extensionService.onReady()
+		.then(() => this.setConfiguration(this.configurationManager.getConfigurationName())
+		.then(() => {
 			const configuration = this.configurationManager.getConfiguration();
 			if (!configuration) {
 				return this.configurationManager.openConfigFile(false).then(openend => {
@@ -571,10 +576,11 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 					actions: [CloseAction, this.taskService.configureAction()]
 				});
 			});
-		});
+		})));
 	}
 
 	private doCreateSession(configuration: debug.IConfig, changeViewState: boolean): TPromise<any> {
+		this.setStateAndEmit(debug.State.Initializing);
 		const key = this.configurationManager.getAdapter().aiKey;
 		const telemetryInfo = Object.create(null);
 		this.telemetryService.getTelemetryInfo().then(info => {
@@ -612,6 +618,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			this.telemetryService.publicLog('debugSessionStart', { type: configuration.type, breakpointCount: this.model.getBreakpoints().length, exceptionBreakpoints: this.model.getExceptionBreakpoints(), watchExpressionsCount: this.model.getWatchExpressions().length });
 		}).then(undefined, (error: any) => {
 			this.telemetryService.publicLog('debugMisconfiguration', { type: configuration ? configuration.type : undefined });
+			this.setStateAndEmit(debug.State.Inactive);
 			if (this.session) {
 				this.session.disconnect();
 			}
@@ -703,7 +710,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 	private onSessionEnd(): void {
 		try {
-			this.debugStringEditorInputs = lifecycle.disposeAll(this.debugStringEditorInputs);
+			this.debugStringEditorInputs = lifecycle.dispose(this.debugStringEditorInputs);
 		} catch (e) {
 			// an internal module might be open so the dispose can throw -> ignore and continue with stop session.
 		}
@@ -721,7 +728,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}
 
 		this.session = null;
-		this.toDisposeOnSessionEnd = lifecycle.disposeAll(this.toDisposeOnSessionEnd);
+		this.toDisposeOnSessionEnd = lifecycle.dispose(this.toDisposeOnSessionEnd);
 		this.partService.removeClass('debugging');
 		this.editorService.focusEditor();
 
@@ -930,7 +937,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			this.session = null;
 		}
 		this.model.dispose();
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
-		this.toDisposeOnSessionEnd = lifecycle.disposeAll(this.toDisposeOnSessionEnd);
+		this.toDispose = lifecycle.dispose(this.toDispose);
+		this.toDisposeOnSessionEnd = lifecycle.dispose(this.toDisposeOnSessionEnd);
 	}
 }

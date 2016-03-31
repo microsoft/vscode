@@ -25,15 +25,14 @@ export interface ITypeBearing {
 }
 
 export interface INavigateTypesSupport {
-	getNavigateToItems:(search: string)=>TPromise<ITypeBearing[]>;
+	getNavigateToItems: (search: string) => TPromise<ITypeBearing[]>;
 }
-
 
 export namespace NavigateTypesSupportRegistry {
 
 	const _supports: INavigateTypesSupport[] = [];
 
-	export function register(support:INavigateTypesSupport):IDisposable {
+	export function register(support: INavigateTypesSupport): IDisposable {
 
 		if (support) {
 			_supports.push(support);
@@ -74,7 +73,7 @@ export function getNavigateToItems(query: string): TPromise<ITypeBearing[]> {
 	});
 }
 
-CommonEditorRegistry.registerLanguageCommand('_executeWorkspaceSymbolProvider', function(accessor, args: { query: string;}) {
+CommonEditorRegistry.registerLanguageCommand('_executeWorkspaceSymbolProvider', function (accessor, args: { query: string; }) {
 	let {query} = args;
 	if (typeof query !== 'string') {
 		throw illegalArgument();

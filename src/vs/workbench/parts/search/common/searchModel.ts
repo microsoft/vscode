@@ -187,7 +187,7 @@ export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
 		}
 
 		if (this.parent()._showHighlights) {
-			this._modelDecorations = this._model.deltaDecorations(this._modelDecorations, this.matches().filter(match => !(match instanceof EmptyMatch)).map(match => <IModelDeltaDecoration> {
+			this._modelDecorations = this._model.deltaDecorations(this._modelDecorations, this.matches().filter(match => !(match instanceof EmptyMatch)).map(match => <IModelDeltaDecoration>{
 				range: match.range(),
 				options: LiveFileMatch.DecorationOption
 			}));
@@ -242,7 +242,6 @@ export class SearchResult extends EventEmitter {
 			this.deferredEmit(() => {
 				this.remove(fileMatch);
 				this._matches[resource.toString()] = fileMatch._diskFileMatch;
-				//				this.emit('changed', this);
 			});
 		}
 	}
@@ -253,7 +252,7 @@ export class SearchResult extends EventEmitter {
 			let fileMatch = this._getOrAdd(rawFileMatch);
 
 			if (fileMatch instanceof LiveFileMatch) {
-				fileMatch = (<LiveFileMatch> fileMatch)._diskFileMatch;
+				fileMatch = (<LiveFileMatch>fileMatch)._diskFileMatch;
 			}
 
 			rawFileMatch.lineMatches.forEach((rawLineMatch) => {
@@ -315,8 +314,8 @@ export class SearchResult extends EventEmitter {
 	}
 
 	public dispose(): void {
-		this._disposables = lifecycle.disposeAll(this._disposables);
-		lifecycle.disposeAll(this.matches());
+		this._disposables = lifecycle.dispose(this._disposables);
+		lifecycle.dispose(this.matches());
 		super.dispose();
 	}
 }

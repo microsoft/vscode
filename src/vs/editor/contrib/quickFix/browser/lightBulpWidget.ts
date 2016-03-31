@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import {IPosition} from 'vs/editor/common/editorCommon';
 import {Position} from 'vs/editor/common/core/position';
@@ -31,7 +31,7 @@ export class LightBulpWidget implements IContentWidget, IDisposable {
 
 	public dispose(): void {
 		this.editor.removeContentWidget(this);
-		this.toDispose = disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 	}
 
 	public getId(): string {

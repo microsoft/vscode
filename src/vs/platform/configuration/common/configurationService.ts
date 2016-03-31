@@ -11,6 +11,7 @@ import objects = require('vs/base/common/objects');
 import errors = require('vs/base/common/errors');
 import uri from 'vs/base/common/uri';
 import model = require('./model');
+import {RunOnceScheduler} from 'vs/base/common/async';
 import lifecycle = require('vs/base/common/lifecycle');
 import collections = require('vs/base/common/collections');
 import {IConfigurationService, ConfigurationServiceEventTypes}  from './configuration';
@@ -42,7 +43,10 @@ interface ILoadConfigResult {
 }
 
 export abstract class ConfigurationService extends eventEmitter.EventEmitter implements IConfigurationService, lifecycle.IDisposable {
+
 	public serviceId = IConfigurationService;
+
+	private static RELOAD_CONFIGURATION_DELAY = 50;
 
 	public onDidUpdateConfiguration: Event<{ config: any }>;
 
@@ -54,6 +58,7 @@ export abstract class ConfigurationService extends eventEmitter.EventEmitter imp
 	private bulkFetchFromWorkspacePromise: winjs.TPromise<any>;
 	private workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: winjs.TPromise<model.IConfigFile> };
 	private callOnDispose: Function;
+	private reloadConfigurationScheduler: RunOnceScheduler;
 
 	constructor(contextService: IWorkspaceContextService, eventService: IEventService, workspaceSettingsRootFolder: string = '.vscode') {
 		super();
@@ -65,7 +70,7 @@ export abstract class ConfigurationService extends eventEmitter.EventEmitter imp
 		this.workspaceFilePathToConfiguration = Object.create(null);
 
 		let unbind = this.eventService.addListener(Files.EventType.FILE_CHANGES, (events) => this.handleFileEvents(events));
-		let subscription = (<IConfigurationRegistry>Registry.as(Extensions.Configuration)).onDidRegisterConfiguration(() => this.reloadAndEmit());
+		let subscription = (<IConfigurationRegistry>Registry.as(Extensions.Configuration)).onDidRegisterConfiguration(() => this.reloadConfiguration());
 		this.callOnDispose = () => {
 			unbind();
 			subscription.dispose();
@@ -81,6 +86,10 @@ export abstract class ConfigurationService extends eventEmitter.EventEmitter imp
 	protected abstract resolveStat(resource: uri): winjs.TPromise<IStat>;
 
 	public dispose(): void {
+		if (this.reloadConfigurationScheduler) {
+			this.reloadConfigurationScheduler.dispose();
+		}
+
 		this.callOnDispose = lifecycle.cAll(this.callOnDispose);
 
 		super.dispose();
@@ -175,11 +184,19 @@ export abstract class ConfigurationService extends eventEmitter.EventEmitter imp
 		});
 	}
 
-	protected reloadAndEmit(): winjs.TPromise<void> {
-		return this.reloadConfiguration().then((config) => this.emit(ConfigurationServiceEventTypes.UPDATED, { config: config }));
+	protected reloadConfiguration(): void {
+		if (!this.reloadConfigurationScheduler) {
+			this.reloadConfigurationScheduler = new RunOnceScheduler(() => {
+				this.doReloadConfiguration().then((config) => this.emit(ConfigurationServiceEventTypes.UPDATED, { config: config })).done(null, errors.onUnexpectedError);
+			}, ConfigurationService.RELOAD_CONFIGURATION_DELAY);
+		}
+
+		if (!this.reloadConfigurationScheduler.isScheduled()) {
+			this.reloadConfigurationScheduler.schedule();
+		}
 	}
 
-	private reloadConfiguration(section?: string): winjs.TPromise<any> {
+	private doReloadConfiguration(section?: string): winjs.TPromise<any> {
 		this.loadConfigurationPromise = null;
 
 		return this.loadConfiguration(section);
@@ -219,7 +236,7 @@ export abstract class ConfigurationService extends eventEmitter.EventEmitter imp
 		}
 
 		if (affectedByChanges) {
-			this.reloadAndEmit();
+			this.reloadConfiguration();
 		}
 	}
 }

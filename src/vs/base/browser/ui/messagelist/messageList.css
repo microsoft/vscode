@@ -140,10 +140,6 @@
 	cursor: pointer;
 }
 
-.global-message-list li.message-list-entry .actions-container.multiple .message-action .action-button {
-	min-width: 45px;
-	text-align: center;
-}
 .vs .global-message-list {
 	background-color: #2C2C2C;
 }

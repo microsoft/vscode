@@ -12,7 +12,7 @@ import browser = require('vs/base/browser/browser');
 import {Builder, $} from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
 import uuid = require('vs/base/common/uuid');
-import {IDisposable,disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable,dispose} from 'vs/base/common/lifecycle';
 
 const css_done = 'done';
 const css_active = 'active';
@@ -239,6 +239,6 @@ export class ProgressBar {
 	}
 
 	public dispose(): void {
-		this.toUnbind = disposeAll(this.toUnbind);
+		this.toUnbind = dispose(this.toUnbind);
 	}
 }

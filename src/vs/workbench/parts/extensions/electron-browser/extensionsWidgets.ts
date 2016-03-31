@@ -8,7 +8,7 @@ import Severity from 'vs/base/common/severity';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { emmet as $, append, toggleClass } from 'vs/base/browser/dom';
-import { IDisposable, combinedDispose } from 'vs/base/common/lifecycle';
+import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedPromiseError } from 'vs/base/common/errors';
 import { assign } from 'vs/base/common/objects';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
@@ -64,7 +64,7 @@ export class ExtensionsStatusbarItem implements IStatusbarItem {
 		this.extensionsService.onDidInstallExtension(this.onDidInstallExtension, this, disposables);
 		this.extensionsService.onDidUninstallExtension(this.onDidUninstallExtension, this, disposables);
 
-		return combinedDispose(...disposables);
+		return combinedDisposable(disposables);
 	}
 
 	private updateState(obj: any): void {

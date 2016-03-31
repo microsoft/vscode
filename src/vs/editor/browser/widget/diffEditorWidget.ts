@@ -9,7 +9,7 @@ import 'vs/css!./media/diffEditor';
 import {IAction} from 'vs/base/common/actions';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {EventEmitter, IEmitterEvent} from 'vs/base/common/eventEmitter';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
@@ -339,7 +339,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	}
 
 	public dispose(): void {
-		this._toDispose = disposeAll(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
 
 		window.clearInterval(this._measureDomElementToken);
 
@@ -1594,7 +1594,7 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 	}
 
 	public dispose(): void {
-		this.toDispose = disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 	}
 
 	public setEnableSplitViewResizing(enableSplitViewResizing:boolean): void {

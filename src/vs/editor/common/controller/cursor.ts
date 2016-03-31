@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ReplaceCommand} from 'vs/editor/common/commands/replaceCommand';
 import {CursorCollection, ICursorCollectionState} from 'vs/editor/common/controller/cursorCollection';
 import {DispatcherEvent} from 'vs/editor/common/controller/handlerDispatcher';
@@ -145,7 +145,7 @@ export class Cursor extends EventEmitter {
 	}
 
 	public dispose(): void {
-		this.modelUnbinds = disposeAll(this.modelUnbinds);
+		this.modelUnbinds = dispose(this.modelUnbinds);
 		this.model = null;
 		this.cursors.dispose();
 		this.cursors = null;

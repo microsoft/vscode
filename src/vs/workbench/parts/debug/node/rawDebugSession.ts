@@ -244,7 +244,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 			if (launch.command === 'node') {
 				stdfork.fork(launch.argv[0], launch.argv.slice(1), {}, (err, child) => {
 					if (err) {
-						e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from {0}.", launch.argv[0])));
+						e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", launch.argv[0])));
 					}
 					this.serverProcess = child;
 					c(null);
@@ -304,7 +304,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 				if (exists) {
 					c(null);
 				} else {
-					e(new Error(nls.localize('debugAdapterBinNotFound', "DebugAdapter bin folder not found on path {0}.", this.adapter.program)));
+					e(new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' not found.", this.adapter.program)));
 				}
 			});
 		}).then(() => {

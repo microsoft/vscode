@@ -6,7 +6,7 @@
 'use strict';
 
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
@@ -101,7 +101,7 @@ class StandaloneEditor extends CodeEditorWidget {
 
 	public dispose(): void {
 		super.dispose();
-		this._toDispose2 = disposeAll(this._toDispose2);
+		this._toDispose2 = dispose(this._toDispose2);
 	}
 
 	public destroy(): void {
@@ -210,7 +210,7 @@ class StandaloneDiffEditor extends DiffEditorWidget {
 
 	public dispose(): void {
 		super.dispose();
-		this._toDispose2 = disposeAll(this._toDispose2);
+		this._toDispose2 = dispose(this._toDispose2);
 	}
 
 	public destroy(): void {

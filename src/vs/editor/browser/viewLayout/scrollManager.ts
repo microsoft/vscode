@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import {IOverviewRulerLayoutInfo, IScrollableElement, IScrollableElementCreationOptions} from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import {ScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElementImpl';
@@ -103,7 +103,7 @@ export class ScrollManager implements IDisposable {
 	}
 
 	public dispose(): void {
-		this.toDispose = disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 	}
 
 	public renderScrollbar(): void {

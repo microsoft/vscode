@@ -22,6 +22,9 @@ interface ReadLinesOptions {
 }
 
 export class Engine implements ISearchEngine {
+
+	private static PROGRESS_FLUSH_CHUNK_SIZE = 50; // optimization: number of files to process before emitting progress event
+
 	private rootFolders: string[];
 	private extraFiles: string[];
 	private maxResults: number;
@@ -62,7 +65,9 @@ export class Engine implements ISearchEngine {
 
 			// Emit progress() unless we got canceled or hit the limit
 			if (processed && !this.isDone && !this.isCanceled && !this.limitReached) {
-				onProgress({ total: this.total, worked: this.worked });
+				if (this.worked % Engine.PROGRESS_FLUSH_CHUNK_SIZE === 0) {
+					onProgress({ total: this.total, worked: this.worked });
+				}
 			}
 
 			// Emit done()
@@ -82,7 +87,9 @@ export class Engine implements ISearchEngine {
 			}
 
 			// Indicate progress to the outside
-			onProgress({ total: this.total, worked: this.worked });
+			if (this.worked % Engine.PROGRESS_FLUSH_CHUNK_SIZE === 0) {
+				onProgress({ total: this.total, worked: this.worked });
+			}
 
 			let fileMatch: FileMatch = null;
 
