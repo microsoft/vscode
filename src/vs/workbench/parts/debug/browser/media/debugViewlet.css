@@ -77,13 +77,10 @@
 	margin-right: 12px;
 }
 
-.debug-viewlet .monaco-tree .monaco-tree-row .content .monaco-action-bar .action-item {
-	vertical-align: middle;
-}
-
 .debug-viewlet .monaco-tree .monaco-tree-row .content .monaco-action-bar .action-label {
 	width: 16px;
 	height: 16px;
+	vertical-align: text-bottom;
 }
 
 .debug-viewlet .monaco-tree .monaco-tree-row:hover .content .monaco-action-bar,
