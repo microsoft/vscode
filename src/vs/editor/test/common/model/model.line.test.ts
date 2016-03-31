@@ -5,14 +5,15 @@
 'use strict';
 
 import * as assert from 'assert';
-import {ILineTokens, LineTokensBinaryEncoding} from 'vs/editor/common/editorCommon';
+import {ILineTokens} from 'vs/editor/common/editorCommon';
 import * as modelLine from 'vs/editor/common/model/modelLine';
 import {LineMarker} from 'vs/editor/common/model/textModelWithMarkers';
 import {TokensInflatorMap} from 'vs/editor/common/model/textModelWithTokens';
 import {IToken} from 'vs/editor/common/modes';
+import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
 
 function assertLineTokens(actual:ILineTokens, expected:IToken[]): void {
-	var inflatedActual = LineTokensBinaryEncoding.inflateArr(actual.getBinaryEncodedTokensMap(), actual.getBinaryEncodedTokens());
+	var inflatedActual = TokensBinaryEncoding.inflateArr(actual.getBinaryEncodedTokensMap(), actual.getBinaryEncodedTokens());
 	assert.deepEqual(inflatedActual, expected, 'Line tokens are equal');
 }
 

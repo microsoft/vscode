@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IScrollable } from 'vs/base/common/scrollable';
+import { IScrollable, ScrollEvent } from 'vs/base/common/scrollable';
 import { Emitter } from 'vs/base/common/event';
 import { toObject, assign } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -15,11 +15,6 @@ import { RangeMap, IRange } from './rangeMap';
 import { IDelegate, IRenderer } from './list';
 import { RowCache, IRow } from './rowCache';
 import { LcsDiff, ISequence } from 'vs/base/common/diff/diff';
-
-interface IScrollEvent {
-	vertical: boolean;
-	horizontal: boolean;
-}
 
 interface IItemRange<T> {
 	item: IItem<T>;
@@ -68,7 +63,7 @@ export class ListView<T> implements IScrollable, IDisposable {
 	private rowsContainer: HTMLElement;
 	private scrollableElement: IScrollableElement;
 
-	private _onScroll = new Emitter<IScrollEvent>();
+	private _onScroll = new Emitter<ScrollEvent>();
 
 	private toDispose: IDisposable[];
 
@@ -94,9 +89,8 @@ export class ListView<T> implements IScrollable, IDisposable {
 		this.rowsContainer.className = 'monaco-list-rows';
 		this.gesture = new Gesture(this.rowsContainer);
 
-		this.scrollableElement = new ScrollableElement(this.rowsContainer, {
+		this.scrollableElement = new ScrollableElement(this.rowsContainer, this, {
 			forbidTranslate3dUse: true,
-			scrollable: this,
 			horizontal: 'hidden',
 			vertical: 'auto',
 			useShadows: false,
@@ -144,7 +138,7 @@ export class ListView<T> implements IScrollable, IDisposable {
 
 		this.rowsContainer.style.height = `${ this.rangeMap.size }px`;
 		this.setScrollTop(this.renderTop);
-		this.scrollableElement.onElementInternalDimensions();
+		this._emitScrollEvent(false, false);
 
 		return deleted.map(i => i.element);
 	}
@@ -181,7 +175,7 @@ export class ListView<T> implements IScrollable, IDisposable {
 		this.setRenderHeight(height || DOM.getContentHeight(this._domNode));
 		this.setScrollTop(this.renderTop);
 		this.scrollableElement.onElementDimensions();
-		this.scrollableElement.onElementInternalDimensions();
+		this._emitScrollEvent(false, false);
 	}
 
 	// Render
@@ -292,10 +286,21 @@ export class ListView<T> implements IScrollable, IDisposable {
 		this.render(scrollTop, this._renderHeight);
 		this.renderTop = scrollTop;
 
-		this._onScroll.fire({ vertical: true, horizontal: false });
+		this._emitScrollEvent(true, false);
 	}
 
-	addScrollListener(callback: ()=>void): IDisposable {
+	private _emitScrollEvent(vertical:boolean, horizontal:boolean): void {
+		this._onScroll.fire(new ScrollEvent(
+			this.getScrollTop(),
+			this.getScrollLeft(),
+			this.getScrollWidth(),
+			this.getScrollHeight(),
+			vertical,
+			horizontal
+		));
+	}
+
+	addScrollListener(callback: (v:ScrollEvent)=>void): IDisposable {
 		return this._onScroll.event(callback);
 	}
 

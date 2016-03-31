@@ -12,7 +12,7 @@ import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {Builder, $} from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
-import {IScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import {DomNodeScrollable} from 'vs/base/browser/ui/scrollbar/domNodeScrollable';
 
 // Known media mimes that we can handle
 const mapExtToMediaMimes = {
@@ -69,7 +69,7 @@ const mapExtToMediaMimes = {
  */
 export class ResourceViewer {
 
-	public static show(name: string, resource: URI, container: Builder, scrollbar?: IScrollableElement): void {
+	public static show(name: string, resource: URI, container: Builder, scrollable?: DomNodeScrollable): void {
 
 		// Ensure CSS class
 		$(container).addClass('monaco-resource-viewer');
@@ -93,8 +93,8 @@ export class ResourceViewer {
 				.img({
 					src: resource.toString() + '?' + new Date().getTime() // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
 				}).on(DOM.EventType.LOAD, () => {
-					if (scrollbar) {
-						scrollbar.onElementInternalDimensions();
+					if (scrollable) {
+						scrollable.onContentsDimensions();
 					}
 				});
 		}
@@ -124,8 +124,8 @@ export class ResourceViewer {
 					text: nls.localize('missingAudioSupport', "Sorry but playback of audio files is not supported."),
 					controls: 'controls'
 				}).on(DOM.EventType.LOAD, () => {
-					if (scrollbar) {
-						scrollbar.onElementInternalDimensions();
+					if (scrollable) {
+						scrollable.onContentsDimensions();
 					}
 				});
 		}
@@ -141,8 +141,8 @@ export class ResourceViewer {
 					text: nls.localize('missingVideoSupport', "Sorry but playback of video files is not supported."),
 					controls: 'controls'
 				}).on(DOM.EventType.LOAD, () => {
-					if (scrollbar) {
-						scrollbar.onElementInternalDimensions();
+					if (scrollable) {
+						scrollable.onContentsDimensions();
 					}
 				});
 		}
@@ -156,8 +156,8 @@ export class ResourceViewer {
 					text: nls.localize('nativeBinaryError', "The file cannot be displayed in the editor because it is either binary, very large or uses an unsupported text encoding.")
 				});
 
-			if (scrollbar) {
-				scrollbar.onElementInternalDimensions();
+			if (scrollable) {
+				scrollable.onContentsDimensions();
 			}
 		}
 	}

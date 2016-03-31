@@ -9,47 +9,153 @@ import marshalling = require('vs/base/common/marshalling');
 import remote = require('vs/base/common/remote');
 import errors = require('vs/base/common/errors');
 
-interface IRPCReply {
-	c: winjs.ValueCallback;
-	e: winjs.ErrorCallback;
-	p: winjs.ProgressCallback;
-}
-
 interface IRPCFunc {
 	(rpcId: string, method: string, args: any[]): winjs.TPromise<any>;
 }
 
-const pendingRPCReplies: { [msgId: string]: IRPCReply; } = {};
+const pendingRPCReplies: { [msgId: string]: LazyPromise; } = {};
 
-function createRPC(serializeAndSend: (obj: any) => void): IRPCFunc {
+class MessageFactory {
+	public static cancel(req:string): string {
+		return `{"cancel":"${req}"}`;
+	}
+
+	public static request(req:string, rpcId:string, method:string, args:any[]): string {
+		return `{"req":"${req}","rpcId":"${rpcId}","method":"${method}","args":${marshalling.stringify(args)}}`;
+	}
+
+	public static replyOK(req:string, res:any): string {
+		if (typeof res === 'undefined') {
+			return `{"seq":"${req}"}`;
+		}
+		return `{"seq":"${req}","res":${marshalling.stringify(res)}}`;
+	}
+
+	public static replyErr(req:string, err:any): string {
+		if (typeof err === 'undefined') {
+			return `{"seq":"${req}","err":null}`;
+		}
+		return `{"seq":"${req}","err":${marshalling.stringify(errors.transformErrorForSerialization(err))}}`;
+	}
+}
+
+class LazyPromise {
+
+	private _onCancel: ()=>void;
+
+	private _actual: winjs.TPromise<any>;
+	private _actualOk: winjs.ValueCallback;
+	private _actualErr: winjs.ErrorCallback;
+
+	private _hasValue: boolean;
+	private _value: any;
+
+	private _hasErr: boolean;
+	private _err: any;
+
+	private _isCanceled: boolean;
+
+	constructor(onCancel: ()=>void) {
+		this._onCancel = onCancel;
+		this._actual = null;
+		this._actualOk = null;
+		this._actualErr = null;
+		this._hasValue = false;
+		this._value = null;
+		this._hasErr = false;
+		this._err = null;
+		this._isCanceled = false;
+	}
+
+	private _ensureActual(): winjs.TPromise<any> {
+		if (!this._actual) {
+			this._actual = new winjs.TPromise<any>((c, e) => {
+				this._actualOk = c;
+				this._actualErr = e;
+			}, this._onCancel);
+
+			if (this._hasValue) {
+				this._actualOk(this._value);
+			}
+
+			if (this._hasErr) {
+				this._actualErr(this._err);
+			}
+		}
+		return this._actual;
+	}
+
+	public resolveOk(value:any): void {
+		if (this._isCanceled || this._hasErr) {
+			return;
+		}
+
+		this._hasValue = true;
+		this._value = value;
+
+		if (this._actual) {
+			this._actualOk(value);
+		}
+	}
+
+	public resolveErr(err:any): void {
+		if (this._isCanceled || this._hasValue) {
+			return;
+		}
+
+		this._hasErr = true;
+		this._err = err;
+
+		if (this._actual) {
+			this._actualErr(err);
+		}
+	}
+
+	public then(success:any, error:any): any {
+		if (this._isCanceled) {
+			return;
+		}
+
+		return this._ensureActual().then(success, error);
+	}
+
+	public done(success:any, error:any): void {
+		if (this._isCanceled) {
+			return;
+		}
+
+		this._ensureActual().done(success, error);
+	}
+
+	public cancel(): void {
+		if (this._hasValue || this._hasErr) {
+			return;
+		}
+
+		this._isCanceled = true;
+
+		if (this._actual) {
+			this._actual.cancel();
+		} else {
+			this._onCancel();
+		}
+	}
+}
+
+function createRPC(serializeAndSend: (value: string) => void): IRPCFunc {
 	let lastMessageId = 0;
 
 	return function rpc(rpcId: string, method: string, args: any[]): winjs.TPromise<any> {
 		let req = String(++lastMessageId);
-		let reply: IRPCReply = {
-			c: null,
-			e: null,
-			p: null
-		};
-		let r = new winjs.TPromise<any>((c, e, p) => {
-			reply.c = c;
-			reply.e = e;
-			reply.p = p;
-		}, () => {
-			serializeAndSend({
-				cancel: req
-			});
-		});
-		pendingRPCReplies[req] = reply;
-
-		serializeAndSend({
-			req: req,
-			rpcId: rpcId,
-			method: method,
-			args: args
+		let result = new LazyPromise(() => {
+			serializeAndSend(MessageFactory.cancel(req));
 		});
 
-		return r;
+		pendingRPCReplies[req] = result;
+
+		serializeAndSend(MessageFactory.request(req, rpcId, method, args));
+
+		return result;
 	};
 }
 
@@ -58,7 +164,7 @@ export interface IMainProcessExtHostIPC extends remote.IRemoteCom {
 }
 
 export function create(send: (obj: string[]) => void): IMainProcessExtHostIPC {
-	let rpc = createRPC(marshallAndSend);
+	let rpc = createRPC(sendDelayed);
 	let bigHandler: remote.IManyHandler = null;
 	let invokedHandlers: { [req: string]: winjs.TPromise<any>; } = Object.create(null);
 	let messagesToSend: string[] = [];
@@ -89,11 +195,11 @@ export function create(send: (obj: string[]) => void): IMainProcessExtHostIPC {
 					err.message = msg.err.message;
 					err.stack = msg.err.stack;
 				}
-				reply.e(err);
+				reply.resolveErr(err);
 				return;
 			}
 
-			reply.c(msg.res);
+			reply.resolveOk(msg.res);
 			return;
 		}
 
@@ -121,16 +227,10 @@ export function create(send: (obj: string[]) => void): IMainProcessExtHostIPC {
 
 		invokedHandlers[req].then((r) => {
 			delete invokedHandlers[req];
-			marshallAndSend({
-				seq: req,
-				res: r
-			});
+			sendDelayed(MessageFactory.replyOK(req, r));
 		}, (err) => {
 			delete invokedHandlers[req];
-			marshallAndSend({
-				seq: req,
-				err: errors.transformErrorForSerialization(err)
-			});
+			sendDelayed(MessageFactory.replyErr(req, err));
 		});
 	};
 
@@ -157,13 +257,10 @@ export function create(send: (obj: string[]) => void): IMainProcessExtHostIPC {
 		send(tmp);
 	}
 
-	function marshallAndSend(msg: any): void {
-		let value = marshalling.stringify(msg);
-
+	function sendDelayed(value: string): void {
 		if (messagesToSend.length === 0) {
 			process.nextTick(sendAccumulated);
 		}
-
 		messagesToSend.push(value);
 	}
 

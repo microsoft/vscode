@@ -4,13 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IScrollable} from 'vs/base/common/scrollable';
+import {FastDomNode} from 'vs/base/browser/styleMutator';
 
 export interface IScrollableElementCreationOptions {
 	/**
 	 * Prevent the scrollbar rendering from using translate3d. Defaults to false.
 	 */
 	forbidTranslate3dUse?: boolean;
+
+	/**
+	 * The scrollable element should not do any DOM mutations until renderNow() is called.
+	 * Defaults to false.
+	 */
+	lazyRender?: boolean;
 
 	/**
 	 * CSS Class name for the scrollable element.
@@ -46,12 +52,6 @@ export interface IScrollableElementCreationOptions {
 	 * Defaults to 11.
 	 */
 	arrowSize?: number;
-
-	/**
-	 * The scrollable that will react to all the scrolling logic.
-	 * If no scrollable is provided, a dom node scrollable will be created automatically.
-	 */
-	scrollable?: IScrollable;
 
 	/**
 	 * The dom node events should be bound to.
@@ -145,14 +145,15 @@ export interface IScrollableElement {
 	onElementDimensions(dimensions?: IDimensions): void;
 
 	/**
-	 * Let the scrollable element know that the contained dom node's width / height might have changed.
-	 */
-	onElementInternalDimensions(): void;
-
-	/**
 	 * Dispose.
 	 */
 	dispose(): void;
+
+	/**
+	 * Render / mutate the DOM now.
+	 * Should be used together with the ctor option `lazyRender`.
+	 */
+	renderNow(): void;
 
 	/**
 	 * Update the class name of the scrollable element.
@@ -185,17 +186,18 @@ export interface IMouseWheelEvent {
 }
 
 export interface IScrollbar {
-	domNode: HTMLElement;
+	domNode: FastDomNode;
 	dispose(): void;
-	slider: HTMLElement;
-	onElementSize(size: number): void;
-	onElementScrollSize(scrollSize: number): void;
-	onElementScrollPosition(scrollPosition: number): void;
+	onElementSize(size: number): boolean;
+	onElementScrollSize(scrollSize: number): boolean;
+	onElementScrollPosition(scrollPosition: number): boolean;
 	beginReveal(): void;
 	beginHide(): void;
 	delegateMouseDown(browserEvent: MouseEvent): void;
 	validateScrollPosition(scrollPosition: number): number;
-	setDesiredScrollPosition(scrollPosition: number): void;
+	setDesiredScrollPosition(scrollPosition: number): boolean;
+
+	render(): void;
 }
 
 export interface IParent {
@@ -223,13 +225,13 @@ export function visibilityFromString(visibility: string): Visibility {
 
 export interface IScrollableElementOptions {
 	forbidTranslate3dUse: boolean;
+	lazyRender: boolean;
 	className: string;
 	useShadows: boolean;
 	handleMouseWheel: boolean;
 	flipAxes: boolean;
 	mouseWheelScrollSensitivity: number;
 	arrowSize: number;
-	scrollable: IScrollable;
 	listenOnDomNode: HTMLElement;
 	horizontal: Visibility;
 	horizontalScrollbarSize: number;

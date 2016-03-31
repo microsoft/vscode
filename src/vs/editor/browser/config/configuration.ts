@@ -54,7 +54,8 @@ class CSSBasedConfiguration extends Disposable {
 
 	private static _HALF_WIDTH_TYPICAL = 'n';
 	private static _FULL_WIDTH_TYPICAL = '\uff4d';
-	private static _USUAL_CHARS = '0123456789' + CSSBasedConfiguration._HALF_WIDTH_TYPICAL + CSSBasedConfiguration._FULL_WIDTH_TYPICAL;
+	private static _SPACE = ' ';
+	private static _USUAL_CHARS = '0123456789' + CSSBasedConfiguration._HALF_WIDTH_TYPICAL + CSSBasedConfiguration._FULL_WIDTH_TYPICAL + CSSBasedConfiguration._SPACE;
 
 	private _cache: CSSBasedConfigurationCache;
 	private _changeMonitorTimeout: number = -1;
@@ -86,12 +87,13 @@ class CSSBasedConfiguration extends Disposable {
 		if (!this._cache.has(styling)) {
 			let readConfig = CSSBasedConfiguration._actualReadConfiguration(styling);
 
-			if (readConfig.lineHeight <= 2 || readConfig.typicalHalfwidthCharacterWidth <= 2 || readConfig.typicalFullwidthCharacterWidth <= 2 || readConfig.maxDigitWidth <= 2) {
+			if (readConfig.lineHeight <= 2 || readConfig.typicalHalfwidthCharacterWidth <= 2 || readConfig.typicalFullwidthCharacterWidth <= 2 || readConfig.spaceWidth <= 2 || readConfig.maxDigitWidth <= 2) {
 				// Hey, it's Bug 14341 ... we couldn't read
-				readConfig.lineHeight = Math.max(readConfig.lineHeight, readConfig.fontSize, 5);
-				readConfig.typicalHalfwidthCharacterWidth = Math.max(readConfig.typicalHalfwidthCharacterWidth, readConfig.fontSize, 5);
-				readConfig.typicalFullwidthCharacterWidth = Math.max(readConfig.typicalFullwidthCharacterWidth, readConfig.fontSize, 5);
-				readConfig.maxDigitWidth = Math.max(readConfig.maxDigitWidth, readConfig.fontSize, 5);
+				readConfig.lineHeight = Math.max(readConfig.lineHeight, 5);
+				readConfig.typicalHalfwidthCharacterWidth = Math.max(readConfig.typicalHalfwidthCharacterWidth, 5);
+				readConfig.typicalFullwidthCharacterWidth = Math.max(readConfig.typicalFullwidthCharacterWidth, 5);
+				readConfig.spaceWidth = Math.max(readConfig.spaceWidth, 5);
+				readConfig.maxDigitWidth = Math.max(readConfig.maxDigitWidth, 5);
 				this._installChangeMonitor();
 			}
 
@@ -138,14 +140,22 @@ class CSSBasedConfiguration extends Disposable {
 		let r = document.createElement('span');
 		r.id = this._testElementId(index);
 
-		let testString = (character === ' ' ? '&nbsp;' : character);
-
-		// Repeat character 256 (2^8) times
-		for (let i = 0; i < 8; i++) {
-			testString += testString;
+		if (character === ' ') {
+			let htmlString = '&nbsp;';
+			// Repeat character 256 (2^8) times
+			for (let i = 0; i < 8; i++) {
+				htmlString += htmlString;
+			}
+			r.innerHTML = htmlString;
+		} else {
+			let testString = character;
+			// Repeat character 256 (2^8) times
+			for (let i = 0; i < 8; i++) {
+				testString += testString;
+			}
+			r.textContent = testString;
 		}
 
-		r.textContent = testString;
 		return r;
 	}
 
@@ -204,9 +214,10 @@ class CSSBasedConfiguration extends Disposable {
 		document.body.removeChild(testContainer);
 
 		// Find maximum digit width and thinnest character width
-		let maxDigitWidth = 0,
-			typicalHalfwidthCharacterWidth = 0,
-			typicalFullwidthCharacterWidth = 0;
+		let maxDigitWidth = 0;
+		let typicalHalfwidthCharacterWidth = 0;
+		let typicalFullwidthCharacterWidth = 0;
+		let spaceWidth = 0;
 
 		for (let i = 0, len = CSSBasedConfiguration._USUAL_CHARS.length; i < len; i++) {
 			let character = CSSBasedConfiguration._USUAL_CHARS.charAt(i);
@@ -218,12 +229,15 @@ class CSSBasedConfiguration extends Disposable {
 				typicalHalfwidthCharacterWidth = usualCharsWidths[i];
 			} else if (character === CSSBasedConfiguration._FULL_WIDTH_TYPICAL) {
 				typicalFullwidthCharacterWidth = usualCharsWidths[i];
+			} else if (character === CSSBasedConfiguration._SPACE) {
+				spaceWidth = usualCharsWidths[i];
 			}
 		}
 
 		return {
 			typicalHalfwidthCharacterWidth: typicalHalfwidthCharacterWidth,
 			typicalFullwidthCharacterWidth: typicalFullwidthCharacterWidth,
+			spaceWidth: spaceWidth,
 			maxDigitWidth: maxDigitWidth,
 			lineHeight: result_lineHeight,
 			font: result_font,

@@ -7,11 +7,13 @@
 
 import 'vs/css!./currentLineHighlight';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import {IDynamicViewOverlay, ILayoutProvider, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {ILayoutProvider, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {DynamicViewOverlay} from 'vs/editor/browser/view/dynamicViewOverlay';
 
-export class CurrentLineHighlightOverlay extends ViewEventHandler implements IDynamicViewOverlay {
+export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	private _context:IViewContext;
+	private _lineHeight:number;
+	private _readOnly:boolean;
 	private _layoutProvider:ILayoutProvider;
 	private _selectionIsEmpty:boolean;
 	private _primaryCursorIsInEditableRange:boolean;
@@ -21,6 +23,9 @@ export class CurrentLineHighlightOverlay extends ViewEventHandler implements IDy
 	constructor(context:IViewContext, layoutProvider:ILayoutProvider) {
 		super();
 		this._context = context;
+		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._readOnly = this._context.configuration.editor.readOnly;
+
 		this._layoutProvider = layoutProvider;
 
 		this._selectionIsEmpty = true;
@@ -72,6 +77,12 @@ export class CurrentLineHighlightOverlay extends ViewEventHandler implements IDy
 		return false;
 	}
 	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
+		if (e.lineHeight) {
+			this._lineHeight = this._context.configuration.editor.lineHeight;
+		}
+		if (e.readOnly) {
+			this._readOnly = this._context.configuration.editor.readOnly;
+		}
 		return true;
 	}
 	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
@@ -92,33 +103,31 @@ export class CurrentLineHighlightOverlay extends ViewEventHandler implements IDy
 	}
 	// --- end event handlers
 
-	public shouldCallRender2(ctx:IRenderingContext): boolean {
-		if (!this.shouldRender) {
-			return false;
+	public prepareRender(ctx:IRenderingContext): void {
+		if (!this.shouldRender()) {
+			throw new Error('I did not ask to render!');
 		}
-		this.shouldRender = false;
 		this._scrollWidth = ctx.scrollWidth;
-		return true;
 	}
 
-	public render2(lineNumber:number): string[] {
+	public render(startLineNumber:number, lineNumber:number): string {
 		if (lineNumber === this._primaryCursorLineNumber) {
 			if (this._shouldShowCurrentLine()) {
-				return [
-					'<div class="current-line" style="width:',
-					String(this._scrollWidth),
-					'px; height:',
-					String(this._context.configuration.editor.lineHeight),
-					'px;"></div>'
-				];
+				return (
+					'<div class="current-line" style="width:'
+					+ String(this._scrollWidth)
+					+ 'px; height:'
+					+ String(this._lineHeight)
+					+ 'px;"></div>'
+				);
 			} else {
-				return null;
+				return '';
 			}
 		}
-		return null;
+		return '';
 	}
 
 	private _shouldShowCurrentLine(): boolean {
-		return this._selectionIsEmpty && this._primaryCursorIsInEditableRange && !this._context.configuration.editor.readOnly;
+		return this._selectionIsEmpty && this._primaryCursorIsInEditableRange && !this._readOnly;
 	}
 }

@@ -8,7 +8,6 @@ import {toErrorMessage, onUnexpectedError} from 'vs/base/common/errors';
 import {IEmitterEvent} from 'vs/base/common/eventEmitter';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
-import {IPrefixSumIndexOfResult} from 'vs/editor/common/viewModel/prefixSumComputer';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import Event, {Emitter} from 'vs/base/common/event';
@@ -378,8 +377,7 @@ export class ExtHostDocumentData extends MirrorModel2 {
 		offset = Math.max(0, offset);
 
 		this._ensureLineStarts();
-		let out: IPrefixSumIndexOfResult = { index: 0, remainder: 0 };
-		this._lineStarts.getIndexOf(offset, out);
+		let out = this._lineStarts.getIndexOf(offset);
 
 		let lineLength = this._lines[out.index].length;
 

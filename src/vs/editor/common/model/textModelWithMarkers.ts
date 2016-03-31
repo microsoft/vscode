@@ -70,10 +70,6 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 	}
 
 	_addMarker(lineNumber:number, column:number, stickToPreviousCharacter:boolean): string {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithMarkers._addMarker: Model is disposed');
-		}
-
 		var pos = this.validatePosition(new Position(lineNumber, column));
 
 		var marker = new LineMarker(this._markerIdGenerator.generate(), pos.column, stickToPreviousCharacter);
@@ -114,10 +110,6 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 	}
 
 	_changeMarker(id:string, lineNumber:number, column:number): void {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithMarkers._changeMarker: Model is disposed');
-		}
-
 		if (this._markerIdToMarker.hasOwnProperty(id)) {
 			var marker = this._markerIdToMarker[id];
 			var newPos = this.validatePosition(new Position(lineNumber, column));
@@ -134,10 +126,6 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 	}
 
 	_changeMarkerStickiness(id:string, newStickToPreviousCharacter:boolean): void {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithMarkers._changeMarkerStickiness: Model is disposed');
-		}
-
 		if (this._markerIdToMarker.hasOwnProperty(id)) {
 			var marker = this._markerIdToMarker[id];
 
@@ -148,10 +136,6 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 	}
 
 	_getMarker(id:string): IEditorPosition {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithMarkers._getMarker: Model is disposed');
-		}
-
 		if (this._markerIdToMarker.hasOwnProperty(id)) {
 			var marker = this._markerIdToMarker[id];
 			return new Position(marker.line.lineNumber, marker.column);
@@ -164,9 +148,6 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 	}
 
 	_getLineMarkers(lineNumber: number): IReadOnlyLineMarker[] {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithMarkers._getLineMarkers: Model is disposed');
-		}
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
@@ -175,10 +156,6 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 	}
 
 	_removeMarker(id:string): void {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithMarkers._removeMarker: Model is disposed');
-		}
-
 		if (this._markerIdToMarker.hasOwnProperty(id)) {
 			var marker = this._markerIdToMarker[id];
 			marker.line.removeMarker(marker);
@@ -219,15 +196,11 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 	}
 
 	_getMarkersInMap(markersMap:{[markerId:string]:boolean;}): ILineMarker[] {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithMarkers._getMarkersInMap: Model is disposed');
-		}
-
-		var result: ILineMarker[] = [],
-			markerId: string;
-
-		for (markerId in markersMap)	{
-			if (markersMap.hasOwnProperty(markerId) && this._markerIdToMarker.hasOwnProperty(markerId)) {
+		let result: ILineMarker[] = [];
+		let keys = Object.keys(markersMap);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let markerId = keys[i];
+			if (this._markerIdToMarker.hasOwnProperty(markerId)) {
 				result.push(this._markerIdToMarker[markerId]);
 			}
 		}

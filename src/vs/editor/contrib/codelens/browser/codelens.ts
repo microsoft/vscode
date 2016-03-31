@@ -518,7 +518,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		if (!symbols) {
 			symbols = [];
 		} else {
-			symbols = symbols.sort((a, b) => Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range));
+			symbols = symbols.sort((a, b) => Range.compareRangesUsingStarts(Range.lift(a.symbol.range), Range.lift(b.symbol.range)));
 		}
 
 		let maxLineNumber = this._editor.getModel().getLineCount();
