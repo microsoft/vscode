@@ -14,19 +14,17 @@ export interface IDisposable {
 	dispose(): void;
 }
 
-export function dispose<T extends IDisposable>(disposable: T): T;
+export function dispose<T extends IDisposable>(...disposables: T[]): T;
 export function dispose<T extends IDisposable>(disposables: T[]): T[];
-export function dispose<T extends IDisposable>(...disposables: T[]): T[];
-export function dispose<T extends IDisposable>(arg: any): T[] {
-	if (isArray(arg)) {
-		const disposables: T[] = arg;
-		disposables.forEach(d => d && d.dispose());
-		return [];
+export function dispose<T extends IDisposable>(...disposables: T[]): T[] {
+	const first = disposables[0];
+
+	if (isArray(first)) {
+		disposables = first as any as T[];
 	}
 
-	const disposable: T = arg;
-	disposable.dispose();
-	return null;
+	disposables.forEach(d => d && d.dispose());
+	return [];
 }
 
 export function combinedDisposable(disposables: IDisposable[]): IDisposable;
