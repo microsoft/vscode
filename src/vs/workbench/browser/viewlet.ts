@@ -254,7 +254,7 @@ export class ToggleViewletAction extends Action {
 export class CollapseAction extends Action {
 
 	constructor(viewer: ITree, enabled: boolean, clazz: string) {
-		super('workbench.action.collapse', nls.localize('collapse', "Collapse"), clazz, enabled, (context: any) => {
+		super('workbench.action.collapse', nls.localize('collapse', "Collapse All"), clazz, enabled, (context: any) => {
 			if (viewer.getHighlight()) {
 				return TPromise.as(null); // Global action disabled if user is in edit mode from another action
 			}
