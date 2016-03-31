@@ -116,9 +116,8 @@ suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 		assertLineMapping(factory, 4, 5, 'aa 安|安');
 		assertLineMapping(factory, 4, 5, 'あ 安|安');
 		assertLineMapping(factory, 4, 5, 'ああ|安安');
-		assertLineMapping(factory, 4, 5, 'aa |安，|安');
-		assertLineMapping(factory, 4, 5, 'aa |安,安');
-		assertLineMapping(factory, 4, 5, 'aa あ|安あ,|安');
-		assertLineMapping(factory, 4, 5, 'aa |（安a|安');
+		assertLineMapping(factory, 4, 5, 'aa |安)安|安');
+		assertLineMapping(factory, 4, 5, 'aa あ|安あ)|安');
+		assertLineMapping(factory, 4, 5, 'aa |(安aa|安');
 	});
 });
