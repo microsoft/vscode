@@ -132,10 +132,6 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 	}
 
 	public addTrackedRange(textRange:editorCommon.IRange, stickiness:editorCommon.TrackedRangeStickiness): string {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTrackedRanges.addTrackedRange: Model is disposed');
-		}
-
 		textRange = this.validateRange(textRange);
 
 		var startMarkerSticksToPreviousCharacter = this._shouldStartMarkerSticksToPreviousCharacter(stickiness);
@@ -194,10 +190,6 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 	}
 
 	public changeTrackedRange(rangeId:string, newTextRange:editorCommon.IRange): void {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTrackedRanges.changeTrackedRange: Model is disposed');
-		}
-
 		if (this._ranges.hasOwnProperty(rangeId)) {
 			newTextRange = this.validateRange(newTextRange);
 
@@ -210,10 +202,6 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 	}
 
 	public changeTrackedRangeStickiness(rangeId:string, newStickiness:editorCommon.TrackedRangeStickiness): void {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTrackedRanges.changeTrackedRangeStickiness: Model is disposed');
-		}
-
 		if (this._ranges.hasOwnProperty(rangeId)) {
 			var range = this._ranges[rangeId];
 			this._changeMarkerStickiness(range.startMarkerId, this._shouldStartMarkerSticksToPreviousCharacter(newStickiness));
@@ -229,10 +217,6 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 	}
 
 	public removeTrackedRange(rangeId:string): void {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTrackedRanges.removeTrackedRange: Model is disposed');
-		}
-
 		if (this._ranges.hasOwnProperty(rangeId)) {
 			var range = this._ranges[rangeId];
 
@@ -284,10 +268,6 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 	}
 
 	public getTrackedRange(rangeId:string): editorCommon.IEditorRange {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTrackedRanges.getTrackedRange: Model is disposed');
-		}
-
 		var range = this._ranges[rangeId];
 		var startMarker = this._getMarker(range.startMarkerId);
 		var endMarker = this._getMarker(range.endMarkerId);
@@ -299,41 +279,33 @@ export class TextModelWithTrackedRanges extends TextModelWithMarkers implements 
 	 * Fetch only multi-line ranges that intersect with the given line number range
 	 */
 	private _getMultiLineTrackedRanges(filterStartLineNumber: number, filterEndLineNumber: number): editorCommon.IModelTrackedRange[] {
-		var result: editorCommon.IModelTrackedRange[] = [],
-			rangeId: string,
-			range: ITrackedRange,
-			startMarker: editorCommon.IEditorPosition,
-			endMarker: editorCommon.IEditorPosition;
+		let result: editorCommon.IModelTrackedRange[] = [];
 
-		for (rangeId in this._multiLineTrackedRanges) {
-			if (this._multiLineTrackedRanges.hasOwnProperty(rangeId)) {
-				range = this._ranges[rangeId];
+		let keys = Object.keys(this._multiLineTrackedRanges);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let rangeId = keys[i];
+			let range = this._ranges[rangeId];
 
-				startMarker = this._getMarker(range.startMarkerId);
-				if (startMarker.lineNumber > filterEndLineNumber) {
-					continue;
-				}
-
-				endMarker = this._getMarker(range.endMarkerId);
-				if (endMarker.lineNumber < filterStartLineNumber) {
-					continue;
-				}
-
-				result.push({
-					id: range.id,
-					range: this._newEditorRange(startMarker, endMarker)
-				});
+			let startMarker = this._getMarker(range.startMarkerId);
+			if (startMarker.lineNumber > filterEndLineNumber) {
+				continue;
 			}
+
+			let endMarker = this._getMarker(range.endMarkerId);
+			if (endMarker.lineNumber < filterStartLineNumber) {
+				continue;
+			}
+
+			result.push({
+				id: range.id,
+				range: this._newEditorRange(startMarker, endMarker)
+			});
 		}
 
 		return result;
 	}
 
 	public getLinesTrackedRanges(startLineNumber:number, endLineNumber:number): editorCommon.IModelTrackedRange[] {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithTrackedRanges.getLinesTrackedRanges: Model is disposed');
-		}
-
 		var result = this._getMultiLineTrackedRanges(startLineNumber, endLineNumber),
 			resultMap: { [rangeId:string]: boolean; } = {},
 			lineMarkers: editorCommon.IReadOnlyLineMarker[],

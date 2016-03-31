@@ -5,11 +5,12 @@
 'use strict';
 
 import {Arrays} from 'vs/editor/common/core/arrays';
-import {ILineToken, ILineTokens, IViewLineTokens, LineTokensBinaryEncoding} from 'vs/editor/common/editorCommon';
+import {LineToken, ILineTokens, IViewLineTokens} from 'vs/editor/common/editorCommon';
+import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
 
 export class FilteredLineTokens implements IViewLineTokens {
 
-	private inflatedTokens: ILineToken[];
+	private inflatedTokens: LineToken[];
 
 	private _original:ILineTokens;
 	private _startOffset:number;
@@ -25,10 +26,10 @@ export class FilteredLineTokens implements IViewLineTokens {
 		this._endOffset = endOffset;
 		this._deltaStartIndex = deltaStartIndex;
 
-		this.inflatedTokens = LineTokensBinaryEncoding.sliceAndInflate(original.getBinaryEncodedTokensMap(), original.getBinaryEncodedTokens(), startOffset, endOffset, deltaStartIndex);
+		this.inflatedTokens = TokensBinaryEncoding.sliceAndInflate(original.getBinaryEncodedTokensMap(), original.getBinaryEncodedTokens(), startOffset, endOffset, deltaStartIndex);
 	}
 
-	public getTokens(): ILineToken[]{
+	public getTokens(): LineToken[]{
 		return this.inflatedTokens;
 	}
 
@@ -72,8 +73,8 @@ export class IdentityFilteredLineTokens implements IViewLineTokens {
 		this._textLength = textLength;
 	}
 
-	public getTokens(): ILineToken[] {
-		return LineTokensBinaryEncoding.inflateArr(this._original.getBinaryEncodedTokensMap(), this._original.getBinaryEncodedTokens());
+	public getTokens(): LineToken[] {
+		return TokensBinaryEncoding.inflateArr(this._original.getBinaryEncodedTokensMap(), this._original.getBinaryEncodedTokens());
 	}
 
 	public getFauxIndentLength(): number {

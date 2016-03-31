@@ -13,7 +13,7 @@ import {TextModel} from 'vs/editor/common/model/textModel';
 import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
 import {IMode} from 'vs/editor/common/modes';
 import {IResourceService} from 'vs/editor/common/services/resourceService';
-import {IPrefixSumIndexOfResult, PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
+import {PrefixSumComputer} from 'vs/editor/common/viewModel/prefixSumComputer';
 
 export interface IMirrorModelEvents {
 	contentChanged: editorCommon.IModelContentChangedEvent[];
@@ -32,10 +32,6 @@ export class AbstractMirrorModel extends TextModelWithTokens implements editorCo
 	}
 
 	public getModeId(): string {
-		if (this._isDisposed) {
-			throw new Error('AbstractMirrorModel.getModeId: Model is disposed');
-		}
-
 		return this.getMode().getId();
 	}
 
@@ -63,10 +59,6 @@ export class AbstractMirrorModel extends TextModelWithTokens implements editorCo
 	}
 
 	public getAssociatedResource(): URI {
-		if (this._isDisposed) {
-			throw new Error('AbstractMirrorModel.getAssociatedResource: Model is disposed');
-		}
-
 		return this._associatedResource;
 	}
 
@@ -82,10 +74,6 @@ export class AbstractMirrorModel extends TextModelWithTokens implements editorCo
 	}
 
 	public getRangeFromOffsetAndLength(offset:number, length:number):editorCommon.IRange {
-		if (this._isDisposed) {
-			throw new Error('AbstractMirrorModel.getRangeFromOffsetAndLength: Model is disposed');
-		}
-
 		var startPosition = this.getPositionFromOffset(offset),
 			endPosition = this.getPositionFromOffset(offset + length);
 		return {
@@ -97,10 +85,6 @@ export class AbstractMirrorModel extends TextModelWithTokens implements editorCo
 	}
 
 	public getOffsetAndLengthFromRange(range:editorCommon.IRange):{offset:number; length:number;} {
-		if (this._isDisposed) {
-			throw new Error('AbstractMirrorModel.getOffsetAndLengthFromRange: Model is disposed');
-		}
-
 		var startOffset = this.getOffsetFromPosition({ lineNumber: range.startLineNumber, column: range.startColumn }),
 			endOffset = this.getOffsetFromPosition({ lineNumber: range.endLineNumber, column: range.endColumn });
 		return {
@@ -110,16 +94,9 @@ export class AbstractMirrorModel extends TextModelWithTokens implements editorCo
 	}
 
 	public getPositionFromOffset(offset:number):editorCommon.IPosition {
-		if (this._isDisposed) {
-			throw new Error('AbstractMirrorModel.getPositionFromOffset: Model is disposed');
-		}
-
 		this._ensurePrefixSum();
-		var r:IPrefixSumIndexOfResult = {
-			index: 0,
-			remainder: 0
-		};
-		this._lineStarts.getIndexOf(offset, r);
+
+		let r = this._lineStarts.getIndexOf(offset);
 		return {
 			lineNumber: r.index + 1,
 			column: this.getEOL().length + r.remainder
@@ -127,18 +104,10 @@ export class AbstractMirrorModel extends TextModelWithTokens implements editorCo
 	}
 
 	public getOffsetFromPosition(position:editorCommon.IPosition): number {
-		if (this._isDisposed) {
-			throw new Error('AbstractMirrorModel.getOffsetFromPosition: Model is disposed');
-		}
-
 		return this.getLineStart(position.lineNumber) + position.column - 1 /* column isn't zero-index based */;
 	}
 
 	public getLineStart(lineNumber:number): number {
-		if (this._isDisposed) {
-			throw new Error('AbstractMirrorModel.getLineStart: Model is disposed');
-		}
-
 		this._ensurePrefixSum();
 
 		var lineIndex = Math.min(lineNumber, this._lines.length) - 1;
@@ -146,9 +115,6 @@ export class AbstractMirrorModel extends TextModelWithTokens implements editorCo
 	}
 
 	public getAllWordsWithRange(): editorCommon.IRangeWithText[] {
-		if (this._isDisposed) {
-			throw new Error('AbstractMirrorModel.getAllWordsWithRange: Model is disposed');
-		}
 		if (this._lines.length > 10000) {
 			// This is a very heavy method, unavailable for very heavy models
 			return [];
@@ -172,10 +138,6 @@ export class AbstractMirrorModel extends TextModelWithTokens implements editorCo
 	}
 
 	public getAllWords(): string[] {
-		if (this._isDisposed) {
-			throw new Error('AbstractMirrorModel.getAllWords: Model is disposed');
-		}
-
 		var result:string[] = [];
 		this._lines.forEach((line) => {
 			this.wordenize(line.text).forEach((info) => {
@@ -186,10 +148,6 @@ export class AbstractMirrorModel extends TextModelWithTokens implements editorCo
 	}
 
 	public getAllUniqueWords(skipWordOnce?:string) : string[] {
-		if (this._isDisposed) {
-			throw new Error('AbstractMirrorModel.getAllUniqueWords: Model is disposed');
-		}
-
 		var foundSkipWord = false;
 		var uniqueWords = {};
 		return this.getAllWords().filter((word) => {
@@ -311,10 +269,6 @@ export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMi
 	}
 
 	public getEmbeddedAtPosition(position:editorCommon.IPosition):editorCommon.IMirrorModel {
-		if (this._isDisposed) {
-			throw new Error('MirrorModel.getEmbeddedAtPosition: Model is disposed');
-		}
-
 		var modeAtPosition = this.getModeAtPosition(position.lineNumber, position.column);
 		if (this._embeddedModels.hasOwnProperty(modeAtPosition.getId())) {
 			return this._embeddedModels[modeAtPosition.getId()];
@@ -323,10 +277,6 @@ export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMi
 	}
 
 	public getAllEmbedded():editorCommon.IMirrorModel[] {
-		if (this._isDisposed) {
-			throw new Error('MirrorModel.getAllEmbedded: Model is disposed');
-		}
-
 		return Object.keys(this._embeddedModels).map((embeddedModeId) => this._embeddedModels[embeddedModeId]);
 	}
 
@@ -437,10 +387,6 @@ export class MirrorModel extends AbstractMirrorModel implements editorCommon.IMi
 	}
 
 	public onEvents(events:IMirrorModelEvents) : boolean {
-		if (this._isDisposed) {
-			throw new Error('MirrorModel.onEvents: Model is disposed');
-		}
-
 		let changed = false;
 		for (let i = 0, len = events.contentChanged.length; i < len; i++) {
 			let contentChangedEvent = events.contentChanged[i];

@@ -302,6 +302,9 @@ const fuzzySeparateFilter = or(matchesPrefix, matchesCamelCase, matchesSubString
 const fuzzyRegExpCache: { [key: string]: RegExp; } = {};
 
 export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSeparateSubstringMatching = false): IMatch[] {
+	if (typeof word !== 'string' || typeof wordToMatchAgainst !== 'string') {
+		return null; // return early for invalid input
+	}
 
 	// Form RegExp for wildcard matches
 	let regexp = fuzzyRegExpCache[word];

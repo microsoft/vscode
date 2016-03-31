@@ -20,7 +20,7 @@ import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {ILineParts, createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
-import {renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
+import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
 
@@ -31,7 +31,7 @@ interface IEditorScrollEvent {
 
 interface IEditorDiffDecorations {
 	decorations:editorCommon.IModelDeltaDecoration[];
-	overviewZones:editorBrowser.IOverviewRulerZone[];
+	overviewZones:editorBrowser.OverviewRulerZone[];
 }
 
 interface IEditorDiffDecorationsWithZones extends IEditorDiffDecorations {
@@ -1440,13 +1440,14 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 					result.decorations.push(createDecoration(lineChange.originalStartLineNumber, 1, lineChange.originalEndLineNumber, Number.MAX_VALUE, 'char-delete', true));
 				}
 
-				result.overviewZones.push({
-					startLineNumber: lineChange.originalStartLineNumber,
-					endLineNumber: lineChange.originalEndLineNumber,
-					color: 'rgba(255, 0, 0, 0.4)',
-					darkColor: 'rgba(255, 0, 0, 0.4)',
-					position: editorCommon.OverviewRulerLane.Full
-				});
+				result.overviewZones.push(new editorBrowser.OverviewRulerZone(
+					lineChange.originalStartLineNumber,
+					lineChange.originalEndLineNumber,
+					editorCommon.OverviewRulerLane.Full,
+					0,
+					'rgba(255, 0, 0, 0.4)',
+					'rgba(255, 0, 0, 0.4)'
+				));
 
 				if (lineChange.charChanges) {
 					for (j = 0, lengthJ = lineChange.charChanges.length; j < lengthJ; j++) {
@@ -1504,13 +1505,14 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 				if (!isChangeOrDelete(lineChange) || !lineChange.charChanges) {
 					result.decorations.push(createDecoration(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Number.MAX_VALUE, 'char-insert', true));
 				}
-				result.overviewZones.push({
-					startLineNumber: lineChange.modifiedStartLineNumber,
-					endLineNumber: lineChange.modifiedEndLineNumber,
-					color: 'rgba(155, 185, 85, 0.4)',
-					darkColor: 'rgba(155, 185, 85, 0.4)',
-					position: editorCommon.OverviewRulerLane.Full
-				});
+				result.overviewZones.push(new editorBrowser.OverviewRulerZone(
+					lineChange.modifiedStartLineNumber,
+					lineChange.modifiedEndLineNumber,
+					editorCommon.OverviewRulerLane.Full,
+					0,
+					'rgba(155, 185, 85, 0.4)',
+					'rgba(155, 185, 85, 0.4)'
+				));
 
 				if (lineChange.charChanges) {
 					for (j = 0, lengthJ = lineChange.charChanges.length; j < lengthJ; j++) {
@@ -1618,13 +1620,14 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 
 			// Add overview zones in the overview ruler
 			if (isChangeOrDelete(lineChange)) {
-				result.overviewZones.push({
-					startLineNumber: lineChange.originalStartLineNumber,
-					endLineNumber: lineChange.originalEndLineNumber,
-					color: 'rgba(255, 0, 0, 0.4)',
-					darkColor: 'rgba(255, 0, 0, 0.4)',
-					position: editorCommon.OverviewRulerLane.Full
-				});
+				result.overviewZones.push(new editorBrowser.OverviewRulerZone(
+					lineChange.originalStartLineNumber,
+					lineChange.originalEndLineNumber,
+					editorCommon.OverviewRulerLane.Full,
+					0,
+					'rgba(255, 0, 0, 0.4)',
+					'rgba(255, 0, 0, 0.4)'
+				));
 			}
 		}
 
@@ -1655,13 +1658,14 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 			if (isChangeOrInsert(lineChange)) {
 				result.decorations.push(createDecoration(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Number.MAX_VALUE, 'line-insert', true));
 
-				result.overviewZones.push({
-					startLineNumber: lineChange.modifiedStartLineNumber,
-					endLineNumber: lineChange.modifiedEndLineNumber,
-					color: 'rgba(155, 185, 85, 0.4)',
-					darkColor: 'rgba(155, 185, 85, 0.4)',
-					position: editorCommon.OverviewRulerLane.Full
-				});
+				result.overviewZones.push(new editorBrowser.OverviewRulerZone(
+					lineChange.modifiedStartLineNumber,
+					lineChange.modifiedEndLineNumber,
+					editorCommon.OverviewRulerLane.Full,
+					0,
+					'rgba(155, 185, 85, 0.4)',
+					'rgba(155, 185, 85, 0.4)'
+				));
 
 				if (lineChange.charChanges) {
 					for (j = 0, lengthJ = lineChange.charChanges.length; j < lengthJ; j++) {
@@ -1766,7 +1770,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 
 		lineTokens = {
 			getTokens: () => {
-				return [{ startIndex: 0, type: '' }];
+				return [new editorCommon.LineToken(0, '')];
 			},
 			getFauxIndentLength: () => {
 				return 0;
@@ -1782,15 +1786,16 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			}
 		};
 
-		parts = createLineParts(lineNumber, 1, lineContent, lineTokens, decorations, config.renderWhitespace);
+		parts = createLineParts(lineNumber, 1, lineContent, tabSize, lineTokens, decorations, config.renderWhitespace);
 
-		var r = renderLine({
-			lineContent: lineContent,
-			tabSize: tabSize,
-			stopRenderingLineAfter: config.stopRenderingLineAfter,
-			renderWhitespace: config.renderWhitespace,
-			parts: parts.getParts()
-		});
+		var r = renderLine(new RenderLineInput(
+			lineContent,
+			tabSize,
+			config.spaceWidth,
+			config.stopRenderingLineAfter,
+			config.renderWhitespace,
+			parts.getParts()
+		));
 
 		var myResult:string[] = [];
 

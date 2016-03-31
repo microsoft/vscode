@@ -253,7 +253,7 @@ suite('Validation - CSS', () => {
 			}),
 			testSuggestionsFor('.foo { background-color: #123456; } .bar { background-color: }', '.bar { background-color:').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '');
-				assertSuggestion(completion, '#123456', '##123456');
+				assertSuggestion(completion, '#123456', 'customcolor');
 			}),
 			testSuggestionsFor('.foo { unknown: foo; } .bar { unknown: }', '.bar { unknown:').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '');
@@ -263,7 +263,7 @@ suite('Validation - CSS', () => {
 				assert.equal(completion.currentWord, 'r');
 				assertSuggestion(completion, 'rgb', 'function');
 				assertSuggestion(completion, 'rgba', 'function');
-				assertSuggestion(completion, 'red', '##ff0000');
+				assertSuggestion(completion, 'red', 'customcolor');
 			})
 		]).done(() => testDone(), (errors: any[]) => {
 			testDone(errors.reduce((e1, e2) => e1 || e2));

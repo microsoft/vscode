@@ -397,7 +397,7 @@ export class JSONIntellisense {
 		return snippet;
 	}
 
-	private getSuggestionType(type: any): string {
+	private getSuggestionType(type: any): Modes.SuggestionType {
 		if (Array.isArray(type)) {
 			var array = <any[]> type;
 			type = array.length > 0 ? array[0] : null;

@@ -6,10 +6,11 @@
 
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {ILineToken, IModel, LineTokensBinaryEncoding} from 'vs/editor/common/editorCommon';
+import {LineToken, IModel} from 'vs/editor/common/editorCommon';
 import {ILineTokens, IMode} from 'vs/editor/common/modes';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {IRenderLineOutput, renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
+import {IRenderLineOutput, renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
+import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
 
 export interface IColorizerOptions {
 	tabSize?: number;
@@ -91,21 +92,22 @@ export class Colorizer {
 		return result;
 	}
 
-	public static colorizeLine(line:string, tokens:ILineToken[], tabSize:number = 4): string {
-		var renderResult = renderLine({
-			lineContent: line,
-			parts: tokens,
-			stopRenderingLineAfter: -1,
-			renderWhitespace: false,
-			tabSize: tabSize
-		});
-		return renderResult.output.join('');
+	public static colorizeLine(line:string, tokens:LineToken[], tabSize:number = 4): string {
+		var renderResult = renderLine(new RenderLineInput(
+			line,
+			tabSize,
+			0,
+			-1,
+			false,
+			tokens
+		));
+		return renderResult.output;
 	}
 
 	public static colorizeModelLine(model:IModel, lineNumber:number, tabSize:number = 4): string {
 		var content = model.getLineContent(lineNumber);
 		var tokens = model.getLineTokens(lineNumber, false);
-		var inflatedTokens = LineTokensBinaryEncoding.inflateArr(tokens.getBinaryEncodedTokensMap(), tokens.getBinaryEncodedTokens());
+		var inflatedTokens = TokensBinaryEncoding.inflateArr(tokens.getBinaryEncodedTokensMap(), tokens.getBinaryEncodedTokens());
 		return this.colorizeLine(content, inflatedTokens, tabSize);
 	}
 }
@@ -135,13 +137,14 @@ function actualColorize(lines:string[], mode:IMode, tabSize:number): IActualColo
 			retokenize.push(tokenizeResult.retokenize);
 		}
 
-		renderResult = renderLine({
-			lineContent: line,
-			parts: tokenizeResult.tokens,
-			stopRenderingLineAfter: -1,
-			renderWhitespace: false,
-			tabSize: tabSize
-		});
+		renderResult = renderLine(new RenderLineInput(
+			line,
+			tabSize,
+			0,
+			-1,
+			false,
+			tokenizeResult.tokens.map(t => new LineToken(t.startIndex, t.type))
+		));
 
 		html = html.concat(renderResult.output);
 		html.push('<br/>');

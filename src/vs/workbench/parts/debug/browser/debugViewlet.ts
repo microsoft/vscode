@@ -282,7 +282,7 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 
 		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => {
 			const focussedThread = this.debugService.getModel().getThreads()[this.debugService.getViewModel().getFocusedThreadId()];
-			if (focussedThread && focussedThread.stoppedDetails && focussedThread.stoppedDetails.reason && focussedThread.stoppedDetails.reason !== 'step') {
+			if (focussedThread && focussedThread.stoppedDetails && focussedThread.stoppedDetails.reason) {
 				this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", focussedThread.stoppedDetails.reason));
 				if (focussedThread.stoppedDetails.text) {
 					this.pauseMessageLabel.title(focussedThread.stoppedDetails.text);

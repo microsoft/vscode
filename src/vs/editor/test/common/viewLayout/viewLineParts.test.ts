@@ -6,17 +6,13 @@
 
 import * as assert from 'assert';
 import {DecorationSegment, ILineDecoration, LineDecorationsNormalizer} from 'vs/editor/common/viewLayout/viewLineParts';
+import {Range} from 'vs/editor/common/core/range';
 
 suite('Editor ViewLayout - ViewLineParts', () => {
 
 	function newDecoration(startLineNumber:number, startColumn:number, endLineNumber:number, endColumn:number, inlineClassName:string): ILineDecoration {
 		return {
-			range: {
-				startLineNumber: startLineNumber,
-				startColumn: startColumn,
-				endLineNumber: endLineNumber,
-				endColumn: endColumn
-			},
+			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 			options: {
 				inlineClassName: inlineClassName
 			}

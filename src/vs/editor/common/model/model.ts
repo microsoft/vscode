@@ -95,10 +95,6 @@ export class Model extends EditableTextModel implements IModel {
 	}
 
 	public onBeforeAttached(): void {
-		if (this._isDisposed) {
-			throw new Error('Model.onBeforeAttached: Model is disposed');
-		}
-
 		this._attachedEditorCount++;
 
 		// Warm up tokens for the editor
@@ -106,10 +102,6 @@ export class Model extends EditableTextModel implements IModel {
 	}
 
 	public onBeforeDetached(): void {
-		if (this._isDisposed) {
-			throw new Error('Model.onBeforeDetached: Model is disposed');
-		}
-
 		this._attachedEditorCount--;
 
 		// Intentional empty (for now)
@@ -120,10 +112,6 @@ export class Model extends EditableTextModel implements IModel {
 	}
 
 	public getAssociatedResource(): URI {
-		if (this._isDisposed) {
-			throw new Error('Model.getAssociatedResource: Model is disposed');
-		}
-
 		return this._associatedResource;
 	}
 }

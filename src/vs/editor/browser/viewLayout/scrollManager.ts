@@ -42,12 +42,12 @@ export class ScrollManager implements IDisposable {
 		var configScrollbarOpts = this.configuration.editor.scrollbar;
 
 		var scrollbarOptions:IScrollableElementCreationOptions = {
-			scrollable: this.scrollable,
 			listenOnDomNode: viewDomNode,
 			vertical: configScrollbarOpts.vertical,
 			horizontal: configScrollbarOpts.horizontal,
 			className: ClassNames.SCROLLABLE_ELEMENT + ' ' + this.configuration.editor.theme,
 			useShadows: false,
+			lazyRender: true,
 			saveLastScrollTimeOnClassName: ClassNames.VIEW_LINE
 		};
 		addPropertyIfPresent(configScrollbarOpts, scrollbarOptions, 'verticalHasArrows');
@@ -61,15 +61,12 @@ export class ScrollManager implements IDisposable {
 		addPropertyIfPresent(configScrollbarOpts, scrollbarOptions, 'mouseWheelScrollSensitivity');
 
 
-		this.scrollbar = new ScrollableElement(linesContent, scrollbarOptions, {
+		this.scrollbar = new ScrollableElement(linesContent, this.scrollable, scrollbarOptions, {
 			width: this.configuration.editor.layoutInfo.contentWidth,
 			height: this.configuration.editor.layoutInfo.contentHeight,
 		});
 		this.toDispose.push(this.scrollbar);
 
-		this.toDispose.push(this.scrollable.addInternalSizeChangeListener(() => {
-			this.scrollbar.onElementInternalDimensions();
-		}));
 		this.toDispose.push(this.configuration.onDidChange((e:IConfigurationChangedEvent) => {
 			this.scrollbar.updateClassName(this.configuration.editor.theme);
 			if (e.scrollbar) {
@@ -107,6 +104,10 @@ export class ScrollManager implements IDisposable {
 
 	public dispose(): void {
 		this.toDispose = dispose(this.toDispose);
+	}
+
+	public renderScrollbar(): void {
+		this.scrollbar.renderNow();
 	}
 
 	public onSizeProviderLayoutChanged(): void {

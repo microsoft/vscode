@@ -49,10 +49,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public getOptions(): editorCommon.ITextModelResolvedOptions {
-		if (this._isDisposed) {
-			throw new Error('TextModel.getOptions: Model is disposed');
-		}
-
 		return this._options;
 	}
 
@@ -145,18 +141,10 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public getVersionId(): number {
-		if (this._isDisposed) {
-			throw new Error('TextModel.getVersionId: Model is disposed');
-		}
-
 		return this._versionId;
 	}
 
 	public getAlternativeVersionId(): number {
-		if (this._isDisposed) {
-			throw new Error('TextModel.getAlternativeVersionId: Model is disposed');
-		}
-
 		return this._alternativeVersionId;
 	}
 
@@ -178,10 +166,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public dispose(): void {
-		if (this._isDisposed) {
-			throw new Error('TextModel.dispose: Model is disposed');
-		}
-
 		this._isDisposed = true;
 		// Null out members, such that any use of a disposed model will throw exceptions sooner rather than later
 		this._lines = null;
@@ -255,9 +239,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public setValue(value:string): void {
-		if (this._isDisposed) {
-			throw new Error('TextModel.setValue: Model is disposed');
-		}
 		let rawText: editorCommon.IRawText = null;
 		if (value !== null) {
 			rawText = TextModel.toRawText(value, {
@@ -271,10 +252,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public setValueFromRawText(newValue:editorCommon.IRawText): void {
-		if (this._isDisposed) {
-			throw new Error('TextModel.setValueFromRawText: Model is disposed');
-		}
-
 		if (newValue === null) {
 			// There's nothing to do
 			return;
@@ -291,10 +268,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public getValue(eol?:editorCommon.EndOfLinePreference, preserveBOM:boolean=false): string {
-		if (this._isDisposed) {
-			throw new Error('TextModel.getValue: Model is disposed');
-		}
-
 		var fullModelRange = this.getFullModelRange();
 		var fullModelValue = this.getValueInRange(fullModelRange, eol);
 
@@ -306,10 +279,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public getValueLength(eol?: editorCommon.EndOfLinePreference, preserveBOM: boolean = false): number {
-		if (this._isDisposed) {
-			throw new Error('TextModel.getValueLength: Model is disposed');
-		}
-
 		var fullModelRange = this.getFullModelRange();
 		var fullModelValue = this.getValueLengthInRange(fullModelRange, eol);
 
@@ -321,10 +290,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public getEmptiedValueInRange(rawRange:editorCommon.IRange, fillCharacter: string = '', eol:editorCommon.EndOfLinePreference=editorCommon.EndOfLinePreference.TextDefined): string {
-		if (this._isDisposed) {
-			throw new Error('TextModel.getEmptiedValueInRange: Model is disposed');
-		}
-
 		var range = this.validateRange(rawRange);
 
 		if (range.isEmpty()) {
@@ -358,10 +323,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public getValueInRange(rawRange:editorCommon.IRange, eol:editorCommon.EndOfLinePreference=editorCommon.EndOfLinePreference.TextDefined): string {
-		if (this._isDisposed) {
-			throw new Error('TextModel.getValueInRange: Model is disposed');
-		}
-
 		var range = this.validateRange(rawRange);
 
 		if (range.isEmpty()) {
@@ -387,10 +348,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public getValueLengthInRange(rawRange:editorCommon.IRange, eol:editorCommon.EndOfLinePreference=editorCommon.EndOfLinePreference.TextDefined): number {
-		if (this._isDisposed) {
-			throw new Error('TextModel.getValueInRange: Model is disposed');
-		}
-
 		var range = this.validateRange(rawRange);
 
 		if (range.isEmpty()) {
@@ -416,10 +373,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public isDominatedByLongLines(longLineBoundary:number): boolean {
-		if (this._isDisposed) {
-			throw new Error('TextModel.isDominatedByLongLines: Model is disposed');
-		}
-
 		var smallLineCharCount = 0,
 			longLineCharCount = 0,
 			i: number,
@@ -440,17 +393,10 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public getLineCount(): number {
-		if (this._isDisposed) {
-			throw new Error('TextModel.getLineCount: Model is disposed');
-		}
-
 		return this._lines.length;
 	}
 
 	public getLineContent(lineNumber:number): string {
-		if (this._isDisposed) {
-			throw new Error('TextModel.getLineContent: Model is disposed');
-		}
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
@@ -459,10 +405,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public getLinesContent(): string[] {
-		if (this._isDisposed) {
-			throw new Error('TextModel.getLineContent: Model is disposed');
-		}
-
 		var r: string[] = [];
 		for (var i = 0, len = this._lines.length; i < len; i++) {
 			r[i] = this._lines[i].text;
@@ -471,10 +413,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public getEOL(): string {
-		if (this._isDisposed) {
-			throw new Error('TextModel.getEOL: Model is disposed');
-		}
-
 		return this._EOL;
 	}
 
@@ -506,9 +444,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public getLineMaxColumn(lineNumber:number): number {
-		if (this._isDisposed) {
-			throw new Error('TextModel.getLineMaxColumn: Model is disposed');
-		}
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
@@ -517,9 +452,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public getLineFirstNonWhitespaceColumn(lineNumber: number): number {
-		if (this._isDisposed) {
-			throw new Error('TextModel.getLineFirstNonWhitespaceColumn: Model is disposed');
-		}
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
@@ -532,9 +464,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public getLineLastNonWhitespaceColumn(lineNumber: number): number {
-		if (this._isDisposed) {
-			throw new Error('TextModel.getLineLastNonWhitespaceColumn: Model is disposed');
-		}
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
@@ -547,10 +476,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public validateLineNumber(lineNumber:number): number {
-		if (this._isDisposed) {
-			throw new Error('TextModel.validateLineNumber: Model is disposed');
-		}
-
 		if (lineNumber < 1) {
 			lineNumber = 1;
 		}
@@ -561,10 +486,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public validatePosition(position:editorCommon.IPosition): editorCommon.IEditorPosition {
-		if (this._isDisposed) {
-			throw new Error('TextModel.validatePosition: Model is disposed');
-		}
-
 		var lineNumber = position.lineNumber ? position.lineNumber : 1;
 		var column = position.column ? position.column : 1;
 
@@ -587,20 +508,12 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public validateRange(range:editorCommon.IRange): editorCommon.IEditorRange {
-		if (this._isDisposed) {
-			throw new Error('TextModel.validateRange: Model is disposed');
-		}
-
 		var start = this.validatePosition(new Position(range.startLineNumber, range.startColumn));
 		var end = this.validatePosition(new Position(range.endLineNumber, range.endColumn));
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 	}
 
 	public modifyPosition(rawPosition: editorCommon.IPosition, offset: number) : editorCommon.IEditorPosition {
-		if (this._isDisposed) {
-			throw new Error('TextModel.modifyPosition: Model is disposed');
-		}
-
 		var position = this.validatePosition(rawPosition);
 
 		// Handle positive offsets, one line at a time
@@ -664,10 +577,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public getFullModelRange(): editorCommon.IEditorRange {
-		if (this._isDisposed) {
-			throw new Error('TextModel.getFullModelRange: Model is disposed');
-		}
-
 		var lineCount = this.getLineCount();
 		return new Range(1, 1, lineCount, this.getLineMaxColumn(lineCount));
 	}
@@ -761,10 +670,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public findMatches(searchString:string, rawSearchScope:any, isRegex:boolean, matchCase:boolean, wholeWord:boolean, limitResultCount:number = LIMIT_FIND_COUNT): editorCommon.IEditorRange[] {
-		if (this._isDisposed) {
-			throw new Error('Model.findMatches: Model is disposed');
-		}
-
 		var regex = strings.createSafeRegExp(searchString, isRegex, matchCase, wholeWord);
 		if (!regex) {
 			return [];
@@ -781,10 +686,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public findNextMatch(searchString:string, rawSearchStart:editorCommon.IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): editorCommon.IEditorRange {
-		if (this._isDisposed) {
-			throw new Error('Model.findNextMatch: Model is disposed');
-		}
-
 		var regex = strings.createSafeRegExp(searchString, isRegex, matchCase, wholeWord);
 		if (!regex) {
 			return null;
@@ -816,10 +717,6 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	}
 
 	public findPreviousMatch(searchString:string, rawSearchStart:editorCommon.IPosition, isRegex:boolean, matchCase:boolean, wholeWord:boolean): editorCommon.IEditorRange {
-		if (this._isDisposed) {
-			throw new Error('Model.findPreviousMatch: Model is disposed');
-		}
-
 		var regex = strings.createSafeRegExp(searchString, isRegex, matchCase, wholeWord);
 		if (!regex) {
 			return null;

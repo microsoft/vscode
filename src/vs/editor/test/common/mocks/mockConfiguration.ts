@@ -30,6 +30,7 @@ export class MockConfiguration extends CommonEditorConfiguration {
 		return {
 			typicalHalfwidthCharacterWidth: 10,
 			typicalFullwidthCharacterWidth: 20,
+			spaceWidth: 10,
 			maxDigitWidth: 10,
 			lineHeight: 20,
 			font: 'mockFont',

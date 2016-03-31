@@ -11,6 +11,7 @@ import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IMarker} from 'vs/platform/markers/common/markers';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 export interface ITokenizationResult {
 	type?:string;
@@ -153,7 +154,7 @@ export interface IModeDescriptor {
 export interface ILineContext {
 	getLineContent(): string;
 
-	modeTransitions: IModeTransition[];
+	modeTransitions: ModeTransition[];
 
 	getTokenCount(): number;
 	getTokenStartIndex(tokenIndex:number): number;
@@ -325,10 +326,30 @@ export interface IExtraInfoSupport {
 	computeInfo(resource:URI, position:editorCommon.IPosition):TPromise<IComputeExtraInfoResult>;
 }
 
+export type SuggestionType = 'method'
+	| 'function'
+	| 'constructor'
+	| 'field'
+	| 'variable'
+	| 'class'
+	| 'interface'
+	| 'module'
+	| 'property'
+	| 'unit'
+	| 'value'
+	| 'enum'
+	| 'keyword'
+	| 'snippet'
+	| 'text'
+	| 'color'
+	| 'file'
+	| 'reference'
+	| 'customcolor';
+
 export interface ISuggestion {
 	label: string;
 	codeSnippet: string;
-	type: 'Text' | 'Method' | 'Function' | 'Constructor' | 'Field' | 'Variable' | 'Class' | 'Interface' | 'Module' | 'Property' | 'Unit' | 'Value' | 'Enum' | 'Keyword' | 'Snippet' | 'Color' | 'File' | 'Reference' | string;
+	type: SuggestionType;
 	typeLabel?: string;
 	documentationLabel?: string;
 	filterText?: string;

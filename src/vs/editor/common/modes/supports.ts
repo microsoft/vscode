@@ -5,9 +5,9 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import {Arrays} from 'vs/editor/common/core/arrays';
 import {IModel, IPosition} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
+import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 export class Token implements modes.IToken {
 	public startIndex:number;
@@ -29,7 +29,7 @@ export function handleEvent<T>(context:modes.ILineContext, offset:number, runner
 		return runner(modeTransitions[0].mode, context, offset);
 	}
 
-	var modeIndex = Arrays.findIndexInSegmentsArray(modeTransitions, offset);
+	var modeIndex = ModeTransition.findIndexInSegmentsArray(modeTransitions, offset);
 	var nestedMode = modeTransitions[modeIndex].mode;
 	var modeStartIndex = modeTransitions[modeIndex].startIndex;
 
@@ -87,7 +87,7 @@ export function isLineToken(context:modes.ILineContext, offset:number, types:str
 
 export class FilteredLineContext implements modes.ILineContext {
 
-	public modeTransitions: modes.IModeTransition[];
+	public modeTransitions: ModeTransition[];
 
 	private _actual:modes.ILineContext;
 	private _firstTokenInModeIndex:number;
@@ -99,10 +99,7 @@ export class FilteredLineContext implements modes.ILineContext {
 			firstTokenInModeIndex:number, nextTokenAfterMode:number,
 			firstTokenCharacterOffset:number, nextCharacterAfterModeIndex:number) {
 
-		this.modeTransitions = [{
-			startIndex: 0,
-			mode: mode
-		}];
+		this.modeTransitions = [new ModeTransition(0, mode)];
 		this._actual = actual;
 		this._firstTokenInModeIndex = firstTokenInModeIndex;
 		this._nextTokenAfterMode = nextTokenAfterMode;
@@ -140,8 +137,9 @@ export class FilteredLineContext implements modes.ILineContext {
 	}
 }
 
+const IGNORE_IN_TOKENS = /\b(comment|string|regex)\b/;
 export function ignoreBracketsInToken(tokenType:string): boolean {
-	return /\b(comment|string|regex)\b/.test(tokenType);
+	return IGNORE_IN_TOKENS.test(tokenType);
 }
 
 // TODO@Martin: find a better home for this code:

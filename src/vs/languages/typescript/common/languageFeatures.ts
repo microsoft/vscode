@@ -188,7 +188,7 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 				return <modes.ISuggestion>{
 					label: entry.name,
 					codeSnippet: entry.name,
-					type: entry.kind
+					type: SuggestAdapter.asType(entry.kind)
 				};
 			});
 
@@ -213,11 +213,31 @@ class SuggestAdapter extends Adapter implements modes.ISuggestSupport {
 			return <modes.ISuggestion>{
 				label: details.name,
 				codeSnippet: details.name,
-				type: details.kind,
+				type: SuggestAdapter.asType(details.kind),
 				typeLabel: ts.displayPartsToString(details.displayParts),
 				documentationLabel: ts.displayPartsToString(details.documentation)
 			};
 		});
+	}
+
+	static asType(kind: string): modes.SuggestionType{
+		switch (kind) {
+			case 'getter':
+			case 'setting':
+			case 'constructor':
+			case 'method':
+			case 'property':
+				return 'property';
+			case 'function':
+			case 'local function':
+				return 'function';
+			case 'class':
+				return 'class';
+			case 'interface':
+				return 'interface';
+		}
+
+		return 'variable';
 	}
 
 	getFilter(): modes.ISuggestionFilter {
