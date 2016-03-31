@@ -44,6 +44,10 @@ export function suggest(model: IModel, position: IPosition, triggerCharacter: st
 			const promises = supports.map(support => {
 				return support.suggest(resource, position, triggerCharacter).then(values => {
 
+					if (!values) {
+						return;
+					}
+
 					const result: ISuggestResult2[] = [];
 					for (let suggestResult of values) {
 

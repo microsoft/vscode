@@ -26,7 +26,6 @@ Monaco.Editor.create = standaloneCodeEditor.create;
 Monaco.Editor.createModel = standaloneCodeEditor.createModel;
 Monaco.Editor.createDiffEditor = standaloneCodeEditor.createDiffEditor;
 Monaco.Editor.configureMode = standaloneCodeEditor.configureMode;
-Monaco.Editor.registerWorkerParticipant = standaloneCodeEditor.registerWorkerParticipant;
 Monaco.Editor.getOrCreateMode = standaloneCodeEditor.getOrCreateMode;
 Monaco.Editor.createCustomMode = standaloneCodeEditor.createCustomMode;
 Monaco.Editor.colorize = standaloneCodeEditor.colorize;

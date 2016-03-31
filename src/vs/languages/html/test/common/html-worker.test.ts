@@ -41,7 +41,7 @@ suite('HTML - worker', () => {
 			markerService: markerService
 		});
 
-		var worker = new htmlWorker.HTMLWorker(mode.getId(), [], services.resourceService, services.markerService, services.contextService);
+		var worker = new htmlWorker.HTMLWorker(mode.getId(), services.resourceService, services.markerService, services.contextService);
 
 		return { worker: worker, model: model };
 	};

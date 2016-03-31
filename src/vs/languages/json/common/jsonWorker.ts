@@ -82,7 +82,6 @@ export class JSONWorker implements Modes.IExtraInfoSupport {
 
 	constructor(
 		modeId: string,
-		participants: Modes.IWorkerParticipant[],
 		@IResourceService resourceService: IResourceService,
 		@IMarkerService markerService: IMarkerService,
 		@IRequestService requestService: IRequestService,

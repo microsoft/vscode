@@ -14,6 +14,6 @@ require.config({
 	}
 });
 
-define(['./raw.typescriptServices', 'vs/text!./lib.d.ts'], function (ts) {
+define(['./raw.typescriptServices'], function (ts) {
 	return ts;
 });
