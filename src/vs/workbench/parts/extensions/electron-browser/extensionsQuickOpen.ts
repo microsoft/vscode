@@ -430,7 +430,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super();
-		this.delayer = new ThrottledDelayer(50);
+		this.delayer = new ThrottledDelayer(500);
 	}
 
 	public getAriaLabel(): string {
@@ -438,7 +438,6 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 	}
 
 	getResults(input: string): TPromise<IModel<IExtensionEntry>> {
-
 		return this.delayer.trigger(() => TPromise.join<any>([this.galleryService.query(input), this.extensionsService.getInstalled()]))
 			.then(result => this.instantiationService.createInstance(GalleryExtensionsModel, input, result[0].extensions, result[1]));
 	}
