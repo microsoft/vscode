@@ -30,6 +30,7 @@ function fixedEncodeURIComponent(str: string): string {
 export default class URI {
 
 	private static _empty = '';
+	private static _slash = '/';
 	private static _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
 	private static _driveLetterPath = /^\/[a-zA-z]:/;
 	private static _driveLetter = /^[a-zA-z]:/;
@@ -167,28 +168,35 @@ export default class URI {
 	}
 
 	public static file(path: string): URI {
-		path = path.replace(/\\/g, '/');
-		path = path.replace(/%/g, '%25');
-		path = path.replace(/#/g, '%23');
-		path = path.replace(/\?/g, '%3F');
-		// makes sure something like 'C:/Users' isn't
-		// parsed as scheme='C', path='Users'
-		path = URI._driveLetter.test(path)
-			? '/' + path
-			: path;
-
-		const data = URI._parseComponents(path);
-		if (data.scheme || data.fragment || data.query) {
-			throw new Error('Path contains a scheme, fragment or a query. Can not convert it to a file uri.');
-		}
 
 		const ret = new URI();
 		ret._scheme = 'file';
-		ret._authority = data.authority;
-		ret._path = decodeURIComponent(data.path[0] === '/' ? data.path : '/' + data.path); // path starts with slash
-		ret._query = data.query;
-		ret._fragment = data.fragment;
+
+		// normalize to fwd-slashes
+		path = path.replace(/\\/g, URI._slash);
+
+		// check for authority as used in UNC shares
+		// or use the path as given
+		if (path[0] === URI._slash && path[0] === path[1]) {
+			let idx = path.indexOf(URI._slash, 2);
+			if (idx === -1) {
+				ret._authority = path.substring(2);
+			} else {
+				ret._authority = path.substring(2, idx);
+				ret._path = path.substring(idx);
+			}
+		} else {
+			ret._path = path;
+		}
+
+		// Ensure that path starts with a slash
+		// or that it is at least a slash
+		if (ret._path[0] !== URI._slash) {
+			ret._path = URI._slash + ret._path;
+		}
+
 		URI._validate(ret);
+
 		return ret;
 	}
 

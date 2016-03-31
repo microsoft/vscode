@@ -211,6 +211,22 @@ suite('URI', () => {
 		value = URI.file('c:\\test with %25\\c#code');
 		assert.equal(value.path, '/c:/test with %25/c#code');
 		assert.equal(value.toString(), 'file:///c%3A/test%20with%20%2525/c%23code');
+
+		value = URI.file('\\\\shares');
+		assert.equal(value.scheme, 'file');
+		assert.equal(value.authority, 'shares');
+		assert.equal(value.path, '/'); // slash is always there
+
+		value = URI.file('\\\\shares\\');
+		assert.equal(value.scheme, 'file');
+		assert.equal(value.authority, 'shares');
+		assert.equal(value.path, '/');
+
+		// we don't complain here
+		value = URI.file('file://path/to/file');
+		assert.equal(value.scheme, 'file');
+		assert.equal(value.authority, '');
+		assert.equal(value.path, '/file://path/to/file');
 	});
 
 	test('URI#file, auto-slash windows drive letter', () => {
@@ -233,10 +249,6 @@ suite('URI', () => {
 		assert.equal(value.authority, '');
 		assert.equal(value.path, '/a.file');
 		assert.equal(value.toString(), 'file:///a.file');
-	});
-
-	test('URI#file, disallow scheme', () => {
-		assert.throws(() => URI.file('file:///some/path'));
 	});
 
 	test('URI.toString, only scheme and query', () => {
