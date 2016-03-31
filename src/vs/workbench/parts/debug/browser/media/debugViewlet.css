@@ -157,6 +157,10 @@
 	margin-left: 0.8em;
 }
 
+.debug-viewlet .debug-call-stack .load-more {
+	font-style: italic;
+}
+
 /* Variables & Expression view */
 
 .debug-viewlet .scope {
