@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
-import {IDisposable, combinedDispose, empty as EmptyDisposable} from 'vs/base/common/lifecycle'; // TODO@Alex
+import {IDisposable, combinedDisposable, empty as EmptyDisposable} from 'vs/base/common/lifecycle'; // TODO@Alex
 import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -433,7 +433,7 @@ export class ModeServiceImpl implements IModeService {
 	}
 
 	protected doRegisterMonarchDefinition(modeId:string, lexer: ILexer): IDisposable {
-		return combinedDispose(
+		return combinedDisposable(
 			this.registerTokenizationSupport(modeId, (mode: modes.IMode) => {
 				return createTokenizationSupport(this, mode, lexer);
 			}),
@@ -614,7 +614,7 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 	public registerMonarchDefinition(modelService: IModelService, editorWorkerService:IEditorWorkerService, modeId:string, language:ILanguage): IDisposable {
 		this._getModeServiceWorkerHelper().registerMonarchDefinition(modeId, language);
 		var lexer = compile(objects.clone(language));
-		return combinedDispose(
+		return combinedDisposable(
 			super.doRegisterMonarchDefinition(modeId, lexer),
 
 			this.registerModeSupport(modeId, 'suggestSupport', (mode) => {

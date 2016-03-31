@@ -10,7 +10,7 @@ import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
 import {isPromiseCanceledError, onUnexpectedError} from 'vs/base/common/errors';
 import Event, { Emitter } from 'vs/base/common/event';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {addClass, append, emmet as $, hide, removeClass, show, toggleClass} from 'vs/base/browser/dom';
@@ -818,7 +818,7 @@ export class SuggestWidget implements IContentWidget, IDisposable {
 		this.details = null;
 		this.list.dispose();
 		this.list = null;
-		this.toDispose = disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 		this._onDidVisibilityChange.dispose();
 		this._onDidVisibilityChange = null;
 		clearTimeout(this.loadingTimeout);

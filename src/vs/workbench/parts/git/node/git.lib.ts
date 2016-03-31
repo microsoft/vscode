@@ -6,7 +6,7 @@
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import extfs = require('vs/base/node/extfs');
 import { guessMimeTypes, isBinaryMime } from 'vs/base/common/mime';
-import { IDisposable, toDisposable, disposeAll } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import objects = require('vs/base/common/objects');
 import uuid = require('vs/base/common/uuid');
 import nls = require('vs/nls');
@@ -52,7 +52,7 @@ function exec(child: ChildProcess, encoding = 'utf8'): TPromise<IExecutionResult
 			once(child.stderr, 'close', () => c(decode(Buffer.concat(buffers), encoding)));
 		})
 	]).then(values => {
-		disposeAll(disposables);
+		dispose(disposables);
 
 		return {
 			exitCode: values[0],

@@ -5,7 +5,7 @@
 'use strict';
 
 import arrays = require('vs/base/common/arrays');
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import DomUtils = require('vs/base/browser/dom');
 
 export namespace EventType {
@@ -90,7 +90,7 @@ export class Gesture implements IDisposable {
 	}
 
 	public set target(element: HTMLElement) {
-		this.callOnTarget = disposeAll(this.callOnTarget);
+		this.callOnTarget = dispose(this.callOnTarget);
 
 		this.activeTouches = {};
 

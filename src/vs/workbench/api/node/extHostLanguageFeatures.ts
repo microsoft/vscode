@@ -7,7 +7,7 @@
 import URI from 'vs/base/common/uri';
 import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import {Range as EditorRange} from 'vs/editor/common/core/range';
 import * as vscode from 'vscode';
@@ -115,7 +115,7 @@ class CodeLensAdapter implements modes.ICodeLensSupport {
 		return new ShallowCancelThenPromise(newCodeLensData.then(newCached => {
 			if (entry) {
 				// only now dispose old commands et al
-				entry.data.then(oldCached => disposeAll(oldCached.disposables));
+				entry.data.then(oldCached => dispose(oldCached.disposables));
 			}
 			return newCached && newCached.symbols;
 		}));
@@ -320,7 +320,7 @@ class QuickFixAdapter implements modes.IQuickFixSupport {
 			return diag;
 		});
 
-		this._cachedCommands = disposeAll(this._cachedCommands);
+		this._cachedCommands = dispose(this._cachedCommands);
 		const ctx = { commands: this._commands, disposables: this._cachedCommands };
 
 		return asWinJsPromise(token => this._provider.provideCodeActions(doc, ran, { diagnostics: <any>diagnostics }, token)).then(commands => {

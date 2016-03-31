@@ -8,7 +8,7 @@ import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
-import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import strings = require('vs/base/common/strings');
 import { isString } from 'vs/base/common/types';
 import { Action } from 'vs/base/common/actions';
@@ -89,7 +89,7 @@ export abstract class GitAction extends Action {
 
 	public dispose(): void {
 		this.gitService = null;
-		this.toDispose = disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 
 		super.dispose();
 	}

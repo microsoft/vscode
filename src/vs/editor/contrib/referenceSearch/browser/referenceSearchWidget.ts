@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import * as collections from 'vs/base/common/collections';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {getPathLabel} from 'vs/base/common/labels';
-import {IDisposable, cAll, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, cAll, dispose} from 'vs/base/common/lifecycle';
 import {Schemas} from 'vs/base/common/network';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
@@ -494,7 +494,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 	public setModel(newModel: ReferencesModel): void {
 		// clean up
-		this.callOnModel = disposeAll(this.callOnModel);
+		this.callOnModel = dispose(this.callOnModel);
 		this.model = newModel;
 		if (this.model) {
 			this._onNewModel();
@@ -617,7 +617,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 	public dispose(): void {
 		this.setModel(null);
-		disposeAll(<IDisposable[]>[this.preview, this.previewNotAvailableMessage, this.tree]);
+		dispose(<IDisposable[]>[this.preview, this.previewNotAvailableMessage, this.tree]);
 		super.dispose();
 	}
 }

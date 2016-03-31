@@ -112,7 +112,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 
 			// need to remove the input box since this template will be reused.
 			container.removeChild(inputBoxContainer);
-			lifecycle.disposeAll(toDispose);
+			lifecycle.dispose(toDispose);
 		}
 	});
 
@@ -635,7 +635,7 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 	}
 
 	public dispose(): void {
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }
 
@@ -868,7 +868,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 	}
 
 	public renderElement(tree: tree.ITree, element: any, templateId: string, templateData: any): void {
-		templateData.toDisposeBeforeRender = lifecycle.disposeAll(templateData.toDisposeBeforeRender);
+		templateData.toDisposeBeforeRender = lifecycle.dispose(templateData.toDisposeBeforeRender);
 		templateData.toDisposeBeforeRender.push(dom.addStandardDisposableListener(templateData.checkbox, 'change', (e) => {
 			this.debugService.toggleEnablement(element);
 		}));

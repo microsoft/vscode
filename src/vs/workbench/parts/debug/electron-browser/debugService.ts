@@ -715,7 +715,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 
 	private onSessionEnd(): void {
 		try {
-			this.debugStringEditorInputs = lifecycle.disposeAll(this.debugStringEditorInputs);
+			this.debugStringEditorInputs = lifecycle.dispose(this.debugStringEditorInputs);
 		} catch (e) {
 			// an internal module might be open so the dispose can throw -> ignore and continue with stop session.
 		}
@@ -733,7 +733,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 		}
 
 		this.session = null;
-		this.toDisposeOnSessionEnd = lifecycle.disposeAll(this.toDisposeOnSessionEnd);
+		this.toDisposeOnSessionEnd = lifecycle.dispose(this.toDisposeOnSessionEnd);
 		this.partService.removeClass('debugging');
 		this.editorService.focusEditor();
 
@@ -942,7 +942,7 @@ export class DebugService extends ee.EventEmitter implements debug.IDebugService
 			this.session = null;
 		}
 		this.model.dispose();
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
-		this.toDisposeOnSessionEnd = lifecycle.disposeAll(this.toDisposeOnSessionEnd);
+		this.toDispose = lifecycle.dispose(this.toDispose);
+		this.toDisposeOnSessionEnd = lifecycle.dispose(this.toDisposeOnSessionEnd);
 	}
 }

@@ -13,7 +13,7 @@ import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import Event, {Emitter} from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {Range, Position, Disposable} from 'vs/workbench/api/node/extHostTypes';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -522,7 +522,7 @@ export class MainThreadDocuments {
 			this._modelToDisposeMap[modelUrl].dispose();
 		});
 		this._modelToDisposeMap = Object.create(null);
-		this._toDispose = disposeAll(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
 	}
 
 	private _shouldHandleFileEvent(e: LocalFileChangeEvent): boolean {

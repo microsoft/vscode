@@ -5,7 +5,7 @@
 'use strict';
 
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
@@ -112,7 +112,7 @@ export class ContentHoverWidget implements editorBrowser.IContentWidget {
 
 	public dispose(): void {
 		this.hide();
-		this._toDispose = disposeAll(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
 	}
 }
 

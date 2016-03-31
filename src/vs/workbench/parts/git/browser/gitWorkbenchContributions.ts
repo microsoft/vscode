@@ -101,7 +101,7 @@ export class StatusUpdater implements ext.IWorkbenchContribution
 	}
 
 	public dispose(): void {
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }
 
@@ -304,7 +304,7 @@ class DirtyDiffModelDecorator {
 
 	public dispose(): void {
 		this.modelService.destroyModel(this._originalContentsURI);
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 		if (this.model && !this.model.isDisposed()) {
 			this.model.deltaDecorations(this.decorations, []);
 		}
@@ -423,7 +423,7 @@ export class DirtyDiffDecorator implements ext.IWorkbenchContribution {
 	}
 
 	public dispose(): void {
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 		this.models.forEach(m => this.decorators[m.id].dispose());
 		this.models = null;
 		this.decorators = null;
