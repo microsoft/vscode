@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Disposable, IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {Disposable, IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import {IframeUtils} from 'vs/base/browser/iframe';
 import {StandardMouseEvent} from 'vs/base/browser/mouseEvent';
@@ -64,7 +64,7 @@ export class GlobalMouseMoveMonitor<R> extends Disposable {
 		}
 
 		// Unhook
-		this.hooks = disposeAll(this.hooks);
+		this.hooks = dispose(this.hooks);
 		this.mouseMoveEventMerger = null;
 		this.mouseMoveCallback = null;
 		let onStopCallback = this.onStopCallback;

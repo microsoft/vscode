@@ -576,7 +576,7 @@ export class DebugViewlet extends viewlet.Viewlet {
 	}
 
 	public dispose(): void {
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 
 		super.dispose();
 	}

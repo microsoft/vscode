@@ -104,7 +104,7 @@ export class OutputPanel extends StringEditor {
 	}
 
 	public dispose(): void {
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 		super.dispose();
 	}
 }

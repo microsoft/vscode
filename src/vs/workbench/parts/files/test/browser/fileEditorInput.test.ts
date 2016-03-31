@@ -112,7 +112,7 @@ suite('Files - FileEditorInput', () => {
 		assert.strictEqual(fileEditorInput.matches(contentEditorInput2), true);
 	});
 
-	test('FileTracker - disposeAll()', function(done) {
+	test('FileTracker - dispose()', function(done) {
 		let editorService = new TestEditorService(function() { });
 		let telemetryService = new MainTelemetryService();
 		let contextService = new TestContextService();
@@ -142,11 +142,11 @@ suite('Files - FileEditorInput', () => {
 		let sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/fooss5/bar/file2.js'), 'text/javascript', void 0);
 		return editorService.resolveEditorModel(inputToResolve).then(function(resolved) {
 			return editorService.resolveEditorModel(sameOtherInput).then(function(resolved) {
-				(<any>tracker).disposeAll(toResource('/bar'), []);
+				(<any>tracker).dispose(toResource('/bar'), []);
 				assert(!inputToResolve.isDisposed());
 				assert(!sameOtherInput.isDisposed());
 
-				(<any>tracker).disposeAll(toResource('/fooss5/bar/file2.js'), []);
+				(<any>tracker).dispose(toResource('/fooss5/bar/file2.js'), []);
 
 				assert(inputToResolve.isDisposed());
 				assert(sameOtherInput.isDisposed());
@@ -156,7 +156,7 @@ suite('Files - FileEditorInput', () => {
 		});
 	});
 
-	test('FileEditorInput - disposeAll() also works for folders', function(done) {
+	test('FileEditorInput - dispose() also works for folders', function(done) {
 		let editorService = new TestEditorService(function() { });
 		let telemetryService = new MainTelemetryService();
 		let contextService = new TestContextService();
@@ -186,11 +186,11 @@ suite('Files - FileEditorInput', () => {
 		let sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/foo6/bar/file.js'), 'text/javascript', void 0);
 		return editorService.resolveEditorModel(inputToResolve, true).then(function(resolved) {
 			return editorService.resolveEditorModel(sameOtherInput, true).then(function(resolved) {
-				(<any>tracker).disposeAll(toResource('/bar'), []);
+				(<any>tracker).dispose(toResource('/bar'), []);
 				assert(!inputToResolve.isDisposed());
 				assert(!sameOtherInput.isDisposed());
 
-				(<any>tracker).disposeAll(toResource('/foo6'), []);
+				(<any>tracker).dispose(toResource('/foo6'), []);
 
 				assert(inputToResolve.isDisposed());
 				assert(sameOtherInput.isDisposed());

@@ -8,7 +8,7 @@
 import 'vs/css!./media/workbench';
 import {TPromise, ValueCallback} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import strings = require('vs/base/common/strings');
 import DOM = require('vs/base/browser/dom');
 import {Box, Builder, withElementById, $} from 'vs/base/browser/builder';
@@ -649,7 +649,7 @@ export class Workbench implements IPartService {
 	public dispose(): void {
 
 		// Dispose all
-		this.toDispose = disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 
 		// Event
 		this.eventService.emit(EventType.WORKBENCH_DISPOSED);

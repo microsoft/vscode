@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {StopWatch} from 'vs/base/common/stopwatch';
 import * as timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -254,7 +254,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._mode = null;
 		this._lastState = null;
 		this._tokensInflatorMap = null;
-		this._retokenizers = disposeAll(this._retokenizers);
+		this._retokenizers = dispose(this._retokenizers);
 		this._scheduleRetokenizeNow.dispose();
 
 		super.dispose();
@@ -369,7 +369,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	}
 
 	_resetTokenizationState(): void {
-		this._retokenizers = disposeAll(this._retokenizers);
+		this._retokenizers = dispose(this._retokenizers);
 		this._scheduleRetokenizeNow.cancel();
 		this._clearTimers();
 		for (var i = 0; i < this._lines.length; i++) {

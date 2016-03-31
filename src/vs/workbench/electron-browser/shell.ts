@@ -17,7 +17,7 @@ import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
 import dom = require('vs/base/browser/dom');
 import aria = require('vs/base/browser/ui/aria/aria');
-import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
+import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import {ContextViewService} from 'vs/platform/contextview/browser/contextViewService';
 import {ContextMenuService} from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
@@ -509,7 +509,7 @@ export class WorkbenchShell {
 		this.storageService.dispose();
 
 		// Listeners
-		this.toUnbind = disposeAll(this.toUnbind);
+		this.toUnbind = dispose(this.toUnbind);
 
 		// Container
 		$(this.container).empty();

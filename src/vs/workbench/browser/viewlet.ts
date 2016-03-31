@@ -15,7 +15,7 @@ import {ITree, IFocusEvent, ISelectionEvent} from 'vs/base/parts/tree/browser/tr
 import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
 import {ToolBar} from 'vs/base/browser/ui/toolbar/toolbar';
 import {DelayedDragHandler} from 'vs/base/browser/dnd';
-import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
+import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {CollapsibleView, CollapsibleState, FixedCollapsibleView} from 'vs/base/browser/ui/splitview/splitview';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -402,7 +402,7 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 
 		this.dragHandler.dispose();
 
-		this.toDispose = disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 
 		if (this.toolBar) {
 			this.toolBar.dispose();
@@ -529,7 +529,7 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 
 		this.dragHandler.dispose();
 
-		this.toDispose = disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 
 		if (this.toolBar) {
 			this.toolBar.dispose();

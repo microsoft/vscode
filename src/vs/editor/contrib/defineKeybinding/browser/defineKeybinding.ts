@@ -10,7 +10,7 @@ import * as nls from 'vs/nls';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {CommonKeybindings, KeyCode, KeyMod, Keybinding} from 'vs/base/common/keyCodes';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
@@ -89,8 +89,8 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 	}
 
 	public dispose(): void {
-		this._modelToDispose = disposeAll(this._modelToDispose);
-		this._toDispose = disposeAll(this._toDispose);
+		this._modelToDispose = dispose(this._modelToDispose);
+		this._toDispose = dispose(this._toDispose);
 		this._launchWidget.dispose();
 		this._launchWidget = null;
 		this._defineWidget.dispose();
@@ -116,7 +116,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 	}
 
 	private _onModel(): void {
-		this._modelToDispose = disposeAll(this._modelToDispose);
+		this._modelToDispose = dispose(this._modelToDispose);
 
 		let model = this._editor.getModel();
 		if (!model) {
@@ -258,7 +258,7 @@ class DefineKeybindingLauncherWidget implements IOverlayWidget {
 
 	public dispose(): void {
 		this._editor.removeOverlayWidget(this);
-		this._toDispose = disposeAll(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
 	}
 
 	public show(): void {
@@ -387,7 +387,7 @@ class DefineKeybindingWidget implements IOverlayWidget {
 
 	public dispose(): void {
 		this._editor.removeOverlayWidget(this);
-		this._toDispose = disposeAll(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
 	}
 
 	public getId(): string {

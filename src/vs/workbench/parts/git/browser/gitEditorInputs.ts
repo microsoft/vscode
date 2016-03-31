@@ -160,7 +160,7 @@ export class NativeGitIndexStringEditorInput
 			this.delayer = null;
 		}
 
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 		super.dispose();
 	}
 }

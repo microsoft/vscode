@@ -5,7 +5,7 @@
 
 import URI from 'vs/base/common/uri';
 import {toObject} from 'vs/base/common/objects';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise as Promise} from 'vs/base/common/winjs.base';
 import {match} from 'vs/base/common/glob';
 import {IGalleryService, IExtensionTipsService, IExtension} from 'vs/workbench/parts/extensions/common/extensions';
@@ -80,6 +80,6 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	}
 
 	dispose() {
-		this._disposables = disposeAll(this._disposables);
+		this._disposables = dispose(this._disposables);
 	}
 }

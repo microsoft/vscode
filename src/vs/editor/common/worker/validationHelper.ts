@@ -6,7 +6,7 @@
 
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {IEmitterEvent} from 'vs/base/common/eventEmitter';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {IMirrorModel} from 'vs/editor/common/editorCommon';
 import {IResourceAddedEvent, IResourceRemovedEvent, IResourceService, ResourceEvents} from 'vs/editor/common/services/resourceService';
@@ -37,7 +37,7 @@ class ValidationModel implements IDisposable {
 	}
 
 	public dispose(): void {
-		this._toDispose = disposeAll(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
 		this._changeCallback = null;
 	}
 
@@ -107,9 +107,9 @@ export class ValidationHelper implements IDisposable {
 	}
 
 	public dispose(): void {
-		this._toDispose = disposeAll(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
 
-		disposeAll(Object.keys(this._models).map((modelUrl) => this._models[modelUrl]));
+		dispose(Object.keys(this._models).map((modelUrl) => this._models[modelUrl]));
 		this._models = null;
 	}
 

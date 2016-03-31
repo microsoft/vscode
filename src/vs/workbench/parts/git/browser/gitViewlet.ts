@@ -210,7 +210,7 @@ export class GitViewlet
 	}
 
 	public dispose(): void {
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 		this.views = null;
 
 		super.dispose();

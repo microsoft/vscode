@@ -101,7 +101,7 @@ class EventCounter {
 	}
 
 	public dispose(): void {
-		this.listeners = lifecycle.disposeAll(this.listeners);
+		this.listeners = lifecycle.dispose(this.listeners);
 		this._count = -1;
 	}
 }

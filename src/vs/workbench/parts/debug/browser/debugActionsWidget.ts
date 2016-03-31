@@ -128,7 +128,7 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 	}
 
 	public dispose(): void {
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 
 		if (this.$el) {
 			this.$el.destroy();

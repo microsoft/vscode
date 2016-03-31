@@ -8,7 +8,7 @@
 import 'vs/css!./codelens';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import {format} from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -386,7 +386,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 	public dispose(): void {
 		this.localDispose();
-		this._globalToDispose = disposeAll(this._globalToDispose);
+		this._globalToDispose = dispose(this._globalToDispose);
 	}
 
 	private localDispose(): void {
@@ -399,7 +399,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			this._currentFindOccPromise.cancel();
 			this._currentFindOccPromise = null;
 		}
-		this._localToDispose = disposeAll(this._localToDispose);
+		this._localToDispose = dispose(this._localToDispose);
 	}
 
 	public getId(): string {

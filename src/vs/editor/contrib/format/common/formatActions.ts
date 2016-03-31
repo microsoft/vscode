@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IDisposable, cAll, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, cAll, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
@@ -137,7 +137,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 	}
 
 	public dispose(): void {
-		this.callOnDispose = disposeAll(this.callOnDispose);
+		this.callOnDispose = dispose(this.callOnDispose);
 		while (this.callOnModel.length > 0) {
 			this.callOnModel.pop()();
 		}

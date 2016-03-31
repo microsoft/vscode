@@ -65,12 +65,12 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		for (let modelUrlStr in this.modelData) {
 			if (this.modelData.hasOwnProperty(modelUrlStr)) {
 				const modelData = this.modelData[modelUrlStr];
-				lifecycle.disposeAll(modelData.toDispose);
+				lifecycle.dispose(modelData.toDispose);
 				modelData.model.deltaDecorations(modelData.breakpointDecorationIds, []);
 				modelData.model.deltaDecorations(modelData.currentStackDecorations, []);
 			}
 		}
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 
 		this.modelData = null;
 	}
@@ -117,7 +117,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			const modelData = this.modelData[modelUrlStr];
 			delete this.modelData[modelUrlStr];
 
-			lifecycle.disposeAll(modelData.toDispose);
+			lifecycle.dispose(modelData.toDispose);
 		}
 	}
 

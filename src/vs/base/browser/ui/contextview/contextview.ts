@@ -9,7 +9,7 @@
 import 'vs/css!./contextview';
 import {Builder, $} from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 
 export interface IAnchor {
@@ -251,6 +251,6 @@ export class ContextView extends EventEmitter {
 		super.dispose();
 		this.hide();
 
-		this.toDispose = disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 	}
 }

@@ -157,7 +157,7 @@ export class ErrorList extends Panel {
 	}
 
 	public dispose(): void {
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 		this.list.dispose();
 		super.dispose();
 	}

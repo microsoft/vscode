@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {disposeAll} from 'vs/base/common/lifecycle';
+import {dispose} from 'vs/base/common/lifecycle';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/paths';
 import Severity from 'vs/base/common/severity';
@@ -296,7 +296,7 @@ export class ExtHostExtensionService extends AbstractExtensionService<ExtHostExt
 
 		// clean up subscriptions
 		try {
-			disposeAll(extension.subscriptions);
+			dispose(extension.subscriptions);
 		} catch (err) {
 			// TODO: Do something with err if this is not the shutdown case
 		}

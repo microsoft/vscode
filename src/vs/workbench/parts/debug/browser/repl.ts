@@ -182,7 +182,7 @@ export class Repl extends Panel {
 
 	public dispose(): void {
 		// destroy container
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 
 		super.dispose();
 	}

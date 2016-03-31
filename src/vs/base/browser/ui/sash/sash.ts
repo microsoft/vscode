@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./sash';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {Builder, $} from 'vs/base/browser/builder';
 import {isIPad} from 'vs/base/browser/browser';
 import types = require('vs/base/common/types');
@@ -188,7 +188,7 @@ export class Sash extends EventEmitter {
 
 		listeners.push(DOM.addDisposableListener(this.$e.getHTMLElement(), EventType.End, (event: GestureEvent) => {
 			this.emit('end');
-			disposeAll(listeners);
+			dispose(listeners);
 		}));
 	}
 
