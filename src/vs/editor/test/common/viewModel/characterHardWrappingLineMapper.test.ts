@@ -111,13 +111,20 @@ suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 		assertLineMapping(factory, 4, 5, 'aaa(|()|.aaa');
 		assertLineMapping(factory, 4, 5, 'aa.(|()|.aaa');
 		assertLineMapping(factory, 4, 5, 'aa.|(.)|.aaa');
-		
-		// Handles CJK wrapping and Kinsoku Shori
+	});
+	test('CJK Wrapping: Should wrap after an ideograph', () => {
+		var factory = new CharacterHardWrappingLineMapperFactory('(', ')', '.');
 		assertLineMapping(factory, 4, 5, 'aa 安|安');
 		assertLineMapping(factory, 4, 5, 'あ 安|安');
 		assertLineMapping(factory, 4, 5, 'ああ|安安');
+	});
+	test('CJK Wrapping: Should respect trailing punctuations', () => {
+		var factory = new CharacterHardWrappingLineMapperFactory('(', ')', '.');
 		assertLineMapping(factory, 4, 5, 'aa |安)安|安');
 		assertLineMapping(factory, 4, 5, 'aa あ|安あ)|安');
+	});
+	test('CJK Wrapping: Should respect leading punctuations', () => {
+		var factory = new CharacterHardWrappingLineMapperFactory('(', ')', '.');
 		assertLineMapping(factory, 4, 5, 'aa |(安aa|安');
 	});
 });
