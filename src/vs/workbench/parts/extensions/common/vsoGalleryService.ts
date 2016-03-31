@@ -54,7 +54,6 @@ export class GalleryService implements IGalleryService {
 	serviceId = IGalleryService;
 
 	private extensionsGalleryUrl: string;
-	private extensionsCacheUrl: string;
 	private machineId: TPromise<string>;
 
 	constructor(
@@ -64,7 +63,6 @@ export class GalleryService implements IGalleryService {
 	) {
 		const config = contextService.getConfiguration().env.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
-		this.extensionsCacheUrl = config && config.cacheUrl;
 		this.machineId = telemetryService.getTelemetryInfo().then(({ machineId }) => machineId);
 	}
 
@@ -81,27 +79,6 @@ export class GalleryService implements IGalleryService {
 			return TPromise.wrapError(new Error('No extension gallery service configured.'));
 		}
 
-		// const raw = this.queryCache()
-		// 	.then(null, err => this.queryGallery(text))
-		// 	.then(result => {
-		// 		const rawLastModified = result.getResponseHeader('last-modified');
-
-		// 		if (!rawLastModified) {
-		// 			return this.queryGallery(text);
-		// 		}
-
-		// 		const lastModified = new Date(rawLastModified).getTime();
-		// 		const now = new Date().getTime();
-		// 		const diff = now - lastModified;
-
-		// 		if (diff > FIVE_MINUTES) {
-		// 			return this.queryGallery(text);
-		// 		}
-
-		// 		return TPromise.as(result);
-		// 	});
-
-		// return raw
 		return this.queryGallery(text)
 			.then(r => JSON.parse(r.responseText).results[0])
 			.then<{ galleryExtensions: IGalleryExtension[]; total: number; }>(r => {
@@ -144,16 +121,6 @@ export class GalleryService implements IGalleryService {
 				});
 			});
 	}
-
-	// private queryCache(): TPromise<IXHRResponse> {
-	// 	const url = this.extensionsCacheUrl;
-
-	// 	if (!url) {
-	// 		return TPromise.wrapError(new Error('No cache configured.'));
-	// 	}
-
-	// 	return this.requestService.makeRequest({ url });
-	// }
 
 	private queryGallery(text: string): TPromise<IXHRResponse> {
 		const data = JSON.stringify({
