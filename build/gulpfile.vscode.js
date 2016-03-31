@@ -371,8 +371,13 @@ function prepareRpmPackage(arch) {
 
 function buildRpmPackage(arch) {
 	var rpmArch = getRpmPackageArch(arch);
+	var rpmOut = rpmBuildPath + '/RPMS/' + rpmArch;
+	var destination = '.build/linux/rpm/' + rpmArch;
 	return shell.task([
+		'mkdir -p ' + destination,
 		'fakeroot rpmbuild -bb ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
+		'cp ' + rpmOut + '/* ' + destination,
+		'createrepo ' + destination
 	]);
 }
 
