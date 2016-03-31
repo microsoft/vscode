@@ -5,7 +5,7 @@
 'use strict';
 
 import {IntervalTimer} from 'vs/base/common/async';
-import {Disposable, IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {Disposable, IDisposable, dispose} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {SimpleWorkerClient} from 'vs/base/common/worker/simpleWorker';
@@ -123,7 +123,7 @@ export class EditorModelManager extends Disposable {
 
 	public dispose(): void {
 		for (let modelUrl in this._syncedModels) {
-			disposeAll(this._syncedModels[modelUrl]);
+			dispose(this._syncedModels[modelUrl]);
 		}
 		this._syncedModels = Object.create(null);
 		this._syncedModelsLastUsedTime = Object.create(null);
@@ -210,7 +210,7 @@ export class EditorModelManager extends Disposable {
 		let toDispose = this._syncedModels[modelUrl];
 		delete this._syncedModels[modelUrl];
 		delete this._syncedModelsLastUsedTime[modelUrl];
-		disposeAll(toDispose);
+		dispose(toDispose);
 	}
 }
 

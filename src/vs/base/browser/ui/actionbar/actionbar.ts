@@ -712,7 +712,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			this.focusTracker = null;
 		}
 
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 
 		this.getContainer().destroy();
 
@@ -792,7 +792,7 @@ export class SelectActionItem extends BaseActionItem {
 	}
 
 	public dispose(): void {
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 
 		super.dispose();
 	}

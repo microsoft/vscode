@@ -6,7 +6,7 @@
 
 import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, { Emitter } from 'vs/base/common/event';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {startsWith} from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EventType, ICommonCodeEditor, ICursorSelectionChangedEvent, IPosition} from 'vs/editor/common/editorCommon';
@@ -387,6 +387,6 @@ export class SuggestModel implements IDisposable {
 
 	public dispose(): void {
 		this.cancel(true);
-		this.toDispose = disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 	}
 }

@@ -16,7 +16,7 @@ import {
 		IScrollableElementOptions, IScrollbar, IDimensions, IMouseWheelEvent, visibilityFromString,
 		IScrollableElement, IScrollableElementCreationOptions, IOverviewRulerLayoutInfo
 	} from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {IScrollable} from 'vs/base/common/scrollable';
 import {Widget} from 'vs/base/browser/ui/widget';
 import {TimeoutTimer} from 'vs/base/common/async';
@@ -115,7 +115,7 @@ export class ScrollableElement extends Widget implements IScrollableElement {
 	}
 
 	public dispose(): void {
-		this._mouseWheelToDispose = disposeAll(this._mouseWheelToDispose);
+		this._mouseWheelToDispose = dispose(this._mouseWheelToDispose);
 		super.dispose();
 	}
 
@@ -197,7 +197,7 @@ export class ScrollableElement extends Widget implements IScrollableElement {
 		}
 
 		// Stop listening (if necessary)
-		this._mouseWheelToDispose = disposeAll(this._mouseWheelToDispose);
+		this._mouseWheelToDispose = dispose(this._mouseWheelToDispose);
 
 		// Start listening (if necessary)
 		if (shouldListen) {

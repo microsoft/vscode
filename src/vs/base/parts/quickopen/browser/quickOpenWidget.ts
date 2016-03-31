@@ -26,7 +26,7 @@ import {DefaultController, ClickBehavior} from 'vs/base/parts/tree/browser/treeD
 import DOM = require('vs/base/browser/dom');
 import {IActionProvider} from 'vs/base/parts/tree/browser/actionsRenderer';
 import {KeyCode} from 'vs/base/common/keyCodes';
-import {IDisposable,disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable,dispose} from 'vs/base/common/lifecycle';
 
 export interface IQuickOpenCallbacks {
 	onOk: () => void;
@@ -609,7 +609,7 @@ export class QuickOpenWidget implements IModelProvider {
 				if (!complete) {
 					complete = true;
 
-					unbind = disposeAll(unbind);
+					unbind = dispose(unbind);
 
 					c(null);
 				}

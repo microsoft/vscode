@@ -5,7 +5,7 @@
 'use strict';
 
 import {RunOnceScheduler} from 'vs/base/common/async';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import {ReplaceCommand} from 'vs/editor/common/commands/replaceCommand';
 import {Position} from 'vs/editor/common/core/position';
@@ -80,7 +80,7 @@ export class FindModelBoundToEditorModel {
 	}
 
 	public dispose(): void {
-		this._toDispose = disposeAll(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
 	}
 
 	private _onStateChanged(e:FindReplaceStateChangedEvent): void {

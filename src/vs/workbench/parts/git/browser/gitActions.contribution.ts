@@ -128,7 +128,7 @@ class OpenInDiffAction extends baseeditor.EditorInputAction {
 	}
 
 	public dispose():void {
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }
 

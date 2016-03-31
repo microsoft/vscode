@@ -157,7 +157,7 @@ export function distinct<T>(array: T[], keyFn?: (t: T) => string): T[] {
 		});
 	}
 
-	const seen: { [key: string]: boolean; } = {};
+	const seen: { [key: string]: boolean; } = Object.create(null);
 	return array.filter((elem) => {
 		const key = keyFn(elem);
 		if (seen[key]) {

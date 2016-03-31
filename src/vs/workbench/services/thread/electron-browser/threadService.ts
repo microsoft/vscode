@@ -18,13 +18,15 @@ import {IMainProcessExtHostIPC, create} from 'vs/platform/extensions/common/ipcR
 import {SyncDescriptor0} from 'vs/platform/instantiation/common/descriptors';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {MainThreadService as CommonMainThreadService} from 'vs/platform/thread/common/mainThreadService';
+import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {IConfiguration, IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {ChildProcess, fork} from 'child_process';
 import {ipcRenderer as ipc} from 'electron';
 
-export const PLUGIN_LOG_BROADCAST_CHANNEL = 'vscode:pluginLog';
-export const PLUGIN_ATTACH_BROADCAST_CHANNEL = 'vscode:pluginAttach';
+export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
+export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
+export const EXTENSION_TERMINATE_BROADCAST_CHANNEL = 'vscode:extensionTerminate';
 
 // Enable to see detailed message communication between window and extension host
 const logExtensionHostCommunication = false;
@@ -39,10 +41,10 @@ export class MainThreadService extends CommonMainThreadService {
 	private extensionHostProcessManager: ExtensionHostProcessManager;
 	private remoteCom: IMainProcessExtHostIPC;
 
-	constructor(contextService: IWorkspaceContextService, messageService: IMessageService, windowService: IWindowService) {
+	constructor(contextService: IWorkspaceContextService, messageService: IMessageService, windowService: IWindowService, lifecycleService: ILifecycleService) {
 		super(contextService, 'vs/editor/common/worker/editorWorkerServer', 1);
 
-		this.extensionHostProcessManager = new ExtensionHostProcessManager(contextService, messageService, windowService);
+		this.extensionHostProcessManager = new ExtensionHostProcessManager(contextService, messageService, windowService, lifecycleService);
 
 		let logCommunication = logExtensionHostCommunication || contextService.getConfiguration().env.logExtensionHostCommunication;
 
@@ -65,6 +67,8 @@ export class MainThreadService extends CommonMainThreadService {
 		});
 
 		this.remoteCom.setManyHandler(this);
+
+		lifecycleService.onShutdown(() => this.dispose());
 	}
 
 	public dispose(): void {
@@ -77,10 +81,6 @@ export class MainThreadService extends CommonMainThreadService {
 }
 
 class ExtensionHostProcessManager {
-	private messageService: IMessageService;
-	private contextService: IWorkspaceContextService;
-	private windowService: IWindowService;
-
 	private initializeExtensionHostProcess: TPromise<ChildProcess>;
 	private extensionHostProcessHandle: ChildProcess;
 	private initializeTimer: number;
@@ -90,22 +90,28 @@ class ExtensionHostProcessManager {
 	private terminating: boolean;
 
 	private isExtensionDevelopmentHost: boolean;
+	private isExtensionDevelopmentTest: boolean;
 
-	constructor(contextService: IWorkspaceContextService, messageService: IMessageService, windowService: IWindowService) {
-		this.messageService = messageService;
-		this.contextService = contextService;
-		this.windowService = windowService;
+	constructor(
+		private contextService: IWorkspaceContextService,
+		private messageService: IMessageService,
+		private windowService: IWindowService,
+		private lifecycleService: ILifecycleService
+	) {
 
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
-		this.isExtensionDevelopmentHost = !!this.contextService.getConfiguration().env.extensionDevelopmentPath;
+		const config = this.contextService.getConfiguration();
+		this.isExtensionDevelopmentHost = !!config.env.extensionDevelopmentPath;
+		this.isExtensionDevelopmentTest = this.isExtensionDevelopmentHost && !!config.env.extensionTestsPath;
 
 		this.unsentMessages = [];
+
+		lifecycleService.addBeforeShutdownParticipant(this);
 	}
 
 	public startExtensionHostProcess(onExtensionHostMessage: (msg: any) => void): void {
 		let config = this.contextService.getConfiguration();
 		let isDev = !config.env.isBuilt || !!config.env.extensionDevelopmentPath;
-		let isTestingFromCli = !!config.env.extensionTestsPath && !config.env.debugBrkExtensionHost;
 
 		let opts: any = {
 			env: objects.mixin(objects.clone(process.env), { AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess', PIPE_LOGGING: 'true', VERBOSE_LOGGING: true })
@@ -135,7 +141,7 @@ class ExtensionHostProcessManager {
 				// Notify debugger that we are ready to attach to the process if we run a development extension
 				if (config.env.extensionDevelopmentPath && port) {
 					this.windowService.broadcast({
-						channel: PLUGIN_ATTACH_BROADCAST_CHANNEL,
+						channel: EXTENSION_ATTACH_BROADCAST_CHANNEL,
 						payload: {
 							port: port
 						}
@@ -194,19 +200,19 @@ class ExtensionHostProcessManager {
 						}
 
 						// Send to local console unless we run tests from cli
-						if (!isTestingFromCli) {
+						if (!this.isExtensionDevelopmentTest) {
 							console[logEntry.severity].apply(console, consoleArgs);
 						}
 
 						// Log on main side if running tests from cli
-						if (isTestingFromCli) {
+						if (this.isExtensionDevelopmentTest) {
 							ipc.send('vscode:log', logEntry);
 						}
 
 						// Broadcast to other windows if we are in development mode
 						else if (isDev) {
 							this.windowService.broadcast({
-								channel: PLUGIN_LOG_BROADCAST_CHANNEL,
+								channel: EXTENSION_LOG_BROADCAST_CHANNEL,
 								payload: logEntry
 							}, config.env.extensionDevelopmentPath /* target */);
 						}
@@ -248,7 +254,7 @@ class ExtensionHostProcessManager {
 						}
 
 						// Expected development extension termination: When the extension host goes down we also shutdown the window
-						else if (!isTestingFromCli) {
+						else if (!this.isExtensionDevelopmentTest) {
 							this.windowService.getWindow().close();
 						}
 
@@ -309,5 +315,18 @@ class ExtensionHostProcessManager {
 				type: '__$terminate'
 			});
 		}
+	}
+
+	public beforeShutdown(): boolean | TPromise<boolean> {
+		if (this.isExtensionDevelopmentHost && !this.isExtensionDevelopmentTest) {
+			this.windowService.broadcast({
+				channel: EXTENSION_TERMINATE_BROADCAST_CHANNEL,
+				payload: true
+			}, this.contextService.getConfiguration().env.extensionDevelopmentPath /* target */);
+
+			return TPromise.timeout(100 /* wait a bit for IPC to get delivered */).then(() => false);
+		}
+
+		return false;
 	}
 }

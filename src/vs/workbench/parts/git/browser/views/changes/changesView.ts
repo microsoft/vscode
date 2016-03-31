@@ -440,7 +440,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			this.$el = null;
 		}
 
-		this.toDispose = Lifecycle.disposeAll(this.toDispose);
+		this.toDispose = Lifecycle.dispose(this.toDispose);
 
 		super.dispose();
 	}

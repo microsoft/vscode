@@ -309,7 +309,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 
 			setTimeout(() => {
 				tree.DOMFocus();
-				lifecycle.disposeAll(toDispose);
+				lifecycle.dispose(toDispose);
 			}, 0);
 		});
 

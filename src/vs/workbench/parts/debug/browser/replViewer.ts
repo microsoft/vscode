@@ -460,6 +460,7 @@ export class ReplExpressionsActionProvider implements renderer.IActionProvider {
 			actions.push(this.instantiationService.createInstance(debugactions.AddToWatchExpressionsAction, debugactions.AddToWatchExpressionsAction.ID, debugactions.AddToWatchExpressionsAction.LABEL, element));
 			actions.push(new actionbar.Separator());
 		}
+		actions.push(new debugactions.CopyAction(debugactions.CopyAction.ID, debugactions.CopyAction.LABEL));
 		actions.push(this.instantiationService.createInstance(debugactions.ClearReplAction, debugactions.ClearReplAction.ID, debugactions.ClearReplAction.LABEL));
 
 		return TPromise.as(actions);

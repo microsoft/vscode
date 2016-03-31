@@ -98,7 +98,7 @@ export const language = _language;
 /**
  * The OS locale or the locale specified by --locale. The format of
  * the string is all lower case (e.g. zh-tw for Traditional
- * Chinese)
+ * Chinese). The UI is not necessarily shown in the provided locale.
  */
 export const locale = _locale;
 

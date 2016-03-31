@@ -21,7 +21,7 @@ import diagnostics = require('vs/base/common/diagnostics');
 import {Action, IAction} from 'vs/base/common/actions';
 import {MessageType, IInputValidator} from 'vs/base/browser/ui/inputbox/inputBox';
 import {ITree, IHighlightEvent} from 'vs/base/parts/tree/browser/tree';
-import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
+import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
 import Files = require('vs/workbench/parts/files/common/files');
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
@@ -1662,7 +1662,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 	}
 
 	public dispose(): void {
-		this.toDispose = disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 
 		super.dispose();
 	}

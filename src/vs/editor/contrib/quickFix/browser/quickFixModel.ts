@@ -8,7 +8,7 @@ import * as arrays from 'vs/base/common/arrays';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as timer from 'vs/base/common/timer';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -350,7 +350,7 @@ export class QuickFixModel extends EventEmitter {
 	}
 
 	private localDispose(): void {
-		this.toLocalDispose = disposeAll(this.toLocalDispose);
+		this.toLocalDispose = dispose(this.toLocalDispose);
 		if (this.quickFixRequestPromise) {
 			this.quickFixRequestPromise.cancel();
 			this.quickFixRequestPromise = null;
@@ -359,7 +359,7 @@ export class QuickFixModel extends EventEmitter {
 
 	public dispose(): void {
 		this.localDispose();
-		this.toDispose = disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 		this.emit('destroy', null);
 	}
 

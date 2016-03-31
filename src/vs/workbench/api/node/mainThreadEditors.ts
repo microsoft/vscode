@@ -9,7 +9,7 @@ import Event, {Emitter} from 'vs/base/common/event';
 import {IEditor} from 'vs/platform/editor/common/editor';
 import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
 import {IModelService} from 'vs/editor/common/services/modelService';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
@@ -99,9 +99,9 @@ export class MainThreadTextEditor {
 
 	public dispose(): void {
 		this._model = null;
-		this._modelListeners = disposeAll(this._modelListeners);
+		this._modelListeners = dispose(this._modelListeners);
 		this._codeEditor = null;
-		this._codeEditorListeners = disposeAll(this._codeEditorListeners);
+		this._codeEditorListeners = dispose(this._codeEditorListeners);
 	}
 
 	public getId(): string {
@@ -121,7 +121,7 @@ export class MainThreadTextEditor {
 			// Nothing to do...
 			return;
 		}
-		this._codeEditorListeners = disposeAll(this._codeEditorListeners);
+		this._codeEditorListeners = dispose(this._codeEditorListeners);
 
 		this._codeEditor = codeEditor;
 		if (this._codeEditor) {
@@ -387,7 +387,7 @@ export class MainThreadEditorsTracker {
 	}
 
 	public dispose(): void {
-		this._toDispose = disposeAll(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
 	}
 
 	private _onModelAdded(model: EditorCommon.IModel): void {

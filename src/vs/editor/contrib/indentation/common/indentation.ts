@@ -87,7 +87,7 @@ export class ChangeIndentationSizeAction extends EditorAction {
 		const autoFocusIndex = Math.min(model.getOptions().tabSize - 1, 7);
 
 		return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() =>
-			this.quickOpenService.pick(picks, { placeHolder: nls.localize('selectTabWidth', "Select Tab Size for Current File"), autoFocus: { autoFocusIndex } }).then(pick => {
+			this.quickOpenService.pick(picks, { placeHolder: nls.localize({key: 'selectTabWidth', comment: ['Tab corresponds to the tab key'] }, "Select Tab Size for Current File"), autoFocus: { autoFocusIndex } }).then(pick => {
 				if (pick) {
 					model.updateOptions({
 						tabSize: parseInt(pick.label, 10),

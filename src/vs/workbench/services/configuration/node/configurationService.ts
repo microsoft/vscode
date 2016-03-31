@@ -94,7 +94,7 @@ export class ConfigurationService extends CommonConfigurationService {
 
 	private onOptionsChanged(e: OptionsChangeEvent): void {
 		if (e.key === 'globalSettings') {
-			this.reloadAndEmit();
+			this.reloadConfiguration();
 		}
 	}
 
