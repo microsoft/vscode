@@ -149,7 +149,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			if (charCodeClass === BREAK_IDEOGRAPHIC && i > 0) {
 				prevCode = lineText.charCodeAt(i - 1);
 				prevClass = prevCode < characterClasses.length ? characterClasses[prevCode] : 0;
-				if (prevClass !== BREAK_BEFORE_CLASS) { // Kinsoku Shori: Don't break before a trailing character
+				if (prevClass !== BREAK_BEFORE_CLASS) { // Kinsoku Shori: Don't break after a leading character, like an open bracket
 					niceBreakOffset = i;
 					niceBreakVisibleColumn = 0;
 				}
@@ -224,7 +224,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			if (charCodeClass === BREAK_IDEOGRAPHIC && i < len - 1) {
 				nextCode = lineText.charCodeAt(i + 1);
 				nextClass = nextCode < characterClasses.length ? characterClasses[nextCode] : 0;
-				if (nextClass !== BREAK_AFTER_CLASS) { // Kinsoku Shori: Don't break before a trailing character
+				if (nextClass !== BREAK_AFTER_CLASS) { // Kinsoku Shori: Don't break before a trailing character, like a period
 					niceBreakOffset = i + 1;
 					niceBreakVisibleColumn = 0;
 				}
