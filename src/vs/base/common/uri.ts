@@ -254,7 +254,8 @@ export default class URI {
 	// ---- printing/externalize ---------------------------
 
 	/**
-	 * @param encode Only encode the minimally
+	 *
+	 * @param encode Encode the result, default is `true`.
 	 */
 	public toString(encode: boolean = true): string {
 		if (!encode) {
@@ -298,6 +299,9 @@ export default class URI {
 			}
 
 			// encode every segement but not slashes
+			// make sure that # and ? are always encoded
+			// when occurring in paths - otherwise the result
+			// cannot be parsed back again
 			let lastIdx = 0;
 			while(true) {
 				let idx = path.indexOf(URI._slash, lastIdx);
