@@ -26,10 +26,7 @@ import {createRichEditSupport, createSuggestSupport} from 'vs/editor/common/mode
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
 import {DeclarationSupport, IDeclarationContribution} from 'vs/editor/common/modes/supports/declarationSupport';
-import {IParameterHintsContribution, ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
-import {IReferenceContribution, ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
 import {IRichEditConfiguration, RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
-import {ISuggestContribution, SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {LanguagesRegistry} from 'vs/editor/common/services/languagesRegistry';
 import {ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult, IModeService} from 'vs/editor/common/services/modeService';
@@ -445,9 +442,6 @@ export class ModeServiceImpl implements IModeService {
 		return this.doRegisterMonarchDefinition(modeId, lexer);
 	}
 
-	public registerCodeLensSupport(modeId: string, support: modes.ICodeLensSupport): IDisposable {
-		return this.registerModeSupport(modeId, 'codeLensSupport', (mode) => support);
-	}
 
 	public registerRichEditSupport(modeId: string, support: IRichEditConfiguration): IDisposable {
 		return this.registerModeSupport(modeId, 'richEditSupport', (mode) => new RichEditSupport(modeId, mode.richEditSupport, support));
@@ -455,46 +449,6 @@ export class ModeServiceImpl implements IModeService {
 
 	public registerDeclarativeDeclarationSupport(modeId: string, contribution: IDeclarationContribution): IDisposable {
 		return this.registerModeSupport(modeId, 'declarationSupport', (mode) => new DeclarationSupport(modeId, contribution));
-	}
-
-	public registerExtraInfoSupport(modeId: string, support: modes.IExtraInfoSupport): IDisposable {
-		return this.registerModeSupport(modeId, 'extraInfoSupport', (mode) => support);
-	}
-
-	public registerFormattingSupport(modeId: string, support: modes.IFormattingSupport): IDisposable {
-		return this.registerModeSupport(modeId, 'formattingSupport', (mode) => support);
-	}
-
-	public registerInplaceReplaceSupport(modeId: string, support: modes.IInplaceReplaceSupport): IDisposable {
-		return this.registerModeSupport(modeId, 'inplaceReplaceSupport',(mode) => support);
-	}
-
-	public registerOccurrencesSupport(modeId: string, support: modes.IOccurrencesSupport): IDisposable {
-		return this.registerModeSupport(modeId, 'occurrencesSupport', (mode) => support);
-	}
-
-	public registerOutlineSupport(modeId: string, support: modes.IOutlineSupport): IDisposable {
-		return this.registerModeSupport(modeId, 'outlineSupport', (mode) => support);
-	}
-
-	public registerDeclarativeParameterHintsSupport(modeId: string, support: IParameterHintsContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'parameterHintsSupport', (mode) => new ParameterHintsSupport(modeId, support));
-	}
-
-	public registerQuickFixSupport(modeId: string, support: modes.IQuickFixSupport): IDisposable {
-		return this.registerModeSupport(modeId, 'quickFixSupport', (mode) => support);
-	}
-
-	public registerDeclarativeReferenceSupport(modeId: string, contribution: IReferenceContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'referenceSupport', (mode) => new ReferenceSupport(modeId, contribution));
-	}
-
-	public registerRenameSupport(modeId: string, support: modes.IRenameSupport): IDisposable {
-		return this.registerModeSupport(modeId, 'renameSupport', (mode) => support);
-	}
-
-	public registerDeclarativeSuggestSupport(modeId: string, declaration: ISuggestContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'suggestSupport', (mode) => new SuggestSupport(modeId, declaration));
 	}
 
 	public registerTokenizationSupport(modeId: string, callback: (mode: modes.IMode) => modes.ITokenizationSupport): IDisposable {
