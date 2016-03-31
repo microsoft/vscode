@@ -142,7 +142,7 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			// CJK breaking : before break
 			if (charCodeClass === BREAK_IDEOGRAPHIC && i > 0) {
 				prevCode = lineText.charCodeAt(i - 1);
-				prevClass = nextCode < characterClasses.length ? characterClasses[nextCode] : 0;
+				prevClass = prevCode < characterClasses.length ? characterClasses[prevCode] : 0;
 				if (prevClass !== BREAK_BEFORE_CLASS) { // Kinsoku Shori: Don't break before a trailing character
 					niceBreakOffset = i;
 					niceBreakVisibleColumn = 0;
