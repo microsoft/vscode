@@ -64,81 +64,7 @@ suite('URI', () => {
 		assert.equal(value.query, 't=1234');
 		assert.equal(value.fragment, '');
 
-		value = URI.parse('inmemory:');
-		assert.equal(value.scheme, 'inmemory');
-		assert.equal(value.authority, '');
-		assert.equal(value.path, '');
-		assert.equal(value.query, '');
-		assert.equal(value.fragment, '');
-
-		value = URI.parse('api/files/test');
-		assert.equal(value.scheme, '');
-		assert.equal(value.authority, '');
-		assert.equal(value.path, 'api/files/test');
-		assert.equal(value.query, '');
-		assert.equal(value.fragment, '');
-
-		value = URI.parse('api');
-		assert.equal(value.scheme, '');
-		assert.equal(value.authority, '');
-		assert.equal(value.path, 'api');
-		assert.equal(value.query, '');
-		assert.equal(value.fragment, '');
-
-		value = URI.parse('/api/files/test');
-		assert.equal(value.scheme, '');
-		assert.equal(value.authority, '');
-		assert.equal(value.path, '/api/files/test');
-		assert.equal(value.query, '');
-		assert.equal(value.fragment, '');
-
-		value = URI.parse('?test');
-		assert.equal(value.scheme, '');
-		assert.equal(value.authority, '');
-		assert.equal(value.path, '');
-		assert.equal(value.query, 'test');
-		assert.equal(value.fragment, '');
-
-		value = URI.parse('#test');
-		assert.equal(value.scheme, '');
-		assert.equal(value.authority, '');
-		assert.equal(value.path, '');
-		assert.equal(value.query, '');
-		assert.equal(value.fragment, 'test');
-	});
-
-	// Useful reference:
-	test('unc', () => {
-		var uri = URI.file('\\\\localhost\\c$\\GitDevelopment\\express');
-
-		assert.equal(uri.toString(), 'file://localhost/c%24/GitDevelopment/express');
-		assert.equal(uri.path, '/c$/GitDevelopment/express');
-		assert.equal(uri.fsPath, normalize('//localhost/c$/GitDevelopment/express', true));
-	});
-
-	// Useful reference:
-	test('correctFileUriToFilePath', () => {
-
-		var test = (input: string, expected: string) => {
-			expected = normalize(expected, true);
-			assert.equal(URI.parse(input).fsPath, expected, 'Result for ' + input);
-		};
-
-		test('file:///c:/alex.txt', 'c:\\alex.txt');
-		test('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins',
-			'c:\\Source\\Zürich or Zurich (ˈzjʊərɪk,\\Code\\resources\\app\\plugins');
-		test('file://monacotools/isi.txt', '\\\\monacotools\\isi.txt');
-		test('file://monacotools1/certificates/SSL/', '\\\\monacotools1\\certificates\\SSL\\');
-	});
-
-	test('Bug 16793:# in folder name => mirror models get out of sync', () => {
-		var uri1 = URI.file('C:\\C#\\file.txt');
-		assert.equal(parse(stringify(uri1)).toString(), uri1.toString());
-	});
-
-	test('URI#parse', () => {
-
-		var value = URI.parse('file:///c:/test/me');
+		value = URI.parse('file:///c:/test/me');
 		assert.equal(value.scheme, 'file');
 		assert.equal(value.authority, '');
 		assert.equal(value.path, '/c:/test/me');
@@ -155,32 +81,18 @@ suite('URI', () => {
 		assert.equal(value.fsPath, normalize('//shares/files/c#/p.cs', true));
 
 		value = URI.parse('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins/c%23/plugin.json');
+		assert.equal(value.scheme, 'file');
+		assert.equal(value.authority, '');
 		assert.equal(value.path, '/c:/Source/Zürich or Zurich (ˈzjʊərɪk,/Code/resources/app/plugins/c#/plugin.json');
+		assert.equal(value.fragment, '');
+		assert.equal(value.query, '');
 
 		value = URI.parse('file:///c:/test %25/path');
-		assert.equal(value.path, '/c:/test %/path');
-
-		value = URI.parse('file:#d');
 		assert.equal(value.scheme, 'file');
-		assert.equal(value.fragment, 'd');
-
-		value = URI.parse('file:?q');
-		assert.equal(value.scheme, 'file');
-		assert.equal(value.query, 'q');
-
-		value = URI.parse('http:/api/files/test.me?t=1234');
-		assert.equal(value.scheme, 'http');
 		assert.equal(value.authority, '');
-		assert.equal(value.path, '/api/files/test.me');
-		assert.equal(value.query, 't=1234');
+		assert.equal(value.path, '/c:/test %/path');
 		assert.equal(value.fragment, '');
-
-		value = URI.parse('http://api/files/test.me?t=1234');
-		assert.equal(value.scheme, 'http');
-		assert.equal(value.authority, 'api');
-		assert.equal(value.path, '/files/test.me');
-		assert.equal(value.query, 't=1234');
-		assert.equal(value.fragment, '');
+		assert.equal(value.query, '');
 
 		value = URI.parse('inmemory:');
 		assert.equal(value.scheme, 'inmemory');
@@ -217,24 +129,45 @@ suite('URI', () => {
 		assert.equal(value.query, 'test');
 		assert.equal(value.fragment, '');
 
+		value = URI.parse('file:?q');
+		assert.equal(value.scheme, 'file');
+		assert.equal(value.authority, '');
+		assert.equal(value.path, '');
+		assert.equal(value.query, 'q');
+		assert.equal(value.fragment, '');
+
 		value = URI.parse('#test');
 		assert.equal(value.scheme, '');
 		assert.equal(value.authority, '');
 		assert.equal(value.path, '');
 		assert.equal(value.query, '');
 		assert.equal(value.fragment, 'test');
+
+		value = URI.parse('file:#d');
+		assert.equal(value.scheme, 'file');
+		assert.equal(value.authority, '');
+		assert.equal(value.path, '');
+		assert.equal(value.query, '');
+		assert.equal(value.fragment, 'd');
 	});
 
-	test('URI#parse, disallow //path when no authority', () => {
-
+	test('parse, disallow //path when no authority', () => {
 		assert.throws(() => URI.parse('file:////shares/files/p.cs'));
+	});
 
-		var value = URI.parse('file://shares//files/p.cs');
-		assert.equal(value.authority, 'shares');
-		assert.equal(value.path, '//files/p.cs');
+	// Useful reference:
+	test('correctFileUriToFilePath', () => {
 
-		value = URI.parse('file:///j%3A//');
-		assert.equal(value.path, '/j://');
+		var test = (input: string, expected: string) => {
+			expected = normalize(expected, true);
+			assert.equal(URI.parse(input).fsPath, expected, 'Result for ' + input);
+		};
+
+		test('file:///c:/alex.txt', 'c:\\alex.txt');
+		test('file:///c:/Source/Z%C3%BCrich%20or%20Zurich%20(%CB%88zj%CA%8A%C9%99r%C9%AAk,/Code/resources/app/plugins',
+			'c:\\Source\\Zürich or Zurich (ˈzjʊərɪk,\\Code\\resources\\app\\plugins');
+		test('file://monacotools/isi.txt', '\\\\monacotools\\isi.txt');
+		test('file://monacotools1/certificates/SSL/', '\\\\monacotools1\\certificates\\SSL\\');
 	});
 
 	test('URI#file', () => {
@@ -255,6 +188,14 @@ suite('URI', () => {
 		assert.equal(value.fragment, '');
 		assert.equal(value.query, '');
 		assert.equal(value.toString(), 'file://sh%C3%A4res/path/c%23/plugin.json');
+
+		value = URI.file('\\\\localhost\\c$\\GitDevelopment\\express');
+		assert.equal(value.scheme, 'file');
+		assert.equal(value.path, '/c$/GitDevelopment/express');
+		assert.equal(value.fsPath, normalize('//localhost/c$/GitDevelopment/express', true));
+		assert.equal(value.query, '');
+		assert.equal(value.fragment, '');
+		assert.equal(value.toString(), 'file://localhost/c%24/GitDevelopment/express');
 
 		value = URI.file('c:\\test with %\\path');
 		assert.equal(value.path, '/c:/test with %/path');
@@ -337,6 +278,12 @@ suite('URI', () => {
 		test('file://monacotools1/certificates/SSL/', '\\\\monacotools1\\certificates\\SSL\\');
 	});
 
+	test('Bug 16793:# in folder name => mirror models get out of sync', () => {
+		var uri1 = URI.file('C:\\C#\\file.txt');
+		assert.equal(parse(stringify(uri1)).toString(), uri1.toString());
+	});
+
+
 	test('URI - (de)serialize', function() {
 
 		var values = [
@@ -370,7 +317,7 @@ suite('URI', () => {
 	test('URI - http, query & toString', function() {
 
 		let uri = URI.parse('http://go.microsoft.com/fwlink/?LinkId=518008');
-		assert.equal(uri.query, 'LinkId=518008')
+		assert.equal(uri.query, 'LinkId=518008');
 		assert.equal(uri.toString(), 'http://go.microsoft.com/fwlink/?LinkId=518008');
 
 		let uri2 = URI.parse(uri.toString());
@@ -378,7 +325,7 @@ suite('URI', () => {
 		assert.equal(uri2.query, uri.query);
 
 		uri = URI.parse('http://go.microsoft.com/fwlink/?LinkId=518008&foö&ké¥=üü');
-		assert.equal(uri.query, 'LinkId=518008&foö&ké¥=üü')
+		assert.equal(uri.query, 'LinkId=518008&foö&ké¥=üü');
 		assert.equal(uri.toString(), 'http://go.microsoft.com/fwlink/?LinkId=518008&fo%C3%B6&k%C3%A9%C2%A5=%C3%BC%C3%BC');
 	});
 });
