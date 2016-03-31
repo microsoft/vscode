@@ -103,100 +103,100 @@ suite('Files - FileEditorInput', () => {
 		});
 	});
 
-	// test('Input.matches() - FileEditorInput', function() {
-	// 	let fileEditorInput = new FileEditorInput(toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0, void 0, void 0, void 0);
-	// 	let contentEditorInput2 = new FileEditorInput(toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0, void 0, void 0, void 0);
+	test('Input.matches() - FileEditorInput', function() {
+		let fileEditorInput = new FileEditorInput(toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0, void 0, void 0, void 0);
+		let contentEditorInput2 = new FileEditorInput(toResource('/foo/bar/updatefile.js'), 'text/javascript', void 0, void 0, void 0, void 0);
 
-	// 	assert.strictEqual(fileEditorInput.matches(null), false);
-	// 	assert.strictEqual(fileEditorInput.matches(fileEditorInput), true);
-	// 	assert.strictEqual(fileEditorInput.matches(contentEditorInput2), true);
-	// });
+		assert.strictEqual(fileEditorInput.matches(null), false);
+		assert.strictEqual(fileEditorInput.matches(fileEditorInput), true);
+		assert.strictEqual(fileEditorInput.matches(contentEditorInput2), true);
+	});
 
-	// test('FileTracker - dispose()', function(done) {
-	// 	let editorService = new TestEditorService(function() { });
-	// 	let telemetryService = new MainTelemetryService();
-	// 	let contextService = new TestContextService();
+	test('FileTracker - dispose()', function(done) {
+		let editorService = new TestEditorService(function() { });
+		let telemetryService = new MainTelemetryService();
+		let contextService = new TestContextService();
 
-	// 	let eventService = new TestEventService();
+		let eventService = new TestEventService();
 
-	// 	let instantiationService = createInstantiationService({
-	// 		eventService: eventService,
-	// 		contextService: contextService,
-	// 		fileService: TestFileService,
-	// 		storageService: new TestStorageService(),
-	// 		editorService: editorService,
-	// 		partService: new TestPartService(),
-	// 		modeService: createMockModeService(),
-	// 		modelService: createMockModelService(),
-	// 		telemetryService: telemetryService,
-	// 		lifecycleService: new TestLifecycleService(),
-	// 		configurationService: new TestConfigurationService()
-	// 	});
+		let instantiationService = createInstantiationService({
+			eventService: eventService,
+			contextService: contextService,
+			fileService: TestFileService,
+			storageService: new TestStorageService(),
+			editorService: editorService,
+			partService: new TestPartService(),
+			modeService: createMockModeService(),
+			modelService: createMockModelService(),
+			telemetryService: telemetryService,
+			lifecycleService: new TestLifecycleService(),
+			configurationService: new TestConfigurationService()
+		});
 
-	// 	let textFileServices = instantiationService.createInstance(<any>TextFileService);
-	// 	instantiationService.registerService('textFileService', textFileServices);
+		let textFileServices = instantiationService.createInstance(<any>TextFileService);
+		instantiationService.registerService('textFileService', textFileServices);
 
-	// 	let tracker = instantiationService.createInstance(FileTracker);
+		let tracker = instantiationService.createInstance(FileTracker);
 
-	// 	let inputToResolve = instantiationService.createInstance(FileEditorInput, toResource('/fooss5/bar/file2.js'), 'text/javascript', void 0);
-	// 	let sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/fooss5/bar/file2.js'), 'text/javascript', void 0);
-	// 	return editorService.resolveEditorModel(inputToResolve).then(function(resolved) {
-	// 		return editorService.resolveEditorModel(sameOtherInput).then(function(resolved) {
-	// 			(<any>tracker).dispose(toResource('/bar'), []);
-	// 			assert(!inputToResolve.isDisposed());
-	// 			assert(!sameOtherInput.isDisposed());
+		let inputToResolve = instantiationService.createInstance(FileEditorInput, toResource('/fooss5/bar/file2.js'), 'text/javascript', void 0);
+		let sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/fooss5/bar/file2.js'), 'text/javascript', void 0);
+		return editorService.resolveEditorModel(inputToResolve).then(function(resolved) {
+			return editorService.resolveEditorModel(sameOtherInput).then(function(resolved) {
+				(<any>tracker).disposeAll(toResource('/bar'), []);
+				assert(!inputToResolve.isDisposed());
+				assert(!sameOtherInput.isDisposed());
 
-	// 			(<any>tracker).dispose(toResource('/fooss5/bar/file2.js'), []);
+				(<any>tracker).disposeAll(toResource('/fooss5/bar/file2.js'), []);
 
-	// 			assert(inputToResolve.isDisposed());
-	// 			assert(sameOtherInput.isDisposed());
+				assert(inputToResolve.isDisposed());
+				assert(sameOtherInput.isDisposed());
 
-	// 			done();
-	// 		});
-	// 	});
-	// });
+				done();
+			});
+		});
+	});
 
-	// test('FileEditorInput - dispose() also works for folders', function(done) {
-	// 	let editorService = new TestEditorService(function() { });
-	// 	let telemetryService = new MainTelemetryService();
-	// 	let contextService = new TestContextService();
+	test('FileEditorInput - dispose() also works for folders', function(done) {
+		let editorService = new TestEditorService(function() { });
+		let telemetryService = new MainTelemetryService();
+		let contextService = new TestContextService();
 
-	// 	let eventService = new TestEventService();
+		let eventService = new TestEventService();
 
-	// 	let instantiationService = createInstantiationService({
-	// 		eventService: eventService,
-	// 		contextService: contextService,
-	// 		fileService: TestFileService,
-	// 		storageService: new TestStorageService(),
-	// 		editorService: editorService,
-	// 		partService: new TestPartService(),
-	// 		modeService: createMockModeService(),
-	// 		modelService: createMockModelService(),
-	// 		telemetryService: telemetryService,
-	// 		lifecycleService: new TestLifecycleService(),
-	// 		configurationService: new TestConfigurationService()
-	// 	});
+		let instantiationService = createInstantiationService({
+			eventService: eventService,
+			contextService: contextService,
+			fileService: TestFileService,
+			storageService: new TestStorageService(),
+			editorService: editorService,
+			partService: new TestPartService(),
+			modeService: createMockModeService(),
+			modelService: createMockModelService(),
+			telemetryService: telemetryService,
+			lifecycleService: new TestLifecycleService(),
+			configurationService: new TestConfigurationService()
+		});
 
-	// 	let textFileServices = instantiationService.createInstance(<any>TextFileService);
-	// 	instantiationService.registerService('textFileService', textFileServices);
+		let textFileServices = instantiationService.createInstance(<any>TextFileService);
+		instantiationService.registerService('textFileService', textFileServices);
 
-	// 	let tracker = instantiationService.createInstance(FileTracker);
+		let tracker = instantiationService.createInstance(FileTracker);
 
-	// 	let inputToResolve = instantiationService.createInstance(FileEditorInput, toResource('/foo6/bar/file.js'), 'text/javascript', void 0);
-	// 	let sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/foo6/bar/file.js'), 'text/javascript', void 0);
-	// 	return editorService.resolveEditorModel(inputToResolve, true).then(function(resolved) {
-	// 		return editorService.resolveEditorModel(sameOtherInput, true).then(function(resolved) {
-	// 			(<any>tracker).dispose(toResource('/bar'), []);
-	// 			assert(!inputToResolve.isDisposed());
-	// 			assert(!sameOtherInput.isDisposed());
+		let inputToResolve = instantiationService.createInstance(FileEditorInput, toResource('/foo6/bar/file.js'), 'text/javascript', void 0);
+		let sameOtherInput = instantiationService.createInstance(FileEditorInput, toResource('/foo6/bar/file.js'), 'text/javascript', void 0);
+		return editorService.resolveEditorModel(inputToResolve, true).then(function(resolved) {
+			return editorService.resolveEditorModel(sameOtherInput, true).then(function(resolved) {
+				(<any>tracker).disposeAll(toResource('/bar'), []);
+				assert(!inputToResolve.isDisposed());
+				assert(!sameOtherInput.isDisposed());
 
-	// 			(<any>tracker).dispose(toResource('/foo6'), []);
+				(<any>tracker).disposeAll(toResource('/foo6'), []);
 
-	// 			assert(inputToResolve.isDisposed());
-	// 			assert(sameOtherInput.isDisposed());
+				assert(inputToResolve.isDisposed());
+				assert(sameOtherInput.isDisposed());
 
-	// 			done();
-	// 		});
-	// 	});
-	// });
+				done();
+			});
+		});
+	});
 });
