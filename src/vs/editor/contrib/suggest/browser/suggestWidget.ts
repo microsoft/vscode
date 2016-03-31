@@ -83,9 +83,9 @@ class Renderer implements IRenderer<CompletionItem, ISuggestionTemplateData> {
 			data.root.setAttribute('aria-label', nls.localize('suggestionAriaLabel', "{0}, suggestion", suggestion.label));
 		}
 
-		if (suggestion.type && suggestion.type.charAt(0) === '#') {
+		if (suggestion.type === 'customcolor') {
 			data.icon.className = 'icon customcolor';
-			data.colorspan.style.backgroundColor = suggestion.type.substring(1);
+			data.colorspan.style.backgroundColor = suggestion.label;
 		} else {
 			data.icon.className = 'icon ' + suggestion.type;
 			data.colorspan.style.backgroundColor = '';

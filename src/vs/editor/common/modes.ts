@@ -325,10 +325,30 @@ export interface IExtraInfoSupport {
 	computeInfo(resource:URI, position:editorCommon.IPosition):TPromise<IComputeExtraInfoResult>;
 }
 
+export type SuggestionType = 'method'
+	| 'function'
+	| 'constructor'
+	| 'field'
+	| 'variable'
+	| 'class'
+	| 'interface'
+	| 'module'
+	| 'property'
+	| 'unit'
+	| 'value'
+	| 'enum'
+	| 'keyword'
+	| 'snippet'
+	| 'text'
+	| 'color'
+	| 'file'
+	| 'reference'
+	| 'customcolor';
+
 export interface ISuggestion {
 	label: string;
 	codeSnippet: string;
-	type: 'Text' | 'Method' | 'Function' | 'Constructor' | 'Field' | 'Variable' | 'Class' | 'Interface' | 'Module' | 'Property' | 'Unit' | 'Value' | 'Enum' | 'Keyword' | 'Snippet' | 'Color' | 'File' | 'Reference' | string;
+	type: SuggestionType;
 	typeLabel?: string;
 	documentationLabel?: string;
 	filterText?: string;
