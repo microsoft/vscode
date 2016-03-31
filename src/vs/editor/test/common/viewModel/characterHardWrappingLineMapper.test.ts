@@ -62,7 +62,7 @@ function assertLineMapping(factory:ILineMapperFactory, tabSize:number, breakAfte
 		}
 	}
 
-	var mapper = factory.createLineMapping(rawText, tabSize, breakAfter, 1, WrappingIndent.None);
+	var mapper = factory.createLineMapping(rawText, tabSize, breakAfter, 2, WrappingIndent.None);
 
 	assert.equal(safeGetOutputLineCount(mapper), (lineIndices.length > 0 ? lineIndices[lineIndices.length - 1] + 1 : 1));
 	for (var i = 0, len = rawText.length; i < len; i++) {
