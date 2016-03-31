@@ -22,10 +22,10 @@ function cmpLineDecorations(a:ILineDecoration, b:ILineDecoration): number {
 	return Range.compareRangesUsingStarts(a.range, b.range);
 }
 
-export function createLineParts(lineNumber:number, minLineColumn:number, lineContent:string, lineTokens:IViewLineTokens, rawLineDecorations:ILineDecoration[], renderWhitespace:boolean): ILineParts {
+export function createLineParts(lineNumber:number, minLineColumn:number, lineContent:string, tabSize:number, lineTokens:IViewLineTokens, rawLineDecorations:ILineDecoration[], renderWhitespace:boolean): ILineParts {
 	if (renderWhitespace) {
 		let oldLength = rawLineDecorations.length;
-		rawLineDecorations = insertWhitespace(lineNumber, lineContent, lineTokens.getFauxIndentLength(), rawLineDecorations);
+		rawLineDecorations = insertWhitespace(lineNumber, lineContent, tabSize, lineTokens.getFauxIndentLength(), rawLineDecorations);
 		if (rawLineDecorations.length !== oldLength) {
 			rawLineDecorations.sort(cmpLineDecorations);
 		}
@@ -51,68 +51,83 @@ function trimEmptyTrailingPart(parts: LineToken[], lineContent: string): LineTok
 	return parts.slice(0, parts.length - 1);
 }
 
-function insertWhitespace(lineNumber:number, lineContent: string, fauxIndentLength: number, rawLineDecorations: ILineDecoration[]): ILineDecoration[] {
-	if (lineContent.length === 0) {
+const _tab = '\t'.charCodeAt(0);
+const _space = ' '.charCodeAt(0);
+
+function insertOneWhitespace(dest:ILineDecoration[], lineNumber:number, startColumn:number, endColumn:number, className:string): void {
+	dest.push({
+		range: new Range(lineNumber, startColumn, lineNumber, endColumn),
+		options: {
+			inlineClassName: className
+		}
+	});
+}
+
+function insertWhitespace(lineNumber:number, lineContent: string, tabSize:number, fauxIndentLength: number, rawLineDecorations: ILineDecoration[]): ILineDecoration[] {
+	let lineLength = lineContent.length;
+	if (lineLength === fauxIndentLength) {
 		return rawLineDecorations;
 	}
 
-	var prepend: IEditorRange = null,
-		append: IEditorRange = null,
-		computeTrailing = true;
+	let firstChar = lineContent.charCodeAt(fauxIndentLength);
+	let lastChar = lineContent.charCodeAt(lineLength - 1);
 
-	var firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
+	if (firstChar !== _tab && firstChar !== _space && lastChar !== _tab && lastChar !== _space) {
+		// This line contains no leading nor trailing whitespace => fast path
+		return rawLineDecorations;
+	}
 
-	if (firstNonWhitespaceIndex !== 0) {
-		// There is leading whitespace
-		if (firstNonWhitespaceIndex === -1) {
-			// The entire string is whitespace
-			computeTrailing = false;
-			prepend = new Range(lineNumber, 1, lineNumber, lineContent.length + 1);
+	let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
+	let lastNonWhitespaceIndex: number;
+	if (firstNonWhitespaceIndex === -1) {
+		// The entire line is whitespace
+		firstNonWhitespaceIndex = lineLength;
+		lastNonWhitespaceIndex = lineLength;
+	} else {
+		lastNonWhitespaceIndex = strings.lastNonWhitespaceIndex(lineContent);
+	}
+
+	let result = rawLineDecorations.slice(0);
+	let tmpIndent = 0;
+	let whitespaceStartColumn = fauxIndentLength + 1;
+	for (let i = fauxIndentLength; i < lineLength; i++) {
+		let chCode = lineContent.charCodeAt(i);
+
+		if (chCode === _tab) {
+			tmpIndent = tabSize;
 		} else {
-			prepend = new Range(lineNumber, 1, lineNumber, firstNonWhitespaceIndex + 1);
+			tmpIndent++;
+		}
+
+		if (i < firstNonWhitespaceIndex) {
+			// in leading whitespace
+			// push for every indent or when the end of the leading whitespace is reached
+			if (tmpIndent >= tabSize || i === firstNonWhitespaceIndex - 1) {
+				insertOneWhitespace(result, lineNumber, whitespaceStartColumn, i + 2, 'leading whitespace');
+				whitespaceStartColumn = i + 2;
+				tmpIndent = 0;
+			}
+			continue;
+		}
+
+		if (i > lastNonWhitespaceIndex) {
+			// in trailing whitespace
+			// push for every indent or when the end of the string is reached
+			if (tmpIndent >= tabSize || i === lineLength - 1) {
+				insertOneWhitespace(result, lineNumber, whitespaceStartColumn, i + 2, 'trailing whitespace');
+				whitespaceStartColumn = i + 2;
+				tmpIndent = 0;
+			}
+			continue;
+		}
+
+		if (i === lastNonWhitespaceIndex) {
+			whitespaceStartColumn = i + 2;
+			tmpIndent = tmpIndent % tabSize;
 		}
 	}
 
-	// Adjust prepend to `fauxIndentLength`
-	if (prepend) {
-		if (fauxIndentLength + 1 >= prepend.endColumn) {
-			prepend = null;
-		} else {
-			prepend.startColumn = fauxIndentLength + 1;
-		}
-	}
-
-	if (computeTrailing) {
-		var lastNonWhitespaceIndex = strings.lastNonWhitespaceIndex(lineContent);
-		if (lastNonWhitespaceIndex !== lineContent.length - 1) {
-			// There is trailing whitespace
-			// No need to handle the case that the entire string is empty, since it is handled above
-			append = new Range(lineNumber, lastNonWhitespaceIndex + 2, lineNumber, lineContent.length + 1);
-		}
-	}
-
-	if (prepend || append) {
-		var result = rawLineDecorations.slice(0);
-		if (prepend) {
-			result.unshift({
-				options: {
-					inlineClassName: 'leading whitespace'
-				},
-				range: prepend
-			});
-		}
-		if (append) {
-			result.push({
-				options: {
-					inlineClassName: 'trailing whitespace'
-				},
-				range: append
-			});
-		}
-		return result;
-	}
-
-	return rawLineDecorations;
+	return result;
 }
 
 export class FastViewLineParts implements ILineParts {

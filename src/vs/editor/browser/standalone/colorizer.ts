@@ -96,6 +96,7 @@ export class Colorizer {
 		var renderResult = renderLine(new RenderLineInput(
 			line,
 			tabSize,
+			0,
 			-1,
 			false,
 			tokens
@@ -139,6 +140,7 @@ function actualColorize(lines:string[], mode:IMode, tabSize:number): IActualColo
 		renderResult = renderLine(new RenderLineInput(
 			line,
 			tabSize,
+			0,
 			-1,
 			false,
 			tokenizeResult.tokens.map(t => new LineToken(t.startIndex, t.type))

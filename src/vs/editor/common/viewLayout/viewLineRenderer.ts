@@ -11,6 +11,7 @@ export class RenderLineInput {
 
 	lineContent: string;
 	tabSize: number;
+	spaceWidth: number;
 	stopRenderingLineAfter: number;
 	renderWhitespace: boolean;
 	parts: LineToken[];
@@ -18,12 +19,14 @@ export class RenderLineInput {
 	constructor(
 		lineContent: string,
 		tabSize: number,
+		spaceWidth: number,
 		stopRenderingLineAfter: number,
 		renderWhitespace: boolean,
 		parts: LineToken[]
 	) {
 		this.lineContent = lineContent;
 		this.tabSize = tabSize;
+		this.spaceWidth = spaceWidth;
 		this.stopRenderingLineAfter = stopRenderingLineAfter;
 		this.renderWhitespace = renderWhitespace;
 		this.parts = parts;
@@ -49,6 +52,7 @@ export function renderLine(input:RenderLineInput): IRenderLineOutput {
 	const lineText = input.lineContent;
 	const lineTextLength = lineText.length;
 	const tabSize = input.tabSize;
+	const spaceWidth = input.spaceWidth;
 	const actualLineParts = input.parts;
 	const renderWhitespace = input.renderWhitespace;
 	const charBreakIndex = (input.stopRenderingLineAfter === -1 ? lineTextLength : input.stopRenderingLineAfter - 1);
@@ -66,7 +70,7 @@ export function renderLine(input:RenderLineInput): IRenderLineOutput {
 		throw new Error('Cannot render non empty line without line parts!');
 	}
 
-	return renderLineActual(lineText, lineTextLength, tabSize, actualLineParts.slice(0), renderWhitespace, charBreakIndex);
+	return renderLineActual(lineText, lineTextLength, tabSize, spaceWidth, actualLineParts.slice(0), renderWhitespace, charBreakIndex);
 }
 
 const WHITESPACE_TOKEN_TEST = /\bwhitespace\b/;
@@ -74,7 +78,7 @@ function isWhitespace(type:string): boolean {
 	return WHITESPACE_TOKEN_TEST.test(type);
 }
 
-function renderLineActual(lineText:string, lineTextLength:number, tabSize:number, actualLineParts:LineToken[], renderWhitespace:boolean, charBreakIndex:number): IRenderLineOutput {
+function renderLineActual(lineText:string, lineTextLength:number, tabSize:number, spaceWidth:number, actualLineParts:LineToken[], renderWhitespace:boolean, charBreakIndex:number): IRenderLineOutput {
 	lineTextLength = +lineTextLength;
 	tabSize = +tabSize;
 	charBreakIndex = +charBreakIndex;
@@ -89,10 +93,6 @@ function renderLineActual(lineText:string, lineTextLength:number, tabSize:number
 	for (let partIndex = 0, partIndexLen = actualLineParts.length; partIndex < partIndexLen; partIndex++) {
 		let part = actualLineParts[partIndex];
 
-		out += '<span class="token ';
-		out += part.type;
-		out += '">';
-
 		let partRendersWhitespace = false;
 		if (renderWhitespace) {
 			partRendersWhitespace = isWhitespace(part.type);
@@ -105,72 +105,125 @@ function renderLineActual(lineText:string, lineTextLength:number, tabSize:number
 		}
 
 		charOffsetInPart = 0;
-		for (; charIndex < toCharIndex; charIndex++) {
-			charOffsetInPartArr[charIndex] = charOffsetInPart;
-			let charCode = lineText.charCodeAt(charIndex);
+		if (partRendersWhitespace) {
 
-			switch (charCode) {
-				case _tab:
+			let partContentCnt = 0;
+			let partContent = '';
+			for (; charIndex < toCharIndex; charIndex++) {
+				charOffsetInPartArr[charIndex] = charOffsetInPart;
+				let charCode = lineText.charCodeAt(charIndex);
+
+				if (charCode === _tab) {
 					let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
 					tabsCharDelta += insertSpacesCount - 1;
 					charOffsetInPart += insertSpacesCount - 1;
 					if (insertSpacesCount > 0) {
-						out += partRendersWhitespace ? '&rarr;' : '&nbsp;';
+						partContent += '&rarr;';
+						partContentCnt++;
 						insertSpacesCount--;
 					}
 					while (insertSpacesCount > 0) {
-						out += '&nbsp;';
+						partContent += '&nbsp;';
+						partContentCnt++;
 						insertSpacesCount--;
 					}
-					break;
+				} else {
+					// must be _space
+					partContent += '&middot;';
+					partContentCnt++;
+				}
 
-				case _space:
-					out += partRendersWhitespace ? '&middot;' : '&nbsp;';
-					break;
+				charOffsetInPart ++;
 
-				case _lowerThan:
-					out += '&lt;';
-					break;
-
-				case _greaterThan:
-					out += '&gt;';
-					break;
-
-				case _ampersand:
-					out += '&amp;';
-					break;
-
-				case 0:
-					out += '&#00;';
-					break;
-
-				case _bom:
-				case _lineSeparator:
-					out += '\ufffd';
-					break;
-
-				case _carriageReturn:
-					// zero width space, because carriage return would introduce a line break
-					out += '&#8203';
-					break;
-
-				default:
-					out += lineText.charAt(charIndex);
+				if (charIndex >= charBreakIndex) {
+					out += '<span class="token '+part.type+'" style="width:'+(spaceWidth * partContentCnt)+'px">';
+					out += partContent;
+					out += '&hellip;</span></span>';
+					charOffsetInPartArr[charIndex] = charOffsetInPart;
+					return {
+						charOffsetInPart: charOffsetInPartArr,
+						lastRenderedPartIndex: partIndex,
+						output: out
+					};
+				}
 			}
+			out += '<span class="token '+part.type+'" style="width:'+(spaceWidth * partContentCnt)+'px">';
+			out += partContent;
+			out += '</span>';
+		} else {
+			out += '<span class="token ';
+			out += part.type;
+			out += '">';
 
-			charOffsetInPart ++;
-
-			if (charIndex >= charBreakIndex) {
-				out += '&hellip;</span></span>';
+			for (; charIndex < toCharIndex; charIndex++) {
 				charOffsetInPartArr[charIndex] = charOffsetInPart;
-				return {
-					charOffsetInPart: charOffsetInPartArr,
-					lastRenderedPartIndex: partIndex,
-					output: out
-				};
+				let charCode = lineText.charCodeAt(charIndex);
+
+				switch (charCode) {
+					case _tab:
+						let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
+						tabsCharDelta += insertSpacesCount - 1;
+						charOffsetInPart += insertSpacesCount - 1;
+						if (insertSpacesCount > 0) {
+							out += '&nbsp;';
+							insertSpacesCount--;
+						}
+						while (insertSpacesCount > 0) {
+							out += '&nbsp;';
+							insertSpacesCount--;
+						}
+						break;
+
+					case _space:
+						out += '&nbsp;';
+						break;
+
+					case _lowerThan:
+						out += '&lt;';
+						break;
+
+					case _greaterThan:
+						out += '&gt;';
+						break;
+
+					case _ampersand:
+						out += '&amp;';
+						break;
+
+					case 0:
+						out += '&#00;';
+						break;
+
+					case _bom:
+					case _lineSeparator:
+						out += '\ufffd';
+						break;
+
+					case _carriageReturn:
+						// zero width space, because carriage return would introduce a line break
+						out += '&#8203';
+						break;
+
+					default:
+						out += lineText.charAt(charIndex);
+				}
+
+				charOffsetInPart ++;
+
+				if (charIndex >= charBreakIndex) {
+					out += '&hellip;</span></span>';
+					charOffsetInPartArr[charIndex] = charOffsetInPart;
+					return {
+						charOffsetInPart: charOffsetInPartArr,
+						lastRenderedPartIndex: partIndex,
+						output: out
+					};
+				}
 			}
+
+			out += '</span>';
 		}
-		out += '</span>';
+
 	}
 	out += '</span>';
 

@@ -18,6 +18,7 @@ suite('viewLineRenderer.renderLine', () => {
 		let _actual = renderLine(new RenderLineInput(
 			lineContent,
 			tabSize,
+			0,
 			-1,
 			false,
 			[createPart(0, '')]
@@ -58,6 +59,7 @@ suite('viewLineRenderer.renderLine', () => {
 		let _actual = renderLine(new RenderLineInput(
 			lineContent,
 			tabSize,
+			0,
 			-1,
 			false,
 			parts
@@ -87,6 +89,7 @@ suite('viewLineRenderer.renderLine', () => {
 		let _actual = renderLine(new RenderLineInput(
 			'Hello world!',
 			4,
+			10,
 			6,
 			true,
 			[
@@ -142,7 +145,7 @@ suite('viewLineRenderer.renderLine', () => {
 			createPart(43, 'block body comment declaration line meta object ts trailing whitespace'),
 		];
 		let expectedOutput = [
-			'<span class="token block meta ts leading whitespace">&rarr;&nbsp;&nbsp;&nbsp;&middot;&middot;&middot;&middot;</span>',
+			'<span class="token block meta ts leading whitespace" style="width:80px">&rarr;&nbsp;&nbsp;&nbsp;&middot;&middot;&middot;&middot;</span>',
 			'<span class="token block declaration meta modifier object storage ts">export</span>',
 			'<span class="token block declaration meta object ts">&nbsp;</span>',
 			'<span class="token block declaration meta object storage type ts">class</span>',
@@ -153,7 +156,7 @@ suite('viewLineRenderer.renderLine', () => {
 			'<span class="token block body declaration meta object ts">&nbsp;</span>',
 			'<span class="token block body comment declaration line meta object ts">//&nbsp;</span>',
 			'<span class="token block body comment declaration line meta object ts detected-link">http://test.com</span>',
-			'<span class="token block body comment declaration line meta object ts trailing whitespace">&middot;&middot;&middot;&middot;&middot;</span>'
+			'<span class="token block body comment declaration line meta object ts trailing whitespace" style="width:50px">&middot;&middot;&middot;&middot;&middot;</span>'
 		].join('');
 		let expectedOffsetsArr = [
 			[0, 4, 5, 6, 7],
@@ -174,6 +177,7 @@ suite('viewLineRenderer.renderLine', () => {
 		let _actual = renderLine(new RenderLineInput(
 			lineText,
 			4,
+			10,
 			-1,
 			true,
 			lineParts
@@ -227,6 +231,7 @@ suite('viewLineRenderer.renderLine', () => {
 		let _actual = renderLine(new RenderLineInput(
 			lineText,
 			4,
+			10,
 			-1,
 			false,
 			lineParts
@@ -280,6 +285,7 @@ suite('viewLineRenderer.renderLine', () => {
 		let _actual = renderLine(new RenderLineInput(
 			lineText,
 			4,
+			10,
 			-1,
 			false,
 			lineParts

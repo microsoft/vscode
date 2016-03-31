@@ -116,6 +116,7 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 	pageSize:number;
 	typicalHalfwidthCharacterWidth:number;
 	typicalFullwidthCharacterWidth:number;
+	spaceWidth:number;
 	fontSize:number;
 
 	constructor(input:editorCommon.IInternalEditorOptions) {
@@ -214,6 +215,7 @@ export class InternalEditorOptions implements editorCommon.IInternalEditorOption
 		this.pageSize = Number(input.pageSize)|0;
 		this.typicalHalfwidthCharacterWidth = Number(input.typicalHalfwidthCharacterWidth);
 		this.typicalFullwidthCharacterWidth = Number(input.typicalFullwidthCharacterWidth);
+		this.spaceWidth = Number(input.spaceWidth);
 		this.fontSize = Number(input.fontSize)|0;
 	}
 }
@@ -382,6 +384,7 @@ class InternalEditorOptionsHelper {
 
 			typicalHalfwidthCharacterWidth: themeOpts.typicalHalfwidthCharacterWidth,
 			typicalFullwidthCharacterWidth: themeOpts.typicalFullwidthCharacterWidth,
+			spaceWidth: themeOpts.spaceWidth,
 
 			fontSize: themeOpts.fontSize,
 		};
@@ -466,6 +469,7 @@ class InternalEditorOptionsHelper {
 			pageSize:						(prevOpts.pageSize !== newOpts.pageSize),
 			typicalHalfwidthCharacterWidth:	(prevOpts.typicalHalfwidthCharacterWidth !== newOpts.typicalHalfwidthCharacterWidth),
 			typicalFullwidthCharacterWidth:	(prevOpts.typicalFullwidthCharacterWidth !== newOpts.typicalFullwidthCharacterWidth),
+			spaceWidth:						(prevOpts.spaceWidth !== newOpts.spaceWidth),
 			fontSize:						(prevOpts.fontSize !== newOpts.fontSize)
 		};
 	}
@@ -519,6 +523,7 @@ class InternalEditorOptionsHelper {
 export interface ICSSConfig {
 	typicalHalfwidthCharacterWidth:number;
 	typicalFullwidthCharacterWidth:number;
+	spaceWidth:number;
 	maxDigitWidth: number;
 	lineHeight:number;
 	font:string;

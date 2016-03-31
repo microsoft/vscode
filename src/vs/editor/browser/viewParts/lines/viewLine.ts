@@ -16,6 +16,7 @@ export class ViewLine implements IVisibleLineData {
 
 	protected _context:IViewContext;
 	private _renderWhitespace: boolean;
+	private _spaceWidth: number;
 	private _lineHeight: number;
 	private _stopRenderingLineAfter: number;
 	protected _fontLigatures: boolean;
@@ -34,6 +35,7 @@ export class ViewLine implements IVisibleLineData {
 	constructor(context:IViewContext) {
 		this._context = context;
 		this._renderWhitespace = this._context.configuration.editor.renderWhitespace;
+		this._spaceWidth = this._context.configuration.editor.spaceWidth;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._stopRenderingLineAfter = this._context.configuration.editor.stopRenderingLineAfter;
 		this._fontLigatures = this._context.configuration.editor.fontLigatures;
@@ -80,6 +82,9 @@ export class ViewLine implements IVisibleLineData {
 		if (e.renderWhitespace) {
 			this._renderWhitespace = this._context.configuration.editor.renderWhitespace;
 		}
+		if (e.spaceWidth) {
+			this._spaceWidth = this._context.configuration.editor.spaceWidth;
+		}
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
@@ -101,6 +106,7 @@ export class ViewLine implements IVisibleLineData {
 				lineNumber,
 				this._context.model.getLineMinColumn(lineNumber),
 				this._context.model.getLineContent(lineNumber),
+				this._context.model.getTabSize(),
 				this._context.model.getLineTokens(lineNumber),
 				inlineDecorations,
 				this._renderWhitespace
@@ -158,6 +164,7 @@ export class ViewLine implements IVisibleLineData {
 		let r = renderLine(new RenderLineInput(
 			this._context.model.getLineContent(lineNumber),
 			this._context.model.getTabSize(),
+			this._spaceWidth,
 			this._stopRenderingLineAfter,
 			this._renderWhitespace,
 			lineParts.getParts()

@@ -676,6 +676,10 @@ export interface IInternalEditorOptions {
 	 */
 	typicalFullwidthCharacterWidth:number;
 	/**
+	 * Computed width of non breaking space &nbsp;
+	 */
+	spaceWidth:number;
+	/**
 	 * Computed font size.
 	 */
 	fontSize:number;
@@ -741,6 +745,7 @@ export interface IConfigurationChangedEvent {
 	pageSize: boolean;
 	typicalHalfwidthCharacterWidth: boolean;
 	typicalFullwidthCharacterWidth: boolean;
+	spaceWidth: boolean;
 	fontSize: boolean;
 }
 

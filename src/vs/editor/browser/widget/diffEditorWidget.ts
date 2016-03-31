@@ -1786,11 +1786,12 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			}
 		};
 
-		parts = createLineParts(lineNumber, 1, lineContent, lineTokens, decorations, config.renderWhitespace);
+		parts = createLineParts(lineNumber, 1, lineContent, tabSize, lineTokens, decorations, config.renderWhitespace);
 
 		var r = renderLine(new RenderLineInput(
 			lineContent,
 			tabSize,
+			config.spaceWidth,
 			config.stopRenderingLineAfter,
 			config.renderWhitespace,
 			parts.getParts()
