@@ -25,6 +25,10 @@
 			"language": "cpp",
 			"scopeName": "source.c++",
 			"path": "./syntaxes/c++.plist"
+		},
+		{
+			"scopeName": "source.c.platform",
+			"path": "./syntaxes/Platform.tmLanguage"
 		}]
 	}
 }
