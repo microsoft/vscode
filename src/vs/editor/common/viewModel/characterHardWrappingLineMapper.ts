@@ -17,6 +17,7 @@ var throwawayIndexOfResult = {
 var BREAK_BEFORE_CLASS = 1;
 var BREAK_AFTER_CLASS = 2;
 var BREAK_OBTRUSIVE_CLASS = 3;
+var BREAK_IDEOGRAPHIC = 4; // for Han and Kana.
 
 function buildCharacterClassesMap(BREAK_BEFORE:string, BREAK_AFTER:string, BREAK_OBTRUSIVE:string): number[] {
 	var result:number[] = [],
@@ -31,6 +32,14 @@ function buildCharacterClassesMap(BREAK_BEFORE:string, BREAK_AFTER:string, BREAK
 	for (i = 0; i <= maxCharCode; i++) {
 		result[i] = 0;
 	}
+	
+	// Initialize BREAK_IDEOGRAPHIC for these Unicode ranges:
+	// 1. CJK Unified Ideographs (0x4E00 -- 0x9FFF)
+	// 2. CJK Unified Ideographs Extension A (0x3400 -- 0x4DBF)
+	// 3. Hiragana and Katakana (0x3040 -- 0x30FF)
+	for (i = 0x3040; i <= 0x30FF; i++) result[i] = BREAK_IDEOGRAPHIC;
+	for (i = 0x3400; i <= 0x4DBF; i++) result[i] = BREAK_IDEOGRAPHIC;
+	for (i = 0x4E00; i <= 0x9FFF; i++) result[i] = BREAK_IDEOGRAPHIC;
 
 	for (i = 0; i < BREAK_BEFORE.length; i++) {
 		result[BREAK_BEFORE.charCodeAt(i)] = BREAK_BEFORE_CLASS;
@@ -102,7 +111,11 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 			charCodeIsTab:boolean,
 			charCodeClass:number,
 			breakBeforeOffset:number, // 0-based offset in the lineText before which breaking
-			restoreVisibleColumnFrom:number; // visible column used to re-establish a correct `visibleColumn`
+			restoreVisibleColumnFrom:number, // visible column used to re-establish a correct `visibleColumn`
+			prevCode:number, // CJK kinsoku shori: character and class before current one
+			prevClass:number,
+			nextCode:number, // CJK kinsoku shori: character and class after current one
+			nextClass:number;
 
 		var niceBreakOffset = -1, // Last index of a character that indicates a break should happen before it (more desirable)
 			niceBreakVisibleColumn = 0, // visible column if a break were to be later introduced before `niceBreakOffset`
@@ -124,6 +137,16 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 				// just mark it as a nice breaking opportunity
 				niceBreakOffset = i;
 				niceBreakVisibleColumn = 0;
+			}
+
+			// CJK breaking : before break
+			if (charCodeClass === BREAK_IDEOGRAPHIC && i > 0) {
+				var prevCode:number = lineText.charCodeAt(i - 1);
+				var prevClass:number = nextCode < characterClasses.length ? characterClasses[nextCode] : 0;
+				if (prevClass !== BREAK_BEFORE_CLASS) { // Kinsoku Shori: Don't break before a trailing character
+					niceBreakOffset = i;
+					niceBreakVisibleColumn = 0;
+				}
 			}
 
 			var charColumnSize = 1;
@@ -190,7 +213,17 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 				niceBreakOffset = i + 1;
 				niceBreakVisibleColumn = 0;
 			}
-
+			
+			// CJK breaking : after break
+			if (charCodeClass === BREAK_IDEOGRAPHIC && i < len - 1) {
+				var nextCode:number = lineText.charCodeAt(i + 1);
+				var nextClass:number = nextCode < characterClasses.length ? characterClasses[nextCode] : 0;
+				if (nextClass !== BREAK_AFTER_CLASS) { // Kinsoku Shori: Don't break before a trailing character
+					niceBreakOffset = i + 1;
+					niceBreakVisibleColumn = 0;
+				}
+			}
+			
 			if (charCodeClass === BREAK_OBTRUSIVE_CLASS) {
 				// This is an obtrusive character that indicates that a break should happen after it
 				obtrusiveBreakOffset = i + 1;
