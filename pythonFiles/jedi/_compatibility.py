@@ -25,7 +25,7 @@ def find_module_py33(string, path=None):
         except ValueError as e:
             # See #491. Importlib might raise a ValueError, to avoid this, we
             # just raise an ImportError to fix the issue.
-            raise ImportError("Originally ValueError: " + e.message)
+            raise ImportError("Originally  " + repr(e))
 
     if loader is None:
         raise ImportError("Couldn't find a loader for {0}".format(string))

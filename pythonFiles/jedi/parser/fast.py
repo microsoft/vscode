@@ -74,12 +74,6 @@ class MergedNamesDict(object):
     def __iter__(self):
         return iter(set(key for dct in self.dicts for key in dct))
 
-    def get(self, key, replacement=None):
-        for d in self.dicts:
-            if key in d:
-                return d[key]
-        return replacement
-
     def __getitem__(self, value):
         return list(chain.from_iterable(dct.get(value, []) for dct in self.dicts))
 
