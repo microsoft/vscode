@@ -112,19 +112,28 @@ suite('Editor ViewModel - CharacterHardWrappingLineMapper', () => {
 		assertLineMapping(factory, 4, 5, 'aa.(|()|.aaa');
 		assertLineMapping(factory, 4, 5, 'aa.|(.)|.aaa');
 	});
-	test('CJK Wrapping: Should wrap after an ideograph', () => {
+	test('CJK Wrapping: Should wrap after an ideograph, 1', () => {
 		var factory = new CharacterHardWrappingLineMapperFactory('(', ')', '.');
-		assertLineMapping(factory, 4, 5, 'aa 安|安');
-		assertLineMapping(factory, 4, 5, 'あ 安|安');
-		assertLineMapping(factory, 4, 5, 'ああ|安安');
+		assertLineMapping(factory, 4, 5, 'aa \u5b89|\u5b89');
 	});
-	test('CJK Wrapping: Should respect trailing punctuations', () => {
+	test('CJK Wrapping: Should wrap after an ideograph, 2', () => {
 		var factory = new CharacterHardWrappingLineMapperFactory('(', ')', '.');
-		assertLineMapping(factory, 4, 5, 'aa |安)安|安');
-		assertLineMapping(factory, 4, 5, 'aa あ|安あ)|安');
+		assertLineMapping(factory, 4, 5, '\u3042 \u5b89|\u5b89');
+	});
+	test('CJK Wrapping: Should wrap after an ideograph, 3', () => {
+		var factory = new CharacterHardWrappingLineMapperFactory('(', ')', '.');
+		assertLineMapping(factory, 4, 5, '\u3042\u3042|\u5b89\u5b89');
+	});
+	test('CJK Wrapping: Should respect trailing punctuations, 1', () => {
+		var factory = new CharacterHardWrappingLineMapperFactory('(', ')', '.');
+		assertLineMapping(factory, 4, 5, 'aa |\u5b89)\u5b89|\u5b89');
+	});
+	test('CJK Wrapping: Should respect trailing punctuations, 2', () => {
+		var factory = new CharacterHardWrappingLineMapperFactory('(', ')', '.');
+		assertLineMapping(factory, 4, 5, 'aa \u3042|\u5b89\u3042)|\u5b89');
 	});
 	test('CJK Wrapping: Should respect leading punctuations', () => {
 		var factory = new CharacterHardWrappingLineMapperFactory('(', ')', '.');
-		assertLineMapping(factory, 4, 5, 'aa |(安aa|安');
+		assertLineMapping(factory, 4, 5, 'aa |(\u5b89aa|\u5b89');
 	});
 });
