@@ -37,6 +37,9 @@ suite('URI', () => {
 		assert.equal(URI.create('http', '', '/my/path').toString(), 'http:/my/path');
 		assert.equal(URI.create('', '', 'my/path').toString(), 'my/path');
 		assert.equal(URI.create('', '', '/my/path').toString(), '/my/path');
+		//http://a-test-site.com/#test=true
+		assert.equal(URI.create('http', 'a-test-site.com', '/', 'test=true').toString(), 'http://a-test-site.com/?test=true');
+		assert.equal(URI.create('http', 'a-test-site.com', '/', '', 'test=true').toString(), 'http://a-test-site.com/#test=true');
 	});
 
 	test('with', () => {

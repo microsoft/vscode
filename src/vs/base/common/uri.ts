@@ -287,8 +287,14 @@ export default class URI {
 				parts.push(encoder(this._query));
 			}
 			if (this._fragment) {
+				// in http(s) querys often use 'key=value'-pairs and
+				// ampersand characters for multiple pairs
+				var encoder = /https?/i.test(this.scheme)
+					? encodeURI
+					: fixedEncodeURIComponent;
+
 				parts.push('#');
-				parts.push(fixedEncodeURIComponent(this._fragment));
+				parts.push(encoder(this._fragment));
 			}
 			this._formatted = parts.join('');
 		}
