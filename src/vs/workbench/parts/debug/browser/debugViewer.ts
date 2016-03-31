@@ -662,7 +662,9 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 	}
 
 	public disposeTemplate(tree: tree.ITree, templateId: string, templateData: any): void {
-		// noop
+		if (templateId === WatchExpressionsRenderer.WATCH_EXPRESSION_TEMPLATE_ID) {
+			(<IWatchExpressionTemplateData>templateData).actionBar.dispose();
+		}
 	}
 
 	public dispose(): void {
