@@ -37,9 +37,15 @@ function buildCharacterClassesMap(BREAK_BEFORE:string, BREAK_AFTER:string, BREAK
 	// 1. CJK Unified Ideographs (0x4E00 -- 0x9FFF)
 	// 2. CJK Unified Ideographs Extension A (0x3400 -- 0x4DBF)
 	// 3. Hiragana and Katakana (0x3040 -- 0x30FF)
-	for (i = 0x3040; i <= 0x30FF; i++) result[i] = BREAK_IDEOGRAPHIC;
-	for (i = 0x3400; i <= 0x4DBF; i++) result[i] = BREAK_IDEOGRAPHIC;
-	for (i = 0x4E00; i <= 0x9FFF; i++) result[i] = BREAK_IDEOGRAPHIC;
+	for (i = 0x3040; i <= 0x30FF; i++) {
+		result[i] = BREAK_IDEOGRAPHIC;
+	}
+	for (i = 0x3400; i <= 0x4DBF; i++) {
+		result[i] = BREAK_IDEOGRAPHIC;
+	}
+	for (i = 0x4E00; i <= 0x9FFF; i++) {
+		result[i] = BREAK_IDEOGRAPHIC;
+	}
 
 	for (i = 0; i < BREAK_BEFORE.length; i++) {
 		result[BREAK_BEFORE.charCodeAt(i)] = BREAK_BEFORE_CLASS;
