@@ -240,24 +240,31 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 				return;
 			}
 			const element = e.selection[0];
-			if (!(element instanceof model.StackFrame)) {
-				return;
+
+			if (element instanceof model.StackFrame) {
+				const stackFrame = <debug.IStackFrame> element;
+				this.debugService.setFocusedStackFrameAndEvaluate(stackFrame);
+
+				const isMouse = (e.payload.origin === 'mouse');
+				let preserveFocus = isMouse;
+
+				const originalEvent:KeyboardEvent|MouseEvent = e && e.payload && e.payload.originalEvent;
+				if (originalEvent && isMouse && originalEvent.detail === 2) {
+					preserveFocus = false;
+					originalEvent.preventDefault();  // focus moves to editor, we need to prevent default
+				}
+
+				const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
+				this.debugService.openOrRevealEditor(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
 			}
 
-			const stackFrame = <debug.IStackFrame> element;
-			this.debugService.setFocusedStackFrameAndEvaluate(stackFrame);
-
-			const isMouse = (e.payload.origin === 'mouse');
-			let preserveFocus = isMouse;
-
-			const originalEvent:KeyboardEvent|MouseEvent = e && e.payload && e.payload.originalEvent;
-			if (originalEvent && isMouse && originalEvent.detail === 2) {
-				preserveFocus = false;
-				originalEvent.preventDefault();  // focus moves to editor, we need to prevent default
+			// user clicked on 'Load More Stack Frames', get those stack frames and refresh the tree.
+			if (typeof element === 'number') {
+				const thread = this.debugService.getModel().getThreads()[element];
+				if (thread) {
+					thread.getCallStack(this.debugService, true).then(() => this.tree.refresh()).done(null, errors.onUnexpectedError);
+				}
 			}
-
-			const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-			this.debugService.openOrRevealEditor(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
 		}));
 
 		this.toDispose.push(this.tree.addListener2(events.EventType.FOCUS, (e: tree.IFocusEvent) => {

@@ -12,7 +12,6 @@ import severity from 'vs/base/common/severity';
 import types = require('vs/base/common/types');
 import arrays = require('vs/base/common/arrays');
 import debug = require('vs/workbench/parts/debug/common/debug');
-import errors = require('vs/base/common/errors');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 const MAX_REPL_LENGTH = 10000;
@@ -97,7 +96,7 @@ export class Thread implements debug.IThread {
 	public stoppedDetails: debug.IRawStoppedDetails;
 	public stopped: boolean;
 
-	constructor(public name: string, public threadId) {
+	constructor(public name: string, public threadId: number) {
 		this.promisedCallStack = undefined;
 		this.stoppedDetails = undefined;
 		this.cachedCallStack = undefined;
@@ -117,23 +116,30 @@ export class Thread implements debug.IThread {
 		return this.cachedCallStack;
 	}
 
-	public getCallStack(debugService: debug.IDebugService): TPromise<debug.IStackFrame[]> {
+	public getCallStack(debugService: debug.IDebugService, getAdditionalStackFrames = false): TPromise<debug.IStackFrame[]> {
 		if (!this.stopped) {
 			return TPromise.as([]);
 		}
+
 		if (!this.promisedCallStack) {
-			this.promisedCallStack = this.getCallStackImpl(debugService);
-			this.promisedCallStack.then(result => {
-				this.cachedCallStack = result;
-			}, errors.onUnexpectedError);
+			this.promisedCallStack = this.getCallStackImpl(debugService, 0).then(callStack => {
+				this.cachedCallStack = callStack;
+				return callStack;
+			});
+		} else if (getAdditionalStackFrames) {
+			this.promisedCallStack = this.promisedCallStack.then(callStackFirstPart => this.getCallStackImpl(debugService, callStackFirstPart.length).then(callStackSecondPart => {
+				this.cachedCallStack = callStackFirstPart.concat(callStackSecondPart);
+				return this.cachedCallStack;
+			}));
 		}
 
 		return this.promisedCallStack;
 	}
 
-	private getCallStackImpl(debugService: debug.IDebugService): TPromise<debug.IStackFrame[]> {
+	private getCallStackImpl(debugService: debug.IDebugService, startFrame: number): TPromise<debug.IStackFrame[]> {
 		let session = debugService.getActiveSession();
-		return session.stackTrace({ threadId: this.threadId, levels: 20 }).then(response => {
+		return session.stackTrace({ threadId: this.threadId, startFrame, levels: 20 }).then(response => {
+			this.stoppedDetails.totalFrames = response.body.totalFrames || response.body.stackFrames.length;
 			return response.body.stackFrames.map((rsf, level) => {
 				if (!rsf) {
 					return new StackFrame(this.threadId, 0, new Source({ name: 'unknown' }, false), nls.localize('unknownStack', "Unknown stack location"), undefined, undefined);
