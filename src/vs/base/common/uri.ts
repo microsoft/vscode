@@ -6,10 +6,20 @@
 
 import platform = require('vs/base/common/platform');
 
-// see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent
-function fixedEncodeURIComponent(str: string): string {
-	return encodeURIComponent(str).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+
+function _encode(ch: string): string {
+	return '%' + ch.charCodeAt(0).toString(16).toUpperCase();
 }
+
+// see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent
+function encodeURIComponent2(str: string): string {
+	return encodeURIComponent(str).replace(/[!'()*]/g, _encode);
+}
+
+function encodeNoop(str: string): string {
+	return str;
+}
+
 
 /**
  * Uniform Resource Identifier (URI) http://tools.ietf.org/html/rfc3986.
@@ -34,7 +44,7 @@ export default class URI {
 	private static _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
 	private static _driveLetterPath = /^\/[a-zA-z]:/;
 	private static _upperCaseDrive = /^(\/)?([A-Z]:)/;
-	
+
 	private _scheme: string;
 	private _authority: string;
 	private _path: string;
@@ -243,14 +253,25 @@ export default class URI {
 
 	// ---- printing/externalize ---------------------------
 
-	public toString(): string {
+	/**
+	 * @param encode Only encode the minimally
+	 */
+	public toString(encode: boolean = true): string {
+		if (!encode) {
+			return URI._asFormatted(this, false);
+		}
 		if (!this._formatted) {
-			this._formatted = URI._asFormatted(this);
+			this._formatted = URI._asFormatted(this, true);
 		}
 		return this._formatted;
 	}
 
-	private static _asFormatted(uri: URI): string {
+	private static _asFormatted(uri: URI, encode: boolean): string {
+
+		const encoder = encode
+			? encodeURIComponent2
+			: encodeNoop;
+
 		const parts: string[] = [];
 
 		let {scheme, authority, path, query, fragment} = uri;
@@ -264,9 +285,9 @@ export default class URI {
 			authority = authority.toLowerCase();
 			let idx = authority.indexOf(':');
 			if (idx === -1) {
-				parts.push(fixedEncodeURIComponent(authority));
+				parts.push(encoder(authority));
 			} else {
-				parts.push(fixedEncodeURIComponent(authority.substr(0, idx)), authority.substr(idx));
+				parts.push(encoder(authority.substr(0, idx)), authority.substr(idx));
 			}
 		}
 		if (path) {
@@ -281,29 +302,17 @@ export default class URI {
 			while(true) {
 				let idx = path.indexOf(URI._slash, lastIdx);
 				if (idx === -1) {
-					parts.push(fixedEncodeURIComponent(path.substring(lastIdx)));
+					parts.push(encoder(path.substring(lastIdx)).replace(/[#?]/, _encode));
 					break;
 				}
-				parts.push(fixedEncodeURIComponent(path.substring(lastIdx, idx)), URI._slash);
+				parts.push(encoder(path.substring(lastIdx, idx)).replace(/[#?]/, _encode), URI._slash);
 				lastIdx = idx + 1;
 			};
 		}
 		if (query) {
-			// in http(s) querys often use 'key=value'-pairs and
-			// ampersand characters for multiple pairs
-			const encoder = /https?/i.test(scheme)
-				? encodeURI
-				: fixedEncodeURIComponent;
-
 			parts.push('?', encoder(query));
 		}
 		if (fragment) {
-			// in http(s) querys often use 'key=value'-pairs and
-			// ampersand characters for multiple pairs
-			const encoder = /https?/i.test(scheme)
-				? encodeURI
-				: fixedEncodeURIComponent;
-
 			parts.push('#', encoder(fragment));
 		}
 

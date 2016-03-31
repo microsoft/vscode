@@ -38,16 +38,36 @@ suite('URI', () => {
 		assert.equal(URI.create('', '', 'my/path').toString(), 'my/path');
 		assert.equal(URI.create('', '', '/my/path').toString(), '/my/path');
 		//http://a-test-site.com/#test=true
-		assert.equal(URI.create('http', 'a-test-site.com', '/', 'test=true').toString(), 'http://a-test-site.com/?test=true');
-		assert.equal(URI.create('http', 'a-test-site.com', '/', '', 'test=true').toString(), 'http://a-test-site.com/#test=true');
+		assert.equal(URI.create('http', 'a-test-site.com', '/', 'test=true').toString(), 'http://a-test-site.com/?test%3Dtrue');
+		assert.equal(URI.create('http', 'a-test-site.com', '/', '', 'test=true').toString(), 'http://a-test-site.com/#test%3Dtrue');
+	});
+
+	test('http#toString, encode=FALSE', () => {
+		assert.equal(URI.create('http', 'a-test-site.com', '/', 'test=true').toString(false), 'http://a-test-site.com/?test=true');
+		assert.equal(URI.create('http', 'a-test-site.com', '/', '', 'test=true').toString(false), 'http://a-test-site.com/#test=true');
+		assert.equal(URI.create().withScheme('http').withPath('/api/files/test.me').withQuery('t=1234').toString(false), 'http:/api/files/test.me?t=1234');
+
+		var value = URI.parse('file://shares/pröjects/c%23/#l12');
+		assert.equal(value.authority, 'shares');
+		assert.equal(value.path, '/pröjects/c#/');
+		assert.equal(value.fragment, 'l12');
+		assert.equal(value.toString(), 'file://shares/pr%C3%B6jects/c%23/#l12');
+		assert.equal(value.toString(false), 'file://shares/pröjects/c%23/#l12');
+
+		var uri2 = URI.parse(value.toString(false));
+		var uri3 = URI.parse(value.toString(true));
+		assert.equal(uri2.authority, uri3.authority);
+		assert.equal(uri2.path, uri3.path);
+		assert.equal(uri2.query, uri3.query);
+		assert.equal(uri2.fragment, uri3.fragment);
 	});
 
 	test('with', () => {
-		assert.equal(URI.create().withScheme('http').withPath('/api/files/test.me').withQuery('t=1234').toString(), 'http:/api/files/test.me?t=1234');
-		assert.equal(URI.create().with('http', '', '/api/files/test.me', 't=1234', '').toString(), 'http:/api/files/test.me?t=1234');
-		assert.equal(URI.create().with('https', '', '/api/files/test.me', 't=1234', '').toString(), 'https:/api/files/test.me?t=1234');
-		assert.equal(URI.create().with('HTTP', '', '/api/files/test.me', 't=1234', '').toString(), 'HTTP:/api/files/test.me?t=1234');
-		assert.equal(URI.create().with('HTTPS', '', '/api/files/test.me', 't=1234', '').toString(), 'HTTPS:/api/files/test.me?t=1234');
+		assert.equal(URI.create().withScheme('http').withPath('/api/files/test.me').withQuery('t=1234').toString(), 'http:/api/files/test.me?t%3D1234');
+		assert.equal(URI.create().with('http', '', '/api/files/test.me', 't=1234', '').toString(), 'http:/api/files/test.me?t%3D1234');
+		assert.equal(URI.create().with('https', '', '/api/files/test.me', 't=1234', '').toString(), 'https:/api/files/test.me?t%3D1234');
+		assert.equal(URI.create().with('HTTP', '', '/api/files/test.me', 't=1234', '').toString(), 'HTTP:/api/files/test.me?t%3D1234');
+		assert.equal(URI.create().with('HTTPS', '', '/api/files/test.me', 't=1234', '').toString(), 'HTTPS:/api/files/test.me?t%3D1234');
 		assert.equal(URI.create().with('boo', '', '/api/files/test.me', 't=1234', '').toString(), 'boo:/api/files/test.me?t%3D1234');
 	});
 
@@ -333,7 +353,8 @@ suite('URI', () => {
 
 		let uri = URI.parse('http://go.microsoft.com/fwlink/?LinkId=518008');
 		assert.equal(uri.query, 'LinkId=518008');
-		assert.equal(uri.toString(), 'http://go.microsoft.com/fwlink/?LinkId=518008');
+		assert.equal(uri.toString(false), 'http://go.microsoft.com/fwlink/?LinkId=518008');
+		assert.equal(uri.toString(), 'http://go.microsoft.com/fwlink/?LinkId%3D518008');
 
 		let uri2 = URI.parse(uri.toString());
 		assert.equal(uri2.query, 'LinkId=518008');
@@ -341,6 +362,11 @@ suite('URI', () => {
 
 		uri = URI.parse('http://go.microsoft.com/fwlink/?LinkId=518008&foö&ké¥=üü');
 		assert.equal(uri.query, 'LinkId=518008&foö&ké¥=üü');
-		assert.equal(uri.toString(), 'http://go.microsoft.com/fwlink/?LinkId=518008&fo%C3%B6&k%C3%A9%C2%A5=%C3%BC%C3%BC');
+		assert.equal(uri.toString(false), 'http://go.microsoft.com/fwlink/?LinkId=518008&foö&ké¥=üü');
+		assert.equal(uri.toString(), 'http://go.microsoft.com/fwlink/?LinkId%3D518008%26fo%C3%B6%26k%C3%A9%C2%A5%3D%C3%BC%C3%BC');
+
+		uri2 = URI.parse(uri.toString());
+		assert.equal(uri2.query, 'LinkId=518008&foö&ké¥=üü');
+		assert.equal(uri2.query, uri.query);
 	});
 });
