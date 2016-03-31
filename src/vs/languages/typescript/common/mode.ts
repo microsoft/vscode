@@ -109,7 +109,7 @@ export abstract class Mode extends AbstractMode implements lifecycle.IDisposable
 	}
 
 	dispose(): void {
-		this._disposables = lifecycle.disposeAll(this._disposables);
+		this._disposables = lifecycle.dispose(this._disposables);
 	}
 
 	getLanguageServiceWorker(...resources: URI[]): TPromise<TypeScriptWorkerProtocol> {

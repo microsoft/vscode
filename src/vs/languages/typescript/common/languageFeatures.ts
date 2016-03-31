@@ -39,7 +39,7 @@ export function register(modelService: IModelService, markerService: IMarkerServ
 	disposables.push(FormatOnTypeRegistry.register(selector, new FormatAdapter(modelService, worker)));
 	disposables.push(new DiagnostcsAdapter(defaults, selector, markerService, modelService, worker));
 
-	return lifecycle.combinedDispose2(disposables);
+	return lifecycle.combinedDisposable(disposables);
 }
 
 abstract class Adapter {
@@ -130,7 +130,7 @@ class DiagnostcsAdapter extends Adapter {
 	}
 
 	public dispose(): void {
-		this._disposables = lifecycle.disposeAll(this._disposables);
+		this._disposables = lifecycle.dispose(this._disposables);
 	}
 
 	private _doValidate(resource: URI): void {

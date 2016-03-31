@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {DefaultWorkerFactory} from 'vs/base/worker/defaultWorkerFactory';
 import {SimpleWorkerClient} from 'vs/base/common/worker/simpleWorker';
 import {IModelService} from 'vs/editor/common/services/modelService';
@@ -35,7 +35,7 @@ class WorkerManager {
 		this._clientDispose.push(client);
 
 		const stopWorker = () => {
-			this._clientDispose = disposeAll(this._clientDispose);
+			this._clientDispose = dispose(this._clientDispose);
 			this._client = null;
 		};
 
@@ -57,7 +57,7 @@ class WorkerManager {
 	}
 
 	dispose(): void {
-		this._clientDispose = disposeAll(this._clientDispose);
+		this._clientDispose = dispose(this._clientDispose);
 		this._client = null;
 	}
 
