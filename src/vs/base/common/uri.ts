@@ -33,8 +33,8 @@ export default class URI {
 	private static _slash = '/';
 	private static _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
 	private static _driveLetterPath = /^\/[a-zA-z]:/;
-	private static _driveLetter = /^[a-zA-z]:/;
-
+	private static _upperCaseDrive = /^(\/)?([A-Z]:)/;
+	
 	private _scheme: string;
 	private _authority: string;
 	private _path: string;
@@ -245,68 +245,69 @@ export default class URI {
 
 	public toString(): string {
 		if (!this._formatted) {
-			var parts: string[] = [];
-
-			if (this._scheme) {
-				parts.push(this._scheme);
-				parts.push(':');
-			}
-			if (this._authority || this._scheme === 'file') {
-				parts.push('//');
-			}
-			if (this._authority) {
-				var authority = this._authority,
-					idx: number;
-
-				authority = authority.toLowerCase();
-				idx = authority.indexOf(':');
-				if (idx === -1) {
-					parts.push(fixedEncodeURIComponent(authority));
-				} else {
-					parts.push(fixedEncodeURIComponent(authority.substr(0, idx)));
-					parts.push(authority.substr(idx));
-				}
-			}
-			if (this._path) {
-				// encode every segment of the path
-				var path = this._path,
-					segments: string[];
-
-				// lower-case win drive letters in /C:/fff
-				if (URI._driveLetterPath.test(path)) {
-					path = '/' + path[1].toLowerCase() + path.substr(2);
-				} else if (URI._driveLetter.test(path)) {
-					path = path[0].toLowerCase() + path.substr(1);
-				}
-				segments = path.split('/');
-				for (var i = 0, len = segments.length; i < len; i++) {
-					segments[i] = fixedEncodeURIComponent(segments[i]);
-				}
-				parts.push(segments.join('/'));
-			}
-			if (this._query) {
-				// in http(s) querys often use 'key=value'-pairs and
-				// ampersand characters for multiple pairs
-				var encoder = /https?/i.test(this.scheme)
-					? encodeURI
-					: fixedEncodeURIComponent;
-
-				parts.push('?');
-				parts.push(encoder(this._query));
-			}
-			if (this._fragment) {
-				// in http(s) querys often use 'key=value'-pairs and
-				// ampersand characters for multiple pairs
-				var encoder = /https?/i.test(this.scheme)
-					? encodeURI
-					: fixedEncodeURIComponent;
-
-				parts.push('#');
-				parts.push(encoder(this._fragment));
-			}
-			this._formatted = parts.join('');
+			this._formatted = URI._asFormatted(this);
 		}
 		return this._formatted;
+	}
+
+	private static _asFormatted(uri: URI): string {
+		const parts: string[] = [];
+
+		let {scheme, authority, path, query, fragment} = uri;
+		if (scheme) {
+			parts.push(scheme, ':');
+		}
+		if (authority || scheme === 'file') {
+			parts.push('//');
+		}
+		if (authority) {
+			authority = authority.toLowerCase();
+			let idx = authority.indexOf(':');
+			if (idx === -1) {
+				parts.push(fixedEncodeURIComponent(authority));
+			} else {
+				parts.push(fixedEncodeURIComponent(authority.substr(0, idx)), authority.substr(idx));
+			}
+		}
+		if (path) {
+			// lower-case windown drive letters in /C:/fff
+			const m = URI._upperCaseDrive.exec(path);
+			if (m) {
+				path = m[1] + m[2].toLowerCase() + path.substr(m[1].length + m[2].length);
+			}
+
+			// encode every segement but not slashes
+			let lastIdx = 0;
+			while(true) {
+				let idx = path.indexOf(URI._slash, lastIdx);
+				if (idx === -1) {
+					parts.push(fixedEncodeURIComponent(path.substring(lastIdx)));
+					break;
+				}
+				parts.push(fixedEncodeURIComponent(path.substring(lastIdx, idx)), URI._slash);
+				lastIdx = idx + 1;
+			};
+		}
+		if (query) {
+			// in http(s) querys often use 'key=value'-pairs and
+			// ampersand characters for multiple pairs
+			const encoder = /https?/i.test(scheme)
+				? encodeURI
+				: fixedEncodeURIComponent;
+
+			parts.push('?', encoder(query));
+		}
+		if (fragment) {
+			// in http(s) querys often use 'key=value'-pairs and
+			// ampersand characters for multiple pairs
+			const encoder = /https?/i.test(scheme)
+				? encodeURI
+				: fixedEncodeURIComponent;
+
+			parts.push('#', encoder(fragment));
+		}
+
+		return parts.join(URI._empty);
 	}
 
 	public toJSON(): any {
