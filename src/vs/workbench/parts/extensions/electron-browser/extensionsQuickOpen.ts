@@ -437,9 +437,9 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 		return nls.localize('galleryExtensionsHandlerAriaLabel', "Type to narrow down the list of extensions from the gallery");
 	}
 
-	getResults(input: string): TPromise<IModel<IExtensionEntry>> {
-		return this.delayer.trigger(() => TPromise.join<any>([this.galleryService.query(input), this.extensionsService.getInstalled()]))
-			.then(result => this.instantiationService.createInstance(GalleryExtensionsModel, input, result[0].extensions, result[1]));
+	getResults(text: string): TPromise<IModel<IExtensionEntry>> {
+		return this.delayer.trigger(() => TPromise.join<any>([this.galleryService.query({ text }), this.extensionsService.getInstalled()]))
+			.then(result => this.instantiationService.createInstance(GalleryExtensionsModel, text, result[0].extensions, result[1]));
 	}
 
 	getEmptyLabel(input: string): string {

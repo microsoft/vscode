@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IGalleryService, IExtension, IGalleryVersion } from 'vs/workbench/parts/extensions/common/extensions';
+import { IGalleryService, IGalleryVersion, IQueryOptions, IQueryResult } from 'vs/workbench/parts/extensions/common/extensions';
 import { IXHRResponse } from 'vs/base/common/http';
-import { assign } from 'vs/base/common/objects';
+import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -47,8 +47,6 @@ function getInstallCount(statistics: IGalleryExtensionStatistics[]): number {
 	return result ? result.value : 0;
 }
 
-// const FIVE_MINUTES = 1000 * 60 * 5;
-
 export class GalleryService implements IGalleryService {
 
 	serviceId = IGalleryService;
@@ -74,12 +72,12 @@ export class GalleryService implements IGalleryService {
 		return !!this.extensionsGalleryUrl;
 	}
 
-	query(text: string = ''): TPromise<{ extensions: IExtension[]; total: number; }> {
+	query(options: IQueryOptions = {}): TPromise<IQueryResult> {
 		if (!this.isEnabled()) {
 			return TPromise.wrapError(new Error('No extension gallery service configured.'));
 		}
 
-		return this.queryGallery(text)
+		return this.queryGallery(options)
 			.then(r => JSON.parse(r.responseText).results[0])
 			.then<{ galleryExtensions: IGalleryExtension[]; total: number; }>(r => {
 				const galleryExtensions = r.extensions;
@@ -122,14 +120,19 @@ export class GalleryService implements IGalleryService {
 			});
 	}
 
-	private queryGallery(text: string): TPromise<IXHRResponse> {
+	private queryGallery(options: IQueryOptions): TPromise<IXHRResponse> {
+		const text = getOrDefault(options, o => o.text, '');
+		const pageNumber = getOrDefault(options, o => o.pageNumber, 1);
+		const pageSize = getOrDefault(options, o => o.pageNumber, 10);
+
 		const data = JSON.stringify({
 			filters: [{
 				criteria:[
 					{ filterType: 8, value: 'Microsoft.VisualStudio.Code' },
 					{ filterType: 10, value: text }
 				],
-				pageSize: 10
+				pageNumber,
+				pageSize
 			}],
 			flags: 0x1 | 0x4 | 0x80 | 0x100
 		});
