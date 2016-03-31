@@ -20,7 +20,7 @@ import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workb
 import {Registry} from 'vs/platform/platform';
 import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
 import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
-import filters = require('vs/base/common/filters');
+import {matchesWords, matchesPrefix, matchesContiguousSubString, or} from 'vs/base/common/filters';
 import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
 import {EditorAction} from 'vs/editor/common/editorAction';
 import {Behaviour} from 'vs/editor/common/editorActionEnablement';
@@ -33,6 +33,8 @@ import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpe
 
 export const ALL_COMMANDS_PREFIX = '>';
 export const EDITOR_COMMANDS_PREFIX = '$';
+
+const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
 
 export class ShowAllCommandsAction extends QuickOpenAction {
 
@@ -266,7 +268,7 @@ export class CommandsHandler extends QuickOpenHandler {
 					label = nls.localize('commandLabel', "{0}: {1}", category, label);
 				}
 
-				let highlights = filters.matchesFuzzy(searchValue, label);
+				let highlights = wordFilter(searchValue, label);
 				if (highlights) {
 					entries.push(this.instantiationService.createInstance(CommandEntry, keyLabel.length > 0 ? keyLabel.join(', ') : '', keyAriaLabel.length > 0 ? keyAriaLabel.join(', ') : '', label, highlights, actionDescriptor));
 				}
@@ -293,7 +295,7 @@ export class CommandsHandler extends QuickOpenHandler {
 			let keyAriaLabel = keys.map(k => this.keybindingService.getAriaLabelFor(k));
 
 			if (action.label) {
-				let highlights = filters.matchesFuzzy(searchValue, action.label);
+				let highlights = wordFilter(searchValue, action.label);
 				if (highlights) {
 					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, keyLabel.length > 0 ? keyLabel.join(', ') : '', keyAriaLabel.length > 0 ? keyAriaLabel.join(', ') : '', action.label, highlights, action));
 				}
@@ -310,7 +312,7 @@ export class CommandsHandler extends QuickOpenHandler {
 			let keys = this.keybindingService.lookupKeybindings(action.id);
 			let keyLabel = keys.map(k => this.keybindingService.getLabelFor(k));
 			let keyAriaLabel = keys.map(k => this.keybindingService.getAriaLabelFor(k));
-			let highlights = filters.matchesFuzzy(searchValue, action.label);
+			let highlights = wordFilter(searchValue, action.label);
 			if (highlights) {
 				entries.push(this.instantiationService.createInstance(ActionCommandEntry, keyLabel.join(', '), keyAriaLabel.join(', '), action.label, highlights, action));
 			}
