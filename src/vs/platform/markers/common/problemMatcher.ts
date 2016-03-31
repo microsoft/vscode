@@ -1101,21 +1101,21 @@ registry.add('gulp-tsc', {
 });
 
 registry.add('jshint', {
-	owner: 'javascript',
+	owner: 'jshint',
 	applyTo: ApplyToKind.allDocuments,
 	fileLocation: FileLocationKind.Absolute,
 	pattern: defaultPattern('jshint')
 });
 
 registry.add('jshint-stylish', {
-	owner: 'javascript',
+	owner: 'jshint',
 	applyTo: ApplyToKind.allDocuments,
 	fileLocation: FileLocationKind.Absolute,
 	pattern: defaultPattern('jshint-stylish')
 });
 
 registry.add('eslint-compact', {
-	owner: 'javascript',
+	owner: 'eslint',
 	applyTo: ApplyToKind.allDocuments,
 	fileLocation: FileLocationKind.Relative,
 	filePrefix: '${cwd}',
@@ -1123,7 +1123,7 @@ registry.add('eslint-compact', {
 });
 
 registry.add('eslint-stylish', {
-	owner: 'javascript',
+	owner: 'eslint',
 	applyTo: ApplyToKind.allDocuments,
 	fileLocation: FileLocationKind.Absolute,
 	pattern: defaultPattern('eslint-stylish')
