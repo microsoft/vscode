@@ -18,7 +18,7 @@ import {ModelLine} from 'vs/editor/common/model/modelLine';
 import {TextModel} from 'vs/editor/common/model/textModel';
 import {WordHelper} from 'vs/editor/common/model/textModelWithTokensHelpers';
 import {TokenIterator} from 'vs/editor/common/model/tokenIterator';
-import {ILineContext, ILineTokens, IMode, IState} from 'vs/editor/common/modes';
+import {ILineContext, ILineTokens, IToken, IModeTransition, IMode, IState} from 'vs/editor/common/modes';
 import {NullMode, NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
 import {ignoreBracketsInToken} from 'vs/editor/common/modes/supports';
 import {BracketsUtils} from 'vs/editor/common/modes/supports/richEditBrackets';
@@ -535,8 +535,36 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		}
 	}
 
-	_updateLineTokens(lineIndex:number, map:editorCommon.ITokensInflatorMap, topLevelMode:IMode, r:ILineTokens): void {
-		this._lines[lineIndex].setTokens(map, r.tokens, topLevelMode, r.modeTransitions);
+	private static _toLineTokens(tokens:IToken[]): editorCommon.LineToken[] {
+		if (!tokens || tokens.length === 0) {
+			return [];
+		}
+		if (tokens[0] instanceof editorCommon.LineToken) {
+			return <editorCommon.LineToken[]>tokens;
+		}
+		let result:editorCommon.LineToken[] = [];
+		for (let i = 0, len = tokens.length; i < len; i++) {
+			result[i] = new editorCommon.LineToken(tokens[i].startIndex, tokens[i].type);
+		}
+		return result;
+	}
+
+	private static _toModeTransitions(modeTransitions:IModeTransition[]): ModeTransition[] {
+		if (!modeTransitions || modeTransitions.length === 0) {
+			return [];
+		}
+		if (modeTransitions[0] instanceof ModeTransition) {
+			return <ModeTransition[]>modeTransitions;
+		}
+		let result:ModeTransition[] = [];
+		for (let i = 0, len = modeTransitions.length; i < len; i++) {
+			result[i] = new ModeTransition(modeTransitions[i].startIndex, modeTransitions[i].mode);
+		}
+		return result;
+	}
+
+	private _updateLineTokens(lineIndex:number, map:editorCommon.ITokensInflatorMap, topLevelMode:IMode, r:ILineTokens): void {
+		this._lines[lineIndex].setTokens(map, TextModelWithTokens._toLineTokens(r.tokens), topLevelMode, TextModelWithTokens._toModeTransitions(r.modeTransitions));
 	}
 
 	private _beginBackgroundTokenization(): void {
