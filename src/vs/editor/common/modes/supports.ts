@@ -5,11 +5,14 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {IModel, IPosition} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 export class Token implements modes.IToken {
+	_tokenTrait: void;
+
 	public startIndex:number;
 	public type:string;
 
@@ -20,6 +23,24 @@ export class Token implements modes.IToken {
 
 	public toString(): string {
 		return '(' + this.startIndex + ', ' + this.type + ')';
+	}
+}
+
+export class LineTokens implements modes.ILineTokens {
+	_lineTokensTrait: void;
+
+	tokens: Token[];
+	modeTransitions: ModeTransition[];
+	actualStopOffset: number;
+	endState: modes.IState;
+	retokenize: TPromise<void>;
+
+	constructor(tokens:Token[], modeTransitions: ModeTransition[], actualStopOffset:number, endState:modes.IState) {
+		this.tokens = tokens;
+		this.modeTransitions = modeTransitions;
+		this.actualStopOffset = actualStopOffset;
+		this.endState = endState;
+		this.retokenize = null;
 	}
 }
 

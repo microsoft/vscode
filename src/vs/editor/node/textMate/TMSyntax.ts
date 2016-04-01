@@ -8,11 +8,12 @@ import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
 import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {ILineTokens, IMode, IToken, ITokenizationSupport} from 'vs/editor/common/modes';
+import {ILineTokens, IMode, ITokenizationSupport} from 'vs/editor/common/modes';
 import {TMState} from 'vs/editor/common/modes/TMState';
-import {Token} from 'vs/editor/common/modes/supports';
+import {LineTokens, Token} from 'vs/editor/common/modes/supports';
 import {IModeService} from 'vs/editor/common/services/modeService';
 import {IGrammar, Registry} from 'vscode-textmate';
+import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 export interface ITMSyntaxExtensionPoint {
 	language: string;
@@ -209,27 +210,19 @@ class Tokenizer {
 
 	public tokenize(line: string, state: TMState, offsetDelta: number = 0, stopAtOffset?: number): ILineTokens {
 		if (line.length >= 20000) {
-			return {
-				tokens: <IToken[]>[{
-					startIndex: offsetDelta,
-					type: ''
-				}],
-				actualStopOffset: offsetDelta,
-				endState: state,
-				modeTransitions: [{ startIndex: offsetDelta, mode: state.getMode() }],
-			};
+			return new LineTokens(
+				[new Token(offsetDelta, '')],
+				[new ModeTransition(offsetDelta, state.getMode())],
+				offsetDelta,
+				state
+			);
 		}
 		let freshState = state.clone();
 		let textMateResult = this._grammar.tokenizeLine(line, freshState.getRuleStack());
 		freshState.setRuleStack(textMateResult.ruleStack);
 
 		// Create the result early and fill in the tokens later
-		let ret = {
-			tokens: <IToken[]>[],
-			actualStopOffset: offsetDelta + line.length,
-			endState: freshState,
-			modeTransitions: [{ startIndex: offsetDelta, mode: freshState.getMode() }],
-		};
+		let tokens:Token[] = [];
 
 		let lastTokenType:string = null;
 		for (let tokenIndex = 0, len = textMateResult.tokens.length; tokenIndex < len; tokenIndex++) {
@@ -239,12 +232,17 @@ class Tokenizer {
 
 			// do not push a new token if the type is exactly the same (also helps with ligatures)
 			if (tokenType !== lastTokenType) {
-				ret.tokens.push(new Token(tokenStartIndex + offsetDelta, tokenType));
+				tokens.push(new Token(tokenStartIndex + offsetDelta, tokenType));
 				lastTokenType = tokenType;
 			}
 		}
 
-		return ret;
+		return new LineTokens(
+			tokens,
+			[new ModeTransition(offsetDelta, freshState.getMode())],
+			offsetDelta + line.length,
+			freshState
+		);
 	}
 }
 
