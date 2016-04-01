@@ -46,6 +46,7 @@ import {IProgressService} from 'vs/platform/progress/common/progress';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {Keybinding, CommonKeybindings} from 'vs/base/common/keyCodes';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
+	import {ExcludedFilesService} from 'vs/base/common/excludedFilesService';
 
 export class FileDataSource implements IDataSource {
 	private workspace: IWorkspace;
@@ -662,8 +663,9 @@ export class FileFilter implements IFilter {
 	public updateConfiguration(configuration: IFilesConfiguration): boolean {
 		let excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
 		let needsRefresh = !objects.equals(this.hiddenExpression, excludesConfig);
-
-		this.hiddenExpression = objects.clone(excludesConfig); // do not keep the config, as it gets mutated under our hoods
+		let workspacePath = this.contextService.getWorkspace().resource.fsPath;
+		let excludedFilesService = new ExcludedFilesService(workspacePath, objects.clone(excludesConfig));
+		this.hiddenExpression = excludedFilesService.retrieve(); // do not keep the config, as it gets mutated under our hoods
 
 		return needsRefresh;
 	}
