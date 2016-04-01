@@ -292,23 +292,14 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('DEBIAN/prerm'))
 
-		var all = es.merge(control, prerm, desktop, icon, shortcut, code);
+		var postinst = gulp.src('resources/linux/debian/postinst.template', { base: '.' })
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@ARCHITECTURE@@', debArch))
+			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
+			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
+			.pipe(rename('DEBIAN/postinst'))
 
-		// Register an apt repository if this is an official build
-		if (product.updateUrl && product.quality) {
-			var postinst = gulp.src('resources/linux/debian/postinst.template', { base: '.' })
-				.pipe(replace('@@NAME@@', product.applicationName))
-				.pipe(replace('@@UPDATEURL@@', product.updateUrl))
-				.pipe(replace('@@QUALITY@@', product.quality))
-				.pipe(replace('@@ARCHITECTURE@@', debArch))
-				.pipe(rename('DEBIAN/postinst'))
-			all = es.merge(all, postinst);
-		} else {
-			var postinst = gulp.src('resources/linux/debian/postinst.oss.template', { base: '.' })
-				.pipe(replace('@@NAME@@', product.applicationName))
-				.pipe(rename('DEBIAN/postinst'))
-			all = es.merge(all, postinst);
-		}
+		var all = es.merge(control, postinst, prerm, desktop, icon, shortcut, code);
 
 		return all.pipe(symdest(destination));
 	};
