@@ -338,6 +338,7 @@ function getRpmPackageArch(arch) {
 
 function prepareRpmPackage(arch) {
 	var binaryDir = '../VSCode-linux-' + arch;
+	var rpmArch = getRpmPackageArch(arch);
 	var destination = rpmBuildPath;
 	var packageRevision = getEpochTime();
 
@@ -359,8 +360,11 @@ function prepareRpmPackage(arch) {
 
 		var spec = gulp.src('resources/linux/rpm/code.spec.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@VERSION@@', packageJson.version))
 			.pipe(replace('@@RELEASE@@', packageRevision))
+			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
+			.pipe(replace('@@ARCHITECTURE@@', rpmArch))
 			.pipe(rename('SPECS/' + product.applicationName + '.spec'));
 
 		var specIcon = gulp.src('resources/linux/rpm/code.xpm', { base: '.' })
