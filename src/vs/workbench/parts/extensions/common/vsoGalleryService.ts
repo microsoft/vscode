@@ -107,7 +107,11 @@ class Query {
 
 	constructor(private state = DefaultQueryState) {}
 
+	get pageNumber(): number { return this.state.pageNumber; }
 	get pageSize(): number { return this.state.pageSize; }
+	get sortBy(): number { return this.state.sortBy; }
+	get sortOrder(): number { return this.state.sortOrder; }
+	get flags(): number { return this.state.flags; }
 
 	withPage(pageNumber: number, pageSize: number = this.state.pageSize): Query {
 		return new Query(assign({}, this.state, { pageNumber, pageSize }));
@@ -239,6 +243,7 @@ export class GalleryService implements IGalleryService {
 	}
 
 	private queryGallery(query: Query): TPromise<{ galleryExtensions: IGalleryExtension[], total: number; }> {
+		console.log('making request', query.pageNumber);
 		const data = JSON.stringify(query.raw);
 
 		return this.getRequestHeaders()
