@@ -17,6 +17,7 @@ import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
 import {Event, EventType as CommonEventType} from 'vs/base/common/events';
 import {getPathLabel} from 'vs/base/common/labels';
+import severity from 'vs/base/common/severity';
 import diagnostics = require('vs/base/common/diagnostics');
 import {Action, IAction} from 'vs/base/common/actions';
 import {MessageType, IInputValidator} from 'vs/base/browser/ui/inputbox/inputBox';
@@ -2313,6 +2314,46 @@ export class FocusFilesExplorer extends Action {
 				view.getViewer().DOMFocus();
 			}
 		});
+	}
+}
+
+export class ShowActiveFileInExplorer extends Action {
+
+	public static ID = 'workbench.files.action.showActiveFileInExplorer';
+	public static LABEL = nls.localize('showInExplorer', "Show Active File in Explorer");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IViewletService private viewletService: IViewletService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IMessageService private messageService: IMessageService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+		if (fileInput) {
+			return this.viewletService.openViewlet(Files.VIEWLET_ID, false).then((viewlet: ExplorerViewlet) => {
+				const isInsideWorkspace = this.contextService.isInsideWorkspace(fileInput.getResource());
+				if (isInsideWorkspace) {
+					const explorerView = viewlet.getExplorerView();
+					if (explorerView) {
+						explorerView.expand();
+						explorerView.select(fileInput.getResource(), true);
+					}
+				} else {
+					const workingFilesView = viewlet.getWorkingFilesView();
+					workingFilesView.expand();
+				}
+			});
+		} else {
+			this.messageService.show(severity.Info, nls.localize('openFileToShow', "Open a file first to show it in the explorer"));
+		}
+
+		return TPromise.as(true);
 	}
 }
 
