@@ -45,8 +45,8 @@ class Context {
 	public isInEditableRange: boolean;
 
 	private isAutoTriggerEnabled: boolean;
-	private lineContentBefore: string;
-	private lineContentAfter: string;
+	public lineContentBefore: string;
+	public lineContentAfter: string;
 
 	public wordBefore: string;
 	public wordAfter: string;
@@ -341,16 +341,20 @@ export class SuggestModel implements IDisposable {
 
 			let isFrozen = false;
 			if (this.completionModel && this.completionModel.raw === this.raw) {
-				const oldCurrentWord = this.completionModel.currentWord;
-				this.completionModel.currentWord = ctx.wordBefore;
-				let visibleCount = this.completionModel.items.length;
+				const oldLineContext = this.completionModel.lineContext;
+				this.completionModel.lineContext = {
+					leadingLineContent: ctx.lineContentBefore,
+					characterCountDelta: this.context
+						? ctx.column - this.context.column
+						: 0
+				};
 
-				if (!auto && visibleCount === 0) {
-					this.completionModel.currentWord = oldCurrentWord;
+				if (!auto && this.completionModel.items.length === 0) {
+					this.completionModel.lineContext = oldLineContext;
 					isFrozen = true;
 				}
 			} else {
-				this.completionModel = new CompletionModel(this.raw, ctx.wordBefore);
+				this.completionModel = new CompletionModel(this.raw, ctx.lineContentBefore);
 			}
 
 			this._onDidSuggest.fire({
