@@ -49,7 +49,8 @@ export var language = <ILanguage> {
 		'internal', 'private', 'abstract', 'sealed', 'static', 'struct', 'readonly',
 		'volatile', 'virtual', 'override', 'params', 'get', 'set', 'add', 'remove',
 		'operator', 'true', 'false', 'implicit', 'explicit', 'interface', 'enum',
-		'null', 'async', 'await','fixed','sizeof','stackalloc','unsafe'
+		'null', 'async', 'await','fixed','sizeof','stackalloc','unsafe', 'nameof',
+		'when'
 		],
 
 	namespaceFollows: [
@@ -57,7 +58,7 @@ export var language = <ILanguage> {
 	],
 
 	parenFollows: [
-		'if', 'for', 'while', 'switch', 'foreach', 'using', 'catch'
+		'if', 'for', 'while', 'switch', 'foreach', 'using', 'catch', 'when'
 	],
 
 	operators: [
