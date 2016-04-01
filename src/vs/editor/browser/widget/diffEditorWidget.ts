@@ -19,7 +19,7 @@ import {DefaultConfig} from 'vs/editor/common/config/defaultConfig';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
-import {ILineParts, createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
+import {createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
 import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
@@ -1764,31 +1764,13 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 	}
 
 	private renderOriginalLine(count:number, originalModel:editorCommon.IModel, config:editorCommon.IInternalEditorOptions, tabSize:number, lineNumber:number, decorations:editorCommon.IModelDecoration[]): string[] {
-		var lineContent = originalModel.getLineContent(lineNumber),
-			lineTokens:editorCommon.IViewLineTokens,
-			parts:ILineParts;
+		let lineContent = originalModel.getLineContent(lineNumber);
 
-		lineTokens = {
-			getTokens: () => {
-				return [new editorCommon.LineToken(0, '')];
-			},
-			getFauxIndentLength: () => {
-				return 0;
-			},
-			getTextLength: () => {
-				return lineContent.length;
-			},
-			equals: (other:editorCommon.IViewLineTokens) => {
-				return false;
-			},
-			findIndexOfOffset: (offset:number) => {
-				return 0;
-			}
-		};
+		let lineTokens = new editorCommon.ViewLineTokens([new editorCommon.LineToken(0, '')], 0, lineContent.length);
 
-		parts = createLineParts(lineNumber, 1, lineContent, tabSize, lineTokens, decorations, config.renderWhitespace);
+		let parts = createLineParts(lineNumber, 1, lineContent, tabSize, lineTokens, decorations, config.renderWhitespace);
 
-		var r = renderLine(new RenderLineInput(
+		let r = renderLine(new RenderLineInput(
 			lineContent,
 			tabSize,
 			config.spaceWidth,
@@ -1797,9 +1779,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			parts.getParts()
 		));
 
-		var myResult:string[] = [];
-
-
+		let myResult:string[] = [];
 		myResult.push('<div class="view-line');
 		if (decorations.length === 0) {
 			// No char changes

@@ -6,7 +6,7 @@
 
 import * as strings from 'vs/base/common/strings';
 import {Arrays} from 'vs/editor/common/core/arrays';
-import {LineToken, IEditorRange, IViewLineTokens} from 'vs/editor/common/editorCommon';
+import {LineToken, IEditorRange, ViewLineTokens} from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 
 export interface ILineParts {
@@ -22,7 +22,7 @@ function cmpLineDecorations(a:ILineDecoration, b:ILineDecoration): number {
 	return Range.compareRangesUsingStarts(a.range, b.range);
 }
 
-export function createLineParts(lineNumber:number, minLineColumn:number, lineContent:string, tabSize:number, lineTokens:IViewLineTokens, rawLineDecorations:ILineDecoration[], renderWhitespace:boolean): ILineParts {
+export function createLineParts(lineNumber:number, minLineColumn:number, lineContent:string, tabSize:number, lineTokens:ViewLineTokens, rawLineDecorations:ILineDecoration[], renderWhitespace:boolean): ILineParts {
 	if (renderWhitespace) {
 		let oldLength = rawLineDecorations.length;
 		rawLineDecorations = insertWhitespace(lineNumber, lineContent, tabSize, lineTokens.getFauxIndentLength(), rawLineDecorations);
@@ -132,10 +132,10 @@ function insertWhitespace(lineNumber:number, lineContent: string, tabSize:number
 
 export class FastViewLineParts implements ILineParts {
 
-	private lineTokens: IViewLineTokens;
+	private lineTokens: ViewLineTokens;
 	private parts: LineToken[];
 
-	constructor(lineTokens:IViewLineTokens, lineContent:string) {
+	constructor(lineTokens:ViewLineTokens, lineContent:string) {
 		this.lineTokens = lineTokens;
 		this.parts = lineTokens.getTokens();
 		this.parts = trimEmptyTrailingPart(this.parts, lineContent);
@@ -165,7 +165,7 @@ export class ViewLineParts implements ILineParts {
 	private lastPartIndex:number;
 	private lastEndOffset:number;
 
-	constructor(lineNumber:number, minLineColumn:number, lineTokens:IViewLineTokens, lineContent:string, rawLineDecorations:ILineDecoration[]) {
+	constructor(lineNumber:number, minLineColumn:number, lineTokens:ViewLineTokens, lineContent:string, rawLineDecorations:ILineDecoration[]) {
 
 		// lineDecorations might overlap on top of each other, so they need to be normalized
 		var lineDecorations = LineDecorationsNormalizer.normalize(lineNumber, minLineColumn, rawLineDecorations),
