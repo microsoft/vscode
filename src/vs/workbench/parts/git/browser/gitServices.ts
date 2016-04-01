@@ -275,7 +275,7 @@ export class AutoFetcher implements git.IAutoFetcher, lifecycle.IDisposable
 
 		this.toDispose = [];
 		this.toDispose.push(this.configurationService.addListener2(ConfigurationServiceEventTypes.UPDATED, e => this.onConfiguration(e.config.git)));
-		configurationService.loadConfiguration('git').done(c => this.onConfiguration(c));
+		this.onConfiguration(configurationService.getConfiguration<git.IGitConfiguration>('git'));
 	}
 
 	public get state(): git.AutoFetcherState {

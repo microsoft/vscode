@@ -508,12 +508,11 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 
 	public onReady(): TPromise<boolean> {
 		if (!this._onReadyPromise) {
-			this._onReadyPromise = this._configurationService.loadConfiguration().then((configuration: IFilesConfiguration) => {
-				return this._extensionService.onReady().then(() => {
-					this.onConfigurationChange(configuration);
+			const configuration = this._configurationService.getConfiguration<IFilesConfiguration>();
+			this._onReadyPromise = this._extensionService.onReady().then(() => {
+				this.onConfigurationChange(configuration);
 
-					return true;
-				});
+				return true;
 			});
 		}
 

@@ -186,14 +186,13 @@ export abstract class BaseZoomAction extends Action {
 		return TPromise.as(false); // Subclass to implement
 	}
 
-	protected loadConfiguredZoomLevel(): TPromise<number> {
-		return this.configurationService.loadConfiguration().then((windowConfig: IWindowConfiguration) => {
-			if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
-				return windowConfig.window.zoomLevel;
-			}
+	protected getConfiguredZoomLevel(): number {
+		const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
+		if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
+			return windowConfig.window.zoomLevel;
+		}
 
-			return 0; // default
-		});
+		return 0; // default
 	}
 }
 
@@ -211,16 +210,16 @@ export class ZoomOutAction extends BaseZoomAction {
 	}
 
 	public run(): TPromise<boolean> {
-		return this.loadConfiguredZoomLevel().then(level => {
-			let newZoomLevelCandiate = webFrame.getZoomLevel() - 1;
-			if (newZoomLevelCandiate < 0 && newZoomLevelCandiate < level) {
-				newZoomLevelCandiate = Math.min(level, 0); // do not zoom below configured level or below 0
-			}
+		const level = this.getConfiguredZoomLevel();
 
-			webFrame.setZoomLevel(newZoomLevelCandiate);
+		let newZoomLevelCandiate = webFrame.getZoomLevel() - 1;
+		if (newZoomLevelCandiate < 0 && newZoomLevelCandiate < level) {
+			newZoomLevelCandiate = Math.min(level, 0); // do not zoom below configured level or below 0
+		}
 
-			return true;
-		});
+		webFrame.setZoomLevel(newZoomLevelCandiate);
+
+		return TPromise.as(true);
 	}
 }
 
@@ -238,11 +237,10 @@ export class ZoomResetAction extends BaseZoomAction {
 	}
 
 	public run(): TPromise<boolean> {
-		return this.loadConfiguredZoomLevel().then(level => {
-			webFrame.setZoomLevel(level);
+		const level = this.getConfiguredZoomLevel();
+		webFrame.setZoomLevel(level);
 
-			return true;
-		});
+		return TPromise.as(true);
 	}
 }
 

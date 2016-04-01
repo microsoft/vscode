@@ -88,9 +88,7 @@ export class MainThreadConfiguration {
 		this._toDispose.push(this._configurationService.addListener2(ConfigurationServiceEventTypes.UPDATED, (e:IConfigurationServiceEvent) => {
 			this._proxy._acceptConfigurationChanged(e.config);
 		}));
-		this._configurationService.loadConfiguration().then((config) => {
-			this._proxy._acceptConfigurationChanged(config);
-		});
+		this._proxy._acceptConfigurationChanged(this._configurationService.getConfiguration());
 	}
 
 	public dispose(): void {

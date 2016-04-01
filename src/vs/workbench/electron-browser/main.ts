@@ -17,13 +17,19 @@ import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import {IResourceInput} from 'vs/platform/editor/common/editor';
 import {IEnv} from 'vs/base/node/env';
+import {EventService} from 'vs/platform/event/common/eventService';
+import {WorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IWorkspace, IConfiguration, IEnvironment} from 'vs/platform/workspace/common/workspace';
+import {ConfigurationService} from 'vs/workbench/services/configuration/node/configurationService';
 
 import path = require('path');
 import fs = require('fs');
 
 import gracefulFs = require('graceful-fs');
 gracefulFs.gracefulify(fs);
+
+const timers = (<any>window).MonacoEnvironment.timers;
+const domContentLoaded: Function = (<any>winjs).Utilities.ready;
 
 export interface IPath {
 	filePath: string;
@@ -49,7 +55,6 @@ export function startup(environment: IMainEnvironment, globalSettings: IGlobalSe
 	let shellConfiguration: IConfiguration = {
 		env: environment
 	};
-
 
 	// Shell Options
 	let filesToOpen = environment.filesToOpen && environment.filesToOpen.length ? toInputs(environment.filesToOpen) : null;
@@ -121,27 +126,39 @@ function getWorkspace(environment: IMainEnvironment): IWorkspace {
 }
 
 function openWorkbench(workspace: IWorkspace, configuration: IConfiguration, options: IOptions): winjs.TPromise<void> {
-	(<any>window).MonacoEnvironment.timers.beforeReady = new Date();
+	let eventService = new EventService();
+	let contextService = new WorkspaceContextService(eventService, workspace, configuration, options);
+	let configurationService = new ConfigurationService(contextService, eventService);
 
-	return (<any>winjs).Utilities.ready(() => {
-		(<any>window).MonacoEnvironment.timers.afterReady = new Date();
+	// Since the configuration service is one of the core services that is used in so many places, we initialize it
+	// right before startup of the workbench shell to have its data ready for consumers
+	return configurationService.initialize().then(() => {
+		timers.beforeReady = new Date();
 
-		// Monaco Workbench Shell
-		let beforeOpen = new Date();
-		let shell = new WorkbenchShell(document.body, workspace, configuration, options);
-		shell.open();
+		return domContentLoaded(() => {
+			timers.afterReady = new Date();
 
-		shell.joinCreation().then(() => {
-			timer.start(timer.Topic.STARTUP, 'Open Shell, Viewlet & Editor', beforeOpen, 'Workbench has opened after this event with viewlet and editor restored').stop();
-		});
+			// Open Shell
+			let beforeOpen = new Date();
+			let shell = new WorkbenchShell(document.body, workspace, {
+				configurationService,
+				eventService,
+				contextService
+			}, configuration, options);
+			shell.open();
 
-		// Inform user about loading issues from the loader
-		(<any>self).require.config({
-			onError: (err: any) => {
-				if (err.errorCode === 'load') {
-					shell.onUnexpectedError(errors.loaderError(err));
+			shell.joinCreation().then(() => {
+				timer.start(timer.Topic.STARTUP, 'Open Shell, Viewlet & Editor', beforeOpen, 'Workbench has opened after this event with viewlet and editor restored').stop();
+			});
+
+			// Inform user about loading issues from the loader
+			(<any>self).require.config({
+				onError: (err: any) => {
+					if (err.errorCode === 'load') {
+						shell.onUnexpectedError(errors.loaderError(err));
+					}
 				}
-			}
-		});
-	}, true);
+			});
+		}, true);
+	});
 }

@@ -277,9 +277,7 @@ export class ModelServiceImpl implements IModelService {
 		this._configurationServiceSubscription = this._configurationService.addListener2(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
 			readConfig(e.config);
 		});
-		this._configurationService.loadConfiguration().then((config) => {
-			readConfig(config);
-		});
+		readConfig(this._configurationService.getConfiguration());
 
 		this._models = {};
 

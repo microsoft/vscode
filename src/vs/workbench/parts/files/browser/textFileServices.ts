@@ -53,7 +53,12 @@ export abstract class TextFileService implements ITextFileService {
 
 	protected init(): void {
 		this.registerListeners();
-		this.loadConfiguration();
+
+		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+		this.onConfigurationChange(configuration);
+
+		// we want to find out about this setting from telemetry
+		this.telemetryService.publicLog('autoSave', this.getAutoSaveConfiguration());
 	}
 
 	public get onAutoSaveConfigurationChange(): Event<IAutoSaveConfiguration> {
@@ -86,15 +91,6 @@ export abstract class TextFileService implements ITextFileService {
 		if (this.configuredAutoSaveOnFocusChange && this.getDirty().length) {
 			this.saveAll().done(null, errors.onUnexpectedError); // save dirty files when we change focus in the editor area
 		}
-	}
-
-	private loadConfiguration(): void {
-		this.configurationService.loadConfiguration().done((configuration: IFilesConfiguration) => {
-			this.onConfigurationChange(configuration);
-
-			// we want to find out about this setting from telemetry
-			this.telemetryService.publicLog('autoSave', this.getAutoSaveConfiguration());
-		}, errors.onUnexpectedError);
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {
@@ -254,7 +250,7 @@ export abstract class TextFileService implements ITextFileService {
 		}
 
 		if (this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0) {
-			return this.configuredAutoSaveDelay <= 1000 ? AutoSaveMode.AFTER_SHORT_DELAY :  AutoSaveMode.AFTER_LONG_DELAY;
+			return this.configuredAutoSaveDelay <= 1000 ? AutoSaveMode.AFTER_SHORT_DELAY : AutoSaveMode.AFTER_LONG_DELAY;
 		}
 
 		return AutoSaveMode.OFF;

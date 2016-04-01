@@ -102,7 +102,7 @@ class StateChange {
 		this.tabFocusMode = false;
 	}
 
-	public combine(other:StateChange) {
+	public combine(other: StateChange) {
 		this.indentation = this.indentation || other.indentation;
 		this.selectionStatus = this.selectionStatus || other.selectionStatus;
 		this.mode = this.mode || other.mode;
@@ -321,7 +321,7 @@ export class EditorStatus implements IStatusbarItem {
 		}
 	}
 
-	private _renderNow(changed:StateChange): void {
+	private _renderNow(changed: StateChange): void {
 		if (changed.tabFocusMode) {
 			if (this.state.tabFocusMode && this.state.tabFocusMode === true) {
 				show(this.tabFocusModeElement);
@@ -488,7 +488,7 @@ export class EditorStatus implements IStatusbarItem {
 					update.indentation = (
 						modelOpts.insertSpaces
 							? nls.localize('spacesSize', "Spaces: {0}", modelOpts.tabSize)
-							: nls.localize({ key: 'tabSize', comment: ['Tab corresponds to the tab key']}, "Tab Size: {0}", modelOpts.tabSize)
+							: nls.localize({ key: 'tabSize', comment: ['Tab corresponds to the tab key'] }, "Tab Size: {0}", modelOpts.tabSize)
 					);
 				}
 			}
@@ -868,49 +868,48 @@ export class ChangeEncodingAction extends Action {
 			}
 
 			return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */).then(() => {
+				const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+
 				let isReopenWithEncoding = (action === reopenWithEncodingPick);
+				let configuredEncoding = configuration && configuration.files && configuration.files.encoding;
+				let directMatchIndex: number;
+				let aliasMatchIndex: number;
 
-				return this.configurationService.loadConfiguration().then((configuration: IFilesConfiguration) => {
-					let configuredEncoding = configuration && configuration.files && configuration.files.encoding;
-					let directMatchIndex: number;
-					let aliasMatchIndex: number;
-
-					// All encodings are valid picks
-					let picks: IPickOpenEntry[] = Object.keys(SUPPORTED_ENCODINGS)
-						.sort((k1, k2) => {
-							if (k1 === configuredEncoding) {
-								return -1;
-							} else if (k2 === configuredEncoding) {
-								return 1;
-							}
-
-							return SUPPORTED_ENCODINGS[k1].order - SUPPORTED_ENCODINGS[k2].order;
-						})
-						.filter(k => {
-							return !isReopenWithEncoding || !SUPPORTED_ENCODINGS[k].encodeOnly; // hide those that can only be used for encoding if we are about to decode
-						})
-						.map((key, index) => {
-							if (key === encodingSupport.getEncoding()) {
-								directMatchIndex = index;
-							} else if (SUPPORTED_ENCODINGS[key].alias === encodingSupport.getEncoding()) {
-								aliasMatchIndex = index;
-							}
-
-							return { id: key, label: SUPPORTED_ENCODINGS[key].labelLong };
-						});
-
-					return this.quickOpenService.pick(picks, {
-						placeHolder: isReopenWithEncoding ? nls.localize('pickEncodingForReopen', "Select File Encoding to Reopen File") : nls.localize('pickEncodingForSave', "Select File Encoding to Save with"),
-						autoFocus: { autoFocusIndex: typeof directMatchIndex === 'number' ? directMatchIndex : typeof aliasMatchIndex === 'number' ? aliasMatchIndex : void 0 }
-					}).then((encoding) => {
-						if (encoding) {
-							activeEditor = this.editorService.getActiveEditor();
-							encodingSupport = <any>asFileOrUntitledEditorInput(activeEditor.input);
-							if (encodingSupport && types.areFunctions(encodingSupport.setEncoding, encodingSupport.getEncoding) && encodingSupport.getEncoding() !== encoding.id) {
-								encodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
-							}
+				// All encodings are valid picks
+				let picks: IPickOpenEntry[] = Object.keys(SUPPORTED_ENCODINGS)
+					.sort((k1, k2) => {
+						if (k1 === configuredEncoding) {
+							return -1;
+						} else if (k2 === configuredEncoding) {
+							return 1;
 						}
+
+						return SUPPORTED_ENCODINGS[k1].order - SUPPORTED_ENCODINGS[k2].order;
+					})
+					.filter(k => {
+						return !isReopenWithEncoding || !SUPPORTED_ENCODINGS[k].encodeOnly; // hide those that can only be used for encoding if we are about to decode
+					})
+					.map((key, index) => {
+						if (key === encodingSupport.getEncoding()) {
+							directMatchIndex = index;
+						} else if (SUPPORTED_ENCODINGS[key].alias === encodingSupport.getEncoding()) {
+							aliasMatchIndex = index;
+						}
+
+						return { id: key, label: SUPPORTED_ENCODINGS[key].labelLong };
 					});
+
+				return this.quickOpenService.pick(picks, {
+					placeHolder: isReopenWithEncoding ? nls.localize('pickEncodingForReopen', "Select File Encoding to Reopen File") : nls.localize('pickEncodingForSave', "Select File Encoding to Save with"),
+					autoFocus: { autoFocusIndex: typeof directMatchIndex === 'number' ? directMatchIndex : typeof aliasMatchIndex === 'number' ? aliasMatchIndex : void 0 }
+				}).then((encoding) => {
+					if (encoding) {
+						activeEditor = this.editorService.getActiveEditor();
+						encodingSupport = <any>asFileOrUntitledEditorInput(activeEditor.input);
+						if (encodingSupport && types.areFunctions(encodingSupport.setEncoding, encodingSupport.getEncoding) && encodingSupport.getEncoding() !== encoding.id) {
+							encodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
+						}
+					}
 				});
 			});
 		});

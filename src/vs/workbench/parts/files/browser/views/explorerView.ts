@@ -130,21 +130,18 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	public create(): TPromise<void> {
 
-		// Load Config
-		return this.configurationService.loadConfiguration().then((configuration: IFilesConfiguration) => {
+		// Update configuration
+		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+		this.onConfigurationUpdated(configuration);
 
-			// Update configuration
-			this.onConfigurationUpdated(configuration);
+		// Load and Fill Viewer
+		return this.refresh(false, false).then(() => {
 
-			// Load and Fill Viewer
-			return this.refresh(false, false).then(() => {
+			// When the explorer viewer is loaded, listen to changes to the editor input
+			this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGING, (e: EditorEvent) => this.onEditorInputChanging(e)));
 
-				// When the explorer viewer is loaded, listen to changes to the editor input
-				this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGING, (e: EditorEvent) => this.onEditorInputChanging(e)));
-
-				// Also handle configuration updates
-				this.toDispose.push(this.configurationService.addListener2(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.onConfigurationUpdated(e.config, true)));
-			});
+			// Also handle configuration updates
+			this.toDispose.push(this.configurationService.addListener2(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.onConfigurationUpdated(e.config, true)));
 		});
 	}
 
@@ -316,9 +313,9 @@ export class ExplorerView extends CollapsibleViewletView {
 			dnd: dnd,
 			accessibilityProvider: accessibility
 		}, {
-			autoExpandSingleChildren: true,
-			ariaLabel: nls.localize('treeAriaLabel', "Files Explorer")
-		});
+				autoExpandSingleChildren: true,
+				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer")
+			});
 
 		this.toDispose.push(lifecycle.toDisposable(() => renderer.dispose()));
 
