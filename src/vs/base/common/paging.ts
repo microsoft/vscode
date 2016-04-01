@@ -24,6 +24,8 @@ export class PagedModel<T> {
 
 	private pages: IPage<T>[] = [];
 
+	get length(): number { return this.pager.total; }
+
 	constructor(private pager: IPager<T>) {
 		this.pages = [{ isResolved: true, promise: null, elements: pager.firstPage.slice() }];
 
@@ -67,4 +69,13 @@ export class PagedModel<T> {
 
 		return page.promise.then(() => page.elements[indexInPage]);
 	}
+}
+
+export function mapPager<T,R>(pager: IPager<T>, fn: (t: T) => R): IPager<R> {
+	return {
+		firstPage: pager.firstPage.map(fn),
+		total: pager.total,
+		pageSize: pager.pageSize,
+		getPage: pageIndex => pager.getPage(pageIndex).then(r => r.map(fn))
+	};
 }

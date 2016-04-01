@@ -7,6 +7,7 @@ import nls = require('vs/nls');
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isNumber } from 'vs/base/common/types';
+import { PagedModel, mapPager } from 'vs/base/common/paging';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import Severity from 'vs/base/common/severity';
@@ -15,7 +16,7 @@ import { IAutoFocus, Mode, IModel, IDataSource, IRenderer, IRunner, IContext, IA
 import { matchesContiguousSubString } from 'vs/base/common/filters';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { IHighlight } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { IExtensionsService, IGalleryService, IExtensionTipsService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionsService, IGalleryService, IExtensionTipsService, IExtension, IQueryResult } from 'vs/workbench/parts/extensions/common/extensions';
 import { InstallAction, UninstallAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -179,7 +180,11 @@ class AccessibilityProvider implements IAccessiblityProvider<IExtensionEntry> {
 	}
 }
 
-class Renderer implements IRenderer<IExtensionEntry> {
+interface IPagedRenderer<T> extends IRenderer<T> {
+	renderPlaceholder(index: number, templateId: string, data: any): void;
+}
+
+class Renderer implements IPagedRenderer<IExtensionEntry> {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -215,6 +220,18 @@ class Renderer implements IRenderer<IExtensionEntry> {
 			description: new HighlightedLabel(dom.append(secondRow, $('span.description'))),
 			disposables: []
 		};
+	}
+
+	renderPlaceholder(index: number, templateId: string, data: ITemplateData): void {
+		data.author.textContent = '';
+		data.displayName.set('loading'); // TODO
+		data.version.textContent = '';
+		data.installCount.textContent = '';
+		dom.removeClass(data.installCount, 'octicon');
+		dom.removeClass(data.installCount, 'octicon-cloud-download');
+		data.actionbar.clear();
+		data.description.set('');
+		data.disposables = dispose(data.disposables);
 	}
 
 	renderElement(entry: IExtensionEntry, templateId: string, data: ITemplateData): void {
@@ -386,6 +403,124 @@ export class LocalExtensionsHandler extends QuickOpenHandler {
 	}
 }
 
+interface IStubTemplateData<T> {
+	data: T;
+	disposable: IDisposable;
+}
+
+interface IStub {
+	index: number;
+}
+
+class PagedRenderer<T> implements IRenderer<IStub> {
+
+	constructor(
+		private model: PagedModel<T>,
+		private renderer: IPagedRenderer<T>
+	) {}
+
+	getHeight(stub: IStub): number {
+		return 48; // TODO
+	}
+
+	getTemplateId(stub: IStub): string {
+		return 'extension'; // TODO
+	}
+
+	renderTemplate(templateId: string, container: HTMLElement): IStubTemplateData<T> {
+		const data = this.renderer.renderTemplate(templateId, container);
+		return { data, disposable: { dispose: () => {} } };
+	}
+
+	renderElement({ index }: IStub, templateId: string, data: IStubTemplateData<T>): void {
+		data.disposable.dispose();
+
+		if (this.model.isResolved(index)) {
+			return this.renderer.renderElement(this.model.get(index), templateId, data.data);
+		}
+
+		let didUnrender = false;
+		data.disposable = { dispose: () => didUnrender = true };
+		this.renderer.renderPlaceholder(index, templateId, data.data);
+
+		this.model.resolve(index).done(entry => {
+			if (didUnrender) {
+				return;
+			}
+
+			this.renderer.renderElement(entry, templateId, data.data);
+		});
+	}
+
+	disposeTemplate(templateId: string, data: IStubTemplateData<T>): void {
+		data.disposable.dispose();
+		data.disposable = null;
+		this.renderer.disposeTemplate(templateId, data.data);
+	}
+}
+
+class PagedDataSource<T> implements IDataSource<IStub> {
+
+	constructor(
+		private model: PagedModel<T>,
+		private dataSource: IDataSource<T>
+	) {}
+
+	getId({ index }: IStub): string {
+		return `paged-${ index }`;
+	}
+
+	getLabel({ index }: IStub): string {
+		return this.model.isResolved(index) ? this.dataSource.getLabel(this.model.get(index)) : '';
+	}
+}
+
+class PagedRunner<T> implements IRunner<IStub> {
+
+	constructor(
+		private model: PagedModel<T>,
+		private runner: IRunner<T>
+	) {}
+
+	run({ index }: IStub, mode: Mode, context: IContext): boolean {
+		if (this.model.isResolved(index)) {
+			return this.runner.run(this.model.get(index), mode, context);
+		}
+
+		return false;
+	}
+}
+
+class PagedModel2<T> implements IModel<IStub> {
+
+	public dataSource: IDataSource<IStub>;
+	public renderer: IRenderer<IStub>;
+	public runner: IRunner<IStub>;
+	// public filter: IFilter<IStub>;
+	// public accessibilityProvider: IAccessiblityProvider<IStub>;
+	public entries: IStub[];
+
+	constructor(
+		model: PagedModel<T>,
+		dataSource: IDataSource<T>,
+		renderer: IPagedRenderer<T>,
+		runner: IRunner<T>
+		// filter?: IFilter<T>,
+		// accessibilityProvider?: IAccessiblityProvider<T>
+	) {
+		this.dataSource = new PagedDataSource(model, dataSource);
+		this.renderer = new PagedRenderer(model, renderer);
+		this.runner = new PagedRunner(model, runner);
+		// this.filter = new PagedFilter(model, filter);
+		// this.accessibilityProvider = new PagedAccessibilityProvider(model, accessibilityProvider);
+
+		this.entries = [];
+		for (let index = 0, len = model.length; index < len; index++) {
+			this.entries.push({ index });
+		}
+	}
+}
+
 class GalleryExtensionsModel implements IModel<IExtensionEntry> {
 
 	public dataSource = new DataSource();
@@ -437,9 +572,22 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 		return nls.localize('galleryExtensionsHandlerAriaLabel', "Type to narrow down the list of extensions from the gallery");
 	}
 
-	getResults(text: string): TPromise<IModel<IExtensionEntry>> {
-		return this.delayer.trigger(() => TPromise.join<any>([this.galleryService.query({ text }), this.extensionsService.getInstalled()]))
-			.then(result => this.instantiationService.createInstance(GalleryExtensionsModel, text, result[0].firstPage, result[1]));
+	getResults(text: string): TPromise<IModel<number>> {
+		return this.delayer.trigger(() => this.galleryService.query({ text }))
+			.then((result: IQueryResult) => {
+				const pager = mapPager(result, extension => ({
+					extension,
+					highlights: getHighlights(text.trim(), extension, false),
+					state: ExtensionState.Uninstalled
+				}));
+
+				return new PagedModel2<IExtensionEntry>(
+					new PagedModel(pager),
+					new DataSource(),
+					this.instantiationService.createInstance(Renderer),
+					this.instantiationService.createInstance(InstallRunner)
+				);
+			});
 	}
 
 	getEmptyLabel(input: string): string {

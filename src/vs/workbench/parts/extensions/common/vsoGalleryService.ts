@@ -109,7 +109,7 @@ class Query {
 
 	get pageSize(): number { return this.state.pageSize; }
 
-	withPage(pageNumber: number, pageSize: number = DefaultPageSize): Query {
+	withPage(pageNumber: number, pageSize: number = this.state.pageSize): Query {
 		return new Query(assign({}, this.state, { pageNumber, pageSize }));
 	}
 
@@ -214,7 +214,7 @@ export class GalleryService implements IGalleryService {
 		}
 
 		const text = getOrDefault(options, o => o.text, '');
-		const pageSize = getOrDefault(options, o => o.pageSize, 10);
+		const pageSize = getOrDefault(options, o => o.pageSize, 30);
 
 		let query = new Query()
 			.withFlags(Flags.IncludeVersions, Flags.IncludeCategoryAndTags, Flags.IncludeAssetUri, Flags.IncludeStatistics)
@@ -230,7 +230,7 @@ export class GalleryService implements IGalleryService {
 			return this.getRequestHeaders().then(downloadHeaders => {
 				const extensions = galleryExtensions.map(e => toExtension(e, this.extensionsGalleryUrl, downloadHeaders));
 				const pageSize = query.pageSize;
-				const getPage = (pageNumber) => this.queryGallery(query.withPage(pageNumber))
+				const getPage = pageIndex => this.queryGallery(query.withPage(pageIndex + 1))
 					.then(({ galleryExtensions }) => galleryExtensions.map(e => toExtension(e, this.extensionsGalleryUrl, downloadHeaders)));
 
 				return { firstPage: extensions, total, pageSize, getPage };
