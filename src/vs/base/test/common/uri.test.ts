@@ -43,19 +43,19 @@ suite('URI', () => {
 	});
 
 	test('http#toString, encode=FALSE', () => {
-		assert.equal(URI.create('http', 'a-test-site.com', '/', 'test=true').toString(false), 'http://a-test-site.com/?test=true');
-		assert.equal(URI.create('http', 'a-test-site.com', '/', '', 'test=true').toString(false), 'http://a-test-site.com/#test=true');
-		assert.equal(URI.create().withScheme('http').withPath('/api/files/test.me').withQuery('t=1234').toString(false), 'http:/api/files/test.me?t=1234');
+		assert.equal(URI.create('http', 'a-test-site.com', '/', 'test=true').toString(true), 'http://a-test-site.com/?test=true');
+		assert.equal(URI.create('http', 'a-test-site.com', '/', '', 'test=true').toString(true), 'http://a-test-site.com/#test=true');
+		assert.equal(URI.create().withScheme('http').withPath('/api/files/test.me').withQuery('t=1234').toString(true), 'http:/api/files/test.me?t=1234');
 
 		var value = URI.parse('file://shares/pröjects/c%23/#l12');
 		assert.equal(value.authority, 'shares');
 		assert.equal(value.path, '/pröjects/c#/');
 		assert.equal(value.fragment, 'l12');
 		assert.equal(value.toString(), 'file://shares/pr%C3%B6jects/c%23/#l12');
-		assert.equal(value.toString(false), 'file://shares/pröjects/c%23/#l12');
+		assert.equal(value.toString(true), 'file://shares/pröjects/c%23/#l12');
 
-		var uri2 = URI.parse(value.toString(false));
-		var uri3 = URI.parse(value.toString(true));
+		var uri2 = URI.parse(value.toString(true));
+		var uri3 = URI.parse(value.toString());
 		assert.equal(uri2.authority, uri3.authority);
 		assert.equal(uri2.path, uri3.path);
 		assert.equal(uri2.query, uri3.query);
@@ -353,7 +353,7 @@ suite('URI', () => {
 
 		let uri = URI.parse('http://go.microsoft.com/fwlink/?LinkId=518008');
 		assert.equal(uri.query, 'LinkId=518008');
-		assert.equal(uri.toString(false), 'http://go.microsoft.com/fwlink/?LinkId=518008');
+		assert.equal(uri.toString(true), 'http://go.microsoft.com/fwlink/?LinkId=518008');
 		assert.equal(uri.toString(), 'http://go.microsoft.com/fwlink/?LinkId%3D518008');
 
 		let uri2 = URI.parse(uri.toString());
@@ -362,7 +362,7 @@ suite('URI', () => {
 
 		uri = URI.parse('http://go.microsoft.com/fwlink/?LinkId=518008&foö&ké¥=üü');
 		assert.equal(uri.query, 'LinkId=518008&foö&ké¥=üü');
-		assert.equal(uri.toString(false), 'http://go.microsoft.com/fwlink/?LinkId=518008&foö&ké¥=üü');
+		assert.equal(uri.toString(true), 'http://go.microsoft.com/fwlink/?LinkId=518008&foö&ké¥=üü');
 		assert.equal(uri.toString(), 'http://go.microsoft.com/fwlink/?LinkId%3D518008%26fo%C3%B6%26k%C3%A9%C2%A5%3D%C3%BC%C3%BC');
 
 		uri2 = URI.parse(uri.toString());

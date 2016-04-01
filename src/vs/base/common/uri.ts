@@ -255,21 +255,23 @@ export default class URI {
 
 	/**
 	 *
-	 * @param encode Encode the result, default is `true`.
+	 * @param skipEncoding Do not encode the result, default is `false`
 	 */
-	public toString(encode: boolean = true): string {
-		if (!encode) {
-			return URI._asFormatted(this, false);
+	public toString(skipEncoding: boolean = false): string {
+		if (!skipEncoding) {
+			if (!this._formatted) {
+				this._formatted = URI._asFormatted(this, false);
+			}
+			return this._formatted;
+		} else {
+			// we don't cache that
+			return URI._asFormatted(this, true);
 		}
-		if (!this._formatted) {
-			this._formatted = URI._asFormatted(this, true);
-		}
-		return this._formatted;
 	}
 
-	private static _asFormatted(uri: URI, encode: boolean): string {
+	private static _asFormatted(uri: URI, skipEncoding: boolean): string {
 
-		const encoder = encode
+		const encoder = !skipEncoding
 			? encodeURIComponent2
 			: encodeNoop;
 

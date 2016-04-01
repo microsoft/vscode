@@ -928,21 +928,24 @@ declare namespace vscode {
 		fragment: string;
 
 		/**
-		 * The string representing the corresponding file system path of this URI.
+		 * The string representing the corresponding file system path of this Uri.
 		 *
 		 * Will handle UNC paths and normalize windows drive letters to lower-case. Also
 		 * uses the platform specific path separator. Will *not* validate the path for
-		 * invalid characters and semantics. Will *not* look at the scheme of this URI.
+		 * invalid characters and semantics. Will *not* look at the scheme of this Uri.
 		 */
 		fsPath: string;
 
 		/**
-		 * Returns a canonical representation of this URI. The representation and normalization
-		 * of a URI depends on the scheme.
+		 * Returns a string representation of this Uri. The representation and normalization
+		 * of a URI depends on the scheme. The resulting string can be safely used with
+		 * [Uri.parse](#Uri.parse).
 		 *
-		 * @returns A string that is the encoded version of this Uri.
+		 * @param skipEncoding Do not percentage-encode the result, defaults to `false`. Note that
+		 *	the `#` and `?` characters occuring in the path will always be encoded.
+		 * @returns A string representation of this Uri.
 		 */
-		toString(): string;
+		toString(skipEncoding?: boolean): string;
 
 		/**
 		 * Returns a JSON representation of this Uri.
