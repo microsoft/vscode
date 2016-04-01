@@ -293,23 +293,6 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 				this.pauseMessage.hide();
 			}
 		}));
-
-		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED,() => {
-			const focused = this.debugService.getViewModel().getFocusedStackFrame();
-			if (focused) {
-				const threads = this.debugService.getModel().getThreads();
-				for (let ref in threads) {
-					// Only query for threads whose callstacks are already available
-					// so that we don't perform unnecessary queries to the
-					// debug adapter. If it's a thread we need to expand, its
-					// callstack would have already been populated already
-					if (threads[ref].getCachedCallStack() && threads[ref].getCachedCallStack().some(sf => sf === focused)) {
-						this.tree.expand(threads[ref]);
-					}
-				}
-				this.tree.setFocus(focused);
-			}
-		}));
 	}
 
 	public shutdown(): void {
