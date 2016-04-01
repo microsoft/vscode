@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IGalleryService, IGalleryVersion, IQueryOptions, IQueryResult } from 'vs/workbench/parts/extensions/common/extensions';
-import { IXHRResponse } from 'vs/base/common/http';
+import { IExtension, IGalleryService, IGalleryVersion, IQueryOptions, IQueryResult } from 'vs/workbench/parts/extensions/common/extensions';
 import { isUndefined } from 'vs/base/common/types';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -84,19 +83,34 @@ interface ICriterium {
 	value?: string;
 }
 
+const DefaultPageSize = 10;
+
+interface IQueryState {
+	pageNumber: number;
+	pageSize: number;
+	sortBy: SortBy;
+	sortOrder: SortOrder;
+	flags: Flags;
+	criteria: ICriterium[];
+}
+
+const DefaultQueryState: IQueryState = {
+	pageNumber: 1,
+	pageSize: DefaultPageSize,
+	sortBy: SortBy.NoneOrRelevance,
+	sortOrder: SortOrder.Default,
+	flags: Flags.None,
+	criteria: []
+};
+
 class Query {
 
-	private pageNumber = 1;
-	private pageSize = 10;
-	private sortBy = SortBy.NoneOrRelevance;
-	private sortOrder = SortOrder.Default;
-	private flags = Flags.None;
-	private criteria: ICriterium[] = [];
+	constructor(private state = DefaultQueryState) {}
 
-	withPage(pageSize: number, pageNumber: number): Query {
-		this.pageSize = pageSize;
-		this.pageNumber = pageNumber;
-		return this;
+	get pageSize(): number { return this.state.pageSize; }
+
+	withPage(pageNumber: number, pageSize: number = DefaultPageSize): Query {
+		return new Query(assign({}, this.state, { pageNumber, pageSize }));
 	}
 
 	withFilter(filterType: FilterType, value?: string): Query {
@@ -106,31 +120,29 @@ class Query {
 			criterium.value = value;
 		}
 
-		this.criteria.push(criterium);
-		return this;
+		const criteria = this.state.criteria.slice();
+		criteria.push(criterium);
+		return new Query(assign({}, this.state, { criteria }));
 	}
 
 	withSort(sortBy: SortBy, sortOrder = SortOrder.Default): Query {
-		this.sortBy = sortBy;
-		this.sortOrder = sortOrder;
-		return this;
+		return new Query(assign({}, this.state, { sortBy, sortOrder }));
 	}
 
 	withFlags(...flags: Flags[]): Query {
-		this.flags = flags.reduce((r, f) => r | f, 0);
-		return this;
+		return new Query(assign({}, this.state, { flags: flags.reduce((r, f) => r | f, 0) }));
 	}
 
 	get raw(): any {
 		return {
 			filters: [{
-				criteria: this.criteria,
-				pageNumber: this.pageNumber,
-				pageSize: this.pageSize,
-				sortBy: this.sortBy,
-				sortOrder: this.sortOrder
+				criteria: this.state.criteria,
+				pageNumber: this.state.pageNumber,
+				pageSize: this.state.pageSize,
+				sortBy: this.state.sortBy,
+				sortOrder: this.state.sortOrder
 			}],
-			flags: this.flags
+			flags: this.state.flags
 		};
 	}
 }
@@ -142,6 +154,33 @@ function getInstallCount(statistics: IGalleryExtensionStatistics[]): number {
 
 	const result = statistics.filter(s => s.statisticName === 'install')[0];
 	return result ? result.value : 0;
+}
+
+function toExtension(galleryExtension: IGalleryExtension, extensionsGalleryUrl: string, downloadHeaders: any): IExtension {
+	const versions = galleryExtension.versions.map<IGalleryVersion>(v => ({
+		version: v.version,
+		date: v.lastUpdated,
+		downloadHeaders,
+		downloadUrl: `${ v.assetUri }/Microsoft.VisualStudio.Services.VSIXPackage?install=true`,
+		manifestUrl: `${ v.assetUri }/Microsoft.VisualStudio.Code.Manifest`
+	}));
+
+	return {
+		name: galleryExtension.extensionName,
+		displayName: galleryExtension.displayName || galleryExtension.extensionName,
+		publisher: galleryExtension.publisher.publisherName,
+		version: versions[0].version,
+		engines: { vscode: void 0 }, // TODO: ugly
+		description: galleryExtension.shortDescription || '',
+		galleryInformation: {
+			galleryApiUrl: extensionsGalleryUrl,
+			id: galleryExtension.extensionId,
+			publisherId: galleryExtension.publisher.publisherId,
+			publisherDisplayName: galleryExtension.publisher.displayName,
+			installCount: getInstallCount(galleryExtension.statistics),
+			versions
+		}
+	};
 }
 
 export class GalleryService implements IGalleryService {
@@ -174,57 +213,12 @@ export class GalleryService implements IGalleryService {
 			return TPromise.wrapError(new Error('No extension gallery service configured.'));
 		}
 
-		return this.queryGallery(options)
-			.then(r => JSON.parse(r.responseText).results[0])
-			.then<{ galleryExtensions: IGalleryExtension[]; total: number; }>(r => {
-				const galleryExtensions = r.extensions;
-				const resultCount = r.resultMetadata && r.resultMetadata.filter(m => m.metadataType === 'ResultCount')[0];
-				const total = resultCount && resultCount.metadataItems.filter(i => i.name === 'TotalCount')[0].count || 0;
-
-				return { galleryExtensions, total };
-			})
-			.then(({ galleryExtensions, total }) => {
-				return this.getRequestHeaders().then(downloadHeaders => {
-					const extensions = galleryExtensions.map(e => {
-						const versions = e.versions.map<IGalleryVersion>(v => ({
-							version: v.version,
-							date: v.lastUpdated,
-							downloadHeaders,
-							downloadUrl: `${ v.assetUri }/Microsoft.VisualStudio.Services.VSIXPackage?install=true`,
-							manifestUrl: `${ v.assetUri }/Microsoft.VisualStudio.Code.Manifest`
-						}));
-
-						return {
-							name: e.extensionName,
-							displayName: e.displayName || e.extensionName,
-							publisher: e.publisher.publisherName,
-							version: versions[0].version,
-							engines: { vscode: void 0 }, // TODO: ugly
-							description: e.shortDescription || '',
-							galleryInformation: {
-								galleryApiUrl: this.extensionsGalleryUrl,
-								id: e.extensionId,
-								publisherId: e.publisher.publisherId,
-								publisherDisplayName: e.publisher.displayName,
-								installCount: getInstallCount(e.statistics),
-								versions
-							}
-						};
-					});
-
-					return { extensions, total };
-				});
-			});
-	}
-
-	private queryGallery(options: IQueryOptions): TPromise<IXHRResponse> {
 		const text = getOrDefault(options, o => o.text, '');
-		const pageNumber = getOrDefault(options, o => o.pageNumber, 1);
-		const pageSize = getOrDefault(options, o => o.pageNumber, 10);
+		const pageSize = getOrDefault(options, o => o.pageSize, 10);
 
 		let query = new Query()
 			.withFlags(Flags.IncludeVersions, Flags.IncludeCategoryAndTags, Flags.IncludeAssetUri, Flags.IncludeStatistics)
-			.withPage(pageSize, pageNumber)
+			.withPage(1, pageSize)
 			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
 			.withSort(SortBy.InstallCount);
 
@@ -232,24 +226,46 @@ export class GalleryService implements IGalleryService {
 			query = query.withFilter(FilterType.SearchText, text);
 		}
 
+		return this.queryGallery(query).then(({ galleryExtensions, total }) => {
+			return this.getRequestHeaders().then(downloadHeaders => {
+				const extensions = galleryExtensions.map(e => toExtension(e, this.extensionsGalleryUrl, downloadHeaders));
+				const pageSize = query.pageSize;
+				const getPage = (pageNumber) => this.queryGallery(query.withPage(pageNumber))
+					.then(({ galleryExtensions }) => galleryExtensions.map(e => toExtension(e, this.extensionsGalleryUrl, downloadHeaders)));
+
+				return { firstPage: extensions, total, pageSize, getPage };
+			});
+		});
+	}
+
+	private queryGallery(query: Query): TPromise<{ galleryExtensions: IGalleryExtension[], total: number; }> {
 		const data = JSON.stringify(query.raw);
 
-		return this.getRequestHeaders().then(headers => {
-			headers = assign(headers, {
-				'Content-Type': 'application/json',
-				'Accept': 'application/json;api-version=3.0-preview.1',
-				'Content-Length': data.length
+		return this.getRequestHeaders()
+			.then(headers => {
+				headers = assign(headers, {
+					'Content-Type': 'application/json',
+					'Accept': 'application/json;api-version=3.0-preview.1',
+					'Content-Length': data.length
+				});
+
+				const request = {
+					type: 'POST',
+					url: this.api('/extensionquery'),
+					data,
+					headers
+				};
+
+				return this.requestService.makeRequest(request);
+			})
+			.then(r => JSON.parse(r.responseText).results[0])
+			.then(r => {
+				const galleryExtensions = r.extensions;
+				const resultCount = r.resultMetadata && r.resultMetadata.filter(m => m.metadataType === 'ResultCount')[0];
+				const total = resultCount && resultCount.metadataItems.filter(i => i.name === 'TotalCount')[0].count || 0;
+
+				return { galleryExtensions, total };
 			});
-
-			const request = {
-				type: 'POST',
-				url: this.api('/extensionquery'),
-				data,
-				headers
-			};
-
-			return this.requestService.makeRequest(request);
-		});
 	}
 
 	private getRequestHeaders(): TPromise<any> {

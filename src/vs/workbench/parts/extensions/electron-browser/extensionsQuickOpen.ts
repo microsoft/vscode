@@ -439,7 +439,7 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 
 	getResults(text: string): TPromise<IModel<IExtensionEntry>> {
 		return this.delayer.trigger(() => TPromise.join<any>([this.galleryService.query({ text }), this.extensionsService.getInstalled()]))
-			.then(result => this.instantiationService.createInstance(GalleryExtensionsModel, text, result[0].extensions, result[1]));
+			.then(result => this.instantiationService.createInstance(GalleryExtensionsModel, text, result[0].firstPage, result[1]));
 	}
 
 	getEmptyLabel(input: string): string {

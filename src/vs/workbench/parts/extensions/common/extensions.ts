@@ -47,13 +47,14 @@ export const IGalleryService = createDecorator<IGalleryService>('galleryService'
 
 export interface IQueryOptions {
 	text?: string;
-	pageNumber?: number;
 	pageSize?: number;
 }
 
 export interface IQueryResult {
-	extensions: IExtension[];
+	firstPage: IExtension[];
 	total: number;
+	pageSize: number;
+	getPage(pageNumber: number): TPromise<IExtension[]>;
 }
 
 export interface IGalleryService {
