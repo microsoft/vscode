@@ -35,7 +35,7 @@ fi
 #	if [ -d "/etc/yum.repos.d" ]; then
 #		REPO_FILE=/etc/yum.repos.d/@@NAME@@.repo
 #		rm -f $REPO_FILE
-#		echo -e "[@@NAME@@]\nname=@@NAME_LONG@@\nbaseurl=https://vscode-update.azurewebsites.net/api/rpm/@@QUALITY@@/@@ARCHITECTURE@@/rpm" > $REPO_FILE
+#		echo -e "[@@NAME@@]\nname=@@NAME_LONG@@\nbaseurl=@@UPDATEURL@@/api/rpm/@@QUALITY@@/@@ARCHITECTURE@@/rpm" > $REPO_FILE
 #	fi
 #fi
 

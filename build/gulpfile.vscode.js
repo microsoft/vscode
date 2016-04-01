@@ -363,8 +363,9 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@VERSION@@', packageJson.version))
 			.pipe(replace('@@RELEASE@@', packageRevision))
-			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
 			.pipe(replace('@@ARCHITECTURE@@', rpmArch))
+			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
+			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
 			.pipe(rename('SPECS/' + product.applicationName + '.spec'));
 
 		var all = es.merge(code, desktop, icon, shortcut, spec);
