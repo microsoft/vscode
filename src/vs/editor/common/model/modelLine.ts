@@ -552,11 +552,17 @@ export class ModelLine {
 	}
 
 	public removeMarker(marker:ILineMarker): void {
-		var index = this._indexOfMarkerId(marker.id);
+		if (!this._markers) {
+			return;
+		}
+		let index = this._indexOfMarkerId(marker.id);
 		if (index >= 0) {
+			marker.line = null;
 			this._markers.splice(index, 1);
 		}
-		marker.line = null;
+		if (this._markers.length === 0) {
+			this._markers = null;
+		}
 	}
 
 	public removeMarkers(deleteMarkers: {[markerId:string]:boolean;}): void {
@@ -572,6 +578,9 @@ export class ModelLine {
 				len--;
 				i--;
 			}
+		}
+		if (this._markers.length === 0) {
+			this._markers = null;
 		}
 	}
 
@@ -624,20 +633,12 @@ export class ModelLine {
 	}
 
 	private _indexOfMarkerId(markerId:string): number {
-
-		if (this._markers) {
-			var markers = this._markers,
-				i: number,
-				len: number;
-
-			for (i = 0, len = markers.length; i < len; i++) {
-				if (markers[i].id === markerId) {
-					return i;
-				}
+		let markers = this._markers;
+		for (let i = 0, len = markers.length; i < len; i++) {
+			if (markers[i].id === markerId) {
+				return i;
 			}
 		}
-
-		return -1;
 	}
 }
 
