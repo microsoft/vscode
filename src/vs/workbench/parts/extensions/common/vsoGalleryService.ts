@@ -6,6 +6,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IGalleryService, IGalleryVersion, IQueryOptions, IQueryResult } from 'vs/workbench/parts/extensions/common/extensions';
 import { IXHRResponse } from 'vs/base/common/http';
+import { isUndefined } from 'vs/base/common/types';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IWorkspaceContextService } from 'vs/workbench/services/workspace/common/contextService';
@@ -36,6 +37,102 @@ export interface IGalleryExtension {
 export interface IGalleryExtensionStatistics {
 	statisticName: string;
 	value: number;
+}
+
+enum Flags {
+	None = 0x0,
+	IncludeVersions = 0x1,
+	IncludeFiles = 0x2,
+	IncludeCategoryAndTags = 0x4,
+	IncludeSharedAccounts = 0x8,
+	IncludeVersionProperties = 0x10,
+	ExcludeNonValidated = 0x20,
+	IncludeInstallationTargets = 0x40,
+	IncludeAssetUri = 0x80,
+	IncludeStatistics = 0x100,
+	IncludeLatestVersionOnly = 0x200
+}
+
+enum FilterType {
+	Tag = 1,
+	ExtensionId = 4,
+	Category = 5,
+	ExtensionName = 7,
+	Target = 8,
+	Featured = 9,
+	SearchText = 10
+}
+
+enum SortBy {
+	NoneOrRelevance = 0,
+	LastUpdatedDate = 1,
+	Title = 2,
+	PublisherName = 3,
+	InstallCount = 4,
+	PublishedDate = 5,
+	AverageRating = 6
+}
+
+enum SortOrder {
+	Default = 0,
+	Ascending = 1,
+	Descending = 2
+}
+
+interface ICriterium {
+	filterType: FilterType;
+	value?: string;
+}
+
+class Query {
+
+	private pageNumber = 1;
+	private pageSize = 10;
+	private sortBy = SortBy.NoneOrRelevance;
+	private sortOrder = SortOrder.Default;
+	private flags = Flags.None;
+	private criteria: ICriterium[] = [];
+
+	withPage(pageSize: number, pageNumber: number): Query {
+		this.pageSize = pageSize;
+		this.pageNumber = pageNumber;
+		return this;
+	}
+
+	withFilter(filterType: FilterType, value?: string): Query {
+		const criterium: ICriterium = { filterType };
+
+		if (!isUndefined(value)) {
+			criterium.value = value;
+		}
+
+		this.criteria.push(criterium);
+		return this;
+	}
+
+	withSort(sortBy: SortBy, sortOrder = SortOrder.Default): Query {
+		this.sortBy = sortBy;
+		this.sortOrder = sortOrder;
+		return this;
+	}
+
+	withFlags(...flags: Flags[]): Query {
+		this.flags = flags.reduce((r, f) => r | f, 0);
+		return this;
+	}
+
+	get raw(): any {
+		return {
+			filters: [{
+				criteria: this.criteria,
+				pageNumber: this.pageNumber,
+				pageSize: this.pageSize,
+				sortBy: this.sortBy,
+				sortOrder: this.sortOrder
+			}],
+			flags: this.flags
+		};
+	}
 }
 
 function getInstallCount(statistics: IGalleryExtensionStatistics[]): number {
@@ -125,17 +222,17 @@ export class GalleryService implements IGalleryService {
 		const pageNumber = getOrDefault(options, o => o.pageNumber, 1);
 		const pageSize = getOrDefault(options, o => o.pageNumber, 10);
 
-		const data = JSON.stringify({
-			filters: [{
-				criteria:[
-					{ filterType: 8, value: 'Microsoft.VisualStudio.Code' },
-					{ filterType: 10, value: text }
-				],
-				pageNumber,
-				pageSize
-			}],
-			flags: 0x1 | 0x4 | 0x80 | 0x100
-		});
+		let query = new Query()
+			.withFlags(Flags.IncludeVersions, Flags.IncludeCategoryAndTags, Flags.IncludeAssetUri, Flags.IncludeStatistics)
+			.withPage(pageSize, pageNumber)
+			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
+			.withSort(SortBy.InstallCount);
+
+		if (text) {
+			query = query.withFilter(FilterType.SearchText, text);
+		}
+
+		const data = JSON.stringify(query.raw);
 
 		return this.getRequestHeaders().then(headers => {
 			headers = assign(headers, {
