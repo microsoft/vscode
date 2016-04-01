@@ -157,7 +157,7 @@ export class DecodeMap {
 			if (!tokenId) {
 				tokenId = (++this.lastAssignedId);
 				this.tokenToTokenId[token] = tokenId;
-				this.tokenIdToToken[tokenId] = token + ' ';
+				this.tokenIdToToken[tokenId] = token;
 			}
 			tokens.push(tokenId);
 		}
@@ -168,9 +168,16 @@ export class DecodeMap {
 
 	public getToken(tokenMap:boolean[]): string {
 		let result = '';
-		for (let i = 1; i < this.lastAssignedId; i++) {
+		let isFirst = true;
+		for (let i = 1; i <= this.lastAssignedId; i++) {
 			if (tokenMap[i]) {
-				result += this.tokenIdToToken[i];
+				if (isFirst) {
+					isFirst = false;
+					result += this.tokenIdToToken[i];
+				} else {
+					result += '.';
+					result += this.tokenIdToToken[i];
+				}
 			}
 		}
 		return result;

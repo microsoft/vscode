@@ -9,59 +9,118 @@ import {decodeTextMateToken, DecodeMap} from 'vs/editor/node/textMate/TMSyntax';
 
 suite('textMate', () => {
 
-	test('decodeTextMateToken', () => {
+	function assertRelaxedEqual(a:string, b:string): void {
+		let relaxString = (str:string) => {
+			let pieces = str.split('.');
+			pieces.sort();
+			return pieces.join('.');
+		};
+		assert.equal(relaxString(a), relaxString(b));
+	}
+
+	function slowDecodeTextMateToken(scopes:string[]): string {
+		let allTokensMap: {[token:string]:boolean;} = Object.create(null);
+		for (let i = 1; i < scopes.length; i++) {
+			let pieces =scopes[i].split('.');
+			for (let j = 0; j < pieces.length; j++) {
+				allTokensMap[pieces[j]] = true;
+			}
+		}
+		return Object.keys(allTokensMap).join('.');
+	}
+
+	function testOneDecodeTextMateToken(decodeMap:DecodeMap, scopes:string[], expected:string): void {
+		let actual = decodeTextMateToken(decodeMap, scopes);
+		assert.equal(actual, expected);
+
+		// Sanity-check
+		let alternativeExpected = slowDecodeTextMateToken(scopes);
+		assertRelaxedEqual(actual, alternativeExpected);
+	}
+
+	function testDecodeTextMateToken(input:string[][], expected:string[]): void {
 		let decodeMap = new DecodeMap();
 
-		let input = getTestScopes();
-		let actual:string[] = [];
-		for (let i = 0, len = input.length; i < len; i++) {
-			actual.push(decodeTextMateToken(decodeMap, input[i]));
+		for (let i = 0; i < input.length; i++) {
+			testOneDecodeTextMateToken(decodeMap, input[i], expected[i]);
 		}
+	}
 
-		let expected = [
-			'meta function js decl block type parameters paren cover object method declaration field member entity ',
-			'meta function js decl block type parameters paren cover object method declaration field member parameter brace ',
-			'meta function js decl block type parameters paren cover object method declaration field member parameter ',
-			'meta function js decl block type parameters paren cover object method declaration field member name parameter ',
-			'meta function js decl block type parameters paren cover object method declaration field member parameter ',
-			'meta function js decl block type parameters paren cover object method declaration field member name parameter ',
-			'meta function js decl block type parameters paren cover object method declaration field member parameter ',
-			'meta function js decl block type parameters paren cover object method declaration field member name parameter ',
-			'meta function js decl block type parameters paren cover object method declaration field member parameter brace round ',
-			'meta function js decl block type parameters paren cover object method declaration field member ',
-			'meta function js decl block type parameters paren cover object method declaration field member entity name ',
-			'meta function js decl block type parameters paren cover object method declaration field member parameter brace round ',
-			'meta function js decl block type parameters paren cover object method declaration field member name parameter variable ',
-			'meta function js decl block type parameters paren cover object method declaration field member parameter brace round ',
-			'meta function js decl block type parameters paren cover object method declaration field member ',
-			'meta function js decl block type parameters paren cover object method declaration field member brace ',
-			'meta function js decl block type parameters paren cover object method declaration field member ',
-			'meta function js decl block type parameters paren cover object method declaration field member keyword operator ',
-			'meta function js decl block type parameters paren cover object method declaration field member string ',
-			'meta function js decl block type parameters paren cover object method declaration field member string ',
-			'meta function js decl block type parameters paren cover object method declaration field member string ',
-			'meta function js decl block type parameters paren cover object method declaration field member keyword operator ',
-			'meta function js decl block type parameters paren cover object method declaration field member ',
-			'meta function js decl block type parameters paren cover object method declaration field member keyword operator ',
-			'meta function js decl block type parameters paren cover object method declaration field member string double ',
-			'meta function js decl block type parameters paren cover object method declaration field member string double ',
-			'meta function js decl block type parameters paren cover object method declaration field member string double ',
-			'meta function js decl block type parameters paren cover object method declaration field member ',
-			'meta function js decl block type parameters paren cover object method declaration field member brace array literal ',
-			'meta function js decl block type parameters paren cover object method declaration field member array literal ',
-			'meta function js decl block type parameters paren cover object method declaration field member brace array literal ',
-			'meta function js decl block type parameters paren cover object method declaration field member keyword operator comparison ',
-			'meta function js decl block type parameters paren cover object method declaration field member ',
-			'meta function js decl block type parameters paren cover object method declaration field member brace curly ',
-			'meta function js decl block type parameters paren cover object method declaration field member brace curly ',
-			'meta function js decl block type parameters paren cover object method declaration field member name ',
-			'meta function js decl block type parameters paren cover object method declaration field member ',
-			'meta function js decl block type parameters paren cover object method declaration field member name ',
-			'meta function js decl block type parameters paren cover object method declaration field member ',
-			'meta function js decl block type parameters paren cover object method declaration field member '
+	test('decodeTextMateToken JSON regression', () => {
+		let input = [
+			['source.json','meta.structure.dictionary.json'],
+			['source.json','meta.structure.dictionary.json','support.type.property-name.json','punctuation.support.type.property-name.begin.json'],
+			['source.json','meta.structure.dictionary.json','support.type.property-name.json'],
+			['source.json','meta.structure.dictionary.json','support.type.property-name.json','punctuation.support.type.property-name.end.json'],
+			['source.json','meta.structure.dictionary.json','meta.structure.dictionary.value.json','punctuation.separator.dictionary.key-value.json'],
+			['source.json','meta.structure.dictionary.json','meta.structure.dictionary.value.json'],
+			['source.json','meta.structure.dictionary.json','meta.structure.dictionary.value.json','string.quoted.double.json','punctuation.definition.string.begin.json'],
+			['source.json','meta.structure.dictionary.json','meta.structure.dictionary.value.json','string.quoted.double.json','punctuation.definition.string.end.json'],
+			['source.json','meta.structure.dictionary.json','meta.structure.dictionary.value.json','punctuation.separator.dictionary.pair.json']
 		];
 
-		assert.deepEqual(actual, expected);
+		let expected = [
+			'meta.structure.dictionary.json',
+			'meta.structure.dictionary.json.support.type.property-name.punctuation.begin',
+			'meta.structure.dictionary.json.support.type.property-name',
+			'meta.structure.dictionary.json.support.type.property-name.punctuation.end',
+			'meta.structure.dictionary.json.punctuation.value.separator.key-value',
+			'meta.structure.dictionary.json.value',
+			'meta.structure.dictionary.json.punctuation.begin.value.string.quoted.double.definition',
+			'meta.structure.dictionary.json.punctuation.end.value.string.quoted.double.definition',
+			'meta.structure.dictionary.json.punctuation.value.separator.pair'
+		];
+
+		testDecodeTextMateToken(input, expected);
+	});
+
+	test('decodeTextMateToken', () => {
+		let input = getTestScopes();
+
+		let expected = [
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.entity.name',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.parameter.brace.round',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.parameter',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.name.parameter.variable',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.parameter',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.name.parameter.variable',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.parameter',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.name.parameter.variable',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.parameter.brace.round',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.entity.name.overload',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.parameter.brace.round',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.name.parameter.variable',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.parameter.brace.round',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.brace.curly',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.keyword.operator.comparison',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.string.double',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.string.double',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.string.double',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.keyword.operator.arithmetic',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.keyword.operator.arithmetic',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.string.double',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.string.double',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.string.double',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.brace.array.literal.square',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.array.literal',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.brace.array.literal.square',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.keyword.operator.comparison',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.brace.curly',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.brace.curly',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.name',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member.name',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member',
+			'meta.function.js.decl.block.type.parameters.paren.cover.object.method.declaration.field.member'
+		];
+
+		testDecodeTextMateToken(input, expected);
 	});
 });
 
