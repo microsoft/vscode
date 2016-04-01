@@ -71,6 +71,7 @@ import {MainThreadConfiguration} from 'vs/workbench/api/node/extHostConfiguratio
 import {MainThreadLanguageFeatures} from 'vs/workbench/api/node/extHostLanguageFeatures';
 import {EventService} from 'vs/platform/event/common/eventService';
 import {IOptions} from 'vs/workbench/common/options';
+import themes = require('vs/platform/theme/common/themes');
 import {WorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IStorageService, StorageScope, StorageEvent, StorageEventType} from 'vs/platform/storage/common/storage';
 import {MainThreadStorage} from 'vs/platform/storage/common/remotable.storage';
@@ -93,6 +94,7 @@ import {IModeService} from 'vs/editor/common/services/modeService';
 import {IUntitledEditorService, UntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {CrashReporter} from 'vs/workbench/electron-browser/crashReporter';
 import {IThemeService, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
+import {CssThemeService} from 'vs/workbench/services/themes/node/cssThemeService';
 import {ThemeService} from 'vs/workbench/services/themes/node/themeService';
 import {getService } from 'vs/base/common/service';
 import {connect} from 'vs/base/node/service.net';
@@ -121,7 +123,8 @@ export class WorkbenchShell {
 	private previousErrorTime: number;
 	private content: HTMLElement;
 	private contentsContainer: Builder;
-	private currentTheme: string;
+	private currentColorTheme: string;
+	private currentIconTheme: string;
 
 	private configuration: IConfiguration;
 	private workspace: IWorkspace;
@@ -213,7 +216,7 @@ export class WorkbenchShell {
 				windowSize: windowSize,
 				emptyWorkbench: !this.contextService.getWorkspace(),
 				customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
-				theme: this.currentTheme
+				theme: this.currentColorTheme
 			});
 
 		let workspaceStats: WorkspaceStats = <WorkspaceStats>this.workbench.getInstantiationService().createInstance(WorkspaceStats);
@@ -274,7 +277,9 @@ export class WorkbenchShell {
 		let editorWorkerService = new EditorWorkerServiceImpl(modelService);
 
 		let untitledEditorService = new UntitledEditorService();
-		this.themeService = new ThemeService(extensionService);
+
+		let cssThemeService = new CssThemeService();
+		this.themeService = new ThemeService(extensionService, cssThemeService);
 
 		let result = createInstantiationService();
 		result.addSingleton(ITelemetryService, this.telemetryService);
@@ -356,49 +361,80 @@ export class WorkbenchShell {
 		this.registerListeners();
 
 		// Enable theme support
-		let themeId = this.storageService.get(Preferences.THEME, StorageScope.GLOBAL, null);
-		if (!themeId) {
-			themeId = DEFAULT_THEME_ID;
-			this.storageService.store(Preferences.THEME, themeId, StorageScope.GLOBAL);
-		}
+		this.loadThemes();
+	}
 
-		this.setTheme(themeId, false);
+	private loadThemes() {
+		// set color theme
+		let colorThemeId = this.storageService.get(Preferences.THEME, StorageScope.GLOBAL, null);
+		if (!colorThemeId) {
+			colorThemeId = DEFAULT_THEME_ID;
+			this.storageService.store(Preferences.THEME, colorThemeId, StorageScope.GLOBAL);
+		}
+		this.setTheme(colorThemeId, themes.ComponentType.COLOR, false);
+
+		// set icons theme
+		let iconThemeId = this.storageService.get(Preferences.ICONTHEME, StorageScope.GLOBAL, null);
+		if (!iconThemeId) {
+			iconThemeId = DEFAULT_THEME_ID;
+			this.storageService.store(Preferences.ICONTHEME, iconThemeId, StorageScope.GLOBAL);
+		}
+		this.setTheme(iconThemeId, themes.ComponentType.ICON, false);
 
 		this.toUnbind.push(this.storageService.addListener2(StorageEventType.STORAGE, (e: StorageEvent) => {
 			if (e.key === Preferences.THEME) {
-				this.setTheme(e.newValue);
+				this.setTheme(e.newValue, themes.ComponentType.COLOR);
+			} else if (e.key === Preferences.ICONTHEME) {
+				this.setTheme(e.newValue, themes.ComponentType.ICON);
 			}
 		}));
 	}
 
-	private setTheme(themeId: string, layout = true): void {
+	private setTheme(themeId: string, componentType: string, layout = true): void {
 		if (!themeId) {
 			return;
 		}
-		let applyTheme = (themeId: string) => {
-			if (this.currentTheme) {
-				$(this.container).removeClass(this.currentTheme);
-			}
-			this.currentTheme = themeId;
-			$(this.container).addClass(this.currentTheme);
 
-			if (layout) {
-				this.layout();
-			}
-		};
+		if (!themes.getSyntaxThemeId(themeId)) {
+			this.applyThemeClass(themeId, componentType, layout);
+			return;
+		}
 
 		this.themeService.loadTheme(themeId).then(theme => {
-			let newThemeId = theme ? theme.id : DEFAULT_THEME_ID;
-
-			this.themeService.applyThemeCSS(newThemeId);
-			applyTheme(newThemeId);
-			if (newThemeId !== themeId) {
-				this.storageService.store(Preferences.THEME, newThemeId, StorageScope.GLOBAL);
+			if (theme) {
+				this.themeService.generateTheme(theme);
+				// TODO check we generated a theme before we apply this theme.
+				this.applyThemeClass(themeId, componentType, layout);
 			}
 		}, error => {
 			errors.onUnexpectedError(error);
 		});
 	}
+
+	private applyThemeClass(themeId, componentType, layout) {
+		let newThemeClass = themeId;
+
+		if (componentType === themes.ComponentType.COLOR) {
+			if (this.currentColorTheme) {
+				$(this.container).removeClass(this.currentColorTheme);
+			}
+			this.currentColorTheme = newThemeClass;
+			$(this.container).addClass(this.currentColorTheme);
+		} else if (componentType === themes.ComponentType.ICON) {
+			// stripBaseTheme stops icon themes changing the base theme
+			if (this.currentIconTheme) {
+				$(this.container).removeClass(
+					themes.stripBaseTheme(this.currentIconTheme)
+				);
+			}
+			this.currentIconTheme = themes.stripBaseTheme(newThemeClass);
+			$(this.container).addClass(this.currentIconTheme);
+		}
+
+		if (layout) {
+			this.layout();
+		}
+	};
 
 	private registerListeners(): void {
 

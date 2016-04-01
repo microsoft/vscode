@@ -258,7 +258,8 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 	constructor(
 		state: FileViewletState,
 		actionRunner: Actions.IActionRunner,
-		@IContextViewService private contextViewService: IContextViewService
+		@IContextViewService private contextViewService: IContextViewService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super({
 			actionProvider: state.actionProvider,
@@ -274,7 +275,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 
 	public renderContents(tree: ITree, stat: FileStat, domElement: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
 		let el = $(domElement).clearChildren();
-		let item = $('.explorer-item').addClass(this.iconClass(stat)).appendTo(el);
+		let item = this.applyElementStats($('.explorer-item'), stat).appendTo(el);
 
 		// File/Folder label
 		let editableData: IEditableData = this.state.getEditableData(stat);
@@ -332,12 +333,26 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 		return () => done(true);
 	}
 
-	private iconClass(element: FileStat): string {
-		if (element.isDirectory) {
-			return 'folder-icon';
-		}
+	private applyElementStats(element: any, stat: FileStat): any {
+		let workspacePath = this.contextService.toWorkspaceRelativePath(stat.resource);
+		let isNewResource = workspacePath === null;
+		let isNewDirectory = isNewResource && stat.isDirectoryResolved;
 
-		return 'text-file-icon';
+		if (stat.isDirectory || isNewDirectory) {
+			workspacePath = isNewResource ? '' : workspacePath;
+			element.addClass('folder-icon')
+				.attr('data-directory', workspacePath);
+		} else {
+			if (isNewResource === true || workspacePath === stat.name) {
+				workspacePath = '';
+			} else {
+				workspacePath = paths.dirname(workspacePath);
+			}
+			element.addClass('file-icon')
+				.attr('data-directory', workspacePath)
+				.attr('data-file', stat.name);
+		}
+		return element;
 	}
 }
 

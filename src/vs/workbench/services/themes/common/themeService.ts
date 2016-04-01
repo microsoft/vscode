@@ -14,7 +14,7 @@ export const DEFAULT_THEME_ID = 'vs-dark vscode-theme-defaults-themes-dark_plus-
 export interface IThemeService {
 	serviceId: ServiceIdentifier<any>;
 	loadTheme(themeId: string): TPromise<IThemeData>;
-	applyThemeCSS(themeId: string): TPromise<boolean>;
+	generateTheme(theme: IThemeData): TPromise<boolean>;
 	getThemes(): TPromise<IThemeData[]>;
 }
 
@@ -23,5 +23,6 @@ export interface IThemeData {
 	label: string;
 	description?: string;
 	path: string;
+	type: string;
 	styleSheetContent?: string;
 }

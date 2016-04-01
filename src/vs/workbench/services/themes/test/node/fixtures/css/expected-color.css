@@ -1,0 +1,41 @@
+.vs-dark.test-theme .monaco-workbench .monaco-editor-background {background-color: rgba(39, 40, 34, 1);}
+.monaco-editor.vs-dark.test-theme  {color: rgba(248, 248, 242, 1);}
+.monaco-editor.vs-dark.test-theme .current-line {background-color: rgba(62, 61, 50, 1);}
+.monaco-editor.vs-dark.test-theme .cursor {background-color: rgba(248, 248, 240, 1);}
+.monaco-editor.vs-dark.test-theme .focused.selected-text {background-color: rgba(73, 72, 62, 1);}
+.monaco-editor.vs-dark.test-theme .selected-text {background-color: rgba(73, 72, 62, 0.5);}
+.monaco-editor.vs-dark.test-theme .glyph-margin {background-color: rgba(39, 40, 34, 1);}
+.monaco-editor.vs-dark.test-theme .token.comment {color: rgba(117, 113, 94, 1);}
+.monaco-editor.vs-dark.test-theme .token.string {color: rgba(230, 219, 116, 1);}
+.monaco-editor.vs-dark.test-theme .token.constant.numeric {color: rgba(174, 129, 255, 1);}
+.monaco-editor.vs-dark.test-theme .token.constant.language {color: rgba(174, 129, 255, 1);}
+.monaco-editor.vs-dark.test-theme .token.constant.character {color: rgba(174, 129, 255, 1);}
+.monaco-editor.vs-dark.test-theme .token.constant.other {color: rgba(174, 129, 255, 1);}
+.monaco-editor.vs-dark.test-theme .token.variable {}
+.monaco-editor.vs-dark.test-theme .token.keyword {color: rgba(249, 38, 114, 1);}
+.monaco-editor.vs-dark.test-theme .token.storage {color: rgba(249, 38, 114, 1);}
+.monaco-editor.vs-dark.test-theme .token.storage.type {font-style: italic; color: rgba(102, 217, 239, 1);}
+.monaco-editor.vs-dark.test-theme .token.entity.name.class {text-decoration: underline; color: rgba(166, 226, 46, 1);}
+.monaco-editor.vs-dark.test-theme .token.entity.other.inherited-class {color: rgba(166, 226, 46, 1);}
+.monaco-editor.vs-dark.test-theme .token.entity.name.function {color: rgba(166, 226, 46, 1);}
+.monaco-editor.vs-dark.test-theme .token.variable.parameter {font-style: italic; color: rgba(253, 151, 31, 1);}
+.monaco-editor.vs-dark.test-theme .token.entity.name.tag {color: rgba(249, 38, 114, 1);}
+.monaco-editor.vs-dark.test-theme .token.entity.other.attribute-name {color: rgba(166, 226, 46, 1);}
+.monaco-editor.vs-dark.test-theme .token.support.function {color: rgba(102, 217, 239, 1);}
+.monaco-editor.vs-dark.test-theme .token.support.constant {color: rgba(102, 217, 239, 1);}
+.monaco-editor.vs-dark.test-theme .token.support.type {font-style: italic; color: rgba(102, 217, 239, 1);}
+.monaco-editor.vs-dark.test-theme .token.support.class {font-style: italic; color: rgba(102, 217, 239, 1);}
+.monaco-editor.vs-dark.test-theme .token.support.other.variable {}
+.monaco-editor.vs-dark.test-theme .token.invalid {color: rgba(248, 248, 240, 1);}
+.monaco-editor.vs-dark.test-theme .token.invalid.deprecated {color: rgba(248, 248, 240, 1);}
+.monaco-editor.vs-dark.test-theme .token.meta.structure.dictionary.json.string.quoted.double.json {color: rgba(207, 207, 194, 1);}
+.monaco-editor.vs-dark.test-theme .token.meta.diff {color: rgba(117, 113, 94, 1);}
+.monaco-editor.vs-dark.test-theme .token.meta.diff.header {color: rgba(117, 113, 94, 1);}
+.monaco-editor.vs-dark.test-theme .token.markup.deleted {color: rgba(249, 38, 114, 1);}
+.monaco-editor.vs-dark.test-theme .token.markup.inserted {color: rgba(166, 226, 46, 1);}
+.monaco-editor.vs-dark.test-theme .token.markup.changed {color: rgba(230, 219, 116, 1);}
+.monaco-editor.vs-dark.test-theme .token.constant.numeric.line-number.find-in-files.-.match {color: rgba(174, 129, 255, 0.63);}
+.monaco-editor.vs-dark.test-theme .token.entity.name.filename.find-in-files {color: rgba(230, 219, 116, 1);}
+.monaco-editor.vs-dark.test-theme .token.entity.name.filename.find-in-files {color: rgba(230, 219, 116, 1);}
+.monaco-editor.vs-dark.test-theme .token.whitespace {color: rgba(59, 58, 50, 1) !important;}
+.monaco-editor.vs-dark.test-theme .token {color: rgba(248, 248, 242, 1);}

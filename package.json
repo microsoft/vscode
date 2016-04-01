@@ -26,6 +26,8 @@
     "https-proxy-agent": "^0.3.5",
     "iconv-lite": "^0.4.13",
     "native-keymap": "^0.1.2",
+    "rework": "1.0.1",
+    "rework-plugin-url": "^1.1.0",
     "sax": "^1.1.1",
     "semver": "^4.2.0",
     "vscode-debugprotocol": "1.8.0-pre.1",

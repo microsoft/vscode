@@ -1,0 +1,45 @@
+.workbench .monaco-editor-background { background-color: rgba(39, 40, 34, 1); }
+
+/* editor misc */
+.editor { color: rgba(248, 248, 242, 1); }
+.editor .current-line { background-color: rgba(62, 61, 50, 1); }
+.editor .cursor { background-color: rgba(248, 248, 240, 1); }
+.editor .focused .selected-text { background-color: rgba(73, 72, 62, 1); }
+.editor .selected-text { background-color: rgba(73, 72, 62, 0.5); }
+.editor .glyph-margin { background-color: rgba(39, 40, 34, 1); }
+
+/* editor tokens */
+.editor .token .comment { color: rgba(117, 113, 94, 1); }
+.editor .token .string { color: rgba(230, 219, 116, 1); }
+.editor .token .constant.numeric { color: rgba(174, 129, 255, 1); }
+.editor .token .constant.language { color: rgba(174, 129, 255, 1); }
+.editor .token .constant.character { color: rgba(174, 129, 255, 1); }
+.editor .token .constant.other { color: rgba(174, 129, 255, 1); }
+.editor .token .variable {  }
+.editor .token .keyword { color: rgba(249, 38, 114, 1); }
+.editor .token .storage { color: rgba(249, 38, 114, 1); }
+.editor .token .storage.type { font-style: italic; color: rgba(102, 217, 239, 1); }
+.editor .token .entity.name.class { text-decoration: underline; color: rgba(166, 226, 46, 1); }
+.editor .token .entity.other.inherited-class { color: rgba(166, 226, 46, 1); }
+.editor .token .entity.name.function { color: rgba(166, 226, 46, 1); }
+.editor .token .variable.parameter { font-style: italic; color: rgba(253, 151, 31, 1); }
+.editor .token .entity.name.tag { color: rgba(249, 38, 114, 1); }
+.editor .token .entity.other.attribute-name { color: rgba(166, 226, 46, 1); }
+.editor .token .support.function { color: rgba(102, 217, 239, 1); }
+.editor .token .support.constant { color: rgba(102, 217, 239, 1); }
+.editor .token .support.type { font-style: italic; color: rgba(102, 217, 239, 1); }
+.editor .token .support.class { font-style: italic; color: rgba(102, 217, 239, 1); }
+.editor .token .support.other.variable {  }
+.editor .token .invalid { color: rgba(248, 248, 240, 1); }
+.editor .token .invalid.deprecated { color: rgba(248, 248, 240, 1); }
+.editor .token .meta.structure.dictionary.json.string.quoted.double.json { color: rgba(207, 207, 194, 1); }
+.editor .token .meta.diff { color: rgba(117, 113, 94, 1); }
+.editor .token .meta.diff.header { color: rgba(117, 113, 94, 1); }
+.editor .token .markup.deleted { color: rgba(249, 38, 114, 1); }
+.editor .token .markup.inserted { color: rgba(166, 226, 46, 1); }
+.editor .token .markup.changed { color: rgba(230, 219, 116, 1); }
+.editor .token .constant.numeric.line-number.find-in-files.-.match { color: rgba(174, 129, 255, 0.63); }
+.editor .token .entity.name.filename.find-in-files { color: rgba(230, 219, 116, 1); }
+.editor .token .entity.name.filename.find-in-files { color: rgba(230, 219, 116, 1); }
+.editor .token .whitespace { color: rgba(59, 58, 50, 1) !important; }
+.editor .token { color: rgba(248, 248, 242, 1); }
