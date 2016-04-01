@@ -273,17 +273,15 @@ class ExtHostApiCommands {
 			position: position && typeConverters.fromPosition(position),
 			triggerCharacter
 		};
-		return this._commands.executeCommand<modes.ISuggestResult[][]>('_executeCompletionItemProvider', args).then(value => {
+		return this._commands.executeCommand<modes.ISuggestResult[]>('_executeCompletionItemProvider', args).then(value => {
 			if (value) {
 				let items: types.CompletionItem[] = [];
 				let incomplete: boolean;
-				for (let group of value) {
-					for (let suggestions of group) {
-						incomplete = suggestions.incomplete || incomplete;
-						for (let suggestion of suggestions.suggestions) {
-							const item = typeConverters.Suggest.to(suggestions, position, suggestion);
-							items.push(item);
-						}
+				for (let suggestions of value) {
+					incomplete = suggestions.incomplete || incomplete;
+					for (let suggestion of suggestions.suggestions) {
+						const item = typeConverters.Suggest.to(suggestions, position, suggestion);
+						items.push(item);
 					}
 				}
 				return new types.CompletionList(<any>items, incomplete);
