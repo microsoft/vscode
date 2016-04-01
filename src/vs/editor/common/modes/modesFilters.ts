@@ -12,8 +12,19 @@ export type IMatch = filters.IMatch;
 
 function wrapBaseFilter(filter: filters.IFilter): ISuggestionFilter {
 	return (word: string, suggestion: ISuggestion): filters.IMatch[] => {
-		const result = filter(word, suggestion.filterText || suggestion.label);
-		return isFalsyOrEmpty(result) ? undefined : result;
+
+		let result = filter(word, suggestion.label);
+		if (!isFalsyOrEmpty(result)) {
+			return result;
+		}
+
+		if (typeof suggestion.filterText === 'string') {
+			// only check for an actual match but swap it with an _empty_
+			// match because we use the label with the matches/highlights
+			if (!isFalsyOrEmpty(filter(word, suggestion.filterText))) {
+				return [{ start: 0, end: 0 }];
+			}
+		}
 	};
 }
 
