@@ -6,8 +6,10 @@
 {
 	"cmdCreate": "\"jsconfig.json\" erstellen",
 	"hintCreate": "Erstellen Sie eine Datei \"jsconfig.json\", um leistungsfähigere IntelliSense-Funktionen und Codenavigation im gesamten Arbeitsbereich zu ermöglichen.",
+	"hintCreate.tooltip": "Erstellen Sie eine Datei \"jsconfig.json\", um leistungsfähigere IntelliSense-Funktionen und Codenavigation im gesamten Arbeitsbereich zu ermöglichen.",
 	"hintExclude": "Schließen Sie Ordner mit vielen Dateien aus, um eine bessere Leistung zu erzielen, beispielsweise: {0}",
 	"hintExclude.generic": "Schließen Sie Ordner mit vielen Dateien aus, um eine bessere Leistung zu erzielen.",
+	"hintExclude.tooltip": "Schließen Sie Ordner mit vielen Dateien aus, um eine bessere Leistung zu erzielen.",
 	"ignore.cmdCreate": "Ignorieren",
 	"large.label": "Auszuschließende Elemente konfigurieren",
 	"open": "Auszuschließende Elemente konfigurieren"
