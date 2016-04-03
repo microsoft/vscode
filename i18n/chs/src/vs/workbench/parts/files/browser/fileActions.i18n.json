@@ -30,6 +30,7 @@
 	"emptyFileNameError": "必须提供文件或文件夹名。",
 	"fileNameExistsError": "此位置已存在文件或文件夹 **{0}**。请选择其他名称。",
 	"filePathTooLongError": "名称 **{0}** 导致路径太长。请选择更短的名称。",
+	"focusFilesExplorer": "关注文件资源浏览器",
 	"focusWorkingFiles": "关注工作文件",
 	"globalCompareFile": "比较活动文件与...",
 	"importFiles": "导入文件",

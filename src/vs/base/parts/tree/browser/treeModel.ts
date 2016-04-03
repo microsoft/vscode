@@ -6,7 +6,7 @@
 
 import Assert = require('vs/base/common/assert');
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, combinedDispose } from 'vs/base/common/lifecycle';
+import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import arrays = require('vs/base/common/arrays');
 import { INavigator } from 'vs/base/common/iterator';
 import Events = require('vs/base/common/eventEmitter');
@@ -804,13 +804,13 @@ export class TreeModel extends Events.EventEmitter {
 
 		this.registry = new ItemRegistry();
 
-		this.registryDisposable = combinedDispose(
+		this.registryDisposable = combinedDisposable([
 			this.addEmitter2(this.registry),
 			this.registry.addListener2('item:dispose', (event: IItemDisposeEvent) => {
 				event.item.getAllTraits()
 					.forEach(trait => delete this.traitsToItems[trait][event.item.id]);
 			})
-		);
+		]);
 
 		var id = this.context.dataSource.getId(this.context.tree, element);
 		this.input = new RootItem(id, this.registry, this.context, this.lock, element);

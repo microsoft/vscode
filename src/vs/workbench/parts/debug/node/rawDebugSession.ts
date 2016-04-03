@@ -27,6 +27,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	private cachedInitServer: TPromise<void>;
 	private startTime: number;
 	private stopServerPending: boolean;
+	private sentPromises: TPromise<DebugProtocol.Response>[];
 	public isAttach: boolean;
 	public restarted: boolean;
 	public capabilities: DebugProtocol.Capabilites;
@@ -40,6 +41,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	) {
 		super();
 		this.capabilities = {};
+		this.sentPromises = [];
 	}
 
 	private initServer(): TPromise<void> {
@@ -60,24 +62,29 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 	}
 
 	protected send(command: string, args: any): TPromise<DebugProtocol.Response> {
-		return this.initServer().then(() => super.send(command, args).then(response => response, (errorResponse: DebugProtocol.ErrorResponse) => {
-			const error = errorResponse.body ? errorResponse.body.error : null;
-			const message = error ? debug.formatPII(error.format, false, error.variables) : errorResponse.message;
-			if (error && error.sendTelemetry) {
-				this.telemetryService.publicLog('debugProtocolErrorResponse', { error: message });
-				this.telemtryAdapter.log('debugProtocolErrorResponse', { error: message });
-			}
+		return this.initServer().then(() => {
+			const promise = super.send(command, args).then(response => response, (errorResponse: DebugProtocol.ErrorResponse) => {
+				const error = errorResponse.body ? errorResponse.body.error : null;
+				const message = error ? debug.formatPII(error.format, false, error.variables) : errorResponse.message;
+				if (error && error.sendTelemetry) {
+					this.telemetryService.publicLog('debugProtocolErrorResponse', { error: message });
+					this.telemtryAdapter.log('debugProtocolErrorResponse', { error: message });
+				}
 
-			if (error && error.url) {
-				const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
-				return TPromise.wrapError(errors.create(message, { actions: [CloseAction, new Action('debug.moreInfo', label, null, true, () => {
-					shell.openExternal(error.url);
-					return TPromise.as(null);
-				})]}));
-			}
+				if (error && error.url) {
+					const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
+					return TPromise.wrapError(errors.create(message, { actions: [CloseAction, new Action('debug.moreInfo', label, null, true, () => {
+						shell.openExternal(error.url);
+						return TPromise.as(null);
+					})]}));
+				}
 
-			return TPromise.wrapError(new Error(message));
-		}));
+				return TPromise.wrapError(new Error(message));
+			});
+
+			this.sentPromises.push(promise);
+			return promise;
+		});
 	}
 
 	public initialize(args: DebugProtocol.InitializeRequestArguments): TPromise<DebugProtocol.InitializeResponse> {
@@ -137,6 +144,9 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 		if (this.stopServerPending && force) {
 			return this.stopServer();
 		}
+		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
+		this.sentPromises.forEach(p => p.cancel());
+		this.sentPromises = [];
 
 		if ((this.serverProcess || this.socket) && !this.stopServerPending) {
 			// point of no return: from now on don't report any errors
@@ -234,7 +244,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 			if (launch.command === 'node') {
 				stdfork.fork(launch.argv[0], launch.argv.slice(1), {}, (err, child) => {
 					if (err) {
-						e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from {0}.", launch.argv[0])));
+						e(new Error(nls.localize('unableToLaunchDebugAdapter', "Unable to launch debug adapter from '{0}'.", launch.argv[0])));
 					}
 					this.serverProcess = child;
 					c(null);
@@ -294,7 +304,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.IRawDebugSes
 				if (exists) {
 					c(null);
 				} else {
-					e(new Error(nls.localize('debugAdapterBinNotFound', "DebugAdapter bin folder not found on path {0}.", this.adapter.program)));
+					e(new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' not found.", this.adapter.program)));
 				}
 			});
 		}).then(() => {

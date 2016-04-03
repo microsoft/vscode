@@ -17,11 +17,12 @@ import errors = require('vs/base/common/errors');
 import strings = require('vs/base/common/strings');
 import {Event, EventType as CommonEventType} from 'vs/base/common/events';
 import {getPathLabel} from 'vs/base/common/labels';
+import severity from 'vs/base/common/severity';
 import diagnostics = require('vs/base/common/diagnostics');
 import {Action, IAction} from 'vs/base/common/actions';
 import {MessageType, IInputValidator} from 'vs/base/browser/ui/inputbox/inputBox';
 import {ITree, IHighlightEvent} from 'vs/base/parts/tree/browser/tree';
-import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
+import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {EventType as WorkbenchEventType, EditorEvent} from 'vs/workbench/common/events';
 import Files = require('vs/workbench/parts/files/common/files');
 import {IFileService, IFileStat, IImportResult} from 'vs/platform/files/common/files';
@@ -893,11 +894,13 @@ export class ImportFileAction extends BaseFileAction {
 						multiFileProgressTracker = this.progressService.show(filesArray.length);
 					}
 
-					// Run import in sequence to not consume too many connections
+					// Run import in sequence
 					let importPromisesFactory: ITask<TPromise<void>>[] = [];
 					filesArray.forEach((file) => {
 						importPromisesFactory.push(() => {
-							return this.fileService.importFile(URI.file((<any>file).path), targetElement.resource).then((result: IImportResult) => {
+							let sourceFile = URI.file((<any>file).path);
+
+							return this.fileService.importFile(sourceFile, targetElement.resource).then((result: IImportResult) => {
 
 								// Progress
 								if (multiFileProgressTracker) {
@@ -906,9 +909,9 @@ export class ImportFileAction extends BaseFileAction {
 
 								if (result.stat) {
 
-									// Emit Deleted Event if file gets replaced
+									// Emit Deleted Event if file gets replaced unless it is the same file
 									let oldFile = targetNames[isLinux ? file.name : file.name.toLowerCase()];
-									if (oldFile) {
+									if (oldFile && oldFile.resource.fsPath !== result.stat.resource.fsPath) {
 										this.eventService.emit('files.internal:fileChanged', new Files.LocalFileChangeEvent(oldFile, null));
 									}
 
@@ -1660,7 +1663,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 	}
 
 	public dispose(): void {
-		this.toDispose = disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 
 		super.dispose();
 	}
@@ -2311,6 +2314,46 @@ export class FocusFilesExplorer extends Action {
 				view.getViewer().DOMFocus();
 			}
 		});
+	}
+}
+
+export class ShowActiveFileInExplorer extends Action {
+
+	public static ID = 'workbench.files.action.showActiveFileInExplorer';
+	public static LABEL = nls.localize('showInExplorer', "Show Active File in Explorer");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IViewletService private viewletService: IViewletService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IMessageService private messageService: IMessageService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let fileInput = asFileEditorInput(this.editorService.getActiveEditorInput(), true);
+		if (fileInput) {
+			return this.viewletService.openViewlet(Files.VIEWLET_ID, false).then((viewlet: ExplorerViewlet) => {
+				const isInsideWorkspace = this.contextService.isInsideWorkspace(fileInput.getResource());
+				if (isInsideWorkspace) {
+					const explorerView = viewlet.getExplorerView();
+					if (explorerView) {
+						explorerView.expand();
+						explorerView.select(fileInput.getResource(), true);
+					}
+				} else {
+					const workingFilesView = viewlet.getWorkingFilesView();
+					workingFilesView.expand();
+				}
+			});
+		} else {
+			this.messageService.show(severity.Info, nls.localize('openFileToShow', "Open a file first to show it in the explorer"));
+		}
+
+		return TPromise.as(true);
 	}
 }
 

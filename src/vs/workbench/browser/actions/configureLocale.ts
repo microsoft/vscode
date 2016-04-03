@@ -22,11 +22,12 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 
 class ConfigureLocaleAction extends Action {
 	public static ID = 'workbench.action.configureLocale';
-	public static LABEL = nls.localize('configureLocale', "Configure Locale");
+	public static LABEL = nls.localize('configureLocale', "Configure Language");
 
 	private static DEFAULT_CONTENT: string = [
 		'{',
 		`\t// ${nls.localize('displayLanguage', 'Defines VSCode\'s display language.')}`,
+		`\t// ${nls.localize('doc', 'See {0} for a list of supported languages.', 'http://go.microsoft.com/fwlink/?LinkId=761051')}`,
 		`\t// ${nls.localize('restart', 'Changing the value requires to restart VSCode.')}`,
 		`\t"locale":"en-US"`,
 		'}'

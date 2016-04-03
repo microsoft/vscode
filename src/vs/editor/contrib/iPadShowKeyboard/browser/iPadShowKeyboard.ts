@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./iPadShowKeyboard';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import {EventType, IEditorContribution} from 'vs/editor/common/editorCommon';
@@ -51,7 +51,7 @@ export class IPadShowKeyboard implements IEditorContribution {
 	}
 
 	public dispose(): void {
-		this.toDispose = disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 		if (this.widget) {
 			this.widget.dispose();
 			this.widget = null;
@@ -86,7 +86,7 @@ class ShowKeyboardWidget implements IOverlayWidget {
 
 	public dispose(): void {
 		this.editor.removeOverlayWidget(this);
-		this._toDispose = disposeAll(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
 	}
 
 	// ----- IOverlayWidget API

@@ -90,12 +90,12 @@ export interface IStaticServices {
 }
 
 function shallowClone<T>(obj:T): T {
-	var r:T = <any>{};
+	let r:T = <any>{};
 	if (obj) {
-		for (var key in obj) {
-			if (obj.hasOwnProperty(key)) {
-				r[key] = obj[key];
-			}
+		let keys = Object.keys(obj);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let key = keys[i];
+			r[key] = obj[key];
 		}
 	}
 	return r;
@@ -106,11 +106,11 @@ export function ensureStaticPlatformServices(services: IEditorOverrideServices):
 
 	var statics = getOrCreateStaticServices(services);
 
-	for (var serviceId in statics) {
-		if (statics.hasOwnProperty(serviceId)) {
-			if (!services.hasOwnProperty(serviceId)) {
-				services[serviceId] = statics[serviceId];
-			}
+	let keys = Object.keys(statics);
+	for (let i = 0, len = keys.length; i < len; i++) {
+		let serviceId = keys[i];
+		if (!services.hasOwnProperty(serviceId)) {
+			services[serviceId] = statics[serviceId];
 		}
 	}
 

@@ -111,7 +111,7 @@ export class ContextMenuHandler {
 
 					menu.focus();
 
-					return Lifecycle.combinedDispose(listener1, listener2, menu);
+					return Lifecycle.combinedDisposable(listener1, listener2, menu);
 				},
 
 				onHide: (didCancel?: boolean) => {

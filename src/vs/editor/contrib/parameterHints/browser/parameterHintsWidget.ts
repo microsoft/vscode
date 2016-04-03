@@ -8,7 +8,7 @@
 import 'vs/css!./parameterHints';
 import nls = require('vs/nls');
 import {ListenerUnbind} from 'vs/base/common/eventEmitter';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, $} from 'vs/base/browser/builder';
 import aria = require('vs/base/browser/ui/aria/aria');
@@ -307,7 +307,7 @@ export class ParameterHintsWidget implements IContentWidget {
 	}
 
 	public destroy(): void {
-		this.toDispose = disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 		this.releaseModel();
 
 		if (this.$overloads) {

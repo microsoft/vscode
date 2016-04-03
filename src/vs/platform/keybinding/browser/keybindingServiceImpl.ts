@@ -8,7 +8,7 @@ import 'vs/css!./keybindings';
 import * as nls from 'vs/nls';
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
 import {KeyCode, Keybinding} from 'vs/base/common/keyCodes';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
@@ -61,7 +61,7 @@ export class ConfigurationContext {
 
 	constructor(configurationService: IConfigurationService) {
 		this._subscription = configurationService.onDidUpdateConfiguration(e => this._updateConfigurationContext(e.config));
-		configurationService.loadConfiguration().then(config => this._updateConfigurationContext(config));
+		this._updateConfigurationContext(configurationService.getConfiguration());
 	}
 
 	public dispose() {
@@ -218,7 +218,7 @@ export abstract class KeybindingService extends AbstractKeybindingService implem
 	}
 
 	public dispose(): void {
-		this._toDispose = disposeAll(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
 	}
 
 	public getLabelFor(keybinding: Keybinding): string {

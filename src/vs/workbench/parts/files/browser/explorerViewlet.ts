@@ -31,7 +31,7 @@ export class ExplorerViewlet extends Viewlet {
 
 	private explorerView: ExplorerView;
 	private workingFilesView: WorkingFilesView;
-	private lastFocusedView: ExplorerView | WorkingFilesView;
+	private lastFocusedView: ExplorerView | WorkingFilesView | EmptyView;
 	private focusListener: IDisposable;
 
 	private viewletSettings: any;
@@ -65,7 +65,7 @@ export class ExplorerViewlet extends Viewlet {
 		this.addExplorerView();
 
 		// Track focus
-		this.focusListener = this.splitView.onFocus((view: ExplorerView | WorkingFilesView) => {
+		this.focusListener = this.splitView.onFocus((view: ExplorerView | WorkingFilesView | EmptyView) => {
 			this.lastFocusedView = view;
 		});
 
@@ -147,7 +147,7 @@ export class ExplorerViewlet extends Viewlet {
 		return this.workingFilesView.focus();
 	}
 
-	private hasSelectionOrFocus(view: ExplorerView|WorkingFilesView): boolean {
+	private hasSelectionOrFocus(view: ExplorerView | WorkingFilesView | EmptyView): boolean {
 		if (!view) {
 			return false;
 		}
@@ -156,12 +156,17 @@ export class ExplorerViewlet extends Viewlet {
 			return false;
 		}
 
-		const viewer = view.getViewer();
-		if (!viewer) {
-			return false;
+		if (view instanceof ExplorerView || view instanceof WorkingFilesView) {
+			const viewer = view.getViewer();
+			if (!viewer) {
+				return false;
+			}
+
+			return !!viewer.getFocus() || (viewer.getSelection() && viewer.getSelection().length > 0);
+
 		}
 
-		return !!viewer.getFocus() || (viewer.getSelection() && viewer.getSelection().length > 0);
+		return false;
 	}
 
 	public layout(dimension: Dimension): void {

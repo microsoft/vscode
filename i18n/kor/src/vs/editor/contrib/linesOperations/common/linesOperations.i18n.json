@@ -13,5 +13,7 @@
 	"lines.moveDown": "줄 아래로 이동",
 	"lines.moveUp": "줄 위로 이동",
 	"lines.outdent": "줄 내어쓰기",
+	"lines.sortAscending": "줄을 오름차순 정렬",
+	"lines.sortDescending": "줄을 내림차순으로 정렬",
 	"lines.trimTrailingWhitespace": "후행 공백 자르기"
 }

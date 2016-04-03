@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import Event, {Emitter} from 'vs/base/common/event';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import {ExtHostModelService, ExtHostDocumentData} from 'vs/workbench/api/node/extHostDocuments';
@@ -94,7 +94,7 @@ export class ExtHostEditors {
 			if (editor) {
 				return editor;
 			} else {
-				throw new Error('Failed to create editor with id: ' + id);
+				throw new Error(`Failed to show text document ${document.uri.toString()}, should show in editor #${id}`);
 			}
 		});
 	}
@@ -508,10 +508,10 @@ export class MainThreadEditors {
 
 	public dispose(): void {
 		Object.keys(this._textEditorsListenersMap).forEach((editorId) => {
-			disposeAll(this._textEditorsListenersMap[editorId]);
+			dispose(this._textEditorsListenersMap[editorId]);
 		});
 		this._textEditorsListenersMap = Object.create(null);
-		this._toDispose = disposeAll(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
 	}
 
 	private _onTextEditorAdd(textEditor: MainThreadTextEditor): void {
@@ -537,7 +537,7 @@ export class MainThreadEditors {
 
 	private _onTextEditorRemove(textEditor: MainThreadTextEditor): void {
 		let id = textEditor.getId();
-		disposeAll(this._textEditorsListenersMap[id]);
+		dispose(this._textEditorsListenersMap[id]);
 		delete this._textEditorsListenersMap[id];
 		delete this._textEditorsMap[id];
 		this._proxy._acceptTextEditorRemove(id);
@@ -625,6 +625,10 @@ export class MainThreadEditors {
 		};
 
 		return this._workbenchEditorService.openEditor(input, position).then(editor => {
+
+			if (!editor) {
+				return;
+			}
 
 			return new TPromise<void>(c => {
 				// not very nice but the way it is: changes to the editor state aren't

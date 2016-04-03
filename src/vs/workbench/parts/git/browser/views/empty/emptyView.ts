@@ -183,7 +183,7 @@ export class EmptyView extends EventEmitter.EventEmitter implements GitView.IVie
 			this.$el = null;
 		}
 
-		this.toDispose = Lifecycle.disposeAll(this.toDispose);
+		this.toDispose = Lifecycle.dispose(this.toDispose);
 
 		super.dispose();
 	}

@@ -32,6 +32,7 @@ export interface IRawStoppedDetails {
 	reason: string;
 	threadId?: number;
 	text?: string;
+	totalFrames?: number;
 }
 
 // model
@@ -60,8 +61,10 @@ export interface IThread extends ITreeElement {
 	 * Queries the debug adapter for the callstack and returns a promise with
 	 * the stack frames of the callstack.
 	 * If the thread is not stopped, it returns a promise to an empty array.
+	 * Only gets the first 20 stack frames. Calling this method consecutive times
+	 * with getAdditionalStackFrames = true gets the remainder of the call stack.
 	 */
-	getCallStack(debugService: IDebugService): TPromise<IStackFrame[]>;
+	getCallStack(debugService: IDebugService, getAdditionalStackFrames?: boolean): TPromise<IStackFrame[]>;
 
 	/**
 	 * Gets the callstack if it has already been received from the debug
@@ -145,7 +148,8 @@ export var ViewModelEvents = {
 
 export var ServiceEvents = {
 	STATE_CHANGED: 'StateChanged',
-	TYPE_NOT_SUPPORTED: 'TypeNotSupported'
+	TYPE_NOT_SUPPORTED: 'TypeNotSupported',
+	CONFIGURATION_CHANGED: 'ConfigurationChanged'
 };
 
 export var SessionEvents = {

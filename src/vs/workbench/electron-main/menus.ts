@@ -224,7 +224,7 @@ export class VSCodeMenu {
 		}
 
 		let mru = this.getOpenedPathsList();
-		if (isFile || platform.isMacintosh /* on mac we don't treat files any different from folders */) {
+		if (isFile) {
 			mru.files.unshift(path);
 			mru.files = arrays.distinct(mru.files, (f) => platform.isLinux ? f : f.toLowerCase());
 		} else {
@@ -402,19 +402,24 @@ export class VSCodeMenu {
 		});
 
 		// Files
-		if (recentList.files.length > 0) {
+		let files = recentList.files;
+		if (platform.isMacintosh && recentList.files.length > 0) {
+			files = recentList.files.filter(f => recentList.folders.indexOf(f) < 0); // TODO@Ben migration (remove in the future)
+		}
+
+		if (files.length > 0) {
 			if (recentList.folders.length > 0) {
 				openRecentMenu.append(__separator__());
 			}
 
-			recentList.files.forEach((file, index) => {
+			files.forEach((file, index) => {
 				if (index < VSCodeMenu.MAX_RECENT_ENTRIES) {
 					openRecentMenu.append(this.createOpenRecentMenuItem(file));
 				}
 			});
 		}
 
-		if (recentList.folders.length || recentList.files.length) {
+		if (recentList.folders.length || files.length) {
 			openRecentMenu.append(__separator__());
 			openRecentMenu.append(new MenuItem({ label: mnemonicLabel(nls.localize({ key: 'miClearItems', comment: ['&& denotes a mnemonic'] }, "&&Clear Items")), click: () => this.clearOpenedPathsList() }));
 		}
@@ -595,7 +600,8 @@ export class VSCodeMenu {
 			env.product.licenseUrl ? new MenuItem({
 				label: mnemonicLabel(nls.localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "&&View License")), click: () => {
 					if (platform.language) {
-						openUrl(`${env.product.licenseUrl}?lang=${platform.language}`, 'openLicenseUrl');
+						let queryArgChar = env.product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
+						openUrl(`${env.product.licenseUrl}${queryArgChar}lang=${platform.language}`, 'openLicenseUrl');
 					} else {
 						openUrl(env.product.licenseUrl, 'openLicenseUrl');
 					}

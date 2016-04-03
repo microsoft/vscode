@@ -13,5 +13,7 @@
 	"lines.moveDown": "Déplacer la ligne vers le bas",
 	"lines.moveUp": "Déplacer la ligne vers le haut",
 	"lines.outdent": "Ajouter un retrait négatif à la ligne",
+	"lines.sortAscending": "Trier les lignes dans l'ordre croissant",
+	"lines.sortDescending": "Trier les lignes dans l'ordre décroissant",
 	"lines.trimTrailingWhitespace": "Découper l'espace blanc de fin"
 }

@@ -7,7 +7,7 @@
 
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
-import { IDisposable, fnToDisposable }  from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable }  from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 
 enum RequestType {
@@ -174,7 +174,7 @@ export class Server {
 			this.protocol.send(<IRawResponse> { id, data, type: ResponseType.Progress });
 		});
 
-		this.activeRequests[request.id] = fnToDisposable(() => requestPromise.cancel());
+		this.activeRequests[request.id] = toDisposable(() => requestPromise.cancel());
 	}
 
 	private onCancelRequest(request: IRawRequest): void {

@@ -21,7 +21,7 @@ import ScrollableElementImpl = require('vs/base/browser/ui/scrollbar/scrollableE
 import { HeightMap } from 'vs/base/parts/tree/browser/treeViewModel';
 import _ = require('vs/base/parts/tree/browser/tree');
 import { IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
-import {IScrollable} from 'vs/base/common/scrollable';
+import {IScrollable, ScrollEvent} from 'vs/base/common/scrollable';
 import {KeyCode} from 'vs/base/common/keyCodes';
 
 export interface IRow {
@@ -489,9 +489,8 @@ export class TreeView extends HeightMap implements IScrollable {
 
 		this.wrapper = document.createElement('div');
 		this.wrapper.className = 'monaco-tree-wrapper';
-		this.scrollableElement = new ScrollableElementImpl.ScrollableElement(this.wrapper, {
+		this.scrollableElement = new ScrollableElementImpl.ScrollableElement(this.wrapper, this, {
 			forbidTranslate3dUse: true,
-			scrollable: this,
 			horizontal: 'hidden',
 			vertical: context.options.verticalScrollMode || 'auto',
 			useShadows: context.options.useShadows,
@@ -597,7 +596,7 @@ export class TreeView extends HeightMap implements IScrollable {
 		this.scrollTop = this.onHiddenScrollTop;
 		this.onHiddenScrollTop = null;
 		this.scrollableElement.onElementDimensions();
-		this.scrollableElement.onElementInternalDimensions();
+		this._emitScrollEvent(false, false);
 		this.setupMSGesture();
 	}
 
@@ -625,7 +624,7 @@ export class TreeView extends HeightMap implements IScrollable {
 		this.scrollTop = this.scrollTop; // render
 
 		this.scrollableElement.onElementDimensions();
-		this.scrollableElement.onElementInternalDimensions();
+		this._emitScrollEvent(false, false);
 	}
 
 	private render(scrollTop: number, viewHeight: number): void {
@@ -750,7 +749,7 @@ export class TreeView extends HeightMap implements IScrollable {
 		}
 
 		this.scrollTop = scrollTop;
-		this.scrollableElement.onElementInternalDimensions();
+		this._emitScrollEvent(false, false);
 	}
 
 	public focusNextPage(eventPayload?:any): void {
@@ -849,10 +848,21 @@ export class TreeView extends HeightMap implements IScrollable {
 		this.render(scrollTop, this.viewHeight);
 		this._scrollTop = scrollTop;
 
-		this.emit('scroll', { vertical: true, horizontal: false });
+		this._emitScrollEvent(true, false);
 	}
 
-	public addScrollListener(callback:()=>void): Lifecycle.IDisposable {
+	private _emitScrollEvent(vertical:boolean, horizontal:boolean): void {
+		this.emit('scroll', new ScrollEvent(
+			this.getScrollTop(),
+			this.getScrollLeft(),
+			this.getScrollWidth(),
+			this.getScrollHeight(),
+			vertical,
+			horizontal
+		));
+	}
+
+	public addScrollListener(callback:(v:ScrollEvent)=>void): Lifecycle.IDisposable {
 		return this.addListener2('scroll', callback);
 	}
 
@@ -1645,7 +1655,7 @@ export class TreeView extends HeightMap implements IScrollable {
 		this.releaseModel();
 		this.modelListeners = null;
 
-		this.viewListeners = Lifecycle.disposeAll(this.viewListeners);
+		this.viewListeners = Lifecycle.dispose(this.viewListeners);
 
 		if (this.domNode.parentNode) {
 			this.domNode.parentNode.removeChild(this.domNode);

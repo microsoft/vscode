@@ -455,6 +455,7 @@ export function isFullWidthCharacter(charCode:number): boolean {
 	//               of which FF01 - FF5E fullwidth ASCII of 21 to 7E
 	// [IGNORE]    and FF65 - FFDC halfwidth of Katakana and Hangul
 	// [IGNORE] FFF0 — FFFF   Specials
+	charCode = +charCode; // @perf
 	return (
 		(charCode >= 0x2E80 && charCode <= 0xD7AF)
 		|| (charCode >= 0xF900 && charCode <= 0xFAFF)
@@ -565,4 +566,22 @@ export const UTF8_BOM_CHARACTER = String.fromCharCode(__utf8_bom);
 
 export function startsWithUTF8BOM(str: string): boolean {
 	return (str && str.length > 0 && str.charCodeAt(0) === __utf8_bom);
+}
+
+/**
+ * Appends two strings. If the appended result is longer than maxLength,
+ * trims the start of the result and replaces it with '...'.
+ */
+export function appendWithLimit(first: string, second: string, maxLength: number): string {
+	const newLength = first.length + second.length;
+	if (newLength > maxLength) {
+		first = '...' + first.substr(newLength - maxLength);
+	}
+	if (second.length > maxLength) {
+		first += second.substr(second.length - maxLength);
+	} else {
+		first += second;
+	}
+
+	return first;
 }

@@ -112,7 +112,7 @@ suite('Files - FileEditorInput', () => {
 		assert.strictEqual(fileEditorInput.matches(contentEditorInput2), true);
 	});
 
-	test('FileTracker - disposeAll()', function(done) {
+	test('FileTracker - dispose()', function(done) {
 		let editorService = new TestEditorService(function() { });
 		let telemetryService = new MainTelemetryService();
 		let contextService = new TestContextService();
@@ -156,7 +156,7 @@ suite('Files - FileEditorInput', () => {
 		});
 	});
 
-	test('FileEditorInput - disposeAll() also works for folders', function(done) {
+	test('FileEditorInput - dispose() also works for folders', function(done) {
 		let editorService = new TestEditorService(function() { });
 		let telemetryService = new MainTelemetryService();
 		let contextService = new TestContextService();

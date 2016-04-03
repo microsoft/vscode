@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isNumber } from 'vs/base/common/types';
 import * as dom from 'vs/base/browser/dom';
@@ -256,7 +256,7 @@ class Renderer implements IRenderer<IExtensionEntry> {
 		data.actionbar.context = extension;
 		updateActions();
 
-		data.disposables = disposeAll(data.disposables);
+		data.disposables = dispose(data.disposables);
 		data.disposables.push(this.extensionsService.onDidInstallExtension(e => onExtensionStateChange(e.extension, ExtensionState.Installed)));
 		data.disposables.push(this.extensionsService.onDidUninstallExtension(e => onExtensionStateChange(e, ExtensionState.Uninstalled)));
 
@@ -290,7 +290,7 @@ class Renderer implements IRenderer<IExtensionEntry> {
 	disposeTemplate(templateId: string, data: ITemplateData): void {
 		data.displayName.dispose();
 		data.description.dispose();
-		data.disposables = disposeAll(data.disposables);
+		data.disposables = dispose(data.disposables);
 	}
 }
 

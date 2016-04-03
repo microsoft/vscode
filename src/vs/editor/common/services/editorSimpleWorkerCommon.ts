@@ -14,7 +14,13 @@ export interface IRawModelData {
 	value:editorCommon.IRawText;
 }
 
-export abstract class EditorSimpleWorker {
+export interface IEditorModelWorker {
+	acceptNewModel(data: IRawModelData): void;
+	acceptModelChanged(modelUrl: string, events: editorCommon.IModelContentChangedEvent2[]);
+	acceptRemovedModel(modelUrl: string): void;
+}
+
+export abstract class EditorSimpleWorker implements IEditorModelWorker {
 
 	public acceptNewModel(data:IRawModelData): void {
 		throw new Error('Not implemented!');

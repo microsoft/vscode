@@ -17,7 +17,7 @@ import * as Objects from 'vs/base/common/objects';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
 import * as Dom from 'vs/base/browser/dom';
-import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { EventEmitter, ListenerUnbind } from 'vs/base/common/eventEmitter';
 import * as Builder from 'vs/base/browser/builder';
 import * as Types from 'vs/base/common/types';
@@ -439,7 +439,7 @@ class StatusBarItem implements IStatusbarItem {
 
 		return {
 			dispose: () => {
-				callOnDispose = disposeAll(callOnDispose);
+				callOnDispose = dispose(callOnDispose);
 			}
 		};
 	}
@@ -533,7 +533,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (!this._taskSystemPromise) {
 			let variables = new SystemVariables(this.editorService, this.contextService);
 			let clearOutput = true;
-			this._taskSystemPromise = this.configurationService.loadConfiguration('tasks').then((config: TaskConfiguration) => {
+			this._taskSystemPromise = TPromise.as(this.configurationService.getConfiguration<TaskConfiguration>('tasks')).then((config: TaskConfiguration) => {
 				let parseErrors: string[] = config ? (<any>config).$parseErrors : null;
 				if (parseErrors) {
 					let isAffected = false;

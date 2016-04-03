@@ -8,21 +8,23 @@
 # developers would prefer a terminal editor as the default.
 update-alternatives --install /usr/bin/editor editor /usr/bin/@@NAME@@ 0
 
-# Remove the legacy bin command if this is the stable build
-if [ "@@NAME@@" = "code" ]; then
-	rm -f /usr/local/bin/code
+if [ "@@NAME@@" != "code-oss" ]; then
+	# Remove the legacy bin command if this is the stable build
+	if [ "@@NAME@@" = "code" ]; then
+		rm -f /usr/local/bin/code
+	fi
+
+	# Register apt repository
+	get_apt_config_value() {
+		echo $(apt-config dump | grep "$1 " | sed -e "s/$1 \"//" -e "s/\";$//")
+	}
+
+	APT_DIR=$(get_apt_config_value Dir)
+	APT_ETC=$APT_DIR$(get_apt_config_value Dir::Etc)
+	APT_SOURCE_PARTS=$APT_ETC$(get_apt_config_value Dir::Etc::sourceparts)
+	CODE_SOURCE_LIST=$APT_SOURCE_PARTS/visual-studio-@@NAME@@.list
+
+	rm -f $CODE_SOURCE_LIST
+	# TODO: #2973: Enable once the apt repository is signed
+	#echo "deb @@UPDATEURL@@/api/deb/@@QUALITY@@/@@ARCHITECTURE@@/ /" > $CODE_SOURCE_LIST
 fi
-
-# Register repository as an apt source
-get_apt_config_value() {
-	echo $(apt-config dump | grep "$1 " | sed -e "s/$1 \"//" -e "s/\";$//")
-}
-
-APT_DIR=$(get_apt_config_value Dir)
-APT_ETC=$APT_DIR$(get_apt_config_value Dir::Etc)
-APT_SOURCE_PARTS=$APT_ETC$(get_apt_config_value Dir::Etc::sourceparts)
-CODE_SOURCE_LIST=$APT_SOURCE_PARTS/visual-studio-@@NAME@@.list
-
-rm -f $CODE_SOURCE_LIST
-# TODO: #2973: Enable once the apt repository is signed
-#echo "deb @@UPDATEURL@@/api/deb/@@QUALITY@@/ @@ARCHITECTURE@@/" > $CODE_SOURCE_LIST

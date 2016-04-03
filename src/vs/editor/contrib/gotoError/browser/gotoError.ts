@@ -10,7 +10,7 @@ import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {Emitter} from 'vs/base/common/event';
 import {CommonKeybindings, KeyCode, KeyMod} from 'vs/base/common/keyCodes';
-import {IDisposable, cAll, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, cAll, dispose} from 'vs/base/common/lifecycle';
 import severity from 'vs/base/common/severity';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
@@ -296,7 +296,7 @@ class MarkerNavigationWidget extends ZoneWidget {
 				break;
 		}
 
-		this._localCleanup = disposeAll(this._localCleanup);
+		this._localCleanup = dispose(this._localCleanup);
 
 		// update label and show
 		let text = strings.format('({0}/{1}) ', this._model.indexOf(marker) + 1, this._model.length());
@@ -379,7 +379,7 @@ class MarkerNavigationWidget extends ZoneWidget {
 	}
 
 	public dispose(): void {
-		this._callOnDispose = disposeAll(this._callOnDispose);
+		this._callOnDispose = dispose(this._callOnDispose);
 		super.dispose();
 	}
 }
@@ -448,7 +448,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 
 	private _cleanUp(): void {
 		this._markersNavigationVisible.reset();
-		this._callOnClose = disposeAll(this._callOnClose);
+		this._callOnClose = dispose(this._callOnClose);
 		this._zone = null;
 		this._model = null;
 	}

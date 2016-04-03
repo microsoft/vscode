@@ -103,7 +103,7 @@ export class BreakpointWidget extends ZoneWidget {
 		super.dispose();
 		this.breakpointWidgetVisible.reset();
 		BreakpointWidget.INSTANCE = undefined;
-		lifecycle.disposeAll(this.toDispose);
+		lifecycle.dispose(this.toDispose);
 		setTimeout(() => this.editor.focus(), 0);
 	}
 }

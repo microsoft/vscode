@@ -5,7 +5,7 @@
 'use strict';
 
 import Event, {Emitter} from 'vs/base/common/event';
-import {Disposable, IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {Disposable, IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import {IKeyboardEvent} from 'vs/base/browser/keyboardEvent';
@@ -160,7 +160,15 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 	}
 
 	public setSelectionRange(selectionStart:number, selectionEnd:number): void {
-		// console.log('setSelectionRange: ' + selectionStart + ', ' + selectionEnd);
+		let activeElement = document.activeElement;
+		if (activeElement === this._textArea) {
+			this._textArea.setSelectionRange(selectionStart, selectionEnd);
+		} else {
+			this._setSelectionRangeJumpy(selectionStart, selectionEnd);
+		}
+	}
+
+	private _setSelectionRangeJumpy(selectionStart:number, selectionEnd:number): void {
 		try {
 			let scrollState = dom.saveParentsScrollTop(this._textArea);
 			this._textArea.focus();
@@ -267,7 +275,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		this.context.removeEventHandler(this);
 		this.textAreaHandler.dispose();
 		this.textArea.dispose();
-		this._toDispose = disposeAll(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
 	}
 
 	private _getStrategy(): TextAreaStrategy {
@@ -304,8 +312,9 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		return false;
 	}
 
+	private _lastCursorSelectionChanged:editorCommon.IViewCursorSelectionChangedEvent = null;
 	public onCursorSelectionChanged(e:editorCommon.IViewCursorSelectionChangedEvent): boolean {
-		this.textAreaHandler.setCursorSelections(e.selection, e.secondarySelections);
+		this._lastCursorSelectionChanged = e;
 		return false;
 	}
 
@@ -318,6 +327,14 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 		this.contentLeft = layoutInfo.contentLeft;
 		this.contentWidth = layoutInfo.contentWidth;
 		return false;
+	}
+
+	public writeToTextArea(): void {
+		if (this._lastCursorSelectionChanged) {
+			let e = this._lastCursorSelectionChanged;
+			this._lastCursorSelectionChanged = null;
+			this.textAreaHandler.setCursorSelections(e.selection, e.secondarySelections);
+		}
 	}
 
 }

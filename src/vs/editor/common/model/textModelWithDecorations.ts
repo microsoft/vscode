@@ -122,10 +122,6 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	public changeDecorations(callback: (changeAccessor:editorCommon.IModelDecorationsChangeAccessor)=>any, ownerId:number=0): any {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithDecorations.changeDecorations: Model is disposed');
-		}
-
 		return this._withDeferredEvents((deferredEventsBuilder:DeferredEventsBuilder) => {
 			var changeAccessor:editorCommon.IModelDecorationsChangeAccessor = {
 				addDecoration: (range:editorCommon.IRange, options:editorCommon.IModelDecorationOptions): string => {
@@ -160,10 +156,6 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	public deltaDecorations(oldDecorations:string[], newDecorations:editorCommon.IModelDeltaDecoration[], ownerId:number=0): string[] {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithDecorations.deltaDecorations: Model is disposed');
-		}
-
 		if (!oldDecorations) {
 			oldDecorations = [];
 		}
@@ -173,21 +165,15 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	public removeAllDecorationsWithOwnerId(ownerId:number): void {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithDecorations.removeAllDecorationsWithOwnerId: Model is disposed');
-		}
+		let toRemove:string[] = [];
 
-		var decorationId:string;
-		var decoration:IInternalDecoration;
-		var toRemove:string[] = [];
+		let keys = Object.keys(this.decorations);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let decorationId = keys[i];
+			let decoration = this.decorations[decorationId];
 
-		for (decorationId in this.decorations) {
-			if (this.decorations.hasOwnProperty(decorationId)) {
-				decoration = this.decorations[decorationId];
-
-				if (decoration.ownerId === ownerId) {
-					toRemove.push(decoration.id);
-				}
+			if (decoration.ownerId === ownerId) {
+				toRemove.push(decoration.id);
 			}
 		}
 
@@ -195,10 +181,6 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	public getDecorationOptions(decorationId:string): editorCommon.IModelDecorationOptions {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithDecorations.getDecorationOptions: Model is disposed');
-		}
-
 		if (this.decorations.hasOwnProperty(decorationId)) {
 			return this.decorations[decorationId].options;
 		}
@@ -206,10 +188,6 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	public getDecorationRange(decorationId:string): editorCommon.IEditorRange {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithDecorations.getDecorationRange: Model is disposed');
-		}
-
 		if (this.decorations.hasOwnProperty(decorationId)) {
 			var decoration = this.decorations[decorationId];
 			return this.getTrackedRange(decoration.rangeId);
@@ -218,9 +196,6 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	public getLineDecorations(lineNumber:number, ownerId:number=0, filterOutValidation:boolean=false): editorCommon.IModelDecoration[] {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithDecorations.getLineDecorations: Model is disposed');
-		}
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			return [];
 		}
@@ -274,10 +249,6 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	public getLinesDecorations(startLineNumber: number, endLineNumber: number, ownerId:number=0, filterOutValidation:boolean=false): editorCommon.IModelDecoration[] {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithDecorations.getLinesDecorations: Model is disposed');
-		}
-
 		var lineCount = this.getLineCount();
 		startLineNumber = Math.min(lineCount, Math.max(1, startLineNumber));
 		endLineNumber = Math.min(lineCount, Math.max(1, endLineNumber));
@@ -285,45 +256,36 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	public getDecorationsInRange(range: editorCommon.IRange, ownerId?: number, filterOutValidation?: boolean): editorCommon.IModelDecoration[] {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithDecorations.getDecorationsInRange: Model is disposed');
-		}
-
 		var validatedRange = this.validateRange(range);
 		return this._getDecorationsInRange(validatedRange.startLineNumber, validatedRange.startColumn, validatedRange.endLineNumber, validatedRange.endColumn, ownerId, filterOutValidation);
 	}
 
 	public getAllDecorations(ownerId:number=0, filterOutValidation:boolean=false): editorCommon.IModelDecoration[] {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithDecorations.getAllDecorations: Model is disposed');
-		}
+		let result:editorCommon.IModelDecoration[] = [];
 
-		var result:editorCommon.IModelDecoration[] = [];
-		var decorationId:string;
-		var decoration:IInternalDecoration;
+		let keys = Object.keys(this.decorations);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let decorationId = keys[i];
+			let decoration = this.decorations[decorationId];
 
-		for (decorationId in this.decorations) {
-			if (this.decorations.hasOwnProperty(decorationId)) {
-				decoration = this.decorations[decorationId];
+			if (ownerId && decoration.ownerId && decoration.ownerId !== ownerId) {
+				continue;
+			}
 
-				if (ownerId && decoration.ownerId && decoration.ownerId !== ownerId) {
+			if (filterOutValidation) {
+				if (decoration.options.className === editorCommon.ClassName.EditorErrorDecoration || decoration.options.className === editorCommon.ClassName.EditorWarningDecoration) {
 					continue;
 				}
-
-				if (filterOutValidation) {
-					if (decoration.options.className === editorCommon.ClassName.EditorErrorDecoration || decoration.options.className === editorCommon.ClassName.EditorWarningDecoration) {
-						continue;
-					}
-				}
-
-				result.push({
-					id: decoration.id,
-					ownerId: decoration.ownerId,
-					range: this.getTrackedRange(decoration.rangeId),
-					options: decoration.options
-				});
 			}
+
+			result.push({
+				id: decoration.id,
+				ownerId: decoration.ownerId,
+				range: this.getTrackedRange(decoration.rangeId),
+				options: decoration.options
+			});
 		}
+
 		return result;
 	}
 
@@ -370,12 +332,11 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	private _onChangedRanges(eventBuilder:DeferredEventsBuilder, changedRanges:editorCommon.IChangedTrackedRanges): void {
-		var rangeId:string;
-		var decorationId:string;
-
-		for (rangeId in changedRanges) {
-			if (changedRanges.hasOwnProperty(rangeId) && this.rangeIdToDecorationId.hasOwnProperty(rangeId)) {
-				decorationId = this.rangeIdToDecorationId[rangeId];
+		let keys = Object.keys(changedRanges);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let rangeId = keys[i];
+			if (this.rangeIdToDecorationId.hasOwnProperty(rangeId)) {
+				let decorationId = this.rangeIdToDecorationId[rangeId];
 
 				eventBuilder.addMovedDecoration(decorationId, changedRanges[rangeId]);
 			}
@@ -383,34 +344,34 @@ export class TextModelWithDecorations extends TextModelWithTrackedRanges impleme
 	}
 
 	private _handleCollectedDecorationsEvents(b:DeferredEventsBuilder): void {
-		var decorationId:string,
-			addedOrChangedDecorations:editorCommon.IModelDecorationsChangedEventDecorationData[] = [],
+		var addedOrChangedDecorations:editorCommon.IModelDecorationsChangedEventDecorationData[] = [],
 			removedDecorations:string[] = [],
 			decorationIds:string[] = [],
 			decorationData:editorCommon.IModelDecorationsChangedEventDecorationData,
 			oldRange:editorCommon.IRange;
 
-		for (decorationId in b.newOrChangedDecorations) {
-			if (b.newOrChangedDecorations.hasOwnProperty(decorationId)) {
-				decorationIds.push(decorationId);
-				decorationData = this._getDecorationData(decorationId);
-				decorationData.isForValidation = (decorationData.options.className === editorCommon.ClassName.EditorErrorDecoration || decorationData.options.className === editorCommon.ClassName.EditorWarningDecoration);
-				addedOrChangedDecorations.push(decorationData);
-				if (b.oldDecorationRange.hasOwnProperty(decorationId)) {
-					oldRange = b.oldDecorationRange[decorationId];
-					oldRange.startLineNumber = oldRange.startLineNumber || decorationData.range.startLineNumber;
-					oldRange.startColumn = oldRange.startColumn || decorationData.range.startColumn;
-					oldRange.endLineNumber = oldRange.endLineNumber || decorationData.range.endLineNumber;
-					oldRange.endColumn = oldRange.endColumn || decorationData.range.endColumn;
-				}
+		let keys = Object.keys(b.newOrChangedDecorations);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let decorationId = keys[i];
+
+			decorationIds.push(decorationId);
+			decorationData = this._getDecorationData(decorationId);
+			decorationData.isForValidation = (decorationData.options.className === editorCommon.ClassName.EditorErrorDecoration || decorationData.options.className === editorCommon.ClassName.EditorWarningDecoration);
+			addedOrChangedDecorations.push(decorationData);
+			if (b.oldDecorationRange.hasOwnProperty(decorationId)) {
+				oldRange = b.oldDecorationRange[decorationId];
+				oldRange.startLineNumber = oldRange.startLineNumber || decorationData.range.startLineNumber;
+				oldRange.startColumn = oldRange.startColumn || decorationData.range.startColumn;
+				oldRange.endLineNumber = oldRange.endLineNumber || decorationData.range.endLineNumber;
+				oldRange.endColumn = oldRange.endColumn || decorationData.range.endColumn;
 			}
 		}
 
-		for (decorationId in b.removedDecorations) {
-			if (b.removedDecorations.hasOwnProperty(decorationId)) {
-				decorationIds.push(decorationId);
-				removedDecorations.push(decorationId);
-			}
+		keys = Object.keys(b.removedDecorations);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let decorationId = keys[i];
+			decorationIds.push(decorationId);
+			removedDecorations.push(decorationId);
 		}
 
 		if (decorationIds.length > 0) {

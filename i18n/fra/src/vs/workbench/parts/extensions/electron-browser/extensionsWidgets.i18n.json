@@ -9,6 +9,5 @@
 	"multipleIssues": "Extensions ({0} problèmes)",
 	"multipleUpdates": "Extensions ({0} mises à jour disponibles)",
 	"oneIssue": "Extensions (1 problème)",
-	"oneUpdate": "Extensions (1 mise à jour disponible)",
-	"uninstall": "Désinstaller"
+	"oneUpdate": "Extensions (1 mise à jour disponible)"
 }

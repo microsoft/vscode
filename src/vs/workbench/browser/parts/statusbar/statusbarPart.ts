@@ -11,7 +11,7 @@ import types = require('vs/base/common/types');
 import nls = require('vs/nls');
 import {toErrorMessage} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {disposeAll, IDisposable} from 'vs/base/common/lifecycle';
+import {dispose, IDisposable} from 'vs/base/common/lifecycle';
 import {Builder, $} from 'vs/base/browser/builder';
 import {OcticonLabel} from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import {Registry} from 'vs/platform/platform';
@@ -145,7 +145,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 
 	public dispose(): void {
-		this.toDispose = disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 
 		super.dispose();
 	}
@@ -196,7 +196,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 
 		return {
 			dispose: () => {
-				toDispose = disposeAll(toDispose);
+				toDispose = dispose(toDispose);
 			}
 		};
 	}

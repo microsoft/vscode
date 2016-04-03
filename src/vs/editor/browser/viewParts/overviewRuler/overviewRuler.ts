@@ -6,7 +6,7 @@
 
 import {IConfigurationChangedEvent, IOverviewRulerPosition} from 'vs/editor/common/editorCommon';
 import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import {IOverviewRuler, IOverviewRulerZone, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {IOverviewRuler, OverviewRulerZone, IViewContext} from 'vs/editor/browser/editorBrowser';
 import {OverviewRulerImpl} from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
 
 export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
@@ -61,7 +61,7 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		this._overviewRuler.setLayout(position, true);
 	}
 
-	public setZones(zones:IOverviewRulerZone[]): void {
+	public setZones(zones:OverviewRulerZone[]): void {
 		this._overviewRuler.setZones(zones, true);
 	}
 }

@@ -7,13 +7,13 @@
 import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, {Emitter} from 'vs/base/common/event';
-import {IDisposable, combinedDispose, empty as EmptyDisposable} from 'vs/base/common/lifecycle'; // TODO@Alex
+import {IDisposable, combinedDisposable, empty as EmptyDisposable} from 'vs/base/common/lifecycle'; // TODO@Alex
 import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
 import {TPromise} from 'vs/base/common/winjs.base';
 import mime = require('vs/base/common/mime');
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
-import {createAsyncDescriptor0, createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
+import {createAsyncDescriptor1} from 'vs/platform/instantiation/common/descriptors';
 import {IExtensionService} from 'vs/platform/extensions/common/extensions';
 import {IExtensionPointUser, IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
 import {IThreadService, Remotable, ThreadAffinity} from 'vs/platform/thread/common/thread';
@@ -26,10 +26,7 @@ import {createRichEditSupport, createSuggestSupport} from 'vs/editor/common/mode
 import {createTokenizationSupport} from 'vs/editor/common/modes/monarch/monarchLexer';
 import {ILanguage} from 'vs/editor/common/modes/monarch/monarchTypes';
 import {DeclarationSupport, IDeclarationContribution} from 'vs/editor/common/modes/supports/declarationSupport';
-import {IParameterHintsContribution, ParameterHintsSupport} from 'vs/editor/common/modes/supports/parameterHintsSupport';
-import {IReferenceContribution, ReferenceSupport} from 'vs/editor/common/modes/supports/referenceSupport';
 import {IRichEditConfiguration, RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
-import {ISuggestContribution, SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 import {LanguagesRegistry} from 'vs/editor/common/services/languagesRegistry';
 import {ILanguageExtensionPoint, IValidLanguageExtensionPoint, IModeLookupResult, IModeService} from 'vs/editor/common/services/modeService';
@@ -74,7 +71,6 @@ let languagesExtPoint = ExtensionsRegistry.registerExtensionPoint<ILanguageExten
 			},
 			filenamePatterns: {
 				description: nls.localize('vscode.extension.contributes.languages.filenamePatterns', 'File name glob patterns associated to the language.'),
-				default: ['bar*foo.txt'],
 				type: 'array',
 				items: {
 					type: 'string'
@@ -393,10 +389,8 @@ export class ModeServiceImpl implements IModeService {
 	}
 
 	private _createModeDescriptor(modeId:string): modes.IModeDescriptor {
-		var workerParticipants = ModesRegistry.getWorkerParticipantsForMode(modeId);
 		return {
-			id: modeId,
-			workerParticipants: workerParticipants.map(p => createAsyncDescriptor0(p.moduleId, p.ctorName))
+			id: modeId
 		};
 	}
 
@@ -434,7 +428,7 @@ export class ModeServiceImpl implements IModeService {
 	}
 
 	protected doRegisterMonarchDefinition(modeId:string, lexer: ILexer): IDisposable {
-		return combinedDispose(
+		return combinedDisposable(
 			this.registerTokenizationSupport(modeId, (mode: modes.IMode) => {
 				return createTokenizationSupport(this, mode, lexer);
 			}),
@@ -448,9 +442,6 @@ export class ModeServiceImpl implements IModeService {
 		return this.doRegisterMonarchDefinition(modeId, lexer);
 	}
 
-	public registerCodeLensSupport(modeId: string, support: modes.ICodeLensSupport): IDisposable {
-		return this.registerModeSupport(modeId, 'codeLensSupport', (mode) => support);
-	}
 
 	public registerRichEditSupport(modeId: string, support: IRichEditConfiguration): IDisposable {
 		return this.registerModeSupport(modeId, 'richEditSupport', (mode) => new RichEditSupport(modeId, mode.richEditSupport, support));
@@ -458,46 +449,6 @@ export class ModeServiceImpl implements IModeService {
 
 	public registerDeclarativeDeclarationSupport(modeId: string, contribution: IDeclarationContribution): IDisposable {
 		return this.registerModeSupport(modeId, 'declarationSupport', (mode) => new DeclarationSupport(modeId, contribution));
-	}
-
-	public registerExtraInfoSupport(modeId: string, support: modes.IExtraInfoSupport): IDisposable {
-		return this.registerModeSupport(modeId, 'extraInfoSupport', (mode) => support);
-	}
-
-	public registerFormattingSupport(modeId: string, support: modes.IFormattingSupport): IDisposable {
-		return this.registerModeSupport(modeId, 'formattingSupport', (mode) => support);
-	}
-
-	public registerInplaceReplaceSupport(modeId: string, support: modes.IInplaceReplaceSupport): IDisposable {
-		return this.registerModeSupport(modeId, 'inplaceReplaceSupport',(mode) => support);
-	}
-
-	public registerOccurrencesSupport(modeId: string, support: modes.IOccurrencesSupport): IDisposable {
-		return this.registerModeSupport(modeId, 'occurrencesSupport', (mode) => support);
-	}
-
-	public registerOutlineSupport(modeId: string, support: modes.IOutlineSupport): IDisposable {
-		return this.registerModeSupport(modeId, 'outlineSupport', (mode) => support);
-	}
-
-	public registerDeclarativeParameterHintsSupport(modeId: string, support: IParameterHintsContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'parameterHintsSupport', (mode) => new ParameterHintsSupport(modeId, support));
-	}
-
-	public registerQuickFixSupport(modeId: string, support: modes.IQuickFixSupport): IDisposable {
-		return this.registerModeSupport(modeId, 'quickFixSupport', (mode) => support);
-	}
-
-	public registerDeclarativeReferenceSupport(modeId: string, contribution: IReferenceContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'referenceSupport', (mode) => new ReferenceSupport(modeId, contribution));
-	}
-
-	public registerRenameSupport(modeId: string, support: modes.IRenameSupport): IDisposable {
-		return this.registerModeSupport(modeId, 'renameSupport', (mode) => support);
-	}
-
-	public registerDeclarativeSuggestSupport(modeId: string, declaration: ISuggestContribution): IDisposable {
-		return this.registerModeSupport(modeId, 'suggestSupport', (mode) => new SuggestSupport(modeId, declaration));
 	}
 
 	public registerTokenizationSupport(modeId: string, callback: (mode: modes.IMode) => modes.ITokenizationSupport): IDisposable {
@@ -557,12 +508,11 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 
 	public onReady(): TPromise<boolean> {
 		if (!this._onReadyPromise) {
-			this._onReadyPromise = this._configurationService.loadConfiguration().then((configuration: IFilesConfiguration) => {
-				return this._extensionService.onReady().then(() => {
-					this.onConfigurationChange(configuration);
+			const configuration = this._configurationService.getConfiguration<IFilesConfiguration>();
+			this._onReadyPromise = this._extensionService.onReady().then(() => {
+				this.onConfigurationChange(configuration);
 
-					return true;
-				});
+				return true;
 			});
 		}
 
@@ -589,8 +539,7 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 
 			let initData = {
 				compatModes: ModesRegistry.getCompatModes(),
-				languages: ModesRegistry.getLanguages(),
-				workerParticipants: ModesRegistry.getWorkerParticipants()
+				languages: ModesRegistry.getLanguages()
 			};
 
 			r._initialize(initData);
@@ -615,7 +564,7 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 	public registerMonarchDefinition(modelService: IModelService, editorWorkerService:IEditorWorkerService, modeId:string, language:ILanguage): IDisposable {
 		this._getModeServiceWorkerHelper().registerMonarchDefinition(modeId, language);
 		var lexer = compile(objects.clone(language));
-		return combinedDispose(
+		return combinedDisposable(
 			super.doRegisterMonarchDefinition(modeId, lexer),
 
 			this.registerModeSupport(modeId, 'suggestSupport', (mode) => {
@@ -628,7 +577,6 @@ export class MainThreadModeServiceImpl extends ModeServiceImpl {
 export interface IWorkerInitData {
 	compatModes: ILegacyLanguageDefinition[];
 	languages: ILanguageExtensionPoint[];
-	workerParticipants: modes.IWorkerParticipantDescriptor[];
 }
 
 @Remotable.WorkerContext('ModeServiceWorkerHelper', ThreadAffinity.All)
@@ -642,7 +590,6 @@ export class ModeServiceWorkerHelper {
 	public _initialize(initData:IWorkerInitData): void {
 		ModesRegistry.registerCompatModes(initData.compatModes);
 		ModesRegistry.registerLanguages(initData.languages);
-		ModesRegistry.registerWorkerParticipants(initData.workerParticipants);
 	}
 
 	public _acceptCompatModes(modes:ILegacyLanguageDefinition[]): void {

@@ -13,5 +13,7 @@
 	"lines.moveDown": "Переместить строку вниз",
 	"lines.moveUp": "Переместить строку вверх",
 	"lines.outdent": "Уменьшить отступ",
+	"lines.sortAscending": "Сортировка строк по возрастанию",
+	"lines.sortDescending": "Сортировка строк по убыванию",
 	"lines.trimTrailingWhitespace": "Удалить конечные символы-разделители"
 }

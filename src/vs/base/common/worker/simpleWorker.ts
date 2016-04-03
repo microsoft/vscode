@@ -160,6 +160,7 @@ export class SimpleWorkerClient<T> extends Disposable {
 	private _onModuleLoaded:TPromise<void>;
 	private _protocol: SimpleWorkerProtocol;
 	private _proxy: T;
+	private _lastRequestTimestamp = -1;
 
 	constructor(workerFactory:IWorkerFactory, moduleId:string, ctor:any) {
 		super();
@@ -223,9 +224,14 @@ export class SimpleWorkerClient<T> extends Disposable {
 		return this._proxy;
 	}
 
+	public getLastRequestTimestamp(): number {
+		return this._lastRequestTimestamp;
+	}
+
 	private _request(method:string, args:any[]): TPromise<any> {
 		return new TPromise<any>((c, e, p) => {
 			this._onModuleLoaded.then(() => {
+				this._lastRequestTimestamp = Date.now();
 				this._protocol.sendMessage(method, args).then(c, e);
 			}, e);
 		}, () => {

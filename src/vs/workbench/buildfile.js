@@ -42,7 +42,7 @@ exports.collectModules= function(excludes) {
 		createModuleDescription('vs/workbench/services/search/node/searchApp', []),
 		createModuleDescription('vs/workbench/services/files/node/watcher/unix/watcherApp', []),
 
-		createModuleDescription('vs/workbench/node/pluginHostProcess', []),
+		createModuleDescription('vs/workbench/node/extensionHostProcess', []),
 
 		createModuleDescription('vs/workbench/electron-main/sharedProcessMain', [])
 	];

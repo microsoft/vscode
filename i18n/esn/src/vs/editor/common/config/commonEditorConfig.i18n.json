@@ -31,6 +31,7 @@
 	"roundedSelection": "Controla si las selecciones tienen esquinas redondeadas",
 	"rulers": "Columnas en las que mostrar reglas verticales",
 	"scrollBeyondLastLine": "Controla si el editor se seguirá desplazando después de la última línea",
+	"selectionClipboard": "Controla si el portapapeles principal de Linux debe admitirse.",
 	"selectionHighlight": "Controla si el editor debería destacar coincidencias similares a la selección",
 	"sideBySide": "Controla si el editor de diferencias muestra las diferencias en paralelo o alineadas.",
 	"suggestOnTriggerCharacters": "Controla si las sugerencias deben aparecer de forma automática al escribir caracteres desencadenadores",

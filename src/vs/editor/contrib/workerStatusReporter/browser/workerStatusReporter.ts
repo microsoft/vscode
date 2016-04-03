@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./workerStatusReporter';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import {IThreadService, IThreadServiceStatus, IThreadServiceStatusListener} from 'vs/platform/thread/common/thread';
 import {IEditorContribution} from 'vs/editor/common/editorCommon';
@@ -46,7 +46,7 @@ class WorkerStatusReporter implements IEditorContribution, IThreadServiceStatusL
 
 	public dispose(): void {
 		this._threadService.removeStatusListener(this);
-		this._toDispose = disposeAll(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
 	}
 
 	public getDomNode():HTMLElement {

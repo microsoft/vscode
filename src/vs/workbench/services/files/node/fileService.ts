@@ -328,6 +328,7 @@ export class FileService implements files.IFileService {
 		// 1.) check if target exists
 		return pfs.exists(targetPath).then((exists) => {
 			let isCaseRename = sourcePath.toLowerCase() === targetPath.toLowerCase();
+			let isSameFile = sourcePath === targetPath;
 
 			// Return early with conflict if target exists and we are not told to overwrite
 			if (exists && !isCaseRename && !overwrite) {
@@ -350,8 +351,11 @@ export class FileService implements files.IFileService {
 
 				// 3.) make sure parents exists
 				return pfs.mkdirp(paths.dirname(targetPath)).then(() => {
+
 					// 4.) copy/move
-					if (keepCopy) {
+					if (isSameFile) {
+						return TPromise.as(null);
+					} else if (keepCopy) {
 						return nfcall(extfs.copy, sourcePath, targetPath);
 					} else {
 						return nfcall(extfs.mv, sourcePath, targetPath);
@@ -706,7 +710,7 @@ export class StatResolver {
 
 				flow.sequence(
 					function onError(error: Error): void {
-						if (this.verboseLogging) {
+						if ($this.verboseLogging) {
 							console.error(error);
 						}
 

@@ -8,7 +8,7 @@
 import 'vs/css!./outlineMarker';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -146,14 +146,14 @@ export class OutlineMarkerContribution implements editorCommon.IEditorContributi
 
 	public dispose(): void {
 		this.localDispose();
-		this._globalToDispose = disposeAll(this._globalToDispose);
+		this._globalToDispose = dispose(this._globalToDispose);
 	}
 
 	private localDispose(): void {
 		if (this._currentOutlinePromise) {
 			this._currentOutlinePromise.cancel();
 		}
-		this._localToDispose = disposeAll(this._localToDispose);
+		this._localToDispose = dispose(this._localToDispose);
 	}
 
 	public getId():string {

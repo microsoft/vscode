@@ -44,7 +44,7 @@ export class BowerJSONContribution implements JSONWorker.IJSONWorkerContribution
 				'main': '{{pathToMain}}',
 				'dependencies': {}
 			};
-			result.add({ type: 'type', label: nls.localize('json.bower.default', 'Default bower.json'), codeSnippet: JSON.stringify(defaultValue, null, '\t'), documentationLabel: '' });
+			result.add({ type: 'snippet', label: nls.localize('json.bower.default', 'Default bower.json'), codeSnippet: JSON.stringify(defaultValue, null, '\t'), documentationLabel: '' });
 		}
 		return null;
 	}

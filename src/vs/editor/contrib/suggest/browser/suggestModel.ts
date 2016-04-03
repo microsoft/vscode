@@ -6,7 +6,7 @@
 
 import {onUnexpectedError} from 'vs/base/common/errors';
 import Event, { Emitter } from 'vs/base/common/event';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {startsWith} from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {EventType, ICommonCodeEditor, ICursorSelectionChangedEvent, IPosition} from 'vs/editor/common/editorCommon';
@@ -171,7 +171,7 @@ export class SuggestModel implements IDisposable {
 	private requestPromise: TPromise<void>;
 	private context: Context;
 
-	private raw: ISuggestResult2[][];
+	private raw: ISuggestResult2[];
 	private completionModel: CompletionModel;
 	private incomplete: boolean;
 
@@ -319,7 +319,7 @@ export class SuggestModel implements IDisposable {
 			}
 
 			this.raw = all;
-			this.incomplete = all.reduce((r, s) => r || s.reduce((r, s) => r || s.incomplete, false), false);
+			this.incomplete = all.some(result => result.incomplete);
 
 			this.onNewContext(new Context(this.editor, auto));
 		}).then(null, onUnexpectedError);
@@ -387,6 +387,6 @@ export class SuggestModel implements IDisposable {
 
 	public dispose(): void {
 		this.cancel(true);
-		this.toDispose = disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 	}
 }

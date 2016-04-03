@@ -8,7 +8,7 @@
 import 'vs/css!./viewCursors';
 import * as browser from 'vs/base/browser/browser';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ClassNames, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {ClassNames, IRenderingContext, IRestrictedRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 import {ViewCursor} from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 
@@ -22,19 +22,27 @@ export class ViewCursors extends ViewPart {
 
 	static BLINK_INTERVAL = 500;
 
-	private _isVisible:boolean;
+	private _readOnly: boolean;
+	private _cursorBlinking: string;
+	private _cursorStyle: editorCommon.TextEditorCursorStyle;
 
-	private _domNode:HTMLElement;
+	private _isVisible: boolean;
 
-	private _blinkTimer:number;
+	private _domNode: HTMLElement;
 
-	private _editorHasFocus:boolean;
+	private _blinkTimer: number;
+
+	private _editorHasFocus: boolean;
 
 	private _primaryCursor: ViewCursor;
 	private _secondaryCursors: ViewCursor[];
 
-	constructor(context:IViewContext) {
+	constructor(context: IViewContext) {
 		super(context);
+
+		this._readOnly = this._context.configuration.editor.readOnly;
+		this._cursorBlinking = this._context.configuration.editor.cursorBlinking;
+		this._cursorStyle = this._context.configuration.editor.cursorStyle;
 
 		this._primaryCursor = new ViewCursor(this._context, false);
 		this._secondaryCursors = [];
@@ -76,21 +84,21 @@ export class ViewCursors extends ViewPart {
 		this._secondaryCursors = [];
 		return true;
 	}
-	public onModelDecorationsChanged(e:editorCommon.IViewDecorationsChangedEvent): boolean {
+	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
 		// true for inline decorations that can end up relayouting text
 		return e.inlineDecorationsChanged;
 	}
-	public onModelLinesDeleted(e:editorCommon.IViewLinesDeletedEvent): boolean {
+	public onModelLinesDeleted(e: editorCommon.IViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onModelLineChanged(e:editorCommon.IViewLineChangedEvent): boolean {
+	public onModelLineChanged(e: editorCommon.IViewLineChangedEvent): boolean {
 		return true;
 	}
-	public onModelLinesInserted(e:editorCommon.IViewLinesInsertedEvent): boolean {
+	public onModelLinesInserted(e: editorCommon.IViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onModelTokensChanged(e:editorCommon.IViewTokensChangedEvent): boolean {
-		var shouldRender = (position:editorCommon.IPosition) => {
+	public onModelTokensChanged(e: editorCommon.IViewTokensChangedEvent): boolean {
+		var shouldRender = (position: editorCommon.IPosition) => {
 			return e.fromLineNumber <= position.lineNumber && position.lineNumber <= e.toLineNumber;
 		};
 		if (shouldRender(this._primaryCursor.getPosition())) {
@@ -103,7 +111,7 @@ export class ViewCursors extends ViewPart {
 		}
 		return false;
 	}
-	public onCursorPositionChanged(e:editorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
 		this._primaryCursor.onCursorPositionChanged(e.position, e.isInEditableRange);
 		this._updateBlinking();
 
@@ -130,10 +138,21 @@ export class ViewCursors extends ViewPart {
 
 		return true;
 	}
-	public onCursorSelectionChanged(e:editorCommon.IViewCursorSelectionChangedEvent): boolean {
+	public onCursorSelectionChanged(e: editorCommon.IViewCursorSelectionChangedEvent): boolean {
 		return false;
 	}
-	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+
+		if (e.readOnly) {
+			this._readOnly = this._context.configuration.editor.readOnly;
+		}
+		if (e.cursorBlinking) {
+			this._cursorBlinking = this._context.configuration.editor.cursorBlinking;
+		}
+		if (e.cursorStyle) {
+			this._cursorStyle = this._context.configuration.editor.cursorStyle;
+		}
+
 		this._primaryCursor.onConfigurationChanged(e);
 		this._updateBlinking();
 		if (e.cursorStyle) {
@@ -144,22 +163,22 @@ export class ViewCursors extends ViewPart {
 		}
 		return true;
 	}
-	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
+	public onLayoutChanged(layoutInfo: editorCommon.IEditorLayoutInfo): boolean {
 		return true;
 	}
-	public onScrollChanged(e:editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
 		return true;
 	}
 	public onZonesChanged(): boolean {
 		return true;
 	}
-	public onScrollWidthChanged(scrollWidth:number): boolean {
+	public onScrollWidthChanged(scrollWidth: number): boolean {
 		return true;
 	}
-	public onScrollHeightChanged(scrollHeight:number): boolean {
+	public onScrollHeightChanged(scrollHeight: number): boolean {
 		return false;
 	}
-	public onViewFocusChanged(isFocused:boolean): boolean {
+	public onViewFocusChanged(isFocused: boolean): boolean {
 		this._editorHasFocus = isFocused;
 		this._updateBlinking();
 		return false;
@@ -170,12 +189,12 @@ export class ViewCursors extends ViewPart {
 		return this._primaryCursor.getPosition();
 	}
 
-// ---- blinking logic
+	// ---- blinking logic
 
 	private _getRenderType(): RenderType {
 		if (this._editorHasFocus) {
-			if (this._primaryCursor.getIsInEditableRange() && !this._context.configuration.editor.readOnly) {
-				switch (this._context.configuration.editor.cursorBlinking) {
+			if (this._primaryCursor.getIsInEditableRange() && !this._readOnly) {
+				switch (this._cursorBlinking) {
 					case 'blink':
 						return RenderType.Blink;
 					case 'visible':
@@ -209,7 +228,7 @@ export class ViewCursors extends ViewPart {
 			this._blinkTimer = window.setInterval(() => this._blink(), ViewCursors.BLINK_INTERVAL);
 		}
 	}
-// --- end blinking logic
+	// --- end blinking logic
 
 	private _updateDomClassName(): void {
 		this._domNode.className = this._getClassName();
@@ -218,7 +237,7 @@ export class ViewCursors extends ViewPart {
 	private _getClassName(): string {
 		let result = ClassNames.VIEW_CURSORS_LAYER;
 		let extraClassName: string;
-		switch (this._context.configuration.editor.cursorStyle) {
+		switch (this._cursorStyle) {
 			case editorCommon.TextEditorCursorStyle.Line:
 				extraClassName = 'cursor-line-style';
 				break;
@@ -260,17 +279,21 @@ export class ViewCursors extends ViewPart {
 
 	// ---- IViewPart implementation
 
-	_render(ctx:IRenderingContext): void {
+	public prepareRender(ctx: IRenderingContext): void {
+		if (!this.shouldRender()) {
+			throw new Error('I did not ask to render!');
+		}
+
 		this._primaryCursor.prepareRender(ctx);
 		for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
 			this._secondaryCursors[i].prepareRender(ctx);
 		}
+	}
 
-		this._requestModificationFrame(() => {
-			this._primaryCursor.render(ctx);
-			for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
-				this._secondaryCursors[i].render(ctx);
-			}
-		});
+	public render(ctx: IRestrictedRenderingContext): void {
+		this._primaryCursor.render(ctx);
+		for (var i = 0, len = this._secondaryCursors.length; i < len; i++) {
+			this._secondaryCursors[i].render(ctx);
+		}
 	}
 }

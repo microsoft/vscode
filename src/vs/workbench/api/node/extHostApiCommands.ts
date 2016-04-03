@@ -86,7 +86,8 @@ class ExtHostApiCommands {
 			description: 'Execute signature help provider.',
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'position', description: 'Position in a text document', constraint: types.Position }
+				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
+				{ name: 'triggerCharacter', description: '(optional) Trigger signature help when the user types the character, like `,` or `(`' }
 			],
 			returns: 'A promise that resolves to SignatureHelp.'
 		});
@@ -101,7 +102,8 @@ class ExtHostApiCommands {
 			description: 'Execute completion item provider.',
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'position', description: 'Position in a text document', constraint: types.Position }
+				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
+				{ name: 'triggerCharacter', description: '(optional) Trigger completion when the user types the character, like `,` or `(`' }
 			],
 			returns: 'A promise that resolves to a CompletionList-instance.'
 		});
@@ -111,14 +113,14 @@ class ExtHostApiCommands {
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
 				{ name: 'range', description: 'Range in a text document', constraint: types.Range }
 			],
-			returns: 'A promise that resolves to an array of CompletionItem-instances.'
+			returns: 'A promise that resolves to an array of Command-instances.'
 		});
 		this._register('vscode.executeCodeLensProvider', this._executeCodeLensProvider, {
 			description: 'Execute completion item provider.',
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI }
 			],
-			returns: 'A promise that resolves to an array of Commands.'
+			returns: 'A promise that resolves to an array of CodeLens-instances.'
 		});
 		this._register('vscode.executeFormatDocumentProvider', this._executeFormatDocumentProvider, {
 			description: 'Execute document format provider.',
@@ -271,17 +273,15 @@ class ExtHostApiCommands {
 			position: position && typeConverters.fromPosition(position),
 			triggerCharacter
 		};
-		return this._commands.executeCommand<modes.ISuggestResult[][]>('_executeCompletionItemProvider', args).then(value => {
+		return this._commands.executeCommand<modes.ISuggestResult[]>('_executeCompletionItemProvider', args).then(value => {
 			if (value) {
 				let items: types.CompletionItem[] = [];
 				let incomplete: boolean;
-				for (let group of value) {
-					for (let suggestions of group) {
-						incomplete = suggestions.incomplete || incomplete;
-						for (let suggestion of suggestions.suggestions) {
-							const item = typeConverters.Suggest.to(suggestions, position, suggestion);
-							items.push(item);
-						}
+				for (let suggestions of value) {
+					incomplete = suggestions.incomplete || incomplete;
+					for (let suggestion of suggestions.suggestions) {
+						const item = typeConverters.Suggest.to(suggestions, position, suggestion);
+						items.push(item);
 					}
 				}
 				return new types.CompletionList(<any>items, incomplete);

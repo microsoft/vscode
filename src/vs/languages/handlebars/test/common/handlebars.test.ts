@@ -5,7 +5,7 @@
 'use strict';
 
 import 'vs/languages/handlebars/common/handlebars.contribution';
-import 'vs/languages/javascript/common/javascript.contribution';
+import 'vs/languages/typescript/common/typescript.contribution';
 import Modes = require('vs/editor/common/modes');
 import modesUtil = require('vs/editor/test/common/modesUtil');
 import {htmlTokenTypes} from 'vs/languages/html/common/html';

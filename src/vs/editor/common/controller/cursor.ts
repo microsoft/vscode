@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {ReplaceCommand} from 'vs/editor/common/commands/replaceCommand';
 import {CursorCollection, ICursorCollectionState} from 'vs/editor/common/controller/cursorCollection';
 import {DispatcherEvent} from 'vs/editor/common/controller/handlerDispatcher';
@@ -145,7 +145,7 @@ export class Cursor extends EventEmitter {
 	}
 
 	public dispose(): void {
-		this.modelUnbinds = disposeAll(this.modelUnbinds);
+		this.modelUnbinds = dispose(this.modelUnbinds);
 		this.model = null;
 		this.cursors.dispose();
 		this.cursors = null;
@@ -921,8 +921,8 @@ export class Cursor extends EventEmitter {
 	// ----- handlers beyond this point
 
 	private _registerHandlers(): void {
-		var H = editorCommon.Handler;
-		var handlersMap:{
+		let H = editorCommon.Handler;
+		let handlersMap:{
 			[key:string]:(ctx:IMultipleCursorOperationContext)=>boolean;
 		} = {};
 
@@ -1041,15 +1041,14 @@ export class Cursor extends EventEmitter {
 		handlersMap[H.ExecuteCommand] =				(ctx:IMultipleCursorOperationContext) => this._externalExecuteCommand(ctx);
 		handlersMap[H.ExecuteCommands] =			(ctx:IMultipleCursorOperationContext) => this._externalExecuteCommands(ctx);
 
-		var createHandler = (handlerId:string, handlerExec:(ctx:IMultipleCursorOperationContext)=>boolean) => {
+		let createHandler = (handlerId:string, handlerExec:(ctx:IMultipleCursorOperationContext)=>boolean) => {
 			return (e:editorCommon.IDispatcherEvent) => this._onHandler(handlerId, handlerExec, e);
 		};
 
-		var handler:string;
-		for (handler in handlersMap) {
-			if (handlersMap.hasOwnProperty(handler)) {
-				this.configuration.handlerDispatcher.setHandler(handler, createHandler(handler, handlersMap[handler]));
-			}
+		let keys = Object.keys(handlersMap);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let handler = keys[i];
+			this.configuration.handlerDispatcher.setHandler(handler, createHandler(handler, handlersMap[handler]));
 		}
 	}
 

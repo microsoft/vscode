@@ -144,7 +144,7 @@ function createNativeRawGitService(workspaceRoot: string, path: string, defaultE
 
 class ElectronRawGitService extends DelayedRawGitService {
 	constructor(workspaceRoot: string, @IConfigurationService configurationService: IConfigurationService) {
-		super(configurationService.loadConfiguration().then(conf => {
+		super(TPromise.as(configurationService.getConfiguration<any>()).then(conf => {
 			var enabled = conf.git ? conf.git.enabled : true;
 
 			if (!enabled) {

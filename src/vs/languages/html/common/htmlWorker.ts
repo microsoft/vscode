@@ -43,7 +43,6 @@ export class HTMLWorker {
 
 	constructor(
 		modeId: string,
-		participants: Modes.IWorkerParticipant[],
 		@IResourceService resourceService: IResourceService,
 		@IMarkerService markerService: IMarkerService,
 		@IWorkspaceContextService contextService:IWorkspaceContextService

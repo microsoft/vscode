@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import {IAction, IActionProvider, isAction} from 'vs/base/common/actions';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {EventEmitter, IEventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as timer from 'vs/base/common/timer';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -145,14 +145,14 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 
 	public dispose(): void {
 		this._codeEditorService.removeCodeEditor(this);
-		this._lifetimeDispose = disposeAll(this._lifetimeDispose);
+		this._lifetimeDispose = dispose(this._lifetimeDispose);
 
-		var contributionId:string;
-		for (contributionId in this.contributions) {
-			if (this.contributions.hasOwnProperty(contributionId)) {
-				this.contributions[contributionId].dispose();
-			}
+		let keys = Object.keys(this.contributions);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let contributionId = keys[i];
+			this.contributions[contributionId].dispose();
 		}
+
 		this.contributions = {};
 
 		this._postDetachModelCleanup(this._detachModel());
@@ -524,17 +524,18 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 	}
 
 	public getActions(): IAction[] {
-		var result: IAction[] = [];
-		var id: string;
-		for (id in this.contributions) {
-			if (this.contributions.hasOwnProperty(id)) {
-				var contribution = <any>this.contributions[id];
-				// contribution instanceof IAction
-				if (isAction(contribution)) {
-					result.push(<IAction>contribution);
-				}
+		let result: IAction[] = [];
+
+		let keys = Object.keys(this.contributions);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let id = keys[i];
+			let contribution = <any>this.contributions[id];
+			// contribution instanceof IAction
+			if (isAction(contribution)) {
+				result.push(<IAction>contribution);
 			}
 		}
+
 		return result;
 	}
 
@@ -553,7 +554,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements IActionPr
 		var candidate = this.getAction(handlerId);
 		if(candidate !== null) {
 			if (candidate.enabled) {
-				this._telemetryService.publicLog('editorActionInvoked', {name: candidate.label} );
+				this._telemetryService.publicLog('editorActionInvoked', {name: candidate.label, id: candidate.id} );
 				TPromise.as(candidate.run()).done(null, onUnexpectedError);
 			}
 		} else {

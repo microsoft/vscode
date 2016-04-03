@@ -97,33 +97,6 @@
 
 				process.on('uncaughtException', function(error) { onError(error, enableDeveloperTools) });
 			}
-
-			function getNlsPluginConfiguration(configuration) {
-				var locale = configuration.locale;
-				if (locale === 'pseudo') {
-					return { availableLanguages: {}, pseudo: true }
-				}
-				if (!configuration.isBuilt) {
-					return { availableLanguages: {} };
-				}
-				// We have a built version so we have extracted nls file. Try to find
-				// the right file to use.
-				locale = locale || window.navigator.language;
-				while (locale) {
-					var candidate = path.join(__dirname, '..', 'workbench.main.nls.') + locale + '.js';
-					if (fs.existsSync(candidate)) {
-						return { availableLanguages: { '*': locale } };
-					} else {
-						var index = locale.lastIndexOf('-');
-						if (index > 0) {
-							locale = locale.substring(0, index);
-						} else {
-							locale = null;
-						}
-					}
-				}
-				return { availableLanguages: {} };
-			}
 		</script>
 
 		<!-- Startup Code -->
@@ -136,6 +109,10 @@
 			var enableDeveloperTools = !configuration.isBuilt || !!configuration.extensionDevelopmentPath;
 
 			process.env['VSCODE_SHARED_IPC_HOOK'] = configuration.sharedIPCHandle;
+			// Get the nls configuration into the process.env as early as possible.
+			if (configuration.userEnv && configuration.userEnv['VSCODE_NLS_CONFIG']) {
+				process.env['VSCODE_NLS_CONFIG'] = configuration.userEnv['VSCODE_NLS_CONFIG'];
+			}
 
 			registerListeners(enableDeveloperTools);
 
@@ -173,7 +150,7 @@
 				} catch (e) {
 				}
 				if (!nlsConfig) {
-					nlsConfig = getNlsPluginConfiguration(configuration);
+					nlsConfig = { availableLanguages: {} };
 				}
 				require.config({
 					baseUrl: rootUrl,
@@ -190,10 +167,7 @@
 
 				window.MonacoEnvironment = {
 					'enableTasks': hasWorkspaceContext,
-					'enableJavaScriptRewriting': true,
-					'enableSendASmile' : !!configuration.sendASmile,
-					'enableTypeScriptServiceMode': true || !process.env['VSCODE_TSWORKER'],
-					'enableTypeScriptServiceModeForJS': !!process.env['CODE_TSJS'] || !!process.env['VSCODE_TSJS']
+					'enableSendASmile' : !!configuration.sendASmile
 				};
 
 				var timers = window.MonacoEnvironment.timers = {

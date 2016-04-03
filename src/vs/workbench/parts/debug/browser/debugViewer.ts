@@ -112,7 +112,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 
 			// need to remove the input box since this template will be reused.
 			container.removeChild(inputBoxContainer);
-			lifecycle.disposeAll(toDispose);
+			lifecycle.dispose(toDispose);
 		}
 	});
 
@@ -194,6 +194,10 @@ export class CallStackDataSource implements tree.IDataSource {
 	}
 
 	public getId(tree: tree.ITree, element: any): string {
+		if (typeof element === 'number') {
+			return element.toString();
+		}
+
 		return element.getId();
 	}
 
@@ -203,7 +207,7 @@ export class CallStackDataSource implements tree.IDataSource {
 
 	public getChildren(tree: tree.ITree, element: any): TPromise<any> {
 		if (element instanceof model.Thread) {
-			return (<model.Thread> element).getCallStack(this.debugService);
+			return this.getThreadChildren(element);
 		}
 
 		const threads = (<model.Model> element).getThreads();
@@ -213,10 +217,20 @@ export class CallStackDataSource implements tree.IDataSource {
 		});
 
 		if (threadsArray.length === 1) {
-			return threadsArray[0].getCallStack(this.debugService);
+			return this.getThreadChildren(threadsArray[0]);
 		} else {
 			return TPromise.as(threadsArray);
 		}
+	}
+
+	private getThreadChildren(thread: debug.IThread): TPromise<any> {
+		return thread.getCallStack(this.debugService).then((callStack: any[]) => {
+			if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length) {
+				return callStack.concat([thread.threadId]);
+			}
+
+			return callStack;
+		});
 	}
 
 	public getParent(tree: tree.ITree, element: any): TPromise<any> {
@@ -226,6 +240,10 @@ export class CallStackDataSource implements tree.IDataSource {
 
 interface IThreadTemplateData {
 	name: HTMLElement;
+}
+
+interface ILoadMoreTemplateData {
+	label: HTMLElement;
 }
 
 interface IStackFrameTemplateData {
@@ -240,6 +258,7 @@ export class CallStackRenderer implements tree.IRenderer {
 
 	private static THREAD_TEMPLATE_ID = 'thread';
 	private static STACK_FRAME_TEMPLATE_ID = 'stackFrame';
+	private static LOAD_MORE_TEMPLATE_ID = 'loadMore';
 
 	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
 		// noop
@@ -257,10 +276,16 @@ export class CallStackRenderer implements tree.IRenderer {
 			return CallStackRenderer.STACK_FRAME_TEMPLATE_ID;
 		}
 
-		return null;
+		return CallStackRenderer.LOAD_MORE_TEMPLATE_ID;
 	}
 
 	public renderTemplate(tree: tree.ITree, templateId: string, container: HTMLElement): any {
+		if (templateId === CallStackRenderer.LOAD_MORE_TEMPLATE_ID) {
+			let data: ILoadMoreTemplateData = Object.create(null);
+			data.label = dom.append(container, $('.load-more'));
+
+			return data;
+		}
 		if (templateId === CallStackRenderer.THREAD_TEMPLATE_ID) {
 			let data: IThreadTemplateData = Object.create(null);
 			data.name = dom.append(container, $('.thread'));
@@ -281,13 +306,19 @@ export class CallStackRenderer implements tree.IRenderer {
 	public renderElement(tree: tree.ITree, element: any, templateId: string, templateData: any): void {
 		if (templateId === CallStackRenderer.THREAD_TEMPLATE_ID) {
 			this.renderThread(element, templateData);
-		} else {
+		} else if (templateId === CallStackRenderer.STACK_FRAME_TEMPLATE_ID) {
 			this.renderStackFrame(element, templateData);
+		} else {
+			this.renderLoadMore(element, templateData);
 		}
 	}
 
 	private renderThread(thread: debug.IThread, data: IThreadTemplateData): void {
 		data.name.textContent = thread.name;
+	}
+
+	private renderLoadMore(element: any, data: ILoadMoreTemplateData): void {
+		data.label.textContent = nls.localize('loadMoreStackFrames', "Load More Stack Frames...");
 	}
 
 	private renderStackFrame(stackFrame: debug.IStackFrame, data: IStackFrameTemplateData): void {
@@ -296,7 +327,7 @@ export class CallStackRenderer implements tree.IRenderer {
 		data.label.textContent = stackFrame.name;
 		data.label.title = stackFrame.name;
 		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService);
-		data.lineNumber.textContent = stackFrame.lineNumber !== undefined ? `${ stackFrame.lineNumber }` : '';
+		data.lineNumber.textContent = (stackFrame.source.available && stackFrame.lineNumber !== undefined) ? `${ stackFrame.lineNumber }` : '';
 	}
 
 	public disposeTemplate(tree: tree.ITree, templateId: string, templateData: any): void {
@@ -631,11 +662,13 @@ export class WatchExpressionsRenderer implements tree.IRenderer {
 	}
 
 	public disposeTemplate(tree: tree.ITree, templateId: string, templateData: any): void {
-		// noop
+		if (templateId === WatchExpressionsRenderer.WATCH_EXPRESSION_TEMPLATE_ID) {
+			(<IWatchExpressionTemplateData>templateData).actionBar.dispose();
+		}
 	}
 
 	public dispose(): void {
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }
 
@@ -868,7 +901,7 @@ export class BreakpointsRenderer implements tree.IRenderer {
 	}
 
 	public renderElement(tree: tree.ITree, element: any, templateId: string, templateData: any): void {
-		templateData.toDisposeBeforeRender = lifecycle.disposeAll(templateData.toDisposeBeforeRender);
+		templateData.toDisposeBeforeRender = lifecycle.dispose(templateData.toDisposeBeforeRender);
 		templateData.toDisposeBeforeRender.push(dom.addStandardDisposableListener(templateData.checkbox, 'change', (e) => {
 			this.debugService.toggleEnablement(element);
 		}));

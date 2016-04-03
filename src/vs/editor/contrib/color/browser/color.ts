@@ -8,7 +8,7 @@
 import 'vs/css!./color';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {IDisposable, cAll, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, cAll, dispose} from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
@@ -118,7 +118,7 @@ export class ColorContribution implements editorCommon.IEditorContribution {
 		}
 		this._style.parentNode.removeChild(this._style);
 		this._style = null;
-		this._callOnDispose = disposeAll(this._callOnDispose);
+		this._callOnDispose = dispose(this._callOnDispose);
 	}
 
 	public getId():string {

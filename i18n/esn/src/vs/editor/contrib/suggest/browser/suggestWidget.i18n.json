@@ -10,7 +10,7 @@
 	"readMore": "Leer más...{0}",
 	"suggestWidget.loading": "Cargando...",
 	"suggestWidget.noSuggestions": "No hay sugerencias.",
-	"suggestionAriaAccepted": "{0}, aceptado",
+	"suggestionAriaAccepted": "{0}, aceptada",
 	"suggestionAriaLabel": "{0}, sugerencia",
 	"suggestionWithDetailsAriaLabel": "{0}, sugerencia, con detalles"
 }

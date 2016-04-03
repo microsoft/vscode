@@ -104,7 +104,7 @@ var config = {
 		name: product.nameLong + ' document',
 		role: 'Editor',
 		ostypes: ["TEXT", "utxt", "TUTX", "****"],
-		extensions: ["ascx", "asp", "aspx", "bash", "bash_login", "bash_logout", "bash_profile", "bashrc", "bat", "bowerrc", "c", "cc", "clj", "cljs", "cljx", "clojure", "cmd", "coffee", "config", "cpp", "cs", "cshtml", "csproj", "css", "csx", "ctp", "cxx", "dockerfile", "dot", "dtd", "editorconfig", "edn", "eyaml", "eyml", "fs", "fsi", "fsscript", "fsx", "gemspec", "gitattributes", "gitconfig", "gitignore", "go", "h", "handlebars", "hbs", "hh", "hpp", "htm", "html", "hxx", "ini", "jade", "jav", "java", "js", "jscsrc", "jshintrc", "jshtm", "json", "jsp", "less", "lua", "m", "makefile", "markdown", "md", "mdoc", "mdown", "mdtext", "mdtxt", "mdwn", "mkd", "mkdn", "ml", "mli", "nqp", "p6", "php", "phtml", "pl", "pl6", "pm", "pm6", "pod", "pp", "profile", "properties", "ps1", "psd1", "psgi", "psm1", "py", "r", "rb", "rhistory", "rprofile", "rs", "rt", "scss", "sh", "shtml", "sql", "svg", "svgz", "t", "ts", "txt", "vb", "wxi", "wxl", "wxs", "xaml", "xml", "yaml", "yml", "zsh"],
+		extensions: ["ascx", "asp", "aspx", "bash", "bash_login", "bash_logout", "bash_profile", "bashrc", "bat", "bowerrc", "c", "cc", "clj", "cljs", "cljx", "clojure", "cmd", "coffee", "config", "cpp", "cs", "cshtml", "csproj", "css", "csx", "ctp", "cxx", "dockerfile", "dot", "dtd", "editorconfig", "edn", "eyaml", "eyml", "fs", "fsi", "fsscript", "fsx", "gemspec", "gitattributes", "gitconfig", "gitignore", "go", "h", "handlebars", "hbs", "hh", "hpp", "htm", "html", "hxx", "ini", "jade", "jav", "java", "js", "jscsrc", "jshintrc", "jshtm", "json", "jsp", "less", "lua", "m", "makefile", "markdown", "md", "mdoc", "mdown", "mdtext", "mdtxt", "mdwn", "mkd", "mkdn", "ml", "mli", "nqp", "p6", "php", "phtml", "pl", "pl6", "pm", "pm6", "pod", "pp", "profile", "properties", "ps1", "psd1", "psgi", "psm1", "py", "r", "rb", "rhistory", "rprofile", "rs", "rt", "scss", "sh", "shtml", "sql", "svg", "svgz", "t", "ts", "txt", "vb", "wxi", "wxl", "wxs", "xaml", "xml", "yaml", "yml", "zlogin", "zlogout", "zprofile", "zsh", "zshenv", "zshrc"],
 		iconFile: 'resources/darwin/code_file.icns'
 	}],
 	darwinCredits: darwinCreditsTemplate ? new Buffer(darwinCreditsTemplate({ commit: commit, date: new Date().toISOString() })) : void 0,
@@ -292,23 +292,14 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('DEBIAN/prerm'))
 
-		var all = es.merge(control, prerm, desktop, icon, shortcut, code);
+		var postinst = gulp.src('resources/linux/debian/postinst.template', { base: '.' })
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@ARCHITECTURE@@', debArch))
+			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
+			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
+			.pipe(rename('DEBIAN/postinst'))
 
-		// Register an apt repository if this is an official build
-		if (product.updateUrl && product.quality) {
-			var postinst = gulp.src('resources/linux/debian/postinst.template', { base: '.' })
-				.pipe(replace('@@NAME@@', product.applicationName))
-				.pipe(replace('@@UPDATEURL@@', product.updateUrl))
-				.pipe(replace('@@QUALITY@@', product.quality))
-				.pipe(replace('@@ARCHITECTURE@@', debArch))
-				.pipe(rename('DEBIAN/postinst'))
-			all = es.merge(all, postinst);
-		} else {
-			var postinst = gulp.src('resources/linux/debian/postinst.oss.template', { base: '.' })
-				.pipe(replace('@@NAME@@', product.applicationName))
-				.pipe(rename('DEBIAN/postinst'))
-			all = es.merge(all, postinst);
-		}
+		var all = es.merge(control, postinst, prerm, desktop, icon, shortcut, code);
 
 		return all.pipe(symdest(destination));
 	};
@@ -338,6 +329,7 @@ function getRpmPackageArch(arch) {
 
 function prepareRpmPackage(arch) {
 	var binaryDir = '../VSCode-linux-' + arch;
+	var rpmArch = getRpmPackageArch(arch);
 	var destination = rpmBuildPath;
 	var packageRevision = getEpochTime();
 
@@ -359,11 +351,18 @@ function prepareRpmPackage(arch) {
 
 		var spec = gulp.src('resources/linux/rpm/code.spec.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@VERSION@@', packageJson.version))
 			.pipe(replace('@@RELEASE@@', packageRevision))
+			.pipe(replace('@@ARCHITECTURE@@', rpmArch))
+			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
+			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
 			.pipe(rename('SPECS/' + product.applicationName + '.spec'));
 
-		var all = es.merge(code, desktop, icon, shortcut, spec);
+		var specIcon = gulp.src('resources/linux/rpm/code.xpm', { base: '.' })
+			.pipe(rename('SOURCES/' + product.applicationName + '.xpm'));
+
+		var all = es.merge(code, desktop, icon, shortcut, spec, specIcon);
 
 		return all.pipe(symdest(destination));
 	}
@@ -371,8 +370,13 @@ function prepareRpmPackage(arch) {
 
 function buildRpmPackage(arch) {
 	var rpmArch = getRpmPackageArch(arch);
+	var rpmOut = rpmBuildPath + '/RPMS/' + rpmArch;
+	var destination = '.build/linux/rpm/' + rpmArch;
 	return shell.task([
+		'mkdir -p ' + destination,
 		'fakeroot rpmbuild -bb ' + rpmBuildPath + '/SPECS/' + product.applicationName + '.spec --target=' + rpmArch,
+		'cp "' + rpmOut + '/$(ls ' + rpmOut + ')" ' + destination + '/vscode-' + rpmArch + '.rpm',
+		'createrepo ' + destination
 	]);
 }
 

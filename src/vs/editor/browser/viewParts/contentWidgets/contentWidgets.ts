@@ -9,7 +9,7 @@ import 'vs/css!./contentWidgets';
 import * as dom from 'vs/base/browser/dom';
 import {StyleMutator} from 'vs/base/browser/styleMutator';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import {ClassNames, ContentWidgetPositionPreference, IContentWidget, IRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
+import {ClassNames, ContentWidgetPositionPreference, IContentWidget, IRenderingContext, IRestrictedRenderingContext, IViewContext} from 'vs/editor/browser/editorBrowser';
 import {ViewPart} from 'vs/editor/browser/view/viewPart';
 
 interface IWidgetData {
@@ -46,6 +46,8 @@ export class ViewContentWidgets extends ViewPart {
 	private _widgets:IWidgetMap;
 	private _contentWidth:number;
 	private _contentLeft: number;
+	private _lineHeight: number;
+	private _renderData:IMyRenderData;
 
 	public domNode:HTMLElement;
 	public overflowingContentWidgetsDomNode:HTMLElement;
@@ -58,6 +60,8 @@ export class ViewContentWidgets extends ViewPart {
 		this._widgets = {};
 		this._contentWidth = 0;
 		this._contentLeft = 0;
+		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._renderData = {};
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = ClassNames.CONTENT_WIDGETS;
@@ -100,22 +104,24 @@ export class ViewContentWidgets extends ViewPart {
 		return false;
 	}
 	public onConfigurationChanged(e:editorCommon.IConfigurationChangedEvent): boolean {
+		if (e.lineHeight) {
+			this._lineHeight = this._context.configuration.editor.lineHeight;
+		}
 		return true;
 	}
 	public onLayoutChanged(layoutInfo:editorCommon.IEditorLayoutInfo): boolean {
-		this._contentWidth = layoutInfo.contentWidth;
 		this._contentLeft = layoutInfo.contentLeft;
 
-		this._requestModificationFrameBeforeRendering(() => {
+		if (this._contentWidth !== layoutInfo.contentWidth) {
+			this._contentWidth = layoutInfo.contentWidth;
 			// update the maxWidth on widgets nodes, such that `onReadAfterForcedLayout`
 			// below can read out the adjusted width/height of widgets
-			let widgetId:string;
-			for (widgetId in this._widgets) {
-				if (this._widgets.hasOwnProperty(widgetId)) {
-					StyleMutator.setMaxWidth(this._widgets[widgetId].widget.getDomNode(), this._contentWidth);
-				}
+			let keys = Object.keys(this._widgets);
+			for (let i = 0, len = keys.length; i < len; i++) {
+				let widgetId = keys[i];
+				StyleMutator.setMaxWidth(this._widgets[widgetId].widget.getDomNode(), this._contentWidth);
 			}
-		});
+		}
 
 		return true;
 	}
@@ -156,7 +162,7 @@ export class ViewContentWidgets extends ViewPart {
 			this.domNode.appendChild(domNode);
 		}
 
-		this.shouldRender = true;
+		this.setShouldRender();
 	}
 
 	public setWidgetPosition(widget: IContentWidget, position: editorCommon.IPosition, preference:ContentWidgetPositionPreference[]): void {
@@ -165,7 +171,7 @@ export class ViewContentWidgets extends ViewPart {
 		widgetData.position = position;
 		widgetData.preference = preference;
 
-		this.shouldRender = true;
+		this.setShouldRender();
 	}
 
 	public removeWidget(widget: IContentWidget): void {
@@ -178,7 +184,7 @@ export class ViewContentWidgets extends ViewPart {
 			domNode.parentNode.removeChild(domNode);
 			domNode.removeAttribute('monaco-visible-content-widget');
 
-			this.shouldRender = true;
+			this.setShouldRender();
 		}
 	}
 
@@ -200,7 +206,7 @@ export class ViewContentWidgets extends ViewPart {
 		let heightAboveLine = aboveLineTop;
 
 		// b) the box under the line
-		let underLineTop = visibleRange.top + this._context.configuration.editor.lineHeight;
+		let underLineTop = visibleRange.top + this._lineHeight;
 		let heightUnderLine = ctx.viewportHeight - underLineTop;
 
 		let aboveTop = aboveLineTop - height;
@@ -243,7 +249,7 @@ export class ViewContentWidgets extends ViewPart {
 		}
 
 		let aboveTop = visibleRange.top - height,
-			belowTop = visibleRange.top + this._context.configuration.editor.lineHeight,
+			belowTop = visibleRange.top + this._lineHeight,
 			left = left0 + this._contentLeft;
 
 		let domNodePosition = dom.getDomNodePosition(this._viewDomNode);
@@ -357,52 +363,54 @@ export class ViewContentWidgets extends ViewPart {
 		}
 	}
 
-	_render(ctx:IRenderingContext): void {
-		let data:IMyRenderData = {},
-			renderData: IMyWidgetRenderData,
-			widgetId: string;
+	public prepareRender(ctx:IRenderingContext): void {
+		if (!this.shouldRender()) {
+			throw new Error('I did not ask to render!');
+		}
 
-		for (widgetId in this._widgets) {
-			if (this._widgets.hasOwnProperty(widgetId)) {
-				renderData = this._prepareRenderWidget(this._widgets[widgetId], ctx);
-				if (renderData) {
-					data[widgetId] = renderData;
-				}
+		let data:IMyRenderData = {};
+
+		let keys = Object.keys(this._widgets);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let widgetId = keys[i];
+			let renderData = this._prepareRenderWidget(this._widgets[widgetId], ctx);
+			if (renderData) {
+				data[widgetId] = renderData;
 			}
 		}
 
-		this._requestModificationFrame(() => {
-			let widgetId:string,
-				widget:IWidgetData,
-				domNode: HTMLElement;
+		this._renderData = data;
+	}
 
-			for (widgetId in this._widgets) {
-				if (this._widgets.hasOwnProperty(widgetId)) {
-					widget = this._widgets[widgetId];
-					domNode = this._widgets[widgetId].widget.getDomNode();
+	public render(ctx:IRestrictedRenderingContext): void {
+		let data = this._renderData;
 
-					if (data.hasOwnProperty(widgetId)) {
-						if (widget.allowEditorOverflow) {
-							StyleMutator.setTop(domNode, data[widgetId].top);
-							StyleMutator.setLeft(domNode, data[widgetId].left);
-						} else {
-							StyleMutator.setTop(domNode, data[widgetId].top + ctx.viewportTop - ctx.bigNumbersDelta);
-							StyleMutator.setLeft(domNode, data[widgetId].left);
-						}
-						if (!widget.isVisible) {
-							StyleMutator.setVisibility(domNode, 'inherit');
-							domNode.setAttribute('monaco-visible-content-widget', 'true');
-							widget.isVisible = true;
-						}
-					} else {
-						if (widget.isVisible) {
-							domNode.removeAttribute('monaco-visible-content-widget');
-							widget.isVisible = false;
-							StyleMutator.setVisibility(domNode, 'hidden');
-						}
-					}
+		let keys = Object.keys(this._widgets);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let widgetId = keys[i];
+			let widget = this._widgets[widgetId];
+			let domNode = this._widgets[widgetId].widget.getDomNode();
+
+			if (data.hasOwnProperty(widgetId)) {
+				if (widget.allowEditorOverflow) {
+					StyleMutator.setTop(domNode, data[widgetId].top);
+					StyleMutator.setLeft(domNode, data[widgetId].left);
+				} else {
+					StyleMutator.setTop(domNode, data[widgetId].top + ctx.viewportTop - ctx.bigNumbersDelta);
+					StyleMutator.setLeft(domNode, data[widgetId].left);
+				}
+				if (!widget.isVisible) {
+					StyleMutator.setVisibility(domNode, 'inherit');
+					domNode.setAttribute('monaco-visible-content-widget', 'true');
+					widget.isVisible = true;
+				}
+			} else {
+				if (widget.isVisible) {
+					domNode.removeAttribute('monaco-visible-content-widget');
+					widget.isVisible = false;
+					StyleMutator.setVisibility(domNode, 'hidden');
 				}
 			}
-		});
+		}
 	}
 }

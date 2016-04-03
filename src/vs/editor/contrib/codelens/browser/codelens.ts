@@ -8,7 +8,7 @@
 import 'vs/css!./codelens';
 import {RunOnceScheduler} from 'vs/base/common/async';
 import {onUnexpectedError} from 'vs/base/common/errors';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import {format} from 'vs/base/common/strings';
 import {TPromise} from 'vs/base/common/winjs.base';
@@ -279,8 +279,18 @@ class CodeLens {
 		});
 	}
 
-	public updateCodeLensSymbols(data: ICodeLensData[]): void {
+	public updateCodeLensSymbols(data: ICodeLensData[], helper: CodeLensHelper): void {
+		while (this._decorationIds.length) {
+			helper.removeDecoration(this._decorationIds.pop());
+		}
 		this._data = data;
+		this._decorationIds = new Array<string>(this._data.length);
+		this._data.forEach((codeLensData, i) => {
+			helper.addDecoration({
+				range: codeLensData.symbol.range,
+				options: {}
+			}, id => this._decorationIds[i] = id);
+		});
 	}
 
 	public computeIfNecessary(currentModelsVersionId: number, model: editorCommon.IModel): ICodeLensData[] {
@@ -386,7 +396,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 	public dispose(): void {
 		this.localDispose();
-		this._globalToDispose = disposeAll(this._globalToDispose);
+		this._globalToDispose = dispose(this._globalToDispose);
 	}
 
 	private localDispose(): void {
@@ -399,7 +409,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			this._currentFindOccPromise.cancel();
 			this._currentFindOccPromise = null;
 		}
-		this._localToDispose = disposeAll(this._localToDispose);
+		this._localToDispose = dispose(this._localToDispose);
 	}
 
 	public getId(): string {
@@ -518,7 +528,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		if (!symbols) {
 			symbols = [];
 		} else {
-			symbols = symbols.sort((a, b) => Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range));
+			symbols = symbols.sort((a, b) => Range.compareRangesUsingStarts(Range.lift(a.symbol.range), Range.lift(b.symbol.range)));
 		}
 
 		let maxLineNumber = this._editor.getModel().getLineCount();
@@ -556,7 +566,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 						this._lenses[codeLensIndex].dispose(helper, accessor);
 						this._lenses.splice(codeLensIndex, 1);
 					} else if (codeLensLineNumber === symbolsLineNumber) {
-						this._lenses[codeLensIndex].updateCodeLensSymbols(groups[groupsIndex]);
+						this._lenses[codeLensIndex].updateCodeLensSymbols(groups[groupsIndex], helper);
 						groupsIndex++;
 						codeLensIndex++;
 					} else {

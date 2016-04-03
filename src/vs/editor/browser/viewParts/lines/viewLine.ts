@@ -5,17 +5,23 @@
 'use strict';
 
 import * as browser from 'vs/base/browser/browser';
-import {StyleMutator} from 'vs/base/browser/styleMutator';
+import {FastDomNode, createFastDomNode} from 'vs/base/browser/styleMutator';
 import {HorizontalRange, IConfigurationChangedEvent, IModelDecoration} from 'vs/editor/common/editorCommon';
 import {ILineParts, createLineParts} from 'vs/editor/common/viewLayout/viewLineParts';
-import {renderLine} from 'vs/editor/common/viewLayout/viewLineRenderer';
+import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
 import {ClassNames, IViewContext} from 'vs/editor/browser/editorBrowser';
 import {IVisibleLineData} from 'vs/editor/browser/view/viewLayer';
 
 export class ViewLine implements IVisibleLineData {
 
 	protected _context:IViewContext;
-	private _domNode: HTMLElement;
+	private _renderWhitespace: boolean;
+	private _spaceWidth: number;
+	private _lineHeight: number;
+	private _stopRenderingLineAfter: number;
+	protected _fontLigatures: boolean;
+
+	private _domNode: FastDomNode;
 
 	private _lineParts: ILineParts;
 
@@ -28,6 +34,12 @@ export class ViewLine implements IVisibleLineData {
 
 	constructor(context:IViewContext) {
 		this._context = context;
+		this._renderWhitespace = this._context.configuration.editor.renderWhitespace;
+		this._spaceWidth = this._context.configuration.editor.spaceWidth;
+		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._stopRenderingLineAfter = this._context.configuration.editor.stopRenderingLineAfter;
+		this._fontLigatures = this._context.configuration.editor.fontLigatures;
+
 		this._domNode = null;
 		this._isInvalid = true;
 		this._isMaybeInvalid = false;
@@ -39,10 +51,13 @@ export class ViewLine implements IVisibleLineData {
 	// --- begin IVisibleLineData
 
 	public getDomNode(): HTMLElement {
-		return this._domNode;
+		if (!this._domNode) {
+			return null;
+		}
+		return this._domNode.domNode;
 	}
 	public setDomNode(domNode:HTMLElement): void {
-		this._domNode = domNode;
+		this._domNode = createFastDomNode(domNode);
 	}
 
 	public onContentChanged(): void {
@@ -64,10 +79,25 @@ export class ViewLine implements IVisibleLineData {
 		this._isMaybeInvalid = true;
 	}
 	public onConfigurationChanged(e:IConfigurationChangedEvent): void {
+		if (e.renderWhitespace) {
+			this._renderWhitespace = this._context.configuration.editor.renderWhitespace;
+		}
+		if (e.spaceWidth) {
+			this._spaceWidth = this._context.configuration.editor.spaceWidth;
+		}
+		if (e.lineHeight) {
+			this._lineHeight = this._context.configuration.editor.lineHeight;
+		}
+		if (e.stopRenderingLineAfter) {
+			this._stopRenderingLineAfter = this._context.configuration.editor.stopRenderingLineAfter;
+		}
+		if (e.fontLigatures) {
+			this._fontLigatures = this._context.configuration.editor.fontLigatures;
+		}
 		this._isInvalid = true;
 	}
 
-	public shouldUpdateHTML(lineNumber:number, inlineDecorations:IModelDecoration[]): boolean {
+	public shouldUpdateHTML(startLineNumber:number, lineNumber:number, inlineDecorations:IModelDecoration[]): boolean {
 		let newLineParts:ILineParts = null;
 
 		if (this._isMaybeInvalid || this._isInvalid) {
@@ -76,9 +106,10 @@ export class ViewLine implements IVisibleLineData {
 				lineNumber,
 				this._context.model.getLineMinColumn(lineNumber),
 				this._context.model.getLineContent(lineNumber),
+				this._context.model.getTabSize(),
 				this._context.model.getLineTokens(lineNumber),
 				inlineDecorations,
-				this._context.configuration.editor.renderWhitespace
+				this._renderWhitespace
 			);
 		}
 
@@ -105,7 +136,7 @@ export class ViewLine implements IVisibleLineData {
 		out.push('" style="top:');
 		out.push(deltaTop.toString());
 		out.push('px;height:');
-		out.push(this._context.configuration.editor.lineHeight.toString());
+		out.push(this._lineHeight.toString());
 		out.push('px;" class="');
 		out.push(ClassNames.VIEW_LINE);
 		out.push('">');
@@ -115,32 +146,29 @@ export class ViewLine implements IVisibleLineData {
 
 	public getLineInnerHTML(lineNumber: number): string {
 		this._isInvalid = false;
-		return this._render(lineNumber, this._lineParts).join('');
+		return this._render(lineNumber, this._lineParts);
 	}
 
 	public layoutLine(lineNumber:number, deltaTop:number): void {
-		let desiredLineNumber = String(lineNumber);
-		let currentLineNumber = this._domNode.getAttribute('lineNumber');
-		if (currentLineNumber !== desiredLineNumber) {
-			this._domNode.setAttribute('lineNumber', desiredLineNumber);
-		}
-		StyleMutator.setTop(this._domNode, deltaTop);
-		StyleMutator.setHeight(this._domNode, this._context.configuration.editor.lineHeight);
+		this._domNode.setLineNumber(String(lineNumber));
+		this._domNode.setTop(deltaTop);
+		this._domNode.setHeight(this._lineHeight);
 	}
 
 	// --- end IVisibleLineData
 
-	private _render(lineNumber:number, lineParts:ILineParts): string[] {
+	private _render(lineNumber:number, lineParts:ILineParts): string {
 
 		this._cachedWidth = -1;
 
-		let r = renderLine({
-			lineContent: this._context.model.getLineContent(lineNumber),
-			tabSize: this._context.model.getTabSize(),
-			stopRenderingLineAfter: this._context.configuration.editor.stopRenderingLineAfter,
-			renderWhitespace: this._context.configuration.editor.renderWhitespace,
-			parts: lineParts.getParts()
-		});
+		let r = renderLine(new RenderLineInput(
+			this._context.model.getLineContent(lineNumber),
+			this._context.model.getTabSize(),
+			this._spaceWidth,
+			this._stopRenderingLineAfter,
+			this._renderWhitespace,
+			lineParts.getParts()
+		));
 
 		this._charOffsetInPart = r.charOffsetInPart;
 		this._lastRenderedPartIndex = r.lastRenderedPartIndex;
@@ -151,7 +179,7 @@ export class ViewLine implements IVisibleLineData {
 	// --- Reading from the DOM methods
 
 	protected _getReadingTarget(): HTMLElement {
-		return <HTMLSpanElement>this._domNode.firstChild;
+		return <HTMLSpanElement>this._domNode.domNode.firstChild;
 	}
 
 	/**
@@ -168,7 +196,10 @@ export class ViewLine implements IVisibleLineData {
 	 * Visible ranges for a model range
 	 */
 	public getVisibleRangesForRange(startColumn:number, endColumn:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
-		let stopRenderingLineAfter = this._context.configuration.editor.stopRenderingLineAfter;
+		startColumn = startColumn|0; // @perf
+		endColumn = endColumn|0; // @perf
+		clientRectDeltaLeft = clientRectDeltaLeft|0; // @perf
+		const stopRenderingLineAfter = this._stopRenderingLineAfter|0; // @perf
 
 		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter && endColumn > stopRenderingLineAfter) {
 			// This range is obviously not visible
@@ -187,36 +218,11 @@ export class ViewLine implements IVisibleLineData {
 	}
 
 	protected _readVisibleRangesForRange(startColumn:number, endColumn:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
-
-		let result: HorizontalRange[];
 		if (startColumn === endColumn) {
-			result = this._readRawVisibleRangesForPosition(startColumn, clientRectDeltaLeft, endNode);
+			return this._readRawVisibleRangesForPosition(startColumn, clientRectDeltaLeft, endNode);
 		} else {
-			result = this._readRawVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, endNode);
+			return this._readRawVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, endNode);
 		}
-
-		if (!result || result.length <= 1) {
-			return result;
-		}
-
-		result.sort(compareVisibleRanges);
-
-		let output: HorizontalRange[] = [];
-		let prevRange: HorizontalRange = result[0];
-
-		for (let i = 1, len = result.length; i < len; i++) {
-			let currRange = result[i];
-
-			if (prevRange.left + prevRange.width + 0.9 /* account for browser's rounding errors*/ >= currRange.left) {
-				prevRange.width = Math.max(prevRange.width, currRange.left + currRange.width - prevRange.left);
-			} else {
-				output.push(prevRange);
-				prevRange = currRange;
-			}
-		}
-		output.push(prevRange);
-
-		return output;
 	}
 
 	protected _readRawVisibleRangesForPosition(column:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
@@ -229,7 +235,7 @@ export class ViewLine implements IVisibleLineData {
 		let partIndex = findIndexInArrayWithMax(this._lineParts, column - 1, this._lastRenderedPartIndex);
 		let charOffsetInPart = this._charOffsetInPart[column - 1];
 
-		return this._readRawVisibleRangesFrom(this._getReadingTarget(), partIndex, charOffsetInPart, partIndex, charOffsetInPart, clientRectDeltaLeft, endNode);
+		return RangeUtil.readHorizontalRanges(this._getReadingTarget(), partIndex, charOffsetInPart, partIndex, charOffsetInPart, clientRectDeltaLeft, this._getScaleRatio(), endNode);
 	}
 
 	private _readRawVisibleRangesForRange(startColumn:number, endColumn:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
@@ -245,70 +251,15 @@ export class ViewLine implements IVisibleLineData {
 		let endPartIndex = findIndexInArrayWithMax(this._lineParts, endColumn - 1, this._lastRenderedPartIndex);
 		let endCharOffsetInPart = this._charOffsetInPart[endColumn - 1];
 
-		return this._readRawVisibleRangesFrom(this._getReadingTarget(), startPartIndex, startCharOffsetInPart, endPartIndex, endCharOffsetInPart, clientRectDeltaLeft, endNode);
+		return RangeUtil.readHorizontalRanges(this._getReadingTarget(), startPartIndex, startCharOffsetInPart, endPartIndex, endCharOffsetInPart, clientRectDeltaLeft, this._getScaleRatio(), endNode);
 	}
 
 	private _readRawVisibleRangeForEntireLine(): HorizontalRange {
 		return new HorizontalRange(0, this._getReadingTarget().offsetWidth);
 	}
 
-	private _readRawVisibleRangesFrom(domNode:HTMLElement, startChildIndex:number, startOffset:number, endChildIndex:number, endOffset:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
-		let range = RangeUtil.createRange();
-
-		try {
-			// Panic check
-			let min = 0;
-			let max = domNode.children.length - 1;
-			if (min > max) {
-				return null;
-			}
-			startChildIndex = Math.min(max, Math.max(min, startChildIndex));
-			endChildIndex = Math.min(max, Math.max(min, endChildIndex));
-
-			// If crossing over to a span only to select offset 0, then use the previous span's maximum offset
-			// Chrome is buggy and doesn't handle 0 offsets well sometimes.
-			if (startChildIndex !== endChildIndex) {
-				if (endChildIndex > 0 && endOffset === 0) {
-					endChildIndex--;
-					endOffset = Number.MAX_VALUE;
-				}
-			}
-
-			let startElement = domNode.children[startChildIndex].firstChild;
-			let endElement = domNode.children[endChildIndex].firstChild;
-
-			if (!startElement || !endElement) {
-				return null;
-			}
-
-			startOffset = Math.min(startElement.textContent.length, Math.max(0, startOffset));
-			endOffset = Math.min(endElement.textContent.length, Math.max(0, endOffset));
-
-			range.setStart(startElement, startOffset);
-			range.setEnd(endElement, endOffset);
-
-			let clientRects = range.getClientRects();
-			if (clientRects.length === 0) {
-				return null;
-			}
-
-			return this._createRawVisibleRangesFromClientRects(clientRects, clientRectDeltaLeft);
-
-		} catch (e) {
-			// This is life ...
-			return null;
-		} finally {
-			RangeUtil.detachRange(range, endNode);
-		}
-	}
-
-	protected _createRawVisibleRangesFromClientRects(clientRects:ClientRectList, clientRectDeltaLeft:number): HorizontalRange[] {
-		let result:HorizontalRange[] = [];
-		for (let i = 0, len = clientRects.length; i < len; i++) {
-			let cR = clientRects[i];
-			result.push(new HorizontalRange(Math.max(0, cR.left - clientRectDeltaLeft), cR.width));
-		}
-		return result;
+	protected _getScaleRatio(): number {
+		return 1;
 	}
 
 	/**
@@ -323,7 +274,7 @@ export class ViewLine implements IVisibleLineData {
 		let lineParts = this._lineParts.getParts();
 
 		if (spanIndex >= lineParts.length) {
-			return this._context.configuration.editor.stopRenderingLineAfter;
+			return this._stopRenderingLineAfter;
 		}
 
 		if (offset === 0) {
@@ -346,8 +297,8 @@ export class ViewLine implements IVisibleLineData {
 		let min = originalMin;
 		let max = originalMax;
 
-		if (this._context.configuration.editor.stopRenderingLineAfter !== -1) {
-			max = Math.min(this._context.configuration.editor.stopRenderingLineAfter - 1, originalMax);
+		if (this._stopRenderingLineAfter !== -1) {
+			max = Math.min(this._stopRenderingLineAfter - 1, originalMax);
 		}
 
 		let nextStartOffset:number;
@@ -406,15 +357,8 @@ class IEViewLine extends ViewLine {
 		super(context);
 	}
 
-	protected _createRawVisibleRangesFromClientRects(clientRects:ClientRectList, clientRectDeltaLeft:number): HorizontalRange[] {
-		let ratioX = screen.logicalXDPI / screen.deviceXDPI;
-		let result:HorizontalRange[] = [];
-		for (let i = 0, len = clientRects.length; i < len; i++) {
-			let cR = clientRects[i];
-			result[i] = new HorizontalRange(Math.max(0, cR.left * ratioX - clientRectDeltaLeft), cR.width * ratioX);
-		}
-
-		return result;
+	protected _getScaleRatio(): number {
+		return screen.logicalXDPI / screen.deviceXDPI;
 	}
 }
 
@@ -427,7 +371,7 @@ class WebKitViewLine extends ViewLine {
 	protected _readVisibleRangesForRange(startColumn:number, endColumn:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
 		let output = super._readVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, endNode);
 
-		if (this._context.configuration.editor.fontLigatures && output.length === 1 && endColumn > 1 && endColumn === this._charOffsetInPart.length) {
+		if (this._fontLigatures && output.length === 1 && endColumn > 1 && endColumn === this._charOffsetInPart.length) {
 			let lastSpanBoundingClientRect = (<HTMLElement>this._getReadingTarget().lastChild).getBoundingClientRect();
 			let lastSpanBoundingClientRectRight = lastSpanBoundingClientRect.right - clientRectDeltaLeft;
 			if (startColumn === endColumn) {
@@ -477,22 +421,97 @@ class RangeUtil {
 	 */
 	private static _handyReadyRange:Range;
 
-	public static createRange(): Range {
-		if (!RangeUtil._handyReadyRange) {
-			RangeUtil._handyReadyRange = document.createRange();
+	private static _createRange(): Range {
+		if (!this._handyReadyRange) {
+			this._handyReadyRange = document.createRange();
 		}
-		return RangeUtil._handyReadyRange;
+		return this._handyReadyRange;
 	}
 
-	public static detachRange(range:Range, endNode:HTMLElement): void {
+	private static _detachRange(range:Range, endNode:HTMLElement): void {
 		// Move range out of the span node, IE doesn't like having many ranges in
 		// the same spot and will act badly for lines containing dashes ('-')
 		range.selectNodeContents(endNode);
 	}
-}
 
-function compareVisibleRanges(a: HorizontalRange, b: HorizontalRange): number {
-	return a.left - b.left;
+	private static _readClientRects(startElement:Node, startOffset:number, endElement:Node, endOffset:number, endNode:HTMLElement): ClientRectList {
+		let range = this._createRange();
+		try {
+			range.setStart(startElement, startOffset);
+			range.setEnd(endElement, endOffset);
+
+			return range.getClientRects();
+		} catch (e) {
+			// This is life ...
+			return null;
+		} finally {
+			this._detachRange(range, endNode);
+		}
+	}
+
+	private static _createHorizontalRangesFromClientRects(clientRects:ClientRectList, clientRectDeltaLeft:number, scaleRatio:number): HorizontalRange[] {
+		if (!clientRects || clientRects.length === 0) {
+			return null;
+		}
+
+		let result:HorizontalRange[] = [];
+		let prevLeft = Math.max(0, clientRects[0].left * scaleRatio - clientRectDeltaLeft);
+		let prevWidth = clientRects[0].width * scaleRatio;
+
+		for (let i = 1, len = clientRects.length; i < len; i++) {
+			let myLeft = Math.max(0, clientRects[i].left * scaleRatio - clientRectDeltaLeft);
+			let myWidth = clientRects[i].width * scaleRatio;
+
+			if (myLeft < prevLeft) {
+				console.error('Unexpected: RangeUtil._createHorizontalRangesFromClientRects: client rects are not sorted');
+			}
+
+			if (prevLeft + prevWidth + 0.9 /* account for browser's rounding errors*/ >= myLeft) {
+				prevWidth = Math.max(prevWidth, myLeft + myWidth - prevLeft);
+			} else {
+				result.push(new HorizontalRange(prevLeft, prevWidth));
+				prevLeft = myLeft;
+				prevWidth = myWidth;
+			}
+		}
+
+		result.push(new HorizontalRange(prevLeft, prevWidth));
+
+		return result;
+	}
+
+	public static readHorizontalRanges(domNode:HTMLElement, startChildIndex:number, startOffset:number, endChildIndex:number, endOffset:number, clientRectDeltaLeft:number, scaleRatio:number, endNode:HTMLElement): HorizontalRange[] {
+		// Panic check
+		let min = 0;
+		let max = domNode.children.length - 1;
+		if (min > max) {
+			return null;
+		}
+		startChildIndex = Math.min(max, Math.max(min, startChildIndex));
+		endChildIndex = Math.min(max, Math.max(min, endChildIndex));
+
+		// If crossing over to a span only to select offset 0, then use the previous span's maximum offset
+		// Chrome is buggy and doesn't handle 0 offsets well sometimes.
+		if (startChildIndex !== endChildIndex) {
+			if (endChildIndex > 0 && endOffset === 0) {
+				endChildIndex--;
+				endOffset = Number.MAX_VALUE;
+			}
+		}
+
+		let startElement = domNode.children[startChildIndex].firstChild;
+		let endElement = domNode.children[endChildIndex].firstChild;
+
+		if (!startElement || !endElement) {
+			return null;
+		}
+
+		startOffset = Math.min(startElement.textContent.length, Math.max(0, startOffset));
+		endOffset = Math.min(endElement.textContent.length, Math.max(0, endOffset));
+
+		let clientRects = this._readClientRects(startElement, startOffset, endElement, endOffset, endNode);
+		return this._createHorizontalRangesFromClientRects(clientRects, clientRectDeltaLeft, scaleRatio);
+	}
 }
 
 function findIndexInArrayWithMax(lineParts:ILineParts, desiredIndex: number, maxResult:number): number {

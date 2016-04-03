@@ -6,7 +6,6 @@
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import Event from 'vs/base/common/event';
-import winjs = require('vs/base/common/winjs.base');
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
@@ -17,7 +16,7 @@ export interface IConfigurationService extends IEventEmitter {
 	 * Fetches the appropriate section of the configuration JSON file.
 	 * This will be an object keyed off the section name.
 	 */
-	loadConfiguration(section?: string): winjs.TPromise<any>;
+	getConfiguration<T>(section?: string): T;
 
 	/**
 	 * Returns iff the workspace has configuration or not.

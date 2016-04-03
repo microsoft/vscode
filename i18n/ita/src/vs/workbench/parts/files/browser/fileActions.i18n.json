@@ -30,6 +30,7 @@
 	"emptyFileNameError": "È necessario specificare un nome file o un nome di cartella.",
 	"fileNameExistsError": "In questo percorso esiste già un file o una cartella **{0}**. Scegliere un nome diverso.",
 	"filePathTooLongError": "Con il nome **{0}** il percorso diventa troppo lungo. Scegliere un nome più breve.",
+	"focusFilesExplorer": "Stato attivo su Esplora file",
 	"focusWorkingFiles": "Stato attivo su file di lavoro",
 	"globalCompareFile": "Confronta file attivo con...",
 	"importFiles": "Importa file",

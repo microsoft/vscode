@@ -237,7 +237,7 @@ class EditorInputCache
 			delete this.cache[key];
 		});
 
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }
 
@@ -275,7 +275,7 @@ export class AutoFetcher implements git.IAutoFetcher, lifecycle.IDisposable
 
 		this.toDispose = [];
 		this.toDispose.push(this.configurationService.addListener2(ConfigurationServiceEventTypes.UPDATED, e => this.onConfiguration(e.config.git)));
-		configurationService.loadConfiguration('git').done(c => this.onConfiguration(c));
+		this.onConfiguration(configurationService.getConfiguration<git.IGitConfiguration>('git'));
 	}
 
 	public get state(): git.AutoFetcherState {
@@ -431,6 +431,8 @@ export class GitService extends ee.EventEmitter
 		this.triggerStatus(true); // trigger initial status
 
 		this.raw.getVersion().done(version => {
+			version = version || '';
+			version = version.replace(/^(\d+\.\d+\.\d+).*$/, '$1');
 			version = semver.valid(version);
 
 			if (version && semver.satisfies(version, '<2.0.0')) {

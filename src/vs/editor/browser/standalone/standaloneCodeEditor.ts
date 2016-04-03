@@ -6,7 +6,7 @@
 'use strict';
 
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
@@ -101,7 +101,7 @@ class StandaloneEditor extends CodeEditorWidget {
 
 	public dispose(): void {
 		super.dispose();
-		this._toDispose2 = disposeAll(this._toDispose2);
+		this._toDispose2 = dispose(this._toDispose2);
 	}
 
 	public destroy(): void {
@@ -210,7 +210,7 @@ class StandaloneDiffEditor extends DiffEditorWidget {
 
 	public dispose(): void {
 		super.dispose();
-		this._toDispose2 = disposeAll(this._toDispose2);
+		this._toDispose2 = dispose(this._toDispose2);
 	}
 
 	public destroy(): void {
@@ -293,12 +293,12 @@ var startup = (function() {
 })();
 
 function shallowClone<T>(obj:T): T {
-	var r:T = <any>{};
+	let r:T = <any>{};
 	if (obj) {
-		for (var key in obj) {
-			if (obj.hasOwnProperty(key)) {
-				r[key] = obj[key];
-			}
+		let keys = Object.keys(obj);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let key = keys[i];
+			r[key] = obj[key];
 		}
 	}
 	return r;
@@ -412,10 +412,6 @@ export function configureMode(modeId: string, options: any): void {
 	var modeService = ensureStaticPlatformServices(null).modeService;
 
 	modeService.configureModeById(modeId, options);
-}
-
-export function registerWorkerParticipant(modeId:string, moduleName:string, ctorName:string): void {
-	ModesRegistry.registerWorkerParticipant(modeId, moduleName, ctorName);
 }
 
 export function createCustomMode(language:ILanguage): TPromise<IMode> {

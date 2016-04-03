@@ -13,5 +13,7 @@
 	"lines.moveDown": "Mover línea hacia abajo",
 	"lines.moveUp": "Mover línea hacia arriba",
 	"lines.outdent": "Anular sangría de línea",
+	"lines.sortAscending": "Ordenar líneas en orden ascendente",
+	"lines.sortDescending": "Ordenar líneas en orden descendente",
 	"lines.trimTrailingWhitespace": "Recortar espacio final"
 }

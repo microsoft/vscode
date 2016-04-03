@@ -41,7 +41,7 @@ suite('JSON - Worker', () => {
 		var _instantiationService = instantiationService.createInstantiationService({
 			resourceService: resourceModelMock
 		});
-		var worker = _instantiationService.createInstance(jsonworker.JSONWorker, mm.getMode().getId(), []);
+		var worker = _instantiationService.createInstance(jsonworker.JSONWorker, mm.getMode().getId());
 
 		return { worker: worker, model: mm };
 	};

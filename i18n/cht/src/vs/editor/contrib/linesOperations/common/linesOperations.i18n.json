@@ -13,5 +13,7 @@
 	"lines.moveDown": "下移一行",
 	"lines.moveUp": "上移一行",
 	"lines.outdent": "凸排行",
+	"lines.sortAscending": "遞增排序行",
+	"lines.sortDescending": "遞減排序行",
 	"lines.trimTrailingWhitespace": "修剪尾端空白"
 }

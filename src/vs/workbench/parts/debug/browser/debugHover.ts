@@ -237,7 +237,7 @@ export class DebugHoverWidget implements editorbrowser.IContentWidget {
 	}
 
 	public dispose(): void {
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }
 

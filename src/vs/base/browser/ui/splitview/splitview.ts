@@ -807,9 +807,9 @@ export class SplitView implements
 		this.viewElements.forEach(e => this.el.removeChild(e));
 		this.el = null;
 		this.viewElements = [];
-		this.views = lifecycle.disposeAll(this.views);
-		this.sashes = lifecycle.disposeAll(this.sashes);
-		this.sashesListeners = lifecycle.disposeAll(this.sashesListeners);
+		this.views = lifecycle.dispose(this.views);
+		this.sashes = lifecycle.dispose(this.sashes);
+		this.sashesListeners = lifecycle.dispose(this.sashesListeners);
 		this.measureContainerSize = null;
 		this.layoutViewElement = null;
 		this.eventWrapper = null;

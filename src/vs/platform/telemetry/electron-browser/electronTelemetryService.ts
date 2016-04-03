@@ -77,12 +77,11 @@ export class ElectronTelemetryService extends MainTelemetryService implements IT
 	}
 
 	private loadOptinSettings(): void {
-		this.configurationService.loadConfiguration(TELEMETRY_SECTION_ID).done(config => {
-			this.config.userOptIn = config ? config.enableTelemetry : this.config.userOptIn;
-			this._optInStatusLoaded = true;
-			this.publicLog('optInStatus', {optIn: this.config.userOptIn});
-			this.flushBuffer();
-		});
+		const config = this.configurationService.getConfiguration<any>(TELEMETRY_SECTION_ID);
+		this.config.userOptIn = config ? config.enableTelemetry : this.config.userOptIn;
+		this._optInStatusLoaded = true;
+		this.publicLog('optInStatus', {optIn: this.config.userOptIn});
+		this.flushBuffer();
 
 		this.toUnbind.push(this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => {
 			this.config.userOptIn = e.config && e.config[TELEMETRY_SECTION_ID] ? e.config[TELEMETRY_SECTION_ID].enableTelemetry : this.config.userOptIn;

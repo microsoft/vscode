@@ -6,6 +6,7 @@
 {
 	"error.cannotloadtheme": "Non è possibile caricare {0}",
 	"error.cannotparse": "Problemi durante l'analisi del file plist: {0}",
+	"error.cannotparsejson": "Problemi durante l'analisi del file di tema di JSON: {0}",
 	"invalid.path.1": "Valore previsto di `contributes.{0}.path` ({1}) da includere nella cartella dell'estensione ({2}). L'estensione potrebbe non essere più portatile.",
 	"reqarray": "Il punto di estensione `{0}` deve essere una matrice.",
 	"reqpath": "È previsto un valore stringa in `contributes.{0}.path`. Valore specificato: {1}",

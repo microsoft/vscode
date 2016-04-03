@@ -11,6 +11,5 @@ import 'vs/editor/contrib/quickOpen/browser/quickOutline.contribution';
 import 'vs/editor/contrib/quickOpen/browser/gotoLine.contribution';
 import 'vs/editor/contrib/quickOpen/browser/quickCommand.contribution';
 import 'vs/languages/languages.main';
-import 'vs/languages/javascript/common/javascript.contribution';
 import 'vs/languages/typescript/common/typescript.contribution';
 import 'vs/languages/json/common/json.contribution';

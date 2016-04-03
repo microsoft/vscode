@@ -6,7 +6,7 @@
 
 import {onUnexpectedError} from 'vs/base/common/errors';
 import {EventEmitter, IEmitterEvent, IEventEmitter, ListenerUnbind} from 'vs/base/common/eventEmitter';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import * as timer from 'vs/base/common/timer';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
@@ -38,6 +38,7 @@ import {ScrollDecorationViewPart} from 'vs/editor/browser/viewParts/scrollDecora
 import {SelectionsOverlay} from 'vs/editor/browser/viewParts/selections/selections';
 import {ViewCursors} from 'vs/editor/browser/viewParts/viewCursors/viewCursors';
 import {ViewZones} from 'vs/editor/browser/viewParts/viewZones/viewZones';
+import {ViewPart} from 'vs/editor/browser/view/viewPart';
 
 export class View extends ViewEventHandler implements editorBrowser.IView, IDisposable {
 
@@ -56,7 +57,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	private viewZones: ViewZones;
 	private contentWidgets: ViewContentWidgets;
 	private overlayWidgets: ViewOverlayWidgets;
-	private viewParts: editorBrowser.IViewPart[];
+	private viewParts: ViewPart[];
 
 	private keyboardHandler: KeyboardHandler;
 	private pointerHandler: PointerHandler;
@@ -264,7 +265,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		this.linesContent.appendChild(contentViewOverlays.getDomNode());
 		this.linesContent.appendChild(rulers.domNode);
 		this.linesContent.appendChild(this.viewZones.domNode);
-		this.linesContent.appendChild(this.viewLines.domNode);
+		this.linesContent.appendChild(this.viewLines.getDomNode());
 		this.linesContent.appendChild(this.contentWidgets.domNode);
 		this.linesContent.appendChild(viewCursors.getDomNode());
 		this.overflowGuardContainer.appendChild(marginViewOverlays.getDomNode());
@@ -501,7 +502,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		});
 		this.listenersToRemove = [];
 
-		this.listenersToDispose = disposeAll(this.listenersToDispose);
+		this.listenersToDispose = dispose(this.listenersToDispose);
 
 		this.keyboardHandler.dispose();
 		this.pointerHandler.dispose();
@@ -682,12 +683,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 				}
 			};
 
-			var r: any = null;
-			try {
-				r = callback(changeAccessor);
-			} catch (e) {
-				onUnexpectedError(e);
-			}
+			var r: any = safeInvoke1Arg(callback, changeAccessor);
 
 			// Invalidate changeAccessor
 			changeAccessor.addZone = null;
@@ -798,12 +794,8 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 			throw new Error('ViewImpl._renderOnce: View is disposed');
 		}
 		return this.outgoingEventBus.deferredEmit(() => {
-			try {
-				var r = callback ? callback() : null;
-			} finally {
-				this._scheduleRender();
-			}
-
+			let r = safeInvokeNoArg(callback);
+			this._scheduleRender();
 			return r;
 		});
 	}
@@ -823,13 +815,10 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 	}
 
 	private _renderNow(): void {
-		if (this._isDisposed) {
-			throw new Error('ViewImpl._renderNow: View is disposed');
-		}
-		this.actualRender();
+		safeInvokeNoArg(() => this._actualRender());
 	}
 
-	private createRenderingContext(linesViewportData:editorCommon.IViewLinesViewportData): editorBrowser.IRenderingContext {
+	private createRenderingContext(linesViewportData:editorCommon.ViewLinesViewportData): editorBrowser.IRenderingContext {
 
 		var vInfo = this.layoutProvider.getCurrentViewport();
 
@@ -879,40 +868,62 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		return r;
 	}
 
-	private actualRender(): void {
-		if (this._isDisposed) {
-			throw new Error('ViewImpl.actualRender: View is disposed');
+	private _getViewPartsToRender(): ViewPart[] {
+		let result:ViewPart[] = [];
+		for (let i = 0, len = this.viewParts.length; i < len; i++) {
+			let viewPart = this.viewParts[i];
+			if (viewPart.shouldRender()) {
+				result.push(viewPart);
+			}
 		}
+		return result;
+	}
+
+	private _actualRender(): void {
 		if (!dom.isInDOM(this.domNode)) {
 			return;
 		}
+		let t = timer.start(timer.Topic.EDITOR, 'View.render');
 
-		var t = timer.start(timer.Topic.EDITOR, 'View.render');
+		let viewPartsToRender = this._getViewPartsToRender();
 
-		var i:number,
-			len:number;
-
-		try {
-
-			for (i = 0, len = this.viewParts.length; i < len; i++) {
-				this.viewParts[i].onBeforeForcedLayout();
-			}
-
-			var linesViewportData = this.viewLines.render();
-
-			var renderingContext = this.createRenderingContext(linesViewportData);
-
-			// Render the rest of the parts
-			for (i = 0, len = this.viewParts.length; i < len; i++) {
-				this.viewParts[i].onReadAfterForcedLayout(renderingContext);
-			}
-
-			for (i = 0, len = this.viewParts.length; i < len; i++) {
-				this.viewParts[i].onWriteAfterForcedLayout();
-			}
-		} catch (err) {
-			onUnexpectedError(err);
+		if (!this.viewLines.shouldRender() && viewPartsToRender.length === 0) {
+			// Nothing to render
+			this.keyboardHandler.writeToTextArea();
+			t.stop();
+			return;
 		}
+
+		let linesViewportData = this.layoutProvider.getLinesViewportData();
+
+		if (this.viewLines.shouldRender()) {
+			this.viewLines.renderText(linesViewportData, () => {
+				this.keyboardHandler.writeToTextArea();
+			});
+			this.viewLines.onDidRender();
+
+			// Rendering of viewLines might cause scroll events to occur, so collect view parts to render again
+			viewPartsToRender = this._getViewPartsToRender();
+		} else {
+			this.keyboardHandler.writeToTextArea();
+		}
+
+		let renderingContext = this.createRenderingContext(linesViewportData);
+
+		// Render the rest of the parts
+		for (let i = 0, len = viewPartsToRender.length; i < len; i++) {
+			let viewPart = viewPartsToRender[i];
+			viewPart.prepareRender(renderingContext);
+		}
+
+		for (let i = 0, len = viewPartsToRender.length; i < len; i++) {
+			let viewPart = viewPartsToRender[i];
+			viewPart.render(renderingContext);
+			viewPart.onDidRender();
+		}
+
+		// Render the scrollbar
+		this.layoutProvider.renderScrollbar();
 
 		t.stop();
 	}
@@ -949,5 +960,21 @@ class ViewContext implements editorBrowser.IViewContext {
 		this.privateViewEventBus = privateViewEventBus;
 		this.addEventHandler = addEventHandler;
 		this.removeEventHandler = removeEventHandler;
+	}
+}
+
+function safeInvokeNoArg(func:Function): any {
+	try {
+		return func();
+	} catch(e) {
+		onUnexpectedError(e);
+	}
+}
+
+function safeInvoke1Arg(func:Function, arg1:any): any {
+	try {
+		return func(arg1);
+	} catch(e) {
+		onUnexpectedError(e);
 	}
 }

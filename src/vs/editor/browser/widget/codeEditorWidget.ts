@@ -26,6 +26,7 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
 import {Colorizer} from 'vs/editor/browser/standalone/colorizer';
 import {View} from 'vs/editor/browser/view/viewImpl';
+import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
 
 export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -97,7 +98,7 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 		}
 		var content = model.getLineContent(lineNumber);
 		var tokens = model.getLineTokens(lineNumber, false);
-		var inflatedTokens = editorCommon.LineTokensBinaryEncoding.inflateArr(tokens.getBinaryEncodedTokensMap(), tokens.getBinaryEncodedTokens());
+		var inflatedTokens = TokensBinaryEncoding.inflateArr(tokens.getBinaryEncodedTokensMap(), tokens.getBinaryEncodedTokens());
 		var tabSize = model.getOptions().tabSize;
 		return Colorizer.colorizeLine(content, inflatedTokens, tabSize);
 	}
@@ -403,17 +404,16 @@ export class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.
 
 			this._view.renderOnce(() => {
 
-				var widgetId:string;
-				for (widgetId in this.contentWidgets) {
-					if (this.contentWidgets.hasOwnProperty(widgetId)) {
-						this._view.addContentWidget(this.contentWidgets[widgetId]);
-					}
+				let keys = Object.keys(this.contentWidgets);
+				for (let i = 0, len = keys.length; i < len; i++) {
+					let widgetId = keys[i];
+					this._view.addContentWidget(this.contentWidgets[widgetId]);
 				}
 
-				for (widgetId in this.overlayWidgets) {
-					if (this.overlayWidgets.hasOwnProperty(widgetId)) {
-						this._view.addOverlayWidget(this.overlayWidgets[widgetId]);
-					}
+				keys = Object.keys(this.overlayWidgets);
+				for (let i = 0, len = keys.length; i < len; i++) {
+					let widgetId = keys[i];
+					this._view.addOverlayWidget(this.overlayWidgets[widgetId]);
 				}
 
 				this._view.render(false, true);
@@ -488,13 +488,27 @@ export enum EditCursorState {
 	EndOfLastEditOperation = 0
 }
 
+class SingleEditOperation {
+
+	range: editorCommon.IEditorRange;
+	text: string;
+	forceMoveMarkers: boolean;
+
+	constructor(source:editorCommon.ISingleEditOperation) {
+		this.range = new Range(source.range.startLineNumber, source.range.startColumn, source.range.endLineNumber, source.range.endColumn);
+		this.text = source.text;
+		this.forceMoveMarkers = source.forceMoveMarkers || false;
+	}
+
+}
+
 export class CommandRunner implements editorCommon.ICommand {
 
-	private _ops: editorCommon.ISingleEditOperation[];
+	private _ops: SingleEditOperation[];
 	private _editCursorState: EditCursorState;
 
 	constructor(ops: editorCommon.ISingleEditOperation[], editCursorState: EditCursorState) {
-		this._ops = ops;
+		this._ops = ops.map(op => new SingleEditOperation(op));
 		this._editCursorState = editCursorState;
 	}
 

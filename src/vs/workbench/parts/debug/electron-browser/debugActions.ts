@@ -68,7 +68,7 @@ export class AbstractDebugAction extends actions.Action {
 
 	public dispose(): void {
 		this.debugService = null;
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 
 		super.dispose();
 	}
@@ -80,6 +80,9 @@ export class ConfigureAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
+		this.toDispose.push(debugService.addListener2(debug.ServiceEvents.CONFIGURATION_CHANGED, e  => {
+			this.class = this.debugService.getConfigurationName() ? 'debug-action configure' : 'debug-action configure notification';
+		}));
 	}
 
 	public run(event?: any): TPromise<any> {
@@ -699,6 +702,16 @@ export class ClearReplAction extends AbstractDebugAction {
 
 		// focus back to repl
 		return this.debugService.revealRepl();
+	}
+}
+
+export class CopyAction extends actions.Action {
+	static ID = 'workbench.debug.action.copy';
+	static LABEL = nls.localize('copy', "Copy");
+
+	public run(): TPromise<any> {
+		clipboard.writeText(window.getSelection().toString());
+		return TPromise.as(null);
 	}
 }
 

@@ -94,7 +94,7 @@ export function create(client: ITypescriptServiceClient, isOpen:(path:string)=>P
 								item.hide();
 
 								return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.rootPath, 'jsconfig.json')))
-									.then(vscode.window.showTextDocument)
+									.then(doc => vscode.window.showTextDocument(doc, vscode.ViewColumn.Three))
 									.then(editor => editor.edit(builder => builder.insert(new vscode.Position(0, 0), defaultConfig)));
 							}
 						}]
@@ -190,7 +190,7 @@ const defaultConfig = `{
 	// See http://go.microsoft.com/fwlink/?LinkId=759670
 	// for the documentation about the jsconfig.json format
 	"compilerOptions": {
-		"module": "commonjs"
+		"target": "es6"
 	},
 	"exclude": [
 		"node_modules",

@@ -200,12 +200,12 @@ export class LanguagesRegistry {
 	}
 
 	public getMimeForMode(theModeId: string): string {
-		for (var _mime in this.mime2LanguageId) {
-			if (this.mime2LanguageId.hasOwnProperty(_mime)) {
-				var modeId = this.mime2LanguageId[_mime];
-				if (modeId === theModeId) {
-					return _mime;
-				}
+		let keys = Object.keys(this.mime2LanguageId);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let _mime = keys[i];
+			let modeId = this.mime2LanguageId[_mime];
+			if (modeId === theModeId) {
+				return _mime;
 			}
 		}
 

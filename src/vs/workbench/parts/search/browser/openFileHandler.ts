@@ -122,7 +122,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			filePattern: searchValue
 		};
 
-		return this.queryBuilder.file(query).then((query) => this.searchService.search(query)).then((complete) => {
+		return this.searchService.search(this.queryBuilder.file(query)).then((complete) => {
 			let results: QuickOpenEntry[] = [];
 			for (let i = 0; i < complete.results.length; i++) {
 				let fileMatch = complete.results[i];

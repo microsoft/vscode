@@ -6,6 +6,7 @@
 import path = require('path');
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
+import strings = require('vs/base/common/strings');
 import objects = require('vs/base/common/objects');
 import uri from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
@@ -222,7 +223,7 @@ export class ConfigurationManager {
 	}
 
 	public getAdapter(): Adapter {
-		return this.adapters.filter(adapter => adapter.type === this.configuration.type).pop();
+		return this.adapters.filter(adapter => strings.equalsIgnoreCase(adapter.type, this.configuration.type)).pop();
 	}
 
 	public setConfiguration(name: string): TPromise<void> {
@@ -336,6 +337,6 @@ export class ConfigurationManager {
 	}
 
 	public loadLaunchConfig(): TPromise<debug.IGlobalConfig> {
-		return this.configurationService.loadConfiguration('launch');
+		return TPromise.as(this.configurationService.getConfiguration<debug.IGlobalConfig>('launch'));
 	}
 }

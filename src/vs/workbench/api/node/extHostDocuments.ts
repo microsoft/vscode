@@ -8,12 +8,11 @@ import {toErrorMessage, onUnexpectedError} from 'vs/base/common/errors';
 import {IEmitterEvent} from 'vs/base/common/eventEmitter';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
-import {IPrefixSumIndexOfResult} from 'vs/editor/common/viewModel/prefixSumComputer';
 import {MirrorModel2} from 'vs/editor/common/model/mirrorModel2';
 import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 import Event, {Emitter} from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {Range, Position, Disposable} from 'vs/workbench/api/node/extHostTypes';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
@@ -378,8 +377,7 @@ export class ExtHostDocumentData extends MirrorModel2 {
 		offset = Math.max(0, offset);
 
 		this._ensureLineStarts();
-		let out: IPrefixSumIndexOfResult = { index: 0, remainder: 0 };
-		this._lineStarts.getIndexOf(offset, out);
+		let out = this._lineStarts.getIndexOf(offset);
 
 		let lineLength = this._lines[out.index].length;
 
@@ -494,13 +492,19 @@ export class MainThreadDocuments {
 		modelService.onModelModeChanged(this._onModelModeChanged, this, this._toDispose);
 
 		this._toDispose.push(eventService.addListener2(FileEventType.FILE_SAVED, (e: LocalFileChangeEvent) => {
-			this._proxy._acceptModelSaved(e.getAfter().resource.toString());
+			if (this._shouldHandleFileEvent(e)) {
+				this._proxy._acceptModelSaved(e.getAfter().resource.toString());
+			}
 		}));
 		this._toDispose.push(eventService.addListener2(FileEventType.FILE_REVERTED, (e: LocalFileChangeEvent) => {
-			this._proxy._acceptModelReverted(e.getAfter().resource.toString());
+			if (this._shouldHandleFileEvent(e)) {
+				this._proxy._acceptModelReverted(e.getAfter().resource.toString());
+			}
 		}));
 		this._toDispose.push(eventService.addListener2(FileEventType.FILE_DIRTY, (e: LocalFileChangeEvent) => {
-			this._proxy._acceptModelDirty(e.getAfter().resource.toString());
+			if (this._shouldHandleFileEvent(e)) {
+				this._proxy._acceptModelDirty(e.getAfter().resource.toString());
+			}
 		}));
 
 		const handle = setInterval(() => this._runDocumentCleanup(), 30 * 1000);
@@ -516,7 +520,13 @@ export class MainThreadDocuments {
 			this._modelToDisposeMap[modelUrl].dispose();
 		});
 		this._modelToDisposeMap = Object.create(null);
-		this._toDispose = disposeAll(this._toDispose);
+		this._toDispose = dispose(this._toDispose);
+	}
+
+	private _shouldHandleFileEvent(e: LocalFileChangeEvent): boolean {
+		const after = e.getAfter();
+		const model = this._modelService.getModel(after.resource);
+		return model && !model.isTooLargeForHavingARichMode();
 	}
 
 	private _onModelAdded(model: EditorCommon.IModel): void {

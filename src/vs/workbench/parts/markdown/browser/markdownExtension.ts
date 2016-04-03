@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import errors = require('vs/base/common/errors');
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import {EventType} from 'vs/base/common/events';
@@ -72,9 +71,7 @@ export class MarkdownFileTracker implements IWorkbenchContribution {
 		this.editorInputChangeListener = this.eventService.addListener(WorkbenchEventType.EDITOR_INPUT_CHANGED, (e: EditorEvent) => this.onEditorInputChanged(e));
 
 		// initially read the config for CSS styles in preview
-		this.configurationService.loadConfiguration().done((config) => {
-			this.readMarkdownConfiguration(config);
-		}, errors.onUnexpectedError);
+		this.readMarkdownConfiguration(this.configurationService.getConfiguration<ILanguageConfiguration>());
 
 		// listen to theme changes
 		this.themeChangeListener = this.storageService.addListener(StorageEventType.STORAGE, (e: StorageEvent) => {

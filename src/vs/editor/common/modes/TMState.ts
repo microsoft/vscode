@@ -33,12 +33,21 @@ export class TMState implements IState {
 	constructor(mode: IMode, parentEmbedderState: IState, ruleStack: StackElement[]) {
 		this._mode = mode;
 		this._parentEmbedderState = parentEmbedderState;
-		this._ruleStack = ruleStack;
+		this._ruleStack = ruleStack || null;
 	}
 
 	public clone():TMState {
 		let parentEmbedderStateClone = AbstractState.safeClone(this._parentEmbedderState);
-		let ruleStackClone = this._ruleStack ? this._ruleStack.map(el => el.clone()) : null;
+
+		let ruleStackClone: StackElement[] = null;
+		if (this._ruleStack) {
+			ruleStackClone = [];
+			for (let i = 0, len = this._ruleStack.length; i < len; i++) {
+				let rule = this._ruleStack[i];
+				ruleStackClone.push(rule.clone());
+			}
+		}
+
 		return new TMState(this._mode, parentEmbedderStateClone, ruleStackClone);
 	}
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {EventType, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
 
 export enum Behaviour {
@@ -144,7 +144,7 @@ class InternalEnablementState extends CachingEnablementState {
 
 	public dispose():void {
 		super.dispose();
-		disposeAll(this._callOnDispose);
+		dispose(this._callOnDispose);
 	}
 
 	public _computeValue():boolean {

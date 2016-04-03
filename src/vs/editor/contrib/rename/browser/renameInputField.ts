@@ -8,7 +8,7 @@
 import 'vs/css!./rename';
 import {localize} from 'vs/nls';
 import {canceled} from 'vs/base/common/errors';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
+import {IDisposable, dispose} from 'vs/base/common/lifecycle';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Range} from 'vs/editor/common/core/range';
 import {EventType, IPosition, IRange} from 'vs/editor/common/editorCommon';
@@ -85,7 +85,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 			always: Function;
 
 		always = () => {
-			disposeAll(disposeOnDone);
+			dispose(disposeOnDone);
 			this._hide();
 		};
 
