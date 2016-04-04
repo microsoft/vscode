@@ -18,10 +18,16 @@ function wrapBaseFilter(filter: filters.IFilter): ISuggestionFilter {
 			return result;
 		}
 
+		// only check for an actual match but swap it with an _empty_
+		// match because we use the label with the matches/highlights
 		if (typeof suggestion.filterText === 'string') {
-			// only check for an actual match but swap it with an _empty_
-			// match because we use the label with the matches/highlights
 			if (!isFalsyOrEmpty(filter(word, suggestion.filterText))) {
+				return [{ start: 0, end: 0 }];
+			}
+		}
+
+		if (typeof suggestion.codeSnippet === 'string') {
+			if (!isFalsyOrEmpty(filter(word, suggestion.codeSnippet))) {
 				return [{ start: 0, end: 0 }];
 			}
 		}
