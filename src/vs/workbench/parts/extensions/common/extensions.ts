@@ -47,6 +47,7 @@ export const IGalleryService = createDecorator<IGalleryService>('galleryService'
 
 export interface IQueryOptions {
 	text?: string;
+	ids?: string[];
 	pageSize?: number;
 }
 

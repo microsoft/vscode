@@ -6,9 +6,13 @@
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtension, IExtensionsService, IGalleryService } from 'vs/workbench/parts/extensions/common/extensions';
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as semver from 'semver';
+// import * as semver from 'semver';
 
 'use strict';
+
+export function getExtensionId(extension: IExtension): string {
+	return `${ extension.publisher }.${ extension.name }`;
+}
 
 export function extensionEquals(one: IExtension, other: IExtension): boolean {
 	return one.publisher === other.publisher && one.name === other.name;
@@ -22,14 +26,12 @@ export function getOutdatedExtensions(accessor: ServicesAccessor): TPromise<IExt
 		return TPromise.as([]);
 	}
 
-	return TPromise.join<any>([galleryService.query(), extensionsService.getInstalled()])
-		.then(result => {
-			const available = result[0].extensions;
-			const installed = result[1];
+	return extensionsService.getInstalled().then(installed => {
+		const ids = installed.map(getExtensionId);
 
-			return available.filter(extension => {
-				const local = installed.filter(local => extensionEquals(local, extension))[0];
-				return local && semver.lt(local.version, extension.version);
-			});
+		return galleryService.query({ ids, pageSize: 1000 }).then(available => {
+
+			return [];
 		});
+	});
 }
