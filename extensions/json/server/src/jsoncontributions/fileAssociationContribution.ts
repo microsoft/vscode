@@ -13,8 +13,8 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 let globProperties: CompletionItem[] = [
-	{ kind: CompletionItemKind.Value, label: localize('assocLabelFile', "Files with Extension"), insertText: '"*.{{extension}}": "{{language}}"', documentation: localize('assocDescriptionFile', "Map all files matching the glob pattern in their filename to the language with the given id.") },
-	{ kind: CompletionItemKind.Value, label: localize('assocLabelPath', "Files with Path"), insertText: '"/{{path to file}}/*.{{extension}}": "{{language}}"', documentation: localize('assocDescriptionPath', "Map all files matching the absolute path glob pattern in their path to the language with the given id.") }
+	{ kind: CompletionItemKind.Value, label: localize('assocLabelFile', "Files with Extension"), insertText: '"*.{{extension}}": "{{language}}"', documentation: localize('assocDescriptionFile', "Map all files matching the glob pattern in their filename to the language with the given identifier.") },
+	{ kind: CompletionItemKind.Value, label: localize('assocLabelPath', "Files with Path"), insertText: '"/{{path to file}}/*.{{extension}}": "{{language}}"', documentation: localize('assocDescriptionPath', "Map all files matching the absolute path glob pattern in their path to the language with the given identifier.") }
 ];
 
 export class FileAssociationContribution implements IJSONWorkerContribution {
