@@ -20,7 +20,7 @@ function wrapBaseFilter(filter: filters.IFilter): ISuggestionFilter {
 
 		// check for match but don't produce highlights
 		if (suggestion.codeSnippet !== suggestion.label) {
-			if (!isFalsyOrEmpty(filter(word, suggestion.codeSnippet))) {
+			if (!isFalsyOrEmpty(filter(word, suggestion.codeSnippet.replace(/{{.+?}}/g, '')))) { // filters {{text}}-snippet syntax
 				return [{ start: 0, end: 0 }];
 			}
 		}
