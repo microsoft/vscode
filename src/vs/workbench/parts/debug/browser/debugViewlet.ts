@@ -265,7 +265,12 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 			if (typeof element === 'number') {
 				const thread = this.debugService.getModel().getThreads()[element];
 				if (thread) {
-					thread.getCallStack(this.debugService, true).then(() => this.tree.refresh()).done(null, errors.onUnexpectedError);
+					thread.getCallStack(this.debugService, true)
+					.then(() => this.tree.refresh())
+					.then(() => {
+						this.tree.clearFocus();
+						this.tree.clearSelection();
+					}).done(null, errors.onUnexpectedError);
 				}
 			}
 		}));

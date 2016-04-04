@@ -160,6 +160,7 @@
 
 .debug-viewlet .debug-call-stack .load-more {
 	font-style: italic;
+	text-align: center;
 }
 
 /* Variables & Expression view */

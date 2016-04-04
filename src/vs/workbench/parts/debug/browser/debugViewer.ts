@@ -319,7 +319,7 @@ export class CallStackRenderer implements tree.IRenderer {
 	}
 
 	private renderLoadMore(element: any, data: ILoadMoreTemplateData): void {
-		data.label.textContent = nls.localize('loadMoreStackFrames', "Load More Stack Frames...");
+		data.label.textContent = nls.localize('loadMoreStackFrames', "Load More Stack Frames");
 	}
 
 	private renderStackFrame(stackFrame: debug.IStackFrame, data: IStackFrameTemplateData): void {
