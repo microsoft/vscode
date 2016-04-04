@@ -261,7 +261,7 @@ function prepareDebPackage(arch) {
 	return function () {
 		var shortcut = gulp.src('resources/linux/bin/code.sh', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(rename('usr/bin/' + product.applicationName));
+			.pipe(rename('usr/share/' + product.applicationName + '/bin/' + product.applicationName));
 
 		var desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
@@ -337,7 +337,7 @@ function prepareRpmPackage(arch) {
 	return function () {
 		var shortcut = gulp.src('resources/linux/bin/code.sh', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(rename('BUILD/usr/bin/' + product.applicationName));
+			.pipe(rename('BUILD/usr/share/' + product.applicationName + '/bin/' + product.applicationName));
 
 		var desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
