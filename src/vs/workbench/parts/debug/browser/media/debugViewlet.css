@@ -54,11 +54,12 @@
 }
 
 .monaco-workbench .debug-select {
-	max-width: 115px;
+	max-width: 95%;
 }
 
 .monaco-workbench .monaco-action-bar .action-item.select-container {
 	overflow: hidden;
+	max-width: 50%;
 }
 
 .debug-viewlet .line-number {
