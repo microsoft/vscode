@@ -308,6 +308,7 @@ function prepareDebPackage(arch) {
 function buildDebPackage(arch) {
 	var debArch = getDebPackageArch(arch);
 	return shell.task([
+		'chmod 755 vscode-' + debArch + '/DEBIAN/postinst ' + 'vscode-' + debArch + '/DEBIAN/prerm',
 		'mkdir -p deb',
 		'fakeroot dpkg-deb -b vscode-' + debArch + ' deb/vscode-' + debArch + '.deb',
 		'dpkg-scanpackages deb /dev/null > Packages'
