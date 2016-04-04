@@ -771,7 +771,7 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 		// Decoration
 		let titleLabel = (input && input.getName()) || '';
 		if (status && status.decoration) {
-			titleLabel = nls.localize({ key: 'inputDecoration', comment: ['Editor decoration (left) to editor title (right)'] }, "{0} {1}", status.decoration, titleLabel);
+			titleLabel = nls.localize({ key: 'inputDecoration', comment: ['editor status indicator (e.g. dirty indicator)', 'editor input title'] }, "{0} {1}", status.decoration, titleLabel);
 		}
 
 		this.titleLabel[position].safeInnerHtml(titleLabel);
