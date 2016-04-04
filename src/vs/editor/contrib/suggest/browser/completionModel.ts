@@ -10,8 +10,8 @@ import {assign} from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IPosition} from 'vs/editor/common/editorCommon';
-import {ISuggestResult, ISuggestSupport, ISuggestion, ISuggestionFilter} from 'vs/editor/common/modes';
-import {DefaultFilter, IMatch} from 'vs/editor/common/modes/modesFilters';
+import {IFilter, IMatch, fuzzyContiguousFilter} from 'vs/base/common/filters';
+import {ISuggestResult, ISuggestSupport, ISuggestion} from 'vs/editor/common/modes';
 import {ISuggestResult2} from '../common/suggest';
 
 export class CompletionItem {
@@ -19,15 +19,15 @@ export class CompletionItem {
 	suggestion: ISuggestion;
 	highlights: IMatch[];
 	container: ISuggestResult;
+	filter: IFilter;
 
-	private _filter: ISuggestionFilter;
 	private _support: ISuggestSupport;
 
 	constructor(suggestion: ISuggestion, container: ISuggestResult2) {
 		this._support = container.support;
 		this.suggestion = suggestion;
 		this.container = container;
-		this._filter = container.support && container.support.getFilter() || DefaultFilter;
+		this.filter = container.support && container.support.filter || fuzzyContiguousFilter;
 	}
 
 	resolveDetails(resource: URI, position: IPosition): TPromise<ISuggestion> {
@@ -40,10 +40,6 @@ export class CompletionItem {
 
 	updateDetails(value: ISuggestion): void {
 		this.suggestion = assign(this.suggestion, value);
-	}
-
-	updateHighlights(word: string): void {
-		this.highlights = this._filter(word, this.suggestion);
 	}
 
 	static compare(item: CompletionItem, otherItem: CompletionItem): number {
@@ -115,12 +111,27 @@ export class CompletionModel {
 				overwriteBefore = item.container.currentWord.length;
 			}
 
-			let start = leadingLineContent.length - (overwriteBefore + characterCountDelta);
-			let word = leadingLineContent.substr(start);
+			const start = leadingLineContent.length - (overwriteBefore + characterCountDelta);
+			const word = leadingLineContent.substr(start);
 
-			// filter word
-			item.updateHighlights(word);
-			if (!isFalsyOrEmpty(item.highlights)) {
+			const {filter, suggestion} = item;
+			let match = false;
+
+			// compute highlights based on 'label'
+			item.highlights = filter(word, suggestion.label);
+			match = !isFalsyOrEmpty(item.highlights);
+
+			// no match on label -> check on codeSnippet
+			if (!match && suggestion.codeSnippet !== suggestion.label) {
+				match = !isFalsyOrEmpty((filter(word, suggestion.codeSnippet.replace(/{{.+?}}/g, '')))); // filters {{text}}-snippet syntax
+			}
+
+			// no match on label nor codeSnippet -> check on filterText
+			if(!match && typeof suggestion.filterText === 'string') {
+				match = !isFalsyOrEmpty(filter(word, suggestion.filterText));
+			}
+
+			if (match) {
 				this._filteredItems.push(item);
 			}
 		}
