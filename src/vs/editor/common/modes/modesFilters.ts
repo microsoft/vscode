@@ -12,8 +12,23 @@ export type IMatch = filters.IMatch;
 
 function wrapBaseFilter(filter: filters.IFilter): ISuggestionFilter {
 	return (word: string, suggestion: ISuggestion): filters.IMatch[] => {
-		const result = filter(word, suggestion.filterText || suggestion.label);
-		return isFalsyOrEmpty(result) ? undefined : result;
+
+		let result = filter(word, suggestion.label);
+		if (!isFalsyOrEmpty(result)) {
+			return result;
+		}
+
+		// check for match but don't produce highlights
+		if (suggestion.codeSnippet !== suggestion.label) {
+			if (!isFalsyOrEmpty(filter(word, suggestion.codeSnippet.replace(/{{.+?}}/g, '')))) { // filters {{text}}-snippet syntax
+				return [{ start: 0, end: 0 }];
+			}
+		}
+		if (typeof suggestion.filterText === 'string') {
+			if (!isFalsyOrEmpty(filter(word, suggestion.filterText))) {
+				return [{ start: 0, end: 0 }];
+			}
+		}
 	};
 }
 

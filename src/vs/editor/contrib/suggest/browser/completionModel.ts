@@ -42,9 +42,8 @@ export class CompletionItem {
 		this.suggestion = assign(this.suggestion, value);
 	}
 
-	updateHighlights(word: string): boolean {
+	updateHighlights(word: string): void {
 		this.highlights = this._filter(word, this.suggestion);
-		return !isFalsyOrEmpty(this.highlights);
 	}
 
 	static compare(item: CompletionItem, otherItem: CompletionItem): number {
@@ -66,14 +65,19 @@ export class CompletionItem {
 	}
 }
 
+export class LineContext {
+	leadingLineContent: string;
+	characterCountDelta: number;
+}
+
 export class CompletionModel {
 
-	private _currentWord: string;
+	private _lineContext: LineContext;
 	private _items: CompletionItem[] = [];
 	private _filteredItems: CompletionItem[] = undefined;
 
-	constructor(public raw: ISuggestResult2[], currentWord: string) {
-		this._currentWord = currentWord;
+	constructor(public raw: ISuggestResult2[], leadingLineContent:string) {
+		this._lineContext = { leadingLineContent, characterCountDelta: 0 };
 		for (let container of raw) {
 			for (let suggestion of container.suggestions) {
 				this._items.push(new CompletionItem(suggestion, container));
@@ -82,27 +86,43 @@ export class CompletionModel {
 		this._items.sort(CompletionItem.compare);
 	}
 
-	get currentWord(): string {
-		return this._currentWord;
+	get lineContext(): LineContext {
+		return this._lineContext;
 	}
 
-	set currentWord(value: string) {
-		if (this._currentWord !== value) {
+	set lineContext(value: LineContext) {
+		if (this._lineContext !== value) {
 			this._filteredItems = undefined;
-			this._currentWord = value;
+			this._lineContext = value;
 		}
 	}
 
 	get items(): CompletionItem[] {
 		if (!this._filteredItems) {
-			this._filteredItems = [];
-			for (let item of this._items) {
-				if (item.updateHighlights(this.currentWord)) {
-					this._filteredItems.push(item);
-				}
-			}
+			this._filter();
 		}
 		return this._filteredItems;
 	}
 
+
+	private _filter(): void {
+		this._filteredItems = [];
+		const {leadingLineContent, characterCountDelta} = this._lineContext;
+		for (let item of this._items) {
+
+			let {overwriteBefore} = item.suggestion;
+			if (typeof overwriteBefore !== 'number') {
+				overwriteBefore = item.container.currentWord.length;
+			}
+
+			let start = leadingLineContent.length - (overwriteBefore + characterCountDelta);
+			let word = leadingLineContent.substr(start);
+
+			// filter word
+			item.updateHighlights(word);
+			if (!isFalsyOrEmpty(item.highlights)) {
+				this._filteredItems.push(item);
+			}
+		}
+	}
 }
