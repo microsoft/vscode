@@ -1008,6 +1008,27 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 			}
 		});
 
+		// Left Title Label (click opens quick open unless we are configured to ignore click or we are not the active title)
+		parent.div({
+			'class': 'title-label'
+		}, (div) => {
+			let clickHandler = (e: MouseEvent) => {
+				if (ignoreClick) {
+					return;
+				}
+
+				DOM.EventHelper.stop(e, true);
+
+				this.quickOpenService.show();
+			};
+
+			// Clickable label (focus editor and bring up quick open)
+			this.titleLabel[position] = $(div).a().on(DOM.EventType.CLICK, clickHandler);
+
+			// Subtle Description
+			this.titleDescription[position] = $(div).span().on(DOM.EventType.CLICK, clickHandler);
+		});
+
 		// Right Actions Container
 		parent.div({
 			'class': 'title-actions'
@@ -1033,27 +1054,6 @@ export class SideBySideEditorControl extends EventEmitter implements IVerticalSa
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'editorPart' });
 				}
 			});
-		});
-
-		// Left Title Label (click opens quick open unless we are configured to ignore click or we are not the active title)
-		parent.div({
-			'class': 'title-label'
-		}, (div) => {
-			let clickHandler = (e: MouseEvent) => {
-				if (ignoreClick) {
-					return;
-				}
-
-				DOM.EventHelper.stop(e, true);
-
-				this.quickOpenService.show();
-			};
-
-			// Clickable label (focus editor and bring up quick open)
-			this.titleLabel[position] = $(div).a().on(DOM.EventType.CLICK, clickHandler);
-
-			// Subtle Description
-			this.titleDescription[position] = $(div).span().on(DOM.EventType.CLICK, clickHandler);
 		});
 	}
 
