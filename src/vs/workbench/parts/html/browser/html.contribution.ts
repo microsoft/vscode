@@ -11,7 +11,8 @@ import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/edito
 import URI from 'vs/base/common/uri';
 import {Position as EditorPosition} from 'vs/platform/editor/common/editor';
 import {HtmlInput} from '../common/htmlInput';
-import {HtmlPreviewPart} from 'vs/workbench/parts/html/browser/htmlPreviewPart';
+// import {HtmlPreviewPart} from 'vs/workbench/parts/html/browser/htmlPreviewPart';
+import {WebviewPart} from 'vs/workbench/parts/html/browser/htmlWebviewPart';
 import {Registry} from 'vs/platform/platform';
 import {EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions} from 'vs/workbench/browser/parts/editor/baseEditor';
 
@@ -19,10 +20,16 @@ import {EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions} from 
 import {SyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 
 // --- Register Editor
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(HtmlPreviewPart.ID,
-	localize('html.editor.label', "Html Preview"),
-	'vs/workbench/parts/html/browser/htmlPreviewPart',
-	'HtmlPreviewPart'),
+// (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(HtmlPreviewPart.ID,
+// 	localize('html.editor.label', "Html Preview"),
+// 	'vs/workbench/parts/html/browser/htmlPreviewPart',
+// 	'HtmlPreviewPart'),
+// 	[new SyncDescriptor(HtmlInput)]);
+
+(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(WebviewPart.ID,
+	localize('webview.editor.label', "[WEBVIEW] Html Preview"),
+	'vs/workbench/parts/html/browser/htmlWebviewPart',
+	'WebviewPart'),
 	[new SyncDescriptor(HtmlInput)]);
 
 // --- Register Commands
