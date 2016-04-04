@@ -5,13 +5,13 @@
 'use strict';
 
 import * as assert from 'assert';
-import {LineToken} from 'vs/editor/common/editorCommon';
+import {ViewLineToken} from 'vs/editor/common/editorCommon';
 import {renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
 
 suite('viewLineRenderer.renderLine', () => {
 
-	function createPart(startIndex: number, type:string): LineToken {
-		return new LineToken(startIndex, type);
+	function createPart(startIndex: number, type:string): ViewLineToken {
+		return new ViewLineToken(startIndex, type);
 	}
 
 	function assertCharacterReplacement(lineContent:string, tabSize:number, expected:string, expectedCharOffsetInPart: number[]): void {
@@ -55,7 +55,7 @@ suite('viewLineRenderer.renderLine', () => {
 		assertCharacterReplacement('xxxx\t', 4, 'xxxx&nbsp;&nbsp;&nbsp;&nbsp;', [0, 1, 2, 3, 4, 8]);
 	});
 
-	function assertParts(lineContent:string, tabSize:number, parts: LineToken[], expected:string, expectedCharOffsetInPart:number[]): void {
+	function assertParts(lineContent:string, tabSize:number, parts: ViewLineToken[], expected:string, expectedCharOffsetInPart:number[]): void {
 		let _actual = renderLine(new RenderLineInput(
 			lineContent,
 			tabSize,

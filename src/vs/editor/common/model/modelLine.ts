@@ -671,10 +671,6 @@ export class LineTokens implements ILineTokens {
 		this._tokens = tokens;
 	}
 
-	public toString(): string {
-		return TokensBinaryEncoding.inflateArr(this.map, this._tokens).toString();
-	}
-
 	public getBinaryEncodedTokensMap(): ITokensInflatorMap {
 		return this.map;
 	}

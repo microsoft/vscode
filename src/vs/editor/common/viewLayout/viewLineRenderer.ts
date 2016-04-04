@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {LineToken} from 'vs/editor/common/editorCommon';
+import {ViewLineToken} from 'vs/editor/common/editorCommon';
 
 export class RenderLineInput {
 	public _renderLineInputTrait: void;
@@ -14,7 +14,7 @@ export class RenderLineInput {
 	spaceWidth: number;
 	stopRenderingLineAfter: number;
 	renderWhitespace: boolean;
-	parts: LineToken[];
+	parts: ViewLineToken[];
 
 	constructor(
 		lineContent: string,
@@ -22,7 +22,7 @@ export class RenderLineInput {
 		spaceWidth: number,
 		stopRenderingLineAfter: number,
 		renderWhitespace: boolean,
-		parts: LineToken[]
+		parts: ViewLineToken[]
 	) {
 		this.lineContent = lineContent;
 		this.tabSize = tabSize;
@@ -78,7 +78,7 @@ function isWhitespace(type:string): boolean {
 	return WHITESPACE_TOKEN_TEST.test(type);
 }
 
-function renderLineActual(lineText:string, lineTextLength:number, tabSize:number, spaceWidth:number, actualLineParts:LineToken[], renderWhitespace:boolean, charBreakIndex:number): IRenderLineOutput {
+function renderLineActual(lineText:string, lineTextLength:number, tabSize:number, spaceWidth:number, actualLineParts:ViewLineToken[], renderWhitespace:boolean, charBreakIndex:number): IRenderLineOutput {
 	lineTextLength = +lineTextLength;
 	tabSize = +tabSize;
 	charBreakIndex = +charBreakIndex;
