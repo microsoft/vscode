@@ -18,12 +18,14 @@ import {CACHE, TextFileEditorModel} from 'vs/workbench/parts/files/common/editor
 import {ITextFileOperationResult, ConfirmResult, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import {IUntitledEditorService} from 'vs/workbench/services/untitled/common/untitledEditorService';
 import {IFileService} from 'vs/platform/files/common/files';
+import {BinaryEditorModel} from 'vs/workbench/common/editor/binaryEditorModel';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 
 export class TextFileService extends AbstractTextFileService {
@@ -38,11 +40,10 @@ export class TextFileService extends AbstractTextFileService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEventService eventService: IEventService,
 		@IModeService private modeService: IModeService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IWindowService private windowService: IWindowService
 	) {
 		super(contextService, instantiationService, configurationService, telemetryService, lifecycleService, eventService);
-
-		this.modeService = modeService;
 
 		this.init();
 	}
@@ -328,7 +329,7 @@ export class TextFileService extends AbstractTextFileService {
 
 			// We have a model: Use it (can be null e.g. if this file is binary and not a text file or was never opened before)
 			if (model) {
-				return this.fileService.updateContent(target, model.getValue(), { encoding: model.getEncoding() });
+				return this.doSaveTextFileAs(model, resource, target);
 			}
 
 			// Otherwise we can only copy
@@ -343,6 +344,26 @@ export class TextFileService extends AbstractTextFileService {
 
 				// Done: return target
 				return target;
+			});
+		});
+	}
+
+	private doSaveTextFileAs(sourceModel: TextFileEditorModel | UntitledEditorModel, resource: URI, target: URI): TPromise<void> {
+		// create the target file empty if it does not exist already
+		return this.fileService.resolveFile(target).then(stat => stat, () => null).then(stat => stat ||  this.fileService.createFile(target)).then(stat => {
+			// resolve a model for the file (which can be binary if the file is not a text file)
+			return this.editorService.resolveEditorModel({ resource: target }).then((targetModel: TextFileEditorModel) => {
+				// binary model: delete the file and run the operation again
+				if (targetModel instanceof BinaryEditorModel) {
+					return this.fileService.del(target).then(() => this.doSaveTextFileAs(sourceModel, resource, target));
+				}
+
+				// text model: take over encoding and model value from source model
+				targetModel.updatePreferredEncoding(sourceModel.getEncoding());
+				targetModel.textEditorModel.setValue(sourceModel.getValue());
+
+				// save model
+				return targetModel.save();
 			});
 		});
 	}
