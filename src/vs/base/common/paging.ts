@@ -6,6 +6,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
+import { ArraySet } from 'vs/base/common/set';
 
 export interface IPager<T> {
 	firstPage: T[];
@@ -17,6 +18,7 @@ export interface IPager<T> {
 interface IPage<T> {
 	isResolved: boolean;
 	promise: TPromise<any>;
+	promiseIndexes: ArraySet<number>;
 	elements: T[];
 }
 
@@ -26,13 +28,13 @@ export class PagedModel<T> {
 
 	get length(): number { return this.pager.total; }
 
-	constructor(private pager: IPager<T>) {
-		this.pages = [{ isResolved: true, promise: null, elements: pager.firstPage.slice() }];
+	constructor(private pager: IPager<T>, private pageTimeout: number = 500) {
+		this.pages = [{ isResolved: true, promise: null, promiseIndexes: new ArraySet<number>(), elements: pager.firstPage.slice() }];
 
 		const totalPages = Math.ceil(pager.total / pager.pageSize);
 
 		for (let i = 0, len = totalPages - 1; i < len; i++) {
-			this.pages.push({ isResolved: false, promise: null, elements: [] });
+			this.pages.push({ isResolved: false, promise: null, promiseIndexes: new ArraySet<number>(), elements: [] });
 		}
 	}
 
@@ -60,14 +62,33 @@ export class PagedModel<T> {
 		}
 
 		if (!page.promise) {
-			page.promise = this.pager.getPage(pageIndex).then(elements => {
-				page.elements = elements;
-				page.isResolved = true;
-				page.promise = null;
-			});
+			page.promise = TPromise.timeout(this.pageTimeout)
+				.then(() => this.pager.getPage(pageIndex))
+				.then(elements => {
+					page.elements = elements;
+					page.isResolved = true;
+					page.promise = null;
+				}, err => {
+					page.isResolved = false;
+					page.promise = null;
+					return TPromise.wrapError(err);
+				});
 		}
 
-		return page.promise.then(() => page.elements[indexInPage]);
+		return new TPromise<T>((c, e) => {
+			page.promiseIndexes.set(index);
+			page.promise.done(() => c(page.elements[indexInPage]));
+		}, () => {
+			if (!page.promise) {
+				return;
+			}
+
+			page.promiseIndexes.unset(index);
+
+			if (page.promiseIndexes.elements.length === 0) {
+				page.promise.cancel();
+			}
+		});
 	}
 }
 

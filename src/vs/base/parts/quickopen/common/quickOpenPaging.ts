@@ -43,17 +43,11 @@ class PagedRenderer<T> implements IRenderer<IStub> {
 			return this.renderer.renderElement(this.model.get(index), templateId, data.data);
 		}
 
-		let didUnrender = false;
-		data.disposable = { dispose: () => didUnrender = true };
+		const promise = this.model.resolve(index);
+		data.disposable = { dispose: () => promise.cancel() };
+
 		this.renderer.renderPlaceholder(index, templateId, data.data);
-
-		this.model.resolve(index).done(entry => {
-			if (didUnrender) {
-				return;
-			}
-
-			this.renderer.renderElement(entry, templateId, data.data);
-		});
+		promise.done(entry => this.renderer.renderElement(entry, templateId, data.data));
 	}
 
 	disposeTemplate(templateId: string, data: IStubTemplateData<T>): void {
