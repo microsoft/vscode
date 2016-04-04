@@ -1391,9 +1391,9 @@ export class RefreshViewExplorerAction extends Action {
 				return TPromise.as(null); // Global action disabled if user is in edit mode from another action
 			}
 
-			explorerView.focusBody();
+			explorerView.getViewer().DOMFocus();
 
-			return explorerView.refresh(true, true, true);
+			return explorerView.refresh();
 		});
 	}
 }
