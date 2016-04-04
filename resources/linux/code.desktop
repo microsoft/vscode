@@ -6,5 +6,13 @@ Exec=/usr/bin/@@NAME@@ %U
 Icon=@@NAME@@
 Type=Application
 StartupNotify=true
+StartupWMClass=@@NAME@@
 Categories=Utility;TextEditor;Development;IDE;
 MimeType=text/plain;
+Actions=new-window;
+
+[Desktop Action new-window]
+Name=New Window
+Name[de]=Neues Fenster
+Exec=/usr/bin/@@NAME@@ --new-window %U
+Icon=@@NAME@@
