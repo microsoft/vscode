@@ -25,7 +25,7 @@
 	color: #333333;
 }
 
-.monaco-editor .peekview-widget .head .peekview-title .dirname {
+.monaco-editor .peekview-widget .head .peekview-title .dirname:not(:empty) {
 	font-size: 0.9em;
 	color: rgba(108, 108, 108, 0.7);
 	margin-left: 0.5em;

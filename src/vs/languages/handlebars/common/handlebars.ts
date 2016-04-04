@@ -4,17 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import supports = require('vs/editor/common/modes/supports');
 import htmlMode = require('vs/languages/html/common/html');
-import winjs = require('vs/base/common/winjs.base');
-import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
 import handlebarsTokenTypes = require('vs/languages/handlebars/common/handlebarsTokenTypes');
 import htmlWorker = require('vs/languages/html/common/htmlWorker');
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {createWordRegExp} from 'vs/editor/common/modes/abstractMode';
+import {ILeavingNestedModeData} from 'vs/editor/common/modes/supports/tokenizationSupport';
+import {IThreadService} from 'vs/platform/thread/common/thread';
 
 export enum States {
 	HTML,
@@ -54,11 +53,11 @@ export class HandlebarsState extends htmlMode.State {
 			case States.HTML:
 				if (stream.advanceIfString('{{{').length > 0) {
 					this.handlebarsKind = States.UnescapedExpression;
-					return { type: handlebarsTokenTypes.EMBED_UNESCAPED, bracket: Modes.Bracket.Open };
+					return { type: handlebarsTokenTypes.EMBED_UNESCAPED };
 				}
 				else if (stream.advanceIfString('{{').length > 0) {
 					this.handlebarsKind = States.Expression;
-					return { type: handlebarsTokenTypes.EMBED, bracket: Modes.Bracket.Open };
+					return { type: handlebarsTokenTypes.EMBED };
 				}
 			break;
 
@@ -66,11 +65,11 @@ export class HandlebarsState extends htmlMode.State {
 			case States.UnescapedExpression:
 				if (this.handlebarsKind === States.Expression && stream.advanceIfString('}}').length > 0) {
 					this.handlebarsKind = States.HTML;
-					return { type: handlebarsTokenTypes.EMBED, bracket: Modes.Bracket.Close };
+					return { type: handlebarsTokenTypes.EMBED };
 				}
 				else if (this.handlebarsKind === States.UnescapedExpression &&stream.advanceIfString('}}}').length > 0) {
 					this.handlebarsKind = States.HTML;
-					return { type: handlebarsTokenTypes.EMBED_UNESCAPED, bracket: Modes.Bracket.Close };
+					return { type: handlebarsTokenTypes.EMBED_UNESCAPED };
 				}
 				else if(stream.skipWhitespace().length > 0) {
 					return { type: ''};
@@ -78,12 +77,12 @@ export class HandlebarsState extends htmlMode.State {
 
 				if(stream.peek() === '#') {
 					stream.advanceWhile(/^[^\s}]/);
-					return { type: handlebarsTokenTypes.KEYWORD, bracket: Modes.Bracket.Open };
+					return { type: handlebarsTokenTypes.KEYWORD };
 				}
 
 				if(stream.peek() === '/') {
 					stream.advanceWhile(/^[^\s}]/);
-					return { type: handlebarsTokenTypes.KEYWORD, bracket: Modes.Bracket.Close };
+					return { type: handlebarsTokenTypes.KEYWORD };
 				}
 
 				if(stream.advanceIfString('else')) {
@@ -110,35 +109,59 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 	constructor(
 		descriptor:Modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThreadService threadService: IThreadService,
-		@IModeService modeService: IModeService
+		@IModeService modeService: IModeService,
+		@IThreadService threadService: IThreadService
 	) {
-		super(descriptor, instantiationService, threadService, modeService);
+		super(descriptor, instantiationService, modeService, threadService);
 
 		this.formattingSupport = null;
-
-		this.onEnterSupport = new OnEnterSupport(this.getId(), {
-			brackets: [
-				{ open: '<!--', close: '-->' },
-				{ open: '{{', close: '}}' },
-			]
-		});
 	}
 
-	public asyncCtor(): winjs.Promise {
-		return super.asyncCtor().then(() => {
-			var pairs = this.characterPairSupport.getAutoClosingPairs().slice(0).concat([
-				{ open: '{', close: '}'}
-			]);
+	protected _createRichEditSupport(): Modes.IRichEditSupport {
+		return new RichEditSupport(this.getId(), null, {
 
-			this.characterPairSupport = new supports.CharacterPairSupport(this, {
-				autoClosingPairs:  pairs.slice(0),
+			wordPattern: createWordRegExp('#-?%'),
+
+			comments: {
+				blockComment: ['<!--', '-->']
+			},
+
+			brackets: [
+				['<!--', '-->'],
+				['{{', '}}']
+			],
+
+			__electricCharacterSupport: {
+				caseInsensitive: true,
+				embeddedElectricCharacters: ['*', '}', ']', ')']
+			},
+
+			__characterPairSupport: {
+				autoClosingPairs: [
+					{ open: '{', close: '}' },
+					{ open: '[', close: ']' },
+					{ open: '(', close: ')' },
+					{ open: '"', close: '"' },
+					{ open: '\'', close: '\'' }
+				],
 				surroundingPairs: [
 					{ open: '<', close: '>' },
 					{ open: '"', close: '"' },
 					{ open: '\'', close: '\'' }
 				]
-			});
+			},
+
+			onEnterRules: [
+				{
+					beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+					afterText: /^<\/(\w[\w\d]*)\s*>$/i,
+					action: { indentAction: Modes.IndentAction.IndentOutdent }
+				},
+				{
+					beforeText: new RegExp(`<(?!(?:${htmlMode.EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
+					action: { indentAction: Modes.IndentAction.Indent }
+				}
+			],
 		});
 	}
 
@@ -146,7 +169,7 @@ export class HandlebarsMode extends htmlMode.HTMLMode<htmlWorker.HTMLWorker> {
 		return new HandlebarsState(this, htmlMode.States.Content, States.HTML, '', '', '', '', '');
 	}
 
-	public getLeavingNestedModeData(line:string, state:Modes.IState):supports.ILeavingNestedModeData {
+	public getLeavingNestedModeData(line:string, state:Modes.IState):ILeavingNestedModeData {
 		var leavingNestedModeData = super.getLeavingNestedModeData(line, state);
 		if (leavingNestedModeData) {
 			leavingNestedModeData.stateAfterNestedMode = new HandlebarsState(this, htmlMode.States.Content, States.HTML, '', '', '', '', '');

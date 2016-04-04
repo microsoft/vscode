@@ -9,19 +9,19 @@ import 'vs/css!./media/texteditor';
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Dimension, Builder} from 'vs/base/browser/builder';
 import objects = require('vs/base/common/objects');
-import errors = require('vs/base/common/errors');
 import {CodeEditorWidget} from 'vs/editor/browser/widget/codeEditorWidget';
 import {Preferences} from 'vs/workbench/common/constants';
 import {IEditorViewState} from 'vs/editor/common/editorCommon';
-import {EventType as WorkbenchEventType, EditorEvent, TextEditorSelectionEvent, OptionsChangeEvent} from 'vs/workbench/browser/events';
+import {OptionsChangeEvent, EventType as WorkbenchEventType, EditorEvent, TextEditorSelectionEvent} from 'vs/workbench/common/events';
 import {Scope} from 'vs/workbench/common/memento';
+import {EditorInput, EditorOptions} from 'vs/workbench/common/editor';
 import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorConfiguration} from 'vs/editor/common/config/commonEditorConfig';
-import {IEditorSelection, IEditor, EventType, IConfigurationChangedEvent, IModelContentChangedEvent, IModelModeChangedEvent, ICursorPositionChangedEvent, IEditorOptions} from 'vs/editor/common/editorCommon';
+import {IEditorSelection, IEditor, EventType, IConfigurationChangedEvent, IModelContentChangedEvent, IModelOptionsChangedEvent, IModelModeChangedEvent, ICursorPositionChangedEvent, IEditorOptions} from 'vs/editor/common/editorCommon';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {Position} from 'vs/platform/editor/common/editor';
-import {DEFAULT_THEME_ID} from 'vs/platform/theme/common/themes';
+import {DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
 import {IStorageService, StorageScope, StorageEvent, StorageEventType} from 'vs/platform/storage/common/storage';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -152,15 +152,18 @@ export abstract class BaseTextEditor extends BaseEditor {
 			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_CONTENT_CHANGED, new EditorEvent(this, this.getId(), this.input, null, this.position, event));
 		}));
 
+		// Hook Listener for content options changes
+		this.toUnbind.push(this.editorControl.addListener(EventType.ModelOptionsChanged, (event: IModelOptionsChangedEvent) => {
+			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_CONTENT_OPTIONS_CHANGED, new EditorEvent(this, this.getId(), this.input, null, this.position, event));
+		}));
+
 		// Hook Listener for options changes
 		this.toUnbind.push(this.editorControl.addListener(EventType.ConfigurationChanged, (event: IConfigurationChangedEvent) => {
 			this.eventService.emit(WorkbenchEventType.TEXT_EDITOR_CONFIGURATION_CHANGED, new EditorEvent(this, this.getId(), this.input, null, this.position, event));
 		}));
 
 		// Configuration
-		this.configurationService.loadConfiguration().then((config) => {
-			this.applyConfiguration(config);
-		}, errors.onUnexpectedError);
+		this.applyConfiguration(this.configurationService.getConfiguration<IFilesConfiguration>());
 	}
 
 	/**
@@ -169,6 +172,12 @@ export abstract class BaseTextEditor extends BaseEditor {
 	 */
 	public createEditorControl(parent: Builder): IEditor {
 		return this._instantiationService.createInstance(CodeEditorWidget, parent.getHTMLElement(), this.getCodeEditorOptions());
+	}
+
+	public setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
+		return super.setInput(input, options).then(() => {
+			this.editorControl.updateOptions(this.getCodeEditorOptions()); // support input specific editor options
+		});
 	}
 
 	public setVisible(visible: boolean, position: Position = null): TPromise<void> {

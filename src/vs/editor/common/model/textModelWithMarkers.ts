@@ -5,12 +5,12 @@
 'use strict';
 
 import {TPromise} from 'vs/base/common/winjs.base';
-import {IMode} from 'vs/editor/common/modes';
-import {Position} from 'vs/editor/common/core/position';
-import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
-import {ModelLine, ILineMarker} from 'vs/editor/common/model/modelLine';
-import EditorCommon = require('vs/editor/common/editorCommon');
 import {IdGenerator} from 'vs/editor/common/core/idGenerator';
+import {Position} from 'vs/editor/common/core/position';
+import {IEditorPosition, IModelContentChangedFlushEvent, IRawText, IReadOnlyLineMarker, ITextModelWithMarkers} from 'vs/editor/common/editorCommon';
+import {ILineMarker, ModelLine} from 'vs/editor/common/model/modelLine';
+import {TextModelWithTokens} from 'vs/editor/common/model/textModelWithTokens';
+import {IMode} from 'vs/editor/common/modes';
 
 export interface IMarkerIdToMarkerMap {
 	[key:string]:ILineMarker;
@@ -47,11 +47,11 @@ export class LineMarker implements ILineMarker {
 
 var _INSTANCE_COUNT = 0;
 
-export class TextModelWithMarkers extends TextModelWithTokens implements EditorCommon.ITextModelWithMarkers {
+export class TextModelWithMarkers extends TextModelWithTokens implements ITextModelWithMarkers {
 
 	private _markerIdGenerator: IdGenerator;
 	protected _markerIdToMarker: IMarkerIdToMarkerMap;
-	constructor(allowedEventTypes:string[], rawText:EditorCommon.IRawText, modeOrPromise:IMode|TPromise<IMode>) {
+	constructor(allowedEventTypes:string[], rawText:IRawText, modeOrPromise:IMode|TPromise<IMode>) {
 		super(allowedEventTypes, rawText, true, modeOrPromise);
 		this._markerIdGenerator = new IdGenerator((++_INSTANCE_COUNT) + ';');
 		this._markerIdToMarker = {};
@@ -62,7 +62,7 @@ export class TextModelWithMarkers extends TextModelWithTokens implements EditorC
 		super.dispose();
 	}
 
-	_resetValue(e:EditorCommon.IModelContentChangedFlushEvent, newValue:string): void {
+	_resetValue(e:IModelContentChangedFlushEvent, newValue:IRawText): void {
 		super._resetValue(e, newValue);
 
 		// Destroy all my markers
@@ -70,10 +70,6 @@ export class TextModelWithMarkers extends TextModelWithTokens implements EditorC
 	}
 
 	_addMarker(lineNumber:number, column:number, stickToPreviousCharacter:boolean): string {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithMarkers._addMarker: Model is disposed');
-		}
-
 		var pos = this.validatePosition(new Position(lineNumber, column));
 
 		var marker = new LineMarker(this._markerIdGenerator.generate(), pos.column, stickToPreviousCharacter);
@@ -114,10 +110,6 @@ export class TextModelWithMarkers extends TextModelWithTokens implements EditorC
 	}
 
 	_changeMarker(id:string, lineNumber:number, column:number): void {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithMarkers._changeMarker: Model is disposed');
-		}
-
 		if (this._markerIdToMarker.hasOwnProperty(id)) {
 			var marker = this._markerIdToMarker[id];
 			var newPos = this.validatePosition(new Position(lineNumber, column));
@@ -134,10 +126,6 @@ export class TextModelWithMarkers extends TextModelWithTokens implements EditorC
 	}
 
 	_changeMarkerStickiness(id:string, newStickToPreviousCharacter:boolean): void {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithMarkers._changeMarkerStickiness: Model is disposed');
-		}
-
 		if (this._markerIdToMarker.hasOwnProperty(id)) {
 			var marker = this._markerIdToMarker[id];
 
@@ -147,11 +135,7 @@ export class TextModelWithMarkers extends TextModelWithTokens implements EditorC
 		}
 	}
 
-	_getMarker(id:string): EditorCommon.IEditorPosition {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithMarkers._getMarker: Model is disposed');
-		}
-
+	_getMarker(id:string): IEditorPosition {
 		if (this._markerIdToMarker.hasOwnProperty(id)) {
 			var marker = this._markerIdToMarker[id];
 			return new Position(marker.line.lineNumber, marker.column);
@@ -163,10 +147,7 @@ export class TextModelWithMarkers extends TextModelWithTokens implements EditorC
 		return Object.keys(this._markerIdToMarker).length;
 	}
 
-	_getLineMarkers(lineNumber: number): EditorCommon.IReadOnlyLineMarker[] {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithMarkers._getLineMarkers: Model is disposed');
-		}
+	_getLineMarkers(lineNumber: number): IReadOnlyLineMarker[] {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
@@ -175,10 +156,6 @@ export class TextModelWithMarkers extends TextModelWithTokens implements EditorC
 	}
 
 	_removeMarker(id:string): void {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithMarkers._removeMarker: Model is disposed');
-		}
-
 		if (this._markerIdToMarker.hasOwnProperty(id)) {
 			var marker = this._markerIdToMarker[id];
 			marker.line.removeMarker(marker);
@@ -219,15 +196,11 @@ export class TextModelWithMarkers extends TextModelWithTokens implements EditorC
 	}
 
 	_getMarkersInMap(markersMap:{[markerId:string]:boolean;}): ILineMarker[] {
-		if (this._isDisposed) {
-			throw new Error('TextModelWithMarkers._getMarkersInMap: Model is disposed');
-		}
-
-		var result: ILineMarker[] = [],
-			markerId: string;
-
-		for (markerId in markersMap)	{
-			if (markersMap.hasOwnProperty(markerId) && this._markerIdToMarker.hasOwnProperty(markerId)) {
+		let result: ILineMarker[] = [];
+		let keys = Object.keys(markersMap);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let markerId = keys[i];
+			if (this._markerIdToMarker.hasOwnProperty(markerId)) {
 				result.push(this._markerIdToMarker[markerId]);
 			}
 		}

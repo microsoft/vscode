@@ -18,7 +18,7 @@ suite('Sass Colorizer', () => {
 	setup((done) => {
 		modesUtil.load('sass').then(mode => {
 			tokenizationSupport = mode.tokenizationSupport;
-			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.onEnterSupport);
+			assertOnEnter = modesUtil.createOnEnterAsserter(mode.getId(), mode.richEditSupport);
 			done();
 		});
 	});
@@ -1185,7 +1185,6 @@ suite('Sass Colorizer', () => {
 				{ startIndex: 103, type: '' },
 				{ startIndex: 104, type: 'constant.numeric.sass' },
 				{ startIndex: 105, type: 'punctuation.parenthesis.sass' },
-				{ startIndex: 106, type: 'punctuation.parenthesis.sass' },
 				{ startIndex: 107, type: '' },
 				{ startIndex: 108, type: 'punctuation.curly.sass' },
 				{ startIndex: 109, type: '' },
@@ -1817,7 +1816,6 @@ suite('Sass Colorizer', () => {
 				{ startIndex: 2, type: sassTokenTypes.TOKEN_PROPERTY + '.sass' },
 				{ startIndex: 11, type: '' },
 				{ startIndex: 12, type: 'string.punctuation.sass' },
-				{ startIndex: 13, type: 'string.punctuation.sass' },
 				{ startIndex: 14, type: 'punctuation.sass' }
 			]}]
 		]);

@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Strings = require('vs/base/common/strings');
-import Modes = require('vs/editor/common/modes');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as strings from 'vs/base/common/strings';
+import {ILineTokens, IReadOnlyLineMarker, ITokensInflatorMap, LineToken} from 'vs/editor/common/editorCommon';
+import {IMode, IState} from 'vs/editor/common/modes';
+import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
+import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 export interface ILineEdit {
 	startColumn: number;
@@ -15,7 +17,7 @@ export interface ILineEdit {
 	forceMoveMarkers: boolean;
 }
 
-export interface ILineMarker extends EditorCommon.IReadOnlyLineMarker {
+export interface ILineMarker extends IReadOnlyLineMarker {
 	id:string;
 	column:number;
 	stickToPreviousCharacter:boolean;
@@ -30,10 +32,6 @@ export interface IChangedMarkers {
 	[markerId:string]: boolean;
 }
 
-export interface IModeTransitions {
-	toArray(topLevelMode: Modes.IMode): Modes.IModeTransition[];
-}
-
 export interface ITextWithMarkers {
 	text: string;
 	markers: ILineMarker[];
@@ -45,7 +43,8 @@ interface ITokensAdjuster {
 }
 
 interface IMarkersAdjuster {
-	adjust(toColumn:number, delta:number, minimumAllowedColumn:number, isReplace:boolean, forceMoveMarkers:boolean): void;
+	adjustDelta(toColumn:number, delta:number, minimumAllowedColumn:number, moveSemantics:MarkerMoveSemantics): void;
+	adjustSet(toColumn:number, newColumn:number, moveSemantics:MarkerMoveSemantics): void;
 	finish(delta:number, lineTextLength:number): void;
 }
 
@@ -54,33 +53,50 @@ var NO_OP_TOKENS_ADJUSTER: ITokensAdjuster = {
 	finish: () => {}
 };
 var NO_OP_MARKERS_ADJUSTER: IMarkersAdjuster = {
-	adjust: () => {},
+	adjustDelta: () => {},
+	adjustSet: () => {},
 	finish: () => {}
 };
 
-export class ModelLine {
-	public lineNumber:number;
-	public text:string;
-	public isInvalid:boolean;
+enum MarkerMoveSemantics {
+	MarkerDefined = 0,
+	ForceMove = 1,
+	ForceStay = 2
+}
 
-	private _state:Modes.IState;
-	private _modeTransitions:IModeTransitions;
-	private _lineTokens:EditorCommon.ILineTokens;
+export class ModelLine {
+	private _lineNumber:number;
+	public get lineNumber():number { return this._lineNumber; }
+
+	private _text:string;
+	public get text():string { return this._text; }
+
+	private _isInvalid:boolean;
+	public get isInvalid():boolean { return this._isInvalid; }
+	public set isInvalid(value:boolean) { this._isInvalid = value; }
+
+	private _state:IState;
+	private _modeTransitions:ModeTransition[];
+	private _lineTokens:ILineTokens;
 	private _markers:ILineMarker[];
 
 	constructor(lineNumber:number, text:string) {
-		this.lineNumber = lineNumber;
-		this.text = text;
-		this.isInvalid = false;
+		this._lineNumber = lineNumber|0;
+		this._text = text;
+		this._isInvalid = false;
+		this._state = null;
+		this._modeTransitions = null;
+		this._lineTokens = null;
+		this._markers = null;
 	}
 
 	// --- BEGIN STATE
 
-	public setState(state: Modes.IState): void {
+	public setState(state: IState): void {
 		this._state = state;
 	}
 
-	public getState(): Modes.IState {
+	public getState(): IState {
 		return this._state || null;
 	}
 
@@ -88,57 +104,32 @@ export class ModelLine {
 
 	// --- BEGIN MODE TRANSITIONS
 
-	private _setModeTransitions(topLevelMode:Modes.IMode, modeTransitions:Modes.IModeTransition[]): void {
-		let desired = toModeTransitions(topLevelMode, modeTransitions);
-
-		if (desired === null) {
-			// saving memory
-			if (typeof this._modeTransitions === 'undefined') {
-				return;
-			}
-			this._modeTransitions = null;
-			return;
-		}
-
-		this._modeTransitions = desired;
-	}
-
-	public getModeTransitions(): IModeTransitions {
+	public getModeTransitions(topLevelMode:IMode): ModeTransition[] {
 		if (this._modeTransitions) {
 			return this._modeTransitions;
+		} else {
+			return [new ModeTransition(0, topLevelMode)];
 		}
-		return DefaultModeTransitions.INSTANCE;
 	}
 
 	// --- END MODE TRANSITIONS
 
 	// --- BEGIN TOKENS
 
-	public setTokens(map: EditorCommon.ITokensInflatorMap, tokens: Modes.IToken[], topLevelMode:Modes.IMode, modeTransitions:Modes.IModeTransition[]): void {
-		this._setLineTokens(map, tokens);
-		this._setModeTransitions(topLevelMode, modeTransitions);
+	public setTokens(map: ITokensInflatorMap, tokens: LineToken[], topLevelMode:IMode, modeTransitions:ModeTransition[]): void {
+		this._lineTokens = toLineTokensFromInflated(map, tokens, this._text.length);
+		this._modeTransitions = toModeTransitions(topLevelMode, modeTransitions);
 	}
 
-	private _setLineTokens(map:EditorCommon.ITokensInflatorMap, tokens:Modes.IToken[]|number[]): void {
-		let desired = toLineTokens(map, tokens, this.text.length);
-
-		if (desired === null) {
-			// saving memory
-			if (typeof this._lineTokens === 'undefined') {
-				return;
-			}
-			this._lineTokens = null;
-			return;
-		}
-
-		this._lineTokens = desired;
+	private _setLineTokensFromDeflated(map:ITokensInflatorMap, tokens:number[]): void {
+		this._lineTokens = toLineTokensFromDeflated(map, tokens, this._text.length);
 	}
 
-	public getTokens(): EditorCommon.ILineTokens {
+	public getTokens(): ILineTokens {
 		if (this._lineTokens) {
 			return this._lineTokens;
 		}
-		if (this.text.length === 0) {
+		if (this._text.length === 0) {
 			return EmptyLineTokens.INSTANCE;
 		}
 		return DefaultLineTokens.INSTANCE;
@@ -154,7 +145,7 @@ export class ModelLine {
 
 		var lineTokens = this._lineTokens;
 
-		let BIN = EditorCommon.LineTokensBinaryEncoding;
+		let BIN = TokensBinaryEncoding;
 		let tokens = lineTokens.getBinaryEncodedTokens();
 		let tokensLength = tokens.length;
 		let tokensIndex = 0;
@@ -171,9 +162,8 @@ export class ModelLine {
 				if (currentTokenStartIndex > 0 && delta !== 0) {
 					// adjust token's `startIndex` by `delta`
 					let deflatedType = (tokens[tokensIndex] / BIN.TYPE_OFFSET) & BIN.TYPE_MASK;
-					let deflatedBracket = (tokens[tokensIndex] / BIN.BRACKET_OFFSET) & BIN.BRACKET_MASK;
 					let newStartIndex = Math.max(minimumAllowedIndex, currentTokenStartIndex + delta);
-					let newToken = deflatedBracket * BIN.BRACKET_OFFSET + deflatedType * BIN.TYPE_OFFSET + newStartIndex * BIN.START_INDEX_OFFSET;
+					let newToken = deflatedType * BIN.TYPE_OFFSET + newStartIndex * BIN.START_INDEX_OFFSET;
 
 					if (delta < 0) {
 						// pop all previous tokens that have become `collapsed`
@@ -212,13 +202,13 @@ export class ModelLine {
 	}
 
 	private _setText(text:string): void {
-		this.text = text;
+		this._text = text;
 
 		if (this._lineTokens) {
-			let BIN = EditorCommon.LineTokensBinaryEncoding,
+			let BIN = TokensBinaryEncoding,
 				map = this._lineTokens.getBinaryEncodedTokensMap(),
 				tokens = this._lineTokens.getBinaryEncodedTokens(),
-				lineTextLength = this.text.length;
+				lineTextLength = this._text.length;
 
 			// Remove overflowing tokens
 			while (tokens.length > 0) {
@@ -231,7 +221,7 @@ export class ModelLine {
 				tokens.pop();
 			}
 
-			this._setLineTokens(map, tokens);
+			this._setLineTokensFromDeflated(map, tokens);
 		}
 	}
 
@@ -250,7 +240,7 @@ export class ModelLine {
 	// 			return '|' + m.column;
 	// 		}
 	// 		return m.column + '|';
-	// 	}
+	// 	};
 	// 	return '[' + markers.map(printMarker).join(', ') + ']';
 	// }
 
@@ -271,28 +261,35 @@ export class ModelLine {
 
 		// console.log('------------- INITIAL MARKERS: ' + this._printMarkers());
 
-		let adjust = (toColumn:number, delta:number, minimumAllowedColumn:number, forceStickToPrevious:boolean, forceMoveMarkers:boolean) => {
+		let adjustMarkerBeforeColumn = (toColumn:number, moveSemantics:MarkerMoveSemantics) => {
+			if (marker.column < toColumn) {
+				return true;
+			}
+			if (marker.column > toColumn) {
+				return false;
+			}
+			if (moveSemantics === MarkerMoveSemantics.ForceMove) {
+				return false;
+			}
+			if (moveSemantics === MarkerMoveSemantics.ForceStay) {
+				return true;
+			}
+			return marker.stickToPreviousCharacter;
+		};
+
+		let adjustDelta = (toColumn:number, delta:number, minimumAllowedColumn:number, moveSemantics:MarkerMoveSemantics) => {
 			// console.log('------------------------------');
-			// console.log('adjust called: toColumn: ' + toColumn + ', delta: ' + delta + ', minimumAllowedColumn: ' + minimumAllowedColumn + ', forceStickToPrevious: ' + forceStickToPrevious + ', forceMoveMarkers:' + forceMoveMarkers);
+			// console.log('adjustDelta called: toColumn: ' + toColumn + ', delta: ' + delta + ', minimumAllowedColumn: ' + minimumAllowedColumn + ', moveSemantics: ' + MarkerMoveSemantics[moveSemantics]);
 			// console.log('BEFORE::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
-			while (
-				markersIndex < markersLength
-				&& (
-					marker.column < toColumn
-					|| (
-						!forceMoveMarkers
-						&& marker.column === toColumn
-						&& (forceStickToPrevious || marker.stickToPreviousCharacter)
-					)
-				)
-			) {
+
+			while (markersIndex < markersLength && adjustMarkerBeforeColumn(toColumn, moveSemantics)) {
 				if (delta !== 0) {
 					let newColumn = Math.max(minimumAllowedColumn, marker.column + delta);
 					if (marker.column !== newColumn) {
 						changedMarkers[marker.id] = true;
-						marker.oldLineNumber = marker.oldLineNumber || this.lineNumber;
+						marker.oldLineNumber = marker.oldLineNumber || this._lineNumber;
 						marker.oldColumn = marker.oldColumn || marker.column;
-						marker.column = Math.max(minimumAllowedColumn, marker.column + delta);
+						marker.column = newColumn;
 					}
 				}
 
@@ -301,24 +298,48 @@ export class ModelLine {
 					marker = markers[markersIndex];
 				}
 			}
+
+			// console.log('AFTER::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
+		};
+
+		let adjustSet = (toColumn:number, newColumn:number, moveSemantics:MarkerMoveSemantics) => {
+			// console.log('------------------------------');
+			// console.log('adjustSet called: toColumn: ' + toColumn + ', newColumn: ' + newColumn + ', moveSemantics: ' + MarkerMoveSemantics[moveSemantics]);
+			// console.log('BEFORE::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
+
+			while (markersIndex < markersLength && adjustMarkerBeforeColumn(toColumn, moveSemantics)) {
+				if (marker.column !== newColumn) {
+					changedMarkers[marker.id] = true;
+					marker.oldLineNumber = marker.oldLineNumber || this._lineNumber;
+					marker.oldColumn = marker.oldColumn || marker.column;
+					marker.column = newColumn;
+				}
+
+				markersIndex++;
+				if (markersIndex < markersLength) {
+					marker = markers[markersIndex];
+				}
+			}
+
 			// console.log('AFTER::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
 		};
 
 		let finish = (delta:number, lineTextLength:number) => {
-			adjust(Number.MAX_VALUE, delta, 1, false, false);
+			adjustDelta(Number.MAX_VALUE, delta, 1, MarkerMoveSemantics.MarkerDefined);
 
 			// console.log('------------- FINAL MARKERS: ' + this._printMarkers());
 		};
 
 		return {
-			adjust: adjust,
+			adjustDelta: adjustDelta,
+			adjustSet: adjustSet,
 			finish: finish
 		};
 	}
 
 	public applyEdits(changedMarkers: IChangedMarkers, edits:ILineEdit[]): number {
 		let deltaColumn = 0;
-		let resultText = this.text;
+		let resultText = this._text;
 
 		let tokensAdjuster = this._createTokensAdjuster();
 		let markersAdjuster = this._createMarkersAdjuster(changedMarkers);
@@ -339,14 +360,17 @@ export class ModelLine {
 			// Adjust tokens & markers before this edit
 			// console.log('Adjust tokens & markers before this edit');
 			tokensAdjuster.adjust(edit.startColumn - 1, deltaColumn, 1);
-			markersAdjuster.adjust(edit.startColumn, deltaColumn, 1, deletingCnt > 0, edit.forceMoveMarkers);
+			markersAdjuster.adjustDelta(edit.startColumn, deltaColumn, 1, edit.forceMoveMarkers ? MarkerMoveSemantics.ForceMove : (deletingCnt > 0 ? MarkerMoveSemantics.ForceStay : MarkerMoveSemantics.MarkerDefined));
 
 			// Adjust tokens & markers for the common part of this edit
 			let commonLength = Math.min(deletingCnt, insertingCnt);
 			if (commonLength > 0) {
 				// console.log('Adjust tokens & markers for the common part of this edit');
 				tokensAdjuster.adjust(edit.startColumn - 1 + commonLength, deltaColumn, startColumn);
-				markersAdjuster.adjust(edit.startColumn + commonLength, deltaColumn, startColumn, deletingCnt > insertingCnt, edit.forceMoveMarkers);
+
+				if (!edit.forceMoveMarkers) {
+					markersAdjuster.adjustDelta(edit.startColumn + commonLength, deltaColumn, startColumn, edit.forceMoveMarkers ? MarkerMoveSemantics.ForceMove : (deletingCnt > insertingCnt ? MarkerMoveSemantics.ForceStay : MarkerMoveSemantics.MarkerDefined));
+				}
 			}
 
 			// Perform the edit & update `deltaColumn`
@@ -356,7 +380,7 @@ export class ModelLine {
 			// Adjust tokens & markers inside this edit
 			// console.log('Adjust tokens & markers inside this edit');
 			tokensAdjuster.adjust(edit.endColumn, deltaColumn, startColumn);
-			markersAdjuster.adjust(edit.endColumn, deltaColumn, startColumn, false, edit.forceMoveMarkers);
+			markersAdjuster.adjustSet(edit.endColumn, startColumn + insertingCnt, edit.forceMoveMarkers ? MarkerMoveSemantics.ForceMove : MarkerMoveSemantics.MarkerDefined);
 		}
 
 		// Wrap up tokens & markers; adjust remaining if needed
@@ -371,8 +395,8 @@ export class ModelLine {
 
 	public split(changedMarkers: IChangedMarkers, splitColumn:number, forceMoveMarkers:boolean): ModelLine {
 		// console.log('--> split @ ' + splitColumn + '::: ' + this._printMarkers());
-		var myText = this.text.substring(0, splitColumn - 1);
-		var otherText = this.text.substring(splitColumn - 1);
+		var myText = this._text.substring(0, splitColumn - 1);
+		var otherText = this._text.substring(splitColumn - 1);
 
 		var otherMarkers: ILineMarker[] = null;
 
@@ -403,7 +427,7 @@ export class ModelLine {
 					let marker = otherMarkers[i];
 
 					changedMarkers[marker.id] = true;
-					marker.oldLineNumber = marker.oldLineNumber || this.lineNumber;
+					marker.oldLineNumber = marker.oldLineNumber || this._lineNumber;
 					marker.oldColumn = marker.oldColumn || marker.column;
 					marker.column -= splitColumn - 1;
 				}
@@ -412,7 +436,7 @@ export class ModelLine {
 
 		this._setText(myText);
 
-		var otherLine = new ModelLine(this.lineNumber + 1, otherText);
+		var otherLine = new ModelLine(this._lineNumber + 1, otherText);
 		if (otherMarkers) {
 			otherLine.addMarkers(otherMarkers);
 		}
@@ -422,8 +446,8 @@ export class ModelLine {
 	public append(changedMarkers: IChangedMarkers, other:ModelLine): void {
 		// console.log('--> append: THIS :: ' + this._printMarkers());
 		// console.log('--> append: OTHER :: ' + this._printMarkers());
-		var thisTextLength = this.text.length;
-		this._setText(this.text + other.text);
+		var thisTextLength = this._text.length;
+		this._setText(this._text + other._text);
 
 		let otherLineTokens = other._lineTokens;
 		if (otherLineTokens) {
@@ -432,16 +456,15 @@ export class ModelLine {
 
 			// Adjust other tokens
 			if (thisTextLength > 0) {
-				let BIN = EditorCommon.LineTokensBinaryEncoding;
+				let BIN = TokensBinaryEncoding;
 
 				for (let i = 0, len = otherTokens.length; i < len; i++) {
 					let token = otherTokens[i];
 
 					let deflatedStartIndex = (token / BIN.START_INDEX_OFFSET) & BIN.START_INDEX_MASK;
 					let deflatedType = (token / BIN.TYPE_OFFSET) & BIN.TYPE_MASK;
-					let deflatedBracket = (token / BIN.BRACKET_OFFSET) & BIN.BRACKET_MASK;
 					let newStartIndex = deflatedStartIndex + thisTextLength;
-					let newToken = deflatedBracket * BIN.BRACKET_OFFSET + deflatedType * BIN.TYPE_OFFSET + newStartIndex * BIN.START_INDEX_OFFSET;
+					let newToken = deflatedType * BIN.TYPE_OFFSET + newStartIndex * BIN.START_INDEX_OFFSET;
 
 					otherTokens[i] = newToken;
 				}
@@ -451,10 +474,10 @@ export class ModelLine {
 			let myLineTokens = this._lineTokens;
 			if (myLineTokens) {
 				// I have real tokens
-				this._setLineTokens(myLineTokens.getBinaryEncodedTokensMap(), myLineTokens.getBinaryEncodedTokens().concat(otherTokens));
+				this._setLineTokensFromDeflated(myLineTokens.getBinaryEncodedTokensMap(), myLineTokens.getBinaryEncodedTokens().concat(otherTokens));
 			} else {
 				// I don't have real tokens
-				this._setLineTokens(otherLineTokens.getBinaryEncodedTokensMap(), otherTokens);
+				this._setLineTokensFromDeflated(otherLineTokens.getBinaryEncodedTokensMap(), otherTokens);
 			}
 		}
 
@@ -512,11 +535,17 @@ export class ModelLine {
 	}
 
 	public removeMarker(marker:ILineMarker): void {
-		var index = this._indexOfMarkerId(marker.id);
+		if (!this._markers) {
+			return;
+		}
+		let index = this._indexOfMarkerId(marker.id);
 		if (index >= 0) {
+			marker.line = null;
 			this._markers.splice(index, 1);
 		}
-		marker.line = null;
+		if (this._markers.length === 0) {
+			this._markers = null;
+		}
 	}
 
 	public removeMarkers(deleteMarkers: {[markerId:string]:boolean;}): void {
@@ -532,6 +561,9 @@ export class ModelLine {
 				len--;
 				i--;
 			}
+		}
+		if (this._markers.length === 0) {
+			this._markers = null;
 		}
 	}
 
@@ -553,11 +585,11 @@ export class ModelLine {
 				marker = markers[i];
 
 				changedMarkers[marker.id] = true;
-				marker.oldLineNumber = marker.oldLineNumber || this.lineNumber;
+				marker.oldLineNumber = marker.oldLineNumber || this._lineNumber;
 			}
 		}
 
-		this.lineNumber = newLineNumber;
+		this._lineNumber = newLineNumber;
 	}
 
 	public deleteLine(changedMarkers: IChangedMarkers, setMarkersColumn:number, setMarkersOldLineNumber:number): ILineMarker[] {
@@ -584,28 +616,16 @@ export class ModelLine {
 	}
 
 	private _indexOfMarkerId(markerId:string): number {
-
-		if (this._markers) {
-			var markers = this._markers,
-				i: number,
-				len: number;
-
-			for (i = 0, len = markers.length; i < len; i++) {
-				if (markers[i].id === markerId) {
-					return i;
-				}
+		let markers = this._markers;
+		for (let i = 0, len = markers.length; i < len; i++) {
+			if (markers[i].id === markerId) {
+				return i;
 			}
 		}
-
-		return -1;
 	}
 }
 
-function areDeflatedTokens(tokens:Modes.IToken[]|number[]): tokens is number[] {
-	return (typeof tokens[0] === 'number');
-}
-
-function toLineTokens(map:EditorCommon.ITokensInflatorMap, tokens:Modes.IToken[]|number[], textLength:number): EditorCommon.ILineTokens {
+function toLineTokensFromInflated(map:ITokensInflatorMap, tokens:LineToken[], textLength:number): ILineTokens {
 	if (textLength === 0) {
 		return null;
 	}
@@ -613,43 +633,45 @@ function toLineTokens(map:EditorCommon.ITokensInflatorMap, tokens:Modes.IToken[]
 		return null;
 	}
 	if (tokens.length === 1) {
-		if (areDeflatedTokens(tokens)) {
-			if (tokens[0] === 0) {
-				return null;
-			}
-		} else {
-			if (tokens[0].startIndex === 0 && tokens[0].type === '' && !tokens[0].bracket) {
-				return null;
-			}
+		if (tokens[0].startIndex === 0 && tokens[0].type === '') {
+			return null;
+		}
+	}
+
+	let deflated = TokensBinaryEncoding.deflateArr(map, tokens);
+	return new LineTokens(map, deflated);
+}
+
+function toLineTokensFromDeflated(map:ITokensInflatorMap, tokens:number[], textLength:number): ILineTokens {
+	if (textLength === 0) {
+		return null;
+	}
+	if (!tokens || tokens.length === 0) {
+		return null;
+	}
+	if (tokens.length === 1) {
+		if (tokens[0] === 0) {
+			return null;
 		}
 	}
 	return new LineTokens(map, tokens);
 }
 
-var getStartIndex = EditorCommon.LineTokensBinaryEncoding.getStartIndex;
-var getType = EditorCommon.LineTokensBinaryEncoding.getType;
-var getBracket = EditorCommon.LineTokensBinaryEncoding.getBracket;
-var findIndexOfOffset = EditorCommon.LineTokensBinaryEncoding.findIndexOfOffset;
+var getStartIndex = TokensBinaryEncoding.getStartIndex;
+var getType = TokensBinaryEncoding.getType;
+var findIndexOfOffset = TokensBinaryEncoding.findIndexOfOffset;
 
-export class LineTokens implements EditorCommon.ILineTokens {
+export class LineTokens implements ILineTokens {
 
-	private map:EditorCommon.ITokensInflatorMap;
+	private map:ITokensInflatorMap;
 	private _tokens:number[];
 
-	constructor(map:EditorCommon.ITokensInflatorMap, tokens:Modes.IToken[]|number[]) {
+	constructor(map:ITokensInflatorMap, tokens:number[]) {
 		this.map = map;
-		if (areDeflatedTokens(tokens)) {
-			this._tokens = tokens;
-		} else {
-			this._tokens = EditorCommon.LineTokensBinaryEncoding.deflateArr(map, tokens);
-		}
+		this._tokens = tokens;
 	}
 
-	public toString(): string {
-		return EditorCommon.LineTokensBinaryEncoding.inflateArr(this.map, this._tokens).toString();
-	}
-
-	public getBinaryEncodedTokensMap(): EditorCommon.ITokensInflatorMap {
+	public getBinaryEncodedTokensMap(): ITokensInflatorMap {
 		return this.map;
 	}
 
@@ -669,10 +691,6 @@ export class LineTokens implements EditorCommon.ILineTokens {
 		return getType(this.map, this._tokens[tokenIndex]);
 	}
 
-	public getTokenBracket(tokenIndex:number): Modes.Bracket {
-		return getBracket(this._tokens[tokenIndex]);
-	}
-
 	public getTokenEndIndex(tokenIndex:number, textLength:number): number {
 		if (tokenIndex + 1 < this._tokens.length) {
 			return getStartIndex(this._tokens[tokenIndex + 1]);
@@ -680,7 +698,7 @@ export class LineTokens implements EditorCommon.ILineTokens {
 		return textLength;
 	}
 
-	public equals(other:EditorCommon.ILineTokens): boolean {
+	public equals(other:ILineTokens): boolean {
 		return this === other;
 	}
 
@@ -689,7 +707,7 @@ export class LineTokens implements EditorCommon.ILineTokens {
 	}
 }
 
-class EmptyLineTokens implements EditorCommon.ILineTokens {
+class EmptyLineTokens implements ILineTokens {
 
 	public static INSTANCE = new EmptyLineTokens();
 	private static TOKENS = <number[]>[];
@@ -698,7 +716,7 @@ class EmptyLineTokens implements EditorCommon.ILineTokens {
 		return EmptyLineTokens.TOKENS;
 	}
 
-	public getBinaryEncodedTokensMap(): EditorCommon.ITokensInflatorMap {
+	public getBinaryEncodedTokensMap(): ITokensInflatorMap {
 		return null;
 	}
 
@@ -711,18 +729,14 @@ class EmptyLineTokens implements EditorCommon.ILineTokens {
 	}
 
 	public getTokenType(tokenIndex:number): string {
-		return Strings.empty;
-	}
-
-	public getTokenBracket(tokenIndex:number): Modes.Bracket {
-		return 0;
+		return strings.empty;
 	}
 
 	public getTokenEndIndex(tokenIndex:number, textLength:number): number {
 		return 0;
 	}
 
-	public equals(other:EditorCommon.ILineTokens): boolean {
+	public equals(other:ILineTokens): boolean {
 		return other === this;
 	}
 
@@ -731,12 +745,12 @@ class EmptyLineTokens implements EditorCommon.ILineTokens {
 	}
 }
 
-export class DefaultLineTokens implements EditorCommon.ILineTokens {
+export class DefaultLineTokens implements ILineTokens {
 
 	public static INSTANCE = new DefaultLineTokens();
 	private static TOKENS = <number[]> [0];
 
-	public getBinaryEncodedTokensMap(): EditorCommon.ITokensInflatorMap {
+	public getBinaryEncodedTokensMap(): ITokensInflatorMap {
 		return null;
 	}
 
@@ -753,18 +767,14 @@ export class DefaultLineTokens implements EditorCommon.ILineTokens {
 	}
 
 	public getTokenType(tokenIndex:number): string {
-		return Strings.empty;
-	}
-
-	public getTokenBracket(tokenIndex:number): Modes.Bracket {
-		return 0;
+		return strings.empty;
 	}
 
 	public getTokenEndIndex(tokenIndex:number, textLength:number): number {
 		return textLength;
 	}
 
-	public equals(other:EditorCommon.ILineTokens): boolean {
+	public equals(other:ILineTokens): boolean {
 		return this === other;
 	}
 
@@ -774,57 +784,13 @@ export class DefaultLineTokens implements EditorCommon.ILineTokens {
 
 }
 
-function toModeTransitions(topLevelMode:Modes.IMode, modeTransitions:Modes.IModeTransition[]): IModeTransitions {
+function toModeTransitions(topLevelMode:IMode, modeTransitions:ModeTransition[]): ModeTransition[] {
 
 	if (!modeTransitions || modeTransitions.length === 0) {
 		return null;
-	} else if (modeTransitions.length === 1 && modeTransitions[0].startIndex === 0) {
-		if (modeTransitions[0].mode === topLevelMode) {
-			return null;
-		} else {
-			return new SingleModeTransition(modeTransitions[0].mode);
-		}
+	} else if (modeTransitions.length === 1 && modeTransitions[0].startIndex === 0 && modeTransitions[0].mode === topLevelMode) {
+		return null;
 	}
 
-	return new ModeTransitions(modeTransitions);
-}
-
-class DefaultModeTransitions implements IModeTransitions {
-	public static INSTANCE = new DefaultModeTransitions();
-
-	public toArray(topLevelMode:Modes.IMode): Modes.IModeTransition[] {
-		return [{
-			startIndex: 0,
-			mode: topLevelMode
-		}];
-	}
-}
-
-class SingleModeTransition implements IModeTransitions {
-
-	private _mode: Modes.IMode;
-
-	constructor(mode:Modes.IMode) {
-		this._mode = mode;
-	}
-
-	public toArray(topLevelMode:Modes.IMode): Modes.IModeTransition[] {
-		return [{
-			startIndex: 0,
-			mode: this._mode
-		}];
-	}
-}
-
-class ModeTransitions implements IModeTransitions {
-
-	private _modeTransitions: Modes.IModeTransition[];
-
-	constructor(modeTransitions:Modes.IModeTransition[]) {
-		this._modeTransitions = modeTransitions;
-	}
-
-	public toArray(topLevelMode:Modes.IMode): Modes.IModeTransition[] {
-		return this._modeTransitions.slice(0);
-	}
+	return modeTransitions;
 }

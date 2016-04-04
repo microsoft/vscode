@@ -4,7 +4,7 @@
 		"noImplicitAny": false,
 		"removeComments": false,
 		"preserveConstEnums": true,
-		"target": "ES5",
+		"target": "es5",
 		"sourceMap": false,
 		"experimentalDecorators": true
 	},

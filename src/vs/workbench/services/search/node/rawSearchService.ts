@@ -12,18 +12,20 @@ gracefulFs.gracefulify(fs);
 
 import {PPromise} from 'vs/base/common/winjs.base';
 import glob = require('vs/base/common/glob');
+import {MAX_FILE_SIZE} from 'vs/platform/files/common/files';
 import {IProgress, ILineMatch, IPatternInfo} from 'vs/platform/search/common/search';
 import {FileWalker, Engine as FileSearchEngine} from 'vs/workbench/services/search/node/fileSearch';
 import {Engine as TextSearchEngine} from 'vs/workbench/services/search/node/textSearch';
 
 export interface IRawSearch {
-	rootPaths: string[];
+	rootFolders: string[];
+	extraFiles?: string[];
 	filePattern?: string;
-	matchFuzzy?: boolean;
 	excludePattern?: glob.IExpression;
 	includePattern?: glob.IExpression;
 	contentPattern?: IPatternInfo;
 	maxResults?: number;
+	maxFilesize?: number;
 	fileEncoding?: string;
 }
 
@@ -60,10 +62,12 @@ export class SearchService implements IRawSearchService {
 
 	public textSearch(config: IRawSearch): PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem> {
 		let engine = new TextSearchEngine(config, new FileWalker({
-			rootPaths: config.rootPaths,
+			rootFolders: config.rootFolders,
+			extraFiles: config.extraFiles,
 			includePattern: config.includePattern,
 			excludePattern: config.excludePattern,
-			filePattern: config.filePattern
+			filePattern: config.filePattern,
+			maxFilesize: MAX_FILE_SIZE
 		}));
 
 		return this.doSearch(engine);

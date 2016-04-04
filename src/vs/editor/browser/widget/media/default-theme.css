@@ -30,6 +30,7 @@
 /* Cursor */
 .monaco-editor .cursor {
 	background: black;
+	border-color: black;
 }
 
 /* Current line */

@@ -7,64 +7,44 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
-import { Url, parse as parseUrl } from 'url';
+import { IXHRResponse } from 'vs/base/common/http';
 import { request, IRequestOptions } from 'vs/base/node/request';
-
-import HttpProxyAgent = require('http-proxy-agent');
-import HttpsProxyAgent = require('https-proxy-agent');
+import { getProxyAgent } from 'vs/base/node/proxy';
+import { createGunzip } from 'zlib';
+import { Stream } from 'stream';
 
 export interface IXHROptions extends IRequestOptions {
 	responseType?: string;
 	followRedirects: number;
 }
 
-export interface IXHRResponse {
-	responseText: string;
-	status: number;
-}
+let proxyUrl: string = null;
+let strictSSL: boolean = true;
 
-let proxyConfiguration: string = null;
-
-export function configure(proxyURI: string): void {
-	proxyConfiguration = proxyURI;
-}
-
-function getProxyURI(uri: Url): string {
-	let proxyURI = proxyConfiguration;
-	if (!proxyURI) {
-		if (uri.protocol === 'http:') {
-			proxyURI = process.env.HTTP_PROXY || process.env.http_proxy || null;
-		} else if (uri.protocol === 'https:') {
-			proxyURI = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy || null;
-		}
-	}
-	return proxyURI;
-}
-
-function getProxyAgent(uri: Url): any {
-	let proxyURI = getProxyURI(uri);
-	if (proxyURI) {
-		let proxyEndpoint = parseUrl(proxyURI);
-		switch (proxyEndpoint.protocol) {
-			case 'http:':
-			case 'https:':
-				return uri.protocol === 'http:' ? new HttpProxyAgent(proxyURI) : new HttpsProxyAgent(proxyURI);
-		}
-	}
-	return void 0;
+export function configure(_proxyUrl: string, _strictSSL: boolean): void {
+	proxyUrl = _proxyUrl;
+	strictSSL = _strictSSL;
 }
 
 export function xhr(options: IXHROptions): TPromise<IXHRResponse> {
-	let endpoint = parseUrl(options.url);
+	const agent = getProxyAgent(options.url, { proxyUrl, strictSSL });
 	options = assign({}, options);
-	options = assign(options, { agent: getProxyAgent(endpoint) });
+	options = assign(options, { agent, strictSSL });
 
 	return request(options).then(result => new TPromise<IXHRResponse>((c, e, p) => {
-		let res = result.res;
-		let data: string[] = [];
-		res.on('data', c => data.push(c));
-		res.on('end', () => {
-			if (options.followRedirects > 0 && (res.statusCode >= 300 && res.statusCode <= 303 || res.statusCode === 307)) {
+		const res = result.res;
+		let stream: Stream = res;
+
+		if (res.headers['content-encoding'] === 'gzip') {
+			stream = stream.pipe(createGunzip());
+		}
+
+		const data: string[] = [];
+		stream.on('data', c => data.push(c));
+		stream.on('end', () => {
+			const status = res.statusCode;
+
+			if (options.followRedirects > 0 && (status >= 300 && status <= 303 || status === 307)) {
 				let location = res.headers['location'];
 				if (location) {
 					let newOptions = {
@@ -76,24 +56,24 @@ export function xhr(options: IXHROptions): TPromise<IXHRResponse> {
 				}
 			}
 
-			let response: IXHRResponse = {
+			const response: IXHRResponse = {
 				responseText: data.join(''),
-				status: res.statusCode
+				status,
+				getResponseHeader: header => res.headers[header],
+				readyState: 4
 			};
 
-			if ((res.statusCode >= 200 && res.statusCode < 300) || res.statusCode === 1223) {
+			if ((status >= 200 && status < 300) || status === 1223) {
 				c(response);
 			} else {
 				e(response);
 			}
 		});
 	}, err => {
-		let endpoint = parseUrl(options.url);
-		let agent = getProxyAgent(endpoint);
 		let message: string;
 
 		if (agent) {
-			message = 'Unable to to connect to ' + options.url + ' through proxy ' + getProxyURI(endpoint) + '. Error: ' + err.message;
+			message = 'Unable to to connect to ' + options.url + ' through a proxy . Error: ' + err.message;
 		} else {
 			message = 'Unable to to connect to ' + options.url + '. Error: ' + err.message;
 		}

@@ -11,11 +11,9 @@ import Strings = require('vs/base/common/strings');
 import Actions = require('vs/base/common/actions');
 import InputBox = require('vs/base/browser/ui/inputbox/inputBox');
 import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
-import git = require('vs/workbench/parts/git/common/git');
+import { IGitService } from 'vs/workbench/parts/git/common/git';
 import {IContextViewService} from 'vs/platform/contextview/browser/contextView';
 import {CommonKeybindings} from 'vs/base/common/keyCodes';
-
-import IGitService = git.IGitService;
 
 var $ = Builder.$;
 
@@ -37,7 +35,8 @@ export class CreateBranchActionItem extends ActionBar.BaseActionItem  {
 			validationOptions: {
 				showMessage: false,
 				validation: v => this.validate(v)
-			}
+			},
+			ariaLabel: nls.localize('newBranchAriaLabel', "Type branch name")
 		});
 
 		$(this.inputBox.inputElement).on('keyup', (e: KeyboardEvent) => this.onKeyUp(e));

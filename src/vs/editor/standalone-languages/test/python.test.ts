@@ -5,15 +5,10 @@
 
 'use strict';
 
-import languageDef = require('vs/editor/standalone-languages/python');
-import T = require('vs/editor/standalone-languages/test/testUtil');
+import {language} from 'vs/editor/standalone-languages/python';
+import {testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
-var Bracket = {
-	Open: 1,
-	Close: -1
-};
-
-T.testTokenization('python', languageDef.language, [
+testTokenization('python', language, [
 	// Keywords
 	[{
 	line: 'def func():',
@@ -22,7 +17,6 @@ T.testTokenization('python', languageDef.language, [
 		{ startIndex: 3, type: 'white.python' },
 		{ startIndex: 4, type: 'identifier.python' },
 		{ startIndex: 8, type: 'delimiter.parenthesis.python' },
-		{ startIndex: 9, type: 'delimiter.parenthesis.python' },
 		{ startIndex: 10, type: 'delimiter.python' }
 	]}],
 

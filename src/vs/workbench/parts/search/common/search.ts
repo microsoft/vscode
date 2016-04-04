@@ -8,7 +8,6 @@
 import {TPromise} from 'vs/base/common/winjs.base';
 import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
 import {IRange} from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
@@ -26,15 +25,14 @@ export interface ITypeBearing {
 }
 
 export interface INavigateTypesSupport {
-	getNavigateToItems:(search: string)=>TPromise<ITypeBearing[]>;
+	getNavigateToItems: (search: string) => TPromise<ITypeBearing[]>;
 }
-
 
 export namespace NavigateTypesSupportRegistry {
 
 	const _supports: INavigateTypesSupport[] = [];
 
-	export function register(support:INavigateTypesSupport):IDisposable {
+	export function register(support: INavigateTypesSupport): IDisposable {
 
 		if (support) {
 			_supports.push(support);
@@ -50,7 +48,7 @@ export namespace NavigateTypesSupportRegistry {
 					}
 				}
 			}
-		}
+		};
 	}
 
 	export function all(): INavigateTypesSupport[] {
@@ -75,7 +73,7 @@ export function getNavigateToItems(query: string): TPromise<ITypeBearing[]> {
 	});
 }
 
-CommonEditorRegistry.registerLanguageCommand('_executeWorkspaceSymbolProvider', function(accessor, args: { query: string;}) {
+CommonEditorRegistry.registerLanguageCommand('_executeWorkspaceSymbolProvider', function (accessor, args: { query: string; }) {
 	let {query} = args;
 	if (typeof query !== 'string') {
 		throw illegalArgument();

@@ -10,7 +10,8 @@
 .monaco-workbench .editor-statusbar-item > .editor-status-mode,
 .monaco-workbench .editor-statusbar-item > .editor-status-encoding,
 .monaco-workbench .editor-statusbar-item > .editor-status-eol,
-.monaco-workbench .editor-statusbar-item > .editor-status-selection {
+.monaco-workbench .editor-statusbar-item > .editor-status-selection,
+.monaco-workbench .editor-statusbar-item > .editor-status-indentation {
 	padding: 0 5px 0 5px;
 }
 

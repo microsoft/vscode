@@ -5,13 +5,14 @@
 'use strict';
 
 import {sequence} from 'vs/base/common/async';
-import {IModel, IPosition, IRange} from 'vs/editor/common/editorCommon';
+import {isFalsyOrEmpty} from 'vs/base/common/arrays';
+import {illegalArgument, onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {mixin} from 'vs/base/common/objects';
-import {onUnexpectedError, illegalArgument} from 'vs/base/common/errors';
-import {ISuggestSupport, ISuggestResult} from 'vs/editor/common/modes';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import {IModel, IPosition} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry} from 'vs/editor/common/editorCommonExtensions';
+import {ISuggestResult, ISuggestSupport} from 'vs/editor/common/modes';
+import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import {SnippetsRegistry} from 'vs/editor/common/modes/supports';
 
 export var CONTEXT_SUGGEST_WIDGET_VISIBLE = 'suggestWidgetVisible';
 export var CONTEXT_SUGGESTION_SUPPORTS_ACCEPT_ON_KEY = 'suggestionSupportsAcceptOnKey';
@@ -23,61 +24,56 @@ export interface ISuggestResult2 extends ISuggestResult {
 	support?: ISuggestSupport;
 }
 
-export function suggest(model: IModel, position: IPosition, triggerCharacter: string, groups?: ISuggestSupport[][]): TPromise<ISuggestResult2[][]> {
+export function suggest(model: IModel, position: IPosition, triggerCharacter: string, groups?: ISuggestSupport[][]): TPromise<ISuggestResult2[]> {
 
 	if (!groups) {
 		groups = SuggestRegistry.orderedGroups(model);
 	}
 
 	const resource = model.getAssociatedResource();
-	const suggestions: ISuggestResult[][] = [];
+	const result: ISuggestResult2[] = [];
 
 	const factory = groups.map((supports, index) => {
 		return () => {
 
 			// stop as soon as a group produced a result
-			if (suggestions.length > 0) {
+			if (result.length > 0) {
 				return;
 			}
 
 			// for each support in the group ask for suggestions
-			let promises = supports.map(support => {
+			return TPromise.join(supports.map(support => {
 				return support.suggest(resource, position, triggerCharacter).then(values => {
 
-					let result: ISuggestResult2[] = [];
+					if (!values) {
+						return;
+					}
+
 					for (let suggestResult of values) {
 
-						if (!suggestResult
-							|| !Array.isArray(suggestResult.suggestions)
-							|| suggestResult.suggestions.length === 0) {
+						if (!suggestResult || isFalsyOrEmpty(suggestResult.suggestions)) {
 							continue;
 						}
 
-						const suggestions2: ISuggestResult2 = {
+						result.push({
 							support,
 							currentWord: suggestResult.currentWord,
 							incomplete: suggestResult.incomplete,
 							suggestions: suggestResult.suggestions
-						}
-						result.push(suggestions2);
+						});
 					}
-
-					return result;
 
 				}, onUnexpectedError);
-			});
-
-			return TPromise.join(promises).then(values => {
-				for (let value of values) {
-					if (Array.isArray(value) && value.length > 0) {
-						suggestions.push(value);
-					}
-				}
-			});
+			}));
 		};
 	});
 
-	return sequence(factory).then(() => suggestions);
+	return sequence(factory).then(() => {
+		// add snippets to the first group
+		const snippets = SnippetsRegistry.getSnippets(model, position);
+		result.push(snippets);
+		return result;
+	});
 }
 
 CommonEditorRegistry.registerDefaultLanguageCommand('_executeCompletionItemProvider', (model, position, args) => {

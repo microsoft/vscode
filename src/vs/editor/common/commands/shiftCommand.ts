@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
+import {CursorMoveHelper} from 'vs/editor/common/controller/cursorMoveHelper';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {CursorMoveHelper} from 'vs/editor/common/controller/cursorMoveHelper';
+import {ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorSelection, ITokenizedModel} from 'vs/editor/common/editorCommon';
 import {getRawEnterActionAtPosition} from 'vs/editor/common/modes/supports/onEnter';
 
 export interface IShiftCommandOpts {
@@ -17,7 +17,7 @@ export interface IShiftCommandOpts {
 	oneIndent: string;
 }
 
-export class ShiftCommand implements EditorCommon.ICommand {
+export class ShiftCommand implements ICommand {
 
 	public static unshiftIndentCount(line:string, column:number, tabSize:number): number {
 		// Determine the visible column where the content starts
@@ -40,17 +40,17 @@ export class ShiftCommand implements EditorCommon.ICommand {
 	}
 
 	private _opts: IShiftCommandOpts;
-	private _selection: EditorCommon.IEditorSelection;
+	private _selection: IEditorSelection;
 	private _selectionId: string;
 	private _useLastEditRangeForCursorEndPosition: boolean;
 
-	constructor(range: EditorCommon.IEditorSelection, opts:IShiftCommandOpts) {
+	constructor(range: IEditorSelection, opts:IShiftCommandOpts) {
 		this._opts = opts;
 		this._selection = range;
 		this._useLastEditRangeForCursorEndPosition = false;
 	}
 
-	public getEditOperations(model: EditorCommon.ITokenizedModel, builder: EditorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
 		let startLine = this._selection.startLineNumber,
 			endLine = this._selection.endLineNumber,
 			_SPACE = ' '.charCodeAt(0);
@@ -79,7 +79,7 @@ export class ShiftCommand implements EditorCommon.ICommand {
 		for (lineNumber = startLine; lineNumber <= endLine; lineNumber++, previousLineExtraSpaces = extraSpaces) {
 			extraSpaces = 0;
 			let lineText = model.getLineContent(lineNumber);
-			let indentationEndIndex = Strings.firstNonWhitespaceIndex(lineText);
+			let indentationEndIndex = strings.firstNonWhitespaceIndex(lineText);
 
 			if (this._opts.isUnshift && (lineText.length === 0 || indentationEndIndex === 0)) {
 				// empty line or line with no leading whitespace => nothing to do
@@ -152,7 +152,7 @@ export class ShiftCommand implements EditorCommon.ICommand {
 		this._selectionId = builder.trackSelection(this._selection);
 	}
 
-	public computeCursorState(model: EditorCommon.ITokenizedModel, helper: EditorCommon.ICursorStateComputerData): EditorCommon.IEditorSelection {
+	public computeCursorState(model: ITokenizedModel, helper: ICursorStateComputerData): IEditorSelection {
 		if (this._useLastEditRangeForCursorEndPosition) {
 			var lastOp = helper.getInverseEditOperations()[0];
 			return new Selection(lastOp.range.endLineNumber, lastOp.range.endColumn, lastOp.range.endLineNumber, lastOp.range.endColumn);

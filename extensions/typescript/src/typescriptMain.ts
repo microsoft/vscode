@@ -9,13 +9,16 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { languages, commands, workspace, Uri, ExtensionContext, IndentAction, Diagnostic, DiagnosticCollection, Range } from 'vscode';
+import { env, languages, commands, workspace, window, Uri, ExtensionContext, IndentAction, Diagnostic, DiagnosticCollection, Range } from 'vscode';
+
+// This must be the first statement otherwise modules might got loaded with
+// the wrong locale.
+import * as nls from 'vscode-nls';
+nls.config({locale: env.language});
 
 import * as Proto from './protocol';
 import TypeScriptServiceClient from './typescriptServiceClient';
 import { ITypescriptServiceClientHost } from './typescriptService';
-
-import * as Configuration from './features/configuration';
 
 import HoverProvider from './features/hoverProvider';
 import DefinitionProvider from './features/definitionProvider';
@@ -29,125 +32,242 @@ import BufferSyncSupport from './features/bufferSyncSupport';
 import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 
-export function activate(context: ExtensionContext): void {
+import * as VersionStatus from './utils/versionStatus';
+import * as ProjectStatus from './utils/projectStatus';
 
+interface LanguageDescription {
+	id: string;
+	diagnosticSource: string;
+	modeIds: string[];
+}
+
+export function activate(context: ExtensionContext): void {
 	let MODE_ID_TS = 'typescript';
 	let MODE_ID_TSX = 'typescriptreact';
-	let MY_PLUGIN_ID = 'vs.language.typescript';
+	let MODE_ID_JS = 'javascript';
+	let MODE_ID_JSX = 'javascriptreact';
 
-	let clientHost = new TypeScriptServiceClientHost();
+	let clientHost = new TypeScriptServiceClientHost([
+		{
+			id: 'typescript',
+			diagnosticSource: 'ts',
+			modeIds: [MODE_ID_TS, MODE_ID_TSX]
+		},
+		{
+			id: 'javascript',
+			diagnosticSource: 'js',
+			modeIds: [MODE_ID_JS, MODE_ID_JSX]
+		}
+	]);
+
 	let client = clientHost.serviceClient;
 
 	context.subscriptions.push(commands.registerCommand('typescript.reloadProjects', () => {
 		clientHost.reloadProjects();
 	}));
-	// Register the supports for both TS and TSX so that we can have separate grammars but share the mode
+
+	context.subscriptions.push(commands.registerCommand('javascript.reloadProjects', () => {
+		clientHost.reloadProjects();
+	}));
+
+	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
 	client.onReady().then(() => {
-		registerSupports(MODE_ID_TS, clientHost, client);
-		registerSupports(MODE_ID_TSX, clientHost, client);
+		context.subscriptions.push(ProjectStatus.create(client,
+			path => new Promise(resolve => setTimeout(() => resolve(clientHost.handles(path)), 750)),
+			context.workspaceState));
 	}, () => {
 		// Nothing to do here. The client did show a message;
-	})
+	});
 }
 
-function registerSupports(modeID: string, host: TypeScriptServiceClientHost, client: TypeScriptServiceClient) {
+const validateSetting = 'validate.enable';
 
-	languages.registerHoverProvider(modeID, new HoverProvider(client));
-	languages.registerDefinitionProvider(modeID, new DefinitionProvider(client));
-	languages.registerDocumentHighlightProvider(modeID, new DocumentHighlightProvider(client));
-	languages.registerReferenceProvider(modeID, new ReferenceProvider(client));
-	languages.registerDocumentSymbolProvider(modeID, new DocumentSymbolProvider(client));
-	languages.registerSignatureHelpProvider(modeID, new SignatureHelpProvider(client), '(', ',');
-	languages.registerRenameProvider(modeID, new RenameProvider(client));
-	languages.registerDocumentRangeFormattingEditProvider(modeID, new FormattingProvider(client));
-	languages.registerOnTypeFormattingEditProvider(modeID, new FormattingProvider(client), ';', '}', '\n');
-	languages.registerWorkspaceSymbolProvider(new WorkspaceSymbolProvider(client, modeID));
+class LanguageProvider {
 
-	languages.setLanguageConfiguration(modeID, {
-		indentationRules: {
-			// ^(.*\*/)?\s*\}.*$
-			decreaseIndentPattern: /^(.*\*\/)?\s*\}.*$/,
-			// ^.*\{[^}"']*$
-			increaseIndentPattern: /^.*\{[^}"']*$/
-		},
-		wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
-		comments: {
-			lineComment: '//',
-			blockComment: ['/*', '*/']
-		},
-		brackets: [
-			['{', '}'],
-			['[', ']'],
-			['(', ')'],
-		],
-		onEnterRules: [
-			{
-				// e.g. /** | */
-				beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-				afterText: /^\s*\*\/$/,
-				action: { indentAction: IndentAction.IndentOutdent, appendText: ' * ' }
-			},
-			{
-				// e.g. /** ...|
-				beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-				action: { indentAction: IndentAction.None, appendText: ' * ' }
-			},
-			{
-				// e.g.  * ...|
-				beforeText: /^(\t|(\ \ ))*\ \*\ ([^\*]|\*(?!\/))*$/,
-				action: { indentAction: IndentAction.None, appendText: '* ' }
-			},
-			{
-				// e.g.  */|
-				beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
-				action: { indentAction: IndentAction.None, removeText: 1 }
-			}
-		],
+	private description: LanguageDescription;
+	private syntaxDiagnostics: Map<Diagnostic[]>;
+	private currentDiagnostics: DiagnosticCollection;
+	private bufferSyncSupport: BufferSyncSupport;
 
-		__electricCharacterSupport: {
-			brackets: [
-				{ tokenType: 'delimiter.curly.' + modeID, open: '{', close: '}', isElectric: true },
-				{ tokenType: 'delimiter.square.' + modeID, open: '[', close: ']', isElectric: true },
-				{ tokenType: 'delimiter.paren.' + modeID, open: '(', close: ')', isElectric: true }
-			],
-			docComment: { scope: 'comment.documentation', open: '/**', lineStart: ' * ', close: ' */' }
-		},
+	private completionItemProvider: CompletionItemProvider;
+	private formattingProvider: FormattingProvider;
 
-		__characterPairSupport: {
-			autoClosingPairs: [
-				{ open: '{', close: '}' },
-				{ open: '[', close: ']' },
-				{ open: '(', close: ')' },
-				{ open: '"', close: '"', notIn: ['string'] },
-				{ open: '\'', close: '\'', notIn: ['string', 'comment'] }
-			]
+	private _validate: boolean;
+
+	constructor(client: TypeScriptServiceClient, description: LanguageDescription) {
+		this.description = description;
+		this._validate = true;
+
+		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds);
+		this.syntaxDiagnostics = Object.create(null);
+		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
+
+		workspace.onDidChangeConfiguration(this.configurationChanged, this);
+		this.configurationChanged();
+
+		client.onReady().then(() => {
+			this.registerProviders(client);
+		}, () => {
+			// Nothing to do here. The client did show a message;
+		});
+	}
+
+	private registerProviders(client: TypeScriptServiceClient): void {
+		let config = workspace.getConfiguration(this.id);
+
+		this.completionItemProvider = new CompletionItemProvider(client);
+		this.completionItemProvider.updateConfiguration(config);
+
+		let hoverProvider = new HoverProvider(client);
+		let definitionProvider = new DefinitionProvider(client);
+		let documentHighlightProvider = new DocumentHighlightProvider(client);
+		let referenceProvider = new ReferenceProvider(client);
+		let documentSymbolProvider = new DocumentSymbolProvider(client);
+		let signatureHelpProvider = new SignatureHelpProvider(client);
+		let renameProvider = new RenameProvider(client);
+		this.formattingProvider = new FormattingProvider(client);
+		this.formattingProvider.updateConfiguration(config);
+
+		this.description.modeIds.forEach(modeId => {
+			languages.registerCompletionItemProvider(modeId, this.completionItemProvider, '.');
+			languages.registerHoverProvider(modeId, hoverProvider);
+			languages.registerDefinitionProvider(modeId, definitionProvider);
+			languages.registerDocumentHighlightProvider(modeId, documentHighlightProvider);
+			languages.registerReferenceProvider(modeId, referenceProvider);
+			languages.registerDocumentSymbolProvider(modeId, documentSymbolProvider);
+			languages.registerSignatureHelpProvider(modeId, signatureHelpProvider, '(', ',');
+			languages.registerRenameProvider(modeId, renameProvider);
+			languages.registerDocumentRangeFormattingEditProvider(modeId, this.formattingProvider);
+			languages.registerOnTypeFormattingEditProvider(modeId, this.formattingProvider, ';', '}', '\n');
+			languages.registerWorkspaceSymbolProvider(new WorkspaceSymbolProvider(client, modeId));
+			languages.setLanguageConfiguration(modeId, {
+				indentationRules: {
+					// ^(.*\*/)?\s*\}.*$
+					decreaseIndentPattern: /^(.*\*\/)?\s*\}.*$/,
+					// ^.*\{[^}"']*$
+					increaseIndentPattern: /^.*\{[^}"']*$/
+				},
+				wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
+				comments: {
+					lineComment: '//',
+					blockComment: ['/*', '*/']
+				},
+				brackets: [
+					['{', '}'],
+					['[', ']'],
+					['(', ')'],
+				],
+				onEnterRules: [
+					{
+						// e.g. /** | */
+						beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+						afterText: /^\s*\*\/$/,
+						action: { indentAction: IndentAction.IndentOutdent, appendText: ' * ' }
+					},
+					{
+						// e.g. /** ...|
+						beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+						action: { indentAction: IndentAction.None, appendText: ' * ' }
+					},
+					{
+						// e.g.  * ...|
+						beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
+						action: { indentAction: IndentAction.None, appendText: '* ' }
+					},
+					{
+						// e.g.  */|
+						beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
+						action: { indentAction: IndentAction.None, removeText: 1 }
+					}
+				],
+
+				__electricCharacterSupport: {
+					docComment: { scope: 'comment.documentation', open: '/**', lineStart: ' * ', close: ' */' }
+				},
+
+				__characterPairSupport: {
+					autoClosingPairs: [
+						{ open: '{', close: '}' },
+						{ open: '[', close: ']' },
+						{ open: '(', close: ')' },
+						{ open: '"', close: '"', notIn: ['string'] },
+						{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+						{ open: '`', close: '`', notIn: ['string', 'comment'] }
+					]
+				}
+			});
+		});
+	}
+
+	private configurationChanged(): void {
+		let config = workspace.getConfiguration(this.id);
+		this.updateValidate(config.get(validateSetting, true));
+		if (this.completionItemProvider) {
+			this.completionItemProvider.updateConfiguration(config);
 		}
-	});
+		if (this.formattingProvider) {
+			this.formattingProvider.updateConfiguration(config);
+		}
+	}
 
-	host.addBufferSyncSupport(new BufferSyncSupport(client, modeID));
+	public handles(file: string): boolean {
+		return this.bufferSyncSupport.handles(file);
+	}
 
-	// Register suggest support as soon as possible and load configuration lazily
-	let completionItemProvider = new CompletionItemProvider(client);
-	languages.registerCompletionItemProvider(modeID, completionItemProvider, '.');
-	let reloadConfig = () => {
-		completionItemProvider.setConfiguration(Configuration.load(modeID));
-	};
-	workspace.onDidChangeConfiguration(() => {
-		reloadConfig();
-	});
-	reloadConfig();
+	public get id(): string {
+		return this.description.id;
+	}
+
+	public get diagnosticSource(): string {
+		return this.description.diagnosticSource;
+	}
+
+	private updateValidate(value: boolean) {
+		if (this._validate === value) {
+			return;
+		}
+		this._validate = value;
+		this.bufferSyncSupport.validate = value;
+		if (value) {
+			this.triggerAllDiagnostics();
+		} else {
+			this.syntaxDiagnostics = Object.create(null);
+			this.currentDiagnostics.clear();
+		}
+	}
+
+	public reInitialize(): void {
+		this.currentDiagnostics.clear();
+		this.syntaxDiagnostics = Object.create(null);
+		this.bufferSyncSupport.reOpenDocuments();
+		this.bufferSyncSupport.requestAllDiagnostics();
+
+	}
+
+	public triggerAllDiagnostics(): void {
+		this.bufferSyncSupport.requestAllDiagnostics();
+	}
+
+	public syntaxDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
+		this.syntaxDiagnostics[file] = diagnostics;
+	}
+
+	public semanticDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
+		let syntaxMarkers = this.syntaxDiagnostics[file];
+		if (syntaxMarkers) {
+			delete this.syntaxDiagnostics[file];
+			diagnostics = syntaxMarkers.concat(diagnostics);
+		}
+		this.currentDiagnostics.set(Uri.file(file), diagnostics);
+	}
 }
 
 class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private client: TypeScriptServiceClient;
+	private languages: LanguageProvider[];
+	private languagePerId: Map<LanguageProvider>;
 
-	private syntaxDiagnostics: { [key: string]: Diagnostic[] };
-	private currentDiagnostics: DiagnosticCollection;
-	private bufferSyncSupports: BufferSyncSupport[];
-
-	constructor() {
-		this.bufferSyncSupports = [];
-		this.currentDiagnostics = languages.createDiagnosticCollection('typescript');
+	constructor(descriptions: LanguageDescription[]) {
 		let handleProjectCreateOrDelete = () => {
 			this.client.execute('reloadProjects', null, false);
 			this.triggerAllDiagnostics();
@@ -156,14 +276,20 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			setTimeout(() => {
 				this.triggerAllDiagnostics();
 			}, 1500);
-		}
-		let watcher = workspace.createFileSystemWatcher('**/tsconfig.json');
+		};
+		let watcher = workspace.createFileSystemWatcher('**/[tj]sconfig.json');
 		watcher.onDidCreate(handleProjectCreateOrDelete);
 		watcher.onDidDelete(handleProjectCreateOrDelete);
 		watcher.onDidChange(handleProjectChange);
 
 		this.client = new TypeScriptServiceClient(this);
-		this.syntaxDiagnostics = Object.create(null);
+		this.languages = [];
+		this.languagePerId = Object.create(null);
+		descriptions.forEach(description => {
+			let manager = new LanguageProvider(this.client, description);
+			this.languages.push(manager);
+			this.languagePerId[description.id] = manager;
+		});
 	}
 
 	public get serviceClient(): TypeScriptServiceClient {
@@ -175,53 +301,59 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		this.triggerAllDiagnostics();
 	}
 
-	public addBufferSyncSupport(support: BufferSyncSupport): void {
-		this.bufferSyncSupports.push(support);
+	public handles(file: string): boolean {
+		return !!this.findLanguage(file);
+	}
+
+	private findLanguage(file: string): LanguageProvider {
+		for (let i = 0; i < this.languages.length; i++) {
+			let language = this.languages[i];
+			if (language.handles(file)) {
+				return language;
+			}
+		}
+		return null;
 	}
 
 	private triggerAllDiagnostics() {
-		this.bufferSyncSupports.forEach(support => support.requestAllDiagnostics());
+		Object.keys(this.languagePerId).forEach(key => this.languagePerId[key].triggerAllDiagnostics());
 	}
 
 	/* internal */ populateService(): void {
-		this.currentDiagnostics.clear();
-		this.syntaxDiagnostics = Object.create(null);
 		// See https://github.com/Microsoft/TypeScript/issues/5530
 		workspace.saveAll(false).then((value) => {
-			this.bufferSyncSupports.forEach(support => {
-				support.reOpenDocuments();
-				support.requestAllDiagnostics();
-			});
+			Object.keys(this.languagePerId).forEach(key => this.languagePerId[key].reInitialize());
 		});
 	}
 
 	/* internal */ syntaxDiagnosticsReceived(event: Proto.DiagnosticEvent): void {
 		let body = event.body;
 		if (body.diagnostics) {
-			let markers = this.createMarkerDatas(body.diagnostics);
-			this.syntaxDiagnostics[body.file] = markers;
+			let language = this.findLanguage(body.file);
+			if (language) {
+				language.syntaxDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
+			}
 		}
 	}
 
 	/* internal */ semanticDiagnosticsReceived(event: Proto.DiagnosticEvent): void {
 		let body = event.body;
 		if (body.diagnostics) {
-			let diagnostics = this.createMarkerDatas(body.diagnostics);
-			let syntaxMarkers = this.syntaxDiagnostics[body.file];
-			if (syntaxMarkers) {
-				delete this.syntaxDiagnostics[body.file];
-				diagnostics = syntaxMarkers.concat(diagnostics);
+			let language = this.findLanguage(body.file);
+			if (language) {
+				language.semanticDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
 			}
-			this.currentDiagnostics.set(Uri.file(body.file), diagnostics);
 		}
 	}
 
-	private createMarkerDatas(diagnostics: Proto.Diagnostic[]): Diagnostic[] {
+	private createMarkerDatas(diagnostics: Proto.Diagnostic[], source: string): Diagnostic[] {
 		let result: Diagnostic[] = [];
 		for (let diagnostic of diagnostics) {
-			let {start, end, text} = diagnostic;
+			let { start, end, text } = diagnostic;
 			let range = new Range(start.line - 1, start.offset - 1, end.line - 1, end.offset - 1);
-			result.push(new Diagnostic(range, text));
+			let converted = new Diagnostic(range, text);
+			converted.source = source;
+			result.push(converted);
 		}
 		return result;
 	}

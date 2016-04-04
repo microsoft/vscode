@@ -96,7 +96,7 @@ export function bundle(entryPoints:IEntryPoint[], config:ILoaderConfig, callback
 	loader(Object.keys(entryPointsMap), () => {
 		let modules = <IBuildModuleInfo[]>loader.getBuildInfo();
 		callback(null, emitEntryPoints(modules, entryPointsMap));
-	}, (err) => callback(err, null))
+	}, (err) => callback(err, null));
 }
 
 function emitEntryPoints(modules:IBuildModuleInfo[], entryPoints:IEntryPointMap): IConcatFile[] {
@@ -181,7 +181,7 @@ function emitEntryPoint(modulesMap:IBuildModuleInfoMap, deps:IGraph, entryPoint:
 			usedPlugins[pluginName] = modulesMap[pluginName].exports;
 		}
 		return usedPlugins[pluginName];
-	}
+	};
 
 	includedModules.forEach((c:string) => {
 		let bangIndex = c.indexOf('!');

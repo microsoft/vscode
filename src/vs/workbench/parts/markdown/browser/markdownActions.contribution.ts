@@ -10,19 +10,18 @@ import {Registry} from 'vs/platform/platform';
 import {IAction} from 'vs/base/common/actions';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
-import {FileEditorInputActionContributor} from 'vs/workbench/parts/files/browser/files';
-import {asFileResource} from 'vs/workbench/parts/files/common/files';
-import strings = require('vs/base/common/strings');
-import {IEditorInputActionContext, IEditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {ShowWelcomeAction, OpenPreviewToSideAction, GlobalTogglePreviewMarkdownAction, PreviewMarkdownEditorInputAction, PreviewMarkdownAction} from 'vs/workbench/parts/markdown/browser/markdownActions';
-import {MARKDOWN_MIME, MARKDOWN_FILES} from 'vs/workbench/parts/markdown/browser/markdown';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
+import {asFileResource, FileEditorInput} from 'vs/workbench/parts/files/common/files';
+import mime = require('vs/base/common/mime');
+import {IEditorInputActionContext, IEditorInputAction, EditorInputActionContributor} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {OpenPreviewToSideAction, GlobalTogglePreviewMarkdownAction, PreviewMarkdownEditorInputAction, PreviewMarkdownAction} from 'vs/workbench/parts/markdown/browser/markdownActions';
+import {MARKDOWN_MIME} from 'vs/workbench/parts/markdown/common/markdown';
+import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
 class ExplorerViewerActionContributor extends ActionBarContributor {
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 	}
 
@@ -35,7 +34,7 @@ class ExplorerViewerActionContributor extends ActionBarContributor {
 			return false;
 		}
 
-		return !fileResource.isDirectory && (MARKDOWN_FILES.some((extension) => strings.endsWith(fileResource.resource.fsPath, extension)));
+		return !fileResource.isDirectory && mime.guessMimeTypes(fileResource.resource.fsPath).indexOf(MARKDOWN_MIME) >= 0;
 	}
 
 	public getSecondaryActions(context: any): IAction[] {
@@ -54,20 +53,52 @@ class ExplorerViewerActionContributor extends ActionBarContributor {
 	}
 }
 
-class MarkdownFilesActionContributor extends FileEditorInputActionContributor {
+class MarkdownFilesActionContributor extends EditorInputActionContributor {
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
-		super([MARKDOWN_MIME]);
+	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
+		super();
+	}
+
+	/* We override toId() to make the caching of actions based on the mime of the input if given */
+	protected toId(context: IEditorInputActionContext): string {
+		let id = super.toId(context);
+
+		let mime = this.getMimeFromContext(context);
+		if (mime) {
+			id += mime;
+		}
+
+		return id;
+	}
+
+	private getMimeFromContext(context: IEditorInputActionContext): string {
+		if (context && context.input && context.input instanceof FileEditorInput) {
+			let fileInput = <FileEditorInput>context.input;
+			return fileInput.getMime();
+		}
+
+		return null;
 	}
 
 	public hasActionsForEditorInput(context: IEditorInputActionContext): boolean {
-		return true;
+		const input = context.input;
+		if (input instanceof FileEditorInput) {
+			const fileResource = input.getResource();
+
+			return mime.guessMimeTypes(fileResource.fsPath).indexOf(MARKDOWN_MIME) >= 0;
+		}
+
+		return false;
 	}
 
 	public getActionsForEditorInput(context: IEditorInputActionContext): IEditorInputAction[] {
-		return [
-			this.instantiationService.createInstance(PreviewMarkdownEditorInputAction)
-		];
+		if (this.hasActionsForEditorInput(context)) {
+			return [
+				this.instantiationService.createInstance(PreviewMarkdownEditorInputAction)
+			];
+		}
+
+		return [];
 	}
 }
 
@@ -81,4 +112,3 @@ let category = nls.localize('markdown', "Markdown");
 let workbenchActionsRegistry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(GlobalTogglePreviewMarkdownAction, GlobalTogglePreviewMarkdownAction.ID, GlobalTogglePreviewMarkdownAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V }), category);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviewToSideAction, OpenPreviewToSideAction.ID, OpenPreviewToSideAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_V) }), category);
-workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowWelcomeAction, ShowWelcomeAction.ID, ShowWelcomeAction.LABEL));

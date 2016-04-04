@@ -5,26 +5,29 @@
 'use strict';
 
 import 'vs/css!./inputBox';
-import Bal = require('vs/base/browser/browser');
-import dom = require('vs/base/browser/dom');
-import browser = require('vs/base/browser/browserService');
-import htmlcontent = require('vs/base/common/htmlContent');
-import renderer = require('vs/base/browser/htmlContentRenderer');
-import ee = require('vs/base/common/eventEmitter');
-import actions = require('vs/base/common/actions');
-import actionBar = require('vs/base/browser/ui/actionbar/actionbar');
-import lifecycle = require('vs/base/common/lifecycle');
-import contextview = require('vs/base/browser/ui/contextview/contextview');
 
-var $ = dom.emmet;
+import nls = require('vs/nls');
+import * as Bal from 'vs/base/browser/browser';
+import * as dom from 'vs/base/browser/dom';
+import * as browser from 'vs/base/browser/browserService';
+import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import {renderHtml} from 'vs/base/browser/htmlContentRenderer';
+import aria = require('vs/base/browser/ui/aria/aria');
+import {IAction} from 'vs/base/common/actions';
+import {ActionBar} from 'vs/base/browser/ui/actionbar/actionbar';
+import {IContextViewProvider, AnchorAlignment} from 'vs/base/browser/ui/contextview/contextview';
+import Event, {Emitter} from 'vs/base/common/event';
+import {Widget} from 'vs/base/browser/ui/widget';
+
+let $ = dom.emmet;
 
 export interface IInputOptions {
-	placeholder?:string;
-	ariaLabel?:string;
-	type?:string;
-	validationOptions?:IInputValidationOptions;
+	placeholder?: string;
+	ariaLabel?: string;
+	type?: string;
+	validationOptions?: IInputValidationOptions;
 	flexibleHeight?: boolean;
-	actions?:actions.IAction[];
+	actions?: IAction[];
 }
 
 export interface IInputValidator {
@@ -53,14 +56,12 @@ export interface IRange {
 	end: number;
 }
 
-export class InputBox extends ee.EventEmitter {
-
-	private contextViewProvider: contextview.IContextViewProvider;
-
+export class InputBox extends Widget {
+	private contextViewProvider: IContextViewProvider;
 	private element: HTMLElement;
 	private input: HTMLInputElement;
 	private mirror: HTMLElement;
-	private actionbar: actionBar.ActionBar;
+	private actionbar: ActionBar;
 	private options: IInputOptions;
 	private message: IMessage;
 	private placeholder: string;
@@ -69,14 +70,18 @@ export class InputBox extends ee.EventEmitter {
 	private showValidationMessage: boolean;
 	private state = 'idle';
 	private cachedHeight: number;
-	private toDispose: lifecycle.IDisposable[];
 
-	constructor(container:HTMLElement, contextViewProvider: contextview.IContextViewProvider, options?: IInputOptions) {
+	private _onDidChange = this._register(new Emitter<string>());
+	public onDidChange: Event<string> = this._onDidChange.event;
+
+	private _onDidHeightChange = this._register(new Emitter<number>());
+	public onDidHeightChange: Event<number> = this._onDidHeightChange.event;
+
+	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider, options?: IInputOptions) {
 		super();
 
 		this.contextViewProvider = contextViewProvider;
 		this.options = options || Object.create(null);
-		this.toDispose = [];
 		this.message = null;
 		this.cachedHeight = null;
 		this.placeholder = this.options.placeholder || '';
@@ -89,13 +94,16 @@ export class InputBox extends ee.EventEmitter {
 
 		this.element = dom.append(container, $('.monaco-inputbox.idle'));
 
-		var tagName = this.options.flexibleHeight ? 'textarea' : 'input';
+		let tagName = this.options.flexibleHeight ? 'textarea' : 'input';
 
-		var wrapper = dom.append(this.element, $('.wrapper'));
-		this.input = <HTMLInputElement> dom.append(wrapper, $(tagName + '.input'));
+		let wrapper = dom.append(this.element, $('.wrapper'));
+		this.input = <HTMLInputElement>dom.append(wrapper, $(tagName + '.input'));
 		this.input.setAttribute('autocorrect', 'off');
 		this.input.setAttribute('autocapitalize', 'off');
 		this.input.setAttribute('spellcheck', 'false');
+
+		this.onfocus(this.input, () => dom.addClass(this.element, 'synthetic-focus'));
+		this.onblur(this.input, () => dom.removeClass(this.element, 'synthetic-focus'));
 
 		if (this.options.flexibleHeight) {
 			this.mirror = dom.append(wrapper, $('div.mirror'));
@@ -112,30 +120,27 @@ export class InputBox extends ee.EventEmitter {
 			this.input.setAttribute('placeholder', this.placeholder);
 		}
 
-		this.toDispose.push(
-			dom.addDisposableListener(this.input, dom.EventType.INPUT, () => this.onValueChange()),
-			dom.addDisposableListener(this.input, dom.EventType.BLUR, () => this.onBlur()),
-			dom.addDisposableListener(this.input, dom.EventType.FOCUS, () => this.onFocus())
-		);
+		this.oninput(this.input, () => this.onValueChange());
+		this.onblur(this.input, () => this.onBlur());
+		this.onfocus(this.input, () => this.onFocus());
 
 		// Add placeholder shim for IE because IE decides to hide the placeholder on focus (we dont want that!)
 		if (this.placeholder && Bal.isIE11orEarlier) {
-
-			this.toDispose.push(dom.addDisposableListener(this.input, dom.EventType.CLICK, (e) => {
+			this.onclick(this.input, (e) => {
 				dom.EventHelper.stop(e, true);
 				this.input.focus();
-			}));
+			});
 
 			if (Bal.isIE9) {
-				this.toDispose.push(dom.addDisposableListener(this.input, 'keyup', () => this.onValueChange()));
+				this.onkeyup(this.input, () => this.onValueChange());
 			}
 		}
 
-		setTimeout(() =>this.layout(), 0);
+		setTimeout(() => this.layout(), 0);
 
 		// Support actions
 		if (this.options.actions) {
-			this.actionbar = new actionBar.ActionBar(this.element);
+			this.actionbar = this._register(new ActionBar(this.element));
 			this.actionbar.push(this.options.actions, { icon: true, label: false });
 		}
 	}
@@ -148,13 +153,25 @@ export class InputBox extends ee.EventEmitter {
 		this._showMessage();
 	}
 
-	public setPlaceHolder(placeHolder:string): void {
+	public setPlaceHolder(placeHolder: string): void {
 		if (this.input) {
 			this.input.setAttribute('placeholder', placeHolder);
 		}
 	}
 
-	public setContextViewProvider(contextViewProvider: contextview.IContextViewProvider): void {
+	public setAriaLabel(label: string): void {
+		this.ariaLabel = label;
+
+		if (this.input) {
+			if (label) {
+				this.input.setAttribute('aria-label', this.ariaLabel);
+			} else {
+				this.input.removeAttribute('aria-label');
+			}
+		}
+	}
+
+	public setContextViewProvider(contextViewProvider: IContextViewProvider): void {
 		this.contextViewProvider = contextViewProvider;
 	}
 
@@ -162,11 +179,11 @@ export class InputBox extends ee.EventEmitter {
 		return this.input;
 	}
 
-	public get value():string {
+	public get value(): string {
 		return this.input.value;
 	}
 
-	public set value(newValue:string) {
+	public set value(newValue: string) {
 		if (this.input.value !== newValue) {
 			this.input.value = newValue;
 			this.onValueChange();
@@ -206,15 +223,23 @@ export class InputBox extends ee.EventEmitter {
 		this._hideMessage();
 	}
 
-	public get width():number {
+	public setEnabled(enabled: boolean): void {
+		if (enabled) {
+			this.enable();
+		} else {
+			this.disable();
+		}
+	}
+
+	public get width(): number {
 		return dom.getTotalWidth(this.input);
 	}
 
-	public set width(width:number) {
+	public set width(width: number) {
 		this.input.style.width = width + 'px';
 	}
 
-	public showMessage(message: IMessage, force?:boolean): void {
+	public showMessage(message: IMessage, force?: boolean): void {
 		this.message = message;
 
 		dom.removeClass(this.element, 'idle');
@@ -222,6 +247,18 @@ export class InputBox extends ee.EventEmitter {
 		dom.removeClass(this.element, 'warning');
 		dom.removeClass(this.element, 'error');
 		dom.addClass(this.element, this.classForType(message.type));
+
+		// ARIA Support
+		let alertText: string;
+		if (message.type === MessageType.ERROR) {
+			alertText = nls.localize('alertErrorMessage', "Error: {0}", message.content);
+		} else if (message.type === MessageType.WARNING) {
+			alertText = nls.localize('alertWarningMessage', "Warning: {0}", message.content);
+		} else {
+			alertText = nls.localize('alertInfoMessage', "Info: {0}", message.content);
+		}
+
+		aria.alert(alertText);
 
 		if (this.hasFocus() || force) {
 			this._showMessage();
@@ -244,17 +281,18 @@ export class InputBox extends ee.EventEmitter {
 	}
 
 	public validate(): boolean {
-		var result: IMessage = null;
+		let result: IMessage = null;
 
 		if (this.validation) {
 			result = this.validation(this.value);
 
 			if (!result) {
+				this.inputElement.removeAttribute('aria-invalid');
 				this.hideMessage();
 			} else {
+				this.inputElement.setAttribute('aria-invalid', 'true');
 				this.showMessage(result);
 			}
-
 		}
 
 		return !result;
@@ -273,19 +311,19 @@ export class InputBox extends ee.EventEmitter {
 			return;
 		}
 
-		var div: HTMLElement;
-		var layout = () => div.style.width = dom.getTotalWidth(this.element) + 'px';
+		let div: HTMLElement;
+		let layout = () => div.style.width = dom.getTotalWidth(this.element) + 'px';
 
 		this.state = 'open';
 
 		this.contextViewProvider.showContextView({
 			getAnchor: () => this.element,
-			anchorAlignment: contextview.AnchorAlignment.RIGHT,
+			anchorAlignment: AnchorAlignment.RIGHT,
 			render: (container: HTMLElement) => {
 				div = dom.append(container, $('.monaco-inputbox-container'));
 				layout();
 
-				var renderOptions: htmlcontent.IHTMLContentElement = {
+				let renderOptions: IHTMLContentElement = {
 					tagName: 'span',
 					className: 'monaco-inputbox-message',
 				};
@@ -296,7 +334,7 @@ export class InputBox extends ee.EventEmitter {
 					renderOptions.text = this.message.content;
 				}
 
-				var spanElement:HTMLElement = <any>renderer.renderHtml(renderOptions);
+				let spanElement: HTMLElement = <any>renderHtml(renderOptions);
 				dom.addClass(spanElement, this.classForType(this.message.type));
 				dom.append(div, spanElement);
 				return null;
@@ -316,13 +354,13 @@ export class InputBox extends ee.EventEmitter {
 	}
 
 	private onValueChange(): void {
-		this.emit('change', this.value);
+		this._onDidChange.fire(this.value);
 
 		this.validate();
 
 		if (this.mirror) {
-			var lastCharCode = this.value.charCodeAt(this.value.length - 1);
-			var suffix = lastCharCode === 10 ? ' ' : '';
+			let lastCharCode = this.value.charCodeAt(this.value.length - 1);
+			let suffix = lastCharCode === 10 ? ' ' : '';
 			this.mirror.textContent = this.value + suffix;
 			this.layout();
 		}
@@ -338,14 +376,11 @@ export class InputBox extends ee.EventEmitter {
 
 		if (previousHeight !== this.cachedHeight) {
 			this.input.style.height = this.cachedHeight + 'px';
-			this.emit('heightchange', this.cachedHeight);
+			this._onDidHeightChange.fire(this.cachedHeight);
 		}
 	}
 
 	public dispose(): void {
-
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
-
 		this._hideMessage();
 
 		this.element = null;
@@ -357,11 +392,7 @@ export class InputBox extends ee.EventEmitter {
 		this.validation = null;
 		this.showValidationMessage = null;
 		this.state = null;
-
-		if (this.actionbar) {
-			this.actionbar.dispose();
-			this.actionbar = null;
-		}
+		this.actionbar = null;
 
 		super.dispose();
 	}

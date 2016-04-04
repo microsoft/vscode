@@ -10,17 +10,17 @@ import paths = require('vs/base/common/paths');
 import actions = require('vs/base/common/actions');
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import platform = require('vs/platform/platform');
-import workbenchActionRegistry = require('vs/workbench/browser/actionRegistry');
+import workbenchActionRegistry = require('vs/workbench/common/actionRegistry');
 import workbenchContributions = require('vs/workbench/common/contributions');
 import snippetsTracker = require('./snippetsTracker');
-import modesExtensions = require('vs/editor/common/modes/modesRegistry');
 import errors = require('vs/base/common/errors');
-import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
+import {IModeService} from 'vs/editor/common/services/modeService';
 
-import ipc = require('ipc');
+import {ipcRenderer as ipc} from 'electron';
 import fs = require('fs');
 
 class OpenSnippetsAction extends actions.Action {
@@ -32,21 +32,21 @@ class OpenSnippetsAction extends actions.Action {
 		id: string,
 		label:string,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IQuickOpenService private quickOpenService:IQuickOpenService
+		@IQuickOpenService private quickOpenService:IQuickOpenService,
+		@IModeService private modeService:IModeService
 	) {
 		super(id, label);
 	}
 
 	private openFile(filePath: string): void {
-		ipc.send('vscode:windowOpen', [filePath], false /* force new window */); // handled from browser process
+		ipc.send('vscode:windowOpen', [filePath]); // handled from browser process
 	}
 
 	public run(): winjs.Promise {
-		var modesRegistry = <modesExtensions.IEditorModesRegistry>platform.Registry.as(modesExtensions.Extensions.EditorModes);
-		var modeIds = modesRegistry.getRegisteredModes();
+		var modeIds = this.modeService.getRegisteredModes();
 		var picks: IPickOpenEntry[] = [];
 		modeIds.forEach((modeId) => {
-			var name = modesRegistry.getLanguageName(modeId);
+			var name = this.modeService.getLanguageName(modeId);
 			if (name) {
 				picks.push({ label: name, id: modeId });
 			}
@@ -61,7 +61,7 @@ class OpenSnippetsAction extends actions.Action {
 				return fileExists(snippetPath).then((success) => {
 					if (success) {
 						this.openFile(snippetPath);
-						return winjs.Promise.as(null);
+						return winjs.TPromise.as(null);
 					}
 					var defaultContent = [
 						'{',
@@ -88,7 +88,7 @@ class OpenSnippetsAction extends actions.Action {
 					});
 				});
 			}
-			return winjs.Promise.as(null);
+			return winjs.TPromise.as(null);
 		});
 	}
 }
@@ -129,10 +129,13 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenSn
 	snippetsTracker.SnippetsTracker
 );
 
-let schemaId = 'local://schemas/snippets';
+let schemaId = 'vscode://schemas/snippets';
 let schema : IJSONSchema = {
 	'id': schemaId,
-	'default': { '{{snippetName}}': { 'prefix': '{{prefix}}', 'body': '{{snippet}}', 'description': '{{description}}' } },
+	'defaultSnippets': [{
+		'label': nls.localize('snippetSchema.json.default', "Empty snippet"),
+		'body': { '{{snippetName}}': { 'prefix': '{{prefix}}', 'body': '{{snippet}}', 'description': '{{description}}' } }
+	}],
 	'type': 'object',
 	'description': nls.localize('snippetSchema.json', 'User snippet configuration'),
 	'additionalProperties': {

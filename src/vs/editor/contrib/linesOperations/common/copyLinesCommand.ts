@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 
-export class CopyLinesCommand implements EditorCommon.ICommand {
+export class CopyLinesCommand implements editorCommon.ICommand {
 
-	private _selection: EditorCommon.IEditorSelection;
+	private _selection: editorCommon.IEditorSelection;
 	private _isCopyingDown: boolean;
 
-	private _selectionDirection:EditorCommon.SelectionDirection;
+	private _selectionDirection:editorCommon.SelectionDirection;
 	private _selectionId: string;
 	private _startLineNumberDelta: number;
 	private _endLineNumberDelta: number;
 
-	constructor(selection: EditorCommon.IEditorSelection, isCopyingDown: boolean) {
+	constructor(selection: editorCommon.IEditorSelection, isCopyingDown: boolean) {
 		this._selection = selection;
 		this._isCopyingDown = isCopyingDown;
 	}
 
-	public getEditOperations(model:EditorCommon.ITokenizedModel, builder:EditorCommon.IEditOperationBuilder):void {
+	public getEditOperations(model:editorCommon.ITokenizedModel, builder:editorCommon.IEditOperationBuilder):void {
 		var s = this._selection;
 
 		this._startLineNumberDelta = 0;
@@ -57,7 +57,7 @@ export class CopyLinesCommand implements EditorCommon.ICommand {
 		this._selectionDirection = this._selection.getDirection();
 	}
 
-	public computeCursorState(model:EditorCommon.ITokenizedModel, helper: EditorCommon.ICursorStateComputerData):EditorCommon.IEditorSelection {
+	public computeCursorState(model:editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData):editorCommon.IEditorSelection {
 		var result = helper.getTrackedSelection(this._selectionId);
 
 		if (this._startLineNumberDelta !== 0 || this._endLineNumberDelta !== 0) {

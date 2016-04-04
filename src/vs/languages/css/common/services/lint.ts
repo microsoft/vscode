@@ -203,7 +203,7 @@ export class LintVisitor implements nodes.IVisitor {
 			if (missingVendorSpecific || needsStandard) {
 				keyframes.data[name].nodes.forEach(addVendorSpecificWarnings);
 			}
-		};
+		}
 
 		return true;
 	}
@@ -287,7 +287,7 @@ export class LintVisitor implements nodes.IVisitor {
 		/////////////////////////////////////////////////////////////
 
 		// With 'display: inline', the width, height, margin-top, margin-bottom, and float properties have no effect
-		var displayElems = this.fetchWithValue(propertyTable, 'display', 'inline');
+		let displayElems = this.fetchWithValue(propertyTable, 'display', 'inline');
 		if (displayElems.length > 0) {
 			[ 'width', 'height', 'margin-top', 'margin-bottom', 'float'].forEach(function(prop) {
 				var elem = self.fetch(propertyTable, prop);
@@ -298,7 +298,7 @@ export class LintVisitor implements nodes.IVisitor {
 		}
 
 		// With 'display: inline-block', 'float' has no effect
-		var displayElems = this.fetchWithValue(propertyTable, 'display', 'inline-block');
+		displayElems = this.fetchWithValue(propertyTable, 'display', 'inline-block');
 		if (displayElems.length > 0) {
 			var elem = this.fetch(propertyTable, 'float');
 			for (var index = 0; index < elem.length; index++) {
@@ -307,7 +307,7 @@ export class LintVisitor implements nodes.IVisitor {
 		}
 
 		// With 'display: block', 'vertical-align' has no effect
-		var displayElems = this.fetchWithValue(propertyTable, 'display', 'block');
+		displayElems = this.fetchWithValue(propertyTable, 'display', 'block');
 		if (displayElems.length > 0) {
 			var elem = this.fetch(propertyTable, 'vertical-align');
 			for (var index = 0; index < elem.length; index++) {

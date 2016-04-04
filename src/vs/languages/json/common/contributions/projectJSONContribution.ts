@@ -38,7 +38,7 @@ export class ProjectJSONContribution implements JSONWorker.IJSONWorkerContributi
 					'dnxcore50': {}
 				}
 			};
-			result.add({ type: 'type', label: nls.localize('json.project.default', 'Default project.json'), codeSnippet: JSON.stringify(defaultValue, null, '\t'), documentationLabel: '' });
+			result.add({ type: 'snippet', label: nls.localize('json.project.default', 'Default project.json'), codeSnippet: JSON.stringify(defaultValue, null, '\t'), documentationLabel: '' });
 		}
 		return null;
 	}

@@ -9,10 +9,10 @@ import assert = require('assert');
 import scanner = require('vs/languages/css/common/parser/cssScanner');
 import lessScanner = require('vs/languages/less/common/parser/lessScanner');
 
-function assertSingleToken(source: string, len: number, offset: number, text: string, type: scanner.TokenType, ignoreWhitespace?:boolean):void {
+function assertSingleToken(source: string, len: number, offset: number, text: string, type: scanner.TokenType):void {
 	var scan = new lessScanner.LessScanner();
 	scan.setSource(source);
-	var token = scan.scan(ignoreWhitespace);
+	var token = scan.scan();
 	assert.equal(token.len, len);
 	assert.equal(token.offset, offset);
 	assert.equal(token.text, text);
@@ -35,5 +35,6 @@ suite('LESS - Scanner', () => {
 		assertSingleToken('//this is a comment test', 0, 24, '', scanner.TokenType.EOF);
 		assertSingleToken('// this is a comment test', 0, 25, '', scanner.TokenType.EOF);
 		assertSingleToken('// this is a\na', 1, 13, 'a', scanner.TokenType.Ident);
+		assertSingleToken('// this is a\n// more\n   \n/* comment */a', 1, 38, 'a', scanner.TokenType.Ident);
 	});
 });

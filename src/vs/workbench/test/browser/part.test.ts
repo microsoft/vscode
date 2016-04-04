@@ -13,7 +13,7 @@ import * as TestUtils from 'vs/workbench/test/browser/servicesTestUtils';
 import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IStorageService} from 'vs/platform/storage/common/storage';
-import {Storage, InMemoryLocalStorage} from 'vs/workbench/browser/storage';
+import {Storage, InMemoryLocalStorage} from 'vs/workbench/common/storage';
 
 class MyPart extends Part {
 

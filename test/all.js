@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*global process,__dirname,define,run,suite,test*/
+/*eslint-env mocha*/
+/*global define,run*/
 
 var assert = require('assert');
 var path = require('path');
@@ -50,7 +51,7 @@ function loadClientTests(cb) {
 			return file.replace(/\.js$/, '');
 		});
 
-		// load all modules
+		// load all modules with the AMD loader
 		define(modules, function () {
 			cb(null);
 		}, cb);
@@ -61,13 +62,12 @@ function loadPluginTests(cb) {
 	var root = path.join(path.dirname(__dirname), 'extensions');
 	glob(TEST_GLOB, { cwd: root }, function (err, files) {
 
+		// load modules with commonjs
 		var modules = files.map(function (file) {
-			return 'extensions/' + file.replace(/\.js$/, '');
+			return '../extensions/' + file.replace(/\.js$/, '');
 		});
-
-		define(modules, function() {
-			cb(null);
-		}, cb);
+		modules.forEach(require);
+		cb(null);
 	});
 }
 
@@ -178,16 +178,18 @@ function main() {
 		});
 
 		// replace the default unexpected error handler to be useful during tests
-		loader('vs/base/common/errors').setUnexpectedErrorHandler(function (err) {
-			try {
-				throw new Error('oops');
-			} catch (e) {
-				unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + e.stack);
-			}
-		});
+		loader(['vs/base/common/errors'], function(errors) {
+			errors.setUnexpectedErrorHandler(function (err) {
+				try {
+					throw new Error('oops');
+				} catch (e) {
+					unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + e.stack);
+				}
+			});
 
-		// fire up mocha
-		run();
+			// fire up mocha
+			run();
+		});
 	});
 }
 

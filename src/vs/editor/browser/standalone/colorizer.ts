@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {RunOnceScheduler} from 'vs/base/common/async';
 import {TPromise} from 'vs/base/common/winjs.base';
-import Schedulers = require('vs/base/common/async');
-import ViewLine = require('vs/editor/browser/viewParts/lines/viewLine');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import {ViewLineToken, IModel} from 'vs/editor/common/editorCommon';
+import {ILineTokens, IMode} from 'vs/editor/common/modes';
 import {IModeService} from 'vs/editor/common/services/modeService';
+import {IRenderLineOutput, renderLine, RenderLineInput} from 'vs/editor/common/viewLayout/viewLineRenderer';
+import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
 
 export interface IColorizerOptions {
 	tabSize?: number;
@@ -20,107 +21,112 @@ export interface IColorizerElementOptions extends IColorizerOptions {
 	mimeType?: string;
 }
 
-export function colorizeElement(modeService:IModeService, domNode:HTMLElement, options:IColorizerElementOptions): TPromise<void> {
-	options = options || {};
-	var theme = options.theme || 'vs';
-	var mimeType = options.mimeType || domNode.getAttribute('lang') || domNode.getAttribute('data-lang');
-	if (!mimeType) {
-		console.error('Mode not detected');
-		return;
-	}
-	var text = domNode.firstChild.nodeValue;
-	domNode.className += 'monaco-editor ' + theme;
-	var render = (str:string) => {
-		domNode.innerHTML = str;
-	};
-	return colorize(modeService, text, mimeType, options).then(render, (err) => console.error(err), render);
-}
+export class Colorizer {
 
-export function colorize(modeService:IModeService, text:string, mimeType:string, options:IColorizerOptions): TPromise<string> {
-	options = options || {};
-	if (typeof options.tabSize === 'undefined') {
-		options.tabSize = 4;
+	public static colorizeElement(modeService:IModeService, domNode:HTMLElement, options:IColorizerElementOptions): TPromise<void> {
+		options = options || {};
+		var theme = options.theme || 'vs';
+		var mimeType = options.mimeType || domNode.getAttribute('lang') || domNode.getAttribute('data-lang');
+		if (!mimeType) {
+			console.error('Mode not detected');
+			return;
+		}
+		var text = domNode.firstChild.nodeValue;
+		domNode.className += 'monaco-editor ' + theme;
+		var render = (str:string) => {
+			domNode.innerHTML = str;
+		};
+		return this.colorize(modeService, text, mimeType, options).then(render, (err) => console.error(err), render);
 	}
 
-	var lines = text.split('\n'),
-		c: (v:string)=>void,
-		e: (err:any)=>void,
-		p: (v:string)=>void,
-		isCancelled = false,
-		mode: Modes.IMode;
-
-	var result = new TPromise<string>((_c, _e, _p) => {
-		c = _c;
-		e = _e;
-		p = _p;
-	}, () => {
-		isCancelled = true;
-	});
-
-	var colorize = new Schedulers.RunOnceScheduler(() => {
-		if (isCancelled) {
-			return;
+	public static colorize(modeService:IModeService, text:string, mimeType:string, options:IColorizerOptions): TPromise<string> {
+		options = options || {};
+		if (typeof options.tabSize === 'undefined') {
+			options.tabSize = 4;
 		}
-		var r = actualColorize(lines, mode, options.tabSize);
-		if (r.retokenize.length > 0) {
-			// There are retokenization requests
-			r.retokenize.forEach((p) => p.then(scheduleColorize));
-			p(r.result);
-		} else {
-			// There are no (more) retokenization requests
-			c(r.result);
-		}
-	}, 0);
-	var scheduleColorize = () => colorize.schedule();
 
-	modeService.getOrCreateMode(mimeType).then((_mode) => {
-		if (!_mode) {
-			e('Mode not found: "' + mimeType + '".');
-			return;
-		}
-		if (!_mode.tokenizationSupport) {
-			e('Mode found ("' + _mode.getId() + '"), but does not support tokenization.');
-			return;
-		}
-		mode = _mode;
-		scheduleColorize();
-	});
+		var lines = text.split('\n'),
+			c: (v:string)=>void,
+			e: (err:any)=>void,
+			p: (v:string)=>void,
+			isCancelled = false,
+			mode: IMode;
 
-	return result;
+		var result = new TPromise<string>((_c, _e, _p) => {
+			c = _c;
+			e = _e;
+			p = _p;
+		}, () => {
+			isCancelled = true;
+		});
+
+		var colorize = new RunOnceScheduler(() => {
+			if (isCancelled) {
+				return;
+			}
+			var r = actualColorize(lines, mode, options.tabSize);
+			if (r.retokenize.length > 0) {
+				// There are retokenization requests
+				r.retokenize.forEach((p) => p.then(scheduleColorize));
+				p(r.result);
+			} else {
+				// There are no (more) retokenization requests
+				c(r.result);
+			}
+		}, 0);
+		var scheduleColorize = () => colorize.schedule();
+
+		modeService.getOrCreateMode(mimeType).then((_mode) => {
+			if (!_mode) {
+				e('Mode not found: "' + mimeType + '".');
+				return;
+			}
+			if (!_mode.tokenizationSupport) {
+				e('Mode found ("' + _mode.getId() + '"), but does not support tokenization.');
+				return;
+			}
+			mode = _mode;
+			scheduleColorize();
+		});
+
+		return result;
+	}
+
+	public static colorizeLine(line:string, tokens:ViewLineToken[], tabSize:number = 4): string {
+		var renderResult = renderLine(new RenderLineInput(
+			line,
+			tabSize,
+			0,
+			-1,
+			false,
+			tokens
+		));
+		return renderResult.output;
+	}
+
+	public static colorizeModelLine(model:IModel, lineNumber:number, tabSize:number = 4): string {
+		var content = model.getLineContent(lineNumber);
+		var tokens = model.getLineTokens(lineNumber, false);
+		var inflatedTokens = TokensBinaryEncoding.inflateArr(tokens.getBinaryEncodedTokensMap(), tokens.getBinaryEncodedTokens());
+		return this.colorizeLine(content, inflatedTokens, tabSize);
+	}
 }
 
-export function colorizeLine(line:string, tokens:EditorCommon.ILineToken[], tabSize:number = 4): string {
-	var renderResult = ViewLine.renderLine({
-		lineContent: line,
-		parts: tokens,
-		stopRenderingLineAfter: -1,
-		renderWhitespace: false,
-		tabSize: tabSize
-	});
-	return renderResult.output.join('');
-}
-
-export function colorizeModelLine(model:EditorCommon.IModel, lineNumber:number, tabSize:number = 4): string {
-	var content = model.getLineContent(lineNumber);
-	var tokens = model.getLineTokens(lineNumber, false);
-	var inflatedTokens = EditorCommon.LineTokensBinaryEncoding.inflateArr(tokens.getBinaryEncodedTokensMap(), tokens.getBinaryEncodedTokens());
-	return colorizeLine(content, inflatedTokens, tabSize);
-}
 
 interface IActualColorizeResult {
 	result:string;
 	retokenize:TPromise<void>[];
 }
 
-function actualColorize(lines:string[], mode:Modes.IMode, tabSize:number): IActualColorizeResult {
+function actualColorize(lines:string[], mode:IMode, tabSize:number): IActualColorizeResult {
 	var tokenization = mode.tokenizationSupport,
 		html:string[] = [],
 		state = tokenization.getInitialState(),
 		i:number,
 		length:number,
 		line: string,
-		tokenizeResult: Modes.ILineTokens,
-		renderResult: ViewLine.IRenderLineOutput,
+		tokenizeResult: ILineTokens,
+		renderResult: IRenderLineOutput,
 		retokenize: TPromise<void>[] = [];
 
 	for (i = 0, length = lines.length; i < length; i++) {
@@ -131,13 +137,14 @@ function actualColorize(lines:string[], mode:Modes.IMode, tabSize:number): IActu
 			retokenize.push(tokenizeResult.retokenize);
 		}
 
-		renderResult = ViewLine.renderLine({
-			lineContent: line,
-			parts: tokenizeResult.tokens,
-			stopRenderingLineAfter: -1,
-			renderWhitespace: false,
-			tabSize: tabSize
-		});
+		renderResult = renderLine(new RenderLineInput(
+			line,
+			tabSize,
+			0,
+			-1,
+			false,
+			tokenizeResult.tokens.map(t => new ViewLineToken(t.startIndex, t.type))
+		));
 
 		html = html.concat(renderResult.output);
 		html.push('<br/>');

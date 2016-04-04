@@ -4,126 +4,43 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import objects = require('vs/base/common/objects');
-import types = require('vs/base/common/types');
+import URI from 'vs/base/common/uri';
 
-export interface IMarshallingContribution {
-
-	canSerialize(obj:any): boolean;
-
-	serialize(obj:any, serialize:(obj:any)=>any): any;
-
-	canDeserialize(obj:any): boolean;
-
-	deserialize(obj:any, deserialize:(obj:any)=>any): any;
-
+export function stringify(obj: any): string {
+	return JSON.stringify(obj, replacer);
 }
 
-var marshallingContributions:IMarshallingContribution[] = [];
-
-export function registerMarshallingContribution(contribution:IMarshallingContribution): void {
-	marshallingContributions.push(contribution);
+export function parse(text: string): any {
+	return JSON.parse(text, reviver);
 }
 
-var currentDynamicContrib:IMarshallingContribution = null;
-
-export function canSerialize(obj: any): boolean {
-	for (let contrib of marshallingContributions) {
-		if (contrib.canSerialize(obj)) {
-			return true;
-		}
-	}
-	if (currentDynamicContrib && currentDynamicContrib.canSerialize(obj)) {
-		return true;
-	}
+interface MarshalledObject {
+	$mid: number;
 }
 
-export function serialize(obj:any): any {
-	return objects.cloneAndChange(obj, (orig:any) => {
-		if (typeof orig === 'object') {
-			for (var i = 0; i < marshallingContributions.length; i++) {
-				var contrib = marshallingContributions[i];
-				if (contrib.canSerialize(orig)) {
-					return contrib.serialize(orig, serialize);
-				}
-			}
-			if (currentDynamicContrib && currentDynamicContrib.canSerialize(orig)) {
-				return currentDynamicContrib.serialize(orig, serialize);
-			}
-		}
-		return undefined;
-	});
-}
-
-export function deserialize(obj:any): any {
-	return objects.cloneAndChange(obj, (orig:any) => {
-		if (types.isObject(orig)) {
-			for (var i = 0; i < marshallingContributions.length; i++) {
-				var contrib = marshallingContributions[i];
-				if (contrib.canDeserialize(orig)) {
-					return contrib.deserialize(orig, deserialize);
-				}
-			}
-			if (currentDynamicContrib && currentDynamicContrib.canDeserialize(orig)) {
-				return currentDynamicContrib.deserialize(orig, deserialize);
-			}
-		}
-		return undefined;
-	});
-}
-
-// RegExp marshaller
-
-interface ISerializedRegExp {
-	$isRegExp: boolean;
-	source: string;
-	flags: string;
-}
-
-registerMarshallingContribution({
-
-	canSerialize: (obj:any): boolean => {
-		return obj instanceof RegExp;
-	},
-
-	serialize: (regex:RegExp, serialize:(obj:any)=>any): ISerializedRegExp => {
-		var flags = '';
-
-		if (regex.global) {
-			flags += 'g';
-		} else if (regex.ignoreCase) {
-			flags += 'i';
-		} else if (regex.multiline) {
-			flags += 'm';
-		}
-
+function replacer(key: string, value: any): any {
+	// URI is done via toJSON-member
+	if (value instanceof RegExp) {
 		return {
-			$isRegExp: true,
-			source: regex.source,
-			flags: flags
+			$mid: 2,
+			source: (<RegExp>value).source,
+			flags: ((<RegExp>value).global ? 'g' : '') + ((<RegExp>value).ignoreCase ? 'i' : '') + ((<RegExp>value).multiline ? 'm' : ''),
 		};
-	},
-
-	canDeserialize: (obj:ISerializedRegExp): boolean => {
-		return obj.$isRegExp;
-	},
-
-	deserialize: (obj:ISerializedRegExp, deserialize:(obj:any)=>any): any => {
-		return new RegExp(obj.source, obj.flags);
 	}
-
-});
-
-export function marshallObject(obj:any, dynamicContrib:IMarshallingContribution = null): string {
-	currentDynamicContrib = dynamicContrib;
-	var r = JSON.stringify(serialize(obj));
-	currentDynamicContrib = null;
-	return r;
+	return value;
 }
 
-export function demarshallObject(serialized:string, dynamicContrib:IMarshallingContribution = null): any {
-	currentDynamicContrib = dynamicContrib;
-	var r = deserialize(JSON.parse(serialized));
-	currentDynamicContrib = null;
-	return r;
+
+function reviver(key: string, value: any): any {
+	let marshallingConst: number;
+	if (value !== void 0 && value !== null) {
+		marshallingConst = (<MarshalledObject>value).$mid;
+	}
+	if (marshallingConst === 1) {
+		return URI.revive(value);
+	} else if (marshallingConst === 2) {
+		return new RegExp(value.source, value.flags);
+	} else {
+		return value;
+	}
 }

@@ -1,0 +1,51 @@
+﻿{
+"id": "http://schema.management.azure.com/schemas/2014-04-01/SuccessBricks.ClearDB.json",
+"$schema": "http://json-schema.org/draft-04/schema#",
+"title": "SuccessBricks.ClearDB",
+"description": "SuccessBricks ClearDB Resource Types",
+"definitions": {
+	"databases": {
+		"type":"object",
+		"properties": {
+			"type": {
+				"enum": [
+					"SuccessBricks.ClearDB/databases"
+				]
+			},
+			"apiVersion": {
+				"enum": [
+					"2014-04-01"
+				]
+			},
+			"plan": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"oneOf": [
+							{
+								"$ref":  "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#/definitions/expression"
+							},
+							{
+								"enum": [
+									"Free",
+									"Jupiter",
+									"Saturn",
+									"Venus"
+								]
+							}
+						],
+						"description": "Name of the plan"
+					}
+				},
+				"required": ["name"],
+				"description": "ClearDB database plan"
+			}
+		},
+		"required": [
+			"type",
+			"apiVersion",
+			"plan"
+		]
+	}
+}
+}

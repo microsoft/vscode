@@ -26,12 +26,15 @@
 	vertical-align: top;
 }
 
-.monaco-workbench > .part.statusbar > .statusbar-item.left {
+.monaco-workbench > .part.statusbar > .statusbar-item.left > :first-child {
 	margin-right: 5px;
 }
 
 .monaco-workbench > .part.statusbar > .statusbar-item.right {
 	float: right;
+}
+
+.monaco-workbench > .part.statusbar > .statusbar-item.right > :first-child {
 	margin-left: 5px;
 }
 

@@ -48,5 +48,17 @@ suite('Arrays', () => {
 		assert.equal(arrays.binarySearch(array, 70, compare), ~10);
 
 	});
+
+	test('distinct', function() {
+		function compare(a: string): string {
+			return a;
+		}
+
+		assert.deepEqual(arrays.distinct(['32', '4', '5'], compare), ['32', '4', '5']);
+		assert.deepEqual(arrays.distinct(['32', '4', '5', '4'], compare), ['32', '4', '5']);
+		assert.deepEqual(arrays.distinct(['32', 'constructor', '5', '1'], compare), ['32', 'constructor', '5', '1']);
+		assert.deepEqual(arrays.distinct(['32', 'constructor', 'proto', 'proto', 'constructor'], compare), ['32', 'constructor', 'proto']);
+		assert.deepEqual(arrays.distinct(['32', '4', '5', '32', '4', '5', '32', '4', '5', '5'], compare), ['32', '4', '5']);
+	});
 });
 

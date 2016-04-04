@@ -4,10 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
 import Platform = require('vs/base/common/platform');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import Schedulers = require('vs/base/common/async');
 import errors = require('vs/base/common/errors');
 import precision = require('vs/base/common/stopwatch');
 

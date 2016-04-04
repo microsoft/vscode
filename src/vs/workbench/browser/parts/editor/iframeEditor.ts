@@ -7,32 +7,32 @@
 
 import 'vs/css!./media/iframeeditor';
 import nls = require('vs/nls');
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
+import {Dimension, Builder, $} from 'vs/base/browser/builder';
 import errors = require('vs/base/common/errors');
 import {EditorOptions, EditorInput} from 'vs/workbench/common/editor';
-import {EditorInputAction, BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {IFrameEditorInput} from 'vs/workbench/browser/parts/editor/iframeEditorInput';
-import {IFrameEditorModel} from 'vs/workbench/browser/parts/editor/iframeEditorModel';
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import {BaseEditor} from 'vs/workbench/browser/parts/editor/baseEditor';
+import {IFrameEditorInput} from 'vs/workbench/common/editor/iframeEditorInput';
+import {IFrameEditorModel} from 'vs/workbench/common/editor/iframeEditorModel';
+import {IStorageService} from 'vs/platform/storage/common/storage';
 import {Position} from 'vs/platform/editor/common/editor';
 import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 
 /**
- * An implementation of editor for embedding a URL into an IFrame by leveraging the IFrameEditorInput.
+ * An implementation of editor for showing HTML content in an IFrame by leveraging the IFrameEditorInput.
  */
 export class IFrameEditor extends BaseEditor {
 
 	public static ID = 'workbench.editors.iFrameEditor';
-	public static allowScriptExecutionSettingsKey = 'workbench.editor.allowIframeScriptExecution';
 
 	private static RESOURCE_PROPERTY = 'resource';
 
 	private iframeContainer: Builder;
 	private iframeBuilder: Builder;
+	private focusTracker: DOM.IFocusTracker;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -52,7 +52,7 @@ export class IFrameEditor extends BaseEditor {
 		let iframeContainerElement = document.createElement('div');
 		iframeContainerElement.className = 'iframe-container monaco-editor-background'; // Inherit the background color from selected theme
 		this.iframeContainer = $(iframeContainerElement);
-		this.iframeContainer.tabindex(0); // enable focus support
+		this.iframeContainer.tabindex(0); // enable focus support from the editor part (do not remove)
 
 		// IFrame
 		this.iframeBuilder = $(this.iframeContainer).element('iframe').addClass('iframe');
@@ -96,44 +96,32 @@ export class IFrameEditor extends BaseEditor {
 				return null;
 			}
 
-			let allowScriptExecution = this.storageService.getBoolean(IFrameEditor.allowScriptExecutionSettingsKey, StorageScope.WORKSPACE, false);
-
-			// Set IFrame contents directly
+			// Set IFrame contents
 			let iframeModel = <IFrameEditorModel>resolvedModel;
-			if (iframeModel.hasContents()) {
-				let isUpdate = !isNewInput && !!this.iframeBuilder.getProperty(IFrameEditor.RESOURCE_PROPERTY);
-				let contents = iframeModel.getContents();
+			let isUpdate = !isNewInput && !!this.iframeBuilder.getProperty(IFrameEditor.RESOURCE_PROPERTY);
+			let contents = iframeModel.getContents();
 
-				// Sanitize Script from content if script execution is not allowed
-				if (!allowScriptExecution) {
-					contents.body = DOM.removeScriptTags(contents.body);
-				}
+			// Crazy hack to get keybindings to bubble out of the iframe to us
+			contents.body = contents.body + this.enableKeybindings();
 
-				// Crazy hack to get keybindings to bubble out of the iframe to us
-				contents.body = contents.body + this.enableKeybindings();
-
-				// Set Contents
-				try {
-					this.setFrameContents(iframeModel.resource, isUpdate ? contents.body : [contents.head, contents.body, contents.tail].join('\n'), isUpdate /* body only */);
-				} catch (error) {
-					setTimeout(() => this.reload(true /* clear */), 1000); // retry in case of an error which indicates the iframe (only) might be on a different URL
-				}
+			// Set Contents
+			try {
+				this.setFrameContents(iframeModel.resource, isUpdate ? contents.body : [contents.head, contents.body, contents.tail].join('\n'), isUpdate /* body only */);
+			} catch (error) {
+				setTimeout(() => this.reload(true /* clear */), 1000); // retry in case of an error which indicates the iframe (only) might be on a different URL
 			}
 
-			// Set IFrame source location
-			else {
+			// When content is fully replaced, we also need to recreate the focus tracker
+			if (!isUpdate) {
+				this.clearFocusTracker();
+			}
 
-				// Sandboxing (can only be applied when using a real source location)
-				if (allowScriptExecution) {
-					this.iframeBuilder.removeAttribute('sandbox');
-				} else {
-					this.iframeBuilder.attr({
-						'sandbox': 'allow-same-origin' // protect us from attacks (see http://www.w3schools.com/tags/att_iframe_sandbox.asp)
-					});
-				}
-
-				// Set URL
-				this.iframeBuilder.src(iframeModel.getUrl() + '?etag=' + new Date().getTime()); // make sure to bypass browser caches by appending current time
+			// Track focus on contents and make the editor active when focus is received
+			if (!this.focusTracker) {
+				this.focusTracker = DOM.trackFocus((<HTMLIFrameElement>this.iframeBuilder.getHTMLElement()).contentWindow);
+				this.focusTracker.addFocusListener(() => {
+					this.editorService.activateEditor(this.position);
+				});
 			}
 		});
 	}
@@ -163,8 +151,9 @@ export class IFrameEditor extends BaseEditor {
 	private enableKeybindings(): string {
 		return [
 			'<script>',
-			'var ignoredKeys = [32 /* space */, 33 /* page up */, 34 /* page down */, 38 /* up */, 40 /* down */];',
-			'var ignoredCtrlCmdKeys = [67 /* c */];',
+			'var ignoredKeys = [9 /* tab */, 32 /* space */, 33 /* page up */, 34 /* page down */, 38 /* up */, 40 /* down */];',
+			'var ignoredCtrlCmdKeys = [65 /* a */, 67 /* c */];',
+			'var ignoredShiftKeys = [9 /* tab */];',
 			'window.document.body.addEventListener("keydown", function(event) {',		// Listen to keydown events in the iframe
 			'	try {',
 			'		if (ignoredKeys.some(function(i) { return i === event.keyCode; })) {',
@@ -176,6 +165,12 @@ export class IFrameEditor extends BaseEditor {
 			'		if (ignoredCtrlCmdKeys.some(function(i) { return i === event.keyCode; })) {',
 			'			if (event.ctrlKey || event.metaKey) {',
 			'				return;',													// we want some ctrl/cmd keys to be supported (e.g. Ctrl+C for copy)
+			'			}',
+			'		}',
+			'',
+			'		if (ignoredShiftKeys.some(function(i) { return i === event.keyCode; })) {',
+			'			if (event.shiftKey) {',
+			'				return;',													// we want some shift keys to be supported (e.g. Shift+Tab for copy)
 			'			}',
 			'		}',
 			'',
@@ -204,7 +199,7 @@ export class IFrameEditor extends BaseEditor {
 			'	} catch (error) {}',
 			'});',
 
-		// disable dropping into iframe!
+			// disable dropping into iframe!
 			'window.document.addEventListener("dragover", function (e) {',
 			'	e.preventDefault();',
 			'});',
@@ -232,6 +227,16 @@ export class IFrameEditor extends BaseEditor {
 	private clearIFrame(): void {
 		this.iframeBuilder.src('about:blank');
 		this.iframeBuilder.removeProperty(IFrameEditor.RESOURCE_PROPERTY);
+
+		// Focus Listener
+		this.clearFocusTracker();
+	}
+
+	private clearFocusTracker(): void {
+		if (this.focusTracker) {
+			this.focusTracker.dispose();
+			this.focusTracker = null;
+		}
 	}
 
 	public layout(dimension: Dimension): void {
@@ -276,37 +281,9 @@ export class IFrameEditor extends BaseEditor {
 		// Destroy Container
 		this.iframeContainer.destroy();
 
+		// Focus Listener
+		this.clearFocusTracker();
+
 		super.dispose();
-	}
-}
-
-export class ToggleJavaScriptInIFrameEditorInputAction extends EditorInputAction {
-
-	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IStorageService private storageService: IStorageService
-	) {
-		super('workbench.files.action.toggleJSInIFrameEditor', nls.localize('enableJavaScript', "Enable JavaScript"));
-	}
-
-	public get label(): string {
-		let allowScriptExecution = this.storageService.getBoolean(IFrameEditor.allowScriptExecutionSettingsKey, StorageScope.WORKSPACE, false);
-
-		if (allowScriptExecution) {
-			return nls.localize('disableJavaScript', "Disable JavaScript");
-		}
-
-		return nls.localize('enableJavaScript', "Enable JavaScript");
-	}
-
-	public run(event?: any): Promise {
-
-		// Apply globally
-		this.storageService.swap(IFrameEditor.allowScriptExecutionSettingsKey, true, false, StorageScope.WORKSPACE, false);
-
-		let options = new EditorOptions();
-		options.forceOpen = true; // force open since we open the same input again
-
-		return this.editorService.openEditor(this.input, options, this.position);
 	}
 }

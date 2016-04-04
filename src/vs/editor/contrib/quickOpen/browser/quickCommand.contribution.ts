@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import Browser = require('vs/base/browser/browser');
+import * as nls from 'vs/nls';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import * as browser from 'vs/base/browser/browser';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import QuickCommand = require('./quickCommand');
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {QuickCommandAction} from './quickCommand';
 
 // Contribute "Quick Command" to context menu
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(QuickCommand.QuickCommandAction, QuickCommand.QuickCommandAction.ID, nls.localize('label', "Command Palette"), {
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(QuickCommandAction, QuickCommandAction.ID, nls.localize('label', "Command Palette"), {
 	context: ContextKey.EditorFocus,
-	primary: (Browser.isIE11orEarlier ? KeyMod.Alt | KeyCode.F1 : KeyCode.F1)
+	primary: (browser.isIE11orEarlier ? KeyMod.Alt | KeyCode.F1 : KeyCode.F1)
 }));

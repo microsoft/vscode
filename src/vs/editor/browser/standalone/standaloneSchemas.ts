@@ -5,7 +5,7 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import {IJSONSchema} from 'vs/base/common/jsonSchema';
 
 this.MonacoEditorSchemas = this.MonacoEditorSchemas || {};
@@ -748,7 +748,7 @@ MonacoEditorSchemas['http://json.schemastore.org/tsconfig'] = {
 				},
 				'watch': {
 					'description': nls.localize('tsconfig.json.compilerOptions.watch', "Watch input files."),
-					"type": 'boolean'
+					'type': 'boolean'
 				},
 				'jsx': {
 					'description': nls.localize('tsconfig.json.compilerOptions.jsx', "Enable the JSX option (requires TypeScript 1.6):  'preserve', 'react'."),

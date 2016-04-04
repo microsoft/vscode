@@ -6,18 +6,15 @@
 'use strict';
 
 import chokidar = require('chokidar');
-import paths = require('path');
 import fs = require('fs');
 
 import gracefulFs = require('graceful-fs');
 gracefulFs.gracefulify(fs);
 
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {FileChangeType} from 'vs/platform/files/common/files';
 import {ThrottledDelayer} from 'vs/base/common/async';
 import strings = require('vs/base/common/strings');
-import basePaths = require('vs/base/common/paths');
-import arrays = require('vs/base/common/arrays');
 
 import {IWatcherRequest, WatcherService} from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import watcher = require('vs/workbench/services/files/node/watcher/common');
@@ -30,20 +27,27 @@ export class ChokidarWatcherService extends WatcherService {
 	private spamCheckStartTime:number;
 	private spamWarningLogged:boolean;
 
-	public watch(request: IWatcherRequest): Promise {
-		let watcherOpts: any = {
+	public watch(request: IWatcherRequest): TPromise<void> {
+		let watcherOpts: chokidar.IOptions = {
 			ignoreInitial: true,
 			ignorePermissionErrors: true,
 			followSymlinks: true, // this is the default of chokidar and supports file events through symlinks
-			ignored: request.ignored
+			ignored: request.ignored,
+			interval: 1000, // while not used in normal cases, if any error causes chokidar to fallback to polling, increase its intervals
+			binaryInterval: 1000
 		};
 
 		let chokidarWatcher = chokidar.watch(request.basePath, watcherOpts);
 
+		// Detect if for some reason the native watcher library fails to load
+		if (process.platform === 'darwin' && !chokidarWatcher.options.useFsEvents) {
+			console.error('Watcher is not using native fsevents library and is falling back to unefficient polling.');
+		}
+
 		let undeliveredFileEvents: watcher.IRawFileChange[] = [];
 		let fileEventDelayer = new ThrottledDelayer(ChokidarWatcherService.FS_EVENT_DELAY);
 
-		return new Promise((c, e, p) => {
+		return new TPromise<void>((c, e, p) => {
 			chokidarWatcher.on('all', (type: string, path: string) => {
 				if (path.indexOf(request.basePath) < 0) {
 					return; // we really only care about absolute paths here in our basepath context here
@@ -111,7 +115,7 @@ export class ChokidarWatcherService extends WatcherService {
 							});
 						}
 
-						return Promise.as(null);
+						return TPromise.as(null);
 					});
 				}
 			});

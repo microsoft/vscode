@@ -6,7 +6,6 @@
 
 import * as assert from 'assert';
 import paths = require('vs/base/common/paths');
-import uri from 'vs/base/common/uri';
 import platform = require('vs/base/common/platform');
 
 suite('Paths', () => {
@@ -41,7 +40,7 @@ suite('Paths', () => {
 		assert.equal(next.value, undefined);
 		assert.equal(next.done, true);
 
-		var iter = paths.dirnames('/foo/bar');
+		iter = paths.dirnames('/foo/bar');
 		next = iter.next();
 		assert.equal(next.value, '/foo');
 		assert.equal(next.done, false);
@@ -52,7 +51,7 @@ suite('Paths', () => {
 		assert.equal(next.value, undefined);
 		assert.equal(next.done, true);
 
-		var iter = paths.dirnames('c:\\far\\boo');
+		iter = paths.dirnames('c:\\far\\boo');
 		next = iter.next();
 		assert.equal(next.value, 'c:\\far');
 		assert.equal(next.done, false);
@@ -182,5 +181,39 @@ suite('Paths', () => {
 		} else {
 			assert(!paths.isUNC('\\\\foo'));
 		}
+	});
+
+	test('isValidBasename', () => {
+		assert.ok(!paths.isValidBasename(null));
+		assert.ok(!paths.isValidBasename(''));
+		assert.ok(paths.isValidBasename('test.txt'));
+		assert.ok(!paths.isValidBasename('/test.txt'));
+		assert.ok(!paths.isValidBasename('\\test.txt'));
+
+		if (platform.isWindows) {
+			assert.ok(!paths.isValidBasename('aux'));
+			assert.ok(!paths.isValidBasename('Aux'));
+			assert.ok(!paths.isValidBasename('LPT0'));
+			assert.ok(!paths.isValidBasename('test.txt.'));
+			assert.ok(!paths.isValidBasename('test.txt..'));
+			assert.ok(!paths.isValidBasename('test.txt '));
+			assert.ok(!paths.isValidBasename('test.txt\t'));
+			assert.ok(!paths.isValidBasename('tes:t.txt'));
+			assert.ok(!paths.isValidBasename('tes"t.txt'));
+		}
+	});
+
+	test('isAbsolute', () => {
+		assert.equal(paths.isAbsolute('/a/b/c'), true);
+		assert.equal(paths.isAbsolute('a/b/'), false);
+		assert.equal(paths.isAbsolute('a/b/cde/f'), false);
+		assert.equal(paths.isAbsolute('/A/a/b/cde/f'), true);
+
+		assert.equal(paths.isAbsolute('c:\\a\\b\\c'), true);
+		assert.equal(paths.isAbsolute('D:\\a\\b\\'), true);
+		assert.equal(paths.isAbsolute('a\\b\\c'), false);
+		assert.equal(paths.isAbsolute('\\a\\b\\c'), false);
+		assert.equal(paths.isAbsolute('F\\a\\b\\c'), false);
+		assert.equal(paths.isAbsolute('F:\\a'), true);
 	});
 });

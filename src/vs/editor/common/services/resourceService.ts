@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {ListenerUnbind, ListenerCallback, IEventEmitter, IEmitterEvent} from 'vs/base/common/eventEmitter';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {EventProvider} from 'vs/base/common/eventProvider';
-import URI from 'vs/base/common/uri';
+import {IEmitterEvent, ListenerCallback, ListenerUnbind} from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
+import URI from 'vs/base/common/uri';
+import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {IMirrorModel} from 'vs/editor/common/editorCommon';
 
 // Resource Service
 
@@ -21,12 +20,12 @@ export var ResourceEvents = {
 
 export interface IResourceAddedEvent {
 	url: URI;
-	addedElement: EditorCommon.IMirrorModel;
+	addedElement: IMirrorModel;
 }
 
 export interface IResourceRemovedEvent {
 	url: URI;
-	removedElement: EditorCommon.IMirrorModel;
+	removedElement: IMirrorModel;
 }
 
 export interface IResourceChangedEvent {
@@ -38,9 +37,9 @@ export var IResourceService = createDecorator<IResourceService>('resourceService
 
 export interface IResourceService {
 	serviceId: ServiceIdentifier<any>;
-	insert(url: URI, element: EditorCommon.IMirrorModel): void;
-	get(url: URI): EditorCommon.IMirrorModel;
-	all(): EditorCommon.IMirrorModel[];
+	insert(url: URI, element: IMirrorModel): void;
+	get(url: URI): IMirrorModel;
+	all(): IMirrorModel[];
 	contains(url: URI): boolean;
 	remove(url: URI): void;
 	addListener_(eventType: 'resource.added', listener: (event: IResourceAddedEvent) => void): ListenerUnbind;

@@ -4,163 +4,86 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import DomUtils = require('vs/base/browser/dom');
-import Lifecycle = require('vs/base/common/lifecycle');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import BrowserService = require('vs/base/browser/browserService');
+import {TimeoutTimer} from 'vs/base/common/async';
+import {EventEmitter} from 'vs/base/common/eventEmitter';
+import {Disposable, IDisposable} from 'vs/base/common/lifecycle';
+import {getService} from 'vs/base/browser/browserService';
+import * as dom from 'vs/base/browser/dom';
 
 export enum UserStatus {
 	Idle,
 	Active
 }
 
-export var DEFAULT_IDLE_TIME = 60 * 60 * 1000; // 60 minutes
+export const DEFAULT_IDLE_TIME = 60 * 60 * 1000; // 60 minutes
 
-export class IdleMonitor {
+export class IdleMonitor extends Disposable {
 
-	private toDispose:Lifecycle.IDisposable[];
-	private lastActiveTime:number;
-	private idleCheckTimeout:number;
-	private status:UserStatus;
-	private eventEmitter:EventEmitter.EventEmitter;
-	private instance:ReferenceCountedIdleMonitor;
-	private idleTime:number;
+	private _lastActiveTime: number;
+	private _idleCheckTimeout: TimeoutTimer;
+	private _status: UserStatus;
+	private _eventEmitter: EventEmitter;
+	private _idleTime: number;
 
-	constructor(idleTime:number = DEFAULT_IDLE_TIME) {
-		this.instance = ReferenceCountedIdleMonitor.INSTANCE;
-		this.instance.increment();
+	constructor(idleTime: number = DEFAULT_IDLE_TIME) {
+		super();
 
-		this.status = null;
-		this.idleCheckTimeout = -1;
-		this.lastActiveTime = -1;
-		this.idleTime = idleTime;
+		this._status = null;
+		this._idleCheckTimeout = this._register(new TimeoutTimer());
+		this._lastActiveTime = -1;
+		this._idleTime = idleTime;
 
-		this.toDispose = [];
-		this.eventEmitter = new EventEmitter.EventEmitter();
-		this.toDispose.push(this.eventEmitter);
-		this.toDispose.push({dispose: this.instance.addListener(() => this.onUserActive())});
-		this.onUserActive();
+		this._eventEmitter = this._register(new EventEmitter());
+		this._register(dom.addDisposableListener(getService().document, 'mousemove', () => this._onUserActive()));
+		this._register(dom.addDisposableListener(getService().document, 'keydown', () => this._onUserActive()));
+		this._onUserActive();
 	}
 
-	public addOneTimeActiveListener(callback:()=>void): Lifecycle.IDisposable {
-		return this.eventEmitter.addOneTimeDisposableListener('onActive', callback);
+	public dispose(): void {
+		super.dispose();
 	}
 
-	public addOneTimeIdleListener(callback:()=>void): Lifecycle.IDisposable {
-		return this.eventEmitter.addOneTimeDisposableListener('onIdle', callback);
+	public addOneTimeActiveListener(callback: () => void): IDisposable {
+		return this._eventEmitter.addOneTimeDisposableListener('onActive', callback);
+	}
+
+	public addOneTimeIdleListener(callback: () => void): IDisposable {
+		return this._eventEmitter.addOneTimeDisposableListener('onIdle', callback);
 	}
 
 	public getStatus(): UserStatus {
-		return this.status;
+		return this._status;
 	}
 
-	public dispose(): void {
-		this.cancelIdleCheck();
-		this.toDispose = Lifecycle.disposeAll(this.toDispose);
-		this.instance.decrement();
-	}
-
-	private onUserActive(): void {
-		this.lastActiveTime = (new Date()).getTime();
-		if (this.status !== UserStatus.Active) {
-			this.status = UserStatus.Active;
-			this.scheduleIdleCheck();
-			this.eventEmitter.emit('onActive');
+	private _onUserActive(): void {
+		this._lastActiveTime = (new Date()).getTime();
+		if (this._status !== UserStatus.Active) {
+			this._status = UserStatus.Active;
+			this._scheduleIdleCheck();
+			this._eventEmitter.emit('onActive');
 		}
 	}
 
-	private onUserIdle(): void {
-		if (this.status !== UserStatus.Idle) {
-			this.status = UserStatus.Idle;
-			this.eventEmitter.emit('onIdle');
+	private _onUserIdle(): void {
+		if (this._status !== UserStatus.Idle) {
+			this._status = UserStatus.Idle;
+			this._eventEmitter.emit('onIdle');
 		}
 	}
 
-	private scheduleIdleCheck(): void {
-		if (this.idleCheckTimeout === -1) {
-			var minimumTimeWhenUserCanBecomeIdle = this.lastActiveTime + this.idleTime;
-			this.idleCheckTimeout = setTimeout(() => {
-				this.idleCheckTimeout = -1;
-				this.checkIfUserIsIdle();
-			}, minimumTimeWhenUserCanBecomeIdle - (new Date()).getTime());
-		}
+	private _scheduleIdleCheck(): void {
+		let minimumTimeWhenUserCanBecomeIdle = this._lastActiveTime + this._idleTime;
+		this._idleCheckTimeout.setIfNotSet(() => {
+			this._checkIfUserIsIdle();
+		}, minimumTimeWhenUserCanBecomeIdle - (new Date()).getTime());
 	}
 
-	private cancelIdleCheck(): void {
-		if (this.idleCheckTimeout !== -1) {
-			clearTimeout(this.idleCheckTimeout);
-			this.idleCheckTimeout = -1;
-		}
-	}
-
-	private checkIfUserIsIdle(): void {
-		var actualIdleTime = (new Date()).getTime() - this.lastActiveTime;
-		if (actualIdleTime >= this.idleTime) {
-			this.onUserIdle();
+	private _checkIfUserIsIdle(): void {
+		let actualIdleTime = (new Date()).getTime() - this._lastActiveTime;
+		if (actualIdleTime >= this._idleTime) {
+			this._onUserIdle();
 		} else {
-			this.scheduleIdleCheck();
+			this._scheduleIdleCheck();
 		}
-	}
-}
-
-class ReferenceCountedObject {
-
-	private referenceCount:number;
-
-	constructor() {
-		this.referenceCount = 0;
-	}
-
-	public increment(): void {
-		if (this.referenceCount === 0) {
-			this.construct();
-		}
-		this.referenceCount++;
-	}
-
-	public decrement(): void {
-		if (this.referenceCount > 0) {
-			this.referenceCount--;
-			if (this.referenceCount === 0) {
-				this.dispose();
-			}
-		}
-	}
-
-	public construct(): void {
-		throw new Error('Implement me');
-	}
-
-	public dispose(): void {
-		throw new Error('Implement me');
-	}
-}
-
-class ReferenceCountedIdleMonitor extends ReferenceCountedObject {
-
-	public static INSTANCE:ReferenceCountedIdleMonitor = new ReferenceCountedIdleMonitor();
-
-	private toDispose:Lifecycle.IDisposable[];
-	private eventEmitter:EventEmitter.EventEmitter;
-
-	public construct(): void {
-		this.toDispose = [];
-		this.eventEmitter = new EventEmitter.EventEmitter();
-		this.toDispose.push(this.eventEmitter);
-		this.toDispose.push(DomUtils.addDisposableListener(BrowserService.getService().document, 'mousemove', () => this.onUserActive()));
-		this.toDispose.push(DomUtils.addDisposableListener(BrowserService.getService().document, 'keydown', () => this.onUserActive()));
-		this.onUserActive();
-	}
-
-	public dispose(): void {
-		this.toDispose = Lifecycle.disposeAll(this.toDispose);
-	}
-
-	private onUserActive(): void {
-		this.eventEmitter.emit('onActive');
-	}
-
-	public addListener(callback:()=>void):EventEmitter.ListenerUnbind {
-		return this.eventEmitter.addListener('onActive', callback);
 	}
 }

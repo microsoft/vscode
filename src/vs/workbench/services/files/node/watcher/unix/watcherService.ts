@@ -5,11 +5,8 @@
 
 'use strict';
 
-import {Promise} from 'vs/base/common/winjs.base';
-import { Client } from 'vs/base/node/service.cp';
-import types = require('vs/base/common/types');
-import events = require('vs/base/common/eventEmitter');
-import arrays = require('vs/base/common/arrays');
+import {TPromise} from 'vs/base/common/winjs.base';
+import {Client} from 'vs/base/node/service.cp';
 import uri from 'vs/base/common/uri';
 import {EventType} from 'vs/platform/files/common/files';
 import {toFileChangesEvent, IRawFileChange} from 'vs/workbench/services/files/node/watcher/common';
@@ -22,20 +19,23 @@ export interface IWatcherRequest {
 }
 
 export class WatcherService {
-	public watch(request: IWatcherRequest): Promise {
+	public watch(request: IWatcherRequest): TPromise<void> {
 		throw new Error('not implemented');
 	}
 }
 
 export class FileWatcher {
+	private static MAX_RESTARTS = 5;
+
 	private isDisposed: boolean;
+	private restartCounter: number;
 
 	constructor(private basePath: string, private ignored: string[], private eventEmitter: IEventService, private errorLogger: (msg: string) => void, private verboseLogging: boolean) {
 		this.isDisposed = false;
+		this.restartCounter = 0;
 	}
 
-	public startWatching(): () => void /* dispose */ {
-
+	public startWatching(): () => void {
 		const client = new Client(
 			uri.parse(require.toUrl('bootstrap')).fsPath,
 			{
@@ -54,14 +54,20 @@ export class FileWatcher {
 		// Start watching
 		service.watch({ basePath: this.basePath, ignored: this.ignored, verboseLogging: this.verboseLogging }).then(null, (err) => {
 			if (!(err instanceof Error && err.name === 'Canceled' && err.message === 'Canceled')) {
-				return Promise.wrapError(err); // the service lib uses the promise cancel error to indicate the process died, we do not want to bubble this up
+				return TPromise.wrapError(err); // the service lib uses the promise cancel error to indicate the process died, we do not want to bubble this up
 			}
 		}, (events: IRawFileChange[]) => this.onRawFileEvents(events)).done(() => {
 
 			// our watcher app should never be completed because it keeps on watching. being in here indicates
-			// that the watcher process died and we want to restart it here.
+			// that the watcher process died and we want to restart it here. we only do it a max number of times
 			if (!this.isDisposed) {
-				this.startWatching();
+				if (this.restartCounter <= FileWatcher.MAX_RESTARTS) {
+					this.errorLogger('Watcher terminated unexpectedly and is restarted again...');
+					this.restartCounter++;
+					this.startWatching();
+				} else {
+					this.errorLogger('Watcher failed to start after retrying for some time, giving up. Please report this as a bug report!');
+				}
 			}
 		}, this.errorLogger);
 

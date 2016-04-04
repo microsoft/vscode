@@ -4,12 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {IInternalIndentationOptions, IPosition, IEditorSelection} from 'vs/editor/common/editorCommon';
+import {Selection} from 'vs/editor/common/core/selection';
 
 export interface IMoveResult {
 	lineNumber:number;
 	column:number;
 	leftoverVisibleColumns: number;
+}
+
+export interface IViewColumnSelectResult {
+	viewSelections: IEditorSelection[];
+	reversed: boolean;
+}
+export interface IColumnSelectResult extends IViewColumnSelectResult {
+	selections: IEditorSelection[];
+	toLineNumber: number;
+	toVisualColumn: number;
 }
 
 export interface ICursorMoveHelperModel {
@@ -22,7 +33,17 @@ export interface ICursorMoveHelperModel {
 }
 
 export interface IConfiguration {
-	getIndentationOptions(): EditorCommon.IInternalIndentationOptions;
+	getIndentationOptions(): IInternalIndentationOptions;
+}
+
+function isHighSurrogate(model, lineNumber, column) {
+	var code = model.getLineContent(lineNumber).charCodeAt(column - 1);
+	return 0xD800 <= code && code <= 0xDBFF;
+}
+
+function isLowSurrogate(model, lineNumber, column) {
+	var code = model.getLineContent(lineNumber).charCodeAt(column - 1);
+	return 0xDC00 <= code && code <= 0xDFFF;
 }
 
 export class CursorMoveHelper {
@@ -33,10 +54,10 @@ export class CursorMoveHelper {
 		this.configuration = configuration;
 	}
 
-	public getLeftOfPosition(model:ICursorMoveHelperModel, lineNumber:number, column:number): EditorCommon.IPosition {
+	public getLeftOfPosition(model:ICursorMoveHelperModel, lineNumber:number, column:number): IPosition {
 
 		if (column > model.getLineMinColumn(lineNumber)) {
-			column = column - 1;
+			column = column - (isLowSurrogate(model, lineNumber, column - 1) ? 2 : 1);
 		} else if (lineNumber > 1) {
 			lineNumber = lineNumber - 1;
 			column = model.getLineMaxColumn(lineNumber);
@@ -48,10 +69,10 @@ export class CursorMoveHelper {
 		};
 	}
 
-	public getRightOfPosition(model:ICursorMoveHelperModel, lineNumber:number, column:number): EditorCommon.IPosition {
+	public getRightOfPosition(model:ICursorMoveHelperModel, lineNumber:number, column:number): IPosition {
 
 		if (column < model.getLineMaxColumn(lineNumber)) {
-			column = column + 1;
+			column = column + (isHighSurrogate(model, lineNumber, column) ? 2 : 1);
 		} else if (lineNumber < model.getLineCount()) {
 			lineNumber = lineNumber + 1;
 			column = model.getLineMinColumn(lineNumber);
@@ -63,13 +84,17 @@ export class CursorMoveHelper {
 		};
 	}
 
-	public getPositionUp(model:ICursorMoveHelperModel, lineNumber:number, column:number, leftoverVisibleColumns:number, count:number): IMoveResult {
+	public getPositionUp(model:ICursorMoveHelperModel, lineNumber:number, column:number, leftoverVisibleColumns:number, count:number, allowMoveOnFirstLine:boolean): IMoveResult {
 		var currentVisibleColumn = this.visibleColumnFromColumn(model, lineNumber, column) + leftoverVisibleColumns;
 
 		lineNumber = lineNumber - count;
 		if (lineNumber < 1) {
 			lineNumber = 1;
-			column = model.getLineMinColumn(lineNumber);
+			if (allowMoveOnFirstLine) {
+				column = model.getLineMinColumn(lineNumber);
+			} else {
+				column = Math.min(model.getLineMaxColumn(lineNumber), column);
+			}
 		} else {
 			column = this.columnFromVisibleColumn(model, lineNumber, currentVisibleColumn);
 		}
@@ -83,14 +108,18 @@ export class CursorMoveHelper {
 		};
 	}
 
-	public getPositionDown(model:ICursorMoveHelperModel, lineNumber:number, column:number, leftoverVisibleColumns:number, count:number): IMoveResult {
+	public getPositionDown(model:ICursorMoveHelperModel, lineNumber:number, column:number, leftoverVisibleColumns:number, count:number, allowMoveOnLastLine:boolean): IMoveResult {
 		var currentVisibleColumn = this.visibleColumnFromColumn(model, lineNumber, column) + leftoverVisibleColumns;
 
 		lineNumber = lineNumber + count;
 		var lineCount = model.getLineCount();
 		if (lineNumber > lineCount) {
 			lineNumber = lineCount;
-			column = model.getLineMaxColumn(lineNumber);
+			if (allowMoveOnLastLine) {
+				column = model.getLineMaxColumn(lineNumber);
+			} else {
+				column = Math.min(model.getLineMaxColumn(lineNumber), column);
+			}
 		} else {
 			column = this.columnFromVisibleColumn(model, lineNumber, currentVisibleColumn);
 		}
@@ -100,6 +129,53 @@ export class CursorMoveHelper {
 			lineNumber: lineNumber,
 			column: column,
 			leftoverVisibleColumns: leftoverVisibleColumns
+		};
+	}
+
+	public columnSelect(model:ICursorMoveHelperModel, fromLineNumber:number, fromVisibleColumn:number, toLineNumber:number, toVisibleColumn:number): IViewColumnSelectResult {
+		let lineCount = Math.abs(toLineNumber - fromLineNumber) + 1;
+		let reversed = (fromLineNumber > toLineNumber);
+		let isRTL = (fromVisibleColumn > toVisibleColumn);
+		let isLTR = (fromVisibleColumn < toVisibleColumn);
+
+		let result: IEditorSelection[] = [];
+
+		// console.log(`fromVisibleColumn: ${fromVisibleColumn}, toVisibleColumn: ${toVisibleColumn}`);
+
+		for (let i = 0; i < lineCount; i++) {
+			let lineNumber = fromLineNumber + (reversed ? -i : i);
+
+			let startColumn = this.columnFromVisibleColumn(model, lineNumber, fromVisibleColumn);
+			let endColumn = this.columnFromVisibleColumn(model, lineNumber, toVisibleColumn);
+			let visibleStartColumn = this.visibleColumnFromColumn(model, lineNumber, startColumn);
+			let visibleEndColumn = this.visibleColumnFromColumn(model, lineNumber, endColumn);
+
+			// console.log(`lineNumber: ${lineNumber}: visibleStartColumn: ${visibleStartColumn}, visibleEndColumn: ${visibleEndColumn}`);
+
+			if (isLTR) {
+				if (visibleStartColumn > toVisibleColumn) {
+					continue;
+				}
+				if (visibleEndColumn < fromVisibleColumn) {
+					continue;
+				}
+			}
+
+			if (isRTL) {
+				if (visibleEndColumn > fromVisibleColumn) {
+					continue;
+				}
+				if (visibleStartColumn < toVisibleColumn) {
+					continue;
+				}
+			}
+
+			result.push(new Selection(lineNumber, startColumn, lineNumber, endColumn));
+		}
+
+		return {
+			viewSelections: result,
+			reversed: reversed
 		};
 	}
 

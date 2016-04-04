@@ -284,7 +284,7 @@ export class StatusModel extends EventEmitter.EventEmitter implements Git.IStatu
 	}
 
 	public dispose(): void {
-		this.toDispose = Lifecycle.disposeAll(this.toDispose);
+		this.toDispose = Lifecycle.dispose(this.toDispose);
 
 		if (this.indexStatus) {
 			this.indexStatus.dispose();
@@ -411,7 +411,7 @@ export class Model extends EventEmitter.EventEmitter implements Git.IModel {
 	}
 
 	public dispose(): void {
-		this.toDispose = Lifecycle.disposeAll(this.toDispose);
+		this.toDispose = Lifecycle.dispose(this.toDispose);
 		super.dispose();
 	}
 }

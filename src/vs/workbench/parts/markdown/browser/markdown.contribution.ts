@@ -8,15 +8,15 @@ import {Registry} from 'vs/platform/platform';
 import URI from 'vs/base/common/uri';
 import {IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput} from 'vs/workbench/common/editor';
-import {MarkdownEditorInput} from 'vs/workbench/parts/markdown/browser/markdownEditorInput';
+import {MarkdownEditorInput} from 'vs/workbench/parts/markdown/common/markdownEditorInput';
 import {MarkdownFileTracker} from 'vs/workbench/parts/markdown/browser/markdownExtension';
 import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
-import {IInstantiationService, INullService} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 
 // Register Editor Input Factory
 class MarkdownInputFactory implements IEditorInputFactory {
 
-	constructor(@INullService ns) {}
+	constructor() {}
 
 	public serialize(editorInput: EditorInput): string {
 		let markdownInput = <MarkdownEditorInput>editorInput;

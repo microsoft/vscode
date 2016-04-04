@@ -11,7 +11,7 @@ import paths = require('vs/base/common/paths');
 import lifecycle = require('vs/base/common/lifecycle');
 import collections = require('vs/base/common/collections');
 import {EventEmitter} from 'vs/base/common/eventEmitter';
-import {IModel, ITextModel, IModelDeltaDecoration, EventType, OverviewRulerLane, TrackedRangeStickiness, IModelDecorationOptions, IRange} from 'vs/editor/common/editorCommon';
+import {IModel, ITextModel, IModelDeltaDecoration, EventType, OverviewRulerLane, TrackedRangeStickiness, IModelDecorationOptions, IEditorRange} from 'vs/editor/common/editorCommon';
 import {Range} from 'vs/editor/common/core/range';
 import {IModelService} from 'vs/editor/common/services/modelService';
 import * as Search from 'vs/platform/search/common/search';
@@ -21,7 +21,7 @@ export class Match {
 	private _parent: FileMatch;
 	private _lineText: string;
 	private _id: string;
-	private _range: IRange;
+	private _range: IEditorRange;
 
 	constructor(parent: FileMatch, text: string, lineNumber: number, offset: number, length: number) {
 		this._parent = parent;
@@ -42,7 +42,7 @@ export class Match {
 		return this._lineText;
 	}
 
-	public range(): IRange {
+	public range(): IEditorRange {
 		return this._range;
 	}
 
@@ -187,7 +187,7 @@ export class LiveFileMatch extends FileMatch implements lifecycle.IDisposable {
 		}
 
 		if (this.parent()._showHighlights) {
-			this._modelDecorations = this._model.deltaDecorations(this._modelDecorations, this.matches().filter(match => !(match instanceof EmptyMatch)).map(match => <IModelDeltaDecoration> {
+			this._modelDecorations = this._model.deltaDecorations(this._modelDecorations, this.matches().filter(match => !(match instanceof EmptyMatch)).map(match => <IModelDeltaDecoration>{
 				range: match.range(),
 				options: LiveFileMatch.DecorationOption
 			}));
@@ -216,8 +216,8 @@ export class SearchResult extends EventEmitter {
 		this._query = query;
 
 		if (this._query) {
-			this._modelService.onModelAdded.add(this._onModelAdded, this, this._disposables);
-			this._modelService.onModelRemoved.add(this._onModelRemoved, this, this._disposables);
+			this._modelService.onModelAdded(this._onModelAdded, this, this._disposables);
+			this._modelService.onModelRemoved(this._onModelRemoved, this, this._disposables);
 		}
 	}
 
@@ -242,7 +242,6 @@ export class SearchResult extends EventEmitter {
 			this.deferredEmit(() => {
 				this.remove(fileMatch);
 				this._matches[resource.toString()] = fileMatch._diskFileMatch;
-				//				this.emit('changed', this);
 			});
 		}
 	}
@@ -253,7 +252,7 @@ export class SearchResult extends EventEmitter {
 			let fileMatch = this._getOrAdd(rawFileMatch);
 
 			if (fileMatch instanceof LiveFileMatch) {
-				fileMatch = (<LiveFileMatch> fileMatch)._diskFileMatch;
+				fileMatch = (<LiveFileMatch>fileMatch)._diskFileMatch;
 			}
 
 			rawFileMatch.lineMatches.forEach((rawLineMatch) => {
@@ -315,8 +314,8 @@ export class SearchResult extends EventEmitter {
 	}
 
 	public dispose(): void {
-		this._disposables = lifecycle.disposeAll(this._disposables);
-		lifecycle.disposeAll(this.matches());
+		this._disposables = lifecycle.dispose(this._disposables);
+		lifecycle.dispose(this.matches());
 		super.dispose();
 	}
 }

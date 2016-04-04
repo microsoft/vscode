@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Server } from 'vs/base/node/service.cp';
+import {Server} from 'vs/base/node/service.cp';
 import {SearchService} from 'vs/workbench/services/search/node/rawSearchService';
 
 const server = new Server();

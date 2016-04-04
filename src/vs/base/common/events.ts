@@ -75,5 +75,5 @@ export var EventType = {
 	CANCEL: 'cancel',
 	CHANGE: 'change',
 	DISPOSE: 'dispose',
-}
+};
 

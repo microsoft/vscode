@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-export const TOKEN_HEADER_LEAD = 'entity.name.type';
-export const TOKEN_HEADER = 'entity.name.type';
-export const TOKEN_EXT_HEADER = 'entity.other.atribute-name';
+export const TOKEN_HEADER_LEAD = 'entity.name.tag';
+export const TOKEN_HEADER = 'entity.name.tag';
+export const TOKEN_EXT_HEADER = 'entity.other.attribute-name';
 export const TOKEN_SEPARATOR = 'meta.separator';
 export const TOKEN_QUOTE = 'comment';
 export const TOKEN_LIST = 'keyword';

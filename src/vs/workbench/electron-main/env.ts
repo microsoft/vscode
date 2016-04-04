@@ -9,13 +9,12 @@ import crypto = require('crypto');
 import fs = require('fs');
 import path = require('path');
 import os = require('os');
-import app = require('app');
+import {app} from 'electron';
 
 import arrays = require('vs/base/common/arrays');
-import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
-import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
+import platform = require('vs/base/common/platform');
 import uri from 'vs/base/common/uri';
 import types = require('vs/base/common/types');
 
@@ -26,42 +25,40 @@ export interface IUpdateInfo {
 export interface IProductConfiguration {
 	nameShort: string;
 	nameLong: string;
-	icons: {
-		application: {
-			png: string;
-		}
-	},
+	applicationName: string;
 	win32AppUserModelId: string;
+	win32MutexName: string;
+	darwinBundleIdentifier: string;
 	dataFolderName: string;
 	downloadUrl: string;
-	updateUrl: string;
+	updateUrl?: string;
+	quality?: string;
 	commit: string;
 	date: string;
-	expiryDate: number;
-	expiryUrl: string;
 	extensionsGallery: {
 		serviceUrl: string;
+		cacheUrl: string;
 		itemUrl: string;
 	};
-	crashReporter: ICrashReporterConfigBrowser;
+	extensionTips: { [id: string]: string; };
+	crashReporter: Electron.CrashReporterStartOptions;
 	welcomePage: string;
 	enableTelemetry: boolean;
 	aiConfig: {
 		key: string;
 		asimovKey: string;
-	},
+	};
 	sendASmile: {
-		submitUrl: string,
 		reportIssueUrl: string,
 		requestFeatureUrl: string
-	},
-	documentationUrl: string,
-	releaseNotesUrl: string,
-	twitterUrl: string,
-	requestFeatureUrl: string,
-	reportIssueUrl: string,
-	licenseUrl: string,
-	privacyStatementUrl: string
+	};
+	documentationUrl: string;
+	releaseNotesUrl: string;
+	twitterUrl: string;
+	requestFeatureUrl: string;
+	reportIssueUrl: string;
+	licenseUrl: string;
+	privacyStatementUrl: string;
 }
 
 export const isBuilt = !process.env.VSCODE_DEV;
@@ -76,11 +73,12 @@ try {
 }
 
 export const product: IProductConfiguration = productContents;
-product.nameShort = product.nameShort || 'Code [OSS Build]';
-product.nameLong = product.nameLong || 'Code [OSS Build]';
-product.dataFolderName = product.dataFolderName || (isBuilt ? '.code-oss-build' : '.code-oss-build-dev');
+product.nameShort = product.nameShort + (isBuilt ? '' : ' Dev');
+product.nameLong = product.nameLong + (isBuilt ? '' : ' Dev');
+product.dataFolderName = product.dataFolderName + (isBuilt ? '' : '-dev');
 
-export const updateInfo: IUpdateInfo = product.updateUrl ? { baseUrl: product.updateUrl } : void 0;
+export const updateUrl = product.updateUrl;
+export const quality = product.quality;
 
 export const mainIPCHandle = getMainIPCHandle();
 export const sharedIPCHandle = getSharedIPCHandle();
@@ -101,13 +99,13 @@ if (!fs.existsSync(userHome)) {
 	fs.mkdirSync(userHome);
 }
 
-export const userPluginsHome = cliArgs.pluginHomePath || path.join(userHome, 'extensions');
-if (!fs.existsSync(userPluginsHome)) {
-	fs.mkdirSync(userPluginsHome);
+export const userExtensionsHome = cliArgs.pluginHomePath || path.join(userHome, 'extensions');
+if (!fs.existsSync(userExtensionsHome)) {
+	fs.mkdirSync(userExtensionsHome);
 }
 
 // Helper to identify if we have plugin tests to run from the command line without debugger
-export const isTestingFromCli = cliArgs.pluginTestsPath && !cliArgs.debugBrkPluginHost;
+export const isTestingFromCli = cliArgs.extensionTestsPath && !cliArgs.debugBrkExtensionHost;
 
 export function log(...a: any[]): void {
 	if (cliArgs.verboseLogging) {
@@ -121,20 +119,18 @@ export interface IProcessEnvironment {
 
 export interface ICommandLineArguments {
 	verboseLogging: boolean;
-	debugPluginHostPort: number;
-	debugBrkPluginHost: boolean;
-	logPluginHostCommunication: boolean;
-	disablePlugins: boolean;
+	debugExtensionHostPort: number;
+	debugBrkExtensionHost: boolean;
+	logExtensionHostCommunication: boolean;
+	disableExtensions: boolean;
 
 	pluginHomePath: string;
-	pluginDevelopmentPath: string;
-	pluginTestsPath: string;
+	extensionDevelopmentPath: string;
+	extensionTestsPath: string;
 
 	programStart: number;
 
 	pathArguments?: string[];
-
-	workers?: number;
 
 	enablePerformance?: boolean;
 
@@ -144,6 +140,11 @@ export interface ICommandLineArguments {
 	openInSameWindow?: boolean;
 
 	gotoLineMode?: boolean;
+	diffMode?: boolean;
+
+	locale?: string;
+
+	waitForWindowClose?: boolean;
 }
 
 function parseCli(): ICommandLineArguments {
@@ -178,33 +179,37 @@ function parseCli(): ICommandLineArguments {
 
 	let gotoLineMode = !!opts['g'] || !!opts['goto'];
 
-	let debugBrkPluginHostPort = parseNumber(args, '--debugBrkPluginHost', 5870);
-	let debugPluginHostPort: number;
-	let debugBrkPluginHost: boolean;
-	if (debugBrkPluginHostPort) {
-		debugPluginHostPort = debugBrkPluginHostPort;
-		debugBrkPluginHost = true;
+	let debugBrkExtensionHostPort = parseNumber(args, '--debugBrkPluginHost', 5870);
+	let debugExtensionHostPort: number;
+	let debugBrkExtensionHost: boolean;
+	if (debugBrkExtensionHostPort) {
+		debugExtensionHostPort = debugBrkExtensionHostPort;
+		debugBrkExtensionHost = true;
 	} else {
-		debugPluginHostPort = parseNumber(args, '--debugPluginHost', 5870, isBuilt ? void 0 : 5870);
+		debugExtensionHostPort = parseNumber(args, '--debugPluginHost', 5870, isBuilt ? void 0 : 5870);
 	}
 
+	let pathArguments = parsePathArguments(args, gotoLineMode);
+
 	return {
-		pathArguments: parsePathArguments(args, gotoLineMode),
+		pathArguments: pathArguments,
 		programStart: parseNumber(args, '--timestamp', 0, 0),
-		workers: parseNumber(args, '--workers', -1, -1),
 		enablePerformance: !!opts['p'],
 		verboseLogging: !!opts['verbose'],
-		debugPluginHostPort: debugPluginHostPort,
-		debugBrkPluginHost: debugBrkPluginHost,
-		logPluginHostCommunication: !!opts['logPluginHostCommunication'],
+		debugExtensionHostPort: debugExtensionHostPort,
+		debugBrkExtensionHost: debugBrkExtensionHost,
+		logExtensionHostCommunication: !!opts['logPluginHostCommunication'],
 		firstrun: !!opts['squirrel-firstrun'],
 		openNewWindow: !!opts['n'] || !!opts['new-window'],
 		openInSameWindow: !!opts['r'] || !!opts['reuse-window'],
 		gotoLineMode: gotoLineMode,
+		diffMode: (!!opts['d'] || !!opts['diff']) && pathArguments.length === 2,
 		pluginHomePath: normalizePath(parseString(args, '--extensionHomePath')),
-		pluginDevelopmentPath: normalizePath(parseString(args, '--extensionDevelopmentPath')),
-		pluginTestsPath: normalizePath(parseString(args, '--extensionTestsPath')),
-		disablePlugins: !!opts['disableExtensions'] || !!opts['disable-extensions']
+		extensionDevelopmentPath: normalizePath(parseString(args, '--extensionDevelopmentPath')),
+		extensionTestsPath: normalizePath(parseString(args, '--extensionTestsPath')),
+		disableExtensions: !!opts['disableExtensions'] || !!opts['disable-extensions'],
+		locale: parseString(args, '--locale'),
+		waitForWindowClose: !!opts['w'] || !!opts['wait']
 	};
 }
 
@@ -263,41 +268,71 @@ function parseOpts(argv: string[]): OptionBag {
 }
 
 function parsePathArguments(argv: string[], gotoLineMode?: boolean): string[] {
-	return arrays.distinct(					// no duplicates
-		argv.filter(a => !(/^-/.test(a))) 	// find arguments without leading "-"
-			.map((arg) => {						// resolve to path
-				let pathCandidate = arg;
+	return arrays.coalesce(							// no invalid paths
+		arrays.distinct(							// no duplicates
+			argv.filter(a => !(/^-/.test(a))) 		// arguments without leading "-"
+				.map((arg) => {
+					let pathCandidate = arg;
 
-				let parsedPath: IParsedPath;
-				if (gotoLineMode) {
-					parsedPath = parseLineAndColumnAware(arg);
-					pathCandidate = parsedPath.path;
-				}
+					let parsedPath: IParsedPath;
+					if (gotoLineMode) {
+						parsedPath = parseLineAndColumnAware(arg);
+						pathCandidate = parsedPath.path;
+					}
 
-				let realPath: string;
-				try {
-					realPath = fs.realpathSync(pathCandidate);
-				} catch (error) {
-					// in case of an error, assume the user wants to create this file
-					// if the path is relative, we join it to the cwd
-					realPath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(process.cwd(), pathCandidate));
-				}
+					if (pathCandidate) {
+						pathCandidate = massagePath(pathCandidate);
+					}
 
-				if (gotoLineMode) {
-					parsedPath.path = realPath;
-					return toLineAndColumnPath(parsedPath);
-				}
+					let realPath: string;
+					try {
+						realPath = fs.realpathSync(pathCandidate);
+					} catch (error) {
+						// in case of an error, assume the user wants to create this file
+						// if the path is relative, we join it to the cwd
+						realPath = path.normalize(path.isAbsolute(pathCandidate) ? pathCandidate : path.join(process.cwd(), pathCandidate));
+					}
 
-				return realPath;
-			}),
-		(element) => {
-			return element && (platform.isWindows || platform.isMacintosh) ? element.toLowerCase() : element; // only linux is case sensitive on the fs
-		}
+					if (!paths.isValidBasename(path.basename(realPath))) {
+						return null; // do not allow invalid file names
+					}
+
+					if (gotoLineMode) {
+						parsedPath.path = realPath;
+						return toLineAndColumnPath(parsedPath);
+					}
+
+					return realPath;
+				}),
+			(element) => {
+				return element && (platform.isWindows || platform.isMacintosh) ? element.toLowerCase() : element; // only linux is case sensitive on the fs
+			}
+		)
 	);
+}
+
+function massagePath(path: string): string {
+	if (platform.isWindows) {
+		path = strings.rtrim(path, '"'); // https://github.com/Microsoft/vscode/issues/1498
+	}
+
+	// Trim whitespaces
+	path = strings.trim(strings.trim(path, ' '), '\t');
+
+	// Trim '.' chars on Windows to prevent invalid file names
+	if (platform.isWindows) {
+		path = strings.rtrim(resolvePath(path), '.');
+	}
+
+	return path;
 }
 
 function normalizePath(p?: string): string {
 	return p ? path.normalize(p) : p;
+}
+
+function resolvePath(p?: string): string {
+	return p ? path.resolve(p): p;
 }
 
 function parseNumber(argv: string[], key: string, defaultValue?: number, fallbackValue?: number): number {
@@ -330,7 +365,7 @@ function parseString(argv: string[], key: string, defaultValue?: string, fallbac
 
 export function getPlatformIdentifier(): string {
 	if (process.platform === 'linux') {
-		return `linux-${ process.arch }`;
+		return `linux-${process.arch}`;
 	}
 
 	return process.platform;
@@ -364,7 +399,7 @@ export function parseLineAndColumnAware(rawPath: string): IParsedPath {
 		path: path,
 		line: line !== null ? line : void 0,
 		column: column !== null ? column : line !== null ? 1 : void 0 // if we have a line, make sure column is also set
-	}
+	};
 }
 
 export function toLineAndColumnPath(parsedPath: IParsedPath): string {

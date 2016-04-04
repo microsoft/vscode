@@ -28,14 +28,17 @@
 	opacity: 0.6;
 }
 
-.quick-open-widget .extension .version {
-	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+.quick-open-widget .extension .installCount:not(:empty) {
+	margin-left: 6px;
+	padding: 1px 3px;
+	border-radius: 3px;
+	background-color: rgba(132, 132, 132, 0.3);
 	font-size: smaller;
+	opacity: 0.7;
 }
 
-.quick-open-widget .extension .version {
-	padding-left: 6px;
-	opacity: 0.7;
+.quick-open-widget .extension .installCount:not(:empty):before {
+	margin-right: 2px;
 }
 
 .quick-open-widget .extension .published {
@@ -44,7 +47,7 @@
 	font-size: smaller;
 }
 
-.quick-open-widget .extension .published > .since {
+.quick-open-widget .extension .published > .version {
 	opacity: 0.6;
 	margin-right: 0.5em;
 }
@@ -75,12 +78,21 @@
 	height: 12px;
 	font-size: smaller;
 	border: 1px solid rgba(132, 132, 132, 0.5);
-	border-radius: 2px;
+	/*border-radius: 2px;*/
 	padding: 1px;
 	vertical-align: text-bottom;
 	text-transform: uppercase;
 	color: rgb(0, 157, 255);
 	border-color: rgb(0, 157, 255);
+}
+
+.quick-open-widget .monaco-tree.focused .monaco-tree-row.focused .extension .actions .action-label:focus {
+	outline: 1px solid #DF740C;
+	outline-offset: -1px;
+}
+
+.quick-open-widget .monaco-tree.focused .monaco-tree-row.focused .extension .actions .action-label:active {
+	outline: none;
 }
 
 .quick-open-widget .extension .actions .action-label:not(.icon) {
@@ -123,9 +135,56 @@
 
 /* Status bar */
 .monaco-shell .extensions-statusbar {
-	padding: 0 5px 0 25px;
-	line-height: 22px;
+	display: flex !important;
+	flex-direction: column;
+	justify-content: center;
+	position: relative;
+	padding: 0 5px;
+	width: 14px;
+}
+
+.monaco-shell .extensions-statusbar > .icon {
 	background: url('extensions-status.svg') center center no-repeat;
 	background-size: 14px;
-	background-position: 4px 50%;
+	width: 14px;
+	height: 14px;
+}
+
+.monaco-shell .extensions-statusbar.has-updates::after {
+	content: '';
+	width: 6px;
+	height: 6px;
+	background-color: #39A71E;
+	position: absolute;
+	top: 2px;
+	right: 3px;
+	border-radius: 10px;
+	border: 1px solid white;
+}
+
+.monaco-shell .extensions-statusbar.has-errors::after {
+	content: '';
+	width: 6px;
+	height: 6px;
+	background-color: #CC6633;
+	position: absolute;
+	top: 2px;
+	right: 3px;
+	border-radius: 10px;
+	border: 1px solid white;
+}
+
+.monaco-shell .extensions-statusbar.is-installing .icon {
+	opacity: 0.8;
+}
+
+.monaco-shell .extensions-statusbar.is-installing .icon::before {
+	content: '';
+	display: block;
+	height: 100%;
+	width: 100%;
+	background-color: rgba(132, 132, 132, 0.5);
+	background-size: 8px;
+	background-image: linear-gradient(-45deg, rgba(255, 255, 255, 0.5) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.5) 50%, rgba(255, 255, 255, 0.5) 75%, transparent 75%, transparent);
+	animation: move-background 0.5s linear infinite;
 }

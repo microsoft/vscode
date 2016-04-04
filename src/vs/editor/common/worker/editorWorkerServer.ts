@@ -5,33 +5,27 @@
 
 'use strict';
 
-// Require the modes worker since it is used in all workers to avoid rebundleing of the code with all worker
-import 'vs/editor/common/modes/abstractModeWorker';
 // include these in the editor bundle because they are widely used by many languages
 import 'vs/editor/common/languages.common';
-
-import {WorkerServer} from 'vs/base/common/worker/workerServer';
-import {MarkerService} from 'vs/platform/markers/common/markerService';
-import {WorkerThreadService} from 'vs/platform/thread/common/workerThreadService';
-import InstantiationService = require('vs/platform/instantiation/common/instantiationService');
-import {EventService} from 'vs/platform/event/common/eventService';
-import {WorkerTelemetryService} from 'vs/platform/telemetry/common/workerTelemetryService';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {ResourceService} from 'vs/editor/common/services/resourceServiceImpl';
-import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
-import {ModelServiceWorkerHelper} from 'vs/editor/common/services/modelServiceImpl';
-import {IPluginDescription} from 'vs/platform/plugins/common/plugins';
-import {PluginsRegistry} from 'vs/platform/plugins/common/pluginsRegistry';
-import {PromiseSource} from 'vs/base/common/async';
-import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
-import {IWorkspace} from 'vs/platform/workspace/common/workspace';
-import {AbstractPluginService} from 'vs/platform/plugins/common/abstractPluginService';
-import {ModeServiceImpl,ModeServiceWorkerHelper} from 'vs/editor/common/services/modeServiceImpl';
+import 'vs/editor/common/worker/validationHelper';
 import Severity from 'vs/base/common/severity';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {WorkerServer} from 'vs/base/common/worker/workerServer';
+import {EventService} from 'vs/platform/event/common/eventService';
+import {AbstractExtensionService, ActivatedExtension} from 'vs/platform/extensions/common/abstractExtensionService';
+import {IExtensionDescription} from 'vs/platform/extensions/common/extensions';
+import {createInstantiationService} from 'vs/platform/instantiation/common/instantiationService';
+import {SecondaryMarkerService} from 'vs/platform/markers/common/markerService';
+import {BaseRequestService} from 'vs/platform/request/common/baseRequestService';
+import {WorkerTelemetryService} from 'vs/platform/telemetry/common/workerTelemetryService';
+import {WorkerThreadService} from 'vs/platform/thread/common/workerThreadService';
+import {BaseWorkspaceContextService} from 'vs/platform/workspace/common/baseWorkspaceContextService';
+import {IWorkspace} from 'vs/platform/workspace/common/workspace';
+import {ModeServiceImpl, ModeServiceWorkerHelper} from 'vs/editor/common/services/modeServiceImpl';
+import {ModelServiceWorkerHelper} from 'vs/editor/common/services/modelServiceImpl';
+import {ResourceService} from 'vs/editor/common/services/resourceServiceImpl';
 
 export interface IInitData {
-	threadService:any;
 	contextService: {
 		workspace:any;
 		configuration:any;
@@ -51,7 +45,7 @@ export interface ICallback {
 	(something:any):void;
 }
 
-class WorkerPluginService extends AbstractPluginService {
+class WorkerExtensionService extends AbstractExtensionService<ActivatedExtension> {
 
 	constructor() {
 		super(true);
@@ -73,8 +67,12 @@ class WorkerPluginService extends AbstractPluginService {
 		}
 	}
 
-	public deactivate(pluginId:string): void {
-		// nothing to do
+	protected _createFailedExtension(): ActivatedExtension {
+		throw new Error('unexpected');
+	}
+
+	protected _actualActivateExtension(extensionDescription: IExtensionDescription): TPromise<ActivatedExtension> {
+		throw new Error('unexpected');
 	}
 
 }
@@ -88,29 +86,25 @@ export class EditorWorkerServer {
 
 	public initialize(mainThread:WorkerServer, complete:ICallback, error:ICallback, progress:ICallback, initData:IInitData):void {
 
-		var pluginService = new WorkerPluginService();
+		var extensionService = new WorkerExtensionService();
 
 		var contextService = new BaseWorkspaceContextService(initData.contextService.workspace, initData.contextService.configuration, initData.contextService.options);
 
-		this.threadService = new WorkerThreadService(initData.threadService, mainThread.getRemoteCom(), (messageName: string, payload: any) => {
-			return mainThread.request(messageName, payload);
-		});
-		this.threadService.setInstantiationService(InstantiationService.create({ threadService: this.threadService }));
+		this.threadService = new WorkerThreadService(mainThread.getRemoteCom());
+		this.threadService.setInstantiationService(createInstantiationService({ threadService: this.threadService }));
 
 		var telemetryServiceInstance = new WorkerTelemetryService(this.threadService);
 
 		var resourceService = new ResourceService();
-		var markerService = new MarkerService(this.threadService);
+		var markerService = new SecondaryMarkerService(this.threadService);
 
-		var modeService = new ModeServiceImpl(this.threadService, pluginService);
-
-		var modesRegistryPromise = new PromiseSource();
+		var modeService = new ModeServiceImpl(this.threadService, extensionService);
 
 		var requestService = new BaseRequestService(contextService, telemetryServiceInstance);
 
 		var _services : any = {
 			threadService: this.threadService,
-			pluginService: pluginService,
+			extensionService: extensionService,
 			modeService: modeService,
 			contextService: contextService,
 			eventService: new EventService(),
@@ -120,34 +114,14 @@ export class EditorWorkerServer {
 			requestService: requestService
 		};
 
-		var servicePromise = TPromise.as(null);
+		var instantiationService = createInstantiationService(_services);
+		this.threadService.setInstantiationService(instantiationService);
 
-		var additionalWorkerServices = contextService.getConfiguration().additionalWorkerServices;
-		if (additionalWorkerServices) {
-			additionalWorkerServices.forEach(additionalWorkerService => {
-				servicePromise = servicePromise.then((_) => {
-					var descriptor = AsyncDescriptor.create(additionalWorkerService.moduleName, additionalWorkerService.ctorName);
-					return InstantiationService.create(_services).createInstance(descriptor).then((serviceInstance) => {
-						_services[additionalWorkerService.serviceId] = serviceInstance;
-					});
-				});
-			});
-		}
+		// Instantiate thread actors
+		this.threadService.getRemotable(ModeServiceWorkerHelper);
+		this.threadService.getRemotable(ModelServiceWorkerHelper);
 
-		servicePromise.then((_) => {
-
-			var instantiationService = InstantiationService.create(_services);
-			this.threadService.setInstantiationService(instantiationService);
-
-			// Instantiate thread actors
-			this.threadService.getRemotable(ModeServiceWorkerHelper);
-			this.threadService.getRemotable(ModelServiceWorkerHelper);
-
-			// Set to modes registry (ensure the synchronized object is constructed)
-			modesRegistryPromise.complete();
-
-			complete(undefined);
-		});
+		complete(undefined);
 	}
 
 	public request(mainThread:WorkerServer, complete:ICallback, error:ICallback, progress:ICallback, data:any):void {

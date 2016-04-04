@@ -7,16 +7,13 @@
 
 import nls = require('vs/nls');
 import severity from 'vs/base/common/severity';
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Action} from 'vs/base/common/actions';
-import ipc = require('ipc');
-import remote = require('remote');
+import {ipcRenderer as ipc, shell} from 'electron';
 import {isLinux} from 'vs/base/common/platform';
 import {IMessageService} from 'vs/platform/message/common/message';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IRequestService} from 'vs/platform/request/common/request';
-
-const shell = remote.require('shell');
 
 interface IUpdate {
 	releaseNotes: string;
@@ -24,31 +21,31 @@ interface IUpdate {
 	date: string;
 }
 
+const ApplyUpdateAction = new Action(
+	'update.applyUpdate',
+	nls.localize('updateNow', "Update Now"),
+	null,
+	true,
+	() => { ipc.send('vscode:update-apply'); return TPromise.as(true); }
+);
+
+const NotNowAction = new Action(
+	'update.later',
+	nls.localize('later', "Later"),
+	null,
+	true,
+	() => TPromise.as(true)
+);
+
+export const ShowReleaseNotesAction = (releaseNotesUrl: string, returnValue = false) => new Action(
+	'update.showReleaseNotes',
+	nls.localize('releaseNotes', "Release Notes"),
+	null,
+	true,
+	() => { shell.openExternal(releaseNotesUrl); return TPromise.as(returnValue); }
+);
+
 export class Update {
-
-	private static ApplyUpdateAction = new Action(
-		'update.applyUpdate',
-		nls.localize('updateNow', "Update Now"),
-		null,
-		true,
-		() => { ipc.send('vscode:update-apply'); return Promise.as(true); }
-	);
-
-	private static NotNowAction = new Action(
-		'update.later',
-		nls.localize('later', "Later"),
-		null,
-		true,
-		() => Promise.as(true)
-	);
-
-	private static ShowReleaseNotesAction = (releaseNotesUrl: string) => new Action(
-		'update.showReleaseNotes',
-		nls.localize('releaseNotes', "Release Notes"),
-		null,
-		true,
-		() => { shell.openExternal(releaseNotesUrl); return Promise.as(false); }
-	);
 
 	constructor(
 		@IWorkspaceContextService private contextService : IWorkspaceContextService,
@@ -57,10 +54,10 @@ export class Update {
 	) {
 		const env = this.contextService.getConfiguration().env;
 
-		ipc.on('vscode:update-downloaded', (update: IUpdate) => {
+		ipc.on('vscode:update-downloaded', (event, update: IUpdate) => {
 			this.messageService.show(severity.Info, {
 				message: nls.localize('updateAvailable', "{0} will be updated after it restarts.", env.appName),
-				actions: [Update.ShowReleaseNotesAction(env.releaseNotesUrl), Update.NotNowAction, Update.ApplyUpdateAction]
+				actions: [ShowReleaseNotesAction(env.releaseNotesUrl), NotNowAction, ApplyUpdateAction]
 			});
 		});
 
@@ -72,9 +69,6 @@ export class Update {
 
 		// manually check for update on linux
 		if (isLinux && updateFeedUrl) {
-			const updateChannel = env.updateChannel;
-			const platform = `${process.platform}-${process.arch}`;
-
 			this.requestService.makeRequest({ url: updateFeedUrl }).done(res => {
 				if (res.status !== 200) {
 					return; // no update available
@@ -85,11 +79,11 @@ export class Update {
 					actions: [
 						new Action('pleaseUpdate', nls.localize('downloadLatestAction', "Download Latest"), '', true, () => {
 							shell.openExternal(env.productDownloadUrl);
-							return Promise.as(true);
+							return TPromise.as(true);
 						}),
 						new Action('releaseNotes', nls.localize('releaseNotesAction', "Release Notes"), '', true, () => {
 							shell.openExternal(env.releaseNotesUrl);
-							return Promise.as(false);
+							return TPromise.as(false);
 						})
 					]
 				});

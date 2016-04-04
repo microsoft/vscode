@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
-import { Promise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import dom = require('vs/base/browser/dom');
 import { IAction } from 'vs/base/common/actions';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -49,15 +50,27 @@ export class SelectConfigActionItem extends BaseActionItem {
 		this.setOptions().done(null, errors.onUnexpectedError);
 	}
 
-	private setOptions(): Promise {
+	public focus(): void {
+		if (this.select) {
+			this.select.focus();
+		}
+	}
+
+	public blur(): void {
+		if (this.select) {
+			this.select.blur();
+		}
+	}
+
+	private setOptions(): TPromise<any> {
 		let previousSelectedIndex = this.select.selectedIndex;
 		this.select.options.length = 0;
 
 		return this.debugService.loadLaunchConfig().then(config => {
 			if (!config || !config.configurations) {
-				this.select.options.add(this.createOption('<none>'));
+				this.select.add(this.createOption(`<${ nls.localize('none', "none") }>`));
 				this.select.disabled = true;
-				return;
+				return this.actionRunner.run(this._action, null);
 			}
 
 			const configurations = config.configurations;
@@ -66,7 +79,7 @@ export class SelectConfigActionItem extends BaseActionItem {
 			let found = false;
 			const configurationName = this.debugService.getConfigurationName();
 			for (let i = 0; i < configurations.length; i++) {
-				this.select.options.add(this.createOption(configurations[i].name));
+				this.select.add(this.createOption(configurations[i].name));
 				if (configurationName === configurations[i].name) {
 					this.select.selectedIndex = i;
 					found = true;
@@ -93,7 +106,7 @@ export class SelectConfigActionItem extends BaseActionItem {
 
 	public dispose(): void {
 		this.debugService = null;
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 
 		super.dispose();
 	}

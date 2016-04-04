@@ -4,31 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Strings = require('vs/base/common/strings');
-import {NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
-import Modes = require('vs/editor/common/modes');
 import {IHTMLContentElement} from 'vs/base/common/htmlContent';
+import * as strings from 'vs/base/common/strings';
+import {IMode, IState, ITokenizationSupport} from 'vs/editor/common/modes';
+import {NullState, nullTokenize} from 'vs/editor/common/modes/nullMode';
 
-export function tokenizeToHtmlContent(text: string, mode: Modes.IMode): IHTMLContentElement {
+export function tokenizeToHtmlContent(text: string, mode: IMode): IHTMLContentElement {
 	return _tokenizeToHtmlContent(text, _getSafeTokenizationSupport(mode));
 }
 
-export function tokenizeToString(text: string, mode: Modes.IMode, extraTokenClass?: string): string {
+export function tokenizeToString(text: string, mode: IMode, extraTokenClass?: string): string {
 	return _tokenizeToString(text, _getSafeTokenizationSupport(mode), extraTokenClass);
 }
 
-function _getSafeTokenizationSupport(mode: Modes.IMode): Modes.ITokenizationSupport {
+function _getSafeTokenizationSupport(mode: IMode): ITokenizationSupport {
 	if (mode && mode.tokenizationSupport) {
 		return mode.tokenizationSupport;
 	}
 	return {
 		shouldGenerateEmbeddedModels: false,
 		getInitialState: () => new NullState(null, null),
-		tokenize: (buffer:string, state: Modes.IState, deltaOffset:number = 0, stopAtOffset?:number) => nullTokenize(null, buffer, state, deltaOffset, stopAtOffset)
+		tokenize: (buffer:string, state: IState, deltaOffset:number = 0, stopAtOffset?:number) => nullTokenize(null, buffer, state, deltaOffset, stopAtOffset)
 	};
 }
 
-function _tokenizeToHtmlContent(text: string, tokenizationSupport: Modes.ITokenizationSupport): IHTMLContentElement {
+function _tokenizeToHtmlContent(text: string, tokenizationSupport: ITokenizationSupport): IHTMLContentElement {
 	var result: IHTMLContentElement = {
 		tagName: 'div',
 		style: 'white-space: pre-wrap',
@@ -54,7 +54,7 @@ function _tokenizeToHtmlContent(text: string, tokenizationSupport: Modes.ITokeni
 	return result;
 }
 
-function _tokenizeToString(text: string, tokenizationSupport: Modes.ITokenizationSupport, extraTokenClass: string = ''): string {
+function _tokenizeToString(text: string, tokenizationSupport: ITokenizationSupport, extraTokenClass: string = ''): string {
 	if (extraTokenClass && extraTokenClass.length > 0) {
 		extraTokenClass = ' ' + extraTokenClass;
 	}
@@ -62,14 +62,14 @@ function _tokenizeToString(text: string, tokenizationSupport: Modes.ITokenizatio
 	var result = '';
 
 	var emitToken = (className: string, tokenText: string) => {
-		result += '<span class="' + className + extraTokenClass + '">' + Strings.escape(tokenText) + '</span>';
+		result += '<span class="' + className + extraTokenClass + '">' + strings.escape(tokenText) + '</span>';
 	};
 
 	var emitNewLine = () => {
 		result += '<br/>';
 	};
 
-	result = '<div style="white-space: pre;">';
+	result = '<div style="white-space: pre-wrap;">';
 	_tokenizeLines(text, tokenizationSupport, emitToken, emitNewLine);
 	result += '</div>';
 
@@ -83,7 +83,7 @@ interface IEmitNewLineFunc {
 	(): void;
 }
 
-function _tokenizeLines(text: string, tokenizationSupport: Modes.ITokenizationSupport, emitToken: IEmitTokenFunc, emitNewLine: IEmitNewLineFunc): void {
+function _tokenizeLines(text: string, tokenizationSupport: ITokenizationSupport, emitToken: IEmitTokenFunc, emitNewLine: IEmitNewLineFunc): void {
 	var lines = text.split(/\r\n|\r|\n/);
 	var currentState = tokenizationSupport.getInitialState();
 	for (var i = 0; i < lines.length; i++) {
@@ -96,7 +96,7 @@ function _tokenizeLines(text: string, tokenizationSupport: Modes.ITokenizationSu
 	}
 }
 
-function _tokenizeLine(line: string, tokenizationSupport:Modes.ITokenizationSupport, emitToken: IEmitTokenFunc, startState: Modes.IState): Modes.IState {
+function _tokenizeLine(line: string, tokenizationSupport:ITokenizationSupport, emitToken: IEmitTokenFunc, startState: IState): IState {
 	var tokenized = tokenizationSupport.tokenize(line, startState),
 		endState = tokenized.endState,
 		tokens = tokenized.tokens,

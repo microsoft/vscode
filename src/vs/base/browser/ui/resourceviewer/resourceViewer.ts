@@ -7,13 +7,12 @@
 
 import 'vs/css!./resourceviewer';
 import nls = require('vs/nls');
-import strings = require('vs/base/common/strings');
 import mimes = require('vs/base/common/mime');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import {Builder, $} from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
-import {IScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import {DomNodeScrollable} from 'vs/base/browser/ui/scrollbar/domNodeScrollable';
 
 // Known media mimes that we can handle
 const mapExtToMediaMimes = {
@@ -62,7 +61,7 @@ const mapExtToMediaMimes = {
 	'.flv': 'video/x-flv',
 	'.avi': 'video/x-msvideo',
 	'.movie': 'video/x-sgi-movie'
-}
+};
 
 /**
  * Helper to actually render the given resource into the provided container. Will adjust scrollbar (if provided) automatically based on loading
@@ -70,7 +69,7 @@ const mapExtToMediaMimes = {
  */
 export class ResourceViewer {
 
-	public static show(name: string, resource: URI, container: Builder, scrollbar?: IScrollableElement): void {
+	public static show(name: string, resource: URI, container: Builder, scrollable?: DomNodeScrollable): void {
 
 		// Ensure CSS class
 		$(container).addClass('monaco-resource-viewer');
@@ -94,15 +93,15 @@ export class ResourceViewer {
 				.img({
 					src: resource.toString() + '?' + new Date().getTime() // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
 				}).on(DOM.EventType.LOAD, () => {
-					if (scrollbar) {
-						scrollbar.onElementInternalDimensions();
+					if (scrollable) {
+						scrollable.onContentsDimensions();
 					}
 				});
 		}
 
 		// Embed Object (only PDF for now)
 		else if (false /* PDF is currently not supported in Electron it seems */ && mime.indexOf('pdf') >= 0) {
-			var object = $(container)
+			$(container)
 				.empty()
 				.style({ padding: 0, margin: 0 }) // We really do not want any paddings or margins when displaying PDFs
 				.element('object')
@@ -125,15 +124,15 @@ export class ResourceViewer {
 					text: nls.localize('missingAudioSupport', "Sorry but playback of audio files is not supported."),
 					controls: 'controls'
 				}).on(DOM.EventType.LOAD, () => {
-					if (scrollbar) {
-						scrollbar.onElementInternalDimensions();
+					if (scrollable) {
+						scrollable.onContentsDimensions();
 					}
 				});
 		}
 
 		// Embed Video (if supported in browser)
 		else if (mime.indexOf('video/') >= 0) {
-			var video = $(container)
+			$(container)
 				.empty()
 				.style({ paddingLeft: '20px' }) // restore CSS value in case the user saw a PDF before where we remove padding
 				.element('video')
@@ -142,8 +141,8 @@ export class ResourceViewer {
 					text: nls.localize('missingVideoSupport', "Sorry but playback of video files is not supported."),
 					controls: 'controls'
 				}).on(DOM.EventType.LOAD, () => {
-					if (scrollbar) {
-						scrollbar.onElementInternalDimensions();
+					if (scrollable) {
+						scrollable.onContentsDimensions();
 					}
 				});
 		}
@@ -157,8 +156,8 @@ export class ResourceViewer {
 					text: nls.localize('nativeBinaryError', "The file cannot be displayed in the editor because it is either binary, very large or uses an unsupported text encoding.")
 				});
 
-			if (scrollbar) {
-				scrollbar.onElementInternalDimensions();
+			if (scrollable) {
+				scrollable.onContentsDimensions();
 			}
 		}
 	}

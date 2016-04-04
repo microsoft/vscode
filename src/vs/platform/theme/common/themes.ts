@@ -12,8 +12,6 @@ export enum BaseTheme {
 	HIGH_CONTRAST
 }
 
-export var DEFAULT_THEME_ID = toId(BaseTheme.VS);
-
 export function getBaseThemes(includeHighContrast: boolean): BaseTheme[] {
 	if (includeHighContrast) {
 		return [BaseTheme.VS, BaseTheme.VS_DARK, BaseTheme.HIGH_CONTRAST];
@@ -34,9 +32,9 @@ export function toId(theme: BaseTheme): string {
 export function toLabel(theme: BaseTheme): string {
 	switch (theme) {
 		case BaseTheme.VS:
-			return nls.localize('theme.vs', 'Light');
+			return nls.localize('theme.vs', 'Light (Visual Studio)');
 		case BaseTheme.VS_DARK:
-			return nls.localize('theme.vs-dark', 'Dark');
+			return nls.localize('theme.vs-dark', 'Dark (Visual Studio)');
 	}
 	return nls.localize('theme.hc', 'High Contrast');
 }

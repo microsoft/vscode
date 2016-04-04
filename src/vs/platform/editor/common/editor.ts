@@ -11,7 +11,7 @@ import {IEventEmitter} from 'vs/base/common/eventEmitter';
 import {ISelection} from 'vs/platform/selection/common/selection';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
-export var IEditorService = createDecorator<IEditorService>('editorService');
+export const IEditorService = createDecorator<IEditorService>('editorService');
 
 export interface IEditorService {
 	serviceId: ServiceIdentifier<any>;
@@ -33,15 +33,12 @@ export interface ITextEditorModel extends IEditorModel {
 	textEditorModel: any;
 }
 
-export interface IResourceInput extends ITextInput {
+export interface IResourceInput {
 
 	/**
 	 * The resource URL of the resource to open.
 	 */
 	resource: URI;
-}
-
-export interface ITextInput {
 
 	/**
 	 * The mime type of the text input if known.
@@ -134,7 +131,7 @@ export enum Position {
 	RIGHT = 2
 }
 
-export var POSITIONS = [Position.LEFT, Position.CENTER, Position.RIGHT];
+export const POSITIONS = [Position.LEFT, Position.CENTER, Position.RIGHT];
 
 export interface IEditorInput extends IEventEmitter {
 

@@ -8,32 +8,33 @@
 import 'vs/css!./media/files.contribution';
 
 import URI from 'vs/base/common/uri';
-import {SUPPORTED_ENCODINGS} from 'vs/base/common/bits/encoding';
-import {IViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction} from 'vs/workbench/browser/viewlet';
+import {ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction} from 'vs/workbench/browser/viewlet';
 import nls = require('vs/nls');
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {Registry} from 'vs/platform/platform';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
+import {QuickOpenAction} from 'vs/workbench/browser/actions/quickOpenAction';
 import {IConfigurationRegistry, Extensions as ConfigurationExtensions} from 'vs/platform/configuration/common/configurationRegistry';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
+import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions} from 'vs/workbench/common/contributions';
 import {IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory} from 'vs/workbench/browser/parts/editor/baseEditor';
 import {EditorInput, IFileEditorInput} from 'vs/workbench/common/editor';
+import {QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions} from 'vs/workbench/browser/quickopen';
 import {FileEditorDescriptor} from 'vs/workbench/parts/files/browser/files';
+import {AutoSaveConfiguration, SUPPORTED_ENCODINGS} from 'vs/platform/files/common/files';
 import {FILE_EDITOR_INPUT_ID, VIEWLET_ID} from 'vs/workbench/parts/files/common/files';
 import {FileTracker} from 'vs/workbench/parts/files/browser/fileTracker';
-import {SaveParticipant} from 'vs/workbench/parts/files/browser/saveParticipant';
+import {SaveParticipant} from 'vs/workbench/parts/files/common/editors/saveParticipant';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
-import {HTMLFrameEditorInput} from 'vs/workbench/parts/files/browser/editors/htmlFrameEditorInput';
 import {TextFileEditor} from 'vs/workbench/parts/files/browser/editors/textFileEditor';
 import {BinaryFileEditor} from 'vs/workbench/parts/files/browser/editors/binaryFileEditor';
-import {IInstantiationService, INullService} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {SyncDescriptor, AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
-import {registerSingleton} from 'vs/platform/instantiation/common/extensions';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
 import {IViewletService} from 'vs/workbench/services/viewlet/common/viewletService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import * as platform from 'vs/base/common/platform';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ToggleViewletAction {
@@ -51,23 +52,24 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 }
 
 // Register Viewlet
-(<IViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).registerViewlet(new ViewletDescriptor(
+(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).registerViewlet(new ViewletDescriptor(
 	'vs/workbench/parts/files/browser/explorerViewlet',
 	'ExplorerViewlet',
 	VIEWLET_ID,
-	nls.localize('explore', "Explore"),
+	nls.localize('explore', "Explorer"),
 	'explore',
 	0
 ));
 
-(<IViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).setDefaultViewletId(VIEWLET_ID);
+(<ViewletRegistry>Registry.as(ViewletExtensions.Viewlets)).setDefaultViewletId(VIEWLET_ID);
 
 let openViewletKb: IKeybindings = {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E
 };
 
 // Register Action to Open Viewlet
-(<IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions)).registerWorkbenchAction(
+const registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
+registry.registerWorkbenchAction(
 	new SyncActionDescriptor(OpenExplorerViewletAction, OpenExplorerViewletAction.ID, OpenExplorerViewletAction.LABEL, openViewletKb),
 	nls.localize('view', "View")
 );
@@ -82,9 +84,9 @@ let openViewletKb: IKeybindings = {
 		[
 			'text/*',
 
-		// In case the mime type is unknown, we prefer the text file editor over the binary editor to leave a chance
-		// of opening a potential text file properly. The resolution of the file in the text file editor will fail
-		// early on in case the file is actually binary, to prevent downloading a potential large binary file.
+			// In case the mime type is unknown, we prefer the text file editor over the binary editor to leave a chance
+			// of opening a potential text file properly. The resolution of the file in the text file editor will fail
+			// early on in case the file is actually binary, to prevent downloading a potential large binary file.
 			'application/unknown'
 		]
 	),
@@ -127,7 +129,7 @@ interface ISerializedFileInput {
 // Register Editor Input Factory
 class FileEditorInputFactory implements IEditorInputFactory {
 
-	constructor(@INullService ns) {}
+	constructor() { }
 
 	public serialize(editorInput: EditorInput): string {
 		let fileEditorInput = <FileEditorInput>editorInput;
@@ -147,24 +149,6 @@ class FileEditorInputFactory implements IEditorInputFactory {
 }
 
 (<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditorInputFactory(FILE_EDITOR_INPUT_ID, FileEditorInputFactory);
-
-// Register HTML Frame Editor Input Factory
-class HTMLFrameEditorInputFactory implements IEditorInputFactory {
-
-	constructor(@INullService ns) {}
-
-	public serialize(editorInput: EditorInput): string {
-		let htmlInput = <HTMLFrameEditorInput>editorInput;
-
-		return htmlInput.getResource().toString();
-	}
-
-	public deserialize(instantiationService: IInstantiationService, resourceRaw: string): EditorInput {
-		return instantiationService.createInstance(HTMLFrameEditorInput, URI.parse(resourceRaw));
-	}
-}
-
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditorInputFactory(HTMLFrameEditorInput.ID, HTMLFrameEditorInputFactory);
 
 // Register File Tracker
 (<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(
@@ -186,7 +170,6 @@ configurationRegistry.registerConfiguration({
 	'type': 'object',
 	'properties': {
 		'files.exclude': {
-			'id': 'glob-pattern',
 			'type': 'object',
 			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders."),
 			'default': { '**/.git': true, '**/.DS_Store': true },
@@ -210,16 +193,45 @@ configurationRegistry.registerConfiguration({
 				]
 			}
 		},
+		'files.associations': {
+			'type': 'object',
+			'description': nls.localize('associations', "Configure file associations to languages (e.g. \"*.extension\": \"html\"). These have precedence over the default associations of the languages installed."),
+		},
 		'files.encoding': {
 			'type': 'string',
 			'enum': Object.keys(SUPPORTED_ENCODINGS),
 			'default': 'utf8',
 			'description': nls.localize('encoding', "The default character set encoding to use when reading and writing files."),
 		},
+		'files.eol': {
+			'type': 'string',
+			'enum': [
+				'\n',
+				'\r\n'
+			],
+			'default': (platform.isLinux || platform.isMacintosh) ? '\n' : '\r\n',
+			'description': nls.localize('eol', "The default end of line character."),
+		},
 		'files.trimTrailingWhitespace': {
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('trimTrailingWhitespace', "When enabled, will trim trailing whitespace when you save a file.")
+		},
+		'files.autoSave': {
+			'type': 'string',
+			'enum': [AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE],
+			'default': AutoSaveConfiguration.OFF,
+			'description': nls.localize('autoSave', "Controls auto save of dirty files. Accepted values:  \"{0}\", \"{1}\", \"{2}\". If set to \"{3}\" you can configure the delay in \"files.autoSaveDelay\".", AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.AFTER_DELAY)
+		},
+		'files.autoSaveDelay': {
+			'type': 'number',
+			'default': 1000,
+			'description': nls.localize('autoSaveDelay', "Controls the delay in ms after which a dirty file is saved automatically. Only applies when \"files.autoSave\" is set to \"{0}\"", AutoSaveConfiguration.AFTER_DELAY)
+		},
+		'files.watcherExclude': {
+			'type': 'object',
+			'default': (platform.isLinux || platform.isMacintosh) ? { '**/.git/objects/**': true, '**/node_modules/**': true } : { '**/.git/objects/**': true },
+			'description': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Changing this setting requires a restart. When you experience Code consuming lots of cpu time on startup, you can exclude large folders to reduce the initial load.")
 		}
 	}
 });
@@ -239,6 +251,44 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('dynamicHeight', "Controls if the height of the working files section should adapt dynamically to the number of elements or not."),
 			'default': true
+		},
+		'explorer.autoReveal': {
+			'type': 'boolean',
+			'description': nls.localize('autoReveal', "Controls if the explorer should automatically reveal files when opening them."),
+			'default': true
 		}
 	}
 });
+
+// Register quick open handler for working files
+
+const ALL_WORKING_FILES_PREFIX = '~';
+
+class OpenWorkingFileByNameAction extends QuickOpenAction {
+
+	public static ID = 'workbench.files.action.workingFilesPicker';
+	public static LABEL = nls.localize('workingFilesPicker', "Open Working File by Name");
+
+	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
+		super(actionId, actionLabel, ALL_WORKING_FILES_PREFIX, quickOpenService);
+	}
+}
+
+(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		'vs/workbench/parts/files/browser/workingFilesPicker',
+		'WorkingFilesPicker',
+		ALL_WORKING_FILES_PREFIX,
+		[
+			{
+				prefix: ALL_WORKING_FILES_PREFIX,
+				needsEditor: false,
+				description: nls.localize('openWorkingFile', "Open Working File By Name")
+			}
+		]
+	)
+);
+
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenWorkingFileByNameAction, OpenWorkingFileByNameAction.ID, OpenWorkingFileByNameAction.LABEL, {
+	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_P)
+}), nls.localize('filesCategory', "Files"));

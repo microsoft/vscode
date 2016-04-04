@@ -7,7 +7,6 @@
 
 import 'vs/css!./gitlessView';
 import nls = require('vs/nls');
-import git = require('vs/workbench/parts/git/common/git');
 import platform = require('vs/base/common/platform');
 import winjs = require('vs/base/common/winjs.base');
 import ee = require('vs/base/common/eventEmitter');
@@ -47,26 +46,26 @@ export class GitlessView
 		if (platform.isMacintosh) {
 			instructions = nls.localize('macInstallWith',
 				"You can either install it with {0}, download it from {1} or install the {2} command line developer tools, by simply typing {3} on a Terminal prompt.",
-				'<a href="http://brew.sh/" target="_blank">Homebrew</a>',
-				'<a href="http://git-scm.com/download/mac" target="_blank">git-scm.com</a>',
-				'<a href="https://developer.apple.com/xcode/" target="_blank">XCode</a>',
+				'<a href="http://brew.sh/" tabindex="0" target="_blank">Homebrew</a>',
+				'<a href="http://git-scm.com/download/mac" tabindex="0" target="_blank">git-scm.com</a>',
+				'<a href="https://developer.apple.com/xcode/" tabindex="0" target="_blank">XCode</a>',
 				'<code>git</code>'
 			);
 		} else if (platform.isWindows) {
 			instructions = nls.localize('winInstallWith',
 				"You can either install it with {0} or download it from {1}.",
-				'<a href="https://chocolatey.org/packages/git" target="_blank">Chocolatey</a>',
-				'<a href="http://git-scm.com/download/win" target="_blank">git-scm.com</a>'
+				'<a href="https://chocolatey.org/packages/git" tabindex="0" target="_blank">Chocolatey</a>',
+				'<a href="http://git-scm.com/download/win" tabindex="0" target="_blank">git-scm.com</a>'
 			);
 		} else if (platform.isLinux) {
 			instructions = nls.localize('linuxDownloadFrom',
 				"You can download it from {0}.",
-				'<a href="http://git-scm.com/download/linux" target="_blank">git-scm.com</a>'
+				'<a href="http://git-scm.com/download/linux" tabindex="0" target="_blank">git-scm.com</a>'
 			);
 		} else {
 			instructions = nls.localize('downloadFrom',
 				"You can download it from {0}.",
-				'<a href="http://git-scm.com/download" target="_blank">git-scm.com</a>'
+				'<a href="http://git-scm.com/download" tabindex="0" target="_blank">git-scm.com</a>'
 			);
 		}
 
@@ -88,7 +87,7 @@ export class GitlessView
 	}
 
 	public setVisible(visible:boolean): winjs.TPromise<void> {
-		return winjs.Promise.as(null);
+		return winjs.TPromise.as(null);
 	}
 
 	public getSelection(): ISelection {

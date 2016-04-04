@@ -5,26 +5,24 @@
 
 'use strict';
 
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import timer = require('vs/base/common/timer');
 import paths = require('vs/base/common/paths');
 import {Action} from 'vs/base/common/actions';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IWindowService} from 'vs/workbench/services/window/electron-browser/windowService';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import nls = require('vs/nls');
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
-import {IThreadService} from 'vs/platform/thread/common/thread';
 import {IWindowConfiguration} from 'vs/workbench/electron-browser/window';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
 
-import ipc = require('ipc');
-import remote = require('remote');
-import webFrame = require('web-frame');
+import {ipcRenderer as ipc, webFrame, remote} from 'electron';
+
+// --- actions
 
 export class CloseEditorAction extends Action {
 
@@ -40,7 +38,7 @@ export class CloseEditorAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
 			return this.editorService.closeEditor(activeEditor);
@@ -48,7 +46,7 @@ export class CloseEditorAction extends Action {
 
 		this.windowService.getWindow().close();
 
-		return Promise.as(false);
+		return TPromise.as(false);
 	}
 }
 
@@ -61,10 +59,10 @@ export class CloseWindowAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<boolean> {
 		this.windowService.getWindow().close();
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -77,19 +75,20 @@ export class CloseFolderAction extends Action {
 		id: string,
 		label: string,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IWindowService private windowService: IWindowService
 	) {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<boolean> {
 		if (this.contextService.getWorkspace()) {
-			ipc.send('vscode:closeFolder', remote.getCurrentWindow().id); // handled from browser process
+			ipc.send('vscode:closeFolder', this.windowService.getWindowId()); // handled from browser process
 		} else {
 			this.messageService.show(Severity.Info, nls.localize('noFolderOpened', "There is currently no folder opened in this instance to close."));
 		}
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -98,14 +97,18 @@ export class NewWindowAction extends Action {
 	public static ID = 'workbench.action.newWindow';
 	public static LABEL = nls.localize('newWindow', "New Window");
 
-	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService
+	) {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<boolean> {
 		this.windowService.getWindow().openNew();
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -118,10 +121,10 @@ export class ToggleFullScreenAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<boolean> {
 		ipc.send('vscode:toggleFullScreen', this.windowService.getWindowId());
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -134,10 +137,10 @@ export class ToggleMenuBarAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<boolean> {
 		ipc.send('vscode:toggleMenuBar', this.windowService.getWindowId());
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -146,14 +149,14 @@ export class ToggleDevToolsAction extends Action {
 	public static ID = 'workbench.action.toggleDevTools';
 	public static LABEL = nls.localize('toggleDevTools', "Toggle Developer Tools");
 
-	constructor(id: string, label: string, @INullService ns) {
+	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
 		super(id, label);
 	}
 
-	public run(): Promise {
-		remote.getCurrentWindow().toggleDevTools();
+	public run(): TPromise<boolean> {
+		ipc.send('vscode:toggleDevTools', this.windowService.getWindowId());
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -162,14 +165,14 @@ export class ZoomInAction extends Action {
 	public static ID = 'workbench.action.zoomIn';
 	public static LABEL = nls.localize('zoomIn', "Zoom in");
 
-	constructor(id: string, label: string, @INullService ns) {
+	constructor(id: string, label: string) {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<boolean> {
 		webFrame.setZoomLevel(webFrame.getZoomLevel() + 1);
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -183,18 +186,17 @@ export abstract class BaseZoomAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
-		return Promise.as(false); // Subclass to implement
+	public run(): TPromise<boolean> {
+		return TPromise.as(false); // Subclass to implement
 	}
 
-	protected loadConfiguredZoomLevel(): TPromise<number> {
-		return this.configurationService.loadConfiguration().then((windowConfig: IWindowConfiguration) => {
-			if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
-				return windowConfig.window.zoomLevel;
-			}
+	protected getConfiguredZoomLevel(): number {
+		const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
+		if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
+			return windowConfig.window.zoomLevel;
+		}
 
-			return 0; // default
-		});
+		return 0; // default
 	}
 }
 
@@ -211,15 +213,17 @@ export class ZoomOutAction extends BaseZoomAction {
 		super(id, label, configurationService);
 	}
 
-	public run(): Promise {
-		return this.loadConfiguredZoomLevel().then(level => {
-			let newZoomLevelCandiate = webFrame.getZoomLevel() - 1;
-			if (newZoomLevelCandiate < 0 && newZoomLevelCandiate < level) {
-				newZoomLevelCandiate = Math.min(level, 0); // do not zoom below configured level or below 0
-			}
+	public run(): TPromise<boolean> {
+		const level = this.getConfiguredZoomLevel();
 
-			webFrame.setZoomLevel(newZoomLevelCandiate);
-		});
+		let newZoomLevelCandiate = webFrame.getZoomLevel() - 1;
+		if (newZoomLevelCandiate < 0 && newZoomLevelCandiate < level) {
+			newZoomLevelCandiate = Math.min(level, 0); // do not zoom below configured level or below 0
+		}
+
+		webFrame.setZoomLevel(newZoomLevelCandiate);
+
+		return TPromise.as(true);
 	}
 }
 
@@ -236,10 +240,11 @@ export class ZoomResetAction extends BaseZoomAction {
 		super(id, label, configurationService);
 	}
 
-	public run(): Promise {
-		return this.loadConfiguredZoomLevel().then(level => {
-			webFrame.setZoomLevel(level);
-		});
+	public run(): TPromise<boolean> {
+		const level = this.getConfiguredZoomLevel();
+		webFrame.setZoomLevel(level);
+
+		return TPromise.as(true);
 	}
 }
 
@@ -313,7 +318,7 @@ export class ShowStartupPerformance extends Action {
 		return result;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<boolean> {
 		let table: any[] = [];
 		table.push(...this._analyzeLoaderTimes());
 
@@ -358,7 +363,7 @@ export class ShowStartupPerformance extends Action {
 			(<any>console).table(table);
 		}, 1000);
 
-		return Promise.as(true);
+		return TPromise.as(true);
 	}
 }
 
@@ -371,10 +376,10 @@ export class ReloadWindowAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
-		ipc.send('vscode:reloadWindow', this.windowService.getWindowId());
+	public run(): TPromise<boolean> {
+		this.windowService.getWindow().reload();
 
-		return Promise.as(null);
+		return TPromise.as(true);
 	}
 }
 
@@ -392,23 +397,40 @@ export class OpenRecentAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
-		let picks = this.contextService.getConfiguration().env.recentPaths.map(p => {
+	public run(): TPromise<boolean> {
+		const recentFolders = this.contextService.getConfiguration().env.recentFolders;
+		const recentFiles = this.contextService.getConfiguration().env.recentFiles;
+
+		let folderPicks = recentFolders.map((p, index) => {
 			return {
 				label: paths.basename(p),
 				description: paths.dirname(p),
-				path: p
-			}
+				path: p,
+				separator: index === 0 ? { label: nls.localize('folders', "folders") } : void 0
+			};
 		});
 
-		return this.quickOpenService.pick(picks, {
-			autoFocus: { autoFocusSecondEntry: true },
+		let filePicks = recentFiles.map((p, index) => {
+			return {
+				label: paths.basename(p),
+				description: paths.dirname(p),
+				path: p,
+				separator: index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0
+			};
+		});
+
+		const hasWorkspace = !!this.contextService.getWorkspace();
+
+		return this.quickOpenService.pick(folderPicks.concat(...filePicks), {
+			autoFocus: { autoFocusFirstEntry: !hasWorkspace, autoFocusSecondEntry: hasWorkspace },
 			placeHolder: nls.localize('openRecentPlaceHolder', "Select a path to open"),
 			matchOnDescription: true
 		}).then(p => {
 			if (p) {
 				ipc.send('vscode:windowOpen', [p.path]);
 			}
+
+			return true;
 		});
 	}
 }
@@ -427,7 +449,7 @@ export class CloseMessagesAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise {
+	public run(): TPromise<boolean> {
 
 		// Close any Message if visible
 		this.messageService.hideAll();
@@ -438,6 +460,25 @@ export class CloseMessagesAction extends Action {
 			editor.focus();
 		}
 
-		return Promise.as(null);
+		return TPromise.as(true);
 	}
 }
+
+// --- commands
+
+KeybindingsRegistry.registerCommandDesc({
+	id: '_workbench.ipc',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
+	handler(accessor: ServicesAccessor, args: [string, any[]]) {
+		const ipcMessage = args[0];
+		const ipcArgs = args[1];
+
+		if (ipcMessage && Array.isArray(ipcArgs)) {
+			ipc.send(ipcMessage, ...ipcArgs);
+		} else {
+			ipc.send(ipcMessage);
+		}
+	},
+	context: undefined,
+	primary: undefined
+});

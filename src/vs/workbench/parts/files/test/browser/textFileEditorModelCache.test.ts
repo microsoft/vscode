@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import {TextFileEditorModelCache} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
+import {TextFileEditorModelCache} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {EditorModel} from 'vs/workbench/common/editor';
 
 suite('Files - TextFileEditorModelCache', () => {

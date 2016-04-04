@@ -11,13 +11,13 @@ import uri from 'vs/base/common/uri';
 import { GitErrorCodes } from 'vs/workbench/parts/git/common/git';
 import gitlib = require('vs/workbench/parts/git/node/git.lib');
 import { RawGitService, DelayedRawGitService } from 'vs/workbench/parts/git/node/rawGitService';
-import { join, dirname, normalize } from 'path';
+import { join, normalize } from 'path';
 import { tmpdir } from 'os';
 import { realpath } from 'vs/base/node/pfs';
 
 class IPCRawGitService extends DelayedRawGitService {
 
-	constructor(gitPath: string, workspaceRoot: string, defaultEncoding: string, exePath: string) {
+	constructor(gitPath: string, workspaceRoot: string, defaultEncoding: string, exePath: string, version: string) {
 		if (!gitPath) {
 			super(TPromise.as(new RawGitService(null)));
 		} else {
@@ -33,7 +33,7 @@ class IPCRawGitService extends DelayedRawGitService {
 			});
 
 			const git = new gitlib.Git({
-				gitPath: gitPath,
+				gitPath, version,
 				tmpPath: tmpdir(),
 				defaultEncoding: defaultEncoding,
 				env: env
@@ -58,4 +58,4 @@ class IPCRawGitService extends DelayedRawGitService {
 }
 
 const server = new Server();
-server.registerService('GitService', new IPCRawGitService(process.argv[2], process.argv[3], process.argv[4], process.argv[5]));
+server.registerService('GitService', new IPCRawGitService(process.argv[2], process.argv[3], process.argv[4], process.argv[5], process.argv[6]));

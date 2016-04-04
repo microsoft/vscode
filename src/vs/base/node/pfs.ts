@@ -80,6 +80,10 @@ export function stat(path: string): TPromise<fs.Stats> {
 	return nfcall(fs.stat, path);
 }
 
+export function lstat(path: string): TPromise<fs.Stats> {
+	return nfcall(fs.lstat, path);
+}
+
 export function mstat(paths: string[]): TPromise<{ path: string; stats: fs.Stats; }> {
 	return doStatMultiple(paths.slice(0));
 }
@@ -96,8 +100,16 @@ export function unlink(path: string): Promise {
 	return nfcall(fs.unlink, path);
 }
 
+export function symlink(target: string, path: string, type?: string): TPromise<void> {
+	return nfcall<void>(fs.symlink, target, path, type);
+}
+
+export function readlink(path: string): TPromise<string> {
+	return nfcall<string>(fs.readlink, path);
+}
+
 function doStatMultiple(paths: string[]): TPromise<{ path: string; stats: fs.Stats; }> {
-	var path = paths.shift();
+	let path = paths.shift();
 	return stat(path).then((value) => {
 		return {
 			path: path,

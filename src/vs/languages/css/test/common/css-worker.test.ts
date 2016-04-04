@@ -10,7 +10,6 @@ import cssWorker = require('vs/languages/css/common/cssWorker');
 import URI from 'vs/base/common/uri';
 import ResourceService = require('vs/editor/common/services/resourceServiceImpl');
 import MarkerService = require('vs/platform/markers/common/markerService');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import WinJS = require('vs/base/common/winjs.base');
 import cssErrors = require('vs/languages/css/common/parser/cssErrors');
@@ -20,7 +19,7 @@ import {NULL_THREAD_SERVICE} from 'vs/platform/test/common/nullThreadService';
 import {IMarker} from 'vs/platform/markers/common/markers';
 
 export function mockMirrorModel(content:string, url:URI = null) : mm.MirrorModel {
-	return mm.createMirrorModelFromString(null, 0, content, modesUtil.createMockMode('mock.mode.id', /(#?-?\d*\.\d\w*%?)|([@#.:!]?[\w-?]+%?)|[@#.!]/g), url);
+	return mm.createTestMirrorModelFromString(content, modesUtil.createMockMode('mock.mode.id', /(#?-?\d*\.\d\w*%?)|([@#.:!]?[\w-?]+%?)|[@#.!]/g), url);
 }
 
 suite('Validation - CSS', () => {
@@ -32,7 +31,7 @@ suite('Validation - CSS', () => {
 		var url = URI.parse('inmemory://localhost/vs/editor/common/model/mirrorModel/1');
 		var mirrorModel:any= mockMirrorModel(source, url);
 
-		var markerService = new MarkerService.MarkerService(NULL_THREAD_SERVICE);
+		var markerService = new MarkerService.MainProcessMarkerService(NULL_THREAD_SERVICE);
 		var resourceService = new ResourceService.ResourceService();
 		resourceService.insert(url, mirrorModel);
 
@@ -40,8 +39,8 @@ suite('Validation - CSS', () => {
 			resourceService: resourceService,
 			markerService: markerService
 		});
-		var worker = new cssWorker.CSSWorker(modesUtil.createMockMode('mock.mode.id'), [], services.resourceService, services.markerService);
-		worker.doValidate(url);
+		var worker = new cssWorker.CSSWorker('mock.mode.id', services.resourceService, services.markerService);
+		worker.doValidate([url]);
 
 		var markers = markerService.read({ resource: url });
 		var marker = markers[0];
@@ -55,15 +54,15 @@ suite('Validation - CSS', () => {
 		var model = mockMirrorModel(content, url);
 		resourceService.insert(url, model);
 
-		var markerService = new MarkerService.MarkerService(NULL_THREAD_SERVICE);
+		var markerService = new MarkerService.MainProcessMarkerService(NULL_THREAD_SERVICE);
 
 		let services = servicesUtil2.createMockEditorWorkerServices({
 			resourceService: resourceService,
 			markerService: markerService
 		});
 
-		var worker = new cssWorker.CSSWorker(modesUtil.createMockMode('mock.mode.id'), [], services.resourceService, services.markerService);
-		worker.doValidate(url);
+		var worker = new cssWorker.CSSWorker('mock.mode.id', services.resourceService, services.markerService);
+		worker.doValidate([url]);
 
 		var markers = markerService.read({ resource: url });
 		return { worker: worker, model: model, markers: markers };
@@ -85,7 +84,7 @@ suite('Validation - CSS', () => {
 		var pos = env.model.getPositionFromOffset(value.indexOf(selection));
 		var range = { startLineNumber: pos.lineNumber, startColumn: pos.column, endLineNumber: pos.lineNumber, endColumn: pos.column + selectionLength };
 
-		return env.worker.inplaceReplaceSupport.navigateValueSet(url, range, up);
+		return env.worker.navigateValueSet(url, range, up);
 	};
 
 	var testOccurrences = function (value: string, tokenBefore: string): WinJS.TPromise<{ occurrences: Modes.IOccurence[]; model: mm.MirrorModel; }> {
@@ -254,7 +253,7 @@ suite('Validation - CSS', () => {
 			}),
 			testSuggestionsFor('.foo { background-color: #123456; } .bar { background-color: }', '.bar { background-color:').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '');
-				assertSuggestion(completion, '#123456', '##123456');
+				assertSuggestion(completion, '#123456', 'customcolor');
 			}),
 			testSuggestionsFor('.foo { unknown: foo; } .bar { unknown: }', '.bar { unknown:').then(function(completion: Modes.ISuggestResult): void {
 				assert.equal(completion.currentWord, '');
@@ -264,7 +263,7 @@ suite('Validation - CSS', () => {
 				assert.equal(completion.currentWord, 'r');
 				assertSuggestion(completion, 'rgb', 'function');
 				assertSuggestion(completion, 'rgba', 'function');
-				assertSuggestion(completion, 'red', '##ff0000');
+				assertSuggestion(completion, 'red', 'customcolor');
 			})
 		]).done(() => testDone(), (errors: any[]) => {
 			testDone(errors.reduce((e1, e2) => e1 || e2));
@@ -274,16 +273,16 @@ suite('Validation - CSS', () => {
 	test('Value sets', function(testDone): any {
 		WinJS.Promise.join([
 			testValueSetFor('body { display: inline }', 'inline', 6, false).then(function(result:Modes.IInplaceReplaceSupportResult):void  {
-				assertReplaceResult(result, 'flexbox');
+				assertReplaceResult(result, 'flex');
 			}),
-			testValueSetFor('body { display: flexbox }', 'flexbox', 7, true).then(function(result:Modes.IInplaceReplaceSupportResult):void  {
+			testValueSetFor('body { display: flex }', 'flex', 7, true).then(function(result:Modes.IInplaceReplaceSupportResult):void  {
 				assertReplaceResult(result, 'inline');
 			}),
 			testValueSetFor('body { display: inline }', 'inline', 0, false).then(function(result:Modes.IInplaceReplaceSupportResult):void  {
-				assertReplaceResult(result, 'flexbox');
+				assertReplaceResult(result, 'flex');
 			}),
 			testValueSetFor('body { display: inline }', 'line', 0, false).then(function(result:Modes.IInplaceReplaceSupportResult):void  {
-				assertReplaceResult(result, 'flexbox');
+				assertReplaceResult(result, 'flex');
 			}),
 			testValueSetFor('body { display: inline }', 'display', 0, false).then(function(result:Modes.IInplaceReplaceSupportResult):void  {
 				assert.ok(!result);

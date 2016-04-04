@@ -10,7 +10,7 @@ import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import objects = require('vs/base/common/objects');
 import {IEditor, IEditorViewState, IRange} from 'vs/editor/common/editorCommon';
-import {IEditorInput, IEditorModel, IEditorOptions, ITextInput} from 'vs/platform/editor/common/editor';
+import {IEditorInput, IEditorModel, IEditorOptions, IResourceInput} from 'vs/platform/editor/common/editor';
 
 /**
  * A simple bag for input related status that can be shown in the UI
@@ -120,6 +120,77 @@ export abstract class EditorInput extends EventEmitter implements IEditorInput {
 	public isDisposed(): boolean {
 		return this.disposed;
 	}
+}
+
+export enum EncodingMode {
+
+	/**
+	 * Instructs the encoding support to encode the current input with the provided encoding
+	 */
+	Encode,
+
+	/**
+	 * Instructs the encoding support to decode the current input with the provided encoding
+	 */
+	Decode
+}
+
+export interface IEncodingSupport {
+
+	/**
+	 * Gets the encoding of the input if known.
+	 */
+	getEncoding(): string;
+
+	/**
+	 * Sets the encoding for the input for saving.
+	 */
+	setEncoding(encoding: string, mode: EncodingMode): void;
+}
+
+/**
+ * This is a tagging interface to declare an editor input being capable of dealing with files. It is only used in the editor registry
+ * to register this kind of input to the platform.
+ */
+export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
+
+	/**
+	 * Gets the mime type of the file this input is about.
+	 */
+	getMime(): string;
+
+	/**
+	 * Sets the mime type of the file this input is about.
+	 */
+	setMime(mime: string): void;
+
+	/**
+	 * Gets the absolute file resource URI this input is about.
+	 */
+	getResource(): URI;
+
+	/**
+	 * Sets the absolute file resource URI this input is about.
+	 */
+	setResource(resource: URI): void;
+}
+
+/**
+ * The base class of untitled editor inputs in the workbench.
+ */
+export abstract class UntitledEditorInput extends EditorInput implements IEncodingSupport {
+
+	abstract getResource(): URI;
+
+	abstract isDirty(): boolean;
+
+	abstract suggestFileName(): string;
+
+	abstract getMime(): string;
+
+	abstract getEncoding(): string;
+
+	abstract setEncoding(encoding: string, mode: EncodingMode): void;
 }
 
 /**
@@ -237,23 +308,23 @@ export class TextEditorOptions extends EditorOptions {
 	private endColumn: number;
 	private editorViewState: IEditorViewState;
 
-	public static from(textInput: ITextInput): TextEditorOptions {
+	public static from(input: IResourceInput): TextEditorOptions {
 		let options: TextEditorOptions = null;
-		if (textInput && textInput.options) {
-			if (textInput.options.selection || textInput.options.forceOpen || textInput.options.preserveFocus) {
+		if (input && input.options) {
+			if (input.options.selection || input.options.forceOpen || input.options.preserveFocus) {
 				options = new TextEditorOptions();
 			}
 
-			if (textInput.options.selection) {
-				let selection = textInput.options.selection;
+			if (input.options.selection) {
+				let selection = input.options.selection;
 				options.selection(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn);
 			}
 
-			if (textInput.options.forceOpen) {
+			if (input.options.forceOpen) {
 				options.forceOpen = true;
 			}
 
-			if (textInput.options.preserveFocus) {
+			if (input.options.preserveFocus) {
 				options.preserveFocus = true;
 			}
 		}
@@ -395,62 +466,6 @@ export class TextDiffEditorOptions extends TextEditorOptions {
 	public autoRevealFirstChange: boolean;
 }
 
-export interface IResourceEditorInput extends IEditorInput {
-
-	/**
-	 * Gets the absolute file resource URI this input is about.
-	 */
-	getResource(): URI;
-}
-
-export enum EncodingMode {
-
-	/**
-	 * Instructs the encoding support to encode the current input with the provided encoding
-	 */
-	Encode,
-
-	/**
-	 * Instructs the encoding support to decode the current input with the provided encoding
-	 */
-	Decode
-}
-
-export interface IEncodingSupport {
-
-	/**
-	 * Gets the encoding of the input if known.
-	 */
-	getEncoding(): string;
-
-	/**
-	 * Sets the encoding for the input for saving.
-	 */
-	setEncoding(encoding: string, mode: EncodingMode): void;
-}
-
-/**
- * This is a tagging interface to declare an editor input being capable of dealing with files. It is only used in the editor registry
- * to register this kind of input to the platform.
- */
-export interface IFileEditorInput extends IResourceEditorInput, IEncodingSupport {
-
-	/**
-	 * Gets the mime type of the file this input is about.
-	 */
-	getMime(): string;
-
-	/**
-	 * Sets the mime type of the file this input is about.
-	 */
-	setMime(mime: string): void;
-
-	/**
-	 * Sets the absolute file resource URI this input is about.
-	 */
-	setResource(resource: URI): void;
-}
-
 /**
  * Given an input, tries to get the associated URI for it (either file or untitled scheme).
  */
@@ -459,11 +474,12 @@ export function getUntitledOrFileResource(input: IEditorInput, supportDiff?: boo
 		return null;
 	}
 
-	let resourceInput = <IResourceEditorInput>input;
-	if (types.isFunction(resourceInput.getResource)) {
-		return resourceInput.getResource();
+	// Untitled
+	if (input instanceof UntitledEditorInput) {
+		return input.getResource();
 	}
 
+	// File
 	let fileInput = asFileEditorInput(input, supportDiff);
 	return fileInput && fileInput.getResource();
 }
@@ -483,5 +499,5 @@ export function asFileEditorInput(obj: any, supportDiff?: boolean): IFileEditorI
 
 	let i = <IFileEditorInput>obj;
 
-	return i instanceof EditorInput && types.areFunctions(i.setResource, i.setMime, i.getResource, i.getMime) ? i : null;
+	return i instanceof EditorInput && types.areFunctions(i.setResource, i.setMime, i.setEncoding, i.getEncoding, i.getResource, i.getMime) ? i : null;
 }

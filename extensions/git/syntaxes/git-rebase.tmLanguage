@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>fileTypes</key>
+	<array>
+		<string>git-rebase-todo</string>
+	</array>
+	<key>name</key>
+	<string>Git Rebase Message</string>
+	<key>patterns</key>
+	<array>
+		<dict>
+			<key>captures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>punctuation.definition.comment.git-rebase</string>
+				</dict>
+			</dict>
+			<key>match</key>
+			<string>^\s*(#).*$\n?</string>
+			<key>name</key>
+			<string>comment.line.number-sign.git-rebase</string>
+		</dict>
+		<dict>
+			<key>captures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>support.function.git-rebase</string>
+				</dict>
+				<key>2</key>
+				<dict>
+					<key>name</key>
+					<string>constant.sha.git-rebase</string>
+				</dict>
+				<key>3</key>
+				<dict>
+					<key>name</key>
+					<string>meta.commit-message.git-rebase</string>
+				</dict>
+			</dict>
+			<key>match</key>
+			<string>^\s*(pick|p|reword|r|edit|e|squash|s|fixup|f|d|drop|x|exec)\s+([0-9a-f]+)\s+(.*)$</string>
+			<key>name</key>
+			<string>meta.commit-command.git-rebase</string>
+		</dict>
+	</array>
+	<key>scopeName</key>
+	<string>text.git-rebase</string>
+	<key>uuid</key>
+	<string>7F1CC209-5F6D-486A-8180-09FA282381A1</string>
+</dict>
+</plist>

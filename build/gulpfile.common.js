@@ -7,14 +7,17 @@ var path = require('path');
 var gulp = require('gulp');
 var sourcemaps = require('gulp-sourcemaps');
 var filter = require('gulp-filter');
-var minifyCSS = require('gulp-minify-css');
+var minifyCSS = require('gulp-cssnano');
 var uglify = require('gulp-uglify');
 var es = require('event-stream');
 var concat = require('gulp-concat');
 var File = require('vinyl');
-var underscore = require('underscore');
 var bundle = require('./lib/bundle');
 var util = require('./lib/util');
+var i18n = require('./lib/i18n');
+
+var root = path.dirname(__dirname);
+var commit = util.getVersion(root);
 
 var tsOptions = {
 	target: 'ES5',
@@ -171,6 +174,7 @@ exports.optimizeTask = function(opts) {
 				addComment: true,
 				includeContent: true
 			}))
+			.pipe(i18n.processNlsFiles())
 			.pipe(gulp.dest(out));
 	};
 };
@@ -243,6 +247,9 @@ exports.minifyTask = function (src, addSourceMapsComment) {
 			.pipe(minifyCSS())
 			.pipe(cssFilter.restore)
 			.pipe(sourcemaps.write('./', {
+				sourceMappingURL: function (file) {
+					return 'https://ticino.blob.core.windows.net/sourcemaps/' + commit + '/' + file.relative + '.map';
+				},
 				sourceRoot: null,
 				includeContent: true,
 				addComment: addSourceMapsComment

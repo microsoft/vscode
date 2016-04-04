@@ -6,8 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {commands} from 'vscode';
-import {join} from 'path';
+import {commands, workspace, Uri} from 'vscode';
 
 suite("commands namespace tests", () => {
 
@@ -39,4 +38,21 @@ suite("commands namespace tests", () => {
 			done();
 		}, done);
 	});
+
+	test('api-command: workbench.html.preview', function() {
+
+		let registration = workspace.registerTextDocumentContentProvider('speciale', {
+			provideTextDocumentContent(uri) {
+				return `content of URI <b>${uri.toString()}</b>`;
+			}
+		});
+
+		let virtualDocumentUri = Uri.parse('speciale://authority/path')
+
+		return commands.executeCommand('vscode.previewHtml', virtualDocumentUri).then(success => {
+			assert.ok(success);
+			registration.dispose();
+		});
+
+	})
 });

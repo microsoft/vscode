@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import {Action} from 'vs/base/common/actions';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 
 export class QuickOpenAction extends Action {
 	private prefix: string;
@@ -18,11 +18,11 @@ export class QuickOpenAction extends Action {
 		this.enabled = !!this.quickOpenService;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 
 		// Show with prefix
 		this.quickOpenService.show(this.prefix);
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }

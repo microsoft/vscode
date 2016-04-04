@@ -7,16 +7,16 @@
 
 import {TPromise} from 'vs/base/common/winjs.base';
 import {IEditorActionDescriptorData, ICommonCodeEditor} from 'vs/editor/common/editorCommon';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {Behaviour} from 'vs/editor/common/editorActionEnablement';
 import {EditorAccessor} from './editorAccessor';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
 
 export class ExpandAbbreviationAction extends EditorAction {
 	static ID = 'editor.emmet.action.expandAbbreviation';
 
 	private editorAccessor: EditorAccessor;
 
-	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
 		super(descriptor, editor, Behaviour.TextFocus);
 		this.editorAccessor = new EditorAccessor(editor);
 	}

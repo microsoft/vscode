@@ -7,8 +7,8 @@
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { IEventEmitter } from 'vs/base/common/eventEmitter';
-import { ITree } from 'vs/base/parts/tree/common/tree';
-import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import strings = require('vs/base/common/strings');
 import { isString } from 'vs/base/common/types';
 import { Action } from 'vs/base/common/actions';
@@ -28,7 +28,9 @@ import Severity from 'vs/base/common/severity';
 import { IGitService, IFileStatus, Status, StatusType, ServiceState,
 	IModel, IBranch, GitErrorCodes, ServiceOperations }
 	from 'vs/workbench/parts/git/common/git';
-import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import { IQuickOpenService } from 'vs/workbench/services/quickopen/common/quickOpenService';
+import paths = require('vs/base/common/paths');
+import URI from 'vs/base/common/uri';
 
 function flatten(context?: any, preferFocus = false): IFileStatus[] {
 	if (!context) {
@@ -64,9 +66,9 @@ export abstract class GitAction extends Action {
 	protected toDispose: IDisposable[];
 
 	constructor(id: string, label: string, cssClass: string, gitService: IGitService) {
-		this.gitService = gitService;
 		super(id, label, cssClass, false);
 
+		this.gitService = gitService;
 		this.toDispose = [this.gitService.addBulkListener2(() => this.onGitServiceChange())];
 		this.onGitServiceChange();
 	}
@@ -87,7 +89,7 @@ export abstract class GitAction extends Action {
 
 	public dispose(): void {
 		this.gitService = null;
-		this.toDispose = disposeAll(this.toDispose);
+		this.toDispose = dispose(this.toDispose);
 
 		super.dispose();
 	}
@@ -95,12 +97,13 @@ export abstract class GitAction extends Action {
 
 export class OpenChangeAction extends GitAction {
 
-	static ID = 'workbench.action.openChange';
+	static ID = 'workbench.action.git.openChange';
 	protected editorService: IWorkbenchEditorService;
 
 	constructor(@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IGitService gitService: IGitService) {
-		this.editorService = editorService;
 		super(OpenChangeAction.ID, nls.localize('openChange', "Open Change"), 'git-action open-change', gitService);
+		this.editorService = editorService;
+		this.onGitServiceChange();
 	}
 
 	protected isEnabled():boolean {
@@ -123,17 +126,18 @@ export class OpenChangeAction extends GitAction {
 export class OpenFileAction extends GitAction {
 
 	private static DELETED_STATES = [Status.BOTH_DELETED, Status.DELETED, Status.DELETED_BY_US, Status.INDEX_DELETED];
-	static ID = 'workbench.action.openFile';
+	static ID = 'workbench.action.git.openFile';
 
-	private fileService: IFileService;
-	private editorService: IWorkbenchEditorService;
-	private contextService: IWorkspaceContextService;
+	protected fileService: IFileService;
+	protected editorService: IWorkbenchEditorService;
+	protected contextService: IWorkspaceContextService;
 
 	constructor(@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService, @IGitService gitService: IGitService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
+		super(OpenFileAction.ID, nls.localize('openFile', "Open File"), 'git-action open-file', gitService);
 		this.fileService = fileService;
 		this.editorService = editorService;
 		this.contextService = contextService;
-		super(OpenFileAction.ID, nls.localize('openFile', "Open File"), 'git-action open-file', gitService);
+		this.onGitServiceChange();
 	}
 
 	protected isEnabled():boolean {
@@ -166,23 +170,20 @@ export class OpenFileAction extends GitAction {
 			return Promise.wrapError(new Error('Can\'t open file which is has been deleted.'));
 		}
 
-		var path = this.getPath(status);
+		const resource = URI.file(paths.join(this.gitService.getModel().getRepositoryRoot(), this.getPath(status)));
 
-		return this.fileService.resolveFile(this.contextService.toResource(path)).then((stat: IFileStat) => {
-			return this.editorService.openEditor({
+		return this.fileService.resolveFile(resource)
+			.then(stat => this.editorService.openEditor({
 				resource: stat.resource,
 				mime: stat.mime,
-				options: {
-					forceOpen: true
-				}
-			});
-		});
+				options: { forceOpen: true }
+			}));
 	}
 }
 
 export class InitAction extends GitAction {
 
-	static ID = 'workbench.action.init';
+	static ID = 'workbench.action.git.init';
 
 	constructor(@IGitService gitService: IGitService) {
 		super(InitAction.ID, nls.localize('init', "Init"), 'git-action init', gitService);
@@ -199,7 +200,7 @@ export class InitAction extends GitAction {
 
 export class RefreshAction extends GitAction {
 
-	static ID = 'workbench.action.refresh';
+	static ID = 'workbench.action.git.refresh';
 
 	constructor(@IGitService gitService: IGitService) {
 		super(RefreshAction.ID, nls.localize('refresh', "Refresh"), 'git-action refresh', gitService);
@@ -224,21 +225,21 @@ export abstract class BaseStageAction extends GitAction {
 		return this.gitService.add(flatten(context)).then((status: IModel) => {
 			var targetEditor = this.findGitWorkingTreeEditor();
 			if (!targetEditor) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var currentGitEditorInput = <inputs.IEditorInputWithStatus>(<any>targetEditor.input);
 			var currentFileStatus = currentGitEditorInput.getFileStatus();
 
 			if (flatContext && flatContext.every((f) => f !== currentFileStatus)) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var path = currentGitEditorInput.getFileStatus().getPath();
 			var fileStatus = status.getStatus().find(path, StatusType.INDEX);
 
 			if (!fileStatus) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var editorControl = <any>targetEditor.getControl();
@@ -279,7 +280,7 @@ export abstract class BaseStageAction extends GitAction {
 }
 
 export class StageAction extends BaseStageAction {
-	static ID = 'workbench.action.stage';
+	static ID = 'workbench.action.git.stage';
 	static LABEL = nls.localize('stageChanges', "Stage");
 
 	constructor(@IGitService gitService: IGitService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
@@ -289,7 +290,7 @@ export class StageAction extends BaseStageAction {
 
 export class GlobalStageAction extends BaseStageAction {
 
-	static ID = 'workbench.action.stageAll';
+	static ID = 'workbench.action.git.stageAll';
 
 	constructor(@IGitService gitService: IGitService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
 		super(GlobalStageAction.ID, nls.localize('stageAllChanges', "Stage All"), 'git-action stage', gitService, editorService);
@@ -313,12 +314,13 @@ export abstract class BaseUndoAction extends GitAction {
 	private contextService: IWorkspaceContextService;
 
 	constructor(id: string, label: string, className: string, gitService: IGitService, eventService: IEventService, messageService: IMessageService, fileService:IFileService, editorService: IWorkbenchEditorService, contextService: IWorkspaceContextService) {
+		super(id, label, className, gitService);
 		this.eventService = eventService;
 		this.editorService = editorService;
 		this.messageService = messageService;
 		this.fileService = fileService;
 		this.contextService = contextService;
-		super(id, label, className, gitService);
+		this.onGitServiceChange();
 	}
 
 	protected isEnabled():boolean {
@@ -327,7 +329,7 @@ export abstract class BaseUndoAction extends GitAction {
 
 	public run(context?: any):Promise {
 		if (!this.messageService.confirm(this.getConfirm(context))) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		var promises: Promise[] = [];
@@ -366,21 +368,21 @@ export abstract class BaseUndoAction extends GitAction {
 
 		return Promise.join(promises).then((statuses: IModel[]) => {
 			if (statuses.length === 0) {
-				return Promise.as(null);
+				return TPromise.as(null);
 			}
 
 			var status = statuses[statuses.length - 1];
 
 			var targetEditor = this.findWorkingTreeDiffEditor();
 			if (!targetEditor) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var currentGitEditorInput = <inputs.GitWorkingTreeDiffEditorInput> targetEditor.input;
 			var currentFileStatus = currentGitEditorInput.getFileStatus();
 
 			if (all && all.every((f) => f !== currentFileStatus)) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var path = currentGitEditorInput.getFileStatus().getPath();
@@ -435,7 +437,7 @@ export abstract class BaseUndoAction extends GitAction {
 				detail: count === 1
 					? nls.localize('confirmUndoAllOne', "There are unstaged changes in {0} file.\n\nThis action is irreversible!", count)
 					: nls.localize('confirmUndoAllMultiple', "There are unstaged changes in {0} files.\n\nThis action is irreversible!", count),
-				primaryButton: nls.localize('cleanChangesLabel', "Clean Changes")
+				primaryButton: nls.localize({ key: 'cleanChangesLabel', comment: ['&& denotes a mnemonic'] }, "&&Clean Changes")
 			};
 		}
 
@@ -444,7 +446,7 @@ export abstract class BaseUndoAction extends GitAction {
 		return {
 			message: nls.localize('confirmUndo', "Are you sure you want to clean changes in '{0}'?", label),
 			detail: nls.localize('irreversible', "This action is irreversible!"),
-			primaryButton: nls.localize('cleanChangesLabel', "Clean Changes")
+			primaryButton: nls.localize({ key: 'cleanChangesLabel', comment: ['&& denotes a mnemonic'] }, "&&Clean Changes")
 		};
 	}
 
@@ -458,7 +460,7 @@ export abstract class BaseUndoAction extends GitAction {
 }
 
 export class UndoAction extends BaseUndoAction {
-	static ID = 'workbench.action.undo';
+	static ID = 'workbench.action.git.undo';
 	constructor( @IGitService gitService: IGitService, @IEventService eventService: IEventService, @IMessageService messageService: IMessageService, @IFileService fileService: IFileService, @IWorkbenchEditorService editorService: IWorkbenchEditorService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
 		super(UndoAction.ID, nls.localize('undoChanges', "Clean"), 'git-action undo', gitService, eventService, messageService, fileService, editorService, contextService);
 	}
@@ -466,7 +468,7 @@ export class UndoAction extends BaseUndoAction {
 
 export class GlobalUndoAction extends BaseUndoAction {
 
-	static ID = 'workbench.action.undoAll';
+	static ID = 'workbench.action.git.undoAll';
 
 	constructor(@IGitService gitService: IGitService, @IEventService eventService: IEventService, @IMessageService messageService: IMessageService, @IFileService fileService: IFileService, @IWorkbenchEditorService editorService: IWorkbenchEditorService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
 		super(GlobalUndoAction.ID, nls.localize('undoAllChanges', "Clean All"), 'git-action undo', gitService, eventService, messageService, fileService, editorService, contextService);
@@ -488,6 +490,7 @@ export abstract class BaseUnstageAction extends GitAction {
 	constructor(id: string, label: string, className: string, gitService: IGitService, editorService: IWorkbenchEditorService) {
 		super(id, label, className, gitService);
 		this.editorService = editorService;
+		this.onGitServiceChange();
 	}
 
 	protected isEnabled():boolean {
@@ -500,21 +503,21 @@ export abstract class BaseUnstageAction extends GitAction {
 		return this.gitService.revertFiles('HEAD', flatContext).then((status: IModel) => {
 			var targetEditor = this.findGitIndexEditor();
 			if (!targetEditor) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var currentGitEditorInput = <inputs.IEditorInputWithStatus>(<any>targetEditor.input);
 			var currentFileStatus = currentGitEditorInput.getFileStatus();
 
 			if (flatContext && flatContext.every((f) => f !== currentFileStatus)) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var path = currentGitEditorInput.getFileStatus().getPath();
 			var fileStatus = status.getStatus().find(path, StatusType.WORKING_TREE);
 
 			if (!fileStatus) {
-				return Promise.as(status);
+				return TPromise.as(status);
 			}
 
 			var editorControl = <any> targetEditor.getControl();
@@ -555,7 +558,7 @@ export abstract class BaseUnstageAction extends GitAction {
 }
 
 export class UnstageAction extends BaseUnstageAction {
-	static ID = 'workbench.action.unstage';
+	static ID = 'workbench.action.git.unstage';
 
 	constructor(@IGitService gitService: IGitService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
 		super(UnstageAction.ID, nls.localize('unstage', "Unstage"), 'git-action unstage', gitService, editorService);
@@ -564,7 +567,7 @@ export class UnstageAction extends BaseUnstageAction {
 
 export class GlobalUnstageAction extends BaseUnstageAction {
 
-	static ID = 'workbench.action.unstageAll';
+	static ID = 'workbench.action.git.unstageAll';
 
 	constructor(@IGitService gitService: IGitService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
 		super(GlobalUnstageAction.ID, nls.localize('unstageAllChanges', "Unstage All"), 'git-action unstage', gitService, editorService);
@@ -587,7 +590,7 @@ enum LifecycleState {
 
 export class CheckoutAction extends GitAction {
 
-	static ID = 'workbench.action.checkout';
+	static ID = 'workbench.action.git.checkout';
 	private editorService: IWorkbenchEditorService;
 	private branch: IBranch;
 	private HEAD: IBranch;
@@ -596,13 +599,14 @@ export class CheckoutAction extends GitAction {
 	private runPromises: Promise[];
 
 	constructor(branch: IBranch, @IGitService gitService: IGitService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
+		super(CheckoutAction.ID, branch.name, 'git-action checkout', gitService);
+
 		this.editorService = editorService;
 		this.branch = branch;
 		this.HEAD = null;
 		this.state = LifecycleState.Alive;
 		this.runPromises = [];
-
-		super(CheckoutAction.ID, branch.name, 'git-action checkout', gitService);
+		this.onGitServiceChange();
 	}
 
 	protected onGitServiceChange(): void {
@@ -627,7 +631,7 @@ export class CheckoutAction extends GitAction {
 		if (this.state !== LifecycleState.Alive) {
 			return Promise.wrapError('action disposed');
 		} else if (this.HEAD && this.HEAD.name === this.branch.name) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		var result = this.gitService.checkout(this.branch.name).then(null, (err) => {
@@ -666,7 +670,7 @@ export class CheckoutAction extends GitAction {
 
 export class BranchAction extends GitAction {
 
-	static ID = 'workbench.action.branch';
+	static ID = 'workbench.action.git.branch';
 	private checkout:boolean;
 
 	constructor(checkout: boolean, @IGitService gitService: IGitService) {
@@ -676,7 +680,7 @@ export class BranchAction extends GitAction {
 
 	public run(context?: any):Promise {
 		if (!isString(context)) {
-			return Promise.as(false);
+			return TPromise.as(false);
 		}
 
 		return this.gitService.branch(<string> context, this.checkout);
@@ -699,6 +703,8 @@ export abstract class BaseCommitAction extends GitAction {
 		this.toDispose.push(commitState.addListener2('change/commitInputBox', () => {
 			this.updateEnablement();
 		}));
+
+		this.onGitServiceChange();
 	}
 
 	protected isEnabled():boolean {
@@ -708,7 +714,7 @@ export abstract class BaseCommitAction extends GitAction {
 	public run(context?: any):Promise {
 		if (!this.commitState.getCommitMessage()) {
 			this.commitState.onEmptyCommitMessage();
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		return this.gitService.commit(this.commitState.getCommitMessage());
@@ -717,7 +723,7 @@ export abstract class BaseCommitAction extends GitAction {
 
 export class CommitAction extends BaseCommitAction {
 
-	static ID = 'workbench.action.commit';
+	static ID = 'workbench.action.git.commit';
 
 	constructor(commitState: ICommitState, @IGitService gitService: IGitService) {
 		super(commitState, CommitAction.ID, nls.localize('commitStaged', "Commit Staged"), 'git-action commit', gitService);
@@ -727,7 +733,7 @@ export class CommitAction extends BaseCommitAction {
 
 export class StageAndCommitAction extends BaseCommitAction {
 
-	static ID = 'workbench.action.stageAndCommit';
+	static ID = 'workbench.action.git.stageAndCommit';
 
 	constructor(commitState: ICommitState, @IGitService gitService: IGitService) {
 		super(commitState, StageAndCommitAction.ID, nls.localize('commitAll', "Commit All"), 'git-action stage-and-commit', gitService);
@@ -751,7 +757,7 @@ export class StageAndCommitAction extends BaseCommitAction {
 	public run(context?: any):Promise {
 		if (!this.commitState.getCommitMessage()) {
 			this.commitState.onEmptyCommitMessage();
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		return this.gitService.commit(this.commitState.getCommitMessage(), false, true);
@@ -760,15 +766,16 @@ export class StageAndCommitAction extends BaseCommitAction {
 
 export class SmartCommitAction extends BaseCommitAction {
 
-	static ID = 'workbench.action.commitAll';
+	static ID = 'workbench.action.git.commitAll';
 	private static ALL = nls.localize('commitAll2', "Commit All");
 	private static STAGED = nls.localize('commitStaged2', "Commit Staged");
 
 	private messageService: IMessageService;
 
 	constructor(commitState: ICommitState, @IGitService gitService: IGitService, @IMessageService messageService: IMessageService) {
-		this.messageService = messageService;
 		super(commitState, SmartCommitAction.ID, SmartCommitAction.ALL, 'git-action smart-commit', gitService);
+		this.messageService = messageService;
+		this.onGitServiceChange();
 	}
 
 	protected onGitServiceChange(): void {
@@ -808,7 +815,7 @@ export class SmartCommitAction extends BaseCommitAction {
 	public run(context?: any):Promise {
 		if (!this.commitState.getCommitMessage()) {
 			this.commitState.onEmptyCommitMessage();
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		var status = this.gitService.getModel().getStatus();
@@ -819,7 +826,7 @@ export class SmartCommitAction extends BaseCommitAction {
 
 export class PullAction extends GitAction {
 
-	static ID = 'workbench.action.pull';
+	static ID = 'workbench.action.git.pull';
 	static LABEL = nls.localize('pull', "Pull");
 
 	constructor(
@@ -868,7 +875,7 @@ export class PullAction extends GitAction {
 
 export class PullWithRebaseAction extends PullAction {
 
-	static ID = 'workbench.action.pull.rebase';
+	static ID = 'workbench.action.git.pull.rebase';
 	static LABEL = nls.localize('pullWithRebase', "Pull (Rebase)");
 
 	constructor(@IGitService gitService: IGitService) {
@@ -882,7 +889,7 @@ export class PullWithRebaseAction extends PullAction {
 
 export class PushAction extends GitAction {
 
-	static ID = 'workbench.action.push';
+	static ID = 'workbench.action.git.push';
 	static LABEL = nls.localize('push', "Push");
 
 	constructor(
@@ -929,7 +936,7 @@ export class PushAction extends GitAction {
 
 export class PublishAction extends GitAction {
 
-	static ID = 'workbench.action.publish';
+	static ID = 'workbench.action.git.publish';
 	static LABEL = nls.localize('publish', "Publish");
 
 	constructor(
@@ -977,7 +984,7 @@ export class PublishAction extends GitAction {
 
 			const result = this.messageService.confirm({
 				message: nls.localize('confirmPublishMessage', "Are you sure you want to publish '{0}' to '{1}'?", branchName, remoteName),
-				primaryButton: nls.localize('confirmPublishMessageButton', "Publish")
+				primaryButton: nls.localize({ key: 'confirmPublishMessageButton', comment: ['&& denotes a mnemonic'] }, "&&Publish")
 			});
 
 			promise = TPromise.as(result ? remoteName : null);
@@ -1026,7 +1033,7 @@ export abstract class BaseSyncAction extends GitAction {
 
 	public run(context?: any):Promise {
 		if (!this.enabled) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		return this.gitService.sync().then(null, (err) => {
@@ -1041,7 +1048,7 @@ export abstract class BaseSyncAction extends GitAction {
 
 export class SyncAction extends BaseSyncAction {
 
-	static ID = 'workbench.action.sync';
+	static ID = 'workbench.action.git.sync';
 	static LABEL = nls.localize('sync', "Sync");
 
 	constructor(id: string, label: string, @IGitService gitService: IGitService) {
@@ -1051,7 +1058,7 @@ export class SyncAction extends BaseSyncAction {
 
 export class LiveSyncAction extends BaseSyncAction {
 
-	static ID = 'workbench.action.liveSync';
+	static ID = 'workbench.action.git.liveSync';
 	static CLASS_NAME = 'git-action live-sync';
 	static CLASS_NAME_LOADING = 'git-action live-sync loading';
 
@@ -1114,7 +1121,7 @@ export class LiveSyncAction extends BaseSyncAction {
 
 export class UndoLastCommitAction extends GitAction {
 
-	static ID = 'workbench.action.undoLastCommit';
+	static ID = 'workbench.action.git.undoLastCommit';
 
 	constructor(@IGitService gitService: IGitService) {
 		super(UndoLastCommitAction.ID, nls.localize('undoLastCommit', "Undo Last Commit"), 'git-action undo-last-commit', gitService);
@@ -1138,7 +1145,7 @@ export class StartGitCheckoutAction extends Action {
 
 	public run(event?:any): Promise {
 		this.quickOpenService.show('git checkout ');
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 
@@ -1155,6 +1162,6 @@ export class StartGitBranchAction extends Action {
 
 	public run(event?:any): Promise {
 		this.quickOpenService.show('git branch ');
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }

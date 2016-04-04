@@ -4,19 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Model = require('vs/editor/common/model/model');
-import TU = require('vs/editor/test/common/commands/commandTestUtils');
-import ModelModes = require('vs/editor/test/common/testModes');
-import LineCommentCommand = require('vs/editor/contrib/comment/common/lineCommentCommand');
+import * as assert from 'assert';
 import {Selection} from 'vs/editor/common/core/selection';
+import {ILinePreflightData, IPreflightData, ISimpleModel, LineCommentCommand, Type} from 'vs/editor/contrib/comment/common/lineCommentCommand';
+import {testCommand} from 'vs/editor/test/common/commands/commandTestUtils';
+import {CommentMode} from 'vs/editor/test/common/testModes';
 
 suite('Editor Contrib - Line Comment Command', () => {
 
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		var mode = new ModelModes.CommentMode({ lineCommentTokens: ['!@#'], blockCommentStartToken: '<!@#', blockCommentEndToken: '#@!>' });
-		TU.testCommand(lines, mode, selection, (sel) => new LineCommentCommand.LineCommentCommand(sel, 4, LineCommentCommand.Type.Toggle), expectedLines, expectedSelection);
+		var mode = new CommentMode({ lineCommentToken: '!@#', blockCommentStartToken: '<!@#', blockCommentEndToken: '#@!>' });
+		testCommand(lines, mode, selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
+	}
+
+	function testAddLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+		var mode = new CommentMode({ lineCommentToken: '!@#', blockCommentStartToken: '<!@#', blockCommentEndToken: '#@!>' });
+		testCommand(lines, mode, selection, (sel) => new LineCommentCommand(sel, 4, Type.ForceAdd), expectedLines, expectedSelection);
 	}
 
 	test('comment single line', function () {
@@ -34,7 +37,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 		);
 	});
 
-	function createSimpleModel(lines:string[]): LineCommentCommand.ISimpleModel {
+	function createSimpleModel(lines:string[]): ISimpleModel {
 		return {
 			getLineContent: (lineNumber:number) => {
 				return lines[lineNumber - 1];
@@ -42,9 +45,9 @@ suite('Editor Contrib - Line Comment Command', () => {
 		};
 	}
 
-	function createBasicLinePreflightData(commentTokens:string[]): LineCommentCommand.ILinePreflightData[] {
+	function createBasicLinePreflightData(commentTokens:string[]): ILinePreflightData[] {
 		return commentTokens.map((commentString) => {
-			var r: LineCommentCommand.ILinePreflightData = {
+			var r: ILinePreflightData = {
 				ignore: false,
 				commentStr: commentString,
 				commentStrOffset: 0,
@@ -55,9 +58,9 @@ suite('Editor Contrib - Line Comment Command', () => {
 	}
 
 	test('_analyzeLines', function () {
-		var r:LineCommentCommand.IPreflightData;
+		var r:IPreflightData;
 
-		r = LineCommentCommand.LineCommentCommand._analyzeLines(LineCommentCommand.Type.Toggle, createSimpleModel([
+		r = LineCommentCommand._analyzeLines(Type.Toggle, createSimpleModel([
 			'\t\t',
 			'    ',
 			'    c',
@@ -85,7 +88,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 		assert.equal(r.lines[3].commentStrOffset, 2);
 
 
-		r = LineCommentCommand.LineCommentCommand._analyzeLines(LineCommentCommand.Type.Toggle, createSimpleModel([
+		r = LineCommentCommand._analyzeLines(Type.Toggle, createSimpleModel([
 			'\t\t',
 			'    rem ',
 			'    !@# c',
@@ -127,9 +130,9 @@ suite('Editor Contrib - Line Comment Command', () => {
 				return {
 					commentStrOffset: offset,
 					ignore: false
-				}
+				};
 			});
-			LineCommentCommand.LineCommentCommand._normalizeInsertionPoint(model, offsets, 1, tabSize);
+			LineCommentCommand._normalizeInsertionPoint(model, offsets, 1, tabSize);
 			var actual = offsets.map(item => item.commentStrOffset);
 			assert.deepEqual(actual, expected, testName);
 		};
@@ -485,13 +488,40 @@ suite('Editor Contrib - Line Comment Command', () => {
 			new Selection(1, 1, 2, 3)
 		);
 	});
+
+	test('issue #2837 "Add Line Comment" fault when blank lines involved', function () {
+		testAddLineCommentCommand(
+			[
+				'    if displayName == "":',
+				'        displayName = groupName',
+				'    description = getAttr(attributes, "description")',
+				'    mailAddress = getAttr(attributes, "mail")',
+				'',
+				'    print "||Group name|%s|" % displayName',
+				'    print "||Description|%s|" % description',
+				'    print "||Email address|[mailto:%s]|" % mailAddress`',
+			],
+			new Selection(1, 1, 8, 56),
+			[
+				'    !@# if displayName == "":',
+				'    !@#     displayName = groupName',
+				'    !@# description = getAttr(attributes, "description")',
+				'    !@# mailAddress = getAttr(attributes, "mail")',
+				'',
+				'    !@# print "||Group name|%s|" % displayName',
+				'    !@# print "||Description|%s|" % description',
+				'    !@# print "||Email address|[mailto:%s]|" % mailAddress`',
+			],
+			new Selection(1, 1, 8, 60)
+		);
+	});
 });
 
 suite('Editor Contrib - Line Comment As Block Comment', () => {
 
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		var mode = new ModelModes.CommentMode({ lineCommentTokens: [''], blockCommentStartToken: '(', blockCommentEndToken: ')' });
-		TU.testCommand(lines, mode, selection, (sel) => new LineCommentCommand.LineCommentCommand(sel, 4, LineCommentCommand.Type.Toggle), expectedLines, expectedSelection);
+		var mode = new CommentMode({ lineCommentToken: '', blockCommentStartToken: '(', blockCommentEndToken: ')' });
+		testCommand(lines, mode, selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
 	}
 
 	test('fall back to block comment command', function () {
@@ -600,8 +630,8 @@ suite('Editor Contrib - Line Comment As Block Comment', () => {
 
 suite('Editor Contrib - Line Comment As Block Comment 2', () => {
 	function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-		var mode = new ModelModes.CommentMode({ lineCommentTokens: [], blockCommentStartToken: '<!@#', blockCommentEndToken: '#@!>' });
-		TU.testCommand(lines, mode, selection, (sel) => new LineCommentCommand.LineCommentCommand(sel, 4, LineCommentCommand.Type.Toggle), expectedLines, expectedSelection);
+		var mode = new CommentMode({ lineCommentToken: null, blockCommentStartToken: '<!@#', blockCommentEndToken: '#@!>' });
+		testCommand(lines, mode, selection, (sel) => new LineCommentCommand(sel, 4, Type.Toggle), expectedLines, expectedSelection);
 	}
 
 	test('no selection => uses indentation', function () {
@@ -757,6 +787,38 @@ suite('Editor Contrib - Line Comment As Block Comment 2', () => {
 				'\t\tfifth\t\t'
 			],
 			new Selection(5, 10, 5, 10)
+		);
+	});
+
+	test('issue #993: Remove comment does not work consistently in HTML', () => {
+		testLineCommentCommand(
+			[
+				'     asd qwe',
+				'     asd qwe',
+				''
+			],
+			new Selection(1, 1, 3, 1),
+			[
+				'     <!@#asd qwe',
+				'     asd qwe#@!>',
+				''
+			],
+			new Selection(1, 1, 3, 1)
+		);
+
+		testLineCommentCommand(
+			[
+				'     <!@#asd qwe',
+				'     asd qwe#@!>',
+				''
+			],
+			new Selection(1, 1, 3, 1),
+			[
+				'     asd qwe',
+				'     asd qwe',
+				''
+			],
+			new Selection(1, 1, 3, 1)
 		);
 	});
 });

@@ -7,11 +7,11 @@
 import 'vs/css!vs/languages/css/common/css-hover';
 import nls = require('vs/nls');
 import Platform = require('vs/platform/platform');
-import modesExtensions = require('vs/editor/common/modes/modesRegistry');
+import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
 import lintRules = require('vs/languages/css/common/services/lintRules');
 
-modesExtensions.registerMode({
+ModesRegistry.registerCompatMode({
 	id: 'css',
 	extensions: ['.css'],
 	aliases: ['CSS', 'css'],

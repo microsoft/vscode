@@ -1,0 +1,72 @@
+{
+	"name": "Dark+",
+	"include": "./dark_vs.json",
+	"settings": [
+		{
+			"name": "Types declaration and references",
+			"scope": [
+				"meta.type.name",
+				"meta.return.type",
+				"meta.return-type",
+				"meta.cast",
+				"meta.type.annotation",
+				"support.type",
+				"entity.name.class",
+				"entity.name.type",
+				"storage.type.cs",
+				"storage.type.java"
+			],
+			"settings": {
+				"foreground": "#4EC9B0"
+			}
+		},
+		{
+			"name": "Function declarations",
+			"scope": [
+				"entity.name.function",
+				"entity.name.method"
+			],
+			"settings": {
+				"foreground": "#DCDCAA"
+			}
+		},
+		{
+			"name": "Control flow keywords",
+			"scope": "keyword.control",
+			"settings": {
+				"foreground": "#C586C0"
+			}
+		},
+		{
+			"name": "Variable and parameter name",
+			"scope": [
+				"meta.parameter.type.variable",
+				"variable.parameter",
+				"variable",
+				"variable.name"
+			],
+			"settings": {
+				"foreground": "#9CDCFE"
+			}
+		},
+		{
+			"name": "C includes",
+			"scope": "keyword.control.import",
+			"settings": {
+				"foreground": "#569CD6"
+			}
+		},
+		{
+			"name": "CSS property value",
+			"scope": [
+				"support.property-value",
+				"constant.rgb-value",
+				"support.property-value.sass",
+				"constant.rgb-value.sass"
+			],
+			"settings": {
+				"foreground": "#CE9178"
+			}
+		}
+	]
+}

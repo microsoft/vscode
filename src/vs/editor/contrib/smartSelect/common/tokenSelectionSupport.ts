@@ -6,13 +6,13 @@
 
 import URI from 'vs/base/common/uri';
 import {TPromise} from 'vs/base/common/winjs.base';
-import tokenTree = require('./tokenTree');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import {IModelService} from 'vs/editor/common/services/modelService';
 import {Range} from 'vs/editor/common/core/range';
+import {IModel, IPosition, IRange} from 'vs/editor/common/editorCommon';
+import {ILogicalSelectionEntry, ILogicalSelectionSupport} from 'vs/editor/common/modes';
+import {IModelService} from 'vs/editor/common/services/modelService';
+import {Node, build, find} from './tokenTree';
 
-class TokenSelectionSupport implements Modes.ILogicalSelectionSupport {
+export class TokenSelectionSupport implements ILogicalSelectionSupport {
 
 	private _modelService: IModelService;
 
@@ -20,9 +20,13 @@ class TokenSelectionSupport implements Modes.ILogicalSelectionSupport {
 		this._modelService = modelService;
 	}
 
-	public getRangesToPosition(resource: URI, position: EditorCommon.IPosition): TPromise<Modes.ILogicalSelectionEntry[]> {
+	public getRangesToPosition(resource: URI, position: IPosition): TPromise<ILogicalSelectionEntry[]> {
+		return TPromise.as(this.getRangesToPositionSync(resource, position));
+	}
+
+	public getRangesToPositionSync(resource: URI, position: IPosition): ILogicalSelectionEntry[] {
 		var model = this._modelService.getModel(resource),
-			entries: Modes.ILogicalSelectionEntry[] = [];
+			entries: ILogicalSelectionEntry[] = [];
 
 		if (model) {
 			this._doGetRangesToPosition(model, position).forEach(range => {
@@ -33,17 +37,17 @@ class TokenSelectionSupport implements Modes.ILogicalSelectionSupport {
 			});
 		}
 
-		return TPromise.as(entries);
+		return entries;
 	}
 
-	private _doGetRangesToPosition(model: EditorCommon.IModel, position: EditorCommon.IPosition): EditorCommon.IRange[] {
+	private _doGetRangesToPosition(model: IModel, position: IPosition): IRange[] {
 
-		var tree = tokenTree.build(model),
-			node: tokenTree.Node,
-			lastRange: EditorCommon.IRange;
+		var tree = build(model),
+			node: Node,
+			lastRange: IRange;
 
-		node = tokenTree.find(tree, position);
-		var ranges: EditorCommon.IRange[] = [];
+		node = find(tree, position);
+		var ranges: IRange[] = [];
 		while (node) {
 			if (!lastRange || !Range.equalsRange(lastRange, node.range)) {
 				ranges.push(node.range);
@@ -56,5 +60,3 @@ class TokenSelectionSupport implements Modes.ILogicalSelectionSupport {
 	}
 
 }
-
-export = TokenSelectionSupport;

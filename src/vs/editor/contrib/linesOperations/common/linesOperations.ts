@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, HandlerEditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import CopyLinesCommand = require('./copyLinesCommand');
-import DeleteLinesCommand = require('./deleteLinesCommand');
-import MoveLinesCommand = require('./moveLinesCommand');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {SortLinesCommand} from 'vs/editor/contrib/linesOperations/common/sortLinesCommand';
 import {TrimTrailingWhitespaceCommand} from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {EditorAction, HandlerEditorAction} from 'vs/editor/common/editorAction';
+import {Handler, ICommand, ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {CopyLinesCommand} from './copyLinesCommand';
+import {DeleteLinesCommand} from './deleteLinesCommand';
+import {MoveLinesCommand} from './moveLinesCommand';
 
 // copy lines
 
@@ -22,18 +22,18 @@ class CopyLinesAction extends EditorAction {
 
 	private down:boolean;
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, down:boolean) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, down:boolean) {
 		super(descriptor, editor);
 		this.down = down;
 	}
 
 	public run():TPromise<boolean> {
 
-		var commands:EditorCommon.ICommand[] = [];
+		var commands:ICommand[] = [];
 		var selections = this.editor.getSelections();
 
 		for (var i = 0; i < selections.length; i++) {
-			commands.push(new CopyLinesCommand.CopyLinesCommand(selections[i], this.down));
+			commands.push(new CopyLinesCommand(selections[i], this.down));
 		}
 
 		this.editor.executeCommands(this.id, commands);
@@ -45,7 +45,7 @@ class CopyLinesAction extends EditorAction {
 class CopyLinesUpAction extends CopyLinesAction {
 	static ID = 'editor.action.copyLinesUpAction';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor, false);
 	}
 
@@ -54,7 +54,7 @@ class CopyLinesUpAction extends CopyLinesAction {
 class CopyLinesDownAction extends CopyLinesAction {
 	static ID = 'editor.action.copyLinesDownAction';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor, true);
 	}
 }
@@ -65,18 +65,18 @@ class MoveLinesAction extends EditorAction {
 
 	private down:boolean;
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, down:boolean) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, down:boolean) {
 		super(descriptor, editor);
 		this.down = down;
 	}
 
 	public run():TPromise<boolean> {
 
-		var commands:EditorCommon.ICommand[] = [];
+		var commands:ICommand[] = [];
 		var selections = this.editor.getSelections();
 
 		for (var i = 0; i < selections.length; i++) {
-			commands.push(new MoveLinesCommand.MoveLinesCommand(selections[i], this.down));
+			commands.push(new MoveLinesCommand(selections[i], this.down));
 		}
 
 		this.editor.executeCommands(this.id, commands);
@@ -88,7 +88,7 @@ class MoveLinesAction extends EditorAction {
 class MoveLinesUpAction extends MoveLinesAction {
 	static ID = 'editor.action.moveLinesUpAction';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor, false);
 	}
 }
@@ -96,16 +96,50 @@ class MoveLinesUpAction extends MoveLinesAction {
 class MoveLinesDownAction extends MoveLinesAction {
 	static ID = 'editor.action.moveLinesDownAction';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor, true);
 	}
 }
 
-class TrimTrailingWhitespaceAction extends EditorAction {
+class SortLinesAction extends EditorAction {
+	private descending:boolean;
+
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, descending:boolean) {
+		super(descriptor, editor);
+		this.descending = descending;
+	}
+
+	public run():TPromise<boolean> {
+
+		var command = new SortLinesCommand(this.editor.getSelection(), this.descending);
+
+		this.editor.executeCommands(this.id, [command]);
+
+		return TPromise.as(true);
+	}
+}
+
+class SortLinesAscendingAction extends SortLinesAction {
+	static ID ='editor.action.sortLinesAscending';
+
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
+		super(descriptor, editor, false);
+	}
+}
+
+class SortLinesDescendingAction extends SortLinesAction {
+	static ID ='editor.action.sortLinesDescending';
+
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
+		super(descriptor, editor, true);
+	}
+}
+
+export class TrimTrailingWhitespaceAction extends EditorAction {
 
 	static ID = 'editor.action.trimTrailingWhitespace';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor);
 	}
 
@@ -129,7 +163,7 @@ interface IDeleteLinesOperation {
 
 class AbstractRemoveLinesAction extends EditorAction {
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor);
 	}
 
@@ -179,7 +213,7 @@ class DeleteLinesAction extends AbstractRemoveLinesAction {
 
 	static ID = 'editor.action.deleteLines';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor);
 	}
 
@@ -188,8 +222,8 @@ class DeleteLinesAction extends AbstractRemoveLinesAction {
 		var ops = this._getLinesToRemove();
 
 		// Finally, construct the delete lines commands
-		var commands:EditorCommon.ICommand[] = ops.map((op) => {
-			return new DeleteLinesCommand.DeleteLinesCommand(op.startLineNumber, op.endLineNumber, op.positionColumn);
+		var commands:ICommand[] = ops.map((op) => {
+			return new DeleteLinesCommand(op.startLineNumber, op.endLineNumber, op.positionColumn);
 		});
 
 		this.editor.executeCommands(this.id, commands);
@@ -201,32 +235,32 @@ class DeleteLinesAction extends AbstractRemoveLinesAction {
 class IndentLinesAction extends HandlerEditorAction {
 	static ID = 'editor.action.indentLines';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, EditorCommon.Handler.Indent);
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
+		super(descriptor, editor, Handler.Indent);
 	}
 }
 
 class OutdentLinesAction extends HandlerEditorAction {
 	static ID = 'editor.action.outdentLines';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, EditorCommon.Handler.Outdent);
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
+		super(descriptor, editor, Handler.Outdent);
 	}
 }
 
 class InsertLineBeforeAction extends HandlerEditorAction {
 	static ID = 'editor.action.insertLineBefore';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, EditorCommon.Handler.LineInsertBefore);
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
+		super(descriptor, editor, Handler.LineInsertBefore);
 	}
 }
 
 class InsertLineAfterAction extends HandlerEditorAction {
 	static ID = 'editor.action.insertLineAfter';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, EditorCommon.Handler.LineInsertAfter);
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
+		super(descriptor, editor, Handler.LineInsertAfter);
 	}
 }
 
@@ -234,6 +268,14 @@ class InsertLineAfterAction extends HandlerEditorAction {
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(DeleteLinesAction, DeleteLinesAction.ID, nls.localize('lines.delete', "Delete Line"), {
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K
+}));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SortLinesAscendingAction, SortLinesAscendingAction.ID, nls.localize('lines.sortAscending', "Sort Lines Ascending"), {
+	context: ContextKey.EditorTextFocus,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_2
+}));
+CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(SortLinesDescendingAction, SortLinesDescendingAction.ID, nls.localize('lines.sortDescending', "Sort Lines Descending"), {
+	context: ContextKey.EditorTextFocus,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_3
 }));
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(TrimTrailingWhitespaceAction, TrimTrailingWhitespaceAction.ID, nls.localize('lines.trimTrailingWhitespace', "Trim Trailing Whitespace"), {
 	context: ContextKey.EditorTextFocus,
@@ -275,5 +317,3 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(InsertLineA
 	context: ContextKey.EditorTextFocus,
 	primary: KeyMod.CtrlCmd | KeyCode.Enter
 }));
-
-

@@ -6,24 +6,22 @@
 
 import Platform = require('vs/base/common/platform');
 import Browser = require('vs/base/browser/browser');
-import Hash = require('vs/base/common/bits/hash');
 import WinJS = require('vs/base/common/winjs.base');
 import Lifecycle = require('vs/base/common/lifecycle');
 import DOM = require('vs/base/browser/dom');
-import EventEmitter = require('vs/base/common/eventEmitter');
 import Diff = require('vs/base/common/diff/diff');
 import Touch = require('vs/base/browser/touch');
 import Mouse = require('vs/base/browser/mouseEvent');
 import Keyboard = require('vs/base/browser/keyboardEvent');
-import Model = require('vs/base/parts/tree/common/treeModel');
+import Model = require('vs/base/parts/tree/browser/treeModel');
 import dnd = require('./treeDnd');
-import { IIterator, ArrayIterator, MappedIterator } from 'vs/base/common/iterator';
+import { ArrayIterator, MappedIterator } from 'vs/base/common/iterator';
 import Scroll = require('vs/base/browser/ui/scrollbar/scrollableElement');
-import ScrollableElementImpl = require('vs/base/browser/ui/scrollbar/impl/scrollableElement');
-import { HeightMap } from 'vs/base/parts/tree/common/treeViewModel'
-import _ = require('vs/base/parts/tree/common/tree');
-import { IViewItem } from 'vs/base/parts/tree/common/treeViewModel';
-import {IScrollable} from 'vs/base/common/scrollable';
+import ScrollableElementImpl = require('vs/base/browser/ui/scrollbar/scrollableElementImpl');
+import { HeightMap } from 'vs/base/parts/tree/browser/treeViewModel';
+import _ = require('vs/base/parts/tree/browser/tree');
+import { IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
+import {IScrollable, ScrollEvent} from 'vs/base/common/scrollable';
 import {KeyCode} from 'vs/base/common/keyCodes';
 
 export interface IRow {
@@ -152,7 +150,7 @@ export class ViewItem implements IViewItem {
 
 	public needsRender: boolean;
 	public uri: string;
-	public unbindDragStart: () =>void;
+	public unbindDragStart: Lifecycle.IDisposable;
 	public loadingPromise: WinJS.Promise;
 
 	public _styles: any;
@@ -232,6 +230,32 @@ export class ViewItem implements IViewItem {
 		this.element.draggable = this.draggable;
 		this.element.style.height = this.height + 'px';
 
+		// ARIA
+		this.element.setAttribute('role', 'treeitem');
+		if (this.model.hasTrait('focused')) {
+			const base64Id = btoa(this.model.id);
+			const ariaLabel = this.context.accessibilityProvider.getAriaLabel(this.context.tree, this.model.getElement());
+
+			this.element.setAttribute('aria-selected', 'true');
+			this.element.setAttribute('id', base64Id);
+			if (ariaLabel) {
+				this.element.setAttribute('aria-label', ariaLabel);
+			} else {
+				this.element.setAttribute('aria-labelledby', base64Id); // force screen reader to compute label from children (helps NVDA at least)
+			}
+		} else {
+			this.element.setAttribute('aria-selected', 'false');
+			this.element.removeAttribute('id');
+			this.element.removeAttribute('aria-label');
+			this.element.removeAttribute('aria-labelledby');
+		}
+		if (this.model.hasChildren()) {
+			this.element.setAttribute('aria-expanded', String(this.model.isExpanded()));
+		} else {
+			this.element.removeAttribute('aria-expanded');
+		}
+		this.element.setAttribute('aria-level', String(this.model.getDepth()));
+
 		if (this.context.options.paddingOnRow) {
 			this.element.style.paddingLeft = this.context.options.twistiePixels + ((this.model.getDepth() - 1) * this.context.options.indentPixels) + 'px';
 		} else {
@@ -243,14 +267,14 @@ export class ViewItem implements IViewItem {
 
 		if (uri !== this.uri) {
 			if (this.unbindDragStart) {
-				this.unbindDragStart();
-				delete this.unbindDragStart;
+				this.unbindDragStart.dispose();
+				this.unbindDragStart = null;
 			}
 
 			if (uri) {
 				this.uri = uri;
 				this.draggable = true;
-				this.unbindDragStart = DOM.addListener(this.element, 'dragstart', (e) => {
+				this.unbindDragStart = DOM.addDisposableListener(this.element, 'dragstart', (e) => {
 					this.onDragStart(e);
 				});
 			} else {
@@ -278,7 +302,12 @@ export class ViewItem implements IViewItem {
 		if (afterElement === null) {
 			container.appendChild(this.element);
 		} else {
-			container.insertBefore(this.element, afterElement);
+			try {
+				container.insertBefore(this.element, afterElement);
+			} catch (e) {
+				console.warn('Failed to locate previous tree element');
+				container.appendChild(this.element);
+			}
 		}
 
 		this.render();
@@ -290,7 +319,7 @@ export class ViewItem implements IViewItem {
 		}
 
 		if (this.unbindDragStart) {
-			this.unbindDragStart();
+			this.unbindDragStart.dispose();
 			this.unbindDragStart = null;
 		}
 
@@ -375,7 +404,7 @@ export class TreeView extends HeightMap implements IScrollable {
 	private modelListeners: { (): void; }[];
 	private model: Model.TreeModel;
 
-	private viewListeners: { (): void; }[];
+	private viewListeners: Lifecycle.IDisposable[];
 	private domNode: HTMLElement;
 	private wrapper: HTMLElement;
 	private rowsContainer: HTMLElement;
@@ -384,9 +413,6 @@ export class TreeView extends HeightMap implements IScrollable {
 	private msGesture: MSGesture;
 	private lastPointerType:string;
 	private lastClickTimeStamp: number = 0;
-
-	private fakeRow: HTMLElement;
-	private fakeContent: HTMLElement;
 
 	private _viewHeight: number;
 	private renderTop: number;
@@ -427,6 +453,7 @@ export class TreeView extends HeightMap implements IScrollable {
 			filter: context.filter,
 			sorter: context.sorter,
 			tree: context.tree,
+			accessibilityProvider: context.accessibilityProvider,
 			options: context.options,
 			cache: new RowCache(context)
 		};
@@ -439,8 +466,14 @@ export class TreeView extends HeightMap implements IScrollable {
 		this.items = {};
 
 		this.domNode = document.createElement('div');
-		this.domNode.className = 'monaco-tree';
+		this.domNode.className = 'monaco-tree no-focused-item';
 		this.domNode.tabIndex = 0;
+
+		// ARIA
+		this.domNode.setAttribute('role', 'tree');
+		if (this.context.options.ariaLabel) {
+			this.domNode.setAttribute('aria-label', this.context.options.ariaLabel);
+		}
 
 		if (this.context.options.alwaysFocused) {
 			DOM.addClass(this.domNode, 'focused');
@@ -456,9 +489,8 @@ export class TreeView extends HeightMap implements IScrollable {
 
 		this.wrapper = document.createElement('div');
 		this.wrapper.className = 'monaco-tree-wrapper';
-		this.scrollableElement = new ScrollableElementImpl.ScrollableElement(this.wrapper, {
+		this.scrollableElement = new ScrollableElementImpl.ScrollableElement(this.wrapper, this, {
 			forbidTranslate3dUse: true,
-			scrollable: this,
 			horizontal: 'hidden',
 			vertical: context.options.verticalScrollMode || 'auto',
 			useShadows: context.options.useShadows,
@@ -475,35 +507,26 @@ export class TreeView extends HeightMap implements IScrollable {
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-tree-rows';
 
-		this.fakeRow = document.createElement('div');
-		this.fakeRow.className = 'monaco-tree-row fake';
-
-		this.fakeContent = document.createElement('div');
-		this.fakeContent.className = 'content';
-
-		this.fakeRow.appendChild(this.fakeContent);
-		this.rowsContainer.appendChild(this.fakeRow);
-
 		var focusTracker = DOM.trackFocus(this.domNode);
-		focusTracker.addFocusListener((e: FocusEvent) => this.onFocus(e));
-		focusTracker.addBlurListener((e: FocusEvent) => this.onBlur(e));
-		this.viewListeners.push(() => { focusTracker.dispose(); });
+		focusTracker.addFocusListener(() => this.onFocus());
+		focusTracker.addBlurListener(() => this.onBlur());
+		this.viewListeners.push(focusTracker);
 
-		this.viewListeners.push(DOM.addListener(this.domNode, 'keydown', (e) => this.onKeyDown(e)));
-		this.viewListeners.push(DOM.addListener(this.domNode, 'keyup', (e) => this.onKeyUp(e)));
-		this.viewListeners.push(DOM.addListener(this.domNode, 'mousedown', (e) => this.onMouseDown(e)));
-		this.viewListeners.push(DOM.addListener(this.domNode, 'mouseup', (e) => this.onMouseUp(e)));
-		this.viewListeners.push(DOM.addListener(this.wrapper, 'click', (e) => this.onClick(e)));
-		this.viewListeners.push(DOM.addListener(this.domNode, 'contextmenu', (e) => this.onContextMenu(e)));
-		this.viewListeners.push(DOM.addListener(this.wrapper, Touch.EventType.Tap, (e) => this.onTap(e)));
-		this.viewListeners.push(DOM.addListener(this.wrapper, Touch.EventType.Change, (e) => this.onTouchChange(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'keydown', (e) => this.onKeyDown(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'keyup', (e) => this.onKeyUp(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'mousedown', (e) => this.onMouseDown(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'mouseup', (e) => this.onMouseUp(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'click', (e) => this.onClick(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'contextmenu', (e) => this.onContextMenu(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, Touch.EventType.Tap, (e) => this.onTap(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, Touch.EventType.Change, (e) => this.onTouchChange(e)));
 
 		if(Browser.isIE11orEarlier) {
-			this.viewListeners.push(DOM.addListener(this.wrapper, 'MSPointerDown', (e) => this.onMsPointerDown(e)));
-			this.viewListeners.push(DOM.addListener(this.wrapper, 'MSGestureTap', (e) => this.onMsGestureTap(e)));
+			this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'MSPointerDown', (e) => this.onMsPointerDown(e)));
+			this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'MSGestureTap', (e) => this.onMsGestureTap(e)));
 
 			// these events come too fast, we throttle them
-			this.viewListeners.push(DOM.addThrottledListener<IThrottledGestureEvent>(this.wrapper, 'MSGestureChange', (e) => this.onThrottledMsGestureChange(e), (lastEvent:IThrottledGestureEvent, event:MSGestureEvent): IThrottledGestureEvent => {
+			this.viewListeners.push(DOM.addDisposableThrottledListener<IThrottledGestureEvent>(this.wrapper, 'MSGestureChange', (e) => this.onThrottledMsGestureChange(e), (lastEvent:IThrottledGestureEvent, event:MSGestureEvent): IThrottledGestureEvent => {
 				event.stopPropagation();
 				event.preventDefault();
 
@@ -518,10 +541,10 @@ export class TreeView extends HeightMap implements IScrollable {
 			}));
 		}
 
-		this.viewListeners.push(DOM.addListener(window, 'dragover', (e) => this.onDragOver(e)));
-		this.viewListeners.push(DOM.addListener(window, 'drop', (e) => this.onDrop(e)));
-		this.viewListeners.push(DOM.addListener(window, 'dragend', (e) => this.onDragEnd(e)));
-		this.viewListeners.push(DOM.addListener(window, 'dragleave', (e) => this.onDragOver(e)));
+		this.viewListeners.push(DOM.addDisposableListener(window, 'dragover', (e) => this.onDragOver(e)));
+		this.viewListeners.push(DOM.addDisposableListener(window, 'drop', (e) => this.onDrop(e)));
+		this.viewListeners.push(DOM.addDisposableListener(window, 'dragend', (e) => this.onDragEnd(e)));
+		this.viewListeners.push(DOM.addDisposableListener(window, 'dragleave', (e) => this.onDragOver(e)));
 
 		this.wrapper.appendChild(this.rowsContainer);
 		this.domNode.appendChild(this.scrollableElement.getDomNode());
@@ -573,7 +596,7 @@ export class TreeView extends HeightMap implements IScrollable {
 		this.scrollTop = this.onHiddenScrollTop;
 		this.onHiddenScrollTop = null;
 		this.scrollableElement.onElementDimensions();
-		this.scrollableElement.onElementInternalDimensions();
+		this._emitScrollEvent(false, false);
 		this.setupMSGesture();
 	}
 
@@ -601,7 +624,7 @@ export class TreeView extends HeightMap implements IScrollable {
 		this.scrollTop = this.scrollTop; // render
 
 		this.scrollableElement.onElementDimensions();
-		this.scrollableElement.onElementInternalDimensions();
+		this._emitScrollEvent(false, false);
 	}
 
 	private render(scrollTop: number, viewHeight: number): void {
@@ -700,6 +723,9 @@ export class TreeView extends HeightMap implements IScrollable {
 				case 'item:removeTrait':
 					this.onItemRemoveTrait(data);
 					break;
+				case 'focus':
+					this.onModelFocusChange();
+					break;
 			}
 		}
 
@@ -723,11 +749,7 @@ export class TreeView extends HeightMap implements IScrollable {
 		}
 
 		this.scrollTop = scrollTop;
-		this.scrollableElement.onElementInternalDimensions();
-	}
-
-	public withFakeRow(fn:(container:HTMLElement)=>any):any {
-		return fn(this.fakeContent);
+		this._emitScrollEvent(false, false);
 	}
 
 	public focusNextPage(eventPayload?:any): void {
@@ -826,10 +848,21 @@ export class TreeView extends HeightMap implements IScrollable {
 		this.render(scrollTop, this.viewHeight);
 		this._scrollTop = scrollTop;
 
-		this.emit('scroll', { vertical: true, horizontal: false });
+		this._emitScrollEvent(true, false);
 	}
 
-	public addScrollListener(callback:()=>void): Lifecycle.IDisposable {
+	private _emitScrollEvent(vertical:boolean, horizontal:boolean): void {
+		this.emit('scroll', new ScrollEvent(
+			this.getScrollTop(),
+			this.getScrollLeft(),
+			this.getScrollWidth(),
+			this.getScrollHeight(),
+			vertical,
+			horizontal
+		));
+	}
+
+	public addScrollListener(callback:(v:ScrollEvent)=>void): Lifecycle.IDisposable {
 		return this.addListener2('scroll', callback);
 	}
 
@@ -864,7 +897,7 @@ export class TreeView extends HeightMap implements IScrollable {
 		var viewItem = this.items[item.id];
 
 		if (viewItem) {
-			viewItem.loadingPromise = WinJS.Promise.timeout(TreeView.LOADING_DECORATION_DELAY).then(() => {
+			viewItem.loadingPromise = WinJS.TPromise.timeout(TreeView.LOADING_DECORATION_DELAY).then(() => {
 				viewItem.loadingPromise = null;
 				viewItem.loading = true;
 			});
@@ -906,53 +939,61 @@ export class TreeView extends HeightMap implements IScrollable {
 				afterModelItems.push(childItem);
 			}
 
-			var lcs = new Diff.LcsDiff({
-				getLength: () => previousChildrenIds.length,
-				getElementHash: (i:number) => previousChildrenIds[i]
-			}, {
-				getLength: () => afterModelItems.length,
-				getElementHash: (i:number) => afterModelItems[i].id
-			}, null);
+			let skipDiff = Math.abs(previousChildrenIds.length - afterModelItems.length) > 1000;
+			let diff: Diff.IDiffChange[];
+			let doToInsertItemsAlreadyExist: boolean;
 
-			var diff = lcs.ComputeDiff();
+			if (!skipDiff) {
+				const lcs = new Diff.LcsDiff({
+					getLength: () => previousChildrenIds.length,
+					getElementHash: (i:number) => previousChildrenIds[i]
+				}, {
+					getLength: () => afterModelItems.length,
+					getElementHash: (i:number) => afterModelItems[i].id
+				}, null);
 
-			// this means that the result of the diff algorithm would result
-			// in inserting items that were already registered. this can only
-			// happen if the data provider returns bad ids OR if the sorting
-			// of the elements has changed
-			var doToInsertItemsAlreadyExist = diff.some(d => {
-				if (d.modifiedLength > 0) {
-					for (var i = d.modifiedStart, len = d.modifiedStart + d.modifiedLength; i < len; i++) {
-						if (this.items.hasOwnProperty(afterModelItems[i].id)) {
-							return true;
+				diff = lcs.ComputeDiff();
+
+				// this means that the result of the diff algorithm would result
+				// in inserting items that were already registered. this can only
+				// happen if the data provider returns bad ids OR if the sorting
+				// of the elements has changed
+				doToInsertItemsAlreadyExist = diff.some(d => {
+					if (d.modifiedLength > 0) {
+						for (var i = d.modifiedStart, len = d.modifiedStart + d.modifiedLength; i < len; i++) {
+							if (this.items.hasOwnProperty(afterModelItems[i].id)) {
+								return true;
+							}
 						}
 					}
-				}
-				return false;
-			});
+					return false;
+				});
+			}
 
-			if (!doToInsertItemsAlreadyExist) {
-				for (var i = 0, len = diff.length; i < len; i++) {
-					var diffChange = diff[i];
+			// 50 is an optimization number, at some point we're better off
+			// just replacing everything
+			if (!skipDiff && !doToInsertItemsAlreadyExist && diff.length < 50) {
+				for (let i = 0, len = diff.length; i < len; i++) {
+					const diffChange = diff[i];
 
 					if (diffChange.originalLength > 0) {
 						this.onRemoveItems(new ArrayIterator(previousChildrenIds, diffChange.originalStart, diffChange.originalStart + diffChange.originalLength));
 					}
 
 					if (diffChange.modifiedLength > 0) {
-						var beforeItem = afterModelItems[diffChange.modifiedStart - 1] || item;
+						let beforeItem = afterModelItems[diffChange.modifiedStart - 1] || item;
 						beforeItem = beforeItem.getDepth() > 0 ? beforeItem : null;
 
 						this.onInsertItems(new ArrayIterator(afterModelItems, diffChange.modifiedStart, diffChange.modifiedStart + diffChange.modifiedLength), beforeItem ? beforeItem.id : null);
 					}
 				}
 
-			} else if (diff.length) {
+			} else if (skipDiff || diff.length) {
 				this.onRemoveItems(new ArrayIterator(previousChildrenIds));
 				this.onInsertItems(new ArrayIterator(afterModelItems));
 			}
 
-			if (diff.length) {
+			if (skipDiff || diff.length) {
 				this.onRowsChanged();
 			}
 		}
@@ -1056,7 +1097,20 @@ export class TreeView extends HeightMap implements IScrollable {
 			if (this.highlightedItemWasDraggable) {
 				viewItem.draggable = true;
 			}
-			delete this.highlightedItemWasDraggable;
+			this.highlightedItemWasDraggable = false;
+		}
+	}
+
+	private onModelFocusChange(): void {
+		const focus = this.model && this.model.getFocus();
+
+		DOM.toggleClass(this.domNode, 'no-focused-item', !focus);
+
+		// ARIA
+		if (focus) {
+			this.domNode.setAttribute('aria-activedescendant', btoa(this.context.dataSource.getId(this.context.tree, focus)));
+		} else {
+			this.domNode.removeAttribute('aria-activedescendant');
 		}
 	}
 
@@ -1356,9 +1410,9 @@ export class TreeView extends HeightMap implements IScrollable {
 			}
 
 			this.cancelDragAndDropScrollInterval();
-			delete this.currentDropTarget;
-			delete this.currentDropElement;
-			delete this.dragAndDropMouseY;
+			this.currentDropTarget = null;
+			this.currentDropElement = null;
+			this.dragAndDropMouseY = null;
 
 			return false;
 		}
@@ -1400,7 +1454,7 @@ export class TreeView extends HeightMap implements IScrollable {
 		} while (item);
 
 		if (!item) {
-			delete this.currentDropElement;
+			this.currentDropElement = null;
 			return false;
 		}
 
@@ -1411,7 +1465,7 @@ export class TreeView extends HeightMap implements IScrollable {
 			event.preventDefault();
 			event.dataTransfer.dropEffect = reaction.effect === _.DragOverEffect.COPY ? 'copy' : 'move';
 		} else {
-			delete this.currentDropElement;
+			this.currentDropElement = null;
 		}
 
 		// item is the model item where drop() should be called
@@ -1455,7 +1509,7 @@ export class TreeView extends HeightMap implements IScrollable {
 					}
 				}
 
-				this.currentDropPromise = WinJS.Promise.timeout(500).then(() => {
+				this.currentDropPromise = WinJS.TPromise.timeout(500).then(() => {
 					return this.context.tree.expand(this.currentDropElement).then(() => {
 						this.shouldInvalidateDropReaction = true;
 					});
@@ -1489,23 +1543,25 @@ export class TreeView extends HeightMap implements IScrollable {
 		}
 
 		this.cancelDragAndDropScrollInterval();
-		delete this.currentDragAndDropData;
+		this.currentDragAndDropData = null;
 		TreeView.currentExternalDragAndDropData = null;
-		delete this.currentDropElement;
-		delete this.currentDropTarget;
-		delete this.dragAndDropMouseY;
+		this.currentDropElement = null;
+		this.currentDropTarget = null;
+		this.dragAndDropMouseY = null;
 	}
 
-	private onFocus(e: FocusEvent): void {
+	private onFocus(): void {
 		if (!this.context.options.alwaysFocused) {
 			DOM.addClass(this.domNode, 'focused');
 		}
 	}
 
-	private onBlur(e: FocusEvent): void {
+	private onBlur(): void {
 		if (!this.context.options.alwaysFocused) {
 			DOM.removeClass(this.domNode, 'focused');
 		}
+
+		this.domNode.removeAttribute('aria-activedescendant'); // ARIA
 	}
 
 	// MS specific DOM Events
@@ -1599,10 +1655,7 @@ export class TreeView extends HeightMap implements IScrollable {
 		this.releaseModel();
 		this.modelListeners = null;
 
-		while (this.viewListeners.length) {
-			this.viewListeners.pop()();
-		}
-		this.viewListeners = null;
+		this.viewListeners = Lifecycle.dispose(this.viewListeners);
 
 		if (this.domNode.parentNode) {
 			this.domNode.parentNode.removeChild(this.domNode);

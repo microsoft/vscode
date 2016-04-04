@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation'
+import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
 export interface IBadge {
 	getDescription(): string;
@@ -43,6 +43,13 @@ export class TextBadge extends BaseBadge {
 		super(descriptorFn);
 
 		this.text = text;
+	}
+}
+
+export class IconBadge extends BaseBadge {
+
+	constructor(descriptorFn: (args: any) => string) {
+		super(descriptorFn);
 	}
 }
 

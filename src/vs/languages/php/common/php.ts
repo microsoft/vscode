@@ -5,47 +5,38 @@
 'use strict';
 
 import WinJS = require('vs/base/common/winjs.base');
-import Network = require('vs/base/common/network');
 import objects = require('vs/base/common/objects');
-import supports = require('vs/editor/common/modes/supports');
-import platform = require('vs/platform/platform');
-import Arrays = require('vs/base/common/arrays');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import {AbstractMode, isDigit, createWordRegExp} from 'vs/editor/common/modes/abstractMode';
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
-import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
-import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IThreadService} from 'vs/platform/thread/common/thread';
-import {AbstractModeWorker} from 'vs/editor/common/modes/abstractModeWorker';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {TokenizationSupport, ILeavingNestedModeData, ITokenizationCustomization} from 'vs/editor/common/modes/supports/tokenizationSupport';
+import {TextualSuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
+import {IEditorWorkerService} from 'vs/editor/common/services/editorWorkerService';
 
-var bracketsSource : Modes.IBracketPair[]= [
-	{ tokenType:'delimiter.bracket.php', open: '{', close: '}', isElectric: true },
-	{ tokenType:'delimiter.array.php', open: '[', close: ']', isElectric: true },
-	{ tokenType:'delimiter.parenthesis.php', open: '(', close: ')', isElectric: true }
-];
 
 var brackets = (function() {
+
+	let bracketsSource = [
+		{ tokenType:'delimiter.bracket.php', open: '{', close: '}' },
+		{ tokenType:'delimiter.array.php', open: '[', close: ']' },
+		{ tokenType:'delimiter.parenthesis.php', open: '(', close: ')' }
+	];
 
 	let MAP: {
 		[text:string]:{
 			tokenType: string;
-			bracketType: Modes.Bracket
 		}
 	} = Object.create(null);
 
 	for (let i = 0; i < bracketsSource.length; i++) {
 		let bracket = bracketsSource[i];
 		MAP[bracket.open] = {
-			tokenType: bracket.tokenType,
-			bracketType: Modes.Bracket.Open
+			tokenType: bracket.tokenType
 		};
 		MAP[bracket.close] = {
-			tokenType: bracket.tokenType,
-			bracketType: Modes.Bracket.Close
+			tokenType: bracket.tokenType
 		};
 	}
 
@@ -54,10 +45,7 @@ var brackets = (function() {
 			return !!MAP[text];
 		},
 		tokenTypeFromString: (text:string): string => {
-			return MAP[text].tokenType
-		},
-		bracketTypeFromString: (text:string): Modes.Bracket => {
-			return MAP[text].bracketType
+			return MAP[text].tokenType;
 		}
 	};
 })();
@@ -80,7 +68,7 @@ var isKeyword = objects.createKeywordMatcher([
 	'try', 'true', 'use', 'var', 'while', 'xor',
 	'die', 'echo', 'empty', 'exit', 'eval',
 	'include', 'include_once', 'isset', 'list', 'require',
-	'require_once', 'return', 'print', 'unset',
+	'require_once', 'return', 'print', 'unset', 'yield',
 	'__construct'
 ]);
 
@@ -273,9 +261,13 @@ export class PHPNumber extends PHPState {
 			}
 		}
 		var tokenType = 'number';
-		if (base === 16) tokenType += '.hex';
-		else if (base === 8) tokenType += '.octal';
-		else if (base === 2) tokenType += '.binary';
+		if (base === 16) {
+			tokenType += '.hex';
+		} else if (base === 8) {
+			tokenType += '.octal';
+		} else if (base === 2) {
+			tokenType += '.binary';
+		}
 		return { type: tokenType + '.php', nextState: this.parent };
 	}
 }
@@ -366,7 +358,7 @@ export class PHPStatement extends PHPState {
 			return { nextState: new PHPNumber(this.getMode(), this, stream.next()) };
 		}
 		if (stream.advanceIfString('?>').length) {
-			return { type: 'metatag.php', nextState: this.parent, bracket: Modes.Bracket.Close };
+			return { type: 'metatag.php', nextState: this.parent };
 		}
 
 		var token = stream.nextToken();
@@ -394,7 +386,6 @@ export class PHPStatement extends PHPState {
 			return { nextState: new PHPString(this.getMode(), this, token) };
 		} else if (brackets.stringIsBracket(token)) {
 			return {
-				bracket: brackets.bracketTypeFromString(token),
 				type: brackets.tokenTypeFromString(token)
 			};
 		} else if (isDelimiter(token)) {
@@ -429,8 +420,7 @@ export class PHPPlain extends PHPState {
 		stream.advanceIfString('<?').length || stream.advanceIfString('<%').length) {
 			return {
 				type: 'metatag.php',
-				nextState: new PHPStatement(this.getMode(), new PHPEnterHTMLState(this.getMode(), this.parent)),
-				bracket: Modes.Bracket.Open
+				nextState: new PHPStatement(this.getMode(), new PHPEnterHTMLState(this.getMode(), this.parent))
 			};
 		}
 		stream.next();
@@ -459,49 +449,52 @@ export class PHPEnterHTMLState extends PHPState {
 
 }
 
-export class PHPMode extends AbstractMode<AbstractModeWorker> implements supports.ITokenizationCustomization {
+export class PHPMode extends AbstractMode implements ITokenizationCustomization {
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
-	public electricCharacterSupport: Modes.IElectricCharacterSupport;
-	public characterPairSupport: Modes.ICharacterPairSupport;
-
-	public onEnterSupport: Modes.IOnEnterSupport;
+	public richEditSupport: Modes.IRichEditSupport;
+	public suggestSupport:Modes.ISuggestSupport;
 
 	private modeService:IModeService;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThreadService threadService: IThreadService,
-		@IModeService modeService: IModeService
+		@IModeService modeService: IModeService,
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(descriptor, instantiationService, threadService);
+		super(descriptor.id);
 		this.modeService = modeService;
 
-		this.electricCharacterSupport = new supports.BracketElectricCharacterSupport(this, { brackets: bracketsSource });
-		this.tokenizationSupport = new supports.TokenizationSupport(this, this, true, false);
+		this.tokenizationSupport = new TokenizationSupport(this, this, true, false);
 
-		this.characterPairSupport = new supports.CharacterPairSupport(this, {
-			autoClosingPairs:
-				[	{ open: '{', close: '}', notIn: ['string.php'] },
+		this.richEditSupport = new RichEditSupport(this.getId(), null, {
+			wordPattern: createWordRegExp('$_'),
+
+			comments: {
+				lineComment: '//',
+				blockComment: ['/*', '*/']
+			},
+
+			brackets: [
+				['{', '}'],
+				['[', ']'],
+				['(', ')']
+			],
+
+			__characterPairSupport: {
+				autoClosingPairs: [
+					{ open: '{', close: '}', notIn: ['string.php'] },
 					{ open: '[', close: ']', notIn: ['string.php'] },
 					{ open: '(', close: ')', notIn: ['string.php'] },
 					{ open: '"', close: '"', notIn: ['string.php'] },
 					{ open: '\'', close: '\'', notIn: ['string.php'] }
-				]});
-
-		this.suggestSupport = new supports.SuggestSupport(this, {
-			triggerCharacters: ['.', ':', '$'],
-			excludeTokens: ['comment'],
-			suggest: (resource, position) => this.suggest(resource, position)});
-
-		this.onEnterSupport = new OnEnterSupport(this.getId(), {
-			brackets: [
-				{ open: '(', close: ')' },
-				{ open: '{', close: '}' },
-				{ open: '[', close: ']' }
-			]
+				]
+			}
 		});
+
+		if (editorWorkerService) {
+			this.suggestSupport = new TextualSuggestSupport(this.getId(), editorWorkerService);
+		}
 	}
 
 	public asyncCtor(): WinJS.Promise {
@@ -533,7 +526,7 @@ export class PHPMode extends AbstractMode<AbstractModeWorker> implements support
 		};
 	}
 
-	public getLeavingNestedModeData(line:string, state:Modes.IState):supports.ILeavingNestedModeData {
+	public getLeavingNestedModeData(line:string, state:Modes.IState):ILeavingNestedModeData {
 		// Leave HTML if <? is found on a line
 		var match:any = /<\?/i.exec(line);
 		if (match !== null) {
@@ -551,14 +544,5 @@ export class PHPMode extends AbstractMode<AbstractModeWorker> implements support
 		// The PHP states will take care of passing .parent along
 		// such that when we enter HTML again, we can recover the HTML state from .parent
 		(<PHPPlain>myStateAfterNestedMode).parent = lastNestedModeState;
-	}
-
-	public getCommentsConfiguration():Modes.ICommentsConfiguration {
-		return { lineCommentTokens: ['//','#'], blockCommentStartToken: '/*', blockCommentEndToken: '*/' };
-	}
-
-	private static WORD_DEFINITION = createWordRegExp('$-');
-	public getWordDefinition():RegExp {
-		return PHPMode.WORD_DEFINITION;
 	}
 }

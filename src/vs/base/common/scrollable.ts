@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Lifecycle = require('vs/base/common/lifecycle');
+import {Disposable, IDisposable} from 'vs/base/common/lifecycle';
 
 export interface IScrollable {
 	getScrollHeight():number;
@@ -13,5 +13,94 @@ export interface IScrollable {
 	setScrollLeft(scrollLeft:number);
 	getScrollTop():number;
 	setScrollTop(scrollTop:number);
-	addScrollListener(callback:()=>void): Lifecycle.IDisposable;
+	addScrollListener(callback:(newValues:ScrollEvent)=>void): IDisposable;
+}
+
+export class ScrollEvent {
+	_scrollEventTrait: void;
+
+	scrollTop: number;
+	scrollLeft: number;
+	scrollWidth: number;
+	scrollHeight: number;
+	vertical: boolean;
+	horizontal: boolean;
+
+	constructor(scrollTop:number, scrollLeft:number, scrollWidth:number, scrollHeight:number, vertical:boolean, horizontal:boolean) {
+		this.scrollTop = Math.round(scrollTop);
+		this.scrollLeft = Math.round(scrollLeft);
+		this.scrollWidth = Math.round(scrollWidth);
+		this.scrollHeight = Math.round(scrollHeight);
+		this.vertical = Boolean(vertical);
+		this.horizontal = Boolean(horizontal);
+	}
+}
+
+export class ScrollableValues {
+	_scrollableValuesTrait: void;
+
+	scrollTop: number;
+	scrollLeft: number;
+	scrollWidth: number;
+	scrollHeight: number;
+
+	constructor(scrollTop:number, scrollLeft:number, scrollWidth:number, scrollHeight:number) {
+		this.scrollTop = Math.round(scrollTop);
+		this.scrollLeft = Math.round(scrollLeft);
+		this.scrollWidth = Math.round(scrollWidth);
+		this.scrollHeight = Math.round(scrollHeight);
+	}
+
+	public equals(other:ScrollEvent): boolean {
+		return (
+			this.scrollTop === other.scrollTop
+			&& this.scrollLeft === other.scrollLeft
+			&& this.scrollWidth === other.scrollWidth
+			&& this.scrollHeight === other.scrollHeight
+		);
+	}
+}
+
+export class DelegateScrollable extends Disposable {
+
+	private _actual:IScrollable;
+	private _onChange:()=>void;
+
+	private _values: ScrollableValues;
+
+	constructor(actual:IScrollable, onChange:()=>void) {
+		super();
+		this._actual = actual;
+		this._onChange = onChange;
+
+		this._values = new ScrollableValues(this._actual.getScrollTop(), this._actual.getScrollLeft(), this._actual.getScrollWidth(), this._actual.getScrollHeight());
+		this._register(this._actual.addScrollListener((newValues) => this._update(newValues)));
+	}
+
+	public dispose(): void {
+		super.dispose();
+	}
+
+	private _update(e:ScrollEvent): void {
+		if (this._values.equals(e)) {
+			return;
+		}
+
+		this._values = new ScrollableValues(e.scrollTop, e.scrollLeft, e.scrollWidth, e.scrollHeight);
+
+		this._onChange();
+	}
+
+	public getScrollTop():number { return this._values.scrollTop; }
+	public getScrollLeft():number { return this._values.scrollLeft; }
+	public getScrollWidth():number { return this._values.scrollWidth; }
+	public getScrollHeight():number { return this._values.scrollHeight; }
+
+	public setScrollTop(scrollTop:number): void {
+		this._actual.setScrollTop(scrollTop);
+	}
+
+	public setScrollLeft(scrollLeft:number): void {
+		this._actual.setScrollLeft(scrollLeft);
+	}
 }

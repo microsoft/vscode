@@ -6,8 +6,8 @@
 
 import {EventEmitter} from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
-import {IScrollable} from 'vs/base/common/scrollable';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {IScrollable, ScrollEvent} from 'vs/base/common/scrollable';
+import {IScrollEvent} from 'vs/editor/common/editorCommon';
 
 export class EditorScrollable extends EventEmitter implements IScrollable {
 
@@ -20,8 +20,7 @@ export class EditorScrollable extends EventEmitter implements IScrollable {
 
 	constructor() {
 		super([
-			EditorScrollable._SCROLL_EVENT,
-			EditorScrollable._INTERNAL_SIZE_CHANGED_EVENT
+			EditorScrollable._SCROLL_EVENT
 		]);
 
 		this.scrollTop = 0;
@@ -75,7 +74,7 @@ export class EditorScrollable extends EventEmitter implements IScrollable {
 			// Revalidate
 			this.setScrollLeft(this.scrollLeft);
 
-			this._emitInternalSizeEvent();
+			this._emitScrollEvent(false, false);
 		}
 	}
 
@@ -140,7 +139,7 @@ export class EditorScrollable extends EventEmitter implements IScrollable {
 			// Revalidate
 			this.setScrollTop(this.scrollTop);
 
-			this._emitInternalSizeEvent();
+			this._emitScrollEvent(false, false);
 		}
 	}
 
@@ -170,24 +169,17 @@ export class EditorScrollable extends EventEmitter implements IScrollable {
 
 	static _SCROLL_EVENT = 'scroll';
 	private _emitScrollEvent(vertical:boolean, horizontal:boolean): void {
-		var e:EditorCommon.IScrollEvent = {
-			vertical: vertical,
-			horizontal: horizontal,
-			scrollTop: this.scrollTop,
-			scrollLeft: this.scrollLeft
-		};
+		var e:IScrollEvent = new ScrollEvent(
+			this.getScrollTop(),
+			this.getScrollLeft(),
+			this.getScrollWidth(),
+			this.getScrollHeight(),
+			vertical,
+			horizontal
+		);
 		this.emit(EditorScrollable._SCROLL_EVENT, e);
 	}
-	public addScrollListener(listener: (e:EditorCommon.IScrollEvent) => void): IDisposable {
+	public addScrollListener(listener: (e:ScrollEvent) => void): IDisposable {
 		return this.addListener2(EditorScrollable._SCROLL_EVENT, listener);
-	}
-
-
-	static _INTERNAL_SIZE_CHANGED_EVENT = 'internalSizeChanged';
-	private _emitInternalSizeEvent(): void {
-		this.emit(EditorScrollable._INTERNAL_SIZE_CHANGED_EVENT);
-	}
-	public addInternalSizeChangeListener(listener:()=>void): IDisposable {
-		return this.addListener2(EditorScrollable._INTERNAL_SIZE_CHANGED_EVENT, listener);
 	}
 }

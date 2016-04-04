@@ -1,22 +1,22 @@
 {
-	"println(\"...\")": {
+	"print(\"...\")": {
 		"prefix": "pr",
-		"body": "println(\"$1\")$0"
+		"body": "print(\"$1\")$0"
 	},
-	"println(\"\\(...)\")": {
+	"print(\"\\(...)\")": {
 		"prefix": "po",
-		"body": "println(\"\\($1)\")$0"
+		"body": "print(\"\\($1)\")$0"
 	},
 
-	"do...while loop": {
+	"repeat...while loop": {
 
-		"prefix": "do",
+		"prefix": "repeat",
 		"body": [
-			"do {",
+			"repeat {",
 			"	$0",
 			"} while ${true}"
 		],
-		"description": "do...while loop"
+		"description": "repeat...while loop"
 	},
 
 	"While loop": {
@@ -94,6 +94,28 @@
 			"}"
 		],
 		"description": "Else statement"
+	},
+
+	"Guard statement": {
+
+		"prefix": "guard",
+		"body": [
+			"guard let ${a} = ${optional} else {",
+			"	$0",
+			"}"
+		],
+		"description": "Guard statement"
+	},
+
+	"Optional Binding statement": {
+
+		"prefix": "ifnil",
+		"body": [
+			"if let ${a} = ${optional} {",
+			"	$0",
+			"}"
+		],
+		"description": "Optional Binding statement"
 	},
 
 	"Switch statement": {

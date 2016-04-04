@@ -33,15 +33,15 @@ suite('JSON - Worker', () => {
 	};
 
 	function mockWorkerEnv(url: URI, content: string): { worker: jsonworker.JSONWorker; model: EditorCommon.IMirrorModel; } {
-		var mm = mirrorModel.createMirrorModelFromString(null, 1, content, modesUtil.createMockMode('mock.mode.id'), url);
+		var mm = mirrorModel.createTestMirrorModelFromString(content, null, url);
 
 		var resourceModelMock: IResourceService = new resourceService.ResourceService();
 		resourceModelMock.insert(url, mm);
 
-		var _instantiationService = instantiationService.create({
+		var _instantiationService = instantiationService.createInstantiationService({
 			resourceService: resourceModelMock
 		});
-		var worker = _instantiationService.createInstance(jsonworker.JSONWorker, mm.getMode(), []);
+		var worker = _instantiationService.createInstance(jsonworker.JSONWorker, mm.getMode().getId());
 
 		return { worker: worker, model: mm };
 	};
@@ -79,7 +79,7 @@ suite('JSON - Worker', () => {
 		var pos = env.model.getPositionFromOffset(value.indexOf(selection));
 		var range = { startLineNumber: pos.lineNumber, startColumn: pos.column, endLineNumber: pos.lineNumber, endColumn: pos.column + selectionLength };
 
-		return env.worker.inplaceReplaceSupport.navigateValueSet(url, range, up);
+		return env.worker.navigateValueSet(url, range, up);
 	};
 
 	function getOutline(content: string):WinJS.TPromise<Modes.IOutlineEntry[]> {

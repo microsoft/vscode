@@ -7,23 +7,18 @@
 import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
 import {Action, IAction} from 'vs/base/common/actions';
-import paths = require('vs/base/common/paths');
 import {ActionItem, BaseActionItem, Separator} from 'vs/base/browser/ui/actionbar/actionbar';
 import {Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor} from 'vs/workbench/browser/actionBarRegistry';
 import {IEditorInputActionContext, IEditorInputAction, EditorInputActionContributor} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {AddToWorkingFiles, FocusWorkingFiles, OpenPreviousWorkingFile, OpenNextWorkingFile, CloseAllFilesAction, CloseFileAction, GlobalCompareResourcesAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, ViewDerivedSourceEditorInputAction, RefreshDerivedFrameEditorInputAction, keybindingForAction, MoveFileToTrashAction, TriggerRenameFileAction, PasteFileAction, CopyFileAction, SelectResourceForCompareAction, CompareResourcesAction, NewFolderAction, NewFileAction, OpenToSideAction} from 'vs/workbench/parts/files/browser/fileActions';
+import {AddToWorkingFiles, FocusWorkingFiles, FocusFilesExplorer, OpenPreviousWorkingFile, OpenNextWorkingFile, CloseAllFilesAction, CloseFileAction, CloseOtherFilesAction, GlobalCompareResourcesAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, keybindingForAction, MoveFileToTrashAction, TriggerRenameFileAction, PasteFileAction, CopyFileAction, SelectResourceForCompareAction, CompareResourcesAction, NewFolderAction, NewFileAction, OpenToSideAction, ShowActiveFileInExplorer} from 'vs/workbench/parts/files/browser/fileActions';
 import {RevertLocalChangesAction, AcceptLocalChangesAction, ConflictResolutionDiffEditorInput} from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/browser/actionRegistry';
-import {DerivedFrameEditorInput} from 'vs/workbench/parts/files/browser/editors/derivedFrameEditorInput';
-import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
+import {IWorkbenchActionRegistry, Extensions as ActionExtensions} from 'vs/workbench/common/actionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
 import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {FileStat} from 'vs/workbench/parts/files/browser/views/explorerViewModel';
+import {FileStat} from 'vs/workbench/parts/files/common/explorerViewModel';
 import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
-
-const HTML_MIME = 'text/html';
 
 class FilesViewerActionContributor extends ActionBarContributor {
 
@@ -47,8 +42,6 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		let tree = context.viewer;
 		let actions: IAction[] = [];
 		let separateOpen = false;
-
-		let extension = stat.isDirectory ? null : paths.extname(stat.name);
 
 		// Open side by side
 		if (!stat.isDirectory) {
@@ -115,7 +108,7 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		let curOrder = 10;
 		for (let i = 0; i < actions.length; i++) {
 			let action = <any>actions[i];
-			if (!action.order) { // TODO@Ben order should be a property in another place where the action gets bound to the UI
+			if (!action.order) {
 				curOrder += 10;
 				action.order = curOrder;
 			} else {
@@ -158,33 +151,12 @@ class ConflictResolutionActionContributor extends EditorInputActionContributor {
 	}
 }
 
-class DerivedFrameEditorActionContributor extends EditorInputActionContributor {
-
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
-		super();
-	}
-
-	public hasActionsForEditorInput(context: IEditorInputActionContext): boolean {
-		return context.input instanceof DerivedFrameEditorInput;
-	}
-
-	public getActionsForEditorInput(context: IEditorInputActionContext): IEditorInputAction[] {
-		return [
-			this.instantiationService.createInstance(RefreshDerivedFrameEditorInputAction),
-			this.instantiationService.createInstance(ViewDerivedSourceEditorInputAction)
-		];
-	}
-}
-
 // Contribute to Viewers that show Files
 let actionBarRegistry = <IActionBarRegistry>Registry.as(ActionBarExtensions.Actionbar);
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, FilesViewerActionContributor);
 
 // Contribute to Conflict Editor Inputs
 actionBarRegistry.registerActionBarContributor(Scope.EDITOR, ConflictResolutionActionContributor);
-
-// Contribute to Derived Frame Editor Inputs
-actionBarRegistry.registerActionBarContributor(Scope.EDITOR, DerivedFrameEditorActionContributor);
 
 // Contribute Global Actions
 const category = nls.localize('filesCategory', "Files");
@@ -197,8 +169,11 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(RevertFileAction, Reve
 registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalNewFolderAction, GlobalNewFolderAction.ID, GlobalNewFolderAction.LABEL), category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalCompareResourcesAction, GlobalCompareResourcesAction.ID, GlobalCompareResourcesAction.LABEL), category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseFileAction, CloseFileAction.ID, CloseFileAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_W) }), category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(CloseOtherFilesAction, CloseOtherFilesAction.ID, CloseOtherFilesAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W) }), category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseAllFilesAction, CloseAllFilesAction.ID, CloseAllFilesAction.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_W) }), category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenNextWorkingFile, OpenNextWorkingFile.ID, OpenNextWorkingFile.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.DownArrow) }), category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenPreviousWorkingFile, OpenPreviousWorkingFile.ID, OpenPreviousWorkingFile.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.UpArrow) }), category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(AddToWorkingFiles, AddToWorkingFiles.ID, AddToWorkingFiles.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.Enter) }), category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusWorkingFiles, FocusWorkingFiles.ID, FocusWorkingFiles.LABEL, { primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_E) }), category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(FocusFilesExplorer, FocusFilesExplorer.ID, FocusFilesExplorer.LABEL), category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ShowActiveFileInExplorer, ShowActiveFileInExplorer.ID, ShowActiveFileInExplorer.LABEL), category);

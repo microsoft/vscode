@@ -1,15 +1,12 @@
 import * as ts from './typescript/typescriptServices';
 import * as lazy from 'lazy.js';
-import { duplex, through, mapSync, readArray, merge } from 'event-stream';
+import { duplex, through } from 'event-stream';
 import { Stream } from 'stream';
-import { ThroughStream } from 'through';
 import File = require('vinyl');
 import * as sm from 'source-map';
 import assign = require('object-assign');
 import clone = require('clone');
-import filter = require('gulp-filter');
 import path = require('path');
-import fs = require('fs');
 
 declare class FileSourceMap extends File {
 	public sourceMap: sm.RawSourceMap;
@@ -39,30 +36,6 @@ function collect(node: ts.Node, fn: (node: ts.Node) => CollectStepResult): ts.No
 
 	loop(node);
 	return result;
-}
-
-function zip<A,B,R>(stream: Stream, zipper: (a: A, b: B) => R = (a,b) => <any> [a, b]): ThroughStream {
-	const pass = through();
-	const oneBuffer: any[] = [];
-	const otherBuffer: any[] = [];
-
-	const result = pass.pipe(through(f => {
-		oneBuffer.push(f);
-		flush();
-	}), () => {
-		flush();
-		result.emit('end');
-	});
-
-	function flush() {
-		while (oneBuffer.length > 0 && otherBuffer.length > 0) {
-			result.emit('data', zipper(oneBuffer.shift(), otherBuffer.shift()));
-		}
-	}
-
-	stream.pipe(through(f => otherBuffer.push(f)));
-
-	return duplex(pass, result);
 }
 
 function template(lines: string[]): string {
@@ -202,14 +175,14 @@ module nls {
 			.filter(n => n.kind === ts.SyntaxKind.ImportEqualsDeclaration)
 			.map(n => <ts.ImportEqualsDeclaration> n)
 			.filter(d => d.moduleReference.kind === ts.SyntaxKind.ExternalModuleReference)
-			.filter(d => (<ts.ExternalModuleReference>d.moduleReference).expression.getText() === "'vs/nls'");
+			.filter(d => (<ts.ExternalModuleReference>d.moduleReference).expression.getText() === '\'vs/nls\'');
 
 		// import ... from 'vs/nls';
 		const importDeclarations = imports
 			.filter(n => n.kind === ts.SyntaxKind.ImportDeclaration)
 			.map(n => <ts.ImportDeclaration> n)
 			.filter(d => d.moduleSpecifier.kind === ts.SyntaxKind.StringLiteral)
-			.filter(d => d.moduleSpecifier.getText() === "'vs/nls'")
+			.filter(d => d.moduleSpecifier.getText() === '\'vs/nls\'')
 			.filter(d => !!d.importClause && !!d.importClause.namedBindings);
 
 		const nlsExpressions = importEqualsDeclarations
@@ -244,7 +217,7 @@ module nls {
 		const allLocalizeImportDeclarations = importDeclarations
 			.filter(d => d.importClause.namedBindings.kind === ts.SyntaxKind.NamedImports)
 			.map(d => (<ts.NamedImports> d.importClause.namedBindings).elements)
-			.flatten()
+			.flatten();
 
 		// `localize` read-only references
 		const localizeReferences = allLocalizeImportDeclarations

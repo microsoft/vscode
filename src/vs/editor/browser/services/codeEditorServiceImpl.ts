@@ -4,22 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, {Emitter} from 'vs/base/common/event';
-import {
-	ICommonCodeEditor,
-	IThemeDecorationRenderOptions,
-	IDecorationRenderOptions,
-	IModelDecorationOptions,
-	IModelDecorationOverviewRulerOptions,
-	OverviewRulerLane
-} from 'vs/editor/common/editorCommon';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
-import {AbstractCodeEditorService} from 'vs/editor/common/services/abstractCodeEditorService';
-import dom = require('vs/base/browser/dom');
-import objects = require('vs/base/common/objects');
-import strings = require('vs/base/common/strings');
+import * as objects from 'vs/base/common/objects';
+import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
+import * as dom from 'vs/base/browser/dom';
+import {IDecorationRenderOptions, IModelDecorationOptions, IModelDecorationOverviewRulerOptions, IThemeDecorationRenderOptions, OverviewRulerLane} from 'vs/editor/common/editorCommon';
+import {AbstractCodeEditorService} from 'vs/editor/common/services/abstractCodeEditorService';
 
 export class CodeEditorServiceImpl extends AbstractCodeEditorService {
 
@@ -110,7 +100,7 @@ class DecorationRenderOptions implements IModelDecorationOptions {
 				color: themedOpts.light.overviewRulerColor || themedOpts.dark.overviewRulerColor,
 				darkColor: themedOpts.dark.overviewRulerColor || themedOpts.light.overviewRulerColor,
 				position: options.overviewRulerLane || OverviewRulerLane.Center
-			}
+			};
 		}
 	}
 
@@ -135,6 +125,7 @@ class DecorationRenderOptions implements IModelDecorationOptions {
 
 		textDecoration: 'text-decoration:{0};',
 		cursor: 'cursor:{0};',
+		letterSpacing: 'letter-spacing:{0};',
 
 		gutterIconPath: 'background:url(\'{0}\') center center no-repeat;',
 	};
@@ -202,6 +193,9 @@ class DecorationRenderOptions implements IModelDecorationOptions {
 		}
 		if (typeof opts.color !== 'undefined') {
 			cssTextArr.push(strings.format(this._CSS_MAP.color, opts.color));
+		}
+		if (typeof opts.letterSpacing !== 'undefined') {
+			cssTextArr.push(strings.format(this._CSS_MAP.letterSpacing, opts.letterSpacing));
 		}
 
 		return cssTextArr.join('');

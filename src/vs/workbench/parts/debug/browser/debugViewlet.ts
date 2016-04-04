@@ -7,23 +7,22 @@ import 'vs/css!./media/debugViewlet';
 import nls = require('vs/nls');
 import dom = require('vs/base/browser/dom');
 import builder = require('vs/base/browser/builder');
-import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import lifecycle = require('vs/base/common/lifecycle');
 import events = require('vs/base/common/events');
 import actions = require('vs/base/common/actions');
 import actionbar = require('vs/base/browser/ui/actionbar/actionbar');
 import actionbarregistry = require('vs/workbench/browser/actionBarRegistry');
-import tree = require('vs/base/parts/tree/common/tree');
+import tree = require('vs/base/parts/tree/browser/tree');
 import treeimpl = require('vs/base/parts/tree/browser/treeImpl');
 import splitview = require('vs/base/browser/ui/splitview/splitview');
-import renderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import memento = require('vs/workbench/common/memento');
 import viewlet = require('vs/workbench/browser/viewlet');
 import debug = require('vs/workbench/parts/debug/common/debug');
 import model = require('vs/workbench/parts/debug/common/debugModel');
 import viewer = require('vs/workbench/parts/debug/browser/debugViewer');
-import dbgactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
+import debugactions = require('vs/workbench/parts/debug/electron-browser/debugActions');
 import dbgactionitems = require('vs/workbench/parts/debug/browser/debugActionItems');
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -36,18 +35,21 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import IDebugService = debug.IDebugService;
 
 function renderViewTree(container: HTMLElement): HTMLElement {
-	var treeContainer = document.createElement('div');
+	const treeContainer = document.createElement('div');
 	dom.addClass(treeContainer, 'debug-view-content');
 	container.appendChild(treeContainer);
 	return treeContainer;
 }
 
-var debugTreeOptions = {
-	indentPixels: 8,
-	twistiePixels: 20
+const debugTreeOptions = (ariaLabel: string) => {
+	return <tree.ITreeOptions> {
+		indentPixels: 8,
+		twistiePixels: 20,
+		ariaLabel
+	};
 };
 
-var $ = builder.$;
+const $ = builder.$;
 
 class VariablesView extends viewlet.CollapsibleViewletView {
 
@@ -56,44 +58,55 @@ class VariablesView extends viewlet.CollapsibleViewletView {
 	constructor(actionRunner: actions.IActionRunner, private settings: any,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(actionRunner, !!settings[VariablesView.MEMENTO], 'variablesView', messageService, contextMenuService);
+		super(actionRunner, !!settings[VariablesView.MEMENTO], nls.localize('variablesSection', "Variables Section"), messageService, contextMenuService);
 	}
 
 	public renderHeader(container: HTMLElement): void {
 		super.renderHeader(container);
-		var titleDiv = $('div.title').appendTo(container);
+		const titleDiv = $('div.title').appendTo(container);
 		$('span').text(nls.localize('variables', "Variables")).appendTo(titleDiv);
 	}
 
 	public renderBody(container: HTMLElement): void {
+		dom.addClass(container, 'debug-variables');
 		this.treeContainer = renderViewTree(container);
-		dom.addClass(this.treeContainer, 'debug-variables');
 
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.VariablesDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(viewer.VariablesRenderer),
+			accessibilityProvider: new viewer.VariablesAccessibilityProvider(),
 			controller: new viewer.BaseDebugController(this.debugService, this.contextMenuService, new viewer.VariablesActionProvider(this.instantiationService))
-		}, debugTreeOptions);
+		}, debugTreeOptions(nls.localize('variablesAriaTreeLabel', "Debug Variables")));
 
-		var viewModel = this.debugService.getViewModel();
+		const viewModel = this.debugService.getViewModel();
 
 		this.tree.setInput(viewModel);
 
-		var collapseAction = this.instantiationService.createInstance(viewlet.CollapseAction, this.tree, false, 'explorer-action collapse-explorer');
+		const collapseAction = this.instantiationService.createInstance(viewlet.CollapseAction, this.tree, false, 'explorer-action collapse-explorer');
 		this.toolBar.setActions(actionbarregistry.prepareActions([collapseAction]))();
 
 		this.toDispose.push(viewModel.addListener2(debug.ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => this.onFocusedStackFrameUpdated()));
 		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, () => {
 			collapseAction.enabled = this.debugService.getState() === debug.State.Running || this.debugService.getState() === debug.State.Stopped;
 		}));
+
+		this.toDispose.push(this.tree.addListener2(events.EventType.FOCUS, (e: tree.IFocusEvent) => {
+			const isMouseClick = (e.payload && e.payload.origin === 'mouse');
+			const isVariableType = (e.focus instanceof model.Variable);
+
+			if(isMouseClick && isVariableType) {
+				this.telemetryService.publicLog('debug/variables/selected');
+			}
+		}));
 	}
 
 	private onFocusedStackFrameUpdated(): void {
 		this.tree.refresh().then(() => {
-			var stackFrame = this.debugService.getViewModel().getFocusedStackFrame();
+			const stackFrame = this.debugService.getViewModel().getFocusedStackFrame();
 			if (stackFrame) {
 				return stackFrame.getScopes(this.debugService).then(scopes => {
 					if (scopes.length > 0) {
@@ -120,9 +133,9 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 		@IDebugService private debugService: IDebugService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(actionRunner, !!settings[WatchExpressionsView.MEMENTO], 'expressionsView', messageService, contextMenuService);
+		super(actionRunner, !!settings[WatchExpressionsView.MEMENTO], nls.localize('expressionsSection', "Expressions Section"), messageService, contextMenuService);
 		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, (we) => {
-			// Only expand when a new watch expression is added.
+			// only expand when a new watch expression is added.
 			if (we instanceof model.Expression) {
 				this.expand();
 			}
@@ -131,26 +144,27 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 
 	public renderHeader(container: HTMLElement): void {
 		super.renderHeader(container);
-		var titleDiv = $('div.title').appendTo(container);
+		const titleDiv = $('div.title').appendTo(container);
 		$('span').text(nls.localize('watch', "Watch")).appendTo(titleDiv);
 	}
 
 	public renderBody(container: HTMLElement): void {
+		dom.addClass(container, 'debug-watch');
 		this.treeContainer = renderViewTree(container);
-		dom.addClass(this.treeContainer, 'debug-watch');
 
-		var actionProvider = new viewer.WatchExpressionsActionProvider(this.instantiationService);
+		const actionProvider = new viewer.WatchExpressionsActionProvider(this.instantiationService);
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.WatchExpressionsDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(viewer.WatchExpressionsRenderer, actionProvider, this.actionRunner),
+			accessibilityProvider: new viewer.WatchExpressionsAccessibilityProvider(),
 			controller: new viewer.WatchExpressionsController(this.debugService, this.contextMenuService, actionProvider)
-		}, debugTreeOptions);
+		}, debugTreeOptions(nls.localize('watchAriaTreeLabel', "Debug Watch Expressions")));
 
 		this.tree.setInput(this.debugService.getModel());
 
-		var addWatchExpressionAction = this.instantiationService.createInstance(dbgactions.AddWatchExpressionAction, dbgactions.AddWatchExpressionAction.ID, dbgactions.AddWatchExpressionAction.LABEL);
-		var collapseAction = this.instantiationService.createInstance(viewlet.CollapseAction, this.tree, false, 'explorer-action collapse-explorer');
-		var removeAllWatchExpressionsAction = this.instantiationService.createInstance(dbgactions.RemoveAllWatchExpressionsAction, dbgactions.RemoveAllWatchExpressionsAction.ID, dbgactions.RemoveAllWatchExpressionsAction.LABEL);
+		const addWatchExpressionAction = this.instantiationService.createInstance(debugactions.AddWatchExpressionAction, debugactions.AddWatchExpressionAction.ID, debugactions.AddWatchExpressionAction.LABEL);
+		const collapseAction = this.instantiationService.createInstance(viewlet.CollapseAction, this.tree, false, 'explorer-action collapse-explorer');
+		const removeAllWatchExpressionsAction = this.instantiationService.createInstance(debugactions.RemoveAllWatchExpressionsAction, debugactions.RemoveAllWatchExpressionsAction.ID, debugactions.RemoveAllWatchExpressionsAction.LABEL);
 		this.toolBar.setActions(actionbarregistry.prepareActions([addWatchExpressionAction, collapseAction, removeAllWatchExpressionsAction]))();
 
 		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.WATCH_EXPRESSIONS_UPDATED, (we: model.Expression) => this.onWatchExpressionsUpdated(we)));
@@ -161,12 +175,9 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 
 			this.tree.refresh(expression, false).then(() => {
 				this.tree.setHighlight(expression);
-
-				var unbind = this.tree.addListener(events.EventType.HIGHLIGHT, (e: tree.IHighlightEvent) => {
+				this.tree.addOneTimeListener(events.EventType.HIGHLIGHT, (e: tree.IHighlightEvent) => {
 					if (!e.highlight) {
 						this.debugService.getViewModel().setSelectedExpression(null);
-						this.tree.refresh(expression).done(null, errors.onUnexpectedError);
-						unbind();
 					}
 				});
 			}).done(null, errors.onUnexpectedError);
@@ -175,7 +186,7 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 
 	private onWatchExpressionsUpdated(we: model.Expression): void {
 		this.tree.refresh().done(() => {
-			return we instanceof model.Expression ? this.tree.reveal(we): Promise.as(true);
+			return we instanceof model.Expression ? this.tree.reveal(we): TPromise.as(true);
 		}, errors.onUnexpectedError);
 	}
 
@@ -188,34 +199,39 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 class CallStackView extends viewlet.CollapsibleViewletView {
 
 	private static MEMENTO = 'callstackview.memento';
-	private messageBox: HTMLDivElement;
+	private pauseMessage: builder.Builder;
+	private pauseMessageLabel: builder.Builder;
 
 	constructor(actionRunner: actions.IActionRunner, private settings: any,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(actionRunner, !!settings[CallStackView.MEMENTO], 'callStackView', messageService, contextMenuService);
+		super(actionRunner, !!settings[CallStackView.MEMENTO], nls.localize('callstackSection', "Call Stack Section"), messageService, contextMenuService);
 	}
 
 	public renderHeader(container: HTMLElement): void {
 		super.renderHeader(container);
-		var titleDiv = $('div.title').appendTo(container);
-		$('span').text(nls.localize('callStack', "Call Stack")).appendTo(titleDiv);
+		const title = $('div.debug-call-stack-title').appendTo(container);
+		$('span.title').text(nls.localize('callStack', "Call Stack")).appendTo(title);
+		this.pauseMessage = $('span.pause-message').appendTo(title);
+		this.pauseMessage.hide();
+		this.pauseMessageLabel = $('span.label').appendTo(this.pauseMessage);
 	}
 
 	public renderBody(container: HTMLElement): void {
-		this.renderMessageBox(container);
+		dom.addClass(container, 'debug-call-stack');
 		this.treeContainer = renderViewTree(container);
-		dom.addClass(this.treeContainer, 'debug-call-stack');
 
 		this.tree = new treeimpl.Tree(this.treeContainer, {
-			dataSource: new viewer.CallStackDataSource(),
-			renderer: this.instantiationService.createInstance(viewer.CallStackRenderer)
-		}, debugTreeOptions);
+			dataSource: this.instantiationService.createInstance(viewer.CallStackDataSource),
+			renderer: this.instantiationService.createInstance(viewer.CallStackRenderer),
+			accessibilityProvider: this.instantiationService.createInstance(viewer.CallstackAccessibilityProvider)
+		}, debugTreeOptions(nls.localize('callStackAriaLabel', "Debug Call Stack")));
 
-		var debugModel = this.debugService.getModel();
+		const debugModel = this.debugService.getModel();
 
 		this.tree.setInput(debugModel);
 
@@ -223,60 +239,66 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 			if (!e.selection.length) {
 				return;
 			}
-			var element = e.selection[0];
-			if (!(element instanceof model.StackFrame)) {
-				return;
+			const element = e.selection[0];
+
+			if (element instanceof model.StackFrame) {
+				const stackFrame = <debug.IStackFrame> element;
+				this.debugService.setFocusedStackFrameAndEvaluate(stackFrame);
+
+				const isMouse = (e.payload.origin === 'mouse');
+				let preserveFocus = isMouse;
+
+				const originalEvent:KeyboardEvent|MouseEvent = e && e.payload && e.payload.originalEvent;
+				if (originalEvent && isMouse && originalEvent.detail === 2) {
+					preserveFocus = false;
+					originalEvent.preventDefault();  // focus moves to editor, we need to prevent default
+				}
+
+				const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
+				this.debugService.openOrRevealEditor(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
 			}
 
-			var stackFrame = <debug.IStackFrame> element;
-			this.debugService.setFocusedStackFrameAndEvaluate(stackFrame);
-
-			var isMouse = (e.payload.origin === 'mouse');
-			var preserveFocus = isMouse;
-
-			var originalEvent:KeyboardEvent|MouseEvent = e && e.payload && e.payload.originalEvent;
-			if (originalEvent && isMouse && originalEvent.detail === 2) {
-				preserveFocus = false;
-				originalEvent.preventDefault();  // focus moves to editor, we need to prevent default
+			// user clicked on 'Load More Stack Frames', get those stack frames and refresh the tree.
+			if (typeof element === 'number') {
+				const thread = this.debugService.getModel().getThreads()[element];
+				if (thread) {
+					thread.getCallStack(this.debugService, true).then(() => this.tree.refresh()).done(null, errors.onUnexpectedError);
+				}
 			}
+		}));
 
-			var sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-			this.debugService.openOrRevealEditor(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+		this.toDispose.push(this.tree.addListener2(events.EventType.FOCUS, (e: tree.IFocusEvent) => {
+			const isMouseClick = (e.payload && e.payload.origin === 'mouse');
+			const isStackFrameType = (e.focus instanceof model.StackFrame);
+
+			if (isMouseClick && isStackFrameType) {
+				this.telemetryService.publicLog('debug/callStack/selected');
+			}
 		}));
 
 		this.toDispose.push(debugModel.addListener2(debug.ModelEvents.CALLSTACK_UPDATED, () => {
 			this.tree.refresh().done(null, errors.onUnexpectedError);
 		}));
-		this.toDispose.push(this.debugService.addListener2(debug.ServiceEvents.STATE_CHANGED, (reason: string) => {
-			if (this.debugService.getState() === debug.State.Stopped && reason !== 'step') {
-				this.messageBox.textContent = nls.localize('debugStopped', "Paused on {0}.", reason);
-				reason === 'exception' ? this.messageBox.classList.add('exception') : this.messageBox.classList.remove('exception');
 
-				this.messageBox.hidden = false;
+		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED, () => {
+			const focussedThread = this.debugService.getModel().getThreads()[this.debugService.getViewModel().getFocusedThreadId()];
+			if (!focussedThread) {
 				return;
 			}
-			this.messageBox.hidden = true;
-		}));
 
-		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.FOCUSED_STACK_FRAME_UPDATED,() => {
-			var focused = this.debugService.getViewModel().getFocusedStackFrame();
-			if (focused) {
-				var threads = this.debugService.getModel().getThreads();
-				for (var ref in threads) {
-					if (threads[ref].callStack.some(sf => sf === focused)) {
-						this.tree.expand(threads[ref]);
-					}
+			this.tree.expand(focussedThread);
+			this.tree.select(this.debugService.getViewModel().getFocusedStackFrame());
+			if (focussedThread.stoppedDetails && focussedThread.stoppedDetails.reason) {
+				this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", focussedThread.stoppedDetails.reason));
+				if (focussedThread.stoppedDetails.text) {
+					this.pauseMessageLabel.title(focussedThread.stoppedDetails.text);
 				}
-				this.tree.setFocus(focused);
+				focussedThread.stoppedDetails.reason === 'exception' ? this.pauseMessageLabel.addClass('exception') : this.pauseMessageLabel.removeClass('exception');
+				this.pauseMessage.show();
+			} else {
+				this.pauseMessage.hide();
 			}
 		}));
-	}
-
-	private renderMessageBox(container: HTMLElement): void {
-		this.messageBox = document.createElement('div');
-		dom.addClass(this.messageBox, 'debug-message-box');
-		this.messageBox.hidden = true;
-		container.appendChild(this.messageBox);
 	}
 
 	public shutdown(): void {
@@ -298,30 +320,31 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 	) {
 		super(actionRunner, BreakpointsView.getExpandedBodySize(
 			debugService.getModel().getBreakpoints().length + debugService.getModel().getFunctionBreakpoints().length + debugService.getModel().getExceptionBreakpoints().length),
-			!!settings[BreakpointsView.MEMENTO], 'breakpointsView', messageService, contextMenuService);
+			!!settings[BreakpointsView.MEMENTO], nls.localize('breakpointsSection', "Breakpoints Section"), messageService, contextMenuService);
 
 		this.toDispose.push(this.debugService.getModel().addListener2(debug.ModelEvents.BREAKPOINTS_UPDATED,() => this.onBreakpointsChange()));
 	}
 
 	public renderHeader(container: HTMLElement): void {
 		super.renderHeader(container);
-		var titleDiv = $('div.title').appendTo(container);
+		const titleDiv = $('div.title').appendTo(container);
 		$('span').text(nls.localize('breakpoints', "Breakpoints")).appendTo(titleDiv);
 	}
 
 	public renderBody(container: HTMLElement): void {
+		dom.addClass(container, 'debug-breakpoints');
 		this.treeContainer = renderViewTree(container);
-		dom.addClass(this.treeContainer, 'debug-breakpoints');
-		var actionProvider = new viewer.BreakpointsActionProvider(this.instantiationService);
+		const actionProvider = new viewer.BreakpointsActionProvider(this.instantiationService);
 
 		this.tree = new treeimpl.Tree(this.treeContainer, {
 			dataSource: new viewer.BreakpointsDataSource(),
 			renderer: this.instantiationService.createInstance(viewer.BreakpointsRenderer, actionProvider, this.actionRunner),
+			accessibilityProvider: this.instantiationService.createInstance(viewer.BreakpointsAccessibilityProvider),
 			controller: new viewer.BreakpointsController(this.debugService, this.contextMenuService, actionProvider),
 			sorter: {
 				compare(tree: tree.ITree, element: any, otherElement: any): number {
-					var first = <debug.IBreakpoint> element;
-					var second = <debug.IBreakpoint> otherElement;
+					const first = <debug.IBreakpoint> element;
+					const second = <debug.IBreakpoint> otherElement;
 					if (first instanceof model.ExceptionBreakpoint) {
 						return -1;
 					}
@@ -342,9 +365,9 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 					return first.desiredLineNumber - second.desiredLineNumber;
 				}
 			}
-		}, debugTreeOptions);
+		}, debugTreeOptions(nls.localize('breakpointsAriaTreeLabel', "Debug Breakpoints")));
 
-		var debugModel = this.debugService.getModel();
+		const debugModel = this.debugService.getModel();
 
 		this.tree.setInput(debugModel);
 
@@ -352,34 +375,48 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 			if (!e.selection.length) {
 				return;
 			}
-			var element = e.selection[0];
+			const element = e.selection[0];
 			if (!(element instanceof model.Breakpoint)) {
 				return;
 			}
 
-			var breakpoint = <debug.IBreakpoint> element;
+			const breakpoint = <debug.IBreakpoint> element;
 			if (!breakpoint.source.inMemory) {
-				var isMouse = (e.payload.origin === 'mouse');
-				var preserveFocus = isMouse;
+				const isMouse = (e.payload.origin === 'mouse');
+				let preserveFocus = isMouse;
 
-				var originalEvent:KeyboardEvent|MouseEvent = e && e.payload && e.payload.originalEvent;
+				const originalEvent:KeyboardEvent|MouseEvent = e && e.payload && e.payload.originalEvent;
 				if (originalEvent && isMouse && originalEvent.detail === 2) {
 					preserveFocus = false;
 					originalEvent.preventDefault();  // focus moves to editor, we need to prevent default
 				}
 
-				var sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
+				const sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
 				this.debugService.openOrRevealEditor(breakpoint.source, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
 			}
+		}));
+
+		this.toDispose.push(this.debugService.getViewModel().addListener2(debug.ViewModelEvents.SELECTED_FUNCTION_BREAKPOINT_UPDATED, (fbp: debug.IFunctionBreakpoint) => {
+			if (!fbp || !(fbp instanceof model.FunctionBreakpoint)) {
+				return;
+			}
+
+			this.tree.refresh(fbp, false).then(() => {
+				this.tree.setHighlight(fbp);
+				this.tree.addOneTimeListener(events.EventType.HIGHLIGHT, (e: tree.IHighlightEvent) => {
+					if (!e.highlight) {
+						this.debugService.getViewModel().setSelectedFunctionBreakpoint(null);
+					}
+				});
+			}).done(null, errors.onUnexpectedError);
 		}));
 	}
 
 	public getActions(): actions.IAction[] {
 		return [
-			// this.instantiationService.createInstance(dbgactions.AddFunctionBreakpointAction, dbgactions.AddFunctionBreakpointAction.ID, dbgactions.AddFunctionBreakpointAction.LABEL),
-			this.instantiationService.createInstance(dbgactions.ReapplyBreakpointsAction, dbgactions.ReapplyBreakpointsAction.ID, dbgactions.ReapplyBreakpointsAction.LABEL),
-			this.instantiationService.createInstance(dbgactions.ToggleBreakpointsActivatedAction, dbgactions.ToggleBreakpointsActivatedAction.ID, dbgactions.ToggleBreakpointsActivatedAction.LABEL),
-			this.instantiationService.createInstance(dbgactions.RemoveAllBreakpointsAction, dbgactions.RemoveAllBreakpointsAction.ID, dbgactions.RemoveAllBreakpointsAction.LABEL)
+			this.instantiationService.createInstance(debugactions.AddFunctionBreakpointAction, debugactions.AddFunctionBreakpointAction.ID, debugactions.AddFunctionBreakpointAction.LABEL),
+			this.instantiationService.createInstance(debugactions.ToggleBreakpointsActivatedAction, debugactions.ToggleBreakpointsActivatedAction.ID, debugactions.ToggleBreakpointsActivatedAction.LABEL),
+			this.instantiationService.createInstance(debugactions.RemoveAllBreakpointsAction, debugactions.RemoveAllBreakpointsAction.ID, debugactions.RemoveAllBreakpointsAction.LABEL)
 		];
 	}
 
@@ -394,7 +431,7 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 	}
 
 	private static getExpandedBodySize(length: number): number {
-		return Math.min(BreakpointsView.MAX_VISIBLE_FILES, length) * 24;
+		return Math.min(BreakpointsView.MAX_VISIBLE_FILES, length) * 22;
 	}
 
 	public shutdown(): void {
@@ -413,6 +450,8 @@ export class DebugViewlet extends viewlet.Viewlet {
 	private $el: builder.Builder;
 	private splitView: splitview.SplitView;
 	private views: viewlet.IViewletView[];
+
+	private lastFocusedView: viewlet.CollapsibleViewletView | viewlet.AdaptiveCollapsibleViewletView;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -433,14 +472,14 @@ export class DebugViewlet extends viewlet.Viewlet {
 		}));
 	}
 
-	// Viewlet
+	// viewlet
 
 	public create(parent: builder.Builder): TPromise<void> {
 		super.create(parent);
 		this.$el = parent.div().addClass('debug-viewlet');
 
 		if (this.contextService.getWorkspace()) {
-			var actionRunner = this.getActionRunner();
+			const actionRunner = this.getActionRunner();
 			this.views.push(this.instantiationService.createInstance(VariablesView, actionRunner, this.viewletSettings));
 			this.views.push(this.instantiationService.createInstance(WatchExpressionsView, actionRunner, this.viewletSettings));
 			this.views.push(this.instantiationService.createInstance(CallStackView, actionRunner, this.viewletSettings));
@@ -449,6 +488,11 @@ export class DebugViewlet extends viewlet.Viewlet {
 			this.splitView = new splitview.SplitView(this.$el.getHTMLElement());
 			this.toDispose.push(this.splitView);
 			this.views.forEach(v => this.splitView.addView(<any> v));
+
+			// Track focus
+			this.toDispose.push(this.splitView.onFocus((view: viewlet.CollapsibleViewletView | viewlet.AdaptiveCollapsibleViewletView) => {
+				this.lastFocusedView = view;
+			}));
 		} else {
 			this.$el.append($([
 				'<div class="noworkspace-view">',
@@ -458,12 +502,31 @@ export class DebugViewlet extends viewlet.Viewlet {
 			].join('')));
 		}
 
-		return Promise.as(null);
+		return TPromise.as(null);
+	}
+
+	public setVisible(visible: boolean): TPromise<any> {
+		return super.setVisible(visible).then(() => {
+			return TPromise.join(this.views.map((view) => view.setVisible(visible)));
+		});
 	}
 
 	public layout(dimension: builder.Dimension): void {
 		if (this.splitView) {
 			this.splitView.layout(dimension.height);
+		}
+	}
+
+	public focus(): void {
+		super.focus();
+
+		if (this.lastFocusedView && this.lastFocusedView.isExpanded()) {
+			this.lastFocusedView.focusBody();
+			return;
+		}
+
+		if (this.views.length > 0) {
+			(<VariablesView>this.views[0]).focusBody();
 		}
 	}
 
@@ -474,10 +537,10 @@ export class DebugViewlet extends viewlet.Viewlet {
 
 		if (!this.actions) {
 			this.actions = [
-				this.instantiationService.createInstance(dbgactions.StartDebugAction, dbgactions.StartDebugAction.ID, dbgactions.StartDebugAction.LABEL),
-				this.instantiationService.createInstance(dbgactions.SelectConfigAction, dbgactions.SelectConfigAction.ID, dbgactions.SelectConfigAction.LABEL),
-				this.instantiationService.createInstance(dbgactions.ConfigureAction, dbgactions.ConfigureAction.ID, dbgactions.ConfigureAction.LABEL),
-				this.instantiationService.createInstance(dbgactions.OpenReplAction, dbgactions.OpenReplAction.ID, dbgactions.OpenReplAction.LABEL)
+				this.instantiationService.createInstance(debugactions.StartDebugAction, debugactions.StartDebugAction.ID, debugactions.StartDebugAction.LABEL),
+				this.instantiationService.createInstance(debugactions.SelectConfigAction, debugactions.SelectConfigAction.ID, debugactions.SelectConfigAction.LABEL),
+				this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL),
+				this.instantiationService.createInstance(debugactions.ToggleReplAction, debugactions.ToggleReplAction.ID, debugactions.ToggleReplAction.LABEL)
 			];
 
 			this.actions.forEach(a => {
@@ -489,15 +552,11 @@ export class DebugViewlet extends viewlet.Viewlet {
 	}
 
 	public getActionItem(action: actions.IAction): actionbar.IActionItem {
-		if (action.id === dbgactions.SelectConfigAction.ID) {
+		if (action.id === debugactions.SelectConfigAction.ID) {
 			return this.instantiationService.createInstance(dbgactionitems.SelectConfigActionItem, action);
 		}
 
 		return null;
-	}
-
-	public getSecondaryActions(): actions.IAction[] {
-		return [];
 	}
 
 	private onDebugServiceStateChange(): void {
@@ -513,7 +572,7 @@ export class DebugViewlet extends viewlet.Viewlet {
 	}
 
 	public dispose(): void {
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 
 		super.dispose();
 	}

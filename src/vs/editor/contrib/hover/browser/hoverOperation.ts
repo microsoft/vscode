@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import {RunOnceScheduler} from 'vs/base/common/async';
+import {onUnexpectedError} from 'vs/base/common/errors';
 import {TPromise} from 'vs/base/common/winjs.base';
-import Schedulers = require('vs/base/common/async');
-import Errors = require('vs/base/common/errors');
 
 export interface IHoverComputer<Result> {
 
@@ -53,9 +53,9 @@ export class HoverOperation<Result> {
 	private _computer: IHoverComputer<Result>;
 	private _state:ComputeHoverOperationState;
 
-	private _firstWaitScheduler: Schedulers.RunOnceScheduler;
-	private _secondWaitScheduler: Schedulers.RunOnceScheduler;
-	private _loadingMessageScheduler: Schedulers.RunOnceScheduler;
+	private _firstWaitScheduler: RunOnceScheduler;
+	private _secondWaitScheduler: RunOnceScheduler;
+	private _loadingMessageScheduler: RunOnceScheduler;
 	private _asyncComputationPromise:TPromise<Result>;
 	private _asyncComputationPromiseDone:boolean;
 
@@ -67,9 +67,9 @@ export class HoverOperation<Result> {
 		this._computer = computer;
 		this._state = ComputeHoverOperationState.IDLE;
 
-		this._firstWaitScheduler = new Schedulers.RunOnceScheduler(() => this._triggerAsyncComputation(), this._getHoverTimeMillis() / 2);
-		this._secondWaitScheduler = new Schedulers.RunOnceScheduler(() => this._triggerSyncComputation(), this._getHoverTimeMillis() / 2);
-		this._loadingMessageScheduler = new Schedulers.RunOnceScheduler(() => this._showLoadingMessage(), 3 * this._getHoverTimeMillis());
+		this._firstWaitScheduler = new RunOnceScheduler(() => this._triggerAsyncComputation(), this._getHoverTimeMillis() / 2);
+		this._secondWaitScheduler = new RunOnceScheduler(() => this._triggerSyncComputation(), this._getHoverTimeMillis() / 2);
+		this._loadingMessageScheduler = new RunOnceScheduler(() => this._showLoadingMessage(), 3 * this._getHoverTimeMillis());
 
 		this._asyncComputationPromise = null;
 		this._asyncComputationPromiseDone = false;
@@ -148,7 +148,7 @@ export class HoverOperation<Result> {
 		if (this._errorCallback) {
 			this._errorCallback(error);
 		} else {
-			Errors.onUnexpectedError(error);
+			onUnexpectedError(error);
 		}
 	}
 

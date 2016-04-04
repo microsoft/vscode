@@ -4,30 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import {EventProvider} from 'vs/base/common/eventProvider';
+import Event from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {ServiceIdentifier, createDecorator} from 'vs/platform/instantiation/common/instantiation';
+import {IModel, ITextModelCreationOptions} from 'vs/editor/common/editorCommon';
+import {IMode} from 'vs/editor/common/modes';
 
 export var IModelService = createDecorator<IModelService>('modelService');
 
 export interface IModelService {
 	serviceId: ServiceIdentifier<any>;
 
-	createModel(value:string, modeOrPromise:TPromise<Modes.IMode>|Modes.IMode, resource: URI): EditorCommon.IModel;
+	createModel(value:string, modeOrPromise:TPromise<IMode>|IMode, resource: URI): IModel;
 
 	destroyModel(resource: URI): void;
 
-	getModels(): EditorCommon.IModel[];
+	getModels(): IModel[];
 
-	getModel(resource: URI): EditorCommon.IModel;
+	getCreationOptions(): ITextModelCreationOptions;
 
-	onModelAdded: EventProvider<(model: EditorCommon.IModel) => void>;
+	getModel(resource: URI): IModel;
 
-	onModelRemoved: EventProvider<(model: EditorCommon.IModel) => void>;
+	onModelAdded: Event<IModel>;
 
-	onModelModeChanged: EventProvider<(model: EditorCommon.IModel, oldModeId:string) => void>;
+	onModelRemoved: Event<IModel>;
+
+	onModelModeChanged: Event<{ model: IModel; oldModeId: string; }>;
 }
 

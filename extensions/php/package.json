@@ -2,9 +2,12 @@
 	"name": "php",
 	"version": "0.1.0",
 	"publisher": "vscode",
-	"engines": { "vscode": "*" },
+	"engines": { "vscode": "0.10.x" },
 	"activationEvents": ["onLanguage:php"],
 	"main": "./out/phpMain",
+	"dependencies": {
+		"vscode-nls": "^1.0.4"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "php",
@@ -18,30 +21,30 @@
 			"path": "./snippets/php.json"
 		}],
 		"configuration": {
-			"title": "PHP Configuration options",
+			"title": "%configuration.title%",
 			"type": "object",
 			"properties": {
 				"php.validate.enable": {
 					"type": "boolean",
 					"default": true,
-					"description": "Whether php validation is enabled or not."
+					"description": "%configuration.validate.enable%"
 				},
 				"php.validate.executablePath": {
-					"type": "string",
+					"type": ["string", "null"],
 					"default": null,
-					"description": "Points to the php executable."
+					"description": "%configuration.validate.executablePath%"
 				},
 				"php.validate.run": {
 					"type": "string",
 					"enum": ["onSave", "onType"],
 					"default": "onSave",
-					"description": "Whether the linter is run on save or on type."
+					"description": "%configuration.validate.run%"
 				}
 			}
 		}
 	},
-	"isAMD": true,
 	"scripts": {
-		"vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../gulpfile.plugins.js compile-plugin:php"
+		"compile": "gulp compile-extension:php",
+		"watch": "gulp watch-extension:php"
 	}
 }

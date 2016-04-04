@@ -20,7 +20,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import IDebugService = debug.IDebugService;
 
-var $ = builder.$;
+const $ = builder.$;
 
 export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 	private static ID = 'debug.actionsWidget';
@@ -59,12 +59,12 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 			this.onDebugStateChange();
 		}));
 		this.toDispose.push(this.actionBar.actionRunner.addListener2(events.EventType.RUN, (e: any) => {
-			// Check for Error
+			// check for error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {
 				this.messageService.show(severity.Error, e.error);
 			}
 
-			// Log in telemetry
+			// log in telemetry
 			if (this.telemetryService) {
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'debugActionsWidget' });
 			}
@@ -76,7 +76,8 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 	}
 
 	private onDebugStateChange(): void {
-		if (this.debugService.getState() === debug.State.Inactive) {
+		const state = this.debugService.getState();
+		if (state === debug.State.Disabled || state === debug.State.Inactive || state === debug.State.Initializing) {
 			return this.hide();
 		}
 
@@ -127,7 +128,7 @@ export class DebugActionsWidget implements wbext.IWorkbenchContribution {
 	}
 
 	public dispose(): void {
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 
 		if (this.$el) {
 			this.$el.destroy();

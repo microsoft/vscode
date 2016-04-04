@@ -10,27 +10,32 @@ var hasPerformanceNow = (globals.performance && typeof globals.performance.now =
 
 export class StopWatch {
 
+	private _highResolution: boolean;
 	private _startTime: number;
 	private _stopTime: number;
 
-	public static create(): StopWatch {
-		return new StopWatch(hasPerformanceNow ? globals.performance.now() : new Date().getTime());
+	public static create(highResolution:boolean = true): StopWatch {
+		return new StopWatch(highResolution);
 	}
 
-	constructor(startTime: number) {
-		this._startTime = startTime;
+	constructor(highResolution: boolean) {
+		this._highResolution = hasPerformanceNow && highResolution;
+		this._startTime = this._now();
 		this._stopTime = -1;
 	}
 
 	public stop(): void {
-		this._stopTime = (hasPerformanceNow ? globals.performance.now() : new Date().getTime());
+		this._stopTime = this._now();
 	}
 
 	public elapsed(): number {
 		if (this._stopTime !== -1) {
 			return this._stopTime - this._startTime;
 		}
-		var now = (hasPerformanceNow ? globals.performance.now() : new Date().getTime());
-		return now - this._startTime;
+		return this._now() - this._startTime;
+	}
+
+	private _now(): number {
+		return this._highResolution ? globals.performance.now() : new Date().getTime();
 	}
 }

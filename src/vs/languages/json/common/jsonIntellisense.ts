@@ -21,7 +21,7 @@ export class JSONIntellisense {
 
 	private schemaService: SchemaService.IJSONSchemaService;
 	private requestService: IRequestService;
-	private contributions: JsonWorker.IJSONWorkerContribution[]
+	private contributions: JsonWorker.IJSONWorkerContribution[];
 
 	constructor(schemaService: SchemaService.IJSONSchemaService, requestService: IRequestService, contributions: JsonWorker.IJSONWorkerContribution[]) {
 		this.schemaService = schemaService;
@@ -126,7 +126,7 @@ export class JSONIntellisense {
 			}
 
 			// proposals for values
-			if (node && (node.type === 'string' || node.type === 'number' || node.type === 'boolean' || node.type === 'null')) {
+			if (node && (node.type === 'string' || node.type === 'number' || node.type === 'integer' || node.type === 'boolean' || node.type === 'null')) {
 				var nodeRange = modelMirror.getRangeFromOffsetAndLength(node.start, node.end - node.start);
 				overwriteBefore = position.column - nodeRange.startColumn;
 				overwriteAfter = nodeRange.endColumn - position.column;
@@ -173,15 +173,13 @@ export class JSONIntellisense {
 		var matchingSchemas: Parser.IApplicableSchema[] = [];
 		doc.validate(schema.schema, matchingSchemas, node.start);
 
-		var collectPromises: WinJS.TPromise<Modes.ISuggestion[]>[] = [];
-
 		matchingSchemas.forEach((s) => {
 			if (s.node === node && !s.inverted) {
 				var schemaProperties = s.schema.properties;
 				if (schemaProperties) {
 					Object.keys(schemaProperties).forEach((key: string) => {
 						var propertySchema = schemaProperties[key];
-						collector.add({ type: 'property', label: key, codeSnippet: this.getSnippetForProperty(key, propertySchema, addValue, isLast), documentationLabel: propertySchema.description || '' });
+						collector.add({ type: 'property', label: key, codeSnippet: this.getTextForProperty(key, propertySchema, addValue, isLast), documentationLabel: propertySchema.description || '' });
 					});
 				}
 			}
@@ -192,7 +190,7 @@ export class JSONIntellisense {
 		var collectSuggestionsForSimilarObject = (obj: Parser.ObjectASTNode) => {
 			obj.properties.forEach((p) => {
 				var key = p.key.value;
-				collector.add({ type: 'property', label: key, codeSnippet: this.getSnippetForSimilarProperty(key, p.value), documentationLabel: '' });
+				collector.add({ type: 'property', label: key, codeSnippet: this.getTextForSimilarProperty(key, p.value), documentationLabel: '' });
 			});
 		};
 		if (node.parent.type === 'property') {
@@ -216,7 +214,7 @@ export class JSONIntellisense {
 
 	public getSchemaLessValueSuggestions(doc: Parser.JSONDocument, node: Parser.ASTNode, offset: number, modelMirror: EditorCommon.IMirrorModel, collector: JsonWorker.ISuggestionsCollector): void {
 		var collectSuggestionsForValues = (value: Parser.ASTNode) => {
-			var content = this.getMatchingSnippet(value, modelMirror);
+			var content = this.getTextForMatchingNode(value, modelMirror);
 			collector.add({ type: this.getSuggestionType(value.type), label: content, codeSnippet: content, documentationLabel: '' });
 			if (value.type === 'boolean') {
 				this.addBooleanSuggestion(!value.getValue(), collector);
@@ -266,7 +264,6 @@ export class JSONIntellisense {
 
 	public getValueSuggestions(resource: URI, schema: SchemaService.ResolvedSchema, doc: Parser.JSONDocument, node: Parser.ASTNode, offset: number, collector: JsonWorker.ISuggestionsCollector) : void {
 
-		var collectPromises: WinJS.TPromise<Modes.ISuggestion[]>[] = [];
 		if (!node) {
 			this.addDefaultSuggestion(schema.schema, collector);
 		} else {
@@ -304,12 +301,12 @@ export class JSONIntellisense {
 	}
 
 	private addBooleanSuggestion(value: boolean, collector: JsonWorker.ISuggestionsCollector): void {
-		collector.add({ type: this.getSuggestionType('boolean'), label: value ? 'true' : 'false', codeSnippet: this.getSnippetForValue(value), documentationLabel: '' });
+		collector.add({ type: this.getSuggestionType('boolean'), label: value ? 'true' : 'false', codeSnippet: this.getTextForEnumValue(value), documentationLabel: '' });
 	}
 
 	private addEnumSuggestion(schema: JsonSchema.IJSONSchema, collector: JsonWorker.ISuggestionsCollector): void {
 		if (Array.isArray(schema.enum)) {
-			schema.enum.forEach((enm) => collector.add({ type: this.getSuggestionType(schema.type), label: this.getLabelForValue(enm), codeSnippet: this.getSnippetForValue(enm), documentationLabel: '' }));
+			schema.enum.forEach((enm) => collector.add({ type: this.getSuggestionType(schema.type), label: this.getLabelForValue(enm), codeSnippet: this.getTextForEnumValue(enm), documentationLabel: '' }));
 		} else if (schema.type === 'boolean') {
 			this.addBooleanSuggestion(true, collector);
 			this.addBooleanSuggestion(false, collector);
@@ -330,8 +327,17 @@ export class JSONIntellisense {
 			collector.add({
 				type: this.getSuggestionType(schema.type),
 				label: this.getLabelForValue(schema.default),
-				codeSnippet: this.getSnippetForValue(schema.default),
+				codeSnippet: this.getTextForValue(schema.default),
 				typeLabel:  nls.localize('json.suggest.default', 'Default value'),
+			});
+		}
+		if (Array.isArray(schema.defaultSnippets)) {
+			schema.defaultSnippets.forEach(s => {
+				collector.add({
+					type: 'snippet',
+					label: this.getLabelForSnippetValue(s.body),
+					codeSnippet: this.getTextForSnippetValue(s.body)
+				});
 			});
 		}
 		if (Array.isArray(schema.allOf)) {
@@ -354,7 +360,26 @@ export class JSONIntellisense {
 		return label;
 	}
 
-	private getSnippetForValue(value: any) : string {
+	private getLabelForSnippetValue(value: any): string {
+		let label = JSON.stringify(value);
+		label = label.replace(/\{\{|\}\}/g, '');
+		if (label.length > 57) {
+			return label.substr(0, 57).trim() + '...';
+		}
+		return label;
+	}
+
+	private getTextForValue(value: any): string {
+		var text = JSON.stringify(value, null, '\t');
+		text = text.replace(/[\\\{\}]/g, '\\$&');
+		return text;
+	}
+
+	private getTextForSnippetValue(value: any): string {
+		return JSON.stringify(value, null, '\t');
+	}
+
+	private getTextForEnumValue(value: any) : string {
 		var snippet = JSON.stringify(value, null, '\t');
 		switch (typeof value) {
 			case 'object':
@@ -365,13 +390,14 @@ export class JSONIntellisense {
 			case 'string':
 				return '"{{' + snippet.substr(1, snippet.length - 2) + '}}"';
 			case 'number':
+			case 'integer':
 			case 'boolean':
 				return '{{' + snippet + '}}';
 		}
 		return snippet;
 	}
 
-	private getSuggestionType(type: any): string {
+	private getSuggestionType(type: any): Modes.SuggestionType {
 		if (Array.isArray(type)) {
 			var array = <any[]> type;
 			type = array.length > 0 ? array[0] : null;
@@ -388,7 +414,7 @@ export class JSONIntellisense {
 	}
 
 
-	private getMatchingSnippet(node: Parser.ASTNode, modelMirror: EditorCommon.IMirrorModel): string {
+	private getTextForMatchingNode(node: Parser.ASTNode, modelMirror: EditorCommon.IMirrorModel): string {
 		switch (node.type) {
 			case 'array':
 				return '[]';
@@ -400,9 +426,9 @@ export class JSONIntellisense {
 		}
 	}
 
-	private getSnippetForProperty(key: string, propertySchema: JsonSchema.IJSONSchema, addValue:boolean, isLast: boolean): string {
+	private getTextForProperty(key: string, propertySchema: JsonSchema.IJSONSchema, addValue:boolean, isLast: boolean): string {
 
-		var result = '"' + key + '"';
+		let result = this.getTextForValue(key);
 		if (!addValue) {
 			return result;
 		}
@@ -410,9 +436,9 @@ export class JSONIntellisense {
 
 		var defaultVal = propertySchema.default;
 		if (!Types.isUndefined(defaultVal)) {
-			result = result + this.getSnippetForValue(defaultVal);
+			result = result + this.getTextForEnumValue(defaultVal);
 		} else if (propertySchema.enum && propertySchema.enum.length > 0) {
-			result = result + this.getSnippetForValue(propertySchema.enum[0]);
+			result = result + this.getTextForEnumValue(propertySchema.enum[0]);
 		} else {
 			switch (propertySchema.type) {
 				case 'boolean':
@@ -428,6 +454,7 @@ export class JSONIntellisense {
 					result += '[\n\t{{}}\n]';
 					break;
 				case 'number':
+				case 'integer':
 					result += '{{0}}';
 					break;
 				case 'null':
@@ -443,7 +470,7 @@ export class JSONIntellisense {
 		return result;
 	}
 
-	private getSnippetForSimilarProperty(key: string, templateValue: Parser.ASTNode): string {
-		return '"' + key + '"';
+	private getTextForSimilarProperty(key: string, templateValue: Parser.ASTNode): string {
+		return this.getTextForValue(key);
 	}
 }

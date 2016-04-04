@@ -35,8 +35,6 @@ export var language = <ILanguage> {
 		{ open: '<', close: '>', token: 'delimiter.angle' }
 	],
 
-	editorOptions: { tabSize: 4, insertSpaces: true },
-
 	keywords: [
 		'extern', 'alias', 'using', 'bool', 'decimal', 'sbyte', 'byte', 'short',
 		'ushort', 'int', 'uint', 'long', 'ulong', 'char', 'float', 'double',
@@ -51,7 +49,8 @@ export var language = <ILanguage> {
 		'internal', 'private', 'abstract', 'sealed', 'static', 'struct', 'readonly',
 		'volatile', 'virtual', 'override', 'params', 'get', 'set', 'add', 'remove',
 		'operator', 'true', 'false', 'implicit', 'explicit', 'interface', 'enum',
-		'null', 'async', 'await','fixed','sizeof','stackalloc','unsafe'
+		'null', 'async', 'await','fixed','sizeof','stackalloc','unsafe', 'nameof',
+		'when'
 		],
 
 	namespaceFollows: [
@@ -59,7 +58,7 @@ export var language = <ILanguage> {
 	],
 
 	parenFollows: [
-		'if', 'for', 'while', 'switch', 'foreach', 'using', 'catch'
+		'if', 'for', 'while', 'switch', 'foreach', 'using', 'catch', 'when'
 	],
 
 	operators: [

@@ -1,0 +1,60 @@
+{
+	"name": "Light+",
+	"include": "./light_vs.json",
+	"settings": [
+		{
+			"name": "Types declaration and references",
+			"scope": [
+				"meta.type.name",
+				"meta.return.type",
+				"meta.return-type",
+				"meta.cast",
+				"meta.type.annotation",
+				"support.type",
+				"entity.name.class",
+				"entity.name.type",
+				"storage.type.cs",
+				"storage.type.java"
+			],
+			"settings": {
+				"foreground": "#267f99"
+			}
+		},
+		{
+			"name": "Function declarations",
+			"scope": [
+				"entity.name.function",
+				"entity.name.method"
+			],
+			"settings": {
+				"foreground": "#795E26"
+			}
+		},
+		{
+			"name": "Control flow keywords",
+			"scope": "keyword.control",
+			"settings": {
+				"foreground": "#AF00DB"
+			}
+		},
+		{
+			"name": "Parameter name",
+			"scope": [
+				"meta.parameter.type.variable",
+				"variable.parameter",
+				"variable",
+				"variable.name"
+			],
+			"settings": {
+				"foreground": "#001080"
+			}
+		},
+		{
+			"name": "C includes must match meta.preprocessor",
+			"scope": "keyword.control.import",
+			"settings": {
+				"foreground": "#0000FF"
+			}
+		}
+	]
+}

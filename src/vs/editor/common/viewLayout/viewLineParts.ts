@@ -4,32 +4,41 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Strings = require('vs/base/common/strings');
+import * as strings from 'vs/base/common/strings';
 import {Arrays} from 'vs/editor/common/core/arrays';
-import EditorCommon = require('vs/editor/common/editorCommon');
+import {ViewLineToken, IEditorRange, ViewLineTokens} from 'vs/editor/common/editorCommon';
+import {Range} from 'vs/editor/common/core/range';
 
 export interface ILineParts {
 
-	getParts(): EditorCommon.ILineToken[];
+	getParts(): ViewLineToken[];
 
 	equals(other:ILineParts): boolean;
 
 	findIndexOfOffset(offset:number): number;
 }
 
-export function createLineParts(lineNumber:number, lineContent:string, lineTokens:EditorCommon.IViewLineTokens, rawLineDecorations:ILineDecoration[], renderWhitespace:boolean): ILineParts {
+function cmpLineDecorations(a:ILineDecoration, b:ILineDecoration): number {
+	return Range.compareRangesUsingStarts(a.range, b.range);
+}
+
+export function createLineParts(lineNumber:number, minLineColumn:number, lineContent:string, tabSize:number, lineTokens:ViewLineTokens, rawLineDecorations:ILineDecoration[], renderWhitespace:boolean): ILineParts {
 	if (renderWhitespace) {
-		rawLineDecorations = insertWhitespace(lineNumber, lineContent, lineTokens.getFauxIndentLength(), rawLineDecorations);
+		let oldLength = rawLineDecorations.length;
+		rawLineDecorations = insertWhitespace(lineNumber, lineContent, tabSize, lineTokens.getFauxIndentLength(), rawLineDecorations);
+		if (rawLineDecorations.length !== oldLength) {
+			rawLineDecorations.sort(cmpLineDecorations);
+		}
 	}
 
 	if (rawLineDecorations.length > 0) {
-		return new ViewLineParts(lineNumber, lineTokens, lineContent, rawLineDecorations);
+		return new ViewLineParts(lineNumber, minLineColumn, lineTokens, lineContent, rawLineDecorations);
 	} else {
 		return new FastViewLineParts(lineTokens, lineContent);
 	}
 }
 
-function trimEmptyTrailingPart(parts: LinePart[], lineContent: string): LinePart[] {
+function trimEmptyTrailingPart(parts: ViewLineToken[], lineContent: string): ViewLineToken[] {
 	if (parts.length <= 1) {
 		return parts;
 	}
@@ -42,97 +51,97 @@ function trimEmptyTrailingPart(parts: LinePart[], lineContent: string): LinePart
 	return parts.slice(0, parts.length - 1);
 }
 
-function insertWhitespace(lineNumber:number, lineContent: string, fauxIndentLength: number, rawLineDecorations: ILineDecoration[]): ILineDecoration[] {
-	if (lineContent.length === 0) {
+const _tab = '\t'.charCodeAt(0);
+const _space = ' '.charCodeAt(0);
+
+function insertOneWhitespace(dest:ILineDecoration[], lineNumber:number, startColumn:number, endColumn:number, className:string): void {
+	dest.push({
+		range: new Range(lineNumber, startColumn, lineNumber, endColumn),
+		options: {
+			inlineClassName: className
+		}
+	});
+}
+
+function insertWhitespace(lineNumber:number, lineContent: string, tabSize:number, fauxIndentLength: number, rawLineDecorations: ILineDecoration[]): ILineDecoration[] {
+	let lineLength = lineContent.length;
+	if (lineLength === fauxIndentLength) {
 		return rawLineDecorations;
 	}
 
-	var prepend: EditorCommon.IRange = null,
-		append: EditorCommon.IRange = null,
-		computeTrailing = true;
+	let firstChar = lineContent.charCodeAt(fauxIndentLength);
+	let lastChar = lineContent.charCodeAt(lineLength - 1);
 
-	var firstNonWhitespaceIndex = Strings.firstNonWhitespaceIndex(lineContent);
+	if (firstChar !== _tab && firstChar !== _space && lastChar !== _tab && lastChar !== _space) {
+		// This line contains no leading nor trailing whitespace => fast path
+		return rawLineDecorations;
+	}
 
-	if (firstNonWhitespaceIndex !== 0) {
-		// There is leading whitespace
-		if (firstNonWhitespaceIndex === -1) {
-			// The entire string is whitespace
-			computeTrailing = false;
-			prepend = {
-				startLineNumber: lineNumber,
-				endLineNumber: lineNumber,
-				startColumn: 1,
-				endColumn: lineContent.length + 1
-			};
+	let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
+	let lastNonWhitespaceIndex: number;
+	if (firstNonWhitespaceIndex === -1) {
+		// The entire line is whitespace
+		firstNonWhitespaceIndex = lineLength;
+		lastNonWhitespaceIndex = lineLength;
+	} else {
+		lastNonWhitespaceIndex = strings.lastNonWhitespaceIndex(lineContent);
+	}
+
+	let result = rawLineDecorations.slice(0);
+	let tmpIndent = 0;
+	let whitespaceStartColumn = fauxIndentLength + 1;
+	for (let i = fauxIndentLength; i < lineLength; i++) {
+		let chCode = lineContent.charCodeAt(i);
+
+		if (chCode === _tab) {
+			tmpIndent = tabSize;
 		} else {
-			prepend = {
-				startLineNumber: lineNumber,
-				endLineNumber: lineNumber,
-				startColumn: 1,
-				endColumn: firstNonWhitespaceIndex + 1
-			};
+			tmpIndent++;
+		}
+
+		if (i < firstNonWhitespaceIndex) {
+			// in leading whitespace
+			// push for every indent or when the end of the leading whitespace is reached
+			if (tmpIndent >= tabSize || i === firstNonWhitespaceIndex - 1) {
+				insertOneWhitespace(result, lineNumber, whitespaceStartColumn, i + 2, 'leading whitespace');
+				whitespaceStartColumn = i + 2;
+				tmpIndent = 0;
+			}
+			continue;
+		}
+
+		if (i > lastNonWhitespaceIndex) {
+			// in trailing whitespace
+			// push for every indent or when the end of the string is reached
+			if (tmpIndent >= tabSize || i === lineLength - 1) {
+				insertOneWhitespace(result, lineNumber, whitespaceStartColumn, i + 2, 'trailing whitespace');
+				whitespaceStartColumn = i + 2;
+				tmpIndent = 0;
+			}
+			continue;
+		}
+
+		if (i === lastNonWhitespaceIndex) {
+			whitespaceStartColumn = i + 2;
+			tmpIndent = tmpIndent % tabSize;
 		}
 	}
 
-	// Adjust prepend to `fauxIndentLength`
-	if (prepend) {
-		if (fauxIndentLength + 1 >= prepend.endColumn) {
-			prepend = null;
-		} else {
-			prepend.startColumn = fauxIndentLength + 1;
-		}
-	}
-
-	if (computeTrailing) {
-		var lastNonWhitespaceIndex = Strings.lastNonWhitespaceIndex(lineContent);
-		if (lastNonWhitespaceIndex !== lineContent.length - 1) {
-			// There is trailing whitespace
-			// No need to handle the case that the entire string is empty, since it is handled above
-			append = {
-				startLineNumber: lineNumber,
-				endLineNumber: lineNumber,
-				startColumn: lastNonWhitespaceIndex + 2,
-				endColumn: lineContent.length + 1
-			};
-		}
-	}
-
-	if (prepend || append) {
-		var result = rawLineDecorations.slice(0);
-		if (prepend) {
-			result.unshift({
-				options: {
-					inlineClassName: 'leading whitespace'
-				},
-				range: prepend
-			});
-		}
-		if (append) {
-			result.push({
-				options: {
-					inlineClassName: 'trailing whitespace'
-				},
-				range: append
-			});
-		}
-		return result;
-	}
-
-	return rawLineDecorations;
+	return result;
 }
 
 export class FastViewLineParts implements ILineParts {
 
-	private lineTokens: EditorCommon.IViewLineTokens;
-	private parts: LinePart[];
+	private lineTokens: ViewLineTokens;
+	private parts: ViewLineToken[];
 
-	constructor(lineTokens:EditorCommon.IViewLineTokens, lineContent:string) {
+	constructor(lineTokens:ViewLineTokens, lineContent:string) {
 		this.lineTokens = lineTokens;
 		this.parts = lineTokens.getTokens();
 		this.parts = trimEmptyTrailingPart(this.parts, lineContent);
 	}
 
-	public getParts(): EditorCommon.ILineToken[]{
+	public getParts(): ViewLineToken[]{
 		return this.parts;
 	}
 
@@ -152,14 +161,14 @@ export class FastViewLineParts implements ILineParts {
 
 export class ViewLineParts implements ILineParts {
 
-	private parts:LinePart[];
+	private parts:ViewLineToken[];
 	private lastPartIndex:number;
 	private lastEndOffset:number;
 
-	constructor(lineNumber:number, lineTokens:EditorCommon.IViewLineTokens, lineContent:string, rawLineDecorations:ILineDecoration[]) {
+	constructor(lineNumber:number, minLineColumn:number, lineTokens:ViewLineTokens, lineContent:string, rawLineDecorations:ILineDecoration[]) {
 
 		// lineDecorations might overlap on top of each other, so they need to be normalized
-		var lineDecorations = LineDecorationsNormalizer.normalize(lineNumber, rawLineDecorations),
+		var lineDecorations = LineDecorationsNormalizer.normalize(lineNumber, minLineColumn, rawLineDecorations),
 			lineDecorationsIndex = 0,
 			lineDecorationsLength = lineDecorations.length;
 
@@ -168,7 +177,7 @@ export class ViewLineParts implements ILineParts {
 			currentTokenEndOffset:number,
 			currentTokenClassName:string;
 
-		var parts:LinePart[] = [];
+		var parts:ViewLineToken[] = [];
 
 		for (var i = 0, len = actualLineTokens.length; i < len; i++) {
 			nextStartOffset = actualLineTokens[i].startIndex;
@@ -178,11 +187,11 @@ export class ViewLineParts implements ILineParts {
 			while (lineDecorationsIndex < lineDecorationsLength && lineDecorations[lineDecorationsIndex].startOffset < currentTokenEndOffset) {
 				if (lineDecorations[lineDecorationsIndex].startOffset > nextStartOffset) {
 					// the first decorations starts after the token
-					parts.push(new LinePart(nextStartOffset, currentTokenClassName));
+					parts.push(new ViewLineToken(nextStartOffset, currentTokenClassName));
 					nextStartOffset = lineDecorations[lineDecorationsIndex].startOffset;
 				}
 
-				parts.push(new LinePart(nextStartOffset, currentTokenClassName + ' ' + lineDecorations[lineDecorationsIndex].className));
+				parts.push(new ViewLineToken(nextStartOffset, currentTokenClassName + ' ' + lineDecorations[lineDecorationsIndex].className));
 
 				if (lineDecorations[lineDecorationsIndex].endOffset >= currentTokenEndOffset) {
 					// this decoration goes on to the next token
@@ -196,7 +205,7 @@ export class ViewLineParts implements ILineParts {
 			}
 
 			if (nextStartOffset < currentTokenEndOffset) {
-				parts.push(new LinePart(nextStartOffset, currentTokenClassName));
+				parts.push(new ViewLineToken(nextStartOffset, currentTokenClassName));
 			}
 		}
 
@@ -205,7 +214,7 @@ export class ViewLineParts implements ILineParts {
 		this.lastEndOffset = currentTokenEndOffset;
 	}
 
-	public getParts(): EditorCommon.ILineToken[] {
+	public getParts(): ViewLineToken[] {
 		return this.parts;
 	}
 
@@ -233,16 +242,6 @@ export class ViewLineParts implements ILineParts {
 
 	public findIndexOfOffset(offset:number): number {
 		return Arrays.findIndexInSegmentsArray(this.parts, offset);
-	}
-}
-
-class LinePart implements EditorCommon.ILineToken {
-	startIndex:number;
-	type:string;
-
-	constructor(startIndex:number, type:string) {
-		this.startIndex = startIndex;
-		this.type = type;
 	}
 }
 
@@ -318,7 +317,7 @@ class Stack {
 }
 
 export interface ILineDecoration {
-	range: EditorCommon.IRange;
+	range: IEditorRange;
 	options: {
 		inlineClassName?: string;
 	};
@@ -333,7 +332,7 @@ export class LineDecorationsNormalizer {
 	/**
 	 * Normalize line decorations. Overlapping decorations will generate multiple segments
 	 */
-	public static normalize(lineNumber:number, lineDecorations:ILineDecoration[]): DecorationSegment[] {
+	public static normalize(lineNumber:number, minLineColumn:number, lineDecorations:ILineDecoration[]): DecorationSegment[] {
 
 		var result:DecorationSegment[] = [];
 
@@ -362,7 +361,7 @@ export class LineDecorationsNormalizer {
 				continue;
 			}
 
-			currentStartOffset = (d.range.startLineNumber === lineNumber ? d.range.startColumn - 1 : 0);
+			currentStartOffset = (d.range.startLineNumber === lineNumber ? d.range.startColumn - 1 : minLineColumn - 1);
 			currentEndOffset = (d.range.endLineNumber === lineNumber ? d.range.endColumn - 2 : LineDecorationsNormalizer.MAX_LINE_LENGTH - 1);
 
 			if (currentEndOffset < 0) {

@@ -15,10 +15,6 @@
 	position: relative;
 }
 
-.monaco-tree:focus {
-	outline: 0;
-}
-
 .monaco-tree > .monaco-scrollable-element {
 	height: 100%;
 }
@@ -32,6 +28,7 @@
 .monaco-tree .monaco-tree-rows {
 	position: absolute;
 	width: 100%;
+	height: 100%;
 }
 
 .monaco-tree .monaco-tree-rows > .monaco-tree-row {
@@ -151,14 +148,6 @@
 	opacity: 0.3;
 }
 
-/* Fake row */
-.monaco-tree .monaco-tree-rows > .monaco-tree-row.fake {
-	position: absolute;
-	visibility: hidden;
-	top: -1000px;
-	left: -1000px;
-	z-index: -100;
-}
 
 /* Bare row */
 .monaco-tree.bare .monaco-tree-wrapper.drop-target,
@@ -171,7 +160,6 @@
 .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) 	{ background-color: #DCEBFC; }
 .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) 	{ background-color: #4FA7FF; color: white; }
 .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.focused.selected:not(.highlighted) 	{ background-color: #3399FF; color: white; }
-.monaco-tree .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) 			{ background-color: #eaeaea; }
 .monaco-tree .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted)  			{ background-color: #CCCEDB; }
 .monaco-tree .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused)  { background-color: #F0F0F0; }
 .monaco-tree .monaco-tree-wrapper.drop-target,
@@ -194,7 +182,6 @@
 .vs-dark .monaco-tree.focused .monaco-tree-row.focused:not(.highlighted) 	{ background-color: #073655; }
 .vs-dark .monaco-tree.focused .monaco-tree-row.selected:not(.highlighted)	{ background-color: #0E639C; color: white; }
 .vs-dark .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.focused.selected:not(.highlighted) 	{ background-color: #094771; color: white; }
-.vs-dark .monaco-tree .monaco-tree-row.focused:not(.highlighted) 			{ background-color: #2f3334; }
 .vs-dark .monaco-tree .monaco-tree-row.selected:not(.highlighted)			{ background-color: #3F3F46; }
 .vs-dark .monaco-tree .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) 			{ background-color: #2A2D2E; }
 .vs-dark .monaco-tree-wrapper.drop-target,
@@ -212,13 +199,12 @@
 
 /* High Contrast Theming */
 .hc-black .monaco-tree .monaco-tree-rows > .monaco-tree-row 														{ background: none !important; }
-.hc-black .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) 						{ border: 1px dotted #DF740C; }
-.hc-black .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) 					{ border: 1px solid #DF740C; }
-.hc-black .monaco-tree .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) 								{ border: 1px dotted #DF740C; }
-.hc-black .monaco-tree .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted)  							{ border: 1px solid #DF740C; }
-.hc-black .monaco-tree .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused)  	{ border: 1px dashed #DF740C; }
+.hc-black .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) 						{ border: 1px dotted #f38518; }
+.hc-black .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) 					{ border: 1px solid #f38518; }
+.hc-black .monaco-tree .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted)  							{ border: 1px solid #f38518; }
+.hc-black .monaco-tree .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused)  	{ border: 1px dashed #f38518; margin-top:-1px; margin-bottom:1px; margin-left:-1px; }
 .hc-black .monaco-tree .monaco-tree-wrapper.drop-target,
-.hc-black .monaco-tree .monaco-tree-rows > .monaco-tree-row.drop-target											{ background: none !important; border: 1px dashed #DF740C; }
+.hc-black .monaco-tree .monaco-tree-rows > .monaco-tree-row.drop-target											{ background: none !important; border: 1px dashed #f38518; }
 
 .hc-black .monaco-tree .monaco-tree-rows > .monaco-tree-row.has-children > .content:before	{
 	border: none;

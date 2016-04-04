@@ -1,0 +1,102 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+'use strict';
+
+import {clipboard} from 'electron';
+import * as platform from 'vs/base/common/platform';
+import {ICodeEditor, IEditorMouseEvent} from 'vs/editor/browser/editorBrowser';
+import {Disposable} from 'vs/base/common/lifecycle';
+import {EndOfLinePreference, EventType, IEditorContribution, ICursorSelectionChangedEvent, IConfigurationChangedEvent} from 'vs/editor/common/editorCommon';
+import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
+import {RunOnceScheduler} from 'vs/base/common/async';
+import {Range} from 'vs/editor/common/core/range';
+
+class SelectionClipboard extends Disposable implements IEditorContribution {
+
+	static ID = 'editor.contrib.selectionClipboard';
+
+	constructor(editor:ICodeEditor, @IKeybindingService keybindingService:IKeybindingService) {
+		super();
+
+		if (platform.isLinux) {
+			var isEnabled = editor.getConfiguration().selectionClipboard;
+
+			this._register(editor.addListener2(EventType.ConfigurationChanged, (e:IConfigurationChangedEvent) => {
+				if (e.selectionClipboard) {
+					isEnabled = editor.getConfiguration().selectionClipboard;
+				}
+			}));
+
+			this._register(editor.addListener2(EventType.MouseDown, (e:IEditorMouseEvent) => {
+				if (!isEnabled) {
+					return;
+				}
+				if (!editor.getModel()) {
+					return;
+				}
+				if (e.event.middleButton) {
+					e.event.preventDefault();
+					editor.focus();
+
+					if (e.target.position) {
+						editor.setPosition(e.target.position);
+					}
+
+					process.nextTick(() => {
+						// TODO@Alex: electron weirdness: calling clipboard.readText('selection') generates a paste event, so no need to execute paste ourselves
+						clipboard.readText('selection');
+						// keybindingService.executeCommand(Handler.Paste, {
+						// 	text: clipboard.readText('selection'),
+						// 	pasteOnNewLine: false
+						// });
+					});
+				}
+			}));
+
+			let setSelectionToClipboard = this._register(new RunOnceScheduler(() => {
+				let model = editor.getModel();
+				if (!model) {
+					return;
+				}
+
+				let selections = editor.getSelections();
+				selections = selections.slice(0);
+				selections.sort(Range.compareRangesUsingStarts);
+
+				let result: string[] = [];
+				for (let i = 0; i < selections.length; i++) {
+					let sel = selections[i];
+					if (sel.isEmpty()) {
+						// Only write if all cursors have selection
+						return;
+					}
+					result.push(model.getValueInRange(sel, EndOfLinePreference.TextDefined));
+				}
+
+				let textToCopy = result.join(model.getEOL());
+				clipboard.writeText(textToCopy, 'selection');
+			}, 100));
+
+			this._register(editor.addListener2(EventType.CursorSelectionChanged, (e:ICursorSelectionChangedEvent) => {
+				if (!isEnabled) {
+					return;
+				}
+				setSelectionToClipboard.schedule();
+			}));
+		}
+	}
+
+	public getId(): string {
+		return SelectionClipboard.ID;
+	}
+
+	public dispose(): void {
+		super.dispose();
+	}
+}
+
+EditorBrowserRegistry.registerEditorContribution(SelectionClipboard);

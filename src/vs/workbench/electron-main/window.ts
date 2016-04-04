@@ -6,10 +6,9 @@
 'use strict';
 
 import path = require('path');
+import os = require('os');
 
-import Shell = require('shell');
-import screen = require('screen');
-import BrowserWindow = require('browser-window');
+import {shell, screen, BrowserWindow} from 'electron';
 
 import {TPromise, TValueCallback} from 'vs/base/common/winjs.base';
 import platform = require('vs/base/common/platform');
@@ -27,7 +26,7 @@ export interface IWindowState {
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
-	isPluginDevelopmentHost: boolean;
+	extensionDevelopmentPath?: string;
 }
 
 export enum WindowMode {
@@ -36,7 +35,7 @@ export enum WindowMode {
 	Minimized
 }
 
-export const defaultWindowState = function(mode = WindowMode.Normal): IWindowState {
+export const defaultWindowState = function (mode = WindowMode.Normal): IWindowState {
 	return {
 		width: 1024,
 		height: 768,
@@ -92,44 +91,47 @@ export interface IWindowConfiguration extends env.ICommandLineArguments {
 	execPath: string;
 	version: string;
 	appName: string;
+	applicationName: string;
+	darwinBundleIdentifier: string;
 	appSettingsHome: string;
 	appSettingsPath: string;
 	appKeybindingsPath: string;
-	userPluginsHome: string;
+	userExtensionsHome: string;
 	sharedIPCHandle: string;
 	appRoot: string;
 	isBuilt: boolean;
 	commitHash: string;
 	updateFeedUrl: string;
 	updateChannel: string;
-	recentPaths: string[];
+	recentFiles: string[];
+	recentFolders: string[];
 	workspacePath?: string;
 	filesToOpen?: IPath[];
 	filesToCreate?: IPath[];
+	filesToDiff?: IPath[];
 	extensionsToInstall: string[];
-	autoSaveDelay?: number;
-	crashReporter: ICrashReporterConfigBrowser;
+	crashReporter: Electron.CrashReporterStartOptions;
 	extensionsGallery: {
 		serviceUrl: string;
+		cacheUrl: string;
 		itemUrl: string;
 	};
+	extensionTips: { [id: string]: string; };
 	welcomePage: string;
 	releaseNotesUrl: string;
+	licenseUrl: string;
 	productDownloadUrl: string;
 	enableTelemetry: boolean;
-	userEnv: env.IProcessEnvironment,
+	userEnv: env.IProcessEnvironment;
 	aiConfig: {
 		key: string;
 		asimovKey: string;
-	},
+	};
 	sendASmile: {
-		submitUrl: string,
 		reportIssueUrl: string,
 		requestFeatureUrl: string
-	}
+	};
 }
-
-const enableDebugLogging = false;
 
 export class VSCodeWindow {
 
@@ -140,10 +142,11 @@ export class VSCodeWindow {
 	private static MIN_HEIGHT = 120;
 
 	private showTimeoutHandle: any;
-	private _win: BrowserWindow;
+	private _id: number;
+	private _win: Electron.BrowserWindow;
 	private _lastFocusTime: number;
 	private _readyState: ReadyState;
-	private _isPluginDevelopmentHost: boolean;
+	private _extensionDevelopmentPath: string;
 	private windowState: IWindowState;
 	private currentWindowMode: WindowMode;
 
@@ -155,7 +158,7 @@ export class VSCodeWindow {
 	constructor(config: IWindowCreationOptions) {
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
-		this._isPluginDevelopmentHost = config.isPluginDevelopmentHost;
+		this._extensionDevelopmentPath = config.extensionDevelopmentPath;
 		this.whenReadyCallbacks = [];
 
 		// Load window state
@@ -168,24 +171,26 @@ export class VSCodeWindow {
 			global.windowShow = new Date().getTime();
 		}
 
-		let options: IBrowserWindowOptions = {
+		let options: Electron.BrowserWindowOptions = {
 			width: this.windowState.width,
 			height: this.windowState.height,
 			x: this.windowState.x,
 			y: this.windowState.y,
-			'background-color': usesLightTheme ? '#FFFFFF' : '#1E1E1E',
-			'min-width': VSCodeWindow.MIN_WIDTH,
-			'min-height': VSCodeWindow.MIN_HEIGHT,
+			backgroundColor: usesLightTheme ? '#FFFFFF' : '#1E1E1E',
+			minWidth: VSCodeWindow.MIN_WIDTH,
+			minHeight: VSCodeWindow.MIN_HEIGHT,
 			show: showDirectly && this.currentWindowMode !== WindowMode.Maximized, // in case we are maximized, only show later after the call to maximize (see below)
 			title: env.product.nameLong
 		};
 
-		if (platform.isLinux && env.product.icons && env.product.icons.application && env.product.icons.application.png) {
-			options.icon = path.join(env.appRoot, env.product.icons.application.png); // Windows and Mac are better off using the embedded icon(s)
+		if (platform.isLinux) {
+			// Windows and Mac are better off using the embedded icon(s)
+			options.icon = path.join(env.appRoot, 'resources/linux/code.png');
 		}
 
 		// Create the browser window.
 		this._win = new BrowserWindow(options);
+		this._id = this._win.id;
 
 		if (showDirectly && this.currentWindowMode === WindowMode.Maximized) {
 			this.win.maximize();
@@ -207,29 +212,42 @@ export class VSCodeWindow {
 	}
 
 	public get isPluginDevelopmentHost(): boolean {
-		return this._isPluginDevelopmentHost;
+		return !!this._extensionDevelopmentPath;
+	}
+
+	public get extensionDevelopmentPath(): string {
+		return this._extensionDevelopmentPath;
 	}
 
 	public get config(): IWindowConfiguration {
 		return this.currentConfig;
 	}
 
-	public get win(): BrowserWindow {
+	public get id(): number {
+		return this._id;
+	}
+
+	public get win(): Electron.BrowserWindow {
 		return this._win;
 	}
 
-	public restore(): void {
+	public focus(): void {
 		if (!this._win) {
 			return;
 		}
 
-		if (this._win.isMinimized()) {
-			this._win.restore();
+		// Windows 10: https://github.com/Microsoft/vscode/issues/929
+		if (platform.isWindows && os.release() && os.release().indexOf('10.') === 0 && !this._win.isFocused()) {
+			this._win.minimize();
+			this._win.focus();
 		}
 
-		if (platform.isWindows || platform.isLinux) {
-			this._win.show(); // Windows & Linux sometimes cannot bring the window to the front when it is in the background
-		} else {
+		// Mac / Linux / Windows 7 & 8
+		else {
+			if (this._win.isMinimized()) {
+				this._win.restore();
+			}
+
 			this._win.focus();
 		}
 	}
@@ -280,7 +298,7 @@ export class VSCodeWindow {
 			if (this.pendingLoadConfig) {
 				this.currentConfig = this.pendingLoadConfig;
 
-				delete this.pendingLoadConfig;
+				this.pendingLoadConfig = null;
 			}
 
 			// To prevent flashing, we set the window visible after the page has finished to load but before VSCode is loaded
@@ -317,7 +335,7 @@ export class VSCodeWindow {
 		this._win.webContents.on('new-window', (event: Event, url: string) => {
 			event.preventDefault();
 
-			Shell.openExternal(url);
+			shell.openExternal(url);
 		});
 
 		// Window Focus
@@ -359,7 +377,7 @@ export class VSCodeWindow {
 		}
 
 		// Load URL
-		this._win.loadUrl(this.getUrl(config));
+		this._win.loadURL(this.getUrl(config));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
 		if (!config.isBuilt) {
@@ -367,7 +385,7 @@ export class VSCodeWindow {
 				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
 					this._win.show();
 					this._win.focus();
-					this._win.openDevTools();
+					this._win.webContents.openDevTools();
 				}
 			}, 10000);
 		}
@@ -379,16 +397,16 @@ export class VSCodeWindow {
 		let configuration: IWindowConfiguration = objects.mixin({}, this.currentConfig);
 		delete configuration.filesToOpen;
 		delete configuration.filesToCreate;
+		delete configuration.filesToDiff;
 		delete configuration.extensionsToInstall;
-		configuration.autoSaveDelay = storage.getItem<number>('autoSaveDelay') || -1 /* Disabled by default */;
 
 		// Some configuration things get inherited if the window is being reloaded and we are
 		// in plugin development mode. These options are all development related.
 		if (this.isPluginDevelopmentHost && cli) {
 			configuration.verboseLogging = cli.verboseLogging;
-			configuration.logPluginHostCommunication = cli.logPluginHostCommunication;
-			configuration.debugPluginHostPort = cli.debugPluginHostPort;
-			configuration.debugBrkPluginHost = cli.debugBrkPluginHost;
+			configuration.logExtensionHostCommunication = cli.logExtensionHostCommunication;
+			configuration.debugExtensionHostPort = cli.debugExtensionHostPort;
+			configuration.debugBrkExtensionHost = cli.debugBrkExtensionHost;
 			configuration.pluginHomePath = cli.pluginHomePath;
 		}
 
@@ -531,7 +549,7 @@ export class VSCodeWindow {
 		return null;
 	}
 
-	public getBounds(): IBounds {
+	public getBounds(): Electron.Bounds {
 		let pos = this.win.getPosition();
 		let dimension = this.win.getSize();
 
@@ -543,8 +561,8 @@ export class VSCodeWindow {
 
 		this.win.setFullScreen(willBeFullScreen);
 
-		// Windows: Hide the menu bar but still allow to bring it up by pressing the Alt key
-		if (platform.isWindows) {
+		// Windows & Linux: Hide the menu bar but still allow to bring it up by pressing the Alt key
+		if (platform.isWindows || platform.isLinux) {
 			if (willBeFullScreen) {
 				this.setMenuBarVisibility(false);
 			} else {

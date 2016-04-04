@@ -7,18 +7,18 @@
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 
-var CACHE: { [glob: string]: RegExp } = Object.create(null);
+const CACHE: { [glob: string]: RegExp } = Object.create(null);
 
 export interface IExpression {
-	[pattern: string]: boolean|SiblingClause|any;
+	[pattern: string]: boolean | SiblingClause | any;
 }
 
 export interface SiblingClause {
 	when: string;
 }
 
-var PATH_REGEX = '[/\\\\]';		// any slash or backslash
-var NO_PATH_REGEX = '[^/\\\\]';	// any non-slash and non-backslash
+const PATH_REGEX = '[/\\\\]';		// any slash or backslash
+const NO_PATH_REGEX = '[^/\\\\]';	// any non-slash and non-backslash
 
 function starsToRegExp(starCount: number): string {
 	switch (starCount) {
@@ -39,14 +39,14 @@ export function splitGlobAware(pattern: string, splitChar: string): string[] {
 		return [];
 	}
 
-	var segments: string[] = [];
+	let segments: string[] = [];
 
-	var inBraces = false;
-	var inBrackets = false;
+	let inBraces = false;
+	let inBrackets = false;
 
-	var char: string;
-	var curVal = '';
-	for (var i = 0; i < pattern.length; i++) {
+	let char: string;
+	let curVal = '';
+	for (let i = 0; i < pattern.length; i++) {
 		char = pattern[i];
 
 		switch (char) {
@@ -88,10 +88,10 @@ function parseRegExp(pattern: string): string {
 		return '';
 	}
 
-	var regEx = '';
+	let regEx = '';
 
 	// Split up into segments for each slash found
-	var segments = splitGlobAware(pattern, '/');
+	let segments = splitGlobAware(pattern, '/');
 
 	// Special case where we only have globstars
 	if (segments.every(s => s === '**')) {
@@ -100,7 +100,7 @@ function parseRegExp(pattern: string): string {
 
 	// Build regex over segments
 	else {
-		var previousSegmentWasGlobStar = false;
+		let previousSegmentWasGlobStar = false;
 		segments.forEach((segment, index) => {
 
 			// Globstar is special
@@ -116,14 +116,14 @@ function parseRegExp(pattern: string): string {
 			}
 
 			// States
-			var inBraces = false;
-			var braceVal = '';
+			let inBraces = false;
+			let braceVal = '';
 
-			var inBrackets = false;
-			var bracketVal = '';
+			let inBrackets = false;
+			let bracketVal = '';
 
-			var char: string;
-			for (var i = 0; i < segment.length; i++) {
+			let char: string;
+			for (let i = 0; i < segment.length; i++) {
 				char = segment[i];
 
 				// Support brace expansion
@@ -134,7 +134,7 @@ function parseRegExp(pattern: string): string {
 
 				// Support brackets
 				if (char !== ']' && inBrackets) {
-					var res: string;
+					let res: string;
 					switch (char) {
 						case '-':		// allow the range operator
 							res = char;
@@ -160,10 +160,10 @@ function parseRegExp(pattern: string): string {
 						continue;
 
 					case '}':
-						var choices = splitGlobAware(braceVal, ',');
+						let choices = splitGlobAware(braceVal, ',');
 
 						// Converts {foo,bar} => [foo|bar]
-						var braceRegExp = '(?:' + choices.reduce((prevValue, curValue, index, array) => {
+						let braceRegExp = '(?:' + choices.reduce((prevValue, curValue, i, array) => {
 							return prevValue + '|' + parseRegExp(curValue);
 						}, parseRegExp(choices[0]) /* parse the first segment as regex and give as initial value */) + ')';
 
@@ -219,29 +219,32 @@ function globToRegExp(pattern: string): RegExp {
 
 	// Check cache
 	if (CACHE[pattern]) {
-		var cached = CACHE[pattern];
+		let cached = CACHE[pattern];
 		cached.lastIndex = 0; // reset RegExp to its initial state to reuse it!
 
 		return cached;
 	}
 
-	var regEx = parseRegExp(pattern);
+	let regEx = parseRegExp(pattern);
 
 	// Wrap it
 	regEx = '^' + regEx + '$';
 
 	// Convert to regexp and be ready for errors
-	var result: RegExp;
-	try {
-		result = new RegExp(regEx);
-	} catch (error) {
-		result = /.^/; // create a regex that matches nothing if we cannot parse the pattern
-	}
+	let result = toRegExp(regEx);
 
 	// Make sure to cache
 	CACHE[pattern] = result;
 
 	return result;
+}
+
+function toRegExp(regEx: string): RegExp {
+	try {
+		return new RegExp(regEx);
+	} catch (error) {
+		return /.^/; // create a regex that matches nothing if we cannot parse the pattern
+	}
 }
 
 /**
@@ -254,18 +257,15 @@ function globToRegExp(pattern: string): RegExp {
  */
 export function match(pattern: string, path: string): boolean;
 export function match(expression: IExpression, path: string, siblings?: string[]): string /* the matching pattern */;
-export function match(arg1: string|IExpression, path: string, siblings?: string[]): any {
+export function match(arg1: string | IExpression, path: string, siblings?: string[]): any {
 	if (!arg1 || !path) {
 		return false;
 	}
 
 	// Glob with String
 	if (typeof arg1 === 'string') {
-		try {
-			return globToRegExp(arg1).test(path);
-		} catch (error) {
-			return false; // ignore pattern if the regex is invalid
-		}
+		var regExp = globToRegExp(arg1);
+		return regExp && regExp.test(path);
 	}
 
 	// Glob with Expression
@@ -273,20 +273,21 @@ export function match(arg1: string|IExpression, path: string, siblings?: string[
 }
 
 function matchExpression(expression: IExpression, path: string, siblings?: string[]): string /* the matching pattern */ {
-	var patterns = Object.getOwnPropertyNames(expression);
-	for (var i = 0; i < patterns.length; i++) {
-		var pattern = patterns[i];
+	let patterns = Object.getOwnPropertyNames(expression);
+	let basename: string;
+	for (let i = 0; i < patterns.length; i++) {
+		let pattern = patterns[i];
+
+		let value = expression[pattern];
+		if (value === false) {
+			continue; // pattern is disabled
+		}
 
 		// Pattern matches path
 		if (match(pattern, path)) {
-			var value = expression[pattern];
 
 			// Expression Pattern is <boolean>
 			if (typeof value === 'boolean') {
-				if (value === false) {
-					continue; // pattern is disabled
-				}
-
 				return pattern;
 			}
 
@@ -296,9 +297,12 @@ function matchExpression(expression: IExpression, path: string, siblings?: strin
 					continue; // pattern is malformed or we don't have siblings
 				}
 
-				var clause = <SiblingClause>value;
-				var basename = strings.rtrim(paths.basename(path), paths.extname(path));
-				var clausePattern = strings.replaceAll(clause.when, '$(basename)', basename);
+				if (!basename) {
+					basename = strings.rtrim(paths.basename(path), paths.extname(path));
+				}
+
+				let clause = <SiblingClause>value;
+				let clausePattern = clause.when.replace('$(basename)', basename);
 				if (siblings.some((sibling) => sibling === clausePattern)) {
 					return pattern;
 				} else {

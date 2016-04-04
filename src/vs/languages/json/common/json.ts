@@ -8,51 +8,71 @@ import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import URI from 'vs/base/common/uri';
 import WinJS = require('vs/base/common/winjs.base');
-import supports = require('vs/editor/common/modes/supports');
 import Platform = require('vs/platform/platform');
 import nls = require('vs/nls');
 import jsonWorker = require('vs/languages/json/common/jsonWorker');
-import jsonSchema = require('vs/base/common/jsonSchema');
 import tokenization = require('vs/languages/json/common/features/tokenization');
-import jsonSchemaService = require('vs/languages/json/common/jsonSchemaService');
-import {AbstractMode, createWordRegExp} from 'vs/editor/common/modes/abstractMode';
+import {AbstractMode, createWordRegExp, ModeWorkerManager} from 'vs/editor/common/modes/abstractMode';
 import {OneWorkerAttr, AllWorkersAttr} from 'vs/platform/thread/common/threadService';
-import {IThreadService, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
-import {AsyncDescriptor2, createAsyncDescriptor2} from 'vs/platform/instantiation/common/descriptors';
-import {OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
+import {IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
 import {IJSONContributionRegistry, Extensions, ISchemaContributions} from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {RichEditSupport} from 'vs/editor/common/modes/supports/richEditSupport';
+import {SuggestSupport} from 'vs/editor/common/modes/supports/suggestSupport';
 
-export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Modes.IExtraInfoSupport, Modes.IOutlineSupport, IThreadSynchronizableObject<ISchemaContributions> {
+export class JSONMode extends AbstractMode implements Modes.IExtraInfoSupport, Modes.IOutlineSupport {
 
 	public tokenizationSupport: Modes.ITokenizationSupport;
-	public electricCharacterSupport: Modes.IElectricCharacterSupport;
-	public characterPairSupport: Modes.ICharacterPairSupport;
-
+	public richEditSupport: Modes.IRichEditSupport;
+	public configSupport:Modes.IConfigurationSupport;
+	public inplaceReplaceSupport:Modes.IInplaceReplaceSupport;
 	public extraInfoSupport: Modes.IExtraInfoSupport;
 	public outlineSupport: Modes.IOutlineSupport;
 	public formattingSupport: Modes.IFormattingSupport;
-
 	public suggestSupport: Modes.ISuggestSupport;
 
 	public outlineGroupLabel : { [name: string]: string; };
 
-	public onEnterSupport: Modes.IOnEnterSupport;
+	private _modeWorkerManager: ModeWorkerManager<jsonWorker.JSONWorker>;
+	private _threadService:IThreadService;
 
 	constructor(
 		descriptor:Modes.IModeDescriptor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThreadService threadService: IThreadService
 	) {
-		super(descriptor, instantiationService, threadService);
+		super(descriptor.id);
+		this._modeWorkerManager = new ModeWorkerManager<jsonWorker.JSONWorker>(descriptor, 'vs/languages/json/common/jsonWorker', 'JSONWorker', null, instantiationService);
+		this._threadService = threadService;
 
 		this.tokenizationSupport = tokenization.createTokenizationSupport(this, true);
-		this.electricCharacterSupport = new supports.BracketElectricCharacterSupport(this, { brackets: [
-			{ tokenType:'delimiter.bracket.json', open: '{', close: '}', isElectric: true },
-			{ tokenType:'delimiter.array.json', open: '[', close: ']', isElectric: true }
-		] });
+
+		this.richEditSupport = new RichEditSupport(this.getId(), null, {
+
+			wordPattern: createWordRegExp('.-'),
+
+			comments: {
+				lineComment: '//',
+				blockComment: ['/*', '*/']
+			},
+
+			brackets: [
+				['{', '}'],
+				['[', ']']
+			],
+
+			__characterPairSupport: {
+				autoClosingPairs: [
+					{ open: '{', close: '}', notIn: ['string'] },
+					{ open: '[', close: ']', notIn: ['string'] },
+					{ open: '"', close: '"', notIn: ['string'] }
+				]
+			}
+		});
 
 		this.extraInfoSupport = this;
+		this.inplaceReplaceSupport = this;
+		this.configSupport = this;
 
 		// Initialize Outline support
 		this.outlineSupport = this;
@@ -66,29 +86,17 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 
 		this.formattingSupport = this;
 
-		this.characterPairSupport = new supports.CharacterPairSupport(this, {
-			autoClosingPairs:
-				[	{ open: '{', close: '}', notIn: ['string'] },
-					{ open: '[', close: ']', notIn: ['string'] },
-					{ open: '"', close: '"', notIn: ['string'] }
-				]});
-
-		this.suggestSupport = new supports.SuggestSupport(this, {
+		this.suggestSupport = new SuggestSupport(this.getId(), {
 			triggerCharacters: [],
 			excludeTokens: ['comment.line.json', 'comment.block.json'],
 			suggest: (resource, position) => this.suggest(resource, position)});
-
-		this.onEnterSupport = new OnEnterSupport(this.getId(), {
-			brackets: [
-				{ open: '{', close: '}' },
-				{ open: '[', close: ']' }
-			]
-		});
 	}
 
 	public creationDone(): void {
-		super.creationDone();
 		if (this._threadService.isInMainThread) {
+			// Pick a worker to do validation
+			this._pickAWorkerToValidate();
+
 			// Configure all workers
 			this._configureWorkerSchemas(this.getSchemaConfiguration());
 			var contributionRegistry = <IJSONContributionRegistry> Platform.Registry.as(Extensions.JSONContribution);
@@ -98,29 +106,46 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 		}
 	}
 
+	private _worker<T>(runner:(worker:jsonWorker.JSONWorker)=>WinJS.TPromise<T>): WinJS.TPromise<T> {
+		return this._modeWorkerManager.worker(runner);
+	}
+
 	private getSchemaConfiguration() : ISchemaContributions {
 		var contributionRegistry = <IJSONContributionRegistry> Platform.Registry.as(Extensions.JSONContribution);
 		return contributionRegistry.getSchemaContributions();
 	}
 
-	public getSerializableState(): ISchemaContributions {
-		return this.getSchemaConfiguration();
+	public configure(options:any): WinJS.TPromise<void> {
+		if (this._threadService.isInMainThread) {
+			return this._configureWorkers(options);
+		} else {
+			return this._worker((w) => w._doConfigure(options));
+		}
 	}
 
-	public setData(data:ISchemaContributions): void {
-		// It is ok to not join the promise. Workers are managed using a special
-		// worker promise and the next call to the worker will wait until this
-		// call went through.
-		this._worker((w) => w.setSchemaContributions(data));
-	}
-
-	protected _getWorkerDescriptor(): AsyncDescriptor2<Modes.IMode, Modes.IWorkerParticipant[], jsonWorker.JSONWorker> {
-		return createAsyncDescriptor2('vs/languages/json/common/jsonWorker', 'JSONWorker');
+	static $_configureWorkers = AllWorkersAttr(JSONMode, JSONMode.prototype._configureWorkers);
+	private _configureWorkers(options:any): WinJS.TPromise<void> {
+		return this._worker((w) => w._doConfigure(options));
 	}
 
 	static $_configureWorkerSchemas = AllWorkersAttr(JSONMode, JSONMode.prototype._configureWorkerSchemas);
 	private _configureWorkerSchemas(data:ISchemaContributions): WinJS.TPromise<boolean> {
 		return this._worker((w) => w.setSchemaContributions(data));
+	}
+
+	static $_pickAWorkerToValidate = OneWorkerAttr(JSONMode, JSONMode.prototype._pickAWorkerToValidate, ThreadAffinity.Group1);
+	private _pickAWorkerToValidate(): WinJS.TPromise<void> {
+		return this._worker((w) => w.enableValidator());
+	}
+
+	static $navigateValueSet = OneWorkerAttr(JSONMode, JSONMode.prototype.navigateValueSet);
+	public navigateValueSet(resource:URI, position:EditorCommon.IRange, up:boolean):WinJS.TPromise<Modes.IInplaceReplaceSupportResult> {
+		return this._worker((w) => w.navigateValueSet(resource, position, up));
+	}
+
+	static $suggest = OneWorkerAttr(JSONMode, JSONMode.prototype.suggest);
+	public suggest(resource:URI, position:EditorCommon.IPosition):WinJS.TPromise<Modes.ISuggestResult[]> {
+		return this._worker((w) => w.suggest(resource, position));
 	}
 
 	static $computeInfo = OneWorkerAttr(JSONMode, JSONMode.prototype.computeInfo);
@@ -141,18 +166,5 @@ export class JSONMode extends AbstractMode<jsonWorker.JSONWorker> implements Mod
 	static $formatRange = OneWorkerAttr(JSONMode, JSONMode.prototype.formatRange);
 	public formatRange(resource:URI, range:EditorCommon.IRange, options:Modes.IFormattingOptions):WinJS.TPromise<EditorCommon.ISingleEditOperation[]> {
 		return this._worker((w) => w.format(resource, range, options));
-	}
-
-	public getCommentsConfiguration():Modes.ICommentsConfiguration {
-		return {
-			lineCommentTokens: ['//'],
-			blockCommentStartToken: '/*',
-			blockCommentEndToken: '*/'
-		};
-	}
-
-	private static WORD_DEFINITION = createWordRegExp('.-');
-	public getWordDefinition():RegExp {
-		return JSONMode.WORD_DEFINITION;
 	}
 }

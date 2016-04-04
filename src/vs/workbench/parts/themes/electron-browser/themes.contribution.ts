@@ -12,14 +12,13 @@ import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
 import platform = require('vs/platform/platform');
-import commonPlatform = require('vs/base/common/platform');
-import workbenchActionRegistry = require('vs/workbench/browser/actionRegistry');
-import Themes = require('vs/platform/theme/common/themes');
-import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import workbenchActionRegistry = require('vs/workbench/common/actionRegistry');
+import {IQuickOpenService, IPickOpenEntry} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IThemeService, ITheme} from 'vs/workbench/services/themes/node/themeService';
+import {IThemeService, IThemeData, DEFAULT_THEME_ID} from 'vs/workbench/services/themes/common/themeService';
+import {RunOnceScheduler} from 'vs/base/common/async';
 
-import ipc = require('ipc');
+import {ipcRenderer as ipc} from 'electron';
 
 class SelectThemeAction extends actions.Action {
 
@@ -38,18 +37,14 @@ class SelectThemeAction extends actions.Action {
 		super(id, label);
 	}
 
-	public run(): winjs.Promise {
+	public run(): winjs.TPromise<void> {
 
 		return this.themeService.getThemes().then(contributedThemes => {
-			let currentTheme = this.storageService.get(Constants.Preferences.THEME, StorageScope.GLOBAL, Themes.DEFAULT_THEME_ID);
-			let selectedIndex = 0;
+			let currentTheme = this.storageService.get(Constants.Preferences.THEME, StorageScope.GLOBAL, DEFAULT_THEME_ID);
 
 			let picks: IPickOpenEntry[] = [];
-			Themes.getBaseThemes(commonPlatform.isWindows).forEach(baseTheme => {
-				picks.push({ label: Themes.toLabel(baseTheme), id: Themes.toId(baseTheme), description: nls.localize('themes.defaultTheme', "Default color theme") });
-			});
 
-			let contributedThemesById : { [id:string]: ITheme } = {};
+			let contributedThemesById: { [id: string]: IThemeData } = {};
 			contributedThemes.forEach(theme => {
 				picks.push({ id: theme.id, label: theme.label, description: theme.description });
 				contributedThemes[theme.id] = theme;
@@ -57,14 +52,14 @@ class SelectThemeAction extends actions.Action {
 
 			picks = picks.sort((t1, t2) => t1.label.localeCompare(t2.label));
 
-			let selectedPickIndex:number;
+			let selectedPickIndex: number;
 			picks.forEach((p, index) => {
 				if (p.id === currentTheme) {
 					selectedPickIndex = index;
 				}
 			});
 
-			let pickTheme = pick => {
+			let selectTheme = pick => {
 				if (pick) {
 					let themeId = pick.id;
 					if (!contributedThemesById[themeId]) {
@@ -72,7 +67,7 @@ class SelectThemeAction extends actions.Action {
 						ipc.send('vscode:changeTheme', themeId);
 					} else {
 						// before applying, check that it can be loaded
-						return this.themeService.loadThemeCSS(themeId).then(_ => {
+						return this.themeService.applyThemeCSS(themeId).then(_ => {
 							ipc.send('vscode:changeTheme', themeId);
 						}, error => {
 							this.messageService.show(Severity.Info, nls.localize('problemChangingTheme', "Problem loading theme: {0}", error.message));
@@ -84,14 +79,25 @@ class SelectThemeAction extends actions.Action {
 						ipc.send('vscode:changeTheme', currentTheme);
 					}
 				}
-				return winjs.Promise.as(null);
 			};
 
-			return this.quickOpenService.pick(picks, { placeHolder: nls.localize('themes.selectTheme', "Select Color Theme"), autoFocus: { autoFocusIndex: selectedPickIndex }}).then(pickTheme, null, pickTheme);
+			let themeToPreview : IPickOpenEntry = null;
+			let previewThemeScheduler = new RunOnceScheduler(() => {
+				selectTheme(themeToPreview);
+			}, 200);
+			let previewTheme = pick => {
+				themeToPreview = pick;
+				previewThemeScheduler.schedule();
+			};
+			let pickTheme = pick => {
+				previewThemeScheduler.dispose();
+				selectTheme(pick);
+			};
+			return this.quickOpenService.pick(picks, { placeHolder: nls.localize('themes.selectTheme', "Select Color Theme"), autoFocus: { autoFocusIndex: selectedPickIndex } }).then(pickTheme, null, previewTheme);
 		});
 	}
 }
 
 const category = nls.localize('preferences', "Preferences");
-let workbenchActionsRegistry = <workbenchActionRegistry.IWorkbenchActionRegistry> platform.Registry.as(workbenchActionRegistry.Extensions.WorkbenchActions);
+let workbenchActionsRegistry = <workbenchActionRegistry.IWorkbenchActionRegistry>platform.Registry.as(workbenchActionRegistry.Extensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectThemeAction, SelectThemeAction.ID, SelectThemeAction.LABEL), category);

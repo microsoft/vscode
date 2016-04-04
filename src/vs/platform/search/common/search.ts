@@ -10,9 +10,9 @@ import glob = require('vs/base/common/glob');
 import {IFilesConfiguration} from 'vs/platform/files/common/files';
 import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
-export var ID = 'searchService';
+export const ID = 'searchService';
 
-export var ISearchService = createDecorator<ISearchService>(ID);
+export const ISearchService = createDecorator<ISearchService>(ID);
 /**
  * A service that enables to search for files or with in files.
  */
@@ -22,13 +22,13 @@ export interface ISearchService {
 }
 
 export interface IQueryOptions {
-	rootResources?: uri[];
+	folderResources?: uri[];
+	extraFileResources?: uri[];
 	filePattern?: string;
 	excludePattern?: glob.IExpression;
 	includePattern?: glob.IExpression;
 	maxResults?: number;
 	fileEncoding?: string;
-	matchFuzzy?: boolean;
 }
 
 export interface ISearchQuery extends IQueryOptions {
@@ -92,8 +92,5 @@ export class LineMatch implements ILineMatch {
 export interface ISearchConfiguration extends IFilesConfiguration {
 	search: {
 		exclude: glob.IExpression;
-	},
-	filePicker: {
-		alternateFileNameMatching: boolean;
-	}
+	};
 }

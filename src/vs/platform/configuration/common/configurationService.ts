@@ -5,20 +5,22 @@
 'use strict';
 
 import paths = require('vs/base/common/paths');
-import winjs = require('vs/base/common/winjs.base');
-import eventEmitter = require('vs/base/common/eventEmitter');
+import {TPromise} from 'vs/base/common/winjs.base';
+import {EventEmitter} from 'vs/base/common/eventEmitter';
 import objects = require('vs/base/common/objects');
 import errors = require('vs/base/common/errors');
 import uri from 'vs/base/common/uri';
 import model = require('./model');
-import lifecycle = require('vs/base/common/lifecycle');
+import {RunOnceScheduler} from 'vs/base/common/async';
+import {IDisposable, cAll} from 'vs/base/common/lifecycle';
 import collections = require('vs/base/common/collections');
 import {IConfigurationService, ConfigurationServiceEventTypes}  from './configuration';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import Files = require('vs/platform/files/common/files');
+import {EventType, FileChangeType, FileChangesEvent} from 'vs/platform/files/common/files';
 import {IConfigurationRegistry, Extensions} from './configurationRegistry';
 import {Registry} from 'vs/platform/platform';
+import Event, {fromEventEmitter} from 'vs/base/common/event';
 
 
 // ---- service abstract implementation
@@ -40,17 +42,24 @@ interface ILoadConfigResult {
 	globals: { contents: any; parseErrors: string[]; };
 }
 
-export abstract class ConfigurationService extends eventEmitter.EventEmitter implements IConfigurationService, lifecycle.IDisposable {
+export abstract class ConfigurationService extends EventEmitter implements IConfigurationService, IDisposable {
+
 	public serviceId = IConfigurationService;
+
+	private static RELOAD_CONFIGURATION_DELAY = 50;
+
+	public onDidUpdateConfiguration: Event<{ config: any }>;
 
 	protected contextService: IWorkspaceContextService;
 	protected eventService: IEventService;
 	protected workspaceSettingsRootFolder: string;
 
-	private loadConfigurationPromise: winjs.TPromise<any>;
-	private bulkFetchFromWorkspacePromise: winjs.TPromise<any>;
-	private workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: winjs.TPromise<model.IConfigFile> };
+	private cachedConfig: ILoadConfigResult;
+
+	private bulkFetchFromWorkspacePromise: TPromise<any>;
+	private workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<model.IConfigFile> };
 	private callOnDispose: Function;
+	private reloadConfigurationScheduler: RunOnceScheduler;
 
 	constructor(contextService: IWorkspaceContextService, eventService: IEventService, workspaceSettingsRootFolder: string = '.vscode') {
 		super();
@@ -60,96 +69,106 @@ export abstract class ConfigurationService extends eventEmitter.EventEmitter imp
 
 		this.workspaceSettingsRootFolder = workspaceSettingsRootFolder;
 		this.workspaceFilePathToConfiguration = Object.create(null);
+		this.cachedConfig = {
+			merged: {},
+			consolidated: { contents: {}, parseErrors: [] },
+			globals: { contents: {}, parseErrors: [] }
+		};
 
-		let unbind = this.eventService.addListener(Files.EventType.FILE_CHANGES, (events) => this.handleFileEvents(events));
-		let subscription = (<IConfigurationRegistry>Registry.as(Extensions.Configuration)).onDidRegisterConfiguration(() => this.reloadAndEmit());
+		this.onDidUpdateConfiguration = fromEventEmitter(this, ConfigurationServiceEventTypes.UPDATED);
+
+		this.registerListeners();
+	}
+
+	protected registerListeners(): void {
+		let unbind = this.eventService.addListener(EventType.FILE_CHANGES, (events) => this.handleFileEvents(events));
+		let subscription = Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidRegisterConfiguration(() => this.handleConfigurationChange());
 		this.callOnDispose = () => {
 			unbind();
 			subscription.dispose();
-		}
+		};
 	}
 
-	protected abstract resolveContents(resource: uri[]): winjs.TPromise<IContent[]>;
-
-	protected abstract resolveContent(resource: uri): winjs.TPromise<IContent>;
-
-	protected abstract resolveStat(resource: uri): winjs.TPromise<IStat>;
-
-	public dispose(): void {
-		this.callOnDispose = lifecycle.cAll(this.callOnDispose);
-
-		super.dispose();
+	public initialize(): TPromise<void> {
+		return this.loadConfiguration().then(() => null);
 	}
 
-	public loadConfiguration(section?: string): winjs.TPromise<any> {
-		if (!this.loadConfigurationPromise) {
-			this.loadConfigurationPromise = this.doLoadConfiguration();
+	protected abstract resolveContents(resource: uri[]): TPromise<IContent[]>;
+
+	protected abstract resolveContent(resource: uri): TPromise<IContent>;
+
+	protected abstract resolveStat(resource: uri): TPromise<IStat>;
+
+	public getConfiguration<T>(section?: string): T {
+		let result = section ? this.cachedConfig.merged[section] : this.cachedConfig.merged;
+
+		let parseErrors = this.cachedConfig.consolidated.parseErrors;
+		if (this.cachedConfig.globals.parseErrors) {
+			parseErrors.push.apply(parseErrors, this.cachedConfig.globals.parseErrors);
 		}
 
-		return this.loadConfigurationPromise.then((res: ILoadConfigResult) => {
-			var result = section ? res.merged[section] : res.merged;
-
-			var parseErrors = res.consolidated.parseErrors;
-			if (res.globals.parseErrors) {
-				parseErrors.push.apply(parseErrors, res.globals.parseErrors);
+		if (parseErrors.length > 0) {
+			if (!result) {
+				result = {};
 			}
+			result.$parseErrors = parseErrors;
+		}
 
-			if (parseErrors.length > 0) {
-				if (!result) {
-					result = {};
-				}
-				result.$parseErrors = parseErrors;
-			}
+		return result;
+	}
 
-			return result;
+	private loadConfiguration(section?: string): TPromise<any> {
+		return this.doLoadConfiguration().then((res: ILoadConfigResult) => {
+			this.cachedConfig = res;
+
+			return this.getConfiguration(section);
 		});
 	}
 
-	private doLoadConfiguration(): winjs.TPromise<ILoadConfigResult> {
+	private doLoadConfiguration(): TPromise<ILoadConfigResult> {
 
 		// Load globals
-		return this.loadGlobalConfiguration().then((globals) => {
+		const globals = this.loadGlobalConfiguration();
 
-			// Load workspace locals
-			return this.loadWorkspaceConfiguration().then((values) => {
+		// Load workspace locals
+		return this.loadWorkspaceConfiguration().then((values) => {
 
-				// Consolidate
-				var consolidated = model.consolidate(values);
+			// Consolidate
+			let consolidated = model.consolidate(values);
 
-				// Override with workspace locals
-				var merged = objects.mixin(
-					objects.clone(globals.contents), 	// target: global/default values (but dont modify!)
-					consolidated.contents,				// source: workspace configured values
-					true								// overwrite
-				);
+			// Override with workspace locals
+			let merged = objects.mixin(
+				objects.clone(globals.contents), 	// target: global/default values (but dont modify!)
+				consolidated.contents,				// source: workspace configured values
+				true								// overwrite
+			);
 
-				return {
-					merged: merged,
-					consolidated: consolidated,
-					globals: globals
-				};
-			});
+			return {
+				merged: merged,
+				consolidated: consolidated,
+				globals: globals
+			};
 		});
 	}
 
-	protected loadGlobalConfiguration(): winjs.TPromise<{ contents: any; parseErrors: string[]; }> {
-		return winjs.TPromise.as({
+	protected loadGlobalConfiguration(): { contents: any; parseErrors?: string[]; } {
+		return {
 			contents: model.getDefaultValues()
-		});
+		};
 	}
 
 	public hasWorkspaceConfiguration(): boolean {
 		return !!this.workspaceFilePathToConfiguration['.vscode/' + model.CONFIG_DEFAULT_NAME + '.json'];
 	}
 
-	protected loadWorkspaceConfiguration(section?: string): winjs.TPromise<{ [relativeWorkspacePath: string]: model.IConfigFile }> {
+	protected loadWorkspaceConfiguration(section?: string): TPromise<{ [relativeWorkspacePath: string]: model.IConfigFile }> {
 
 		// once: when invoked for the first time we fetch *all* json
 		// files using the bulk stats and content routes
 		if (!this.bulkFetchFromWorkspacePromise) {
 			this.bulkFetchFromWorkspacePromise = this.resolveStat(this.contextService.toResource(this.workspaceSettingsRootFolder)).then((stat) => {
 				if (!stat.isDirectory) {
-					return winjs.TPromise.as([]);
+					return TPromise.as([]);
 				}
 
 				return this.resolveContents(stat.children.filter((stat) => paths.extname(stat.resource.fsPath) === '.json').map(stat => stat.resource));
@@ -158,7 +177,7 @@ export abstract class ConfigurationService extends eventEmitter.EventEmitter imp
 					return []; // never fail this call
 				}
 			}).then((contents: IContent[]) => {
-				contents.forEach(content => this.workspaceFilePathToConfiguration[this.contextService.toWorkspaceRelativePath(content.resource)] = winjs.TPromise.as(model.newConfigFile(content.value)));
+				contents.forEach(content => this.workspaceFilePathToConfiguration[this.contextService.toWorkspaceRelativePath(content.resource)] = TPromise.as(model.newConfigFile(content.value)));
 			}, errors.onUnexpectedError);
 		}
 
@@ -166,31 +185,33 @@ export abstract class ConfigurationService extends eventEmitter.EventEmitter imp
 		// we can merge them into a single configuration object. this
 		// happens whenever a config file changes, is deleted, or added
 		return this.bulkFetchFromWorkspacePromise.then(() => {
-			return winjs.TPromise.join(this.workspaceFilePathToConfiguration);
+			return TPromise.join(this.workspaceFilePathToConfiguration);
 		});
 	}
 
-	protected reloadAndEmit(): winjs.TPromise<void> {
-		return this.reloadConfiguration().then((config) => this.emit(ConfigurationServiceEventTypes.UPDATED, { config: config }));
+	protected handleConfigurationChange(): void {
+		if (!this.reloadConfigurationScheduler) {
+			this.reloadConfigurationScheduler = new RunOnceScheduler(() => {
+				this.loadConfiguration().then((config) => this.emit(ConfigurationServiceEventTypes.UPDATED, { config: config })).done(null, errors.onUnexpectedError);
+			}, ConfigurationService.RELOAD_CONFIGURATION_DELAY);
+		}
+
+		if (!this.reloadConfigurationScheduler.isScheduled()) {
+			this.reloadConfigurationScheduler.schedule();
+		}
 	}
 
-	private reloadConfiguration(section?: string): winjs.TPromise<any> {
-		this.loadConfigurationPromise = null;
-
-		return this.loadConfiguration(section);
-	}
-
-	private handleFileEvents(event: Files.FileChangesEvent): void {
-		var events = event.changes;
-		var affectedByChanges = false;
-		for (var i = 0, len = events.length; i < len; i++) {
-			var workspacePath = this.contextService.toWorkspaceRelativePath(events[i].resource);
+	private handleFileEvents(event: FileChangesEvent): void {
+		let events = event.changes;
+		let affectedByChanges = false;
+		for (let i = 0, len = events.length; i < len; i++) {
+			let workspacePath = this.contextService.toWorkspaceRelativePath(events[i].resource);
 			if (!workspacePath) {
 				continue; // event is not inside workspace
 			}
 
 			// Handle case where ".vscode" got deleted
-			if (workspacePath === this.workspaceSettingsRootFolder && events[i].type === Files.FileChangeType.DELETED) {
+			if (workspacePath === this.workspaceSettingsRootFolder && events[i].type === FileChangeType.DELETED) {
 				this.workspaceFilePathToConfiguration = Object.create(null);
 				affectedByChanges = true;
 			}
@@ -203,32 +224,28 @@ export abstract class ConfigurationService extends eventEmitter.EventEmitter imp
 			// insert 'fetch-promises' for add and update events and
 			// remove promises for delete events
 			switch (events[i].type) {
-				case Files.FileChangeType.DELETED:
+				case FileChangeType.DELETED:
 					affectedByChanges = collections.remove(this.workspaceFilePathToConfiguration, workspacePath);
 					break;
-				case Files.FileChangeType.UPDATED:
-				case Files.FileChangeType.ADDED:
+				case FileChangeType.UPDATED:
+				case FileChangeType.ADDED:
 					this.workspaceFilePathToConfiguration[workspacePath] = this.resolveContent(events[i].resource).then(content => model.newConfigFile(content.value), errors.onUnexpectedError);
 					affectedByChanges = true;
 			}
 		}
 
 		if (affectedByChanges) {
-			this.reloadAndEmit();
+			this.handleConfigurationChange();
 		}
 	}
-}
 
-export class NullConfigurationService extends eventEmitter.EventEmitter implements IConfigurationService {
-	public serviceId = IConfigurationService;
+	public dispose(): void {
+		if (this.reloadConfigurationScheduler) {
+			this.reloadConfigurationScheduler.dispose();
+		}
 
-	public loadConfiguration(section?: string): winjs.TPromise<any> {
-		return winjs.TPromise.as({});
-	}
+		this.callOnDispose = cAll(this.callOnDispose);
 
-	public hasWorkspaceConfiguration(): boolean {
-		return false;
+		super.dispose();
 	}
 }
-
-export var nullService = new NullConfigurationService();

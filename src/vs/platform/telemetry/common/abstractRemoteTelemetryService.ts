@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { TPromise } from 'vs/base/common/winjs.base';
 import AbstractTelemetryService = require('vs/platform/telemetry/common/abstractTelemetryService');
-import {OneWorkerAttr} from 'vs/platform/thread/common/threadService';
 import {ITelemetryService, ITelemetryInfo, ITelemetryAppender} from 'vs/platform/telemetry/common/telemetry';
-import {Remotable, IThreadService, ThreadAffinity} from 'vs/platform/thread/common/thread';
+import {Remotable, IThreadService} from 'vs/platform/thread/common/thread';
 
 /**
  * Helper always instantiated in the main process to receive telemetry events from remote telemetry services
@@ -17,21 +17,21 @@ export class RemoteTelemetryServiceHelper {
 
 	private _telemetryService: ITelemetryService;
 
-	constructor(@ITelemetryService telemetryService: ITelemetryService) {
+	constructor( @ITelemetryService telemetryService: ITelemetryService) {
 		this._telemetryService = telemetryService;
 	}
 
-	public _handleRemoteTelemetryEvent(eventName:string, data?:any):void {
+	public _handleRemoteTelemetryEvent(eventName: string, data?: any): void {
 		this._telemetryService.publicLog(eventName, data);
 	}
 
-	public getTelemetryInfo(): Thenable<ITelemetryInfo> {
+	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return this._telemetryService.getTelemetryInfo();
 	}
 }
 
 /**
- * Base class for remote telemetry services (instantiated in plugin host or in web workers)
+ * Base class for remote telemetry services (instantiated in extension host or in web workers)
  */
 export class AbstractRemoteTelemetryService extends AbstractTelemetryService.AbstractTelemetryService implements ITelemetryService {
 
@@ -43,7 +43,7 @@ export class AbstractRemoteTelemetryService extends AbstractTelemetryService.Abs
 		this._proxy = threadService.getRemotable(RemoteTelemetryServiceHelper);
 	}
 
-	getTelemetryInfo(): Thenable<ITelemetryInfo> {
+	getTelemetryInfo(): TPromise<ITelemetryInfo> {
 		return this._proxy.getTelemetryInfo();
 	}
 
@@ -51,7 +51,7 @@ export class AbstractRemoteTelemetryService extends AbstractTelemetryService.Abs
 		throw new Error('Telemetry appenders are not supported in this execution envirnoment');
 	}
 
-	protected handleEvent(eventName:string, data?:any):void {
+	protected handleEvent(eventName: string, data?: any): void {
 		this._proxy._handleRemoteTelemetryEvent(eventName, data);
 	}
 }

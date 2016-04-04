@@ -25,12 +25,12 @@ export var language = <ILanguage> {
 				{ token: 'delimiter.square', open: '[', close: ']' },
 				{ token: 'delimiter.parenthesis', open: '(', close: ')' }],
 
-	enhancedBrackets: [
-				{ tokenType:'string', openTrigger: '"', open: /@"$/, closeComplete: '"@' },
-				{ tokenType:'string', openTrigger: '\'', open: /@'$/, closeComplete: '\'@' },
-				{ tokenType:'string', openTrigger: '"', open: /"$/, closeComplete: '"' },
-				{ tokenType: 'string', openTrigger: '\'', open: /'$/, closeComplete: '\'' }
-	],
+	// enhancedBrackets: [
+	// 			{ tokenType:'string', openTrigger: '"', open: /@"$/, closeComplete: '"@' },
+	// 			{ tokenType:'string', openTrigger: '\'', open: /@'$/, closeComplete: '\'@' },
+	// 			{ tokenType:'string', openTrigger: '"', open: /"$/, closeComplete: '"' },
+	// 			{ tokenType: 'string', openTrigger: '\'', open: /'$/, closeComplete: '\'' }
+	// ],
 
 	autoClosingPairs: [['{', '}'], ['[', ']'], ['(', ')']],	// Defined explicitly, to suppress the
 															// default auto-closing of ' and " which is

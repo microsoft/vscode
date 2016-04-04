@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import ipc = require('ipc');
+import * as nls from 'vs/nls';
+import { ipcMain as ipc, BrowserWindow} from 'electron';
 import platform = require('vs/base/common/platform');
 import { TPromise } from 'vs/base/common/winjs.base';
-import BrowserWindow = require('browser-window');
 
 export interface ICredentials {
 	username: string;
@@ -20,7 +20,7 @@ interface ICredentialsResult {
 
 interface IContext {
 	credentials: ICredentials;
-	window: BrowserWindow;
+	window: Electron.BrowserWindow;
 }
 
 export class GitAskpassService {
@@ -46,12 +46,13 @@ export class GitAskpassService {
 			}
 
 			let win = new BrowserWindow({
-				'always-on-top': true,
-				'skip-taskbar': true,
+				alwaysOnTop: true,
+				skipTaskbar: true,
 				resizable: false,
 				width: 450,
 				height: platform.isWindows ? 280 : 260,
-				show: true
+				show: true,
+				title: nls.localize('git', "Git")
 			});
 
 			win.setMenuBarVisibility(false);
@@ -61,7 +62,7 @@ export class GitAskpassService {
 				credentials: null
 			};
 
-			win.loadUrl(require.toUrl('vs/workbench/parts/git/electron-main/index.html'));
+			win.loadURL(require.toUrl('vs/workbench/parts/git/electron-main/index.html'));
 			win.webContents.executeJavaScript('init(' + JSON.stringify({ id, host, command }) + ')');
 
 			win.once('closed', () => {

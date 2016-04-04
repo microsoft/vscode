@@ -12,7 +12,6 @@ import * as Types from 'vs/base/common/types';
  * are equal to other objects.
  */
 export interface IEqualable {
-	hashCode(): number;
 	equals(other: any): boolean;
 }
 
@@ -156,6 +155,10 @@ export function mixin(destination: any, source: any, overwrite: boolean = true):
 export function assign(destination: any, ...sources: any[]): any {
 	sources.forEach(source => Object.keys(source).forEach((key) => destination[key] = source[key]));
 	return destination;
+}
+
+export function toObject<T,R>(arr: T[], keyMap: (T) => string, valueMap: (T) => R = x => x): { [key: string]: R } {
+	return arr.reduce((o, d) => assign(o, { [keyMap(d)]: valueMap(d) }), Object.create(null));
 }
 
 /**

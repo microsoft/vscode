@@ -5,49 +5,52 @@
 
 'use strict';
 
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {ThrottledDelayer} from 'vs/base/common/async';
 import types = require('vs/base/common/types');
-import strings = require('vs/base/common/strings');
+import {isWindows} from 'vs/base/common/platform';
 import scorer = require('vs/base/common/scorer');
 import paths = require('vs/base/common/paths');
-import filters = require('vs/base/common/filters');
 import labels = require('vs/base/common/labels');
+import strings = require('vs/base/common/strings');
 import {IRange} from 'vs/editor/common/editorCommon';
-import {ListenerUnbind} from 'vs/base/common/eventEmitter';
-import {IAutoFocus} from 'vs/base/parts/quickopen/browser/quickOpen';
+import {IAutoFocus} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {QuickOpenHandler} from 'vs/workbench/browser/quickopen';
 import {FileEntry, OpenFileHandler} from 'vs/workbench/parts/search/browser/openFileHandler';
-import {OpenSymbolHandler as _OpenSymbolHandler} from 'vs/workbench/parts/search/browser/openSymbolHandler';
+/* tslint:disable:no-unused-variable */
+import * as openSymbolHandler from 'vs/workbench/parts/search/browser/openSymbolHandler';
+/* tslint:enable:no-unused-variable */
 import {IMessageService, Severity} from 'vs/platform/message/common/message';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
 import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
-import {ISearchConfiguration} from 'vs/platform/search/common/search';
-import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
+import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
+
+interface ISearchWithRange {
+	search: string;
+	range: IRange;
+}
 
 // OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
-export const OpenSymbolHandler = _OpenSymbolHandler
+export import OpenSymbolHandler = openSymbolHandler.OpenSymbolHandler;
 
 export class OpenAnythingHandler extends QuickOpenHandler {
-	private static LINE_COLON_PATTERN = /[#|:](\d*)([#|:](\d*))?$/;
+	private static LINE_COLON_PATTERN = /[#|:|\(](\d*)([#|:|,](\d*))?\)?$/;
 
 	private static SYMBOL_SEARCH_INITIAL_TIMEOUT = 500; // Ignore symbol search after a timeout to not block search results
 	private static SYMBOL_SEARCH_SUBSEQUENT_TIMEOUT = 100;
 	private static SEARCH_DELAY = 300; // This delay accommodates for the user typing a word and then stops typing to start searching
 
-	private static MAX_DISPLAYED_RESULTS = 1024;
+	private static MAX_DISPLAYED_RESULTS = 512;
 
-	private openSymbolHandler: _OpenSymbolHandler;
+	private openSymbolHandler: OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;
 	private resultsToSearchCache: { [searchValue: string]: QuickOpenEntry[]; };
 	private delayer: ThrottledDelayer<QuickOpenModel>;
 	private pendingSearch: TPromise<QuickOpenModel>;
 	private isClosed: boolean;
-	private scorerCache: {[key: string]: number};
-	private fuzzyMatchingEnabled: boolean;
-	private configurationListenerUnbind: ListenerUnbind;
+	private scorerCache: { [key: string]: number };
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
@@ -58,32 +61,23 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		super();
 
 		// Instantiate delegate handlers
-		this.openSymbolHandler = instantiationService.createInstance(_OpenSymbolHandler);
+		this.openSymbolHandler = instantiationService.createInstance(OpenSymbolHandler);
 		this.openFileHandler = instantiationService.createInstance(OpenFileHandler);
 
 		this.openSymbolHandler.setStandalone(false);
-		this.openFileHandler.setStandalone(false);
 
 		this.resultsToSearchCache = Object.create(null);
 		this.scorerCache = Object.create(null);
 		this.delayer = new ThrottledDelayer<QuickOpenModel>(OpenAnythingHandler.SEARCH_DELAY);
-
-		this.updateFuzzyMatching(contextService.getOptions().globalSettings.settings);
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this.configurationListenerUnbind = this.configurationService.addListener(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.updateFuzzyMatching(e.config));
-	}
-
-	private updateFuzzyMatching(configuration: ISearchConfiguration): void {
-		this.fuzzyMatchingEnabled = configuration.filePicker && configuration.filePicker.alternateFileNameMatching;
-		this.openFileHandler.setFuzzyMatchingEnabled(this.fuzzyMatchingEnabled);
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
+
+		// Help Windows users to search for paths when using slash
+		if (isWindows) {
+			searchValue = searchValue.replace(/\//g, '\\');
+		}
 
 		// Cancel any pending search
 		this.cancelPendingSearch();
@@ -97,16 +91,13 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		}
 
 		// Find a suitable range from the pattern looking for ":" and "#"
-		let range = this.findRange(searchValue);
-		if (range) {
-			let rangePrefix = searchValue.indexOf('#') >= 0 ? searchValue.indexOf('#') : searchValue.indexOf(':');
-			if (rangePrefix >= 0) {
-				searchValue = searchValue.substring(0, rangePrefix);
-			}
+		let searchWithRange = this.extractRange(searchValue);
+		if (searchWithRange) {
+			searchValue = searchWithRange.search; // ignore range portion in query
 		}
 
 		// Check Cache first
-		let cachedResults = this.getResultsFromCache(searchValue, range);
+		let cachedResults = this.getResultsFromCache(searchValue, searchWithRange ? searchWithRange.range : null);
 		if (cachedResults) {
 			return TPromise.as(new QuickOpenModel(cachedResults));
 		}
@@ -117,8 +108,8 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 			// Symbol Results (unless a range is specified)
 			let resultPromises: TPromise<QuickOpenModel>[] = [];
-			if (!range) {
-				let symbolSearchTimeoutPromiseFn: (timeout: number) => Promise = (timeout) => {
+			if (!searchWithRange) {
+				let symbolSearchTimeoutPromiseFn: (timeout: number) => TPromise<QuickOpenModel> = (timeout) => {
 					return TPromise.timeout(timeout).then(() => {
 
 						// As long as the file search query did not return, push out the symbol timeout
@@ -129,7 +120,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 						}
 
 						// Empty result since timeout was reached and file results are in
-						return Promise.as(new QuickOpenModel());
+						return TPromise.as(new QuickOpenModel());
 					});
 				};
 
@@ -137,11 +128,11 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				let timeoutPromise = symbolSearchTimeoutPromiseFn(OpenAnythingHandler.SYMBOL_SEARCH_INITIAL_TIMEOUT);
 
 				// Timeout lookup after N seconds to not block file search results
-				resultPromises.push(Promise.any([lookupPromise, timeoutPromise]).then((result) => {
+				resultPromises.push(TPromise.any([lookupPromise, timeoutPromise]).then((result) => {
 					return result.value;
 				}));
 			} else {
-				resultPromises.push(Promise.as(new QuickOpenModel())); // We need this empty promise because we are using the throttler below!
+				resultPromises.push(TPromise.as(new QuickOpenModel())); // We need this empty promise because we are using the throttler below!
 			}
 
 			// File Results
@@ -164,12 +155,13 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				let result = [...results[0].entries, ...results[1].entries];
 
 				// Sort
-				result.sort((elementA, elementB) => this.sort(elementA, elementB, searchValue, this.fuzzyMatchingEnabled));
+				const normalizedSearchValue = strings.stripWildcards(searchValue).toLowerCase();
+				result.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValue, this.scorerCache));
 
 				// Apply Range
 				result.forEach((element) => {
 					if (element instanceof FileEntry) {
-						(<FileEntry>element).setRange(range);
+						(<FileEntry>element).setRange(searchWithRange ? searchWithRange.range : null);
 					}
 				});
 
@@ -178,6 +170,14 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 				// Cap the number of results to make the view snappy
 				const viewResults = result.length > OpenAnythingHandler.MAX_DISPLAYED_RESULTS ? result.slice(0, OpenAnythingHandler.MAX_DISPLAYED_RESULTS) : result;
+
+				// Apply highlights to file entries
+				viewResults.forEach(entry => {
+					if (entry instanceof FileEntry) {
+						const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, true /* fuzzy highlight */);
+						entry.setHighlights(labelHighlights, descriptionHighlights);
+					}
+				});
 
 				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
 			}, (error: Error) => {
@@ -192,7 +192,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		return this.delayer.trigger(promiseFactory);
 	}
 
-	private findRange(value: string): IRange {
+	private extractRange(value: string): ISearchWithRange {
 		let range: IRange = null;
 
 		// Find Line/Column number from search value using RegExp
@@ -230,10 +230,20 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			}
 		}
 
-		return range;
+		if (range) {
+			return {
+				search: value.substr(0, patternMatch.index), // clear range suffix from search value
+				range: range
+			};
+		}
+
+		return null;
 	}
 
 	public getResultsFromCache(searchValue: string, range: IRange = null): QuickOpenEntry[] {
+		if (paths.isAbsolute(searchValue)) {
+			return null; // bypass cache if user looks up an absolute path where matching goes directly on disk
+		}
 
 		// Find cache entries by prefix of search value
 		let cachedEntries: QuickOpenEntry[];
@@ -256,7 +266,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 		// Pattern match on results and adjust highlights
 		let results: QuickOpenEntry[] = [];
-		const searchInPath = this.fuzzyMatchingEnabled || searchValue.indexOf(paths.nativeSep) >= 0;
+		const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
 		for (let i = 0; i < cachedEntries.length; i++) {
 			let entry = cachedEntries[i];
 
@@ -267,20 +277,16 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 			// Check if this entry is a match for the search value
 			const resource = entry.getResource(); // can be null for symbol results!
-			let targetToMatch = searchInPath && resource ? labels.getPathLabel(resource, this.contextService) : entry.getLabel();
-			if (!filters.matchesFuzzy(searchValue, targetToMatch, this.fuzzyMatchingEnabled)) {
+			let targetToMatch = resource ? labels.getPathLabel(resource, this.contextService) : entry.getLabel();
+			if (!scorer.matches(targetToMatch, normalizedSearchValueLowercase)) {
 				continue;
 			}
-
-			// Apply highlights
-			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, this.fuzzyMatchingEnabled);
-			entry.setHighlights(labelHighlights, descriptionHighlights);
 
 			results.push(entry);
 		}
 
 		// Sort
-		results.sort((elementA, elementB) => this.sort(elementA, elementB, searchValue, this.fuzzyMatchingEnabled));
+		results.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValueLowercase, this.scorerCache));
 
 		// Apply Range
 		results.forEach((element) => {
@@ -292,55 +298,13 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		// Cap the number of results to make the view snappy
 		const viewResults = results.length > OpenAnythingHandler.MAX_DISPLAYED_RESULTS ? results.slice(0, OpenAnythingHandler.MAX_DISPLAYED_RESULTS) : results;
 
+		// Apply highlights
+		viewResults.forEach(entry => {
+			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, true /* fuzzy highlight */);
+			entry.setHighlights(labelHighlights, descriptionHighlights);
+		});
+
 		return viewResults;
-	}
-
-	private sort(elementA: QuickOpenEntry, elementB: QuickOpenEntry, lookFor: string, enableFuzzyScoring): number {
-
-		// Fuzzy scoring is special
-		if (enableFuzzyScoring) {
-			const labelA = elementA.getLabel();
-			const labelB = elementB.getLabel();
-
-			// Give higher importance to label score
-			const labelAScore = scorer.score(labelA, lookFor, this.scorerCache);
-			const labelBScore = scorer.score(labelB, lookFor, this.scorerCache);
-
-			// Useful for understanding the scoring
-			// elementA.setPrefix(labelAScore + ' ');
-			// elementB.setPrefix(labelBScore + ' ');
-
-			if (labelAScore !== labelBScore) {
-				return labelAScore > labelBScore ? -1 : 1;
-			}
-
-			// Score on full resource path comes next (can be null for symbols!)
-			let resourceA = elementA.getResource();
-			let resourceB = elementB.getResource();
-			if (resourceA && resourceB) {
-				const resourceAScore = scorer.score(resourceA.fsPath, lookFor, this.scorerCache);
-				const resourceBScore = scorer.score(resourceB.fsPath, lookFor, this.scorerCache);
-
-				// Useful for understanding the scoring
-				// elementA.setPrefix(elementA.getPrefix() + ' ' + resourceAScore + ': ');
-				// elementB.setPrefix(elementB.getPrefix() + ' ' + resourceBScore + ': ');
-
-				if (resourceAScore !== resourceBScore) {
-					return resourceAScore > resourceBScore ? -1 : 1;
-				}
-			}
-
-			// At this place, the scores are identical so we check for string lengths and favor shorter ones
-			if (labelA.length !== labelB.length) {
-				return labelA.length < labelB.length ? -1 : 1;
-			}
-
-			if (resourceA && resourceB && resourceA.fsPath.length !== resourceB.fsPath.length) {
-				return resourceA.fsPath.length < resourceB.fsPath.length ? -1 : 1;
-			}
-		}
-
-		return QuickOpenEntry.compare(elementA, elementB, lookFor);
 	}
 
 	public getGroupLabel(): string {

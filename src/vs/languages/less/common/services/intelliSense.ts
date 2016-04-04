@@ -5,7 +5,6 @@
 'use strict';
 
 import languageFacts = require('vs/languages/css/common/services/languageFacts');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
 import cssIntellisense = require('vs/languages/css/common/services/intelliSense');
 import nls = require('vs/nls');

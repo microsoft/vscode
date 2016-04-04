@@ -7,9 +7,9 @@
 import nls = require('vs/nls');
 import ConfigurationRegistry = require('vs/platform/configuration/common/configurationRegistry');
 import Platform = require('vs/platform/platform');
-import modesExtensions = require('vs/editor/common/modes/modesRegistry');
+import {ModesRegistry} from 'vs/editor/common/modes/modesRegistry';
 
-modesExtensions.registerMode({
+ModesRegistry.registerCompatMode({
 	id: 'json',
 	extensions: ['.json', '.bowerrc', '.jshintrc', '.jscsrc', '.eslintrc'],
 	aliases: ['JSON', 'json'],
@@ -30,7 +30,7 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('jsonConfiguration.schemas', "Associate schemas to JSON files in the current project"),
 			'items': {
 				'type': 'object',
-				'default': { fileMatch: [ '{{/myfile}}' ], url: '{{schemaURL}}' },
+				'defaultSnippets': [{ body: { fileMatch: [ '{{/myfile}}' ], url: '{{schemaURL}}' } }],
 				'properties': {
 					'url': {
 						'type': 'string',

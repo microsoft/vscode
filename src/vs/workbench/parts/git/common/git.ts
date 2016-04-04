@@ -8,8 +8,7 @@ import WinJS = require('vs/base/common/winjs.base');
 import WorkbenchEditorCommon = require('vs/workbench/common/editor');
 import EventEmitter = require('vs/base/common/eventEmitter');
 import Lifecycle = require('vs/base/common/lifecycle');
-import output = require('vs/workbench/parts/output/common/output');
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation'
+import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
 
 // Model raw interfaces
 
@@ -109,7 +108,7 @@ export interface IStatusGroup extends EventEmitter.IEventEmitter {
 	getType(): StatusType;
 	update(statusList: IFileStatus[]): void;
 	all(): IFileStatus[];
-	find(path: string): IFileStatus
+	find(path: string): IFileStatus;
 }
 
 export interface IStatusSummary {
@@ -259,6 +258,7 @@ export interface IPushOptions {
 }
 
 export interface IRawGitService {
+	getVersion(): WinJS.TPromise<string>;
 	serviceState(): WinJS.TPromise<RawServiceState>;
 	status(): WinJS.TPromise<IRawStatus>;
 	init(): WinJS.TPromise<IRawStatus>;

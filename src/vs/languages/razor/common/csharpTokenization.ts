@@ -5,11 +5,9 @@
 'use strict';
 
 import objects = require('vs/base/common/objects');
-import EditorCommon = require('vs/editor/common/editorCommon');
 import Modes = require('vs/editor/common/modes');
-import modesExtensions = require('vs/editor/common/modes/modesRegistry');
 import htmlMode = require('vs/languages/html/common/html');
-import VSXML = require('vs/languages/vsxml/common/vsxml');
+import VSXML = require('vs/languages/razor/common/vsxml');
 import {AbstractState} from 'vs/editor/common/modes/abstractState';
 import {isDigit} from 'vs/editor/common/modes/abstractMode';
 import razorTokenTypes = require('vs/languages/razor/common/razorTokenTypes');
@@ -23,16 +21,14 @@ var whitespace = '\t ';
 var brackets = (function() {
 
 	let bracketsSource = [
-		{ tokenType:'punctuation.bracket.cs', open: '{', close: '}', isElectric: true },
-		{ tokenType:'punctuation.array.cs', open: '[', close: ']', isElectric: true },
-		{ tokenType:'punctuation.parenthesis.cs', open: '(', close: ')', isElectric: true },
-		{ tokenType:'punctuation.angle.cs', open: '<', close: '>', isElectric: false }
+		{ tokenType:'punctuation.bracket.cs', open: '{', close: '}' },
+		{ tokenType:'punctuation.array.cs', open: '[', close: ']' },
+		{ tokenType:'punctuation.parenthesis.cs', open: '(', close: ')' }
 	];
 
 	let MAP: {
 		[text:string]:{
 			tokenType: string;
-			bracketType: Modes.Bracket
 		}
 	} = Object.create(null);
 
@@ -40,11 +36,9 @@ var brackets = (function() {
 		let bracket = bracketsSource[i];
 		MAP[bracket.open] = {
 			tokenType: bracket.tokenType,
-			bracketType: Modes.Bracket.Open
 		};
 		MAP[bracket.close] = {
 			tokenType: bracket.tokenType,
-			bracketType: Modes.Bracket.Close
 		};
 	}
 
@@ -53,10 +47,7 @@ var brackets = (function() {
 			return !!MAP[text];
 		},
 		tokenTypeFromString: (text:string): string => {
-			return MAP[text].tokenType
-		},
-		bracketTypeFromString: (text:string): Modes.Bracket => {
-			return MAP[text].bracketType
+			return MAP[text].tokenType;
 		}
 	};
 })();
@@ -72,7 +63,7 @@ var isKeyword = objects.createKeywordMatcher([
 	'float', 'for', 'foreach', 'from',
 	'goto',	'group', 'if', 'implicit',
 	'in', 'int', 'interface', 'internal',
-	'into', 'is', 'lock', 'long',
+	'into', 'is', 'lock', 'long', 'nameof',
 	'new', 'null', 'namespace', 'object',
 	'operator', 'out', 'override', 'orderby',
 	'params', 'private', 'protected', 'public',
@@ -82,7 +73,7 @@ var isKeyword = objects.createKeywordMatcher([
 	'select', 'this', 'throw', 'true',
 	'try', 'typeof', 'uint', 'ulong',
 	'unchecked', 'unsafe', 'ushort', 'using',
-	'var', 'virtual', 'volatile', 'void',
+	'var', 'virtual', 'volatile', 'void', 'when',
 	'while', 'where', 'yield',
 	'model', 'inject' // Razor specific
 ]);
@@ -411,7 +402,6 @@ export class CSStatement extends CSState implements VSXML.IVSXMLWrapperState {
 		if (brackets.stringIsBracket(token)) {
 
 			var tr: Modes.ITokenizationResult = {
-				bracket: brackets.bracketTypeFromString(token),
 				type: brackets.tokenTypeFromString(token),
 				nextState: nextStateAtEnd
 			};
@@ -471,9 +461,6 @@ export class CSStatement extends CSState implements VSXML.IVSXMLWrapperState {
 	}
 }
 
-// list of empty elements - for performance reasons we won't open a bracket for them
-var emptyElements:string[] = ['area','base','basefont','br','col','frame','hr','img','input','isindex','link','meta','param'];
-
 // this state always returns to parent state if it leaves a html tag
 class CSSimpleHTML extends CSState {
 	private state:htmlMode.States;
@@ -505,7 +492,7 @@ class CSSimpleHTML extends CSState {
 				}
 				if (stream.advanceIfString('-->').length > 0) {
 					this.state = htmlMode.States.Content;
-					return { type: htmlTokenTypes.DELIM_COMMENT, bracket: Modes.Bracket.Close, nextState: this.parent };
+					return { type: htmlTokenTypes.DELIM_COMMENT, nextState: this.parent };
 				}
 				break;
 
@@ -515,51 +502,51 @@ class CSSimpleHTML extends CSState {
 				}
 				if (stream.advanceIfString('>').length > 0) {
 					this.state = htmlMode.States.Content;
-					return { type: htmlTokenTypes.DELIM_DOCTYPE, bracket: Modes.Bracket.Close, nextState: this.parent };
+					return { type: htmlTokenTypes.DELIM_DOCTYPE, nextState: this.parent };
 				}
 				break;
 
 			case htmlMode.States.Content:
 				if (stream.advanceIfString('!--').length > 0){
 					this.state = htmlMode.States.WithinComment;
-					return { type: htmlTokenTypes.DELIM_COMMENT, bracket: Modes.Bracket.Open };
+					return { type: htmlTokenTypes.DELIM_COMMENT };
 				}
 				if (stream.advanceIfRegExp(/!DOCTYPE/i).length > 0) {
 					this.state = htmlMode.States.WithinDoctype;
-					return { type: htmlTokenTypes.DELIM_DOCTYPE, bracket: Modes.Bracket.Open };
+					return { type: htmlTokenTypes.DELIM_DOCTYPE };
 				}
 				if (stream.advanceIfString('/').length > 0){
 					this.state = htmlMode.States.OpeningEndTag;
-					return { type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Open };
+					return { type: htmlTokenTypes.DELIM_END };
 				}
 				this.state = htmlMode.States.OpeningStartTag;
-				return { type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Open };
+				return { type: htmlTokenTypes.DELIM_START };
 
-			case htmlMode.States.OpeningEndTag:
-				var tagName = this.nextName(stream);
+			case htmlMode.States.OpeningEndTag: {
+				let tagName = this.nextName(stream);
 				if (tagName.length > 0) {
 					return {
-						type: htmlTokenTypes.getTag(tagName),
-						bracket: emptyElements.indexOf(tagName) !== -1 ? -1 : Modes.Bracket.Close
+						type: htmlTokenTypes.getTag(tagName)
 					};
 				}
 				if (stream.advanceIfString('>').length > 0) {
 					this.state = htmlMode.States.Content;
-					return { type: htmlTokenTypes.DELIM_END, bracket: Modes.Bracket.Close, nextState: this.parent };
+					return { type: htmlTokenTypes.DELIM_END, nextState: this.parent };
 				}
 				stream.advanceUntil('>', false);
 				return { type: '' };
+			}
 
-			case htmlMode.States.OpeningStartTag:
-				var tagName = this.nextName(stream);
+			case htmlMode.States.OpeningStartTag: {
+				let tagName = this.nextName(stream);
 				if (tagName.length > 0) {
 					this.state = htmlMode.States.WithinTag;
 					return {
-						type: htmlTokenTypes.getTag(tagName),
-						bracket: emptyElements.indexOf(tagName) !== -1 ? -1 : Modes.Bracket.Open
+						type: htmlTokenTypes.getTag(tagName)
 					};
 				}
 				break;
+			}
 
 			case htmlMode.States.WithinTag:
 				if (stream.skipWhitespace().length > 0) {
@@ -572,7 +559,7 @@ class CSSimpleHTML extends CSState {
 				}
 				if (stream.advanceIfRegExp(/^\/?>/).length > 0) {
 					this.state = htmlMode.States.Content;
-					return { type: htmlTokenTypes.DELIM_START, bracket: Modes.Bracket.Close, nextState: this.parent };
+					return { type: htmlTokenTypes.DELIM_START, nextState: this.parent };
 				}
 				stream.next();
 				return { type: '' };

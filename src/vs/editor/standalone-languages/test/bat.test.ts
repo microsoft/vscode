@@ -5,15 +5,10 @@
 
 'use strict';
 
-import languageDef = require('vs/editor/standalone-languages/bat');
-import T = require('vs/editor/standalone-languages/test/testUtil');
+import {language} from 'vs/editor/standalone-languages/bat';
+import {testOnEnter, testTokenization} from 'vs/editor/standalone-languages/test/testUtil';
 
-var Bracket = {
-	Open: 1,
-	Close: -1
-};
-
-T.testTokenization('bat', languageDef.language, [
+testTokenization('bat', language, [
 	// support.functions
 	[{
 	line: '@echo off title Selfhost',
@@ -338,7 +333,7 @@ T.testTokenization('bat', languageDef.language, [
 	]}]
 ]);
 
-T.testOnEnter('bat', languageDef.language, (assertOnEnter) => {
+testOnEnter('bat', language, (assertOnEnter) => {
 	assertOnEnter.nothing('', ' a', '');
 	assertOnEnter.indents('', ' {', '');
 	assertOnEnter.indents('', '( ', '');

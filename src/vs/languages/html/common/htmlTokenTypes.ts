@@ -13,8 +13,8 @@ export const ATTRIB_NAME = 'entity.other.attribute-name.html';
 export const ATTRIB_VALUE = 'string.html';
 export const COMMENT = 'comment.html.content';
 export const DELIM_COMMENT = 'comment.html';
-export const DOCTYPE = 'storage.content.html';
-export const DELIM_DOCTYPE = 'storage.html';
+export const DOCTYPE = 'entity.other.attribute-name.html';
+export const DELIM_DOCTYPE = 'entity.name.tag.html';
 
 const TAG_PREFIX = 'entity.name.tag.tag-';
 

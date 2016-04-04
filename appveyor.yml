@@ -11,4 +11,4 @@ build_script:
   - gulp compile
 
 test_script:
-  - mocha
+  - .\scripts\test.bat

@@ -4,35 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Platform = require('vs/platform/platform');
-import Errors = require('vs/base/common/errors');
-import Strings = require('vs/base/common/strings');
-import config = require('vs/editor/common/config/config');
-import {IInstantiationService, INewConstructorSignature1} from 'vs/platform/instantiation/common/instantiation';
+import {IInstantiationService, IConstructorSignature1} from 'vs/platform/instantiation/common/instantiation';
+import {Registry} from 'vs/platform/platform';
+import {IEditorContribution} from 'vs/editor/common/editorCommon';
+import {ICodeEditor, IEditorContributionDescriptor, ISimpleEditorContributionCtor} from 'vs/editor/browser/editorBrowser';
 
 export namespace EditorBrowserRegistry {
 	// --- Editor Contributions
-	export function registerEditorContribution(ctor:EditorBrowser.ISimpleEditorContributionCtor): void {
-		(<EditorContributionRegistry>Platform.Registry.as(Extensions.EditorContributions)).registerEditorBrowserContribution(ctor);
+	export function registerEditorContribution(ctor:ISimpleEditorContributionCtor): void {
+		(<EditorContributionRegistry>Registry.as(Extensions.EditorContributions)).registerEditorBrowserContribution(ctor);
 	}
-	export function getEditorContributions(): EditorBrowser.IEditorContributionDescriptor[] {
-		return (<EditorContributionRegistry>Platform.Registry.as(Extensions.EditorContributions)).getEditorBrowserContributions();
+	export function getEditorContributions(): IEditorContributionDescriptor[] {
+		return (<EditorContributionRegistry>Registry.as(Extensions.EditorContributions)).getEditorBrowserContributions();
 	}
 }
 
-class SimpleEditorContributionDescriptor implements EditorBrowser.IEditorContributionDescriptor {
-	private _ctor:EditorBrowser.ISimpleEditorContributionCtor;
+class SimpleEditorContributionDescriptor implements IEditorContributionDescriptor {
+	private _ctor:ISimpleEditorContributionCtor;
 
-	constructor(ctor:EditorBrowser.ISimpleEditorContributionCtor) {
+	constructor(ctor:ISimpleEditorContributionCtor) {
 		this._ctor = ctor;
 	}
 
-	public createInstance(instantiationService:IInstantiationService, editor:EditorBrowser.ICodeEditor): EditorCommon.IEditorContribution {
+	public createInstance(instantiationService:IInstantiationService, editor:ICodeEditor): IEditorContribution {
 		// cast added to help the compiler, can remove once IConstructorSignature1 has been removed
-		return instantiationService.createInstance(<INewConstructorSignature1<EditorBrowser.ICodeEditor, EditorCommon.IEditorContribution>> this._ctor, editor);
+		return instantiationService.createInstance(<IConstructorSignature1<ICodeEditor, IEditorContribution>> this._ctor, editor);
 	}
 }
 
@@ -43,19 +39,19 @@ var Extensions = {
 
 class EditorContributionRegistry {
 
-	private editorContributions: EditorBrowser.IEditorContributionDescriptor[];
+	private editorContributions: IEditorContributionDescriptor[];
 
 	constructor() {
 		this.editorContributions = [];
 	}
 
-	public registerEditorBrowserContribution(ctor:EditorBrowser.ISimpleEditorContributionCtor): void {
+	public registerEditorBrowserContribution(ctor:ISimpleEditorContributionCtor): void {
 		this.editorContributions.push(new SimpleEditorContributionDescriptor(ctor));
 	}
 
-	public getEditorBrowserContributions(): EditorBrowser.IEditorContributionDescriptor[] {
+	public getEditorBrowserContributions(): IEditorContributionDescriptor[] {
 		return this.editorContributions.slice(0);
 	}
 }
 
-Platform.Registry.add(Extensions.EditorContributions, new EditorContributionRegistry());
+Registry.add(Extensions.EditorContributions, new EditorContributionRegistry());

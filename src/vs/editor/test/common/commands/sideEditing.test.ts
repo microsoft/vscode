@@ -4,21 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import {Model} from 'vs/editor/common/model/model';
+import * as assert from 'assert';
+import {Cursor} from 'vs/editor/common/controller/cursor';
+import {EditOperation} from 'vs/editor/common/core/editOperation';
+import {Position} from 'vs/editor/common/core/position';
 import {Range} from 'vs/editor/common/core/range';
 import {Selection} from 'vs/editor/common/core/selection';
-import {Position} from 'vs/editor/common/core/position';
-import {Cursor} from 'vs/editor/common/controller/cursor';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {IMode} from 'vs/editor/common/modes';
-import {CommonEditorConfiguration, ICSSConfig} from 'vs/editor/common/config/commonEditorConfig';
-import {MockConfiguration} from 'vs/editor/test/common/commands/commandTestUtils';
-import {EditOperation} from 'vs/editor/common/core/editOperation';
-import {ModelLine, ILineEdit} from 'vs/editor/common/model/modelLine';
+import {IIdentifiedSingleEditOperation} from 'vs/editor/common/editorCommon';
+import {Model} from 'vs/editor/common/model/model';
+import {ILineEdit, ModelLine} from 'vs/editor/common/model/modelLine';
+import {MockConfiguration} from 'vs/editor/test/common/mocks/mockConfiguration';
 
-function testCommand(lines:string[], selection:Selection, edits:EditorCommon.IIdentifiedSingleEditOperation[], expectedLines:string[], expectedSelection:Selection): void {
-	let model = new Model(lines.join('\n'), null);
+function testCommand(lines:string[], selection:Selection, edits:IIdentifiedSingleEditOperation[], expectedLines:string[], expectedSelection:Selection): void {
+	let model = new Model(lines.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
 	let config = new MockConfiguration(null);
 	let cursor = new Cursor(0, config, model, null, false);
 
@@ -149,6 +147,22 @@ suite('Editor Side Editing - collapsed selection', () => {
 				'fourth'
 			],
 			new Selection(2,5,2,5)
+		);
+	});
+
+	test('issue #3994: replace on top of selection', () => {
+		testCommand(
+			[
+				'$obj = New-Object "system.col"'
+			],
+			new Selection(1,30,1,30),
+			[
+				EditOperation.replaceMove(new Range(1,19,1,31), '"System.Collections"')
+			],
+			[
+				'$obj = New-Object "System.Collections"'
+			],
+			new Selection(1,39,1,39)
 		);
 	});
 

@@ -6,7 +6,6 @@
 'use strict';
 
 import cp = require('child_process');
-import paths = require('path');
 
 import {FileChangeType} from 'vs/platform/files/common/files';
 import decoder = require('vs/base/node/decoder');

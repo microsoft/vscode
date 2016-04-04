@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import HoverOperation = require('./hoverOperation');
-import HoverWidget = require('./hoverWidgets');
+import {IModelDecoration, IRange} from 'vs/editor/common/editorCommon';
+import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
+import {HoverOperation, IHoverComputer} from './hoverOperation';
+import {GlyphHoverWidget} from './hoverWidgets';
 
 export interface IHoverMessage {
 	value?: string;
-	range?: EditorCommon.IRange;
+	range?: IRange;
 	className?: string;
 }
 
-class MarginComputer implements HoverOperation.IHoverComputer<IHoverMessage[]> {
+class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 
-	private _editor: EditorBrowser.ICodeEditor;
+	private _editor: ICodeEditor;
 	private _lineNumber: number;
 	private _result: IHoverMessage[];
 
-	constructor(editor:EditorBrowser.ICodeEditor) {
+	constructor(editor:ICodeEditor) {
 		this._editor = editor;
 		this._lineNumber = -1;
 	}
@@ -40,7 +40,7 @@ class MarginComputer implements HoverOperation.IHoverComputer<IHoverMessage[]> {
 			lineDecorations = this._editor.getLineDecorations(this._lineNumber),
 			i: number,
 			len: number,
-			d: EditorCommon.IModelDecoration;
+			d: IModelDecoration;
 
 		for (i = 0, len = lineDecorations.length; i < len; i++) {
 			d = lineDecorations[i];
@@ -68,23 +68,23 @@ class MarginComputer implements HoverOperation.IHoverComputer<IHoverMessage[]> {
 	}
 }
 
-export class ModesGlyphHoverWidget extends HoverWidget.GlyphHoverWidget {
+export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 
 	static ID = 'editor.contrib.modesGlyphHoverWidget';
 	private _messages: IHoverMessage[];
 	private _lastLineNumber: number;
 
 	private _computer: MarginComputer;
-	private _hoverOperation: HoverOperation.HoverOperation<IHoverMessage[]>;
+	private _hoverOperation: HoverOperation<IHoverMessage[]>;
 
-	constructor(editor: EditorBrowser.ICodeEditor) {
+	constructor(editor: ICodeEditor) {
 		super(ModesGlyphHoverWidget.ID, editor);
 
-		this._lastLineNumber === -1;
+		this._lastLineNumber = -1;
 
 		this._computer = new MarginComputer(this._editor);
 
-		this._hoverOperation = new HoverOperation.HoverOperation(
+		this._hoverOperation = new HoverOperation(
 			this._computer,
 			(result:IHoverMessage[]) => this._withResult(result),
 			null,

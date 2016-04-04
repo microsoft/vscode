@@ -4,133 +4,181 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
-import platform = require('vs/platform/platform');
+import Event, {Emitter} from 'vs/base/common/event';
+import {IDisposable} from 'vs/base/common/lifecycle';
+import {TPromise} from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import ts = require('vs/languages/typescript/common/lib/typescriptServices');
-import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
+import {notImplemented} from 'vs/base/common/errors';
+import {IRequestHandler} from 'vs/base/common/worker/simpleWorker';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import * as ts from 'vs/languages/typescript/common/lib/typescriptServices';
 
-export enum ChangeKind {
-	Changed,
-	Added,
-	Removed
+// --- TypeScript configuration and defaults ---------
+
+export interface DiagnosticsOptions {
+	noSemanticValidation?: boolean;
+	noSyntaxValidation?: boolean;
 }
 
-export interface IProjectChange {
-	kind: ChangeKind;
-	resource: URI;
-	files: URI[];
-	options: ts.CompilerOptions;
-}
+export class LanguageServiceDefaults {
 
-export interface IFileChange {
-	kind: ChangeKind;
-	resource: URI;
-	content: string;
-}
+	private _onDidChange = new Emitter<LanguageServiceDefaults>();
+	private _extraLibs: { [path: string]: string };
+	private _compilerOptions: ts.CompilerOptions;
+	private _diagnosticsOptions: DiagnosticsOptions;
 
-export interface IProjectConsumer {
-	acceptProjectChanges(changes: IProjectChange[]): winjs.TPromise<{[dirname:string]:URI}>;
-	acceptFileChanges(changes: IFileChange[]): winjs.TPromise<boolean>;
-}
-
-export interface IProjectResolver2 {
-	setConsumer(consumer: IProjectConsumer): void;
-	resolveProjects(): winjs.TPromise<any>;
-	resolveFiles(resources: URI[]): winjs.TPromise<any>;
-}
-
-export var defaultLib = URI.create('ts', 'defaultlib', '/vs/text!vs/languages/typescript/common/lib/lib.d.ts');
-export var defaultLibES6 = URI.create('ts', 'defaultlib', '/vs/text!vs/languages/typescript/common/lib/lib.es6.d.ts');
-
-export function isDefaultLib(uri: URI|string): boolean {
-	if (typeof uri === 'string') {
-		return uri.indexOf('ts://defaultlib') === 0;
-	} else {
-		return uri.scheme === 'ts' && uri.authority === 'defaultlib'
-	}
-}
-
-export var virtualProjectResource = URI.create('ts', 'projects', '/virtual/1');
-
-export class DefaultProjectResolver implements IProjectResolver2 {
-
-	private _consumer: IProjectConsumer;
-	private _needsProjectUpdate = false;
-	private _fileChanges:IFileChange[] = [];
-	private _projectChange:IProjectChange = {
-		kind: ChangeKind.Changed,
-		resource: virtualProjectResource,
-		files: [],
-		options: undefined
-	};
-
-	setConsumer(consumer: IProjectConsumer) {
-		this._consumer = consumer;
+	constructor(compilerOptions: ts.CompilerOptions, diagnosticsOptions: DiagnosticsOptions) {
+		this._extraLibs = Object.create(null);
+		this.setCompilerOptions(compilerOptions);
+		this.setDiagnosticsOptions(diagnosticsOptions);
 	}
 
-	resolveProjects(): winjs.TPromise<any> {
-		let promises:winjs.Promise[] = [];
-		if(this._fileChanges.length) {
-			promises.push(this._consumer.acceptFileChanges(this._fileChanges.slice(0)));
-			this._fileChanges.length = 0;
+	get onDidChange(): Event<LanguageServiceDefaults>{
+		return this._onDidChange.event;
+	}
+
+	get extraLibs(): { [path: string]: string } {
+		return Object.freeze(this._extraLibs);
+	}
+
+	addExtraLib(content: string, filePath?: string): IDisposable {
+		if (typeof filePath === 'undefined') {
+			filePath = `ts:extralib-${Date.now()}`;
 		}
-		if(this._needsProjectUpdate) {
-			promises.push(this._consumer.acceptProjectChanges([this._projectChange]));
-			this._needsProjectUpdate = false;
+
+		if (this._extraLibs[filePath]) {
+			throw new Error(`${filePath} already a extra lib`);
 		}
-		return winjs.Promise.join(promises);
+
+		this._extraLibs[filePath] = content;
+		this._onDidChange.fire(this);
+
+		return {
+			dispose: () => {
+				if (delete this._extraLibs[filePath]) {
+					this._onDidChange.fire(this);
+				}
+			}
+		};
 	}
 
-	resolveFiles(): winjs.TPromise<any> {
-		return undefined;
-	}
-
-	addExtraLib(content: string, filePath?: string): void {
-
-		let resource = filePath
-			? URI.file(filePath)
-			: URI.create('extralib', undefined, Date.now().toString());
-
-		this._needsProjectUpdate = true;
-		this._projectChange.files.push(resource);
-		this._fileChanges.push({ kind: ChangeKind.Added, resource, content });
+	get compilerOptions(): ts.CompilerOptions {
+		return this._compilerOptions;
 	}
 
 	setCompilerOptions(options: ts.CompilerOptions): void {
-		this._needsProjectUpdate = true;
-		this._projectChange.options = options;
+		this._compilerOptions = options || Object.create(null);
+		this._onDidChange.fire(this);
+	}
+
+	get diagnosticsOptions(): DiagnosticsOptions {
+		return this._diagnosticsOptions;
+	}
+
+	setDiagnosticsOptions(options: DiagnosticsOptions): void {
+		this._diagnosticsOptions = options || Object.create(null);
+		this._onDidChange.fire(this);
 	}
 }
 
-export namespace Defaults {
+export const typeScriptDefaults = new LanguageServiceDefaults(
+	{ allowNonTsExtensions: true, target: ts.ScriptTarget.Latest },
+	{ noSemanticValidation: false, noSyntaxValidation: false });
 
-	export const ProjectResolver = new DefaultProjectResolver();
+export const javaScriptDefaults = new LanguageServiceDefaults(
+	{ allowNonTsExtensions: true, allowJs: true, target: ts.ScriptTarget.Latest },
+	{ noSemanticValidation: true, noSyntaxValidation: false });
 
-	export function addExtraLib(content: string, filePath?:string): void {
-		ProjectResolver.addExtraLib(content, filePath);
-	}
 
-	export function setCompilerOptions(options: ts.CompilerOptions): void {
-		ProjectResolver.setCompilerOptions(options);
-	}
+// --- TypeScript worker protocol ---------
+
+export interface LanguageServiceMode {
+	getLanguageServiceWorker(...resources: URI[]): TPromise<TypeScriptWorkerProtocol>;
 }
 
-// ----- TypeScript extension ---------------------------------------------------------------
+export interface IRawModelData {
+	url:string;
+	versionId:number;
+	value:editorCommon.IRawText;
+}
 
-export namespace Extensions {
+export abstract class TypeScriptWorkerProtocol implements IRequestHandler {
 
-	export var Identifier = 'typescript';
+	_requestHandlerTrait: any;
 
-	platform.Registry.add(Identifier, Extensions);
+	// --- model sync
 
-	var projectResolver: AsyncDescriptor<IProjectResolver2>;
-
-	export function setProjectResolver(desc: AsyncDescriptor<IProjectResolver2>): void {
-		projectResolver = desc;
+	acceptNewModel(data: IRawModelData): void {
+		throw notImplemented();
 	}
 
-	export function getProjectResolver(): AsyncDescriptor<IProjectResolver2> {
-		return projectResolver;
+	acceptModelChanged(uri: string, events: editorCommon.IModelContentChangedEvent2[]): void {
+		throw notImplemented();
+	}
+
+	acceptRemovedModel(uri: string): void {
+		throw notImplemented();
+	}
+
+	acceptDefaults(options: ts.CompilerOptions, extraLibs: { [path: string]: string }): TPromise<void> {
+		throw notImplemented();
+	}
+
+	// --- language features
+
+	getSyntacticDiagnostics(fileName: string): TPromise<ts.Diagnostic[]> {
+		throw notImplemented();
+	}
+
+	getSemanticDiagnostics(fileName: string): TPromise<ts.Diagnostic[]> {
+		throw notImplemented();
+	}
+
+	getCompletionsAtPosition(uri: string, offset: number): TPromise<ts.CompletionInfo> {
+		throw notImplemented();
+	}
+
+	getCompletionEntryDetails(fileName: string, position: number, entry: string): TPromise<ts.CompletionEntryDetails> {
+		throw notImplemented();
+	}
+
+	getSignatureHelpItems(fileName: string, position:number): TPromise<ts.SignatureHelpItems> {
+		throw notImplemented();
+	}
+
+	getQuickInfoAtPosition(fileName: string, position: number): TPromise<ts.QuickInfo> {
+		throw notImplemented();
+	}
+
+	getOccurrencesAtPosition(fileName: string, position: number): TPromise<ts.ReferenceEntry[]> {
+		throw notImplemented();
+	}
+
+	getDefinitionAtPosition(fileName: string, position: number): TPromise<ts.DefinitionInfo[]> {
+		throw notImplemented();
+	}
+
+	getReferencesAtPosition(fileName: string, position: number): TPromise<ts.ReferenceEntry[]> {
+		throw notImplemented();
+	}
+
+	getNavigationBarItems(fileName: string): TPromise<ts.NavigationBarItem[]> {
+		throw notImplemented();
+	}
+
+	getFormattingEditsForDocument(fileName: string, options: ts.FormatCodeOptions): TPromise<ts.TextChange[]> {
+		throw notImplemented();
+	}
+
+	getFormattingEditsForRange(fileName: string, start: number, end: number, options: ts.FormatCodeOptions): TPromise<ts.TextChange[]> {
+		throw notImplemented();
+	}
+
+	getFormattingEditsAfterKeystroke(fileName: string, postion: number, ch: string, options: ts.FormatCodeOptions): TPromise<ts.TextChange[]> {
+		throw notImplemented();
+	}
+
+	getEmitOutput(fileName: string): TPromise<ts.EmitOutput> {
+		throw notImplemented();
 	}
 }

@@ -123,7 +123,7 @@ export class Client implements IDisposable {
 
 			this.child = cp.fork(this.modulePath, args, forkOpts);
 			this._client = new IPCClient({
-				send: r => this.child.connected && this.child.send(r),
+				send: r => this.child && this.child.connected && this.child.send(r),
 				onMessage: cb => {
 					this.child.on('message', (msg) => {
 

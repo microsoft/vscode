@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import Lifecycle = require('vs/base/common/lifecycle');
-import Snippet = require('vs/editor/contrib/snippet/common/snippet');
-import { SuggestWidget } from './suggestWidget';
-import { SuggestModel } from './suggestModel';
-import Errors = require('vs/base/common/errors');
-import { TPromise } from 'vs/base/common/winjs.base';
-import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
-import { CommonEditorRegistry, ContextKey, EditorActionDescriptor } from 'vs/editor/common/editorCommonExtensions';
-import { EditorAction, Behaviour } from 'vs/editor/common/editorAction';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import { IKeybindingService, IKeybindingContextKey } from 'vs/platform/keybinding/common/keybindingService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { SuggestRegistry, ACCEPT_SELECTED_SUGGESTION_CMD, CONTEXT_SUGGEST_WIDGET_VISIBLE } from 'vs/editor/contrib/suggest/common/suggest';
-import { IInstantiationService, INullService } from 'vs/platform/instantiation/common/instantiation';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import * as nls from 'vs/nls';
+import {onUnexpectedError} from 'vs/base/common/errors';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
+import {IDisposable, cAll, dispose} from 'vs/base/common/lifecycle';
+import {TPromise} from 'vs/base/common/winjs.base';
+import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import {IKeybindingContextKey, IKeybindingService, KbExpr} from 'vs/platform/keybinding/common/keybindingService';
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {EventType, ICommonCodeEditor, IEditorActionDescriptorData, IEditorContribution, IModeSupportChangedEvent} from 'vs/editor/common/editorCommon';
+import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
+import {ISuggestSupport} from 'vs/editor/common/modes';
+import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
+import {EditorBrowserRegistry} from 'vs/editor/browser/editorBrowserExtensions';
+import {getSnippetController} from 'vs/editor/contrib/snippet/common/snippet';
+import {ACCEPT_SELECTED_SUGGESTION_CMD, CONTEXT_SUGGEST_WIDGET_VISIBLE, SuggestRegistry} from 'vs/editor/contrib/suggest/common/suggest';
+import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
+import {withCodeEditorFromCommandHandler} from 'vs/editor/common/config/config';
+import {SuggestModel} from './suggestModel';
+import {SuggestWidget} from './suggestWidget';
 
-export class SuggestController implements EditorCommon.IEditorContribution {
-	static ID = 'editor.contrib.suggestController';
+export class SuggestController implements IEditorContribution {
+	static ID: string = 'editor.contrib.suggestController';
 
-	static getSuggestController(editor:EditorCommon.ICommonCodeEditor): SuggestController {
+	static getSuggestController(editor: ICommonCodeEditor): SuggestController {
 		return <SuggestController>editor.getContribution(SuggestController.ID);
 	}
 
@@ -35,10 +35,10 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 	private widget: SuggestWidget;
 	private triggerCharacterListeners: Function[];
 	private suggestWidgetVisible: IKeybindingContextKey<boolean>;
-	private toDispose: Lifecycle.IDisposable[];
+	private toDispose: IDisposable[];
 
 	constructor(
-		private editor:EditorBrowser.ICodeEditor,
+		private editor: ICodeEditor,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
@@ -50,17 +50,17 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 
 		this.toDispose = [];
 		this.toDispose.push(this.widget.onDidVisibilityChange(visible => visible ? this.suggestWidgetVisible.set(true) : this.suggestWidgetVisible.reset()));
-		this.toDispose.push(editor.addListener2(EditorCommon.EventType.ConfigurationChanged, () => this.update()));
-		this.toDispose.push(editor.addListener2(EditorCommon.EventType.ModelChanged, () => this.update()));
-		this.toDispose.push(editor.addListener2(EditorCommon.EventType.ModelModeChanged, () => this.update()));
-		this.toDispose.push(editor.addListener2(EditorCommon.EventType.ModelModeSupportChanged, (e: EditorCommon.IModeSupportChangedEvent) => {
+		this.toDispose.push(editor.addListener2(EventType.ConfigurationChanged, () => this.update()));
+		this.toDispose.push(editor.addListener2(EventType.ModelChanged, () => this.update()));
+		this.toDispose.push(editor.addListener2(EventType.ModelModeChanged, () => this.update()));
+		this.toDispose.push(editor.addListener2(EventType.ModelModeSupportChanged, (e: IModeSupportChangedEvent) => {
 			if (e.suggestSupport) {
 				this.update();
 			}
 		}));
 		this.toDispose.push(SuggestRegistry.onDidChange(this.update, this));
 
-		this.toDispose.push(this.model.onDidAccept(e => Snippet.get(this.editor).run(e.snippet, e.overwriteBefore, e.overwriteAfter)));
+		this.toDispose.push(this.model.onDidAccept(e => getSnippetController(this.editor).run(e.snippet, e.overwriteBefore, e.overwriteAfter)));
 
 		this.update();
 	}
@@ -70,8 +70,8 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 	}
 
 	public dispose(): void {
-		this.toDispose = Lifecycle.disposeAll(this.toDispose);
-		this.triggerCharacterListeners = Lifecycle.cAll(this.triggerCharacterListeners);
+		this.toDispose = dispose(this.toDispose);
+		this.triggerCharacterListeners = cAll(this.triggerCharacterListeners);
 
 		if (this.widget) {
 			this.widget.dispose();
@@ -85,7 +85,7 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 
 	private update(): void {
 
-		this.triggerCharacterListeners = Lifecycle.cAll(this.triggerCharacterListeners);
+		this.triggerCharacterListeners = cAll(this.triggerCharacterListeners);
 
 		if (this.editor.getConfiguration().readOnly
 			|| !this.editor.getModel()
@@ -99,11 +99,11 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 			return;
 		}
 
-		let triggerCharacters: { [ch: string]: Modes.ISuggestSupport[][] } = Object.create(null);
+		let triggerCharacters: { [ch: string]: ISuggestSupport[][] } = Object.create(null);
 
 		groups.forEach(group => {
 
-			let groupTriggerCharacters: { [ch: string]: Modes.ISuggestSupport[] } = Object.create(null);
+			let groupTriggerCharacters: { [ch: string]: ISuggestSupport[] } = Object.create(null);
 
 			group.forEach(support => {
 				let localTriggerCharacters = support.getTriggerCharacters();
@@ -133,21 +133,20 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 		});
 	}
 
-	private triggerCharacterHandler(character: string, groups: Modes.ISuggestSupport[][]): void {
-		var position = this.editor.getPosition();
-		var lineContext = this.editor.getModel().getLineContext(position.lineNumber);
-		var mode: Modes.IMode = this.editor.getModel().getMode();
+	private triggerCharacterHandler(character: string, groups: ISuggestSupport[][]): void {
+		const position = this.editor.getPosition();
+		const lineContext = this.editor.getModel().getLineContext(position.lineNumber);
 
 		groups = groups.map(supports => {
 			return supports.filter(support => support.shouldAutotriggerSuggest(lineContext, position.column - 1, character));
 		});
 
 		if (groups.length > 0) {
-			this.triggerSuggest(character, groups).done(null, Errors.onUnexpectedError);
+			this.triggerSuggest(character, groups).done(null, onUnexpectedError);
 		}
 	}
 
-	public triggerSuggest(triggerCharacter?: string, groups?: Modes.ISuggestSupport[][]): TPromise<boolean> {
+	public triggerSuggest(triggerCharacter?: string, groups?: ISuggestSupport[][]): TPromise<boolean> {
 		this.model.trigger(false, triggerCharacter, false, groups);
 		this.editor.focus();
 
@@ -160,7 +159,7 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 		}
 	}
 
-	public hideSuggestWidget(): void {
+	public cancelSuggestWidget(): void {
 		if (this.widget) {
 			this.widget.cancel();
 		}
@@ -189,13 +188,19 @@ export class SuggestController implements EditorCommon.IEditorContribution {
 			this.widget.selectPreviousPage();
 		}
 	}
+
+	public toggleSuggestionDetails(): void {
+		if (this.widget) {
+			this.widget.toggleDetails();
+		}
+	}
 }
 
 export class TriggerSuggestAction extends EditorAction {
 
-	static ID = 'editor.action.triggerSuggest';
+	static ID: string = 'editor.action.triggerSuggest';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor: IEditorActionDescriptorData, editor: ICommonCodeEditor) {
 		super(descriptor, editor);
 	}
 
@@ -203,12 +208,12 @@ export class TriggerSuggestAction extends EditorAction {
 		return SuggestRegistry.has(this.editor.getModel()) && !this.editor.getConfiguration().readOnly;
 	}
 
-	public run():TPromise<boolean> {
+	public run(): TPromise<boolean> {
 		return SuggestController.getSuggestController(this.editor).triggerSuggest();
 	}
 }
 
-var weight = CommonEditorRegistry.commandWeight(90);
+const weight = CommonEditorRegistry.commandWeight(90);
 
 // register action
 CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(TriggerSuggestAction, TriggerSuggestAction.ID, nls.localize('suggest.trigger.label', "Trigger Suggest"), {
@@ -216,28 +221,44 @@ CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(TriggerSugg
 	primary: KeyMod.CtrlCmd | KeyCode.Space,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
 }));
-CommonEditorRegistry.registerEditorCommand(ACCEPT_SELECTED_SUGGESTION_CMD, weight, { primary: KeyCode.Enter, secondary:[KeyCode.Tab] }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
-	var controller = SuggestController.getSuggestController(editor);
+CommonEditorRegistry.registerEditorCommand(ACCEPT_SELECTED_SUGGESTION_CMD, weight, { primary: KeyCode.Tab }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
+	const controller = SuggestController.getSuggestController(editor);
 	controller.acceptSelectedSuggestion();
 });
-CommonEditorRegistry.registerEditorCommand('hideSuggestWidget', weight, { primary: KeyCode.Escape }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
-	var controller = SuggestController.getSuggestController(editor);
-	controller.hideSuggestWidget();
+KeybindingsRegistry.registerCommandDesc({
+	id: 'acceptSelectedSuggestionOnEnter',
+	handler(accessor, args) {
+		withCodeEditorFromCommandHandler('acceptSelectedSuggestionOnEnter', accessor, args, (editor) => {
+			const controller = SuggestController.getSuggestController(editor);
+			controller.acceptSelectedSuggestion();
+		});
+	},
+	weight,
+	context: KbExpr.and(KbExpr.has(CONTEXT_SUGGEST_WIDGET_VISIBLE), KbExpr.has('config.editor.acceptSuggestionOnEnter')),
+	primary: KeyCode.Enter,
 });
-CommonEditorRegistry.registerEditorCommand('selectNextSuggestion', weight, { primary: KeyCode.DownArrow }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
-	var controller = SuggestController.getSuggestController(editor);
+CommonEditorRegistry.registerEditorCommand('hideSuggestWidget', weight, { primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape] }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
+	const controller = SuggestController.getSuggestController(editor);
+	controller.cancelSuggestWidget();
+});
+CommonEditorRegistry.registerEditorCommand('selectNextSuggestion', weight, { primary: KeyCode.DownArrow, secondary: [ KeyMod.Alt | KeyCode.DownArrow ] }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
+	const controller = SuggestController.getSuggestController(editor);
 	controller.selectNextSuggestion();
 });
-CommonEditorRegistry.registerEditorCommand('selectNextPageSuggestion', weight, { primary: KeyCode.PageDown }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
-	var controller = SuggestController.getSuggestController(editor);
+CommonEditorRegistry.registerEditorCommand('selectNextPageSuggestion', weight, { primary: KeyCode.PageDown, secondary: [ KeyMod.Alt | KeyCode.PageDown ] }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
+	const controller = SuggestController.getSuggestController(editor);
 	controller.selectNextPageSuggestion();
 });
-CommonEditorRegistry.registerEditorCommand('selectPrevSuggestion', weight, { primary: KeyCode.UpArrow }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
-	var controller = SuggestController.getSuggestController(editor);
+CommonEditorRegistry.registerEditorCommand('selectPrevSuggestion', weight, { primary: KeyCode.UpArrow, secondary: [ KeyMod.Alt | KeyCode.UpArrow ] }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
+	const controller = SuggestController.getSuggestController(editor);
 	controller.selectPrevSuggestion();
 });
-CommonEditorRegistry.registerEditorCommand('selectPrevPageSuggestion', weight, { primary: KeyCode.PageUp }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
-	var controller = SuggestController.getSuggestController(editor);
+CommonEditorRegistry.registerEditorCommand('selectPrevPageSuggestion', weight, { primary: KeyCode.PageUp, secondary: [ KeyMod.Alt | KeyCode.PageUp ] }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
+	const controller = SuggestController.getSuggestController(editor);
 	controller.selectPrevPageSuggestion();
+});
+CommonEditorRegistry.registerEditorCommand('toggleSuggestionDetails', weight, { primary: KeyMod.CtrlCmd | KeyCode.Space, mac: { primary: KeyMod.WinCtrl | KeyCode.Space } }, true, CONTEXT_SUGGEST_WIDGET_VISIBLE, (ctx, editor, args) => {
+	const controller = SuggestController.getSuggestController(editor);
+	controller.toggleSuggestionDetails();
 });
 EditorBrowserRegistry.registerEditorContribution(SuggestController);

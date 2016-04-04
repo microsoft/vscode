@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 var es = require('event-stream');
 var debounce = require('debounce');
 var filter = require('gulp-filter');
@@ -5,7 +10,6 @@ var azure = require('gulp-azure-storage');
 var rename = require('gulp-rename');
 var vzip = require('gulp-vinyl-zip');
 var util = require('gulp-util');
-var remote = require('gulp-remote-src');
 var _ = require('underscore');
 var path = require('path');
 var fs = require('fs');
@@ -248,34 +252,10 @@ exports.loadSourcemaps = function () {
 
 exports.rimraf = function(dir) {
 	return function (cb) {
-		rimraf(dir, cb);
+		rimraf(dir, {
+			maxBusyTries: 1
+		}, cb);
 	};
-};
-
-exports.downloadExtensions = function(extensions) {
-	var streams = Object.keys(extensions).map(function (fullName) {
-		var version = extensions[fullName];
-		var match = /^([^.]+)\.([^.]+)$/.exec(fullName);
-
-		if (!match) {
-			throw new Error('Bad extension: ' + fullName);
-		}
-
-		var publisher = match[1];
-		var name = match[2];
-		var url = 'https://' + publisher + '.gallery.vsassets.io/_apis/public/gallery/publisher/'
-			+ publisher + '/extension/' + name + '/' + version
-			+ '/assetbyname/Microsoft.VisualStudio.Services.VSIXPackage';
-
-		return remote(url, { base: '' })
-			.pipe(vzip.src())
-			.pipe(filter('extension/**'))
-			.pipe(rename(function (p) {
-				p.dirname = path.posix.join(fullName, p.dirname.replace(/^extension[/\\]?/, ''));
-			}));
-	});
-
-	return es.merge(streams);
 };
 
 exports.getVersion = function (root) {
@@ -286,4 +266,11 @@ exports.getVersion = function (root) {
 	}
 
 	return version;
+};
+
+exports.rebase = function (count) {
+	return rename(function (f) {
+		var parts = f.dirname.split(/[\/\\]/);
+		f.dirname = parts.slice(count).join(path.sep);
+	});
 };

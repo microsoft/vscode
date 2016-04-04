@@ -3,29 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
 import uri from 'vs/base/common/uri';
-import { TPromise, Promise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import ee = require('vs/base/common/eventEmitter');
 import severity from 'vs/base/common/severity';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import editor = require('vs/editor/common/editorCommon');
+import editorbrowser = require('vs/editor/browser/editorBrowser');
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
-export var VIEWLET_ID = 'workbench.view.debug';
-export var DEBUG_SERVICE_ID = 'debugService';
-export var CONTEXT_IN_DEBUG_MODE = 'inDebugMode';
+export const VIEWLET_ID = 'workbench.view.debug';
+export const REPL_ID = 'workbench.panel.repl';
+export const DEBUG_SERVICE_ID = 'debugService';
+export const CONTEXT_IN_DEBUG_MODE = 'inDebugMode';
+export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 
-// Raw
+// raw
 
 export interface IRawModelUpdate {
 	threadId: number;
 	thread?: DebugProtocol.Thread;
 	callStack?: DebugProtocol.StackFrame[];
-	exception?: boolean;
+	stoppedDetails?: IRawStoppedDetails;
+	allThreadsStopped?: boolean;
 }
 
-// Model
+export interface IRawStoppedDetails {
+	reason: string;
+	threadId?: number;
+	text?: string;
+	totalFrames?: number;
+}
+
+// model
 
 export interface ITreeElement {
 	getId(): string;
@@ -39,13 +49,39 @@ export interface IExpressionContainer extends ITreeElement {
 export interface IExpression extends ITreeElement, IExpressionContainer {
 	name: string;
 	value: string;
+	valueChanged: boolean;
 }
 
 export interface IThread extends ITreeElement {
 	threadId: number;
 	name: string;
-	callStack: IStackFrame[];
-	exception: boolean;
+	stoppedDetails: IRawStoppedDetails;
+
+	/**
+	 * Queries the debug adapter for the callstack and returns a promise with
+	 * the stack frames of the callstack.
+	 * If the thread is not stopped, it returns a promise to an empty array.
+	 * Only gets the first 20 stack frames. Calling this method consecutive times
+	 * with getAdditionalStackFrames = true gets the remainder of the call stack.
+	 */
+	getCallStack(debugService: IDebugService, getAdditionalStackFrames?: boolean): TPromise<IStackFrame[]>;
+
+	/**
+	 * Gets the callstack if it has already been received from the debug
+	 * adapter, otherwise it returns undefined.
+	 */
+	getCachedCallStack(): IStackFrame[];
+
+	/**
+	 * Invalidates the callstack cache
+	 */
+	clearCallStack(): void;
+
+	/**
+	 * Indicates whether this thread is stopped. The callstack for stopped
+	 * threads can be retrieved from the debug adapter.
+	 */
+	stopped: boolean;
 }
 
 export interface IScope extends IExpressionContainer {
@@ -80,17 +116,22 @@ export interface IBreakpoint extends IEnablement {
 	desiredLineNumber: number;
 	condition: string;
 	verified: boolean;
+	idFromAdapter: number;
+	message: string;
 }
 
 export interface IFunctionBreakpoint extends IEnablement {
 	name: string;
+	verified: boolean;
+	idFromAdapter: number;
 }
 
 export interface IExceptionBreakpoint extends IEnablement {
-	name: string;
+	filter: string;
+	label: string;
 }
 
-// Events
+// events
 
 export var ModelEvents = {
 	BREAKPOINTS_UPDATED: 'BreakpointsUpdated',
@@ -101,11 +142,14 @@ export var ModelEvents = {
 
 export var ViewModelEvents = {
 	FOCUSED_STACK_FRAME_UPDATED: 'FocusedStackFrameUpdated',
-	SELECTED_EXPRESSION_UPDATED: 'SelectedExpressionUpdated'
+	SELECTED_EXPRESSION_UPDATED: 'SelectedExpressionUpdated',
+	SELECTED_FUNCTION_BREAKPOINT_UPDATED: 'SelectedFunctionBreakpointUpdated'
 };
 
 export var ServiceEvents = {
-	STATE_CHANGED: 'StateChanged'
+	STATE_CHANGED: 'StateChanged',
+	TYPE_NOT_SUPPORTED: 'TypeNotSupported',
+	CONFIGURATION_CHANGED: 'ConfigurationChanged'
 };
 
 export var SessionEvents = {
@@ -115,20 +159,23 @@ export var SessionEvents = {
 	SERVER_EXIT: 'exit',
 	CONTINUED: 'continued',
 	THREAD: 'thread',
-	OUTPUT: 'output'
+	OUTPUT: 'output',
+	BREAKPOINT: 'breakpoint'
 };
 
-// Model interfaces
+// model interfaces
 
 export interface IViewModel extends ee.EventEmitter {
 	getFocusedStackFrame(): IStackFrame;
 	getSelectedExpression(): IExpression;
 	getFocusedThreadId(): number;
 	setSelectedExpression(expression: IExpression);
+	getSelectedFunctionBreakpoint(): IFunctionBreakpoint;
+	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint): void;
 }
 
 export interface IModel extends ee.IEventEmitter, ITreeElement {
-	getThreads(): { [reference: number]: IThread; };
+	getThreads(): { [threadId: number]: IThread; };
 	getBreakpoints(): IBreakpoint[];
 	areBreakpointsActivated(): boolean;
 	getFunctionBreakpoints(): IFunctionBreakpoint[];
@@ -137,17 +184,18 @@ export interface IModel extends ee.IEventEmitter, ITreeElement {
 	getReplElements(): ITreeElement[];
 }
 
-// Service enums
+// service enums
 
 export enum State {
 	Disabled,
 	Inactive,
 	Initializing,
 	Stopped,
-	Running
+	Running,
+	RunningNoDebug
 }
 
-// Service interfaces
+// service interfaces
 
 export interface IGlobalConfig {
 	version: string;
@@ -173,6 +221,7 @@ export interface IConfig {
 	preLaunchTask?: string;
 	externalConsole?: boolean;
 	debugServer?: number;
+	noDebug?: boolean;
 }
 
 export interface IRawEnvAdapter {
@@ -188,7 +237,9 @@ export interface IRawAdapter extends IRawEnvAdapter {
 	enableBreakpointsFor?: { languageIds: string[] };
 	configurationAttributes?: any;
 	initialConfigurations?: any[];
+	aiKey?: string;
 	win?: IRawEnvAdapter;
+	winx86?: IRawEnvAdapter;
 	windows?: IRawEnvAdapter;
 	osx?: IRawEnvAdapter;
 	linux?: IRawEnvAdapter;
@@ -197,6 +248,7 @@ export interface IRawAdapter extends IRawEnvAdapter {
 export interface IRawDebugSession extends ee.EventEmitter {
 	getType(): string;
 	isAttach: boolean;
+	capabilities: DebugProtocol.Capabilites;
 	disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
 
 	next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;
@@ -205,6 +257,7 @@ export interface IRawDebugSession extends ee.EventEmitter {
 	continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse>;
 	pause(args: DebugProtocol.PauseArguments): TPromise<DebugProtocol.PauseResponse>;
 
+	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
 	variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse>;
 	evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse>;
@@ -215,28 +268,32 @@ export var IDebugService = createDecorator<IDebugService>(DEBUG_SERVICE_ID);
 export interface IDebugService extends ee.IEventEmitter {
 	serviceId: ServiceIdentifier<any>;
 	getState(): State;
-	canSetBreakpointsIn(model: editor.IModel, lineNumber: number): boolean;
+	canSetBreakpointsIn(model: editor.IModel): boolean;
 
 	getConfigurationName(): string;
-	setConfiguration(name: string): Promise;
+	setConfiguration(name: string): TPromise<void>;
 	openConfigFile(sideBySide: boolean): TPromise<boolean>;
 	loadLaunchConfig(): TPromise<IGlobalConfig>;
 
 	setFocusedStackFrameAndEvaluate(focusedStackFrame: IStackFrame): void;
 
-	setBreakpointsForModel(modelUri: uri, data: IRawBreakpoint[]): Promise;
-	toggleBreakpoint(IRawBreakpoint): Promise;
-	enableOrDisableAllBreakpoints(enabled: boolean): Promise;
-	toggleEnablement(element: IEnablement): Promise;
-	toggleBreakpointsActivated(): Promise;
-	removeAllBreakpoints(): Promise;
-	sendAllBreakpoints(): Promise;
+	/**
+	 * Sets breakpoints for a model. Does not send them to the adapter.
+	 */
+	setBreakpointsForModel(modelUri: uri, rawData: IRawBreakpoint[]): void;
+	toggleBreakpoint(IRawBreakpoint): TPromise<void>;
+	enableOrDisableAllBreakpoints(enabled: boolean): TPromise<void>;
+	toggleEnablement(element: IEnablement): TPromise<void>;
+	toggleBreakpointsActivated(): TPromise<void>;
+	removeAllBreakpoints(): TPromise<any>;
+	sendAllBreakpoints(): TPromise<any>;
+	editBreakpoint(editor: editorbrowser.ICodeEditor, lineNumber: number): TPromise<void>;
 
-	addFunctionBreakpoint(functionName?: string): Promise;
-	renameFunctionBreakpoint(id: string, newFunctionName: string): Promise;
-	removeFunctionBreakpoints(id?: string): Promise;
+	addFunctionBreakpoint(): void;
+	renameFunctionBreakpoint(id: string, newFunctionName: string): TPromise<void>;
+	removeFunctionBreakpoints(id?: string): TPromise<void>;
 
-	addReplExpression(name: string): Promise;
+	addReplExpression(name: string): TPromise<void>;
 	clearReplExpressions(): void;
 
 	logToRepl(value: string, severity?: severity): void;
@@ -244,25 +301,54 @@ export interface IDebugService extends ee.IEventEmitter {
 
 	appendReplOutput(value: string, severity?: severity): void;
 
-	addWatchExpression(name?: string): Promise;
-	renameWatchExpression(id: string, newName: string): Promise;
+	addWatchExpression(name?: string): TPromise<void>;
+	renameWatchExpression(id: string, newName: string): TPromise<void>;
 	clearWatchExpressions(id?: string): void;
 
-	createSession(): Promise;
-	restartSession(): Promise;
-	rawAttach(port: number): Promise;
+	/**
+	 * Creates a new debug session. Depending on the configuration will either 'launch' or 'attach'.
+	 */
+	createSession(noDebug: boolean): TPromise<any>;
+
+	/**
+	 * Restarts an active debug session or creates a new one if there is no active session.
+	 */
+	restartSession(): TPromise<any>;
+
+	/**
+	 * Returns the active debug session or null if debug is inactive.
+	 */
 	getActiveSession(): IRawDebugSession;
 
+	/**
+	 * Gets the current debug model.
+	 */
 	getModel(): IModel;
+
+	/**
+	 * Gets the current view model.
+	 */
 	getViewModel(): IViewModel;
 
-	openOrRevealEditor(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): Promise;
-	revealRepl(inBackground?:boolean): Promise;
+	/**
+	 * Opens a new or reveals an already visible editor showing the source.
+	 */
+	openOrRevealEditor(source: Source, lineNumber: number, preserveFocus: boolean, sideBySide: boolean): TPromise<any>;
+
+	/**
+	 * Reveals the repl.
+	 */
+	revealRepl(focus?: boolean): TPromise<void>;
 }
 
-// Utils
+// Editor interfaces
+export interface IDebugEditorContribution extends editor.IEditorContribution {
+	showHover(range: editor.IEditorRange, hoveringOver: string, focus: boolean): TPromise<void>;
+}
 
-var _formatPIIRegexp = /{([^}]+)}/g;
+// utils
+
+const _formatPIIRegexp = /{([^}]+)}/g;
 
 export function formatPII(value:string, excludePII: boolean, args: {[key: string]: string}): string {
 	return value.replace(_formatPIIRegexp, function(match, group) {
@@ -270,8 +356,8 @@ export function formatPII(value:string, excludePII: boolean, args: {[key: string
 			return match;
 		}
 
-		return args.hasOwnProperty(group) ?
+		return args && args.hasOwnProperty(group) ?
 			args[group] :
 			match;
-	})
+	});
 }

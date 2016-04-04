@@ -42,6 +42,6 @@ app.get('/', function (req, res) {
 	});
 });
 
-var server = app.listen(port, function () {
+app.listen(port, function () {
 	console.log('http://localhost:8887/');
 });

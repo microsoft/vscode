@@ -12,8 +12,6 @@ import URI from 'vs/base/common/uri';
 import Types = require('vs/base/common/types');
 import Parser = require('vs/languages/json/common/parser/jsonParser');
 import WinJS = require('vs/base/common/winjs.base');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import EventEmitter = require('vs/base/common/eventEmitter');
 import {IResourceService, ResourceEvents, IResourceChangedEvent} from 'vs/editor/common/services/resourceService';
 import {IRequestService} from 'vs/platform/request/common/request';
 import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
@@ -117,7 +115,7 @@ class SchemaHandle implements ISchemaHandle {
 		this.service = service;
 		this.url = url;
 		if (unresolvedSchemaContent) {
-			this.unresolvedSchema = WinJS.Promise.as(new UnresolvedSchema(unresolvedSchemaContent));
+			this.unresolvedSchema = WinJS.TPromise.as(new UnresolvedSchema(unresolvedSchemaContent));
 		}
 	}
 
@@ -280,7 +278,10 @@ export class JSONSchemaService implements IJSONSchemaService {
 				this.contributionAssociations[pattern] = associations;
 
 				var fpa = this.getOrAddFilePatternAssociation(pattern);
-				associations.forEach(schemaId => fpa.addSchema(schemaId));
+				associations.forEach(schemaId => {
+					var id = this.normalizeId(schemaId);
+					fpa.addSchema(id);
+				});
 			}
 		}
 	}
@@ -327,7 +328,10 @@ export class JSONSchemaService implements IJSONSchemaService {
 		for (var pattern in this.contributionAssociations) {
 			var fpa = this.getOrAddFilePatternAssociation(pattern);
 
-			this.contributionAssociations[pattern].forEach(schemaId => fpa.addSchema(schemaId));
+			this.contributionAssociations[pattern].forEach(schemaId => {
+				var id = this.normalizeId(schemaId);
+				fpa.addSchema(id);
+			});
 		}
 	}
 
@@ -393,7 +397,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 				resolveErrors.push(nls.localize('json.schema.invalidref', '$ref \'{0}\' in {1} can not be resolved.', linkPath, linkedSchema.id));
 			}
 			delete node.$ref;
-		}
+		};
 
 		var resolveExternalLink = (node: any, uri: string, linkPath: string): WinJS.Promise => {
 			return this.getOrAddSchemaHandle(uri).getUnresolvedSchema().then(unresolvedSchema => {
@@ -404,7 +408,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 				resolveLink(node, unresolvedSchema.schema, linkPath);
 				return resolveRefs(node, unresolvedSchema.schema);
 			});
-		}
+		};
 
 		var resolveRefs = (node:any, parentSchema: any) : WinJS.Promise => {
 			var toWalk = [ node ];
@@ -438,7 +442,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 				}
 			}
 			return WinJS.Promise.join(openPromises);
-		}
+		};
 
 		return resolveRefs(schema, schema).then(_ => new ResolvedSchema(schema, resolveErrors));
 	}
@@ -479,7 +483,7 @@ export class JSONSchemaService implements IJSONSchemaService {
 		} else {
 			var combinedSchema: IJSONSchema = {
 				allOf: schemaIds.map(schemaId => ({ $ref: schemaId }))
-			}
+			};
 			return this.addSchemaHandle(combinedSchemaId, combinedSchema);
 		}
 	}

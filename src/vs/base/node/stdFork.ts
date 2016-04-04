@@ -29,7 +29,7 @@ function makeRandomHexString(length:number): string {
 }
 
 function generatePipeName(): string {
-	var randomName = 'vscode-' + makeRandomHexString(40);
+	let randomName = 'vscode-' + makeRandomHexString(40);
 	if (process.platform === 'win32') {
 		return '\\\\.\\pipe\\' + randomName + '-sock';
 	}
@@ -38,16 +38,17 @@ function generatePipeName(): string {
 	return path.join(os.tmpdir(), randomName + '.sock');
 }
 
-function generatePatchedEnv(env:any, stdInPipeName:string, stdOutPipeName:string): any {
+function generatePatchedEnv(env:any, stdInPipeName:string, stdOutPipeName:string, stdErrPipeName:string): any {
 	// Set the two unique pipe names and the electron flag as process env
 
-	var newEnv:any = {};
-	for (var key in env) {
+	let newEnv:any = {};
+	for (let key in env) {
 		newEnv[key] = env[key];
 	}
 
 	newEnv['STDIN_PIPE_NAME'] = stdInPipeName;
 	newEnv['STDOUT_PIPE_NAME'] = stdOutPipeName;
+	newEnv['STDERR_PIPE_NAME'] = stdErrPipeName;
 	newEnv['ATOM_SHELL_INTERNAL_RUN_AS_NODE'] = '1';
 
 	return newEnv;
@@ -55,15 +56,15 @@ function generatePatchedEnv(env:any, stdInPipeName:string, stdOutPipeName:string
 
 export function fork(modulePath: string, args: string[], options: IForkOpts, callback:(error:any, cp:cp.ChildProcess)=>void): void {
 
-	var callbackCalled = false;
-	var resolve = (result: cp.ChildProcess) => {
+	let callbackCalled = false;
+	let resolve = (result: cp.ChildProcess) => {
 		if (callbackCalled) {
 			return;
 		}
 		callbackCalled = true;
 		callback(null, result);
 	};
-	var reject = (err:any) => {
+	let reject = (err:any) => {
 		if (callbackCalled) {
 			return;
 		}
@@ -71,38 +72,47 @@ export function fork(modulePath: string, args: string[], options: IForkOpts, cal
 		callback(err, null);
 	};
 
-	// Generate two unique pipe names
-	var stdInPipeName = generatePipeName();
-	var stdOutPipeName = generatePipeName();
+	// Generate three unique pipe names
+	let stdInPipeName = generatePipeName();
+	let stdOutPipeName = generatePipeName();
+	let stdErrPipeName = generatePipeName();
 
-	var newEnv = generatePatchedEnv(options.env || process.env, stdInPipeName, stdOutPipeName);
+	let newEnv = generatePatchedEnv(options.env || process.env, stdInPipeName, stdOutPipeName, stdErrPipeName);
 
-	var childProcess: cp.ChildProcess;
+	let childProcess: cp.ChildProcess;
+
+	// Begin listening to stderr pipe
+	let stdErrServer = net.createServer((stdErrStream) => {
+		// From now on the childProcess.stderr is available for reading
+		childProcess.stderr = stdErrStream;
+	});
+	stdErrServer.listen(stdErrPipeName);
 
 	// Begin listening to stdout pipe
-	var server = net.createServer((stream) => {
+	let stdOutServer = net.createServer((stdOutStream) => {
 		// The child process will write exactly one chunk with content `ready` when it has installed a listener to the stdin pipe
 
-		stream.once('data', (chunk:Buffer) => {
+		stdOutStream.once('data', (chunk:Buffer) => {
 			// The child process is sending me the `ready` chunk, time to connect to the stdin pipe
 			childProcess.stdin = <any>net.connect(stdInPipeName);
 
 			// From now on the childProcess.stdout is available for reading
-			childProcess.stdout = stream;
+			childProcess.stdout = stdOutStream;
 
 			resolve(childProcess);
 		});
 	});
-	server.listen(stdOutPipeName);
+	stdOutServer.listen(stdOutPipeName);
 
-	var serverClosed = false;
-	var closeServer = () => {
+	let serverClosed = false;
+	let closeServer = () => {
 		if (serverClosed) {
 			return;
 		}
 		serverClosed = true;
-		server.close();
-	}
+		stdOutServer.close();
+		stdErrServer.close();
+	};
 
 	// Create the process
 	let bootstrapperPath = (uri.parse(require.toUrl('./stdForkStart.js')).fsPath);

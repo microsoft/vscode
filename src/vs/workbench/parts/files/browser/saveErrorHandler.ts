@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import errors = require('vs/base/common/errors');
 import paths = require('vs/base/common/paths');
 import {Action} from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
-import {EditorModel, EditorInput} from 'vs/workbench/common/editor';
+import {EditorModel} from 'vs/workbench/common/editor';
 import {guessMimeTypes} from 'vs/base/common/mime';
 import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {ResourceEditorInput} from 'vs/workbench/browser/parts/editor/resourceEditorInput';
-import {DiffEditorInput} from 'vs/workbench/browser/parts/editor/diffEditorInput';
-import {DiffEditorModel} from 'vs/workbench/browser/parts/editor/diffEditorModel';
+import {ResourceEditorInput} from 'vs/workbench/common/editor/resourceEditorInput';
+import {DiffEditorInput} from 'vs/workbench/common/editor/diffEditorInput';
+import {DiffEditorModel} from 'vs/workbench/common/editor/diffEditorModel';
 import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
 import {SaveFileAsAction, RevertFileAction, SaveFileAction} from 'vs/workbench/parts/files/browser/fileActions';
 import {IFileService, IFileOperationResult, FileOperationResult} from 'vs/platform/files/common/files';
-import {TextFileEditorModel, ISaveErrorHandler} from 'vs/workbench/parts/files/browser/editors/textFileEditorModel';
+import {TextFileEditorModel, ISaveErrorHandler} from 'vs/workbench/parts/files/common/editors/textFileEditorModel';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
 import {IEventService} from 'vs/platform/event/common/event';
 import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
@@ -60,7 +60,7 @@ export class SaveErrorHandler implements ISaveErrorHandler {
 						return model.save(true /* overwrite readonly */).then(() => true);
 					}
 
-					return Promise.as(true);
+					return TPromise.as(true);
 				}));
 			} else {
 				actions.push(new Action('workbench.files.action.retry', nls.localize('retry', "Retry"), null, true, () => {
@@ -142,6 +142,7 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 	private fileResource: URI;
 	private lastModified: number;
 	private mime: string;
+	private createdEditorModel: boolean;
 
 	constructor(
 		fileResource: URI,
@@ -175,12 +176,22 @@ export class FileOnDiskEditorInput extends ResourceEditorInput {
 			let codeEditorModel = this.modelService.getModel(this.resource);
 			if (!codeEditorModel) {
 				this.modelService.createModel(content.value, this.modeService.getOrCreateMode(this.mime), this.resource);
+				this.createdEditorModel = true;
 			} else {
 				codeEditorModel.setValue(content.value);
 			}
 
 			return super.resolve(refresh);
 		});
+	}
+
+	public dispose(): void {
+		if (this.createdEditorModel) {
+			this.modelService.destroyModel(this.resource);
+			this.createdEditorModel = false;
+		}
+
+		super.dispose();
 	}
 }
 
@@ -226,7 +237,7 @@ class ResolveSaveConflictMessage implements IMessageWithAction {
 					});
 				}
 
-				return Promise.as(true);
+				return TPromise.as(true);
 			})
 		];
 	}
@@ -246,7 +257,7 @@ export class AcceptLocalChangesAction extends EditorInputAction {
 		this.messagesToHide = [];
 	}
 
-	public run(): Promise {
+	public run(): TPromise<void> {
 		let conflictInput = <ConflictResolutionDiffEditorInput>this.input;
 		let model = conflictInput.getModel();
 		let localModelValue = model.getValue();
@@ -312,7 +323,7 @@ export class RevertLocalChangesAction extends EditorInputAction {
 		super('workbench.action.files.revert', nls.localize('revertLocalChanges', "Discard local changes and revert to content on disk"), 'conflict-editor-action revert-changes');
 	}
 
-	public run(): Promise {
+	public run(): TPromise<void> {
 		let conflictInput = <ConflictResolutionDiffEditorInput>this.input;
 		let model = conflictInput.getModel();
 

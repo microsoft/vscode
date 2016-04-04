@@ -6,8 +6,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {IModel} from 'vs/editor/common/editorCommon';
-import {match as matchGlobPattern} from 'vs/base/common/glob';
+import {match as matchGlobPattern} from 'vs/base/common/glob'; // TODO@Alex
 
 export interface LanguageFilter {
 	language?: string;
@@ -15,7 +14,7 @@ export interface LanguageFilter {
 	pattern?: string;
 }
 
-export type LanguageSelector = string|LanguageFilter|(string|LanguageFilter)[];
+export type LanguageSelector = string | LanguageFilter | (string | LanguageFilter)[];
 
 export default function matches(selection: LanguageSelector, uri: URI, language: string): boolean {
 	return score(selection, uri, language) > 0;
@@ -34,7 +33,7 @@ export function score(selector: LanguageSelector, uri: URI, language: string): n
 			return 10;
 		} else if (selector === '*') {
 			return 5;
-		} else  {
+		} else {
 			return 0;
 		}
 	} else if (selector) {

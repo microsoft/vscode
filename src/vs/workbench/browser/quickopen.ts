@@ -12,11 +12,12 @@ import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import {Registry} from 'vs/platform/platform';
-import {Mode, IContext, IAutoFocus, IModel} from 'vs/base/parts/quickopen/browser/quickOpen';
+import {Mode, IContext, IAutoFocus, IModel} from 'vs/base/parts/quickopen/common/quickOpen';
 import {QuickOpenEntry, IHighlight, QuickOpenEntryGroup, QuickOpenModel} from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import {EditorOptions, EditorInput} from 'vs/workbench/common/editor';
-import {IFileInput, IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
+import {IResourceInput} from 'vs/platform/editor/common/editor';
+import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
+import {IQuickOpenService} from 'vs/workbench/services/quickopen/common/quickOpenService';
 import {AsyncDescriptor} from 'vs/platform/instantiation/common/descriptors';
 
 export class QuickOpenHandler {
@@ -32,6 +33,13 @@ export class QuickOpenHandler {
 	 */
 	public getResults(searchValue: string): TPromise<IModel<any>> {
 		return TPromise.as(null);
+	}
+
+	/**
+	 * The ARIA label to apply when this quick open handler is active in quick open.
+	 */
+	public getAriaLabel(): string {
+		return null;
 	}
 
 	/**
@@ -194,7 +202,7 @@ export interface IEditorQuickOpenEntry {
 	/**
 	 * The editor input used for this entry when opening.
 	 */
-	getInput(): IFileInput | EditorInput;
+	getInput(): IResourceInput | EditorInput;
 
 	/**
 	 * The editor options used for this entry when opening.
@@ -215,7 +223,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 		return this._editorService;
 	}
 
-	public getInput(): IFileInput | EditorInput {
+	public getInput(): IResourceInput | EditorInput {
 		return null;
 	}
 
@@ -232,7 +240,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 			if (input instanceof EditorInput) {
 				this.editorService.openEditor(input, this.getOptions(), sideBySide).done(null, errors.onUnexpectedError);
 			} else {
-				this.editorService.openEditor(<IFileInput>input, sideBySide).done(null, errors.onUnexpectedError);
+				this.editorService.openEditor(<IResourceInput>input, sideBySide).done(null, errors.onUnexpectedError);
 			}
 
 			return true;
@@ -280,6 +288,10 @@ class CommandEntry extends QuickOpenEntry {
 		return this.command.aliases[0];
 	}
 
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, command", this.getLabel());
+	}
+
 	public run(mode: Mode, context: IContext): boolean {
 		if (mode === Mode.PREVIEW) {
 			return false;
@@ -317,9 +329,9 @@ export abstract class CommandQuickOpenHandler extends QuickOpenHandler {
 	}
 
 	public getResults(input: string): TPromise<QuickOpenModel> {
-		var match: RegExpMatchArray;
-		var command = arrays.first(this.commands, c => !!(match = input.match(c.regexp)));
-		var promise: TPromise<QuickOpenEntry[]>;
+		let match: RegExpMatchArray;
+		let command = arrays.first(this.commands, c => !!(match = input.match(c.regexp)));
+		let promise: TPromise<QuickOpenEntry[]>;
 
 		if (command) {
 			promise = command.command.getResults(input.substr(match[0].length));
@@ -333,7 +345,7 @@ export abstract class CommandQuickOpenHandler extends QuickOpenHandler {
 	}
 
 	private getCommands(input: string): TPromise<QuickOpenEntry[]> {
-		var entries: QuickOpenEntry[] = this.commands
+		let entries: QuickOpenEntry[] = this.commands
 			.map(c => ({ command: c.command, highlights: filters.matchesFuzzy(input, c.command.aliases[0]) }))
 			.filter(({ command, highlights }) => !!highlights || command.aliases.some(a => input === a))
 			.map(({ command, highlights }) => new CommandEntry(this.quickOpenService, this.prefix, command, highlights));
@@ -362,8 +374,8 @@ export abstract class CommandQuickOpenHandler extends QuickOpenHandler {
 	}
 
 	public getEmptyLabel(input: string): string {
-		var match: RegExpMatchArray;
-		var command = arrays.first(this.commands, c => !!(match = input.match(c.regexp)));
+		let match: RegExpMatchArray;
+		let command = arrays.first(this.commands, c => !!(match = input.match(c.regexp)));
 
 		if (!command) {
 			return nls.localize('noCommands', "No commands matching");

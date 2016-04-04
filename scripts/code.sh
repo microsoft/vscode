@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
@@ -14,10 +14,10 @@ function code() {
 	test -d node_modules || ./scripts/npm.sh install
 
 	# Get electron
-	node node_modules/gulp/bin/gulp.js electron
+	./node_modules/.bin/gulp electron
 
 	# Build
-	test -d out || gulp compile
+	test -d out || ./node_modules/.bin/gulp compile
 
 	# Configuration
 	export NODE_ENV=development
@@ -27,10 +27,10 @@ function code() {
 
 	# Launch Code
 	if [[ "$OSTYPE" == "darwin"* ]]; then
-		./.build/electron/Electron.app/Contents/MacOS/Electron . $*
+		exec ./.build/electron/Electron.app/Contents/MacOS/Electron . "$@"
 	else
-		./.build/electron/electron . $*
+		exec ./.build/electron/electron . "$@"
 	fi
 }
 
-code $*
+code "$@"

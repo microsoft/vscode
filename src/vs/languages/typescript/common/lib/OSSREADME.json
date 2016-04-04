@@ -2,7 +2,7 @@
 
 [{
 	"name": "typescript",
-	"version": "1.5",
+	"version": "1.8.9",
 	"license": "Apache2",
 	"repositoryURL": "https://github.com/Microsoft/TypeScript",
 	// Reason: LICENSE file does not include Copyright statement

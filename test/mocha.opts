@@ -1,4 +1,5 @@
 --delay
 --ui tdd
 --reporter dot
+--timeout 10000
 test/all.js

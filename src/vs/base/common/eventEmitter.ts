@@ -18,7 +18,7 @@ export class EmitterEvent implements IEmitterEvent {
 	private _data:any;
 	private _emitterType:string;
 
-	constructor(eventType:string, data:any, emitterType:string=null) {
+	constructor(eventType:string=null, data:any=null, emitterType:string=null) {
 		this._type = eventType;
 		this._data = data;
 		this._emitterType = emitterType;
@@ -237,11 +237,7 @@ export class EventEmitter implements IEventEmitter {
 		if (this._listeners.hasOwnProperty(eventType)) {
 			var listeners = this._listeners[eventType].slice(0);
 			for (var i = 0, len = listeners.length; i < len; i++) {
-				try {
-					listeners[i](data);
-				} catch(e) {
-					Errors.onUnexpectedError(e);
-				}
+				safeInvoke1Arg(listeners[i], data);
 			}
 		}
 	}
@@ -249,11 +245,7 @@ export class EventEmitter implements IEventEmitter {
 	protected _emitToBulkListeners(events:EmitterEvent[]): void {
 		var bulkListeners = this._bulkListeners.slice(0);
 		for (var i = 0, len = bulkListeners.length; i < len; i++) {
-			try {
-				bulkListeners[i](events);
-			} catch(e) {
-				Errors.onUnexpectedError(e);
-			}
+			safeInvoke1Arg(bulkListeners[i], events);
 		}
 	}
 
@@ -291,12 +283,7 @@ export class EventEmitter implements IEventEmitter {
 
 	public deferredEmit(callback:()=>any):any {
 		this._deferredCnt = this._deferredCnt + 1;
-		var result: any = null;
-		try {
-			result = callback();
-		} catch (e) {
-			Errors.onUnexpectedError(e);
-		}
+		var result: any = safeInvokeNoArg(callback);
 		this._deferredCnt = this._deferredCnt - 1;
 
 		if (this._deferredCnt === 0) {
@@ -359,11 +346,23 @@ export class OrderGuaranteeEventEmitter extends EventEmitter {
 
 		while (this._emitQueue.length > 0) {
 			let queueElement = this._emitQueue.shift();
-			try {
-				queueElement.target(queueElement.arg);
-			} catch(e) {
-				Errors.onUnexpectedError(e);
-			}
+			safeInvoke1Arg(queueElement.target, queueElement.arg);
 		}
+	}
+}
+
+function safeInvokeNoArg(func:Function): any {
+	try {
+		return func();
+	} catch(e) {
+		Errors.onUnexpectedError(e);
+	}
+}
+
+function safeInvoke1Arg(func:Function, arg1:any): any {
+	try {
+		return func(arg1);
+	} catch(e) {
+		Errors.onUnexpectedError(e);
 	}
 }

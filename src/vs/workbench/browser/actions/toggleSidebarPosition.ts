@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise} from 'vs/base/common/winjs.base';
+import {TPromise} from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import {Registry} from 'vs/platform/platform';
 import {Action} from 'vs/base/common/actions';
 import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/browser/actionRegistry';
+import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/common/actionRegistry';
 import {IPartService, Position} from 'vs/workbench/services/part/common/partService';
 
 const ID = 'workbench.action.toggleSidebarPosition';
@@ -23,11 +23,11 @@ export class ToggleSidebarPositionAction extends Action {
 		this.enabled = !!this.partService;
 	}
 
-	public run(): Promise {
+	public run(): TPromise<any> {
 		let position = this.partService.getSideBarPosition();
 		this.partService.setSideBarPosition(position === Position.LEFT ? Position.RIGHT : Position.LEFT);
 
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 }
 

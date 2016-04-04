@@ -8,8 +8,8 @@ import * as assert from 'assert';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 
-suite("Browsers", () => {
-	test("all", function () {
+suite('Browsers', () => {
+	test('all', function () {
 		assert(!(isWindows && isMacintosh));
 
 		var isOpera = browser.isOpera || navigator.userAgent.indexOf('OPR') >= 0;
@@ -49,14 +49,6 @@ suite("Browsers", () => {
 			browserCount++;
 			assert(canPushState);
 			assert(hasCSSAnimations);
-		}
-
-		var canPlayMp3 = browser.canPlayAudio("audio/mpeg");
-		var canPlayMp4 = browser.canPlayVideo("video/mp4");
-
-		if ((isIE11orEarlier || isChrome) && !isOpera) {
-			assert(canPlayMp3);
-			assert(canPlayMp4);
 		}
 	});
 });

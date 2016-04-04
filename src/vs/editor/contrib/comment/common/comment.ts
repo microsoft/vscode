@@ -4,35 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
+import {KeyCode, KeyMod} from 'vs/base/common/keyCodes';
 import {TPromise} from 'vs/base/common/winjs.base';
-import LineCommentCommand = require('./lineCommentCommand');
-import BlockCommentCommand = require('./blockCommentCommand');
+import {EditorAction} from 'vs/editor/common/editorAction';
+import {ICommand, ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
 import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import {BlockCommentCommand} from './blockCommentCommand';
+import {LineCommentCommand, Type} from './lineCommentCommand';
 
 class CommentLineAction extends EditorAction {
 
 	static ID = 'editor.action.commentLine';
 
-	private _type: LineCommentCommand.Type;
+	private _type: Type;
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, type: LineCommentCommand.Type, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor, type: Type) {
 		super(descriptor, editor);
 		this._type = type;
 	}
 
 	public run(): TPromise<void> {
+		let model = this.editor.getModel();
+		if (!model) {
+			return;
+		}
 
-		var commands: EditorCommon.ICommand[] = [];
+		var commands: ICommand[] = [];
 		var selections = this.editor.getSelections();
-		var opts = this.editor.getIndentationOptions();
+		var opts = model.getOptions();
 
 		for (var i = 0; i < selections.length; i++) {
-			commands.push(new LineCommentCommand.LineCommentCommand(selections[i], opts.tabSize, this._type));
+			commands.push(new LineCommentCommand(selections[i], opts.tabSize, this._type));
 		}
 
 		this.editor.executeCommands(this.id, commands);
@@ -45,8 +48,8 @@ class ToggleCommentLineAction extends CommentLineAction {
 
 	static ID = 'editor.action.commentLine';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, LineCommentCommand.Type.Toggle, ns);
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
+		super(descriptor, editor, Type.Toggle);
 	}
 }
 
@@ -54,8 +57,8 @@ class AddLineCommentAction extends CommentLineAction {
 
 	static ID = 'editor.action.addCommentLine';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, LineCommentCommand.Type.ForceAdd, ns);
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
+		super(descriptor, editor, Type.ForceAdd);
 	}
 
 }
@@ -64,8 +67,8 @@ class RemoveLineCommentAction extends CommentLineAction {
 
 	static ID = 'editor.action.removeCommentLine';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, LineCommentCommand.Type.ForceRemove, ns);
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
+		super(descriptor, editor, Type.ForceRemove);
 	}
 
 }
@@ -74,17 +77,17 @@ class BlockCommentAction extends EditorAction {
 
 	static ID = 'editor.action.blockComment';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
+	constructor(descriptor:IEditorActionDescriptorData, editor:ICommonCodeEditor) {
 		super(descriptor, editor);
 	}
 
 	public run(): TPromise<boolean> {
 
-		var commands: EditorCommon.ICommand[] = [];
+		var commands: ICommand[] = [];
 		var selections = this.editor.getSelections();
 
 		for (var i = 0; i < selections.length; i++) {
-			commands.push(new BlockCommentCommand.BlockCommentCommand(selections[i]));
+			commands.push(new BlockCommentCommand(selections[i]));
 		}
 
 		this.editor.executeCommands(this.id, commands);

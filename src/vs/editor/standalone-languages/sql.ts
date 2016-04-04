@@ -16,13 +16,12 @@ export var language = <ILanguage> {
 		{ open: '[', close: ']', token: 'delimiter.square' },
 		{ open: '(', close: ')', token: 'delimiter.parenthesis' }
 	],
-	enhancedBrackets:[
-		{ openTrigger: 'n', open: /begin$/i, closeComplete: 'end', matchCase: true },
-		{ openTrigger: 'e', open: /case$/i, closeComplete: 'end', matchCase: true },
-		{ openTrigger: 'n', open: /when$/i, closeComplete: 'then', matchCase: true }
-	],
+	// enhancedBrackets:[
+	// 	{ openTrigger: 'n', open: /begin$/i, closeComplete: 'end', matchCase: true },
+	// 	{ openTrigger: 'e', open: /case$/i, closeComplete: 'end', matchCase: true },
+	// 	{ openTrigger: 'n', open: /when$/i, closeComplete: 'then', matchCase: true }
+	// ],
 	noindentBrackets: '()',
-	editorOptions: { tabSize: 4, insertSpaces: true },
 	lineComment: '--',
 	blockCommentStart: '/*',
 	blockCommentEnd: '*/',

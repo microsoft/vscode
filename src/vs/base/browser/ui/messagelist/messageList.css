@@ -24,10 +24,6 @@
 	box-shadow: 0 2px 8px #000;
 }
 
-.hc-black .global-message-list  {
-	box-shadow: none;
-}
-
 .global-message-list.transition {
 	-webkit-transition:	top 200ms linear;
 	-ms-transition:		top 200ms linear;
@@ -104,10 +100,6 @@
 	background-color: #007ACC;
 }
 
-.hc-black .global-message-list li.message-list-entry .message-left-side.severity {
-	border: 1px solid #6FC3DF;
-}
-
 .global-message-list li.message-list-entry .message-left-side.message-overflow-ellipsis {
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -115,32 +107,31 @@
 	display: block;
 }
 
-.global-message-list li.message-list-entry .message-right-side {
+.global-message-list li.message-list-entry .actions-container {
 	float: right;
 }
 
-.global-message-list li.message-list-entry .message-right-side.multiple .action-button {
-	min-width: 45px;
-	text-align: center;
+.global-message-list li.message-list-entry .actions-container .message-action {
+	display: inline-block;
 }
 
-.vs .global-message-list li.message-list-entry .message-right-side {
+.vs .global-message-list li.message-list-entry .actions-container .message-action {
 	background-color: #1382CE;
 }
 
-.vs .global-message-list li.message-list-entry .message-right-side:hover {
+.vs .global-message-list li.message-list-entry .actions-container .message-action:hover {
 	background-color: rgb(0, 107, 179);
 }
 
-.vs-dark .global-message-list li.message-list-entry .message-right-side {
+.vs-dark .global-message-list li.message-list-entry .actions-container .message-action {
 	background-color: #0E639C;
 }
 
-.vs-dark .global-message-list li.message-list-entry .message-right-side:hover {
+.vs-dark .global-message-list li.message-list-entry .actions-container .message-action:hover {
 	background-color: #007ACC;
 }
 
-.global-message-list li.message-list-entry .action-button {
+.global-message-list li.message-list-entry .actions-container .message-action .action-button {
 	padding-left: 10px;
 	padding-right: 10px;
 	display: inline-block;
@@ -160,5 +151,14 @@
 /* High Contrast Theming */
 .hc-black .global-message-list {
 	background-color: #000;
-	border: 2px solid #6FC3DF;
+	outline: 2px solid #6FC3DF;
+	outline-offset: -2px;
+}
+
+.hc-black .global-message-list  {
+	box-shadow: none;
+}
+
+.hc-black .global-message-list li.message-list-entry .message-left-side.severity {
+	border: 1px solid #6FC3DF;
 }

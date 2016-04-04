@@ -10,7 +10,7 @@
 		<string>nqp</string>
 	</array>
 	<key>firstLineMatch</key>
-	<string>(^#!.*\bperl6\b)|use\s+v6</string>
+	<string>(^#!.*\b(perl6|nqp)\b)|use\s+v6</string>
 	<key>keyEquivalent</key>
 	<string>^~P</string>
 	<key>name</key>
@@ -59,8 +59,27 @@
 			</array>
 		</dict>
 		<dict>
+			<key>captures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>storage.type.class.perl.6</string>
+				</dict>
+				<key>3</key>
+				<dict>
+					<key>name</key>
+					<string>entity.name.type.class.perl.6</string>
+				</dict>
+			</dict>
+			<key>match</key>
+			<string>(class|enum|grammar|knowhow|module|package|role|slang|subset)(\s+)(((?:::|')?(?:([a-zA-Z_\x{C0}-\x{FF}\$])([a-zA-Z0-9_\x{C0}-\x{FF}\\$]|[\-'][a-zA-Z0-9_\x{C0}-\x{FF}\$])*))+)</string>
+			<key>name</key>
+			<string>meta.class.perl.6</string>
+		</dict>
+		<dict>
 			<key>begin</key>
-			<string>'</string>
+			<string>(?&lt;=\s)'</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>0</key>
@@ -281,12 +300,6 @@
 		</dict>
 		<dict>
 			<key>match</key>
-			<string>\b(module|class|role|package|enum|grammar|slang|subset)\b</string>
-			<key>name</key>
-			<string>keyword.other.module.perl</string>
-		</dict>
-		<dict>
-			<key>match</key>
 			<string>\b(self)\b</string>
 			<key>name</key>
 			<string>variable.language.perl</string>
@@ -361,19 +374,19 @@
 			<key>match</key>
 			<string>\b(Object|Any|Junction|Whatever|Capture|MatchSignature|Proxy|Matcher|Package|Module|ClassGrammar|Scalar|Array|Hash|KeyHash|KeySet|KeyBagPair|List|Seq|Range|Set|Bag|Mapping|Void|UndefFailure|Exception|Code|Block|Routine|Sub|MacroMethod|Submethod|Regex|Str|str|Blob|Char|ByteCodepoint|Grapheme|StrPos|StrLen|Version|NumComplex|num|complex|Bit|bit|bool|True|FalseIncreasing|Decreasing|Ordered|Callable|AnyCharPositional|Associative|Ordering|KeyExtractorComparator|OrderingPair|IO|KitchenSink|RoleInt|int|int1|int2|int4|int8|int16|int32|int64Rat|rat|rat1|rat2|rat4|rat8|rat16|rat32|rat64Buf|buf|buf1|buf2|buf4|buf8|buf16|buf32|buf64UInt|uint|uint1|uint2|uint4|uint8|uint16|uint32uint64|Abstraction|utf8|utf16|utf32)\b</string>
 			<key>name</key>
-			<string>support.type.perl</string>
+			<string>support.type.perl6</string>
 		</dict>
 		<dict>
 			<key>match</key>
-			<string>\b(div|x|xx|mod|also|leg|cmp|before|after|eq|ne|le|lt|gt|ge|eqv|ff|fff|and|andthen|Z|X|or|xor|orelse|extra|m|mm|rx|s|tr)\b</string>
+			<string>\b(div|xx|x|mod|also|leg|cmp|before|after|eq|ne|le|lt|not|gt|ge|eqv|ff|fff|and|andthen|or|xor|orelse|extra|lcm|gcd)\b</string>
 			<key>name</key>
 			<string>keyword.operator.perl</string>
 		</dict>
 		<dict>
 			<key>match</key>
-			<string>(\$|@|%|&amp;)(\*|:|!|\^|~|=|\?|(&lt;(?=.+&gt;)))?([A-Za-z_])([A-Za-z0-9_]|[\-'][A-Za-z0-9_])*</string>
+			<string>(\$|@|%|&amp;)(\*|:|!|\^|~|=|\?|(&lt;(?=.+&gt;)))?([a-zA-Z_\x{C0}-\x{FF}\$])([a-zA-Z0-9_\x{C0}-\x{FF}\$]|[\-'][a-zA-Z0-9_\x{C0}-\x{FF}\$])*</string>
 			<key>name</key>
-			<string>variable.other.basic.perl</string>
+			<string>variable.other.identifier.perl.6</string>
 		</dict>
 		<dict>
 			<key>match</key>

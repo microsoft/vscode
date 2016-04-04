@@ -4,19 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Model = require('vs/editor/common/model/model');
-import {Selection} from 'vs/editor/common/core/selection';
+import {Model} from 'vs/editor/common/model/model';
 
-export function pos(lineNumber:number, column:number): EditorCommon.IPosition {
-	return {
-		lineNumber: lineNumber,
-		column: column
-	};
-}
-
-export function withEditorModel(text:string[], callback:(model:Model.Model) => void): void {
-	var model = new Model.Model(text.join('\n'), null);
+export function withEditorModel(text:string[], callback:(model:Model) => void): void {
+	var model = new Model(text.join('\n'), Model.DEFAULT_CREATION_OPTIONS, null);
 	callback(model);
 	model.dispose();
 }

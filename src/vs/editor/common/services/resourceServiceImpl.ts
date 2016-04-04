@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {EventEmitter, IEmitterEvent, ListenerUnbind, ListenerCallback} from 'vs/base/common/eventEmitter';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {IResourceService, ResourceEvents, IResourceChangedEvent, IResourceAddedEvent, IResourceRemovedEvent} from 'vs/editor/common/services/resourceService';
+import {EventEmitter, IEmitterEvent, ListenerCallback, ListenerUnbind} from 'vs/base/common/eventEmitter';
 import {IDisposable} from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
+import {IMirrorModel} from 'vs/editor/common/editorCommon';
+import {IResourceAddedEvent, IResourceChangedEvent, IResourceRemovedEvent, IResourceService, ResourceEvents} from 'vs/editor/common/services/resourceService';
 
 export class ResourceService extends EventEmitter implements IResourceService {
 	public serviceId = IResourceService;
-	private data:{[url:string]:EditorCommon.IMirrorModel;};
+	private data:{[url:string]:IMirrorModel;};
 	private unbinds:{[url:string]:ListenerUnbind[];};
 
 	constructor() {
@@ -50,7 +50,7 @@ export class ResourceService extends EventEmitter implements IResourceService {
 		return r;
 	}
 
-	public insert(url:URI, element:EditorCommon.IMirrorModel): void {
+	public insert(url:URI, element:IMirrorModel): void {
 		// console.log('INSERT: ' + url.toString());
 		if (this.contains(url)) {
 			// There already exists a model with this id => this is a programmer error
@@ -69,14 +69,14 @@ export class ResourceService extends EventEmitter implements IResourceService {
 		this.emit(ResourceEvents.ADDED, <IResourceAddedEvent>{ url: url, addedElement: element });
 	}
 
-	public get(url:URI):EditorCommon.IMirrorModel {
+	public get(url:URI):IMirrorModel {
 		if(!this.data[url.toString()]) {
 			return null;
 		}
 		return this.data[url.toString()];
 	}
 
-	public all():EditorCommon.IMirrorModel[] {
+	public all():IMirrorModel[] {
 		return Object.keys(this.data).map((key) => {
 			return this.data[key];
 		});
@@ -93,8 +93,7 @@ export class ResourceService extends EventEmitter implements IResourceService {
 		}
 
 		var key = url.toString(),
-			element = this.data[key],
-			i = 1;
+			element = this.data[key];
 
 		// stop listen
 		while(this.unbinds[key].length > 0) { this.unbinds[key].pop()(); }

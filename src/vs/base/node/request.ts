@@ -6,9 +6,10 @@
 'use strict';
 
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
+import { isBoolean } from 'vs/base/common/types';
 import https = require('https');
 import http = require('http');
-import { Url, parse as parseUrl } from 'url';
+import { parse as parseUrl } from 'url';
 import { createWriteStream } from 'fs';
 import { assign } from 'vs/base/common/objects';
 
@@ -22,6 +23,7 @@ export interface IRequestOptions {
 	data?: any;
 	agent?: any;
 	followRedirects?: number;
+	strictSSL?: boolean;
 }
 
 export interface IRequestResult {
@@ -30,25 +32,26 @@ export interface IRequestResult {
 }
 
 export function request(options: IRequestOptions): TPromise<IRequestResult> {
-	var req: http.ClientRequest;
+	let req: http.ClientRequest;
 
 	return new TPromise<IRequestResult>((c, e) => {
-		var endpoint = parseUrl(options.url);
+		let endpoint = parseUrl(options.url);
 
-		var opts: https.RequestOptions = {
+		let opts: https.RequestOptions = {
 			hostname: endpoint.hostname,
 			port: endpoint.port ? parseInt(endpoint.port) : (endpoint.protocol === 'https:' ? 443 : 80),
 			path: endpoint.path,
 			method: options.type || 'GET',
 			headers: options.headers,
-			agent: options.agent
+			agent: options.agent,
+			rejectUnauthorized: isBoolean(options.strictSSL) ? options.strictSSL : true
 		};
 
 		if (options.user && options.password) {
 			opts.auth = options.user + ':' + options.password;
 		}
 
-		var protocol = endpoint.protocol === 'https:' ? https : http;
+		let protocol = endpoint.protocol === 'https:' ? https : http;
 		req = protocol.request(opts, (res: http.ClientResponse) => {
 			if (res.statusCode >= 300 && res.statusCode < 400 && options.followRedirects && options.followRedirects > 0 && res.headers['location']) {
 				c(<any> request(assign({}, options, {
@@ -61,16 +64,20 @@ export function request(options: IRequestOptions): TPromise<IRequestResult> {
 		});
 		req.on('error', e);
 
-		options.timeout && req.setTimeout(options.timeout);
-		options.data && req.write(options.data);
+		if (options.timeout) {
+			req.setTimeout(options.timeout);
+		}
+		if (options.data) {
+			req.write(options.data);
+		}
 
 		req.end();
 	},
 	() => req && req.abort());
 }
 
-export function download(filePath: string, opts: IRequestOptions): Promise {
-	return request(assign(opts, { followRedirects: 3 })).then(pair => new Promise((c, e) => {
+export function download(filePath: string, opts: IRequestOptions): TPromise<void> {
+	return request(assign(opts, { followRedirects: 3 })).then(pair => new TPromise<void>((c, e) => {
 		let out = createWriteStream(filePath);
 
 		out.once('finish', () => c(null));
@@ -93,7 +100,7 @@ export function json<T>(opts: IRequestOptions): TPromise<T> {
 			return e('Response doesn\'t appear to be JSON');
 		}
 
-		var buffer: string[] = [];
+		let buffer: string[] = [];
 		pair.res.on('data', d => buffer.push(d));
 		pair.res.on('end', () => c(JSON.parse(buffer.join(''))));
 		pair.res.on('error', e);

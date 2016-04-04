@@ -23,11 +23,16 @@ export interface ProgressCallback {
 export declare class Promise {
 	constructor(init:(complete:ValueCallback, error:ErrorCallback, progress:ProgressCallback)=>void, oncancel?: any);
 
-	static as(value:any):Promise;
+	// commented out to speed up adoption of TPromise
+	// static as(value:any):Promise;
+
 	static join(promises:{[name:string]:Promise;}):Promise;
 	static join(promises:Promise[]):Promise;
 	static any(promises:Promise[]):Promise;
-	static timeout(delay:number):Promise;
+
+	// commented out to speed up adoption of TPromise
+	// static timeout(delay:number):Promise;
+
 	static wrapError(error:any):Promise;
 	static is(value: any): boolean;
 	static addEventListener(type:string, fn:EventCallback):void;
@@ -71,9 +76,15 @@ export declare class TPromise<V> {
 	constructor(init:(complete: TValueCallback<V>, error:(err:any)=>void, progress:ProgressCallback)=>void, oncancel?: any);
 
 	public then<U>(success?: (value:V)=>TPromise<U>, error?: (err:any)=>TPromise<U>, progress?:ProgressCallback): TPromise<U>;
+	public then<U>(success?: (value:V)=>TPromise<U>, error?: (err:any)=>TPromise<U>|U, progress?:ProgressCallback): TPromise<U>;
 	public then<U>(success?: (value:V)=>TPromise<U>, error?: (err:any)=>U, progress?:ProgressCallback): TPromise<U>;
 	public then<U>(success?: (value:V)=>TPromise<U>, error?: (err:any)=>void, progress?:ProgressCallback): TPromise<U>;
+	public then<U>(success?: (value:V)=>TPromise<U>|U, error?: (err:any)=>TPromise<U>, progress?:ProgressCallback): TPromise<U>;
+	public then<U>(success?: (value:V)=>TPromise<U>|U, error?: (err:any)=>TPromise<U>|U, progress?:ProgressCallback): TPromise<U>;
+	public then<U>(success?: (value:V)=>TPromise<U>|U, error?: (err:any)=>U, progress?:ProgressCallback): TPromise<U>;
+	public then<U>(success?: (value:V)=>TPromise<U>|U, error?: (err:any)=>void, progress?:ProgressCallback): TPromise<U>;
 	public then<U>(success?: (value:V)=>U, error?: (err:any)=>TPromise<U>, progress?:ProgressCallback): TPromise<U>;
+	public then<U>(success?: (value:V)=>U, error?: (err:any)=>TPromise<U>|U, progress?:ProgressCallback): TPromise<U>;
 	public then<U>(success?: (value:V)=>U, error?: (err:any)=>U, progress?:ProgressCallback): TPromise<U>;
 	public then<U>(success?: (value:V)=>U, error?: (err:any)=>void, progress?:ProgressCallback): TPromise<U>;
 

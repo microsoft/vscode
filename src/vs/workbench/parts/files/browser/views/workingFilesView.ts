@@ -7,21 +7,21 @@
 import nls = require('vs/nls');
 import {TPromise} from 'vs/base/common/winjs.base';
 import {Builder, $} from 'vs/base/browser/builder';
-import tree = require('vs/base/parts/tree/common/tree');
+import {ITree} from 'vs/base/parts/tree/browser/tree';
 import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
 import {IAction, IActionRunner} from 'vs/base/common/actions';
 import workbenchEditorCommon = require('vs/workbench/common/editor');
 import {CollapsibleState} from 'vs/base/browser/ui/splitview/splitview';
-import {IWorkingFileEntry, IWorkingFilesModel, IWorkingFileModelChangeEvent, LocalFileChangeEvent, EventType as FileEventType, IFilesConfiguration, ITextFileService} from 'vs/workbench/parts/files/common/files';
+import {IWorkingFileEntry, IWorkingFilesModel, IWorkingFileModelChangeEvent, LocalFileChangeEvent, EventType as FileEventType, IFilesConfiguration, ITextFileService, AutoSaveMode} from 'vs/workbench/parts/files/common/files';
 import dom = require('vs/base/browser/dom');
+import {IDisposable} from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
-import {EditorEvent, EventType as WorkbenchEventType, UntitledEditorEvent} from 'vs/workbench/browser/events';
+import {EventType as WorkbenchEventType, UntitledEditorEvent, EditorEvent} from 'vs/workbench/common/events';
 import {AdaptiveCollapsibleViewletView} from 'vs/workbench/browser/viewlet';
-import {CloseWorkingFileAction, SaveAllAction} from 'vs/workbench/parts/files/browser/fileActions';
-import {WorkingFileEntry} from 'vs/workbench/parts/files/browser/workingFilesModel';
-import {WorkingFilesDragAndDrop, WorkingFilesSorter, WorkingFilesController, WorkingFilesDataSource, WorkingFilesRenderer, WorkingFilesActionProvider} from 'vs/workbench/parts/files/browser/views/workingFilesViewer';
+import {CloseAllWorkingFilesAction, SaveAllAction} from 'vs/workbench/parts/files/browser/fileActions';
+import {WorkingFileEntry} from 'vs/workbench/parts/files/common/workingFilesModel';
+import {WorkingFilesDragAndDrop, WorkingFilesSorter, WorkingFilesController, WorkingFilesDataSource, WorkingFilesRenderer, WorkingFilesAccessibilityProvider, WorkingFilesActionProvider} from 'vs/workbench/parts/files/browser/views/workingFilesViewer';
 import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IWorkspaceContextService} from 'vs/workbench/services/workspace/common/contextService';
 import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
 import {IEditorInput} from 'vs/platform/editor/common/editor';
 import {IEventService} from 'vs/platform/event/common/event';
@@ -36,8 +36,6 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 	private static DEFAULT_MAX_VISIBLE_FILES = 9;
 	private static DEFAULT_DYNAMIC_HEIGHT = true;
 
-	private textFileService: ITextFileService;
-
 	private settings: any;
 	private maxVisibleWorkingFiles: number;
 	private dynamicHeight: boolean;
@@ -46,23 +44,23 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 	private dirtyCountElement: HTMLElement;
 	private lastDirtyCount: number;
 
+	private disposeables: IDisposable[];
+
 	constructor(actionRunner: IActionRunner, settings: any,
 		@IEventService private eventService: IEventService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@ITextFileService textFileService: ITextFileService,
+		@ITextFileService private textFileService: ITextFileService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(actionRunner, WorkingFilesView.computeExpandedBodySize(textFileService.getWorkingFilesModel()), !!settings[WorkingFilesView.MEMENTO_COLLAPSED], 'workingFilesView', messageService, contextMenuService);
-
-		this.textFileService = textFileService;
+		super(actionRunner, WorkingFilesView.computeExpandedBodySize(textFileService.getWorkingFilesModel()), !!settings[WorkingFilesView.MEMENTO_COLLAPSED], nls.localize('workingFilesSection', "Working Files Section"), messageService, contextMenuService);
 
 		this.settings = settings;
 		this.model = this.textFileService.getWorkingFilesModel();
 		this.lastDirtyCount = 0;
+		this.disposeables = [];
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -78,8 +76,8 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 	public getActions(): IAction[] {
 		return [
 			this.instantiationService.createInstance(SaveAllAction, SaveAllAction.ID, SaveAllAction.LABEL),
-			this.instantiationService.createInstance(CloseWorkingFileAction, this.model, null)
-		]
+			this.instantiationService.createInstance(CloseAllWorkingFilesAction, this.model)
+		];
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -92,19 +90,16 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 	public create(): TPromise<void> {
 
 		// Load Config
-		return this.configurationService.loadConfiguration().then((configuration) => {
+		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+		this.onConfigurationUpdated(configuration);
 
-			// Update configuration
-			this.onConfigurationUpdated(configuration);
+		// listeners
+		this.registerListeners();
 
-			// listeners
-			this.registerListeners();
+		// highlight active input
+		this.highlightInput(this.editorService.getActiveEditorInput());
 
-			// highlight active input
-			this.highlightInput(this.editorService.getActiveEditorInput());
-
-			return super.create();
-		});
+		return super.create();
 	}
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration): void {
@@ -129,8 +124,8 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 	private registerListeners(): void {
 
 		// update on model changes
-		this.model.onModelChange.add(this.onWorkingFilesModelChange, this);
-		this.model.onWorkingFileChange.add(this.onWorkingFileChange, this);
+		this.disposeables.push(this.model.onModelChange(this.onWorkingFilesModelChange, this));
+		this.disposeables.push(this.model.onWorkingFileChange(this.onWorkingFileChange, this));
 
 		// listen to untitled
 		this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.UNTITLED_FILE_DIRTY, (e: UntitledEditorEvent) => this.onUntitledFileDirty()));
@@ -150,8 +145,8 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 	}
 
 	private onTextFileDirty(e: LocalFileChangeEvent): void {
-		if (!this.contextService.isAutoSaveEnabled()) {
-			this.updateDirtyIndicator(); // no indication needed when auto save is turned off and we didn't show dirty
+		if (this.textFileService.getAutoSaveMode() !== AutoSaveMode.AFTER_SHORT_DELAY) {
+			this.updateDirtyIndicator(); // no indication needed when auto save is enabled for short delay
 		}
 	}
 
@@ -187,7 +182,8 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 		if (dirty === 0) {
 			$(this.dirtyCountElement).hide();
 		} else {
-			$(this.dirtyCountElement).show().text(nls.localize('dirtyCounter', "{0} unsaved", dirty));
+			const label = nls.localize('dirtyCounter', "{0} unsaved", dirty);
+			$(this.dirtyCountElement).show().text(label).title(label);
 		}
 	}
 
@@ -280,23 +276,26 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 		}
 	}
 
-	private createViewer(container: Builder): tree.ITree {
+	private createViewer(container: Builder): ITree {
 		let actionProvider = this.instantiationService.createInstance(WorkingFilesActionProvider, this.model);
 		let renderer = this.instantiationService.createInstance(WorkingFilesRenderer, this.model, actionProvider, this.actionRunner);
 		let dataSource = this.instantiationService.createInstance(WorkingFilesDataSource);
 		let controller = this.instantiationService.createInstance(WorkingFilesController, this.model, actionProvider);
 		let sorter = this.instantiationService.createInstance(WorkingFilesSorter);
 		let dnd = this.instantiationService.createInstance(WorkingFilesDragAndDrop, this.model);
+		let accessibility = this.instantiationService.createInstance(WorkingFilesAccessibilityProvider);
 
 		this.tree = new Tree(container.getHTMLElement(), {
 			dataSource: dataSource,
 			renderer: renderer,
 			sorter: sorter,
 			controller: controller,
-			dnd: dnd
+			dnd: dnd,
+			accessibilityProvider: accessibility
 		}, {
 				indentPixels: 0,
-				twistiePixels: 8
+				twistiePixels: 8,
+				ariaLabel: nls.localize('treeAriaLabel', "Working Files")
 			});
 
 		this.tree.setInput(this.model);
@@ -313,7 +312,8 @@ export class WorkingFilesView extends AdaptiveCollapsibleViewletView {
 	public dispose(): void {
 		super.dispose();
 
-		this.model.onModelChange.remove(this.onWorkingFilesModelChange, this);
-		this.model.onWorkingFileChange.remove(this.onWorkingFileChange, this);
+		while (this.disposeables.length) {
+			this.disposeables.pop().dispose();
+		}
 	}
 }

@@ -30,7 +30,7 @@ export default class CallbackList {
 			return;
 		}
 
-		var foundCallbackWithDifferentContext = false;
+		let foundCallbackWithDifferentContext = false;
 		for (var i = 0, len = this._callbacks.length; i < len; i++) {
 			if (this._callbacks[i] === callback) {
 				if (this._contexts[i] === context) {
@@ -54,7 +54,7 @@ export default class CallbackList {
 			return;
 		}
 
-		var ret: any[] = [],
+		const ret: any[] = [],
 			callbacks = this._callbacks.slice(0),
 			contexts = this._contexts.slice(0);
 
