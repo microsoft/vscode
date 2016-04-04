@@ -172,7 +172,7 @@ configurationRegistry.registerConfiguration({
 		'files.exclude': {
 			'type': 'object',
 			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders."),
-			'default': { '**/.git': true, '**/.DS_Store': true },
+			'default': { '**/.git': true, '**/.DS_Store': true, 'VCS':true },
 			'additionalProperties': {
 				'anyOf': [
 					{
