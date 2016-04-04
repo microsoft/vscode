@@ -27,7 +27,7 @@ export interface ILinesCollection {
 	getOutputLineContent(outputLineNumber:number): string;
 	getOutputLineMinColumn(outputLineNumber:number): number;
 	getOutputLineMaxColumn(outputLineNumber:number): number;
-	getOutputLineTokens(outputLineNumber:number, inaccurateTokensAcceptable:boolean): editorCommon.IViewLineTokens;
+	getOutputLineTokens(outputLineNumber:number): editorCommon.ViewLineTokens;
 	convertOutputPositionToInputPosition(viewLineNumber:number, viewColumn:number): editorCommon.IEditorPosition;
 	convertInputPositionToOutputPosition(inputLineNumber:number, inputColumn:number): editorCommon.IEditorPosition;
 	setHiddenAreas(ranges:editorCommon.IRange[], emit:(evenType:string, payload:any)=>void): void;
@@ -410,8 +410,8 @@ export class ViewModel extends EventEmitter implements editorCommon.IViewModel {
 		return result + 2;
 	}
 
-	public getLineTokens(lineNumber:number): editorCommon.IViewLineTokens {
-		return this.lines.getOutputLineTokens(lineNumber, true);
+	public getLineTokens(lineNumber:number): editorCommon.ViewLineTokens {
+		return this.lines.getOutputLineTokens(lineNumber);
 	}
 
 	public getLineRenderLineNumber(viewLineNumber:number): string {

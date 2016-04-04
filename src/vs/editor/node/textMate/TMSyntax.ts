@@ -8,11 +8,12 @@ import * as nls from 'vs/nls';
 import {onUnexpectedError} from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
 import {IExtensionMessageCollector, ExtensionsRegistry} from 'vs/platform/extensions/common/extensionsRegistry';
-import {ILineTokens, IMode, IToken, ITokenizationSupport} from 'vs/editor/common/modes';
+import {ILineTokens, IMode, ITokenizationSupport} from 'vs/editor/common/modes';
 import {TMState} from 'vs/editor/common/modes/TMState';
-import {Token} from 'vs/editor/common/modes/supports';
+import {LineTokens, Token} from 'vs/editor/common/modes/supports';
 import {IModeService} from 'vs/editor/common/services/modeService';
-import {IGrammar, ITMToken, Registry} from 'vscode-textmate';
+import {IGrammar, Registry} from 'vscode-textmate';
+import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
 export interface ITMSyntaxExtensionPoint {
 	language: string;
@@ -126,100 +127,153 @@ function createTokenizationSupport(mode: IMode, grammar: IGrammar): ITokenizatio
 	};
 }
 
+export class DecodeMap {
+	_decodeMapTrait: void;
 
+	lastAssignedId: number;
+	scopeToTokenIds: { [scope:string]:number[]; };
+	tokenToTokenId: { [token:string]:number; };
+	tokenIdToToken: string[];
+	prevToken: TMTokenDecodeData;
+
+	constructor() {
+		this.lastAssignedId = 0;
+		this.scopeToTokenIds = Object.create(null);
+		this.tokenToTokenId = Object.create(null);
+		this.tokenIdToToken = [null];
+		this.prevToken = new TMTokenDecodeData([], []);
+	}
+
+	public getTokenIds(scope:string): number[] {
+		let tokens = this.scopeToTokenIds[scope];
+		if (tokens) {
+			return tokens;
+		}
+		let tmpTokens = scope.split('.');
+
+		tokens = [];
+		for (let i = 0; i < tmpTokens.length; i++) {
+			let token = tmpTokens[i];
+			let tokenId = this.tokenToTokenId[token];
+			if (!tokenId) {
+				tokenId = (++this.lastAssignedId);
+				this.tokenToTokenId[token] = tokenId;
+				this.tokenIdToToken[tokenId] = token;
+			}
+			tokens.push(tokenId);
+		}
+
+		this.scopeToTokenIds[scope] = tokens;
+		return tokens;
+	}
+
+	public getToken(tokenMap:boolean[]): string {
+		let result = '';
+		let isFirst = true;
+		for (let i = 1; i <= this.lastAssignedId; i++) {
+			if (tokenMap[i]) {
+				if (isFirst) {
+					isFirst = false;
+					result += this.tokenIdToToken[i];
+				} else {
+					result += '.';
+					result += this.tokenIdToToken[i];
+				}
+			}
+		}
+		return result;
+	}
+}
+
+export class TMTokenDecodeData {
+	_tmTokenDecodeDataTrait: void;
+
+	public scopes: string[];
+	public scopeTokensMaps: boolean[][];
+
+	constructor(scopes:string[], scopeTokensMaps:boolean[][]) {
+		this.scopes = scopes;
+		this.scopeTokensMaps = scopeTokensMaps;
+	}
+}
 
 class Tokenizer {
 	private _grammar: IGrammar;
 	private _modeId: string;
+	private _decodeMap: DecodeMap;
 
 	constructor(modeId:string, grammar: IGrammar) {
 		this._modeId = modeId;
 		this._grammar = grammar;
+		this._decodeMap = new DecodeMap();
 	}
 
 	public tokenize(line: string, state: TMState, offsetDelta: number = 0, stopAtOffset?: number): ILineTokens {
 		if (line.length >= 20000) {
-			return {
-				tokens: <IToken[]>[{
-					startIndex: offsetDelta,
-					type: ''
-				}],
-				actualStopOffset: offsetDelta,
-				endState: state,
-				modeTransitions: [{ startIndex: offsetDelta, mode: state.getMode() }],
-			};
+			return new LineTokens(
+				[new Token(offsetDelta, '')],
+				[new ModeTransition(offsetDelta, state.getMode())],
+				offsetDelta,
+				state
+			);
 		}
 		let freshState = state.clone();
 		let textMateResult = this._grammar.tokenizeLine(line, freshState.getRuleStack());
 		freshState.setRuleStack(textMateResult.ruleStack);
 
 		// Create the result early and fill in the tokens later
-		let ret = {
-			tokens: <IToken[]>[],
-			actualStopOffset: offsetDelta + line.length,
-			endState: freshState,
-			modeTransitions: [{ startIndex: offsetDelta, mode: freshState.getMode() }],
-		};
+		let tokens:Token[] = [];
 
 		let lastTokenType:string = null;
 		for (let tokenIndex = 0, len = textMateResult.tokens.length; tokenIndex < len; tokenIndex++) {
 			let token = textMateResult.tokens[tokenIndex];
 			let tokenStartIndex = token.startIndex;
-			let t = decodeTextMateToken(this._modeId, token);
+			let tokenType = decodeTextMateToken(this._decodeMap, token.scopes);
 
 			// do not push a new token if the type is exactly the same (also helps with ligatures)
-			if (t.tokenType !== lastTokenType) {
-				ret.tokens.push(new Token(tokenStartIndex + offsetDelta, t.tokenType));
-				lastTokenType = t.tokenType;
+			if (tokenType !== lastTokenType) {
+				tokens.push(new Token(tokenStartIndex + offsetDelta, tokenType));
+				lastTokenType = tokenType;
 			}
 		}
 
-		return ret;
+		return new LineTokens(
+			tokens,
+			[new ModeTransition(offsetDelta, freshState.getMode())],
+			offsetDelta + line.length,
+			freshState
+		);
 	}
 }
 
-function decodeTextMateToken(modeId:string, entry: ITMToken) {
-	let tokenTypeArray: string[] = [];
-	for (let level = 1 /* deliberately skip scope 0*/; level < entry.scopes.length; ++level) {
-		tokenTypeArray = tokenTypeArray.concat(entry.scopes[level].split('.'));
-	}
-	let modeToken = '';
-	if (entry.scopes.length > 0) {
-		let dotIndex = entry.scopes[0].lastIndexOf('.');
-		if (dotIndex >= 0) {
-			modeToken = entry.scopes[0].substr(dotIndex + 1);
-		}
-	}
-	let tokenTypes: string[] = [];
-	dedupTokens(tokenTypeArray, modeToken, tokenTypes);
+export function decodeTextMateToken(decodeMap: DecodeMap, scopes: string[]): string {
+	const prevTokenScopes = decodeMap.prevToken.scopes;
+	const prevTokenScopesLength = prevTokenScopes.length;
+	const prevTokenScopeTokensMaps = decodeMap.prevToken.scopeTokensMaps;
 
-	return {
-		tokenType: tokenTypes.join('.'),
-		modeToken: modeId
-	};
-}
+	let scopeTokensMaps: boolean[][] = [];
+	let prevScopeTokensMaps: boolean[] = [];
+	let sameAsPrev = true;
+	for (let level = 1/* deliberately skip scope 0*/; level < scopes.length; level++) {
+		let scope = scopes[level];
 
-/**
- * Remove duplicate entries, collect result in `result`, place `modeToken` at the end
- * and detect if this is a comment => return true if it looks like a comment
- */
-function dedupTokens(tokenTypeArray:string[], modeToken:string, result:string[]): void {
-
-	tokenTypeArray.sort();
-
-	var prev:string = null,
-		curr:string = null;
-
-	for (var i = 0, len = tokenTypeArray.length; i < len; i++) {
-		prev = curr;
-		curr = tokenTypeArray[i];
-
-		if (curr === prev || curr === modeToken) {
-			continue;
+		if (sameAsPrev) {
+			if (level < prevTokenScopesLength && prevTokenScopes[level] === scope) {
+				prevScopeTokensMaps = prevTokenScopeTokensMaps[level];
+				scopeTokensMaps[level] = prevScopeTokensMaps;
+				continue;
+			}
+			sameAsPrev = false;
 		}
 
-		result.push(curr);
+		let tokens = decodeMap.getTokenIds(scope);
+		prevScopeTokensMaps = prevScopeTokensMaps.slice(0);
+		for (let i = 0; i < tokens.length; i++) {
+			prevScopeTokensMaps[tokens[i]] = true;
+		}
+		scopeTokensMaps[level] = prevScopeTokensMaps;
 	}
 
-	result.push(modeToken);
+	decodeMap.prevToken = new TMTokenDecodeData(scopes, scopeTokensMaps);
+	return decodeMap.getToken(prevScopeTokensMaps);
 }

@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import {ILineTokens} from 'vs/editor/common/editorCommon';
+import {ILineTokens, LineToken} from 'vs/editor/common/editorCommon';
 import * as modelLine from 'vs/editor/common/model/modelLine';
 import {LineMarker} from 'vs/editor/common/model/textModelWithMarkers';
 import {TokensInflatorMap} from 'vs/editor/common/model/textModelWithTokens';
@@ -236,7 +236,7 @@ suite('Editor Model - modelLine.append text', () => {
 });
 
 suite('Editor Model - modelLine.applyEdits text & tokens', () => {
-	function testLineEditTokens(initialText:string, initialTokens: IToken[], edits:modelLine.ILineEdit[], expectedText:string, expectedTokens: IToken[]): void {
+	function testLineEditTokens(initialText:string, initialTokens: LineToken[], edits:modelLine.ILineEdit[], expectedText:string, expectedTokens: LineToken[]): void {
 		var line = new modelLine.ModelLine(1, initialText);
 		line.setTokens(new TokensInflatorMap(), initialTokens, null, []);
 
@@ -249,7 +249,7 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 	test('insertion on empty line', () => {
 		var line = new modelLine.ModelLine(1, 'some text');
 		var map = new TokensInflatorMap();
-		line.setTokens(map, [{startIndex: 0, type:'bar'}], null, []);
+		line.setTokens(map, [new LineToken(0, 'bar')], null, []);
 
 		line.applyEdits({}, [{startColumn:1, endColumn:10, text:'', forceMoveMarkers: false}]);
 		line.setTokens(map, [], null, []);
@@ -265,9 +265,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			],
 			[{
 				startColumn: 1,
@@ -277,9 +277,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'aabcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 5, type: '2' },
-				{ startIndex: 6, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(5, '2'),
+				new LineToken(6, '3')
 			]
 		);
 	});
@@ -288,9 +288,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'aabcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 5, type: '2' },
-				{ startIndex: 6, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(5, '2'),
+				new LineToken(6, '3')
 			],
 			[{
 				startColumn: 2,
@@ -300,9 +300,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'axabcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 6, type: '2' },
-				{ startIndex: 7, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(6, '2'),
+				new LineToken(7, '3')
 			]
 		);
 	});
@@ -311,9 +311,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'axabcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 6, type: '2' },
-				{ startIndex: 7, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(6, '2'),
+				new LineToken(7, '3')
 			],
 			[{
 				startColumn: 3,
@@ -323,9 +323,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'axstuabcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 9, type: '2' },
-				{ startIndex: 10, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(9, '2'),
+				new LineToken(10, '3')
 			]
 		);
 	});
@@ -334,9 +334,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'axstuabcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 9, type: '2' },
-				{ startIndex: 10, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(9, '2'),
+				new LineToken(10, '3')
 			],
 			[{
 				startColumn: 10,
@@ -346,9 +346,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'axstuabcd\t efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 10, type: '2' },
-				{ startIndex: 11, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(10, '2'),
+				new LineToken(11, '3')
 			]
 		);
 	});
@@ -357,9 +357,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'axstuabcd\t efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 10, type: '2' },
-				{ startIndex: 11, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(10, '2'),
+				new LineToken(11, '3')
 			],
 			[{
 				startColumn: 12,
@@ -369,9 +369,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'axstuabcd\t ddefgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 10, type: '2' },
-				{ startIndex: 13, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(10, '2'),
+				new LineToken(13, '3')
 			]
 		);
 	});
@@ -380,9 +380,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'axstuabcd\t ddefgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 10, type: '2' },
-				{ startIndex: 13, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(10, '2'),
+				new LineToken(13, '3')
 			],
 			[{
 				startColumn: 18,
@@ -392,9 +392,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'axstuabcd\t ddefghxyz',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 10, type: '2' },
-				{ startIndex: 13, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(10, '2'),
+				new LineToken(13, '3')
 			]
 		);
 	});
@@ -403,9 +403,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'axstuabcd\t ddefghxyz',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 10, type: '2' },
-				{ startIndex: 13, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(10, '2'),
+				new LineToken(13, '3')
 			],
 			[{
 				startColumn: 1,
@@ -415,9 +415,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'xaxstuabcd\t ddefghxyz',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 11, type: '2' },
-				{ startIndex: 14, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(11, '2'),
+				new LineToken(14, '3')
 			]
 		);
 	});
@@ -426,9 +426,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'xaxstuabcd\t ddefghxyz',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 11, type: '2' },
-				{ startIndex: 14, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(11, '2'),
+				new LineToken(14, '3')
 			],
 			[{
 				startColumn: 22,
@@ -438,9 +438,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'xaxstuabcd\t ddefghxyzx',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 11, type: '2' },
-				{ startIndex: 14, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(11, '2'),
+				new LineToken(14, '3')
 			]
 		);
 	});
@@ -449,9 +449,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'xaxstuabcd\t ddefghxyzx',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 11, type: '2' },
-				{ startIndex: 14, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(11, '2'),
+				new LineToken(14, '3')
 			],
 			[{
 				startColumn: 2,
@@ -461,9 +461,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'xaxstuabcd\t ddefghxyzx',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 11, type: '2' },
-				{ startIndex: 14, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(11, '2'),
+				new LineToken(14, '3')
 			]
 		);
 	});
@@ -480,7 +480,7 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'a',
 			[
-				{ startIndex: 0, type: '' }
+				new LineToken(0, '')
 			]
 		);
 	});
@@ -489,9 +489,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcdefghij',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 3, type: '2' },
-				{ startIndex: 6, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(3, '2'),
+				new LineToken(6, '3')
 			],
 			[{
 				startColumn: 4,
@@ -501,8 +501,8 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'abcghij',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 3, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(3, '3')
 			]
 		);
 	});
@@ -511,9 +511,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcdefghij',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 3, type: '2' },
-				{ startIndex: 6, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(3, '2'),
+				new LineToken(6, '3')
 			],
 			[{
 				startColumn: 4,
@@ -523,9 +523,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'abchellodefghij',
 			[
-				{ startIndex:  0, type: '1' },
-				{ startIndex:  8, type: '2' },
-				{ startIndex: 11, type: '3' }
+				new LineToken( 0, '1'),
+				new LineToken( 8, '2'),
+				new LineToken(11, '3')
 			]
 		);
 	});
@@ -534,9 +534,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			],
 			[{
 				startColumn: 1,
@@ -546,9 +546,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'bcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 3, type: '2' },
-				{ startIndex: 4, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(3, '2'),
+				new LineToken(4, '3')
 			]
 		);
 	});
@@ -557,9 +557,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			],
 			[{
 				startColumn: 2,
@@ -569,9 +569,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'ad efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 2, type: '2' },
-				{ startIndex: 3, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(2, '2'),
+				new LineToken(3, '3')
 			]
 		);
 	});
@@ -580,9 +580,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			],
 			[{
 				startColumn: 1,
@@ -592,8 +592,8 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			' efgh',
 			[
-				{ startIndex: 0, type: '2' },
-				{ startIndex: 1, type: '3' }
+				new LineToken(0, '2'),
+				new LineToken(1, '3')
 			]
 		);
 	});
@@ -602,9 +602,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			],
 			[{
 				startColumn: 5,
@@ -614,8 +614,8 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'abcdefgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '3')
 			]
 		);
 	});
@@ -624,9 +624,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			],
 			[{
 				startColumn: 5,
@@ -636,8 +636,8 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'abcdfgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '3')
 			]
 		);
 	});
@@ -646,9 +646,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			],
 			[{
 				startColumn: 5,
@@ -658,7 +658,7 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'abcd',
 			[
-				{ startIndex: 0, type: '1' }
+				new LineToken(0, '1')
 			]
 		);
 	});
@@ -667,9 +667,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			],
 			[{
 				startColumn: 1,
@@ -686,9 +686,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			],
 			[{
 				startColumn: 1,
@@ -698,9 +698,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			]
 		);
 	});
@@ -709,9 +709,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			],
 			[{
 				startColumn: 1,
@@ -721,9 +721,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'cd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 2, type: '2' },
-				{ startIndex: 3, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(2, '2'),
+				new LineToken(3, '3')
 			]
 		);
 	});
@@ -732,9 +732,9 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			],
 			[{
 				startColumn: 5,
@@ -744,7 +744,7 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'abcd',
 			[
-				{ startIndex: 0, type: '1' }
+				new LineToken(0, '1')
 			]
 		);
 	});
@@ -753,11 +753,11 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'Hello world, ciao',
 			[
-				{ startIndex: 0, type: 'hello' },
-				{ startIndex: 5, type: '' },
-				{ startIndex: 6, type: 'world' },
-				{ startIndex: 11, type: '' },
-				{ startIndex: 13, type: '' },
+				new LineToken(0, 'hello'),
+				new LineToken(5, ''),
+				new LineToken(6, 'world'),
+				new LineToken(11, ''),
+				new LineToken(13, '')
 			],
 			[{
 				startColumn: 1,
@@ -767,11 +767,11 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'Hi world, ciao',
 			[
-				{ startIndex: 0, type: 'hello' },
-				{ startIndex: 2, type: '' },
-				{ startIndex: 3, type: 'world' },
-				{ startIndex: 8, type: '' },
-				{ startIndex: 10, type: '' },
+				new LineToken(0, 'hello'),
+				new LineToken(2, ''),
+				new LineToken(3, 'world'),
+				new LineToken(8, '' ),
+				new LineToken(10, '' ),
 			]
 		);
 	});
@@ -780,11 +780,11 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 		testLineEditTokens(
 			'Hello world, ciao',
 			[
-				{ startIndex: 0, type: 'hello' },
-				{ startIndex: 5, type: '' },
-				{ startIndex: 6, type: 'world' },
-				{ startIndex: 11, type: '' },
-				{ startIndex: 13, type: '' },
+				new LineToken(0, 'hello'),
+				new LineToken(5, ''),
+				new LineToken(6, 'world'),
+				new LineToken(11, ''),
+				new LineToken(13, ''),
 			],
 			[{
 				startColumn: 1,
@@ -799,18 +799,18 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 			}],
 			'Hi wmy friends, ciao',
 			[
-				{ startIndex: 0, type: 'hello' },
-				{ startIndex: 2, type: '' },
-				{ startIndex: 3, type: 'world' },
-				{ startIndex: 14, type: '' },
-				{ startIndex: 16, type: '' },
+				new LineToken(0, 'hello'),
+				new LineToken(2, ''),
+				new LineToken(3, 'world'),
+				new LineToken(14, ''),
+				new LineToken(16, ''),
 			]
 		);
 	});
 });
 
 suite('Editor Model - modelLine.split text & tokens', () => {
-	function testLineSplitTokens(initialText:string, initialTokens: IToken[], splitColumn:number, expectedText1:string, expectedText2:string, expectedTokens: IToken[]): void {
+	function testLineSplitTokens(initialText:string, initialTokens: LineToken[], splitColumn:number, expectedText1:string, expectedText2:string, expectedTokens: LineToken[]): void {
 		var line = new modelLine.ModelLine(1, initialText);
 		line.setTokens(new TokensInflatorMap(), initialTokens, null, []);
 
@@ -825,9 +825,9 @@ suite('Editor Model - modelLine.split text & tokens', () => {
 		testLineSplitTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			],
 			1,
 			'',
@@ -840,17 +840,17 @@ suite('Editor Model - modelLine.split text & tokens', () => {
 		testLineSplitTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			],
 			10,
 			'abcd efgh',
 			'',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			]
 		);
 	});
@@ -859,15 +859,15 @@ suite('Editor Model - modelLine.split text & tokens', () => {
 		testLineSplitTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			],
 			5,
 			'abcd',
 			' efgh',
 			[
-				{ startIndex: 0, type: '1' }
+				new LineToken(0, '1')
 			]
 		);
 	});
@@ -876,23 +876,23 @@ suite('Editor Model - modelLine.split text & tokens', () => {
 		testLineSplitTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			],
 			6,
 			'abcd ',
 			'efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2')
 			]
 		);
 	});
 });
 
 suite('Editor Model - modelLine.append text & tokens', () => {
-	function testLineAppendTokens(aText:string, aTokens: IToken[], bText:string, bTokens:IToken[], expectedText:string, expectedTokens:IToken[]): void {
+	function testLineAppendTokens(aText:string, aTokens: LineToken[], bText:string, bTokens:LineToken[], expectedText:string, expectedTokens:IToken[]): void {
 		var inflator = new TokensInflatorMap();
 
 		var a = new modelLine.ModelLine(1, aText);
@@ -911,17 +911,17 @@ suite('Editor Model - modelLine.append text & tokens', () => {
 		testLineAppendTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			],
 			'',
 			[],
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			]
 		);
 	});
@@ -932,15 +932,15 @@ suite('Editor Model - modelLine.append text & tokens', () => {
 			[],
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			],
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			]
 		);
 	});
@@ -949,24 +949,24 @@ suite('Editor Model - modelLine.append text & tokens', () => {
 		testLineAppendTokens(
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			],
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '4' },
-				{ startIndex: 4, type: '5' },
-				{ startIndex: 5, type: '6' }
+				new LineToken(0, '4'),
+				new LineToken(4, '5'),
+				new LineToken(5, '6')
 			],
 			'abcd efghabcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' },
-				{ startIndex: 9, type: '4' },
-				{ startIndex: 13, type: '5' },
-				{ startIndex: 14, type: '6' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3'),
+				new LineToken(9, '4'),
+				new LineToken(13, '5'),
+				new LineToken(14, '6')
 			]
 		);
 	});
@@ -975,18 +975,18 @@ suite('Editor Model - modelLine.append text & tokens', () => {
 		testLineAppendTokens(
 			'abcd ',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2')
 			],
 			'efgh',
 			[
-				{ startIndex: 0, type: '3' }
+				new LineToken(0, '3')
 			],
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			]
 		);
 	});
@@ -995,18 +995,18 @@ suite('Editor Model - modelLine.append text & tokens', () => {
 		testLineAppendTokens(
 			'abcd',
 			[
-				{ startIndex: 0, type: '1' },
+				new LineToken(0, '1'),
 			],
 			' efgh',
 			[
-				{ startIndex: 0, type: '2' },
-				{ startIndex: 1, type: '3' }
+				new LineToken(0, '2'),
+				new LineToken(1, '3')
 			],
 			'abcd efgh',
 			[
-				{ startIndex: 0, type: '1' },
-				{ startIndex: 4, type: '2' },
-				{ startIndex: 5, type: '3' }
+				new LineToken(0, '1'),
+				new LineToken(4, '2'),
+				new LineToken(5, '3')
 			]
 		);
 	});

@@ -63,7 +63,7 @@ var isKeyword = objects.createKeywordMatcher([
 	'float', 'for', 'foreach', 'from',
 	'goto',	'group', 'if', 'implicit',
 	'in', 'int', 'interface', 'internal',
-	'into', 'is', 'lock', 'long',
+	'into', 'is', 'lock', 'long', 'nameof',
 	'new', 'null', 'namespace', 'object',
 	'operator', 'out', 'override', 'orderby',
 	'params', 'private', 'protected', 'public',
@@ -73,7 +73,7 @@ var isKeyword = objects.createKeywordMatcher([
 	'select', 'this', 'throw', 'true',
 	'try', 'typeof', 'uint', 'ulong',
 	'unchecked', 'unsafe', 'ushort', 'using',
-	'var', 'virtual', 'volatile', 'void',
+	'var', 'virtual', 'volatile', 'void', 'when',
 	'while', 'where', 'yield',
 	'model', 'inject' // Razor specific
 ]);

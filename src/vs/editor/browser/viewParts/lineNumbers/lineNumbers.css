@@ -6,7 +6,11 @@
 .monaco-editor .margin-view-overlays .line-numbers {
 	position: absolute;
 	text-align: right;
-	cursor: url('./flipped-cursor.svg') 12.6 0, default;
+	/* Specific fix for blurry cursor on hdpi screens in Chrome and Chromium (Windows and other) */
+	cursor: -webkit-image-set(
+		url('./flipped-cursor.svg') 1x,
+		url('./flipped-cursor-2x.svg') 2x
+	) 30 0, default;
 
 	display: inline-block;
 	vertical-align: middle;
@@ -14,7 +18,11 @@
 }
 
 .monaco-editor.mac .margin-view-overlays .line-numbers {
-	cursor: url('./flipped-cursor-mac.svg') 12.6 0, default;
+	/* Specific fix for blurry cursor on hdpi screens in Chrome and Chromium (Mac) */
+	cursor: -webkit-image-set(
+		url('./flipped-cursor-mac.svg') 1x,
+		url('./flipped-cursor-mac-2x.svg') 2x
+	) 24 3, default;
 }
 
 .monaco-editor .margin-view-overlays .line-numbers.lh-odd {

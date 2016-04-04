@@ -7,7 +7,6 @@
 import {onUnexpectedError} from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import {ITokensInflatorMap, LineToken} from 'vs/editor/common/editorCommon';
-import {IToken} from 'vs/editor/common/modes';
 
 export var START_INDEX_MASK = 0xffffffff;
 export var TYPE_MASK = 0xffff;
@@ -20,7 +19,7 @@ var DEFLATED_TOKENS_EMPTY_TEXT:number[] = [];
 var INFLATED_TOKENS_NON_EMPTY_TEXT:LineToken[] = [DEFAULT_TOKEN];
 var DEFLATED_TOKENS_NON_EMPTY_TEXT:number[] = [0];
 
-export function deflateArr(map:ITokensInflatorMap, tokens:IToken[]): number[] {
+export function deflateArr(map:ITokensInflatorMap, tokens:LineToken[]): number[] {
 	if (tokens.length === 0) {
 		return DEFLATED_TOKENS_EMPTY_TEXT;
 	}
@@ -32,7 +31,7 @@ export function deflateArr(map:ITokensInflatorMap, tokens:IToken[]): number[] {
 		len:number,
 		deflatedToken:number,
 		deflated:number,
-		token:IToken,
+		token:LineToken,
 		inflateMap = map._inflate,
 		deflateMap = map._deflate,
 		prevStartIndex:number = -1,
@@ -80,7 +79,7 @@ export function deflateArr(map:ITokensInflatorMap, tokens:IToken[]): number[] {
 	return result;
 }
 
-export function inflate(map:ITokensInflatorMap, binaryEncodedToken:number): IToken {
+export function inflate(map:ITokensInflatorMap, binaryEncodedToken:number): LineToken {
 	if (binaryEncodedToken === 0) {
 		return DEFAULT_TOKEN;
 	}

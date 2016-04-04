@@ -5,8 +5,8 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import {ILineTokens, IReadOnlyLineMarker, ITokensInflatorMap} from 'vs/editor/common/editorCommon';
-import {IMode, IModeTransition, IState, IToken} from 'vs/editor/common/modes';
+import {ILineTokens, IReadOnlyLineMarker, ITokensInflatorMap, LineToken} from 'vs/editor/common/editorCommon';
+import {IMode, IState} from 'vs/editor/common/modes';
 import * as TokensBinaryEncoding from 'vs/editor/common/model/tokensBinaryEncoding';
 import {ModeTransition} from 'vs/editor/common/core/modeTransition';
 
@@ -104,13 +104,6 @@ export class ModelLine {
 
 	// --- BEGIN MODE TRANSITIONS
 
-	private _setModeTransitions(topLevelMode:IMode, modeTransitions:IModeTransition[]): void {
-		let desired = toModeTransitions(topLevelMode, modeTransitions);
-
-
-		this._modeTransitions = desired;
-	}
-
 	public getModeTransitions(topLevelMode:IMode): ModeTransition[] {
 		if (this._modeTransitions) {
 			return this._modeTransitions;
@@ -123,23 +116,13 @@ export class ModelLine {
 
 	// --- BEGIN TOKENS
 
-	public setTokens(map: ITokensInflatorMap, tokens: IToken[], topLevelMode:IMode, modeTransitions:IModeTransition[]): void {
-		this._setLineTokensFromInflated(map, tokens);
-		this._setModeTransitions(topLevelMode, modeTransitions);
-	}
-
-	private _setLineTokensFromInflated(map:ITokensInflatorMap, tokens:IToken[]): void {
-		let desired = toLineTokensFromInflated(map, tokens, this._text.length);
-
-
-		this._lineTokens = desired;
+	public setTokens(map: ITokensInflatorMap, tokens: LineToken[], topLevelMode:IMode, modeTransitions:ModeTransition[]): void {
+		this._lineTokens = toLineTokensFromInflated(map, tokens, this._text.length);
+		this._modeTransitions = toModeTransitions(topLevelMode, modeTransitions);
 	}
 
 	private _setLineTokensFromDeflated(map:ITokensInflatorMap, tokens:number[]): void {
-		let desired = toLineTokensFromDeflated(map, tokens, this._text.length);
-
-
-		this._lineTokens = desired;
+		this._lineTokens = toLineTokensFromDeflated(map, tokens, this._text.length);
 	}
 
 	public getTokens(): ILineTokens {
@@ -552,11 +535,17 @@ export class ModelLine {
 	}
 
 	public removeMarker(marker:ILineMarker): void {
-		var index = this._indexOfMarkerId(marker.id);
+		if (!this._markers) {
+			return;
+		}
+		let index = this._indexOfMarkerId(marker.id);
 		if (index >= 0) {
+			marker.line = null;
 			this._markers.splice(index, 1);
 		}
-		marker.line = null;
+		if (this._markers.length === 0) {
+			this._markers = null;
+		}
 	}
 
 	public removeMarkers(deleteMarkers: {[markerId:string]:boolean;}): void {
@@ -572,6 +561,9 @@ export class ModelLine {
 				len--;
 				i--;
 			}
+		}
+		if (this._markers.length === 0) {
+			this._markers = null;
 		}
 	}
 
@@ -624,24 +616,16 @@ export class ModelLine {
 	}
 
 	private _indexOfMarkerId(markerId:string): number {
-
-		if (this._markers) {
-			var markers = this._markers,
-				i: number,
-				len: number;
-
-			for (i = 0, len = markers.length; i < len; i++) {
-				if (markers[i].id === markerId) {
-					return i;
-				}
+		let markers = this._markers;
+		for (let i = 0, len = markers.length; i < len; i++) {
+			if (markers[i].id === markerId) {
+				return i;
 			}
 		}
-
-		return -1;
 	}
 }
 
-function toLineTokensFromInflated(map:ITokensInflatorMap, tokens:IToken[], textLength:number): ILineTokens {
+function toLineTokensFromInflated(map:ITokensInflatorMap, tokens:LineToken[], textLength:number): ILineTokens {
 	if (textLength === 0) {
 		return null;
 	}
@@ -682,7 +666,7 @@ export class LineTokens implements ILineTokens {
 	private map:ITokensInflatorMap;
 	private _tokens:number[];
 
-	constructor(map:ITokensInflatorMap, tokens:/*IToken[]|*/number[]) {
+	constructor(map:ITokensInflatorMap, tokens:number[]) {
 		this.map = map;
 		this._tokens = tokens;
 	}
@@ -804,7 +788,7 @@ export class DefaultLineTokens implements ILineTokens {
 
 }
 
-function toModeTransitions(topLevelMode:IMode, modeTransitions:IModeTransition[]): ModeTransition[] {
+function toModeTransitions(topLevelMode:IMode, modeTransitions:ModeTransition[]): ModeTransition[] {
 
 	if (!modeTransitions || modeTransitions.length === 0) {
 		return null;
@@ -812,5 +796,5 @@ function toModeTransitions(topLevelMode:IMode, modeTransitions:IModeTransition[]
 		return null;
 	}
 
-	return ModeTransition.create(modeTransitions);
+	return modeTransitions;
 }

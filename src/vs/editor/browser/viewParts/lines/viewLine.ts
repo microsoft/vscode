@@ -196,10 +196,10 @@ export class ViewLine implements IVisibleLineData {
 	 * Visible ranges for a model range
 	 */
 	public getVisibleRangesForRange(startColumn:number, endColumn:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
-		startColumn = +startColumn; // @perf
-		endColumn = +endColumn; // @perf
-		clientRectDeltaLeft = +clientRectDeltaLeft; // @perf
-		let stopRenderingLineAfter = +this._stopRenderingLineAfter; // @perf
+		startColumn = startColumn|0; // @perf
+		endColumn = endColumn|0; // @perf
+		clientRectDeltaLeft = clientRectDeltaLeft|0; // @perf
+		const stopRenderingLineAfter = this._stopRenderingLineAfter|0; // @perf
 
 		if (stopRenderingLineAfter !== -1 && startColumn > stopRenderingLineAfter && endColumn > stopRenderingLineAfter) {
 			// This range is obviously not visible
@@ -218,36 +218,11 @@ export class ViewLine implements IVisibleLineData {
 	}
 
 	protected _readVisibleRangesForRange(startColumn:number, endColumn:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
-
-		let result: HorizontalRange[];
 		if (startColumn === endColumn) {
-			result = this._readRawVisibleRangesForPosition(startColumn, clientRectDeltaLeft, endNode);
+			return this._readRawVisibleRangesForPosition(startColumn, clientRectDeltaLeft, endNode);
 		} else {
-			result = this._readRawVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, endNode);
+			return this._readRawVisibleRangesForRange(startColumn, endColumn, clientRectDeltaLeft, endNode);
 		}
-
-		if (!result || result.length <= 1) {
-			return result;
-		}
-
-		result.sort(compareVisibleRanges);
-
-		let output: HorizontalRange[] = [];
-		let prevRange: HorizontalRange = result[0];
-
-		for (let i = 1, len = result.length; i < len; i++) {
-			let currRange = result[i];
-
-			if (prevRange.left + prevRange.width + 0.9 /* account for browser's rounding errors*/ >= currRange.left) {
-				prevRange.width = Math.max(prevRange.width, currRange.left + currRange.width - prevRange.left);
-			} else {
-				output.push(prevRange);
-				prevRange = currRange;
-			}
-		}
-		output.push(prevRange);
-
-		return output;
 	}
 
 	protected _readRawVisibleRangesForPosition(column:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
@@ -260,7 +235,7 @@ export class ViewLine implements IVisibleLineData {
 		let partIndex = findIndexInArrayWithMax(this._lineParts, column - 1, this._lastRenderedPartIndex);
 		let charOffsetInPart = this._charOffsetInPart[column - 1];
 
-		return this._readRawVisibleRangesFrom(this._getReadingTarget(), partIndex, charOffsetInPart, partIndex, charOffsetInPart, clientRectDeltaLeft, endNode);
+		return RangeUtil.readHorizontalRanges(this._getReadingTarget(), partIndex, charOffsetInPart, partIndex, charOffsetInPart, clientRectDeltaLeft, this._getScaleRatio(), endNode);
 	}
 
 	private _readRawVisibleRangesForRange(startColumn:number, endColumn:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
@@ -276,70 +251,15 @@ export class ViewLine implements IVisibleLineData {
 		let endPartIndex = findIndexInArrayWithMax(this._lineParts, endColumn - 1, this._lastRenderedPartIndex);
 		let endCharOffsetInPart = this._charOffsetInPart[endColumn - 1];
 
-		return this._readRawVisibleRangesFrom(this._getReadingTarget(), startPartIndex, startCharOffsetInPart, endPartIndex, endCharOffsetInPart, clientRectDeltaLeft, endNode);
+		return RangeUtil.readHorizontalRanges(this._getReadingTarget(), startPartIndex, startCharOffsetInPart, endPartIndex, endCharOffsetInPart, clientRectDeltaLeft, this._getScaleRatio(), endNode);
 	}
 
 	private _readRawVisibleRangeForEntireLine(): HorizontalRange {
 		return new HorizontalRange(0, this._getReadingTarget().offsetWidth);
 	}
 
-	private _readRawVisibleRangesFrom(domNode:HTMLElement, startChildIndex:number, startOffset:number, endChildIndex:number, endOffset:number, clientRectDeltaLeft:number, endNode:HTMLElement): HorizontalRange[] {
-		let range = RangeUtil.createRange();
-
-		try {
-			// Panic check
-			let min = 0;
-			let max = domNode.children.length - 1;
-			if (min > max) {
-				return null;
-			}
-			startChildIndex = Math.min(max, Math.max(min, startChildIndex));
-			endChildIndex = Math.min(max, Math.max(min, endChildIndex));
-
-			// If crossing over to a span only to select offset 0, then use the previous span's maximum offset
-			// Chrome is buggy and doesn't handle 0 offsets well sometimes.
-			if (startChildIndex !== endChildIndex) {
-				if (endChildIndex > 0 && endOffset === 0) {
-					endChildIndex--;
-					endOffset = Number.MAX_VALUE;
-				}
-			}
-
-			let startElement = domNode.children[startChildIndex].firstChild;
-			let endElement = domNode.children[endChildIndex].firstChild;
-
-			if (!startElement || !endElement) {
-				return null;
-			}
-
-			startOffset = Math.min(startElement.textContent.length, Math.max(0, startOffset));
-			endOffset = Math.min(endElement.textContent.length, Math.max(0, endOffset));
-
-			range.setStart(startElement, startOffset);
-			range.setEnd(endElement, endOffset);
-
-			let clientRects = range.getClientRects();
-			if (clientRects.length === 0) {
-				return null;
-			}
-
-			return this._createRawVisibleRangesFromClientRects(clientRects, clientRectDeltaLeft);
-
-		} catch (e) {
-			// This is life ...
-			return null;
-		} finally {
-			RangeUtil.detachRange(range, endNode);
-		}
-	}
-
-	protected _createRawVisibleRangesFromClientRects(clientRects:ClientRectList, clientRectDeltaLeft:number): HorizontalRange[] {
-		let result:HorizontalRange[] = [];
-		for (let i = 0, len = clientRects.length; i < len; i++) {
-			let cR = clientRects[i];
-			result.push(new HorizontalRange(Math.max(0, cR.left - clientRectDeltaLeft), cR.width));
-		}
-		return result;
+	protected _getScaleRatio(): number {
+		return 1;
 	}
 
 	/**
@@ -437,15 +357,8 @@ class IEViewLine extends ViewLine {
 		super(context);
 	}
 
-	protected _createRawVisibleRangesFromClientRects(clientRects:ClientRectList, clientRectDeltaLeft:number): HorizontalRange[] {
-		let ratioX = screen.logicalXDPI / screen.deviceXDPI;
-		let result:HorizontalRange[] = [];
-		for (let i = 0, len = clientRects.length; i < len; i++) {
-			let cR = clientRects[i];
-			result[i] = new HorizontalRange(Math.max(0, cR.left * ratioX - clientRectDeltaLeft), cR.width * ratioX);
-		}
-
-		return result;
+	protected _getScaleRatio(): number {
+		return screen.logicalXDPI / screen.deviceXDPI;
 	}
 }
 
@@ -508,22 +421,97 @@ class RangeUtil {
 	 */
 	private static _handyReadyRange:Range;
 
-	public static createRange(): Range {
-		if (!RangeUtil._handyReadyRange) {
-			RangeUtil._handyReadyRange = document.createRange();
+	private static _createRange(): Range {
+		if (!this._handyReadyRange) {
+			this._handyReadyRange = document.createRange();
 		}
-		return RangeUtil._handyReadyRange;
+		return this._handyReadyRange;
 	}
 
-	public static detachRange(range:Range, endNode:HTMLElement): void {
+	private static _detachRange(range:Range, endNode:HTMLElement): void {
 		// Move range out of the span node, IE doesn't like having many ranges in
 		// the same spot and will act badly for lines containing dashes ('-')
 		range.selectNodeContents(endNode);
 	}
-}
 
-function compareVisibleRanges(a: HorizontalRange, b: HorizontalRange): number {
-	return a.left - b.left;
+	private static _readClientRects(startElement:Node, startOffset:number, endElement:Node, endOffset:number, endNode:HTMLElement): ClientRectList {
+		let range = this._createRange();
+		try {
+			range.setStart(startElement, startOffset);
+			range.setEnd(endElement, endOffset);
+
+			return range.getClientRects();
+		} catch (e) {
+			// This is life ...
+			return null;
+		} finally {
+			this._detachRange(range, endNode);
+		}
+	}
+
+	private static _createHorizontalRangesFromClientRects(clientRects:ClientRectList, clientRectDeltaLeft:number, scaleRatio:number): HorizontalRange[] {
+		if (!clientRects || clientRects.length === 0) {
+			return null;
+		}
+
+		let result:HorizontalRange[] = [];
+		let prevLeft = Math.max(0, clientRects[0].left * scaleRatio - clientRectDeltaLeft);
+		let prevWidth = clientRects[0].width * scaleRatio;
+
+		for (let i = 1, len = clientRects.length; i < len; i++) {
+			let myLeft = Math.max(0, clientRects[i].left * scaleRatio - clientRectDeltaLeft);
+			let myWidth = clientRects[i].width * scaleRatio;
+
+			if (myLeft < prevLeft) {
+				console.error('Unexpected: RangeUtil._createHorizontalRangesFromClientRects: client rects are not sorted');
+			}
+
+			if (prevLeft + prevWidth + 0.9 /* account for browser's rounding errors*/ >= myLeft) {
+				prevWidth = Math.max(prevWidth, myLeft + myWidth - prevLeft);
+			} else {
+				result.push(new HorizontalRange(prevLeft, prevWidth));
+				prevLeft = myLeft;
+				prevWidth = myWidth;
+			}
+		}
+
+		result.push(new HorizontalRange(prevLeft, prevWidth));
+
+		return result;
+	}
+
+	public static readHorizontalRanges(domNode:HTMLElement, startChildIndex:number, startOffset:number, endChildIndex:number, endOffset:number, clientRectDeltaLeft:number, scaleRatio:number, endNode:HTMLElement): HorizontalRange[] {
+		// Panic check
+		let min = 0;
+		let max = domNode.children.length - 1;
+		if (min > max) {
+			return null;
+		}
+		startChildIndex = Math.min(max, Math.max(min, startChildIndex));
+		endChildIndex = Math.min(max, Math.max(min, endChildIndex));
+
+		// If crossing over to a span only to select offset 0, then use the previous span's maximum offset
+		// Chrome is buggy and doesn't handle 0 offsets well sometimes.
+		if (startChildIndex !== endChildIndex) {
+			if (endChildIndex > 0 && endOffset === 0) {
+				endChildIndex--;
+				endOffset = Number.MAX_VALUE;
+			}
+		}
+
+		let startElement = domNode.children[startChildIndex].firstChild;
+		let endElement = domNode.children[endChildIndex].firstChild;
+
+		if (!startElement || !endElement) {
+			return null;
+		}
+
+		startOffset = Math.min(startElement.textContent.length, Math.max(0, startOffset));
+		endOffset = Math.min(endElement.textContent.length, Math.max(0, endOffset));
+
+		let clientRects = this._readClientRects(startElement, startOffset, endElement, endOffset, endNode);
+		return this._createHorizontalRangesFromClientRects(clientRects, clientRectDeltaLeft, scaleRatio);
+	}
 }
 
 function findIndexInArrayWithMax(lineParts:ILineParts, desiredIndex: number, maxResult:number): number {
