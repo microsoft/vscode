@@ -50,13 +50,5 @@ suite('Browsers', () => {
 			assert(canPushState);
 			assert(hasCSSAnimations);
 		}
-
-		var canPlayMp3 = browser.canPlayAudio('audio/mpeg');
-		var canPlayMp4 = browser.canPlayVideo('video/mp4');
-
-		if ((isIE11orEarlier || isChrome) && !isOpera) {
-			assert(canPlayMp3);
-			assert(canPlayMp4);
-		}
 	});
 });
