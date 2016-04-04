@@ -119,7 +119,7 @@ export class CompletionModel {
 
 			// compute highlights based on 'label'
 			item.highlights = filter(word, suggestion.label);
-			match = !isFalsyOrEmpty(item.highlights);
+			match = item.highlights !== null;
 
 			// no match on label -> check on codeSnippet
 			if (!match && suggestion.codeSnippet !== suggestion.label) {
