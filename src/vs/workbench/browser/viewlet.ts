@@ -272,7 +272,6 @@ export class CollapseAction extends Action {
 
 export interface IViewletView {
 	create(): TPromise<void>;
-	refresh(focus: boolean, reveal: boolean, instantProgress?: boolean): TPromise<void>;
 	setVisible(visible: boolean): TPromise<void>;
 	getActions(): IAction[];
 	getSecondaryActions(): IAction[];
@@ -348,10 +347,6 @@ export class AdaptiveCollapsibleViewletView extends FixedCollapsibleView impleme
 
 	public getViewer(): ITree {
 		return this.tree;
-	}
-
-	public refresh(focus: boolean, reveal: boolean, instantProgress?: boolean): TPromise<void> {
-		return TPromise.as(null);
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
@@ -475,10 +470,6 @@ export class CollapsibleViewletView extends CollapsibleView implements IViewletV
 
 	public getViewer(): ITree {
 		return this.tree;
-	}
-
-	public refresh(focus: boolean, reveal: boolean, instantProgress?: boolean): TPromise<void> {
-		return TPromise.as(null);
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
