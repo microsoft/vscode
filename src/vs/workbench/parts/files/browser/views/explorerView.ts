@@ -92,10 +92,10 @@ export class ExplorerView extends CollapsibleViewletView {
 	}
 
 	public renderHeader(container: HTMLElement): void {
-		super.renderHeader(container);
-
 		let titleDiv = $('div.title').appendTo(container);
 		$('span').text(this.workspace.name).appendTo(titleDiv);
+
+		super.renderHeader(container);
 	}
 
 	public renderBody(container: HTMLElement): void {

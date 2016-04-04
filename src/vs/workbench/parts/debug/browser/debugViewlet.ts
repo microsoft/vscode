@@ -66,9 +66,10 @@ class VariablesView extends viewlet.CollapsibleViewletView {
 	}
 
 	public renderHeader(container: HTMLElement): void {
-		super.renderHeader(container);
 		const titleDiv = $('div.title').appendTo(container);
 		$('span').text(nls.localize('variables', "Variables")).appendTo(titleDiv);
+
+		super.renderHeader(container);
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -143,9 +144,10 @@ class WatchExpressionsView extends viewlet.CollapsibleViewletView {
 	}
 
 	public renderHeader(container: HTMLElement): void {
-		super.renderHeader(container);
 		const titleDiv = $('div.title').appendTo(container);
 		$('span').text(nls.localize('watch', "Watch")).appendTo(titleDiv);
+
+		super.renderHeader(container);
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -213,12 +215,13 @@ class CallStackView extends viewlet.CollapsibleViewletView {
 	}
 
 	public renderHeader(container: HTMLElement): void {
-		super.renderHeader(container);
 		const title = $('div.debug-call-stack-title').appendTo(container);
 		$('span.title').text(nls.localize('callStack', "Call Stack")).appendTo(title);
 		this.pauseMessage = $('span.pause-message').appendTo(title);
 		this.pauseMessage.hide();
 		this.pauseMessageLabel = $('span.label').appendTo(this.pauseMessage);
+
+		super.renderHeader(container);
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -326,9 +329,10 @@ class BreakpointsView extends viewlet.AdaptiveCollapsibleViewletView {
 	}
 
 	public renderHeader(container: HTMLElement): void {
-		super.renderHeader(container);
 		const titleDiv = $('div.title').appendTo(container);
 		$('span').text(nls.localize('breakpoints', "Breakpoints")).appendTo(titleDiv);
+
+		super.renderHeader(container);
 	}
 
 	public renderBody(container: HTMLElement): void {
