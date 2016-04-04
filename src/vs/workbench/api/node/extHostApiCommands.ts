@@ -10,7 +10,6 @@ import {IDisposable} from 'vs/base/common/lifecycle';
 import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import * as types from 'vs/workbench/api/node/extHostTypes';
-import {isMacintosh} from 'vs/base/common/platform';
 import {ISingleEditOperation} from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import {ICommandHandlerDescription} from 'vs/platform/keybinding/common/keybindingService';
@@ -164,8 +163,8 @@ class ExtHostApiCommands {
 			]
 		});
 
-		this._register('vscode.openFolder', (uri: URI) => this._commands.executeCommand(isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder', uri), {
-			description: 'Open a folder in the current window.',
+		this._register('vscode.openFolder', (uri: URI) => this._commands.executeCommand('workbench.ipc', 'vscode:windowOpen', [[uri.fsPath]]), {
+			description: 'Open a folder in the current window. Note that this will shutdown the current extension host process and start a new one on the given folder.',
 			args: [
 				{ name: 'uri', description: 'Uri of the folder to open.', constraint: URI }
 			]

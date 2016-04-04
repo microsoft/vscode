@@ -109,24 +109,17 @@ export class GlobalCopyPathAction extends Action {
 }
 
 export class BaseOpenAction extends Action {
-	private ipcMsg: string;
-	private ipcArg: any;
 
-	constructor(id: string, label: string, ipcMsg: string, ipcArg?: any) {
+	private ipcMsg: string;
+
+	constructor(id: string, label: string, ipcMsg: string) {
 		super(id, label);
 
 		this.ipcMsg = ipcMsg;
-		this.ipcArg = ipcArg;
 	}
 
 	public run(): TPromise<any> {
-
-		// Handle in browser process
-		if (this.ipcArg) {
-			ipc.send(this.ipcMsg, this.ipcArg);
-		} else {
-			ipc.send(this.ipcMsg);
-		}
+		ipc.send(this.ipcMsg); // Handle in browser process
 
 		return TPromise.as(true);
 	}
@@ -147,9 +140,10 @@ export const OPEN_FOLDER_LABEL = nls.localize('openFolder', "Open Folder...");
 
 export class OpenFolderAction extends BaseOpenAction {
 
-	constructor(id: string, label: string, folderToOpen?: uri) {
-		super(id, label, folderToOpen ? 'vscode:windowOpen' : 'vscode:openFolderPicker', folderToOpen ? [folderToOpen.fsPath] : void 0);
+	constructor(id: string, label: string) {
+		super(id, label, 'vscode:openFolderPicker');
 	}
+
 }
 
 export const OPEN_FILE_FOLDER_ID = 'workbench.action.files.openFileFolder';
@@ -157,8 +151,8 @@ export const OPEN_FILE_FOLDER_LABEL = nls.localize('openFileFolder', "Open...");
 
 export class OpenFileFolderAction extends BaseOpenAction {
 
-	constructor(id: string, label: string, folderToOpen?: uri) {
-		super(id, label, folderToOpen ? 'vscode:windowOpen' : 'vscode:openFileFolderPicker', folderToOpen ? [folderToOpen.fsPath] : void 0);
+	constructor(id: string, label: string) {
+		super(id, label, 'vscode:openFileFolderPicker');
 	}
 }
 

@@ -142,7 +142,7 @@ export function createCommandHandler(descriptor: SyncActionDescriptor): ICommand
 }
 
 export function triggerAndDisposeAction(instantitationService: IInstantiationService, telemetryService: ITelemetryService, partService: IPartService, descriptor: SyncActionDescriptor, args: any): TPromise<any> {
-	let actionInstance = Array.isArray(args) ? instantitationService.createInstance(descriptor.syncDescriptor, ...args) : instantitationService.createInstance(descriptor.syncDescriptor);
+	let actionInstance = instantitationService.createInstance(descriptor.syncDescriptor);
 	actionInstance.label = descriptor.label || actionInstance.label;
 
 	// don't run the action when not enabled
